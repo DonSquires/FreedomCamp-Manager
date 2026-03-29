@@ -265,7 +265,8 @@ jobs:
               local http_code="$2"
               local current_status="$3"
               if [ "$current_status" != "true" ]; then
-                echo "::notice::${check_label} requires Vercel protection login (HTTP ${http_code}); soft passing ${check_label} check"
+                # Emit notice without polluting the returned status value
+                echo "::notice::${check_label} requires Vercel protection login (HTTP ${http_code}); soft passing ${check_label} check" >&2
                 echo "true"
               else
                 echo "$current_status"
@@ -275,6 +276,10 @@ jobs:
             frontend_ok=$(soft_pass "Frontend" "$frontend_code" "$frontend_ok")
             supabase_ok=$(soft_pass "Supabase REST" "$supabase_code" "$supabase_ok")
           fi
+
+          echo "frontend_effective=$frontend_ok" >> "$GITHUB_OUTPUT"
+          echo "supabase_effective=$supabase_ok" >> "$GITHUB_OUTPUT"
+          echo "playwright_effective=$playwright_ok" >> "$GITHUB_OUTPUT"
 
           if [ "$frontend_ok" != "true" ] || [ "$supabase_ok" != "true" ] || [ "$playwright_ok" != "true" ]; then
             echo "healthy=false" >> "$GITHUB_OUTPUT"
@@ -292,9 +297,9 @@ jobs:
           env.SYNTHETIC_MONITOR_USER_ID != ''
         run: |
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          FRONTEND_OK="${{ steps.check-frontend.outputs.passed }}"
-          SUPABASE_OK="${{ steps.check-supabase.outputs.passed }}"
-          PLAYWRIGHT_OK="${{ steps.check-playwright.outputs.passed }}"
+          FRONTEND_OK="${{ steps.evaluate.outputs.frontend_effective }}"
+          SUPABASE_OK="${{ steps.evaluate.outputs.supabase_effective }}"
+          PLAYWRIGHT_OK="${{ steps.evaluate.outputs.playwright_effective }}"
           FRONTEND_CODE="${{ steps.check-frontend.outputs.http_code }}"
           APP_URL="${{ steps.resolve-url.outputs.url }}"
 
@@ -347,6 +352,6 @@ jobs:
           echo "## Synthetic Monitor Results" >> "$GITHUB_STEP_SUMMARY"
           echo "| Check | Status |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Frontend HTTP | ${{ steps.check-frontend.outputs.passed == 'true' && '✅ Pass' || '❌ Fail' }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Supabase REST | ${{ steps.check-supabase.outputs.passed == 'true' && '✅ Pass' || '❌ Fail' }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Playwright render | ${{ steps.check-playwright.outputs.passed == 'true' && '✅ Pass' || '❌ Fail' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Frontend HTTP | ${{ steps.evaluate.outputs.frontend_effective == 'true' && '✅ Pass' || '❌ Fail' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Supabase REST | ${{ steps.evaluate.outputs.supabase_effective == 'true' && '✅ Pass' || '❌ Fail' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Playwright render | ${{ steps.evaluate.outputs.playwright_effective == 'true' && '✅ Pass' || '❌ Fail' }} |" >> "$GITHUB_STEP_SUMMARY"
