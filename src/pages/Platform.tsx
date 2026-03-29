@@ -765,7 +765,7 @@ const STATUS_BADGE: Record<string, string> = {
   open:         'bg-red-100 text-red-700 dark:bg-red-900/30',
   submitted:    'bg-blue-100 text-blue-700 dark:bg-blue-900/30',
   acknowledged: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30',
-  investigating:'bg-amber-100 text-amber-700 dark:bg-amber-900/30',
+  investigating: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30',
   in_progress:  'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30',
   resolved:     'bg-green-100 text-green-700 dark:bg-green-900/30',
   closed:       'bg-gray-100 text-gray-500 dark:bg-gray-800/70',
@@ -815,7 +815,7 @@ function FeedbackReportCard({
   const consoleErrors: any[] = Array.isArray(report.console_errors) ? report.console_errors.filter((e: any) => e.level === 'error' || e.level === 'unhandled') : []
 
   const statusValue = report.status ?? 'submitted'
-  const statusLabel = STATUS_LABELS[statusValue] ?? statusValue.replace('_', ' ')
+  const statusLabel = STATUS_LABELS[statusValue] ?? statusValue.replace(/_/g, ' ')
 
   return (
     <Card className={`overflow-hidden transition-shadow ${expanded ? 'shadow-md' : 'shadow-sm'}`}>
