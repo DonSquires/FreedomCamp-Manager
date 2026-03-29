@@ -57,7 +57,8 @@ const channelMeta = new Map();
 // ---------------------------------------------------------------------------
 // Rate limiting
 // ---------------------------------------------------------------------------
-const RATE_LIMIT_MAX = parseInt(process.env.PROXY_RATE_LIMIT_PER_MIN || '120', 10);
+// PTT_RATE_LIMIT_PER_MIN controls requests per minute (default 120)
+const RATE_LIMIT_MAX = parseInt(process.env.PTT_RATE_LIMIT_PER_MIN || '120', 10);
 const rateLimitMiddleware = rateLimit({
   windowMs: 60 * 1000,
   max: RATE_LIMIT_MAX,
@@ -180,6 +181,9 @@ app.post('/api/token/mint', rateLimitMiddleware, (req, res) => {
   }
 
   // Generate token with 10-minute expiry
+  // 10 minutes is long enough for channel connection establishment and reconnection,
+  // but short enough that leaked tokens have limited exposure window
+  const TOKEN_EXPIRY = '10m';
   const token = jwt.sign(
     {
       sub: userId,
@@ -190,7 +194,7 @@ app.post('/api/token/mint', rateLimitMiddleware, (req, res) => {
       iat: Math.floor(Date.now() / 1000),
     },
     PTT_JWT_SECRET,
-    { expiresIn: '10m' }
+    { expiresIn: TOKEN_EXPIRY }
   );
 
   // Include ICE servers if TURN is configured

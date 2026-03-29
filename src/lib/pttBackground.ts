@@ -207,7 +207,10 @@ function scheduleReconnect(): void {
   }
 
   reconnectAttempts++
-  const delay = RECONNECT_DELAY_MS * Math.min(reconnectAttempts, 5)
+  // Exponential backoff capped at 5x base delay (15 seconds max) to balance
+  // quick recovery with avoiding server overload during outages
+  const MAX_BACKOFF_MULTIPLIER = 5
+  const delay = RECONNECT_DELAY_MS * Math.min(reconnectAttempts, MAX_BACKOFF_MULTIPLIER)
 
   console.log(`🎤 PTT Background: Scheduling reconnect in ${delay}ms (attempt ${reconnectAttempts})`)
 

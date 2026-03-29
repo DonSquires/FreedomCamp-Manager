@@ -549,10 +549,12 @@ async function uploadClip(blob: Blob, channelId: string): Promise<{ url: string 
 
   if (error) throw error
 
-  // Get signed URL
+  // Get signed URL with 24-hour expiry for clip playback
+  // 24 hours (86400 seconds) allows replay during/after a shift while limiting long-term access
+  const CLIP_URL_EXPIRY_SECONDS = 86400
   const { data: signedData } = await supabase.storage
     .from('ptt-clips')
-    .createSignedUrl(data.path, 86400) // 24 hour expiry
+    .createSignedUrl(data.path, CLIP_URL_EXPIRY_SECONDS)
 
   return { url: signedData?.signedUrl || '' }
 }
@@ -725,9 +727,12 @@ export function initBluetoothPTT(): void {
   }
 
   try {
-    // Create a silent audio element to enable Media Session
+    // Silent audio data URI enables the Media Session API for Bluetooth button access.
+    // This is a minimal valid WAV file (44 bytes) that plays silently on loop to keep
+    // the browser's media session active, allowing us to capture hardware button events.
+    const SILENT_AUDIO_DATA_URI = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'
     const silentAudio = new Audio()
-    silentAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'
+    silentAudio.src = SILENT_AUDIO_DATA_URI
     silentAudio.loop = true
 
     // Set up Media Session handlers for Bluetooth buttons
