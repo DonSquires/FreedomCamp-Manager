@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { nextStatusAfterAnalysis, shouldAutoAcknowledge } from '@/lib/bugReportStatus'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -270,6 +271,18 @@ export default function Platform() {
   const analyseWithAI = useCallback(async (report: FeedbackReport) => {
     setAnalyzingId(report.id)
     try {
+      // If the report is newly submitted, mark it as acknowledged immediately so
+      // owners can see it's being worked on before the AI response returns.
+      let statusForTransition = report.status
+      if (shouldAutoAcknowledge(report.status)) {
+        const { error: ackError } = await supabase.from('bug_reports').update({ status: 'acknowledged' }).eq('id', report.id)
+        if (ackError) {
+          console.error('Failed to auto-acknowledge report before AI analysis', ackError)
+        } else {
+          statusForTransition = 'acknowledged'
+        }
+      }
+
       const navHistory: any[] = report.browser_info?.navigationHistory ?? []
       const consoleErrors: any[] = Array.isArray(report.console_errors) ? report.console_errors : []
 
@@ -315,13 +328,15 @@ Be specific. Name exact files and line-level changes where possible.`
       const aiText: string = result.data?.response ?? ''
 
       // Persist analysis back to bug_reports
+      const nextStatus = nextStatusAfterAnalysis(statusForTransition)
+
       await supabase
         .from('bug_reports')
         .update({
           ai_analyzed: true,
           ai_suggested_fix: aiText,
           ai_analysis: { analyzed_at: new Date().toISOString(), model: result.data?.model ?? 'unknown', provider: result.data?.provider ?? 'unknown' } as any,
-          status: 'in_progress',
+          status: nextStatus,
           requires_human_review: true,
         })
         .eq('id', report.id)
