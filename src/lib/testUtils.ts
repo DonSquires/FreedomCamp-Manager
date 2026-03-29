@@ -7,6 +7,7 @@
 import { supabase } from './supabase'
 import { edgeFunctions } from './edgeFunctions'
 import { checkRailwayServicesHealth } from './railway'
+import { isTerminalBugReportStatus, shouldAutoAcknowledge } from '@/lib/bugReportStatus'
 import type { Database } from '@/types/database'
 
 // Type aliases for query results
@@ -16,6 +17,7 @@ type CanonicalVehicle = Database['public']['Tables']['canonical_vehicles']['Row'
 type Zone = Database['public']['Tables']['zones']['Row']
 type Observation = Database['public']['Tables']['observations']['Row']
 type BreachAlert = Database['public']['Tables']['breach_alerts']['Row']
+type BugReport = Database['public']['Tables']['bug_reports']['Row']
 
 // Types for tables not in database.ts
 // These are manual definitions for tables that haven't been regenerated in the types file yet
@@ -478,6 +480,103 @@ export const performanceTests = {
   }
 }
 
+/**
+ * Deep-dive validation for the bug fix system (bug_reports intake → AI analysis → status transitions).
+ * Does not mutate data; reads the most recent reports and highlights anomalies.
+ */
+const BUG_REPORT_STATUSES = [
+  'submitted',
+  'acknowledged',
+  'investigating',
+  'in_progress',
+  'resolved',
+  'closed',
+  'wont_fix',
+  'duplicate',
+] as const
+
+type BugReportProjection = Pick<
+  BugReport,
+  | 'id'
+  | 'status'
+  | 'ai_analyzed'
+  | 'ai_suggested_fix'
+  | 'requires_human_review'
+  | 'auto_reported'
+  | 'created_at'
+  | 'issue_type'
+  | 'severity'
+  | 'user_role'
+>
+
+export async function runBugFixDeepDive(limit = 30) {
+  console.log('\n🔬 Running Bug Fix System Deep Dive...\n')
+
+  const { data, error } = await supabase
+    .from('bug_reports')
+    .select('id, status, ai_analyzed, ai_suggested_fix, requires_human_review, auto_reported, created_at, issue_type, severity, user_role')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (error) {
+    console.error('❌ Unable to read bug_reports:', error.message)
+    return { success: false, error: error.message }
+  }
+
+  const reports = (data ?? []) as BugReportProjection[]
+  const anomalies: string[] = []
+  const now = Date.now()
+
+  for (const report of reports) {
+    if (report.status && !BUG_REPORT_STATUSES.includes(report.status as (typeof BUG_REPORT_STATUSES)[number])) {
+      anomalies.push(`Report ${report.id} has unknown status "${report.status}"`)
+    }
+
+    if (report.ai_analyzed && (!report.ai_suggested_fix || report.ai_suggested_fix.trim().length === 0)) {
+      anomalies.push(`Report ${report.id} is marked ai_analyzed without a suggested fix payload`)
+    }
+
+    if (report.ai_analyzed && (!report.status || report.status === 'submitted')) {
+      anomalies.push(`Report ${report.id} is ai_analyzed but still in submitted state`)
+    }
+
+    if (isTerminalBugReportStatus(report.status) && report.requires_human_review) {
+      anomalies.push(`Report ${report.id} is terminal (${report.status}) but still flagged requires_human_review`)
+    }
+
+    if (!report.ai_analyzed && shouldAutoAcknowledge(report.status)) {
+      const createdAt = report.created_at ? new Date(report.created_at).getTime() : NaN
+      const ageHours = Number.isFinite(createdAt) ? (now - createdAt) / (1000 * 60 * 60) : 0
+      if (ageHours > 24) {
+        anomalies.push(`Report ${report.id} has been ${report.status ?? 'submitted'} for ${ageHours.toFixed(1)}h without AI analysis`)
+      }
+    }
+  }
+
+  const summary = {
+    total: reports.length,
+    aiAnalyzed: reports.filter(r => r.ai_analyzed).length,
+    autoReported: reports.filter(r => r.auto_reported).length,
+    terminal: reports.filter(r => isTerminalBugReportStatus(r.status)).length,
+    withHumanReview: reports.filter(r => r.requires_human_review).length,
+  }
+
+  console.log('📊 Bug Fix Snapshot:', summary)
+  if (anomalies.length === 0) {
+    console.log('✅ No anomalies detected in recent bug reports.')
+  } else {
+    console.warn(`⚠️  Detected ${anomalies.length} potential issues:`)
+    anomalies.forEach(a => console.warn(' -', a))
+  }
+
+  return {
+    success: anomalies.length === 0,
+    summary,
+    anomalies,
+    sample: reports.slice(0, 5),
+  }
+}
+
 // Export convenience function for browser console
 export async function runSmokeTests() {
   return await smokeTests.runAll()
@@ -489,6 +588,7 @@ interface TestUtilsWindow {
   dataVerification?: typeof dataVerification
   performanceTests?: typeof performanceTests
   runSmokeTests?: typeof runSmokeTests
+  runBugFixDeepDive?: typeof runBugFixDeepDive
 }
 
 // Make available in window for easy console access
@@ -498,4 +598,5 @@ if (typeof window !== 'undefined') {
   win.dataVerification = dataVerification
   win.performanceTests = performanceTests
   win.runSmokeTests = runSmokeTests
+  win.runBugFixDeepDive = runBugFixDeepDive
 }
