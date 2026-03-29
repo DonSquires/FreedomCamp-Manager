@@ -14,6 +14,7 @@
 import { supabase } from './supabase'
 import { edgeFunctions } from './edgeFunctions'
 import { usePTTStore, PTTPresence, PTTClip, PTTChannelType } from '@/stores/pttStore'
+import { useAuthStore } from '@/stores/authStore'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -848,7 +849,18 @@ export async function connectToDeploymentChannel(deploymentId: string, deploymen
  * Connect to direct 1:1 channel (ad-hoc call)
  */
 export async function connectToDirectChannel(targetUserId: string, targetUserName?: string): Promise<void> {
-  await connectToPTT(`direct:${targetUserId}`, targetUserName || 'Direct')
+  const currentUserId = useAuthStore.getState().user?.id
+
+  // Build a deterministic 1:1 channel key so both users rendezvous on the same channel.
+  // New format: direct:<lower_user_uuid>:<higher_user_uuid>
+  // Fallback to legacy format if we do not have current user state yet.
+  if (!currentUserId || currentUserId === targetUserId) {
+    await connectToPTT(`direct:${targetUserId}`, targetUserName || 'Direct')
+    return
+  }
+
+  const [a, b] = [currentUserId, targetUserId].sort()
+  await connectToPTT(`direct:${a}:${b}`, targetUserName || 'Direct')
 }
 
 /**

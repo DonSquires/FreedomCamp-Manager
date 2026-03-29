@@ -579,7 +579,7 @@ After deploying the PTT server, configure the Edge Function secret:
 ```bash
 # Set PTT server URL in Supabase secrets
 supabase secrets set PTT_SERVER_URL=https://your-ptt.railway.app
-supabase secrets set PTT_JWT_SECRET=your-jwt-secret
+supabase secrets set PROXY_SECRET=your-actual-secret
 
 # Deploy the Edge Function
 supabase functions deploy ptt-signaling-token

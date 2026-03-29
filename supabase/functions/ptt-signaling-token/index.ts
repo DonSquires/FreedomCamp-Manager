@@ -5,7 +5,7 @@
  * Validates user auth and org membership before calling the PTT signaling server.
  * 
  * Request body:
- *   { channelScope: 'org:<uuid>' | 'incident:<uuid>' | 'direct:<uuid>' }
+ *   { channelScope: 'org:<uuid>' | 'incident:<uuid>' | 'direct:<uuid>' | 'direct:<uuid>:<uuid>' }
  * 
  * Response:
  *   { token, channelScope, expiresIn, iceServers }
@@ -30,6 +30,16 @@ Deno.serve(async (req) => {
         JSON.stringify({
           error: 'PTT server not configured',
           message: 'PTT_SERVER_URL environment variable is not set',
+        }),
+        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    if (!PROXY_SECRET) {
+      return new Response(
+        JSON.stringify({
+          error: 'PTT proxy secret not configured',
+          message: 'PROXY_SECRET environment variable is not set',
         }),
         { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -95,20 +105,27 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Validate channel scope format - now supports org, incident, direct, team, deployment
-    const validScopePattern = /^(org|incident|direct|team|deployment):[a-f0-9-]+$/
-    if (!channelScope || !validScopePattern.test(channelScope)) {
+    // Validate channel scope format.
+    // Direct channels support:
+    //  - Legacy: direct:<uuid>
+    //  - Deterministic pair: direct:<uuid>:<uuid>
+    const scopedPattern = /^(org|incident|team|deployment):[a-f0-9-]+$/
+    const directLegacyPattern = /^direct:[a-f0-9-]{36}$/
+    const directPairPattern = /^direct:[a-f0-9-]{36}:[a-f0-9-]{36}$/
+
+    if (!channelScope || (!scopedPattern.test(channelScope) && !directLegacyPattern.test(channelScope) && !directPairPattern.test(channelScope))) {
       return new Response(
         JSON.stringify({
           error: 'Invalid channelScope',
-          message: 'channelScope must be org:<uuid>, incident:<uuid>, direct:<uuid>, team:<uuid>, or deployment:<uuid>',
+          message: 'channelScope must be org:<uuid>, incident:<uuid>, direct:<uuid> (legacy), direct:<uuid>:<uuid>, team:<uuid>, or deployment:<uuid>',
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     // Validate org-scoped access
-    const [scopeType, scopeId] = channelScope.split(':')
+    const [scopeType, ...scopeParts] = channelScope.split(':')
+    const scopeId = scopeParts[0]
     
     if (scopeType === 'org') {
       // Only allow access to user's own org (or master can access any)
@@ -146,26 +163,64 @@ Deno.serve(async (req) => {
       // This allows all org members to join team channels for the MVP
       console.log(`PTT: User ${user.id} accessing ${scopeType} channel ${scopeId}`)
     } else if (scopeType === 'direct') {
-      // Direct channel: scopeId is target user ID
-      // Verify target user exists and is in same org
-      const { data: targetProfile } = await supabase
-        .from('user_profiles')
-        .select('organization_id')
-        .eq('id', scopeId)
-        .single()
+      if (scopeParts.length === 2) {
+        // Deterministic pair direct channel: direct:<uuidA>:<uuidB>
+        const [userA, userB] = scopeParts
 
-      if (!targetProfile) {
-        return new Response(
-          JSON.stringify({ error: 'User not found', message: 'Target user does not exist' }),
-          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
+        if (userA === userB) {
+          return new Response(
+            JSON.stringify({ error: 'Invalid direct channel', message: 'Direct channel users must be different' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
 
-      if (targetProfile.organization_id !== profile.organization_id && !['master', 'grand_master'].includes(profile.role)) {
-        return new Response(
-          JSON.stringify({ error: 'Forbidden', message: 'Cannot create direct channels with users in other organizations' }),
-          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
+        if (![userA, userB].includes(user.id) && !['master', 'grand_master'].includes(profile.role)) {
+          return new Response(
+            JSON.stringify({ error: 'Forbidden', message: 'Direct channel must include current user' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        const { data: users, error: usersError } = await supabase
+          .from('user_profiles')
+          .select('id, organization_id')
+          .in('id', [userA, userB])
+
+        if (usersError || !users || users.length !== 2) {
+          return new Response(
+            JSON.stringify({ error: 'User not found', message: 'One or more users in direct channel do not exist' }),
+            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        const crossOrg = users.some((u) => u.organization_id !== profile.organization_id)
+        if (crossOrg && !['master', 'grand_master'].includes(profile.role)) {
+          return new Response(
+            JSON.stringify({ error: 'Forbidden', message: 'Cannot create direct channels with users in other organizations' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+      } else {
+        // Legacy direct channel: direct:<targetUserId>
+        const { data: targetProfile } = await supabase
+          .from('user_profiles')
+          .select('organization_id')
+          .eq('id', scopeId)
+          .single()
+
+        if (!targetProfile) {
+          return new Response(
+            JSON.stringify({ error: 'User not found', message: 'Target user does not exist' }),
+            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        if (targetProfile.organization_id !== profile.organization_id && !['master', 'grand_master'].includes(profile.role)) {
+          return new Response(
+            JSON.stringify({ error: 'Forbidden', message: 'Cannot create direct channels with users in other organizations' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
       }
     }
 

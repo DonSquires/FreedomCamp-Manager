@@ -1,10 +1,10 @@
 # Push-to-Talk (PTT) Blueprint
 
-Status: **In Progress** — Railway signaling server, database schema, and frontend foundation implemented. WebRTC integration and UI pending.
+Status: **Phase 1 Implemented** — Railway signaling server, database schema, frontend store/library, TeamChat PTT bar, and auto-connect are implemented. Mobile-native and advanced deployment features remain pending.
 
 ## Channel Types (Required)
 
-1. **Ad-hoc (Direct)** - 1:1 PTT calls to individual users (`direct:<user_id>`)
+1. **Ad-hoc (Direct)** - 1:1 PTT calls using a deterministic pair scope (`direct:<user_a_uuid>:<user_b_uuid>`)
 2. **Global (Organization)** - Broadcast to all users in the organization (`org:<org_id>`)
 3. **Team (Deployment)** - Team/deployment-scoped channels (`team:<team_id>` or `deployment:<deployment_id>`)
 4. **Incident** - Incident-specific channels (`incident:<incident_id>`)
@@ -36,7 +36,7 @@ Status: **In Progress** — Railway signaling server, database schema, and front
    - ICE server configuration (STUN + optional TURN)
    - Railway deployment ready with Dockerfile
 
-2. **Database Schema** (`supabase/migrations/20260329000001_ptt_tables.sql`)
+2. **Database Schema** (`supabase/migrations/20260329000002_ptt_tables.sql`)
    - `ptt_messages`: Audio clip metadata for replay/audit
    - `ptt_presence`: User presence state
    - `ptt_channels`: Channel configuration
@@ -109,7 +109,7 @@ Status: **In Progress** — Railway signaling server, database schema, and front
 create table if not exists ptt_messages (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid references organizations(id),
-  channel text not null,                 -- org:123, incident:abc, direct:<user_id>
+   channel text not null,                 -- org:<uuid>, incident:<uuid>, direct:<uuidA>:<uuidB>
   sender_id uuid references auth.users,
   sender_role text,
   clip_url text,                         -- Supabase Storage signed URL

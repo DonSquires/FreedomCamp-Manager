@@ -171,12 +171,17 @@ app.post('/api/token/mint', rateLimitMiddleware, (req, res) => {
     });
   }
 
-  // Validate channel scope format - supports org, incident, direct, team, deployment
-  const validScopePattern = /^(org|incident|direct|team|deployment):[a-f0-9-]+$/;
-  if (!validScopePattern.test(channelScope)) {
+  // Validate channel scope format.
+  // Direct channels support:
+  //  - Legacy: direct:<uuid>
+  //  - Deterministic pair: direct:<uuid>:<uuid>
+  const scopedPattern = /^(org|incident|team|deployment):[a-f0-9-]+$/;
+  const directLegacyPattern = /^direct:[a-f0-9-]{36}$/;
+  const directPairPattern = /^direct:[a-f0-9-]{36}:[a-f0-9-]{36}$/;
+  if (!scopedPattern.test(channelScope) && !directLegacyPattern.test(channelScope) && !directPairPattern.test(channelScope)) {
     return res.status(400).json({
       error: 'Invalid channelScope',
-      message: 'channelScope must be org:<uuid>, incident:<uuid>, direct:<uuid>, team:<uuid>, or deployment:<uuid>',
+      message: 'channelScope must be org:<uuid>, incident:<uuid>, direct:<uuid> (legacy), direct:<uuid>:<uuid>, team:<uuid>, or deployment:<uuid>',
     });
   }
 
