@@ -48,31 +48,9 @@ BEGIN
 END;
 $$;
 
--- Fix get_user_organization_ids with proper search_path (if it exists)
-DO $$
-BEGIN
-  DROP FUNCTION IF EXISTS get_user_organization_ids();
-  CREATE OR REPLACE FUNCTION get_user_organization_ids()
-  RETURNS UUID[]
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  STABLE
-  SET search_path TO 'public'
-  AS $fn$
-  DECLARE
-    v_org_ids UUID[];
-  BEGIN
-    -- Get primary organization
-    SELECT ARRAY[organization_id] INTO v_org_ids
-    FROM user_profiles
-    WHERE id = auth.uid();
-    
-    -- Could be extended to include additional_organizations if that column exists
-    RETURN COALESCE(v_org_ids, ARRAY[]::UUID[]);
-  END;
-  $fn$;
-EXCEPTION WHEN OTHERS THEN NULL;
-END $$;
+-- NOTE: Do not redefine get_user_organization_ids() here.
+-- Newer migrations contain the canonical org-scoped implementation and
+-- redefining it in this migration would regress role/org access behavior.
 
 -- Ensure admins_manage_profiles policy includes grand_master
 -- Drop and recreate to ensure it has all required roles
