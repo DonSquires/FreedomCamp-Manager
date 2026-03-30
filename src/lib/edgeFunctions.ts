@@ -80,8 +80,12 @@ async function readFunctionsErrorText(error: FunctionsHttpError): Promise<string
         (typeof parsed?.error === 'string' && parsed.error.trim()) ||
         (typeof parsed?.message === 'string' && parsed.message.trim()) ||
         ''
+      const parsedDetails = typeof parsed?.details === 'string' ? parsed.details.trim() : ''
       if (parsedMessage) {
-        return parsedMessage.length > 300 ? parsedMessage.slice(0, 300) + '…' : parsedMessage
+        const combined = parsedDetails && !parsedMessage.includes(parsedDetails)
+          ? `${parsedMessage}: ${parsedDetails}`
+          : parsedMessage
+        return combined.length > 300 ? combined.slice(0, 300) + '…' : combined
       }
     } catch {
       // Not JSON — use the raw text as-is, but cap its length for readability.
