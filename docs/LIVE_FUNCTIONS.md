@@ -6,8 +6,8 @@
 > **No function may be created, altered, or dropped without an approved Pull Request
 > reviewed by `@DonSquires`.** New migrations that add or modify functions must update
 > this document in the same PR.
-> See [SCHEMA_VALIDATION_CHECKLIST.md](../SCHEMA_VALIDATION_CHECKLIST.md) and
-> [LIVE_SCHEMA.md](LIVE_SCHEMA.md) for the full governance policy.
+> See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) and [LIVE_SCHEMA.md](LIVE_SCHEMA.md)
+> for the full governance policy.
 
 **Last verified:** 2026-03-13  
 **Verified by:** Copilot schema alignment audit against live Supabase instance
