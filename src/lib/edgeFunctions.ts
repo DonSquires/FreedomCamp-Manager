@@ -76,10 +76,12 @@ async function readFunctionsErrorText(error: FunctionsHttpError): Promise<string
     // Attempt JSON parse — the gateway often returns {"error":"…"} or {"message":"…"}.
     try {
       const parsed = JSON.parse(raw)
-      // This typically happens when a gateway returns an empty HTML error page whose content
-      // was forwarded as the error string. Return a helpful fallback.
-      if (parsed && (typeof parsed.error === 'string' || typeof parsed.message === 'string')) {
-        return 'The server returned an empty error message. This is usually a transient gateway or proxy error — please retry.'
+      const parsedMessage =
+        (typeof parsed?.error === 'string' && parsed.error.trim()) ||
+        (typeof parsed?.message === 'string' && parsed.message.trim()) ||
+        ''
+      if (parsedMessage) {
+        return parsedMessage.length > 300 ? parsedMessage.slice(0, 300) + '…' : parsedMessage
       }
     } catch {
       // Not JSON — use the raw text as-is, but cap its length for readability.
@@ -1103,6 +1105,7 @@ export const edgeFunctions = {
     last_name: string
     role: string
     organization_id?: string | null
+    extra_organization_ids?: string[]
     employer_organization_id?: string
     phone?: string
     job_title?: string | null

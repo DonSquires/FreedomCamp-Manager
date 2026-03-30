@@ -156,33 +156,63 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    console.log(`[AI] user=${user.email} model=${model} messages=${messages.length} provider=${providerName}`)
+    const fallbackModels = providerName === 'github-copilot'
+      ? ['gpt-4.1', 'gpt-4o', 'gpt-4o-mini']
+      : []
+    const modelsToTry = [model, ...fallbackModels.filter((m) => m !== model)]
 
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 60_000)
+    console.log(
+      `[AI] user=${user.email} model=${model} messages=${messages.length} provider=${providerName} candidates=${modelsToTry.join(',')}`
+    )
 
-    const aiResponse = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ model, messages, temperature, max_tokens: 4000 }),
-      signal: controller.signal,
-    })
+    let aiData: any = null
+    let finalModel = model
+    let lastStatus = 500
+    let lastErrorText = ''
 
-    clearTimeout(timeoutId)
+    for (const candidateModel of modelsToTry) {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 60_000)
 
-    if (!aiResponse.ok) {
+      const aiResponse = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ model: candidateModel, messages, temperature, max_tokens: 4000 }),
+        signal: controller.signal,
+      })
+
+      clearTimeout(timeoutId)
+
+      if (aiResponse.ok) {
+        aiData = await aiResponse.json()
+        finalModel = candidateModel
+        break
+      }
+
       const errorText = await aiResponse.text()
-      console.error(`[AI] Provider error ${aiResponse.status}:`, errorText.slice(0, 500))
+      lastStatus = aiResponse.status
+      lastErrorText = errorText.slice(0, 500)
+      console.error(`[AI] Provider error ${aiResponse.status} model=${candidateModel}:`, lastErrorText)
+
+      const mayRetryModel = providerName === 'github-copilot' && (aiResponse.status === 400 || aiResponse.status === 404)
+      if (!mayRetryModel) {
+        return new Response(
+          JSON.stringify({ error: `AI provider returned ${aiResponse.status}`, details: errorText.slice(0, 300) }),
+          { status: aiResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+    }
+
+    if (!aiData) {
       return new Response(
-        JSON.stringify({ error: `AI provider returned ${aiResponse.status}`, details: errorText.slice(0, 300) }),
-        { status: aiResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: `AI provider returned ${lastStatus}`, details: lastErrorText.slice(0, 300) }),
+        { status: lastStatus, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    const aiData = await aiResponse.json()
     const responseText: string = aiData.choices?.[0]?.message?.content ?? ''
 
     if (!responseText) {
@@ -198,7 +228,7 @@ Deno.serve(async (req: Request) => {
     return new Response(
       JSON.stringify({
         response: responseText,
-        model: aiData.model ?? model,
+        model: aiData.model ?? finalModel,
         provider: providerName,
         usage: aiData.usage ?? null,
       }),
