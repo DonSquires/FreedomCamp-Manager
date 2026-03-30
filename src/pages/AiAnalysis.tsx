@@ -57,6 +57,20 @@ interface ChatMessage {
   isError?: boolean
 }
 
+async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms)
+      }),
+    ])
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId)
+  }
+}
+
 interface SuggestedPrompt {
   label: string
   prompt: string
@@ -304,7 +318,11 @@ export default function AiAnalysis() {
     }))
 
     try {
-      const result = await edgeFunctions.aiChat({ messages: conversationHistory })
+      const result = await withTimeout(
+        edgeFunctions.aiChat({ messages: conversationHistory }),
+        25000,
+        'AI chat request'
+      )
 
       if (result.error) {
         throw new Error(result.error)

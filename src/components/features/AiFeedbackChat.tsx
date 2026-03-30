@@ -133,6 +133,20 @@ function stripJsonBlock(text: string): string {
   return text.replace(/```json\s*[\s\S]+?\s*```/, '').trim()
 }
 
+async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms)
+      }),
+    ])
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId)
+  }
+}
+
 /** Simple inline renderer for **bold** and `code` spans. */
 function renderInline(text: string): React.ReactNode {
   return text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).map((part, i) => {
@@ -196,38 +210,42 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
     const snapshot = getFeedbackSnapshot()
 
     try {
-      const { data: inserted } = await supabase
-        .from('bug_reports')
-        .insert({
-          user_id: user.id,
-          organization_id: user.organization_id ?? null,
-          user_role: user.role,
-          title: reportData.title,
-          description: reportData.description,
-          severity: reportData.severity,
-          issue_type: reportData.issue_type,
-          steps_to_reproduce: reportData.steps_to_reproduce ?? null,
-          expected_behavior: reportData.expected_behavior ?? null,
-          actual_behavior: reportData.actual_behavior ?? null,
-          current_page: snapshot.currentPage,
-          browser_info: {
-            ...snapshot.browserInfo,
-            // Full navigation log stored for grand-master review
-            navigationHistory: snapshot.navigationHistory,
-            // Full AI conversation stored for audit trail
-            ai_intake_conversation: convMessages.map(m => ({
-              role: m.role,
-              content: m.content.slice(0, 600),
-              timestamp: m.timestamp.toISOString(),
-            })),
-          } as any,
-          console_errors: snapshot.consoleErrors as any,
-          app_version: snapshot.appVersion,
-          status: 'submitted',
-          admin_notified: false,
-        })
-        .select('id')
-        .single()
+      const { data: inserted } = await withTimeout(
+        supabase
+          .from('bug_reports')
+          .insert({
+            user_id: user.id,
+            organization_id: user.organization_id ?? null,
+            user_role: user.role,
+            title: reportData.title,
+            description: reportData.description,
+            severity: reportData.severity,
+            issue_type: reportData.issue_type,
+            steps_to_reproduce: reportData.steps_to_reproduce ?? null,
+            expected_behavior: reportData.expected_behavior ?? null,
+            actual_behavior: reportData.actual_behavior ?? null,
+            current_page: snapshot.currentPage,
+            browser_info: {
+              ...snapshot.browserInfo,
+              // Full navigation log stored for grand-master review
+              navigationHistory: snapshot.navigationHistory,
+              // Full AI conversation stored for audit trail
+              ai_intake_conversation: convMessages.map(m => ({
+                role: m.role,
+                content: m.content.slice(0, 600),
+                timestamp: m.timestamp.toISOString(),
+              })),
+            } as any,
+            console_errors: snapshot.consoleErrors as any,
+            app_version: snapshot.appVersion,
+            status: 'submitted',
+            admin_notified: false,
+          })
+          .select('id')
+          .single(),
+        15000,
+        'Bug report submission'
+      )
 
       if (inserted?.id) {
         // Fire-and-forget AI analysis with CI health check
@@ -250,13 +268,17 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
     const history = buildHistory(currentMsgs)
 
     try {
-      const result = await edgeFunctions.aiChat({
-        messages: [
-          { role: 'system', content: systemWithContext },
-          ...history,
-        ],
-        temperature: 0.5,
-      })
+      const result = await withTimeout(
+        edgeFunctions.aiChat({
+          messages: [
+            { role: 'system', content: systemWithContext },
+            ...history,
+          ],
+          temperature: 0.5,
+        }),
+        25000,
+        'AI chat request'
+      )
 
       if (result.error) throw new Error(result.error)
 

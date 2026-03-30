@@ -118,6 +118,111 @@ function formatShiftDuration(startedAt: string): string {
   return `${mins}m`
 }
 
+async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms)
+      }),
+    ])
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId)
+  }
+}
+
+function readSupabaseAccessTokenFromStorage(): string | null {
+  if (typeof window === 'undefined') return null
+
+  const storages: Storage[] = [window.localStorage, window.sessionStorage]
+  for (const storage of storages) {
+    for (let i = 0; i < storage.length; i += 1) {
+      const key = storage.key(i)
+      if (!key || !key.startsWith('sb-') || !key.includes('-auth-token')) continue
+
+      const raw = storage.getItem(key)
+      if (!raw) continue
+
+      try {
+        const parsed = JSON.parse(raw)
+        if (typeof parsed?.access_token === 'string' && parsed.access_token.length > 20) {
+          return parsed.access_token
+        }
+      } catch {
+        // Ignore malformed auth storage values.
+      }
+    }
+  }
+
+  return null
+}
+
+async function postgrestInsertWithTimeout(table: string, payload: Record<string, unknown>, timeoutMs: number): Promise<void> {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Supabase environment variables are missing')
+  }
+
+  let accessToken = readSupabaseAccessTokenFromStorage()
+
+  if (!accessToken) {
+    const {
+      data: { session },
+    } = await withTimeout(
+      supabase.auth.getSession(),
+      Math.min(2000, timeoutMs),
+      'Session lookup'
+    )
+
+    accessToken = session?.access_token ?? null
+  }
+
+  if (!accessToken) {
+    throw new Error('Session expired. Please sign in again')
+  }
+
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    const response = await fetch(`${supabaseUrl}/rest/v1/${table}`, {
+      method: 'POST',
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    })
+
+    if (response.ok) return
+
+    const raw = await response.text().catch(() => '')
+    let message = `Failed to insert into ${table}`
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw)
+        message = parsed?.message || parsed?.error_description || parsed?.hint || raw
+      } catch {
+        message = raw
+      }
+    }
+    throw new Error(message)
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      throw new Error(`${table} insert timed out after ${Math.round(timeoutMs / 1000)}s`)
+    }
+    throw err
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
 
 export default function FieldOfficerPortal() {
   const { user } = useAuthStore()
@@ -187,6 +292,8 @@ export default function FieldOfficerPortal() {
   const [qrVehiclePlate,       setQRVehiclePlate]       = useState('')
   const [qrLocationAddress,    setQRLocationAddress]    = useState('')
   const [isSubmittingReport,   setIsSubmittingReport]   = useState(false)
+  const [quickReportStatusText, setQuickReportStatusText] = useState<string | null>(null)
+  const [quickReportStatusKind, setQuickReportStatusKind] = useState<'success' | 'error'>('success')
 
   // Man-Down Detection — records GPS updates and fires alert if stationary too long
   const { recordGPSUpdate, isManDownActive } = useManDownDetection()
@@ -811,6 +918,7 @@ export default function FieldOfficerPortal() {
 
   // ── Open quick-report modal, auto-fill location from GPS ─────────────────
   const handleOpenQuickReport = useCallback(() => {
+    setQuickReportStatusText(null)
     setQRVehiclePlate('')
     setQRDescription('')
     setQRActionTaken('')
@@ -851,17 +959,75 @@ export default function FieldOfficerPortal() {
         (qrLocationAddress.trim() ? `\n\nLocation: ${qrLocationAddress.trim()}` : '')
 
       if (qrReportType === 'hs') {
-        const { error } = await (supabase.from('health_safety_reports') as any)
-          .insert({
+        let hsInsertError: unknown | null = null
+        try {
+          await postgrestInsertWithTimeout('health_safety_reports', {
             organization_id: user.organization_id,
-            reported_by:     user.id,
-            zone_id:         zoneId || null,
-            incident_type:   qrIncidentType,
-            severity:        qrSeverity,
-            description:     descFull,
-          })
-        if (error) throw error
-        toast.success('H&S report submitted successfully — admin notified')
+            reported_by: user.id,
+            zone_id: zoneId || null,
+            incident_type: qrIncidentType,
+            severity: qrSeverity,
+            description: descFull,
+          }, 10000)
+        } catch (err) {
+          hsInsertError = err
+        }
+
+        if (hsInsertError) {
+          const hsErrorMessage = String((hsInsertError as any)?.message || '').toLowerCase()
+          const shouldFallbackToIncidents =
+            hsErrorMessage.includes('row-level security') ||
+            hsErrorMessage.includes('violates row-level security')
+
+          if (!shouldFallbackToIncidents) {
+            throw hsInsertError
+          }
+
+          let hsFallbackUserIdError: unknown | null = null
+          try {
+            await postgrestInsertWithTimeout('incidents', {
+              organization_id: user.organization_id,
+              zone_id: zoneId || null,
+              user_id: user.id,
+              plate_number: qrVehiclePlate.trim().toUpperCase() || null,
+              incident_type: 'H&S Report',
+              severity: qrSeverity,
+              description: descFull,
+              location_address: qrLocationAddress.trim() || null,
+              location_lat: currentLocation?.latitude ?? null,
+              location_lng: currentLocation?.longitude ?? null,
+            }, 10000)
+          } catch (err) {
+            hsFallbackUserIdError = err
+          }
+
+          if (hsFallbackUserIdError) {
+            const fallbackMessage = String((hsFallbackUserIdError as any)?.message || '').toLowerCase()
+            const retryWithReportedBy = fallbackMessage.includes('user_id') || fallbackMessage.includes('reported_by')
+
+            if (!retryWithReportedBy) {
+              throw hsFallbackUserIdError
+            }
+
+            await postgrestInsertWithTimeout('incidents', {
+              organization_id: user.organization_id,
+              zone_id: zoneId || null,
+              reported_by: user.id,
+              plate_number: qrVehiclePlate.trim().toUpperCase() || null,
+              incident_type: 'H&S Report',
+              severity: qrSeverity,
+              description: descFull,
+              location_address: qrLocationAddress.trim() || null,
+              location_lat: currentLocation?.latitude ?? null,
+              location_lng: currentLocation?.longitude ?? null,
+            }, 10000)
+          }
+        }
+
+        const successText = 'H&S report submitted successfully — admin notified'
+        setQuickReportStatusKind('success')
+        setQuickReportStatusText(successText)
+        toast.success(successText)
       } else {
         const incidentPayload = {
           organization_id: user.organization_id,
@@ -875,43 +1041,49 @@ export default function FieldOfficerPortal() {
           location_lng:    currentLocation?.longitude ?? null,
         }
 
-        const { error: reportedByError } = await (supabase.from('incidents') as any)
-          .insert({
+        let userIdError: unknown | null = null
+        try {
+          await postgrestInsertWithTimeout('incidents', {
             ...incidentPayload,
-            reported_by: user.id,
-          })
-
-        if (reportedByError) {
-          const reportedByErrorMessage = String((reportedByError as any)?.message || '').toLowerCase()
-          const shouldRetryWithUserId =
-            reportedByErrorMessage.includes('reported_by') ||
-            reportedByErrorMessage.includes('user_id')
-
-          if (!shouldRetryWithUserId) {
-            throw reportedByError
-          }
-
-          const { error: userIdError } = await (supabase.from('incidents') as any)
-            .insert({
-              ...incidentPayload,
-              user_id: user.id,
-            })
-
-          if (userIdError) throw userIdError
+            user_id: user.id,
+          }, 10000)
+        } catch (err) {
+          userIdError = err
         }
 
-        toast.success(
+        if (userIdError) {
+          const userIdErrorMessage = String((userIdError as any)?.message || '').toLowerCase()
+          const shouldRetryWithReportedBy =
+            userIdErrorMessage.includes('user_id') ||
+            userIdErrorMessage.includes('reported_by')
+
+          if (!shouldRetryWithReportedBy) {
+            throw userIdError
+          }
+
+          await postgrestInsertWithTimeout('incidents', {
+            ...incidentPayload,
+            reported_by: user.id,
+          }, 10000)
+        }
+
+        const successText =
           qrReportType === 'maintenance'
             ? 'Maintenance report submitted successfully — admin notified'
             : 'Incident report submitted successfully — admin notified'
-        )
+        setQuickReportStatusKind('success')
+        setQuickReportStatusText(successText)
+        toast.success(successText)
       }
       setShowQuickReport(false)
       setQRDescription('')
       setQRActionTaken('')
       setQRVehiclePlate('')
     } catch (err: any) {
-      toast.error(err.message || 'Failed to submit report')
+      const message = err.message || 'Failed to submit report'
+      setQuickReportStatusKind('error')
+      setQuickReportStatusText(message)
+      toast.error(message)
     } finally {
       setIsSubmittingReport(false)
     }
@@ -922,6 +1094,20 @@ export default function FieldOfficerPortal() {
       title="Field Officer Portal"
       description={`Welcome, ${user?.full_name || 'Officer'}${followUpCount > 0 ? ` · ${followUpCount} follow-up${followUpCount > 1 ? 's' : ''} assigned` : ''}`}
     >
+
+      {quickReportStatusText && (
+        <div
+          className={`mb-4 rounded-lg border px-4 py-3 text-sm font-medium ${
+            quickReportStatusKind === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200'
+              : 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200'
+          }`}
+          role="status"
+          aria-live="polite"
+        >
+          {quickReportStatusText}
+        </div>
+      )}
 
       {/* ── Man-Down active warning banner ──────────────────────────── */}
       {isManDownActive && (
