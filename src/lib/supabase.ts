@@ -1,19 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  const missing = [
-    !supabaseUrl && 'VITE_SUPABASE_URL',
-    !supabaseAnonKey && 'VITE_SUPABASE_ANON_KEY',
-  ].filter(Boolean).join(', ')
-  throw new Error(
-    `Missing required Supabase environment variables: ${missing}. ` +
-    'Copy .env.example to .env and fill in the values.'
-  )
-}
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 
 const memoryStorage = new Map<string, string>()
 
@@ -80,7 +69,7 @@ if (!supabaseConfigured) {
 }
 
 export const supabase = createClient<Database>(
-  supabaseUrl,
+  supabaseUrl || 'https://unconfigured.supabase.co',
   supabaseAnonKey || 'placeholder-anon-key',
   {
     auth: {
