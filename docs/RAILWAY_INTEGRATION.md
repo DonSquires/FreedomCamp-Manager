@@ -50,6 +50,10 @@ The face recognition feature (`FaceRecognition` component) requires the inferenc
 - "Service Not Available" message in the empty state
 - Error toast when attempting to capture: "Face recognition service is not available"
 
+If the inference service requires API key authentication:
+- "API Key Required" warning banner will appear
+- Set `INFERENCE_API_KEY` in Supabase secrets to authenticate
+
 ---
 
 ## 🔧 Configuration
@@ -61,6 +65,8 @@ The face recognition feature (`FaceRecognition` component) requires the inferenc
 ```bash
 PROXY_SERVER_URL=https://your-proxy-server.railway.app
 INFERENCE_SERVICE_URL=https://your-inference-service.railway.app
+# Optional: API key for inference service authentication (if required)
+INFERENCE_API_KEY=your-api-key-here
 ```
 
 **Frontend Environment Variables** (`.env` file - optional, only for direct health checks):
@@ -239,6 +245,21 @@ curl -X POST https://your-project.supabase.co/functions/v1/analyze-vehicle-photo
 ### Error: "Inference service not configured"
 - **Cause**: Edge function cannot find `INFERENCE_SERVICE_URL` environment variable
 - **Solution**: Same as above. Ensure the secret is set in Supabase Edge Functions configuration.
+
+### Error: "API Key Required" / Authentication failed (401/403)
+- **Cause**: The inference service requires API key authentication but `INFERENCE_API_KEY` is not configured
+- **Solution**:
+  1. Check the inference service's health endpoint: `curl https://YOUR_INFERENCE_URL/health`
+  2. If `INFERENCE_API_KEY_SET: true` appears in the response, the service requires authentication
+  3. Get the API key from your Railway deployment (check environment variables)
+  4. Set `INFERENCE_API_KEY` in Supabase Dashboard → Edge Functions → Manage Secrets
+  5. The key must match what's configured on the Railway inference service
+
+### Error: "Authentication failed" on face detection
+- **Cause**: Either session expired or API key mismatch
+- **Solution**:
+  1. Try logging out and logging back in
+  2. If the issue persists, verify `INFERENCE_API_KEY` matches between Supabase secrets and Railway
 
 ---
 

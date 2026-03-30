@@ -14,8 +14,9 @@ import { edgeFunctions } from './edgeFunctions'
 interface RailwayHealthResponse {
   proxy: { status: string; error?: string; [key: string]: unknown }
   proxy_url: string | null
-  inference: { status: string; error?: string; [key: string]: unknown }
+  inference: { status: string; error?: string; config?: { INFERENCE_API_KEY_SET?: boolean }; [key: string]: unknown }
   inference_url: string | null
+  inference_api_key_configured: boolean
   checked_at: string
 }
 
@@ -27,6 +28,7 @@ async function getRailwayServiceURLs(): Promise<{
   inferenceUrl: string | null
   proxyHealth: RailwayHealthResponse['proxy'] | null
   inferenceHealth: RailwayHealthResponse['inference'] | null
+  inferenceApiKeyConfigured: boolean
   error: string | null
 }> {
   try {
@@ -39,6 +41,7 @@ async function getRailwayServiceURLs(): Promise<{
         inferenceUrl: null,
         proxyHealth: null,
         inferenceHealth: null,
+        inferenceApiKeyConfigured: false,
         error: error || 'Failed to get Railway service URLs',
       }
     }
@@ -49,6 +52,7 @@ async function getRailwayServiceURLs(): Promise<{
       inferenceUrl: response?.inference_url || null,
       proxyHealth: response?.proxy || null,
       inferenceHealth: response?.inference || null,
+      inferenceApiKeyConfigured: response?.inference_api_key_configured ?? false,
       error: null,
     }
   } catch (error: any) {
@@ -57,6 +61,7 @@ async function getRailwayServiceURLs(): Promise<{
       inferenceUrl: null,
       proxyHealth: null,
       inferenceHealth: null,
+      inferenceApiKeyConfigured: false,
       error: error.message || 'Unknown error',
     }
   }
@@ -582,6 +587,10 @@ export interface ServiceHealthStatus {
   status: 'online' | 'offline' | 'degraded'
   latency_ms?: number
   error?: string
+  /** Whether INFERENCE_API_KEY is configured in Supabase secrets */
+  apiKeyConfigured?: boolean
+  /** Whether the inference service has INFERENCE_API_KEY_SET (from its health response) */
+  serviceApiKeyRequired?: boolean
 }
 
 /**
@@ -619,25 +628,37 @@ export async function checkProxyHealth(): Promise<ServiceHealthStatus> {
  *
  * Health is determined by the check-railway-health Edge Function rather than a
  * direct browser-to-Railway fetch (CORS would block that).
+ * 
+ * Also returns API key configuration status to help diagnose authentication issues.
  */
 export async function checkInferenceHealth(): Promise<ServiceHealthStatus> {
-  const { inferenceUrl, inferenceHealth, error: urlError } = await getRailwayServiceURLs()
+  const { inferenceUrl, inferenceHealth, inferenceApiKeyConfigured, error: urlError } = await getRailwayServiceURLs()
 
   if (urlError) {
-    return { status: 'offline', error: urlError }
+    return { status: 'offline', error: urlError, apiKeyConfigured: false }
   }
 
   if (!inferenceUrl) {
-    return { status: 'offline', error: 'INFERENCE_SERVICE_URL secret not configured in Supabase' }
+    return { 
+      status: 'offline', 
+      error: 'INFERENCE_SERVICE_URL secret not configured in Supabase',
+      apiKeyConfigured: inferenceApiKeyConfigured,
+    }
   }
 
   const rawStatus = inferenceHealth?.status as string | undefined
   const isOnline = rawStatus === 'ok' || rawStatus === 'healthy'
   const isOffline = !rawStatus || rawStatus === 'offline'
 
+  // Check if the inference service indicates it requires API key authentication
+  const serviceConfig = inferenceHealth?.config as { INFERENCE_API_KEY_SET?: boolean } | undefined
+  const serviceApiKeyRequired = serviceConfig?.INFERENCE_API_KEY_SET ?? false
+
   return {
     status: isOnline ? 'online' : isOffline ? 'offline' : 'degraded',
     error: inferenceHealth?.error as string | undefined,
+    apiKeyConfigured: inferenceApiKeyConfigured,
+    serviceApiKeyRequired,
   }
 }
 

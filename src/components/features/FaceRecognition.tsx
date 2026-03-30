@@ -119,6 +119,10 @@ export function FaceRecognition({
           if (status.status === 'offline') {
             console.warn('Face recognition service offline:', status.error)
           }
+          // Warn if service requires API key but Supabase doesn't have it configured
+          if (status.status === 'online' && status.serviceApiKeyRequired && !status.apiKeyConfigured) {
+            console.warn('Inference service requires API key but INFERENCE_API_KEY is not configured in Supabase secrets')
+          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -300,8 +304,17 @@ export function FaceRecognition({
           'Face recognition service is not available. The AI inference service needs to be configured. Contact your administrator.',
           { duration: 8000 }
         )
-      } else if (errorMessage.includes('401') || errorMessage.includes('Unauthorized')) {
-        toast.error('Session expired. Please log in again.')
+      } else if (errorMessage.includes('401') || errorMessage.includes('Unauthorized') || 
+                 errorMessage.includes('403') || errorMessage.includes('Forbidden')) {
+        // Could be either session expiry or API key auth failure
+        if (serviceStatus?.serviceApiKeyRequired && !serviceStatus?.apiKeyConfigured) {
+          toast.error(
+            'Authentication failed. The inference service requires INFERENCE_API_KEY to be configured in Supabase secrets.',
+            { duration: 8000 }
+          )
+        } else {
+          toast.error('Authentication failed. Please log in again or contact your administrator.')
+        }
       } else if (errorMessage.includes('Upload failed')) {
         toast.error('Failed to upload photo. Check your connection and try again.')
       } else {
@@ -310,7 +323,7 @@ export function FaceRecognition({
     } finally {
       setIsProcessing(false)
     }
-  }, [isProcessing, user, compareEmbedding, onFaceCaptured])
+  }, [isProcessing, user, compareEmbedding, onFaceCaptured, serviceStatus?.apiKeyConfigured, serviceStatus?.serviceApiKeyRequired])
 
   // ── Flip camera ─────────────────────────────────────────────────────────────
 
@@ -345,6 +358,18 @@ export function FaceRecognition({
           <span>
             <strong>AI Service Unavailable</strong> — Face detection requires the inference service 
             to be configured. Contact your administrator.
+          </span>
+        </div>
+      )}
+
+      {/* ── API key warning — service online but auth may fail ─────────── */}
+      {!checkingService && serviceStatus?.status === 'online' && 
+       serviceStatus.serviceApiKeyRequired && !serviceStatus.apiKeyConfigured && (
+        <div className="bg-orange-500 text-white px-3 py-2 text-sm flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+          <span>
+            <strong>API Key Required</strong> — The inference service requires authentication. 
+            Set INFERENCE_API_KEY in Supabase secrets.
           </span>
         </div>
       )}
