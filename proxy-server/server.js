@@ -71,6 +71,7 @@ const NZSCV_BASE_URL = process.env.NZSCV_BASE_URL || 'https://www.nzscv.co.nz';
 // environment (test or production). See proxy-server/.env.example for the correct values.
 const NZSCV_ENDPOINT_URL = process.env.NZSCV_ENDPOINT_URL ||
   `${NZSCV_BASE_URL}/api/rest/scv/v1/vehicleregistrationinfo`;
+const NZSCV_METHOD = (process.env.NZSCV_METHOD || '').toUpperCase();
 const MOTORWEB_API_KEY = process.env.MOTORWEB_API_KEY;
 const MOTORWEB_ID_KEY = process.env.MOTORWEB_ID_KEY;
 const MOTORWEB_BASE_URL = process.env.MOTORWEB_BASE_URL || 'https://robot.motorweb.co.nz';
@@ -120,19 +121,44 @@ app.post('/api/nzscv/vehicle-info', rateLimitMiddleware, async (req, res) => {
 
     console.log('🔍 Proxy request for:', RegistrationNumber);
 
-    // Call NZSCV API
-    const response = await axios.post(
-      NZSCV_ENDPOINT_URL,
-      { RegistrationNumber },
-      {
-        headers: {
-          'PGDB-Authorization': NZSCV_API_KEY,
-          'PGDB-Identifier': NZSCV_ID_KEY,
-          'Content-Type': 'application/json',
-        },
-        timeout: 10000, // 10 second timeout
+    const headers = {
+      'PGDB-Authorization': NZSCV_API_KEY,
+      'PGDB-Identifier': NZSCV_ID_KEY,
+      'Content-Type': 'application/json',
+    };
+
+    const inferredMethod = NZSCV_METHOD || (NZSCV_ENDPOINT_URL.includes('/api/rest/info/') ? 'GET' : 'POST');
+    let response;
+
+    if (inferredMethod === 'GET') {
+      response = await axios.get(NZSCV_ENDPOINT_URL, {
+        headers,
+        params: { RegistrationNumber },
+        timeout: 10000,
+      });
+    } else {
+      try {
+        response = await axios.post(
+          NZSCV_ENDPOINT_URL,
+          { RegistrationNumber },
+          {
+            headers,
+            timeout: 10000,
+          }
+        );
+      } catch (postError) {
+        // Some NZSCV environments expose a GET endpoint even when POST path looks valid.
+        if (postError?.response?.status === 404 || postError?.response?.status === 405) {
+          response = await axios.get(NZSCV_ENDPOINT_URL, {
+            headers,
+            params: { RegistrationNumber },
+            timeout: 10000,
+          });
+        } else {
+          throw postError;
+        }
       }
-    );
+    }
 
     console.log('✅ NZSCV Response:', response.data.StatusCode);
 
