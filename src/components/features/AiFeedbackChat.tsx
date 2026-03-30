@@ -280,7 +280,14 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
         'AI chat request'
       )
 
-      if (result.error) throw new Error(result.error)
+      if (result.error) {
+        // Detect configuration issues vs. transient failures
+        const isConfigError = result.error.includes('not configured') || result.error.includes('AI service')
+        const msg = isConfigError 
+          ? `AI service not configured. A system administrator needs to set GITHUB_TOKEN or OPENAI_API_KEY in Supabase Edge Function secrets: ${result.error}`
+          : result.error
+        throw new Error(msg)
+      }
 
       const responseText = result.data?.response ?? "I'm having trouble connecting. Please try the form instead."
 
@@ -312,7 +319,7 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
     } finally {
       setLoading(false)
     }
-  }, [buildHistory, autoSubmit, submitting])
+  }, [buildHistory, autoSubmit])
 
   // Fire the opening greeting once on mount, using a ref guard so it fires
   // exactly once even if sendAiMessage changes identity after mount.

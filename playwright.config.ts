@@ -13,6 +13,11 @@ const nativeChromiumExecutablePath = [
   '/usr/bin/chromium-browser',
 ].find((candidate) => !!candidate && existsSync(candidate))
 
+const chromiumLaunchOptions = {
+  args: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
+  ...(nativeChromiumExecutablePath ? { executablePath: nativeChromiumExecutablePath } : {}),
+}
+
 /**
  * Playwright Configuration for FreedomCamp Manager
  * E2E Integration Testing - Phase 9
@@ -63,9 +68,7 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        ...(nativeChromiumExecutablePath
-          ? { launchOptions: { executablePath: nativeChromiumExecutablePath } }
-          : {}),
+        launchOptions: chromiumLaunchOptions,
       },
     },
 
@@ -84,9 +87,7 @@ export default defineConfig({
       name: 'Mobile Chrome',
       use: {
         ...devices['Pixel 5'],
-        ...(nativeChromiumExecutablePath
-          ? { launchOptions: { executablePath: nativeChromiumExecutablePath } }
-          : {}),
+        launchOptions: chromiumLaunchOptions,
       },
     },
     {
