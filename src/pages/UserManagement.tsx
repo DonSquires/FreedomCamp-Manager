@@ -130,7 +130,7 @@ export default function UserManagement() {
   }
 
   // Check user role
-  const isAdmin = user?.role === 'admin' || user?.role === 'master' || user?.role === 'grand_master'
+  const isAdmin = user?.role === 'admin' || user?.role === 'admin_officer' || user?.role === 'master' || user?.role === 'grand_master'
   const isMaster = user?.role === 'master' || user?.role === 'grand_master'
 
   // Fetch all active organizations for dropdowns

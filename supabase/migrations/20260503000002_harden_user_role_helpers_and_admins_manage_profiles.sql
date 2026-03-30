@@ -1,6 +1,6 @@
 -- ============================================================================
--- Fix get_user_role and get_user_organization_id search_path
--- Date: 2026-03-30
+-- Harden user role helper functions + admins_manage_profiles policy
+-- Date: 2026-05-03
 --
 -- SECURITY DEFINER functions should set search_path to 'public' to prevent
 -- potential security issues where a malicious user could create objects in
@@ -11,8 +11,7 @@
 -- ============================================================================
 
 -- Fix get_user_role with proper search_path
-DROP FUNCTION IF EXISTS get_user_role(UUID);
-CREATE OR REPLACE FUNCTION get_user_role(p_user_id UUID)
+CREATE OR REPLACE FUNCTION public.get_user_role(p_user_id UUID)
 RETURNS TEXT
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -23,15 +22,14 @@ DECLARE
   v_role TEXT;
 BEGIN
   SELECT role INTO v_role
-  FROM user_profiles
+  FROM public.user_profiles
   WHERE id = p_user_id;
   RETURN COALESCE(v_role, 'officer');
 END;
 $$;
 
 -- Fix get_user_organization_id with proper search_path
-DROP FUNCTION IF EXISTS get_user_organization_id(UUID);
-CREATE OR REPLACE FUNCTION get_user_organization_id(p_user_id UUID)
+CREATE OR REPLACE FUNCTION public.get_user_organization_id(p_user_id UUID)
 RETURNS UUID
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -42,7 +40,7 @@ DECLARE
   v_org_id UUID;
 BEGIN
   SELECT organization_id INTO v_org_id
-  FROM user_profiles
+  FROM public.user_profiles
   WHERE id = p_user_id;
   RETURN v_org_id;
 END;
@@ -57,8 +55,8 @@ $$;
 DROP POLICY IF EXISTS admins_manage_profiles ON user_profiles;
 CREATE POLICY admins_manage_profiles ON user_profiles
   FOR ALL TO authenticated
-  USING (get_user_role(auth.uid()) IN ('admin', 'admin_officer', 'master', 'grand_master'));
+  USING (public.get_user_role(auth.uid()) IN ('admin', 'admin_officer', 'master', 'grand_master'));
 
 -- Grant execute on the helper functions to authenticated users
-GRANT EXECUTE ON FUNCTION get_user_role(UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION get_user_organization_id(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_user_role(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_user_organization_id(UUID) TO authenticated;
