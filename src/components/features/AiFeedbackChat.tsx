@@ -21,7 +21,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Bot, Send, Loader2, CheckCircle2 } from 'lucide-react'
+import { Bot, Send, Loader2, CheckCircle2, Mic2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -133,6 +133,20 @@ function stripJsonBlock(text: string): string {
   return text.replace(/```json\s*[\s\S]+?\s*```/, '').trim()
 }
 
+async function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms)
+      }),
+    ])
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId)
+  }
+}
+
 /** Simple inline renderer for **bold** and `code` spans. */
 function renderInline(text: string): React.ReactNode {
   return text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).map((part, i) => {
@@ -150,8 +164,12 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [isPttSupported, setIsPttSupported] = useState(false)
+  const [isPttRecording, setIsPttRecording] = useState(false)
   const endRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const speechRecognitionRef = useRef<any>(null)
+  const pttBaseInputRef = useRef('')
   // Ref guard so the opening greeting fires exactly once, even if sendAiMessage
   // changes identity (which it can when its useCallback deps update).
   const hasSentGreeting = useRef(false)
@@ -168,6 +186,19 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
     }
   }, [submitting, loading])
 
+  useEffect(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    setIsPttSupported(!!SpeechRecognition)
+
+    return () => {
+      try {
+        speechRecognitionRef.current?.stop?.()
+      } catch {
+        // no-op
+      }
+    }
+  }, [])
+
   const buildHistory = useCallback((msgs: ChatMsg[]) =>
     msgs.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }))
   , [])
@@ -179,38 +210,42 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
     const snapshot = getFeedbackSnapshot()
 
     try {
-      const { data: inserted } = await supabase
-        .from('bug_reports')
-        .insert({
-          user_id: user.id,
-          organization_id: user.organization_id ?? null,
-          user_role: user.role,
-          title: reportData.title,
-          description: reportData.description,
-          severity: reportData.severity,
-          issue_type: reportData.issue_type,
-          steps_to_reproduce: reportData.steps_to_reproduce ?? null,
-          expected_behavior: reportData.expected_behavior ?? null,
-          actual_behavior: reportData.actual_behavior ?? null,
-          current_page: snapshot.currentPage,
-          browser_info: {
-            ...snapshot.browserInfo,
-            // Full navigation log stored for grand-master review
-            navigationHistory: snapshot.navigationHistory,
-            // Full AI conversation stored for audit trail
-            ai_intake_conversation: convMessages.map(m => ({
-              role: m.role,
-              content: m.content.slice(0, 600),
-              timestamp: m.timestamp.toISOString(),
-            })),
-          } as any,
-          console_errors: snapshot.consoleErrors as any,
-          app_version: snapshot.appVersion,
-          status: 'submitted',
-          admin_notified: false,
-        })
-        .select('id')
-        .single()
+      const { data: inserted } = await withTimeout(
+        supabase
+          .from('bug_reports')
+          .insert({
+            user_id: user.id,
+            organization_id: user.organization_id ?? null,
+            user_role: user.role,
+            title: reportData.title,
+            description: reportData.description,
+            severity: reportData.severity,
+            issue_type: reportData.issue_type,
+            steps_to_reproduce: reportData.steps_to_reproduce ?? null,
+            expected_behavior: reportData.expected_behavior ?? null,
+            actual_behavior: reportData.actual_behavior ?? null,
+            current_page: snapshot.currentPage,
+            browser_info: {
+              ...snapshot.browserInfo,
+              // Full navigation log stored for grand-master review
+              navigationHistory: snapshot.navigationHistory,
+              // Full AI conversation stored for audit trail
+              ai_intake_conversation: convMessages.map(m => ({
+                role: m.role,
+                content: m.content.slice(0, 600),
+                timestamp: m.timestamp.toISOString(),
+              })),
+            } as any,
+            console_errors: snapshot.consoleErrors as any,
+            app_version: snapshot.appVersion,
+            status: 'submitted',
+            admin_notified: false,
+          })
+          .select('id')
+          .single(),
+        15000,
+        'Bug report submission'
+      )
 
       if (inserted?.id) {
         // Fire-and-forget AI analysis with CI health check
@@ -233,15 +268,26 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
     const history = buildHistory(currentMsgs)
 
     try {
-      const result = await edgeFunctions.aiChat({
-        messages: [
-          { role: 'system', content: systemWithContext },
-          ...history,
-        ],
-        temperature: 0.5,
-      })
+      const result = await withTimeout(
+        edgeFunctions.aiChat({
+          messages: [
+            { role: 'system', content: systemWithContext },
+            ...history,
+          ],
+          temperature: 0.5,
+        }),
+        25000,
+        'AI chat request'
+      )
 
-      if (result.error) throw new Error(result.error)
+      if (result.error) {
+        // Detect configuration issues vs. transient failures
+        const isConfigError = result.error.includes('not configured') || result.error.includes('AI service')
+        const msg = isConfigError 
+          ? `AI service not configured. A system administrator needs to set GITHUB_TOKEN or OPENAI_API_KEY in Supabase Edge Function secrets: ${result.error}`
+          : result.error
+        throw new Error(msg)
+      }
 
       const responseText = result.data?.response ?? "I'm having trouble connecting. Please try the form instead."
 
@@ -295,6 +341,66 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
+  }
+
+  const startPushToTalk = () => {
+    if (loading || submitting || isPttRecording || speechRecognitionRef.current) return
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      toast.error('Push-to-talk is not supported in this browser')
+      return
+    }
+
+    try {
+      const recognition = new SpeechRecognition()
+      recognition.lang = 'en-NZ'
+      recognition.continuous = true
+      recognition.interimResults = true
+      pttBaseInputRef.current = input.trim()
+
+      recognition.onstart = () => setIsPttRecording(true)
+      recognition.onresult = (event: any) => {
+        let transcript = ''
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript
+        }
+        const cleaned = transcript.trim()
+        const combined = pttBaseInputRef.current
+          ? `${pttBaseInputRef.current} ${cleaned}`.trim()
+          : cleaned
+        setInput(combined)
+      }
+      recognition.onerror = (event: any) => {
+        setIsPttRecording(false)
+        speechRecognitionRef.current = null
+        if (event?.error === 'not-allowed') {
+          toast.error('Microphone permission denied')
+        } else if (event?.error !== 'aborted') {
+          toast.error('Push-to-talk failed to start')
+        }
+      }
+      recognition.onend = () => {
+        setIsPttRecording(false)
+        speechRecognitionRef.current = null
+      }
+
+      speechRecognitionRef.current = recognition
+      recognition.start()
+    } catch {
+      setIsPttRecording(false)
+      toast.error('Unable to start push-to-talk')
+    }
+  }
+
+  const stopPushToTalk = () => {
+    if (!isPttRecording) return
+    try {
+      speechRecognitionRef.current?.stop?.()
+      speechRecognitionRef.current = null
+    } catch {
+      speechRecognitionRef.current = null
+      setIsPttRecording(false)
+    }
   }
 
   const isInputDisabled = loading || submitting
@@ -383,6 +489,33 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
             disabled={isInputDisabled}
           />
           <Button
+            type="button"
+            size="sm"
+            variant={isPttRecording ? 'destructive' : 'outline'}
+            onMouseDown={startPushToTalk}
+            onMouseUp={stopPushToTalk}
+            onMouseLeave={stopPushToTalk}
+            onTouchStart={(e) => {
+              e.preventDefault()
+              startPushToTalk()
+            }}
+            onTouchEnd={(e) => {
+              e.preventDefault()
+              stopPushToTalk()
+            }}
+            onKeyDown={(e) => {
+              if (e.key === ' ' || e.key === 'Enter') startPushToTalk()
+            }}
+            onKeyUp={(e) => {
+              if (e.key === ' ' || e.key === 'Enter') stopPushToTalk()
+            }}
+            disabled={isInputDisabled || !isPttSupported}
+            className="shrink-0"
+            title={isPttRecording ? 'Release to stop' : 'Hold to talk'}
+          >
+            <Mic2 className="h-3.5 w-3.5" />
+          </Button>
+          <Button
             size="sm"
             onClick={handleSend}
             disabled={!input.trim() || isInputDisabled}
@@ -401,7 +534,7 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
         {!submitting && (
           <p className="text-[11px] text-muted-foreground italic flex items-center gap-1">
             <CheckCircle2 className="h-3 w-3 text-violet-500" />
-            AI submits automatically when ready
+            {isPttSupported ? 'AI submits automatically when ready. Hold mic to dictate.' : 'AI submits automatically when ready'}
           </p>
         )}
       </div>
