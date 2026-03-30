@@ -9,12 +9,19 @@
 import { edgeFunctions } from './edgeFunctions'
 
 /**
+ * Configuration status from the inference service health response.
+ */
+interface InferenceServiceConfig {
+  INFERENCE_API_KEY_SET?: boolean
+}
+
+/**
  * Response type from the check-railway-health Edge Function.
  */
 interface RailwayHealthResponse {
   proxy: { status: string; error?: string; [key: string]: unknown }
   proxy_url: string | null
-  inference: { status: string; error?: string; config?: { INFERENCE_API_KEY_SET?: boolean }; [key: string]: unknown }
+  inference: { status: string; error?: string; config?: InferenceServiceConfig; [key: string]: unknown }
   inference_url: string | null
   inference_api_key_configured: boolean
   checked_at: string
@@ -651,7 +658,7 @@ export async function checkInferenceHealth(): Promise<ServiceHealthStatus> {
   const isOffline = !rawStatus || rawStatus === 'offline'
 
   // Check if the inference service indicates it requires API key authentication
-  const serviceConfig = inferenceHealth?.config as { INFERENCE_API_KEY_SET?: boolean } | undefined
+  const serviceConfig = inferenceHealth?.config as InferenceServiceConfig | undefined
   const serviceApiKeyRequired = serviceConfig?.INFERENCE_API_KEY_SET ?? false
 
   return {
