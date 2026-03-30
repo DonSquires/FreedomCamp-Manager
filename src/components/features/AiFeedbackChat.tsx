@@ -150,7 +150,6 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [aiUnavailable, setAiUnavailable] = useState(false)
   const [isPttSupported, setIsPttSupported] = useState(false)
   const [isPttRecording, setIsPttRecording] = useState(false)
   const endRef = useRef<HTMLDivElement>(null)
@@ -242,62 +241,6 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
     }
   }, [user, onSubmitted])
 
-  /** Manual fallback when AI is unavailable: submit a simple bug report from chat text. */
-  const submitWithoutAi = useCallback(async () => {
-    if (!user?.id || submitting) return
-    setSubmitting(true)
-
-    const snapshot = getFeedbackSnapshot()
-    const userMsgs = messages.filter((m) => m.role === 'user').map((m) => m.content.trim()).filter(Boolean)
-    const transcript = userMsgs.join('\n\n')
-    const fallbackTitle = userMsgs[0]?.slice(0, 110) || 'User reported issue (AI unavailable)'
-
-    try {
-      const { data: inserted, error } = await supabase
-        .from('bug_reports')
-        .insert({
-          user_id: user.id,
-          organization_id: user.organization_id ?? null,
-          user_role: user.role,
-          title: fallbackTitle,
-          description: transcript || 'User attempted to submit via AI intake but AI service was unavailable.',
-          severity: 'medium',
-          issue_type: 'bug',
-          steps_to_reproduce: null,
-          expected_behavior: null,
-          actual_behavior: null,
-          current_page: snapshot.currentPage,
-          browser_info: {
-            ...snapshot.browserInfo,
-            navigationHistory: snapshot.navigationHistory,
-            ai_intake_conversation: messages.map((m) => ({
-              role: m.role,
-              content: m.content.slice(0, 600),
-              timestamp: m.timestamp.toISOString(),
-            })),
-          } as any,
-          console_errors: snapshot.consoleErrors as any,
-          app_version: snapshot.appVersion,
-          status: 'submitted',
-          admin_notified: false,
-        })
-        .select('id')
-        .single()
-
-      if (error) throw error
-
-      if (inserted?.id) {
-        edgeFunctions.autoAnalyseReport({ report_id: inserted.id }).catch(() => {})
-      }
-
-      toast.success('Report submitted without AI')
-      onSubmitted()
-    } catch (err: any) {
-      toast.error('Failed to submit report', { description: err.message })
-      setSubmitting(false)
-    }
-  }, [messages, onSubmitted, submitting, user])
-
   /** Call the AI edge function with the current conversation history. */
   const sendAiMessage = useCallback(async (currentMsgs: ChatMsg[]) => {
     setLoading(true)
@@ -316,7 +259,6 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
       })
 
       if (result.error) throw new Error(result.error)
-      setAiUnavailable(false)
 
       const responseText = result.data?.response ?? "I'm having trouble connecting. Please try the form instead."
 
@@ -339,7 +281,6 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
         await autoSubmit(reportData, updatedMsgs)
       }
     } catch (err: any) {
-      setAiUnavailable(true)
       setMessages(prev => [...prev, {
         id: `e-${Date.now()}`,
         role: 'assistant',
@@ -561,11 +502,6 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
         <Button variant="outline" size="sm" onClick={onCancel} disabled={submitting}>
           Cancel
         </Button>
-        {aiUnavailable && !submitting && (
-          <Button variant="secondary" size="sm" onClick={submitWithoutAi}>
-            Submit without AI
-          </Button>
-        )}
         {!submitting && (
           <p className="text-[11px] text-muted-foreground italic flex items-center gap-1">
             <CheckCircle2 className="h-3 w-3 text-violet-500" />

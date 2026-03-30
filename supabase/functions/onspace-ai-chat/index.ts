@@ -133,20 +133,7 @@ Deno.serve(async (req: Request) => {
     const githubToken = Deno.env.get('GITHUB_TOKEN')
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY')
 
-    let apiKey: string
-    let baseUrl: string
-    let providerName: string
-
-    if (githubToken) {
-      // Use GitHub Copilot API — OpenAI-compatible endpoint
-      apiKey = githubToken
-      baseUrl = 'https://api.githubcopilot.com'
-      providerName = 'github-copilot'
-    } else if (openaiApiKey) {
-      apiKey = openaiApiKey
-      baseUrl = (Deno.env.get('OPENAI_BASE_URL') ?? 'https://api.openai.com/v1').replace(/\/$/, '')
-      providerName = 'openai'
-    } else {
+    if (!githubToken && !openaiApiKey) {
       return new Response(
         JSON.stringify({
           error: 'AI service not configured',
@@ -156,54 +143,93 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    const fallbackModels = providerName === 'github-copilot'
-      ? ['gpt-4.1', 'gpt-4o', 'gpt-4o-mini']
-      : []
-    const modelsToTry = [model, ...fallbackModels.filter((m) => m !== model)]
+    const providers: Array<{
+      name: 'github-copilot' | 'openai'
+      apiKey: string
+      baseUrl: string
+      modelsToTry: string[]
+    }> = []
 
-    console.log(
-      `[AI] user=${user.email} model=${model} messages=${messages.length} provider=${providerName} candidates=${modelsToTry.join(',')}`
-    )
+    if (githubToken) {
+      const fallbackModels = ['gpt-4.1', 'gpt-4o', 'gpt-4o-mini']
+      providers.push({
+        name: 'github-copilot',
+        apiKey: githubToken,
+        baseUrl: 'https://api.githubcopilot.com',
+        modelsToTry: [model, ...fallbackModels.filter((m) => m !== model)],
+      })
+    }
+
+    if (openaiApiKey) {
+      providers.push({
+        name: 'openai',
+        apiKey: openaiApiKey,
+        baseUrl: (Deno.env.get('OPENAI_BASE_URL') ?? 'https://api.openai.com/v1').replace(/\/$/, ''),
+        modelsToTry: [model],
+      })
+    }
 
     let aiData: any = null
     let finalModel = model
+    let providerName: 'github-copilot' | 'openai' = providers[0].name
     let lastStatus = 500
     let lastErrorText = ''
 
-    for (const candidateModel of modelsToTry) {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 60_000)
+    for (const provider of providers) {
+      providerName = provider.name
+      console.log(
+        `[AI] user=${user.email} model=${model} messages=${messages.length} provider=${provider.name} candidates=${provider.modelsToTry.join(',')}`
+      )
 
-      const aiResponse = await fetch(`${baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ model: candidateModel, messages, temperature, max_tokens: 4000 }),
-        signal: controller.signal,
-      })
+      for (const candidateModel of provider.modelsToTry) {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 60_000)
 
-      clearTimeout(timeoutId)
+        const aiResponse = await fetch(`${provider.baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${provider.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ model: candidateModel, messages, temperature, max_tokens: 4000 }),
+          signal: controller.signal,
+        })
 
-      if (aiResponse.ok) {
-        aiData = await aiResponse.json()
-        finalModel = candidateModel
-        break
-      }
+        clearTimeout(timeoutId)
 
-      const errorText = await aiResponse.text()
-      lastStatus = aiResponse.status
-      lastErrorText = errorText.slice(0, 500)
-      console.error(`[AI] Provider error ${aiResponse.status} model=${candidateModel}:`, lastErrorText)
+        if (aiResponse.ok) {
+          aiData = await aiResponse.json()
+          finalModel = candidateModel
+          break
+        }
 
-      const mayRetryModel = providerName === 'github-copilot' && (aiResponse.status === 400 || aiResponse.status === 404)
-      if (!mayRetryModel) {
+        const errorText = await aiResponse.text()
+        lastStatus = aiResponse.status
+        lastErrorText = errorText.slice(0, 500)
+        console.error(`[AI] Provider error ${aiResponse.status} provider=${provider.name} model=${candidateModel}:`, lastErrorText)
+
+        const mayRetryModel = provider.name === 'github-copilot' && (aiResponse.status === 400 || aiResponse.status === 404)
+        if (mayRetryModel) {
+          continue
+        }
+
+        const mayFailoverProvider =
+          provider.name === 'github-copilot' &&
+          openaiApiKey &&
+          (aiResponse.status === 401 || aiResponse.status === 403 || aiResponse.status === 429 || aiResponse.status >= 500)
+
+        if (mayFailoverProvider) {
+          console.warn(`[AI] Falling back from GitHub Copilot to OpenAI provider after ${aiResponse.status}`)
+          break
+        }
+
         return new Response(
           JSON.stringify({ error: `AI provider returned ${aiResponse.status}`, details: errorText.slice(0, 300) }),
           { status: aiResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
+
+      if (aiData) break
     }
 
     if (!aiData) {

@@ -170,19 +170,7 @@ Be specific. Name exact files and line-level changes where possible.`
 
     // ── AI Provider ───────────────────────────────────────────────────────────
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY')
-    let apiKey: string
-    let baseUrl: string
-    let providerName: string
-
-    if (githubToken) {
-      apiKey = githubToken
-      baseUrl = 'https://api.githubcopilot.com'
-      providerName = 'github-copilot'
-    } else if (openaiApiKey) {
-      apiKey = openaiApiKey
-      baseUrl = (Deno.env.get('OPENAI_BASE_URL') ?? 'https://api.openai.com/v1').replace(/\/$/, '')
-      providerName = 'openai'
-    } else {
+    if (!githubToken && !openaiApiKey) {
       console.warn(`[auto-analyse] No AI provider configured — skipping analysis for report ${report_id}`)
       return new Response(
         JSON.stringify({ error: 'AI service not configured', report_id }),
@@ -192,41 +180,108 @@ Be specific. Name exact files and line-level changes where possible.`
 
     const defaultModel = Deno.env.get('AI_DEFAULT_MODEL') ?? 'gpt-4o'
 
-    console.log(`[auto-analyse] report=${report_id} provider=${providerName} model=${defaultModel}`)
+    const providers: Array<{
+      name: 'github-copilot' | 'openai'
+      apiKey: string
+      baseUrl: string
+      modelsToTry: string[]
+    }> = []
 
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 55_000)
+    if (githubToken) {
+      const fallbackModels = ['gpt-4.1', 'gpt-4o', 'gpt-4o-mini']
+      providers.push({
+        name: 'github-copilot',
+        apiKey: githubToken,
+        baseUrl: 'https://api.githubcopilot.com',
+        modelsToTry: [defaultModel, ...fallbackModels.filter((m) => m !== defaultModel)],
+      })
+    }
 
-    const aiResponse = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: defaultModel,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.4,
-        max_tokens: 4000,
-      }),
-      signal: controller.signal,
-    })
+    if (openaiApiKey) {
+      providers.push({
+        name: 'openai',
+        apiKey: openaiApiKey,
+        baseUrl: (Deno.env.get('OPENAI_BASE_URL') ?? 'https://api.openai.com/v1').replace(/\/$/, ''),
+        modelsToTry: [defaultModel],
+      })
+    }
 
-    clearTimeout(timeoutId)
+    let aiData: any = null
+    let providerName: 'github-copilot' | 'openai' = providers[0].name
+    let finalModel = defaultModel
+    let lastStatus = 500
+    let lastErrorText = ''
 
-    if (!aiResponse.ok) {
-      const errorText = await aiResponse.text()
-      console.error(`[auto-analyse] AI provider error ${aiResponse.status}:`, errorText.slice(0, 300))
+    for (const provider of providers) {
+      providerName = provider.name
+      console.log(`[auto-analyse] report=${report_id} provider=${provider.name} model=${defaultModel} candidates=${provider.modelsToTry.join(',')}`)
+
+      for (const candidateModel of provider.modelsToTry) {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 55_000)
+
+        const aiResponse = await fetch(`${provider.baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${provider.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: candidateModel,
+            messages: [
+              { role: 'system', content: SYSTEM_PROMPT },
+              { role: 'user', content: prompt },
+            ],
+            temperature: 0.4,
+            max_tokens: 4000,
+          }),
+          signal: controller.signal,
+        })
+
+        clearTimeout(timeoutId)
+
+        if (aiResponse.ok) {
+          aiData = await aiResponse.json()
+          finalModel = candidateModel
+          break
+        }
+
+        const errorText = await aiResponse.text()
+        lastStatus = aiResponse.status
+        lastErrorText = errorText.slice(0, 300)
+        console.error(`[auto-analyse] AI provider error ${aiResponse.status} provider=${provider.name} model=${candidateModel}:`, lastErrorText)
+
+        const mayRetryModel = provider.name === 'github-copilot' && (aiResponse.status === 400 || aiResponse.status === 404)
+        if (mayRetryModel) {
+          continue
+        }
+
+        const mayFailoverProvider =
+          provider.name === 'github-copilot' &&
+          openaiApiKey &&
+          (aiResponse.status === 401 || aiResponse.status === 403 || aiResponse.status === 429 || aiResponse.status >= 500)
+
+        if (mayFailoverProvider) {
+          console.warn(`[auto-analyse] Falling back from GitHub Copilot to OpenAI provider after ${aiResponse.status}`)
+          break
+        }
+
+        return new Response(
+          JSON.stringify({ error: `AI provider returned ${aiResponse.status}`, details: errorText.slice(0, 200) }),
+          { status: aiResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      if (aiData) break
+    }
+
+    if (!aiData) {
       return new Response(
-        JSON.stringify({ error: `AI provider returned ${aiResponse.status}`, details: errorText.slice(0, 200) }),
-        { status: aiResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: `AI provider returned ${lastStatus}`, details: lastErrorText.slice(0, 200) }),
+        { status: lastStatus, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    const aiData = await aiResponse.json()
     const responseText: string = aiData.choices?.[0]?.message?.content ?? ''
 
     if (!responseText) {
@@ -244,7 +299,7 @@ Be specific. Name exact files and line-level changes where possible.`
         ai_suggested_fix: responseText,
         ai_analysis: {
           analyzed_at: new Date().toISOString(),
-          model: aiData.model ?? defaultModel,
+          model: aiData.model ?? finalModel,
           provider: providerName,
           auto: true,
           ci_status_included: githubToken ? true : false,
