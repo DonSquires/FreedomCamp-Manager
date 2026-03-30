@@ -273,7 +273,7 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
     } finally {
       setLoading(false)
     }
-  }, [buildHistory, autoSubmit, submitting])
+  }, [buildHistory, autoSubmit])
 
   // Fire the opening greeting once on mount, using a ref guard so it fires
   // exactly once even if sendAiMessage changes identity after mount.
