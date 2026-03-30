@@ -563,7 +563,7 @@ export default function App() {
             path="/data"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'master']}>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <DataManagement />
                 </RoleRoute>
               </ProtectedRoute>
@@ -574,7 +574,7 @@ export default function App() {
             path="/users"
             element={
               <ProtectedRoute>
-                <AreaRoute allowedRoles={['admin', 'master']} area="users">
+                <AreaRoute allowedRoles={['admin', 'admin_officer', 'master']} area="users">
                   <UserManagement />
                 </AreaRoute>
               </ProtectedRoute>
@@ -585,7 +585,7 @@ export default function App() {
             path="/access-control"
             element={
               <ProtectedRoute>
-                <AreaRoute allowedRoles={['admin', 'master', 'grand_master']} area="users">
+                <AreaRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']} area="users">
                   <AccessControlPage />
                 </AreaRoute>
               </ProtectedRoute>
@@ -618,7 +618,7 @@ export default function App() {
             path="/client-portal"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['client_viewer', 'admin', 'master', 'grand_master']}>
+                <RoleRoute allowedRoles={['client_viewer', 'admin', 'admin_officer', 'master', 'grand_master']}>
                   <ClientOrganisationPortal />
                 </RoleRoute>
               </ProtectedRoute>
@@ -695,7 +695,7 @@ export default function App() {
             path="/evidence-photo-linker"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'master']}>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <EvidencePhotoLinker />
                 </RoleRoute>
               </ProtectedRoute>
@@ -772,7 +772,7 @@ export default function App() {
             path="/privacy-curtain"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'master']}>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <PrivacyCurtain />
                 </RoleRoute>
               </ProtectedRoute>
@@ -816,7 +816,7 @@ export default function App() {
             path="/admin/data-hub"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'master']}>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <DataManagementHub />
                 </RoleRoute>
               </ProtectedRoute>
@@ -827,7 +827,7 @@ export default function App() {
             path="/admin/data-cleanup"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'master']}>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <DataCleanupUtility />
                 </RoleRoute>
               </ProtectedRoute>
@@ -838,7 +838,7 @@ export default function App() {
             path="/admin/cleanup-recalculate"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'master']}>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <CleanupAndRecalculate />
                 </RoleRoute>
               </ProtectedRoute>
@@ -849,7 +849,7 @@ export default function App() {
             path="/admin/data-integrity"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'master']}>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <DataIntegrityDashboard />
                 </RoleRoute>
               </ProtectedRoute>
@@ -902,7 +902,7 @@ export default function App() {
             path="/spatial-compliance"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'master']}>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <SpatialComplianceAdmin />
                 </RoleRoute>
               </ProtectedRoute>
@@ -1002,7 +1002,7 @@ export default function App() {
             path="/admin/nzscv"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'master', 'nzscv_monitor']}>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'nzscv_monitor']}>
                   <NZSCVMonitor />
                 </RoleRoute>
               </ProtectedRoute>
