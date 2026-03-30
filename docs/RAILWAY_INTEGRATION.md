@@ -25,9 +25,9 @@ This document describes how the FreedomCamp Manager application integrates with 
 ---
 
 ### 2. **Inference Service**
-- **Purpose**: Vehicle photo analysis and embedding generation
+- **Purpose**: Vehicle photo analysis, face detection, and embedding generation
 - **Technology**: Node.js + ONNX Runtime
-- **Models**: YOLOv8n (vehicle detection) + MobileNetV3 (384-D embeddings)
+- **Models**: YOLOv8n (vehicle detection), UltraFace-640 (face detection), MobileNetV3 (384-D embeddings)
 - **Deployment**: Railway (auto-deployed from `inference-service/` directory)
 - **URL**: Set via `INFERENCE_SERVICE_URL` environment secret in Supabase
 
@@ -36,11 +36,19 @@ This document describes how the FreedomCamp Manager application integrates with 
 - `POST /analyze` - Detect vehicle in photo + generate embedding
 - `POST /compare` - Compare two vehicle embeddings (similarity score)
 - `POST /select-best` - Choose best photo from multiple candidates
+- `POST /infer/face` - Face detection with embeddings for POI matching
 
 **Why we need it:**
 - Vehicle photo matching for duplicate detection
 - Profile photo selection (best quality/angle)
 - Offline-first vehicle recognition
+- **Face recognition** for Person of Interest (POI) matching
+
+**Face Recognition Feature:**
+The face recognition feature (`FaceRecognition` component) requires the inference service to be configured. Without `INFERENCE_SERVICE_URL` set in Supabase secrets, users will see:
+- "AI Service Unavailable" warning banner
+- "Service Not Available" message in the empty state
+- Error toast when attempting to capture: "Face recognition service is not available"
 
 ---
 
@@ -220,6 +228,17 @@ curl -X POST https://your-project.supabase.co/functions/v1/analyze-vehicle-photo
 ### Error: "CORS policy blocked"
 - **Cause**: Frontend trying to call Railway services directly
 - **Solution**: Always use Edge Functions as proxy. Never expose Railway URLs to frontend.
+
+### Error: "Face recognition service is not available" / "AI Service Unavailable"
+- **Cause**: `INFERENCE_SERVICE_URL` secret is not configured in Supabase
+- **Solution**: 
+  1. Deploy the inference service to Railway (see Part 3.2 in NEW_PROJECT_SETUP.md)
+  2. Set `INFERENCE_SERVICE_URL` secret in Supabase Dashboard → Edge Functions → Manage Secrets
+  3. Verify with: `curl https://YOUR_INFERENCE_URL/health`
+
+### Error: "Inference service not configured"
+- **Cause**: Edge function cannot find `INFERENCE_SERVICE_URL` environment variable
+- **Solution**: Same as above. Ensure the secret is set in Supabase Edge Functions configuration.
 
 ---
 
