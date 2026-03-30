@@ -324,7 +324,7 @@ export function VehiclePhotoGallery({
       {/* Lightbox */}
       {lightboxPhoto && (
         <Dialog open={!!lightboxPhoto} onOpenChange={() => closeLightbox()}>
-          <DialogContent className="max-w-4xl">
+          <DialogContent className="max-w-4xl" aria-describedby={undefined}>
             <DialogTitle className="sr-only">Vehicle Photo</DialogTitle>
             <img
               src={lightboxPhoto}

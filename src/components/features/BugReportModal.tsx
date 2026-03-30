@@ -63,7 +63,7 @@ export function BugReportModal({ open, onClose, onSubmit, currentPage }: BugRepo
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose() }}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>Report a Bug</DialogTitle>
         </DialogHeader>

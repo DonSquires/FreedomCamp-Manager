@@ -2377,7 +2377,7 @@ export default function FieldOfficerPortal() {
 
       {/* ── Quick Standalone Report Modal ─────────────────────────────── */}
       <Dialog open={showQuickReport} onOpenChange={setShowQuickReport}>
-        <DialogContent className="max-w-md max-h-[90dvh] overflow-y-auto">
+        <DialogContent className="max-w-md max-h-[90dvh] overflow-y-auto" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-purple-600" />

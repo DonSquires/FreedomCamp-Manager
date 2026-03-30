@@ -516,7 +516,7 @@ function ObservationsTab({
 
           {/* Photo lightbox */}
           <Dialog open={!!selectedPhoto} onOpenChange={(open) => { if (!open) setSelectedPhoto(null) }}>
-            <DialogContent className="max-w-3xl p-0 overflow-hidden">
+            <DialogContent className="max-w-3xl p-0 overflow-hidden" aria-describedby={undefined}>
               <DialogTitle className="sr-only">
                 {selectedPhoto ? `Photo — ${selectedPhoto.plate_number ?? 'Observation'}` : 'Photo'}
               </DialogTitle>

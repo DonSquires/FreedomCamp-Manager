@@ -441,7 +441,7 @@ export default function PointsOfInterest() {
 
       {/* ── View Person Detail Dialog ──────────────────────────────────── */}
       <Dialog open={!!viewPerson} onOpenChange={() => setViewPerson(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg" aria-describedby={undefined}>
           <DialogHeader><DialogTitle>Person Details</DialogTitle></DialogHeader>
           {viewPerson && (
             <div className="space-y-3 text-sm">
@@ -474,7 +474,7 @@ export default function PointsOfInterest() {
 
       {/* ── Add / Edit Person Dialog ───────────────────────────────────── */}
       <Dialog open={showPersonDialog} onOpenChange={setShowPersonDialog}>
-        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>{editingPersonId ? 'Edit Person of Interest' : 'Add Person of Interest'}</DialogTitle>
           </DialogHeader>
@@ -607,7 +607,7 @@ export default function PointsOfInterest() {
 
       {/* ── Add / Edit Vehicle Dialog ──────────────────────────────────── */}
       <Dialog open={showVehicleDialog} onOpenChange={setShowVehicleDialog}>
-        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>{editingVehicleId ? 'Edit Vehicle of Interest' : 'Add Vehicle of Interest'}</DialogTitle>
           </DialogHeader>
@@ -718,7 +718,7 @@ export default function PointsOfInterest() {
 
       {/* ── Issue Trespass Notice Dialog ────────────────────────────────── */}
       <Dialog open={showNoticeDialog} onOpenChange={setShowNoticeDialog}>
-        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-red-500" />

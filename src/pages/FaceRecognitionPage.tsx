@@ -307,7 +307,7 @@ export default function FaceRecognitionPage() {
 
       {/* ── Link to Person dialog ──────────────────────────────────── */}
       <Dialog open={!!linkDialog} onOpenChange={() => { setLinkDialog(null); setSelectedPersonId('') }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Link2 className="h-5 w-5" />

@@ -725,7 +725,7 @@ export default function ParkingEnforcementPortal() {
       {/* ── Infringement detail / status modal ───────────────── */}
       {selectedInf && (
         <Dialog open onOpenChange={() => setSelectedInf(null)}>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-lg" aria-describedby={undefined}>
             <DialogHeader>
               <DialogTitle>Infringement {selectedInf.infringement_number}</DialogTitle>
             </DialogHeader>
@@ -782,7 +782,7 @@ export default function ParkingEnforcementPortal() {
       {/* ── Print Preview Dialog ──────────────────────────────── */}
       {printHtml && (
         <Dialog open={!!printHtml} onOpenChange={() => setPrintHtml(null)}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" aria-describedby={undefined}>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Printer className="h-5 w-5 text-gray-600" /> Parking Infringement Receipt
@@ -880,7 +880,7 @@ function NewZoneDialog({ open, organizationId, onClose, onSaved }: {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md" aria-describedby={undefined}>
         <DialogHeader><DialogTitle>New Parking Zone</DialogTitle></DialogHeader>
         <div className="space-y-3 text-sm">
           <div className="space-y-1"><Label>Zone Name *</Label>
@@ -957,7 +957,7 @@ function NewPermitDialog({ open, organizationId, zones, onClose, onSaved }: {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md" aria-describedby={undefined}>
         <DialogHeader><DialogTitle>Issue Parking Permit</DialogTitle></DialogHeader>
         <div className="space-y-3 text-sm">
           <div className="grid grid-cols-2 gap-2">

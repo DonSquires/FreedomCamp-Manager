@@ -398,7 +398,7 @@ function OfficerView() {
 
       {/* Add Block Dialog */}
       <Dialog open={showBlockDialog} onOpenChange={setShowBlockDialog}>
-        <DialogContent>
+        <DialogContent aria-describedby={undefined}>
           <DialogHeader><DialogTitle>Add Date Block</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div>
@@ -442,7 +442,7 @@ function OfficerView() {
 
       {/* Decline Dialog */}
       <Dialog open={showDeclineDialog} onOpenChange={setShowDeclineDialog}>
-        <DialogContent>
+        <DialogContent aria-describedby={undefined}>
           <DialogHeader><DialogTitle>Decline Shift</DialogTitle></DialogHeader>
           <div>
             <Label>Reason (optional)</Label>

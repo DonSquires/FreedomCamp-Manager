@@ -230,7 +230,7 @@ export const useAuthStore = create<AuthState>()(
         try {
           const sessionPromise = supabase.auth.getSession()
           const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error('Auth session check timed out')), 10000)
+            setTimeout(() => reject(new Error('Auth session check timed out')), 15000)
           })
 
           const { data: { session }, error: sessionError } = await Promise.race([
