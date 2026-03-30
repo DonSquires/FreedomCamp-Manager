@@ -21,12 +21,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Camera, X, FlipHorizontal, ZoomIn, ZoomOut,
   User, UserCheck, UserX, Clock, Loader2, ScanFace,
-  AlertTriangle, Shield,
+  AlertTriangle, Shield, WifiOff,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
+import { checkInferenceHealth, ServiceHealthStatus } from '@/lib/railwayServices'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -101,8 +102,41 @@ export function FaceRecognition({
     samePerson: boolean
     confidence: string
   } | null>(null)
+  const [serviceStatus, setServiceStatus] = useState<ServiceHealthStatus | null>(null)
+  const [checkingService, setCheckingService] = useState(true)
 
   const user = useAuthStore(s => s.user)
+
+  // ── Service health check on mount ───────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false
+    const checkService = async () => {
+      setCheckingService(true)
+      try {
+        const status = await checkInferenceHealth()
+        if (!cancelled) {
+          setServiceStatus(status)
+          if (status.status === 'offline') {
+            console.warn('Face recognition service offline:', status.error)
+          }
+          // Warn if service requires API key but Supabase doesn't have it configured
+          if (status.status === 'online' && status.serviceApiKeyRequired && !status.apiKeyConfigured) {
+            console.warn('Inference service requires API key but INFERENCE_API_KEY is not configured in Supabase secrets')
+          }
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setServiceStatus({ status: 'offline', error: 'Failed to check service health' })
+        }
+      } finally {
+        if (!cancelled) {
+          setCheckingService(false)
+        }
+      }
+    }
+    checkService()
+    return () => { cancelled = true }
+  }, [])
 
   // ── Camera lifecycle ────────────────────────────────────────────────────────
 
@@ -262,11 +296,34 @@ export function FaceRecognition({
       onFaceCaptured?.(result)
     } catch (err: any) {
       console.error('Face capture failed:', err)
-      toast.error(err.message || 'Face capture failed')
+      // Provide clearer error messages for common issues
+      const errorMessage = err.message || 'Face capture failed'
+      if (errorMessage.includes('Inference service not configured') || 
+          errorMessage.includes('503')) {
+        toast.error(
+          'Face recognition service is not available. The AI inference service needs to be configured. Contact your administrator.',
+          { duration: 8000 }
+        )
+      } else if (errorMessage.includes('401') || errorMessage.includes('Unauthorized') || 
+                 errorMessage.includes('403') || errorMessage.includes('Forbidden')) {
+        // Could be either session expiry or API key auth failure
+        if (serviceStatus?.serviceApiKeyRequired && !serviceStatus?.apiKeyConfigured) {
+          toast.error(
+            'Authentication failed. The inference service requires INFERENCE_API_KEY to be configured in Supabase secrets.',
+            { duration: 8000 }
+          )
+        } else {
+          toast.error('Authentication failed. Please log in again or contact your administrator.')
+        }
+      } else if (errorMessage.includes('Upload failed')) {
+        toast.error('Failed to upload photo. Check your connection and try again.')
+      } else {
+        toast.error(errorMessage)
+      }
     } finally {
       setIsProcessing(false)
     }
-  }, [isProcessing, user, compareEmbedding, onFaceCaptured])
+  }, [isProcessing, user, compareEmbedding, onFaceCaptured, serviceStatus?.apiKeyConfigured, serviceStatus?.serviceApiKeyRequired])
 
   // ── Flip camera ─────────────────────────────────────────────────────────────
 
@@ -293,6 +350,29 @@ export function FaceRecognition({
           <X className="h-5 w-5" />
         </Button>
       </div>
+
+      {/* ── Service status warning ─────────────────────────────────────── */}
+      {!checkingService && serviceStatus?.status === 'offline' && (
+        <div className="bg-amber-500 text-black px-3 py-2 text-sm flex items-center gap-2">
+          <WifiOff className="h-4 w-4 flex-shrink-0" />
+          <span>
+            <strong>AI Service Unavailable</strong> — Face detection requires the inference service 
+            to be configured. Contact your administrator.
+          </span>
+        </div>
+      )}
+
+      {/* ── API key warning — service online but auth may fail ─────────── */}
+      {!checkingService && serviceStatus?.status === 'online' && 
+       serviceStatus.serviceApiKeyRequired && !serviceStatus.apiKeyConfigured && (
+        <div className="bg-orange-500 text-white px-3 py-2 text-sm flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+          <span>
+            <strong>API Key Required</strong> — The inference service requires authentication. 
+            Set INFERENCE_API_KEY in Supabase secrets.
+          </span>
+        </div>
+      )}
 
       {/* ── Viewfinder ────────────────────────────────────────────────── */}
       <div className="relative flex-shrink-0" style={{ height: '55dvh' }}>
@@ -413,11 +493,29 @@ export function FaceRecognition({
       <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">
         {results.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-2 p-6">
-            <ScanFace className="h-10 w-10" />
-            <span className="text-sm text-center">
-              Capture a photo to detect faces.<br />
-              AI will identify faces and generate descriptions.
-            </span>
+            {checkingService ? (
+              <>
+                <Loader2 className="h-10 w-10 animate-spin" />
+                <span className="text-sm text-center">Checking AI service availability…</span>
+              </>
+            ) : serviceStatus?.status === 'offline' ? (
+              <>
+                <WifiOff className="h-10 w-10 text-amber-500" />
+                <span className="text-sm text-center text-amber-600 dark:text-amber-400">
+                  <strong>Service Not Available</strong><br />
+                  The AI inference service is not configured.<br />
+                  Contact your administrator to set up Railway services.
+                </span>
+              </>
+            ) : (
+              <>
+                <ScanFace className="h-10 w-10" />
+                <span className="text-sm text-center">
+                  Capture a photo to detect faces.<br />
+                  AI will identify faces and generate descriptions.
+                </span>
+              </>
+            )}
           </div>
         ) : (
           <div className="p-3 space-y-2">

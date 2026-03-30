@@ -25,9 +25,9 @@ This document describes how the FreedomCamp Manager application integrates with 
 ---
 
 ### 2. **Inference Service**
-- **Purpose**: Vehicle photo analysis and embedding generation
+- **Purpose**: Vehicle photo analysis, face detection, and embedding generation
 - **Technology**: Node.js + ONNX Runtime
-- **Models**: YOLOv8n (vehicle detection) + MobileNetV3 (384-D embeddings)
+- **Models**: YOLOv8n (vehicle detection), UltraFace-640 (face detection), MobileNetV3 (384-D embeddings)
 - **Deployment**: Railway (auto-deployed from `inference-service/` directory)
 - **URL**: Set via `INFERENCE_SERVICE_URL` environment secret in Supabase
 
@@ -36,11 +36,23 @@ This document describes how the FreedomCamp Manager application integrates with 
 - `POST /analyze` - Detect vehicle in photo + generate embedding
 - `POST /compare` - Compare two vehicle embeddings (similarity score)
 - `POST /select-best` - Choose best photo from multiple candidates
+- `POST /infer/face` - Face detection with embeddings for POI matching
 
 **Why we need it:**
 - Vehicle photo matching for duplicate detection
 - Profile photo selection (best quality/angle)
 - Offline-first vehicle recognition
+- **Face recognition** for Person of Interest (POI) matching
+
+**Face Recognition Feature:**
+The face recognition feature (`FaceRecognition` component) requires the inference service to be configured. Without `INFERENCE_SERVICE_URL` set in Supabase secrets, users will see:
+- "AI Service Unavailable" warning banner
+- "Service Not Available" message in the empty state
+- Error toast when attempting to capture: "Face recognition service is not available"
+
+If the inference service requires API key authentication:
+- "API Key Required" warning banner will appear
+- Set `INFERENCE_API_KEY` in Supabase secrets to authenticate
 
 ---
 
@@ -53,6 +65,8 @@ This document describes how the FreedomCamp Manager application integrates with 
 ```bash
 PROXY_SERVER_URL=https://your-proxy-server.railway.app
 INFERENCE_SERVICE_URL=https://your-inference-service.railway.app
+# Optional: API key for inference service authentication (if required)
+INFERENCE_API_KEY=your-api-key-here
 ```
 
 **Frontend Environment Variables** (`.env` file - optional, only for direct health checks):
@@ -220,6 +234,32 @@ curl -X POST https://your-project.supabase.co/functions/v1/analyze-vehicle-photo
 ### Error: "CORS policy blocked"
 - **Cause**: Frontend trying to call Railway services directly
 - **Solution**: Always use Edge Functions as proxy. Never expose Railway URLs to frontend.
+
+### Error: "Face recognition service is not available" / "AI Service Unavailable"
+- **Cause**: `INFERENCE_SERVICE_URL` secret is not configured in Supabase
+- **Solution**: 
+  1. Deploy the inference service to Railway (see Part 3.2 in NEW_PROJECT_SETUP.md)
+  2. Set `INFERENCE_SERVICE_URL` secret in Supabase Dashboard → Edge Functions → Manage Secrets
+  3. Verify with: `curl https://YOUR_INFERENCE_URL/health`
+
+### Error: "Inference service not configured"
+- **Cause**: Edge function cannot find `INFERENCE_SERVICE_URL` environment variable
+- **Solution**: Same as above. Ensure the secret is set in Supabase Edge Functions configuration.
+
+### Error: "API Key Required" / Authentication failed (401/403)
+- **Cause**: The inference service requires API key authentication but `INFERENCE_API_KEY` is not configured
+- **Solution**:
+  1. Check the inference service's health endpoint: `curl https://YOUR_INFERENCE_URL/health`
+  2. If `INFERENCE_API_KEY_SET: true` appears in the response, the service requires authentication
+  3. Get the API key from your Railway deployment (check environment variables)
+  4. Set `INFERENCE_API_KEY` in Supabase Dashboard → Edge Functions → Manage Secrets
+  5. The key must match what's configured on the Railway inference service
+
+### Error: "Authentication failed" on face detection
+- **Cause**: Either session expired or API key mismatch
+- **Solution**:
+  1. Try logging out and logging back in
+  2. If the issue persists, verify `INFERENCE_API_KEY` matches between Supabase secrets and Railway
 
 ---
 
