@@ -41,6 +41,7 @@ import {
   Copy,
   CheckCheck,
   Loader2,
+  Mic2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { edgeFunctions } from '@/lib/edgeFunctions'
@@ -197,13 +198,90 @@ export default function AiAnalysis() {
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [isPttSupported, setIsPttSupported] = useState(false)
+  const [isPttRecording, setIsPttRecording] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const speechRecognitionRef = useRef<any>(null)
+  const pttBaseInputRef = useRef('')
 
   // Auto-scroll to the latest message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  useEffect(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    setIsPttSupported(!!SpeechRecognition)
+
+    return () => {
+      try {
+        speechRecognitionRef.current?.stop?.()
+      } catch {
+        // no-op
+      }
+    }
+  }, [])
+
+  const startPushToTalk = () => {
+    if (isLoading || isPttRecording || speechRecognitionRef.current) return
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      toast.error('Push-to-talk is not supported in this browser')
+      return
+    }
+
+    try {
+      const recognition = new SpeechRecognition()
+      recognition.lang = 'en-NZ'
+      recognition.continuous = true
+      recognition.interimResults = true
+      pttBaseInputRef.current = inputValue.trim()
+
+      recognition.onstart = () => setIsPttRecording(true)
+      recognition.onresult = (event: any) => {
+        let transcript = ''
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript
+        }
+        const cleaned = transcript.trim()
+        const combined = pttBaseInputRef.current
+          ? `${pttBaseInputRef.current} ${cleaned}`.trim()
+          : cleaned
+        setInputValue(combined)
+      }
+      recognition.onerror = (event: any) => {
+        setIsPttRecording(false)
+        speechRecognitionRef.current = null
+        if (event?.error === 'not-allowed') {
+          toast.error('Microphone permission denied')
+        } else if (event?.error !== 'aborted') {
+          toast.error('Push-to-talk failed to start')
+        }
+      }
+      recognition.onend = () => {
+        setIsPttRecording(false)
+        speechRecognitionRef.current = null
+      }
+
+      speechRecognitionRef.current = recognition
+      recognition.start()
+    } catch {
+      setIsPttRecording(false)
+      toast.error('Unable to start push-to-talk')
+    }
+  }
+
+  const stopPushToTalk = () => {
+    if (!isPttRecording) return
+    try {
+      speechRecognitionRef.current?.stop?.()
+      speechRecognitionRef.current = null
+    } catch {
+      speechRecognitionRef.current = null
+      setIsPttRecording(false)
+    }
+  }
 
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim() || isLoading) return
@@ -455,6 +533,33 @@ export default function AiAnalysis() {
                     disabled={isLoading}
                   />
                   <Button
+                    type="button"
+                    variant={isPttRecording ? 'destructive' : 'outline'}
+                    size="sm"
+                    disabled={!isPttSupported || isLoading}
+                    className="h-9 w-9 p-0 shrink-0"
+                    title={isPttRecording ? 'Release to stop' : 'Hold to talk'}
+                    onMouseDown={startPushToTalk}
+                    onMouseUp={stopPushToTalk}
+                    onMouseLeave={stopPushToTalk}
+                    onTouchStart={(e) => {
+                      e.preventDefault()
+                      startPushToTalk()
+                    }}
+                    onTouchEnd={(e) => {
+                      e.preventDefault()
+                      stopPushToTalk()
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === ' ' || e.key === 'Enter') startPushToTalk()
+                    }}
+                    onKeyUp={(e) => {
+                      if (e.key === ' ' || e.key === 'Enter') stopPushToTalk()
+                    }}
+                  >
+                    <Mic2 className="h-4 w-4" />
+                  </Button>
+                  <Button
                     onClick={() => sendMessage(inputValue)}
                     disabled={!inputValue.trim() || isLoading}
                     size="sm"
@@ -468,6 +573,9 @@ export default function AiAnalysis() {
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-2 px-0.5">
                   AI uses your organisation's AI backend. Responses may not always be accurate — verify important information.
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-1 px-0.5">
+                  {isPttSupported ? 'Push-to-talk: hold the mic button while speaking.' : 'Push-to-talk works in Chrome/Edge.'}
                 </p>
               </CardContent>
             </Card>

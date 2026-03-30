@@ -66,6 +66,7 @@ Deno.serve(async (req) => {
       last_name,
       role,
       organization_id,
+      extra_organization_ids,
       employer_organization_id,
       authorized_work_locations,
       phone,
@@ -90,6 +91,9 @@ Deno.serve(async (req) => {
     const isFieldStyleRole = role === 'officer' || role === 'nzscv_monitor';
     const userFirstName = first_name || (isFieldStyleRole ? normalizedEmail.split('@')[0] : '');
     const userLastName = last_name || (isFieldStyleRole ? 'Officer' : '');
+    const normalizedExtraOrganizationIds = Array.isArray(extra_organization_ids)
+      ? extra_organization_ids.filter((id: unknown) => typeof id === 'string' && id && id !== organization_id)
+      : [];
 
     console.log('Creating user:', normalizedEmail, '| Role:', role);
 
@@ -126,6 +130,7 @@ Deno.serve(async (req) => {
         last_name: userLastName,
         role,
         organization_id: organization_id || null,
+        extra_organization_ids: normalizedExtraOrganizationIds,
         employer_organization_id: employer_organization_id || null,
         authorized_work_locations: authorized_work_locations || [],
         phone: phone || null,
