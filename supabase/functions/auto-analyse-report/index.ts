@@ -27,7 +27,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { corsHeaders } from '../_shared/cors.ts'
-import { nextStatusAfterAnalysis, shouldAutoAcknowledge } from '../../shared/bugReportStatus.ts'
+import { nextStatusAfterAnalysis, shouldAutoAcknowledge } from '../_shared/bugReportStatus.ts'
 
 const SYSTEM_PROMPT = `You are an AI code reviewer and bug triage assistant for FreedomCamp Manager — a NZ freedom camping enforcement SaaS built with React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui, Zustand, TanStack Query v5, Supabase (PostgreSQL + Edge Functions), and react-router-dom v6.
 
