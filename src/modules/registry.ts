@@ -161,6 +161,13 @@ export const SERVICE_MODULES: Record<ModuleId, ServiceModule> = {
       // Data Management
       { path: '/custom-fields', label: 'Custom Fields', roles: ['admin', 'master'] },
       { path: '/data-exports', label: 'Data Exports', roles: ['admin', 'master'] },
+      // Patrol Routes & Rostering
+      { path: '/patrol-routes', label: 'Patrol Routes', roles: ['admin', 'master', 'admin_officer'] },
+      { path: '/patrol-checkpoints', label: 'Checkpoints', roles: ['admin', 'master', 'admin_officer'] },
+      { path: '/roster-management', label: 'Roster Management', roles: ['admin', 'master', 'admin_officer'] },
+      { path: '/my-roster', label: 'My Roster', roles: ['officer', 'admin_officer'] },
+      // PTT Authorizations
+      { path: '/ptt-authorizations', label: 'PTT Authorizations', roles: ['admin', 'master'] },
       // Core Platform Routes
       { path: '/live-tracking', label: 'Live Officer Tracking', roles: ['admin', 'master', 'admin_officer'] },
       { path: '/audit-log', label: 'Audit Log', roles: ['admin', 'master'] },
@@ -224,6 +231,17 @@ export const SERVICE_MODULES: Record<ModuleId, ServiceModule> = {
       'api_rate_limit_hits',     // Rate limit tracking
       // Data Export
       'data_exports',            // Export requests
+      // Patrol Routes & Rostering
+      'patrol_routes',           // Named patrol templates
+      'patrol_route_checkpoints', // Checkpoints within routes
+      'patrol_route_zones',      // Route-zone coverage
+      'patrol_route_sites',      // Route-site coverage
+      'roster_templates',        // Roster patterns
+      'roster_assignments',      // Officer assignments to routes
+      'patrol_checkpoint_scans', // Checkpoint scan records
+      // PTT Cross-Org Authorization
+      'ptt_channel_authorizations', // Cross-org PTT permissions
+      'ptt_contract_authorizations', // Contract-based PTT access
       // Core Platform Tables
       'officer_locations',       // Live GPS tracking
       'audit_log',               // Action audit trail
