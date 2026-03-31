@@ -780,7 +780,7 @@ export default function NoiseControlPortal() {
 
       {/* ── Dispatch Job Dialog ──────────────────────────────────────────────── */}
       <Dialog open={showNewJobDialog} onOpenChange={setShowNewJobDialog}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Radio className="h-5 w-5 text-orange-500" /> Dispatch Noise Control Job
@@ -877,7 +877,7 @@ export default function NoiseControlPortal() {
 
       {/* ── Issue Notice Dialog ──────────────────────────────────────────────── */}
       <Dialog open={showNewNoticeDialog} onOpenChange={setShowNewNoticeDialog}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-orange-500" /> Issue Noise Control Notice
@@ -965,7 +965,7 @@ export default function NoiseControlPortal() {
       {/* ── Job Detail Dialog ────────────────────────────────────────────────── */}
       {showJobDetail && (
         <Dialog open onOpenChange={() => setShowJobDetail(null)}>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
             <DialogHeader>
               <DialogTitle>{showJobDetail.job_number} — {showJobDetail.title}</DialogTitle>
             </DialogHeader>
@@ -1013,7 +1013,7 @@ export default function NoiseControlPortal() {
       {/* ── Notice Detail Dialog ─────────────────────────────────────────────── */}
       {showNoticeDetail && (
         <Dialog open onOpenChange={() => setShowNoticeDetail(null)}>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
             <DialogHeader>
               <DialogTitle>{showNoticeDetail.notice_number} — {NOTICE_TYPE[showNoticeDetail.notice_type]?.label}</DialogTitle>
             </DialogHeader>
@@ -1043,7 +1043,7 @@ export default function NoiseControlPortal() {
       )}
       {/* ── Print Preview Dialog ─────────────────────────────────────────────── */}
       <Dialog open={!!printHtml} onOpenChange={() => setPrintHtml(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Printer className="h-5 w-5 text-gray-600" /> {printLabel}

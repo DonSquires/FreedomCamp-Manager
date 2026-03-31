@@ -3,6 +3,7 @@ import { corsHeaders } from '../_shared/cors.ts'
 const HEALTH_CHECK_TIMEOUT_MS = 8_000
 const PROXY_SERVER_URL = Deno.env.get('PROXY_SERVER_URL') || ''
 const INFERENCE_SERVICE_URL = Deno.env.get('INFERENCE_SERVICE_URL') || ''
+const INFERENCE_API_KEY = Deno.env.get('INFERENCE_API_KEY') || ''
 
 /** Safely parse a fetch Response as JSON, falling back to a status object. */
 async function safeJson(response: Response): Promise<Record<string, unknown>> {
@@ -36,6 +37,7 @@ Deno.serve(async (req) => {
         proxy_url: PROXY_SERVER_URL || null,
         inference: { status: 'offline', error: 'INFERENCE_SERVICE_URL not configured' },
         inference_url: INFERENCE_SERVICE_URL || null,
+        inference_api_key_configured: !!INFERENCE_API_KEY,
         checked_at: new Date().toISOString(),
       }),
       {
@@ -91,6 +93,7 @@ Deno.serve(async (req) => {
         proxy_url: PROXY_SERVER_URL,
         inference: inferenceStatus,
         inference_url: INFERENCE_SERVICE_URL,
+        inference_api_key_configured: !!INFERENCE_API_KEY,
         checked_at: new Date().toISOString(),
       }),
       {

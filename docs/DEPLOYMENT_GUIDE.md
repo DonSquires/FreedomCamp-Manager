@@ -158,6 +158,31 @@ Then run smoke tests for:
 
 ---
 
+### Option 3: Railway (self-hosted option)
+
+Railway can host supporting services (e.g., `inference-service/`, `proxy-server/`) and, if desired, a static deploy of the web app. Use this when you want a single PaaS without Fly/Render.
+
+**Quick steps**
+1. Install CLI & login:
+   ```bash
+   npm i -g @railway/cli
+   railway login
+   ```
+2. From the service directory (e.g., `inference-service/`):
+   ```bash
+   railway link   # or railway init
+   railway up
+   ```
+3. Set environment variables:
+   ```bash
+   railway variables set VITE_SUPABASE_URL=... VITE_SUPABASE_ANON_KEY=...
+   ```
+4. Copy the deployment URL from `railway status` and wire it into app config/secrets.
+
+See `docs/RAILWAY_DEPLOYMENT_GUIDE.md` for full instructions (including GitHub deployments and endpoint tests).
+
+---
+
 ### Option 2: Netlify
 
 **Advantages:**

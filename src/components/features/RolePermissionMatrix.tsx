@@ -68,10 +68,7 @@ const ROLES = ['master', 'admin', 'admin_officer', 'officer']
 const DEFAULT_PERMISSIONS: RolePermissions = {
   master: PERMISSIONS.map(p => p.id), // All permissions
   admin: PERMISSIONS.filter(p => !['delete_users', 'delete_enforcement'].includes(p.id)).map(p => p.id),
-  admin_officer: PERMISSIONS.filter(p => 
-    p.category !== 'Users' && 
-    !['delete_enforcement', 'delete_observations'].includes(p.id)
-  ).map(p => p.id),
+  admin_officer: PERMISSIONS.filter(p => !['delete_users', 'delete_enforcement'].includes(p.id)).map(p => p.id), // Same as admin
   officer: PERMISSIONS.filter(p => 
     ['view_observations', 'create_observations', 'view_vehicles', 'view_breaches', 'view_zones'].includes(p.id)
   ).map(p => p.id),

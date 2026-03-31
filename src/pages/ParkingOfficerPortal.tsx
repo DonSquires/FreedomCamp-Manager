@@ -1130,7 +1130,7 @@ export default function ParkingOfficerPortal() {
       {/* ── Print Preview Dialog ──────────────────────────────── */}
       {printHtml && (
         <Dialog open={!!printHtml} onOpenChange={() => setPrintHtml(null)}>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col" aria-describedby={undefined}>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Printer className="h-5 w-5 text-gray-600" /> Infringement Receipt

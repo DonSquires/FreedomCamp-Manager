@@ -10,7 +10,7 @@ function clearClientAuthArtifacts() {
   if (typeof window === 'undefined') return
 
   const storages: Storage[] = [window.localStorage, window.sessionStorage]
-  const knownKeys = ['auth-storage', 'adminOfficerPortalChoice']
+  const knownKeys = ['auth-storage', 'adminOfficerPortalChoice', 'chat-target']
 
   // Remove known app keys first.
   for (const storage of storages) {
@@ -230,7 +230,7 @@ export const useAuthStore = create<AuthState>()(
         try {
           const sessionPromise = supabase.auth.getSession()
           const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error('Auth session check timed out')), 10000)
+            setTimeout(() => reject(new Error('Auth session check timed out')), 15000)
           })
 
           const { data: { session }, error: sessionError } = await Promise.race([

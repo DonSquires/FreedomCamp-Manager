@@ -244,7 +244,7 @@ export function ParkingPhotoCapture({
 
       {/* ── Camera dialog ──────── */}
       <Dialog open={open} onOpenChange={v => { if (!v) handleClose() }}>
-        <DialogContent className="max-w-sm p-4">
+        <DialogContent className="max-w-sm p-4" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="text-sm flex items-center gap-2">
               <Camera className="h-4 w-4" />

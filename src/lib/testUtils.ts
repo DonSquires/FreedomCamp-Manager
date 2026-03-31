@@ -7,6 +7,12 @@
 import { supabase } from './supabase'
 import { edgeFunctions } from './edgeFunctions'
 import { checkRailwayServicesHealth } from './railway'
+import {
+  BUG_REPORT_STATUSES,
+  isKnownBugReportStatus,
+  isTerminalBugReportStatus,
+  shouldAutoAcknowledge,
+} from '@/lib/bugReportStatus'
 import type { Database } from '@/types/database'
 
 // Type aliases for query results
@@ -16,6 +22,7 @@ type CanonicalVehicle = Database['public']['Tables']['canonical_vehicles']['Row'
 type Zone = Database['public']['Tables']['zones']['Row']
 type Observation = Database['public']['Tables']['observations']['Row']
 type BreachAlert = Database['public']['Tables']['breach_alerts']['Row']
+type BugReport = Database['public']['Tables']['bug_reports']['Row']
 
 // Types for tables not in database.ts
 // These are manual definitions for tables that haven't been regenerated in the types file yet
@@ -478,6 +485,102 @@ export const performanceTests = {
   }
 }
 
+/**
+ * Deep-dive validation for the bug fix system (bug_reports intake → AI analysis → status transitions).
+ * Does not mutate data; reads the most recent reports and highlights anomalies.
+ */
+// Source of truth: bug_reports.status enum (see migrations/20250215000001_bug_reporting_system.sql).
+// Use shared constants so the list remains consistent across client and edge functions.
+const STALE_REPORT_THRESHOLD_HOURS = 24
+const MILLISECONDS_PER_HOUR = 1000 * 60 * 60
+const HOURS_PRECISION = 1
+
+type BugReportProjection = Pick<
+  BugReport,
+  | 'id'
+  | 'status'
+  | 'ai_analyzed'
+  | 'ai_suggested_fix'
+  | 'requires_human_review'
+  | 'auto_reported'
+  | 'created_at'
+>
+
+export async function runBugFixDeepDive(limit = 30) {
+  console.log('\n🔬 Running Bug Fix System Deep Dive...\n')
+
+  const { data, error } = await supabase
+    .from('bug_reports')
+    .select('id, status, ai_analyzed, ai_suggested_fix, requires_human_review, auto_reported, created_at')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (error) {
+    console.error('❌ Unable to read bug_reports:', error.message)
+    return { success: false, error: error.message }
+  }
+
+  const reports = (data ?? []) as BugReportProjection[]
+  const anomalies: string[] = []
+  const now = Date.now()
+
+  const summary = {
+    total: reports.length,
+    aiAnalyzed: 0,
+    autoReported: 0,
+    terminal: 0,
+    withHumanReview: 0,
+  }
+
+  for (const report of reports) {
+    if (report.status && !isKnownBugReportStatus(report.status)) {
+      anomalies.push(`Report ${report.id} has unknown status "${report.status}"`)
+    }
+
+    const aiFix = typeof report.ai_suggested_fix === 'string' ? report.ai_suggested_fix.trim() : ''
+    if (report.ai_analyzed && !aiFix) {
+      anomalies.push(`Report ${report.id} is marked ai_analyzed without a suggested fix payload`)
+    }
+
+    if (report.ai_analyzed && (!report.status || report.status === 'submitted')) {
+      anomalies.push(`Report ${report.id} is ai_analyzed but still in submitted state`)
+    }
+
+    if (isTerminalBugReportStatus(report.status) && report.requires_human_review) {
+      anomalies.push(`Report ${report.id} is terminal (${report.status}) but still flagged requires_human_review`)
+    }
+
+    const isAwaitingAnalysis = !report.ai_analyzed && (!report.status || report.status === 'submitted')
+    if (isAwaitingAnalysis) {
+      const createdAt = report.created_at ? new Date(report.created_at).getTime() : NaN
+      const ageHours = Number.isFinite(createdAt) ? (now - createdAt) / MILLISECONDS_PER_HOUR : 0
+      if (ageHours > STALE_REPORT_THRESHOLD_HOURS) {
+        anomalies.push(`Report ${report.id} has been ${report.status ?? 'submitted'} for ${ageHours.toFixed(HOURS_PRECISION)} hours without AI analysis`)
+      }
+    }
+
+    if (report.ai_analyzed) summary.aiAnalyzed += 1
+    if (report.auto_reported) summary.autoReported += 1
+    if (isTerminalBugReportStatus(report.status)) summary.terminal += 1
+    if (report.requires_human_review) summary.withHumanReview += 1
+  }
+
+  console.log('📊 Bug Fix Snapshot:', summary)
+  if (anomalies.length === 0) {
+    console.log('✅ No anomalies detected in recent bug reports.')
+  } else {
+    console.warn(`⚠️  Detected ${anomalies.length} potential issues:`)
+    anomalies.forEach(a => console.warn(' -', a))
+  }
+
+  return {
+    success: anomalies.length === 0,
+    summary,
+    anomalies,
+    sample: reports.slice(0, 5),
+  }
+}
+
 // Export convenience function for browser console
 export async function runSmokeTests() {
   return await smokeTests.runAll()
@@ -489,6 +592,7 @@ interface TestUtilsWindow {
   dataVerification?: typeof dataVerification
   performanceTests?: typeof performanceTests
   runSmokeTests?: typeof runSmokeTests
+  runBugFixDeepDive?: typeof runBugFixDeepDive
 }
 
 // Make available in window for easy console access
@@ -498,4 +602,5 @@ if (typeof window !== 'undefined') {
   win.dataVerification = dataVerification
   win.performanceTests = performanceTests
   win.runSmokeTests = runSmokeTests
+  win.runBugFixDeepDive = runBugFixDeepDive
 }

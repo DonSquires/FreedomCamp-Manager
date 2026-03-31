@@ -5,6 +5,7 @@ import { Toaster } from 'sonner'
 import { useAuthStore } from '@/stores/authStore'
 import { useSessionInactivityLock } from '@/hooks/useSessionInactivityLock'
 import { useThemeMode } from '@/hooks/useThemeMode'
+import { usePTTAutoConnect } from '@/hooks/usePTTAutoConnect'
 import { NetworkStatusBar } from '@/components/features/NetworkStatusBar'
 import { PWAInstallPrompt } from '@/components/features/PWAInstallPrompt'
 import { GlobalOperationsBar } from '@/components/features/GlobalOperationsBar'
@@ -99,6 +100,7 @@ const ContractorAccountPage = lazy(() => import('@/pages/ContractorAccountPage')
 const EMSPortal = lazy(() => import('@/pages/EMSPortal'))
 const SiteGuardPortal = lazy(() => import('@/pages/SiteGuardPortal'))
 const AccessControlPage = lazy(() => import('@/pages/AccessControlPage'))
+const TeamChat = lazy(() => import('@/pages/TeamChat'))
 
 // ---------------------------------------------------------------------------
 // PageLoader – minimal spinner shown while a lazy page chunk is downloading.
@@ -219,6 +221,9 @@ const queryClient = new QueryClient({
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuthStore()
   const location = useLocation()
+
+  // Auto-connect to PTT when authenticated
+  usePTTAutoConnect()
 
   const hasPortalChoice = () => {
     if (typeof window === 'undefined') return false
@@ -558,7 +563,7 @@ export default function App() {
             path="/data"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'master']}>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <DataManagement />
                 </RoleRoute>
               </ProtectedRoute>
@@ -569,7 +574,7 @@ export default function App() {
             path="/users"
             element={
               <ProtectedRoute>
-                <AreaRoute allowedRoles={['admin', 'master']} area="users">
+                <AreaRoute allowedRoles={['admin', 'admin_officer', 'master']} area="users">
                   <UserManagement />
                 </AreaRoute>
               </ProtectedRoute>
@@ -580,7 +585,7 @@ export default function App() {
             path="/access-control"
             element={
               <ProtectedRoute>
-                <AreaRoute allowedRoles={['admin', 'master', 'grand_master']} area="users">
+                <AreaRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']} area="users">
                   <AccessControlPage />
                 </AreaRoute>
               </ProtectedRoute>
@@ -613,7 +618,7 @@ export default function App() {
             path="/client-portal"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['client_viewer', 'admin', 'master', 'grand_master']}>
+                <RoleRoute allowedRoles={['client_viewer', 'admin', 'admin_officer', 'master', 'grand_master']}>
                   <ClientOrganisationPortal />
                 </RoleRoute>
               </ProtectedRoute>
@@ -690,7 +695,7 @@ export default function App() {
             path="/evidence-photo-linker"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'master']}>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <EvidencePhotoLinker />
                 </RoleRoute>
               </ProtectedRoute>
@@ -767,7 +772,7 @@ export default function App() {
             path="/privacy-curtain"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'master']}>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <PrivacyCurtain />
                 </RoleRoute>
               </ProtectedRoute>
@@ -811,7 +816,7 @@ export default function App() {
             path="/admin/data-hub"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'master']}>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <DataManagementHub />
                 </RoleRoute>
               </ProtectedRoute>
@@ -822,7 +827,7 @@ export default function App() {
             path="/admin/data-cleanup"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'master']}>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <DataCleanupUtility />
                 </RoleRoute>
               </ProtectedRoute>
@@ -833,7 +838,7 @@ export default function App() {
             path="/admin/cleanup-recalculate"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'master']}>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <CleanupAndRecalculate />
                 </RoleRoute>
               </ProtectedRoute>
@@ -844,7 +849,7 @@ export default function App() {
             path="/admin/data-integrity"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'master']}>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <DataIntegrityDashboard />
                 </RoleRoute>
               </ProtectedRoute>
@@ -897,7 +902,7 @@ export default function App() {
             path="/spatial-compliance"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'master']}>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <SpatialComplianceAdmin />
                 </RoleRoute>
               </ProtectedRoute>
@@ -952,6 +957,15 @@ export default function App() {
           />
 
           <Route
+            path="/team-chat"
+            element={
+              <ProtectedRoute>
+                <TeamChat />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/notice-to-vacate"
             element={
               <ProtectedRoute>
@@ -988,7 +1002,7 @@ export default function App() {
             path="/admin/nzscv"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'master', 'nzscv_monitor']}>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'nzscv_monitor']}>
                   <NZSCVMonitor />
                 </RoleRoute>
               </ProtectedRoute>

@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { nextStatusAfterAnalysis, shouldAutoAcknowledge } from '@/lib/bugReportStatus'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -270,6 +271,18 @@ export default function Platform() {
   const analyseWithAI = useCallback(async (report: FeedbackReport) => {
     setAnalyzingId(report.id)
     try {
+      // If the report is newly submitted, mark it as acknowledged immediately so
+      // owners can see it's being worked on before the AI response returns.
+      let statusForTransition = report.status
+      if (shouldAutoAcknowledge(report.status)) {
+        const { error: ackError } = await supabase.from('bug_reports').update({ status: 'acknowledged' }).eq('id', report.id)
+        if (ackError) {
+          console.error('Failed to auto-acknowledge report before AI analysis', ackError)
+        } else {
+          statusForTransition = 'acknowledged'
+        }
+      }
+
       const navHistory: any[] = report.browser_info?.navigationHistory ?? []
       const consoleErrors: any[] = Array.isArray(report.console_errors) ? report.console_errors : []
 
@@ -300,6 +313,9 @@ ${consoleErrors.slice(-10).map((e: any) => `[${e.level}] ${e.message}${e.stack ?
 2. **Fix suggestion**: Provide a concrete, actionable code fix or implementation plan. Include file paths, function names, and the specific change required.
 3. **Severity assessment**: Confirm or revise the severity (low/medium/high/critical) with justification.
 4. **Effort estimate**: Low (< 1 hour) / Medium (half day) / High (1-2 days).
+5. **PR plan**: Outline the PR or change set you would raise (files to touch, tests to add/update).
+6. **Build impact**: Call out any build/devops changes and the expected outcome once applied.
+7. **Where to view**: Note that results show in the Admin → Platform → Feedback inbox for grand master users and can also be reviewed via the GitHub AI provider response.
 
 Be specific. Name exact files and line-level changes where possible.`
 
@@ -312,13 +328,15 @@ Be specific. Name exact files and line-level changes where possible.`
       const aiText: string = result.data?.response ?? ''
 
       // Persist analysis back to bug_reports
+      const nextStatus = nextStatusAfterAnalysis(statusForTransition)
+
       await supabase
         .from('bug_reports')
         .update({
           ai_analyzed: true,
           ai_suggested_fix: aiText,
           ai_analysis: { analyzed_at: new Date().toISOString(), model: result.data?.model ?? 'unknown', provider: result.data?.provider ?? 'unknown' } as any,
-          status: 'in_progress',
+          status: nextStatus,
           requires_human_review: true,
         })
         .eq('id', report.id)
@@ -735,11 +753,39 @@ const ISSUE_ICON: Record<string, React.ReactNode> = {
   performance:     <Zap className="h-4 w-4 text-orange-500" />,
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  open: 'Open',
+  submitted: 'Submitted',
+  acknowledged: 'Acknowledged',
+  investigating: 'Investigating',
+  in_progress: 'In progress',
+  resolved: 'Resolved',
+  closed: 'Closed',
+  wont_fix: 'Won’t fix',
+  duplicate: 'Duplicate',
+}
+
+const STATUS_OPTIONS = [
+  { value: 'submitted', label: STATUS_LABELS.submitted },
+  { value: 'acknowledged', label: STATUS_LABELS.acknowledged },
+  { value: 'investigating', label: STATUS_LABELS.investigating },
+  { value: 'in_progress', label: STATUS_LABELS.in_progress },
+  { value: 'resolved', label: STATUS_LABELS.resolved },
+  { value: 'closed', label: STATUS_LABELS.closed },
+  { value: 'wont_fix', label: STATUS_LABELS.wont_fix },
+  { value: 'duplicate', label: STATUS_LABELS.duplicate },
+]
+
 const STATUS_BADGE: Record<string, string> = {
-  open:        'bg-red-100 text-red-700 dark:bg-red-900/30',
-  in_progress: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30',
-  resolved:    'bg-green-100 text-green-700 dark:bg-green-900/30',
-  closed:      'bg-gray-100 text-gray-500',
+  open:         'bg-red-100 text-red-700 dark:bg-red-900/30',
+  submitted:    'bg-blue-100 text-blue-700 dark:bg-blue-900/30',
+  acknowledged: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30',
+  investigating: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30',
+  in_progress:  'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30',
+  resolved:     'bg-green-100 text-green-700 dark:bg-green-900/30',
+  closed:       'bg-gray-100 text-gray-500 dark:bg-gray-800/70',
+  wont_fix:     'bg-orange-100 text-orange-700 dark:bg-orange-900/30',
+  duplicate:    'bg-purple-100 text-purple-700 dark:bg-purple-900/30',
 }
 
 const SEV_BADGE: Record<string, string> = {
@@ -783,6 +829,9 @@ function FeedbackReportCard({
   const navHistory: any[] = report.browser_info?.navigationHistory ?? []
   const consoleErrors: any[] = Array.isArray(report.console_errors) ? report.console_errors.filter((e: any) => e.level === 'error' || e.level === 'unhandled') : []
 
+  const statusValue = report.status ?? 'submitted'
+  const statusLabel = STATUS_LABELS[statusValue] ?? statusValue.replace(/_/g, ' ')
+
   return (
     <Card className={`overflow-hidden transition-shadow ${expanded ? 'shadow-md' : 'shadow-sm'}`}>
       {/* Header row */}
@@ -794,8 +843,8 @@ function FeedbackReportCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-medium text-sm truncate">{report.title}</span>
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${STATUS_BADGE[report.status ?? 'open'] ?? STATUS_BADGE.open}`}>
-              {(report.status ?? 'open').replace('_', ' ')}
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${STATUS_BADGE[statusValue] ?? STATUS_BADGE.submitted}`}>
+              {statusLabel}
             </span>
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${SEV_BADGE[report.severity] ?? SEV_BADGE.low}`}>
               {report.severity}
@@ -907,6 +956,11 @@ function FeedbackReportCard({
                     {report.ai_analysis.provider === 'github-copilot' ? '⚡ GitHub Copilot' : report.ai_analysis.provider}
                   </span>
                 )}
+                {report.ai_analysis?.auto && (
+                  <span className="text-[10px] bg-emerald-100 dark:bg-emerald-800/40 text-emerald-700 dark:text-emerald-200 rounded px-1.5 py-0.5 font-medium">
+                    Auto-analysis
+                  </span>
+                )}
                 {report.ai_analysis?.analyzed_at && (
                   <span className="text-[10px] text-muted-foreground ml-auto">
                     {new Date(report.ai_analysis.analyzed_at).toLocaleString('en-NZ')}
@@ -925,7 +979,9 @@ function FeedbackReportCard({
                 <Code2 className="h-4 w-4 text-violet-500 shrink-0" />
                 <div>
                   <p className="text-xs font-medium">No AI analysis yet</p>
-                  <p className="text-[11px] text-muted-foreground">Click Analyse to get a diagnosis and code-level fix suggestion.</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Auto-analysis runs on every submission; you can re-run it manually to refresh the diagnosis and code-level fix plan.
+                  </p>
                 </div>
               </div>
               <Button
@@ -954,17 +1010,17 @@ function FeedbackReportCard({
             )}
             <div className="ml-auto flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Status:</span>
-              {(['open', 'in_progress', 'resolved', 'closed'] as const).map(s => (
+              {STATUS_OPTIONS.map(({ value, label }) => (
                 <button
-                  key={s}
-                  onClick={() => onStatusChange(s)}
+                  key={value}
+                  onClick={() => onStatusChange(value)}
                   className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium border transition-colors ${
-                    (report.status ?? 'open') === s
-                      ? STATUS_BADGE[s] + ' border-current'
+                    statusValue === value
+                      ? `${STATUS_BADGE[value] ?? ''} border-current`
                       : 'border-gray-200 dark:border-gray-700 text-muted-foreground hover:border-gray-300'
                   }`}
                 >
-                  {s.replace('_', ' ')}
+                  {label}
                 </button>
               ))}
             </div>

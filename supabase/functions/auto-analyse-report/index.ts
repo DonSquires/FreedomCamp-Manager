@@ -11,7 +11,9 @@
  *      Actions and include their status in the AI prompt context.
  *   3. Build a detailed diagnosis prompt (report + console errors + CI status).
  *   4. Call the AI provider (GitHub Copilot preferred, OPENAI_API_KEY fallback).
- *   5. Persist the analysis back to bug_reports and set status → 'in_progress'.
+ *   5. Persist the analysis back to bug_reports, moving status from
+ *      'submitted' → 'acknowledged' when picked up, then → 'in_progress'
+ *      once analysis is stored (unless already resolved/closed).
  *
  * Environment secrets (shared with onspace-ai-chat):
  *   GITHUB_TOKEN      — GitHub PAT with `copilot` scope (and optionally `repo`
@@ -25,6 +27,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { corsHeaders } from '../_shared/cors.ts'
+import { nextStatusAfterAnalysis, shouldAutoAcknowledge } from '../_shared/bugReportStatus.ts'
 
 const SYSTEM_PROMPT = `You are an AI code reviewer and bug triage assistant for FreedomCamp Manager — a NZ freedom camping enforcement SaaS built with React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui, Zustand, TanStack Query v5, Supabase (PostgreSQL + Edge Functions), and react-router-dom v6.
 
@@ -131,6 +134,21 @@ Deno.serve(async (req: Request) => {
       ciStatus = await fetchCiStatus(githubToken, githubRepo)
     }
 
+    // ── Mark as acknowledged if still newly submitted ────────────────────────
+    let statusForTransition = report.status
+
+    if (shouldAutoAcknowledge(report.status)) {
+      const { error: ackErr } = await supabaseAdmin
+        .from('bug_reports')
+        .update({ status: 'acknowledged' })
+        .eq('id', report_id)
+      if (ackErr) {
+        console.error(`[auto-analyse] failed to acknowledge report ${report_id}: ${ackErr.message}`)
+      } else {
+        statusForTransition = 'acknowledged'
+      }
+    }
+
     // ── Build Prompt ──────────────────────────────────────────────────────────
     const navHistory: any[] = report.browser_info?.navigationHistory ?? []
     const consoleErrors: any[] = Array.isArray(report.console_errors) ? report.console_errors : []
@@ -165,6 +183,9 @@ ${ciStatus}
 2. **Fix**: Provide a concrete, actionable code fix. Include file paths and the specific change.
 3. **Severity**: Confirm or revise (low/medium/high/critical) with justification.
 4. **Effort**: Low (< 1 h) / Medium (half day) / High (1-2 days).
+5. **PR plan**: Outline the PR you would raise (files to change, tests to add/update).
+6. **Build impact**: Note any build/devops changes and the expected outcome once applied.
+7. **Where to view**: Mention the Admin → Platform → Feedback inbox (grand master only) and that the GitHub AI response is stored with the report.
 
 Be specific. Name exact files and line-level changes where possible.`
 
@@ -292,6 +313,8 @@ Be specific. Name exact files and line-level changes where possible.`
     }
 
     // ── Persist analysis ──────────────────────────────────────────────────────
+    const nextStatus = nextStatusAfterAnalysis(statusForTransition)
+
     const { error: updateErr } = await supabaseAdmin
       .from('bug_reports')
       .update({
@@ -304,7 +327,7 @@ Be specific. Name exact files and line-level changes where possible.`
           auto: true,
           ci_status_included: githubToken ? true : false,
         },
-        status: 'in_progress',
+        status: nextStatus,
         requires_human_review: true,
       })
       .eq('id', report_id)

@@ -1142,7 +1142,7 @@ export default function VehicleManagement() {
 
       {/* ── Photo Lightbox ── */}
       <Dialog open={!!enlargedPhoto} onOpenChange={() => setEnlargedPhoto(null)}>
-        <DialogContent className="max-w-4xl p-2 bg-black border-0">
+        <DialogContent className="max-w-4xl p-2 bg-black border-0" aria-describedby={undefined}>
           <DialogHeader className="sr-only">
             <DialogTitle>Photo viewer</DialogTitle>
           </DialogHeader>

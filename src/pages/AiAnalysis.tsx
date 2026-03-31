@@ -46,6 +46,8 @@ import {
 import { toast } from 'sonner'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
+import { supabase } from '@/lib/supabase'
+import { TERMINAL_BUG_REPORT_STATUSES } from '@/lib/bugReportStatus'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -76,6 +78,15 @@ interface SuggestedPrompt {
   prompt: string
   icon: React.ReactNode
   category: 'compliance' | 'enforcement' | 'legislation' | 'reporting' | 'operations'
+}
+
+interface BugDigest {
+  id: string
+  title: string
+  status: string | null
+  severity: string | null
+  description: string | null
+  created_at: string
 }
 
 // ── Suggested prompts ─────────────────────────────────────────────────────────
@@ -214,6 +225,8 @@ export default function AiAnalysis() {
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [isPttSupported, setIsPttSupported] = useState(false)
   const [isPttRecording, setIsPttRecording] = useState(false)
+  const [latestBug, setLatestBug] = useState<BugDigest | null>(null)
+  const [bugLoading, setBugLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const speechRecognitionRef = useRef<any>(null)
@@ -297,6 +310,34 @@ export default function AiAnalysis() {
     }
   }
 
+  // Pull a simple digest of the latest active bug so users can ask for progress.
+  useEffect(() => {
+    let isCancelled = false
+    const fetchLatestBug = async () => {
+      setBugLoading(true)
+      const { data, error } = await supabase
+        .from('bug_reports')
+        .select('id,title,status,severity,description,created_at')
+        .not('status', 'in', `(${TERMINAL_BUG_REPORT_STATUSES.join(',')})`)
+        .order('created_at', { ascending: false })
+        .limit(1)
+      if (!isCancelled) {
+        if (error) {
+          console.error('Failed to load latest bug digest', error)
+        } else {
+          setLatestBug((data?.[0] as BugDigest) ?? null)
+        }
+        setBugLoading(false)
+      }
+    }
+    fetchLatestBug()
+    const interval = setInterval(fetchLatestBug, 60_000)
+    return () => {
+      isCancelled = true
+      clearInterval(interval)
+    }
+  }, [])
+
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim() || isLoading) return
 
@@ -372,6 +413,12 @@ export default function AiAnalysis() {
 
   const hasMessages = messages.length > 0
 
+  const askAboutLatestBug = useCallback(() => {
+    if (!latestBug) return
+    const friendlyPrompt = `Give everyone a simple, human-readable update on the known bug "${latestBug.title}" (status: ${latestBug.status ?? 'unknown'}). Summarise what went wrong, what we are doing to fix it, and the next milestone. Keep it short and avoid jargon.`
+    sendMessage(friendlyPrompt)
+  }, [latestBug, sendMessage])
+
   return (
     <AppLayout>
       <div className="flex flex-col h-[calc(100vh-4rem)] max-w-5xl mx-auto px-4 py-4 gap-4">
@@ -403,6 +450,51 @@ export default function AiAnalysis() {
             )}
           </div>
         </div>
+
+        {/* Known issue broadcast */}
+        <Card className="shrink-0 border-amber-200 bg-amber-50 dark:border-amber-900/40 dark:bg-amber-900/15">
+          <CardContent className="py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-2">
+              <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-800 flex items-center justify-center mt-0.5">
+                <AlertTriangle className="h-4 w-4 text-amber-700 dark:text-amber-200" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-semibold text-sm text-amber-900 dark:text-amber-50">Known issue being fixed</p>
+                  {latestBug?.status && (
+                    <Badge variant="outline" className="text-[11px] capitalize border-amber-300 text-amber-800 dark:border-amber-700 dark:text-amber-100">
+                      {latestBug.status.replace('_', ' ')}
+                    </Badge>
+                  )}
+                  {latestBug?.severity && (
+                    <Badge variant="outline" className="text-[11px] uppercase border-amber-300 text-amber-800 dark:border-amber-700 dark:text-amber-100">
+                      {latestBug.severity}
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-sm font-medium">
+                  {latestBug?.title ?? (bugLoading ? 'Fetching the latest update…' : 'No active bugs right now.')}
+                </p>
+                {latestBug?.description && (
+                  <p className="text-xs text-muted-foreground line-clamp-2">
+                    {latestBug.description}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={askAboutLatestBug}
+                disabled={!latestBug}
+                className="whitespace-nowrap"
+              >
+                Ask AI for progress
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* ── Main layout ─────────────────────────────────────────────────────── */}
         <div className="flex gap-4 flex-1 min-h-0">

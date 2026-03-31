@@ -267,7 +267,7 @@ export default function SiteRiskAssessmentPage() {
 
       {/* ── View Assessment Detail Dialog ──────────────────────────────── */}
       <Dialog open={!!viewAssessment} onOpenChange={() => setViewAssessment(null)}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto" aria-describedby={undefined}>
           <DialogHeader><DialogTitle>Risk Assessment Details</DialogTitle></DialogHeader>
           {viewAssessment && (
             <div className="space-y-4 text-sm">
@@ -351,7 +351,7 @@ export default function SiteRiskAssessmentPage() {
 
       {/* ── New / Edit Assessment Dialog ───────────────────────────────── */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>{editingId ? 'Edit Risk Assessment' : 'New Site Risk Assessment'}</DialogTitle>
           </DialogHeader>

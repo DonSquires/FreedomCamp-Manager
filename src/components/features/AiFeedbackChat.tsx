@@ -133,7 +133,7 @@ function stripJsonBlock(text: string): string {
   return text.replace(/```json\s*[\s\S]+?\s*```/, '').trim()
 }
 
-async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+async function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined
   try {
     return await Promise.race([

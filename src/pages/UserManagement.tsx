@@ -132,7 +132,7 @@ export default function UserManagement() {
   }
 
   // Check user role
-  const isAdmin = user?.role === 'admin' || user?.role === 'master' || user?.role === 'grand_master'
+  const isAdmin = user?.role === 'admin' || user?.role === 'admin_officer' || user?.role === 'master' || user?.role === 'grand_master'
   const isMaster = user?.role === 'master' || user?.role === 'grand_master'
 
   // Fetch all active organizations for dropdowns
@@ -166,7 +166,7 @@ export default function UserManagement() {
     : (organizations || []).filter((o) => accessibleOrgIds?.includes(o.id))
 
   // Fetch users
-  const { data: users, isLoading } = useQuery({
+  const { data: users, isLoading, error: usersError } = useQuery({
     queryKey: ['users', searchTerm, filterRole, filterCredentials, filterOrg],
     queryFn: async () => {
       let query = (supabase
@@ -710,11 +710,17 @@ export default function UserManagement() {
         <CardHeader>
           <CardTitle>Users</CardTitle>
           <CardDescription>
-            {users?.length || 0} total users
+            {isLoading ? 'Loading…' : `${users?.length || 0} total users`}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {usersError ? (
+            <div className="text-center py-8 text-red-600">
+              <AlertCircle className="h-8 w-8 mx-auto mb-2" />
+              <p className="font-medium">Failed to load users</p>
+              <p className="text-sm mt-1">{(usersError as Error).message}</p>
+            </div>
+          ) : isLoading ? (
             <PaperworkSearchAnimation size="sm" text="Loading users…" />
           ) : users && users.length > 0 ? (
             <div className="space-y-3">

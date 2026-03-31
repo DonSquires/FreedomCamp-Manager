@@ -192,7 +192,7 @@ export default function PersonRecords() {
 
   const FormDialog = () => (
     <Dialog open={isCreateOpen} onOpenChange={open => { if (!open) { setIsCreateOpen(false); setEditTarget(null); setForm(BLANK_FORM) } }}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md" aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>{editTarget ? 'Edit Person' : 'Add Person Record'}</DialogTitle>
         </DialogHeader>
@@ -342,7 +342,7 @@ export default function PersonRecords() {
 
       {/* View person dialog */}
       <Dialog open={!!viewTarget} onOpenChange={() => setViewTarget(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <User className="h-5 w-5" />
