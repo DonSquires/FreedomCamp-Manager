@@ -18,7 +18,7 @@ DO $$ BEGIN
   DROP POLICY IF EXISTS "grand_master_manage_all_notices_to_vacate" ON public.notices_to_vacate;
   CREATE POLICY "grand_master_manage_all_notices_to_vacate"
     ON public.notices_to_vacate
-    FOR INSERT, UPDATE, DELETE
+    FOR ALL
     TO authenticated
     USING (get_user_role(auth.uid()) = 'grand_master')
     WITH CHECK (get_user_role(auth.uid()) = 'grand_master');
@@ -44,7 +44,7 @@ DO $$ BEGIN
     DROP POLICY IF EXISTS "grand_master_manage_all_infringement_notices" ON public.infringement_notices;
     CREATE POLICY "grand_master_manage_all_infringement_notices"
       ON public.infringement_notices
-      FOR INSERT, UPDATE, DELETE
+      FOR ALL
       TO authenticated
       USING (get_user_role(auth.uid()) = 'grand_master')
       WITH CHECK (get_user_role(auth.uid()) = 'grand_master');
@@ -71,7 +71,7 @@ DO $$ BEGIN
     DROP POLICY IF EXISTS "grand_master_manage_all_warning_notices" ON public.warning_notices;
     CREATE POLICY "grand_master_manage_all_warning_notices"
       ON public.warning_notices
-      FOR INSERT, UPDATE, DELETE
+      FOR ALL
       TO authenticated
       USING (get_user_role(auth.uid()) = 'grand_master')
       WITH CHECK (get_user_role(auth.uid()) = 'grand_master');
