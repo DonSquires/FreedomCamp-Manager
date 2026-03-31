@@ -6,6 +6,17 @@
  */
 
 /**
+ * Truncates a string for display in error messages.
+ * @param text - The string to truncate
+ * @param maxLength - Maximum length before truncation (default: 50)
+ * @returns Truncated string with ellipsis if needed
+ */
+export function truncateForDisplay(text: string, maxLength = 50): string {
+  if (text.length <= maxLength) return text;
+  return `${text.substring(0, maxLength)}...`;
+}
+
+/**
  * Validates a URL string and returns a normalized version.
  * Handles common misconfigurations like:
  * - Missing protocol (adds https://)
@@ -73,19 +84,17 @@ export function validateServiceUrl(
     return { url: null, error: `${name} is empty`, warning: null };
   }
 
-  // Check for common issues
-  let warning: string | null = null;
+  // Collect warnings in an array for scalability
+  const warnings: string[] = [];
 
   // Check if protocol is missing
   if (!/^https?:\/\//i.test(rawTrimmed)) {
-    warning = `${name} missing protocol (https://) - auto-corrected`;
+    warnings.push(`${name} missing protocol (https://) - auto-corrected`);
   }
 
   // Check for trailing slash
   if (rawTrimmed.endsWith('/')) {
-    warning = warning 
-      ? `${warning}; trailing slash removed`
-      : `${name} had trailing slash - removed`;
+    warnings.push(`${name} had trailing slash - removed`);
   }
 
   const normalized = normalizeServiceUrl(url);
@@ -93,12 +102,16 @@ export function validateServiceUrl(
   if (!normalized) {
     return { 
       url: null, 
-      error: `${name} is malformed: "${rawTrimmed.substring(0, 50)}${rawTrimmed.length > 50 ? '...' : ''}"`,
+      error: `${name} is malformed: "${truncateForDisplay(rawTrimmed)}"`,
       warning: null 
     };
   }
 
-  return { url: normalized, error: null, warning };
+  return { 
+    url: normalized, 
+    error: null, 
+    warning: warnings.length > 0 ? warnings.join('; ') : null 
+  };
 }
 
 /**

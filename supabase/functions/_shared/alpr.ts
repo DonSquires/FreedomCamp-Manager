@@ -12,7 +12,7 @@
 // are unaffected.
 // ============================================================================
 
-import { normalizeServiceUrl } from './urlUtils.ts';
+import { normalizeServiceUrl, truncateForDisplay } from './urlUtils.ts';
 
 export interface ALPRResult {
   plate: string | null;
@@ -39,7 +39,7 @@ async function alprLocal(
 
   if (!inferenceUrl) {
     const errorMsg = rawUrl 
-      ? `INFERENCE_SERVICE_URL is malformed: "${rawUrl.substring(0, 50)}${rawUrl.length > 50 ? '...' : ''}"`
+      ? `INFERENCE_SERVICE_URL is malformed: "${truncateForDisplay(rawUrl)}"`
       : "INFERENCE_SERVICE_URL not set";
     console.error(`❌ ${errorMsg}`);
     return emptyResult({ error: errorMsg });
