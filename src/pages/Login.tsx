@@ -55,7 +55,9 @@ export default function Login() {
           // Fullscreen may be denied by the browser; ignore silently
         })
       }
-      // Don't navigate here - let the useEffect handle it after state updates
+      // Navigation is handled by the useEffect that watches isAuthenticated/user.
+      // Reset loading so the button is usable if navigation doesn't happen.
+      setLoading(false)
     } catch (error: any) {
       toast.error(error.message || 'Login failed')
       setLoading(false)
