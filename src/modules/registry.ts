@@ -114,25 +114,7 @@ export const SERVICE_MODULES: Record<ModuleId, ServiceModule> = {
   core: {
     id: 'core',
     name: 'Core Platform (CRM Hub)',
-    description: `CRM-centric platform hub with Iron Eagle Security as the platform owner. 
-    
-    CRM Features:
-    • Accounts/Organizations (hierarchical)
-    • Users (assigned to accounts)
-    • Zones/Sites (owned by accounts)
-    • Contacts (stakeholders)
-    • Contracts (with line items & SLAs)
-    • Invoices & Payments
-    • Activities (calls, meetings, tasks)
-    • Opportunities (sales pipeline)
-    • Documents & Notes
-    • Tags & Account History
-    
-    Platform Features:
-    • Live officer tracking
-    • PTT/Team Chat
-    • Officer welfare system
-    • Self-healing bug detection`,
+    description: 'CRM-centric platform hub with Iron Eagle Security as the platform owner. CRM Features: Accounts/Organizations (hierarchical), Users (assigned to accounts), Zones/Sites (owned by accounts), Contacts (stakeholders), Contracts (with line items & SLAs), Invoices & Payments, Activities (calls, meetings, tasks), Opportunities (sales pipeline), Documents & Notes, Tags & Account History. Platform Features: Live officer tracking, PTT/Team Chat, Officer welfare system, Self-healing bug detection.',
     shortDescription: 'Full CRM + PTT + Welfare + Bug System',
     icon: Shield,
     color: 'text-slate-700 dark:text-slate-300',

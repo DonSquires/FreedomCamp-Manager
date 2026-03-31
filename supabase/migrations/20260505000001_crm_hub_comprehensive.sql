@@ -169,13 +169,17 @@ CREATE INDEX IF NOT EXISTS idx_crm_contracts_status ON crm_contracts(status);
 CREATE INDEX IF NOT EXISTS idx_crm_contracts_dates ON crm_contracts(start_date, end_date);
 CREATE INDEX IF NOT EXISTS idx_crm_contracts_renewal ON crm_contracts(renewal_date) WHERE status = 'active';
 
--- Generate contract number
+-- Sequences for contract and invoice numbers (avoids race conditions)
+CREATE SEQUENCE IF NOT EXISTS crm_contract_number_seq START 1;
+CREATE SEQUENCE IF NOT EXISTS crm_invoice_number_seq START 1;
+
+-- Generate contract number using sequence (thread-safe)
 CREATE OR REPLACE FUNCTION generate_contract_number()
 RETURNS TRIGGER AS $$
 BEGIN
   IF NEW.contract_number IS NULL THEN
     NEW.contract_number := 'CTR-' || TO_CHAR(NOW(), 'YYYYMM') || '-' || 
-      LPAD((SELECT COUNT(*) + 1 FROM crm_contracts WHERE created_at >= DATE_TRUNC('month', NOW()))::TEXT, 4, '0');
+      LPAD(nextval('crm_contract_number_seq')::TEXT, 6, '0');
   END IF;
   RETURN NEW;
 END;
@@ -313,13 +317,13 @@ CREATE INDEX IF NOT EXISTS idx_invoices_status ON crm_invoices(status);
 CREATE INDEX IF NOT EXISTS idx_invoices_due_date ON crm_invoices(due_date) WHERE status NOT IN ('paid', 'cancelled');
 CREATE INDEX IF NOT EXISTS idx_invoices_number ON crm_invoices(invoice_number);
 
--- Generate invoice number
+-- Generate invoice number using sequence (thread-safe)
 CREATE OR REPLACE FUNCTION generate_invoice_number()
 RETURNS TRIGGER AS $$
 BEGIN
   IF NEW.invoice_number IS NULL THEN
     NEW.invoice_number := 'INV-' || TO_CHAR(NOW(), 'YYYYMM') || '-' || 
-      LPAD((SELECT COUNT(*) + 1 FROM crm_invoices WHERE created_at >= DATE_TRUNC('month', NOW()))::TEXT, 4, '0');
+      LPAD(nextval('crm_invoice_number_seq')::TEXT, 6, '0');
   END IF;
   RETURN NEW;
 END;
