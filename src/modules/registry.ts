@@ -114,8 +114,26 @@ export const SERVICE_MODULES: Record<ModuleId, ServiceModule> = {
   core: {
     id: 'core',
     name: 'Core Platform (CRM Hub)',
-    description: 'CRM-centric platform hub with Iron Eagle Security as the platform owner. Includes account/organization management, user management, zone/site management, contracts, live officer tracking, PTT/Team Chat, officer welfare system, and self-healing bug detection. All other modules plug into this central hub.',
-    shortDescription: 'CRM Hub + PTT + Welfare + Bug System',
+    description: `CRM-centric platform hub with Iron Eagle Security as the platform owner. 
+    
+    CRM Features:
+    • Accounts/Organizations (hierarchical)
+    • Users (assigned to accounts)
+    • Zones/Sites (owned by accounts)
+    • Contacts (stakeholders)
+    • Contracts (with line items & SLAs)
+    • Invoices & Payments
+    • Activities (calls, meetings, tasks)
+    • Opportunities (sales pipeline)
+    • Documents & Notes
+    • Tags & Account History
+    
+    Platform Features:
+    • Live officer tracking
+    • PTT/Team Chat
+    • Officer welfare system
+    • Self-healing bug detection`,
+    shortDescription: 'Full CRM + PTT + Welfare + Bug System',
     icon: Shield,
     color: 'text-slate-700 dark:text-slate-300',
     bgColor: 'bg-slate-100 dark:bg-slate-800',
@@ -133,8 +151,17 @@ export const SERVICE_MODULES: Record<ModuleId, ServiceModule> = {
       { path: '/user-management', label: 'Users', roles: ['admin', 'master'] },
       { path: '/zones', label: 'Zones', roles: ['admin', 'master'] },
       { path: '/sites', label: 'Sites', roles: ['admin', 'master'] },
+      // CRM Contracts & Billing
       { path: '/contracts', label: 'Contracts', roles: ['admin', 'master'] },
+      { path: '/invoices', label: 'Invoices', roles: ['admin', 'master'] },
+      { path: '/payments', label: 'Payments', roles: ['admin', 'master'] },
+      // CRM Contacts & Activities
       { path: '/contacts', label: 'Contacts', roles: ['admin', 'master'] },
+      { path: '/activities', label: 'Activities', roles: ['admin', 'master', 'admin_officer'] },
+      // CRM Sales Pipeline
+      { path: '/opportunities', label: 'Opportunities', roles: ['admin', 'master'] },
+      // CRM Documents & Notes
+      { path: '/documents', label: 'Documents', roles: ['admin', 'master'] },
       // Core Platform Routes
       { path: '/live-tracking', label: 'Live Officer Tracking', roles: ['admin', 'master', 'admin_officer'] },
       { path: '/audit-log', label: 'Audit Log', roles: ['admin', 'master'] },
@@ -148,17 +175,34 @@ export const SERVICE_MODULES: Record<ModuleId, ServiceModule> = {
     ],
     tables: [
       // CRM Hub Tables (Central Entity Management)
-      'organizations',       // Accounts (Iron Eagle → Service Providers → Clients)
-      'user_profiles',       // Users assigned to accounts
-      'zones',               // Geographic zones owned by accounts
-      'client_sites',        // Physical sites managed by accounts
-      'contracts',           // Contracts between accounts
-      'contract_terms',      // Contract line items
-      'contacts',            // Named contacts at accounts
+      'organizations',           // Accounts (Iron Eagle → Service Providers → Clients)
+      'user_profiles',           // Users assigned to accounts
+      'zones',                   // Geographic zones owned by accounts
+      'client_sites',            // Physical sites managed by accounts
+      // CRM Contacts
+      'crm_contacts',            // Named contacts at accounts
+      // CRM Contracts & Billing
+      'crm_contracts',           // Service agreements between accounts
+      'crm_contract_lines',      // Contract line items (per-module pricing)
+      'crm_invoices',            // Invoices
+      'crm_invoice_lines',       // Invoice line items
+      'crm_payments',            // Payment records
+      // CRM Activities & Pipeline
+      'crm_activities',          // Calls, meetings, tasks, follow-ups
+      'crm_opportunities',       // Sales pipeline
+      // CRM Documents & Notes
+      'crm_documents',           // File attachments
+      'crm_notes',               // Freeform notes
+      // CRM Tags & History
+      'crm_tags',                // Tag definitions
+      'crm_organization_tags',   // Org-tag junction
+      'crm_contact_tags',        // Contact-tag junction
+      'crm_opportunity_tags',    // Opportunity-tag junction
+      'crm_account_history',     // Audit trail
       // Core Platform Tables
-      'officer_locations',   // Live GPS tracking
-      'audit_log',           // Action audit trail
-      'notifications',       // In-app notifications
+      'officer_locations',       // Live GPS tracking
+      'audit_log',               // Action audit trail
+      'notifications',           // In-app notifications
       // PTT tables
       'ptt_channels', 'ptt_channel_members', 'ptt_messages', 'ptt_presence',
       // Welfare tables
@@ -169,7 +213,7 @@ export const SERVICE_MODULES: Record<ModuleId, ServiceModule> = {
     edgeFunctions: [
       'auth', 'user-profile', 'organization',
       // CRM
-      'crm-sync', 'contract-management',
+      'crm-sync', 'contract-management', 'invoice-generate', 'payment-process',
       // PTT
       'ptt-signaling-token',
       // Welfare

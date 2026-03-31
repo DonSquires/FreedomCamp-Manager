@@ -69,6 +69,14 @@ The platform owner can:
 │  ║ │ (Assigned to  │ │ (Owned by     │ │ (Between      │ │ (Per-account  │   ║ │
 │  ║ │  accounts)    │ │  accounts)    │ │  accounts)    │ │  stakeholders)│   ║ │
 │  ║ └───────────────┘ └───────────────┘ └───────────────┘ └───────────────┘   ║ │
+│  ║ ┌───────────────┐ ┌───────────────┐ ┌───────────────┐ ┌───────────────┐   ║ │
+│  ║ │   INVOICES    │ │   PAYMENTS    │ │  ACTIVITIES   │ │ OPPORTUNITIES │   ║ │
+│  ║ │ (Billing)     │ │ (Receipts)    │ │ (Tasks/Calls) │ │ (Pipeline)    │   ║ │
+│  ║ └───────────────┘ └───────────────┘ └───────────────┘ └───────────────┘   ║ │
+│  ║ ┌───────────────┐ ┌───────────────┐ ┌───────────────┐                     ║ │
+│  ║ │   DOCUMENTS   │ │    NOTES      │ │     TAGS      │                     ║ │
+│  ║ │ (Attachments) │ │ (Freeform)    │ │ (Categories)  │                     ║ │
+│  ║ └───────────────┘ └───────────────┘ └───────────────┘                     ║ │
 │  ╚════════════════════════════════════════════════════════════════════════════╝ │
 │                                      │                                           │
 │  ┌───────────────────────────────────┴────────────────────────────────────────┐ │
@@ -103,7 +111,31 @@ The platform owner can:
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 1.2 CRM-Centric Data Model
+### 1.2 Comprehensive CRM Features
+
+The CRM Hub includes **11 core feature areas** that provide complete customer relationship management:
+
+| Feature | Description | Key Tables |
+|---------|-------------|------------|
+| **Accounts** | Hierarchical organization management (Iron Eagle → Providers → Clients) | `organizations` |
+| **Users** | User management with role-based access | `user_profiles` |
+| **Zones/Sites** | Geographic and physical location management | `zones`, `client_sites` |
+| **Contacts** | Named stakeholders at accounts (not system users) | `crm_contacts` |
+| **Contracts** | Service agreements with SLA terms and line items | `crm_contracts`, `crm_contract_lines` |
+| **Invoices** | Billing with line items and aging reports | `crm_invoices`, `crm_invoice_lines` |
+| **Payments** | Payment tracking with Stripe integration | `crm_payments` |
+| **Activities** | Calls, meetings, tasks, follow-ups | `crm_activities` |
+| **Opportunities** | Sales pipeline with stage management | `crm_opportunities` |
+| **Documents** | File attachments for any entity | `crm_documents` |
+| **Notes** | Freeform notes with privacy controls | `crm_notes` |
+
+**Additional Features:**
+- **Tags** — Flexible categorization for accounts, contacts, and opportunities
+- **Account History** — Complete audit trail of all changes
+- **Aging Reports** — Overdue invoice tracking
+- **Pipeline Reports** — Weighted opportunity value by stage
+
+### 1.3 CRM-Centric Data Model
 
 The CRM acts as the **central entity hub** for the entire platform:
 
