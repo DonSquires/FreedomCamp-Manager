@@ -5,7 +5,6 @@ import { Camera, X, Loader2, CheckCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
-import { railwayServices } from '@/lib/railwayServices'
 import { resolveObservationZoneForOrg } from '@/lib/zoneResolution'
 import { useAuthStore } from '@/stores/authStore'
 
@@ -118,19 +117,11 @@ export function PlateScanner({ onScanComplete, onCancel }: PlateScannerProps) {
         detectedConfidence = alprData?.confidence ?? null
         toast.success(`Plate detected: ${plateNumber}`)
       } else {
-        // Step 2: Fallback to Railway inference OCR
-        toast.info('ALPR failed, trying OCR fallback...')
-        const { data: ocrData, error: ocrError } = await railwayServices.performOCR(photoUrl)
-        
-        if (!ocrError && ocrData?.plate_number) {
-          plateNumber = ocrData.plate_number
-          detectedConfidence = ocrData?.confidence ?? null
-          toast.success(`OCR detected: ${plateNumber}`)
-        } else {
-          toast.error('No plate number detected. Please try manual entry.')
-          setIsScanning(false)
-          return
-        }
+        // ALPR failed — prompt for manual entry rather than trying direct Railway call
+        // (Direct browser-to-Railway calls are blocked by CORS/auth requirements)
+        toast.error('No plate number detected. Please try manual entry.')
+        setIsScanning(false)
+        return
       }
 
       // Resolve a valid zone for ingest (fallback to org's Other Location zone)
@@ -175,15 +166,16 @@ export function PlateScanner({ onScanComplete, onCancel }: PlateScannerProps) {
         return
       }
 
-      // Step 4: Check NZSCV status (don't block on failure)
+      // Step 4: Check NZSCV status (don't block on failure) — via Edge Function
       if (plateNumber) {
-        railwayServices.checkNZSCVCertification(plateNumber).then(({ data: nzscvData, error: nzscvError }) => {
-          if (!nzscvError && nzscvData?.is_certified) {
-            const warrantLabel = nzscvData.warrant_type === 'green'
+        edgeFunctions.checkNZSCVStatus({ plate_number: plateNumber }).then(({ data: nzscvData, error: nzscvError }) => {
+          if (!nzscvError && nzscvData?.result?.is_self_contained) {
+            const warrantType = nzscvData?.result?.warrant_type || ''
+            const warrantLabel = warrantType === 'green'
               ? '🟢 Green Warrant (NZS 5465:2023)'
-              : nzscvData.warrant_type === 'blue'
+              : warrantType === 'blue'
               ? '🔵 Blue Warrant (legacy – expires Jun 2026)'
-              : nzscvData.warrant_type || 'certified'
+              : warrantType || 'certified'
             toast.success(`Self-contained verified: ${warrantLabel}`, {
               duration: 5000,
               icon: <CheckCircle className="h-4 w-4" />,
@@ -192,11 +184,12 @@ export function PlateScanner({ onScanComplete, onCancel }: PlateScannerProps) {
         })
       }
 
-      // Step 5: Enrich vehicle details (don't block on failure)
+      // Step 5: Enrich vehicle details (don't block on failure) — via Edge Function
       if (plateNumber) {
-        railwayServices.enrichVehicleFromMotorWeb(plateNumber).then(({ data: motorwebData, error: motorwebError }) => {
-          if (!motorwebError && motorwebData) {
-            toast.info(`Vehicle enriched: ${motorwebData.make} ${motorwebData.model}`, {
+        edgeFunctions.enrichFromMotorWeb({ plate_number: plateNumber }).then(({ data: motorwebData, error: motorwebError }) => {
+          if (!motorwebError && motorwebData?.result) {
+            const result = motorwebData.result
+            toast.info(`Vehicle enriched: ${result.make || ''} ${result.model || ''}`, {
               duration: 3000,
             })
           }

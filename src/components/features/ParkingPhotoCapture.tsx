@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Camera, X, Loader2, CheckCircle, Trash2, MapPin } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
-import { railwayServices } from '@/lib/railwayServices'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 
 // ─── Public result type ───────────────────────────────────────────────────────
@@ -154,19 +154,31 @@ export function ParkingPhotoCapture({
       let vehicleModel: string | null = null
       let vehicleColour: string | null = null
 
-      // 3. (Optional) ALPR inference via Railway inference service
+      // 3. (Optional) ALPR inference via Edge Function
+      // Note: Direct browser-to-Railway calls are not supported due to CORS/auth.
+      // We use the processALPR edge function which handles Railway internally.
       if (runInference) {
         toast.info('Detecting plate number…')
-        const { data: inferData, error: inferErr } = await railwayServices.inferVehicle(photoUrl)
+        try {
+          // Use ALPR edge function for plate detection (goes through Supabase → Railway)
+          const { data: alprData, error: alprErr } = await edgeFunctions.processALPR({
+            photo_url: photoUrl,
+            gpsLatitude: latitude ?? undefined,
+            gpsLongitude: longitude ?? undefined,
+          })
 
-        if (!inferErr && inferData?.plate_number) {
-          plateNumber   = inferData.plate_number
-          vehicleMake   = inferData.vehicle_make   ?? null
-          vehicleModel  = inferData.vehicle_model  ?? null
-          vehicleColour = inferData.vehicle_colour ?? null
-          toast.success(`Plate detected: ${plateNumber}`)
-        } else {
-          toast.warning('No plate detected — enter plate manually')
+          if (!alprErr && alprData?.plate) {
+            plateNumber   = alprData.plate
+            vehicleMake   = alprData.vehicle?.make   ?? null
+            vehicleModel  = alprData.vehicle?.model  ?? null
+            vehicleColour = alprData.vehicle?.colour ?? null
+            toast.success(`Plate detected: ${plateNumber}`)
+          } else {
+            toast.warning('No plate detected — enter plate manually')
+          }
+        } catch (inferenceErr) {
+          console.warn('ALPR inference failed:', inferenceErr)
+          toast.warning('Plate detection unavailable — enter plate manually')
         }
       }
 
