@@ -15,7 +15,7 @@ import { corsHeaders } from '../_shared/cors.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
 
 const PTT_SERVER_URL = Deno.env.get('PTT_SERVER_URL') || ''
-const PROXY_SECRET = Deno.env.get('PROXY_SECRET') || ''
+const PROXY_SECRET = Deno.env.get('PROXY_SECRET') || Deno.env.get('NZSCV_PROXY_SECRET') || ''
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
