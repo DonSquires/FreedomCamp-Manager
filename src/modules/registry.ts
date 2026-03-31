@@ -1,0 +1,526 @@
+/**
+ * Service Module Registry
+ * 
+ * Central registry of all service modules in the platform.
+ * Each module is a self-contained vertical that can be enabled/disabled
+ * per organization for individual licensing.
+ * 
+ * This is a standalone, white-label system that integrates with:
+ * - NZSCV (NZ Self-Contained Vehicle registry)
+ * - Motoweb (NZ vehicle registration)
+ * - OpenAI (optional AI features)
+ * - Self-hosted AI on Railway (ALPR, face recognition)
+ */
+
+import type { LucideIcon } from 'lucide-react'
+import {
+  Shield,
+  Tent,
+  ParkingSquare,
+  Volume2,
+  Car,
+  Calendar,
+  Radio,
+  Building2,
+  Ambulance,
+  MonitorPlay,
+} from 'lucide-react'
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ModuleCategory = 'enforcement' | 'security' | 'operations' | 'communication'
+
+export type ModuleId = 
+  | 'core'
+  | 'freedom_camping'
+  | 'parking'
+  | 'noise'
+  | 'guarding'
+  | 'patrol'
+  | 'rostering'
+  | 'ptt_chat'
+  | 'crm'
+  | 'ems'
+  | 'dispatch'
+
+export interface ModuleRoute {
+  path: string
+  label: string
+  roles: string[]
+  adminOnly?: boolean
+  officerOnly?: boolean
+}
+
+export interface ModulePricing {
+  model: 'seat' | 'transaction' | 'hybrid' | 'flat'
+  baseFee?: number      // Monthly base fee in cents
+  perSeatFee?: number   // Per-seat fee in cents
+  perTransactionFee?: number  // Per-transaction fee in cents
+}
+
+export interface ServiceModule {
+  id: ModuleId
+  name: string
+  description: string
+  shortDescription: string
+  icon: LucideIcon
+  color: string
+  bgColor: string
+  borderColor: string
+  
+  // Categorization
+  category: ModuleCategory
+  isCore: boolean
+  
+  // Dependencies
+  requiresModules: ModuleId[]
+  
+  // Pricing
+  pricing: ModulePricing
+  
+  // Routes this module adds
+  routes: ModuleRoute[]
+  
+  // Database tables owned by this module
+  tables: string[]
+  
+  // Edge Functions owned by this module
+  edgeFunctions: string[]
+  
+  // Feature flags for phased rollout
+  featureFlags: string[]
+  
+  // Display order in UI
+  displayOrder: number
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Module Registry
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const SERVICE_MODULES: Record<ModuleId, ServiceModule> = {
+  // ─────────────────────────────────────────────────────────────────────────
+  // CORE (Always enabled)
+  // ─────────────────────────────────────────────────────────────────────────
+  core: {
+    id: 'core',
+    name: 'Core Platform',
+    description: 'Core platform features including authentication, organization management, user management, zone management, live officer tracking, PTT/Team Chat, officer welfare system, and self-healing bug detection.',
+    shortDescription: 'Core platform + PTT + Welfare + Bug System',
+    icon: Shield,
+    color: 'text-slate-700 dark:text-slate-300',
+    bgColor: 'bg-slate-100 dark:bg-slate-800',
+    borderColor: 'border-slate-300 dark:border-slate-600',
+    category: 'operations',
+    isCore: true,
+    requiresModules: [],
+    pricing: { model: 'flat', baseFee: 0 },
+    routes: [
+      { path: '/admin', label: 'Command Centre', roles: ['admin', 'master', 'admin_officer'] },
+      { path: '/user-management', label: 'User Management', roles: ['admin', 'master'] },
+      { path: '/organization-management', label: 'Organization Management', roles: ['master', 'grand_master'] },
+      { path: '/zones', label: 'Zone Management', roles: ['admin', 'master'] },
+      { path: '/live-tracking', label: 'Live Officer Tracking', roles: ['admin', 'master', 'admin_officer'] },
+      { path: '/audit-log', label: 'Audit Log', roles: ['admin', 'master'] },
+      { path: '/settings', label: 'Settings', roles: ['admin', 'master', 'officer', 'admin_officer'] },
+      { path: '/profile', label: 'Profile', roles: ['admin', 'master', 'officer', 'admin_officer'] },
+      { path: '/notifications', label: 'Notifications', roles: ['admin', 'master', 'officer', 'admin_officer'] },
+      // PTT & Team Chat (Core Feature)
+      { path: '/team-chat', label: 'Team Chat', roles: ['admin', 'master', 'admin_officer', 'officer'] },
+      // Officer Welfare (Core Feature)
+      { path: '/officer-welfare', label: 'Officer Welfare Settings', roles: ['admin', 'master'] },
+    ],
+    tables: [
+      'organizations', 'user_profiles', 'zones', 'officer_locations', 'audit_log', 'notifications',
+      // PTT tables
+      'ptt_channels', 'ptt_channel_members', 'ptt_messages', 'ptt_presence',
+      // Welfare tables
+      'officer_welfare_checks', 'officer_welfare_alerts', 'welfare_schedules',
+      // Bug reporting tables
+      'bug_reports',
+    ],
+    edgeFunctions: [
+      'auth', 'user-profile', 'organization',
+      // PTT
+      'ptt-signaling-token',
+      // Welfare
+      'monitor-officer-welfare',
+      // Bug System
+      'auto-analyse-report',
+    ],
+    featureFlags: [],
+    displayOrder: 0,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // FREEDOM CAMPING
+  // ─────────────────────────────────────────────────────────────────────────
+  freedom_camping: {
+    id: 'freedom_camping',
+    name: 'Freedom Camping',
+    description: 'Vehicle compliance monitoring for freedom camping zones. Includes plate scanning, overnight stay tracking, breach detection, notice to vacate workflow, and compliance reporting.',
+    shortDescription: 'Vehicle scanning & compliance',
+    icon: Tent,
+    color: 'text-green-700 dark:text-green-400',
+    bgColor: 'bg-green-100 dark:bg-green-900',
+    borderColor: 'border-green-400 dark:border-green-700',
+    category: 'enforcement',
+    isCore: false,
+    requiresModules: ['core'],
+    pricing: { model: 'hybrid', baseFee: 19900, perSeatFee: 2900, perTransactionFee: 5 },
+    routes: [
+      { path: '/field-officer', label: 'Field Officer Portal', roles: ['officer', 'admin_officer'], officerOnly: true },
+      { path: '/compliance', label: 'Compliance', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+      { path: '/breaches', label: 'Breach Alerts', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+      { path: '/breach-notices', label: 'Breach Notices', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+      { path: '/notice-to-vacate', label: 'Notice to Vacate', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+      { path: '/observation-records', label: 'Observation Records', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+      { path: '/observations-report', label: 'Observations Report', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+      { path: '/vehicles', label: 'Vehicle Management', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+      { path: '/vehicle-registry', label: 'Vehicle Registry', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+      { path: '/enforcement-actions', label: 'Enforcement Actions', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+      { path: '/enforcement-review', label: 'Enforcement Review', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+      { path: '/infringements', label: 'Infringements', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+    ],
+    tables: ['observations', 'breach_alerts', 'notices_to_vacate', 'canonical_vehicles', 'enforcement_cases'],
+    edgeFunctions: ['plate-scanner-complete', 'plate-scanner-photo-first', 'evaluate-compliance', 'alpr-process'],
+    featureFlags: ['FEATURE_INGEST_V2', 'FEATURE_ENFORCEMENT', 'FEATURE_OFFICER_OUTBOX'],
+    displayOrder: 10,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PARKING ENFORCEMENT
+  // ─────────────────────────────────────────────────────────────────────────
+  parking: {
+    id: 'parking',
+    name: 'Parking Enforcement',
+    description: 'Full parking violation workflow including chalking, time-limit monitoring, infringement notices, permit management, and ParkPow integration.',
+    shortDescription: 'Parking violations & permits',
+    icon: ParkingSquare,
+    color: 'text-blue-700 dark:text-blue-400',
+    bgColor: 'bg-blue-100 dark:bg-blue-900',
+    borderColor: 'border-blue-400 dark:border-blue-700',
+    category: 'enforcement',
+    isCore: false,
+    requiresModules: ['core'],
+    pricing: { model: 'hybrid', baseFee: 24900, perSeatFee: 3900, perTransactionFee: 10 },
+    routes: [
+      { path: '/parking-officer', label: 'Parking Officer Portal', roles: ['officer', 'admin_officer'], officerOnly: true },
+      { path: '/parking', label: 'Parking Enforcement', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+    ],
+    tables: ['parking_sessions', 'parking_infringements', 'parking_permits', 'parking_zones'],
+    edgeFunctions: ['parking-chalk', 'parking-infringement', 'parkpow-sync'],
+    featureFlags: ['FEATURE_PARKING'],
+    displayOrder: 20,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // NOISE CONTROL
+  // ─────────────────────────────────────────────────────────────────────────
+  noise: {
+    id: 'noise',
+    name: 'Noise Control',
+    description: 'NZ RMA-compliant noise complaint management including job dispatch, abatement notices, direction notices, enforcement orders, and equipment seizure tracking.',
+    shortDescription: 'Noise complaints & RMA compliance',
+    icon: Volume2,
+    color: 'text-purple-700 dark:text-purple-400',
+    bgColor: 'bg-purple-100 dark:bg-purple-900',
+    borderColor: 'border-purple-400 dark:border-purple-700',
+    category: 'enforcement',
+    isCore: false,
+    requiresModules: ['core'],
+    pricing: { model: 'hybrid', baseFee: 14900, perSeatFee: 2900, perTransactionFee: 25 },
+    routes: [
+      { path: '/noise-officer', label: 'Noise Officer Portal', roles: ['officer', 'admin_officer'], officerOnly: true },
+      { path: '/noise-control', label: 'Noise Control', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+    ],
+    tables: ['noise_jobs', 'noise_notices', 'noise_seizures', 'noise_addresses'],
+    edgeFunctions: ['noise-job-dispatch', 'noise-notice-generate'],
+    featureFlags: ['FEATURE_NOISE'],
+    displayOrder: 30,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // SITE GUARDING
+  // ─────────────────────────────────────────────────────────────────────────
+  guarding: {
+    id: 'guarding',
+    name: 'Site Guarding',
+    description: 'Static site security management including shift logs, checkpoint verification, visitor check-in, face recognition, and incident reporting.',
+    shortDescription: 'Site security & checkpoints',
+    icon: Shield,
+    color: 'text-amber-700 dark:text-amber-400',
+    bgColor: 'bg-amber-100 dark:bg-amber-900',
+    borderColor: 'border-amber-400 dark:border-amber-700',
+    category: 'security',
+    isCore: false,
+    requiresModules: ['core'],
+    pricing: { model: 'seat', baseFee: 29900, perSeatFee: 4900 },
+    routes: [
+      { path: '/site-guard', label: 'Site Guard Portal', roles: ['officer', 'admin_officer'], officerOnly: true },
+      { path: '/client-sites', label: 'Client Sites', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+      { path: '/access-control', label: 'Access Control', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+      { path: '/points-of-interest', label: 'Points of Interest', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+      { path: '/face-recognition', label: 'Face Recognition', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+      { path: '/site-risk-assessment', label: 'Site Risk Assessment', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+    ],
+    tables: ['client_sites', 'site_checkpoints', 'checkpoint_verifications', 'visitor_logs', 'face_encodings'],
+    edgeFunctions: ['checkpoint-verify', 'visitor-checkin', 'process-face-scan'],
+    featureFlags: ['FEATURE_GUARDING', 'FEATURE_FACE_RECOGNITION'],
+    displayOrder: 40,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // GENERAL PATROL
+  // ─────────────────────────────────────────────────────────────────────────
+  patrol: {
+    id: 'patrol',
+    name: 'General Patrol',
+    description: 'Mobile patrol operations including route tracking, checkpoint verification, alarm response, and incident reporting.',
+    shortDescription: 'Mobile patrol & alarm response',
+    icon: Car,
+    color: 'text-red-700 dark:text-red-400',
+    bgColor: 'bg-red-100 dark:bg-red-900',
+    borderColor: 'border-red-400 dark:border-red-700',
+    category: 'security',
+    isCore: false,
+    requiresModules: ['core'],
+    pricing: { model: 'seat', baseFee: 19900, perSeatFee: 3900 },
+    routes: [
+      { path: '/patrol-checkpoints', label: 'Patrol Checkpoints', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+      { path: '/patrol-schedules', label: 'Patrol Schedules', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+      { path: '/patrol-kpi', label: 'Patrol KPI Dashboard', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+      { path: '/live-patrol-monitor', label: 'Live Patrol Monitor', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+    ],
+    tables: ['patrols', 'patrol_routes', 'patrol_checkpoints', 'alarm_responses'],
+    edgeFunctions: ['patrol-start', 'patrol-checkpoint', 'alarm-dispatch'],
+    featureFlags: ['FEATURE_PATROL_GEOFENCE'],
+    displayOrder: 50,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // ROSTERING
+  // ─────────────────────────────────────────────────────────────────────────
+  rostering: {
+    id: 'rostering',
+    name: 'Roster & Scheduling',
+    description: 'Deputy-style shift planning including visual roster board, officer availability, shift swaps, and timesheet integration.',
+    shortDescription: 'Shift planning & availability',
+    icon: Calendar,
+    color: 'text-cyan-700 dark:text-cyan-400',
+    bgColor: 'bg-cyan-100 dark:bg-cyan-900',
+    borderColor: 'border-cyan-400 dark:border-cyan-700',
+    category: 'operations',
+    isCore: false,
+    requiresModules: ['core'],
+    pricing: { model: 'seat', baseFee: 9900, perSeatFee: 1900 },
+    routes: [
+      { path: '/roster', label: 'Roster Planner', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+      { path: '/open-shifts', label: 'Open Shifts', roles: ['admin', 'master', 'admin_officer', 'officer'] },
+      { path: '/officer-availability', label: 'Officer Availability', roles: ['admin', 'master', 'admin_officer', 'officer'] },
+      { path: '/officer-skills', label: 'Officer Skills', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+      { path: '/timesheet-review', label: 'Timesheet Review', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+    ],
+    tables: ['roster_shifts', 'officer_availability', 'officer_skills', 'shift_swaps', 'timesheets'],
+    edgeFunctions: ['roster-publish', 'shift-swap-request'],
+    featureFlags: ['FEATURE_ROSTERING'],
+    displayOrder: 60,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PTT & CHAT (Now included in Core Platform - kept for backwards compatibility)
+  // ─────────────────────────────────────────────────────────────────────────
+  ptt_chat: {
+    id: 'ptt_chat',
+    name: 'PTT & Team Chat',
+    description: 'Real-time push-to-talk communication including channel management, VOX mode, Bluetooth PTT button support, and team chat. NOTE: Now included in Core Platform at no additional cost.',
+    shortDescription: 'Push-to-talk & messaging (Included in Core)',
+    icon: Radio,
+    color: 'text-indigo-700 dark:text-indigo-400',
+    bgColor: 'bg-indigo-100 dark:bg-indigo-900',
+    borderColor: 'border-indigo-400 dark:border-indigo-700',
+    category: 'communication',
+    isCore: true,  // Now part of core
+    requiresModules: [],
+    pricing: { model: 'flat', baseFee: 0 },  // Free - included in core
+    routes: [
+      { path: '/team-chat', label: 'Team Chat', roles: ['admin', 'master', 'admin_officer', 'officer'] },
+    ],
+    tables: ['ptt_channels', 'ptt_channel_members', 'chat_messages'],
+    edgeFunctions: ['ptt-signaling-token'],
+    featureFlags: ['FEATURE_PTT'],
+    displayOrder: 70,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // CRM
+  // ─────────────────────────────────────────────────────────────────────────
+  crm: {
+    id: 'crm',
+    name: 'Customer Relationship',
+    description: 'Zoho-style CRM for managing accounts (clients and contractors), contacts, contracts, and compliance tracking.',
+    shortDescription: 'Accounts & contacts',
+    icon: Building2,
+    color: 'text-emerald-700 dark:text-emerald-400',
+    bgColor: 'bg-emerald-100 dark:bg-emerald-900',
+    borderColor: 'border-emerald-400 dark:border-emerald-700',
+    category: 'operations',
+    isCore: false,
+    requiresModules: ['core'],
+    pricing: { model: 'seat', baseFee: 9900, perSeatFee: 1900 },
+    routes: [
+      { path: '/crm', label: 'CRM', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+      { path: '/contractor-account', label: 'Contractor Account', roles: ['admin', 'master'], adminOnly: true },
+    ],
+    tables: ['contractor_profiles', 'contracts', 'contract_terms'],
+    edgeFunctions: ['crm-sync'],
+    featureFlags: ['FEATURE_CRM'],
+    displayOrder: 80,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // EMS
+  // ─────────────────────────────────────────────────────────────────────────
+  ems: {
+    id: 'ems',
+    name: 'EMS Response',
+    description: 'Emergency medical response coordination including triage, dispatch, and patient tracking.',
+    shortDescription: 'Emergency response',
+    icon: Ambulance,
+    color: 'text-rose-700 dark:text-rose-400',
+    bgColor: 'bg-rose-100 dark:bg-rose-900',
+    borderColor: 'border-rose-400 dark:border-rose-700',
+    category: 'security',
+    isCore: false,
+    requiresModules: ['core'],
+    pricing: { model: 'hybrid', baseFee: 14900, perSeatFee: 2900, perTransactionFee: 50 },
+    routes: [
+      { path: '/ems', label: 'EMS Portal', roles: ['officer', 'admin_officer'], officerOnly: true },
+    ],
+    tables: ['ems_incidents', 'ems_patients', 'ems_resources'],
+    edgeFunctions: ['ems-dispatch'],
+    featureFlags: ['FEATURE_EMS'],
+    displayOrder: 90,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // DISPATCH
+  // ─────────────────────────────────────────────────────────────────────────
+  dispatch: {
+    id: 'dispatch',
+    name: 'Dispatch Console',
+    description: 'CAD-style job dispatch across all service types with real-time officer status and proximity-based assignment.',
+    shortDescription: 'Job dispatch & coordination',
+    icon: MonitorPlay,
+    color: 'text-violet-700 dark:text-violet-400',
+    bgColor: 'bg-violet-100 dark:bg-violet-900',
+    borderColor: 'border-violet-400 dark:border-violet-700',
+    category: 'operations',
+    isCore: false,
+    requiresModules: ['core'],
+    pricing: { model: 'seat', baseFee: 14900, perSeatFee: 2900 },
+    routes: [
+      { path: '/dispatch', label: 'Dispatch Console', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+    ],
+    tables: ['dispatch_jobs', 'dispatch_assignments'],
+    edgeFunctions: ['dispatch-job', 'dispatch-assign'],
+    featureFlags: ['FEATURE_DISPATCH'],
+    displayOrder: 100,
+  },
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper Functions
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Get a module by ID
+ */
+export function getModule(moduleId: ModuleId): ServiceModule | undefined {
+  return SERVICE_MODULES[moduleId]
+}
+
+/**
+ * Get all modules in a category
+ */
+export function getModulesByCategory(category: ModuleCategory): ServiceModule[] {
+  return Object.values(SERVICE_MODULES)
+    .filter(m => m.category === category)
+    .sort((a, b) => a.displayOrder - b.displayOrder)
+}
+
+/**
+ * Get all non-core modules
+ */
+export function getLicensableModules(): ServiceModule[] {
+  return Object.values(SERVICE_MODULES)
+    .filter(m => !m.isCore)
+    .sort((a, b) => a.displayOrder - b.displayOrder)
+}
+
+/**
+ * Get all routes for a set of enabled modules
+ */
+export function getRoutesForModules(enabledModuleIds: ModuleId[]): ModuleRoute[] {
+  const routes: ModuleRoute[] = []
+  
+  // Always include core routes
+  routes.push(...SERVICE_MODULES.core.routes)
+  
+  // Add routes from enabled modules
+  for (const moduleId of enabledModuleIds) {
+    const module = SERVICE_MODULES[moduleId]
+    if (module && !module.isCore) {
+      routes.push(...module.routes)
+    }
+  }
+  
+  return routes
+}
+
+/**
+ * Check if a route path belongs to a specific module
+ */
+export function getModuleForRoute(path: string): ModuleId | undefined {
+  for (const [moduleId, module] of Object.entries(SERVICE_MODULES)) {
+    if (module.routes.some(r => path.startsWith(r.path))) {
+      return moduleId as ModuleId
+    }
+  }
+  return undefined
+}
+
+/**
+ * Format pricing for display
+ */
+export function formatModulePricing(module: ServiceModule): string {
+  const { pricing } = module
+  const parts: string[] = []
+  
+  if (pricing.baseFee) {
+    parts.push(`$${(pricing.baseFee / 100).toFixed(0)}/mo base`)
+  }
+  if (pricing.perSeatFee) {
+    parts.push(`$${(pricing.perSeatFee / 100).toFixed(0)}/seat`)
+  }
+  if (pricing.perTransactionFee) {
+    parts.push(`$${(pricing.perTransactionFee / 100).toFixed(2)}/transaction`)
+  }
+  
+  return parts.join(' + ') || 'Free'
+}
+
+/**
+ * Get category label
+ */
+export function getCategoryLabel(category: ModuleCategory): string {
+  const labels: Record<ModuleCategory, string> = {
+    enforcement: 'Enforcement',
+    security: 'Security',
+    operations: 'Operations',
+    communication: 'Communication',
+  }
+  return labels[category]
+}
