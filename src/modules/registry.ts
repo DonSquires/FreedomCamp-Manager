@@ -169,6 +169,13 @@ export const SERVICE_MODULES: Record<ModuleId, ServiceModule> = {
       { path: '/patrol-checkpoints', label: 'Checkpoints', roles: ['admin', 'master', 'admin_officer'] },
       { path: '/roster-management', label: 'Roster Management', roles: ['admin', 'master', 'admin_officer'] },
       { path: '/my-roster', label: 'My Roster', roles: ['officer', 'admin_officer'] },
+      // Patrol Accountability
+      { path: '/patrol-exceptions', label: 'Patrol Exceptions', roles: ['admin', 'master', 'admin_officer'] },
+      // Duress/SOS Management
+      { path: '/duress-alerts', label: 'Duress Alerts', roles: ['admin', 'master', 'admin_officer'] },
+      // Client Portal Management
+      { path: '/client-portal-users', label: 'Client Portal Users', roles: ['admin', 'master'] },
+      { path: '/client-requests', label: 'Client Requests', roles: ['admin', 'master', 'admin_officer'] },
       // PTT Authorizations
       { path: '/ptt-authorizations', label: 'PTT Authorizations', roles: ['admin', 'master'] },
       // Core Platform Routes
@@ -242,9 +249,18 @@ export const SERVICE_MODULES: Record<ModuleId, ServiceModule> = {
       'roster_templates',        // Roster patterns
       'roster_assignments',      // Officer assignments to routes
       'patrol_checkpoint_scans', // Checkpoint scan records
+      // Patrol Accountability
+      'patrol_exceptions',       // Deviations from expected behavior
       // PTT Cross-Org Authorization
       'ptt_channel_authorizations', // Cross-org PTT permissions
       'ptt_contract_authorizations', // Contract-based PTT access
+      // Officer Safety & Duress
+      'duress_alerts',           // SOS/panic alerts
+      'shift_cold_starts',       // Pre-shift confirmations
+      // Client Portal
+      'client_portal_users',     // Client self-service users
+      'client_patrol_requests',  // Client-initiated requests
+      'site_contacts',           // Key holders, emergency contacts
       // Core Platform Tables
       'officer_locations',       // Live GPS tracking
       'audit_log',               // Action audit trail
