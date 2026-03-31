@@ -745,10 +745,11 @@ export default function FieldOfficerPortal() {
 
       toast.success('Shift started — welfare monitoring active')
 
-      // Refresh the page to reflect the current state
+      // Refresh the page to reflect the current state (as per user requirement)
       await refetchShift()
       queryClient.invalidateQueries({ queryKey: ['officer-active-shift'] })
-      window.location.reload()
+      // Brief delay to allow the toast to show before reload
+      setTimeout(() => window.location.reload(), 500)
     } catch (err: any) {
       toast.error(err?.message ?? 'Failed to start shift')
     } finally {
@@ -795,10 +796,11 @@ export default function FieldOfficerPortal() {
 
       toast.success('Shift ended — welfare monitoring stopped')
 
-      // Refresh the page to reflect the current state
+      // Refresh the page to reflect the current state (as per user requirement)
       await refetchShift()
       queryClient.invalidateQueries({ queryKey: ['officer-active-shift'] })
-      window.location.reload()
+      // Brief delay to allow the toast to show before reload
+      setTimeout(() => window.location.reload(), 500)
     } catch (err: any) {
       toast.error(err?.message ?? 'Failed to end shift')
     } finally {
@@ -1291,7 +1293,7 @@ export default function FieldOfficerPortal() {
             )}
 
             {/* Single-org users: just show zone selection */}
-            {!isServiceProviderMember && manualZones.length > 0 && (
+            {!isServiceProviderMember && shiftZones.length > 0 && (
               <div className="pt-2 border-t border-blue-200 dark:border-blue-700">
                 <Label className="text-xs text-blue-700 dark:text-blue-300 mb-1 block">Zone / Location</Label>
                 <Select value={shiftZoneId} onValueChange={setShiftZoneId}>
@@ -1299,8 +1301,8 @@ export default function FieldOfficerPortal() {
                     <SelectValue placeholder="Select zone…" />
                   </SelectTrigger>
                   <SelectContent>
-                    {manualZones.map(zone => (
-                      <SelectItem key={zone.zone_id} value={zone.zone_id}>
+                    {shiftZones.map(zone => (
+                      <SelectItem key={zone.id} value={zone.id}>
                         {zone.name}
                       </SelectItem>
                     ))}
