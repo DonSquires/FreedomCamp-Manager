@@ -141,14 +141,17 @@ export default function NoticeToVacate() {
     previewWindow.onload = finishOpen
   }
 
-  const orgId = user?.role === 'master' ? (organizationId || user?.organization_id) : user?.organization_id
+  // Grandmaster and master can pick org; others use their primary org
+  const isGrandmaster = user?.role === 'grand_master'
+  const isMaster = user?.role === 'master'
+  const effectiveOrgId = (isGrandmaster || isMaster) ? (organizationId || user?.organization_id) : user?.organization_id
 
   // Fetch notices
   const { data: notices = [], isLoading } = useQuery({
-    queryKey: ['notices-to-vacate', orgId, zoneId, dateFrom, dateTo, statusFilter],
+    queryKey: ['notices-to-vacate', effectiveOrgId, zoneId, dateFrom, dateTo, statusFilter],
     queryFn: async () => {
       // Fail-safe: ensure orgId is always defined before query
-      if (!orgId) return []
+      if (!effectiveOrgId) return []
 
       let q = supabase
         .from('notices_to_vacate')
@@ -161,7 +164,7 @@ export default function NoticeToVacate() {
         `)
         .order('issued_at', { ascending: false })
         .limit(200)
-        .eq('organization_id', orgId)
+        .eq('organization_id', effectiveOrgId)
       if (zoneId) q = q.eq('zone_id', zoneId)
       if (dateFrom) q = q.gte('issued_at', dateFrom)
       if (dateTo) q = q.lte('issued_at', dateTo + 'T23:59:59')
@@ -181,18 +184,18 @@ export default function NoticeToVacate() {
 
   // Fetch zones for the issue form
   const { data: zones = [] } = useQuery({
-    queryKey: ['zones-ntv', orgId],
+    queryKey: ['zones-ntv', effectiveOrgId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('zones')
         .select('id, name')
-        .eq('organization_id', orgId!)
+        .eq('organization_id', effectiveOrgId!)
         .eq('is_active', true)
         .order('name')
       if (error) throw error
       return (data || []) as Zone[]
     },
-    enabled: !!orgId,
+    enabled: !!effectiveOrgId,
     staleTime: 60000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
@@ -200,19 +203,19 @@ export default function NoticeToVacate() {
 
   // Fetch pending breach alerts for pre-filling
   const { data: pendingBreaches = [] } = useQuery({
-    queryKey: ['breaches-for-ntv', orgId],
+    queryKey: ['breaches-for-ntv', effectiveOrgId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('breach_alerts')
         .select('id, plate_number, breach_type, zone_id, zone:zones!zone_id(name)')
-        .eq('organization_id', orgId!)
+        .eq('organization_id', effectiveOrgId!)
         .in('status', ['pending', 'acknowledged'])
         .order('created_at', { ascending: false })
         .limit(50)
       if (error) throw error
       return (data || []) as unknown as BreachAlert[]
     },
-    enabled: !!orgId,
+    enabled: !!effectiveOrgId,
     staleTime: 15000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,

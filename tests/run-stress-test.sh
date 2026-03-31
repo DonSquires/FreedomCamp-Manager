@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
 # Railway Inference Service Stress Test Runner
 # Run with: bash tests/run-stress-test.sh
@@ -13,8 +14,11 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-# Load environment variables
-export $(cat .env | grep -v '^#' | xargs)
+# Load environment variables safely.
+set -a
+# shellcheck disable=SC1091
+. ./.env
+set +a
 
 # Run the test with tsx (TypeScript runner)
 npx tsx tests/railway-stress-test.ts

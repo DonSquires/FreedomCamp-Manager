@@ -29,24 +29,6 @@ primary_region = "sjc"  # San Jose (closest to NZ traffic via edge)
     path = "/health"
     protocol = "http"
 
-[[services]]
-  protocol = "tcp"
-  internal_port = 3000
-
-  [[services.ports]]
-    port = 80
-    handlers = ["http"]
-    force_https = true
-
-  [[services.ports]]
-    port = 443
-    handlers = ["tls", "http"]
-
-  [services.concurrency]
-    type = "connections"
-    hard_limit = 100
-    soft_limit = 50
-
 # Resource allocation
 [compute]
   cpu_kind = "shared"

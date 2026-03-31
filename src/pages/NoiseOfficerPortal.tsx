@@ -21,7 +21,7 @@
  *  Auckland Council, Wellington City Council, Christchurch City Council,
  *  Hamilton City Council, Tauranga City Council.
  */
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
@@ -140,6 +140,9 @@ export default function NoiseOfficerPortal() {
   const orgId = user?.organization_id
   const queryClient = useQueryClient()
 
+  const speechRecognitionRef = useRef<any>(null)
+  const pttBaseNotesRef = useRef('')
+
   const [selectedJob, setSelectedJob] = useState<NoiseJob | null>(null)
   const [tab, setTab] = useState('jobs')
 
@@ -203,6 +206,87 @@ export default function NoiseOfficerPortal() {
   const [printHtml, setPrintHtml] = useState<string | null>(null)
   const [printLabel, setPrintLabel] = useState('')
   const [printingId, setPrintingId] = useState<string | null>(null)
+  const [isPttSupported, setIsPttSupported] = useState(false)
+  const [isPttRecording, setIsPttRecording] = useState(false)
+
+  useEffect(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    setIsPttSupported(!!SpeechRecognition)
+
+    return () => {
+      try {
+        speechRecognitionRef.current?.stop?.()
+      } catch {
+        // no-op
+      }
+    }
+  }, [])
+
+  const startPushToTalk = () => {
+    if (isPttRecording || speechRecognitionRef.current) return
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      toast.error('Push-to-talk is not supported in this browser')
+      return
+    }
+
+    try {
+      const recognition = new SpeechRecognition()
+      recognition.lang = 'en-NZ'
+      recognition.continuous = true
+      recognition.interimResults = true
+
+      pttBaseNotesRef.current = assessment.action_notes?.trim() || ''
+
+      recognition.onstart = () => {
+        setIsPttRecording(true)
+      }
+
+      recognition.onresult = (event: any) => {
+        let transcript = ''
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript
+        }
+        const cleaned = transcript.trim()
+        const combined = pttBaseNotesRef.current
+          ? `${pttBaseNotesRef.current} ${cleaned}`.trim()
+          : cleaned
+        setAssessment(prev => ({ ...prev, action_notes: combined }))
+      }
+
+      recognition.onerror = (event: any) => {
+        setIsPttRecording(false)
+        speechRecognitionRef.current = null
+        if (event?.error === 'not-allowed') {
+          toast.error('Microphone permission denied')
+        } else if (event?.error !== 'aborted') {
+          toast.error('Push-to-talk failed to start')
+        }
+      }
+
+      recognition.onend = () => {
+        setIsPttRecording(false)
+        speechRecognitionRef.current = null
+      }
+
+      speechRecognitionRef.current = recognition
+      recognition.start()
+    } catch {
+      setIsPttRecording(false)
+      toast.error('Unable to start push-to-talk')
+    }
+  }
+
+  const stopPushToTalk = () => {
+    if (!isPttRecording) return
+    try {
+      speechRecognitionRef.current?.stop?.()
+      speechRecognitionRef.current = null
+    } catch {
+      speechRecognitionRef.current = null
+      setIsPttRecording(false)
+    }
+  }
 
   // ── Queries ────────────────────────────────────────────────────────────────
 
@@ -891,6 +975,38 @@ export default function NoiseOfficerPortal() {
                     <div className="space-y-1">
                       <Label>Action Notes</Label>
                       <Textarea placeholder="Additional observations, actions taken…" rows={3} value={assessment.action_notes} onChange={e => setAssessment(p => ({ ...p, action_notes: e.target.value }))} />
+                      <div className="flex items-center gap-2 pt-1">
+                        <Button
+                          type="button"
+                          variant={isPttRecording ? 'destructive' : 'outline'}
+                          size="sm"
+                          disabled={!isPttSupported}
+                          className="select-none"
+                          onMouseDown={startPushToTalk}
+                          onMouseUp={stopPushToTalk}
+                          onMouseLeave={stopPushToTalk}
+                          onTouchStart={(e) => {
+                            e.preventDefault()
+                            startPushToTalk()
+                          }}
+                          onTouchEnd={(e) => {
+                            e.preventDefault()
+                            stopPushToTalk()
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === ' ' || e.key === 'Enter') startPushToTalk()
+                          }}
+                          onKeyUp={(e) => {
+                            if (e.key === ' ' || e.key === 'Enter') stopPushToTalk()
+                          }}
+                        >
+                          <Mic2 className="h-4 w-4 mr-1" />
+                          {isPttRecording ? 'Release to stop' : 'Hold to talk'}
+                        </Button>
+                        <span className="text-xs text-gray-500">
+                          {isPttSupported ? 'Press and hold the mic while speaking' : 'Use Chrome/Edge for push-to-talk'}
+                        </span>
+                      </div>
                     </div>
 
                     {/* Photo capture — address verification */}

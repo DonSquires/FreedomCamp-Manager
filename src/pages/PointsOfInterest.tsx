@@ -230,10 +230,10 @@ export default function PointsOfInterest() {
                 className="pl-9 w-48"
               />
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select value={statusFilter || 'all'} onValueChange={value => setStatusFilter(value === 'all' ? '' : value)}>
               <SelectTrigger className="w-36"><SelectValue placeholder="All statuses" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All</SelectItem>
+                <SelectItem value="all">All</SelectItem>
                 {tab === 'persons' && <>
                   <SelectItem value="poi">Person of Interest</SelectItem>
                   <SelectItem value="banned">Banned</SelectItem>
@@ -667,12 +667,12 @@ export default function PointsOfInterest() {
               <div className="space-y-1">
                 <Label>Link to Person of Interest</Label>
                 <Select
-                  value={editVehicle.linked_person_id || ''}
-                  onValueChange={v => setEditVehicle(p => ({ ...p, linked_person_id: v || null }))}
+                  value={editVehicle.linked_person_id || 'none'}
+                  onValueChange={v => setEditVehicle(p => ({ ...p, linked_person_id: v === 'none' ? null : v }))}
                 >
                   <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
                     {persons.map(p => (
                       <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>
                     ))}

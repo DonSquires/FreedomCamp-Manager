@@ -22,14 +22,14 @@ COPY scripts/export-models.py scripts/export-models.py
 RUN python scripts/export-models.py
 
 # Stage 1: Build Node.js Application
-FROM node:18-slim AS builder
+FROM node:22-slim AS builder
 WORKDIR /app
 COPY package*.json ./
-RUN npm install --no-audit --prefer-offline
+RUN npm ci --omit=dev --no-audit --prefer-offline
 RUN npm prune --omit=dev
 
 # Stage 2: Final Production Image
-FROM node:18-slim
+FROM node:22-slim
 WORKDIR /app
 COPY --from=builder /app/node_modules ./node_modules
 COPY server.js ./

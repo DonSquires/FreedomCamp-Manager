@@ -133,20 +133,7 @@ Deno.serve(async (req: Request) => {
     const githubToken = Deno.env.get('GITHUB_TOKEN')
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY')
 
-    let apiKey: string
-    let baseUrl: string
-    let providerName: string
-
-    if (githubToken) {
-      // Use GitHub Copilot API — OpenAI-compatible endpoint
-      apiKey = githubToken
-      baseUrl = 'https://api.githubcopilot.com'
-      providerName = 'github-copilot'
-    } else if (openaiApiKey) {
-      apiKey = openaiApiKey
-      baseUrl = (Deno.env.get('OPENAI_BASE_URL') ?? 'https://api.openai.com/v1').replace(/\/$/, '')
-      providerName = 'openai'
-    } else {
+    if (!githubToken && !openaiApiKey) {
       return new Response(
         JSON.stringify({
           error: 'AI service not configured',
@@ -156,33 +143,102 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    console.log(`[AI] user=${user.email} model=${model} messages=${messages.length} provider=${providerName}`)
+    const providers: Array<{
+      name: 'github-copilot' | 'openai'
+      apiKey: string
+      baseUrl: string
+      modelsToTry: string[]
+    }> = []
 
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 60_000)
+    if (githubToken) {
+      const fallbackModels = ['gpt-4.1', 'gpt-4o', 'gpt-4o-mini']
+      providers.push({
+        name: 'github-copilot',
+        apiKey: githubToken,
+        baseUrl: 'https://api.githubcopilot.com',
+        modelsToTry: [model, ...fallbackModels.filter((m) => m !== model)],
+      })
+    }
 
-    const aiResponse = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ model, messages, temperature, max_tokens: 4000 }),
-      signal: controller.signal,
-    })
+    if (openaiApiKey) {
+      providers.push({
+        name: 'openai',
+        apiKey: openaiApiKey,
+        baseUrl: (Deno.env.get('OPENAI_BASE_URL') ?? 'https://api.openai.com/v1').replace(/\/$/, ''),
+        modelsToTry: [model],
+      })
+    }
 
-    clearTimeout(timeoutId)
+    let aiData: any = null
+    let finalModel = model
+    let providerName: 'github-copilot' | 'openai' = providers[0].name
+    let lastStatus = 500
+    let lastErrorText = ''
 
-    if (!aiResponse.ok) {
-      const errorText = await aiResponse.text()
-      console.error(`[AI] Provider error ${aiResponse.status}:`, errorText.slice(0, 500))
+    for (const provider of providers) {
+      providerName = provider.name
+      console.log(
+        `[AI] user=${user.email} model=${model} messages=${messages.length} provider=${provider.name} candidates=${provider.modelsToTry.join(',')}`
+      )
+
+      for (const candidateModel of provider.modelsToTry) {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 60_000)
+
+        const aiResponse = await fetch(`${provider.baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${provider.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ model: candidateModel, messages, temperature, max_tokens: 4000 }),
+          signal: controller.signal,
+        })
+
+        clearTimeout(timeoutId)
+
+        if (aiResponse.ok) {
+          aiData = await aiResponse.json()
+          finalModel = candidateModel
+          break
+        }
+
+        const errorText = await aiResponse.text()
+        lastStatus = aiResponse.status
+        lastErrorText = errorText.slice(0, 500)
+        console.error(`[AI] Provider error ${aiResponse.status} provider=${provider.name} model=${candidateModel}:`, lastErrorText)
+
+        const mayRetryModel = provider.name === 'github-copilot' && (aiResponse.status === 400 || aiResponse.status === 404)
+        if (mayRetryModel) {
+          continue
+        }
+
+        const mayFailoverProvider =
+          provider.name === 'github-copilot' &&
+          openaiApiKey &&
+          (aiResponse.status === 401 || aiResponse.status === 403 || aiResponse.status === 429 || aiResponse.status >= 500)
+
+        if (mayFailoverProvider) {
+          console.warn(`[AI] Falling back from GitHub Copilot to OpenAI provider after ${aiResponse.status}`)
+          break
+        }
+
+        return new Response(
+          JSON.stringify({ error: `AI provider returned ${aiResponse.status}`, details: errorText.slice(0, 300) }),
+          { status: aiResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      if (aiData) break
+    }
+
+    if (!aiData) {
       return new Response(
-        JSON.stringify({ error: `AI provider returned ${aiResponse.status}`, details: errorText.slice(0, 300) }),
-        { status: aiResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: `AI provider returned ${lastStatus}`, details: lastErrorText.slice(0, 300) }),
+        { status: lastStatus, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    const aiData = await aiResponse.json()
     const responseText: string = aiData.choices?.[0]?.message?.content ?? ''
 
     if (!responseText) {
@@ -198,7 +254,7 @@ Deno.serve(async (req: Request) => {
     return new Response(
       JSON.stringify({
         response: responseText,
-        model: aiData.model ?? model,
+        model: aiData.model ?? finalModel,
         provider: providerName,
         usage: aiData.usage ?? null,
       }),

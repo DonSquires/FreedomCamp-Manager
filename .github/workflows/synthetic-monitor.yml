@@ -48,6 +48,15 @@ jobs:
       github.event.workflow_run.conclusion == 'success'
 
     steps:
+      - name: Log workflow context
+        run: |
+          echo "Workflow: $GITHUB_WORKFLOW"
+          echo "Event: $GITHUB_EVENT_NAME"
+          echo "Ref: $GITHUB_REF"
+          echo "Ref name: $GITHUB_REF_NAME"
+          echo "SHA: $GITHUB_SHA"
+          echo "Repository: $GITHUB_REPOSITORY"
+
       - name: Check required secrets
         id: check-secrets
         run: |
@@ -101,8 +110,10 @@ jobs:
         if: steps.check-secrets.outputs.secrets_present == 'true'
         id: check-supabase
         run: |
-          URL="${VITE_SUPABASE_URL}/rest/v1/?apikey=${VITE_SUPABASE_ANON_KEY}"
-          HTTP_CODE=$(curl -sSo /dev/null -w "%{http_code}" --max-time 10 "$URL")
+          HTTP_CODE=$(curl -sSo /dev/null -w "%{http_code}" --max-time 10 \
+            -H "apikey: ${VITE_SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${VITE_SUPABASE_ANON_KEY}" \
+            "${VITE_SUPABASE_URL}/rest/v1/zones?select=id&limit=1")
           echo "http_code=$HTTP_CODE" >> "$GITHUB_OUTPUT"
           if [ "$HTTP_CODE" != "200" ]; then
             echo "::warning::Supabase REST returned HTTP $HTTP_CODE"
@@ -129,15 +140,13 @@ jobs:
       - name: Install Playwright
         if: steps.check-secrets.outputs.secrets_present == 'true'
         run: |
-          npm init -y
-          npm install playwright
-          npx playwright install --with-deps chromium
+          npx --yes --package=playwright playwright install --with-deps chromium
 
       - name: Check — Playwright page render
         if: steps.check-secrets.outputs.secrets_present == 'true'
         id: check-playwright
         run: |
-          node - <<'EOF'
+          npx --yes --package=playwright node - <<'EOF'
           const { chromium } = require('playwright');
           const fs = require('fs');
           const FRONTEND_URL = process.env.FRONTEND_URL;

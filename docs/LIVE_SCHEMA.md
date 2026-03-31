@@ -4,7 +4,7 @@
 > This file is the single source of truth for the live Supabase database schema.
 > **Any changes to this file or to `supabase/migrations/` require explicit written approval
 > from the repository owner (@DonSquires) via a reviewed and approved Pull Request.**
-> See [SCHEMA_VALIDATION_CHECKLIST.md](../SCHEMA_VALIDATION_CHECKLIST.md) for the full governance policy.
+> See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for the full governance policy.
 
 **Last verified:** 2026-04-25  
 **Verified by:** Copilot schema alignment audit (Schema Extract #29 pass) against migrations through 20260425000001  

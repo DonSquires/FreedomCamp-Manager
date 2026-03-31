@@ -333,6 +333,8 @@ Each tab has an **Export CSV** or **Export Excel** button at the top right. A **
 
 The **AI Analysis** page provides an intelligent conversational interface over your data. A chat-style panel lets you type questions in plain English — for example "Which zone had the most repeat offenders last month?" or "Show me the vehicles approaching their night limit" — and the system queries the database and returns a structured answer with supporting data tables and charts.
 
+The chat input also supports **push-to-talk dictation** in compatible browsers (Chrome/Edge). Officers and admins can press and hold the microphone button, speak their question, then release to stop; speech is inserted into the chat input before sending.
+
 ### Hotspots Heatmap
 
 The **Hotspots Map** renders an interactive map with a heat layer showing where observations cluster geographically. Areas with dense scan activity appear in red/orange, lower activity in green. Clicking a hotspot cluster shows the top vehicles in that area.

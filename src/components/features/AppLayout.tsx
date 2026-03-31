@@ -514,11 +514,11 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
           <h1 className="font-semibold text-lg truncate">{title || 'FreedomCamp'}</h1>
           
           {/* Mobile: notification bell */}
-          <Link
-            to="/notifications"
-            title="Notifications"
-            aria-label="Notifications"
-            data-testid="notification-bell"
+          <button
+            type="button"
+            title="Alerts"
+            aria-label="Alerts"
+            onClick={() => navigate('/notifications')}
             className="relative flex items-center justify-center h-9 w-9 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           >
             <Bell className="h-5 w-5 text-gray-500 dark:text-gray-400" />
@@ -527,7 +527,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
                 {notifCount > 9 ? '9+' : notifCount}
               </span>
             )}
-          </Link>
+          </button>
         </div>
       </header>
 
@@ -623,11 +623,12 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
                 </div>
               </div>
               {/* Header right side: notification bell */}
-              <Link
-                to="/notifications"
+              <button
+                type="button"
                 title="Notifications"
                 aria-label="Notifications"
                 data-testid="notification-bell"
+                onClick={() => navigate('/notifications')}
                 className="relative flex items-center justify-center h-9 w-9 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               >
                 <Bell className="h-5 w-5 text-gray-500 dark:text-gray-400" />
@@ -636,7 +637,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
                     {notifCount > 9 ? '9+' : notifCount}
                   </span>
                 )}
-              </Link>
+              </button>
             </div>
           </div>
         </header>

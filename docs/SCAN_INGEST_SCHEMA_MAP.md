@@ -4,14 +4,14 @@ This map documents the end-to-end scan pipeline and the exact schema contract re
 
 ## Expected Runtime Flow
 
-1. Officer captures photo in [src/pages/FieldOfficerPortal.tsx](src/pages/FieldOfficerPortal.tsx).
+1. Officer captures photo in [src/pages/FieldOfficerPortal.tsx](../src/pages/FieldOfficerPortal.tsx).
 2. Frontend uploads image to `scans` bucket and resolves zone.
-3. Frontend calls `vehicle-ingest` via [src/lib/edgeFunctions.ts](src/lib/edgeFunctions.ts).
+3. Frontend calls `vehicle-ingest` via [src/lib/edgeFunctions.ts](../src/lib/edgeFunctions.ts).
    - Current payload path sends `photo_url` (storage-first) to minimize request size.
    - `vehicle-ingest` downloads bytes server-side for inference when raw image payload is absent.
-4. `vehicle-ingest` orchestrates inference path in [supabase/functions/vehicle-ingest/index.ts](supabase/functions/vehicle-ingest/index.ts):
+4. `vehicle-ingest` orchestrates inference path in [supabase/functions/vehicle-ingest/index.ts](../supabase/functions/vehicle-ingest/index.ts):
    - Primary: Railway inference (`/infer`)
-   - Backup: Plate Recognizer via [supabase/functions/_shared/alpr.ts](supabase/functions/_shared/alpr.ts)
+   - Backup: Plate Recognizer via [supabase/functions/_shared/alpr.ts](../supabase/functions/_shared/alpr.ts)
    - Final fallback: manual-required plate sentinel
 5. `vehicle-ingest` ensures canonical vehicle row exists.
 6. `vehicle-ingest` inserts into `observations`.
@@ -20,17 +20,17 @@ This map documents the end-to-end scan pipeline and the exact schema contract re
 
 ## Frontend Helpers
 
-1. `retryEdgeCall`: network retry wrapper in [src/pages/FieldOfficerPortal.tsx](src/pages/FieldOfficerPortal.tsx).
-2. `isTransientNetworkError`: edge transport-failure detection in [src/pages/FieldOfficerPortal.tsx](src/pages/FieldOfficerPortal.tsx).
-3. `ingestVehicleObservation` wrapper in [src/lib/edgeFunctions.ts](src/lib/edgeFunctions.ts).
-4. Direct insert fallback path in [src/pages/FieldOfficerPortal.tsx](src/pages/FieldOfficerPortal.tsx).
+1. `retryEdgeCall`: network retry wrapper in [src/pages/FieldOfficerPortal.tsx](../src/pages/FieldOfficerPortal.tsx).
+2. `isTransientNetworkError`: edge transport-failure detection in [src/pages/FieldOfficerPortal.tsx](../src/pages/FieldOfficerPortal.tsx).
+3. `ingestVehicleObservation` wrapper in [src/lib/edgeFunctions.ts](../src/lib/edgeFunctions.ts).
+4. Direct insert fallback path in [src/pages/FieldOfficerPortal.tsx](../src/pages/FieldOfficerPortal.tsx).
 
 ## Edge Functions And Shared Helpers
 
-1. Primary ingest orchestrator: [supabase/functions/vehicle-ingest/index.ts](supabase/functions/vehicle-ingest/index.ts)
-2. ALPR pipeline function (legacy/update mode): [supabase/functions/alpr-process/index.ts](supabase/functions/alpr-process/index.ts)
-3. Shared ALPR client: [supabase/functions/_shared/alpr.ts](supabase/functions/_shared/alpr.ts)
-4. Shared CORS headers: [supabase/functions/_shared/cors.ts](supabase/functions/_shared/cors.ts)
+1. Primary ingest orchestrator: [supabase/functions/vehicle-ingest/index.ts](../supabase/functions/vehicle-ingest/index.ts)
+2. ALPR pipeline function (legacy/update mode): [supabase/functions/alpr-process/index.ts](../supabase/functions/alpr-process/index.ts)
+3. Shared ALPR client: [supabase/functions/_shared/alpr.ts](../supabase/functions/_shared/alpr.ts)
+4. Shared CORS headers: [supabase/functions/_shared/cors.ts](../supabase/functions/_shared/cors.ts)
 
 ## Core Tables Used Ingest Path
 
@@ -62,8 +62,8 @@ Required compatibility expectations:
 
 Likely active on `observations` inserts and compliance derivation:
 
-1. `trg_auto_evaluate_compliance` via `public.auto_evaluate_compliance()` from [supabase/migrations/20260318_fix_schema_functions.sql](supabase/migrations/20260318_fix_schema_functions.sql)
-2. Legacy trigger risk: `trigger_auto_compliance_check` from [supabase/migrations/20260217000002_fix_compliance_and_breach_detection.sql](supabase/migrations/20260217000002_fix_compliance_and_breach_detection.sql)
+1. `trg_auto_evaluate_compliance` via `public.auto_evaluate_compliance()` from [supabase/migrations/20260318_fix_schema_functions.sql](../supabase/migrations/20260318_fix_schema_functions.sql)
+2. Legacy trigger risk: `trigger_auto_compliance_check` from [supabase/migrations/20260217000002_fix_compliance_and_breach_detection.sql](../supabase/migrations/20260217000002_fix_compliance_and_breach_detection.sql)
 
 ## Known Drift Failure Signature
 

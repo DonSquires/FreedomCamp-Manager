@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from 'sonner'
 import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
 import { 
@@ -105,6 +106,7 @@ export default function UserManagement() {
   const [jobTitle, setJobTitle] = useState('')
   const [requiresDriverLicense, setRequiresDriverLicense] = useState(false)
   const [organizationId, setOrganizationId] = useState<string>('')
+  const [extraOrganizationIds, setExtraOrganizationIds] = useState<string[]>([])
   const [employerOrgId, setEmployerOrgId] = useState<string>('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -228,6 +230,7 @@ export default function UserManagement() {
         job_title: jobTitle || null,
         requires_driver_license: requiresDriverLicense,
         organization_id: organizationId || null,
+        extra_organization_ids: extraOrganizationIds,
         employer_organization_id: employerOrgId || null,
       }
 
@@ -330,7 +333,14 @@ export default function UserManagement() {
     setWarrantNumber('')
     setWarrantExpiry('')
     setOrganizationId('')
+    setExtraOrganizationIds([])
     setEmployerOrgId('')
+  }
+
+  const toggleExtraOrganization = (orgId: string) => {
+    setExtraOrganizationIds((prev) =>
+      prev.includes(orgId) ? prev.filter((id) => id !== orgId) : [...prev, orgId]
+    )
   }
 
   const openEditDialog = (userProfile: UserProfile) => {
@@ -343,6 +353,7 @@ export default function UserManagement() {
     setJobTitle(userProfile.job_title || '')
     setRequiresDriverLicense(userProfile.requires_driver_license || false)
     setOrganizationId(userProfile.organization_id || '')
+    setExtraOrganizationIds((userProfile.extra_organization_ids || []).filter((id) => id !== (userProfile.organization_id || '')))
     setEmployerOrgId(userProfile.employer_organization_id || '')
     setShowEditDialog(true)
   }
@@ -716,7 +727,7 @@ export default function UserManagement() {
               {users.map((userProfile) => (
                 <div
                   key={userProfile.id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
+                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50"
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
@@ -982,7 +993,16 @@ export default function UserManagement() {
             </div>
             <div>
               <Label htmlFor="createOrg">Organisation</Label>
-              <Select value={organizationId || 'none'} onValueChange={(v) => setOrganizationId(v === 'none' ? '' : v)}>
+              <Select
+                value={organizationId || 'none'}
+                onValueChange={(v) => {
+                  const nextOrgId = v === 'none' ? '' : v
+                  setOrganizationId(nextOrgId)
+                  if (nextOrgId) {
+                    setExtraOrganizationIds((prev) => prev.filter((id) => id !== nextOrgId))
+                  }
+                }}
+              >
                 <SelectTrigger id="createOrg">
                   <SelectValue placeholder="Select organisation" />
                 </SelectTrigger>
@@ -993,6 +1013,26 @@ export default function UserManagement() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <Label>Authorised Additional Organisations</Label>
+              <p className="text-xs text-gray-500 mt-1">
+                Select any extra organisations this user can work across.
+              </p>
+              <div className="mt-2 max-h-36 overflow-y-auto rounded-md border divide-y">
+                {availableOrgs.filter((org) => org.id !== organizationId).map((org) => (
+                  <label key={org.id} className="flex items-center gap-2 px-3 py-2 hover:bg-muted/50 cursor-pointer">
+                    <Checkbox
+                      checked={extraOrganizationIds.includes(org.id)}
+                      onCheckedChange={() => toggleExtraOrganization(org.id)}
+                    />
+                    <span className="text-sm text-gray-800">{org.name}</span>
+                  </label>
+                ))}
+                {availableOrgs.filter((org) => org.id !== organizationId).length === 0 && (
+                  <div className="px-3 py-2 text-xs text-gray-500">No additional organisations available.</div>
+                )}
+              </div>
             </div>
             <div>
               <Label htmlFor="createEmployerOrg">Employer Organisation</Label>
@@ -1067,38 +1107,38 @@ export default function UserManagement() {
                 <SelectContent>
                   <SelectItem value="officer">
                     <div className="flex flex-col items-start">
-                      <span className="font-medium">Officer</span>
+                      <span className="font-medium text-gray-900 dark:text-gray-100">Officer</span>
                       <span className="text-xs text-gray-500">Field operations only</span>
                     </div>
                   </SelectItem>
                   <SelectItem value="nzscv_monitor">
                     <div className="flex flex-col items-start">
-                      <span className="font-medium">NZSCV Monitor</span>
+                      <span className="font-medium text-gray-900 dark:text-gray-100">NZSCV Monitor</span>
                       <span className="text-xs text-gray-500">Read-only vehicle registry monitoring</span>
                     </div>
                   </SelectItem>
                   <SelectItem value="admin_officer">
                     <div className="flex flex-col items-start">
-                      <span className="font-medium">Admin Officer</span>
+                      <span className="font-medium text-gray-900 dark:text-gray-100">Admin Officer</span>
                       <span className="text-xs text-gray-500">Dual role - field + admin access</span>
                     </div>
                   </SelectItem>
                   <SelectItem value="admin">
                     <div className="flex flex-col items-start">
-                      <span className="font-medium">Admin</span>
+                      <span className="font-medium text-gray-900 dark:text-gray-100">Admin</span>
                       <span className="text-xs text-gray-500">Full organisational management</span>
                     </div>
                   </SelectItem>
                   <SelectItem value="client_viewer">
                     <div className="flex flex-col items-start">
-                      <span className="font-medium">Client Viewer</span>
+                      <span className="font-medium text-gray-900 dark:text-gray-100">Client Viewer</span>
                       <span className="text-xs text-gray-500">Read-only client organisation portal</span>
                     </div>
                   </SelectItem>
                   {(user?.role === 'master' || user?.role === 'grand_master') && (
                     <SelectItem value="master">
                       <div className="flex flex-col items-start">
-                        <span className="font-medium">Master</span>
+                        <span className="font-medium text-gray-900 dark:text-gray-100">Master</span>
                         <span className="text-xs text-gray-500">Cross-organisation access</span>
                       </div>
                     </SelectItem>
@@ -1106,7 +1146,7 @@ export default function UserManagement() {
                   {user?.role === 'grand_master' && (
                     <SelectItem value="grand_master">
                       <div className="flex flex-col items-start">
-                        <span className="font-medium">Grand Master</span>
+                        <span className="font-medium text-gray-900 dark:text-gray-100">Grand Master</span>
                         <span className="text-xs text-gray-500">Platform owner – full access across all organisations</span>
                       </div>
                     </SelectItem>
@@ -1392,7 +1432,16 @@ export default function UserManagement() {
             </div>
             <div>
               <Label htmlFor="editOrg">Organisation</Label>
-              <Select value={organizationId || 'none'} onValueChange={(v) => setOrganizationId(v === 'none' ? '' : v)}>
+              <Select
+                value={organizationId || 'none'}
+                onValueChange={(v) => {
+                  const nextOrgId = v === 'none' ? '' : v
+                  setOrganizationId(nextOrgId)
+                  if (nextOrgId) {
+                    setExtraOrganizationIds((prev) => prev.filter((id) => id !== nextOrgId))
+                  }
+                }}
+              >
                 <SelectTrigger id="editOrg">
                   <SelectValue placeholder="Select organisation" />
                 </SelectTrigger>
@@ -1403,6 +1452,26 @@ export default function UserManagement() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <Label>Authorised Additional Organisations</Label>
+              <p className="text-xs text-gray-500 mt-1">
+                Select any extra organisations this user can access.
+              </p>
+              <div className="mt-2 max-h-36 overflow-y-auto rounded-md border divide-y">
+                {availableOrgs.filter((org) => org.id !== organizationId).map((org) => (
+                  <label key={org.id} className="flex items-center gap-2 px-3 py-2 hover:bg-muted/50 cursor-pointer">
+                    <Checkbox
+                      checked={extraOrganizationIds.includes(org.id)}
+                      onCheckedChange={() => toggleExtraOrganization(org.id)}
+                    />
+                    <span className="text-sm text-gray-800">{org.name}</span>
+                  </label>
+                ))}
+                {availableOrgs.filter((org) => org.id !== organizationId).length === 0 && (
+                  <div className="px-3 py-2 text-xs text-gray-500">No additional organisations available.</div>
+                )}
+              </div>
             </div>
             <div>
               <Label htmlFor="editEmployerOrg">Employer Organisation</Label>
@@ -1432,6 +1501,7 @@ export default function UserManagement() {
                 job_title: jobTitle || null,
                 requires_driver_license: requiresDriverLicense,
                 organization_id: organizationId || null,
+                extra_organization_ids: extraOrganizationIds,
                 employer_organization_id: employerOrgId || null,
               })}
               disabled={updateUserMutation.isPending}
