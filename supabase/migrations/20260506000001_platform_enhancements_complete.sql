@@ -79,8 +79,8 @@ CREATE TABLE IF NOT EXISTS privacy_consents (
   withdrawal_reason TEXT,
   withdrawal_method TEXT,
   
-  -- Data retention
-  retention_period_days INTEGER DEFAULT 2555,  -- ~7 years default
+  -- Data retention (NZ Privacy Act recommends not keeping personal data longer than necessary)
+  retention_period_days INTEGER DEFAULT 2557,  -- 7 years (365.25 * 7 = 2556.75, rounded up)
   retention_expires_at TIMESTAMPTZ,
   
   -- Audit
