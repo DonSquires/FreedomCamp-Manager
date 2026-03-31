@@ -339,6 +339,7 @@ let freeFallStart: number | null = null
 let lastAcceleration: { x: number; y: number; z: number; magnitude: number } | null = null
 let postFallMotionCheck: ReturnType<typeof setTimeout> | null = null
 let fallCallback: ((event: FallEvent) => void) | null = null
+let fallMotionHandler: ((event: DeviceMotionEvent) => void) | null = null
 
 /**
  * Start fall detection monitoring
@@ -430,6 +431,8 @@ export function startFallDetection(
     lastAcceleration = { x: accel.x, y: accel.y, z: accel.z, magnitude }
   }
   
+  // Store handler reference for proper cleanup
+  fallMotionHandler = handleMotion
   window.addEventListener('devicemotion', handleMotion)
   fallDetectionActive = true
   
@@ -450,8 +453,12 @@ export function startFallDetection(
 export function stopFallDetection(): void {
   if (!fallDetectionActive) return
   
-  // Note: We can't easily remove the specific listener without storing a reference
-  // In a full implementation, we'd store the handler reference
+  // Remove the event listener using stored reference
+  if (fallMotionHandler) {
+    window.removeEventListener('devicemotion', fallMotionHandler)
+    fallMotionHandler = null
+  }
+  
   fallDetectionActive = false
   fallCallback = null
   freeFallStart = null
@@ -480,6 +487,7 @@ let shakeDetectionActive = false
 let shakeTimestamps: number[] = []
 let lastShakeAlert = 0
 let shakeCallback: ((event: ShakeEvent) => void) | null = null
+let shakeMotionHandler: ((event: DeviceMotionEvent) => void) | null = null
 
 /**
  * Start shake detection for panic trigger
@@ -542,6 +550,8 @@ export function startShakeDetection(
     }
   }
   
+  // Store handler reference for proper cleanup
+  shakeMotionHandler = handleMotion
   window.addEventListener('devicemotion', handleMotion)
   shakeDetectionActive = true
   
@@ -561,6 +571,12 @@ export function startShakeDetection(
  */
 export function stopShakeDetection(): void {
   if (!shakeDetectionActive) return
+  
+  // Remove the event listener using stored reference
+  if (shakeMotionHandler) {
+    window.removeEventListener('devicemotion', shakeMotionHandler)
+    shakeMotionHandler = null
+  }
   
   shakeDetectionActive = false
   shakeCallback = null
