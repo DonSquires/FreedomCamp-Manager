@@ -36,16 +36,16 @@ import {
 
 export type ModuleCategory = 'enforcement' | 'security' | 'operations' | 'communication'
 
+// CRM is now integrated into core, not a separate module
 export type ModuleId = 
-  | 'core'
+  | 'core'           // CRM Hub + Auth + Tracking + PTT + Welfare + Bugs
   | 'freedom_camping'
   | 'parking'
   | 'noise'
   | 'guarding'
   | 'patrol'
   | 'rostering'
-  | 'ptt_chat'
-  | 'crm'
+  | 'ptt_chat'       // Kept for backwards compatibility, but now part of core
   | 'ems'
   | 'dispatch'
   | 'ticketing'
@@ -108,13 +108,14 @@ export interface ServiceModule {
 
 export const SERVICE_MODULES: Record<ModuleId, ServiceModule> = {
   // ─────────────────────────────────────────────────────────────────────────
-  // CORE (Always enabled)
+  // CORE (Always enabled - CRM-Centric Hub)
+  // Iron Eagle Security is the hardcoded platform owner
   // ─────────────────────────────────────────────────────────────────────────
   core: {
     id: 'core',
-    name: 'Core Platform',
-    description: 'Core platform features including authentication, organization management, user management, zone management, live officer tracking, PTT/Team Chat, officer welfare system, and self-healing bug detection.',
-    shortDescription: 'Core platform + PTT + Welfare + Bug System',
+    name: 'Core Platform (CRM Hub)',
+    description: 'CRM-centric platform hub with Iron Eagle Security as the platform owner. Includes account/organization management, user management, zone/site management, contracts, live officer tracking, PTT/Team Chat, officer welfare system, and self-healing bug detection. All other modules plug into this central hub.',
+    shortDescription: 'CRM Hub + PTT + Welfare + Bug System',
     icon: Shield,
     color: 'text-slate-700 dark:text-slate-300',
     bgColor: 'bg-slate-100 dark:bg-slate-800',
@@ -124,10 +125,17 @@ export const SERVICE_MODULES: Record<ModuleId, ServiceModule> = {
     requiresModules: [],
     pricing: { model: 'flat', baseFee: 0 },
     routes: [
+      // CRM Hub Routes (Central Entity Management)
       { path: '/admin', label: 'Command Centre', roles: ['admin', 'master', 'admin_officer'] },
-      { path: '/user-management', label: 'User Management', roles: ['admin', 'master'] },
-      { path: '/organization-management', label: 'Organization Management', roles: ['master', 'grand_master'] },
-      { path: '/zones', label: 'Zone Management', roles: ['admin', 'master'] },
+      { path: '/crm', label: 'CRM Dashboard', roles: ['admin', 'master', 'admin_officer'] },
+      { path: '/accounts', label: 'Accounts', roles: ['admin', 'master'] },
+      { path: '/organization-management', label: 'Organizations', roles: ['master', 'grand_master'] },
+      { path: '/user-management', label: 'Users', roles: ['admin', 'master'] },
+      { path: '/zones', label: 'Zones', roles: ['admin', 'master'] },
+      { path: '/sites', label: 'Sites', roles: ['admin', 'master'] },
+      { path: '/contracts', label: 'Contracts', roles: ['admin', 'master'] },
+      { path: '/contacts', label: 'Contacts', roles: ['admin', 'master'] },
+      // Core Platform Routes
       { path: '/live-tracking', label: 'Live Officer Tracking', roles: ['admin', 'master', 'admin_officer'] },
       { path: '/audit-log', label: 'Audit Log', roles: ['admin', 'master'] },
       { path: '/settings', label: 'Settings', roles: ['admin', 'master', 'officer', 'admin_officer'] },
@@ -139,7 +147,18 @@ export const SERVICE_MODULES: Record<ModuleId, ServiceModule> = {
       { path: '/officer-welfare', label: 'Officer Welfare Settings', roles: ['admin', 'master'] },
     ],
     tables: [
-      'organizations', 'user_profiles', 'zones', 'officer_locations', 'audit_log', 'notifications',
+      // CRM Hub Tables (Central Entity Management)
+      'organizations',       // Accounts (Iron Eagle → Service Providers → Clients)
+      'user_profiles',       // Users assigned to accounts
+      'zones',               // Geographic zones owned by accounts
+      'client_sites',        // Physical sites managed by accounts
+      'contracts',           // Contracts between accounts
+      'contract_terms',      // Contract line items
+      'contacts',            // Named contacts at accounts
+      // Core Platform Tables
+      'officer_locations',   // Live GPS tracking
+      'audit_log',           // Action audit trail
+      'notifications',       // In-app notifications
       // PTT tables
       'ptt_channels', 'ptt_channel_members', 'ptt_messages', 'ptt_presence',
       // Welfare tables
@@ -149,6 +168,8 @@ export const SERVICE_MODULES: Record<ModuleId, ServiceModule> = {
     ],
     edgeFunctions: [
       'auth', 'user-profile', 'organization',
+      // CRM
+      'crm-sync', 'contract-management',
       // PTT
       'ptt-signaling-token',
       // Welfare
@@ -360,31 +381,9 @@ export const SERVICE_MODULES: Record<ModuleId, ServiceModule> = {
     displayOrder: 70,
   },
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // CRM
-  // ─────────────────────────────────────────────────────────────────────────
-  crm: {
-    id: 'crm',
-    name: 'Customer Relationship',
-    description: 'Zoho-style CRM for managing accounts (clients and contractors), contacts, contracts, and compliance tracking.',
-    shortDescription: 'Accounts & contacts',
-    icon: Building2,
-    color: 'text-emerald-700 dark:text-emerald-400',
-    bgColor: 'bg-emerald-100 dark:bg-emerald-900',
-    borderColor: 'border-emerald-400 dark:border-emerald-700',
-    category: 'operations',
-    isCore: false,
-    requiresModules: ['core'],
-    pricing: { model: 'seat', baseFee: 9900, perSeatFee: 1900 },
-    routes: [
-      { path: '/crm', label: 'CRM', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
-      { path: '/contractor-account', label: 'Contractor Account', roles: ['admin', 'master'], adminOnly: true },
-    ],
-    tables: ['contractor_profiles', 'contracts', 'contract_terms'],
-    edgeFunctions: ['crm-sync'],
-    featureFlags: ['FEATURE_CRM'],
-    displayOrder: 80,
-  },
+  // NOTE: CRM has been integrated into the Core Platform (CRM Hub)
+  // Organizations, Users, Zones, Sites, Contracts, and Contacts are all
+  // managed through the core module. See core.routes and core.tables above.
 
   // ─────────────────────────────────────────────────────────────────────────
   // EMS

@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This document outlines the complete build plan for a **modular regulatory and security management platform** built from scratch. The platform is designed as a **standalone, white-label system** with a central hub and pluggable service modules that can be individually licensed to clients and service providers.
+This document outlines the complete build plan for a **modular regulatory and security management platform** built from scratch. The platform is designed as a **standalone, white-label system** with a **CRM-centric hub** and pluggable service modules that can be individually licensed to clients and service providers.
 
 **Target Market**: Security companies, councils, parking operators, noise control services, and any organization requiring field officer management and regulatory compliance.
 
@@ -11,63 +11,131 @@ This document outlines the complete build plan for a **modular regulatory and se
 **Design Principles**:
 - **100% Standalone** — No vendor lock-in, fully self-hosted option available
 - **White-label** — Rebrandable for different operators
+- **CRM-Centric** — Organizations, Users, and Zones all managed through the CRM as the central entity hub
+- **Iron Eagle Ownership** — Iron Eagle Security is hardcoded as the platform owner
 - **3rd Party APIs** — Integrate with existing services (NZSCV, Motoweb, OpenAI)
 - **Self-hosted AI** — Option to run your own ALPR/inference on Railway
 
 ---
 
+## Platform Owner
+
+**Iron Eagle Security** is the platform owner and has ultimate control over all aspects of the system. This is hardcoded in the system initialization:
+
+```sql
+-- Platform owner (hardcoded - cannot be changed)
+INSERT INTO organizations (
+  id, name, organization_type, organization_level
+) VALUES (
+  '00000000-0000-0000-0000-000000000001',
+  'Iron Eagle Security',
+  'platform_owner',
+  0  -- Root level
+) ON CONFLICT DO NOTHING;
+```
+
+The platform owner can:
+- Create service provider accounts
+- Assign modules to any organization
+- View all data across all organizations
+- Configure platform-wide settings
+- Access all administrative functions
+
+---
+
 ## Part 1: Platform Architecture
 
-### 1.1 High-Level Architecture
+### 1.1 High-Level Architecture (CRM-Centric Model)
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                      REGULATORY/SECURITY PLATFORM                            │
-│                        (White-label, Standalone)                             │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  ┌────────────────────────────────────────────────────────────────────────┐ │
-│  │                         CORE PLATFORM                                   │ │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐     │ │
-│  │  │   Auth   │ │   Orgs   │ │  Users   │ │  Zones   │ │ Tracking │     │ │
-│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘     │ │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐     │ │
-│  │  │ Welfare  │ │  Audit   │ │ Reports  │ │  Notify  │ │ Billing  │     │ │
-│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘     │ │
-│  └────────────────────────────────────────────────────────────────────────┘ │
-│                                    │                                         │
-│  ┌────────────────────────────────┴───────────────────────────────────────┐ │
-│  │                     3RD PARTY INTEGRATIONS                              │ │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐     │ │
-│  │  │  NZSCV   │ │ Motoweb  │ │  OpenAI  │ │ ParkPow  │ │  Stripe  │     │ │
-│  │  │  (SCV)   │ │ (Rego)   │ │ (AI/LLM) │ │(Parking) │ │(Billing) │     │ │
-│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘     │ │
-│  └────────────────────────────────────────────────────────────────────────┘ │
-│                                    │                                         │
-│  ┌────────────────────────────────┴───────────────────────────────────────┐ │
-│  │                   SELF-HOSTED AI (Railway)                              │ │
-│  │  ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐       │ │
-│  │  │   ALPR/OCR       │ │ Face Recognition │ │  Document OCR    │       │ │
-│  │  │   (ONNX)         │ │    (ONNX)        │ │    (ONNX)        │       │ │
-│  │  └──────────────────┘ └──────────────────┘ └──────────────────┘       │ │
-│  └────────────────────────────────────────────────────────────────────────┘ │
-│                                    │                                         │
-│                    ┌───────────────┼───────────────┐                        │
-│                    │               │               │                        │
-│  ┌─────────────────┴───┐ ┌────────┴────────┐ ┌────┴─────────────────┐     │
-│  │   SERVICE MODULES   │ │ SERVICE MODULES │ │   SERVICE MODULES    │     │
-│  ├─────────────────────┤ ├─────────────────┤ ├──────────────────────┤     │
-│  │ • Freedom Camping   │ │ • Guarding      │ │ • Rostering          │     │
-│  │ • Parking           │ │ • Patrol        │ │ • PTT/Chat           │     │
-│  │ • Noise Control     │ │ • EMS           │ │ • CRM                │     │
-│  │                     │ │                 │ │ • Dispatch           │     │
-│  └─────────────────────┘ └─────────────────┘ └──────────────────────┘     │
-│       ENFORCEMENT            SECURITY             OPERATIONS              │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                      REGULATORY/SECURITY PLATFORM                                │
+│               (White-label, Standalone, Iron Eagle Owned)                        │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  ╔════════════════════════════════════════════════════════════════════════════╗ │
+│  ║                    CRM HUB (Central Entity Management)                      ║ │
+│  ║ ┌──────────────────────────────────────────────────────────────────────┐   ║ │
+│  ║ │  ACCOUNTS (Organizations)                                             │   ║ │
+│  ║ │  ┌─────────────────────────────────────────────────────────────────┐ │   ║ │
+│  ║ │  │ Iron Eagle Security (Platform Owner - Level 0)                  │ │   ║ │
+│  ║ │  │    ├── Service Providers (Level 1) - contracted security cos    │ │   ║ │
+│  ║ │  │    │      └── Clients (Level 2) - councils, property managers   │ │   ║ │
+│  ║ │  │    └── Contractors (Level 1) - independent officers             │ │   ║ │
+│  ║ │  └─────────────────────────────────────────────────────────────────┘ │   ║ │
+│  ║ └──────────────────────────────────────────────────────────────────────┘   ║ │
+│  ║ ┌───────────────┐ ┌───────────────┐ ┌───────────────┐ ┌───────────────┐   ║ │
+│  ║ │    USERS      │ │  ZONES/SITES  │ │   CONTRACTS   │ │   CONTACTS    │   ║ │
+│  ║ │ (Assigned to  │ │ (Owned by     │ │ (Between      │ │ (Per-account  │   ║ │
+│  ║ │  accounts)    │ │  accounts)    │ │  accounts)    │ │  stakeholders)│   ║ │
+│  ║ └───────────────┘ └───────────────┘ └───────────────┘ └───────────────┘   ║ │
+│  ╚════════════════════════════════════════════════════════════════════════════╝ │
+│                                      │                                           │
+│  ┌───────────────────────────────────┴────────────────────────────────────────┐ │
+│  │                      CORE PLATFORM SERVICES                                 │ │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐         │ │
+│  │  │   Auth   │ │ Tracking │ │ Welfare  │ │ PTT/Chat │ │  Audit   │         │ │
+│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘         │ │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐                      │ │
+│  │  │ Reports  │ │  Notify  │ │ Billing  │ │ Bug Sys  │                      │ │
+│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘                      │ │
+│  └────────────────────────────────────────────────────────────────────────────┘ │
+│                                      │                                           │
+│  ┌───────────────────────────────────┴────────────────────────────────────────┐ │
+│  │                     3RD PARTY INTEGRATIONS                                  │ │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐         │ │
+│  │  │  NZSCV   │ │ Motoweb  │ │  OpenAI  │ │ ParkPow  │ │  Stripe  │         │ │
+│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘         │ │
+│  └────────────────────────────────────────────────────────────────────────────┘ │
+│                                      │                                           │
+│                    ┌─────────────────┼─────────────────┐                        │
+│                    │                 │                 │                        │
+│  ┌─────────────────┴───┐ ┌──────────┴──────────┐ ┌────┴─────────────────┐     │
+│  │   SERVICE MODULES   │ │  SERVICE MODULES    │ │   SERVICE MODULES    │     │
+│  ├─────────────────────┤ ├─────────────────────┤ ├──────────────────────┤     │
+│  │ • Freedom Camping   │ │ • Guarding          │ │ • Rostering          │     │
+│  │ • Parking           │ │ • Patrol            │ │ • Dispatch           │     │
+│  │ • Noise Control     │ │ • EMS               │ │ • Ticketing          │     │
+│  │ • Ticketing         │ │ • Incidents         │ │                      │     │
+│  └─────────────────────┘ └─────────────────────┘ └──────────────────────┘     │
+│       ENFORCEMENT             SECURITY                OPERATIONS              │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 1.2 Technology Stack
+### 1.2 CRM-Centric Data Model
+
+The CRM acts as the **central entity hub** for the entire platform:
+
+```
+                           ┌─────────────────────┐
+                           │    ACCOUNTS         │
+                           │   (Organizations)   │
+                           │                     │
+                           │ • Iron Eagle (L0)   │
+                           │ • Providers (L1)    │
+                           │ • Clients (L2)      │
+                           └──────────┬──────────┘
+                                      │
+           ┌──────────────┬───────────┼───────────┬──────────────┐
+           │              │           │           │              │
+     ┌─────┴─────┐  ┌─────┴─────┐ ┌───┴───┐ ┌─────┴─────┐ ┌──────┴──────┐
+     │  USERS    │  │  ZONES    │ │ SITES │ │ CONTACTS  │ │ CONTRACTS   │
+     │           │  │           │ │       │ │           │ │             │
+     │ Belong to │  │ Owned by  │ │Managed│ │ Named     │ │ Terms       │
+     │ accounts  │  │ accounts  │ │  by   │ │ people    │ │ between     │
+     │           │  │           │ │       │ │ at accts  │ │ accounts    │
+     └───────────┘  └───────────┘ └───────┘ └───────────┘ └─────────────┘
+```
+
+**Key Relationships:**
+- Every **User** belongs to an **Account** (organization)
+- Every **Zone** is owned by an **Account**
+- Every **Site** is managed by an **Account** (may be a client)
+- Every **Contract** links a service provider to a client
+- Every **Contact** is associated with an **Account**
+
+### 1.3 Technology Stack
 
 | Layer | Technology | Rationale |
 |-------|------------|-----------|
@@ -292,11 +360,11 @@ Check-in due → 5 min overdue → Peer alert (Level 0)
 - `OfficerWelfareWarningModal` — Full-screen alert requiring response
 - `OfficerWelfareSettings` — Admin configuration page
 
-### 2.2 Core Database Schema
+### 2.2 Core Database Schema (CRM-Centric)
 
 ```sql
 -- =============================================================================
--- CORE PLATFORM SCHEMA (Standalone/White-label)
+-- CORE PLATFORM SCHEMA (CRM-Centric, Iron Eagle Owned)
 -- =============================================================================
 
 -- Platform configuration (white-label settings)
@@ -304,13 +372,13 @@ CREATE TABLE platform_config (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   
   -- Branding
-  platform_name TEXT NOT NULL DEFAULT 'Security Platform',
+  platform_name TEXT NOT NULL DEFAULT 'Iron Eagle Security Platform',
   logo_url TEXT,
   favicon_url TEXT,
   primary_color TEXT DEFAULT '#3b82f6',
   
   -- Contact
-  support_email TEXT,
+  support_email TEXT DEFAULT 'support@ironeaglesecurity.co.nz',
   support_phone TEXT,
   
   -- Legal
@@ -336,13 +404,28 @@ CREATE TABLE platform_config (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Organizations (multi-tenant)
+-- =============================================================================
+-- CRM HUB: ACCOUNTS (Organizations)
+-- =============================================================================
+-- The CRM Hub manages all accounts (organizations) in a hierarchical structure:
+--   Level 0: Platform Owner (Iron Eagle Security - hardcoded)
+--   Level 1: Service Providers & Contractors
+--   Level 2: Clients (of service providers)
+-- =============================================================================
+
 CREATE TABLE organizations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
+  
+  -- Account type determines capabilities
   organization_type TEXT NOT NULL CHECK (organization_type IN (
-    'platform_owner', 'service_provider', 'client', 'contractor'
+    'platform_owner',    -- Iron Eagle Security (Level 0, only one)
+    'service_provider',  -- Security companies (Level 1)
+    'client',           -- Councils, property managers (Level 2)
+    'contractor'        -- Independent contractors (Level 1)
   )),
+  
+  -- Hierarchy level (0 = root, 1 = provider/contractor, 2 = client)
   organization_level INTEGER NOT NULL DEFAULT 1,
   parent_organization_id UUID REFERENCES organizations(id),
   
@@ -350,6 +433,10 @@ CREATE TABLE organizations (
   contact_email TEXT,
   contact_phone TEXT,
   address TEXT,
+  
+  -- Business details
+  business_registration_number TEXT,
+  gst_number TEXT,
   
   -- White-label overrides (optional)
   custom_logo_url TEXT,
@@ -360,12 +447,41 @@ CREATE TABLE organizations (
   country_code TEXT DEFAULT 'NZ',
   is_active BOOLEAN DEFAULT TRUE,
   
+  -- Billing
+  stripe_customer_id TEXT,
+  billing_email TEXT,
+  
   -- Timestamps
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- User profiles
+-- Hardcoded platform owner (Iron Eagle Security)
+-- This is inserted on database initialization and cannot be deleted
+INSERT INTO organizations (
+  id,
+  name,
+  organization_type,
+  organization_level,
+  parent_organization_id,
+  contact_email,
+  is_active
+) VALUES (
+  '00000000-0000-0000-0000-000000000001',
+  'Iron Eagle Security',
+  'platform_owner',
+  0,
+  NULL,
+  'admin@ironeaglesecurity.co.nz',
+  TRUE
+) ON CONFLICT (id) DO NOTHING;
+
+-- =============================================================================
+-- CRM HUB: USERS
+-- =============================================================================
+-- All users belong to an account (organization)
+-- =============================================================================
+
 CREATE TABLE user_profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id),
   email TEXT NOT NULL UNIQUE,
@@ -375,9 +491,18 @@ CREATE TABLE user_profiles (
   
   -- Role & org assignment
   role TEXT NOT NULL CHECK (role IN (
-    'grand_master', 'master', 'admin', 'admin_officer', 'officer', 'client_viewer'
+    'grand_master',   -- Platform owner superuser
+    'master',         -- Organization admin
+    'admin',          -- Department admin
+    'admin_officer',  -- Officer with admin rights
+    'officer',        -- Field officer
+    'client_viewer'   -- Read-only client access
   )),
+  
+  -- Account assignment (which org this user belongs to)
   organization_id UUID REFERENCES organizations(id),
+  
+  -- Employer (for contractors assigned to clients)
   employer_organization_id UUID REFERENCES organizations(id),
   
   -- Officer-specific
@@ -389,7 +514,106 @@ CREATE TABLE user_profiles (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Zones (geographic areas)
+-- =============================================================================
+-- CRM HUB: CONTACTS
+-- =============================================================================
+-- Named people at accounts (not system users, just contact info)
+-- =============================================================================
+
+CREATE TABLE contacts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id),
+  
+  -- Contact details
+  first_name TEXT NOT NULL,
+  last_name TEXT NOT NULL,
+  email TEXT,
+  phone TEXT,
+  mobile TEXT,
+  
+  -- Role at the organization
+  job_title TEXT,
+  department TEXT,
+  is_primary BOOLEAN DEFAULT FALSE,  -- Primary contact for the account
+  
+  -- Notes
+  notes TEXT,
+  
+  -- Status
+  is_active BOOLEAN DEFAULT TRUE,
+  
+  -- Timestamps
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =============================================================================
+-- CRM HUB: CONTRACTS
+-- =============================================================================
+-- Contracts link service providers to clients
+-- =============================================================================
+
+CREATE TABLE contracts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  
+  -- Parties (service provider → client)
+  provider_organization_id UUID NOT NULL REFERENCES organizations(id),
+  client_organization_id UUID NOT NULL REFERENCES organizations(id),
+  
+  -- Contract details
+  contract_number TEXT,
+  name TEXT NOT NULL,
+  description TEXT,
+  
+  -- Dates
+  start_date DATE NOT NULL,
+  end_date DATE,
+  auto_renew BOOLEAN DEFAULT FALSE,
+  
+  -- Value
+  contract_value_cents INTEGER,
+  billing_frequency TEXT CHECK (billing_frequency IN ('monthly', 'quarterly', 'annually')),
+  
+  -- Status
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN (
+    'draft', 'pending_approval', 'active', 'suspended', 'expired', 'cancelled'
+  )),
+  
+  -- Timestamps
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Contract line items (services included)
+CREATE TABLE contract_terms (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  contract_id UUID NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+  
+  -- Service details
+  module_id TEXT NOT NULL,  -- References service module
+  description TEXT,
+  
+  -- Pricing
+  unit_price_cents INTEGER NOT NULL,
+  quantity INTEGER DEFAULT 1,
+  billing_type TEXT CHECK (billing_type IN ('fixed', 'per_seat', 'per_transaction', 'hourly')),
+  
+  -- SLA
+  sla_response_minutes INTEGER,
+  
+  -- Status
+  is_active BOOLEAN DEFAULT TRUE,
+  
+  -- Timestamps
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =============================================================================
+-- CRM HUB: ZONES
+-- =============================================================================
+-- Geographic zones owned by accounts
+-- =============================================================================
+
 CREATE TABLE zones (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES organizations(id),
@@ -412,21 +636,33 @@ CREATE TABLE zones (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Client sites (physical locations)
+-- =============================================================================
+-- CRM HUB: SITES
+-- =============================================================================
+-- Physical sites managed by accounts
+-- =============================================================================
+
 CREATE TABLE client_sites (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES organizations(id),
+  
+  -- Site details
   name TEXT NOT NULL,
   address TEXT,
   
   -- Geography
   latitude DECIMAL(10, 7),
   longitude DECIMAL(10, 7),
+  geofence_radius_meters INTEGER DEFAULT 100,
   
-  -- Contact
+  -- Contact (on-site)
   contact_name TEXT,
   contact_phone TEXT,
   contact_email TEXT,
+  
+  -- Service details
+  contract_id UUID REFERENCES contracts(id),
+  service_notes TEXT,
   
   -- Settings
   is_active BOOLEAN DEFAULT TRUE,
@@ -436,7 +672,10 @@ CREATE TABLE client_sites (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Live officer locations
+-- =============================================================================
+-- CORE: LIVE OFFICER TRACKING
+-- =============================================================================
+
 CREATE TABLE officer_locations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   officer_id UUID NOT NULL REFERENCES user_profiles(id),
@@ -457,7 +696,10 @@ CREATE TABLE officer_locations (
   recorded_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Officer welfare checks
+-- =============================================================================
+-- CORE: OFFICER WELFARE
+-- =============================================================================
+
 CREATE TABLE officer_welfare_checks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   officer_id UUID NOT NULL REFERENCES user_profiles(id),
