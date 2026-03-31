@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
@@ -10,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Building2, Users, MapPin, Settings, Plus, Search } from 'lucide-react'
+import { Building2, Users, MapPin, Settings, Plus, Search, FileText, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
@@ -33,6 +34,7 @@ interface Organization {
 export default function OrganizationManagement() {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [showSettingsDialog, setShowSettingsDialog] = useState(false)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null)
@@ -375,6 +377,82 @@ export default function OrganizationManagement() {
                       </div>
                     </div>
                   )}
+
+                  {/* Quick Actions — Drill down into org resources */}
+                  <div className="mt-4 pt-4 border-t">
+                    <p className="text-xs text-muted-foreground font-medium mb-2">Manage Resources</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5"
+                        onClick={() => navigate(`/users?organization_id=${org.id}`)}
+                      >
+                        <Users className="h-3.5 w-3.5" />
+                        Users
+                        <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0">
+                          {stats.users}
+                        </Badge>
+                        <ChevronRight className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5"
+                        onClick={() => navigate(`/zones?organization_id=${org.id}`)}
+                      >
+                        <MapPin className="h-3.5 w-3.5" />
+                        Zones
+                        <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0">
+                          {stats.zones}
+                        </Badge>
+                        <ChevronRight className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5"
+                        onClick={() => navigate(`/documents?organization_id=${org.id}`)}
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                        Documents
+                        <ChevronRight className="h-3 w-3" />
+                      </Button>
+                    </div>
+
+                    {/* Client List for Service Providers */}
+                    {org.organization_type === 'service_provider' && (
+                      <div className="mt-3">
+                        <p className="text-xs text-muted-foreground font-medium mb-2">Client Organisations</p>
+                        <div className="space-y-1">
+                          {organizations?.filter(client =>
+                            client.parent_organization_id === org.id &&
+                            (client.organization_type === 'client' || client.organization_type === 'contractor')
+                          ).map(client => (
+                            <div
+                              key={client.id}
+                              className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                              onClick={() => navigate(`/crm?account=${client.id}`)}
+                            >
+                              <div className="flex items-center gap-2">
+                                <Building2 className="h-4 w-4 text-gray-500" />
+                                <span className="text-sm font-medium">{client.name}</span>
+                                <Badge variant="outline" className="text-xs">
+                                  {getOrgTypeLabel(client.organization_type)}
+                                </Badge>
+                              </div>
+                              <ChevronRight className="h-4 w-4 text-gray-400" />
+                            </div>
+                          ))}
+                          {organizations?.filter(client =>
+                            client.parent_organization_id === org.id
+                          ).length === 0 && (
+                            <p className="text-sm text-muted-foreground italic">No client organisations</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             )

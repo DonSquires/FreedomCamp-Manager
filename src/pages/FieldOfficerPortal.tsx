@@ -344,6 +344,72 @@ export default function FieldOfficerPortal() {
   const [showShiftFeedback, setShowShiftFeedback] = useState(false)
   const [feedbackShiftId,   setFeedbackShiftId]   = useState<string | null>(null)
 
+  // ── Shift organization/zone selection for ad-hoc shifts ───────────────────
+  const [shiftOrgId, setShiftOrgId] = useState<string>(user?.organization_id ?? '')
+  const [shiftZoneId, setShiftZoneId] = useState<string>('')
+
+  // Check if user is a service provider member (has access to multiple organizations)
+  const isServiceProviderMember = (user?.authorized_work_locations?.length ?? 0) > 0 ||
+    (user?.extra_organization_ids?.length ?? 0) > 0
+
+  // Fetch organizations accessible to this user for shift selection
+  const { data: accessibleOrgs = [] } = useQuery({
+    queryKey: ['accessible-orgs-for-shift', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return []
+
+      const orgIds = new Set<string>()
+      if (user.organization_id) orgIds.add(user.organization_id)
+      user.authorized_work_locations?.forEach(id => orgIds.add(id))
+      user.extra_organization_ids?.forEach(id => orgIds.add(id))
+
+      if (orgIds.size === 0) return []
+
+      const { data, error } = await supabase
+        .from('organizations')
+        .select('id, name, organization_type')
+        .in('id', Array.from(orgIds))
+        .eq('is_active', true)
+        .order('name')
+
+      if (error) return []
+      return data as { id: string; name: string; organization_type: string }[]
+    },
+    enabled: !!user?.id && isServiceProviderMember,
+    staleTime: 5 * 60_000,
+  })
+
+  // Fetch zones for the selected shift organization
+  const { data: shiftZones = [] } = useQuery({
+    queryKey: ['shift-zones', shiftOrgId],
+    queryFn: async () => {
+      if (!shiftOrgId) return []
+      const { data, error } = await supabase
+        .from('zones')
+        .select('id, name')
+        .eq('organization_id', shiftOrgId)
+        .eq('is_active', true)
+        .order('name')
+
+      if (error) return []
+      return data as { id: string; name: string }[]
+    },
+    enabled: !!shiftOrgId,
+    staleTime: 5 * 60_000,
+  })
+
+  // Reset zone when organization changes
+  useEffect(() => {
+    setShiftZoneId('')
+  }, [shiftOrgId])
+
+  // Set default org when user loads
+  useEffect(() => {
+    if (user?.organization_id && !shiftOrgId) {
+      setShiftOrgId(user.organization_id)
+    }
+  }, [user?.organization_id, shiftOrgId])
+
   // ── Unread notifications ──────────────────────────────────────────────────
   const { data: unreadNotifications = [] } = useQuery({
     queryKey: ['officer-unread-notifications', user?.id],
@@ -634,7 +700,11 @@ export default function FieldOfficerPortal() {
   const [isEndingShift,   setIsEndingShift]   = useState(false)
 
   const handleStartShift = useCallback(async () => {
-    if (!user?.id || !user?.organization_id) return
+    // Use selected org/zone if service provider member, otherwise use user's default
+    const effectiveOrgId = isServiceProviderMember && shiftOrgId ? shiftOrgId : user?.organization_id
+    const effectiveZoneId = shiftZoneId || zoneId || null
+
+    if (!user?.id || !effectiveOrgId) return
     setIsStartingShift(true)
     try {
       let gpsLat: number | null = null
@@ -649,8 +719,8 @@ export default function FieldOfficerPortal() {
 
       const { data: shiftRow, error } = await (supabase.from('officer_shifts') as any).insert({
         officer_id:      user.id,
-        organization_id: user.organization_id,
-        parent_zone_id:  zoneId || null,
+        organization_id: effectiveOrgId,
+        parent_zone_id:  effectiveZoneId,
         gps_start_lat:   gpsLat,
         gps_start_lng:   gpsLng,
       }).select('id').single()
@@ -659,7 +729,7 @@ export default function FieldOfficerPortal() {
       // Register welfare push schedule on server (enables background reminders)
       await (supabase.rpc as any)('upsert_welfare_push_schedule', {
         p_officer_id:       user.id,
-        p_organization_id:  user.organization_id,
+        p_organization_id:  effectiveOrgId,
         p_shift_id:         shiftRow?.id ?? null,
         p_interval_minutes: 30, // default; overridden by officer_welfare_settings
         p_last_checkin_at:  new Date().toISOString(),
@@ -673,14 +743,19 @@ export default function FieldOfficerPortal() {
         })
       }
 
-      refetchShift()
       toast.success('Shift started — welfare monitoring active')
+
+      // Refresh the page to reflect the current state (as per user requirement)
+      await refetchShift()
+      queryClient.invalidateQueries({ queryKey: ['officer-active-shift'] })
+      // Brief delay to allow the toast to show before reload
+      setTimeout(() => window.location.reload(), 500)
     } catch (err: any) {
       toast.error(err?.message ?? 'Failed to start shift')
     } finally {
       setIsStartingShift(false)
     }
-  }, [user, zoneId, refetchShift])
+  }, [user, zoneId, shiftOrgId, shiftZoneId, isServiceProviderMember, refetchShift, queryClient])
 
   const handleEndShift = useCallback(async () => {
     if (!activeShift?.id) return
@@ -719,14 +794,19 @@ export default function FieldOfficerPortal() {
         navigator.serviceWorker.controller.postMessage({ type: 'WELFARE_SHIFT_END' })
       }
 
-      refetchShift()
       toast.success('Shift ended — welfare monitoring stopped')
+
+      // Refresh the page to reflect the current state (as per user requirement)
+      await refetchShift()
+      queryClient.invalidateQueries({ queryKey: ['officer-active-shift'] })
+      // Brief delay to allow the toast to show before reload
+      setTimeout(() => window.location.reload(), 500)
     } catch (err: any) {
       toast.error(err?.message ?? 'Failed to end shift')
     } finally {
       setIsEndingShift(false)
     }
-  }, [activeShift, user, refetchShift])
+  }, [activeShift, user, refetchShift, queryClient])
 
   // Shift duration ticker — re-render every 30s to update displayed duration
   const [, setShiftTick] = useState(0)
@@ -1158,31 +1238,92 @@ export default function FieldOfficerPortal() {
       {!activeShift ? (
         /* No active shift — show "online" status + Start Shift button */
         <div className="rounded-xl border border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950/30 px-4 py-3 mb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-1.5 rounded-full bg-blue-200 dark:bg-blue-800">
-              <MapPin className="h-4 w-4 text-blue-700 dark:text-blue-300" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <span className="text-sm font-semibold text-blue-800 dark:text-blue-200">Online</span>
-              {currentLocation && (
-                <p className="text-[11px] text-blue-600 dark:text-blue-400 mt-0.5">
-                  {currentLocation.latitude.toFixed(5)}, {currentLocation.longitude.toFixed(5)}
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-1.5 rounded-full bg-blue-200 dark:bg-blue-800">
+                <MapPin className="h-4 w-4 text-blue-700 dark:text-blue-300" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="text-sm font-semibold text-blue-800 dark:text-blue-200">Online</span>
+                {currentLocation && (
+                  <p className="text-[11px] text-blue-600 dark:text-blue-400 mt-0.5">
+                    {currentLocation.latitude.toFixed(5)}, {currentLocation.longitude.toFixed(5)}
+                  </p>
+                )}
+                <p className="text-[11px] text-blue-500 dark:text-blue-500 mt-0.5">
+                  Shift not started — welfare monitoring is off
                 </p>
-              )}
-              <p className="text-[11px] text-blue-500 dark:text-blue-500 mt-0.5">
-                Shift not started — welfare monitoring is off
-              </p>
+              </div>
             </div>
-            <Button
-              size="sm"
-              onClick={handleStartShift}
-              disabled={isStartingShift}
-              className="shrink-0 bg-green-600 hover:bg-green-700 text-white font-semibold"
-            >
-              {isStartingShift
-                ? <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />Starting…</span>
-                : <><Clock className="h-4 w-4 mr-1.5" />Start Shift</>}
-            </Button>
+
+            {/* Organization/Zone selection for service provider members */}
+            {isServiceProviderMember && accessibleOrgs.length > 1 && (
+              <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-blue-200 dark:border-blue-700">
+                <div className="flex-1">
+                  <Label className="text-xs text-blue-700 dark:text-blue-300 mb-1 block">Organisation</Label>
+                  <Select value={shiftOrgId} onValueChange={setShiftOrgId}>
+                    <SelectTrigger className="h-9 text-sm bg-white dark:bg-gray-900">
+                      <SelectValue placeholder="Select organisation…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {accessibleOrgs.map(org => (
+                        <SelectItem key={org.id} value={org.id}>
+                          {org.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex-1">
+                  <Label className="text-xs text-blue-700 dark:text-blue-300 mb-1 block">Zone / Location</Label>
+                  <Select value={shiftZoneId} onValueChange={setShiftZoneId} disabled={!shiftOrgId || shiftZones.length === 0}>
+                    <SelectTrigger className="h-9 text-sm bg-white dark:bg-gray-900">
+                      <SelectValue placeholder={shiftZones.length === 0 ? 'No zones available' : 'Select zone…'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {shiftZones.map(zone => (
+                        <SelectItem key={zone.id} value={zone.id}>
+                          {zone.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
+            {/* Single-org users: just show zone selection */}
+            {!isServiceProviderMember && shiftZones.length > 0 && (
+              <div className="pt-2 border-t border-blue-200 dark:border-blue-700">
+                <Label className="text-xs text-blue-700 dark:text-blue-300 mb-1 block">Zone / Location</Label>
+                <Select value={shiftZoneId} onValueChange={setShiftZoneId}>
+                  <SelectTrigger className="h-9 text-sm bg-white dark:bg-gray-900">
+                    <SelectValue placeholder="Select zone…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {shiftZones.map(zone => (
+                      <SelectItem key={zone.id} value={zone.id}>
+                        {zone.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Start Shift button */}
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                onClick={handleStartShift}
+                disabled={isStartingShift || (isServiceProviderMember && accessibleOrgs.length > 1 && !shiftOrgId)}
+                className="shrink-0 bg-green-600 hover:bg-green-700 text-white font-semibold"
+              >
+                {isStartingShift
+                  ? <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />Starting…</span>
+                  : <><Clock className="h-4 w-4 mr-1.5" />Start Shift</>}
+              </Button>
+            </div>
           </div>
         </div>
       ) : (

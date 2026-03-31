@@ -94,6 +94,7 @@ interface JobForm {
   caller_name: string
   caller_phone: string
   client_site_id: string
+  zone_id: string
   response_sla_minutes: number
 }
 
@@ -134,7 +135,7 @@ function minutesSince(dateStr: string | null): number {
 function emptyForm(): JobForm {
   return {
     job_type: 'general', priority: 'normal', title: '', description: '',
-    address: '', caller_name: '', caller_phone: '', client_site_id: '', response_sla_minutes: 60,
+    address: '', caller_name: '', caller_phone: '', client_site_id: '', zone_id: '', response_sla_minutes: 60,
   }
 }
 
@@ -243,6 +244,17 @@ export default function DispatchConsole() {
     enabled: !!orgId,
   })
 
+  // ── Zones for create form ───────────────────────────────────────────────────
+  const { data: dispatchZones = [] } = useQuery({
+    queryKey: ['dispatch-zones-lookup', orgId],
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from('zones').select('id, name').eq('organization_id', orgId ?? '').eq('is_active', true).order('name')
+      return data ?? []
+    },
+    enabled: !!orgId,
+  })
+
   // ── Summary stats ────────────────────────────────────────────────────────────
   const pending    = jobs.filter(j => j.status === 'pending').length
   const active     = jobs.filter(j => ACTIVE_STATUSES.includes(j.status) && j.status !== 'pending').length
@@ -310,6 +322,7 @@ export default function DispatchConsole() {
         caller_name:          f.caller_name || null,
         caller_phone:         f.caller_phone || null,
         client_site_id:       f.client_site_id || null,
+        zone_id:              f.zone_id || null,
         response_sla_minutes: f.response_sla_minutes,
       })
       if (error) throw error
@@ -626,6 +639,16 @@ export default function DispatchConsole() {
               <div className="space-y-1.5">
                 <Label>Address / Location</Label>
                 <Input placeholder="Street address…" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Zone</Label>
+                <Select value={form.zone_id} onValueChange={v => setForm(f => ({ ...f, zone_id: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select zone…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No zone</SelectItem>
+                    {(dispatchZones as any[]).map((z: any) => <SelectItem key={z.id} value={z.id}>{z.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>Client Site</Label>
