@@ -841,29 +841,130 @@ Each service module is a **self-contained vertical** that plugs into the Core Pl
 |--------|-------------|--------------|----------------|
 | **Freedom Camping** | Vehicle compliance for camping zones | Plate scanning (ALPR), overnight tracking, breach detection, notice to vacate | NZSCV (SCV check), Motoweb (vehicle details), Self-hosted ALPR |
 | **Parking Enforcement** | Parking violation management | Chalking, time limits, infringement notices, permits | ParkPow (optional), Self-hosted ALPR |
-| **Noise Control** | Noise complaint management | Job dispatch, abatement notices, equipment seizures | None required |
+| **Noise Control** | Noise complaint management | Job dispatch, abatement notices (RMA s.326-328), equipment seizures | None required |
+| **Ticketing & Infringements** | Infringement notice system | Fine issuance, dispute handling, payment tracking, court referrals, reminders | Stripe (payments), Email/SMS |
 
 #### 4.1.2 SECURITY Modules
 
 | Module | Description | Key Features | 3rd Party APIs |
 |--------|-------------|--------------|----------------|
-| **Site Guarding** | Static site security | Checkpoint verification, visitor logs, face recognition | Self-hosted Face Recognition |
-| **General Patrol** | Mobile patrol operations | Route tracking, alarm response, checkpoint hits | None required |
+| **Site Guarding** | Static site security | Checkpoint verification, visitor logs, face recognition, POI/trespass lists | Self-hosted Face Recognition |
+| **General Patrol** | Mobile patrol operations | Route tracking, alarm response, checkpoint hits, lone worker protocol | None required |
 | **EMS Response** | Emergency coordination | Triage, dispatch, patient tracking | None required |
+| **Incident Management** | Incident reporting & evidence | Incident creation, H&S reports, investigations, court-ready PDFs, witness statements | None required |
 
 #### 4.1.3 OPERATIONS Modules
 
 | Module | Description | Key Features | 3rd Party APIs |
 |--------|-------------|--------------|----------------|
-| **Rostering** | Shift scheduling | Visual roster board, availability, shift swaps, timesheets | None required |
-| **CRM** | Customer relationships | Accounts, contacts, contracts, compliance tracking | None required |
-| **Dispatch Console** | CAD-style dispatch | Job queue, officer status, proximity assignment | None required |
+| **Rostering** | Shift scheduling | Visual roster board, availability, shift swaps, timesheets, payroll export | None required |
+| **CRM** | Customer relationships | Accounts (clients/contractors), contacts, contracts, SLA tracking | None required |
+| **Dispatch Console** | CAD-style dispatch | Job queue, officer status, proximity-based assignment, multi-service dispatch | None required |
 
-#### 4.1.4 COMMUNICATION Modules
+#### 4.1.4 COMMUNICATION Modules (Included in Core)
 
 | Module | Description | Key Features | 3rd Party APIs |
 |--------|-------------|--------------|----------------|
-| **PTT & Chat** | Real-time comms | Push-to-talk, channels, VOX mode, Bluetooth PTT, team chat | None required |
+| **PTT & Chat** | Real-time comms | Push-to-talk (WebRTC), channels, VOX mode, Bluetooth PTT, team chat | PTT Server (Railway) |
+
+### 4.2 Complete Module Summary
+
+| Module | Category | Pricing Model | Base Fee | Per Seat | Per Transaction |
+|--------|----------|---------------|----------|----------|-----------------|
+| Core Platform | - | Included | $0 | $0 | - |
+| Freedom Camping | Enforcement | Seat | $149/mo | $29/seat | - |
+| Parking Enforcement | Enforcement | Seat | $149/mo | $29/seat | - |
+| Noise Control | Enforcement | Seat | $99/mo | $19/seat | - |
+| Ticketing & Infringements | Enforcement | Hybrid | $199/mo | $29/seat | $1/ticket |
+| Site Guarding | Security | Seat | $299/mo | $49/seat | - |
+| General Patrol | Security | Seat | $199/mo | $39/seat | - |
+| EMS Response | Security | Hybrid | $149/mo | $29/seat | $0.50/event |
+| Incident Management | Security | Seat | $149/mo | $29/seat | - |
+| Rostering | Operations | Seat | $99/mo | $19/seat | - |
+| CRM | Operations | Seat | $99/mo | $19/seat | - |
+| Dispatch Console | Operations | Seat | $149/mo | $29/seat | - |
+| PTT & Chat | Communication | Included | $0 | $0 | - |
+
+### 4.3 Module Feature Details
+
+#### Ticketing & Infringements Module
+
+A comprehensive infringement notice and fine management system:
+
+**Notice Types:**
+- **Warning Notice** — First-time courtesy notice (no fine)
+- **Infringement Notice** — FCA/RMA fines ($200-$400 typical)
+- **Breach Notice** — Formal compliance notice
+- **Notice to Vacate** — Legal prohibition on re-entry
+- **Seizure Receipt** — Equipment seizure under RMA s.328
+- **Tow Request** — Request towing authority
+
+**Status Workflow:**
+```
+Issued → Reminder Sent (14 days) → Reminder Sent (28 days) → Court Referred
+                    ↓                          ↓
+                   Paid                      Disputed → Reviewed → Withdrawn/Upheld
+```
+
+**Features:**
+- Server-rendered PDF notices with QR codes
+- OCR barcode for scanning
+- Dispute intake portal (public-facing)
+- Payment tracking (Stripe integration optional)
+- Court referral workflow
+- Automated reminder emails at 14/28 days
+- Revenue reporting
+- Officer certification (digital signatures)
+
+**Database Tables:**
+- `infringement_notices` — Notice records
+- `infringement_notice_counters` — Sequential numbering
+- `enforcement_actions` — Action tracking
+- `enforcement_cases` — Case grouping
+- `dispute_submissions` — Public disputes
+- `payment_records` — Payment tracking
+
+---
+
+#### Incident Management Module
+
+Comprehensive incident reporting for security events, H&S incidents, and investigations:
+
+**Incident Types:**
+- Site security incidents
+- Health & Safety events
+- Enforcement violations
+- Person interactions
+- Camera review requests
+- Police referrals
+
+**Features:**
+- Multi-step incident creation form
+- Evidence attachment (photos, documents)
+- Witness statement capture
+- Person of Interest (POI) linking
+- Police involvement flag
+- Camera review requests
+- Investigation job creation
+- Court-ready PDF generation
+- Chronological incident timeline
+- Bulk operations for admins
+
+**Investigation Jobs:**
+- Job templates for common scenarios
+- Job type classification (NOISE, PARKING, SECURITY, etc.)
+- Status workflow: `pending` → `assigned` → `en_route` → `on_scene` → `completed`
+- Officer briefing with prior incidents
+- Permanent END (Enforcement Notice Direction) flags
+
+**Database Tables:**
+- `incidents` — Incident records
+- `incident_attachments` — Evidence files
+- `investigation_jobs` — Investigation tracking
+- `investigation_job_types` — Job classification
+- `health_safety_reports` — H&S events
+- `person_interactions` — Person incident history
+- `witness_statements` — Witness records
 
 ---
 

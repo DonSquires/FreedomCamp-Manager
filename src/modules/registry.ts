@@ -24,6 +24,10 @@ import {
   Building2,
   Ambulance,
   MonitorPlay,
+  Ticket,
+  FileWarning,
+  Users,
+  ShieldCheck,
 } from 'lucide-react'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -44,6 +48,8 @@ export type ModuleId =
   | 'crm'
   | 'ems'
   | 'dispatch'
+  | 'ticketing'
+  | 'incidents'
 
 export interface ModuleRoute {
   path: string
@@ -428,6 +434,96 @@ export const SERVICE_MODULES: Record<ModuleId, ServiceModule> = {
     edgeFunctions: ['dispatch-job', 'dispatch-assign'],
     featureFlags: ['FEATURE_DISPATCH'],
     displayOrder: 100,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // TICKETING (Infringement & Notice System)
+  // ─────────────────────────────────────────────────────────────────────────
+  ticketing: {
+    id: 'ticketing',
+    name: 'Ticketing & Infringements',
+    description: 'Complete infringement notice system with fine management, dispute handling, payment tracking, court referrals, and automated reminders. Supports FCA (Freedom Camping Act), RMA (Resource Management Act), and parking infringements.',
+    shortDescription: 'Infringements & fines',
+    icon: Ticket,
+    color: 'text-amber-700 dark:text-amber-400',
+    bgColor: 'bg-amber-100 dark:bg-amber-900',
+    borderColor: 'border-amber-400 dark:border-amber-700',
+    category: 'enforcement',
+    isCore: false,
+    requiresModules: ['core'],
+    pricing: { model: 'hybrid', baseFee: 19900, perSeatFee: 2900, perTransactionFee: 100 }, // $1 per infringement issued
+    routes: [
+      { path: '/infringement-notices', label: 'Infringement Notices', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+      { path: '/breach-notices', label: 'Breach Notices', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+      { path: '/notice-to-vacate', label: 'Notice to Vacate', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+      { path: '/enforcement-review', label: 'Enforcement Review', roles: ['admin', 'master'], adminOnly: true },
+      { path: '/dispute-portal', label: 'Dispute Portal', roles: ['admin', 'master'], adminOnly: true },
+    ],
+    tables: [
+      'infringement_notices',
+      'infringement_notice_counters',
+      'breach_notices',
+      'notices_to_vacate',
+      'enforcement_actions',
+      'enforcement_cases',
+      'enforcement_case_events',
+      'dispute_submissions',
+      'payment_records',
+    ],
+    edgeFunctions: [
+      'generate-infringement',
+      'render-infringement-notice',
+      'generate-warning-notice',
+      'generate-notice-to-vacate',
+      'generate-seizure-receipt',
+      'process-dispute',
+      'send-reminder-notice',
+    ],
+    featureFlags: ['FEATURE_TICKETING', 'FEATURE_INFRINGEMENTS'],
+    displayOrder: 110,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // INCIDENT MANAGEMENT
+  // ─────────────────────────────────────────────────────────────────────────
+  incidents: {
+    id: 'incidents',
+    name: 'Incident Management',
+    description: 'Comprehensive incident reporting and management system for security events, H&S incidents, investigations, and evidence collection. Includes court-ready reporting and witness management.',
+    shortDescription: 'Incident tracking & evidence',
+    icon: FileWarning,
+    color: 'text-orange-700 dark:text-orange-400',
+    bgColor: 'bg-orange-100 dark:bg-orange-900',
+    borderColor: 'border-orange-400 dark:border-orange-700',
+    category: 'security',
+    isCore: false,
+    requiresModules: ['core'],
+    pricing: { model: 'seat', baseFee: 14900, perSeatFee: 2900 },
+    routes: [
+      { path: '/incident-management', label: 'Incident Management', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+      { path: '/incident-reports', label: 'Incident Reports', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+      { path: '/investigation-jobs', label: 'Investigation Jobs', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+      { path: '/health-safety', label: 'Health & Safety', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
+    ],
+    tables: [
+      'incidents',
+      'incident_attachments',
+      'incident_evidence_rls',
+      'investigation_jobs',
+      'investigation_job_types',
+      'investigation_job_templates',
+      'health_safety_reports',
+      'person_interactions',
+      'witness_statements',
+    ],
+    edgeFunctions: [
+      'generate-incident-pdf',
+      'admin-incident-ops',
+      'process-investigation-document',
+      'submit-dispute-intake',
+    ],
+    featureFlags: ['FEATURE_INCIDENTS', 'FEATURE_INVESTIGATION'],
+    displayOrder: 120,
   },
 }
 
