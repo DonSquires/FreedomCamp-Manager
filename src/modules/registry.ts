@@ -161,6 +161,9 @@ export const SERVICE_MODULES: Record<ModuleId, ServiceModule> = {
       // Data Management
       { path: '/custom-fields', label: 'Custom Fields', roles: ['admin', 'master'] },
       { path: '/data-exports', label: 'Data Exports', roles: ['admin', 'master'] },
+      // Dispatch & Job Management
+      { path: '/dispatch', label: 'Dispatch Console', roles: ['admin', 'master', 'admin_officer'] },
+      { path: '/job-map', label: 'Job Map', roles: ['admin', 'master', 'admin_officer', 'officer'] },
       // Patrol Routes & Rostering
       { path: '/patrol-routes', label: 'Patrol Routes', roles: ['admin', 'master', 'admin_officer'] },
       { path: '/patrol-checkpoints', label: 'Checkpoints', roles: ['admin', 'master', 'admin_officer'] },
