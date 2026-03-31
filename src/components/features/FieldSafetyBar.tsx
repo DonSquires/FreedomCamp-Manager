@@ -27,8 +27,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog'
-import { CheckCircle, Siren, FileWarning, ShieldAlert, Wrench, ChevronDown, ChevronUp } from 'lucide-react'
+import { CheckCircle, Siren, FileWarning, ShieldAlert, Wrench, ChevronDown, ChevronUp, Watch } from 'lucide-react'
 import { toast } from 'sonner'
+import { WearableStatus } from './WearableStatus'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -265,6 +266,9 @@ export function FieldSafetyBar({
             <Wrench className="h-3.5 w-3.5" />
             {!compact && <span className="hidden md:inline">Maint.</span>}
           </button>
+
+          {/* Wearable/Device Status */}
+          <WearableStatus size="sm" />
         </div>
 
         {/* Overdue banner */}
