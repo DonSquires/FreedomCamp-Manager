@@ -20,11 +20,17 @@ import {
  * Place this in App.tsx or a high-level authenticated component
  */
 export function usePTTAutoConnect(): void {
-  const { user, isAuthenticated } = useAuthStore()
+  const { user, isAuthenticated, loading } = useAuthStore()
   const connectionStatus = usePTTStore((s) => s.connectionStatus)
   const hasStarted = useRef(false)
 
   useEffect(() => {
+    // Wait until the auth check has fully resolved before starting PTT.
+    // Without this guard, PTT may attempt to connect with a stale/expired
+    // token (persisted from a previous session) before the Supabase session
+    // has been verified, which causes 401 errors from ptt-signaling-token.
+    if (loading) return
+
     // Start PTT service when user is authenticated
     if (isAuthenticated && user?.organization_id && !hasStarted.current) {
       hasStarted.current = true
@@ -47,7 +53,7 @@ export function usePTTAutoConnect(): void {
       // Don't stop on unmount - service should persist
       // Only stop on explicit logout (handled above)
     }
-  }, [isAuthenticated, user?.organization_id])
+  }, [loading, isAuthenticated, user?.organization_id])
 
   // Log connection status changes
   useEffect(() => {

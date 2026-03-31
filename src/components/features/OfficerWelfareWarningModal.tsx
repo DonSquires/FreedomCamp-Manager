@@ -43,6 +43,7 @@ export function OfficerWelfareWarningModal({
     <Dialog open={open}>
       <DialogContent
         className="max-w-md p-0 overflow-hidden [&>button:first-of-type]:hidden"
+        aria-describedby={undefined}
         onInteractOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >

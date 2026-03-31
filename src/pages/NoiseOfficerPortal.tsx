@@ -1092,7 +1092,7 @@ export default function NoiseOfficerPortal() {
 
       {/* ── Print Preview Dialog ─────────────────────────────────────────────── */}
       <Dialog open={!!printHtml} onOpenChange={() => setPrintHtml(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Printer className="h-5 w-5 text-gray-600" /> {printLabel}
@@ -1137,7 +1137,7 @@ export default function NoiseOfficerPortal() {
 
       {/* ── Issue Notice Dialog ──────────────────────────────────────────────── */}
       <Dialog open={showNoticeDialog} onOpenChange={setShowNoticeDialog}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-orange-500" /> Issue Noise Control Notice
@@ -1220,7 +1220,7 @@ export default function NoiseOfficerPortal() {
 
       {/* ── Seizure Dialog ───────────────────────────────────────────────────── */}
       <Dialog open={showSeizureDialog} onOpenChange={setShowSeizureDialog}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-red-700">
               <Package className="h-5 w-5" /> Receipt for Goods Seized — RMA s.328

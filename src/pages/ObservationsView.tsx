@@ -433,7 +433,7 @@ export default function ObservationsView() {
 
       {/* ── Full-size photo dialog ───────────────────────────────────────── */}
       <Dialog open={!!selectedPhoto} onOpenChange={(open) => { if (!open) setSelectedPhoto(null) }}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="font-mono text-lg">
               {selectedPhoto?.plate_number}
