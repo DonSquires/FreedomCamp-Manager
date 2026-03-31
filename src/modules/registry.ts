@@ -114,8 +114,8 @@ export const SERVICE_MODULES: Record<ModuleId, ServiceModule> = {
   core: {
     id: 'core',
     name: 'Core Platform (CRM Hub)',
-    description: 'CRM-centric platform hub with Iron Eagle Security as the platform owner. CRM Features: Accounts/Organizations (hierarchical), Users (assigned to accounts), Zones/Sites (owned by accounts), Contacts (stakeholders), Contracts (with line items & SLAs), Invoices & Payments, Activities (calls, meetings, tasks), Opportunities (sales pipeline), Documents & Notes, Tags & Account History. Platform Features: Live officer tracking, PTT/Team Chat, Officer welfare system, Self-healing bug detection.',
-    shortDescription: 'Full CRM + PTT + Welfare + Bug System',
+    description: 'CRM-centric platform hub with Iron Eagle Security as the platform owner. CRM Features: Accounts/Organizations (hierarchical), Users (assigned to accounts), Zones/Sites (owned by accounts), Contacts (stakeholders), Contracts (with line items & SLAs), Invoices & Payments, Activities (calls, meetings, tasks), Opportunities (sales pipeline), Documents & Notes, Tags & Account History. Platform Features: Live officer tracking, PTT/Team Chat, Officer welfare system, Self-healing bug detection. Compliance: NZ Privacy Act 2020 (consent tracking, DSAR), NZ Private Security Personnel Act (COA tracking), Workflow Automation, Email Templates, Custom Fields, SLA Monitoring, API Webhooks, Rate Limiting, Data Export.',
+    shortDescription: 'Full CRM + Compliance + Automation',
     icon: Shield,
     color: 'text-slate-700 dark:text-slate-300',
     bgColor: 'bg-slate-100 dark:bg-slate-800',
@@ -144,6 +144,23 @@ export const SERVICE_MODULES: Record<ModuleId, ServiceModule> = {
       { path: '/opportunities', label: 'Opportunities', roles: ['admin', 'master'] },
       // CRM Documents & Notes
       { path: '/documents', label: 'Documents', roles: ['admin', 'master'] },
+      // Compliance & Privacy
+      { path: '/privacy-consents', label: 'Privacy Consents', roles: ['admin', 'master'] },
+      { path: '/dsar', label: 'Data Subject Requests', roles: ['admin', 'master'] },
+      { path: '/officer-compliance', label: 'Officer Compliance', roles: ['admin', 'master'] },
+      { path: '/officer-training', label: 'Officer Training', roles: ['admin', 'master'] },
+      // Workflow & Automation
+      { path: '/workflows', label: 'Workflows', roles: ['admin', 'master'] },
+      { path: '/email-templates', label: 'Email Templates', roles: ['admin', 'master'] },
+      // SLA & Monitoring
+      { path: '/sla-rules', label: 'SLA Rules', roles: ['admin', 'master'] },
+      { path: '/sla-events', label: 'SLA Events', roles: ['admin', 'master'] },
+      // API & Integrations
+      { path: '/webhooks', label: 'Webhooks', roles: ['admin', 'master'] },
+      { path: '/api-usage', label: 'API Usage', roles: ['admin', 'master'] },
+      // Data Management
+      { path: '/custom-fields', label: 'Custom Fields', roles: ['admin', 'master'] },
+      { path: '/data-exports', label: 'Data Exports', roles: ['admin', 'master'] },
       // Core Platform Routes
       { path: '/live-tracking', label: 'Live Officer Tracking', roles: ['admin', 'master', 'admin_officer'] },
       { path: '/audit-log', label: 'Audit Log', roles: ['admin', 'master'] },
@@ -181,6 +198,32 @@ export const SERVICE_MODULES: Record<ModuleId, ServiceModule> = {
       'crm_contact_tags',        // Contact-tag junction
       'crm_opportunity_tags',    // Opportunity-tag junction
       'crm_account_history',     // Audit trail
+      // Privacy & Compliance (NZ Privacy Act 2020)
+      'privacy_consents',        // Consent tracking
+      'data_subject_requests',   // DSAR handling
+      // Officer Compliance (NZ Private Security Personnel Act)
+      'officer_compliance_alerts', // COA/credential expiry alerts
+      'officer_training_records',  // Training records
+      // Workflow Automation
+      'crm_workflows',           // Workflow definitions
+      'crm_workflow_executions', // Execution history
+      'crm_workflow_triggers',   // Record-workflow tracking
+      // Email & Communication
+      'crm_email_templates',     // Email templates with merge fields
+      'crm_communications',      // Communication history
+      // Custom Fields
+      'crm_custom_field_definitions', // Field definitions
+      'crm_custom_field_values',      // Field values
+      // SLA Monitoring
+      'crm_sla_rules',           // SLA rule definitions
+      'crm_sla_events',          // SLA events/breaches
+      // API & Webhooks
+      'api_webhooks',            // Webhook subscriptions
+      'api_webhook_deliveries',  // Delivery log
+      'api_rate_limits',         // Rate limit configs
+      'api_rate_limit_hits',     // Rate limit tracking
+      // Data Export
+      'data_exports',            // Export requests
       // Core Platform Tables
       'officer_locations',       // Live GPS tracking
       'audit_log',               // Action audit trail
@@ -196,6 +239,18 @@ export const SERVICE_MODULES: Record<ModuleId, ServiceModule> = {
       'auth', 'user-profile', 'organization',
       // CRM
       'crm-sync', 'contract-management', 'invoice-generate', 'payment-process',
+      // Privacy & Compliance
+      'process-dsar', 'check-compliance-alerts',
+      // Workflow Automation
+      'execute-workflow', 'trigger-workflow',
+      // Email & Communication
+      'send-email', 'send-sms',
+      // SLA Monitoring
+      'check-sla', 'process-sla-breach',
+      // Webhooks
+      'dispatch-webhook',
+      // Data Export
+      'generate-export',
       // PTT
       'ptt-signaling-token',
       // Welfare
