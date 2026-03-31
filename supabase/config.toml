@@ -347,3 +347,10 @@ verify_jwt = false
 # The function validates the caller's JWT internally via supabase.auth.getUser(token).
 [functions.process-face-scan]
 verify_jwt = false
+
+# ptt-signaling-token: browser callers use ES256-signed JWTs that can be
+# rejected at the gateway before the function executes. The function validates
+# the caller token internally via service-role auth, so gateway verification
+# must be disabled.
+[functions.ptt-signaling-token]
+verify_jwt = false

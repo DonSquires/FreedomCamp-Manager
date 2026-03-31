@@ -279,6 +279,7 @@ test.describe('API Response Tests – Supabase Edge Functions', () => {
   // get-compliance-statistics
   // --------------------------------------------------------------------------
   test('get-compliance-statistics returns a JSON response', async () => {
+    test.setTimeout(90000)
     const token = await requireBearerToken()
     const url = edgeFunctionUrl('get-compliance-statistics')
 

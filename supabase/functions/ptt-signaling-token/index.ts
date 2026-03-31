@@ -46,18 +46,36 @@ Deno.serve(async (req) => {
 
     const accessToken = authHeader.replace('Bearer ', '')
 
-    // Initialize Supabase client with user's token
+    // Initialize Supabase client with service-role key and caller's token.
+    // Using service role avoids false-negative auth checks caused by anon-key
+    // misconfiguration in some deployments while still validating caller JWT.
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+
+    if (!supabaseUrl || !supabaseServiceRoleKey) {
+      return new Response(
+        JSON.stringify({
+          error: 'PTT auth unavailable',
+          message: 'SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not configured',
+        }),
+        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
       global: { headers: { Authorization: `Bearer ${accessToken}` } },
     })
 
     // Get current user
     const { data: { user }, error: userError } = await supabase.auth.getUser(accessToken)
     if (userError || !user) {
+      console.error('PTT token auth failure:', userError?.message || 'Unknown auth error')
       return new Response(
-        JSON.stringify({ error: 'Unauthorized', message: 'Invalid user token' }),
+        JSON.stringify({
+          error: 'Unauthorized',
+          message: 'Invalid user token',
+          details: userError?.message || null,
+        }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }

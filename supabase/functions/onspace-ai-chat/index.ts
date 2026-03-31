@@ -131,13 +131,16 @@ Deno.serve(async (req: Request) => {
     // ── AI Provider ──────────────────────────────────────────────────────────
     // Priority: GITHUB_TOKEN (GitHub Copilot) → OPENAI_API_KEY (OpenAI/custom)
     const githubToken = Deno.env.get('GITHUB_TOKEN')
+      || Deno.env.get('COPILOT_GITHUB_TOKEN')
+      || Deno.env.get('GITHUB_MODELS_TOKEN')
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY')
+      || Deno.env.get('AI_GATEWAY_API_KEY')
 
     if (!githubToken && !openaiApiKey) {
       return new Response(
         JSON.stringify({
           error: 'AI service not configured',
-          details: 'No AI provider configured. Set GITHUB_TOKEN (recommended — uses GitHub Copilot) or OPENAI_API_KEY in Supabase Dashboard > Edge Functions > Secrets.',
+          details: 'No AI provider configured. Set one of: GITHUB_TOKEN / COPILOT_GITHUB_TOKEN / GITHUB_MODELS_TOKEN or OPENAI_API_KEY / AI_GATEWAY_API_KEY in Supabase Dashboard > Edge Functions > Secrets.',
         }),
         { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -233,9 +236,20 @@ Deno.serve(async (req: Request) => {
     }
 
     if (!aiData) {
+      // Avoid leaking upstream auth semantics to clients; this is a deployment
+      // misconfiguration and should be reported as service unavailable.
+      const misconfiguredAuth = lastStatus === 401 || lastStatus === 403
       return new Response(
-        JSON.stringify({ error: `AI provider returned ${lastStatus}`, details: lastErrorText.slice(0, 300) }),
-        { status: lastStatus, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({
+          error: misconfiguredAuth ? 'AI provider authentication failed' : `AI provider returned ${lastStatus}`,
+          details: misconfiguredAuth
+            ? 'The configured AI provider credentials are invalid or expired. Update GITHUB_TOKEN/OPENAI_API_KEY secrets for this edge function.'
+            : lastErrorText.slice(0, 300),
+        }),
+        {
+          status: misconfiguredAuth ? 503 : lastStatus,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
       )
     }
 
