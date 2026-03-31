@@ -12,6 +12,8 @@
 // are unaffected.
 // ============================================================================
 
+import { normalizeServiceUrl } from './urlUtils.ts';
+
 export interface ALPRResult {
   plate: string | null;
   confidence: number | null;
@@ -30,13 +32,17 @@ async function alprLocal(
   imageBytes: Uint8Array,
   options?: { timeout?: number }
 ): Promise<ALPRResult> {
-  const inferenceUrl = Deno.env.get("INFERENCE_SERVICE_URL");
+  const rawUrl = Deno.env.get("INFERENCE_SERVICE_URL");
+  const inferenceUrl = normalizeServiceUrl(rawUrl);
   const authToken    = Deno.env.get("INFERENCE_SERVICE_TOKEN") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const timeout      = options?.timeout ?? Number(Deno.env.get("ALPR_TIMEOUT_MS") ?? 10000);
 
   if (!inferenceUrl) {
-    console.error("❌ INFERENCE_SERVICE_URL not configured for local ALPR");
-    return emptyResult({ error: "INFERENCE_SERVICE_URL not set" });
+    const errorMsg = rawUrl 
+      ? `INFERENCE_SERVICE_URL is malformed: "${rawUrl.substring(0, 50)}${rawUrl.length > 50 ? '...' : ''}"`
+      : "INFERENCE_SERVICE_URL not set";
+    console.error(`❌ ${errorMsg}`);
+    return emptyResult({ error: errorMsg });
   }
 
   try {
@@ -47,7 +53,7 @@ async function alprLocal(
     const controller = new AbortController();
     const timeoutId  = setTimeout(() => controller.abort(), timeout);
 
-    const response = await fetch(`${inferenceUrl.replace(/\/$/, "")}/infer/alpr`, {
+    const response = await fetch(`${inferenceUrl}/infer/alpr`, {
       method: "POST",
       headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
       body: formData,
@@ -117,7 +123,8 @@ export async function alprWithBytes(
   const provider = Deno.env.get("ALPR_PROVIDER") ?? "auto";
   const token = Deno.env.get("PLATERECOGNIZER_TOKEN") ??
                 Deno.env.get("PLATE_RECOGNIZER_TOKEN");
-  const inferenceUrl = Deno.env.get("INFERENCE_SERVICE_URL");
+  const rawInferenceUrl = Deno.env.get("INFERENCE_SERVICE_URL");
+  const inferenceUrl = normalizeServiceUrl(rawInferenceUrl);
 
   const useLocal =
     provider === "local" ||
