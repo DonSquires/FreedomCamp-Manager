@@ -149,8 +149,8 @@ serve(async (req) => {
     // ── Step 1: Query NZSCV API via proxy (PRIMARY) ─────────────────────────
 
     // Get proxy server URL and secret from environment
-    const PROXY_URL = Deno.env.get('NZSCV_PROXY_URL');
-    const PROXY_SECRET = Deno.env.get('NZSCV_PROXY_SECRET');
+    const PROXY_URL = Deno.env.get('NZSCV_PROXY_URL') || Deno.env.get('PROXY_SERVER_URL');
+    const PROXY_SECRET = Deno.env.get('NZSCV_PROXY_SECRET') || Deno.env.get('PROXY_SERVER_SECRET');
 
     if (!PROXY_URL) {
       console.error('❌ NZSCV_PROXY_URL not configured, attempting canonical fallback');

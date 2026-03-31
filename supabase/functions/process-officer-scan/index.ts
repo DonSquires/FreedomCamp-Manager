@@ -46,8 +46,8 @@ const INFERENCE_SERVICE_URL    = Deno.env.get('INFERENCE_SERVICE_URL');
 const INFERENCE_TIMEOUT_MS     = Number(Deno.env.get('INFERENCE_TIMEOUT_MS') ?? '7000');
 const ALPR_BACKUP_TIMEOUT_MS   = Number(Deno.env.get('ALPR_TIMEOUT_MS') ?? '3500');
 const ALPR_BACKUP_START_DELAY_MS = Number(Deno.env.get('ALPR_BACKUP_START_DELAY_MS') ?? '1200');
-const NZSCV_PROXY_URL          = Deno.env.get('NZSCV_PROXY_URL');
-const NZSCV_PROXY_SECRET       = Deno.env.get('NZSCV_PROXY_SECRET') ?? '';
+const NZSCV_PROXY_URL          = Deno.env.get('NZSCV_PROXY_URL') || Deno.env.get('PROXY_SERVER_URL');
+const NZSCV_PROXY_SECRET       = Deno.env.get('NZSCV_PROXY_SECRET') || Deno.env.get('PROXY_SERVER_SECRET') || '';
 
 // Cosine similarity threshold below which we consider a vehicle to have moved.
 // Embeddings from the same vehicle in the same parking spot score ~0.85–0.95.

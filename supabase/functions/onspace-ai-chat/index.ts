@@ -130,7 +130,7 @@ Deno.serve(async (req: Request) => {
 
     // ── AI Provider ──────────────────────────────────────────────────────────
     // Priority: GITHUB_TOKEN (GitHub Copilot) → OPENAI_API_KEY (OpenAI/custom)
-    const githubToken = Deno.env.get('GITHUB_TOKEN')
+    const githubToken = Deno.env.get('GITHUB_TOKEN') || Deno.env.get('GH_TOKEN')
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY')
 
     if (!githubToken && !openaiApiKey) {

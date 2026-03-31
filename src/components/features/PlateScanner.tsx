@@ -112,8 +112,8 @@ export function PlateScanner({ onScanComplete, onCancel }: PlateScannerProps) {
         longitude: position.coords.longitude,
       })
 
-      if (!alprError && alprData?.plate_number) {
-        plateNumber = alprData.plate_number
+      if (!alprError && (alprData?.plate || alprData?.plate_number)) {
+        plateNumber = alprData?.plate || alprData?.plate_number
         detectedConfidence = alprData?.confidence ?? null
         toast.success(`Plate detected: ${plateNumber}`)
       } else {
@@ -170,7 +170,7 @@ export function PlateScanner({ onScanComplete, onCancel }: PlateScannerProps) {
       if (plateNumber) {
         edgeFunctions.checkNZSCVStatus({ plate_number: plateNumber }).then(({ data: nzscvData, error: nzscvError }) => {
           if (!nzscvError && nzscvData?.result?.is_self_contained) {
-            const warrantType = nzscvData?.result?.warrant_type || ''
+            const warrantType = nzscvData.result?.warrant_type || nzscvData.result?.status || ''
             const warrantLabel = warrantType === 'green'
               ? '🟢 Green Warrant (NZS 5465:2023)'
               : warrantType === 'blue'
@@ -189,9 +189,9 @@ export function PlateScanner({ onScanComplete, onCancel }: PlateScannerProps) {
       // Step 5: Enrich vehicle details (don't block on failure) — via Edge Function
       if (plateNumber) {
         edgeFunctions.enrichFromMotorWeb({ plate_number: plateNumber }).then(({ data: motorwebData, error: motorwebError }) => {
-          if (!motorwebError && motorwebData?.result) {
-            const result = motorwebData.result
-            toast.info(`Vehicle enriched: ${result.make || ''} ${result.model || ''}`, {
+          const result = motorwebData?.result
+          if (!motorwebError && result) {
+            toast.info(`Vehicle enriched: ${result.make || ''} ${result.model || ''}`.trim(), {
               duration: 3000,
             })
           }

@@ -19,8 +19,8 @@ type OvernightVerificationMode = 'two_photo_verification' | 'one_photo_per_day_i
 type CleanupPhase = 'all' | 'zone' | 'dedup' | 'compliance';
 const EMBEDDING_MATCH_THRESHOLD = 0.86;
 const RECHECK_NZSCV_ON_FALSE_OR_EXPIRED = (Deno.env.get('RECHECK_NZSCV_ON_FALSE_OR_EXPIRED') ?? '1') !== '0';
-const NZSCV_PROXY_URL = Deno.env.get('NZSCV_PROXY_URL') ?? '';
-const NZSCV_PROXY_SECRET = Deno.env.get('NZSCV_PROXY_SECRET') ?? '';
+const NZSCV_PROXY_URL = Deno.env.get('NZSCV_PROXY_URL') || Deno.env.get('PROXY_SERVER_URL') || '';
+const NZSCV_PROXY_SECRET = Deno.env.get('NZSCV_PROXY_SECRET') || Deno.env.get('PROXY_SERVER_SECRET') || '';
 const NZSCV_RECHECK_TIMEOUT_MS = Number(Deno.env.get('NZSCV_RECHECK_TIMEOUT_MS') ?? '3000');
 
 const DUPLICATE_DISTANCE_METERS = 50;

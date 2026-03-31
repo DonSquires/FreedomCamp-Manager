@@ -1,7 +1,7 @@
 import { corsHeaders } from '../_shared/cors.ts'
 
 const HEALTH_CHECK_TIMEOUT_MS = 8_000
-const PROXY_SERVER_URL = Deno.env.get('PROXY_SERVER_URL') || ''
+const PROXY_SERVER_URL = Deno.env.get('PROXY_SERVER_URL') || Deno.env.get('NZSCV_PROXY_URL') || ''
 const INFERENCE_SERVICE_URL = Deno.env.get('INFERENCE_SERVICE_URL') || ''
 const INFERENCE_API_KEY = Deno.env.get('INFERENCE_API_KEY') || ''
 
