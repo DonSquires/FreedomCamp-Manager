@@ -181,6 +181,8 @@ export function PlateScanner({ onScanComplete, onCancel }: PlateScannerProps) {
               icon: <CheckCircle className="h-4 w-4" />,
             })
           }
+        }).catch((err) => {
+          console.warn('NZSCV status check failed:', err)
         })
       }
 
@@ -193,6 +195,8 @@ export function PlateScanner({ onScanComplete, onCancel }: PlateScannerProps) {
               duration: 3000,
             })
           }
+        }).catch((err) => {
+          console.warn('MotorWeb enrichment failed:', err)
         })
       }
 
