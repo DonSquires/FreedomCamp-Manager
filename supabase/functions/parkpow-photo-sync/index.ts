@@ -28,7 +28,7 @@
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
-import { corsHeaders } from '../_shared/cors.ts';
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -73,7 +73,7 @@ const MAX_WINDOW_SECONDS = 365 * 24 * 3600; // 1 year in seconds
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
   });
 }
 
@@ -234,7 +234,7 @@ async function detectObservationSchema(
 
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: getCorsHeaders(req) });
   }
   if (req.method !== 'POST') {
     return json(405, { error: 'Method not allowed' });

@@ -12,7 +12,7 @@
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.3";
-import { corsHeaders } from "../_shared/cors.ts";
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from "../_shared/withCors.ts";
 import { alprWithBytes } from "../_shared/alpr.ts";
 
 const PHOTO_FETCH_TIMEOUT_MS = Number(Deno.env.get("INGEST_PHOTO_FETCH_TIMEOUT_MS") ?? "8000");
@@ -52,7 +52,7 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
 
 function getCorsHeaders(_req?: Request) {
   return {
-    ...corsHeaders,
+    ...getCorsHeaders(req),
     "Access-Control-Max-Age": "3600",
   };
 }

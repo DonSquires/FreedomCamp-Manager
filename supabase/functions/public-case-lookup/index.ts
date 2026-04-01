@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
-import { corsHeaders } from '../_shared/cors.ts'
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
+import { verifyCaptcha, getClientIP } from '../_shared/captcha.ts'
 
 function normalizeRef(input: string): string {
   return String(input || '').trim().toUpperCase()
@@ -7,23 +8,40 @@ function normalizeRef(input: string): string {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req) })
   }
 
   try {
+    const body = await req.json()
+    
+    // CAPTCHA verification - required for public endpoints to prevent enumeration attacks
+    const captchaToken = body?.captcha_token || body?.turnstile_token
+    const clientIP = getClientIP(req)
+    const captchaResult = await verifyCaptcha(captchaToken, clientIP)
+    
+    if (!captchaResult.success) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: captchaResult.error || 'CAPTCHA verification failed',
+          captcha_required: true 
+        }),
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
+      )
+    }
+    
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     )
 
-    const body = await req.json()
     const ref = normalizeRef(body?.reference || '')
     const plate = String(body?.plate_number || '').trim().toUpperCase()
 
     if (!ref || ref.length < 4) {
       return new Response(
         JSON.stringify({ success: false, error: 'Please provide a valid notice reference.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
       )
     }
 
@@ -43,7 +61,7 @@ Deno.serve(async (req) => {
       if (plate && String(infringement.plate_number || '').toUpperCase() !== plate) {
         return new Response(
           JSON.stringify({ success: false, error: 'Reference and plate do not match.' }),
-          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+          { status: 404, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
         )
       }
 
@@ -77,7 +95,7 @@ Deno.serve(async (req) => {
             photo_url: evidencePhotoUrl,
           },
         }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
       )
     }
 
@@ -96,7 +114,7 @@ Deno.serve(async (req) => {
       if (plate && String((ntv as any).plate_number || '').toUpperCase() !== plate) {
         return new Response(
           JSON.stringify({ success: false, error: 'Reference and plate do not match.' }),
-          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+          { status: 404, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
         )
       }
 
@@ -137,18 +155,18 @@ Deno.serve(async (req) => {
             photo_url: evidencePhotoUrl,
           },
         }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
       )
     }
 
     return new Response(
       JSON.stringify({ success: false, error: 'No notice found for that reference.' }),
-      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      { status: 404, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
     )
   } catch (_err) {
     return new Response(
       JSON.stringify({ success: false, error: 'Lookup failed.' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
     )
   }
 })

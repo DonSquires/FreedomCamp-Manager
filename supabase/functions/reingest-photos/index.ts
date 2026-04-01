@@ -16,11 +16,11 @@
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.3";
-import { corsHeaders } from "../_shared/cors.ts";
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from "../_shared/withCors.ts";
 
 function getCorsHeaders(_req?: Request) {
   return {
-    ...corsHeaders,
+    ...getCorsHeaders(req),
     "Access-Control-Max-Age": "3600",
   };
 }

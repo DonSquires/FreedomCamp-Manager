@@ -35,7 +35,7 @@
 // ============================================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
-import { corsHeaders } from '../_shared/cors.ts';
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 import { alprWithBytes } from '../_shared/alpr.ts';
 import { nzHour, toValidBreachType } from '../_shared/compliance.ts';
 
@@ -93,7 +93,7 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
 function jsonResp(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'content-type': 'application/json' },
+    headers: { ...getCorsHeaders(req), 'content-type': 'application/json' },
   });
 }
 
@@ -685,7 +685,7 @@ async function evaluateCompliance(
 // ─── Main handler ─────────────────────────────────────────────────────────────
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: getCorsHeaders(req) });
   }
 
   let lockToken: string | null = null;

@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
-import { corsHeaders } from '../_shared/cors.ts';
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 
 interface HomelessRecord {
   plate_number: string;
@@ -17,7 +17,7 @@ interface HomelessRecord {
 serve(async (req) => {
   // Handle CORS
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -388,7 +388,7 @@ Extract and include the EXACT text describing the behavior in "safety_descriptio
         message: `Processed ${results.processed} records. Matched ${results.matched} existing vehicles. Updated ${results.updated} records. Created ${results.flagged_vehicles} safety flags and ${results.incidents_created} H&S incidents.`,
       }),
       { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
         status: 200 
       }
     );
@@ -402,7 +402,7 @@ Extract and include the EXACT text describing the behavior in "safety_descriptio
         details: error.toString(),
       }),
       { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
         status: 500 
       }
     );

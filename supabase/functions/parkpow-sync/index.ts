@@ -14,7 +14,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.3";
-import { corsHeaders } from "../_shared/cors.ts";
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from "../_shared/withCors.ts";
 import {
   checkWatchlist,
   createLot,
@@ -27,7 +27,7 @@ import {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", { headers: getCorsHeaders(req) });
   }
 
   if (!isParkPowEnabled()) {
@@ -196,6 +196,6 @@ async function pushViolations(supabase: ReturnType<typeof createClient>) {
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
   });
 }

@@ -31,7 +31,7 @@
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
-import { corsHeaders } from '../_shared/cors.ts'
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
 
 const SYSTEM_PROMPT = `You are an AI assistant for FreedomCamp Manager — a freedom camping enforcement system used by councils and security contractors in New Zealand.
 
@@ -64,7 +64,7 @@ function extractBearerToken(req: Request): string | null {
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req) })
   }
 
   try {
@@ -73,7 +73,7 @@ Deno.serve(async (req: Request) => {
     if (!token) {
       return new Response(
         JSON.stringify({ error: 'Authentication required' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -86,7 +86,7 @@ Deno.serve(async (req: Request) => {
     if (authError || !user) {
       return new Response(
         JSON.stringify({ error: 'Invalid or expired session' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -124,7 +124,7 @@ Deno.serve(async (req: Request) => {
     } else {
       return new Response(
         JSON.stringify({ error: 'Either "messages" array or "message" string is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -139,7 +139,7 @@ Deno.serve(async (req: Request) => {
           error: 'AI service not configured',
           details: 'No AI provider configured. Set GITHUB_TOKEN (recommended — uses GitHub Copilot) or OPENAI_API_KEY in Supabase Dashboard > Edge Functions > Secrets.',
         }),
-        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 503, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -225,7 +225,7 @@ Deno.serve(async (req: Request) => {
 
         return new Response(
           JSON.stringify({ error: `AI provider returned ${aiResponse.status}`, details: errorText.slice(0, 300) }),
-          { status: aiResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: aiResponse.status, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         )
       }
 
@@ -235,7 +235,7 @@ Deno.serve(async (req: Request) => {
     if (!aiData) {
       return new Response(
         JSON.stringify({ error: `AI provider returned ${lastStatus}`, details: lastErrorText.slice(0, 300) }),
-        { status: lastStatus, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: lastStatus, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -245,7 +245,7 @@ Deno.serve(async (req: Request) => {
       console.error('[AI] Empty response from provider:', JSON.stringify(aiData).slice(0, 300))
       return new Response(
         JSON.stringify({ error: 'AI returned an empty response' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -258,20 +258,20 @@ Deno.serve(async (req: Request) => {
         provider: providerName,
         usage: aiData.usage ?? null,
       }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     )
   } catch (err: any) {
     if (err?.name === 'AbortError') {
       console.error('[AI] Request timed out after 60s')
       return new Response(
         JSON.stringify({ error: 'AI request timed out after 60 seconds' }),
-        { status: 504, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 504, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
     console.error('[AI] Unhandled error:', err?.message)
     return new Response(
       JSON.stringify({ error: 'Internal server error', message: err?.message ?? 'Unknown error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     )
   }
 })

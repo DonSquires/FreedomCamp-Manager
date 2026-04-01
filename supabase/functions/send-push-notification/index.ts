@@ -12,7 +12,7 @@
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
-import { corsHeaders } from '../_shared/cors.ts';
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 
 const EXPO_PUSH_API = 'https://exp.host/--/api/v2/push/send';
 
@@ -166,7 +166,7 @@ interface PushPayload {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -179,7 +179,7 @@ Deno.serve(async (req) => {
     if (!payload.user_id || !payload.title || !payload.body) {
       return new Response(
         JSON.stringify({ error: 'Missing user_id, title, or body' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -192,7 +192,7 @@ Deno.serve(async (req) => {
     if (profileError) {
       return new Response(
         JSON.stringify({ error: 'User not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 404, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -201,7 +201,7 @@ Deno.serve(async (req) => {
     if (notifType && prefs[notifType] === false) {
       return new Response(
         JSON.stringify({ success: false, reason: 'disabled_by_user' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -229,7 +229,7 @@ Deno.serve(async (req) => {
         if (resp.ok || resp.status === 201) {
           return new Response(
             JSON.stringify({ success: true, channel: 'web_push' }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
           );
         }
         if (resp.status === 410) {
@@ -246,7 +246,7 @@ Deno.serve(async (req) => {
     if (!profile.push_token) {
       return new Response(
         JSON.stringify({ success: false, reason: 'no_push_token' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -254,7 +254,7 @@ Deno.serve(async (req) => {
         !profile.push_token.startsWith('ExpoPushToken[')) {
       return new Response(
         JSON.stringify({ success: false, reason: 'invalid_token' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -285,20 +285,20 @@ Deno.serve(async (req) => {
       }
       return new Response(
         JSON.stringify({ success: false, reason: 'expo_error', expo_error: data.details }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
     return new Response(
       JSON.stringify({ success: true, channel: 'expo', ticket_id: data?.id }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
 
   } catch (error: any) {
     console.error('Push notification error:', error);
     return new Response(
       JSON.stringify({ error: 'Push notification failed', message: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 });

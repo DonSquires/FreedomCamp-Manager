@@ -33,7 +33,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { SMTPClient } from 'https://deno.land/x/denomailer@1.0.0/mod.ts'
-import { corsHeaders } from '../_shared/cors.ts'
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
 
 const PRINT_ARTIFACT_BUCKET = 'notice-artifacts'
 const FUNCTION_BUILD = 'generate-infringement-2026-03-17f'
@@ -127,7 +127,7 @@ This notice is issued pursuant to section 20 of the Freedom Camping Act 2011.
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req) })
   }
 
   try {
@@ -160,14 +160,14 @@ Deno.serve(async (req) => {
     if (!plate_number || !zone_id || !offence_description || !legal_basis) {
       return new Response(
         JSON.stringify({ success: false, error: 'plate_number, zone_id, offence_description and legal_basis are required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
     if (!observation_id) {
       return new Response(
         JSON.stringify({ success: false, error: 'Manual infringement notices are not permitted. Issue notices from a recorded observation.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -186,7 +186,7 @@ Deno.serve(async (req) => {
             authorization_prefix: authHeader ? authHeader.slice(0, 16) : null,
           },
         }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -199,7 +199,7 @@ Deno.serve(async (req) => {
           details: authError?.message || null,
           build: FUNCTION_BUILD,
         }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -213,28 +213,28 @@ Deno.serve(async (req) => {
     if (profileError || !profile) {
       return new Response(
         JSON.stringify({ success: false, error: 'Officer profile not found' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
     if (!['admin', 'admin_officer', 'master', 'officer'].includes(profile.role)) {
       return new Response(
         JSON.stringify({ success: false, error: 'Insufficient permissions to issue infringement notices' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
     if (!profile.warrant_number?.trim()) {
       return new Response(
         JSON.stringify({ success: false, error: 'Issuing officer must have a warrant number before an infringement notice can be issued.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
     if (profile.warrant_expiry && profile.warrant_expiry < new Date().toISOString().split('T')[0]) {
       return new Response(
         JSON.stringify({ success: false, error: 'Issuing officer warrant has expired. Renew the warrant before issuing an infringement notice.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -248,7 +248,7 @@ Deno.serve(async (req) => {
     if (zoneError || !zoneData) {
       return new Response(
         JSON.stringify({ success: false, error: 'Selected zone was not found. Please refresh and choose a valid zone.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -263,14 +263,14 @@ Deno.serve(async (req) => {
     if (!orgId) {
       return new Response(
         JSON.stringify({ success: false, error: 'Could not determine issuing organization for this notice.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
     if (profile.role !== 'master' && profile.organization_id && zoneOrgId && profile.organization_id !== zoneOrgId) {
       return new Response(
         JSON.stringify({ success: false, error: 'Selected zone is outside your organization scope.' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -302,7 +302,7 @@ Deno.serve(async (req) => {
       if (observationError || !observation) {
         return new Response(
           JSON.stringify({ success: false, error: 'Linked observation was not found. Refresh the page and try again.' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         )
       }
 
@@ -440,7 +440,7 @@ Deno.serve(async (req) => {
       console.error('❌ Insert error:', insertError)
       return new Response(
         JSON.stringify({ success: false, error: formatDbError(insertError) }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -508,13 +508,13 @@ Deno.serve(async (req) => {
         notice_number: notice.notice_number,
         html: noticeHtml,
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     )
   } catch (err) {
     console.error('❌ generate-infringement error:', err)
     return new Response(
       JSON.stringify({ success: false, error: (err as Error).message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     )
   }
 })

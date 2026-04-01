@@ -1,9 +1,21 @@
-import { corsHeaders } from '../_shared/cors.ts'
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
+import { validateServiceUrl, buildEndpointUrl } from '../_shared/urlUtils.ts'
 
 const HEALTH_CHECK_TIMEOUT_MS = 8_000
-const PROXY_SERVER_URL = Deno.env.get('PROXY_SERVER_URL') || Deno.env.get('NZSCV_PROXY_URL') || ''
-const INFERENCE_SERVICE_URL = Deno.env.get('INFERENCE_SERVICE_URL') || ''
 const INFERENCE_API_KEY = Deno.env.get('INFERENCE_API_KEY') || ''
+
+// Validate and normalize URLs at startup
+const proxyValidation = validateServiceUrl(
+  Deno.env.get('PROXY_SERVER_URL') || Deno.env.get('NZSCV_PROXY_URL'),
+  'PROXY_SERVER_URL'
+)
+const inferenceValidation = validateServiceUrl(
+  Deno.env.get('INFERENCE_SERVICE_URL'),
+  'INFERENCE_SERVICE_URL'
+)
+
+const PROXY_SERVER_URL = proxyValidation.url
+const INFERENCE_SERVICE_URL = inferenceValidation.url
 
 /** Safely parse a fetch Response as JSON, falling back to a status object. */
 async function safeJson(response: Response): Promise<Record<string, unknown>> {
@@ -24,24 +36,32 @@ function reasonToString(reason: unknown): string {
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req) })
   }
 
-  // If environment variables are not configured, return a clear offline status
+  // If environment variables are not configured or malformed, return a clear error status
   // immediately rather than hitting localhost which would be meaningless inside
   // the edge-function sandbox.
   if (!PROXY_SERVER_URL || !INFERENCE_SERVICE_URL) {
     return new Response(
       JSON.stringify({
-        proxy: { status: 'offline', error: 'PROXY_SERVER_URL not configured' },
+        proxy: { 
+          status: 'offline', 
+          error: proxyValidation.error || 'PROXY_SERVER_URL not configured',
+          warning: proxyValidation.warning,
+        },
         proxy_url: PROXY_SERVER_URL || null,
-        inference: { status: 'offline', error: 'INFERENCE_SERVICE_URL not configured' },
+        inference: { 
+          status: 'offline', 
+          error: inferenceValidation.error || 'INFERENCE_SERVICE_URL not configured',
+          warning: inferenceValidation.warning,
+        },
         inference_url: INFERENCE_SERVICE_URL || null,
         inference_api_key_configured: !!INFERENCE_API_KEY,
         checked_at: new Date().toISOString(),
       }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
         status: 200,
       },
     )
@@ -97,7 +117,7 @@ Deno.serve(async (req) => {
         checked_at: new Date().toISOString(),
       }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
         status: 200,
       },
     )
@@ -106,7 +126,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ error: error.message }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
         status: 500,
       },
     )

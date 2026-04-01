@@ -5,7 +5,7 @@
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
-import { corsHeaders } from '../_shared/cors.ts';
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 
 const OPENAI_BASE_URL = Deno.env.get('OPENAI_BASE_URL') || 'https://api.openai.com/v1';
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
@@ -51,7 +51,7 @@ function clampScore(value: unknown, fallback = 0): number {
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
     if (!plateNumber && providedPhotoUrls.length === 0) {
       return new Response(
         JSON.stringify({ error: 'Missing plateNumber (or plate_number) and no photo URLs provided' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -188,7 +188,7 @@ Deno.serve(async (req) => {
           bestPhoto: null,
           totalPhotosSearched: 0 
         }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 404, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -200,7 +200,7 @@ Deno.serve(async (req) => {
           score: 100,
           analysis: { url: photoUrls[0], score: 100, reasons: ['Only photo available'] },
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -462,14 +462,14 @@ Return strict JSON:
         },
         allAnalyses: analyses,
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
     console.error('❌ Error in select-best-vehicle-photo:', error);
     return new Response(
       JSON.stringify({ error: error.message || 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 });

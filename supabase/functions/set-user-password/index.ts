@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
-import { corsHeaders } from '../_shared/cors.ts';
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 
 function safeErrorDetails(error: any) {
   if (!error) return null;
@@ -13,7 +13,7 @@ function safeErrorDetails(error: any) {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
     if (!authHeader) {
       return new Response(
         JSON.stringify({ error: 'Missing Authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
     if (userError || !callerUser?.id) {
       return new Response(
         JSON.stringify({ error: 'Invalid or expired session' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
     if (callerProfileError || !callerProfile || (callerProfile.role !== 'admin' && callerProfile.role !== 'master' && callerProfile.role !== 'grand_master')) {
       return new Response(
         JSON.stringify({ error: 'Forbidden: admin, master, or grand_master role required' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -64,14 +64,14 @@ Deno.serve(async (req) => {
     if (!user_id || !new_password) {
       return new Response(
         JSON.stringify({ error: 'user_id and new_password are required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
     if (String(new_password).length < 8) {
       return new Response(
         JSON.stringify({ error: 'Password must be at least 8 characters' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({ message: 'Password updated successfully' }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
 
   } catch (error: any) {
@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
         error: error.message || 'Failed to update password',
         details: safeErrorDetails(error),
       }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 });

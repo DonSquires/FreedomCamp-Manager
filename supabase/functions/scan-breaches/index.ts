@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
-import { corsHeaders } from '../_shared/cors.ts';
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 
 interface BreachDetection {
   plateNumber: string;
@@ -88,7 +88,7 @@ function cosineSimilarity(a: number[], b: number[]): number {
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
     if (!token) {
       return new Response(
         JSON.stringify({ success: false, error: 'Missing authorization token' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+        { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' }, status: 401 }
       );
     }
 
@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
     if (authError || !user) {
       return new Response(
         JSON.stringify({ success: false, error: 'Invalid or expired token' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+        { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' }, status: 401 }
       );
     }
 
@@ -133,7 +133,7 @@ Deno.serve(async (req) => {
     if (profileError || !profile) {
       return new Response(
         JSON.stringify({ success: false, error: 'User profile not found' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
+        { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' }, status: 403 }
       );
     }
 
@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
     if (!allowedRoles.includes(profile.role)) {
       return new Response(
         JSON.stringify({ success: false, error: 'Insufficient permissions to run breach scan' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
+        { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' }, status: 403 }
       );
     }
 
@@ -412,7 +412,7 @@ Deno.serve(async (req) => {
         })),
       }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
         status: 200,
       }
     );
@@ -425,7 +425,7 @@ Deno.serve(async (req) => {
         error: error.message || 'Internal server error' 
       }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
         status: 500,
       }
     );
