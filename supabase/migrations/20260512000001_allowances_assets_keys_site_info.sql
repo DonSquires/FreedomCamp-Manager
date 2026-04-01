@@ -302,12 +302,12 @@ BEGIN
       ADD COLUMN licence_class TEXT;
   END IF;
   
-  -- Add renewal reminder date
+  -- Add reminder_send_date: when to send renewal reminder (e.g., 60 days before expiry)
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-    WHERE table_name = 'officer_skills' AND column_name = 'renewal_reminder_date') 
+    WHERE table_name = 'officer_skills' AND column_name = 'reminder_send_date') 
   THEN
     ALTER TABLE public.officer_skills 
-      ADD COLUMN renewal_reminder_date DATE;
+      ADD COLUMN reminder_send_date DATE;  -- Date to send renewal reminder notification
   END IF;
 END $$;
 
@@ -608,7 +608,9 @@ CREATE TABLE IF NOT EXISTS public.site_access_codes (
   name              TEXT        NOT NULL,  -- e.g. 'Main Gate Code', 'Alarm Panel'
   location          TEXT,                  -- Where this code is used
   
-  -- The actual code (should be encrypted at rest by Supabase)
+  -- The actual code value. Supabase encrypts data at rest by default.
+  -- For additional security, consider using Supabase Vault for highly sensitive codes.
+  -- Access to this field is logged via log_site_access_code_access() function.
   code_value        TEXT        NOT NULL,
   
   -- Additional info
@@ -839,7 +841,8 @@ CREATE TABLE IF NOT EXISTS public.key_custody (
   -- Return
   returned_at       TIMESTAMPTZ,
   returned_to       UUID        REFERENCES public.user_profiles(id) ON DELETE SET NULL,  -- Admin who received
-  return_condition  TEXT        CHECK (return_condition IN ('good', 'damaged', 'keys_missing', 'partial')),
+  -- Return condition: 'incomplete' means some keys from the set are missing
+  return_condition  TEXT        CHECK (return_condition IN ('good', 'damaged', 'incomplete', 'partial')),
   return_notes      TEXT,
   
   -- Status
@@ -946,7 +949,7 @@ BEGIN
   -- Update key set status
   UPDATE public.key_sets
   SET 
-    status = CASE WHEN p_condition = 'keys_missing' THEN 'missing' ELSE 'available' END,
+    status = CASE WHEN p_condition = 'incomplete' THEN 'missing' ELSE 'available' END,
     current_holder_id = NULL,
     checked_out_at = NULL,
     expected_return = NULL

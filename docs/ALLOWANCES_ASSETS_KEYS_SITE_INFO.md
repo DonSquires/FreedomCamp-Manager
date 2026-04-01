@@ -130,7 +130,7 @@ The existing `officer_skills` table has been enhanced with additional categories
 | `skill_level` | TEXT | beginner, intermediate, advanced, expert, trainer |
 | `endorsements` | TEXT[] | Driver licence endorsements (e.g., P, V, I, O, D, F, R, T, W) |
 | `licence_class` | TEXT | Driver licence class (1, 2, 3, 4, 5, 6) |
-| `renewal_reminder_date` | DATE | When to remind about renewal |
+| `reminder_send_date` | DATE | Date to send renewal reminder notification |
 
 ### 2.3 Example: Site Clearance
 
@@ -540,6 +540,14 @@ WHERE EXISTS (
 - Acknowledgement required for asset receipt
 - Condition documented on return
 - Depreciation tracking for asset value
+
+### 8.4 Access Code Security
+
+- Access codes stored in `site_access_codes` are encrypted at rest by Supabase
+- For highly sensitive codes (e.g., safe combinations), consider using Supabase Vault
+- Access is logged automatically with timestamp, user, and access count
+- Visibility controls restrict access to appropriate roles
+- Regular rotation reminders can be set via valid_from/valid_until dates
 
 ---
 
