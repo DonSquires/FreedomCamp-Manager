@@ -87,6 +87,7 @@ const NotificationsCenter = lazy(() => import('@/pages/NotificationsCenter'))
 const ComplianceDashboard = lazy(() => import('@/pages/ComplianceDashboard'))
 const CleanDashboard = lazy(() => import('@/pages/CleanDashboard'))
 const FaceRecognitionPage = lazy(() => import('@/pages/FaceRecognitionPage'))
+const IdentityVerificationPage = lazy(() => import('@/pages/IdentityVerificationPage'))
 const TimesheetReview = lazy(() => import('@/pages/TimesheetReview'))
 const OpenShifts = lazy(() => import('@/pages/OpenShifts'))
 const DispatchConsole = lazy(() => import('@/pages/DispatchConsole'))
@@ -1135,6 +1136,17 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
                   <FaceRecognitionPage />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/identity-verification"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <IdentityVerificationPage />
                 </RoleRoute>
               </ProtectedRoute>
             }

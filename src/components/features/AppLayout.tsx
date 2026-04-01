@@ -72,6 +72,8 @@ import {
   ClipboardCopy,
   Globe,
   LayoutDashboard,
+  ScanFace,
+  ShieldCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -155,6 +157,7 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
       { path: '/noise-control', icon: Volume2, label: 'Noise Control', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/parking', icon: ParkingSquare, label: 'Parking Enforcement', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/officer-welfare', icon: HeartPulse, label: 'Officer Welfare', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/identity-verification', icon: ShieldCheck, label: 'ID Verification', roles: ['admin', 'admin_officer', 'master', 'officer'] },
     ],
   },
   {
