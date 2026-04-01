@@ -49,6 +49,7 @@ const DataCleanupUtility = lazy(() => import('@/pages/DataCleanupUtility'))
 const DataIntegrityDashboard = lazy(() => import('@/pages/DataIntegrityDashboard'))
 const LivePatrolMonitor = lazy(() => import('@/pages/LivePatrolMonitor'))
 const ReportsHub = lazy(() => import('@/pages/ReportsHub'))
+const CustomReportBuilder = lazy(() => import('@/pages/CustomReportBuilder'))
 const AiAnalysis = lazy(() => import('@/pages/AiAnalysis'))
 const HotspotsMap = lazy(() => import('@/pages/HotspotsMap'))
 const SpatialComplianceAdmin = lazy(() => import('@/pages/SpatialComplianceAdmin'))
@@ -875,6 +876,17 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <ReportsHub />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/custom-reports"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <CustomReportBuilder />
                 </RoleRoute>
               </ProtectedRoute>
             }
