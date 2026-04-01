@@ -43,12 +43,13 @@ export function generateReportHTML(
     ? `${formatDate(config.dateRange.from)} - ${formatDate(config.dateRange.to)}`
     : formatDate(config.generatedAt)
 
+  // All user-provided content is escaped via escapeHtml() to prevent XSS
   const html = `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>${config.title}</title>
+  <title>${escapeHtml(config.title)}</title>
   <style>
     @page {
       size: A4;
