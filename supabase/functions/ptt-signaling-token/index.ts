@@ -11,7 +11,7 @@
  *   { token, channelScope, expiresIn, iceServers }
  */
 
-import { corsHeaders } from '../_shared/cors.ts'
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
 
 const PTT_SERVER_URL = Deno.env.get('PTT_SERVER_URL') || ''
@@ -20,7 +20,7 @@ const PROXY_SECRET = Deno.env.get('PROXY_SECRET') || ''
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req) })
   }
 
   try {
@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
           error: 'PTT server not configured',
           message: 'PTT_SERVER_URL environment variable is not set',
         }),
-        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 503, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized', message: 'Missing or invalid Authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     if (userError || !user) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized', message: 'Invalid user token' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -72,14 +72,14 @@ Deno.serve(async (req) => {
     if (profileError || !profile) {
       return new Response(
         JSON.stringify({ error: 'Profile not found', message: 'User profile does not exist' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 404, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
     if (!profile.organization_id) {
       return new Response(
         JSON.stringify({ error: 'No organization', message: 'User is not assigned to an organization' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
     } catch {
       return new Response(
         JSON.stringify({ error: 'Invalid request', message: 'Request body must be JSON with channelScope' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -103,7 +103,7 @@ Deno.serve(async (req) => {
           error: 'Invalid channelScope',
           message: 'channelScope must be org:<uuid>, incident:<uuid>, direct:<uuid>, team:<uuid>, or deployment:<uuid>',
         }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
       if (scopeId !== profile.organization_id && !['master', 'grand_master'].includes(profile.role)) {
         return new Response(
           JSON.stringify({ error: 'Forbidden', message: 'Cannot access channels in other organizations' }),
-          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         )
       }
     } else if (scopeType === 'incident') {
@@ -129,14 +129,14 @@ Deno.serve(async (req) => {
       if (!incident) {
         return new Response(
           JSON.stringify({ error: 'Incident not found', message: 'The specified incident does not exist' }),
-          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 404, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         )
       }
 
       if (incident.organization_id !== profile.organization_id && !['master', 'grand_master'].includes(profile.role)) {
         return new Response(
           JSON.stringify({ error: 'Forbidden', message: 'Cannot access incident channels in other organizations' }),
-          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         )
       }
     } else if (scopeType === 'team' || scopeType === 'deployment') {
@@ -157,14 +157,14 @@ Deno.serve(async (req) => {
       if (!targetProfile) {
         return new Response(
           JSON.stringify({ error: 'User not found', message: 'Target user does not exist' }),
-          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 404, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         )
       }
 
       if (targetProfile.organization_id !== profile.organization_id && !['master', 'grand_master'].includes(profile.role)) {
         return new Response(
           JSON.stringify({ error: 'Forbidden', message: 'Cannot create direct channels with users in other organizations' }),
-          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         )
       }
     }
@@ -195,7 +195,7 @@ Deno.serve(async (req) => {
           message: 'Failed to mint channel token',
           details: errorText.slice(0, 200),
         }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 502, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -218,13 +218,13 @@ Deno.serve(async (req) => {
         ...tokenData,
         wsUrl: PTT_SERVER_URL.replace(/^http/, 'ws') + '/ws',
       }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     )
   } catch (error: any) {
     console.error('PTT token error:', error)
     return new Response(
       JSON.stringify({ error: 'Internal error', message: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     )
   }
 })

@@ -3,7 +3,7 @@
 // in parent zones or areas without specific zones
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { corsHeaders } from '../_shared/cors.ts';
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 
 const NOMINATIM_API = 'https://nominatim.openstreetmap.org';
 
@@ -37,7 +37,7 @@ interface ReverseGeocodeResult {
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
           existing_zone: nearbyZone,
           message: `Zone "${nearbyZone.name}" already exists nearby (within ${DUPLICATE_THRESHOLD_METERS}m)`,
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -211,7 +211,7 @@ Deno.serve(async (req) => {
             zone: newZone,
             suggestion: suggestion,
           }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         );
       }
     }
@@ -224,7 +224,7 @@ Deno.serve(async (req) => {
         suggestion: suggestion,
         message: `Zone suggestion created: "${zoneName}" (requires admin review)`,
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
@@ -233,7 +233,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ error: error.message }),
       { 
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } 
       }
     );
   }

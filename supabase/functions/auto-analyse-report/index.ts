@@ -26,7 +26,7 @@
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
-import { corsHeaders } from '../_shared/cors.ts'
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
 import { nextStatusAfterAnalysis, shouldAutoAcknowledge } from '../_shared/bugReportStatus.ts'
 
 const SYSTEM_PROMPT = `You are an AI code reviewer and bug triage assistant for FreedomCamp Manager — a NZ freedom camping enforcement SaaS built with React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui, Zustand, TanStack Query v5, Supabase (PostgreSQL + Edge Functions), and react-router-dom v6.
@@ -76,7 +76,7 @@ async function fetchCiStatus(githubToken: string, repo: string): Promise<string>
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req) })
   }
 
   try {
@@ -85,7 +85,7 @@ Deno.serve(async (req: Request) => {
     if (!token) {
       return new Response(
         JSON.stringify({ error: 'Authentication required' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -98,7 +98,7 @@ Deno.serve(async (req: Request) => {
     if (authError || !user) {
       return new Response(
         JSON.stringify({ error: 'Invalid or expired session' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -107,7 +107,7 @@ Deno.serve(async (req: Request) => {
     if (!report_id) {
       return new Response(
         JSON.stringify({ error: 'report_id is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -121,7 +121,7 @@ Deno.serve(async (req: Request) => {
     if (fetchErr || !report) {
       return new Response(
         JSON.stringify({ error: 'Report not found', details: fetchErr?.message }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 404, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -195,7 +195,7 @@ Be specific. Name exact files and line-level changes where possible.`
       console.warn(`[auto-analyse] No AI provider configured — skipping analysis for report ${report_id}`)
       return new Response(
         JSON.stringify({ error: 'AI service not configured', report_id }),
-        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 503, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -289,7 +289,7 @@ Be specific. Name exact files and line-level changes where possible.`
 
         return new Response(
           JSON.stringify({ error: `AI provider returned ${aiResponse.status}`, details: errorText.slice(0, 200) }),
-          { status: aiResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: aiResponse.status, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         )
       }
 
@@ -299,7 +299,7 @@ Be specific. Name exact files and line-level changes where possible.`
     if (!aiData) {
       return new Response(
         JSON.stringify({ error: `AI provider returned ${lastStatus}`, details: lastErrorText.slice(0, 200) }),
-        { status: lastStatus, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: lastStatus, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -308,7 +308,7 @@ Be specific. Name exact files and line-level changes where possible.`
     if (!responseText) {
       return new Response(
         JSON.stringify({ error: 'AI returned an empty response' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -340,20 +340,20 @@ Be specific. Name exact files and line-level changes where possible.`
 
     return new Response(
       JSON.stringify({ success: true, report_id, provider: providerName }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     )
   } catch (err: any) {
     if (err?.name === 'AbortError') {
       console.error('[auto-analyse] Request timed out after 55s')
       return new Response(
         JSON.stringify({ error: 'AI request timed out' }),
-        { status: 504, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 504, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
     console.error('[auto-analyse] Unhandled error:', err?.message)
     return new Response(
       JSON.stringify({ error: 'Internal server error', message: err?.message ?? 'Unknown error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     )
   }
 })

@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
-import { corsHeaders } from '../_shared/cors.ts'
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
 
 // ---------------------------------------------------------------------------
 // In-memory IP rate limiter
@@ -38,7 +38,7 @@ const SUBMISSION_FAILED = JSON.stringify({ success: false, error: 'Submission fa
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req) })
   }
 
   try {
@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
     if (isRateLimited(clientIp)) {
       return new Response(
         JSON.stringify({ success: false, error: 'Too many requests. Please try again later.' }),
-        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        { status: 429, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
       )
     }
 
@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
     if (!message || message.length < 10) {
       return new Response(
         JSON.stringify({ success: false, error: 'Please provide dispute details (minimum 10 characters).' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
       )
     }
 
@@ -86,7 +86,7 @@ Deno.serve(async (req) => {
     if (!allowed.has(sourceType)) {
       return new Response(
         JSON.stringify({ success: false, error: 'Unsupported dispute type.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
       )
     }
 
@@ -115,19 +115,19 @@ Deno.serve(async (req) => {
       console.error('[submit-dispute-intake] insert error:', error.code)
       return new Response(
         SUBMISSION_FAILED,
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
       )
     }
 
     return new Response(
       JSON.stringify({ success: true, dispute_id: data.id, submitted_at: data.submitted_at }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
     )
   } catch (_err) {
     // Do NOT surface internal error details to the caller (§31)
     return new Response(
       SUBMISSION_FAILED,
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
     )
   }
 })

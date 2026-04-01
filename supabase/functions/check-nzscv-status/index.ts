@@ -21,7 +21,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { corsHeaders } from '../_shared/cors.ts';
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 
 interface NZSCVRequest {
   plate_number: string;
@@ -61,7 +61,7 @@ interface NZSCVResponse {
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -71,7 +71,7 @@ serve(async (req) => {
     if (!plate_number || plate_number.trim() === '') {
       return new Response(
         JSON.stringify({ error: 'Plate number is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -138,7 +138,7 @@ serve(async (req) => {
             logo_url: scvRow.logo_url ?? null,
             checked_at: new Date().toISOString(),
           }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         );
       } catch (fallbackErr: any) {
         console.warn('⚠️ canonical_scv fallback failed:', fallbackErr?.message || fallbackErr);
@@ -161,7 +161,7 @@ serve(async (req) => {
           error: 'NZSCV proxy not configured',
           details: 'Contact system administrator to set up NZSCV_PROXY_URL',
         }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -187,7 +187,7 @@ serve(async (req) => {
           error: 'NZSCV API unavailable',
           details: proxyErr?.message || String(proxyErr),
         }),
-        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 503, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -212,7 +212,7 @@ serve(async (req) => {
             },
             message: 'Vehicle not found in NZSCV registry — not self-contained certified',
           }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         );
       }
 
@@ -226,7 +226,7 @@ serve(async (req) => {
           status: proxyResponse.status,
           details: errorData,
         }),
-        { status: proxyResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: proxyResponse.status, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -303,7 +303,7 @@ serve(async (req) => {
         source:     'nzscv_register', // Track which authority provided this data
         checked_at: new Date().toISOString(),
       }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
 
   } catch (error: any) {
@@ -313,7 +313,7 @@ serve(async (req) => {
         error: 'Internal server error',
         message: error.message 
       }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 });

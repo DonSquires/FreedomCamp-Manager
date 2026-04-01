@@ -17,7 +17,7 @@
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
-import { corsHeaders } from '../_shared/cors.ts';
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 import { alprWithBytes } from '../_shared/alpr.ts';
 
 // API Configuration
@@ -369,7 +369,7 @@ Deno.serve(async (req) => {
   // STEP 1: CORS PREFLIGHT
   // ============================================================================
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: getCorsHeaders(req) });
   }
 
   const requestStartTime = Date.now();
@@ -405,7 +405,7 @@ Deno.serve(async (req) => {
     if (!body.photo_url) {
       return new Response(
         JSON.stringify({ success: false, error: 'photo_url is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -418,14 +418,14 @@ Deno.serve(async (req) => {
             error: 'Missing required identity fields (CREATE mode)',
             required: ['officerId', 'organizationId', 'zoneId', 'idempotencyKey']
           }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         );
       }
 
       if (body.gpsLatitude === undefined || body.gpsLongitude === undefined) {
         return new Response(
           JSON.stringify({ success: false, error: 'GPS coordinates required' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         );
       }
 
@@ -456,7 +456,7 @@ Deno.serve(async (req) => {
             plate: existingObs.plate_number,
             is_compliant: existingObs.is_compliant,
           }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         );
       }
     } else {
@@ -500,7 +500,7 @@ Deno.serve(async (req) => {
       if (obsError || !existingObs) {
         return new Response(
           JSON.stringify({ success: false, error: 'Observation not found' }),
-          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 404, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         );
       }
 
@@ -512,7 +512,7 @@ Deno.serve(async (req) => {
         console.log('⚠️ Observation already processed (embedding_created_at set):', existingObservationId);
         return new Response(
           JSON.stringify({ success: true, already_processed: true }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         );
       }
 
@@ -757,7 +757,7 @@ Deno.serve(async (req) => {
             success: false,
             error: 'Database error: ' + updateError.message,
           }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         );
       }
 
@@ -817,7 +817,7 @@ Deno.serve(async (req) => {
             success: false,
             error: 'Database error: ' + obsError.message,
           }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         );
       }
 
@@ -852,7 +852,7 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify(response),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
 
   } catch (error: any) {
@@ -871,7 +871,7 @@ Deno.serve(async (req) => {
         error: error.message || 'Internal server error',
         stack: error.stack,
       }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 });

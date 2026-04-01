@@ -13,14 +13,14 @@
 //     : 'vehicle-ingest'
 // ============================================================================
 
-import { corsHeaders } from '../_shared/cors.ts'
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 
 Deno.serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req) })
   }
 
   try {
@@ -47,14 +47,14 @@ Deno.serve(async (req: Request) => {
     return new Response(responseBody, {
       status: upstream.status,
       headers: {
-        ...corsHeaders,
+        ...getCorsHeaders(req),
         'Content-Type': upstream.headers.get('Content-Type') || 'application/json',
       },
     })
   } catch (err: any) {
     return new Response(
       JSON.stringify({ error: err.message || 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     )
   }
 })

@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
-import { corsHeaders } from '../_shared/cors.ts'
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
 import { generateNoticeHtml, NZ_DEFAULT_SUMMARY_OF_RIGHTS } from '../_shared/infringement-notice.ts'
 
 const PRINT_ARTIFACT_BUCKET = 'notice-artifacts'
@@ -38,7 +38,7 @@ function extractBearerToken(req: Request): string | null {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req) })
   }
 
   try {
@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
     if (!token) {
       return new Response(JSON.stringify({ success: false, error: 'Authentication required' }), {
         status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
       })
     }
 
@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
     if (authError || !user) {
       return new Response(JSON.stringify({ success: false, error: 'Invalid session', details: authError?.message || null }), {
         status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
       })
     }
 
@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
     if (!notice_id) {
       return new Response(JSON.stringify({ success: false, error: 'notice_id is required' }), {
         status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
       })
     }
 
@@ -80,14 +80,14 @@ Deno.serve(async (req) => {
     if (profileError || !profile) {
       return new Response(JSON.stringify({ success: false, error: 'Officer profile not found' }), {
         status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
       })
     }
 
     if (!['admin', 'admin_officer', 'master', 'officer'].includes(profile.role)) {
       return new Response(JSON.stringify({ success: false, error: 'Insufficient permissions' }), {
         status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
       })
     }
 
@@ -133,7 +133,7 @@ Deno.serve(async (req) => {
       if (legacyNoticeError || !legacyNotice) {
         return new Response(JSON.stringify({ success: false, error: formatDbError(legacyNoticeError || { message: 'Notice not found' }) }), {
           status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
         })
       }
 
@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
     } else if (noticeWithArtifactError || !noticeWithArtifact) {
       return new Response(JSON.stringify({ success: false, error: formatDbError(noticeWithArtifactError || { message: 'Notice not found' }) }), {
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
       })
     } else {
       notice = noticeWithArtifact
@@ -150,7 +150,7 @@ Deno.serve(async (req) => {
     if (profile.role !== 'master' && notice.organization_id !== profile.organization_id) {
       return new Response(JSON.stringify({ success: false, error: 'Forbidden' }), {
         status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
       })
     }
 
@@ -170,7 +170,7 @@ Deno.serve(async (req) => {
               html: artifactHtml,
               source: 'stored-artifact',
             }), {
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
             })
           }
         }
@@ -192,7 +192,7 @@ Deno.serve(async (req) => {
               html: artifactHtml,
               source: 'stored-artifact',
             }), {
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
             })
           }
         }
@@ -251,12 +251,12 @@ Deno.serve(async (req) => {
       html: noticeHtml,
       source: 'regenerated',
     }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
     })
   } catch (err) {
     return new Response(JSON.stringify({ success: false, error: (err as Error).message }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
     })
   }
 })
