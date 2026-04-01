@@ -49,7 +49,15 @@ function isAllowedPreview(origin: string): boolean {
 }
 
 // Dev mode: allow wildcard * (set DEV_CORS=true in Supabase env vars)
-const DEV_CORS = Deno.env.get('DEV_CORS') === 'true';
+// SECURITY: DEV_CORS is automatically disabled in production environment
+const ENVIRONMENT = Deno.env.get('ENVIRONMENT') || 'development';
+const IS_PRODUCTION = ENVIRONMENT === 'production' || ENVIRONMENT === 'prod';
+const DEV_CORS = !IS_PRODUCTION && Deno.env.get('DEV_CORS') === 'true';
+
+// Log warning if DEV_CORS is attempted in production (will be ignored)
+if (IS_PRODUCTION && Deno.env.get('DEV_CORS') === 'true') {
+  console.warn('⚠️ SECURITY: DEV_CORS=true is set but ignored in production environment');
+}
 
 const matchOrigin: OriginMatcher = (origin) => {
   if (!origin) return null;
@@ -61,9 +69,18 @@ const matchOrigin: OriginMatcher = (origin) => {
 export function getCorsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get('origin');
   
+  // Security headers that should be present on all responses
+  const securityHeaders: Record<string, string> = {
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'X-XSS-Protection': '1; mode=block',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+  };
+  
   // Dev mode: allow wildcard (simplifies preview debugging)
   if (DEV_CORS) {
     return {
+      ...securityHeaders,
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-request-id',
@@ -74,6 +91,7 @@ export function getCorsHeaders(req: Request): Record<string, string> {
   // Production mode: match exact or preview pattern
   const allowed = matchOrigin(origin);
   const base: Record<string, string> = {
+    ...securityHeaders,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-request-id',
     'Access-Control-Max-Age': '3600',
