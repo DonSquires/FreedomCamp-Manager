@@ -365,8 +365,269 @@ When a visitor record is deleted:
 
 ## Privacy & Compliance
 
-This system supports:
+### NZ Biometric Processing Privacy Code 2025
+
+The system is designed to comply with New Zealand's Biometric Processing Privacy Code 2025 (effective November 2025):
+
+1. **Necessity Test**: Only collect biometric data when necessary and proportionate
+2. **Privacy Impact Assessment**: Document rationale for biometric use
+3. **Transparency**: Inform individuals before collection
+4. **Alternatives**: Offer non-biometric alternatives where possible
+5. **Right to Erasure**: Delete biometric data on request
+
+### GDPR Compliance (for international clients)
+
+- **Explicit Consent**: `biometric_consents` table tracks consent for biometric processing
+- **Article 9 Compliance**: Special category data handling for biometrics
+- **Data Protection Impact Assessment**: Required before deployment
+- **Right to Erasure**: `delete_visitor_with_data(immediate=true)`
+- **Purpose Limitation**: Biometric data only used for stated access control purpose
+
+### Biometric Consent Tracking
+
+```sql
+-- Record consent before processing biometric data
+INSERT INTO biometric_consents (
+  organization_id, person_record_id, consent_type,
+  consent_given, data_purpose, data_retention_period,
+  alternative_offered, alternative_description
+) VALUES (
+  'org-uuid', 'person-uuid', 'face_recognition',
+  true, 'Facility access control verification',
+  '2 years from last access',
+  true, 'PIN code or badge-only access available on request'
+);
+
+-- Check consent before face verification
+SELECT has_valid_biometric_consent('person-uuid', 'face_recognition');
+```
+
+### This system supports:
 
 - **GDPR**: Right to erasure via `delete_visitor_with_data(immediate=true)`
 - **Privacy Act 2020 (NZ)**: Data minimization via automatic retention periods
+- **NZ Biometric Code 2025**: Consent tracking via `biometric_consents` table
 - **Access Control Standards**: Complete audit trail retained even when visitor data is deleted
+
+---
+
+## Industry Standard Features
+
+### Anti-Passback Enforcement
+
+Prevents credential sharing by ensuring users cannot re-enter without first exiting:
+
+```sql
+-- Check anti-passback before granting entry
+SELECT check_anti_passback('org-uuid', 'person-uuid', 'zone-uuid', 'entry');
+
+-- Returns:
+-- { "allowed": false, "reason": "already_inside", "violation": true, "violation_count": 1 }
+```
+
+#### Zone Configuration
+
+| Setting | Description |
+|---------|-------------|
+| `anti_passback_enabled` | Enable/disable anti-passback |
+| `anti_passback_timeout_minutes` | 0 = strict (must exit), >0 = timed reset |
+
+### Tailgating Detection
+
+Flag when someone follows another person through a door without authenticating:
+
+- `tailgate_detection_enabled` zone setting
+- `tailgate_detected` flag on access_entries
+- Integration ready for AI/sensor-based detection systems
+
+### Occupancy Limits
+
+Track and enforce zone capacity:
+
+```sql
+-- Get current zone occupancy
+SELECT get_zone_occupancy('zone-uuid');
+
+-- Returns:
+-- {
+--   "zone_id": "...",
+--   "current_occupancy": 45,
+--   "max_occupancy": 50,
+--   "at_capacity": false,
+--   "occupancy_percentage": 90.0,
+--   "persons_inside": [...]
+-- }
+```
+
+### Multi-Factor Authentication (MFA)
+
+Support for multiple authentication factors:
+
+| Factor | Description |
+|--------|-------------|
+| Badge/Card | RFID, NFC, or mobile credential |
+| Biometric | Face, fingerprint, iris, palm, voice |
+| PIN | Knowledge-based verification |
+
+MFA attempts are logged in `access_mfa_log` for audit.
+
+### Watchlist Screening
+
+Screen visitors against blocked, restricted, and alert lists:
+
+```sql
+-- Check if person is on any watchlist
+SELECT * FROM check_access_watchlist('org-uuid', 'person-uuid');
+
+-- Returns matches with list_type: blocked, restricted, alert, vip, terminated, court_order, etc.
+```
+
+#### Watchlist Types
+
+| Type | Action |
+|------|--------|
+| `blocked` | Deny access completely |
+| `restricted` | Allow with escort only |
+| `alert` | Allow but notify security |
+| `vip` | Fast-track access |
+| `terminated` | Former employee - revoked |
+| `court_order` | Legal restriction |
+
+### Credential Management
+
+Manage physical and mobile credentials:
+
+| Credential Type | Description |
+|----------------|-------------|
+| `proximity_card` | 125kHz RFID |
+| `smart_card` | 13.56MHz (MIFARE, DESFire) |
+| `nfc_mobile` | NFC phone credential |
+| `ble_mobile` | Bluetooth phone credential |
+| `key_fob` | Key fob |
+| `pin_code` | PIN only |
+| `qr_code` | QR code badge |
+
+### Emergency Evacuation Support
+
+Real-time headcount and roll call during emergencies:
+
+```sql
+-- Initiate evacuation
+SELECT initiate_emergency_evacuation(
+  'org-uuid',
+  'fire',
+  'Building A Fire Alarm',
+  ARRAY['zone1-uuid', 'zone2-uuid']::uuid[],
+  'Fire alarm activated in Building A'
+);
+
+-- Get evacuation status with headcount
+SELECT get_evacuation_status('event-uuid');
+
+-- Returns summary:
+-- {
+--   "summary": {
+--     "total": 50,
+--     "evacuated": 45,
+--     "unaccounted": 3,
+--     "missing": 1,
+--     "requires_assistance": 1
+--   },
+--   "unaccounted_persons": [...]
+-- }
+```
+
+### Hardware Integration Readiness
+
+The system is designed for integration with physical access control hardware:
+
+| Field | Purpose |
+|-------|---------|
+| `reader_id` | Physical reader device ID |
+| `door_id` | Door/portal identifier |
+| `credential_number` | Card/badge number |
+| `facility_code` | Wiegand facility code |
+
+#### Supported Protocols
+
+- **OSDP** (Recommended): Encrypted, bi-directional, IEC 60839-11-5 compliant
+- **Wiegand** (Legacy): One-way, unencrypted, for existing systems
+
+---
+
+## New Database Tables
+
+### biometric_consents
+Tracks explicit consent for biometric data processing (NZ Biometric Code 2025 / GDPR compliance).
+
+### access_watchlist
+Blocked, restricted, alert, and VIP lists for access screening.
+
+### access_credentials
+Physical and mobile credentials (RFID, NFC, mobile, PIN).
+
+### access_location_state
+Real-time entry/exit tracking for anti-passback enforcement.
+
+### access_mfa_log
+Multi-factor authentication audit trail.
+
+### emergency_events
+Emergency evacuation events.
+
+### evacuation_roll_call
+Roll call status during emergency evacuations.
+
+---
+
+## API Reference (Additional Functions)
+
+### has_valid_biometric_consent
+Check if person has given valid consent for biometric processing.
+
+```sql
+SELECT has_valid_biometric_consent('person-uuid', 'face_recognition');
+-- Returns: true/false
+```
+
+### check_access_watchlist
+Check if person is on any watchlist.
+
+```sql
+SELECT * FROM check_access_watchlist('org-uuid', 'person-uuid');
+```
+
+### check_anti_passback
+Validate entry/exit complies with anti-passback rules.
+
+```sql
+SELECT check_anti_passback('org-uuid', 'person-uuid', 'zone-uuid', 'entry');
+```
+
+### update_access_location_state
+Update location tracking after access event.
+
+```sql
+SELECT update_access_location_state('org-uuid', 'person-uuid', 'zone-uuid', 'entry', 'entry-uuid');
+```
+
+### get_zone_occupancy
+Get current zone occupancy with person list.
+
+```sql
+SELECT get_zone_occupancy('zone-uuid');
+```
+
+### initiate_emergency_evacuation
+Start emergency evacuation and create roll call.
+
+```sql
+SELECT initiate_emergency_evacuation('org-uuid', 'fire', 'Fire Alarm', ARRAY['zone-uuid']::uuid[]);
+```
+
+### get_evacuation_status
+Get evacuation headcount and status.
+
+```sql
+SELECT get_evacuation_status('event-uuid');
+```
