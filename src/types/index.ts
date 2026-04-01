@@ -230,3 +230,140 @@ export interface Patrol {
     name: string
   }
 }
+
+// ============================================================================
+// Reporting System Types (Migration 20260513000001)
+// ============================================================================
+
+/**
+ * Report data source configuration - defines available tables/views for reporting
+ */
+export interface ReportDataSource {
+  id: string
+  code: string // e.g., 'observations', 'vehicles', 'patrols'
+  name: string
+  description: string | null
+  table_name: string
+  default_columns: string[]
+  available_columns: any // JSONB with column definitions
+  supports_date_filter: boolean
+  date_column: string | null
+  supports_org_filter: boolean
+  org_column: string | null
+  is_active: boolean
+  created_at: string
+}
+
+/**
+ * Saved report template configuration
+ */
+export interface ReportTemplate {
+  id: string
+  organization_id: string
+  name: string
+  description: string | null
+  data_source_code: string
+  selected_columns: string[]
+  filters: any // JSONB with filter configuration
+  sort_by: string | null
+  sort_direction: 'asc' | 'desc'
+  group_by: string | null
+  is_favorite: boolean
+  shared_with: string[] // array of user UUIDs
+  created_by: string
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * Scheduled report generation configuration
+ */
+export interface ReportSchedule {
+  id: string
+  template_id: string
+  schedule_type: 'daily' | 'weekly' | 'monthly' | 'quarterly'
+  day_of_week: number | null // 0-6 for weekly
+  day_of_month: number | null // 1-31 for monthly
+  time_of_day: string // HH:MM format
+  timezone: string
+  output_format: 'csv' | 'pdf' | 'excel'
+  email_recipients: string[]
+  is_active: boolean
+  last_run_at: string | null
+  next_run_at: string | null
+  created_by: string
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * Report generation history/audit trail
+ */
+export interface ReportHistory {
+  id: string
+  template_id: string | null
+  organization_id: string
+  report_name: string
+  data_source_code: string
+  parameters: any // JSONB with generation parameters
+  row_count: number
+  file_url: string | null
+  file_size_bytes: number | null
+  generated_by: string
+  generation_time_ms: number | null
+  status: 'pending' | 'generating' | 'completed' | 'failed'
+  error_message: string | null
+  created_at: string
+}
+
+// ============================================================================
+// Organization Configuration Types (Migration 20260514000001)
+// ============================================================================
+
+/**
+ * Secure credential storage for organization-specific integrations
+ */
+export interface OrganizationCredential {
+  id: string
+  organization_id: string
+  credential_type: 'smtp_password' | 'sms_auth_token' | 'sms_account_sid'
+  encrypted_value: string
+  created_at: string
+  updated_at: string
+  created_by: string | null
+}
+
+/**
+ * Rate limit tracking entry
+ */
+export interface RateLimitEntry {
+  id: string
+  key: string // e.g., 'ip:192.168.1.1:create-user' or 'user:uuid:endpoint'
+  count: number
+  window_start: string
+}
+
+/**
+ * Extended organization fields for SMTP/SMS configuration
+ */
+export interface OrganizationConfig {
+  // SMTP Configuration
+  smtp_host: string | null
+  smtp_port: number | null
+  smtp_username: string | null
+  smtp_from_email: string | null
+  smtp_from_name: string | null
+  use_custom_smtp: boolean
+  
+  // SMS Configuration
+  sms_provider: 'twilio' | 'vonage' | 'aws_sns' | 'messagebird' | null
+  sms_from_number: string | null
+  use_custom_sms: boolean
+  
+  // Password Policy
+  password_min_length: number
+  password_require_uppercase: boolean
+  password_require_lowercase: boolean
+  password_require_number: boolean
+  password_require_special: boolean
+}

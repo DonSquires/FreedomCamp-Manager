@@ -202,10 +202,10 @@ const smsConfig = await getSmsConfig(supabase, organizationId)
 ## 8. Recommended Action Plan
 
 ### Week 1-2: Critical Security
-1. ☐ Migrate edge functions to `withCors.ts`
+1. ☐ Migrate edge functions to `withCors.ts` (see `docs/CORS_MIGRATION_GUIDE.md`)
 2. ☐ Fix remaining RLS policies with `USING (true)`
 3. ☐ Add CAPTCHA to public endpoints
-4. ☐ Regenerate TypeScript types
+4. ☑ Add TypeScript types for new tables (done - `src/types/index.ts`)
 
 ### Week 3-4: Feature Completion
 1. ☐ Wire unused edge functions to frontends
@@ -221,9 +221,23 @@ const smsConfig = await getSmsConfig(supabase, organizationId)
 
 ### Month 3: Clean Up
 1. ☐ Remove or complete CRM subsystem
-2. ☐ Add SMS notifications
+2. ☐ Add SMS notifications (infrastructure done)
 3. ☐ Complete DSAR response generation
 4. ☐ Performance optimization (recharts lazy loading)
+
+---
+
+## 9. Files Changed in This Review Session
+
+| File | Change Type | Description |
+|------|-------------|-------------|
+| `supabase/migrations/20260514000001_org_smtp_sms_and_critical_fixes.sql` | New | Org SMTP/SMS, rate limiting, audit triggers |
+| `supabase/functions/_shared/orgConfig.ts` | New | Helper functions for org config |
+| `src/App.tsx` | Modified | Added gcTime to QueryClient |
+| `src/lib/pdfExport.ts` | Modified | XSS prevention with HTML escaping |
+| `src/types/index.ts` | Modified | Added reporting & org config types |
+| `docs/COMPREHENSIVE_BUILD_REVIEW.md` | New | This review document |
+| `docs/CORS_MIGRATION_GUIDE.md` | New | CORS security migration guide |
 
 ---
 
