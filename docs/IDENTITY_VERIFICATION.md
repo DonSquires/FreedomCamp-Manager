@@ -10,21 +10,55 @@ The Identity Verification system provides secure face recognition-based access c
 - Compare live face capture against stored profile photos
 - Uses AI-powered 384-D face embeddings for accurate matching
 - Configurable confidence thresholds per zone
+- **Multi-face detection** - Automatically detects and processes multiple faces in a single capture
 
-### 2. Geofence-Restricted Verification
+### 2. Video Stream Monitoring
+- Connect to IP cameras via HLS/DASH/MJPEG streams
+- Live video feed monitoring
+- Manual or automatic frame capture
+- Configurable auto-capture intervals (2s to 60s)
+- Real-time face detection from video feeds
+
+### 3. Geofence-Restricted Verification
 - Verification only works when the operator is inside the designated zone
 - GPS-based location verification
 - Prevents unauthorized remote access attempts
 
-### 3. Access Permissions
+### 4. Side-by-Side Photo Comparison
+- Pop-up verification cards with:
+  - Captured photo and reference photo side-by-side
+  - Match confidence percentage
+  - Person details (name, badge number, clearance level)
+  - Face detection metadata (age, gender estimates)
+- Stacking cards for multiple pending verifications
+- "No Match" cards for unknown persons requiring further verification
+
+### 5. Incident Recording
+- Create incidents directly from verification results
+- Link incidents to person records and zones
+- Incident types: no_match, denied_access, suspicious_activity, unauthorized_entry, etc.
+- Severity levels: low, medium, high, critical
+- Add additional evidence photos
+- **Vehicle of Interest (VOI)** capture with automatic vehicle record creation
+
+### 6. Access Statistics
+- Real-time zone statistics dashboard
+- Entry/exit/denial counts
+- Incident tracking
+- Unique person counts
+- Average match confidence
+- Recent incidents list
+
+### 7. Access Permissions
 - Grant time-based or permanent access to individuals
 - Support for escort-required access
 - Clearance level tracking (public, restricted, confidential, secret, top_secret)
 
-### 4. Complete Audit Trail
+### 8. Complete Audit Trail
 - All verification attempts are logged
 - Entry/exit/denied events recorded with timestamps
 - Face photos captured during verification stored for audit
+- Incidents linked to access entries
 
 ## Database Schema
 
@@ -62,6 +96,31 @@ Immutable log of all access control events.
 | gps_latitude | double | GPS coordinates |
 | gps_longitude | double | GPS coordinates |
 | inside_geofence | boolean | Was inside zone boundary |
+| incident_id | uuid | Linked incident (if any) |
+| created_at | timestamptz | Event timestamp |
+
+#### `access_control_incidents`
+Records incidents related to access control verifications.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | uuid | Primary key |
+| organization_id | uuid | Organization reference |
+| zone_id | uuid | Zone reference |
+| access_entry_id | uuid | Related access entry |
+| person_record_id | uuid | Person reference |
+| incident_type | text | Type of incident |
+| severity | text | low, medium, high, critical |
+| title | text | Incident title |
+| description | text | Detailed description |
+| verification_photo_url | text | Captured photo |
+| reference_photo_url | text | Reference photo |
+| face_match_similarity | real | Match confidence |
+| evidence_photos | jsonb | Additional photos array |
+| vehicle_id | uuid | Linked VOI vehicle |
+| vehicle_plate | text | Vehicle plate number |
+| vehicle_photo_url | text | Vehicle photo |
+| status | text | open, investigating, resolved, etc. |
 | created_at | timestamptz | Event timestamp |
 
 #### `access_permissions`

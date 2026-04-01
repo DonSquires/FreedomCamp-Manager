@@ -952,10 +952,426 @@ $$;
 COMMENT ON FUNCTION public.list_expiring_visitors IS 'List temporary visitors whose data retention is expiring soon';
 
 -- ══════════════════════════════════════════════════════════════════════════════
+-- ACCESS CONTROL INCIDENTS & STATISTICS
+-- ══════════════════════════════════════════════════════════════════════════════
+
+-- ── Access Control Incidents ───────────────────────────────────────────────────
+-- Records incidents related to access control verifications
+CREATE TABLE IF NOT EXISTS public.access_control_incidents (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id),
+  zone_id uuid NOT NULL REFERENCES public.zones(id),
+  
+  -- Link to access entry and/or person
+  access_entry_id uuid REFERENCES public.access_entries(id),
+  person_record_id uuid REFERENCES public.person_records(id),
+  
+  -- Incident details
+  incident_type text NOT NULL CHECK (incident_type IN (
+    'no_match', 'denied_access', 'suspicious_activity', 'unauthorized_entry',
+    'badge_mismatch', 'expired_credentials', 'tailgating', 'forced_entry',
+    'verbal_altercation', 'physical_altercation', 'trespass', 'other'
+  )),
+  severity text NOT NULL DEFAULT 'low' CHECK (severity IN ('low', 'medium', 'high', 'critical')),
+  title text NOT NULL,
+  description text,
+  
+  -- Verification details (snapshot at time of incident)
+  verification_photo_url text,
+  reference_photo_url text,
+  face_match_similarity real,
+  
+  -- Additional evidence
+  evidence_photos jsonb DEFAULT '[]',  -- Array of { url: string, type: 'evidence' | 'vehicle', notes: string }
+  
+  -- Vehicle of interest
+  vehicle_id uuid,  -- If a VOI was created
+  vehicle_plate text,
+  vehicle_photo_url text,
+  vehicle_notes text,
+  
+  -- Location
+  gps_latitude double precision,
+  gps_longitude double precision,
+  
+  -- Status tracking
+  status text NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'investigating', 'resolved', 'escalated', 'closed')),
+  resolution_notes text,
+  resolved_at timestamptz,
+  resolved_by uuid REFERENCES auth.users(id),
+  
+  -- Metadata
+  reported_by uuid REFERENCES auth.users(id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_access_control_incidents_zone ON public.access_control_incidents(zone_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_access_control_incidents_person ON public.access_control_incidents(person_record_id);
+CREATE INDEX IF NOT EXISTS idx_access_control_incidents_entry ON public.access_control_incidents(access_entry_id);
+CREATE INDEX IF NOT EXISTS idx_access_control_incidents_status ON public.access_control_incidents(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_access_control_incidents_type ON public.access_control_incidents(incident_type, created_at DESC);
+
+-- ── RLS for access_control_incidents ───────────────────────────────────────────
+ALTER TABLE public.access_control_incidents ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY access_control_incidents_select ON public.access_control_incidents
+  FOR SELECT TO authenticated
+  USING (
+    organization_id IN (
+      SELECT organization_id FROM public.user_profiles WHERE id = auth.uid()
+    )
+  );
+
+CREATE POLICY access_control_incidents_insert ON public.access_control_incidents
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.user_profiles
+      WHERE id = auth.uid()
+        AND role IN ('admin', 'master', 'admin_officer', 'officer')
+        AND organization_id = access_control_incidents.organization_id
+    )
+  );
+
+CREATE POLICY access_control_incidents_update ON public.access_control_incidents
+  FOR UPDATE TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.user_profiles
+      WHERE id = auth.uid()
+        AND role IN ('admin', 'master', 'admin_officer', 'officer')
+        AND organization_id = access_control_incidents.organization_id
+    )
+  );
+
+CREATE POLICY access_control_incidents_service ON public.access_control_incidents
+  FOR ALL TO service_role
+  USING (true) WITH CHECK (true);
+
+-- ── Updated-at trigger for access_control_incidents ────────────────────────────
+CREATE TRIGGER trg_access_control_incidents_updated_at
+  BEFORE UPDATE ON public.access_control_incidents
+  FOR EACH ROW
+  EXECUTE FUNCTION public.person_id_documents_set_updated_at();
+
+-- ── Add incident_id to access_entries ──────────────────────────────────────────
+ALTER TABLE public.access_entries
+  ADD COLUMN IF NOT EXISTS incident_id uuid REFERENCES public.access_control_incidents(id);
+
+-- ── RPC: Create Access Control Incident ────────────────────────────────────────
+CREATE OR REPLACE FUNCTION public.create_access_control_incident(
+  p_organization_id uuid,
+  p_zone_id uuid,
+  p_incident_type text,
+  p_title text,
+  p_description text DEFAULT NULL,
+  p_severity text DEFAULT 'low',
+  p_access_entry_id uuid DEFAULT NULL,
+  p_person_record_id uuid DEFAULT NULL,
+  p_verification_photo_url text DEFAULT NULL,
+  p_reference_photo_url text DEFAULT NULL,
+  p_face_match_similarity real DEFAULT NULL,
+  p_evidence_photos jsonb DEFAULT '[]',
+  p_vehicle_plate text DEFAULT NULL,
+  p_vehicle_photo_url text DEFAULT NULL,
+  p_vehicle_notes text DEFAULT NULL,
+  p_gps_lat double precision DEFAULT NULL,
+  p_gps_lng double precision DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_incident_id uuid;
+  v_vehicle_id uuid := NULL;
+BEGIN
+  -- If vehicle photo provided, create a VOI record
+  IF p_vehicle_photo_url IS NOT NULL OR p_vehicle_plate IS NOT NULL THEN
+    INSERT INTO public.canonical_vehicles (
+      organization_id,
+      plate_number,
+      photo_url,
+      notes,
+      is_flagged,
+      flagged_reason,
+      created_at
+    ) VALUES (
+      p_organization_id,
+      COALESCE(p_vehicle_plate, 'UNKNOWN'),
+      p_vehicle_photo_url,
+      COALESCE(p_vehicle_notes, 'Vehicle of Interest - Access Control Incident'),
+      true,
+      'VOI - Access Control Incident: ' || p_title,
+      now()
+    )
+    ON CONFLICT (plate_number) DO UPDATE SET
+      is_flagged = true,
+      flagged_reason = COALESCE(canonical_vehicles.flagged_reason || '; ', '') || 'VOI - Access Control Incident: ' || p_title,
+      updated_at = now()
+    RETURNING id INTO v_vehicle_id;
+  END IF;
+  
+  -- Create the incident
+  INSERT INTO public.access_control_incidents (
+    organization_id,
+    zone_id,
+    access_entry_id,
+    person_record_id,
+    incident_type,
+    severity,
+    title,
+    description,
+    verification_photo_url,
+    reference_photo_url,
+    face_match_similarity,
+    evidence_photos,
+    vehicle_id,
+    vehicle_plate,
+    vehicle_photo_url,
+    vehicle_notes,
+    gps_latitude,
+    gps_longitude,
+    reported_by
+  ) VALUES (
+    p_organization_id,
+    p_zone_id,
+    p_access_entry_id,
+    p_person_record_id,
+    p_incident_type,
+    p_severity,
+    p_title,
+    p_description,
+    p_verification_photo_url,
+    p_reference_photo_url,
+    p_face_match_similarity,
+    p_evidence_photos,
+    v_vehicle_id,
+    p_vehicle_plate,
+    p_vehicle_photo_url,
+    p_vehicle_notes,
+    p_gps_lat,
+    p_gps_lng,
+    auth.uid()
+  )
+  RETURNING id INTO v_incident_id;
+  
+  -- Link incident to access entry if provided
+  IF p_access_entry_id IS NOT NULL THEN
+    UPDATE public.access_entries
+    SET incident_id = v_incident_id
+    WHERE id = p_access_entry_id;
+  END IF;
+  
+  RETURN jsonb_build_object(
+    'success', true,
+    'incident_id', v_incident_id,
+    'vehicle_id', v_vehicle_id
+  );
+END;
+$$;
+
+COMMENT ON FUNCTION public.create_access_control_incident IS 'Create an access control incident with optional VOI vehicle record';
+
+-- ── RPC: Get Zone Access Statistics ────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION public.get_zone_access_statistics(
+  p_zone_id uuid,
+  p_date_from timestamptz DEFAULT (now() - interval '30 days'),
+  p_date_to timestamptz DEFAULT now()
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_stats jsonb;
+  v_total_entries integer;
+  v_total_exits integer;
+  v_total_denied integer;
+  v_total_incidents integer;
+  v_unique_persons integer;
+  v_avg_match_confidence real;
+  v_recent_incidents jsonb;
+  v_hourly_distribution jsonb;
+BEGIN
+  -- Count entries, exits, denials
+  SELECT 
+    COUNT(*) FILTER (WHERE entry_type = 'entry'),
+    COUNT(*) FILTER (WHERE entry_type = 'exit'),
+    COUNT(*) FILTER (WHERE entry_type = 'denied')
+  INTO v_total_entries, v_total_exits, v_total_denied
+  FROM public.access_entries
+  WHERE zone_id = p_zone_id
+    AND created_at BETWEEN p_date_from AND p_date_to;
+  
+  -- Count incidents
+  SELECT COUNT(*)
+  INTO v_total_incidents
+  FROM public.access_control_incidents
+  WHERE zone_id = p_zone_id
+    AND created_at BETWEEN p_date_from AND p_date_to;
+  
+  -- Count unique persons
+  SELECT COUNT(DISTINCT person_record_id)
+  INTO v_unique_persons
+  FROM public.access_entries
+  WHERE zone_id = p_zone_id
+    AND created_at BETWEEN p_date_from AND p_date_to
+    AND person_record_id IS NOT NULL;
+  
+  -- Average match confidence
+  SELECT AVG(face_match_confidence)
+  INTO v_avg_match_confidence
+  FROM public.access_entries
+  WHERE zone_id = p_zone_id
+    AND created_at BETWEEN p_date_from AND p_date_to
+    AND face_match_confidence IS NOT NULL;
+  
+  -- Recent incidents (last 5)
+  SELECT COALESCE(jsonb_agg(incident_data), '[]'::jsonb)
+  INTO v_recent_incidents
+  FROM (
+    SELECT jsonb_build_object(
+      'id', id,
+      'incident_type', incident_type,
+      'title', title,
+      'severity', severity,
+      'status', status,
+      'created_at', created_at
+    ) AS incident_data
+    FROM public.access_control_incidents
+    WHERE zone_id = p_zone_id
+    ORDER BY created_at DESC
+    LIMIT 5
+  ) sub;
+  
+  -- Hourly distribution (for the period)
+  SELECT COALESCE(jsonb_object_agg(hour::text, cnt), '{}'::jsonb)
+  INTO v_hourly_distribution
+  FROM (
+    SELECT EXTRACT(HOUR FROM created_at)::integer AS hour, COUNT(*) AS cnt
+    FROM public.access_entries
+    WHERE zone_id = p_zone_id
+      AND created_at BETWEEN p_date_from AND p_date_to
+    GROUP BY EXTRACT(HOUR FROM created_at)
+  ) sub;
+  
+  v_stats := jsonb_build_object(
+    'period', jsonb_build_object('from', p_date_from, 'to', p_date_to),
+    'entries', v_total_entries,
+    'exits', v_total_exits,
+    'denied', v_total_denied,
+    'total_access_events', v_total_entries + v_total_exits + v_total_denied,
+    'incidents', v_total_incidents,
+    'unique_persons', v_unique_persons,
+    'avg_match_confidence', ROUND(v_avg_match_confidence::numeric, 3),
+    'recent_incidents', v_recent_incidents,
+    'hourly_distribution', v_hourly_distribution
+  );
+  
+  RETURN v_stats;
+END;
+$$;
+
+COMMENT ON FUNCTION public.get_zone_access_statistics IS 'Get access control statistics for a zone';
+
+-- ── RPC: Get Person Access History ─────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION public.get_person_access_history(
+  p_person_record_id uuid,
+  p_limit integer DEFAULT 50
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_result jsonb;
+  v_entries jsonb;
+  v_incidents jsonb;
+  v_stats jsonb;
+BEGIN
+  -- Get access entries
+  SELECT COALESCE(jsonb_agg(entry_data ORDER BY created_at DESC), '[]'::jsonb)
+  INTO v_entries
+  FROM (
+    SELECT jsonb_build_object(
+      'id', ae.id,
+      'zone_id', ae.zone_id,
+      'zone_name', z.name,
+      'entry_type', ae.entry_type,
+      'verification_method', ae.verification_method,
+      'face_match_confidence', ae.face_match_confidence,
+      'face_match_passed', ae.face_match_passed,
+      'created_at', ae.created_at
+    ) AS entry_data,
+    ae.created_at
+    FROM public.access_entries ae
+    LEFT JOIN public.zones z ON z.id = ae.zone_id
+    WHERE ae.person_record_id = p_person_record_id
+    LIMIT p_limit
+  ) sub;
+  
+  -- Get incidents
+  SELECT COALESCE(jsonb_agg(incident_data ORDER BY created_at DESC), '[]'::jsonb)
+  INTO v_incidents
+  FROM (
+    SELECT jsonb_build_object(
+      'id', aci.id,
+      'zone_id', aci.zone_id,
+      'zone_name', z.name,
+      'incident_type', aci.incident_type,
+      'title', aci.title,
+      'severity', aci.severity,
+      'status', aci.status,
+      'created_at', aci.created_at
+    ) AS incident_data,
+    aci.created_at
+    FROM public.access_control_incidents aci
+    LEFT JOIN public.zones z ON z.id = aci.zone_id
+    WHERE aci.person_record_id = p_person_record_id
+    LIMIT p_limit
+  ) sub;
+  
+  -- Get stats
+  SELECT jsonb_build_object(
+    'total_entries', COUNT(*) FILTER (WHERE entry_type = 'entry'),
+    'total_exits', COUNT(*) FILTER (WHERE entry_type = 'exit'),
+    'total_denied', COUNT(*) FILTER (WHERE entry_type = 'denied'),
+    'total_incidents', (SELECT COUNT(*) FROM public.access_control_incidents WHERE person_record_id = p_person_record_id),
+    'first_access', MIN(created_at),
+    'last_access', MAX(created_at),
+    'avg_match_confidence', ROUND(AVG(face_match_confidence)::numeric, 3)
+  )
+  INTO v_stats
+  FROM public.access_entries
+  WHERE person_record_id = p_person_record_id;
+  
+  v_result := jsonb_build_object(
+    'person_record_id', p_person_record_id,
+    'stats', v_stats,
+    'entries', v_entries,
+    'incidents', v_incidents
+  );
+  
+  RETURN v_result;
+END;
+$$;
+
+COMMENT ON FUNCTION public.get_person_access_history IS 'Get complete access history and incidents for a person';
+
+-- ══════════════════════════════════════════════════════════════════════════════
 RAISE NOTICE '✅ Access Control & Identity Verification System installed';
 RAISE NOTICE '   - Zones: access_control_enabled, access_control_config columns';
 RAISE NOTICE '   - Person Records: profile_photo, id_document, clearance, retention fields';
-RAISE NOTICE '   - Tables: person_id_documents, access_entries, access_permissions, visitor_registrations';
+RAISE NOTICE '   - Tables: person_id_documents, access_entries, access_permissions, visitor_registrations, access_control_incidents';
 RAISE NOTICE '   - RPCs: verify_access_identity, log_access_entry';
 RAISE NOTICE '   - Visitor Management: soft_delete_visitor_record, delete_visitor_with_data, extend_visitor_retention';
+RAISE NOTICE '   - Incidents: create_access_control_incident';
+RAISE NOTICE '   - Statistics: get_zone_access_statistics, get_person_access_history';
 RAISE NOTICE '   - Cleanup: cleanup_expired_visitor_records (call from scheduled job)';
