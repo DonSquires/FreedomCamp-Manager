@@ -482,6 +482,19 @@ export function AccessControlPanel({
       return
     }
     
+    // Validate URL format (only allow http/https/rtsp protocols)
+    try {
+      const url = new URL(streamUrl)
+      const allowedProtocols = ['http:', 'https:', 'rtsp:']
+      if (!allowedProtocols.includes(url.protocol)) {
+        toast.error('Invalid stream URL protocol. Only http, https, and rtsp are allowed.')
+        return
+      }
+    } catch {
+      toast.error('Invalid stream URL format')
+      return
+    }
+    
     setStreamError(null)
     
     try {
