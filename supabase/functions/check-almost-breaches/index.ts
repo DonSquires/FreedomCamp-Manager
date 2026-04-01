@@ -15,7 +15,7 @@
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
-import { corsHeaders } from '../_shared/cors.ts';
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 
 interface AlmostBreachVehicle {
   plate_number: string;
@@ -37,7 +37,7 @@ interface AlmostBreachVehicle {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
     if (!token) {
       return new Response(
         JSON.stringify({ error: 'Missing authorization token' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
     if (userError || !user) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
     if (!profile || !['master', 'admin', 'admin_officer'].includes(profile.role)) {
       return new Response(
         JSON.stringify({ error: 'Insufficient permissions' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -215,14 +215,14 @@ Deno.serve(async (req) => {
         current_month: monthStart.split('T')[0],
         threshold_nights,
       }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
 
   } catch (error: any) {
     console.error('❌ Check almost breaches error:', error);
     return new Response(
       JSON.stringify({ error: 'Failed to check almost breaches', message: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 });

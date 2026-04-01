@@ -13,11 +13,11 @@
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
-import { corsHeaders } from '../_shared/cors.ts'
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req) })
   }
 
   try {
@@ -106,14 +106,14 @@ Deno.serve(async (req: Request) => {
 
     return new Response(
       JSON.stringify({ success: true, html, seizure_number: seizure.seizure_number }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 },
+      { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' }, status: 200 },
     )
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err)
     console.error('generate-seizure-receipt error:', message)
     return new Response(
       JSON.stringify({ success: false, error: message }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 },
+      { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' }, status: 400 },
     )
   }
 })

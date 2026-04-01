@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
-import { corsHeaders } from '../_shared/cors.ts';
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 
 /**
  * SIMPLE ZONE CORRECTION
@@ -176,7 +176,7 @@ function zoneLogicalPoint(zone: Zone | undefined): { lat: number; lng: number } 
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -222,7 +222,7 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({ total: count || 0 }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -247,7 +247,7 @@ Deno.serve(async (req) => {
     if (!observations || observations.length === 0) {
       return new Response(
         JSON.stringify({ processed: 0, corrected: 0, moved_to_other: 0, corrections: [] }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -379,14 +379,14 @@ Deno.serve(async (req) => {
         skipped_no_logical_point: skippedNoLogicalPoint,
         corrections,
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
 
   } catch (error: any) {
     console.error('❌ Error:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' }, status: 500 }
     );
   }
 });

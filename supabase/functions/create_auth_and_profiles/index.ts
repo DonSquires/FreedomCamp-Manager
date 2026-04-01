@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
-import { corsHeaders } from '../_shared/cors.ts';
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 
 interface ProfileRow {
   id?: string;
@@ -114,7 +114,7 @@ const SKIP_EMAILS = new Set(['squires.don@live.com']);
 Deno.serve(async (req) => {
   // Handle CORS preflight request
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -132,7 +132,7 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: 'Missing or invalid Authorization header' }),
         {
           status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
         }
       );
     }
@@ -144,7 +144,7 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: 'Missing access token' }),
         {
           status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
         }
       );
     }
@@ -158,7 +158,7 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: 'Invalid or expired access token' }),
         {
           status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
         }
       );
     }
@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: 'Forbidden: insufficient permissions' }),
         {
           status: 403,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
         }
       );
     }
@@ -185,7 +185,7 @@ Deno.serve(async (req) => {
     if (!Array.isArray(rawRows) || rawRows.length === 0) {
       return new Response(
         JSON.stringify({ error: 'Request body must include a non-empty "rows" array' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -312,13 +312,13 @@ Deno.serve(async (req) => {
         summary: { total: rawRows.length, created, profile_updated: updated, skipped, errors },
         results,
       }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   } catch (error: any) {
     console.error('create_auth_and_profiles error:', error);
     return new Response(
       JSON.stringify({ error: error.message ?? 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 });

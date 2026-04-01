@@ -26,7 +26,7 @@
 // ============================================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
-import { corsHeaders } from '../_shared/cors.ts';
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 
 const SUPABASE_URL              = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -48,7 +48,7 @@ function inferenceAuthHeaders(): Record<string, string> {
 Deno.serve(async (req) => {
   // ── CORS preflight ────────────────────────────────────────────────────────
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
     if (!authHeader) {
       return new Response(
         JSON.stringify({ error: 'Missing Authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
     if (authError || !authData?.user) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -81,7 +81,7 @@ Deno.serve(async (req) => {
       if (!Array.isArray(embedding1) || !Array.isArray(embedding2)) {
         return new Response(
           JSON.stringify({ error: 'embedding1 and embedding2 must be arrays' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         );
       }
 
@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
               ? `Likely same person (${(similarity * 100).toFixed(1)}% match)`
               : `Different person (${(similarity * 100).toFixed(1)}% match)`,
           }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         );
       }
 
@@ -139,7 +139,7 @@ Deno.serve(async (req) => {
             ? `Likely same person (${(similarity * 100).toFixed(1)}% match)`
             : `Different person (${(similarity * 100).toFixed(1)}% match)`,
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -150,7 +150,7 @@ Deno.serve(async (req) => {
       if (!Array.isArray(embedding) || embedding.length === 0) {
         return new Response(
           JSON.stringify({ error: 'embedding must be a non-empty array' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         );
       }
 
@@ -163,7 +163,7 @@ Deno.serve(async (req) => {
       if (!profile?.organization_id) {
         return new Response(
           JSON.stringify({ error: 'User has no organisation', matches: [] }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         );
       }
 
@@ -178,7 +178,7 @@ Deno.serve(async (req) => {
         console.error('match_face RPC error:', matchError);
         return new Response(
           JSON.stringify({ error: 'Face match failed', matches: [] }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         );
       }
 
@@ -213,7 +213,7 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({ matches: filteredMatches }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -224,7 +224,7 @@ Deno.serve(async (req) => {
       if (!face_record_id || !person_record_id) {
         return new Response(
           JSON.stringify({ error: 'face_record_id and person_record_id are required' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         );
       }
 
@@ -236,13 +236,13 @@ Deno.serve(async (req) => {
       if (linkError) {
         return new Response(
           JSON.stringify({ error: 'Link failed: ' + linkError.message }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         );
       }
 
       return new Response(
         JSON.stringify({ success: true }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -252,7 +252,7 @@ Deno.serve(async (req) => {
     if (!photo_url) {
       return new Response(
         JSON.stringify({ error: 'photo_url is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -272,7 +272,7 @@ Deno.serve(async (req) => {
             embedding_available: false,
           },
         }),
-        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 503, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -395,7 +395,7 @@ Deno.serve(async (req) => {
         face_record_id:    savedFaceRecordId,
         poi_matches:       poiMatches,
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
@@ -407,7 +407,7 @@ Deno.serve(async (req) => {
         faces: [],
         embedding: null,
       }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 });

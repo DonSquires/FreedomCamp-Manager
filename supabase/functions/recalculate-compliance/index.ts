@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { corsHeaders } from '../_shared/cors.ts';
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 
 /**
  * Bulk Compliance Recalculation Edge Function (v2 – new observations schema)
@@ -62,7 +62,7 @@ interface RecalculationResult {
 serve(async (req) => {
   // Handle CORS
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -85,7 +85,7 @@ serve(async (req) => {
     if (userError || !user) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -99,7 +99,7 @@ serve(async (req) => {
     if (!profile || !['admin', 'master', 'admin_officer'].includes(profile.role)) {
       return new Response(
         JSON.stringify({ error: 'Insufficient permissions' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -380,7 +380,7 @@ serve(async (req) => {
 
       return new Response(
         JSON.stringify(result),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
 
     } catch (error: any) {
@@ -405,7 +405,7 @@ serve(async (req) => {
     console.error('Recalculation error:', error);
     return new Response(
       JSON.stringify({ error: error.message || 'Recalculation failed' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 });

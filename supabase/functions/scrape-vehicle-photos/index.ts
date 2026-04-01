@@ -20,7 +20,7 @@
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.3";
-import { corsHeaders } from "../_shared/cors.ts";
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from "../_shared/withCors.ts";
 
 const INFERENCE_SERVICE_URL = Deno.env.get("INFERENCE_SERVICE_URL") || null;
 
@@ -251,7 +251,7 @@ async function searchCarsCoNZ(plateNumber: string): Promise<ScrapedListing> {
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", { headers: getCorsHeaders(req) });
   }
 
   const supabase = createClient(
@@ -267,7 +267,7 @@ Deno.serve(async (req: Request) => {
     if (!plateNumber) {
       return new Response(
         JSON.stringify({ error: "plate_number is required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -291,7 +291,7 @@ Deno.serve(async (req: Request) => {
             reason: "profile_photo already set; use force_update=true to overwrite",
             profile_photo: existing.profile_photo,
           }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 200, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
         );
       }
     }
@@ -316,7 +316,7 @@ Deno.serve(async (req: Request) => {
           message: "No listing photo found on Trade Me or cars.co.nz",
           sources_checked: ["trademe", "cars_co_nz"],
         }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -338,7 +338,7 @@ Deno.serve(async (req: Request) => {
           error: `Failed to download photo: HTTP ${photoResp.status}`,
           photo_url_attempted: listing.photoUrl,
         }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -370,7 +370,7 @@ Deno.serve(async (req: Request) => {
           plate_number: plate,
           error: `Storage upload failed: ${uploadError.message}`,
         }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -487,7 +487,7 @@ Deno.serve(async (req: Request) => {
           error: `Database update failed: ${dbError.message}`,
           photo_stored_at: storedPhotoUrl,
         }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -509,13 +509,13 @@ Deno.serve(async (req: Request) => {
         inference_available: !!inferenceResult,
         canonical_record: updated,
       }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   } catch (err: any) {
     console.error("scrape-vehicle-photos error:", err);
     return new Response(
       JSON.stringify({ error: err.message ?? "Internal server error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   }
 });

@@ -12,7 +12,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
-import { corsHeaders } from '../_shared/cors.ts';
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 import { nzHour, toValidBreachType } from '../_shared/compliance.ts';
 
 type OvernightVerificationMode = 'two_photo_verification' | 'one_photo_per_day_inference';
@@ -362,7 +362,7 @@ async function buildHomelessStatusMaps(
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: getCorsHeaders(req) });
   }
 
   const supabaseAdmin = createClient(
@@ -377,7 +377,7 @@ serve(async (req) => {
     if (!jwt) {
       return new Response(
         JSON.stringify({ error: 'Missing Authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -397,7 +397,7 @@ serve(async (req) => {
     if (!authUserId) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -410,7 +410,7 @@ serve(async (req) => {
     if (profileError || !profile || !['admin', 'master'].includes(String((profile as any).role))) {
       return new Response(
         JSON.stringify({ error: 'Admin or master role required' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -473,7 +473,7 @@ serve(async (req) => {
       console.log(`📊 Total observations: ${count}`);
       return new Response(
         JSON.stringify({ total: count || 0 }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -508,7 +508,7 @@ serve(async (req) => {
             breachesCreated: 0,
             skippedNoMatrix: 0,
           }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         );
       }
       throw obsError;
@@ -526,7 +526,7 @@ serve(async (req) => {
           breachesCreated: 0,
           skippedNoMatrix: 0
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -702,7 +702,7 @@ serve(async (req) => {
           skippedNoMatrix,
           phase: normalizedPhase,
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -1153,7 +1153,7 @@ serve(async (req) => {
         skippedNoMatrix,
         phase: normalizedPhase,
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
 
   } catch (error: any) {
@@ -1175,7 +1175,7 @@ serve(async (req) => {
           breachesCreated: 0,
           skippedNoMatrix: 0,
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -1187,7 +1187,7 @@ serve(async (req) => {
     }
     return new Response(
       JSON.stringify({ error: msg }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 });

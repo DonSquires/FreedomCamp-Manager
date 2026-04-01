@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
-import { corsHeaders } from '../_shared/cors.ts';
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 import { adaptiveObservationInsert } from '../_shared/observationInsert.ts';
 
 /**
@@ -50,7 +50,7 @@ interface StreamWebhookPayload {
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -302,7 +302,7 @@ Deno.serve(async (req) => {
         errors: errors.length > 0 ? errors : undefined,
       }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
         status: 200,
       }
     );
@@ -315,7 +315,7 @@ Deno.serve(async (req) => {
         error: error.message,
       }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
         status: 500,
       }
     );

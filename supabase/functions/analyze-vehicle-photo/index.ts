@@ -18,7 +18,7 @@
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
-import { corsHeaders } from '../_shared/cors.ts';
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 
 const OPENAI_BASE_URL = Deno.env.get('OPENAI_BASE_URL') || 'https://api.openai.com/v1';
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
@@ -52,7 +52,7 @@ interface ValidationResult {
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
     if (!plateNumber || !photoUrl) {
       return new Response(
         JSON.stringify({ error: 'Missing plateNumber or photoUrl' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -360,7 +360,7 @@ Respond ONLY with valid JSON (no markdown, no explanations):
           },
         },
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
 
   } catch (error: any) {
@@ -370,7 +370,7 @@ Respond ONLY with valid JSON (no markdown, no explanations):
         success: false,
         error: error.message || 'Internal server error',
       }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 });

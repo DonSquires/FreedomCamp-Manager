@@ -23,7 +23,7 @@
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
-import { corsHeaders } from '../_shared/cors.ts';
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 import * as XLSX from 'https://esm.sh/xlsx@0.18.5';
 
 const INFERENCE_SERVICE_URL = Deno.env.get('INFERENCE_SERVICE_URL') || '';
@@ -182,7 +182,7 @@ function inferGpsFromZone(zone: ZoneRow | null): { lat: number; lng: number } | 
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   const supabaseAdmin = createClient(
@@ -203,7 +203,7 @@ Deno.serve(async (req) => {
       console.error('❌ [IMPORT] Auth failed:', userError);
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -220,7 +220,7 @@ Deno.serve(async (req) => {
       console.error('❌ [IMPORT] Profile fetch failed:', profileError);
       return new Response(
         JSON.stringify({ error: 'Failed to fetch user profile' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -228,7 +228,7 @@ Deno.serve(async (req) => {
       console.error('❌ [IMPORT] Permission denied - role:', profile.role);
       return new Response(
         JSON.stringify({ error: 'Forbidden - admin role required' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -236,7 +236,7 @@ Deno.serve(async (req) => {
       console.error('❌ [IMPORT] No organization ID');
       return new Response(
         JSON.stringify({ error: 'Organization not found' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -257,7 +257,7 @@ Deno.serve(async (req) => {
     if (!inputFile && !file_content) {
       return new Response(
         JSON.stringify({ error: 'Missing filePath/file_path, fileUrl/file_url, or fileContent/file_content' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -269,7 +269,7 @@ Deno.serve(async (req) => {
       console.error('❌ [IMPORT] Master user must specify organization_id');
       return new Response(
         JSON.stringify({ error: 'organization_id required for master users' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
     
@@ -282,7 +282,7 @@ Deno.serve(async (req) => {
       console.error('❌ [IMPORT] No organization ID');
       return new Response(
         JSON.stringify({ error: 'Organization not found' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
     
@@ -299,7 +299,7 @@ Deno.serve(async (req) => {
       console.error('❌ [IMPORT] Organization not found:', targetOrganizationId, orgCheckError);
       return new Response(
         JSON.stringify({ error: 'Organization not found', organization_id: targetOrganizationId }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -324,7 +324,7 @@ Deno.serve(async (req) => {
         console.error('❌ [IMPORT] Base64 decode failed:', decodeErr);
         return new Response(
           JSON.stringify({ error: 'Invalid file content encoding', details: decodeErr.message }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         );
       }
     } else if (isExternalHttpUrl(inputFile)) {
@@ -338,7 +338,7 @@ Deno.serve(async (req) => {
             error: 'Failed to fetch external file URL',
             details: `HTTP ${externalResponse.status} ${externalResponse.statusText}`,
           }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         );
       }
 
@@ -357,7 +357,7 @@ Deno.serve(async (req) => {
       if (!bucket || !resolvedFilePath) {
         return new Response(
           JSON.stringify({ error: 'Could not resolve storage bucket and file path' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         );
       }
 
@@ -372,7 +372,7 @@ Deno.serve(async (req) => {
         console.error('❌ [IMPORT] File download failed:', downloadError);
         return new Response(
           JSON.stringify({ error: 'Failed to download file', details: downloadError?.message }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         );
       }
 
@@ -382,7 +382,7 @@ Deno.serve(async (req) => {
     if (!fileData) {
       return new Response(
         JSON.stringify({ error: 'No file data available for import' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -424,7 +424,7 @@ Deno.serve(async (req) => {
           code: importError?.code,
           hint: importError?.hint
         }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -1155,7 +1155,7 @@ Deno.serve(async (req) => {
         },
         error_log: processingErrors.length > 0 ? processingErrors.slice(0, 10) : undefined,
       }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
 
   } catch (error: any) {
@@ -1185,7 +1185,7 @@ Deno.serve(async (req) => {
         message: error.message,
         stack: error.stack,
       }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 });

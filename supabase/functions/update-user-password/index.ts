@@ -1,10 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { corsHeaders } from '../_shared/cors.ts';
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: getCorsHeaders(req) });
   }
 
   try {
@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: 'Insufficient permissions' }),
         {
           status: 403,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
         }
       );
     }
@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: 'Target user profile not found' }),
         {
           status: 404,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
         }
       );
     }
@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
           JSON.stringify({ error: 'Admins can only update users in their organization' }),
           {
             status: 403,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
           }
         );
       }
@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
           JSON.stringify({ error: 'Admins cannot update master accounts' }),
           {
             status: 403,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
           }
         );
       }
@@ -114,7 +114,7 @@ Deno.serve(async (req) => {
         message: 'Password updated successfully'
       }),
       { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
         status: 200
       }
     );
@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
       }),
       { 
         status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' }
       }
     );
   }

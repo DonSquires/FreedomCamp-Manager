@@ -16,11 +16,11 @@
 //   RAILWAY_PROXY_URL — URL of the proxy server with a static IP
 // ============================================================================
 
-import { corsHeaders } from '../_shared/cors.ts';
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: getCorsHeaders(req) });
   }
 
   return new Response(
@@ -31,7 +31,7 @@ Deno.serve(async (req: Request) => {
     }),
     {
       status: 503,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
     }
   );
 });

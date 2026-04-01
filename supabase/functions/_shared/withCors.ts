@@ -49,7 +49,15 @@ function isAllowedPreview(origin: string): boolean {
 }
 
 // Dev mode: allow wildcard * (set DEV_CORS=true in Supabase env vars)
-const DEV_CORS = Deno.env.get('DEV_CORS') === 'true';
+// SECURITY: DEV_CORS is automatically disabled in production environment
+const ENVIRONMENT = Deno.env.get('ENVIRONMENT') || 'development';
+const IS_PRODUCTION = ENVIRONMENT === 'production' || ENVIRONMENT === 'prod';
+const DEV_CORS = !IS_PRODUCTION && Deno.env.get('DEV_CORS') === 'true';
+
+// Log warning if DEV_CORS is attempted in production (will be ignored)
+if (IS_PRODUCTION && Deno.env.get('DEV_CORS') === 'true') {
+  console.warn('⚠️ SECURITY: DEV_CORS=true is set but ignored in production environment');
+}
 
 const matchOrigin: OriginMatcher = (origin) => {
   if (!origin) return null;

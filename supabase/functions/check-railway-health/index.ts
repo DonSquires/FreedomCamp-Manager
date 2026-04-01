@@ -1,4 +1,4 @@
-import { corsHeaders } from '../_shared/cors.ts'
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
 import { validateServiceUrl, buildEndpointUrl } from '../_shared/urlUtils.ts'
 
 const HEALTH_CHECK_TIMEOUT_MS = 8_000
@@ -36,7 +36,7 @@ function reasonToString(reason: unknown): string {
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req) })
   }
 
   // If environment variables are not configured or malformed, return a clear error status
@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
         checked_at: new Date().toISOString(),
       }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
         status: 200,
       },
     )
@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
         checked_at: new Date().toISOString(),
       }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
         status: 200,
       },
     )
@@ -126,7 +126,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ error: error.message }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
         status: 500,
       },
     )

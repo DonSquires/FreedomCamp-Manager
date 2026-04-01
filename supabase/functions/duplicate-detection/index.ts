@@ -12,7 +12,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
-import { corsHeaders } from '../_shared/cors.ts';
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 
 const DEFAULT_DUPLICATE_TIME_WINDOW_MINUTES = 5;
 
@@ -62,7 +62,7 @@ function isDuplicateByRule(current: any, previous: any, timeWindowMinutes: numbe
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: getCorsHeaders(req) });
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
@@ -74,7 +74,7 @@ serve(async (req) => {
       JSON.stringify({
         error: 'Missing Supabase environment configuration',
       }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 
@@ -85,7 +85,7 @@ serve(async (req) => {
         error: 'Missing login token. Please sign in again.',
         auth_error: 'MISSING_AUTHORIZATION_HEADER',
       }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 
@@ -96,7 +96,7 @@ serve(async (req) => {
         error: 'Invalid login token format. Please sign in again.',
         auth_error: 'MALFORMED_AUTHORIZATION_HEADER',
       }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 
@@ -122,7 +122,7 @@ serve(async (req) => {
         error: 'Session expired or invalid. Please sign in again.',
         auth_error: 'INVALID_AUTH_SESSION',
       }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 
@@ -138,7 +138,7 @@ serve(async (req) => {
         error: 'User profile not found. Please contact support.',
         auth_error: 'PROFILE_NOT_FOUND',
       }),
-      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 
@@ -150,7 +150,7 @@ serve(async (req) => {
         required_role: 'master',
         allowed_roles: ['master', 'grand_master'],
       }),
-      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 
@@ -206,7 +206,7 @@ serve(async (req) => {
       console.log(`📊 Total observations: ${count}`);
       return new Response(
         JSON.stringify({ total: count || 0 }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -220,7 +220,7 @@ serve(async (req) => {
       console.log('⚠️ No observations in this batch');
       return new Response(
         JSON.stringify({ processed: 0, removed: 0 }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -293,14 +293,14 @@ serve(async (req) => {
         processed: observations.length,
         removed: duplicatesToDelete.length,
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
 
   } catch (error: any) {
     console.error('❌ Duplicate detection failed:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 });

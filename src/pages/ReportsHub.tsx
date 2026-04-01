@@ -17,7 +17,9 @@ import {
   Calendar,
   CheckCircle,
   FileSpreadsheet,
-  Activity
+  Activity,
+  Settings,
+  Wand2
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
@@ -127,6 +129,15 @@ export default function ReportsHub() {
   ]
 
   const systemReports: ReportCard[] = [
+    {
+      id: 'custom-report-builder',
+      title: 'Custom Report Builder',
+      description: 'Build custom reports from any data source with PDF/CSV export',
+      icon: <Wand2 className="h-6 w-6" />,
+      badge: 'New',
+      badgeColor: 'bg-purple-100 text-purple-800',
+      route: '/custom-reports',
+    },
     {
       id: 'audit-log',
       title: 'Audit Trail',
