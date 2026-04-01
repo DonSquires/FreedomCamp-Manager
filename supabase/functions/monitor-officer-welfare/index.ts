@@ -16,6 +16,8 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: getCorsHeaders(req) });
   }
+  
+  const corsHeaders = getCorsHeaders(req);
 
   try {
     const supabaseAdmin = createClient(

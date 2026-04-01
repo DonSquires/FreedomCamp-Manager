@@ -1,9 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { withCors, getCorsHeaders } from '../_shared/withCors.ts';
 
 interface ImportRequest {
   fileContent: string;
@@ -28,11 +24,9 @@ function normalizeTimestamp(input: unknown): string | null {
   return parsed.toISOString();
 }
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
-
+Deno.serve(withCors(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+  
   try {
     const authHeader = req.headers.get('Authorization');
     const token = authHeader?.replace('Bearer ', '');
@@ -309,4 +303,4 @@ ${fileContent}`;
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
-});
+}));
