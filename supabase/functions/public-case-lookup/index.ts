@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
+import { verifyCaptcha, getClientIP } from '../_shared/captcha.ts'
 
 function normalizeRef(input: string): string {
   return String(input || '').trim().toUpperCase()
@@ -11,12 +12,29 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const body = await req.json()
+    
+    // CAPTCHA verification - required for public endpoints to prevent enumeration attacks
+    const captchaToken = body?.captcha_token || body?.turnstile_token
+    const clientIP = getClientIP(req)
+    const captchaResult = await verifyCaptcha(captchaToken, clientIP)
+    
+    if (!captchaResult.success) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: captchaResult.error || 'CAPTCHA verification failed',
+          captcha_required: true 
+        }),
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
+      )
+    }
+    
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     )
 
-    const body = await req.json()
     const ref = normalizeRef(body?.reference || '')
     const plate = String(body?.plate_number || '').trim().toUpperCase()
 

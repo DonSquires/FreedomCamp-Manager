@@ -81,6 +81,30 @@ These are set in Supabase Dashboard → Project Settings → Edge Functions → 
 | `DEV_CORS` | Enable wildcard CORS | `true` / `false` | ⚠️ Automatically disabled in production |
 | `ENVIRONMENT` | Deployment environment | `development`, `staging`, `production` | Controls DEV_CORS behavior |
 
+### CAPTCHA (Cloudflare Turnstile)
+
+Public endpoints (case lookup, dispute submission) require CAPTCHA to prevent enumeration attacks and spam.
+
+| Variable | Description | Required | Notes |
+|----------|-------------|----------|-------|
+| `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile secret key | In production | Get from Cloudflare dashboard |
+
+**Frontend Integration:**
+
+Add the Turnstile site key to your frontend `.env`:
+```bash
+VITE_TURNSTILE_SITE_KEY=0x4AAAAA...  # Cloudflare Turnstile site key
+```
+
+**Setup Instructions:**
+1. Go to Cloudflare Dashboard → Turnstile → Add Widget
+2. Choose "Managed" challenge type (free, invisible to users)
+3. Add your production domain(s)
+4. Copy Site Key → Frontend (VITE_TURNSTILE_SITE_KEY)
+5. Copy Secret Key → Supabase Edge Function Secrets (TURNSTILE_SECRET_KEY)
+
+**Note:** In development (when `ENVIRONMENT` ≠ `production`), CAPTCHA is bypassed if `TURNSTILE_SECRET_KEY` is not set.
+
 ### Feature Flags
 
 | Variable | Description | Values |

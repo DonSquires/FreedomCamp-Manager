@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
+import { verifyCaptcha, getClientIP } from '../_shared/captcha.ts'
 
 // ---------------------------------------------------------------------------
 // In-memory IP rate limiter
@@ -61,6 +62,21 @@ Deno.serve(async (req) => {
     )
 
     const body = await req.json()
+
+    // CAPTCHA verification - required for public endpoints to prevent spam
+    const captchaToken = body?.captcha_token || body?.turnstile_token
+    const captchaResult = await verifyCaptcha(captchaToken, clientIp)
+    
+    if (!captchaResult.success) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: captchaResult.error || 'CAPTCHA verification failed',
+          captcha_required: true 
+        }),
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
+      )
+    }
 
     const sourceType = String(body?.source_type || 'other').trim()
     const sourceReference = body?.source_reference ? String(body.source_reference).trim() : null
