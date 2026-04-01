@@ -72,7 +72,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { formatDate, formatDateTime } from '@/lib/utils'
+import { cn, formatDate, formatDateTime } from '@/lib/utils'
 import { getObservationPhotoUrl } from '@/lib/photoUtils'
 import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
 import { analyzeVehiclePhoto } from '@/lib/railwayServices'
@@ -137,14 +137,6 @@ interface ComplianceMetrics {
 // ============================================================================
 
 const COLORS = ['#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899']
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-function cn(...c: (string | boolean | undefined)[]) {
-  return c.filter(Boolean).join(' ')
-}
 
 // ============================================================================
 // Main Component
@@ -348,8 +340,6 @@ export default function Compliance() {
       setAnalyzingPhotos(false)
     }
   }
-
-  const isLoading = statsLoading || breachLoading
 
   // ============================================================================
   // Auth Check - MUST be after all hooks
