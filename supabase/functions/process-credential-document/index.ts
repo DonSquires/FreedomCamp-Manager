@@ -2,20 +2,12 @@
 // AI-Powered Credential Document Processing
 // Extracts COA/Warrant details from uploaded documents using AI vision
 
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
+import { withCors, getCorsHeaders } from '../_shared/withCors.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-serve(async (req) => {
-  // Handle CORS
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
-
+Deno.serve(withCors(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+  
   try {
     const { documentUrl, documentType, userId } = await req.json();
 
@@ -366,4 +358,4 @@ If you cannot find a field, set it to null.`
       }
     );
   }
-});
+}));

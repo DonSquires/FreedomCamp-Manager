@@ -22,6 +22,7 @@ const FieldOfficerPortal = lazy(() => import('@/pages/FieldOfficerPortal'))
 const VehicleManagement = lazy(() => import('@/pages/VehicleManagement'))
 const ZoneManagement = lazy(() => import('@/pages/ZoneManagement'))
 const CompliancePage = lazy(() => import('@/pages/CompliancePage'))
+const Compliance = lazy(() => import('@/pages/Compliance'))  // Unified compliance page
 const BreachAlerts = lazy(() => import('@/pages/BreachAlerts'))
 const DataManagement = lazy(() => import('@/pages/DataManagement'))
 const UserManagement = lazy(() => import('@/pages/UserManagement'))
@@ -549,6 +550,18 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <CompliancePage />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Unified Compliance page (consolidates Dashboard, Analytics, and Observations) */}
+          <Route
+            path="/compliance-unified"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <Compliance />
                 </RoleRoute>
               </ProtectedRoute>
             }

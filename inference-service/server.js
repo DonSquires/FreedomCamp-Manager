@@ -22,12 +22,39 @@ const multer = require('multer');
 const sharp = require('sharp');
 const ort = require('onnxruntime-node');
 const cors = require('cors');
+const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// ---------------------------------------------------------------------------
+// Security headers with helmet
+// ---------------------------------------------------------------------------
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'"],
+      imgSrc: ["'self'", 'data:', 'blob:'],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+      formAction: ["'self'"],
+      upgradeInsecureRequests: [],
+    },
+  },
+  crossOriginEmbedderPolicy: false, // Required for AI model processing
+  hsts: {
+    maxAge: 31536000, // 1 year in seconds
+    includeSubDomains: true,
+    preload: true,
+  },
+}));
 
 // ── Rate limiters ────────────────────────────────────────────────────────────
 // Inference endpoints are compute-intensive; limit per IP to prevent DoS.
@@ -88,11 +115,46 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 let joseRuntimePromise = null;
 let supabaseJwks = null;
 
-// Configure CORS (restrict to your Supabase Edge Function)
+// ---------------------------------------------------------------------------
+// CORS configuration - strict allowlist for production
+// ---------------------------------------------------------------------------
+const ALLOWED_ORIGINS_ENV = (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean);
+const DEFAULT_ORIGINS = [
+  'https://freedomcampmanager.onspace.build',
+  'https://fcmanager.co.nz',
+  'https://www.fcmanager.co.nz',
+];
+
+// In development, allow localhost
+if (process.env.NODE_ENV !== 'production') {
+  DEFAULT_ORIGINS.push('http://localhost:5173', 'http://localhost:3000');
+}
+
+const allowedOrigins = new Set([...DEFAULT_ORIGINS, ...ALLOWED_ORIGINS_ENV]);
+
 const corsOptions = {
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['*'],
-  methods: ['POST', 'GET'],
-  maxAge: 86400 // 24 hours
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, edge functions, or curl)
+    if (!origin) return callback(null, true);
+    
+    // Check exact match
+    if (allowedOrigins.has(origin)) {
+      return callback(null, true);
+    }
+    
+    // Check for preview subdomain pattern
+    try {
+      const url = new URL(origin);
+      if (url.host.endsWith('.onspace.build') && url.host.startsWith('preview-react-9b4t5o-')) {
+        return callback(null, true);
+      }
+    } catch {}
+    
+    callback(new Error('Not allowed by CORS'));
+  },
+  methods: ['POST', 'GET', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-inference-api-key', 'x-client-info', 'apikey'],
+  maxAge: 86400, // 24 hours
 };
 
 app.use(cors(corsOptions));

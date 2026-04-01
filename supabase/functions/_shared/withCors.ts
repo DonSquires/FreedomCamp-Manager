@@ -69,9 +69,18 @@ const matchOrigin: OriginMatcher = (origin) => {
 export function getCorsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get('origin');
   
+  // Security headers that should be present on all responses
+  const securityHeaders: Record<string, string> = {
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'X-XSS-Protection': '1; mode=block',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+  };
+  
   // Dev mode: allow wildcard (simplifies preview debugging)
   if (DEV_CORS) {
     return {
+      ...securityHeaders,
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-request-id',
@@ -82,6 +91,7 @@ export function getCorsHeaders(req: Request): Record<string, string> {
   // Production mode: match exact or preview pattern
   const allowed = matchOrigin(origin);
   const base: Record<string, string> = {
+    ...securityHeaders,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-request-id',
     'Access-Control-Max-Age': '3600',

@@ -8,6 +8,7 @@
 
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const axios = require('axios');
 const nodemailer = require('nodemailer');
 const rateLimit = require('express-rate-limit');
@@ -15,6 +16,74 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// ---------------------------------------------------------------------------
+// Security headers with helmet
+// ---------------------------------------------------------------------------
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'"],
+      imgSrc: ["'self'", 'data:'],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+      formAction: ["'self'"],
+      upgradeInsecureRequests: [],
+    },
+  },
+  crossOriginEmbedderPolicy: false, // Required for some API integrations
+  hsts: {
+    maxAge: 31536000, // 1 year in seconds
+    includeSubDomains: true,
+    preload: true,
+  },
+}));
+
+// ---------------------------------------------------------------------------
+// CORS configuration - strict allowlist for production
+// ---------------------------------------------------------------------------
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean);
+const DEFAULT_ORIGINS = [
+  'https://freedomcampmanager.onspace.build',
+  'https://fcmanager.co.nz',
+  'https://www.fcmanager.co.nz',
+];
+
+// In development, allow localhost
+if (process.env.NODE_ENV !== 'production') {
+  DEFAULT_ORIGINS.push('http://localhost:5173', 'http://localhost:3000');
+}
+
+const allowedOrigins = new Set([...DEFAULT_ORIGINS, ...ALLOWED_ORIGINS]);
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    
+    // Check exact match
+    if (allowedOrigins.has(origin)) {
+      return callback(null, true);
+    }
+    
+    // Check for preview subdomain pattern
+    try {
+      const url = new URL(origin);
+      if (url.host.endsWith('.onspace.build') && url.host.startsWith('preview-react-9b4t5o-')) {
+        return callback(null, true);
+      }
+    } catch {}
+    
+    callback(new Error('Not allowed by CORS'));
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-proxy-secret', 'x-client-info', 'apikey'],
+  maxAge: 86400, // 24 hours
+};
 
 // ---------------------------------------------------------------------------
 // Per-IP rate limiter — applied to all authenticated proxy routes.
@@ -60,7 +129,7 @@ function checkProxyAuth(req) {
 }
 
 // Middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Environment variables validation
