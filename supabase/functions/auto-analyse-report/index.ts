@@ -29,7 +29,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
 import { nextStatusAfterAnalysis, shouldAutoAcknowledge } from '../_shared/bugReportStatus.ts'
 
-const SYSTEM_PROMPT = `You are an AI code reviewer and bug triage assistant for FreedomCamp Manager — a NZ freedom camping enforcement SaaS built with React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui, Zustand, TanStack Query v5, Supabase (PostgreSQL + Edge Functions), and react-router-dom v6.
+const SYSTEM_PROMPT = `You are an AI code reviewer and bug triage assistant for FieldOps Manager — a NZ freedom camping enforcement SaaS built with React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui, Zustand, TanStack Query v5, Supabase (PostgreSQL + Edge Functions), and react-router-dom v6.
 
 Your job when analysing a bug report:
 1. **Diagnose**: Identify the root cause. Reference specific files, components, or edge functions (e.g. src/pages/X.tsx, supabase/functions/Y/index.ts, src/hooks/useZ.ts).
@@ -153,7 +153,7 @@ Deno.serve(async (req: Request) => {
     const navHistory: any[] = report.browser_info?.navigationHistory ?? []
     const consoleErrors: any[] = Array.isArray(report.console_errors) ? report.console_errors : []
 
-    const prompt = `You are analysing a bug/feedback report for FreedomCamp Manager.
+    const prompt = `You are analysing a bug/feedback report for FieldOps Manager.
 
 ## Report
 **Type**: ${report.issue_type}

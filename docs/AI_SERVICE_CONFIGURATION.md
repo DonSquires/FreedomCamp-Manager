@@ -1,6 +1,6 @@
 # AI Service Configuration Guide
 
-This guide explains how to configure the AI services for FreedomCamp Manager.
+This guide explains how to configure the AI services for FieldOps Manager.
 
 ## Quick Fix for "AI service not connecting"
 
@@ -38,7 +38,7 @@ The AI chat feature in the Field Officer Portal requires one of:
 
 1. **GITHUB_TOKEN** (recommended) - GitHub Personal Access Token with `copilot` scope
    - Go to https://github.com/settings/tokens/new
-   - Name: "FreedomCamp AI"
+   - Name: "FieldOps AI"
    - Select scope: `copilot`
    - Generate and copy the token
 

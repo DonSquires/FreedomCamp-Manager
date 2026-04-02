@@ -1,6 +1,6 @@
 # Testing Setup Guide
 
-**FreedomCamp Manager - Automated Testing with Playwright**
+**FieldOps Manager - Automated Testing with Playwright**
 
 Complete guide for setting up and running automated E2E tests.
 

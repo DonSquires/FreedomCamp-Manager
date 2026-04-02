@@ -3,7 +3,7 @@
  *
  * Provides three synchronisation operations, invoked manually or on schedule:
  *
- *   action: "sync-lots"       — Create/update ParkPow lots for each FreedomCamp zone
+ *   action: "sync-lots"       — Create/update ParkPow lots for each FieldOps zone
  *   action: "sync-watchlist"  — Push flagged/exempt canonical_vehicles to ParkPow
  *   action: "push-violations" — Push unsynced compliance breaches to ParkPow violations
  *
@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// sync-lots: ensure every FreedomCamp zone has a corresponding ParkPow lot
+// sync-lots: ensure every FieldOps Manager zone has a corresponding ParkPow lot
 // ─────────────────────────────────────────────────────────────────────────────
 async function syncLots(supabase: ReturnType<typeof createClient>) {
   const { data: zones, error } = await supabase
@@ -129,11 +129,11 @@ async function syncWatchlist(supabase: ReturnType<typeof createClient>) {
   for (const v of vehicles ?? []) {
     try {
       if (v.is_flagged) {
-        const pv = await blockVehicle(v.plate_number, "Flagged in FreedomCamp Manager");
+        const pv = await blockVehicle(v.plate_number, "Flagged in FieldOps Manager");
         await supabase.from("canonical_vehicles").update({ parkpow_vehicle_id: pv.id }).eq("id", v.id);
         blocked++;
       } else if (v.is_exempt) {
-        const pv = await permitVehicle(v.plate_number, "Exempt in FreedomCamp Manager");
+        const pv = await permitVehicle(v.plate_number, "Exempt in FieldOps Manager");
         await supabase.from("canonical_vehicles").update({ parkpow_vehicle_id: pv.id }).eq("id", v.id);
         permitted++;
       }

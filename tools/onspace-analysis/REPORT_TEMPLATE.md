@@ -3,14 +3,14 @@
 **Date:**  
 **Analyst:**  
 **Onspace repo / archive:**  
-**FreedomCamp-Manager commit:**  
+**FieldOps-Manager commit:**  
 
 ---
 
 ## 1. Repository Summary
 
 > Brief description of what the Onspace codebase does, its primary language(s),
-> and how it relates to FreedomCamp-Manager.
+> and how it relates to FieldOps-Manager.
 
 - **Primary language(s):**
 - **Package manager:**
@@ -94,7 +94,7 @@ export async function processVehicleEnrichment(jobId: string): Promise<void> { â
 ## 7. Gaps / Discrepancies Found
 
 > List any places where the Onspace code references tables, columns, or RPC
-> names that do not match the current FreedomCamp-Manager schema.
+> names that do not match the current FieldOps-Manager schema.
 
 - [ ] (item 1)
 - [ ] (item 2)

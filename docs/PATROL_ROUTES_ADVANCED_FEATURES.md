@@ -935,7 +935,7 @@ async function checkContractAuthorization(
 | **Deputy** | Rostering, shift swaps, availability management |
 | **When I Work** | Schedule templates, team messaging |
 
-### 8.2 Key Differentiators for FreedomCamp Manager
+### 8.2 Key Differentiators for FieldOps Manager
 
 1. **NZ Regulatory Focus** — Freedom Camping Act, PSPLA compliance
 2. **Multi-Module** — Parking, camping, noise, security in one platform
@@ -996,7 +996,7 @@ async function checkContractAuthorization(
 - ✅ Client portals
 - ❌ No freedom camping module
 
-### What FreedomCamp Manager Does Better
+### What FieldOps Manager Does Better
 1. **Integrated compliance** — PSPLA, Privacy Act, Freedom Camping Act
 2. **Multi-enforcement** — Parking + camping + noise + security
 3. **CRM-driven** — Contracts drive everything

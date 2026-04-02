@@ -89,7 +89,7 @@ supabase secrets set \
 
 **Get GITHUB_TOKEN:**
 1. Go to https://github.com/settings/tokens/new
-2. Token name: "FreedomCamp AI"
+2. Token name: "FieldOps AI"
 3. Check scope: `copilot`
 4. Generate and copy token
 

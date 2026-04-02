@@ -1,6 +1,6 @@
 # State Management Guide
 
-This guide documents the state management patterns used in FreedomCamp Manager.
+This guide documents the state management patterns used in FieldOps Manager.
 
 ## Overview
 

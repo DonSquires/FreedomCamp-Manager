@@ -1,6 +1,6 @@
 # Railway Deployment Guide
 
-**FreedomCamp Manager - Railway Services Deployment**
+**FieldOps Manager - Railway Services Deployment**
 
 This guide covers deploying both Railway services (Proxy Server and Inference Service) and configuring them for production use.
 
@@ -61,7 +61,7 @@ railway up
 
 # Get deployment URL
 railway status
-# Copy the deployment URL (e.g., https://freedomcamp-inference.railway.app)
+# Copy the deployment URL (e.g., https://fieldops-inference.railway.app)
 
 # Set environment variables (if needed)
 railway variables set MODEL_PATH=/app/models
@@ -170,7 +170,7 @@ railway up
 
 # Get deployment URL
 railway status
-# Copy the deployment URL (e.g., https://freedomcamp-proxy.railway.app)
+# Copy the deployment URL (e.g., https://fieldops-proxy.railway.app)
 ```
 
 ### Deploy to Railway (GitHub Method)
@@ -545,7 +545,7 @@ railway up
 
 # Get deployment URL
 railway status
-# Copy the deployment URL (e.g., https://freedomcamp-ptt.railway.app)
+# Copy the deployment URL (e.g., https://fieldops-ptt.railway.app)
 ```
 
 ### Deploy to Railway (GitHub Method)
@@ -648,4 +648,4 @@ ws.send(JSON.stringify({ type: 'ping' }));
 
 **Deployment Complete! 🚀**
 
-Railway services are now integrated with FreedomCamp Manager.
+Railway services are now integrated with FieldOps Manager.

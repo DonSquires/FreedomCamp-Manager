@@ -1,6 +1,6 @@
 # Iron Eagle Security Email Templates
 
-Professional HTML email templates for FreedomCamp Manager with Iron Eagle Security branding.
+Professional HTML email templates for FieldOps Manager with Iron Eagle Security branding.
 
 ## Templates Included
 

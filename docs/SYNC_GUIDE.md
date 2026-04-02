@@ -1,6 +1,6 @@
-# FreedomCamp Manager — External Systems Sync Guide
+# FieldOps Manager — External Systems Sync Guide
 
-> **Purpose**: Documents how FreedomCamp Manager's internal processes align with each
+> **Purpose**: Documents how FieldOps Manager's internal processes align with each
 > referenced external system. Use this as the authoritative reference when building
 > or modifying integration points.
 >
@@ -10,7 +10,7 @@
 
 ## Overview: One Job, Five External Services
 
-FreedomCamp Manager has one core job — **officers scan plates → admins review breaches →
+FieldOps Manager has one core job — **officers scan plates → admins review breaches →
 councils enforce freedom camping rules**. Five external services support that job:
 
 | Service | Role in the app | Connection method |

@@ -1,4 +1,4 @@
-# FreedomCamp Manager — Clean Rebuild Execution Plan
+# FieldOps Manager — Clean Rebuild Execution Plan
 
 > Purpose: turn the existing design and architecture documents into an execution plan for a full rebuild of the product surface.
 >

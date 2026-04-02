@@ -78,9 +78,9 @@ jobs:
             echo "  EXPO_PUBLIC_SUPABASE_ANON_KEY: Your Supabase anon/public key"
             echo ""
             echo "  Android signing (required for android/all platform):"
-            echo "  ANDROID_KEYSTORE_BASE64:       base64 freedomcamp.keystore | tr -d '\\n'"
+            echo "  ANDROID_KEYSTORE_BASE64:       base64 fieldops.keystore | tr -d '\\n'"
             echo "  ANDROID_KEYSTORE_PASSWORD:     Keystore password"
-            echo "  ANDROID_KEY_ALIAS:             Key alias (e.g. freedomcamp)"
+            echo "  ANDROID_KEY_ALIAS:             Key alias (e.g. fieldops)"
             echo "  ANDROID_KEY_PASSWORD:          Key password"
             echo "secrets_present=false" >> "$GITHUB_OUTPUT"
           else

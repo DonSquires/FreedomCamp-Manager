@@ -1,6 +1,6 @@
 # New Project Setup Guide
 
-Step-by-step guide to provision a **brand-new deployment** of FreedomCamp Manager from zero —
+Step-by-step guide to provision a **brand-new deployment** of FieldOps Manager from zero —
 new Supabase project, all migrations, all edge functions, Railway services, and both
 the web admin portal and the native officer mobile app.
 
@@ -55,7 +55,7 @@ DATE_FROM="2025-12-01T00:00:00Z" \
 
 1. Go to [https://supabase.com](https://supabase.com) → **New Project**
 2. Choose organisation (create one if needed)
-3. Project name: e.g. `freedomcamp-prod`
+3. Project name: e.g. `fieldops-prod`
 4. Database password: generate a strong one and **save it securely**
 5. Region: **ap-southeast-2** (Sydney) — closest to NZ with lowest latency
 6. Click **Create new project** — takes ~2 minutes
@@ -245,7 +245,7 @@ PROXY_SECRET=YOUR_SHARED_SECRET            (must match NZSCV_PROXY_SECRET above)
 3. Under Railway → proxy-server → **Settings → Networking**:
    - Enable **Static IP** (costs ~$5/month extra)
    - Note the static IP address → provide this to NZSCV for whitelisting
-   - Note the Railway public URL (e.g. `https://freedomcamp-proxy.up.railway.app`)
+   - Note the Railway public URL (e.g. `https://fieldops-proxy.up.railway.app`)
      → set this as `NZSCV_PROXY_URL` in Supabase secrets
 
 ### 3.2 inference-service (ONNX AI)
@@ -371,8 +371,8 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...YOUR_ANON_KEY
 Edit `mobile-app/app.json`:
 - Replace bundle IDs with your own (reverse domain format):
   ```json
-  "bundleIdentifier": "co.nz.YOUR_COMPANY.freedomcamp.officer"  // iOS
-  "package": "co.nz.YOUR_COMPANY.freedomcamp.officer"            // Android
+  "bundleIdentifier": "co.nz.YOUR_COMPANY.fieldops.manager"  // iOS
+  "package": "co.nz.YOUR_COMPANY.fieldops.manager"            // Android
   ```
 - Replace `YOUR_EAS_PROJECT_ID` after running `eas init`
 

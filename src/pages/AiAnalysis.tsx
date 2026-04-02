@@ -432,7 +432,7 @@ export default function AiAnalysis() {
             <div>
               <h1 className="text-lg font-semibold leading-tight">AI</h1>
               <p className="text-xs text-muted-foreground">
-                AI-powered analysis for FreedomCamp Manager
+                AI-powered analysis for FieldOps Manager
               </p>
             </div>
           </div>

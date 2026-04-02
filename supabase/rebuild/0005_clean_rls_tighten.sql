@@ -1,4 +1,4 @@
--- FreedomCamp Manager clean rebuild RLS tighten pass
+-- FieldOps Manager clean rebuild RLS tighten pass
 -- Date: 2026-04-01
 -- Depends on: 0002_clean_rls.sql
 

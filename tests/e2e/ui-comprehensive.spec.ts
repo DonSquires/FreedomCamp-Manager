@@ -1,5 +1,5 @@
 /**
- * Comprehensive UI Tests — FreedomCamp Manager
+ * Comprehensive UI Tests — FieldOps Manager
  *
  * Tests every major workflow, page, and interactive element described in
  * docs/CAPABILITY_OVERVIEW.md.

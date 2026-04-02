@@ -1,4 +1,4 @@
-# FreedomCamp Manager — Pipeline & Wiring Diagrams
+# FieldOps Manager — Pipeline & Wiring Diagrams
 
 > **How to read these diagrams**
 > - `→` means data/request flows in this direction

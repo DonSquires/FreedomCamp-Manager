@@ -1,6 +1,6 @@
 # Push-to-Talk (PTT) options — research and integration sketch
 
-This note summarizes off‑the‑shelf PTT apps and SDKs, and how we could add PTT to FreedomCamp Manager with minimal risk.
+This note summarizes off‑the‑shelf PTT apps and SDKs, and how we could add PTT to FieldOps Manager with minimal risk.
 
 ## Quick landscape (what exists)
 

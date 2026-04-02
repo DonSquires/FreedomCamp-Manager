@@ -1,7 +1,7 @@
 # Migration Troubleshooting Guide
 
 This document explains how to diagnose and resolve Supabase migration history
-conflicts for the FreedomCamp Manager project.
+conflicts for the FieldOps Manager project.
 
 ---
 

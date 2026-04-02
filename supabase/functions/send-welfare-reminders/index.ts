@@ -301,7 +301,7 @@ Deno.serve(async (req) => {
         },
         'overdue': {
           title: '🚨 WELFARE CHECK-IN OVERDUE',
-          body: `${name} — your welfare check-in is OVERDUE. Open FreedomCamp Manager NOW.`,
+          body: `${name} — your welfare check-in is OVERDUE. Open FieldOps Manager NOW.`,
           tag: 'welfare-overdue',
         },
       };

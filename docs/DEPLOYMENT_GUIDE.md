@@ -1,6 +1,6 @@
-# Deployment Guide - FreedomCamp Manager
+# Deployment Guide - FieldOps Manager
 
-This guide provides step-by-step instructions for deploying the rebuilt FreedomCamp Manager application to production.
+This guide provides step-by-step instructions for deploying the rebuilt FieldOps Manager application to production.
 
 ## Baseline Plan (Original)
 
@@ -248,7 +248,7 @@ See `docs/RAILWAY_DEPLOYMENT_GUIDE.md` for full instructions (including GitHub d
        listen 80;
        server_name your-domain.com;
 
-       root /var/www/freedomcamp/dist;
+       root /var/www/fieldops/dist;
        index index.html;
 
        location / {
@@ -313,7 +313,7 @@ SMTP_PORT=587
 SMTP_USERNAME=apikey
 SMTP_PASSWORD=your-smtp-password
 SMTP_FROM_EMAIL=noreply@yourdomain.co.nz
-SMTP_FROM_NAME=FreedomCamp Manager
+SMTP_FROM_NAME=FieldOps Manager
 ```
 
 ### 2. Custom Domain (Optional)
@@ -336,7 +336,7 @@ Ensure `public/manifest.json` has correct URLs:
 
 ```json
 {
-  "name": "FreedomCamp Manager",
+   "name": "FieldOps Manager",
   "short_name": "FCManager",
   "start_url": "https://your-domain.com/",
   "scope": "https://your-domain.com/",

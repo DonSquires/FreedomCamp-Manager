@@ -1,6 +1,6 @@
 # PTT Signaling Server
 
-Push-to-Talk WebRTC signaling server for FreedomCamp Manager. This service handles real-time communication for voice chat between field officers and admin staff.
+Push-to-Talk WebRTC signaling server for FieldOps Manager. This service handles real-time communication for voice chat between field officers and admin staff.
 
 ## Features
 
@@ -133,7 +133,7 @@ Connect to `/ws?token=<jwt>` for real-time signaling.
 { type: 'pong', timestamp: string }
 ```
 
-## Integration with FreedomCamp Manager
+## Integration with FieldOps Manager
 
 1. **Supabase Edge Function** `ptt-signaling-token` mints tokens by calling `/api/token/mint`
 2. **Frontend** connects to WebSocket with token

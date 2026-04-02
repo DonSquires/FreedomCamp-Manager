@@ -439,7 +439,7 @@ export default function App() {
             />
           </div>
           <div>
-            <p className="text-lg font-semibold text-foreground">FreedomCamp Manager</p>
+            <p className="text-lg font-semibold text-foreground">FieldOps Manager</p>
             <div className="flex items-center justify-center gap-1.5 mt-2">
               {[0, 1, 2].map((i) => (
                 <div

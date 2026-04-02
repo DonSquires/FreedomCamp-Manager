@@ -24,7 +24,7 @@ async function registerPushToken(userId: string): Promise<void> {
 
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {
-        name: 'FreedomCamp Alerts',
+        name: 'FieldOps Alerts',
         importance: Notifications.AndroidImportance.HIGH,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#1d4ed8',

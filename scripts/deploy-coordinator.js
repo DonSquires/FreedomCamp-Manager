@@ -178,7 +178,7 @@ async function deployPhase(phaseName) {
 async function main() {
   const phase = process.argv[2] || 'phase1';
 
-  console.log('\n🚀 FreedomCamp Manager - Production DB Migration Coordinator');
+  console.log('\n🚀 FieldOps Manager - Production DB Migration Coordinator');
   console.log('   Branch: copilot/fix-duplicate-vehicle-observations');
   console.log(`   Date: ${new Date().toISOString()}\n`);
 

@@ -1,6 +1,6 @@
 # Environment Variables Reference
 
-Complete reference for all environment variables used in FreedomCamp Manager.
+Complete reference for all environment variables used in FieldOps Manager.
 
 ## Table of Contents
 

@@ -1,4 +1,4 @@
-# Email Setup — SMTP Secrets for FreedomCamp Manager
+# Email Setup — SMTP Secrets for FieldOps Manager
 
 ## Overview
 
@@ -46,9 +46,9 @@ If `SMTP_FROM_NAME` is not set, each function falls back to its own default:
 
 | Function | Default `SMTP_FROM_NAME` |
 |---|---|
-| `send-report-email` | `FreedomCamp Manager – Do Not Reply` |
-| `generate-infringement` | `FreedomCamp Manager - Enforcement Notices` |
-| `generate-notice-to-vacate` | `FreedomCamp Manager - Enforcement Notices` |
+| `send-report-email` | `FieldOps Manager – Do Not Reply` |
+| `generate-infringement` | `FieldOps Manager - Enforcement Notices` |
+| `generate-notice-to-vacate` | `FieldOps Manager - Enforcement Notices` |
 
 Setting `SMTP_FROM_NAME` overrides all of these with a single value.
 
@@ -65,7 +65,7 @@ supabase secrets set \
   SMTP_USERNAME=apikey \
   SMTP_PASSWORD=SG.xxxxxxxx \
   SMTP_FROM_EMAIL=noreply@yourdomain.co.nz \
-  SMTP_FROM_NAME="FreedomCamp Manager"
+  SMTP_FROM_NAME="FieldOps Manager"
 ```
 
 ### Via Dashboard

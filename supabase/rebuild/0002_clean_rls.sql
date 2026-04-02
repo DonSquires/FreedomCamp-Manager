@@ -1,4 +1,4 @@
--- FreedomCamp Manager clean rebuild RLS
+-- FieldOps Manager clean rebuild RLS
 -- Date: 2026-04-01
 -- Depends on: 0001_clean_baseline.sql
 

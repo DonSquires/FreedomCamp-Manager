@@ -9,7 +9,7 @@
 --   • Violations       — formal enforcement violation records with workflow
 --   • Permit management — manage zone-specific vehicle exemptions
 --
--- This migration adds lightweight foreign-key columns so FreedomCamp records
+-- This migration adds lightweight foreign-key columns so FieldOps records
 -- stay in sync with ParkPow without duplicating data.
 --
 -- No data is moved; all new columns are nullable (zero-downtime deploy).

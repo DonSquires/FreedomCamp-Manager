@@ -32,7 +32,7 @@ PROJECT_REF="kxwjcupuxnnbnzcgmkoi"
 RAILWAY_INFERENCE_URL_DEFAULT="https://orc-ai-inference-service-production.up.railway.app"
 
 echo -e "${BLUE}╔════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║     FreedomCamp Manager - AI Service Configuration        ║${NC}"
+echo -e "${BLUE}║       FieldOps Manager - AI Service Configuration        ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -127,7 +127,7 @@ case $AI_CHOICE in
         echo ""
         echo "To get a GitHub token with copilot scope:"
         echo "  1. Go to https://github.com/settings/tokens/new"
-        echo "  2. Give it a name like 'FreedomCamp AI'"
+        echo "  2. Give it a name like 'FieldOps AI'"
         echo "  3. Check the 'copilot' scope"
         echo "  4. Generate token and paste below"
         echo ""

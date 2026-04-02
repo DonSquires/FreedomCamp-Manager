@@ -1,7 +1,7 @@
 /**
  * deviceIntegration.ts
  * 
- * Comprehensive device integration library for FreedomCamp Manager
+ * Comprehensive device integration library for FieldOps Manager
  * Implements Web Bluetooth API, DeviceMotion API, and MediaDevices API for:
  * 
  * 1. Bluetooth Panic Buttons (BLE) - Connect to dedicated panic button devices

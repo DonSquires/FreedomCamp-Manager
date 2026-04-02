@@ -131,8 +131,8 @@ export default function Login() {
               className="h-16 w-16 rounded-2xl object-cover shadow-lg"
             />
             <div>
-              <h1 className="text-xl font-bold leading-tight">FreedomCamp Manager</h1>
-              <p className="text-blue-300 text-sm mt-0.5">NZ Freedom Camping Enforcement Platform</p>
+              <h1 className="text-xl font-bold leading-tight">FieldOps Manager</h1>
+              <p className="text-blue-300 text-sm mt-0.5">Field Operations Management Platform</p>
             </div>
           </div>
 
@@ -167,8 +167,8 @@ export default function Login() {
               alt="Iron Eagle Security"
               className="h-16 w-16 rounded-2xl object-cover shadow-md mb-3"
             />
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">FreedomCamp Manager</h1>
-            <p className="text-sm text-gray-500 mt-0.5">NZ Freedom Camping Enforcement Platform</p>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">FieldOps Manager</h1>
+            <p className="text-sm text-gray-500 mt-0.5">Field Operations Management Platform</p>
           </div>
 
           <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-1">
@@ -263,7 +263,7 @@ export default function Login() {
           )}
 
           <div className="mt-8 text-center text-xs text-gray-400 dark:text-gray-500">
-            <p>Iron Eagle Security · NZ Freedom Camping Enforcement</p>
+            <p>Iron Eagle Security · Field Operations Management</p>
           </div>
         </div>
       </div>

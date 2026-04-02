@@ -1,4 +1,4 @@
-# FreedomCamp Manager - Keep / Merge / Remove Matrix
+# FieldOps Manager - Keep / Merge / Remove Matrix
 
 Purpose: convert the clean rebuild strategy into an executable inventory that drives implementation and safe deletion.
 

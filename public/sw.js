@@ -1,10 +1,10 @@
-// Service Worker for FreedomCamp Manager PWA
+// Service Worker for FieldOps Manager PWA
 // Handles offline caching, background sync, and auto-updates
 // NOW WITH: IndexedDB sync, offline API queue, Background Sync API
 
 var CACHE_VERSION = '2.4.0'; // Bumped: postcss/tailwind CSS fix
-var CACHE_NAME = 'freedomcamp-v' + CACHE_VERSION;
-var API_CACHE = 'freedomcamp-api-v' + CACHE_VERSION;
+var CACHE_NAME = 'fieldops-v' + CACHE_VERSION;
+var API_CACHE = 'fieldops-api-v' + CACHE_VERSION;
 var STATIC_CACHE = [
   '/',
   '/index.html',
@@ -262,7 +262,7 @@ self.addEventListener('push', function(event) {
   try {
     data = event.data.json();
   } catch (e) {
-    data = { title: 'FreedomCamp Manager', body: event.data.text() };
+    data = { title: 'FieldOps Manager', body: event.data.text() };
   }
 
   // Map notification type → vibration pattern + urgency
@@ -304,7 +304,7 @@ self.addEventListener('push', function(event) {
 
   event.waitUntil(
     self.registration.showNotification(
-      data.title || 'FreedomCamp Manager',
+      data.title || 'FieldOps Manager',
       options
     )
   );

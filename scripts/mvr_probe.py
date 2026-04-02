@@ -32,7 +32,7 @@ DEFAULT_SERVICES = [
 def query(service_url: str, params: dict[str, Any], timeout: int = 45) -> dict[str, Any]:
     base = service_url.rstrip("/") + "/query"
     q = urllib.parse.urlencode(params)
-    req = urllib.request.Request(f"{base}?{q}", headers={"User-Agent": "FreedomCamp-MVR-Probe/1.0"})
+    req = urllib.request.Request(f"{base}?{q}", headers={"User-Agent": "FieldOps-MVR-Probe/1.0"})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.load(resp)
 

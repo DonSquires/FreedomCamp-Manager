@@ -1,6 +1,6 @@
 # Phase 8: End-to-End Testing Checklist
 
-This document provides a comprehensive testing checklist for the rebuilt FreedomCamp Manager application.
+This document provides a comprehensive testing checklist for the rebuilt FieldOps Manager application.
 
 ---
 
