@@ -150,7 +150,7 @@ const SMTP_PORT = parseInt(process.env.SMTP_PORT || '465', 10);
 const SMTP_USERNAME = process.env.SMTP_USERNAME;
 const SMTP_PASSWORD = process.env.SMTP_PASSWORD;
 const SMTP_FROM_EMAIL = process.env.SMTP_FROM_EMAIL;
-const SMTP_FROM_NAME = process.env.SMTP_FROM_NAME || 'FreedomCamp Manager';
+const SMTP_FROM_NAME = process.env.SMTP_FROM_NAME || 'FieldOps Manager';
 const SITE_URL = process.env.SITE_URL || 'https://fcmanager.co.nz';
 
 if (!MOTORWEB_API_KEY || !MOTORWEB_ID_KEY) {
@@ -302,7 +302,7 @@ app.post('/api/email/send-invite', rateLimitMiddleware, async (req, res) => {
       <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
         <tr>
           <td style="background:#1e3a5f;padding:32px 40px;">
-            <h1 style="color:#ffffff;margin:0;font-size:22px;font-weight:700;">FreedomCamp Manager</h1>
+            <h1 style="color:#ffffff;margin:0;font-size:22px;font-weight:700;">FieldOps Manager</h1>
             <p style="color:#93c5fd;margin:4px 0 0;font-size:13px;">Iron Eagle Security / OnSpace AI</p>
           </td>
         </tr>
@@ -310,7 +310,7 @@ app.post('/api/email/send-invite', rateLimitMiddleware, async (req, res) => {
           <td style="padding:40px;">
             <p style="font-size:16px;color:#374151;margin:0 0 16px;">${greeting}</p>
             <p style="font-size:15px;color:#374151;margin:0 0 16px;">
-              You have been invited to join <strong>FreedomCamp Manager</strong>. Click below to set your password and access the platform.
+              You have been invited to join <strong>FieldOps Manager</strong>. Click below to set your password and access the platform.
             </p>
             <p style="text-align:center;margin:32px 0;">
               <a href="${safeInviteUrl}" style="background:#1e3a5f;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:6px;font-size:15px;font-weight:600;display:inline-block;">
@@ -347,9 +347,9 @@ app.post('/api/email/send-invite', rateLimitMiddleware, async (req, res) => {
     await transporter.sendMail({
       from: `${SMTP_FROM_NAME} <${SMTP_FROM_EMAIL}>`,
       to: email,
-      subject: "You've been invited to FreedomCamp Manager",
+      subject: "You've been invited to FieldOps Manager",
       html,
-      text: `${greeting}\n\nYou have been invited to FreedomCamp Manager.\n\nAccept your invitation and set your password:\n${safeInviteUrl}\n\nThis link expires in 24 hours.`
+      text: `${greeting}\n\nYou have been invited to FieldOps Manager.\n\nAccept your invitation and set your password:\n${safeInviteUrl}\n\nThis link expires in 24 hours.`
     });
 
     console.log('✅ Invite email sent:', email);

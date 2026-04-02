@@ -1,6 +1,6 @@
 /**
  * PTT SIGNALING SERVER
- * Push-to-Talk WebRTC signaling server for FreedomCamp Manager
+ * Push-to-Talk WebRTC signaling server for FieldOps Manager
  * 
  * This server provides:
  * 1. WebSocket-based signaling for WebRTC peer connections
