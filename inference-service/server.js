@@ -102,6 +102,7 @@ const TABULAR_NLP_TIMEOUT_MS = Number(process.env.TABULAR_NLP_TIMEOUT_MS || 2500
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1:8b';
 const SELF_CONTAINED_MODE = ['1', 'true', 'yes', 'on'].includes((process.env.SELF_CONTAINED_MODE || '').toLowerCase());
+const REQUIRE_SELF_CONTAINED_MODE = ['1', 'true', 'yes', 'on'].includes((process.env.REQUIRE_SELF_CONTAINED_MODE || '').toLowerCase());
 const INFERENCE_API_KEY = process.env.INFERENCE_API_KEY || '';
 const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
 const SUPABASE_JWKS_URL = process.env.SUPABASE_JWKS_URL || (SUPABASE_URL ? `${SUPABASE_URL}/auth/v1/.well-known/jwks.json` : '');
@@ -126,6 +127,43 @@ function isLocalUrl(value) {
 const OPENAI_ENABLED = !SELF_CONTAINED_MODE && !!OPENAI_API_KEY;
 const CLOUD_ALPR_ENABLED = !SELF_CONTAINED_MODE && !!process.env.PLATERECOGNIZER_TOKEN;
 const OLLAMA_ENABLED = TABULAR_NLP_PROVIDER === 'ollama' && (!SELF_CONTAINED_MODE || isLocalUrl(OLLAMA_BASE_URL));
+
+const egressAudit = {
+  started_at: new Date().toISOString(),
+  self_contained_mode: SELF_CONTAINED_MODE,
+  counts: {
+    openai_attempted: 0,
+    openai_blocked: 0,
+    cloud_alpr_attempted: 0,
+    cloud_alpr_blocked: 0,
+    ollama_attempted: 0,
+    ollama_blocked: 0,
+  },
+  last_event: null,
+};
+
+function recordEgressEvent(provider, outcome, details = null) {
+  const event = {
+    at: new Date().toISOString(),
+    provider,
+    outcome,
+    details,
+  };
+  egressAudit.last_event = event;
+
+  if (provider === 'openai') {
+    if (outcome === 'attempted') egressAudit.counts.openai_attempted += 1;
+    if (outcome === 'blocked') egressAudit.counts.openai_blocked += 1;
+  }
+  if (provider === 'cloud_alpr') {
+    if (outcome === 'attempted') egressAudit.counts.cloud_alpr_attempted += 1;
+    if (outcome === 'blocked') egressAudit.counts.cloud_alpr_blocked += 1;
+  }
+  if (provider === 'ollama') {
+    if (outcome === 'attempted') egressAudit.counts.ollama_attempted += 1;
+    if (outcome === 'blocked') egressAudit.counts.ollama_blocked += 1;
+  }
+}
 
 let joseRuntimePromise = null;
 let supabaseJwks = null;
@@ -466,9 +504,15 @@ function analyzeTabularDataHeuristic(sampleRows) {
 async function analyzeTabularDataWithOllama(sampleRows) {
   const heuristic = analyzeTabularDataHeuristic(sampleRows);
 
+  if (!OLLAMA_ENABLED) {
+    recordEgressEvent('ollama', 'blocked', 'SELF_CONTAINED_MODE with non-local OLLAMA_BASE_URL');
+    return heuristic;
+  }
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TABULAR_NLP_TIMEOUT_MS);
   try {
+    recordEgressEvent('ollama', 'attempted', 'analyzeTabularDataWithOllama');
     const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
       method: 'POST',
       headers: {
@@ -759,6 +803,7 @@ async function generateEmbedding(imageTensor) {
 
 async function inferVehicleAttributesWithOpenAI(vehicleCropBuffer) {
   if (!OPENAI_ENABLED) {
+    recordEgressEvent('openai', 'blocked', 'SELF_CONTAINED_MODE or OPENAI_API_KEY missing');
     return null;
   }
 
@@ -767,6 +812,7 @@ async function inferVehicleAttributesWithOpenAI(vehicleCropBuffer) {
   const timeout = setTimeout(() => controller.abort(), ATTR_TIMEOUT_MS);
 
   try {
+    recordEgressEvent('openai', 'attempted', 'inferVehicleAttributesWithOpenAI');
     const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -997,13 +1043,17 @@ async function detectFacesWithONNX(imageBuffer) {
 // Returns { face_count, faces[] } or null on failure.
 // Each face: { bbox: {x,y,w,h} (normalised 0-1), confidence, approximate_age, gender, description }
 async function detectFacesWithOpenAI(imageBuffer) {
-  if (!OPENAI_ENABLED) return null;
+  if (!OPENAI_ENABLED) {
+    recordEgressEvent('openai', 'blocked', 'SELF_CONTAINED_MODE or OPENAI_API_KEY missing');
+    return null;
+  }
 
   const imageBase64 = imageBuffer.toString('base64');
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ATTR_TIMEOUT_MS);
 
   try {
+    recordEgressEvent('openai', 'attempted', 'detectFacesWithOpenAI');
     const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -1717,6 +1767,7 @@ app.post('/infer/chalk', inferenceRateLimit, upload.single('photo'), requireInfe
     let plateConfidence = null;
     if (CLOUD_ALPR_ENABLED) {
       try {
+        recordEgressEvent('cloud_alpr', 'attempted', 'chalk plate recognition');
         const formData = new FormData();
         const blob = new Blob([imageBuffer], { type: req.file.mimetype || 'image/jpeg' });
         formData.append('upload', blob, req.file.originalname || 'photo.jpg');
@@ -1742,6 +1793,8 @@ app.post('/infer/chalk', inferenceRateLimit, upload.single('photo'), requireInfe
       } catch (alprErr) {
         console.warn('⚠️  /infer/chalk ALPR failed (non-fatal):', alprErr.message);
       }
+    } else {
+      recordEgressEvent('cloud_alpr', 'blocked', 'SELF_CONTAINED_MODE or PLATERECOGNIZER_TOKEN missing');
     }
 
     // ── 2. Tyre valve position via OpenAI vision ──────────────────────
@@ -1751,6 +1804,7 @@ app.post('/infer/chalk', inferenceRateLimit, upload.single('photo'), requireInfe
 
     if (OPENAI_ENABLED) {
       try {
+        recordEgressEvent('openai', 'attempted', 'chalk valve detection');
         const imageBase64 = imageBuffer.toString('base64');
         const mimeType = req.file.mimetype || 'image/jpeg';
         const controller = new AbortController();
@@ -1812,6 +1866,8 @@ app.post('/infer/chalk', inferenceRateLimit, upload.single('photo'), requireInfe
       } catch (valveErr) {
         console.warn('⚠️  /infer/chalk valve detection failed (non-fatal):', valveErr.message);
       }
+    } else {
+      recordEgressEvent('openai', 'blocked', 'SELF_CONTAINED_MODE or OPENAI_API_KEY missing');
     }
 
     // ── 3. Vehicle detection + embedding + attributes ────────────────
@@ -2138,6 +2194,14 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
   });
 });
 
+// Egress audit endpoint (requires the same auth as protected inference routes).
+app.get('/audit/egress', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  res.json({
+    success: true,
+    audit: egressAudit,
+  });
+});
+
 // Error handler
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
@@ -2150,6 +2214,11 @@ app.use((err, req, res, next) => {
 
 // Start server
 loadModels().then(() => {
+  if (REQUIRE_SELF_CONTAINED_MODE && !SELF_CONTAINED_MODE) {
+    console.error('❌ REQUIRE_SELF_CONTAINED_MODE is true but SELF_CONTAINED_MODE is not enabled. Refusing to start.');
+    process.exit(1);
+  }
+
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 ORC/AI inference service running on port ${PORT}`);
     // Config summary — makes misconfiguration visible at a glance in Railway logs
