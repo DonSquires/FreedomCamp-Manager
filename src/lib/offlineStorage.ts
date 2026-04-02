@@ -3,7 +3,7 @@
  * IndexedDB wrapper for offline data persistence
  */
 
-const DB_NAME = 'FreedomCampOfflineDB'
+const DB_NAME = 'FieldOpsOfflineDB'
 const DB_VERSION = 2
 
 interface StoreName {

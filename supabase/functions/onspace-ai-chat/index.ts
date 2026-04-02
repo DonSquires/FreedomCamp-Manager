@@ -1,7 +1,7 @@
 /**
  * onspace-ai-chat
  *
- * AI-powered analysis and chat for FreedomCamp Manager admins.
+ * AI-powered analysis and chat for FieldOps Manager admins.
  * Supports any OpenAI-compatible API endpoint so operators can point it at
  * their own self-hosted model (e.g. Ollama, vLLM, LM Studio), the default
  * OpenAI service, or GitHub Copilot.
@@ -33,7 +33,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
 
-const SYSTEM_PROMPT = `You are an AI assistant for FreedomCamp Manager — a freedom camping enforcement system used by councils and security contractors in New Zealand.
+const SYSTEM_PROMPT = `You are an AI assistant for FieldOps Manager — a freedom camping enforcement system used by councils and security contractors in New Zealand.
 
 You help admins and enforcement managers by:
 - Analysing compliance data, breach trends, and patrol performance

@@ -81,7 +81,7 @@ async function reverseGeocodeNominatim(
       `?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`
 
     const response = await fetch(url, {
-      headers: { 'User-Agent': 'FreedomCamp-Manager/1.0' },
+      headers: { 'User-Agent': 'FieldOps-Manager/1.0' },
     })
 
     if (!response.ok) throw new Error(`Nominatim HTTP ${response.status}`)

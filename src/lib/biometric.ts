@@ -71,7 +71,7 @@ export async function registerBiometric(
     const publicKeyCredentialCreationOptions: PublicKeyCredentialCreationOptions = {
       challenge,
       rp: {
-        name: 'FreedomCamp Manager',
+        name: 'FieldOps Manager',
         id: window.location.hostname,
       },
       user: {

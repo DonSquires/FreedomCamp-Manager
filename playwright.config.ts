@@ -19,7 +19,7 @@ const chromiumLaunchOptions = {
 }
 
 /**
- * Playwright Configuration for FreedomCamp Manager
+ * Playwright Configuration for FieldOps Manager
  * E2E Integration Testing - Phase 9
  */
 export default defineConfig({

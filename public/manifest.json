@@ -1,7 +1,7 @@
 {
-  "name": "FreedomCamp Manager",
-  "short_name": "FreedomCamp",
-  "description": "Iron Eagle Security vehicle tracking and compliance management for field officers",
+  "name": "FieldOps Manager",
+  "short_name": "FieldOps",
+  "description": "Integrated field operations management for real-time site monitoring, compliance reporting, and asset coordination",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

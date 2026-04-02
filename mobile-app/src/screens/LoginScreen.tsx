@@ -39,7 +39,7 @@ export default function LoginScreen() {
           <View style={styles.iconBadge}>
             <Text style={styles.iconText}>FC</Text>
           </View>
-          <Text style={styles.title}>FreedomCamp Officer</Text>
+          <Text style={styles.title}>FieldOps Officer</Text>
           <Text style={styles.subtitle}>Iron Eagle Security — Field App</Text>
         </View>
 

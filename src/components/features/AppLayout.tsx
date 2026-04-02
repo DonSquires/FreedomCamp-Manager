@@ -477,7 +477,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
               <SheetContent side="left" className="w-64 p-0">
                 <div className="flex flex-col h-full">
                   <div className="p-4 border-b dark:border-gray-700">
-                    <h2 className="font-semibold text-lg">FreedomCamp</h2>
+                    <h2 className="font-semibold text-lg">FieldOps</h2>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
                       {user?.full_name}
                     </p>
@@ -515,7 +515,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
             )}
           </div>
 
-          <h1 className="font-semibold text-lg truncate">{title || 'FreedomCamp'}</h1>
+          <h1 className="font-semibold text-lg truncate">{title || 'FieldOps'}</h1>
           
           {/* Mobile: notification bell */}
           <button
@@ -546,7 +546,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
           <div className="p-5 border-b dark:border-gray-700 bg-gradient-to-br from-cyan-700 to-cyan-800 dark:from-cyan-900 dark:to-cyan-950">
             <div className="flex items-start justify-between">
               <div className="min-w-0">
-                <h2 className="font-bold text-xl text-white">FreedomCamp</h2>
+                <h2 className="font-bold text-xl text-white">FieldOps</h2>
                 <p className="text-sm text-cyan-100 mt-0.5 truncate">
                   {user?.full_name}
                 </p>

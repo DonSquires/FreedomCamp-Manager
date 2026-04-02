@@ -43,7 +43,7 @@ interface OfflineStats {
 }
 
 // IndexedDB utilities
-const DB_NAME = 'FreedomCampOfflineDB'
+const DB_NAME = 'FieldOpsOfflineDB'
 const STORE_NAME = 'observations_queue'
 const DB_VERSION = 1
 
