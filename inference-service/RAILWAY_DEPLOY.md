@@ -51,6 +51,7 @@ In Railway dashboard, click the **Variables** tab and add:
 | `TABULAR_NLP_TIMEOUT_MS` | `2500` | Timeout for tabular NLP requests |
 | `SELF_LEARNING_PRETRAIN_PROFILE` | `nz-enforcement-v1` | Pretrained baseline profile for similarity learning state |
 | `SELF_LEARNING_PRETRAIN_MULTIPLIER` | `12` | Number of synthetic pretraining passes applied at image build |
+| `SELF_HEALING_ENABLED` | `true` | Enables self-healing bug planning endpoints |
 | `ATTR_TIMEOUT_MS` | `2500` | Timeout for AI attribute extraction |
 | `INFER_RATE_LIMIT_RPM` | `30` | Max inference requests per minute per IP |
 | `ALPR_RATE_LIMIT_RPM` | `60` | Max ALPR requests per minute per IP |

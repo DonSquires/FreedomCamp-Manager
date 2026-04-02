@@ -156,6 +156,39 @@ curl -X POST http://localhost:3000/chat \
 }
 ```
 
+### **POST /self-heal/bug-report**
+
+Build-aware self-healing planning endpoint for bug report automation.
+
+It returns:
+- Bug classification
+- Reproduction checklist
+- Remediation steps
+- Safeguards and rollout recommendations
+- NZ compliance guidance note (operational, not legal advice)
+
+**Request:**
+```bash
+curl -X POST http://localhost:3000/self-heal/bug-report \
+  -H "Content-Type: application/json" \
+  -H "x-inference-api-key: $INFERENCE_API_KEY" \
+  -d '{
+    "report": {
+      "summary": "Inference endpoint intermittently returns 500 on large uploads",
+      "severity": "high",
+      "stack_trace": "TypeError: Cannot read properties of undefined",
+      "service": "inference-service"
+    }
+  }'
+```
+
+### **GET /self-heal/knowledge**
+
+Returns loaded knowledge packs used by the self-healing planner:
+- FieldOps build context
+- NZ compliance context
+- Structured coding/problem-solving context
+
 ### **POST /infer**
 
 Generate vehicle embedding from photo.

@@ -27,6 +27,7 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 const fs = require('fs');
 const { createSelfLearningService } = require('./lib/self-learning');
+const { buildSelfHealingPlan, getKnowledgePacks } = require('./lib/assistant-knowledge');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -116,6 +117,7 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1:8b';
 const SELF_CONTAINED_MODE = ['1', 'true', 'yes', 'on'].includes((process.env.SELF_CONTAINED_MODE || '').toLowerCase());
 const REQUIRE_SELF_CONTAINED_MODE = ['1', 'true', 'yes', 'on'].includes((process.env.REQUIRE_SELF_CONTAINED_MODE || '').toLowerCase());
 const SELF_LEARNING_ENABLED = !['0', 'false', 'no', 'off'].includes((process.env.SELF_LEARNING_ENABLED || 'true').toLowerCase());
+const SELF_HEALING_ENABLED = !['0', 'false', 'no', 'off'].includes((process.env.SELF_HEALING_ENABLED || 'true').toLowerCase());
 const SELF_LEARNING_STATE_PATH = process.env.SELF_LEARNING_STATE_PATH || path.join(__dirname, 'data', 'self-learning-state.json');
 const SIMILARITY_THRESHOLD = Number(process.env.SIMILARITY_THRESHOLD || 0.85);
 const SIMILARITY_THRESHOLD_MIN = Number(process.env.SIMILARITY_THRESHOLD_MIN || 0.65);
@@ -760,6 +762,44 @@ app.post('/chat', inferenceRateLimit, requireInferenceAuth, async (req, res) => 
     console.error('Chat endpoint error:', error);
     return res.status(500).json({ error: 'Chat failed', message: error.message });
   }
+});
+
+app.post('/self-heal/bug-report', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    if (!SELF_HEALING_ENABLED) {
+      return res.status(503).json({ error: 'Self-healing assistant is disabled' });
+    }
+
+    const report = req.body?.report;
+    if (!report || typeof report !== 'object') {
+      return res.status(400).json({ error: 'report object is required' });
+    }
+
+    if (typeof report.summary !== 'string' || !report.summary.trim()) {
+      return res.status(400).json({ error: 'report.summary must be a non-empty string' });
+    }
+
+    const plan = buildSelfHealingPlan(report, {
+      selfContainedMode: SELF_CONTAINED_MODE,
+    });
+
+    return res.json({
+      success: true,
+      self_healing_enabled: true,
+      plan,
+    });
+  } catch (error) {
+    console.error('Self-heal endpoint error:', error);
+    return res.status(500).json({ error: 'Self-heal planning failed', message: error.message });
+  }
+});
+
+app.get('/self-heal/knowledge', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  return res.json({
+    success: true,
+    self_healing_enabled: SELF_HEALING_ENABLED,
+    knowledge: getKnowledgePacks(),
+  });
 });
 
 function nearestColourName(r, g, b) {
@@ -2364,6 +2404,7 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       CHAT_PROVIDER_RAW,
       SELF_CONTAINED_MODE,
       SELF_LEARNING_ENABLED,
+      SELF_HEALING_ENABLED,
       SUPABASE_JWKS_CONFIGURED: !!SUPABASE_JWKS_URL,
       SUPABASE_JWT_ISSUER_CONFIGURED: !!SUPABASE_JWT_ISSUER,
       SUPABASE_JWT_AUDIENCE_CONFIGURED: !!SUPABASE_JWT_AUDIENCE,
@@ -2381,6 +2422,7 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       chat: true,
       chat_local_ollama_enabled: CHAT_PROVIDER === 'ollama' && OLLAMA_ENABLED,
       chat_heuristic_enabled: CHAT_PROVIDER === 'heuristic',
+      self_healing_bug_assistant: SELF_HEALING_ENABLED,
       tabular_nlp_auth_api_key: !!INFERENCE_API_KEY,
       tabular_nlp_auth_supabase_jwt: !!SUPABASE_JWKS_URL,
       tabular_nlp_auth_service_role: !!SUPABASE_SERVICE_ROLE_KEY,
@@ -2450,7 +2492,7 @@ loadModels().then(() => {
     });
     if (!INFERENCE_API_KEY && !SUPABASE_SERVICE_ROLE_KEY) {
       console.warn('⚠️  No static auth configured (INFERENCE_API_KEY and SUPABASE_SERVICE_ROLE_KEY are both unset).');
-      console.warn('   Authenticated endpoints (/infer/face, /infer/compare, /infer/alpr, /nlp/tabular/analyze, /chat)');
+      console.warn('   Authenticated endpoints (/infer/face, /infer/compare, /infer/alpr, /nlp/tabular/analyze, /chat, /self-heal/bug-report, /self-heal/knowledge)');
       console.warn('   will only accept valid Supabase user JWTs (Bearer token verified against JWKS).');
       console.warn('   Edge functions cannot call these endpoints without a user JWT.');
       console.warn('   Fix: set SUPABASE_SERVICE_ROLE_KEY environment variable to enable service-to-service auth.');
