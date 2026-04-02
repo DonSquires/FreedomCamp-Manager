@@ -50,7 +50,7 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Ensure API test auth is configured
         run: |
@@ -96,7 +96,7 @@ jobs:
           node-version: '20'
 
       - name: Install inference dependencies
-        run: npm ci
+        run: npm install
 
       - name: Verify self-contained mode behavior
         run: npm run test:self-contained
@@ -118,7 +118,7 @@ jobs:
           node-version: '20'
 
       - name: Install mobile dependencies
-        run: npm ci
+        run: npm install
 
       - name: Validate Expo config
         run: npx expo config --type public

@@ -2,10 +2,11 @@ import { existsSync } from 'node:fs'
 import { config as loadEnv } from 'dotenv'
 import { defineConfig, devices } from '@playwright/test'
 
-// Load app env first, then Playwright-specific overrides.
+// Load app env first, then local and Playwright-specific overrides.
+loadEnv({ path: '.env' })
 loadEnv({ path: '.env.local' })
 // Load local Playwright-only secrets from an ignored file, if present.
-loadEnv({ path: '.env.playwright.local' })
+loadEnv({ path: '.env.playwright.local', override: true })
 
 const nativeChromiumExecutablePath = [
   process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
