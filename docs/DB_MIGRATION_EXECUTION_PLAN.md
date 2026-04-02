@@ -151,3 +151,45 @@ See detailed rollback matrix for per-migration reversal SQL and dependencies.
 2. **Backup** (post-success): Tag production backup `post-migration-20260504-20260515`
 3. **Documentation**: Update data dictionary for new tables/fields
 4. **Team Briefing**: Share final success stats and lessons learned
+
+---
+
+## Immediate Addendum (2026-04-02)
+
+### Bob Live Plan Review Automation
+
+Deploy the following migration after confirming CRM core tables exist (`crm_documents`, `client_sites`, `office_locations`):
+
+- `supabase/migrations/20260402000400_bob_live_plans_crm_and_review_triggers.sql`
+
+### What It Adds
+
+- `public.ops_live_plans` (live operational plans assigned to organization/zone/client site/service provider office)
+- `public.ops_live_plan_reviews` (review events auto-raised from incident/H&S/POI/VOI activity)
+- Trigger wiring from:
+	- `public.site_incidents`
+	- `public.site_risk_assessments`
+	- `public.persons_of_interest`
+	- `public.vehicles_of_interest`
+
+### Execution
+
+```bash
+cd /workspaces/FreedomCamp-Manager
+supabase db push --linked --include-all --dry-run
+supabase db push --linked --include-all
+```
+
+### Post-Deploy Validation
+
+```sql
+select count(*) from public.ops_live_plans;
+select count(*) from public.ops_live_plan_reviews;
+
+-- validate trigger registration
+select trigger_name, event_object_table
+from information_schema.triggers
+where trigger_schema = 'public'
+	and trigger_name like 'trg_ops_review_%'
+order by trigger_name;
+```

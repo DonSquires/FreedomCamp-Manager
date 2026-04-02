@@ -303,3 +303,155 @@ Immediate sequence:
 This plan does **not** delete the current live database tables or rip out the existing UI yet.
 
 That work should be done only as part of the phased cutover above.
+
+## 8. Sectioned Rebuild and Crossover Plan (Web + Mobile)
+
+This section is the operational checklist to run the rebuild from start to finish in controlled sections.
+
+### Section A — Baseline and Freeze
+
+Objectives:
+
+- freeze new schema churn except break/fix
+- freeze new route additions outside rebuild scope
+- establish the final keep/merge/remove matrix and owners
+
+Required artifacts:
+
+- page matrix (`src/pages/*` and `src/rebuild/pages/*`) with destination route
+- table matrix (live table -> clean table or archive)
+- edge function matrix (live function -> consolidated function)
+
+Exit criteria:
+
+- matrix approved by product + engineering
+- no new legacy-only routes added to `src/App.tsx`
+
+### Section B — Schema and Type Crossover
+
+Objectives:
+
+- create clean schema baseline and migration chain
+- map old columns to new contracts (`org_id` -> `organization_id`, `user_id` -> `id`, etc.)
+- regenerate `src/types/database.ts` and fix compile drift
+
+Execution:
+
+1. apply clean migrations in staging first
+2. run data backfill scripts for retained entities
+3. regenerate and commit database types
+4. run build and typed query smoke tests
+
+Exit criteria:
+
+- schema migration applies cleanly in staging
+- typed client queries compile for rebuilt pages
+- reconciliation SQL validates expected row counts
+
+### Section C — Frontend Rebuild by Surface
+
+Objectives:
+
+- deliver clean route tree in functional blocks
+- replace duplicated legacy variants with one canonical page per capability
+
+Implementation order:
+
+1. auth and portal routing
+2. officer workflow (`Scan`, `LiveMap`, `Patrols`, `Observations`)
+3. admin workflow (`Breaches`, `Enforcement`, `Vehicles`, `Zones`)
+4. governance workflow (`Disputes`, `Reports`, `Settings`, `UserManagement`, `Profile`)
+
+Exit criteria:
+
+- each block passes role-based route guards and core smoke tests
+- removed routes are archived, not left dangling in navigation
+
+### Section D — Vercel Web Track (Required for Cutover)
+
+Objectives:
+
+- ensure web rebuild is deployable and repeatable on Vercel
+- enforce production headers and cache policy
+
+Required config:
+
+- `vercel.json` present with SPA rewrite and security headers
+- GitHub Actions secrets configured: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`
+- build env configured: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
+
+Validation:
+
+1. preview deploy on PR branch
+2. production deploy on main
+3. route deep-link checks (`/login`, `/platform`, `/live-map`)
+4. security header checks (HSTS, CSP, X-Frame-Options)
+
+Exit criteria:
+
+- successful Vercel preview + production deployment
+- no SPA routing 404s
+- header audit passes
+
+### Section E — Expo Mobile Track (Required for Cutover)
+
+Objectives:
+
+- include mobile field workflow in rebuild delivery, not as a post-cutover afterthought
+- confirm mobile uses same Supabase contracts and role/RLS behavior
+
+Required config:
+
+- `mobile-app/app.json` has valid `extra.eas.projectId` and `updates.url`
+- `mobile-app/eas.json` profiles validated (`development`, `preview`, `production`)
+- environment variables set in EAS for Supabase URL/anon key
+
+Validation:
+
+1. `eas build --platform android --profile preview`
+2. `eas build --platform ios --profile preview`
+3. login, scan flow, breach alert acknowledgment, and enforcement workflow checks
+4. push token registration and notification test
+
+Exit criteria:
+
+- successful preview builds on both platforms
+- parity confirmed for core officer workflows
+- no schema drift between mobile and web query paths
+
+### Section F — Security and Compliance Gate
+
+Objectives:
+
+- enforce transport and application security before production cutover
+- produce evidence pack suitable for council/defense procurement review
+
+Controls checklist:
+
+- TLS 1.2+ enforced at all public endpoints (Vercel + service hosts)
+- HSTS enabled for web and service domains
+- strict CORS allowlists for proxy/inference/PTT services
+- JWT and service-to-service secret controls validated
+- audit logging enabled for sensitive operations
+
+Evidence pack:
+
+- architecture diagram and data-flow map
+- RLS policy inventory and test results
+- incident response + rollback runbook
+- vulnerability scan summary and remediation log
+
+Exit criteria:
+
+- security checklist signed off
+- evidence pack exported for stakeholder review
+
+### Section G — Cutover Runbook
+
+1. deploy schema and edge functions
+2. deploy Vercel web release
+3. publish Expo preview/production builds as planned
+4. execute smoke tests across web + mobile
+5. monitor for 24 hours with rollback readiness
+
+Cutover is complete only when all sections above pass their exit criteria.

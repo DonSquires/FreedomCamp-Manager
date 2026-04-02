@@ -3,20 +3,22 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 
 interface DisputeIntake {
-  dispute_id: string
-  org_id: string
-  observation_id: string | null
-  breach_alert_id: string | null
-  submitter_name: string | null
-  submitter_email: string | null
-  submitter_phone: string | null
-  dispute_reason: string
-  dispute_detail: string | null
+  id: string
+  organization_id: string | null
+  claimant_name: string | null
+  claimant_email: string | null
+  claimant_phone: string | null
+  message: string
+  evidence_statement: string | null
+  hardship_context: string | null
+  plate_number: string | null
+  source_reference: string | null
+  source_type: string
   status: string
   assigned_to: string | null
-  resolution_notes: string | null
+  admin_notes: string | null
   submitted_at: string
-  resolved_at: string | null
+  updated_at: string
 }
 
 const STATUS_OPTIONS = ['open', 'under_review', 'resolved', 'dismissed']
@@ -42,8 +44,8 @@ export default function CleanDisputes() {
   const [newStatus, setNewStatus] = useState('')
   const [saving, setSaving] = useState(false)
 
-  const orgId = user?.user_metadata?.org_id as string | undefined
-  const role = user?.user_metadata?.role as string | undefined
+  const orgId = user?.organization_id ?? undefined
+  const role = user?.role ?? undefined
   const canResolve = role === 'admin' || role === 'master' || role === 'grand_master'
 
   async function fetchDisputes() {
@@ -54,12 +56,12 @@ export default function CleanDisputes() {
       let query = supabase
         .from('dispute_intake')
         .select('*')
-        .eq('org_id', orgId)
+        .eq('organization_id', orgId)
         .order('submitted_at', { ascending: false })
       if (statusFilter) query = query.eq('status', statusFilter)
       const { data, error: err } = await query
       if (err) throw err
-      setDisputes(data as DisputeIntake[])
+      setDisputes((data ?? []) as DisputeIntake[])
     } catch (e: any) {
       setError(e.message ?? 'Failed to load disputes')
     } finally {
@@ -71,7 +73,7 @@ export default function CleanDisputes() {
 
   function openDispute(d: DisputeIntake) {
     setSelected(d)
-    setResolutionNotes(d.resolution_notes ?? '')
+    setResolutionNotes(d.admin_notes ?? '')
     setNewStatus(d.status)
   }
 
@@ -80,15 +82,12 @@ export default function CleanDisputes() {
     setSaving(true)
     const update: Partial<DisputeIntake> = {
       status: newStatus,
-      resolution_notes: resolutionNotes || null,
-    }
-    if (newStatus === 'resolved' || newStatus === 'dismissed') {
-      update.resolved_at = new Date().toISOString()
+      admin_notes: resolutionNotes || null,
     }
     const { error: err } = await supabase
       .from('dispute_intake')
       .update(update)
-      .eq('dispute_id', selected.dispute_id)
+      .eq('id', selected.id)
     setSaving(false)
     if (err) { alert(err.message); return }
     setSelected(null)
@@ -133,7 +132,7 @@ export default function CleanDisputes() {
         <div className="space-y-3">
           {disputes.map(d => (
             <div
-              key={d.dispute_id}
+              key={d.id}
               className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-sm transition-shadow cursor-pointer"
               onClick={() => openDispute(d)}
             >
@@ -145,12 +144,12 @@ export default function CleanDisputes() {
                     </span>
                     <span className="text-xs text-gray-400">{new Date(d.submitted_at).toLocaleDateString('en-NZ')}</span>
                   </div>
-                  <p className="font-medium text-gray-900 truncate">{d.dispute_reason}</p>
-                  {d.dispute_detail && <p className="text-sm text-gray-500 mt-1 line-clamp-2">{d.dispute_detail}</p>}
+                  <p className="font-medium text-gray-900 truncate">{d.message}</p>
+                  {d.evidence_statement && <p className="text-sm text-gray-500 mt-1 line-clamp-2">{d.evidence_statement}</p>}
                 </div>
                 <div className="text-right text-xs text-gray-400 flex-shrink-0">
-                  {d.submitter_name && <p className="font-medium text-gray-700">{d.submitter_name}</p>}
-                  {d.submitter_email && <p>{d.submitter_email}</p>}
+                  {d.claimant_name && <p className="font-medium text-gray-700">{d.claimant_name}</p>}
+                  {d.claimant_email && <p>{d.claimant_email}</p>}
                 </div>
               </div>
             </div>
@@ -165,11 +164,12 @@ export default function CleanDisputes() {
             <h2 className="text-lg font-semibold text-gray-900">Dispute Detail</h2>
 
             <div className="space-y-2 text-sm">
-              <div><span className="text-gray-500">Reason:</span> <span className="text-gray-900 font-medium">{selected.dispute_reason}</span></div>
-              {selected.dispute_detail && <div><span className="text-gray-500">Detail:</span> <p className="text-gray-700 mt-1">{selected.dispute_detail}</p></div>}
-              {selected.submitter_name && <div><span className="text-gray-500">Submitted by:</span> <span className="text-gray-700">{selected.submitter_name}</span></div>}
-              {selected.submitter_email && <div><span className="text-gray-500">Email:</span> <span className="text-gray-700">{selected.submitter_email}</span></div>}
-              {selected.submitter_phone && <div><span className="text-gray-500">Phone:</span> <span className="text-gray-700">{selected.submitter_phone}</span></div>}
+              <div><span className="text-gray-500">Message:</span> <span className="text-gray-900 font-medium">{selected.message}</span></div>
+              {selected.evidence_statement && <div><span className="text-gray-500">Evidence statement:</span> <p className="text-gray-700 mt-1">{selected.evidence_statement}</p></div>}
+              {selected.hardship_context && <div><span className="text-gray-500">Hardship context:</span> <p className="text-gray-700 mt-1">{selected.hardship_context}</p></div>}
+              {selected.claimant_name && <div><span className="text-gray-500">Submitted by:</span> <span className="text-gray-700">{selected.claimant_name}</span></div>}
+              {selected.claimant_email && <div><span className="text-gray-500">Email:</span> <span className="text-gray-700">{selected.claimant_email}</span></div>}
+              {selected.claimant_phone && <div><span className="text-gray-500">Phone:</span> <span className="text-gray-700">{selected.claimant_phone}</span></div>}
               <div><span className="text-gray-500">Submitted:</span> <span className="text-gray-700">{new Date(selected.submitted_at).toLocaleString('en-NZ')}</span></div>
             </div>
 

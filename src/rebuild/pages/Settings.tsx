@@ -37,13 +37,21 @@ export default function CleanSettings() {
       setLoading(true)
       const [orgRes, retRes] = await Promise.all([
         supabase.from('organizations').select('*').eq('id', orgId).single(),
-        supabase.from('retention_policies').select('*').eq('organization_id', orgId),
+        (supabase as any).from('retention_policies').select('*').eq('organization_id', orgId),
       ])
       if (orgRes.data) {
         setOrg(orgRes.data as OrgSettings)
         setForm(orgRes.data as OrgSettings)
       }
-      if (retRes.data) setRetention(retRes.data as RetentionPolicy[])
+      if (retRes.data) {
+        const rows = (retRes.data as any[]).map((row) => ({
+          policy_id: row.policy_id ?? row.id,
+          table_name: row.table_name ?? row.target_table ?? 'unknown',
+          retention_days: row.retention_days ?? row.retention_period_days ?? 0,
+          delete_action: row.delete_action ?? row.action_on_expiry ?? 'delete',
+        }))
+        setRetention(rows as RetentionPolicy[])
+      }
       setLoading(false)
     }
     load()

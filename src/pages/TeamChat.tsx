@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { RealtimeChannel } from '@supabase/supabase-js'
+import { useNavigate } from 'react-router-dom'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { PTTBar } from '@/components/features/PTTBar'
@@ -23,6 +24,7 @@ import {
   MessageSquare,
   Navigation,
   Shield,
+  Upload,
   Users,
 } from 'lucide-react'
 import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
@@ -310,6 +312,7 @@ function OfficerContextPanel({ userId, title = 'Officer context', organizationId
 
 export default function TeamChat() {
   const { user } = useAuthStore()
+  const navigate = useNavigate()
   const { organizationId } = useGlobalFiltersStore()
   const { target, setTarget } = useChatTargetStore()
   const [message, setMessage] = useState('')
@@ -337,6 +340,112 @@ export default function TeamChat() {
     },
     enabled: !!effectiveOrgId,
   })
+
+  const safetyScopedOrgIds = useMemo(() => {
+    if (!user) return [] as string[]
+    const ids = [user.organization_id, ...(user.extra_organization_ids || []), ...(user.authorized_work_locations || [])]
+    return Array.from(new Set(ids.filter(Boolean) as string[]))
+  }, [user])
+
+  const { data: systemMessages = [] } = useQuery<ChatMessage[]>({
+    queryKey: ['team-chat-system-messages', user?.id, user?.role, safetyScopedOrgIds],
+    enabled: !!user,
+    staleTime: 20_000,
+    refetchInterval: 45_000,
+    queryFn: async () => {
+      if (!user) return []
+
+      const now = new Date().toISOString()
+      const [alertsRes, acksRes] = await Promise.all([
+        ((supabase as any).from('public_safety_alerts') as any)
+          .select('id, title, message, scope, severity, target_organization_ids, created_at')
+          .eq('status', 'active')
+          .lte('starts_at', now)
+          .or(`expires_at.is.null,expires_at.gte.${now}`),
+        ((supabase as any).from('public_safety_alert_acknowledgements') as any)
+          .select('alert_id')
+          .eq('user_id', user.id),
+      ])
+
+      if (alertsRes.error) throw alertsRes.error
+      if (acksRes.error) throw acksRes.error
+
+      const acked = new Set(((acksRes.data || []) as any[]).map((row) => row.alert_id))
+      const alertMessages: ChatMessage[] = ((alertsRes.data || []) as any[])
+        .filter((row) => {
+          if (acked.has(row.id)) return false
+          if (row.scope === 'national') return true
+          const targets = Array.isArray(row.target_organization_ids) ? row.target_organization_ids : []
+          return targets.some((id: string) => safetyScopedOrgIds.includes(id))
+        })
+        .map((row) => ({
+          id: `system-alert-${row.id}`,
+          body: `[${String(row.severity || '').toUpperCase()}] ${row.title}\n${row.message}\nAcknowledge this alert from the banner above to clear it.`,
+          senderId: 'system',
+          senderName: 'System Safety Feed',
+          senderRole: 'system',
+          recipientId: null,
+          recipientRole: 'admin',
+          orgId: effectiveOrgId,
+          createdAt: row.created_at || now,
+        }))
+
+      const isApprover = user.role === 'master' || user.role === 'grand_master'
+      if (!isApprover) {
+        return alertMessages.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      }
+
+      const [pendingBulletinsRes, pendingAlertsRes] = await Promise.all([
+        ((supabase as any).from('external_intel_bulletins') as any)
+          .select('id, title, created_at')
+          .eq('approval_status', 'pending')
+          .order('created_at', { ascending: false })
+          .limit(5),
+        ((supabase as any).from('public_safety_alerts') as any)
+          .select('id, title, severity, created_at')
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false })
+          .limit(5),
+      ])
+
+      if (pendingBulletinsRes.error) throw pendingBulletinsRes.error
+      if (pendingAlertsRes.error) throw pendingAlertsRes.error
+
+      const approvalMessages: ChatMessage[] = [
+        ...((pendingBulletinsRes.data || []) as any[]).map((row) => ({
+          id: `system-pending-bulletin-${row.id}`,
+          body: `Approval needed: external intelligence bulletin \"${row.title}\" is pending review in Intel Approvals.`,
+          senderId: 'system',
+          senderName: 'System Approval Queue',
+          senderRole: 'system',
+          recipientId: null,
+          recipientRole: 'admin' as const,
+          orgId: effectiveOrgId,
+          createdAt: row.created_at || now,
+        })),
+        ...((pendingAlertsRes.data || []) as any[]).map((row) => ({
+          id: `system-pending-alert-${row.id}`,
+          body: `Approval needed: ${String(row.severity || '').toUpperCase()} safety alert \"${row.title}\" is pending activation.`,
+          senderId: 'system',
+          senderName: 'System Approval Queue',
+          senderRole: 'system',
+          recipientId: null,
+          recipientRole: 'admin' as const,
+          orgId: effectiveOrgId,
+          createdAt: row.created_at || now,
+        })),
+      ]
+
+      return [...alertMessages, ...approvalMessages].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    },
+  })
+
+  const combinedMessages = useMemo(() => {
+    const merged = [...messages, ...systemMessages]
+    const byId = new Map<string, ChatMessage>()
+    for (const msg of merged) byId.set(msg.id, msg)
+    return Array.from(byId.values()).sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  }, [messages, systemMessages])
 
   // Keep persisted target in sync with available members (for push-to-talk + chat)
   useEffect(() => {
@@ -399,7 +508,8 @@ export default function TeamChat() {
 
   const filteredMessages = useMemo(() => {
     if (target.type === 'admin') {
-      return messages.filter((m) => {
+      return combinedMessages.filter((m) => {
+        if (m.senderRole === 'system') return true
         if (m.recipientRole === 'admin') {
           // Show all admin-directed messages, plus admin replies to specific users
           if (user?.role === 'admin' || user?.role === 'admin_officer' || user?.role === 'master') return true
@@ -411,13 +521,13 @@ export default function TeamChat() {
 
     // Direct chat
     const otherId = target.user.id
-    return messages.filter(
+    return combinedMessages.filter(
       (m) =>
         m.recipientRole === 'direct' &&
         ((m.senderId === user?.id && m.recipientId === otherId) ||
           (m.senderId === otherId && m.recipientId === user?.id)),
     )
-  }, [messages, target, user?.id, user?.role])
+  }, [combinedMessages, target, user?.id, user?.role])
 
   const sendMessage = async () => {
     if (!message.trim() || !user) return
@@ -528,11 +638,12 @@ export default function TeamChat() {
 
               {filteredMessages.map((msg) => {
                 const isMine = msg.senderId === user?.id
+                const isSystem = msg.senderRole === 'system'
                 return (
                   <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
                     <div
                       className={`max-w-xl rounded-lg px-3 py-2 shadow-sm border ${
-                        isMine ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                        isSystem ? 'bg-amber-50 border-amber-200 text-amber-950' : isMine ? 'bg-primary text-primary-foreground' : 'bg-muted'
                       }`}
                     >
                       <div className="flex items-center gap-2 text-xs opacity-80 mb-1">
@@ -561,6 +672,42 @@ export default function TeamChat() {
           <PTTBar className="mx-4 my-2" />
 
           <div className="p-4 space-y-2">
+            <div className="rounded-md border bg-muted/40 p-3">
+              <div className="text-xs font-medium text-muted-foreground mb-2">AI document helper</div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setTarget({ type: 'admin' })
+                    setMessage('Please help me upload a document. Tell me the accepted formats and where this file should go.')
+                  }}
+                >
+                  <Upload className="h-3.5 w-3.5 mr-1" />
+                  Ask upload guidance
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate('/import-data')}
+                >
+                  Open Import Data
+                </Button>
+                {(user?.role === 'master' || user?.role === 'grand_master') && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate('/intel-approvals')}
+                  >
+                    Open Intel Approvals
+                  </Button>
+                )}
+              </div>
+            </div>
+
             <Textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}

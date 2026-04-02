@@ -3,14 +3,15 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 
 interface UserProfile {
-  user_id: string
-  full_name: string | null
+  id: string
+  first_name: string | null
+  last_name: string | null
   email: string | null
   role: string
   badge_number: string | null
   phone: string | null
-  avatar_url: string | null
-  org_id: string
+  profile_photo_url: string | null
+  organization_id: string | null
 }
 
 export default function CleanProfile() {
@@ -38,11 +39,23 @@ export default function CleanProfile() {
       const { data } = await supabase
         .from('user_profiles')
         .select('*')
-        .eq('user_id', userId)
+        .eq('id', userId)
         .single()
       if (data) {
-        setProfile(data as UserProfile)
-        setForm(data as UserProfile)
+        const row = data as any
+        const profileData: UserProfile = {
+          id: row.id,
+          first_name: row.first_name ?? null,
+          last_name: row.last_name ?? null,
+          email: row.email ?? null,
+          role: row.role ?? 'officer',
+          badge_number: row.badge_number ?? null,
+          phone: row.phone ?? null,
+          profile_photo_url: row.profile_photo_url ?? null,
+          organization_id: row.organization_id ?? null,
+        }
+        setProfile(profileData)
+        setForm(profileData)
       }
       setLoading(false)
     }
@@ -57,11 +70,12 @@ export default function CleanProfile() {
     const { error: err } = await supabase
       .from('user_profiles')
       .update({
-        full_name: form.full_name || null,
+        first_name: (form.first_name ?? '').trim() || null,
+        last_name: (form.last_name ?? '').trim() || null,
         phone: form.phone || null,
         badge_number: form.badge_number || null,
       })
-      .eq('user_id', profile.user_id)
+      .eq('id', profile.id)
     setSaving(false)
     if (err) { setError(err.message); return }
     setSaved(true)
@@ -93,10 +107,10 @@ export default function CleanProfile() {
       {/* Avatar + role */}
       <div className="flex items-center gap-4">
         <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-2xl text-blue-600 font-bold">
-          {(profile?.full_name ?? profile?.email ?? '?').charAt(0).toUpperCase()}
+          {(`${profile?.first_name ?? ''} ${profile?.last_name ?? ''}`.trim() || profile?.email || '?').charAt(0).toUpperCase()}
         </div>
         <div>
-          <p className="font-semibold text-gray-900">{profile?.full_name ?? profile?.email ?? '—'}</p>
+          <p className="font-semibold text-gray-900">{(`${profile?.first_name ?? ''} ${profile?.last_name ?? ''}`.trim() || profile?.email || '—')}</p>
           <p className="text-sm text-gray-500 capitalize">{profile?.role ?? '—'}</p>
         </div>
       </div>
@@ -105,11 +119,20 @@ export default function CleanProfile() {
       <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
         <h2 className="text-base font-semibold text-gray-800">Personal details</h2>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Full name</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">First name</label>
           <input
             type="text"
-            value={form.full_name ?? ''}
-            onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))}
+            value={form.first_name ?? ''}
+            onChange={e => setForm(f => ({ ...f, first_name: e.target.value }))}
+            className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Last name</label>
+          <input
+            type="text"
+            value={form.last_name ?? ''}
+            onChange={e => setForm(f => ({ ...f, last_name: e.target.value }))}
             className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>

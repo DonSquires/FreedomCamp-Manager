@@ -3,9 +3,9 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 
 interface Patrol {
-  patrol_id: string
-  org_id: string
-  officer_id: string
+  id: string
+  organization_id: string
+  assigned_to: string | null
   zone_id: string | null
   status: string
   started_at: string | null
@@ -16,17 +16,14 @@ interface Patrol {
 }
 
 interface PatrolScheduleZone {
-  schedule_id: string
-  org_id: string
+  id: string
   zone_id: string
-  day_of_week: number
-  start_time: string
-  end_time: string
-  officer_count_required: number
+  patrol_id: string
+  visit_order: number
+  estimated_duration_minutes: number | null
+  completed_at: string | null
   zone_name?: string | null
 }
-
-const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 export default function CleanPatrols() {
   const { user } = useAuthStore()
@@ -36,8 +33,8 @@ export default function CleanPatrols() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const orgId = user?.user_metadata?.org_id as string | undefined
-  const role = user?.user_metadata?.role as string | undefined
+  const orgId = user?.organization_id ?? undefined
+  const role = user?.role ?? undefined
   const canEdit = role === 'admin' || role === 'master' || role === 'grand_master'
 
   async function fetchPatrols() {
@@ -48,14 +45,14 @@ export default function CleanPatrols() {
       const statusFilter = tab === 'active' ? 'active' : undefined
       let query = supabase
         .from('patrols')
-        .select('*, zones(zone_name)')
-        .eq('org_id', orgId)
+        .select('*, zones(name)')
+        .eq('organization_id', orgId)
         .order('created_at', { ascending: false })
         .limit(200)
       if (statusFilter) query = query.eq('status', statusFilter)
       const { data, error: err } = await query
       if (err) throw err
-      setPatrols(((data ?? []) as any[]).map(p => ({ ...p, zone_name: p.zones?.zone_name ?? null })))
+      setPatrols(((data ?? []) as any[]).map(p => ({ ...p, zone_name: p.zones?.name ?? null })))
     } catch (e: any) {
       setError(e.message ?? 'Failed to load patrols')
     } finally {
@@ -70,11 +67,11 @@ export default function CleanPatrols() {
     try {
       const { data, error: err } = await supabase
         .from('patrol_schedule_zones')
-        .select('*, zones(zone_name)')
-        .eq('org_id', orgId)
-        .order('day_of_week', { ascending: true })
+        .select('id, patrol_id, zone_id, visit_order, estimated_duration_minutes, completed_at, patrols!inner(organization_id), zones(name)')
+        .eq('patrols.organization_id', orgId)
+        .order('visit_order', { ascending: true })
       if (err) throw err
-      setSchedules(((data ?? []) as any[]).map(s => ({ ...s, zone_name: s.zones?.zone_name ?? null })))
+      setSchedules(((data ?? []) as any[]).map(s => ({ ...s, zone_name: s.zones?.name ?? null })))
     } catch (e: any) {
       setError(e.message ?? 'Failed to load schedules')
     } finally {
@@ -95,7 +92,7 @@ export default function CleanPatrols() {
     const { error: err } = await supabase
       .from('patrols')
       .update({ status: 'completed', ended_at: new Date().toISOString() })
-      .eq('patrol_id', patrolId)
+      .eq('id', patrolId)
     if (err) { alert(err.message); return }
     fetchPatrols()
   }
@@ -154,11 +151,11 @@ export default function CleanPatrols() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {schedules.map(s => (
-                    <tr key={s.schedule_id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-900">{DAY_NAMES[s.day_of_week]}</td>
+                    <tr key={s.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 font-medium text-gray-900">Visit #{s.visit_order}</td>
                       <td className="px-4 py-3 text-gray-700">{s.zone_name ?? s.zone_id}</td>
-                      <td className="px-4 py-3 text-gray-600">{s.start_time} – {s.end_time}</td>
-                      <td className="px-4 py-3 text-gray-600">{s.officer_count_required}</td>
+                      <td className="px-4 py-3 text-gray-600">{s.estimated_duration_minutes ? `${s.estimated_duration_minutes} mins` : '—'}</td>
+                      <td className="px-4 py-3 text-gray-600">{s.completed_at ? 'Completed' : 'Pending'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -184,7 +181,7 @@ export default function CleanPatrols() {
               {patrols.length === 0 ? (
                 <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">No patrols found</td></tr>
               ) : patrols.map(p => (
-                <tr key={p.patrol_id} className="hover:bg-gray-50">
+                <tr key={p.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-900">{p.zone_name ?? '—'}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusBadge(p.status)}`}>{p.status}</span>
@@ -195,7 +192,7 @@ export default function CleanPatrols() {
                   {canEdit && tab === 'active' && (
                     <td className="px-4 py-3">
                       <button
-                        onClick={() => endPatrol(p.patrol_id)}
+                        onClick={() => endPatrol(p.id)}
                         className="text-xs text-red-600 hover:underline"
                       >
                         End patrol

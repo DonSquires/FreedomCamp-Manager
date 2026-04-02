@@ -3,8 +3,8 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 
 interface PatrolLocation {
-  patrol_id: string
-  officer_id: string
+  id: string
+  assigned_to: string | null
   zone_id: string | null
   zone_name: string | null
   officer_name: string | null
@@ -18,10 +18,10 @@ interface RecentObservation {
   observation_id: string
   plate_number: string | null
   zone_name: string | null
-  compliance_status: string | null
-  observed_at: string
-  latitude: number | null
-  longitude: number | null
+  is_breach: boolean | null
+  recorded_at: string
+  gps_latitude: number | null
+  gps_longitude: number | null
 }
 
 export default function CleanLiveMap() {
@@ -36,7 +36,7 @@ export default function CleanLiveMap() {
   const [error, setError] = useState<string | null>(null)
   const [leafletLoaded, setLeafletLoaded] = useState(false)
 
-  const orgId = user?.user_metadata?.org_id as string | undefined
+  const orgId = user?.organization_id ?? undefined
 
   // Dynamically load Leaflet
   useEffect(() => {
@@ -71,24 +71,24 @@ export default function CleanLiveMap() {
       const [patrolRes, obsRes] = await Promise.all([
         supabase
           .from('patrols')
-          .select('patrol_id, officer_id, zone_id, status, zones(zone_name)')
-          .eq('org_id', orgId)
+          .select('id, assigned_to, zone_id, status, zones(name)')
+          .eq('organization_id', orgId)
           .eq('status', 'active'),
         supabase
           .from('observations')
-          .select('observation_id, plate_number, zone_id, compliance_status, observed_at, latitude, longitude, zones(zone_name)')
-          .eq('org_id', orgId)
-          .order('observed_at', { ascending: false })
+          .select('observation_id, plate_number, zone_id, is_breach, recorded_at, gps_latitude, gps_longitude, zones(name)')
+          .eq('organization_id', orgId)
+          .order('recorded_at', { ascending: false })
           .limit(100),
       ])
       if (patrolRes.error) throw patrolRes.error
       if (obsRes.error) throw obsRes.error
 
       const patrolData = ((patrolRes.data ?? []) as any[]).map(p => ({
-        patrol_id: p.patrol_id,
-        officer_id: p.officer_id,
+        id: p.id,
+        assigned_to: p.assigned_to,
         zone_id: p.zone_id,
-        zone_name: p.zones?.zone_name ?? null,
+        zone_name: p.zones?.name ?? null,
         officer_name: null,
         status: p.status,
         latitude: null,
@@ -100,11 +100,11 @@ export default function CleanLiveMap() {
       const obsData = ((obsRes.data ?? []) as any[]).map(o => ({
         observation_id: o.observation_id,
         plate_number: o.plate_number,
-        zone_name: o.zones?.zone_name ?? null,
-        compliance_status: o.compliance_status,
-        observed_at: o.observed_at,
-        latitude: o.latitude,
-        longitude: o.longitude,
+        zone_name: o.zones?.name ?? null,
+        is_breach: o.is_breach,
+        recorded_at: o.recorded_at,
+        gps_latitude: o.gps_latitude,
+        gps_longitude: o.gps_longitude,
       }))
       setRecentObs(obsData)
     } catch (e: any) {
@@ -130,24 +130,22 @@ export default function CleanLiveMap() {
     markersRef.current = []
 
     recentObs.forEach(obs => {
-      if (!obs.latitude || !obs.longitude) return
-      const colour = obs.compliance_status === 'breach' ? '#ef4444'
-        : obs.compliance_status === 'compliant' ? '#22c55e'
-        : '#f59e0b'
+      if (!obs.gps_latitude || !obs.gps_longitude) return
+      const colour = obs.is_breach ? '#ef4444' : '#22c55e'
       const icon = L.divIcon({
         className: '',
         html: `<div style="width:10px;height:10px;border-radius:50%;background:${colour};border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,.4)"></div>`,
         iconSize: [10, 10],
       })
-      const marker = L.marker([obs.latitude, obs.longitude], { icon })
+      const marker = L.marker([obs.gps_latitude, obs.gps_longitude], { icon })
         .addTo(mapRef.current)
-        .bindPopup(`<b>${obs.plate_number ?? 'Unknown'}</b><br>${obs.zone_name ?? ''}<br>${obs.compliance_status ?? 'unknown'}<br><small>${new Date(obs.observed_at).toLocaleString('en-NZ')}</small>`)
+        .bindPopup(`<b>${obs.plate_number ?? 'Unknown'}</b><br>${obs.zone_name ?? ''}<br>${obs.is_breach ? 'breach' : 'compliant'}<br><small>${new Date(obs.recorded_at).toLocaleString('en-NZ')}</small>`)
       markersRef.current.push(marker)
     })
   }, [recentObs, leafletLoaded])
 
-  const breachCount = recentObs.filter(o => o.compliance_status === 'breach').length
-  const compliantCount = recentObs.filter(o => o.compliance_status === 'compliant').length
+  const breachCount = recentObs.filter(o => !!o.is_breach).length
+  const compliantCount = recentObs.filter(o => !o.is_breach).length
 
   return (
     <div className="flex flex-col h-screen bg-gray-100">
@@ -180,7 +178,7 @@ export default function CleanLiveMap() {
             ) : (
               <ul className="space-y-2">
                 {patrols.map(p => (
-                  <li key={p.patrol_id} className="flex items-center gap-2 text-xs">
+                  <li key={p.id} className="flex items-center gap-2 text-xs">
                     <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></span>
                     <span className="text-gray-700">{p.zone_name ?? 'Unknown zone'}</span>
                   </li>
@@ -198,12 +196,10 @@ export default function CleanLiveMap() {
                   <div className="flex items-center justify-between">
                     <span className="font-mono font-semibold text-gray-800">{obs.plate_number ?? '—'}</span>
                     <span className={`px-1.5 py-0.5 rounded-full text-xs ${
-                      obs.compliance_status === 'breach' ? 'bg-red-100 text-red-700'
-                        : obs.compliance_status === 'compliant' ? 'bg-green-100 text-green-700'
-                        : 'bg-yellow-100 text-yellow-700'
-                    }`}>{obs.compliance_status ?? 'unknown'}</span>
+                      obs.is_breach ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                    }`}>{obs.is_breach ? 'breach' : 'compliant'}</span>
                   </div>
-                  <div className="text-gray-400 mt-0.5">{obs.zone_name ?? '—'} · {new Date(obs.observed_at).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' })}</div>
+                  <div className="text-gray-400 mt-0.5">{obs.zone_name ?? '—'} · {new Date(obs.recorded_at).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' })}</div>
                 </li>
               ))}
             </ul>
