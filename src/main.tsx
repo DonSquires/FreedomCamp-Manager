@@ -1,6 +1,8 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
+import CleanAppScaffold from './rebuild/CleanAppScaffold.tsx'
+import { RebuildSurfaceSwitcher } from './rebuild/RebuildSurfaceSwitcher.tsx'
 import './index.css'
 import 'leaflet/dist/leaflet.css'
 import { supabaseConfigured } from './lib/supabase.ts'
@@ -18,6 +20,15 @@ if (supabaseUrl) {
 }
 
 const root = document.getElementById('root')!
+const enableCleanRebuildRoutes = import.meta.env.VITE_ENABLE_CLEAN_REBUILD_ROUTES === 'true'
+const _qp = new URLSearchParams(window.location.search)
+const cleanFromQuery = _qp.get('clean_rebuild') === '1'
+const clearFromQuery = _qp.get('clean_rebuild') === '0'
+// Persist/clear the tester toggle via localStorage so it survives page reloads.
+if (clearFromQuery) localStorage.removeItem('clean_rebuild_surface')
+else if (cleanFromQuery) localStorage.setItem('clean_rebuild_surface', 'true')
+const cleanFromStorage = localStorage.getItem('clean_rebuild_surface') === 'true'
+const useCleanSurface = enableCleanRebuildRoutes || cleanFromQuery || cleanFromStorage
 
 if (supabaseConfigured && typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   registerServiceWorker().catch(() => {
@@ -58,7 +69,8 @@ if (!supabaseConfigured) {
 } else {
   createRoot(root).render(
     <StrictMode>
-      <App />
+      {useCleanSurface ? <CleanAppScaffold /> : <App />}
+      <RebuildSurfaceSwitcher />
     </StrictMode>
   )
 }

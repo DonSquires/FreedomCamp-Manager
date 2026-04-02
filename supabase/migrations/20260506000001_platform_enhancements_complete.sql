@@ -184,17 +184,17 @@ LANGUAGE plpgsql
 AS $$
 DECLARE
   working_days INTEGER := 0;
-  current_date DATE := received::DATE;
+  v_current_date DATE := received::DATE;
 BEGIN
   WHILE working_days < 20 LOOP
-    current_date := current_date + INTERVAL '1 day';
+    v_current_date := v_current_date + 1;
     -- Skip weekends (0 = Sunday, 6 = Saturday in PostgreSQL)
-    IF EXTRACT(DOW FROM current_date) NOT IN (0, 6) THEN
+    IF EXTRACT(DOW FROM v_current_date) NOT IN (0, 6) THEN
       -- TODO: Could add NZ public holiday check here
       working_days := working_days + 1;
     END IF;
   END LOOP;
-  RETURN current_date;
+  RETURN v_current_date;
 END;
 $$;
 
@@ -209,6 +209,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS tr_dsar_due_date ON data_subject_requests;
 CREATE TRIGGER tr_dsar_due_date
   BEFORE INSERT ON data_subject_requests
   FOR EACH ROW
@@ -1342,119 +1343,146 @@ ALTER TABLE api_rate_limit_hits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE data_exports ENABLE ROW LEVEL SECURITY;
 
 -- Grand master has full access
+DROP POLICY IF EXISTS "privacy_consents_grand_master" ON privacy_consents;
 CREATE POLICY "privacy_consents_grand_master" ON privacy_consents FOR ALL TO authenticated
   USING ((auth.jwt() ->> 'role')::TEXT = 'grand_master')
   WITH CHECK ((auth.jwt() ->> 'role')::TEXT = 'grand_master');
 
+DROP POLICY IF EXISTS "dsar_grand_master" ON data_subject_requests;
 CREATE POLICY "dsar_grand_master" ON data_subject_requests FOR ALL TO authenticated
   USING ((auth.jwt() ->> 'role')::TEXT = 'grand_master')
   WITH CHECK ((auth.jwt() ->> 'role')::TEXT = 'grand_master');
 
+DROP POLICY IF EXISTS "compliance_alerts_grand_master" ON officer_compliance_alerts;
 CREATE POLICY "compliance_alerts_grand_master" ON officer_compliance_alerts FOR ALL TO authenticated
   USING ((auth.jwt() ->> 'role')::TEXT = 'grand_master')
   WITH CHECK ((auth.jwt() ->> 'role')::TEXT = 'grand_master');
 
+DROP POLICY IF EXISTS "training_records_grand_master" ON officer_training_records;
 CREATE POLICY "training_records_grand_master" ON officer_training_records FOR ALL TO authenticated
   USING ((auth.jwt() ->> 'role')::TEXT = 'grand_master')
   WITH CHECK ((auth.jwt() ->> 'role')::TEXT = 'grand_master');
 
+DROP POLICY IF EXISTS "workflows_grand_master" ON crm_workflows;
 CREATE POLICY "workflows_grand_master" ON crm_workflows FOR ALL TO authenticated
   USING ((auth.jwt() ->> 'role')::TEXT = 'grand_master')
   WITH CHECK ((auth.jwt() ->> 'role')::TEXT = 'grand_master');
 
+DROP POLICY IF EXISTS "workflow_exec_grand_master" ON crm_workflow_executions;
 CREATE POLICY "workflow_exec_grand_master" ON crm_workflow_executions FOR ALL TO authenticated
   USING ((auth.jwt() ->> 'role')::TEXT = 'grand_master')
   WITH CHECK ((auth.jwt() ->> 'role')::TEXT = 'grand_master');
 
+DROP POLICY IF EXISTS "workflow_triggers_grand_master" ON crm_workflow_triggers;
 CREATE POLICY "workflow_triggers_grand_master" ON crm_workflow_triggers FOR ALL TO authenticated
   USING ((auth.jwt() ->> 'role')::TEXT = 'grand_master')
   WITH CHECK ((auth.jwt() ->> 'role')::TEXT = 'grand_master');
 
+DROP POLICY IF EXISTS "email_templates_grand_master" ON crm_email_templates;
 CREATE POLICY "email_templates_grand_master" ON crm_email_templates FOR ALL TO authenticated
   USING ((auth.jwt() ->> 'role')::TEXT = 'grand_master')
   WITH CHECK ((auth.jwt() ->> 'role')::TEXT = 'grand_master');
 
+DROP POLICY IF EXISTS "communications_grand_master" ON crm_communications;
 CREATE POLICY "communications_grand_master" ON crm_communications FOR ALL TO authenticated
   USING ((auth.jwt() ->> 'role')::TEXT = 'grand_master')
   WITH CHECK ((auth.jwt() ->> 'role')::TEXT = 'grand_master');
 
+DROP POLICY IF EXISTS "custom_fields_grand_master" ON crm_custom_field_definitions;
 CREATE POLICY "custom_fields_grand_master" ON crm_custom_field_definitions FOR ALL TO authenticated
   USING ((auth.jwt() ->> 'role')::TEXT = 'grand_master')
   WITH CHECK ((auth.jwt() ->> 'role')::TEXT = 'grand_master');
 
+DROP POLICY IF EXISTS "custom_values_grand_master" ON crm_custom_field_values;
 CREATE POLICY "custom_values_grand_master" ON crm_custom_field_values FOR ALL TO authenticated
   USING ((auth.jwt() ->> 'role')::TEXT = 'grand_master')
   WITH CHECK ((auth.jwt() ->> 'role')::TEXT = 'grand_master');
 
+DROP POLICY IF EXISTS "sla_rules_grand_master" ON crm_sla_rules;
 CREATE POLICY "sla_rules_grand_master" ON crm_sla_rules FOR ALL TO authenticated
   USING ((auth.jwt() ->> 'role')::TEXT = 'grand_master')
   WITH CHECK ((auth.jwt() ->> 'role')::TEXT = 'grand_master');
 
+DROP POLICY IF EXISTS "sla_events_grand_master" ON crm_sla_events;
 CREATE POLICY "sla_events_grand_master" ON crm_sla_events FOR ALL TO authenticated
   USING ((auth.jwt() ->> 'role')::TEXT = 'grand_master')
   WITH CHECK ((auth.jwt() ->> 'role')::TEXT = 'grand_master');
 
+DROP POLICY IF EXISTS "webhooks_grand_master" ON api_webhooks;
 CREATE POLICY "webhooks_grand_master" ON api_webhooks FOR ALL TO authenticated
   USING ((auth.jwt() ->> 'role')::TEXT = 'grand_master')
   WITH CHECK ((auth.jwt() ->> 'role')::TEXT = 'grand_master');
 
+DROP POLICY IF EXISTS "webhook_deliveries_grand_master" ON api_webhook_deliveries;
 CREATE POLICY "webhook_deliveries_grand_master" ON api_webhook_deliveries FOR ALL TO authenticated
   USING ((auth.jwt() ->> 'role')::TEXT = 'grand_master')
   WITH CHECK ((auth.jwt() ->> 'role')::TEXT = 'grand_master');
 
+DROP POLICY IF EXISTS "rate_limits_grand_master" ON api_rate_limits;
 CREATE POLICY "rate_limits_grand_master" ON api_rate_limits FOR ALL TO authenticated
   USING ((auth.jwt() ->> 'role')::TEXT = 'grand_master')
   WITH CHECK ((auth.jwt() ->> 'role')::TEXT = 'grand_master');
 
+DROP POLICY IF EXISTS "rate_limit_hits_grand_master" ON api_rate_limit_hits;
 CREATE POLICY "rate_limit_hits_grand_master" ON api_rate_limit_hits FOR ALL TO authenticated
   USING ((auth.jwt() ->> 'role')::TEXT = 'grand_master')
   WITH CHECK ((auth.jwt() ->> 'role')::TEXT = 'grand_master');
 
+DROP POLICY IF EXISTS "data_exports_grand_master" ON data_exports;
 CREATE POLICY "data_exports_grand_master" ON data_exports FOR ALL TO authenticated
   USING ((auth.jwt() ->> 'role')::TEXT = 'grand_master')
   WITH CHECK ((auth.jwt() ->> 'role')::TEXT = 'grand_master');
 
 -- Organization-scoped access for org members
+DROP POLICY IF EXISTS "privacy_consents_org_access" ON privacy_consents;
 CREATE POLICY "privacy_consents_org_access" ON privacy_consents FOR ALL TO authenticated
   USING (organization_id IN (
     SELECT up.organization_id FROM user_profiles up WHERE up.id = auth.uid()
   ));
 
+DROP POLICY IF EXISTS "dsar_org_access" ON data_subject_requests;
 CREATE POLICY "dsar_org_access" ON data_subject_requests FOR ALL TO authenticated
   USING (organization_id IS NULL OR organization_id IN (
     SELECT up.organization_id FROM user_profiles up WHERE up.id = auth.uid()
   ));
 
+DROP POLICY IF EXISTS "compliance_alerts_org_access" ON officer_compliance_alerts;
 CREATE POLICY "compliance_alerts_org_access" ON officer_compliance_alerts FOR ALL TO authenticated
   USING (organization_id IN (
     SELECT up.organization_id FROM user_profiles up WHERE up.id = auth.uid()
   ));
 
+DROP POLICY IF EXISTS "training_records_org_access" ON officer_training_records;
 CREATE POLICY "training_records_org_access" ON officer_training_records FOR ALL TO authenticated
   USING (organization_id IN (
     SELECT up.organization_id FROM user_profiles up WHERE up.id = auth.uid()
   ));
 
+DROP POLICY IF EXISTS "workflows_org_access" ON crm_workflows;
 CREATE POLICY "workflows_org_access" ON crm_workflows FOR ALL TO authenticated
   USING (organization_id IS NULL OR organization_id IN (
     SELECT up.organization_id FROM user_profiles up WHERE up.id = auth.uid()
   ));
 
+DROP POLICY IF EXISTS "email_templates_org_access" ON crm_email_templates;
 CREATE POLICY "email_templates_org_access" ON crm_email_templates FOR SELECT TO authenticated
   USING (organization_id IS NULL OR organization_id IN (
     SELECT up.organization_id FROM user_profiles up WHERE up.id = auth.uid()
   ));
 
+DROP POLICY IF EXISTS "communications_org_access" ON crm_communications;
 CREATE POLICY "communications_org_access" ON crm_communications FOR ALL TO authenticated
   USING (organization_id IN (
     SELECT up.organization_id FROM user_profiles up WHERE up.id = auth.uid()
   ));
 
+DROP POLICY IF EXISTS "webhooks_org_access" ON api_webhooks;
 CREATE POLICY "webhooks_org_access" ON api_webhooks FOR ALL TO authenticated
   USING (organization_id IN (
     SELECT up.organization_id FROM user_profiles up WHERE up.id = auth.uid()
   ));
 
+DROP POLICY IF EXISTS "data_exports_org_access" ON data_exports;
 CREATE POLICY "data_exports_org_access" ON data_exports FOR ALL TO authenticated
   USING (organization_id IN (
     SELECT up.organization_id FROM user_profiles up WHERE up.id = auth.uid()

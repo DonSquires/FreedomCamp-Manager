@@ -98,8 +98,8 @@ ALTER TABLE public.allowance_types ENABLE ROW LEVEL SECURITY;
 
 -- Admins manage allowance types
 DROP POLICY IF EXISTS "admins_manage_allowance_types" ON public.allowance_types;
-CREATE POLICY "admins_manage_allowance_types"
-  ON public.allowance_types FOR ALL
+DROP POLICY IF EXISTS "admins_manage_allowance_types" ON public.allowance_types;
+CREATE POLICY "admins_manage_allowance_types" ON public.allowance_types FOR ALL
   TO authenticated
   USING (
     get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer')
@@ -110,8 +110,8 @@ CREATE POLICY "admins_manage_allowance_types"
 
 -- All authenticated users can read allowance types
 DROP POLICY IF EXISTS "auth_read_allowance_types" ON public.allowance_types;
-CREATE POLICY "auth_read_allowance_types"
-  ON public.allowance_types FOR SELECT
+DROP POLICY IF EXISTS "auth_read_allowance_types" ON public.allowance_types;
+CREATE POLICY "auth_read_allowance_types" ON public.allowance_types FOR SELECT
   TO authenticated
   USING (true);
 
@@ -204,8 +204,8 @@ ALTER TABLE public.officer_allowances ENABLE ROW LEVEL SECURITY;
 
 -- Admins manage all allowances
 DROP POLICY IF EXISTS "admins_manage_officer_allowances" ON public.officer_allowances;
-CREATE POLICY "admins_manage_officer_allowances"
-  ON public.officer_allowances FOR ALL
+DROP POLICY IF EXISTS "admins_manage_officer_allowances" ON public.officer_allowances;
+CREATE POLICY "admins_manage_officer_allowances" ON public.officer_allowances FOR ALL
   TO authenticated
   USING (
     get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer')
@@ -216,8 +216,8 @@ CREATE POLICY "admins_manage_officer_allowances"
 
 -- Officers can read their own allowances
 DROP POLICY IF EXISTS "officers_read_own_allowances" ON public.officer_allowances;
-CREATE POLICY "officers_read_own_allowances"
-  ON public.officer_allowances FOR SELECT
+DROP POLICY IF EXISTS "officers_read_own_allowances" ON public.officer_allowances;
+CREATE POLICY "officers_read_own_allowances" ON public.officer_allowances FOR SELECT
   TO authenticated
   USING (officer_id = auth.uid());
 
@@ -362,8 +362,8 @@ CREATE INDEX IF NOT EXISTS idx_asset_types_org
 ALTER TABLE public.asset_types ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "admins_manage_asset_types" ON public.asset_types;
-CREATE POLICY "admins_manage_asset_types"
-  ON public.asset_types FOR ALL
+DROP POLICY IF EXISTS "admins_manage_asset_types" ON public.asset_types;
+CREATE POLICY "admins_manage_asset_types" ON public.asset_types FOR ALL
   TO authenticated
   USING (
     get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer')
@@ -373,8 +373,8 @@ CREATE POLICY "admins_manage_asset_types"
   );
 
 DROP POLICY IF EXISTS "auth_read_asset_types" ON public.asset_types;
-CREATE POLICY "auth_read_asset_types"
-  ON public.asset_types FOR SELECT
+DROP POLICY IF EXISTS "auth_read_asset_types" ON public.asset_types;
+CREATE POLICY "auth_read_asset_types" ON public.asset_types FOR SELECT
   TO authenticated
   USING (true);
 
@@ -460,8 +460,8 @@ CREATE TRIGGER trg_officer_assets_updated_at
 ALTER TABLE public.officer_assets ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "admins_manage_officer_assets" ON public.officer_assets;
-CREATE POLICY "admins_manage_officer_assets"
-  ON public.officer_assets FOR ALL
+DROP POLICY IF EXISTS "admins_manage_officer_assets" ON public.officer_assets;
+CREATE POLICY "admins_manage_officer_assets" ON public.officer_assets FOR ALL
   TO authenticated
   USING (
     get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer')
@@ -471,8 +471,8 @@ CREATE POLICY "admins_manage_officer_assets"
   );
 
 DROP POLICY IF EXISTS "officers_read_own_assets" ON public.officer_assets;
-CREATE POLICY "officers_read_own_assets"
-  ON public.officer_assets FOR SELECT
+DROP POLICY IF EXISTS "officers_read_own_assets" ON public.officer_assets;
+CREATE POLICY "officers_read_own_assets" ON public.officer_assets FOR SELECT
   TO authenticated
   USING (officer_id = auth.uid());
 
@@ -555,8 +555,8 @@ CREATE TRIGGER trg_site_documents_updated_at
 ALTER TABLE public.site_documents ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "admins_manage_site_documents" ON public.site_documents;
-CREATE POLICY "admins_manage_site_documents"
-  ON public.site_documents FOR ALL
+DROP POLICY IF EXISTS "admins_manage_site_documents" ON public.site_documents;
+CREATE POLICY "admins_manage_site_documents" ON public.site_documents FOR ALL
   TO authenticated
   USING (
     get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer')
@@ -567,8 +567,8 @@ CREATE POLICY "admins_manage_site_documents"
 
 -- Officers can read documents based on visibility
 DROP POLICY IF EXISTS "officers_read_site_documents" ON public.site_documents;
-CREATE POLICY "officers_read_site_documents"
-  ON public.site_documents FOR SELECT
+DROP POLICY IF EXISTS "officers_read_site_documents" ON public.site_documents;
+CREATE POLICY "officers_read_site_documents" ON public.site_documents FOR SELECT
   TO authenticated
   USING (
     is_active = true AND (
@@ -656,8 +656,8 @@ $$;
 ALTER TABLE public.site_access_codes ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "admins_manage_site_access_codes" ON public.site_access_codes;
-CREATE POLICY "admins_manage_site_access_codes"
-  ON public.site_access_codes FOR ALL
+DROP POLICY IF EXISTS "admins_manage_site_access_codes" ON public.site_access_codes;
+CREATE POLICY "admins_manage_site_access_codes" ON public.site_access_codes FOR ALL
   TO authenticated
   USING (
     get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer')
@@ -668,8 +668,8 @@ CREATE POLICY "admins_manage_site_access_codes"
 
 -- Officers can read codes based on visibility
 DROP POLICY IF EXISTS "officers_read_site_access_codes" ON public.site_access_codes;
-CREATE POLICY "officers_read_site_access_codes"
-  ON public.site_access_codes FOR SELECT
+DROP POLICY IF EXISTS "officers_read_site_access_codes" ON public.site_access_codes;
+CREATE POLICY "officers_read_site_access_codes" ON public.site_access_codes FOR SELECT
   TO authenticated
   USING (
     is_active = true AND (
@@ -742,8 +742,8 @@ CREATE TRIGGER trg_key_sets_updated_at
 ALTER TABLE public.key_sets ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "admins_manage_key_sets" ON public.key_sets;
-CREATE POLICY "admins_manage_key_sets"
-  ON public.key_sets FOR ALL
+DROP POLICY IF EXISTS "admins_manage_key_sets" ON public.key_sets;
+CREATE POLICY "admins_manage_key_sets" ON public.key_sets FOR ALL
   TO authenticated
   USING (
     get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer')
@@ -753,15 +753,15 @@ CREATE POLICY "admins_manage_key_sets"
   );
 
 DROP POLICY IF EXISTS "officers_read_key_sets" ON public.key_sets;
-CREATE POLICY "officers_read_key_sets"
-  ON public.key_sets FOR SELECT
+DROP POLICY IF EXISTS "officers_read_key_sets" ON public.key_sets;
+CREATE POLICY "officers_read_key_sets" ON public.key_sets FOR SELECT
   TO authenticated
   USING (true);
 
 -- Officers can update their own checked-out keys
 DROP POLICY IF EXISTS "officers_update_own_key_sets" ON public.key_sets;
-CREATE POLICY "officers_update_own_key_sets"
-  ON public.key_sets FOR UPDATE
+DROP POLICY IF EXISTS "officers_update_own_key_sets" ON public.key_sets;
+CREATE POLICY "officers_update_own_key_sets" ON public.key_sets FOR UPDATE
   TO authenticated
   USING (current_holder_id = auth.uid())
   WITH CHECK (current_holder_id = auth.uid());
@@ -802,8 +802,8 @@ CREATE INDEX IF NOT EXISTS idx_keys_key_set
 ALTER TABLE public.keys ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "admins_manage_keys" ON public.keys;
-CREATE POLICY "admins_manage_keys"
-  ON public.keys FOR ALL
+DROP POLICY IF EXISTS "admins_manage_keys" ON public.keys;
+CREATE POLICY "admins_manage_keys" ON public.keys FOR ALL
   TO authenticated
   USING (
     get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer')
@@ -813,8 +813,8 @@ CREATE POLICY "admins_manage_keys"
   );
 
 DROP POLICY IF EXISTS "officers_read_keys" ON public.keys;
-CREATE POLICY "officers_read_keys"
-  ON public.keys FOR SELECT
+DROP POLICY IF EXISTS "officers_read_keys" ON public.keys;
+CREATE POLICY "officers_read_keys" ON public.keys FOR SELECT
   TO authenticated
   USING (true);
 
@@ -972,8 +972,8 @@ CREATE TRIGGER trg_key_custody_updated_at
 ALTER TABLE public.key_custody ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "admins_manage_key_custody" ON public.key_custody;
-CREATE POLICY "admins_manage_key_custody"
-  ON public.key_custody FOR ALL
+DROP POLICY IF EXISTS "admins_manage_key_custody" ON public.key_custody;
+CREATE POLICY "admins_manage_key_custody" ON public.key_custody FOR ALL
   TO authenticated
   USING (
     get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer')
@@ -984,14 +984,14 @@ CREATE POLICY "admins_manage_key_custody"
 
 -- Officers can read all custody records and update their own
 DROP POLICY IF EXISTS "officers_read_key_custody" ON public.key_custody;
-CREATE POLICY "officers_read_key_custody"
-  ON public.key_custody FOR SELECT
+DROP POLICY IF EXISTS "officers_read_key_custody" ON public.key_custody;
+CREATE POLICY "officers_read_key_custody" ON public.key_custody FOR SELECT
   TO authenticated
   USING (true);
 
 DROP POLICY IF EXISTS "officers_update_own_key_custody" ON public.key_custody;
-CREATE POLICY "officers_update_own_key_custody"
-  ON public.key_custody FOR UPDATE
+DROP POLICY IF EXISTS "officers_update_own_key_custody" ON public.key_custody;
+CREATE POLICY "officers_update_own_key_custody" ON public.key_custody FOR UPDATE
   TO authenticated
   USING (officer_id = auth.uid())
   WITH CHECK (officer_id = auth.uid());
@@ -1065,8 +1065,8 @@ CREATE TRIGGER trg_key_custody_audit
 ALTER TABLE public.key_audit_log ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "admins_read_key_audit_log" ON public.key_audit_log;
-CREATE POLICY "admins_read_key_audit_log"
-  ON public.key_audit_log FOR SELECT
+DROP POLICY IF EXISTS "admins_read_key_audit_log" ON public.key_audit_log;
+CREATE POLICY "admins_read_key_audit_log" ON public.key_audit_log FOR SELECT
   TO authenticated
   USING (
     get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer')
