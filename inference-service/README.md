@@ -276,6 +276,20 @@ When explicit identifiers are found, the harvester can also add:
 - `persons_of_interest`
 - `vehicles_of_interest`
 
+Approval model:
+- Harvested bulletins are stored as `approval_status=pending`.
+- POI/VOI candidates are stored on the bulletin (`poi_candidate`, `voi_candidate`) and are not auto-promoted.
+- Only `master` / `grand_master` should approve and promote via DB function:
+  - `approve_external_intel_bulletin(...)`
+
+Emergency/public safety model:
+- High-risk events (Amber Alert, active offender, civil defense, severe weather, emergency alerts) create pending rows in `public_safety_alerts`.
+- Only `master` / `grand_master` can activate/reject via:
+  - `approve_public_safety_alert(...)`
+- Active alerts are shown as acknowledgement banners in the app layout for targeted users.
+- National scope alerts are shown to all users.
+- Regional scope alerts are targeted using `INTEL_REGION_ORG_MAP` and neighboring-region expansion.
+
 ### **POST /infer**
 
 Generate vehicle embedding from photo.

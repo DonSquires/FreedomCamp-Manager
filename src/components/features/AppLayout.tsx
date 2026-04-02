@@ -9,6 +9,7 @@ import { FeedbackModal } from '@/components/features/FeedbackModal'
 import { useNotificationCount } from '@/hooks/useNotifications'
 import { useSessionPreferencesStore } from '@/stores/sessionPreferencesStore'
 import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
+import { PublicSafetyBanner } from '@/components/features/PublicSafetyBanner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
@@ -648,6 +649,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
 
         {/* Page Content */}
         <main className="p-4 lg:p-6 relative">
+          <PublicSafetyBanner />
           {children}
 
           {/* Global feedback button — visible to all authenticated users */}

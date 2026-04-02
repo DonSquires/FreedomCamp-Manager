@@ -9,6 +9,19 @@ const ALLOWED_HOSTS = String(process.env.INTEL_ALLOWED_HOSTS || '')
   .map((s) => s.trim().toLowerCase())
   .filter(Boolean);
 
+const NEIGHBOR_REGIONS = {
+  nelson: ['tasman', 'marlborough', 'west_coast'],
+  tasman: ['nelson', 'marlborough', 'west_coast'],
+  marlborough: ['nelson', 'tasman', 'canterbury', 'wellington'],
+  canterbury: ['marlborough', 'west_coast', 'otago'],
+  otago: ['canterbury', 'southland'],
+  southland: ['otago'],
+  wellington: ['manawatu_whanganui', 'marlborough'],
+  auckland: ['waikato', 'northland'],
+  waikato: ['auckland', 'bay_of_plenty', 'manawatu_whanganui'],
+  bay_of_plenty: ['waikato', 'gisborne', 'hawkes_bay'],
+};
+
 function parseFeedUrls(value) {
   return String(value || '')
     .split(/[,\n]/)
@@ -54,6 +67,59 @@ function detectVOI(summary) {
   const plateMatch = summary.toUpperCase().match(/\b([A-Z]{2,3}[0-9]{2,4}|[A-Z][0-9]{2,4}[A-Z]{1,2})\b/);
   if (!plateMatch) return null;
   return { plate_number: plateMatch[1].replace(/[^A-Z0-9]/g, '') };
+}
+
+function detectRegions(text) {
+  const normalized = text.toLowerCase();
+  const lookup = [
+    ['nelson', 'nelson'],
+    ['tasman', 'tasman'],
+    ['marlborough', 'marlborough'],
+    ['canterbury', 'canterbury'],
+    ['otago', 'otago'],
+    ['southland', 'southland'],
+    ['wellington', 'wellington'],
+    ['auckland', 'auckland'],
+    ['waikato', 'waikato'],
+    ['bay of plenty', 'bay_of_plenty'],
+    ['gisborne', 'gisborne'],
+    ['hawkes bay', 'hawkes_bay'],
+    ['manawatu', 'manawatu_whanganui'],
+    ['whanganui', 'manawatu_whanganui'],
+    ['northland', 'northland'],
+    ['west coast', 'west_coast'],
+  ];
+  return lookup.filter(([phrase]) => normalized.includes(phrase)).map(([, tag]) => tag);
+}
+
+function classifyEmergencyEvent(title, summary) {
+  const text = `${title} ${summary}`.toLowerCase();
+  const isNational = /nationwide|national alert|all of new zealand|new zealand wide/.test(text);
+  if (/amber alert/.test(text)) return { eventType: 'amber_alert', severity: 'critical', isNational };
+  if (/active shooter|active offender|armed offender|lockdown/.test(text)) return { eventType: 'active_shooter', severity: 'critical', isNational };
+  if (/national security|terror|extremism/.test(text)) return { eventType: 'national_security', severity: 'critical', isNational: true };
+  if (/civil defense|evacuation|tsunami|earthquake|volcanic/.test(text)) return { eventType: 'civil_defense', severity: 'high', isNational };
+  if (/severe weather|red warning|orange warning|metservice warning|flood warning|storm warning/.test(text)) return { eventType: 'severe_weather', severity: 'high', isNational };
+  if (/emergency alert|emergency mobile alert/.test(text)) return { eventType: 'emergency_alert', severity: 'high', isNational };
+  return null;
+}
+
+function getTargetOrgIdsFromRegions(regionTags, regionOrgMap) {
+  const regions = new Set(regionTags);
+  for (const tag of regionTags) {
+    for (const neighbor of NEIGHBOR_REGIONS[tag] || []) {
+      regions.add(neighbor);
+    }
+  }
+
+  const orgIds = new Set();
+  for (const tag of regions) {
+    const ids = regionOrgMap[tag] || [];
+    for (const id of ids) {
+      if (id) orgIds.add(id);
+    }
+  }
+  return Array.from(orgIds);
 }
 
 function extractRssItems(xml, sourceUrl) {
@@ -197,12 +263,18 @@ async function main() {
   const supabaseUrl = process.env.SUPABASE_URL || '';
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
   const orgId = process.env.INTEL_ORGANIZATION_ID || '';
+  const regionOrgMap = (() => {
+    try {
+      return JSON.parse(process.env.INTEL_REGION_ORG_MAP || '{}');
+    } catch {
+      return {};
+    }
+  })();
   const dbEnabled = ['1', 'true', 'yes', 'on'].includes((process.env.INTEL_ENABLE_DB_SYNC || 'false').toLowerCase());
 
   const seen = new Set();
   const supabaseIntelRows = [];
-  const poiRows = [];
-  const voiRows = [];
+  const publicSafetyAlerts = [];
   let ingestedCount = 0;
 
   for (const url of feedUrls) {
@@ -232,6 +304,11 @@ async function main() {
           },
         };
 
+        const poi = detectPOI(summary);
+        const voi = detectVOI(summary);
+        if (poi) bulletin.metadata.poi_candidate = poi;
+        if (voi) bulletin.metadata.voi_candidate = voi;
+
         await ingestBulletin(ingestUrl, apiKey, hmacKey, bulletin);
         ingestedCount += 1;
 
@@ -244,29 +321,30 @@ async function main() {
             source_url: item.source_url || url,
             published_at: item.published_at || null,
             metadata: bulletin.metadata,
+            approval_status: 'pending',
+            poi_candidate: poi || null,
+            voi_candidate: voi || null,
           });
 
-          const poi = detectPOI(summary);
-          if (poi?.full_name) {
-            poiRows.push({
-              organization_id: orgId,
-              full_name: poi.full_name,
-              status: 'poi',
-              reason: title,
-              notes: summary,
-              active: true,
-            });
-          }
+          const event = classifyEmergencyEvent(title, summary);
+          if (event) {
+            const regionTags = detectRegions(`${title} ${summary}`);
+            const targetOrgIds = event.isNational
+              ? []
+              : getTargetOrgIdsFromRegions(regionTags, regionOrgMap);
 
-          const voi = detectVOI(summary);
-          if (voi?.plate_number) {
-            voiRows.push({
+            publicSafetyAlerts.push({
               organization_id: orgId,
-              plate_number: voi.plate_number,
-              status: 'voi',
-              reason: title,
-              notes: summary,
-              active: true,
+              event_type: event.eventType,
+              severity: event.severity,
+              scope: event.isNational ? 'national' : 'regional',
+              status: 'pending',
+              title,
+              message: summary,
+              target_organization_ids: targetOrgIds,
+              target_region_tags: regionTags,
+              starts_at: new Date().toISOString(),
+              expires_at: null,
             });
           }
         }
@@ -280,11 +358,8 @@ async function main() {
     if (supabaseIntelRows.length) {
       await insertSupabaseRows(supabaseUrl, supabaseServiceRoleKey, process.env.INTEL_DB_TABLE || 'external_intel_bulletins', supabaseIntelRows);
     }
-    if (poiRows.length) {
-      await insertSupabaseRows(supabaseUrl, supabaseServiceRoleKey, 'persons_of_interest', poiRows);
-    }
-    if (voiRows.length) {
-      await insertSupabaseRows(supabaseUrl, supabaseServiceRoleKey, 'vehicles_of_interest', voiRows);
+    if (publicSafetyAlerts.length) {
+      await insertSupabaseRows(supabaseUrl, supabaseServiceRoleKey, 'public_safety_alerts', publicSafetyAlerts);
     }
   }
 
@@ -293,8 +368,7 @@ async function main() {
   console.log(`Dry run mode: ${DRY_RUN}`);
   if (dbEnabled) {
     console.log(`external_intel_bulletins rows: ${supabaseIntelRows.length}`);
-    console.log(`persons_of_interest rows: ${poiRows.length}`);
-    console.log(`vehicles_of_interest rows: ${voiRows.length}`);
+    console.log(`public_safety_alerts rows: ${publicSafetyAlerts.length}`);
   }
 }
 

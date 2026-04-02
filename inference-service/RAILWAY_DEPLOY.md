@@ -59,6 +59,7 @@ In Railway dashboard, click the **Variables** tab and add:
 | `INTEL_ENABLE_DB_SYNC` | `false` | If true, workflow also inserts harvested notices into Supabase tables |
 | `INTEL_ORGANIZATION_ID` | _(unset)_ | Organization scope for DB inserts into intel/POI/VOI tables |
 | `INTEL_DB_TABLE` | `external_intel_bulletins` | Target Supabase table for generic harvested notices |
+| `INTEL_REGION_ORG_MAP` | `{}` | JSON map of region tags to organization UUID arrays for regional + neighboring alert fan-out |
 | `ATTR_TIMEOUT_MS` | `2500` | Timeout for AI attribute extraction |
 | `INFER_RATE_LIMIT_RPM` | `30` | Max inference requests per minute per IP |
 | `ALPR_RATE_LIMIT_RPM` | `60` | Max ALPR requests per minute per IP |

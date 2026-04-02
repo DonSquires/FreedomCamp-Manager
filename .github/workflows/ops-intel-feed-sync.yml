@@ -31,6 +31,7 @@ jobs:
           [ -z "$INTEL_FEED_URLS" ] && missing="$missing INTEL_FEED_URLS"
           [ -z "$INTEL_INGEST_URL" ] && missing="$missing INTEL_INGEST_URL"
           [ -z "$INFERENCE_API_KEY" ] && missing="$missing INFERENCE_API_KEY"
+          [ -z "$INTEL_REGION_ORG_MAP" ] && echo "::warning::INTEL_REGION_ORG_MAP not set; regional alerts may not target neighboring organizations."
           if [ -n "$missing" ]; then
             echo "::error::Missing required secrets:$missing"
             exit 1
@@ -39,6 +40,7 @@ jobs:
           INTEL_FEED_URLS: ${{ secrets.INTEL_FEED_URLS }}
           INTEL_INGEST_URL: ${{ secrets.INTEL_INGEST_URL }}
           INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
+          INTEL_REGION_ORG_MAP: ${{ secrets.INTEL_REGION_ORG_MAP }}
 
       - name: Harvest and ingest intelligence feeds
         working-directory: inference-service
@@ -51,6 +53,7 @@ jobs:
           INTEL_ENABLE_DB_SYNC: ${{ secrets.INTEL_ENABLE_DB_SYNC }}
           INTEL_ORGANIZATION_ID: ${{ secrets.INTEL_ORGANIZATION_ID }}
           INTEL_DB_TABLE: ${{ secrets.INTEL_DB_TABLE }}
+          INTEL_REGION_ORG_MAP: ${{ secrets.INTEL_REGION_ORG_MAP }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           INTEL_DRY_RUN: ${{ secrets.INTEL_DRY_RUN }}
