@@ -283,6 +283,17 @@ railway domain
 
 ## **Testing**
 
+### **Pretrain Self-Learning State**
+
+Seed the local self-learning model with a baseline profile before first runtime:
+
+```bash
+npm run pretrain:self-learning
+```
+
+This writes `data/self-learning-state.json` and improves first-run threshold quality.
+In Railway Docker builds, this pretraining step is executed automatically.
+
 ### **Local Test**
 
 ```bash
