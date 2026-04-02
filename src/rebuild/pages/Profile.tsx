@@ -1,4 +1,3 @@
-// @ts-nocheck — clean rebuild page; types are defined by clean schema (supabase/rebuild/), not legacy database.ts
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -16,6 +15,7 @@ interface UserProfile {
 
 export default function CleanProfile() {
   const { user } = useAuthStore()
+  const userId = user?.id
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [form, setForm] = useState<Partial<UserProfile>>({})
   const [loading, setLoading] = useState(true)
@@ -32,13 +32,13 @@ export default function CleanProfile() {
   const [passwordSaved, setPasswordSaved] = useState(false)
 
   useEffect(() => {
-    if (!user?.id) return
+    if (!userId) return
     async function load() {
       setLoading(true)
       const { data } = await supabase
         .from('user_profiles')
         .select('*')
-        .eq('user_id', user!.id)
+        .eq('user_id', userId)
         .single()
       if (data) {
         setProfile(data as UserProfile)
@@ -47,7 +47,7 @@ export default function CleanProfile() {
       setLoading(false)
     }
     load()
-  }, [user?.id])
+  }, [userId])
 
   async function saveProfile() {
     if (!profile) return

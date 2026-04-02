@@ -1,4 +1,3 @@
-// @ts-nocheck — clean rebuild page; types are defined by clean schema (supabase/rebuild/), not legacy database.ts
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'

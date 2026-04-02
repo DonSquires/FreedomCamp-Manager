@@ -1,4 +1,3 @@
-// @ts-nocheck — clean rebuild page; types are defined by clean schema (supabase/rebuild/), not legacy database.ts
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -18,11 +17,7 @@ interface OrgSummary {
 export default function CleanPlatform() {
   const { user } = useAuthStore()
   const role = user?.user_metadata?.role as string | undefined
-
-  // Guard — only grand_master
-  if (role !== 'grand_master') {
-    return <Navigate to="/" replace />
-  }
+  const isGrandMaster = role === 'grand_master'
 
   const [orgs, setOrgs] = useState<OrgSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -77,6 +72,11 @@ export default function CleanPlatform() {
       .eq('org_id', org.org_id)
     if (err) { alert(err.message); return }
     setOrgs(orgs.map(o => o.org_id === org.org_id ? { ...o, is_active: next } : o))
+  }
+
+  // Guard — only grand_master
+  if (!isGrandMaster) {
+    return <Navigate to="/" replace />
   }
 
   return (
