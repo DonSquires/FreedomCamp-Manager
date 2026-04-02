@@ -22,6 +22,7 @@ const FieldOfficerPortal = lazy(() => import('@/pages/FieldOfficerPortal'))
 const VehicleManagement = lazy(() => import('@/pages/VehicleManagement'))
 const ZoneManagement = lazy(() => import('@/pages/ZoneManagement'))
 const CompliancePage = lazy(() => import('@/pages/CompliancePage'))
+const Compliance = lazy(() => import('@/pages/Compliance'))  // Unified compliance page
 const BreachAlerts = lazy(() => import('@/pages/BreachAlerts'))
 const DataManagement = lazy(() => import('@/pages/DataManagement'))
 const UserManagement = lazy(() => import('@/pages/UserManagement'))
@@ -49,6 +50,7 @@ const DataCleanupUtility = lazy(() => import('@/pages/DataCleanupUtility'))
 const DataIntegrityDashboard = lazy(() => import('@/pages/DataIntegrityDashboard'))
 const LivePatrolMonitor = lazy(() => import('@/pages/LivePatrolMonitor'))
 const ReportsHub = lazy(() => import('@/pages/ReportsHub'))
+const CustomReportBuilder = lazy(() => import('@/pages/CustomReportBuilder'))
 const AiAnalysis = lazy(() => import('@/pages/AiAnalysis'))
 const HotspotsMap = lazy(() => import('@/pages/HotspotsMap'))
 const SpatialComplianceAdmin = lazy(() => import('@/pages/SpatialComplianceAdmin'))
@@ -87,9 +89,11 @@ const NotificationsCenter = lazy(() => import('@/pages/NotificationsCenter'))
 const ComplianceDashboard = lazy(() => import('@/pages/ComplianceDashboard'))
 const CleanDashboard = lazy(() => import('@/pages/CleanDashboard'))
 const FaceRecognitionPage = lazy(() => import('@/pages/FaceRecognitionPage'))
+const IdentityVerificationPage = lazy(() => import('@/pages/IdentityVerificationPage'))
 const TimesheetReview = lazy(() => import('@/pages/TimesheetReview'))
 const OpenShifts = lazy(() => import('@/pages/OpenShifts'))
 const DispatchConsole = lazy(() => import('@/pages/DispatchConsole'))
+const JobMap = lazy(() => import('@/pages/JobMap'))
 const ClientSites = lazy(() => import('@/pages/ClientSites'))
 const RosterPlanner = lazy(() => import('@/pages/RosterPlanner'))
 const OfficerSkills = lazy(() => import('@/pages/OfficerSkills'))
@@ -210,6 +214,7 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 1000 * 60 * 2, // 2 minutes — reduces waterfall re-fetches on navigation
+      gcTime: 1000 * 60 * 10, // 10 minutes — garbage collect unused queries to prevent memory leaks
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
       refetchOnMount: false,
@@ -550,6 +555,18 @@ export default function App() {
             }
           />
 
+          {/* Unified Compliance page (consolidates Dashboard, Analytics, and Observations) */}
+          <Route
+            path="/compliance-unified"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <Compliance />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
           <Route
             path="/breaches"
             element={
@@ -879,6 +896,17 @@ export default function App() {
           />
 
           <Route
+            path="/custom-reports"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <CustomReportBuilder />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/ai-analysis"
             element={
               <ProtectedRoute>
@@ -1140,6 +1168,17 @@ export default function App() {
           />
 
           <Route
+            path="/identity-verification"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <IdentityVerificationPage />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/import-data"
             element={
               <ProtectedRoute>
@@ -1278,6 +1317,16 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <DispatchConsole />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/job-map"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <JobMap />
                 </RoleRoute>
               </ProtectedRoute>
             }

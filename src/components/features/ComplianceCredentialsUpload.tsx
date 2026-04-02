@@ -15,6 +15,7 @@ interface ComplianceCredentialsUploadProps {
   vehicleId: string
   plateNumber: string
   onUploadComplete?: (documentUrl: string, docType: string) => void
+  onDeleteComplete?: (documentUrl: string) => void
   existingDocuments?: ExistingDocument[]
 }
 
@@ -24,16 +25,20 @@ const DOC_TYPES = [
   { value: 'compliance', label: 'Compliance Certificate' },
 ]
 
+const STORAGE_BUCKET = 'scans'
+
 export function ComplianceCredentialsUpload({
   vehicleId,
   plateNumber,
   onUploadComplete,
+  onDeleteComplete,
   existingDocuments = [],
 }: ComplianceCredentialsUploadProps) {
   const [selectedType, setSelectedType] = useState(DOC_TYPES[0].value)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const [deletingUrl, setDeletingUrl] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const handleFileChange = (file: File | null) => {
@@ -63,10 +68,10 @@ export function ComplianceCredentialsUpload({
       const uniqueSuffix = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`
       const filePath = `vehicle-documents/${vehicleId}/${selectedType}/${uniqueSuffix}-${selectedFile.name}`
       const { error: uploadError } = await supabase.storage
-        .from('scans')
+        .from(STORAGE_BUCKET)
         .upload(filePath, selectedFile, { contentType: selectedFile.type, upsert: false })
       if (uploadError) throw new Error(uploadError.message)
-      const { data: urlData } = supabase.storage.from('scans').getPublicUrl(filePath)
+      const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(filePath)
       const publicUrl = urlData.publicUrl
       toast.success('Document uploaded')
       if (onUploadComplete) onUploadComplete(publicUrl, selectedType)
@@ -75,6 +80,30 @@ export function ComplianceCredentialsUpload({
       toast.error(err.message || 'Upload failed. Please try again.')
     } finally {
       setIsUploading(false)
+    }
+  }
+
+  async function handleDelete(doc: ExistingDocument) {
+    setDeletingUrl(doc.url)
+    try {
+      // Extract the storage path from the public URL.
+      // Supabase public URLs follow the pattern:
+      //   https://<project>.supabase.co/storage/v1/object/public/<bucket>/<path>
+      const url = new URL(doc.url)
+      const publicSegment = `/object/public/${STORAGE_BUCKET}/`
+      const segmentIdx = url.pathname.indexOf(publicSegment)
+      if (segmentIdx === -1) throw new Error('Cannot determine file path from URL')
+      const filePath = url.pathname.slice(segmentIdx + publicSegment.length)
+
+      const { error } = await supabase.storage.from(STORAGE_BUCKET).remove([filePath])
+      if (error) throw new Error(error.message)
+
+      toast.success('Document deleted')
+      if (onDeleteComplete) onDeleteComplete(doc.url)
+    } catch (err: any) {
+      toast.error(err.message || 'Delete failed. Please try again.')
+    } finally {
+      setDeletingUrl(null)
     }
   }
 
@@ -168,9 +197,10 @@ export function ComplianceCredentialsUpload({
                   <Download className="h-4 w-4" />
                 </a>
                 <button
-                  className="flex-shrink-0 text-red-400 hover:text-red-600"
+                  className="flex-shrink-0 text-red-400 hover:text-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Delete"
-                  onClick={() => toast.info('Delete not implemented')}
+                  disabled={deletingUrl === doc.url}
+                  onClick={() => handleDelete(doc)}
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>

@@ -72,6 +72,8 @@ import {
   ClipboardCopy,
   Globe,
   LayoutDashboard,
+  ScanFace,
+  ShieldCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -100,7 +102,8 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
     label: 'Operations',
     icon: BarChart3,
     items: [
-      { path: '/compliance', icon: BarChart3, label: 'Compliance', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/compliance-unified', icon: ShieldCheck, label: 'Compliance Hub', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/compliance', icon: BarChart3, label: 'Compliance (Legacy)', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/observation-records', icon: ImageIcon, label: 'Observations', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/observations-report', icon: FileBarChart, label: 'Observations Report', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/breaches', icon: AlertTriangle, label: 'Breaches & Alerts', roles: ['admin', 'admin_officer', 'master', 'officer'] },
@@ -155,6 +158,7 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
       { path: '/noise-control', icon: Volume2, label: 'Noise Control', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/parking', icon: ParkingSquare, label: 'Parking Enforcement', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/officer-welfare', icon: HeartPulse, label: 'Officer Welfare', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/identity-verification', icon: ShieldCheck, label: 'ID Verification', roles: ['admin', 'admin_officer', 'master', 'officer'] },
     ],
   },
   {

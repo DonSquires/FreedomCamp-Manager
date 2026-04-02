@@ -93,6 +93,7 @@ export function FaceRecognition({
   const streamRef  = useRef<MediaStream | null>(null)
 
   const [cameraReady, setCameraReady]     = useState(false)
+  const [cameraError, setCameraError]     = useState<string | null>(null)
   const [facingMode, setFacingMode]       = useState<'user' | 'environment'>('user')
   const [zoom, setZoom]                   = useState(1.0)
   const [isProcessing, setIsProcessing]   = useState(false)
@@ -110,11 +111,26 @@ export function FaceRecognition({
   // ── Service health check on mount ───────────────────────────────────────────
   useEffect(() => {
     let cancelled = false
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+
     const checkService = async () => {
       setCheckingService(true)
+      
+      // Create a timeout promise that rejects after 10 seconds
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(new Error('Health check timed out'))
+        }, 10_000)
+      })
+
       try {
-        const status = await checkInferenceHealth()
+        // Race between the actual health check and the timeout
+        const status = await Promise.race([
+          checkInferenceHealth(),
+          timeoutPromise,
+        ])
         if (!cancelled) {
+          if (timeoutId) clearTimeout(timeoutId)
           setServiceStatus(status)
           if (status.status === 'offline') {
             console.warn('Face recognition service offline:', status.error)
@@ -124,9 +140,13 @@ export function FaceRecognition({
             console.warn('Inference service requires API key but INFERENCE_API_KEY is not configured in Supabase secrets')
           }
         }
-      } catch (err) {
+      } catch (err: any) {
         if (!cancelled) {
-          setServiceStatus({ status: 'offline', error: 'Failed to check service health' })
+          if (timeoutId) clearTimeout(timeoutId)
+          const errorMessage = err?.message === 'Health check timed out'
+            ? 'Service health check timed out. The AI service may be unavailable.'
+            : 'Failed to check service health'
+          setServiceStatus({ status: 'offline', error: errorMessage })
         }
       } finally {
         if (!cancelled) {
@@ -135,12 +155,16 @@ export function FaceRecognition({
       }
     }
     checkService()
-    return () => { cancelled = true }
+    return () => { 
+      cancelled = true
+      if (timeoutId) clearTimeout(timeoutId)
+    }
   }, [])
 
   // ── Camera lifecycle ────────────────────────────────────────────────────────
 
   const startCamera = useCallback(async () => {
+    setCameraError(null)
     try {
       // Stop existing stream
       if (streamRef.current) {
@@ -166,7 +190,13 @@ export function FaceRecognition({
       }
     } catch (err: any) {
       console.error('Camera start failed:', err)
-      toast.error('Camera access denied. Please allow camera permissions.')
+      const errorMessage = err.name === 'NotAllowedError' 
+        ? 'Camera access denied. Please allow camera permissions in your browser settings.'
+        : err.name === 'NotFoundError'
+        ? 'No camera found on this device.'
+        : 'Camera access failed: ' + (err.message || 'Unknown error')
+      setCameraError(errorMessage)
+      toast.error(errorMessage)
       setCameraReady(false)
     }
   }, [facingMode])
@@ -376,28 +406,45 @@ export function FaceRecognition({
 
       {/* ── Viewfinder ────────────────────────────────────────────────── */}
       <div className="relative flex-shrink-0" style={{ height: '55dvh' }}>
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          className="w-full h-full object-cover"
-          style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
-        />
-        <canvas ref={canvasRef} className="hidden" />
+        {cameraError ? (
+          /* Camera initialization failed */
+          <div className="flex flex-col items-center justify-center h-full bg-gray-900 text-center p-6">
+            <AlertTriangle className="h-12 w-12 text-amber-500 mb-4" />
+            <p className="text-sm text-gray-300 mb-4">{cameraError}</p>
+            <div className="flex gap-2">
+              <Button onClick={startCamera} variant="outline" size="sm">
+                <Camera className="h-4 w-4 mr-2" />
+                Retry
+              </Button>
+              <Button onClick={onClose} variant="ghost" size="sm">
+                Close
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-cover"
+              style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
+            />
+            <canvas ref={canvasRef} className="hidden" />
 
-        {/* Face guide overlay */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div
-            className="absolute border-2 border-dashed border-blue-400/60 rounded-full"
-            style={{
-              left: '25%', top: '10%', width: '50%', height: '70%',
-            }}
-          />
-          <div className="absolute bottom-3 left-0 right-0 text-center">
-            <span className="bg-black/60 text-white text-xs px-3 py-1 rounded-full">
-              Position face within the guide
-            </span>
+            {/* Face guide overlay */}
+            <div className="absolute inset-0 pointer-events-none">
+              <div
+                className="absolute border-2 border-dashed border-blue-400/60 rounded-full"
+                style={{
+                  left: '25%', top: '10%', width: '50%', height: '70%',
+                }}
+              />
+              <div className="absolute bottom-3 left-0 right-0 text-center">
+                <span className="bg-black/60 text-white text-xs px-3 py-1 rounded-full">
+                  Position face within the guide
+                </span>
           </div>
         </div>
 
@@ -462,6 +509,8 @@ export function FaceRecognition({
           <Badge className="absolute top-3 left-3 bg-black/60 text-white text-xs">
             {zoom.toFixed(1)}×
           </Badge>
+        )}
+          </>
         )}
       </div>
 

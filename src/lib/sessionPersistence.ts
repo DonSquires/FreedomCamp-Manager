@@ -1,9 +1,26 @@
 /**
  * Utility Library: sessionPersistence
- * Session storage and local storage utilities with encryption support
+ * Session storage and local storage utilities with encoding support
+ * 
+ * ⚠️ SECURITY NOTE: The 'encrypt' option uses Base64 encoding (btoa/atob),
+ * which provides OBFUSCATION only - NOT true encryption. This is suitable for:
+ * - Preventing casual inspection of non-sensitive data in browser DevTools
+ * - Basic serialization of structured data
+ * 
+ * For truly sensitive data requiring encryption, use:
+ * - Supabase's server-side encrypted columns
+ * - Web Crypto API with proper key management
+ * - Do NOT store sensitive credentials/tokens client-side
+ * 
+ * @see https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API
  */
 
 interface StorageOptions {
+  /**
+   * When true, applies Base64 encoding to the stored value.
+   * ⚠️ This is NOT encryption - it's obfuscation only.
+   * Use for non-sensitive data that you want to prevent casual inspection of.
+   */
   encrypt?: boolean
   expiresIn?: number // milliseconds
 }

@@ -13,7 +13,7 @@
 import { useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Camera, X, Loader2, CheckCircle, Trash2, MapPin } from 'lucide-react'
+import { Camera, X, Loader2, CheckCircle, Trash2, MapPin, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
@@ -65,6 +65,7 @@ export function ParkingPhotoCapture({
 
   const [open, setOpen]             = useState(false)
   const [isCameraOn, setIsCameraOn] = useState(false)
+  const [cameraError, setCameraError] = useState<string | null>(null)
   const [captured, setCaptured]     = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
 
@@ -74,6 +75,7 @@ export function ParkingPhotoCapture({
   // ── Camera helpers ──────────────────────────────────────────────────────────
 
   const startCamera = async () => {
+    setCameraError(null)
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment' },
@@ -85,7 +87,13 @@ export function ParkingPhotoCapture({
         setIsCameraOn(true)
       }
     } catch (err: any) {
-      toast.error('Camera access failed: ' + err.message)
+      const errorMessage = err.name === 'NotAllowedError' 
+        ? 'Camera access denied. Please allow camera permissions in your browser settings.'
+        : err.name === 'NotFoundError'
+        ? 'No camera found on this device.'
+        : 'Camera access failed: ' + (err.message || 'Unknown error')
+      setCameraError(errorMessage)
+      toast.error(errorMessage)
     }
   }
 
@@ -94,6 +102,7 @@ export function ParkingPhotoCapture({
     streamRef.current = null
     setIsCameraOn(false)
     setCaptured(null)
+    setCameraError(null)
   }
 
   const captureFrame = () => {
@@ -323,6 +332,21 @@ export function ParkingPhotoCapture({
                   </Button>
                 </div>
               )}
+            </div>
+          ) : cameraError ? (
+            /* Camera initialization failed */
+            <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
+              <AlertTriangle className="h-8 w-8 text-amber-500" />
+              <p className="text-sm text-muted-foreground">{cameraError}</p>
+              <div className="flex gap-2">
+                <Button onClick={startCamera} variant="outline" size="sm">
+                  <Camera className="h-4 w-4 mr-2" />
+                  Retry
+                </Button>
+                <Button onClick={handleClose} variant="ghost" size="sm">
+                  Close
+                </Button>
+              </div>
             </div>
           ) : (
             /* Waiting for camera to initialise */
