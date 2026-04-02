@@ -101,6 +101,7 @@ const TABULAR_NLP_PROVIDER = (process.env.TABULAR_NLP_PROVIDER || 'heuristic').t
 const TABULAR_NLP_TIMEOUT_MS = Number(process.env.TABULAR_NLP_TIMEOUT_MS || 2500);
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1:8b';
+const SELF_CONTAINED_MODE = ['1', 'true', 'yes', 'on'].includes((process.env.SELF_CONTAINED_MODE || '').toLowerCase());
 const INFERENCE_API_KEY = process.env.INFERENCE_API_KEY || '';
 const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
 const SUPABASE_JWKS_URL = process.env.SUPABASE_JWKS_URL || (SUPABASE_URL ? `${SUPABASE_URL}/auth/v1/.well-known/jwks.json` : '');
@@ -111,6 +112,20 @@ const SUPABASE_JWT_AUDIENCE = process.env.SUPABASE_JWT_AUDIENCE || '';
 // Set SUPABASE_SERVICE_ROLE_KEY on Railway to the same value as the Supabase
 // project's service role key.
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+
+function isLocalUrl(value) {
+  if (!value) return false;
+  try {
+    const url = new URL(value);
+    return url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+  } catch {
+    return false;
+  }
+}
+
+const OPENAI_ENABLED = !SELF_CONTAINED_MODE && !!OPENAI_API_KEY;
+const CLOUD_ALPR_ENABLED = !SELF_CONTAINED_MODE && !!process.env.PLATERECOGNIZER_TOKEN;
+const OLLAMA_ENABLED = TABULAR_NLP_PROVIDER === 'ollama' && (!SELF_CONTAINED_MODE || isLocalUrl(OLLAMA_BASE_URL));
 
 let joseRuntimePromise = null;
 let supabaseJwks = null;
@@ -528,7 +543,7 @@ app.post('/nlp/tabular/analyze', tabularRateLimit, requireInferenceAuth, async (
       return res.status(400).json({ error: 'sampleRows must be a non-empty array' });
     }
 
-    const analysis = TABULAR_NLP_PROVIDER === 'ollama'
+    const analysis = OLLAMA_ENABLED
       ? await analyzeTabularDataWithOllama(sampleRows)
       : analyzeTabularDataHeuristic(sampleRows);
 
@@ -743,7 +758,7 @@ async function generateEmbedding(imageTensor) {
 }
 
 async function inferVehicleAttributesWithOpenAI(vehicleCropBuffer) {
-  if (!OPENAI_API_KEY) {
+  if (!OPENAI_ENABLED) {
     return null;
   }
 
@@ -982,7 +997,7 @@ async function detectFacesWithONNX(imageBuffer) {
 // Returns { face_count, faces[] } or null on failure.
 // Each face: { bbox: {x,y,w,h} (normalised 0-1), confidence, approximate_age, gender, description }
 async function detectFacesWithOpenAI(imageBuffer) {
-  if (!OPENAI_API_KEY) return null;
+  if (!OPENAI_ENABLED) return null;
 
   const imageBase64 = imageBuffer.toString('base64');
   const controller = new AbortController();
@@ -1700,7 +1715,7 @@ app.post('/infer/chalk', inferenceRateLimit, upload.single('photo'), requireInfe
     // ── 1. Plate Recognition via Plate Recognizer ─────────────────────
     let plate = null;
     let plateConfidence = null;
-    if (process.env.PLATERECOGNIZER_TOKEN) {
+    if (CLOUD_ALPR_ENABLED) {
       try {
         const formData = new FormData();
         const blob = new Blob([imageBuffer], { type: req.file.mimetype || 'image/jpeg' });
@@ -1734,7 +1749,7 @@ app.post('/infer/chalk', inferenceRateLimit, upload.single('photo'), requireInfe
     let valveConfidence = 0;
     let valveDescription = 'Valve position could not be determined';
 
-    if (OPENAI_API_KEY) {
+    if (OPENAI_ENABLED) {
       try {
         const imageBase64 = imageBuffer.toString('base64');
         const mimeType = req.file.mimetype || 'image/jpeg';
@@ -1867,8 +1882,8 @@ app.post('/infer/chalk', inferenceRateLimit, upload.single('photo'), requireInfe
 
         metadata: {
           processing_time_ms: duration,
-          alpr_available:     !!process.env.PLATERECOGNIZER_TOKEN,
-          valve_ai_available: !!OPENAI_API_KEY,
+          alpr_available:     CLOUD_ALPR_ENABLED,
+          valve_ai_available: OPENAI_ENABLED,
           onnx_available:     modelsLoaded,
         },
       },
@@ -1987,7 +2002,7 @@ app.post('/infer/face', inferenceRateLimit, upload.single('photo'), requireInfer
     // Runs when:
     //   • ONNX found faces → enrich age/gender/description for each face
     //   • ONNX unavailable OR found 0 faces → full detection + description
-    if (OPENAI_API_KEY && (faces.length > 0 || !onnxAvailable)) {
+    if (OPENAI_ENABLED && (faces.length > 0 || !onnxAvailable)) {
       try {
         const visionResult = await detectFacesWithOpenAI(imageBuffer);
         if (visionResult) {
@@ -2067,7 +2082,7 @@ app.post('/infer/face', inferenceRateLimit, upload.single('photo'), requireInfer
         processing_time_ms:  duration,
         onnx_face_model:     onnxAvailable,
         onnx_embedding:      embeddingAvailable,
-        openai_available:    !!OPENAI_API_KEY,
+        openai_available:    OPENAI_ENABLED,
         embedding_available: embedding !== null,
       },
     });
@@ -2090,28 +2105,31 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
     config: {
       VEHICLE_ATTRS_PROVIDER,
       TABULAR_NLP_PROVIDER,
+      SELF_CONTAINED_MODE,
       SUPABASE_JWKS_CONFIGURED: !!SUPABASE_JWKS_URL,
       SUPABASE_JWT_ISSUER_CONFIGURED: !!SUPABASE_JWT_ISSUER,
       SUPABASE_JWT_AUDIENCE_CONFIGURED: !!SUPABASE_JWT_AUDIENCE,
       OPENAI_BASE_URL_CUSTOM: OPENAI_BASE_URL !== 'https://api.openai.com/v1',
       OPENAI_MODEL: OPENAI_MODEL || null,
-      OPENAI_API_KEY_SET: !!OPENAI_API_KEY,
+      OPENAI_API_KEY_SET: OPENAI_ENABLED,
       INFERENCE_API_KEY_SET: !!INFERENCE_API_KEY,
       SUPABASE_SERVICE_ROLE_KEY_SET: !!SUPABASE_SERVICE_ROLE_KEY,
     },
     capabilities: {
       plate_inference: modelsLoaded,
-      ai_attributes: VEHICLE_ATTRS_PROVIDER === 'openai' && !!OPENAI_API_KEY,
+      ai_attributes: VEHICLE_ATTRS_PROVIDER === 'openai' && OPENAI_ENABLED,
       tabular_nlp: true,
+      tabular_nlp_ollama_enabled: OLLAMA_ENABLED,
       tabular_nlp_auth_api_key: !!INFERENCE_API_KEY,
       tabular_nlp_auth_supabase_jwt: !!SUPABASE_JWKS_URL,
       tabular_nlp_auth_service_role: !!SUPABASE_SERVICE_ROLE_KEY,
       // Self-hosted ALPR
       local_alpr: true,                          // always available (tesseract.js)
       local_alpr_plate_model: fs.existsSync(PLATE_DETECT_MODEL_PATH),
-      chalk_valve_ai: VEHICLE_ATTRS_PROVIDER === 'openai' && !!OPENAI_API_KEY,
+      cloud_alpr_enabled: CLOUD_ALPR_ENABLED,
+      chalk_valve_ai: VEHICLE_ATTRS_PROVIDER === 'openai' && OPENAI_ENABLED,
       // Face recognition
-      face_detection: !!OPENAI_API_KEY || fs.existsSync(FACE_DETECT_MODEL_PATH),
+      face_detection: OPENAI_ENABLED || fs.existsSync(FACE_DETECT_MODEL_PATH),
       face_detection_onnx: fs.existsSync(FACE_DETECT_MODEL_PATH), // UltraFace-640
       face_embedding: modelsLoaded,              // MobileNetV3 embedding for comparison
     },
@@ -2136,11 +2154,12 @@ loadModels().then(() => {
     console.log(`🚀 ORC/AI inference service running on port ${PORT}`);
     // Config summary — makes misconfiguration visible at a glance in Railway logs
     const usesOllama = VEHICLE_ATTRS_PROVIDER === 'ollama' || TABULAR_NLP_PROVIDER === 'ollama';
-    const usesOpenAI = VEHICLE_ATTRS_PROVIDER === 'openai' || TABULAR_NLP_PROVIDER === 'openai';
+    const usesOpenAI = (VEHICLE_ATTRS_PROVIDER === 'openai' || TABULAR_NLP_PROVIDER === 'openai') && OPENAI_ENABLED;
     console.log(`⚙️  Config:`, {
       VEHICLE_ATTRS_PROVIDER,
       TABULAR_NLP_PROVIDER,
       TABULAR_NLP_TIMEOUT_MS,
+      SELF_CONTAINED_MODE,
       ...(usesOllama && { OLLAMA_BASE_URL, OLLAMA_MODEL }),
       INFERENCE_API_KEY_SET: !!INFERENCE_API_KEY,
       SUPABASE_SERVICE_ROLE_KEY_SET: !!SUPABASE_SERVICE_ROLE_KEY,
@@ -2150,7 +2169,7 @@ loadModels().then(() => {
       ...(usesOpenAI && {
         OPENAI_BASE_URL: OPENAI_BASE_URL || '(not set)',
         OPENAI_MODEL: OPENAI_MODEL || '(not set)',
-        OPENAI_API_KEY_SET: !!OPENAI_API_KEY,
+        OPENAI_API_KEY_SET: OPENAI_ENABLED,
       }),
     });
     if (!INFERENCE_API_KEY && !SUPABASE_SERVICE_ROLE_KEY) {
@@ -2172,6 +2191,12 @@ loadModels().then(() => {
     } else {
       console.log(`ℹ️  UltraFace-640 not present (models/version-RFB-640.onnx). Face detection will use OpenAI vision fallback.`);
       console.log(`   Run: node scripts/download-models.js   to download all optional models.`);
+    }
+    if (SELF_CONTAINED_MODE) {
+      console.log('🔒 SELF_CONTAINED_MODE enabled — outbound cloud AI/ALPR providers are disabled.');
+      if (TABULAR_NLP_PROVIDER === 'ollama' && !OLLAMA_ENABLED) {
+        console.log('ℹ️  OLLAMA_BASE_URL is non-local; tabular analysis will use heuristic mode.');
+      }
     }
   });
 });
