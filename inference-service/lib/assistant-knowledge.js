@@ -133,7 +133,57 @@ function getKnowledgePacks() {
   return KNOWLEDGE_PACKS;
 }
 
+function buildPatchTask(report, plan) {
+  const summary = trimText(report?.summary || plan?.summary || 'Unspecified incident', 300);
+  const severity = String(report?.severity || plan?.severity || 'medium').toLowerCase();
+  const weight = severityWeight(severity);
+  const bugType = plan?.bug_type || classifyBugType(report || {});
+
+  const riskScore = Math.max(1, Math.min(10, weight * 2 + (bugType === 'security' ? 2 : 0)));
+  const requiresApproval = riskScore >= 7;
+
+  const tasks = [
+    {
+      id: 'reproduce',
+      title: 'Reproduce issue with deterministic input',
+      status: 'pending',
+    },
+    {
+      id: 'fix',
+      title: 'Apply minimal targeted code fix',
+      status: 'pending',
+    },
+    {
+      id: 'regression-test',
+      title: 'Add regression test for incident signature',
+      status: 'pending',
+    },
+    {
+      id: 'deploy-check',
+      title: 'Run deployment gate checks before release',
+      status: 'pending',
+    },
+  ];
+
+  return {
+    version: 1,
+    summary,
+    severity,
+    bug_type: bugType,
+    risk_score: riskScore,
+    requires_human_approval: requiresApproval,
+    owner: plan?.recommended_owner || 'platform-engineering',
+    tasks,
+    safeguards: plan?.safeguards || [],
+    notes: [
+      'No automatic production deploy without human approval.',
+      'Preserve audit trace of analysis, patch, and verification.',
+    ],
+  };
+}
+
 module.exports = {
   buildSelfHealingPlan,
+  buildPatchTask,
   getKnowledgePacks,
 };

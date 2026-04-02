@@ -189,6 +189,40 @@ Returns loaded knowledge packs used by the self-healing planner:
 - NZ compliance context
 - Structured coding/problem-solving context
 
+### **POST /self-heal/patch-task**
+
+Generates a machine-readable patch task payload for your auto-fix worker.
+
+**Request:**
+```bash
+curl -X POST http://localhost:3000/self-heal/patch-task \
+  -H "Content-Type: application/json" \
+  -H "x-inference-api-key: $INFERENCE_API_KEY" \
+  -d '{
+    "report": {
+      "summary": "TypeError in patrol sync route",
+      "severity": "medium",
+      "stack_trace": "TypeError: Cannot read properties of undefined"
+    }
+  }'
+```
+
+### **POST /intel/ingest-bulletin**
+
+Secure local ingestion endpoint for updates related to:
+- NZ laws/policy
+- security risks/advisories
+- jurisdiction boundary changes
+- partner/system operational notices
+
+This endpoint does not fetch external data itself. You push vetted bulletins into it.
+
+If `INTEL_HMAC_KEY` is set, send `x-intel-signature` with SHA-256 HMAC of the raw JSON body.
+
+### **GET /intel/state**
+
+Returns stored intelligence bulletins and category counts for downstream decision logic.
+
 ### **POST /infer**
 
 Generate vehicle embedding from photo.

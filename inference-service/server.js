@@ -27,7 +27,8 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 const fs = require('fs');
 const { createSelfLearningService } = require('./lib/self-learning');
-const { buildSelfHealingPlan, getKnowledgePacks } = require('./lib/assistant-knowledge');
+const { buildSelfHealingPlan, buildPatchTask, getKnowledgePacks } = require('./lib/assistant-knowledge');
+const { createIntelStore } = require('./lib/intel-updates');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -118,6 +119,8 @@ const SELF_CONTAINED_MODE = ['1', 'true', 'yes', 'on'].includes((process.env.SEL
 const REQUIRE_SELF_CONTAINED_MODE = ['1', 'true', 'yes', 'on'].includes((process.env.REQUIRE_SELF_CONTAINED_MODE || '').toLowerCase());
 const SELF_LEARNING_ENABLED = !['0', 'false', 'no', 'off'].includes((process.env.SELF_LEARNING_ENABLED || 'true').toLowerCase());
 const SELF_HEALING_ENABLED = !['0', 'false', 'no', 'off'].includes((process.env.SELF_HEALING_ENABLED || 'true').toLowerCase());
+const INTEL_STATE_PATH = process.env.INTEL_STATE_PATH || path.join(__dirname, 'data', 'intel-state.json');
+const INTEL_HMAC_KEY = process.env.INTEL_HMAC_KEY || '';
 const SELF_LEARNING_STATE_PATH = process.env.SELF_LEARNING_STATE_PATH || path.join(__dirname, 'data', 'self-learning-state.json');
 const SIMILARITY_THRESHOLD = Number(process.env.SIMILARITY_THRESHOLD || 0.85);
 const SIMILARITY_THRESHOLD_MIN = Number(process.env.SIMILARITY_THRESHOLD_MIN || 0.65);
@@ -170,6 +173,11 @@ const selfLearningService = createSelfLearningService({
   minThreshold: SIMILARITY_THRESHOLD_MIN,
   maxThreshold: SIMILARITY_THRESHOLD_MAX,
   learningRate: SELF_LEARNING_RATE,
+});
+
+const intelStore = createIntelStore({
+  statePath: INTEL_STATE_PATH,
+  hmacKey: INTEL_HMAC_KEY,
 });
 
 const egressAudit = {
@@ -799,6 +807,66 @@ app.get('/self-heal/knowledge', rateLimit({ windowMs: 60_000, max: 60, standardH
     success: true,
     self_healing_enabled: SELF_HEALING_ENABLED,
     knowledge: getKnowledgePacks(),
+  });
+});
+
+app.post('/self-heal/patch-task', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    if (!SELF_HEALING_ENABLED) {
+      return res.status(503).json({ error: 'Self-healing assistant is disabled' });
+    }
+
+    const report = req.body?.report;
+    if (!report || typeof report !== 'object' || !String(report.summary || '').trim()) {
+      return res.status(400).json({ error: 'report with non-empty summary is required' });
+    }
+
+    const plan = req.body?.plan && typeof req.body.plan === 'object'
+      ? req.body.plan
+      : buildSelfHealingPlan(report, { selfContainedMode: SELF_CONTAINED_MODE });
+
+    const patchTask = buildPatchTask(report, plan);
+
+    return res.json({
+      success: true,
+      patch_task: patchTask,
+    });
+  } catch (error) {
+    console.error('Patch task endpoint error:', error);
+    return res.status(500).json({ error: 'Patch task generation failed', message: error.message });
+  }
+});
+
+app.post('/intel/ingest-bulletin', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const rawBody = JSON.stringify(req.body || {});
+    const signature = req.get('x-intel-signature') || '';
+
+    if (!intelStore.verifySignature(rawBody, signature)) {
+      return res.status(401).json({ error: 'Invalid or missing bulletin signature' });
+    }
+
+    const bulletin = req.body?.bulletin;
+    if (!bulletin || typeof bulletin !== 'object') {
+      return res.status(400).json({ error: 'bulletin object is required' });
+    }
+
+    const stored = intelStore.ingestBulletin(bulletin);
+    return res.json({
+      success: true,
+      stored,
+      state: intelStore.getState(),
+    });
+  } catch (error) {
+    console.error('Intel ingest error:', error);
+    return res.status(500).json({ error: 'Intel ingest failed', message: error.message });
+  }
+});
+
+app.get('/intel/state', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  return res.json({
+    success: true,
+    intel: intelStore.getState(),
   });
 });
 
@@ -2405,6 +2473,7 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       SELF_CONTAINED_MODE,
       SELF_LEARNING_ENABLED,
       SELF_HEALING_ENABLED,
+      INTEL_SIGNING_REQUIRED: !!INTEL_HMAC_KEY,
       SUPABASE_JWKS_CONFIGURED: !!SUPABASE_JWKS_URL,
       SUPABASE_JWT_ISSUER_CONFIGURED: !!SUPABASE_JWT_ISSUER,
       SUPABASE_JWT_AUDIENCE_CONFIGURED: !!SUPABASE_JWT_AUDIENCE,
@@ -2423,6 +2492,7 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       chat_local_ollama_enabled: CHAT_PROVIDER === 'ollama' && OLLAMA_ENABLED,
       chat_heuristic_enabled: CHAT_PROVIDER === 'heuristic',
       self_healing_bug_assistant: SELF_HEALING_ENABLED,
+      local_intel_updates: true,
       tabular_nlp_auth_api_key: !!INFERENCE_API_KEY,
       tabular_nlp_auth_supabase_jwt: !!SUPABASE_JWKS_URL,
       tabular_nlp_auth_service_role: !!SUPABASE_SERVICE_ROLE_KEY,
@@ -2492,7 +2562,7 @@ loadModels().then(() => {
     });
     if (!INFERENCE_API_KEY && !SUPABASE_SERVICE_ROLE_KEY) {
       console.warn('⚠️  No static auth configured (INFERENCE_API_KEY and SUPABASE_SERVICE_ROLE_KEY are both unset).');
-      console.warn('   Authenticated endpoints (/infer/face, /infer/compare, /infer/alpr, /nlp/tabular/analyze, /chat, /self-heal/bug-report, /self-heal/knowledge)');
+      console.warn('   Authenticated endpoints (/infer/face, /infer/compare, /infer/alpr, /nlp/tabular/analyze, /chat, /self-heal/bug-report, /self-heal/knowledge, /self-heal/patch-task, /intel/ingest-bulletin, /intel/state)');
       console.warn('   will only accept valid Supabase user JWTs (Bearer token verified against JWKS).');
       console.warn('   Edge functions cannot call these endpoints without a user JWT.');
       console.warn('   Fix: set SUPABASE_SERVICE_ROLE_KEY environment variable to enable service-to-service auth.');
