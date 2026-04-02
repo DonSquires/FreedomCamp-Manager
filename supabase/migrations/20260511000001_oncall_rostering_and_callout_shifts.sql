@@ -726,29 +726,29 @@ ALTER TABLE public.travel_allowances ENABLE ROW LEVEL SECURITY;
 
 -- Office Locations: admins manage, all authenticated read
 DROP POLICY IF EXISTS "admins_manage_office_locations" ON public.office_locations;
-CREATE POLICY "admins_manage_office_locations"
-  ON public.office_locations FOR ALL
+DROP POLICY IF EXISTS "admins_manage_office_locations" ON public.office_locations;
+CREATE POLICY "admins_manage_office_locations" ON public.office_locations FOR ALL
   TO authenticated
   USING (get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer'))
   WITH CHECK (get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer'));
 
 DROP POLICY IF EXISTS "auth_read_office_locations" ON public.office_locations;
-CREATE POLICY "auth_read_office_locations"
-  ON public.office_locations FOR SELECT
+DROP POLICY IF EXISTS "auth_read_office_locations" ON public.office_locations;
+CREATE POLICY "auth_read_office_locations" ON public.office_locations FOR SELECT
   TO authenticated
   USING (true);
 
 -- On-Call Rates: admins manage
 DROP POLICY IF EXISTS "admins_manage_on_call_rates" ON public.on_call_rates;
-CREATE POLICY "admins_manage_on_call_rates"
-  ON public.on_call_rates FOR ALL
+DROP POLICY IF EXISTS "admins_manage_on_call_rates" ON public.on_call_rates;
+CREATE POLICY "admins_manage_on_call_rates" ON public.on_call_rates FOR ALL
   TO authenticated
   USING (get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer'))
   WITH CHECK (get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer'));
 
 DROP POLICY IF EXISTS "officers_read_on_call_rates" ON public.on_call_rates;
-CREATE POLICY "officers_read_on_call_rates"
-  ON public.on_call_rates FOR SELECT
+DROP POLICY IF EXISTS "officers_read_on_call_rates" ON public.on_call_rates;
+CREATE POLICY "officers_read_on_call_rates" ON public.on_call_rates FOR SELECT
   TO authenticated
   USING (
     organization_id = (SELECT organization_id FROM public.user_profiles WHERE id = auth.uid())
@@ -756,65 +756,65 @@ CREATE POLICY "officers_read_on_call_rates"
 
 -- Officer On-Call Rates: admins manage, officers read own
 DROP POLICY IF EXISTS "admins_manage_officer_on_call_rates" ON public.officer_on_call_rates;
-CREATE POLICY "admins_manage_officer_on_call_rates"
-  ON public.officer_on_call_rates FOR ALL
+DROP POLICY IF EXISTS "admins_manage_officer_on_call_rates" ON public.officer_on_call_rates;
+CREATE POLICY "admins_manage_officer_on_call_rates" ON public.officer_on_call_rates FOR ALL
   TO authenticated
   USING (get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer'))
   WITH CHECK (get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer'));
 
 DROP POLICY IF EXISTS "officers_read_own_on_call_rates" ON public.officer_on_call_rates;
-CREATE POLICY "officers_read_own_on_call_rates"
-  ON public.officer_on_call_rates FOR SELECT
+DROP POLICY IF EXISTS "officers_read_own_on_call_rates" ON public.officer_on_call_rates;
+CREATE POLICY "officers_read_own_on_call_rates" ON public.officer_on_call_rates FOR SELECT
   TO authenticated
   USING (officer_id = auth.uid());
 
 -- On-Call Periods: admins manage, officers read/update own
 DROP POLICY IF EXISTS "admins_manage_on_call_periods" ON public.on_call_periods;
-CREATE POLICY "admins_manage_on_call_periods"
-  ON public.on_call_periods FOR ALL
+DROP POLICY IF EXISTS "admins_manage_on_call_periods" ON public.on_call_periods;
+CREATE POLICY "admins_manage_on_call_periods" ON public.on_call_periods FOR ALL
   TO authenticated
   USING (get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer'))
   WITH CHECK (get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer'));
 
 DROP POLICY IF EXISTS "officers_read_own_on_call_periods" ON public.on_call_periods;
-CREATE POLICY "officers_read_own_on_call_periods"
-  ON public.on_call_periods FOR SELECT
+DROP POLICY IF EXISTS "officers_read_own_on_call_periods" ON public.on_call_periods;
+CREATE POLICY "officers_read_own_on_call_periods" ON public.on_call_periods FOR SELECT
   TO authenticated
   USING (officer_id = auth.uid());
 
 DROP POLICY IF EXISTS "officers_accept_on_call_periods" ON public.on_call_periods;
-CREATE POLICY "officers_accept_on_call_periods"
-  ON public.on_call_periods FOR UPDATE
+DROP POLICY IF EXISTS "officers_accept_on_call_periods" ON public.on_call_periods;
+CREATE POLICY "officers_accept_on_call_periods" ON public.on_call_periods FOR UPDATE
   TO authenticated
   USING (officer_id = auth.uid() AND status IN ('scheduled', 'active'))
   WITH CHECK (officer_id = auth.uid());
 
 -- Callout Shifts: admins manage, officers manage own during callout
 DROP POLICY IF EXISTS "admins_manage_callout_shifts" ON public.callout_shifts;
-CREATE POLICY "admins_manage_callout_shifts"
-  ON public.callout_shifts FOR ALL
+DROP POLICY IF EXISTS "admins_manage_callout_shifts" ON public.callout_shifts;
+CREATE POLICY "admins_manage_callout_shifts" ON public.callout_shifts FOR ALL
   TO authenticated
   USING (get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer'))
   WITH CHECK (get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer'));
 
 DROP POLICY IF EXISTS "officers_manage_own_callouts" ON public.callout_shifts;
-CREATE POLICY "officers_manage_own_callouts"
-  ON public.callout_shifts FOR ALL
+DROP POLICY IF EXISTS "officers_manage_own_callouts" ON public.callout_shifts;
+CREATE POLICY "officers_manage_own_callouts" ON public.callout_shifts FOR ALL
   TO authenticated
   USING (officer_id = auth.uid())
   WITH CHECK (officer_id = auth.uid() AND status IN ('pending', 'in_progress'));
 
 -- Travel Allowances: admins manage, officers manage own pending
 DROP POLICY IF EXISTS "admins_manage_travel_allowances" ON public.travel_allowances;
-CREATE POLICY "admins_manage_travel_allowances"
-  ON public.travel_allowances FOR ALL
+DROP POLICY IF EXISTS "admins_manage_travel_allowances" ON public.travel_allowances;
+CREATE POLICY "admins_manage_travel_allowances" ON public.travel_allowances FOR ALL
   TO authenticated
   USING (get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer'))
   WITH CHECK (get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer'));
 
 DROP POLICY IF EXISTS "officers_manage_own_travel" ON public.travel_allowances;
-CREATE POLICY "officers_manage_own_travel"
-  ON public.travel_allowances FOR ALL
+DROP POLICY IF EXISTS "officers_manage_own_travel" ON public.travel_allowances;
+CREATE POLICY "officers_manage_own_travel" ON public.travel_allowances FOR ALL
   TO authenticated
   USING (officer_id = auth.uid())
   WITH CHECK (officer_id = auth.uid() AND status = 'pending');
