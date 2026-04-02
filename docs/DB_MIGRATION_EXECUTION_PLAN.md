@@ -79,21 +79,28 @@ Deploy in sequence. Dependencies: Phase 3 complete.
 ```bash
 cd /workspaces/FreedomCamp-Manager
 
+# Legacy history normalization (required once for this project lineage)
+supabase migration repair --linked -p "$DB_PASSWORD" --status reverted \
+	20260313 20260315 20260317 20260318 20260319 20260323 20260326 20260329 20260330
+
+# If dry-run reports old out-of-order files, include them explicitly
+supabase db push --linked --include-all --dry-run
+
 # Deploy Phase 1 (Foundation)
 supabase db push --dry-run  # Verify plan
-supabase db push --linked   # Execute (production)
+supabase db push --linked --include-all   # Execute (production)
 
 # Wait for health check after Phase 1
 supabase functions deploy
 
 # Deploy Phase 2–4
-# (Repeat supabase db push --linked for each phase)
+# (Repeat supabase db push --linked --include-all for each phase if prompted)
 ```
 
 ### Manual CLI Validation (Post-Deploy)
 ```bash
-# Verify migration table presence
-psql $DATABASE_URL -c "SELECT name FROM _realtime_migrations ORDER BY name DESC LIMIT 12;"
+# Verify migration history table presence
+psql $DATABASE_URL -c "SELECT version FROM supabase_migrations.schema_migrations ORDER BY version DESC LIMIT 20;"
 
 # Verify RLS policies applied
 psql $DATABASE_URL -c "SELECT tablename, policyname FROM pg_policies ORDER BY tablename, policyname;"

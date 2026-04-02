@@ -19,17 +19,27 @@ export SUPABASE_DB_USER=postgres
 export SUPABASE_DB_PASSWORD=your-password
 export SUPABASE_DB_NAME=postgres
 
-# 2. Install Supabase CLI (if not already)
-npm install -g supabase
+# 2. Install Supabase CLI (official binary)
+mkdir -p "$HOME/.local/bin" "$HOME/.local/share/supabase-cli"
+curl -L -o /tmp/supabase_linux_amd64.tar.gz \
+	https://github.com/supabase/cli/releases/latest/download/supabase_linux_amd64.tar.gz
+tar -xzf /tmp/supabase_linux_amd64.tar.gz -C "$HOME/.local/share/supabase-cli"
+install -m 755 "$HOME/.local/share/supabase-cli/supabase" "$HOME/.local/bin/supabase"
+export PATH="$HOME/.local/bin:$PATH"
 
 # 3. Verify connectivity
 psql $DATABASE_URL -c "SELECT version();"
+supabase projects list
 ```
 
 ### Full Deployment Flow (All 4 Phases)
 ```bash
 # Pre-flight validation
 bash scripts/validate-migrations.sh
+
+# One-time legacy migration history normalization (for 202603xx short versions)
+supabase migration repair --linked -p "$DB_PASSWORD" --status reverted \
+	20260313 20260315 20260317 20260318 20260319 20260323 20260326 20260329 20260330
 
 # Phase 1: Foundation (15-20 min)
 bash scripts/deploy-phase1.sh
@@ -144,7 +154,7 @@ bash scripts/post-deployment-smoke-test.sh
 ```
 
 **Tests:**
-- ✓ All 12 migrations present in `_realtime_migrations`
+- ✓ All required migrations present in `supabase_migrations.schema_migrations`
 - ✓ Core tables intact (organizations, users, patrols, observations, vehicles, zones)
 - ✓ RLS policies applied and active
 - ✓ ACL system operational
@@ -178,6 +188,7 @@ bash scripts/rollback-emergency.sh
 ### Validate Migration SQL Before Deployment
 ```bash
 bash scripts/validate-migrations.sh
+supabase db push --linked --include-all --dry-run -p "$DB_PASSWORD"
 ```
 
 **Output:**
