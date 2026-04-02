@@ -28,13 +28,16 @@ In Railway dashboard, click the **Variables** tab and add:
 | `NODE_ENV` | `production` | Enables production optimisations |
 | `SUPABASE_URL` | `https://<project>.supabase.co` | Your Supabase project URL (auto-derives JWKS/issuer) |
 | `SUPABASE_SERVICE_ROLE_KEY` | `<service-role-key>` | Allows Supabase Edge Functions to call authenticated endpoints |
+| `SELF_CONTAINED_MODE` | `true` | Forces local-only AI execution mode |
+| `REQUIRE_SELF_CONTAINED_MODE` | `true` | Refuses startup if self-contained mode is not enabled |
+| `SELF_CONTAINED_STRICT_EGRESS` | `true` | Blocks all non-local outbound HTTP at runtime |
 
 #### AI Features (required for vehicle attribute extraction and face detection)
 
 | Variable | Example Value | Description |
 |---|---|---|
 | `OPENAI_API_KEY` | `<key>` | OpenAI or AI Gateway key |
-| `VEHICLE_ATTRS_PROVIDER` | `openai` | `basic` (no AI), `openai` (AI attribute extraction), or `ollama` (local LLM) |
+| `VEHICLE_ATTRS_PROVIDER` | `chatgpt` | `basic` (no AI), `openai`/`chatgpt` (AI attribute extraction), or `ollama` (local LLM) |
 | `OPENAI_MODEL` | `gpt-4o-mini` | Model name — use `openai/gpt-4o-mini` for Vercel AI Gateway |
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` | OpenAI API base URL — override to `https://ai-gateway.vercel.sh/v1` for Vercel AI Gateway or an Azure endpoint |
 
@@ -100,6 +103,9 @@ RAILWAY_URL="https://orc-ai-inference-service-production.up.railway.app"
 
 # Test health
 curl "$RAILWAY_URL/health" | jq .
+
+# Confirm strict self-contained posture
+curl -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" "$RAILWAY_URL/audit/egress" | jq .
 
 # Expected (with AI features enabled):
 # {

@@ -26,6 +26,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const fs = require('fs');
+const { createSelfLearningService } = require('./lib/self-learning');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -91,18 +92,32 @@ const faceRateLimit = rateLimit({
   message:          { error: 'Too many face detection requests — please slow down' },
 });
 
+function normalizeProvider(value, fallback) {
+  const provider = String(value || fallback || '').toLowerCase().trim();
+  if (provider === 'chatgpt') return 'openai';
+  return provider || fallback;
+}
+
 const YOLO_INPUT_SIZE = 640;
-const VEHICLE_ATTRS_PROVIDER = (process.env.VEHICLE_ATTRS_PROVIDER || 'basic').toLowerCase();
+const VEHICLE_ATTRS_PROVIDER_RAW = (process.env.VEHICLE_ATTRS_PROVIDER || 'basic').toLowerCase();
+const VEHICLE_ATTRS_PROVIDER = normalizeProvider(VEHICLE_ATTRS_PROVIDER_RAW, 'basic');
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 const ATTR_TIMEOUT_MS = Number(process.env.ATTR_TIMEOUT_MS || 2500);
-const TABULAR_NLP_PROVIDER = (process.env.TABULAR_NLP_PROVIDER || 'heuristic').toLowerCase();
+const TABULAR_NLP_PROVIDER_RAW = (process.env.TABULAR_NLP_PROVIDER || 'heuristic').toLowerCase();
+const TABULAR_NLP_PROVIDER = normalizeProvider(TABULAR_NLP_PROVIDER_RAW, 'heuristic');
 const TABULAR_NLP_TIMEOUT_MS = Number(process.env.TABULAR_NLP_TIMEOUT_MS || 2500);
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1:8b';
 const SELF_CONTAINED_MODE = ['1', 'true', 'yes', 'on'].includes((process.env.SELF_CONTAINED_MODE || '').toLowerCase());
 const REQUIRE_SELF_CONTAINED_MODE = ['1', 'true', 'yes', 'on'].includes((process.env.REQUIRE_SELF_CONTAINED_MODE || '').toLowerCase());
+const SELF_LEARNING_ENABLED = !['0', 'false', 'no', 'off'].includes((process.env.SELF_LEARNING_ENABLED || 'true').toLowerCase());
+const SELF_LEARNING_STATE_PATH = process.env.SELF_LEARNING_STATE_PATH || path.join(__dirname, 'data', 'self-learning-state.json');
+const SIMILARITY_THRESHOLD = Number(process.env.SIMILARITY_THRESHOLD || 0.85);
+const SIMILARITY_THRESHOLD_MIN = Number(process.env.SIMILARITY_THRESHOLD_MIN || 0.65);
+const SIMILARITY_THRESHOLD_MAX = Number(process.env.SIMILARITY_THRESHOLD_MAX || 0.95);
+const SELF_LEARNING_RATE = Number(process.env.SELF_LEARNING_RATE || 0.025);
 const INFERENCE_API_KEY = process.env.INFERENCE_API_KEY || '';
 const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
 const SUPABASE_JWKS_URL = process.env.SUPABASE_JWKS_URL || (SUPABASE_URL ? `${SUPABASE_URL}/auth/v1/.well-known/jwks.json` : '');
@@ -118,15 +133,39 @@ function isLocalUrl(value) {
   if (!value) return false;
   try {
     const url = new URL(value);
-    return url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+    return url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '::1';
   } catch {
     return false;
   }
 }
 
+const SELF_CONTAINED_STRICT_EGRESS = SELF_CONTAINED_MODE && !['0', 'false', 'no', 'off'].includes((process.env.SELF_CONTAINED_STRICT_EGRESS || 'true').toLowerCase());
+
+function assertEgressAllowed(url, providerLabel = 'unknown') {
+  if (!SELF_CONTAINED_STRICT_EGRESS) return;
+  if (!isLocalUrl(url)) {
+    recordEgressEvent(providerLabel, 'blocked', `Strict self-contained egress policy blocked URL: ${url}`);
+    throw new Error(`Outbound network blocked in SELF_CONTAINED_MODE: ${url}`);
+  }
+}
+
+async function safeFetch(url, options, providerLabel = 'unknown') {
+  assertEgressAllowed(url, providerLabel);
+  return fetch(url, options);
+}
+
 const OPENAI_ENABLED = !SELF_CONTAINED_MODE && !!OPENAI_API_KEY;
 const CLOUD_ALPR_ENABLED = !SELF_CONTAINED_MODE && !!process.env.PLATERECOGNIZER_TOKEN;
 const OLLAMA_ENABLED = TABULAR_NLP_PROVIDER === 'ollama' && (!SELF_CONTAINED_MODE || isLocalUrl(OLLAMA_BASE_URL));
+
+const selfLearningService = createSelfLearningService({
+  enabled: SELF_LEARNING_ENABLED,
+  statePath: SELF_LEARNING_STATE_PATH,
+  initialThreshold: SIMILARITY_THRESHOLD,
+  minThreshold: SIMILARITY_THRESHOLD_MIN,
+  maxThreshold: SIMILARITY_THRESHOLD_MAX,
+  learningRate: SELF_LEARNING_RATE,
+});
 
 const egressAudit = {
   started_at: new Date().toISOString(),
@@ -230,6 +269,9 @@ async function getJoseRuntime() {
 }
 
 async function verifySupabaseJwt(token) {
+  if (SELF_CONTAINED_STRICT_EGRESS) {
+    throw new Error('Supabase JWKS verification is disabled in strict self-contained mode');
+  }
   if (!SUPABASE_JWKS_URL) {
     throw new Error('SUPABASE_JWKS_URL is not configured');
   }
@@ -513,7 +555,7 @@ async function analyzeTabularDataWithOllama(sampleRows) {
   const timeout = setTimeout(() => controller.abort(), TABULAR_NLP_TIMEOUT_MS);
   try {
     recordEgressEvent('ollama', 'attempted', 'analyzeTabularDataWithOllama');
-    const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+    const response = await safeFetch(`${OLLAMA_BASE_URL}/api/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -550,7 +592,7 @@ async function analyzeTabularDataWithOllama(sampleRows) {
           },
         ],
       }),
-    });
+    }, 'ollama');
 
     if (!response.ok) {
       return heuristic;
@@ -813,7 +855,7 @@ async function inferVehicleAttributesWithOpenAI(vehicleCropBuffer) {
 
   try {
     recordEgressEvent('openai', 'attempted', 'inferVehicleAttributesWithOpenAI');
-    const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+    const response = await safeFetch(`${OPENAI_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -845,7 +887,7 @@ async function inferVehicleAttributesWithOpenAI(vehicleCropBuffer) {
           },
         ],
       }),
-    });
+    }, 'openai');
 
     if (!response.ok) {
       console.warn(`⚠️ OpenAI attrs returned ${response.status}`);
@@ -1054,7 +1096,7 @@ async function detectFacesWithOpenAI(imageBuffer) {
 
   try {
     recordEgressEvent('openai', 'attempted', 'detectFacesWithOpenAI');
-    const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+    const response = await safeFetch(`${OPENAI_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1097,7 +1139,7 @@ async function detectFacesWithOpenAI(imageBuffer) {
           },
         ],
       }),
-    });
+    }, 'openai');
 
     if (!response.ok) {
       console.warn(`⚠️ OpenAI face detection returned HTTP ${response.status}`);
@@ -1773,14 +1815,15 @@ app.post('/infer/chalk', inferenceRateLimit, upload.single('photo'), requireInfe
         formData.append('upload', blob, req.file.originalname || 'photo.jpg');
         formData.append('regions', process.env.ALPR_REGIONS || 'nz');
 
-        const alprResp = await fetch(
+        const alprResp = await safeFetch(
           process.env.ALPR_CLOUD_URL || 'https://api.platerecognizer.com/v1/plate-reader/',
           {
             method: 'POST',
             headers: { Authorization: `Token ${process.env.PLATERECOGNIZER_TOKEN}` },
             body: formData,
             signal: AbortSignal.timeout(5000),
-          }
+          },
+          'cloud_alpr'
         );
         if (alprResp.ok) {
           const alprData = await alprResp.json();
@@ -1810,7 +1853,7 @@ app.post('/infer/chalk', inferenceRateLimit, upload.single('photo'), requireInfe
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), ATTR_TIMEOUT_MS);
 
-        const valveResp = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+        const valveResp = await safeFetch(`${OPENAI_BASE_URL}/chat/completions`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1846,7 +1889,7 @@ app.post('/infer/chalk', inferenceRateLimit, upload.single('photo'), requireInfe
               },
             ],
           }),
-        });
+        }, 'openai');
 
         clearTimeout(timeout);
 
@@ -1983,17 +2026,19 @@ app.post('/infer/compare', inferenceRateLimit, requireInferenceAuth, async (req,
       ? dot / (Math.sqrt(norm1) * Math.sqrt(norm2))
       : 0;
 
-    // Thresholds tuned for MobileNetV3 384D embeddings on vehicle photos
-    const same_vehicle = similarity >= 0.85;
-    const confidence   = similarity >= 0.92 ? 'high'
-                        : similarity >= 0.85 ? 'medium'
-                        : similarity >= 0.70 ? 'low'
+    const activeThreshold = selfLearningService.getThreshold();
+    const same_vehicle = similarity >= activeThreshold;
+    const confidence   = similarity >= (activeThreshold + 0.07) ? 'high'
+                        : similarity >= activeThreshold ? 'medium'
+                        : similarity >= Math.max(0, activeThreshold - 0.15) ? 'low'
                         : 'different';
 
     return res.json({
       similarity: Math.round(similarity * 10000) / 10000,  // 4 decimal places
       same_vehicle,
       confidence,
+      threshold_used: Math.round(activeThreshold * 10000) / 10000,
+      self_learning_enabled: selfLearningService.enabled,
       interpretation:
         same_vehicle
           ? `Same vehicle detected (similarity ${(similarity * 100).toFixed(1)}%)`
@@ -2004,6 +2049,43 @@ app.post('/infer/compare', inferenceRateLimit, requireInferenceAuth, async (req,
     console.error('❌ /infer/compare error:', error);
     return res.status(500).json({ error: 'Comparison failed', message: error.message });
   }
+});
+
+// Collect labeled outcomes so similarity threshold can self-adjust over time.
+app.post('/learn/compare-feedback', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const similarity = Number(req.body?.similarity);
+    const actualSameVehicle = req.body?.actual_same_vehicle;
+    const context = req.body?.context || {};
+
+    if (!Number.isFinite(similarity) || similarity < 0 || similarity > 1) {
+      return res.status(400).json({ error: 'similarity must be a number between 0 and 1' });
+    }
+
+    if (typeof actualSameVehicle !== 'boolean') {
+      return res.status(400).json({ error: 'actual_same_vehicle must be a boolean' });
+    }
+
+    const learningResult = selfLearningService.applyCompareFeedback({
+      similarity,
+      actual_same_vehicle: actualSameVehicle,
+      context,
+    });
+
+    return res.json({
+      success: true,
+      learning: learningResult,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to apply learning feedback', message: error.message });
+  }
+});
+
+app.get('/learn/state', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  return res.json({
+    success: true,
+    learning: selfLearningService.getState(),
+  });
 });
 
 // ============================================================================
@@ -2160,8 +2242,11 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
     },
     config: {
       VEHICLE_ATTRS_PROVIDER,
+      VEHICLE_ATTRS_PROVIDER_RAW,
       TABULAR_NLP_PROVIDER,
+      TABULAR_NLP_PROVIDER_RAW,
       SELF_CONTAINED_MODE,
+      SELF_LEARNING_ENABLED,
       SUPABASE_JWKS_CONFIGURED: !!SUPABASE_JWKS_URL,
       SUPABASE_JWT_ISSUER_CONFIGURED: !!SUPABASE_JWT_ISSUER,
       SUPABASE_JWT_AUDIENCE_CONFIGURED: !!SUPABASE_JWT_AUDIENCE,
@@ -2179,6 +2264,8 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       tabular_nlp_auth_api_key: !!INFERENCE_API_KEY,
       tabular_nlp_auth_supabase_jwt: !!SUPABASE_JWKS_URL,
       tabular_nlp_auth_service_role: !!SUPABASE_SERVICE_ROLE_KEY,
+      self_learning: selfLearningService.enabled,
+      compare_threshold: Math.round(selfLearningService.getThreshold() * 10000) / 10000,
       // Self-hosted ALPR
       local_alpr: true,                          // always available (tesseract.js)
       local_alpr_plate_model: fs.existsSync(PLATE_DETECT_MODEL_PATH),
