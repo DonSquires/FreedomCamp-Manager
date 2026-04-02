@@ -107,6 +107,9 @@ const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 const ATTR_TIMEOUT_MS = Number(process.env.ATTR_TIMEOUT_MS || 2500);
 const TABULAR_NLP_PROVIDER_RAW = (process.env.TABULAR_NLP_PROVIDER || 'heuristic').toLowerCase();
 const TABULAR_NLP_PROVIDER = normalizeProvider(TABULAR_NLP_PROVIDER_RAW, 'heuristic');
+const CHAT_PROVIDER_RAW = (process.env.CHAT_PROVIDER || 'heuristic').toLowerCase();
+const CHAT_PROVIDER = normalizeProvider(CHAT_PROVIDER_RAW, 'heuristic');
+const CHAT_TIMEOUT_MS = Number(process.env.CHAT_TIMEOUT_MS || 2500);
 const TABULAR_NLP_TIMEOUT_MS = Number(process.env.TABULAR_NLP_TIMEOUT_MS || 2500);
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1:8b';
@@ -156,7 +159,7 @@ async function safeFetch(url, options, providerLabel = 'unknown') {
 
 const OPENAI_ENABLED = !SELF_CONTAINED_MODE && !!OPENAI_API_KEY;
 const CLOUD_ALPR_ENABLED = !SELF_CONTAINED_MODE && !!process.env.PLATERECOGNIZER_TOKEN;
-const OLLAMA_ENABLED = TABULAR_NLP_PROVIDER === 'ollama' && (!SELF_CONTAINED_MODE || isLocalUrl(OLLAMA_BASE_URL));
+const OLLAMA_ENABLED = (TABULAR_NLP_PROVIDER === 'ollama' || CHAT_PROVIDER === 'ollama') && (!SELF_CONTAINED_MODE || isLocalUrl(OLLAMA_BASE_URL));
 
 const selfLearningService = createSelfLearningService({
   enabled: SELF_LEARNING_ENABLED,
@@ -622,6 +625,86 @@ async function analyzeTabularDataWithOllama(sampleRows) {
   }
 }
 
+function generateHeuristicChatReply(message, context = {}) {
+  const text = String(message || '').trim();
+  if (!text) {
+    return 'Please share a question or instruction so I can help.';
+  }
+
+  const lowered = text.toLowerCase();
+  if (lowered.includes('status') || lowered.includes('health')) {
+    return 'Service is running in self-contained mode. I can help with patrol workflows, plate checks, and compliance process guidance.';
+  }
+  if (lowered.includes('privacy') || lowered.includes('data')) {
+    return 'This deployment is configured for local processing. External cloud calls are blocked by strict self-contained egress policy.';
+  }
+  if (lowered.includes('plate') || lowered.includes('rego')) {
+    return 'I can assist with plate workflow guidance. Upload evidence through the enforcement workflow and I can help summarize next steps.';
+  }
+
+  const tone = context?.tone === 'brief' ? 'briefly' : 'clearly';
+  return `I understand your request. I will respond ${tone} and keep recommendations aligned with local enforcement policy and evidence-first decisions.`;
+}
+
+async function generateChatReplyWithOllama(message, history = [], context = {}) {
+  if (!OLLAMA_ENABLED) {
+    recordEgressEvent('ollama', 'blocked', 'Chat requested ollama but local ollama is unavailable');
+    return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS);
+  try {
+    recordEgressEvent('ollama', 'attempted', 'chat response generation');
+    const response = await safeFetch(`${OLLAMA_BASE_URL}/api/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: OLLAMA_MODEL,
+        stream: false,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are FieldOps Assistant. Be concise, policy-aware, and avoid guessing facts. Return plain text only.',
+          },
+          ...history.slice(-12).map((m) => ({
+            role: m?.role === 'assistant' ? 'assistant' : 'user',
+            content: String(m?.content || ''),
+          })),
+          {
+            role: 'user',
+            content: String(message || ''),
+          },
+        ],
+      }),
+    }, 'ollama');
+
+    if (!response.ok) {
+      return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
+    }
+
+    const payload = await response.json();
+    const content = payload?.message?.content;
+    if (!content || typeof content !== 'string') {
+      return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
+    }
+
+    return {
+      provider: 'ollama',
+      text: content.trim(),
+      fallback: false,
+    };
+  } catch (error) {
+    console.warn('⚠️ Local chat via Ollama failed:', error.message);
+    return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 app.post('/nlp/tabular/analyze', tabularRateLimit, requireInferenceAuth, async (req, res) => {
   try {
     const sampleRows = req.body?.sampleRows;
@@ -644,6 +727,38 @@ app.post('/nlp/tabular/analyze', tabularRateLimit, requireInferenceAuth, async (
       error: 'Tabular NLP failed',
       message: error.message,
     });
+  }
+});
+
+app.post('/chat', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const message = req.body?.message;
+    const history = Array.isArray(req.body?.history) ? req.body.history : [];
+    const context = req.body?.context && typeof req.body.context === 'object' ? req.body.context : {};
+
+    if (typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({ error: 'message must be a non-empty string' });
+    }
+
+    if (CHAT_PROVIDER === 'ollama') {
+      const reply = await generateChatReplyWithOllama(message, history, context);
+      return res.json({
+        success: true,
+        provider: reply.provider,
+        fallback: reply.fallback,
+        message: reply.text,
+      });
+    }
+
+    return res.json({
+      success: true,
+      provider: 'heuristic',
+      fallback: false,
+      message: generateHeuristicChatReply(message, context),
+    });
+  } catch (error) {
+    console.error('Chat endpoint error:', error);
+    return res.status(500).json({ error: 'Chat failed', message: error.message });
   }
 });
 
@@ -2245,6 +2360,8 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       VEHICLE_ATTRS_PROVIDER_RAW,
       TABULAR_NLP_PROVIDER,
       TABULAR_NLP_PROVIDER_RAW,
+      CHAT_PROVIDER,
+      CHAT_PROVIDER_RAW,
       SELF_CONTAINED_MODE,
       SELF_LEARNING_ENABLED,
       SUPABASE_JWKS_CONFIGURED: !!SUPABASE_JWKS_URL,
@@ -2261,6 +2378,9 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       ai_attributes: VEHICLE_ATTRS_PROVIDER === 'openai' && OPENAI_ENABLED,
       tabular_nlp: true,
       tabular_nlp_ollama_enabled: OLLAMA_ENABLED,
+      chat: true,
+      chat_local_ollama_enabled: CHAT_PROVIDER === 'ollama' && OLLAMA_ENABLED,
+      chat_heuristic_enabled: CHAT_PROVIDER === 'heuristic',
       tabular_nlp_auth_api_key: !!INFERENCE_API_KEY,
       tabular_nlp_auth_supabase_jwt: !!SUPABASE_JWKS_URL,
       tabular_nlp_auth_service_role: !!SUPABASE_SERVICE_ROLE_KEY,
@@ -2330,7 +2450,7 @@ loadModels().then(() => {
     });
     if (!INFERENCE_API_KEY && !SUPABASE_SERVICE_ROLE_KEY) {
       console.warn('⚠️  No static auth configured (INFERENCE_API_KEY and SUPABASE_SERVICE_ROLE_KEY are both unset).');
-      console.warn('   Authenticated endpoints (/infer/face, /infer/compare, /infer/alpr, /nlp/tabular/analyze)');
+      console.warn('   Authenticated endpoints (/infer/face, /infer/compare, /infer/alpr, /nlp/tabular/analyze, /chat)');
       console.warn('   will only accept valid Supabase user JWTs (Bearer token verified against JWKS).');
       console.warn('   Edge functions cannot call these endpoints without a user JWT.');
       console.warn('   Fix: set SUPABASE_SERVICE_ROLE_KEY environment variable to enable service-to-service auth.');

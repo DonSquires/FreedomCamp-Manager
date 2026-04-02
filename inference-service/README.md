@@ -120,6 +120,42 @@ curl -X POST http://localhost:3000/nlp/tabular/analyze \
 }
 ```
 
+### **POST /chat**
+
+User-facing assistant endpoint with local-first behavior.
+
+In strict self-contained mode:
+- `CHAT_PROVIDER=heuristic` returns deterministic local responses.
+- `CHAT_PROVIDER=ollama` is allowed only when `OLLAMA_BASE_URL` is local.
+- Any cloud provider path is blocked by runtime egress policy.
+
+Authentication:
+- `x-inference-api-key` matching `INFERENCE_API_KEY`
+- `Authorization: Bearer <supabase_jwt>` (if JWKS auth is enabled)
+- `Authorization: Bearer <service_role_key>`
+
+**Request:**
+```bash
+curl -X POST http://localhost:3000/chat \
+  -H "Content-Type: application/json" \
+  -H "x-inference-api-key: $INFERENCE_API_KEY" \
+  -d '{
+    "message": "What is our current enforcement status?",
+    "history": [],
+    "context": { "tone": "brief" }
+  }'
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "provider": "heuristic",
+  "fallback": false,
+  "message": "Service is running in self-contained mode..."
+}
+```
+
 ### **POST /infer**
 
 Generate vehicle embedding from photo.
