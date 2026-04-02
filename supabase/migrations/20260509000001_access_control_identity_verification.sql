@@ -161,7 +161,8 @@ CREATE INDEX IF NOT EXISTS idx_access_permissions_zone ON public.access_permissi
 -- person_id_documents
 ALTER TABLE public.person_id_documents ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY person_id_documents_select ON public.person_id_documents
+DROP POLICY IF EXISTS "person_id_documents_select" ON public.person_id_documents;
+CREATE POLICY "person_id_documents_select" ON public.person_id_documents
   FOR SELECT TO authenticated
   USING (
     organization_id IN (
@@ -169,7 +170,8 @@ CREATE POLICY person_id_documents_select ON public.person_id_documents
     )
   );
 
-CREATE POLICY person_id_documents_insert ON public.person_id_documents
+DROP POLICY IF EXISTS "person_id_documents_insert" ON public.person_id_documents;
+CREATE POLICY "person_id_documents_insert" ON public.person_id_documents
   FOR INSERT TO authenticated
   WITH CHECK (
     EXISTS (
@@ -180,7 +182,8 @@ CREATE POLICY person_id_documents_insert ON public.person_id_documents
     )
   );
 
-CREATE POLICY person_id_documents_update ON public.person_id_documents
+DROP POLICY IF EXISTS "person_id_documents_update" ON public.person_id_documents;
+CREATE POLICY "person_id_documents_update" ON public.person_id_documents
   FOR UPDATE TO authenticated
   USING (
     EXISTS (
@@ -191,14 +194,16 @@ CREATE POLICY person_id_documents_update ON public.person_id_documents
     )
   );
 
-CREATE POLICY person_id_documents_service ON public.person_id_documents
+DROP POLICY IF EXISTS "person_id_documents_service" ON public.person_id_documents;
+CREATE POLICY "person_id_documents_service" ON public.person_id_documents
   FOR ALL TO service_role
   USING (true) WITH CHECK (true);
 
 -- access_entries
 ALTER TABLE public.access_entries ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY access_entries_select ON public.access_entries
+DROP POLICY IF EXISTS "access_entries_select" ON public.access_entries;
+CREATE POLICY "access_entries_select" ON public.access_entries
   FOR SELECT TO authenticated
   USING (
     organization_id IN (
@@ -206,7 +211,8 @@ CREATE POLICY access_entries_select ON public.access_entries
     )
   );
 
-CREATE POLICY access_entries_insert ON public.access_entries
+DROP POLICY IF EXISTS "access_entries_insert" ON public.access_entries;
+CREATE POLICY "access_entries_insert" ON public.access_entries
   FOR INSERT TO authenticated
   WITH CHECK (
     EXISTS (
@@ -217,14 +223,16 @@ CREATE POLICY access_entries_insert ON public.access_entries
     )
   );
 
-CREATE POLICY access_entries_service ON public.access_entries
+DROP POLICY IF EXISTS "access_entries_service" ON public.access_entries;
+CREATE POLICY "access_entries_service" ON public.access_entries
   FOR ALL TO service_role
   USING (true) WITH CHECK (true);
 
 -- access_permissions
 ALTER TABLE public.access_permissions ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY access_permissions_select ON public.access_permissions
+DROP POLICY IF EXISTS "access_permissions_select" ON public.access_permissions;
+CREATE POLICY "access_permissions_select" ON public.access_permissions
   FOR SELECT TO authenticated
   USING (
     organization_id IN (
@@ -232,7 +240,8 @@ CREATE POLICY access_permissions_select ON public.access_permissions
     )
   );
 
-CREATE POLICY access_permissions_insert ON public.access_permissions
+DROP POLICY IF EXISTS "access_permissions_insert" ON public.access_permissions;
+CREATE POLICY "access_permissions_insert" ON public.access_permissions
   FOR INSERT TO authenticated
   WITH CHECK (
     EXISTS (
@@ -243,7 +252,8 @@ CREATE POLICY access_permissions_insert ON public.access_permissions
     )
   );
 
-CREATE POLICY access_permissions_update ON public.access_permissions
+DROP POLICY IF EXISTS "access_permissions_update" ON public.access_permissions;
+CREATE POLICY "access_permissions_update" ON public.access_permissions
   FOR UPDATE TO authenticated
   USING (
     EXISTS (
@@ -254,7 +264,8 @@ CREATE POLICY access_permissions_update ON public.access_permissions
     )
   );
 
-CREATE POLICY access_permissions_delete ON public.access_permissions
+DROP POLICY IF EXISTS "access_permissions_delete" ON public.access_permissions;
+CREATE POLICY "access_permissions_delete" ON public.access_permissions
   FOR DELETE TO authenticated
   USING (
     EXISTS (
@@ -265,7 +276,8 @@ CREATE POLICY access_permissions_delete ON public.access_permissions
     )
   );
 
-CREATE POLICY access_permissions_service ON public.access_permissions
+DROP POLICY IF EXISTS "access_permissions_service" ON public.access_permissions;
+CREATE POLICY "access_permissions_service" ON public.access_permissions
   FOR ALL TO service_role
   USING (true) WITH CHECK (true);
 
@@ -603,7 +615,8 @@ CREATE INDEX IF NOT EXISTS idx_visitor_registrations_status ON public.visitor_re
 -- ── RLS for visitor_registrations ──────────────────────────────────────────────
 ALTER TABLE public.visitor_registrations ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY visitor_registrations_select ON public.visitor_registrations
+DROP POLICY IF EXISTS "visitor_registrations_select" ON public.visitor_registrations;
+CREATE POLICY "visitor_registrations_select" ON public.visitor_registrations
   FOR SELECT TO authenticated
   USING (
     organization_id IN (
@@ -611,7 +624,8 @@ CREATE POLICY visitor_registrations_select ON public.visitor_registrations
     )
   );
 
-CREATE POLICY visitor_registrations_insert ON public.visitor_registrations
+DROP POLICY IF EXISTS "visitor_registrations_insert" ON public.visitor_registrations;
+CREATE POLICY "visitor_registrations_insert" ON public.visitor_registrations
   FOR INSERT TO authenticated
   WITH CHECK (
     EXISTS (
@@ -622,7 +636,8 @@ CREATE POLICY visitor_registrations_insert ON public.visitor_registrations
     )
   );
 
-CREATE POLICY visitor_registrations_update ON public.visitor_registrations
+DROP POLICY IF EXISTS "visitor_registrations_update" ON public.visitor_registrations;
+CREATE POLICY "visitor_registrations_update" ON public.visitor_registrations
   FOR UPDATE TO authenticated
   USING (
     EXISTS (
@@ -633,7 +648,8 @@ CREATE POLICY visitor_registrations_update ON public.visitor_registrations
     )
   );
 
-CREATE POLICY visitor_registrations_service ON public.visitor_registrations
+DROP POLICY IF EXISTS "visitor_registrations_service" ON public.visitor_registrations;
+CREATE POLICY "visitor_registrations_service" ON public.visitor_registrations
   FOR ALL TO service_role
   USING (true) WITH CHECK (true);
 
@@ -1015,7 +1031,8 @@ CREATE INDEX IF NOT EXISTS idx_access_control_incidents_type ON public.access_co
 -- ── RLS for access_control_incidents ───────────────────────────────────────────
 ALTER TABLE public.access_control_incidents ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY access_control_incidents_select ON public.access_control_incidents
+DROP POLICY IF EXISTS "access_control_incidents_select" ON public.access_control_incidents;
+CREATE POLICY "access_control_incidents_select" ON public.access_control_incidents
   FOR SELECT TO authenticated
   USING (
     organization_id IN (
@@ -1023,7 +1040,8 @@ CREATE POLICY access_control_incidents_select ON public.access_control_incidents
     )
   );
 
-CREATE POLICY access_control_incidents_insert ON public.access_control_incidents
+DROP POLICY IF EXISTS "access_control_incidents_insert" ON public.access_control_incidents;
+CREATE POLICY "access_control_incidents_insert" ON public.access_control_incidents
   FOR INSERT TO authenticated
   WITH CHECK (
     EXISTS (
@@ -1034,7 +1052,8 @@ CREATE POLICY access_control_incidents_insert ON public.access_control_incidents
     )
   );
 
-CREATE POLICY access_control_incidents_update ON public.access_control_incidents
+DROP POLICY IF EXISTS "access_control_incidents_update" ON public.access_control_incidents;
+CREATE POLICY "access_control_incidents_update" ON public.access_control_incidents
   FOR UPDATE TO authenticated
   USING (
     EXISTS (
@@ -1045,7 +1064,8 @@ CREATE POLICY access_control_incidents_update ON public.access_control_incidents
     )
   );
 
-CREATE POLICY access_control_incidents_service ON public.access_control_incidents
+DROP POLICY IF EXISTS "access_control_incidents_service" ON public.access_control_incidents;
+CREATE POLICY "access_control_incidents_service" ON public.access_control_incidents
   FOR ALL TO service_role
   USING (true) WITH CHECK (true);
 
@@ -1366,12 +1386,16 @@ $$;
 COMMENT ON FUNCTION public.get_person_access_history IS 'Get complete access history and incidents for a person';
 
 -- ══════════════════════════════════════════════════════════════════════════════
-RAISE NOTICE '✅ Access Control & Identity Verification System installed';
-RAISE NOTICE '   - Zones: access_control_enabled, access_control_config columns';
-RAISE NOTICE '   - Person Records: profile_photo, id_document, clearance, retention fields';
-RAISE NOTICE '   - Tables: person_id_documents, access_entries, access_permissions, visitor_registrations, access_control_incidents';
-RAISE NOTICE '   - RPCs: verify_access_identity, log_access_entry';
-RAISE NOTICE '   - Visitor Management: soft_delete_visitor_record, delete_visitor_with_data, extend_visitor_retention';
-RAISE NOTICE '   - Incidents: create_access_control_incident';
-RAISE NOTICE '   - Statistics: get_zone_access_statistics, get_person_access_history';
-RAISE NOTICE '   - Cleanup: cleanup_expired_visitor_records (call from scheduled job)';
+DO $$
+BEGIN
+  RAISE NOTICE '✅ Access Control & Identity Verification System installed';
+  RAISE NOTICE '   - Zones: access_control_enabled, access_control_config columns';
+  RAISE NOTICE '   - Person Records: profile_photo, id_document, clearance, retention fields';
+  RAISE NOTICE '   - Tables: person_id_documents, access_entries, access_permissions, visitor_registrations, access_control_incidents';
+  RAISE NOTICE '   - RPCs: verify_access_identity, log_access_entry';
+  RAISE NOTICE '   - Visitor Management: soft_delete_visitor_record, delete_visitor_with_data, extend_visitor_retention';
+  RAISE NOTICE '   - Incidents: create_access_control_incident';
+  RAISE NOTICE '   - Statistics: get_zone_access_statistics, get_person_access_history';
+  RAISE NOTICE '   - Cleanup: cleanup_expired_visitor_records (call from scheduled job)';
+END;
+$$;

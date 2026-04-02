@@ -151,7 +151,7 @@ CREATE INDEX IF NOT EXISTS idx_access_watchlist_org ON public.access_watchlist(o
 CREATE INDEX IF NOT EXISTS idx_access_watchlist_person ON public.access_watchlist(person_record_id);
 CREATE INDEX IF NOT EXISTS idx_access_watchlist_type ON public.access_watchlist(list_type);
 CREATE INDEX IF NOT EXISTS idx_access_watchlist_active ON public.access_watchlist(organization_id) 
-  WHERE (effective_until IS NULL OR effective_until > now());
+  WHERE effective_until IS NULL;
 
 COMMENT ON TABLE public.access_watchlist IS 'Blocked/restricted/VIP/alert list for access control screening';
 
@@ -403,11 +403,13 @@ COMMENT ON COLUMN public.access_entries.door_id IS 'Door/portal identifier (for 
 -- biometric_consents
 ALTER TABLE public.biometric_consents ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY biometric_consents_select ON public.biometric_consents
+DROP POLICY IF EXISTS "biometric_consents_select" ON public.biometric_consents;
+CREATE POLICY "biometric_consents_select" ON public.biometric_consents
   FOR SELECT TO authenticated
   USING (organization_id IN (SELECT organization_id FROM public.user_profiles WHERE id = auth.uid()));
 
-CREATE POLICY biometric_consents_insert ON public.biometric_consents
+DROP POLICY IF EXISTS "biometric_consents_insert" ON public.biometric_consents;
+CREATE POLICY "biometric_consents_insert" ON public.biometric_consents
   FOR INSERT TO authenticated
   WITH CHECK (EXISTS (
     SELECT 1 FROM public.user_profiles
@@ -415,7 +417,8 @@ CREATE POLICY biometric_consents_insert ON public.biometric_consents
       AND organization_id = biometric_consents.organization_id
   ));
 
-CREATE POLICY biometric_consents_update ON public.biometric_consents
+DROP POLICY IF EXISTS "biometric_consents_update" ON public.biometric_consents;
+CREATE POLICY "biometric_consents_update" ON public.biometric_consents
   FOR UPDATE TO authenticated
   USING (EXISTS (
     SELECT 1 FROM public.user_profiles
@@ -423,17 +426,20 @@ CREATE POLICY biometric_consents_update ON public.biometric_consents
       AND organization_id = biometric_consents.organization_id
   ));
 
-CREATE POLICY biometric_consents_service ON public.biometric_consents
+DROP POLICY IF EXISTS "biometric_consents_service" ON public.biometric_consents;
+CREATE POLICY "biometric_consents_service" ON public.biometric_consents
   FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- access_watchlist
 ALTER TABLE public.access_watchlist ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY access_watchlist_select ON public.access_watchlist
+DROP POLICY IF EXISTS "access_watchlist_select" ON public.access_watchlist;
+CREATE POLICY "access_watchlist_select" ON public.access_watchlist
   FOR SELECT TO authenticated
   USING (organization_id IN (SELECT organization_id FROM public.user_profiles WHERE id = auth.uid()));
 
-CREATE POLICY access_watchlist_insert ON public.access_watchlist
+DROP POLICY IF EXISTS "access_watchlist_insert" ON public.access_watchlist;
+CREATE POLICY "access_watchlist_insert" ON public.access_watchlist
   FOR INSERT TO authenticated
   WITH CHECK (EXISTS (
     SELECT 1 FROM public.user_profiles
@@ -441,7 +447,8 @@ CREATE POLICY access_watchlist_insert ON public.access_watchlist
       AND organization_id = access_watchlist.organization_id
   ));
 
-CREATE POLICY access_watchlist_update ON public.access_watchlist
+DROP POLICY IF EXISTS "access_watchlist_update" ON public.access_watchlist;
+CREATE POLICY "access_watchlist_update" ON public.access_watchlist
   FOR UPDATE TO authenticated
   USING (EXISTS (
     SELECT 1 FROM public.user_profiles
@@ -449,7 +456,8 @@ CREATE POLICY access_watchlist_update ON public.access_watchlist
       AND organization_id = access_watchlist.organization_id
   ));
 
-CREATE POLICY access_watchlist_delete ON public.access_watchlist
+DROP POLICY IF EXISTS "access_watchlist_delete" ON public.access_watchlist;
+CREATE POLICY "access_watchlist_delete" ON public.access_watchlist
   FOR DELETE TO authenticated
   USING (EXISTS (
     SELECT 1 FROM public.user_profiles
@@ -457,17 +465,20 @@ CREATE POLICY access_watchlist_delete ON public.access_watchlist
       AND organization_id = access_watchlist.organization_id
   ));
 
-CREATE POLICY access_watchlist_service ON public.access_watchlist
+DROP POLICY IF EXISTS "access_watchlist_service" ON public.access_watchlist;
+CREATE POLICY "access_watchlist_service" ON public.access_watchlist
   FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- access_credentials
 ALTER TABLE public.access_credentials ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY access_credentials_select ON public.access_credentials
+DROP POLICY IF EXISTS "access_credentials_select" ON public.access_credentials;
+CREATE POLICY "access_credentials_select" ON public.access_credentials
   FOR SELECT TO authenticated
   USING (organization_id IN (SELECT organization_id FROM public.user_profiles WHERE id = auth.uid()));
 
-CREATE POLICY access_credentials_insert ON public.access_credentials
+DROP POLICY IF EXISTS "access_credentials_insert" ON public.access_credentials;
+CREATE POLICY "access_credentials_insert" ON public.access_credentials
   FOR INSERT TO authenticated
   WITH CHECK (EXISTS (
     SELECT 1 FROM public.user_profiles
@@ -475,7 +486,8 @@ CREATE POLICY access_credentials_insert ON public.access_credentials
       AND organization_id = access_credentials.organization_id
   ));
 
-CREATE POLICY access_credentials_update ON public.access_credentials
+DROP POLICY IF EXISTS "access_credentials_update" ON public.access_credentials;
+CREATE POLICY "access_credentials_update" ON public.access_credentials
   FOR UPDATE TO authenticated
   USING (EXISTS (
     SELECT 1 FROM public.user_profiles
@@ -483,7 +495,8 @@ CREATE POLICY access_credentials_update ON public.access_credentials
       AND organization_id = access_credentials.organization_id
   ));
 
-CREATE POLICY access_credentials_delete ON public.access_credentials
+DROP POLICY IF EXISTS "access_credentials_delete" ON public.access_credentials;
+CREATE POLICY "access_credentials_delete" ON public.access_credentials
   FOR DELETE TO authenticated
   USING (EXISTS (
     SELECT 1 FROM public.user_profiles
@@ -491,17 +504,20 @@ CREATE POLICY access_credentials_delete ON public.access_credentials
       AND organization_id = access_credentials.organization_id
   ));
 
-CREATE POLICY access_credentials_service ON public.access_credentials
+DROP POLICY IF EXISTS "access_credentials_service" ON public.access_credentials;
+CREATE POLICY "access_credentials_service" ON public.access_credentials
   FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- access_location_state
 ALTER TABLE public.access_location_state ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY access_location_state_select ON public.access_location_state
+DROP POLICY IF EXISTS "access_location_state_select" ON public.access_location_state;
+CREATE POLICY "access_location_state_select" ON public.access_location_state
   FOR SELECT TO authenticated
   USING (organization_id IN (SELECT organization_id FROM public.user_profiles WHERE id = auth.uid()));
 
-CREATE POLICY access_location_state_all ON public.access_location_state
+DROP POLICY IF EXISTS "access_location_state_all" ON public.access_location_state;
+CREATE POLICY "access_location_state_all" ON public.access_location_state
   FOR ALL TO authenticated
   USING (EXISTS (
     SELECT 1 FROM public.user_profiles
@@ -514,17 +530,20 @@ CREATE POLICY access_location_state_all ON public.access_location_state
       AND organization_id = access_location_state.organization_id
   ));
 
-CREATE POLICY access_location_state_service ON public.access_location_state
+DROP POLICY IF EXISTS "access_location_state_service" ON public.access_location_state;
+CREATE POLICY "access_location_state_service" ON public.access_location_state
   FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- access_mfa_log
 ALTER TABLE public.access_mfa_log ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY access_mfa_log_select ON public.access_mfa_log
+DROP POLICY IF EXISTS "access_mfa_log_select" ON public.access_mfa_log;
+CREATE POLICY "access_mfa_log_select" ON public.access_mfa_log
   FOR SELECT TO authenticated
   USING (organization_id IN (SELECT organization_id FROM public.user_profiles WHERE id = auth.uid()));
 
-CREATE POLICY access_mfa_log_insert ON public.access_mfa_log
+DROP POLICY IF EXISTS "access_mfa_log_insert" ON public.access_mfa_log;
+CREATE POLICY "access_mfa_log_insert" ON public.access_mfa_log
   FOR INSERT TO authenticated
   WITH CHECK (EXISTS (
     SELECT 1 FROM public.user_profiles
@@ -532,17 +551,20 @@ CREATE POLICY access_mfa_log_insert ON public.access_mfa_log
       AND organization_id = access_mfa_log.organization_id
   ));
 
-CREATE POLICY access_mfa_log_service ON public.access_mfa_log
+DROP POLICY IF EXISTS "access_mfa_log_service" ON public.access_mfa_log;
+CREATE POLICY "access_mfa_log_service" ON public.access_mfa_log
   FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- emergency_events
 ALTER TABLE public.emergency_events ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY emergency_events_select ON public.emergency_events
+DROP POLICY IF EXISTS "emergency_events_select" ON public.emergency_events;
+CREATE POLICY "emergency_events_select" ON public.emergency_events
   FOR SELECT TO authenticated
   USING (organization_id IN (SELECT organization_id FROM public.user_profiles WHERE id = auth.uid()));
 
-CREATE POLICY emergency_events_insert ON public.emergency_events
+DROP POLICY IF EXISTS "emergency_events_insert" ON public.emergency_events;
+CREATE POLICY "emergency_events_insert" ON public.emergency_events
   FOR INSERT TO authenticated
   WITH CHECK (EXISTS (
     SELECT 1 FROM public.user_profiles
@@ -550,7 +572,8 @@ CREATE POLICY emergency_events_insert ON public.emergency_events
       AND organization_id = emergency_events.organization_id
   ));
 
-CREATE POLICY emergency_events_update ON public.emergency_events
+DROP POLICY IF EXISTS "emergency_events_update" ON public.emergency_events;
+CREATE POLICY "emergency_events_update" ON public.emergency_events
   FOR UPDATE TO authenticated
   USING (EXISTS (
     SELECT 1 FROM public.user_profiles
@@ -558,17 +581,20 @@ CREATE POLICY emergency_events_update ON public.emergency_events
       AND organization_id = emergency_events.organization_id
   ));
 
-CREATE POLICY emergency_events_service ON public.emergency_events
+DROP POLICY IF EXISTS "emergency_events_service" ON public.emergency_events;
+CREATE POLICY "emergency_events_service" ON public.emergency_events
   FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- evacuation_roll_call
 ALTER TABLE public.evacuation_roll_call ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY evacuation_roll_call_select ON public.evacuation_roll_call
+DROP POLICY IF EXISTS "evacuation_roll_call_select" ON public.evacuation_roll_call;
+CREATE POLICY "evacuation_roll_call_select" ON public.evacuation_roll_call
   FOR SELECT TO authenticated
   USING (organization_id IN (SELECT organization_id FROM public.user_profiles WHERE id = auth.uid()));
 
-CREATE POLICY evacuation_roll_call_all ON public.evacuation_roll_call
+DROP POLICY IF EXISTS "evacuation_roll_call_all" ON public.evacuation_roll_call;
+CREATE POLICY "evacuation_roll_call_all" ON public.evacuation_roll_call
   FOR ALL TO authenticated
   USING (EXISTS (
     SELECT 1 FROM public.user_profiles
@@ -581,7 +607,8 @@ CREATE POLICY evacuation_roll_call_all ON public.evacuation_roll_call
       AND organization_id = evacuation_roll_call.organization_id
   ));
 
-CREATE POLICY evacuation_roll_call_service ON public.evacuation_roll_call
+DROP POLICY IF EXISTS "evacuation_roll_call_service" ON public.evacuation_roll_call;
+CREATE POLICY "evacuation_roll_call_service" ON public.evacuation_roll_call
   FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -969,35 +996,42 @@ CREATE TRIGGER tr_access_entries_credential_usage
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 -- Allow grand_master to view all records across organizations
-CREATE POLICY biometric_consents_grand_master ON public.biometric_consents
+DROP POLICY IF EXISTS "biometric_consents_grand_master" ON public.biometric_consents;
+CREATE POLICY "biometric_consents_grand_master" ON public.biometric_consents
   FOR SELECT TO authenticated
   USING (EXISTS (SELECT 1 FROM public.user_profiles WHERE id = auth.uid() AND role = 'grand_master'));
 
-CREATE POLICY access_watchlist_grand_master ON public.access_watchlist
+DROP POLICY IF EXISTS "access_watchlist_grand_master" ON public.access_watchlist;
+CREATE POLICY "access_watchlist_grand_master" ON public.access_watchlist
   FOR ALL TO authenticated
   USING (EXISTS (SELECT 1 FROM public.user_profiles WHERE id = auth.uid() AND role = 'grand_master'))
   WITH CHECK (EXISTS (SELECT 1 FROM public.user_profiles WHERE id = auth.uid() AND role = 'grand_master'));
 
-CREATE POLICY access_credentials_grand_master ON public.access_credentials
+DROP POLICY IF EXISTS "access_credentials_grand_master" ON public.access_credentials;
+CREATE POLICY "access_credentials_grand_master" ON public.access_credentials
   FOR ALL TO authenticated
   USING (EXISTS (SELECT 1 FROM public.user_profiles WHERE id = auth.uid() AND role = 'grand_master'))
   WITH CHECK (EXISTS (SELECT 1 FROM public.user_profiles WHERE id = auth.uid() AND role = 'grand_master'));
 
-CREATE POLICY access_location_state_grand_master ON public.access_location_state
+DROP POLICY IF EXISTS "access_location_state_grand_master" ON public.access_location_state;
+CREATE POLICY "access_location_state_grand_master" ON public.access_location_state
   FOR ALL TO authenticated
   USING (EXISTS (SELECT 1 FROM public.user_profiles WHERE id = auth.uid() AND role = 'grand_master'))
   WITH CHECK (EXISTS (SELECT 1 FROM public.user_profiles WHERE id = auth.uid() AND role = 'grand_master'));
 
-CREATE POLICY access_mfa_log_grand_master ON public.access_mfa_log
+DROP POLICY IF EXISTS "access_mfa_log_grand_master" ON public.access_mfa_log;
+CREATE POLICY "access_mfa_log_grand_master" ON public.access_mfa_log
   FOR SELECT TO authenticated
   USING (EXISTS (SELECT 1 FROM public.user_profiles WHERE id = auth.uid() AND role = 'grand_master'));
 
-CREATE POLICY emergency_events_grand_master ON public.emergency_events
+DROP POLICY IF EXISTS "emergency_events_grand_master" ON public.emergency_events;
+CREATE POLICY "emergency_events_grand_master" ON public.emergency_events
   FOR ALL TO authenticated
   USING (EXISTS (SELECT 1 FROM public.user_profiles WHERE id = auth.uid() AND role = 'grand_master'))
   WITH CHECK (EXISTS (SELECT 1 FROM public.user_profiles WHERE id = auth.uid() AND role = 'grand_master'));
 
-CREATE POLICY evacuation_roll_call_grand_master ON public.evacuation_roll_call
+DROP POLICY IF EXISTS "evacuation_roll_call_grand_master" ON public.evacuation_roll_call;
+CREATE POLICY "evacuation_roll_call_grand_master" ON public.evacuation_roll_call
   FOR ALL TO authenticated
   USING (EXISTS (SELECT 1 FROM public.user_profiles WHERE id = auth.uid() AND role = 'grand_master'))
   WITH CHECK (EXISTS (SELECT 1 FROM public.user_profiles WHERE id = auth.uid() AND role = 'grand_master'));

@@ -19,7 +19,7 @@
 
 CREATE TABLE IF NOT EXISTS public.shift_cold_starts (
   id                    UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-  shift_id              UUID        NOT NULL REFERENCES public.rostered_shifts(id) ON DELETE CASCADE,
+  shift_id              UUID        NOT NULL REFERENCES public.roster_shifts(id) ON DELETE CASCADE,
   officer_id            UUID        NOT NULL REFERENCES public.user_profiles(id) ON DELETE CASCADE,
   
   registered_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS public.duress_alerts (
   address               TEXT,
   
   -- Context
-  shift_id              UUID        REFERENCES public.rostered_shifts(id),
+  shift_id              UUID        REFERENCES public.roster_shifts(id),
   patrol_id             UUID        REFERENCES public.patrols(id),
   site_id               UUID        REFERENCES public.client_sites(id),
   
@@ -396,7 +396,7 @@ BEGIN
   
   -- Get active shift/patrol
   SELECT id INTO v_shift_id
-  FROM rostered_shifts
+  FROM roster_shifts
   WHERE officer_id = p_officer_id
     AND shift_date = CURRENT_DATE
     AND actual_end IS NULL
@@ -549,37 +549,43 @@ ALTER TABLE client_patrol_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE site_contacts ENABLE ROW LEVEL SECURITY;
 
 -- Cold starts - officers see own, admins see all org
-CREATE POLICY cold_starts_select ON shift_cold_starts
+DROP POLICY IF EXISTS "cold_starts_select" ON shift_cold_starts;
+CREATE POLICY "cold_starts_select" ON shift_cold_starts
   FOR SELECT USING (
     officer_id = auth.uid()
     OR EXISTS (
       SELECT 1 FROM user_profiles up
-      JOIN rostered_shifts rs ON rs.id = shift_cold_starts.shift_id
+      JOIN roster_shifts rs ON rs.id = shift_cold_starts.shift_id
       WHERE up.id = auth.uid()
       AND up.organization_id = rs.organization_id
       AND up.role IN ('admin', 'admin_officer', 'master', 'grand_master')
     )
   );
 
-CREATE POLICY cold_starts_insert ON shift_cold_starts
+DROP POLICY IF EXISTS "cold_starts_insert" ON shift_cold_starts;
+CREATE POLICY "cold_starts_insert" ON shift_cold_starts
   FOR INSERT WITH CHECK (officer_id = auth.uid());
 
-CREATE POLICY cold_starts_update ON shift_cold_starts
+DROP POLICY IF EXISTS "cold_starts_update" ON shift_cold_starts;
+CREATE POLICY "cold_starts_update" ON shift_cold_starts
   FOR UPDATE USING (officer_id = auth.uid());
 
 -- Duress alerts - org members can view
-CREATE POLICY duress_alerts_select ON duress_alerts
+DROP POLICY IF EXISTS "duress_alerts_select" ON duress_alerts;
+CREATE POLICY "duress_alerts_select" ON duress_alerts
   FOR SELECT USING (
     organization_id = get_user_organization_id(auth.uid())
     OR officer_id = auth.uid()
     OR EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role IN ('master', 'grand_master'))
   );
 
-CREATE POLICY duress_alerts_insert ON duress_alerts
+DROP POLICY IF EXISTS "duress_alerts_insert" ON duress_alerts;
+CREATE POLICY "duress_alerts_insert" ON duress_alerts
   FOR INSERT WITH CHECK (officer_id = auth.uid());
 
 -- Client portal users - provider org admins
-CREATE POLICY client_portal_users_select ON client_portal_users
+DROP POLICY IF EXISTS "client_portal_users_select" ON client_portal_users;
+CREATE POLICY "client_portal_users_select" ON client_portal_users
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM user_profiles up
@@ -590,7 +596,8 @@ CREATE POLICY client_portal_users_select ON client_portal_users
     )
   );
 
-CREATE POLICY client_portal_users_manage ON client_portal_users
+DROP POLICY IF EXISTS "client_portal_users_manage" ON client_portal_users;
+CREATE POLICY "client_portal_users_manage" ON client_portal_users
   FOR ALL USING (
     EXISTS (
       SELECT 1 FROM user_profiles up
@@ -602,20 +609,23 @@ CREATE POLICY client_portal_users_manage ON client_portal_users
   );
 
 -- Patrol exceptions - org members
-CREATE POLICY patrol_exceptions_select ON patrol_exceptions
+DROP POLICY IF EXISTS "patrol_exceptions_select" ON patrol_exceptions;
+CREATE POLICY "patrol_exceptions_select" ON patrol_exceptions
   FOR SELECT USING (
     organization_id = get_user_organization_id(auth.uid())
     OR EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role IN ('master', 'grand_master'))
   );
 
-CREATE POLICY patrol_exceptions_update ON patrol_exceptions
+DROP POLICY IF EXISTS "patrol_exceptions_update" ON patrol_exceptions;
+CREATE POLICY "patrol_exceptions_update" ON patrol_exceptions
   FOR UPDATE USING (
     organization_id = get_user_organization_id(auth.uid())
     AND EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role IN ('admin', 'admin_officer', 'master', 'grand_master'))
   );
 
 -- Client requests - client org or provider org
-CREATE POLICY client_requests_select ON client_patrol_requests
+DROP POLICY IF EXISTS "client_requests_select" ON client_patrol_requests;
+CREATE POLICY "client_requests_select" ON client_patrol_requests
   FOR SELECT USING (
     client_organization_id = get_user_organization_id(auth.uid())
     OR EXISTS (
@@ -627,7 +637,8 @@ CREATE POLICY client_requests_select ON client_patrol_requests
   );
 
 -- Site contacts - org members with site access
-CREATE POLICY site_contacts_select ON site_contacts
+DROP POLICY IF EXISTS "site_contacts_select" ON site_contacts;
+CREATE POLICY "site_contacts_select" ON site_contacts
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM client_sites cs
@@ -637,7 +648,8 @@ CREATE POLICY site_contacts_select ON site_contacts
     OR EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role IN ('master', 'grand_master'))
   );
 
-CREATE POLICY site_contacts_manage ON site_contacts
+DROP POLICY IF EXISTS "site_contacts_manage" ON site_contacts;
+CREATE POLICY "site_contacts_manage" ON site_contacts
   FOR ALL USING (
     EXISTS (
       SELECT 1 FROM client_sites cs
