@@ -678,20 +678,23 @@ ALTER TABLE ptt_channel_authorizations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ptt_contract_authorizations ENABLE ROW LEVEL SECURITY;
 
 -- Patrol routes - org members can view, admins can manage
-CREATE POLICY patrol_routes_select ON patrol_routes
+DROP POLICY IF EXISTS "patrol_routes_select" ON patrol_routes;
+CREATE POLICY "patrol_routes_select" ON patrol_routes
   FOR SELECT USING (
     organization_id = get_user_organization_id(auth.uid())
     OR EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role IN ('master', 'grand_master'))
   );
 
-CREATE POLICY patrol_routes_manage ON patrol_routes
+DROP POLICY IF EXISTS "patrol_routes_manage" ON patrol_routes;
+CREATE POLICY "patrol_routes_manage" ON patrol_routes
   FOR ALL USING (
     organization_id = get_user_organization_id(auth.uid())
     AND EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role IN ('admin', 'admin_officer', 'master', 'grand_master'))
   );
 
 -- Checkpoints - same as routes
-CREATE POLICY patrol_checkpoints_select ON patrol_route_checkpoints
+DROP POLICY IF EXISTS "patrol_checkpoints_select" ON patrol_route_checkpoints;
+CREATE POLICY "patrol_checkpoints_select" ON patrol_route_checkpoints
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM patrol_routes pr 
@@ -701,7 +704,8 @@ CREATE POLICY patrol_checkpoints_select ON patrol_route_checkpoints
     )
   );
 
-CREATE POLICY patrol_checkpoints_manage ON patrol_route_checkpoints
+DROP POLICY IF EXISTS "patrol_checkpoints_manage" ON patrol_route_checkpoints;
+CREATE POLICY "patrol_checkpoints_manage" ON patrol_route_checkpoints
   FOR ALL USING (
     EXISTS (
       SELECT 1 FROM patrol_routes pr 
@@ -712,34 +716,39 @@ CREATE POLICY patrol_checkpoints_manage ON patrol_route_checkpoints
   );
 
 -- Roster templates - org admins
-CREATE POLICY roster_templates_select ON roster_templates
+DROP POLICY IF EXISTS "roster_templates_select" ON roster_templates;
+CREATE POLICY "roster_templates_select" ON roster_templates
   FOR SELECT USING (
     organization_id = get_user_organization_id(auth.uid())
     OR EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role IN ('master', 'grand_master'))
   );
 
-CREATE POLICY roster_templates_manage ON roster_templates
+DROP POLICY IF EXISTS "roster_templates_manage" ON roster_templates;
+CREATE POLICY "roster_templates_manage" ON roster_templates
   FOR ALL USING (
     organization_id = get_user_organization_id(auth.uid())
     AND EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role IN ('admin', 'admin_officer', 'master', 'grand_master'))
   );
 
 -- Roster assignments - officers see own, admins see all
-CREATE POLICY roster_assignments_select ON roster_assignments
+DROP POLICY IF EXISTS "roster_assignments_select" ON roster_assignments;
+CREATE POLICY "roster_assignments_select" ON roster_assignments
   FOR SELECT USING (
     officer_id = auth.uid()
     OR organization_id = get_user_organization_id(auth.uid())
     OR EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role IN ('master', 'grand_master'))
   );
 
-CREATE POLICY roster_assignments_manage ON roster_assignments
+DROP POLICY IF EXISTS "roster_assignments_manage" ON roster_assignments;
+CREATE POLICY "roster_assignments_manage" ON roster_assignments
   FOR ALL USING (
     organization_id = get_user_organization_id(auth.uid())
     AND EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role IN ('admin', 'admin_officer', 'master', 'grand_master'))
   );
 
 -- Checkpoint scans - officers see own patrols
-CREATE POLICY checkpoint_scans_select ON patrol_checkpoint_scans
+DROP POLICY IF EXISTS "checkpoint_scans_select" ON patrol_checkpoint_scans;
+CREATE POLICY "checkpoint_scans_select" ON patrol_checkpoint_scans
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM patrols p 
@@ -749,7 +758,8 @@ CREATE POLICY checkpoint_scans_select ON patrol_checkpoint_scans
     OR EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role IN ('master', 'grand_master'))
   );
 
-CREATE POLICY checkpoint_scans_insert ON patrol_checkpoint_scans
+DROP POLICY IF EXISTS "checkpoint_scans_insert" ON patrol_checkpoint_scans;
+CREATE POLICY "checkpoint_scans_insert" ON patrol_checkpoint_scans
   FOR INSERT WITH CHECK (
     EXISTS (
       SELECT 1 FROM patrols p 
@@ -759,7 +769,8 @@ CREATE POLICY checkpoint_scans_insert ON patrol_checkpoint_scans
   );
 
 -- PTT authorizations - org admins
-CREATE POLICY ptt_auth_select ON ptt_channel_authorizations
+DROP POLICY IF EXISTS "ptt_auth_select" ON ptt_channel_authorizations;
+CREATE POLICY "ptt_auth_select" ON ptt_channel_authorizations
   FOR SELECT USING (
     channel_organization_id = get_user_organization_id(auth.uid())
     OR authorized_org_id = get_user_organization_id(auth.uid())
@@ -767,21 +778,24 @@ CREATE POLICY ptt_auth_select ON ptt_channel_authorizations
     OR EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role IN ('master', 'grand_master'))
   );
 
-CREATE POLICY ptt_auth_manage ON ptt_channel_authorizations
+DROP POLICY IF EXISTS "ptt_auth_manage" ON ptt_channel_authorizations;
+CREATE POLICY "ptt_auth_manage" ON ptt_channel_authorizations
   FOR ALL USING (
     channel_organization_id = get_user_organization_id(auth.uid())
     AND EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role IN ('admin', 'admin_officer', 'master', 'grand_master'))
   );
 
 -- PTT contract authorizations - org admins
-CREATE POLICY ptt_contract_auth_select ON ptt_contract_authorizations
+DROP POLICY IF EXISTS "ptt_contract_auth_select" ON ptt_contract_authorizations;
+CREATE POLICY "ptt_contract_auth_select" ON ptt_contract_authorizations
   FOR SELECT USING (
     provider_org_id = get_user_organization_id(auth.uid())
     OR client_org_id = get_user_organization_id(auth.uid())
     OR EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role IN ('master', 'grand_master'))
   );
 
-CREATE POLICY ptt_contract_auth_manage ON ptt_contract_authorizations
+DROP POLICY IF EXISTS "ptt_contract_auth_manage" ON ptt_contract_authorizations;
+CREATE POLICY "ptt_contract_auth_manage" ON ptt_contract_authorizations
   FOR ALL USING (
     (provider_org_id = get_user_organization_id(auth.uid()) OR client_org_id = get_user_organization_id(auth.uid()))
     AND EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role IN ('admin', 'admin_officer', 'master', 'grand_master'))

@@ -6,6 +6,7 @@
 
 import { supabase } from './supabase'
 import { toast } from 'sonner'
+import { toZonedTime } from 'date-fns-tz'
 
 export interface GeofenceZone {
   id: string
@@ -290,6 +291,21 @@ async function rpcPatrolAutoCheckout(patrolId: string): Promise<void> {
 }
 
 /**
+ * Detect the current shift based on the NZ timezone (Pacific/Auckland).
+ * Shift boundaries:
+ *   day     06:00–13:59
+ *   evening 14:00–21:59
+ *   night   22:00–05:59
+ */
+function detectShift(): 'day' | 'evening' | 'night' {
+  const nzDate = toZonedTime(new Date(), 'Pacific/Auckland')
+  const hour = nzDate.getHours()
+  if (hour >= 6 && hour < 14) return 'day'
+  if (hour >= 14 && hour < 22) return 'evening'
+  return 'night'
+}
+
+/**
  * Start a patrol automatically when entering a geofence
  */
 export async function autoStartPatrol(
@@ -321,7 +337,7 @@ export async function autoStartPatrol(
         organization_id: organizationId,
         zone_id: zoneId,
         patrol_date: new Date().toISOString().split('T')[0],
-        shift: 'day', // TODO: Detect shift based on time
+        shift: detectShift(),
         assigned_to: userId,
         status: 'in_progress',
         notes: 'Auto-started via geofence entry',

@@ -1,6 +1,6 @@
 {
   "name": "FieldOps Manager",
-  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-20-bullseye",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm",
 
   // -----------------------------------------------------------------------
   // Extra tools installed at container build time.
@@ -8,10 +8,9 @@
   // browser — no local installs required.
   // -----------------------------------------------------------------------
   "features": {
-    "ghcr.io/devcontainers/features/node:1": { "version": "20" },
+    "ghcr.io/devcontainers/features/node:1": { "version": "22" },
     "ghcr.io/devcontainers-contrib/features/bun:1": {},
     "ghcr.io/devcontainers/features/github-cli:1": {},
-    "ghcr.io/devcontainers/features/postgres:1": { "version": "15" },
     "ghcr.io/devcontainers-contrib/features/supabase-cli:1": { "version": "2.78.1" },
     "ghcr.io/devcontainers-contrib/features/deno:1": {}
   },
@@ -40,27 +39,33 @@
     }
   },
 
-  "containerEnv": {
-    "HOME": "/home/vscode"
-  },
-
-  "remoteEnv": {
-    "HOME": "/home/vscode"
-  },
-
   // -----------------------------------------------------------------------
   // Run once after the container is created.
-  // Installs project dependencies so the app is ready immediately.
+  // 1. Copy .env.example → .env so the app has a base configuration.
+  //    Developers should update VITE_SUPABASE_ANON_KEY (and any other
+  //    secrets) via GitHub Codespace Secrets or by editing .env directly.
+  // 2. Install project dependencies.
   // -----------------------------------------------------------------------
-  "postCreateCommand": "bun install 2>/dev/null || npm install 2>/dev/null || true",
+  "onCreateCommand": "cp -n .env.example .env 2>/dev/null || true",
+  "postCreateCommand": "bun install 2>/dev/null || npm install",
+
+  // -----------------------------------------------------------------------
+  // Run every time the Codespace starts (after create).
+  // Starts the Vite dev server so the app is immediately accessible via
+  // the forwarded port preview tab.
+  // Dev server logs are written to ~/vite-dev.log — run `tail -f ~/vite-dev.log`
+  // in the terminal if you need to diagnose startup issues.
+  // -----------------------------------------------------------------------
+  "postStartCommand": "nohup npm run dev -- --host 0.0.0.0 > ~/vite-dev.log 2>&1 &",
 
   // Forward the Vite dev server port so you can preview the app in your
   // browser tab directly from Codespaces.
-  "forwardPorts": [5173, 3000, 8080],
+  "forwardPorts": [5173, 3000, 3002, 8080],
 
   "portsAttributes": {
     "5173": { "label": "Vite Dev Server", "onAutoForward": "openPreview" },
     "3000": { "label": "Proxy Server" },
+    "3002": { "label": "PTT Signaling Server" },
     "8080": { "label": "Inference Service" }
   },
 

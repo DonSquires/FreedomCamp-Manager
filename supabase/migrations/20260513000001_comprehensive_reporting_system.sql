@@ -70,8 +70,8 @@ CREATE INDEX IF NOT EXISTS idx_report_data_sources_org
 ALTER TABLE public.report_data_sources ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "admins_manage_report_data_sources" ON public.report_data_sources;
-CREATE POLICY "admins_manage_report_data_sources"
-  ON public.report_data_sources FOR ALL
+DROP POLICY IF EXISTS "admins_manage_report_data_sources" ON public.report_data_sources;
+CREATE POLICY "admins_manage_report_data_sources" ON public.report_data_sources FOR ALL
   TO authenticated
   USING (
     get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin')
@@ -81,8 +81,8 @@ CREATE POLICY "admins_manage_report_data_sources"
   );
 
 DROP POLICY IF EXISTS "auth_read_report_data_sources" ON public.report_data_sources;
-CREATE POLICY "auth_read_report_data_sources"
-  ON public.report_data_sources FOR SELECT
+DROP POLICY IF EXISTS "auth_read_report_data_sources" ON public.report_data_sources;
+CREATE POLICY "auth_read_report_data_sources" ON public.report_data_sources FOR SELECT
   TO authenticated
   USING (is_active = true);
 
@@ -196,8 +196,8 @@ ALTER TABLE public.report_templates ENABLE ROW LEVEL SECURITY;
 
 -- Admins manage all templates in their org
 DROP POLICY IF EXISTS "admins_manage_report_templates" ON public.report_templates;
-CREATE POLICY "admins_manage_report_templates"
-  ON public.report_templates FOR ALL
+DROP POLICY IF EXISTS "admins_manage_report_templates" ON public.report_templates;
+CREATE POLICY "admins_manage_report_templates" ON public.report_templates FOR ALL
   TO authenticated
   USING (
     organization_id IN (
@@ -212,8 +212,8 @@ CREATE POLICY "admins_manage_report_templates"
 
 -- Users can read public templates or their own
 DROP POLICY IF EXISTS "users_read_report_templates" ON public.report_templates;
-CREATE POLICY "users_read_report_templates"
-  ON public.report_templates FOR SELECT
+DROP POLICY IF EXISTS "users_read_report_templates" ON public.report_templates;
+CREATE POLICY "users_read_report_templates" ON public.report_templates FOR SELECT
   TO authenticated
   USING (
     is_active = true AND (
@@ -324,8 +324,8 @@ CREATE TRIGGER trg_report_schedules_updated_at
 ALTER TABLE public.report_schedules ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "admins_manage_report_schedules" ON public.report_schedules;
-CREATE POLICY "admins_manage_report_schedules"
-  ON public.report_schedules FOR ALL
+DROP POLICY IF EXISTS "admins_manage_report_schedules" ON public.report_schedules;
+CREATE POLICY "admins_manage_report_schedules" ON public.report_schedules FOR ALL
   TO authenticated
   USING (
     organization_id IN (
@@ -415,8 +415,8 @@ CREATE INDEX IF NOT EXISTS idx_report_history_expiry
 ALTER TABLE public.report_history ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "admins_manage_report_history" ON public.report_history;
-CREATE POLICY "admins_manage_report_history"
-  ON public.report_history FOR ALL
+DROP POLICY IF EXISTS "admins_manage_report_history" ON public.report_history;
+CREATE POLICY "admins_manage_report_history" ON public.report_history FOR ALL
   TO authenticated
   USING (
     organization_id IN (
@@ -431,8 +431,8 @@ CREATE POLICY "admins_manage_report_history"
 
 -- Users can read reports they generated
 DROP POLICY IF EXISTS "users_read_own_report_history" ON public.report_history;
-CREATE POLICY "users_read_own_report_history"
-  ON public.report_history FOR SELECT
+DROP POLICY IF EXISTS "users_read_own_report_history" ON public.report_history;
+CREATE POLICY "users_read_own_report_history" ON public.report_history FOR SELECT
   TO authenticated
   USING (generated_by = auth.uid());
 

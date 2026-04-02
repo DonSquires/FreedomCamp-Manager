@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS organization_credentials (
 ALTER TABLE organization_credentials ENABLE ROW LEVEL SECURITY;
 
 -- Only admins of the org can manage credentials
+DROP POLICY IF EXISTS "org_admins_manage_credentials" ON organization_credentials;
 CREATE POLICY "org_admins_manage_credentials" ON organization_credentials
   FOR ALL USING (
     EXISTS (
@@ -59,8 +60,8 @@ The encrypted_value should be decrypted only in edge functions with proper auth.
 
 -- Add missing indexes on frequently queried columns
 CREATE INDEX IF NOT EXISTS idx_patrols_status ON patrols(status);
-CREATE INDEX IF NOT EXISTS idx_patrols_officer_id ON patrols(officer_id);
-CREATE INDEX IF NOT EXISTS idx_patrols_status_officer ON patrols(status, officer_id);
+CREATE INDEX IF NOT EXISTS idx_patrols_assigned_to ON patrols(assigned_to);
+CREATE INDEX IF NOT EXISTS idx_patrols_status_assigned_to ON patrols(status, assigned_to);
 CREATE INDEX IF NOT EXISTS idx_breach_alerts_created_at ON breach_alerts(created_at);
 
 -- Add index for report templates favorites
@@ -342,7 +343,13 @@ END $$;
 -- Example fix for nzscv_cache (if it exists and has the permissive policy)
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'nzscv_cache') THEN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'nzscv_cache'
+      AND column_name = 'organization_id'
+  ) THEN
     -- Drop overly permissive policy
     DROP POLICY IF EXISTS "users_view_nzscv_cache" ON nzscv_cache;
     
@@ -350,7 +357,9 @@ BEGIN
     CREATE POLICY "org_users_view_nzscv_cache" ON nzscv_cache
       FOR SELECT USING (
         organization_id IN (
-          SELECT get_user_organization_ids(auth.uid())
+          SELECT organization_id
+          FROM user_profiles
+          WHERE id = auth.uid()
         )
         OR EXISTS (
           SELECT 1 FROM user_profiles
