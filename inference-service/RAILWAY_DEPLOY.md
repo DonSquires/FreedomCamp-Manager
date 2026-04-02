@@ -54,6 +54,7 @@ In Railway dashboard, click the **Variables** tab and add:
 | `SELF_HEALING_ENABLED` | `true` | Enables self-healing bug planning endpoints |
 | `INTEL_STATE_PATH` | `./data/intel-state.json` | Local store for ingested policy/security/jurisdiction bulletins |
 | `INTEL_HMAC_KEY` | _(unset)_ | Optional HMAC key to authenticate `/intel/ingest-bulletin` payloads |
+| `INTEL_INGEST_URL` | `https://<service>/intel/ingest-bulletin` | Optional helper var for feeder automation script |
 | `ATTR_TIMEOUT_MS` | `2500` | Timeout for AI attribute extraction |
 | `INFER_RATE_LIMIT_RPM` | `30` | Max inference requests per minute per IP |
 | `ALPR_RATE_LIMIT_RPM` | `60` | Max ALPR requests per minute per IP |

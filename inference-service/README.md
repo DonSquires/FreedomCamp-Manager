@@ -223,6 +223,32 @@ If `INTEL_HMAC_KEY` is set, send `x-intel-signature` with SHA-256 HMAC of the ra
 
 Returns stored intelligence bulletins and category counts for downstream decision logic.
 
+### **Secure Bulletin Feeder Script**
+
+Use the local feeder script to push vetted updates into `/intel/ingest-bulletin`:
+
+```bash
+# Dry-run first
+npm run intel:push-bulletin -- \
+  --file scripts/example-intel-bulletin.json \
+  --url https://your-inference-service/intel/ingest-bulletin \
+  --api-key "$INFERENCE_API_KEY" \
+  --hmac-key "$INTEL_HMAC_KEY" \
+  --dry-run true
+
+# Real push
+npm run intel:push-bulletin -- \
+  --file scripts/example-intel-bulletin.json \
+  --url https://your-inference-service/intel/ingest-bulletin \
+  --api-key "$INFERENCE_API_KEY" \
+  --hmac-key "$INTEL_HMAC_KEY"
+```
+
+Environment variable fallback is supported:
+- `INTEL_INGEST_URL`
+- `INFERENCE_API_KEY`
+- `INTEL_HMAC_KEY`
+
 ### **POST /infer**
 
 Generate vehicle embedding from photo.

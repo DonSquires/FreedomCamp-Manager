@@ -8,6 +8,7 @@
     "dev": "nodemon server.js",
     "download-models": "node scripts/download-models.js",
     "pretrain:self-learning": "node scripts/pretrain-self-learning.js",
+    "intel:push-bulletin": "node scripts/push-intel-bulletin.mjs",
     "test": "./test-local.sh",
     "test:self-contained": "node scripts/test-self-contained-mode.mjs"
   },
