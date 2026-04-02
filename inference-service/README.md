@@ -249,6 +249,33 @@ Environment variable fallback is supported:
 - `INFERENCE_API_KEY`
 - `INTEL_HMAC_KEY`
 
+### **Automated Feed Harvester**
+
+Use the scheduled harvester to scan vetted websites/feeds and ingest useful updates:
+
+```bash
+INTEL_FEED_URLS="https://example.com/rss,https://example.com/advisories.json" \
+INTEL_INGEST_URL="https://your-inference-service/intel/ingest-bulletin" \
+INFERENCE_API_KEY="$INFERENCE_API_KEY" \
+INTEL_HMAC_KEY="$INTEL_HMAC_KEY" \
+npm run intel:harvest-feeds
+```
+
+Optional DB sync to Supabase:
+- `INTEL_ENABLE_DB_SYNC=true`
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `INTEL_ORGANIZATION_ID`
+- `INTEL_DB_TABLE` (default `external_intel_bulletins`)
+
+Safety controls:
+- `INTEL_ALLOWED_HOSTS` to restrict scanning to approved domains only.
+- `INTEL_DRY_RUN=true` to test harvesting without ingesting or writing to DB.
+
+When explicit identifiers are found, the harvester can also add:
+- `persons_of_interest`
+- `vehicles_of_interest`
+
 ### **POST /infer**
 
 Generate vehicle embedding from photo.
