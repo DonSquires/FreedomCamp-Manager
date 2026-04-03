@@ -130,27 +130,20 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_POOLER_HOST: ${{ secrets.SUPABASE_DB_POOLER_HOST }}
         run: |
           set -euo pipefail
 
           LOG_FILE="$(mktemp)"
-          DB_HOST="db.${SUPABASE_PROJECT_REF}.supabase.co"
-          DB_HOSTADDR="$(getent ahostsv4 "$DB_HOST" | awk '{print $1}' | head -n1 || true)"
-
-          if [ -z "${DB_HOSTADDR:-}" ]; then
-            echo "::warning::Could not resolve IPv4 for ${DB_HOST}; direct mode may fail on IPv6-only routes."
-          else
-            echo "ℹ️  Using IPv4 hostaddr ${DB_HOSTADDR} for direct db push."
-          fi
+          DB_HOST="${SUPABASE_DB_POOLER_HOST:-aws-0-ap-southeast-2.pooler.supabase.com}"
+          DB_USER="postgres.${SUPABASE_PROJECT_REF}"
 
           ENCODED_DB_PASSWORD="$(node -e 'console.log(encodeURIComponent(process.argv[1]))' "$SUPABASE_DB_PASSWORD")"
-          DB_URL="postgresql://postgres:${ENCODED_DB_PASSWORD}@${DB_HOST}:5432/postgres?sslmode=require"
-          if [ -n "${DB_HOSTADDR:-}" ]; then
-            DB_URL="${DB_URL}&hostaddr=${DB_HOSTADDR}"
-          fi
+          DB_URL="postgresql://${DB_USER}:${ENCODED_DB_PASSWORD}@${DB_HOST}:5432/postgres?sslmode=require"
 
           if [ "${{ steps.link-project.outputs.linked_mode }}" != "true" ]; then
             echo "ℹ️  Running db push in direct DB URL mode (no Supabase API token)."
+            echo "ℹ️  Direct mode endpoint: ${DB_HOST}"
             for attempt in 1 2 3 4 5; do
               if [ "$attempt" -eq 1 ]; then
                 PUSH_CMD="supabase db push --db-url \"$DB_URL\" --yes"
@@ -252,6 +245,7 @@ jobs:
         env:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_POOLER_HOST: ${{ secrets.SUPABASE_DB_POOLER_HOST }}
         run: |
           set -euo pipefail
 
@@ -260,16 +254,8 @@ jobs:
             exit 0
           fi
 
-          DB_HOST="db.${SUPABASE_PROJECT_REF}.supabase.co"
-          DB_HOSTADDR="$(getent ahostsv4 "$DB_HOST" | awk '{print $1}' | head -n1 || true)"
-
-          if [ -z "${DB_HOSTADDR:-}" ]; then
-            echo "::warning::Could not resolve IPv4 address for ${DB_HOST}; skipping breach timestamp verification"
-            exit 0
-          fi
-
-          # Force IPv4 with hostaddr to avoid runner environments that cannot route IPv6.
-          DB_URI="postgresql://postgres@${DB_HOST}:5432/postgres?sslmode=require&hostaddr=${DB_HOSTADDR}"
+          DB_HOST="${SUPABASE_DB_POOLER_HOST:-aws-0-ap-southeast-2.pooler.supabase.com}"
+          DB_URI="postgresql://postgres.${SUPABASE_PROJECT_REF}@${DB_HOST}:5432/postgres?sslmode=require"
 
           echo "Running post-migration breach timestamp alignment check..."
           if ! PGPASSWORD="$SUPABASE_DB_PASSWORD" psql "$DB_URI" -v ON_ERROR_STOP=1 <<'SQL'
