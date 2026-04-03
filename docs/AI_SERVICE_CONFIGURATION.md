@@ -99,6 +99,23 @@ curl https://kxwjcupuxnnbnzcgmkoi.supabase.co/functions/v1/check-railway-health
 
 **Fix**: Add `INFERENCE_SERVICE_URL` secret with the Railway service URL
 
+### "Inference service offline" but Railway is healthy
+
+**Cause**: `INFERENCE_SERVICE_URL` is missing the protocol (for example `https://`).
+
+**Fix**:
+1. Set a full URL value such as `https://orc-ai-inference-service-production.up.railway.app`.
+2. Redeploy affected edge functions after secret changes.
+
+### Auto bug analysis returns 401 Invalid JWT
+
+**Cause**: The `auto-analyse-report` deployment/config is out of sync with current auth settings.
+
+**Fix**:
+1. Redeploy `auto-analyse-report` from the latest repository code.
+2. Confirm request includes `Authorization: Bearer <supabase-access-token>` and `apikey` headers.
+3. Re-test with a known valid report id.
+
 ### Services show "Offline" in System Diagnostics
 
 1. Check that the Railway services are running
