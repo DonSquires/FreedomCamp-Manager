@@ -237,8 +237,39 @@ jobs:
                   REVERT_VERSIONS=$(grep -oE 'supabase migration repair --status reverted [0-9 ]+' "$LOG_FILE" | sed -E 's/^supabase migration repair --status reverted //' | head -n1)
                   if [ -n "${REVERT_VERSIONS:-}" ]; then
                     echo "Attempting drift repair in direct mode: $REVERT_VERSIONS"
+                    repair_ok=false
+
+                    # Prefer direct DB URL repair when available.
                     # shellcheck disable=SC2086
-                    supabase migration repair --status reverted $REVERT_VERSIONS || true
+                    if supabase migration repair --db-url "$DB_URL" --status reverted $REVERT_VERSIONS; then
+                      repair_ok=true
+                    else
+                      echo "ℹ️  --db-url migration repair failed; trying linked repair fallback."
+                    fi
+
+                    if [ "$repair_ok" = false ]; then
+                      # shellcheck disable=SC2086
+                      if supabase migration repair --linked -p "$SUPABASE_DB_PASSWORD" --status reverted $REVERT_VERSIONS; then
+                        repair_ok=true
+                      else
+                        echo "ℹ️  Linked migration repair unavailable; trying SQL fallback."
+                      fi
+                    fi
+
+                    if [ "$repair_ok" = false ] && command -v psql >/dev/null 2>&1; then
+                      versions_quoted=$(echo "$REVERT_VERSIONS" | awk '{for (i=1; i<=NF; i++) printf "%s\047%s\047", (i==1?"":","), $i}')
+                      if [ -n "${versions_quoted:-}" ]; then
+                        if psql "$DB_URL" -v ON_ERROR_STOP=1 -c "DELETE FROM supabase_migrations.schema_migrations WHERE version::text IN (${versions_quoted});"; then
+                          repair_ok=true
+                        fi
+                      fi
+                    fi
+
+                    if [ "$repair_ok" = false ]; then
+                      echo "::error::Could not execute migration repair in direct mode."
+                      echo "Set SUPABASE_ACCESS_TOKEN for linked-mode repair or provide a valid SUPABASE_DB_URL with migration repair support."
+                      exit 1
+                    fi
 
                     echo "Retrying include-all push after drift repair..."
                     if supabase db push --db-url "$DB_URL" --include-all --yes 2>&1 | tee "$LOG_FILE"; then
