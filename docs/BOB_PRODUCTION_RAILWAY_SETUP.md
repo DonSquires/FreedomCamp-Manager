@@ -35,26 +35,75 @@ Add these secrets to **DonSquires/Bob** -> Settings -> Secrets -> Actions:
 | `RAILWAY_SERVICE_ID` | Railway project -> Bob service -> Settings -> Service ID |
 | `BOB_URL` | Bob's Railway domain (e.g. `https://bob-production.up.railway.app`). Optional; enables post-deploy health check. |
 
-## Create Railway Services (bob-production project)
+## Current Status
 
-### Bob service
+| Component | Status | Domain / Notes |
+|---|---|---|
+| Bob Inference | ✅ Deployed | `https://focused-courage-production-ccee.up.railway.app` |
+| Ollama | ⏳ Pending | Needs creation in Railway UI |
 
-1. In Railway production, create a new service from GitHub repository.
-2. Select repository: **DonSquires/Bob**.
-3. Set service name: `bob` (or `bob-inference-service`).
-4. Set branch: `main`.
-5. Leave root directory empty (Bob repo root is the service root).
-6. Use Dockerfile build.
-7. Set healthcheck path: `/health`.
-8. Set healthcheck timeout: 60.
-9. Expose HTTP domain on port 3000.
+## Next Steps (Action Items)
 
-### Ollama service
+### 1. Create Ollama Service in Railway
 
-1. Create a second service named `ollama` in the same Railway project.
-2. Keep Ollama on private networking only.
-3. Do not expose Ollama publicly unless explicitly required.
-4. Size Ollama separately from Bob so model RAM/CPU does not starve Bob's API runtime.
+In **Bob project → + New Service**:
+1. Select **Docker Image**
+2. Image: `ollama/ollama:latest`
+3. Service name: `ollama`
+4. **Do NOT expose public domain** (keep private)
+5. After deployed, add:
+   - **Volume**: `/root/.ollama` (persistent storage for models)
+   - **Environment variable**: `OLLAMA_ORIGINS=*`
+
+### 2. Pull the LLM Model in Ollama
+
+Once Ollama is running, pull the model:
+```bash
+# Option A: Shell into Ollama service
+ollama pull llama3.1:8b
+
+# Option B: Via curl from Bob (after following step 3)
+# Should work automatically once Bob env vars are set and Ollama responds
+```
+
+### 3. Configure Bob Inference Environment Variables
+
+In **Bob Inference service → Settings → Variables**, add exactly these variables:
+
+```
+INFERENCE_API_KEY=1f1c42063172d64fcaeceb3228d313951db76fbd88239d635ce9962b970dd6ce
+CHAT_PROVIDER=ollama
+TABULAR_NLP_PROVIDER=ollama
+OLLAMA_BASE_URL=http://ollama.railway.internal:11434
+OLLAMA_MODEL=llama3.1:8b
+SELF_CONTAINED_MODE=false
+```
+
+Plus from your **Supabase dashboard** (Settings → API):
+```
+SUPABASE_SERVICE_ROLE_KEY=<copy from Supabase>
+SUPABASE_JWKS_URL=https://<PROJECT_ID>.supabase.co/auth/v1/.well-known/jwks.json
+SUPABASE_JWT_ISSUER=https://<PROJECT_ID>.supabase.co/auth/v1
+```
+
+### 4. Redeploy Bob Inference
+
+In **Bob Inference service → click Redeploy** (or push to `main` on DonSquires/Bob).
+
+### 5. Verify Bob + Ollama
+
+```bash
+# Test Bob health
+curl -sS https://focused-courage-production-ccee.up.railway.app/health | jq .
+
+# Test Bob chat with Ollama
+curl -sS -X POST https://focused-courage-production-ccee.up.railway.app/chat \
+  -H 'Content-Type: application/json' \
+  -H 'x-inference-api-key: 1f1c42063172d64fcaeceb3228d313951db76fbd88239d635ce9962b970dd6ce' \
+  -d '{"message":"hello"}'
+```
+
+Expected response: `{"status":"ok","message":"chat response",...}` or similar (non-404).
 
 ## Docker and ONNX Build Notes
 
@@ -201,3 +250,34 @@ For Profile A, also verify Bob logs indicate `CHAT_PROVIDER=ollama`.
 | `RAILWAY_TOKEN` | Railway token with access to proxy and other core services |
 
 > Bob's own `RAILWAY_TOKEN` and `RAILWAY_SERVICE_ID` live in DonSquires/Bob, not in FreedomCamp-Manager.
+
+## Troubleshooting
+
+### Bob returns HTTP 502
+1. Check **Bob Inference → Deploy tab → logs**. Look for startup errors.
+2. Common causes:
+   - Missing or invalid `SUPABASE_SERVICE_ROLE_KEY` (if required by code)
+   - Ollama not reachable at `OLLAMA_BASE_URL` yet
+   - Port binding issue (verify port 3000 is exposed)
+3. Solution: Tail the logs, fix variables, redeploy.
+
+### Bob starts but `/health` returns `INFERENCE_API_KEY_SET: false`
+- This is **expected** if `INFERENCE_API_KEY` is not set. It is optional.
+- If Edge Functions call `/chat`, they need either `INFERENCE_API_KEY` header or a valid Supabase JWT.
+- Either set `INFERENCE_API_KEY` (recommended for service-to-service) or ensure `SUPABASE_SERVICE_ROLE_KEY` is set for service auth.
+
+### Bob `/chat` returns 404
+- Likely Bob container didn't start—check logs.
+- If deployment succeeded but `/chat` still 404, the server may be using an old image.
+- Try `docker layers` or check `git log` on Bob repo to confirm the right commit was deployed.
+
+### Ollama not responding
+1. Verify Ollama service is running: **Railway → Ollama → Deploy tab** should show status **Running**.
+2. Model may not be pulled yet. SSH into Ollama container and run: `ollama pull llama3.1:8b`
+3. Confirm Bob can reach Ollama: In Bob logs, look for messages about Ollama connection state.
+
+### Bob calls Ollama but gets timeout
+1. Ollama may be overloaded or model is still loading.
+2. Increase **Ollama service → Resources** (CPU/memory) if available on plan.
+3. Check Ollama logs for OOM or compute issues.
+4. As fallback, Bob will use heuristic providers if `SELF_CONTAINED_MODE=true` and Ollama fails.
