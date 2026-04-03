@@ -1,16 +1,46 @@
 # Bob Production Railway Setup
 
-This guide provisions Bob as a dedicated inference service in Railway production.
+Bob is an independent AI inference service with his own repository: **DonSquires/Bob**.
 
-## Create Service
+Code lives in `inference-service/` inside FreedomCamp-Manager and is automatically
+mirrored to DonSquires/Bob whenever `inference-service/` changes on `main`.
+Railway deploys from DonSquires/Bob.
+
+## Repository Setup (one-time)
+
+### 1. Enable sync from FreedomCamp-Manager → Bob repo
+
+Add a secret to **DonSquires/FreedomCamp-Manager** → Settings → Secrets → Actions:
+
+| Secret | Value |
+|---|---|
+| `BOB_SYNC_PAT` | GitHub PAT (classic or fine-grained) with **Contents: Read & Write** on `DonSquires/Bob` |
+
+Once set, any push to `main` that touches `inference-service/` automatically syncs
+to the Bob repo via `.github/workflows/sync-bob-repo.yml`.
+
+To trigger a one-off sync without a code change, run the workflow manually:
+`Actions → Sync Bob Repo → Run workflow`.
+
+### 2. Add secrets to the Bob repo
+
+Add these secrets to **DonSquires/Bob** → Settings → Secrets → Actions:
+
+| Secret | Value |
+|---|---|
+| `RAILWAY_TOKEN` | Railway project token with deploy access to Bob's service |
+| `RAILWAY_SERVICE_ID` | Railway project → Bob service → Settings → Service ID |
+| `BOB_URL` | Bob's Railway domain (e.g. `https://bob-production.up.railway.app`). Optional; enables post-deploy health check. |
+
+## Create Railway Service
 
 1. In Railway production, create a new service from GitHub repository.
-2. Select repository: DonSquires/FreedomCamp-Manager.
-3. Set service name: orc-ai-inference-service (or bob-inference-service).
-4. Set branch: main.
-5. Set root directory: /inference-service.
+2. Select repository: **DonSquires/Bob**.
+3. Set service name: `bob` (or `bob-inference-service`).
+4. Set branch: `main`.
+5. Leave root directory empty (Bob's repo root is the service root).
 6. Use Dockerfile build.
-7. Set healthcheck path: /health.
+7. Set healthcheck path: `/health`.
 8. Set healthcheck timeout: 60.
 9. Expose HTTP domain on port 3000.
 
@@ -84,9 +114,21 @@ curl -sS -X POST https://YOUR_BOB_DOMAIN/chat \
 
 ## GitHub Secrets Alignment
 
-For deploy workflows:
+**DonSquires/Bob** (Bob's own deploy workflow):
 
-1. RAILWAY_INFERENCE_SERVICE_ID must be the Railway service ID (not public domain).
-2. RAILWAY_PROXY_SERVICE_ID must be the proxy Railway service ID.
-3. RAILWAY_TOKEN must have access to the target production project.
-4. Avoid legacy RAILWAY_SERVICE_ID when dedicated IDs are available.
+| Secret | Purpose |
+|---|---|
+| `RAILWAY_TOKEN` | Railway token for Bob's service |
+| `RAILWAY_SERVICE_ID` | Bob's Railway service ID |
+| `BOB_URL` | Bob's public Railway URL (for health check) |
+
+**DonSquires/FreedomCamp-Manager** (sync + proxy/other workflows):
+
+| Secret | Purpose |
+|---|---|
+| `BOB_SYNC_PAT` | GitHub PAT to push changes to DonSquires/Bob |
+| `RAILWAY_INFERENCE_SERVICE_ID` | Legacy: kept for backward compat during transition |
+| `RAILWAY_PROXY_SERVICE_ID` | Railway service ID for the proxy service |
+| `RAILWAY_TOKEN` | Railway token with access to proxy/other services |
+
+> Bob's own RAILWAY_TOKEN and RAILWAY_SERVICE_ID live in DonSquires/Bob, not here.
