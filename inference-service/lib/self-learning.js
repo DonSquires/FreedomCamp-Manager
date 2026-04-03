@@ -31,6 +31,18 @@ function defaultState(initialThreshold) {
       },
       recent_feedback: [],
     },
+    advisory: {
+      feedback_count: 0,
+      correct_count: 0,
+      incorrect_count: 0,
+      min_confidence_guidance: {
+        vehicle_detection: 0.72,
+        embedding_quality: 0.45,
+        face_detection: 0.6,
+        alpr_ocr: 0.65,
+      },
+      recent_feedback: [],
+    },
   };
 }
 
@@ -54,6 +66,31 @@ function readState(filePath, initialThreshold) {
     };
     parsed.compare.recent_feedback = Array.isArray(parsed.compare.recent_feedback)
       ? parsed.compare.recent_feedback.slice(-50)
+      : [];
+
+    parsed.advisory = parsed.advisory || {
+      feedback_count: 0,
+      correct_count: 0,
+      incorrect_count: 0,
+      min_confidence_guidance: {
+        vehicle_detection: 0.72,
+        embedding_quality: 0.45,
+        face_detection: 0.6,
+        alpr_ocr: 0.65,
+      },
+      recent_feedback: [],
+    };
+    parsed.advisory.feedback_count = Number(parsed.advisory.feedback_count || 0);
+    parsed.advisory.correct_count = Number(parsed.advisory.correct_count || 0);
+    parsed.advisory.incorrect_count = Number(parsed.advisory.incorrect_count || 0);
+    parsed.advisory.min_confidence_guidance = {
+      vehicle_detection: clamp(toFiniteNumber(parsed.advisory.min_confidence_guidance?.vehicle_detection, 0.72), 0.3, 0.99),
+      embedding_quality: clamp(toFiniteNumber(parsed.advisory.min_confidence_guidance?.embedding_quality, 0.45), 0.2, 0.99),
+      face_detection: clamp(toFiniteNumber(parsed.advisory.min_confidence_guidance?.face_detection, 0.6), 0.2, 0.99),
+      alpr_ocr: clamp(toFiniteNumber(parsed.advisory.min_confidence_guidance?.alpr_ocr, 0.65), 0.2, 0.99),
+    };
+    parsed.advisory.recent_feedback = Array.isArray(parsed.advisory.recent_feedback)
+      ? parsed.advisory.recent_feedback.slice(-80)
       : [];
     parsed.updated_at = new Date().toISOString();
     return parsed;
@@ -152,11 +189,79 @@ function createSelfLearningService(options = {}) {
     };
   }
 
+  function applyOperationalFeedback(payload = {}) {
+    const pipeline = String(payload.pipeline || 'unknown').trim().toLowerCase().slice(0, 64) || 'unknown';
+    const wasCorrect = typeof payload.was_correct === 'boolean' ? payload.was_correct : null;
+    const confidence = toFiniteNumber(payload.confidence, NaN);
+    const context = payload.context && typeof payload.context === 'object' ? payload.context : {};
+
+    if (!enabled) {
+      return {
+        enabled,
+        pipeline,
+        stored: false,
+        guidance: state.advisory.min_confidence_guidance,
+      };
+    }
+
+    const guidanceKey = pipeline === 'vehicle_infer'
+      ? 'vehicle_detection'
+      : pipeline === 'face_infer'
+        ? 'face_detection'
+        : pipeline === 'embedding'
+          ? 'embedding_quality'
+          : pipeline === 'alpr'
+            ? 'alpr_ocr'
+            : null;
+
+    if (wasCorrect === true) state.advisory.correct_count += 1;
+    if (wasCorrect === false) state.advisory.incorrect_count += 1;
+    state.advisory.feedback_count += 1;
+
+    if (guidanceKey && Number.isFinite(confidence) && confidence >= 0 && confidence <= 1 && wasCorrect !== null) {
+      const current = state.advisory.min_confidence_guidance[guidanceKey];
+      let next = current;
+
+      if (wasCorrect === false && confidence >= current) {
+        next = current + (learningRate * Math.max(0.01, confidence - current));
+      } else if (wasCorrect === true && confidence < current) {
+        next = current - (learningRate * Math.max(0.01, current - confidence) * 0.5);
+      }
+
+      state.advisory.min_confidence_guidance[guidanceKey] = clamp(next, 0.2, 0.99);
+    }
+
+    state.updated_at = new Date().toISOString();
+    state.advisory.recent_feedback.push({
+      at: state.updated_at,
+      pipeline,
+      confidence: Number.isFinite(confidence) ? confidence : null,
+      was_correct: wasCorrect,
+      context,
+    });
+    state.advisory.recent_feedback = state.advisory.recent_feedback.slice(-80);
+    writeState(statePath, state);
+
+    const evaluated = state.advisory.correct_count + state.advisory.incorrect_count;
+    const accuracy = evaluated > 0 ? state.advisory.correct_count / evaluated : null;
+
+    return {
+      enabled,
+      pipeline,
+      stored: true,
+      guidance: state.advisory.min_confidence_guidance,
+      feedback_count: state.advisory.feedback_count,
+      evaluated_feedback_count: evaluated,
+      observed_accuracy: accuracy,
+    };
+  }
+
   return {
     enabled,
     getThreshold,
     getState,
     applyCompareFeedback,
+    applyOperationalFeedback,
   };
 }
 

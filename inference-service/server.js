@@ -27,6 +27,7 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 const fs = require('fs');
 const { createSelfLearningService } = require('./lib/self-learning');
+const { profileExamples } = require('./lib/pretrain-profiles');
 const { buildSelfHealingPlan, buildPatchTask, getKnowledgePacks } = require('./lib/assistant-knowledge');
 const { createIntelStore } = require('./lib/intel-updates');
 
@@ -138,6 +139,8 @@ const SIMILARITY_THRESHOLD = Number(process.env.SIMILARITY_THRESHOLD || 0.85);
 const SIMILARITY_THRESHOLD_MIN = Number(process.env.SIMILARITY_THRESHOLD_MIN || 0.65);
 const SIMILARITY_THRESHOLD_MAX = Number(process.env.SIMILARITY_THRESHOLD_MAX || 0.95);
 const SELF_LEARNING_RATE = Number(process.env.SELF_LEARNING_RATE || 0.025);
+const SELF_LEARNING_PRETRAIN_PROFILE = (process.env.SELF_LEARNING_PRETRAIN_PROFILE || 'nz-enforcement-v1').toLowerCase();
+const SELF_LEARNING_PRETRAIN_MULTIPLIER = Math.max(1, Number(process.env.SELF_LEARNING_PRETRAIN_MULTIPLIER || 12));
 const INFERENCE_API_KEY = process.env.INFERENCE_API_KEY || '';
 const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
 const SUPABASE_JWKS_URL = process.env.SUPABASE_JWKS_URL || (SUPABASE_URL ? `${SUPABASE_URL}/auth/v1/.well-known/jwks.json` : '');
@@ -451,6 +454,107 @@ function cleanText(value) {
   if (value === null || value === undefined) return null;
   const text = String(value).trim();
   return text.length > 0 ? text : null;
+}
+
+function round4(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  return Math.round(n * 10000) / 10000;
+}
+
+function buildInferenceAdvice(payload = {}) {
+  const pipeline = String(payload.pipeline || 'vehicle_infer');
+  const degraded = Boolean(payload.degraded);
+  const detectionConfidence = clamp01(payload.detectionConfidence);
+  const embeddingQuality = clamp01(payload.embeddingQuality);
+  const similarity = clamp01(payload.similarity);
+  const thresholdUsed = clamp01(payload.thresholdUsed);
+  const sameVehicle = typeof payload.sameVehicle === 'boolean' ? payload.sameVehicle : null;
+
+  if (degraded) {
+    return {
+      risk_level: 'high',
+      summary: 'Degraded inference mode: confidence is reduced and manual review is required.',
+      recommended_actions: [
+        'Require manual evidence review before enforcement action.',
+        'Capture an additional image from a second angle.',
+        'Record degraded-mode reason in investigation notes.',
+      ],
+      training_signal_recommended: true,
+    };
+  }
+
+  if (pipeline === 'compare' && similarity !== null && thresholdUsed !== null) {
+    const margin = Math.abs(similarity - thresholdUsed);
+    if (margin < 0.03) {
+      return {
+        risk_level: 'medium',
+        summary: 'Similarity is close to threshold; same/different decision is borderline.',
+        recommended_actions: [
+          'Request operator confirmation for same-vehicle classification.',
+          'Capture a second comparison frame before issuing penalties.',
+          'Submit learning feedback to improve threshold calibration.',
+        ],
+        training_signal_recommended: true,
+      };
+    }
+
+    if (sameVehicle === true) {
+      return {
+        risk_level: margin >= 0.08 ? 'low' : 'medium',
+        summary: 'Same-vehicle match is supported by similarity margin above threshold.',
+        recommended_actions: [
+          'Proceed with standard recheck workflow.',
+          'Log confidence and threshold values for audit traceability.',
+        ],
+        training_signal_recommended: margin < 0.08,
+      };
+    }
+
+    return {
+      risk_level: margin >= 0.08 ? 'low' : 'medium',
+      summary: 'Different-vehicle outcome is supported by similarity margin below threshold.',
+      recommended_actions: [
+        'Treat as a new vehicle event unless external evidence contradicts result.',
+        'Retain comparison metrics in compliance notes.',
+      ],
+      training_signal_recommended: margin < 0.08,
+    };
+  }
+
+  if (detectionConfidence !== null && detectionConfidence < 0.6) {
+    return {
+      risk_level: 'medium',
+      summary: 'Vehicle detection confidence is below preferred operating threshold.',
+      recommended_actions: [
+        'Re-capture image with better framing and lighting.',
+        'Avoid auto-escalation until confidence improves.',
+        'Submit operator feedback if final decision is verified manually.',
+      ],
+      training_signal_recommended: true,
+    };
+  }
+
+  if (embeddingQuality !== null && embeddingQuality < 0.4) {
+    return {
+      risk_level: 'medium',
+      summary: 'Embedding quality is low and may weaken downstream similarity checks.',
+      recommended_actions: [
+        'Capture another image with clearer vehicle crop.',
+        'Use manual verification for match-critical decisions.',
+      ],
+      training_signal_recommended: true,
+    };
+  }
+
+  return {
+    risk_level: 'low',
+    summary: 'Inference confidence is within normal operational ranges.',
+    recommended_actions: [
+      'Proceed with normal workflow and retain audit metadata.',
+    ],
+    training_signal_recommended: false,
+  };
 }
 
 function detectDateFormatHeuristic(sampleRows) {
@@ -1446,6 +1550,10 @@ app.post('/infer', inferenceRateLimit, upload.single('photo'), async (req, res) 
             vehicle_colour_confidence: vehicleAttrs.vehicle_colour_confidence,
             sticker: vehicleAttrs.sticker,
             metadata: { processing_time_ms: duration },
+            advice: buildInferenceAdvice({
+              pipeline: 'vehicle_infer',
+              degraded: true,
+            }),
           }
         });
       }
@@ -1488,6 +1596,12 @@ app.post('/infer', inferenceRateLimit, upload.single('photo'), async (req, res) 
           vehicle_year_confidence: vehicleAttrs.vehicle_year_confidence,
           vehicle_colour_confidence: vehicleAttrs.vehicle_colour_confidence,
           sticker: vehicleAttrs.sticker,
+          advice: buildInferenceAdvice({
+            pipeline: 'vehicle_infer',
+            degraded: true,
+            detectionConfidence: null,
+            embeddingQuality: null,
+          }),
         }
       });
     }
@@ -1534,6 +1648,12 @@ app.post('/infer', inferenceRateLimit, upload.single('photo'), async (req, res) 
         vehicle_year_confidence: vehicleAttrs.vehicle_year_confidence,
         vehicle_colour_confidence: vehicleAttrs.vehicle_colour_confidence,
         sticker: vehicleAttrs.sticker,
+        advice: buildInferenceAdvice({
+          pipeline: 'vehicle_infer',
+          degraded: false,
+          detectionConfidence: detection.confidence,
+          embeddingQuality: quality,
+        }),
       }
     });
 
@@ -2272,16 +2392,24 @@ app.post('/infer/compare', inferenceRateLimit, requireInferenceAuth, async (req,
                         : similarity >= Math.max(0, activeThreshold - 0.15) ? 'low'
                         : 'different';
 
+    const advice = buildInferenceAdvice({
+      pipeline: 'compare',
+      similarity,
+      thresholdUsed: activeThreshold,
+      sameVehicle: same_vehicle,
+    });
+
     return res.json({
-      similarity: Math.round(similarity * 10000) / 10000,  // 4 decimal places
+      similarity: round4(similarity),
       same_vehicle,
       confidence,
-      threshold_used: Math.round(activeThreshold * 10000) / 10000,
+      threshold_used: round4(activeThreshold),
       self_learning_enabled: selfLearningService.enabled,
       interpretation:
         same_vehicle
           ? `Same vehicle detected (similarity ${(similarity * 100).toFixed(1)}%)`
           : `Different vehicle or vehicle moved (similarity ${(similarity * 100).toFixed(1)}%)`,
+      advice,
     });
 
   } catch (error) {
@@ -2311,12 +2439,126 @@ app.post('/learn/compare-feedback', inferenceRateLimit, requireInferenceAuth, as
       context,
     });
 
+    const operational = selfLearningService.applyOperationalFeedback({
+      pipeline: 'compare',
+      confidence: similarity,
+      was_correct: learningResult.predicted_same_vehicle === learningResult.actual_same_vehicle,
+      context,
+    });
+
     return res.json({
       success: true,
       learning: learningResult,
+      operational,
     });
   } catch (error) {
     return res.status(500).json({ error: 'Failed to apply learning feedback', message: error.message });
+  }
+});
+
+app.post('/learn/ingest-feedback', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const events = Array.isArray(req.body?.events) ? req.body.events : [];
+    const source = String(req.body?.source || 'manual').trim().slice(0, 80) || 'manual';
+
+    if (events.length === 0) {
+      return res.status(400).json({ error: 'events must be a non-empty array' });
+    }
+
+    const maxEvents = Math.min(events.length, 200);
+    let compareFeedbackApplied = 0;
+    let operationalFeedbackApplied = 0;
+    const warnings = [];
+
+    for (let i = 0; i < maxEvents; i++) {
+      const event = events[i] || {};
+      const pipeline = String(event.pipeline || 'unknown').toLowerCase();
+      const context = {
+        source,
+        event_index: i,
+        operator_note: cleanText(event.note) || null,
+      };
+
+      if (Number.isFinite(Number(event.similarity)) && typeof event.actual_same_vehicle === 'boolean') {
+        try {
+          selfLearningService.applyCompareFeedback({
+            similarity: Number(event.similarity),
+            actual_same_vehicle: event.actual_same_vehicle,
+            context,
+          });
+          compareFeedbackApplied += 1;
+        } catch (err) {
+          warnings.push(`compare_feedback[${i}] rejected: ${err.message}`);
+        }
+      }
+
+      try {
+        const result = selfLearningService.applyOperationalFeedback({
+          pipeline,
+          confidence: Number(event.confidence),
+          was_correct: typeof event.was_correct === 'boolean' ? event.was_correct : null,
+          context,
+        });
+        if (result?.stored) operationalFeedbackApplied += 1;
+      } catch (err) {
+        warnings.push(`operational_feedback[${i}] rejected: ${err.message}`);
+      }
+    }
+
+    return res.json({
+      success: true,
+      source,
+      events_received: events.length,
+      events_processed: maxEvents,
+      compare_feedback_applied: compareFeedbackApplied,
+      operational_feedback_applied: operationalFeedbackApplied,
+      warnings: warnings.slice(0, 20),
+      learning: selfLearningService.getState(),
+    });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to ingest feedback', message: error.message });
+  }
+});
+
+app.post('/learn/pretrain', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    if (!selfLearningService.enabled) {
+      return res.status(503).json({ error: 'Self-learning is disabled' });
+    }
+
+    const profile = String(req.body?.profile || SELF_LEARNING_PRETRAIN_PROFILE).toLowerCase();
+    const requestedMultiplier = Number(req.body?.multiplier ?? SELF_LEARNING_PRETRAIN_MULTIPLIER);
+    const multiplier = Number.isFinite(requestedMultiplier)
+      ? clamp(Math.floor(requestedMultiplier), 1, 50)
+      : SELF_LEARNING_PRETRAIN_MULTIPLIER;
+    const examples = profileExamples(profile);
+    const thresholdBefore = selfLearningService.getThreshold();
+
+    for (let i = 0; i < multiplier; i++) {
+      for (const ex of examples) {
+        selfLearningService.applyCompareFeedback({
+          similarity: ex.similarity,
+          actual_same_vehicle: ex.actual,
+          context: {
+            source: 'runtime-pretrain',
+            profile,
+          },
+        });
+      }
+    }
+
+    const thresholdAfter = selfLearningService.getThreshold();
+    return res.json({
+      success: true,
+      profile,
+      multiplier,
+      samples_applied: examples.length * multiplier,
+      threshold_before: round4(thresholdBefore),
+      threshold_after: round4(thresholdAfter),
+      learning: selfLearningService.getState(),
+    });
+  } catch (error) {
+    return res.status(500).json({ error: 'Pretraining run failed', message: error.message });
   }
 });
 

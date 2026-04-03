@@ -1,0 +1,58 @@
+name: Ops Nightly Self-Learning Pretrain
+
+on:
+  schedule:
+    - cron: '21 16 * * *' # 04:21 NZST (approximately)
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  pretrain-self-learning:
+    name: Trigger Bob Self-Learning Pretrain
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Validate required secrets
+        run: |
+          missing=""
+          [ -z "$INFERENCE_SERVICE_URL" ] && missing="$missing INFERENCE_SERVICE_URL"
+          [ -z "$INFERENCE_API_KEY" ] && missing="$missing INFERENCE_API_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing required secrets:$missing"
+            exit 1
+          fi
+        env:
+          INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL }}
+          INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
+
+      - name: Trigger runtime pretrain
+        env:
+          INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL }}
+          INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
+          PRETRAIN_PROFILE: ${{ vars.SELF_LEARNING_PRETRAIN_PROFILE }}
+          PRETRAIN_MULTIPLIER: ${{ vars.SELF_LEARNING_PRETRAIN_MULTIPLIER }}
+        run: |
+          PROFILE=${PRETRAIN_PROFILE:-nz-enforcement-v1}
+          MULTIPLIER=${PRETRAIN_MULTIPLIER:-6}
+
+          echo "🧠 Triggering /learn/pretrain profile=${PROFILE} multiplier=${MULTIPLIER}"
+
+          HTTP_STATUS=$(curl -s -o /tmp/pretrain-response.json -w "%{http_code}" \
+            --max-time 45 \
+            -X POST "${INFERENCE_SERVICE_URL}/learn/pretrain" \
+            -H "Content-Type: application/json" \
+            -H "x-inference-api-key: ${INFERENCE_API_KEY}" \
+            -d "{\"profile\":\"${PROFILE}\",\"multiplier\":${MULTIPLIER}}")
+
+          cat /tmp/pretrain-response.json
+
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "::error::Pretrain trigger failed with HTTP $HTTP_STATUS"
+            exit 1
+          fi
+
+          echo "✅ Nightly pretrain trigger completed"
