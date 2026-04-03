@@ -25,8 +25,7 @@ RUN python scripts/export-models.py
 FROM node:22-slim AS builder
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci --omit=dev --no-audit --prefer-offline
-RUN npm prune --omit=dev
+RUN npm install --omit=dev --no-audit --prefer-offline
 COPY lib ./lib
 COPY scripts/pretrain-self-learning.js ./scripts/pretrain-self-learning.js
 RUN node scripts/pretrain-self-learning.js
