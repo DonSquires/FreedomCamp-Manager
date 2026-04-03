@@ -139,6 +139,7 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           SUPABASE_DB_POOLER_HOST: ${{ secrets.SUPABASE_DB_POOLER_HOST }}
           SUPABASE_DB_USER: ${{ secrets.SUPABASE_DB_USER }}
@@ -147,38 +148,76 @@ jobs:
 
           LOG_FILE="$(mktemp)"
           DB_HOST="${SUPABASE_DB_POOLER_HOST:-aws-0-ap-southeast-2.pooler.supabase.com}"
-          DB_USER="${SUPABASE_DB_USER:-postgres.${SUPABASE_PROJECT_REF}}"
-
-          if [ -n "${SUPABASE_DB_URL:-}" ]; then
-            DB_URL="$SUPABASE_DB_URL"
-          else
-            ENCODED_DB_PASSWORD="$(node -e 'console.log(encodeURIComponent(process.argv[1]))' "$SUPABASE_DB_PASSWORD")"
-            DB_URL="postgresql://${DB_USER}:${ENCODED_DB_PASSWORD}@${DB_HOST}:5432/postgres?sslmode=require"
-          fi
 
           if [ "${{ steps.link-project.outputs.linked_mode }}" != "true" ]; then
             echo "ℹ️  Running db push in direct DB URL mode (no Supabase API token)."
             echo "ℹ️  Direct mode endpoint: ${DB_HOST}"
-            for attempt in 1 2 3 4 5; do
-              if [ "$attempt" -eq 1 ]; then
-                PUSH_CMD="supabase db push --db-url \"$DB_URL\" --yes"
-              else
-                PUSH_CMD="supabase db push --db-url \"$DB_URL\" --include-all --yes"
+
+            CANDIDATE_URLS=()
+            CANDIDATE_LABELS=()
+
+            if [ -n "${SUPABASE_DB_URL:-}" ]; then
+              CANDIDATE_URLS+=("$SUPABASE_DB_URL")
+              CANDIDATE_LABELS+=("secret:SUPABASE_DB_URL")
+            else
+              ENCODED_DB_PASSWORD="$(node -e 'console.log(encodeURIComponent(process.argv[1]))' "$SUPABASE_DB_PASSWORD")"
+
+              EFFECTIVE_PROJECT_REF="$SUPABASE_PROJECT_REF"
+              if [[ "${SUPABASE_URL:-}" =~ ^https?://([^.]+)\.supabase\.co/?$ ]]; then
+                URL_REF="${BASH_REMATCH[1]}"
+                if [ "$URL_REF" != "$SUPABASE_PROJECT_REF" ]; then
+                  echo "::warning::SUPABASE_PROJECT_REF differs from SUPABASE_URL project ref; trying URL-derived project ref first."
+                  EFFECTIVE_PROJECT_REF="$URL_REF"
+                fi
               fi
 
-              echo "$PUSH_CMD attempt $attempt..."
-              if sh -c "$PUSH_CMD" 2>&1 | tee "$LOG_FILE"; then
-                echo "Migration push succeeded on attempt $attempt"
-                exit 0
+              CANDIDATE_USERS=()
+              if [ -n "${SUPABASE_DB_USER:-}" ]; then
+                CANDIDATE_USERS+=("$SUPABASE_DB_USER")
               fi
+              CANDIDATE_USERS+=("postgres.${EFFECTIVE_PROJECT_REF}" "postgres.${SUPABASE_PROJECT_REF}" "postgres")
 
-              if grep -q "Tenant or user not found" "$LOG_FILE"; then
-                echo "::error::Supabase direct DB connection rejected (tenant/user not found)."
-                echo "Set SUPABASE_DB_URL to the exact connection string from Supabase Dashboard -> Connect -> Transaction pooler."
-                echo "Alternatively set SUPABASE_DB_POOLER_HOST and SUPABASE_DB_USER to the correct values for this project."
-                exit 1
-              fi
+              for db_user in "${CANDIDATE_USERS[@]}"; do
+                for db_port in 5432 6543; do
+                  CANDIDATE_URLS+=("postgresql://${db_user}:${ENCODED_DB_PASSWORD}@${DB_HOST}:${db_port}/postgres?sslmode=require")
+                  CANDIDATE_LABELS+=("user=${db_user},port=${db_port}")
+                done
+              done
+            fi
+
+            candidate_count="${#CANDIDATE_URLS[@]}"
+            for i in "${!CANDIDATE_URLS[@]}"; do
+              DB_URL="${CANDIDATE_URLS[$i]}"
+              DB_LABEL="${CANDIDATE_LABELS[$i]}"
+              echo "Trying direct DB candidate $((i + 1))/${candidate_count} (${DB_LABEL})"
+
+              for attempt in 1 2 3; do
+                if [ "$attempt" -eq 1 ]; then
+                  echo "supabase db push --db-url <candidate> --yes attempt $attempt..."
+                  if supabase db push --db-url "$DB_URL" --yes 2>&1 | tee "$LOG_FILE"; then
+                    echo "Migration push succeeded in direct mode on attempt $attempt"
+                    exit 0
+                  fi
+                else
+                  echo "supabase db push --db-url <candidate> --include-all --yes attempt $attempt..."
+                  if supabase db push --db-url "$DB_URL" --include-all --yes 2>&1 | tee "$LOG_FILE"; then
+                    echo "Migration push succeeded in direct mode on attempt $attempt"
+                    exit 0
+                  fi
+                fi
+
+                if grep -q "Tenant or user not found" "$LOG_FILE"; then
+                  echo "ℹ️  Candidate rejected by tenant/user routing; trying next candidate."
+                  break
+                fi
+              done
             done
+
+            if grep -q "Tenant or user not found" "$LOG_FILE"; then
+              echo "::error::Supabase direct DB connection rejected for all generated candidates."
+              echo "Set SUPABASE_DB_URL to the exact connection string from Supabase Dashboard -> Connect -> Transaction pooler."
+              echo "Alternatively set SUPABASE_DB_POOLER_HOST and SUPABASE_DB_USER to the exact values for this project."
+            fi
 
             echo "supabase db push failed in direct DB URL mode after retries"
             cat "$LOG_FILE"
