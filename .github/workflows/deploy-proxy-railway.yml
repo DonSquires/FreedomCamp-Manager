@@ -72,14 +72,15 @@ jobs:
       - name: Validate Railway token/service
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
-          RAILWAY_TOKEN:            ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_PROXY_SERVICE_ID: ${{ secrets.RAILWAY_PROXY_SERVICE_ID }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
-          echo "🔑 Validating Railway proxy service access..."
-          if ! railway service status --service "$RAILWAY_PROXY_SERVICE_ID" --json > /dev/null 2>&1; then
-            echo "::error::RAILWAY_TOKEN or RAILWAY_PROXY_SERVICE_ID is invalid."
+          echo "🔑 Validating Railway proxy token..."
+          if ! railway service list --json > /dev/null 2>&1; then
+            echo "::error::RAILWAY_TOKEN is invalid or expired."
+            echo "Generate a new project token in Railway (Project → Settings → Tokens) and update RAILWAY_TOKEN."
             exit 1
           fi
+          echo "✅ Railway token is valid"
 
       - name: Deploy proxy-server to Railway
         if: steps.check-secrets.outputs.secrets_present == 'true'
