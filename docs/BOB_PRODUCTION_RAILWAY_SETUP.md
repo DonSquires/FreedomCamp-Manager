@@ -6,11 +6,14 @@ Code lives in `inference-service/` inside FreedomCamp-Manager and is automatical
 mirrored to DonSquires/Bob whenever `inference-service/` changes on `main`.
 Railway deploys from DonSquires/Bob.
 
+Recommended architecture: Bob + Ollama in the same Bob Railway project, but as
+separate services.
+
 ## Repository Setup (one-time)
 
-### 1. Enable sync from FreedomCamp-Manager → Bob repo
+### 1. Enable sync from FreedomCamp-Manager -> Bob repo
 
-Add a secret to **DonSquires/FreedomCamp-Manager** → Settings → Secrets → Actions:
+Add a secret to **DonSquires/FreedomCamp-Manager** -> Settings -> Secrets -> Actions:
 
 | Secret | Value |
 |---|---|
@@ -20,33 +23,51 @@ Once set, any push to `main` that touches `inference-service/` automatically syn
 to the Bob repo via `.github/workflows/sync-bob-repo.yml`.
 
 To trigger a one-off sync without a code change, run the workflow manually:
-`Actions → Sync Bob Repo → Run workflow`.
+`Actions -> Sync Bob Repo -> Run workflow`.
 
 ### 2. Add secrets to the Bob repo
 
-Add these secrets to **DonSquires/Bob** → Settings → Secrets → Actions:
+Add these secrets to **DonSquires/Bob** -> Settings -> Secrets -> Actions:
 
 | Secret | Value |
 |---|---|
 | `RAILWAY_TOKEN` | Railway project token with deploy access to Bob's service |
-| `RAILWAY_SERVICE_ID` | Railway project → Bob service → Settings → Service ID |
+| `RAILWAY_SERVICE_ID` | Railway project -> Bob service -> Settings -> Service ID |
 | `BOB_URL` | Bob's Railway domain (e.g. `https://bob-production.up.railway.app`). Optional; enables post-deploy health check. |
 
-## Create Railway Service
+## Create Railway Services (bob-production project)
+
+### Bob service
 
 1. In Railway production, create a new service from GitHub repository.
 2. Select repository: **DonSquires/Bob**.
 3. Set service name: `bob` (or `bob-inference-service`).
 4. Set branch: `main`.
-5. Leave root directory empty (Bob's repo root is the service root).
+5. Leave root directory empty (Bob repo root is the service root).
 6. Use Dockerfile build.
 7. Set healthcheck path: `/health`.
 8. Set healthcheck timeout: 60.
 9. Expose HTTP domain on port 3000.
 
+### Ollama service
+
+1. Create a second service named `ollama` in the same Railway project.
+2. Keep Ollama on private networking only.
+3. Do not expose Ollama publicly unless explicitly required.
+4. Size Ollama separately from Bob so model RAM/CPU does not starve Bob's API runtime.
+
+## Docker and ONNX Build Notes
+
+The Bob image build already performs ONNX export and bundles model artifacts.
+No manual model upload step is required.
+
 ## Environment Variables
 
-Use this exact baseline block.
+Choose one of the supported runtime profiles below.
+
+### Profile A: Bob + separate Ollama service (recommended)
+
+Use this when Ollama runs as another Railway service via internal DNS.
 
 ```env
 # --- Core runtime ---
@@ -62,12 +83,56 @@ SUPABASE_JWT_ISSUER=https://REPLACE_WITH_PROJECT_REF.supabase.co/auth/v1
 # Optional:
 # SUPABASE_JWT_AUDIENCE=authenticated
 
-# --- Self-contained posture (recommended for Bob production) ---
+# --- Egress mode for separate Ollama service ---
+SELF_CONTAINED_MODE=false
+REQUIRE_SELF_CONTAINED_MODE=false
+SELF_CONTAINED_STRICT_EGRESS=false
+
+# --- Bob chat/nlp via Ollama ---
+CHAT_PROVIDER=ollama
+TABULAR_NLP_PROVIDER=ollama
+CHAT_TIMEOUT_MS=30000
+TABULAR_NLP_TIMEOUT_MS=2500
+
+# --- Vision / inference defaults ---
+VEHICLE_ATTRS_PROVIDER=basic
+SIMILARITY_THRESHOLD=0.85
+SIMILARITY_THRESHOLD_MIN=0.65
+SIMILARITY_THRESHOLD_MAX=0.95
+SELF_LEARNING_ENABLED=true
+SELF_HEALING_ENABLED=true
+
+# --- Internal Ollama URL ---
+OLLAMA_BASE_URL=http://ollama.railway.internal:11434
+OLLAMA_MODEL=llama3.1:8b
+```
+
+### Profile B: strict self-contained Bob
+
+Use this when you want strict local-only behavior. In this profile, a separate
+Railway Ollama hostname is not treated as local by current code, so keep chat/NLP
+heuristic unless Ollama is available on localhost in the same container.
+
+```env
+# --- Core runtime ---
+NODE_ENV=production
+PORT=3000
+
+# --- Security / auth ---
+INFERENCE_API_KEY=REPLACE_WITH_STRONG_RANDOM_SECRET
+SUPABASE_URL=https://REPLACE_WITH_PROJECT_REF.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=REPLACE_WITH_SUPABASE_SERVICE_ROLE_KEY
+SUPABASE_JWKS_URL=https://REPLACE_WITH_PROJECT_REF.supabase.co/auth/v1/.well-known/jwks.json
+SUPABASE_JWT_ISSUER=https://REPLACE_WITH_PROJECT_REF.supabase.co/auth/v1
+# Optional:
+# SUPABASE_JWT_AUDIENCE=authenticated
+
+# --- Self-contained posture ---
 SELF_CONTAINED_MODE=true
 REQUIRE_SELF_CONTAINED_MODE=true
 SELF_CONTAINED_STRICT_EGRESS=true
 
-# --- Bob chat/nlp defaults (safe baseline) ---
+# --- Bob chat/nlp defaults ---
 CHAT_PROVIDER=heuristic
 TABULAR_NLP_PROVIDER=heuristic
 CHAT_TIMEOUT_MS=30000
@@ -81,10 +146,10 @@ SIMILARITY_THRESHOLD_MAX=0.95
 SELF_LEARNING_ENABLED=true
 SELF_HEALING_ENABLED=true
 
-# --- Optional local Ollama mode (enable only if local/internal Ollama exists) ---
+# --- Optional same-container Ollama mode ---
 # CHAT_PROVIDER=ollama
 # TABULAR_NLP_PROVIDER=ollama
-# OLLAMA_BASE_URL=http://ollama.railway.internal:11434
+# OLLAMA_BASE_URL=http://127.0.0.1:11434
 # OLLAMA_MODEL=llama3.1:8b
 ```
 
@@ -94,7 +159,8 @@ After deploy:
 
 1. GET /health on Bob domain must return healthy JSON.
 2. POST /chat on Bob domain must return non-404.
-3. Ensure Supabase INFERENCE_SERVICE_URL points to Bob domain.
+3. Ensure Supabase `INFERENCE_SERVICE_URL` points to Bob domain.
+4. If using Profile A, confirm Bob can reach the internal Ollama URL.
 
 Example checks:
 
@@ -106,15 +172,18 @@ curl -sS -X POST https://YOUR_BOB_DOMAIN/chat \
   -d '{"message":"ping"}'
 ```
 
+For Profile A, also verify Bob logs indicate `CHAT_PROVIDER=ollama`.
+
 ## Service Separation Rules
 
 1. Bob inference URL and proxy URL must be different services.
 2. Do not use proxy domain for Bob chat endpoints.
 3. Keep preview and production endpoints isolated.
+4. Keep Ollama private inside the Bob project network.
 
 ## GitHub Secrets Alignment
 
-**DonSquires/Bob** (Bob's own deploy workflow):
+**DonSquires/Bob** (Bob deploy workflow):
 
 | Secret | Purpose |
 |---|---|
@@ -122,13 +191,13 @@ curl -sS -X POST https://YOUR_BOB_DOMAIN/chat \
 | `RAILWAY_SERVICE_ID` | Bob's Railway service ID |
 | `BOB_URL` | Bob's public Railway URL (for health check) |
 
-**DonSquires/FreedomCamp-Manager** (sync + proxy/other workflows):
+**DonSquires/FreedomCamp-Manager** (sync + core deploy workflows):
 
 | Secret | Purpose |
 |---|---|
 | `BOB_SYNC_PAT` | GitHub PAT to push changes to DonSquires/Bob |
-| `RAILWAY_INFERENCE_SERVICE_ID` | Legacy: kept for backward compat during transition |
+| `RAILWAY_INFERENCE_SERVICE_ID` | Legacy: kept for backward compatibility during transition |
 | `RAILWAY_PROXY_SERVICE_ID` | Railway service ID for the proxy service |
-| `RAILWAY_TOKEN` | Railway token with access to proxy/other services |
+| `RAILWAY_TOKEN` | Railway token with access to proxy and other core services |
 
-> Bob's own RAILWAY_TOKEN and RAILWAY_SERVICE_ID live in DonSquires/Bob, not here.
+> Bob's own `RAILWAY_TOKEN` and `RAILWAY_SERVICE_ID` live in DonSquires/Bob, not in FreedomCamp-Manager.
