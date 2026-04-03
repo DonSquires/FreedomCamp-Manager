@@ -7,7 +7,10 @@ name: Deploy Inference Service to Railway
 #
 # Required secrets:
 #   RAILWAY_TOKEN      — Railway project token (not a personal token)
-#   RAILWAY_SERVICE_ID — Railway project → Service → Settings → Service ID
+#   RAILWAY_INFERENCE_SERVICE_ID — Railway project → Service → Settings → Service ID (preferred)
+#
+# Legacy fallback:
+#   RAILWAY_SERVICE_ID — still accepted for backward compatibility
 #
 # Optional secrets:
 #   INFERENCE_SERVICE_URL — deployed Railway URL; enables health check after deploy
@@ -34,8 +37,9 @@ jobs:
         id: check-secrets
         run: |
           missing=""
-          [ -z "$RAILWAY_TOKEN" ]      && missing="$missing RAILWAY_TOKEN"
-          [ -z "$RAILWAY_SERVICE_ID" ] && missing="$missing RAILWAY_SERVICE_ID"
+          service_id="${RAILWAY_INFERENCE_SERVICE_ID:-${RAILWAY_SERVICE_ID:-}}"
+          [ -z "$RAILWAY_TOKEN" ] && missing="$missing RAILWAY_TOKEN"
+          [ -z "$service_id" ]    && missing="$missing RAILWAY_INFERENCE_SERVICE_ID (or legacy RAILWAY_SERVICE_ID)"
           if [ -n "$missing" ]; then
             echo "::warning::Required secrets not configured ($missing) — deployment skipped."
             echo ""
@@ -44,14 +48,21 @@ jobs:
             echo ""
             echo "  RAILWAY_TOKEN:      Railway token with deploy access to the target service/project"
             echo "                      (project token recommended for CI)."
-            echo "  RAILWAY_SERVICE_ID: Railway project → Service → Settings → Service ID"
+            echo "  RAILWAY_INFERENCE_SERVICE_ID: Railway project → Service → Settings → Service ID"
             echo "secrets_present=false" >> "$GITHUB_OUTPUT"
           else
             echo "✅ Railway secrets present"
+            if [ -n "${RAILWAY_INFERENCE_SERVICE_ID:-}" ]; then
+              echo "Using RAILWAY_INFERENCE_SERVICE_ID"
+            else
+              echo "::warning::Using legacy RAILWAY_SERVICE_ID. Rename to RAILWAY_INFERENCE_SERVICE_ID to avoid service mixups."
+            fi
+            echo "service_id=$service_id" >> "$GITHUB_OUTPUT"
             echo "secrets_present=true" >> "$GITHUB_OUTPUT"
           fi
         env:
           RAILWAY_TOKEN:      ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_INFERENCE_SERVICE_ID: ${{ secrets.RAILWAY_INFERENCE_SERVICE_ID }}
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
 
       - name: Checkout repository
@@ -78,7 +89,7 @@ jobs:
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
           RAILWAY_TOKEN:      ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
+          RAILWAY_SERVICE_ID: ${{ steps.check-secrets.outputs.service_id }}
         run: |
           echo "🔑 Validating Railway token..."
           if ! railway service status --service "$RAILWAY_SERVICE_ID" --json > /dev/null 2>&1; then
@@ -103,7 +114,7 @@ jobs:
           steps.validate-token.outputs.token_valid == 'true'
         env:
           RAILWAY_TOKEN:      ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
+          RAILWAY_SERVICE_ID: ${{ steps.check-secrets.outputs.service_id }}
         run: |
           cd inference-service
           echo "🚂 Deploying inference-service to Railway..."
@@ -131,13 +142,40 @@ jobs:
           sleep 60
 
           echo "🏥 Checking health at ${INFERENCE_SERVICE_URL}/health ..."
+          HEALTH_BODY=$(curl -s \
+            --max-time 30 \
+            "${INFERENCE_SERVICE_URL}/health" || true)
           HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             --max-time 30 \
             "${INFERENCE_SERVICE_URL}/health" || echo "000")
 
           if [ "$HTTP_STATUS" = "200" ]; then
-            echo "✅ Health check passed! Inference service is live."
+            if echo "$HEALTH_BODY" | grep -q '"models"'; then
+              echo "✅ Health check passed! Inference service is live."
+            else
+              echo "::error::Health endpoint does not look like inference-service (missing \"models\")."
+              echo "Body preview: ${HEALTH_BODY:0:200}"
+              exit 1
+            fi
           else
             echo "⚠️  Health check returned HTTP $HTTP_STATUS"
             echo "   Railway may still be starting. Check dashboard in 1-2 minutes."
+            exit 1
           fi
+
+          echo "🧠 Checking /chat route shape ..."
+          CHAT_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 30 \
+            -X POST "${INFERENCE_SERVICE_URL}/chat" \
+            -H 'Content-Type: application/json' \
+            -d '{"message":"ping"}' || echo "000")
+
+          case "$CHAT_STATUS" in
+            200|400|401|403|429)
+              echo "✅ /chat route exists (HTTP $CHAT_STATUS)."
+              ;;
+            *)
+              echo "::error::/chat route check failed with HTTP $CHAT_STATUS (expected non-404 on inference service)."
+              exit 1
+              ;;
+          esac

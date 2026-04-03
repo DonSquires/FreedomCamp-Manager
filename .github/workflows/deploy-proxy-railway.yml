@@ -1,0 +1,120 @@
+name: Deploy Proxy Server to Railway
+
+# Deploys the NZSCV/MotorWeb proxy service (proxy-server/) to Railway.
+#
+# Required secrets:
+#   RAILWAY_TOKEN            — Railway project token (not a personal token)
+#   RAILWAY_PROXY_SERVICE_ID — Railway service ID for proxy-server
+#
+# Optional secrets:
+#   PROXY_SERVICE_URL — deployed Railway URL for post-deploy health check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'proxy-server/**'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  deploy-proxy:
+    name: Deploy Proxy Server to Railway
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check required secrets
+        id: check-secrets
+        run: |
+          missing=""
+          [ -z "$RAILWAY_TOKEN" ]            && missing="$missing RAILWAY_TOKEN"
+          [ -z "$RAILWAY_PROXY_SERVICE_ID" ] && missing="$missing RAILWAY_PROXY_SERVICE_ID"
+
+          if [ -n "$missing" ]; then
+            echo "::warning::Required secrets not configured ($missing) — deployment skipped."
+            echo ""
+            echo "To enable Railway proxy deployments, add secrets at:"
+            echo "  https://github.com/${{ github.repository }}/settings/secrets/actions"
+            echo ""
+            echo "  RAILWAY_TOKEN: Railway token with deploy access"
+            echo "  RAILWAY_PROXY_SERVICE_ID: Railway proxy service ID"
+            echo "secrets_present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "✅ Railway proxy secrets present"
+            echo "secrets_present=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          RAILWAY_TOKEN:            ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROXY_SERVICE_ID: ${{ secrets.RAILWAY_PROXY_SERVICE_ID }}
+
+      - name: Checkout repository
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        uses: actions/checkout@v5
+
+      - name: Install Railway CLI
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        run: |
+          RAILWAY_CLI_VERSION="4.31.0"
+          TARGET="x86_64-unknown-linux-gnu"
+          URL="https://github.com/railwayapp/cli/releases/download/v${RAILWAY_CLI_VERSION}/railway-v${RAILWAY_CLI_VERSION}-${TARGET}.tar.gz"
+          TMP_DIR=$(mktemp -d)
+          cd "$TMP_DIR"
+          curl -fsSL -o railway.tar.gz "$URL"
+          tar -xzf railway.tar.gz
+          mkdir -p "$HOME/.railway/bin"
+          install -m 0755 railway "$HOME/.railway/bin/railway"
+          echo "$HOME/.railway/bin" >> "$GITHUB_PATH"
+
+      - name: Validate Railway token/service
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        env:
+          RAILWAY_TOKEN:            ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROXY_SERVICE_ID: ${{ secrets.RAILWAY_PROXY_SERVICE_ID }}
+        run: |
+          echo "🔑 Validating Railway proxy service access..."
+          if ! railway service status --service "$RAILWAY_PROXY_SERVICE_ID" --json > /dev/null 2>&1; then
+            echo "::error::RAILWAY_TOKEN or RAILWAY_PROXY_SERVICE_ID is invalid."
+            exit 1
+          fi
+
+      - name: Deploy proxy-server to Railway
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        env:
+          RAILWAY_TOKEN:            ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROXY_SERVICE_ID: ${{ secrets.RAILWAY_PROXY_SERVICE_ID }}
+        run: |
+          cd proxy-server
+          echo "🚂 Deploying proxy-server to Railway..."
+          railway up --service "$RAILWAY_PROXY_SERVICE_ID" --detach
+
+      - name: Verify proxy health
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        env:
+          PROXY_SERVICE_URL: ${{ secrets.PROXY_SERVICE_URL }}
+        run: |
+          if [ -z "$PROXY_SERVICE_URL" ]; then
+            echo "ℹ️  PROXY_SERVICE_URL not set — skipping health check."
+            exit 0
+          fi
+
+          echo "⏳ Waiting 45s for Railway to finish deploying..."
+          sleep 45
+
+          echo "🏥 Checking health at ${PROXY_SERVICE_URL}/health ..."
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${PROXY_SERVICE_URL}/health" || echo "000")
+          BODY=$(curl -s --max-time 30 "${PROXY_SERVICE_URL}/health" || true)
+
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "::error::Proxy health check failed with HTTP $HTTP_STATUS"
+            exit 1
+          fi
+
+          if ! echo "$BODY" | grep -qi 'proxy'; then
+            echo "::warning::Proxy health response did not include expected marker. Body preview: ${BODY:0:200}"
+          else
+            echo "✅ Proxy health check passed"
+          fi
