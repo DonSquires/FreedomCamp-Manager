@@ -189,6 +189,9 @@ verify_jwt = false
 [functions.analyze-vehicle-photo]
 verify_jwt = false
 
+[functions.bob-learning-feedback-sync]
+verify_jwt = false
+
 [functions.check-almost-breaches]
 verify_jwt = false
 

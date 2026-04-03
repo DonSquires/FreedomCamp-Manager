@@ -1,0 +1,58 @@
+name: Ops Bob Feedback Sync
+
+on:
+  schedule:
+    - cron: '47 15 * * *' # daily near 03:47 NZST/NZDT
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  bob-feedback-sync:
+    name: Sync Resolved Outcomes into Bob Learning
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Validate required secrets
+        run: |
+          missing=""
+          [ -z "$BOB_FEEDBACK_SYNC_URL" ] && missing="$missing BOB_FEEDBACK_SYNC_URL"
+          [ -z "$BOB_FEEDBACK_SYNC_KEY" ] && missing="$missing BOB_FEEDBACK_SYNC_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing required secrets:$missing"
+            exit 1
+          fi
+        env:
+          BOB_FEEDBACK_SYNC_URL: ${{ secrets.BOB_FEEDBACK_SYNC_URL }}
+          BOB_FEEDBACK_SYNC_KEY: ${{ secrets.BOB_FEEDBACK_SYNC_KEY }}
+
+      - name: Trigger feedback sync
+        env:
+          BOB_FEEDBACK_SYNC_URL: ${{ secrets.BOB_FEEDBACK_SYNC_URL }}
+          BOB_FEEDBACK_SYNC_KEY: ${{ secrets.BOB_FEEDBACK_SYNC_KEY }}
+          BOB_FEEDBACK_SYNC_SINCE_HOURS: ${{ vars.BOB_FEEDBACK_SYNC_SINCE_HOURS }}
+          BOB_FEEDBACK_SYNC_LIMIT: ${{ vars.BOB_FEEDBACK_SYNC_LIMIT }}
+        run: |
+          SINCE_HOURS=${BOB_FEEDBACK_SYNC_SINCE_HOURS:-24}
+          LIMIT=${BOB_FEEDBACK_SYNC_LIMIT:-200}
+
+          echo "🧠 Triggering Bob feedback sync for last ${SINCE_HOURS}h (limit=${LIMIT})"
+
+          HTTP_STATUS=$(curl -s -o /tmp/bob-feedback-sync.json -w "%{http_code}" \
+            --max-time 60 \
+            -X POST "${BOB_FEEDBACK_SYNC_URL}" \
+            -H "Content-Type: application/json" \
+            -H "x-bob-sync-key: ${BOB_FEEDBACK_SYNC_KEY}" \
+            -d "{\"since_hours\":${SINCE_HOURS},\"per_source_limit\":${LIMIT},\"source\":\"ops-bob-feedback-sync\"}")
+
+          cat /tmp/bob-feedback-sync.json
+
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "::error::Bob feedback sync failed with HTTP $HTTP_STATUS"
+            exit 1
+          fi
+
+          echo "✅ Bob feedback sync completed"

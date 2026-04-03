@@ -45,6 +45,7 @@ env:
   PUBLIC_FUNCTIONS: >-
     admin-incident-ops alpr-process alpr-retry analyze-vehicle-photo
     auto-analyse-report
+    bob-learning-feedback-sync
     check-almost-breaches check-data-integrity check-nzscv-status
     check-railway-health check-zone-corrections cleanup-and-recalculate
     correct-zone-assignments create-user create_auth_and_profiles
