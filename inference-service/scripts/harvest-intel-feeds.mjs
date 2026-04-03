@@ -253,12 +253,12 @@ function hashBulletin(b) {
 async function main() {
   const feedUrls = parseFeedUrls(process.env.INTEL_FEED_URLS);
   const ingestUrl = process.env.INTEL_INGEST_URL;
-  const apiKey = process.env.INFERENCE_API_KEY;
+  const apiKey = process.env.INFERENCE_API_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
   const hmacKey = process.env.INTEL_HMAC_KEY || '';
 
   if (!feedUrls.length) throw new Error('INTEL_FEED_URLS is required (comma or newline separated).');
   if (!ingestUrl) throw new Error('INTEL_INGEST_URL is required.');
-  if (!apiKey) throw new Error('INFERENCE_API_KEY is required.');
+  if (!apiKey) throw new Error('INFERENCE_API_KEY or SUPABASE_SERVICE_ROLE_KEY is required.');
 
   const supabaseUrl = process.env.SUPABASE_URL || '';
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';

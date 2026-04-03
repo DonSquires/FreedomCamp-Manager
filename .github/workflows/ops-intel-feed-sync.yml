@@ -29,21 +29,33 @@ jobs:
         id: check-secrets
         run: |
           missing=""
+          auth_missing=""
+
           [ -z "$INTEL_FEED_URLS" ] && missing="$missing INTEL_FEED_URLS"
           [ -z "$INTEL_INGEST_URL" ] && missing="$missing INTEL_INGEST_URL"
-          [ -z "$INFERENCE_API_KEY" ] && missing="$missing INFERENCE_API_KEY"
-          [ -z "$INTEL_REGION_ORG_MAP" ] && echo "::warning::INTEL_REGION_ORG_MAP not set; regional alerts may not target neighboring organizations."
-          if [ -n "$missing" ]; then
-            echo "::warning::Missing required secrets:$missing — intel feed sync skipped."
-            echo "Add these repo secrets to enable ingestion: INTEL_FEED_URLS, INTEL_INGEST_URL, INFERENCE_API_KEY"
-            echo "secrets_present=false" >> "$GITHUB_OUTPUT"
-            exit 0
+          if [ -z "$INFERENCE_API_KEY" ] && [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            auth_missing=" INFERENCE_API_KEY|SUPABASE_SERVICE_ROLE_KEY"
           fi
+
+          [ -z "$INTEL_REGION_ORG_MAP" ] && echo "::warning::INTEL_REGION_ORG_MAP not set; regional alerts may not target neighboring organizations."
+
+          if [ -n "$missing$auth_missing" ]; then
+            echo "::error::Missing required secrets:$missing$auth_missing"
+            echo "Configure these in GitHub -> Settings -> Secrets and variables -> Actions:"
+            echo "  INTEL_FEED_URLS            (comma/newline feed URLs)"
+            echo "  INTEL_INGEST_URL           (Bob endpoint, e.g. https://.../intel/ingest-bulletin)"
+            echo "  INFERENCE_API_KEY          (or use SUPABASE_SERVICE_ROLE_KEY instead)"
+            echo "  SUPABASE_SERVICE_ROLE_KEY  (optional alternative auth key for ingest endpoint)"
+            echo "secrets_present=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
           echo "secrets_present=true" >> "$GITHUB_OUTPUT"
         env:
           INTEL_FEED_URLS: ${{ secrets.INTEL_FEED_URLS }}
           INTEL_INGEST_URL: ${{ secrets.INTEL_INGEST_URL }}
           INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           INTEL_REGION_ORG_MAP: ${{ secrets.INTEL_REGION_ORG_MAP }}
 
       - name: Harvest and ingest intelligence feeds
