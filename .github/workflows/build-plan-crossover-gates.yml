@@ -53,24 +53,34 @@ jobs:
         run: npm install
 
       - name: Ensure API test auth is configured
+        id: api-auth
         run: |
           set -euo pipefail
           if [ -n "${API_TEST_BEARER_TOKEN:-}" ]; then
             echo "Using API_TEST_BEARER_TOKEN for protected endpoint checks."
+            echo "auth_available=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           if [ -n "${API_TEST_EMAIL:-}" ] && [ -n "${API_TEST_PASSWORD:-}" ]; then
             echo "Using API_TEST_EMAIL/API_TEST_PASSWORD for token bootstrap."
+            echo "auth_available=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          echo "::error::API test auth is missing. Set API_TEST_BEARER_TOKEN or both API_TEST_EMAIL and API_TEST_PASSWORD."
-          exit 1
+
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "::error::API test auth is missing. Set API_TEST_BEARER_TOKEN or both API_TEST_EMAIL and API_TEST_PASSWORD."
+            exit 1
+          fi
+
+          echo "::warning::API test auth is missing on PR run; skipping Edge API tests for this run."
+          echo "auth_available=false" >> "$GITHUB_OUTPUT"
         env:
           API_TEST_BEARER_TOKEN: ${{ secrets.API_TEST_BEARER_TOKEN }}
           API_TEST_EMAIL: ${{ secrets.API_TEST_EMAIL }}
           API_TEST_PASSWORD: ${{ secrets.API_TEST_PASSWORD }}
 
       - name: Run edge API response tests
+        if: steps.api-auth.outputs.auth_available == 'true'
         run: npx playwright test --config=playwright.api.config.ts
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
