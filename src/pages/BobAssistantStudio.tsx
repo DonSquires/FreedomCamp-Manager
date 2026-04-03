@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useBobAssistantStore } from '@/stores/bobAssistantStore'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
-import { BrainCircuit, ClipboardList, MapPinned, Mic, MicOff, Paintbrush2, Route, Send, Volume2, VolumeX } from 'lucide-react'
+import { BrainCircuit, ClipboardList, Loader2, MapPinned, Mic, MicOff, Paintbrush2, Route, Send, Volume2, VolumeX } from 'lucide-react'
 import { toast } from 'sonner'
 
 type ChatMessage = {
@@ -365,6 +365,7 @@ export default function BobAssistantStudio() {
   const [chatInput, setChatInput] = useState('')
   const [chat, setChat] = useState<ChatMessage[]>([])
   const [listening, setListening] = useState(false)
+  const [thinking, setThinking] = useState(false)
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([])
   const [origin, setOrigin] = useState('')
   const [destination, setDestination] = useState('')
@@ -408,8 +409,13 @@ export default function BobAssistantStudio() {
   const [generatedPlan, setGeneratedPlan] = useState('')
 
   const recognitionRef = useRef<any>(null)
+  const chatEndRef = useRef<HTMLDivElement | null>(null)
 
   const planRecommendations = useMemo(() => buildPlanRecommendations(planForm), [planForm])
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [chat, thinking])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -520,9 +526,9 @@ export default function BobAssistantStudio() {
     window.speechSynthesis.speak(utterance)
   }
 
-  const sendMessage = (override?: string) => {
+  const sendMessage = async (override?: string) => {
     const message = (override ?? chatInput).trim()
-    if (!message) return
+    if (!message || thinking) return
 
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
@@ -531,19 +537,50 @@ export default function BobAssistantStudio() {
       createdAt: new Date().toISOString(),
     }
 
-    const replyText = buildBobReply(message, tone)
-    const bobMsg: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: 'assistant',
-      text: replyText,
-      createdAt: new Date().toISOString(),
-    }
-
-    setChat((prev) => [...prev, userMsg, bobMsg])
+    setChat((prev) => [...prev, userMsg])
     setChatInput('')
+    setThinking(true)
 
-    if (autoSpeakReplies) {
-      speak(replyText)
+    try {
+      const history = chat.slice(-20).map((m) => ({ role: m.role, content: m.text }))
+
+      const { data, error } = await supabase.functions.invoke('onspace-ai-chat', {
+        body: {
+          message,
+          history,
+          context: { tone, source: 'bob-studio' },
+        },
+      })
+
+      if (error) throw error
+
+      const replyText: string = data?.response || 'I could not generate a response. Please try again.'
+
+      const bobMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        text: replyText,
+        createdAt: new Date().toISOString(),
+      }
+
+      setChat((prev) => [...prev, bobMsg])
+
+      if (autoSpeakReplies) {
+        speak(replyText)
+      }
+    } catch (err: any) {
+      const replyText = buildBobReply(message, tone)
+      const bobMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        text: replyText,
+        createdAt: new Date().toISOString(),
+      }
+      setChat((prev) => [...prev, bobMsg])
+      if (autoSpeakReplies) speak(replyText)
+      toast.error('AI service unavailable — using local fallback')
+    } finally {
+      setThinking(false)
     }
   }
 
@@ -814,7 +851,7 @@ export default function BobAssistantStudio() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="max-h-[300px] overflow-auto rounded border p-3 space-y-2 bg-muted/20">
-                {chat.length === 0 ? (
+                {chat.length === 0 && !thinking ? (
                   <div className="text-sm text-muted-foreground">No messages yet. Ask Bob for import help, directions, or operational guidance.</div>
                 ) : (
                   chat.map((message) => (
@@ -824,6 +861,13 @@ export default function BobAssistantStudio() {
                     </div>
                   ))
                 )}
+                {thinking && (
+                  <div className="rounded px-3 py-2 text-sm bg-primary/70 text-primary-foreground flex items-center gap-2">
+                    <Loader2 className="h-3 w-3 animate-spin shrink-0" />
+                    <span>{displayName} is thinking…</span>
+                  </div>
+                )}
+                <div ref={chatEndRef} />
               </div>
 
               <div className="flex gap-2">
@@ -842,7 +886,7 @@ export default function BobAssistantStudio() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <Button onClick={() => sendMessage()} disabled={!chatInput.trim()}><Send className="h-4 w-4 mr-1" /> Send</Button>
+                <Button onClick={() => sendMessage()} disabled={!chatInput.trim() || thinking}><Send className="h-4 w-4 mr-1" /> Send</Button>
                 <Button variant="outline" onClick={toggleListening}>
                   {listening ? <MicOff className="h-4 w-4 mr-1" /> : <Mic className="h-4 w-4 mr-1" />}
                   {listening ? 'Stop Listening' : 'Voice Input'}
