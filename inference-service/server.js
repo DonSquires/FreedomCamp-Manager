@@ -166,8 +166,12 @@ const SELF_CONTAINED_STRICT_EGRESS = SELF_CONTAINED_MODE && !['0', 'false', 'no'
 
 function assertEgressAllowed(url, providerLabel = 'unknown') {
   if (!SELF_CONTAINED_STRICT_EGRESS) return;
-  // Ollama is a self-hosted private LLM service — never considered outbound cloud egress.
-  if (providerLabel === 'ollama') return;
+  // In strict self-contained mode, Ollama is only allowed when it points to local host.
+  if (providerLabel === 'ollama') {
+    if (isLocalUrl(url)) return;
+    recordEgressEvent(providerLabel, 'blocked', `Strict self-contained egress policy blocked non-local Ollama URL: ${url}`);
+    throw new Error(`Outbound network blocked in SELF_CONTAINED_MODE: ${url}`);
+  }
   if (!isLocalUrl(url)) {
     recordEgressEvent(providerLabel, 'blocked', `Strict self-contained egress policy blocked URL: ${url}`);
     throw new Error(`Outbound network blocked in SELF_CONTAINED_MODE: ${url}`);
@@ -181,9 +185,8 @@ async function safeFetch(url, options, providerLabel = 'unknown') {
 
 const OPENAI_ENABLED = !SELF_CONTAINED_MODE && !!OPENAI_API_KEY;
 const CLOUD_ALPR_ENABLED = !SELF_CONTAINED_MODE && !!process.env.PLATERECOGNIZER_TOKEN;
-// Ollama is a self-hosted LLM service — allowed regardless of SELF_CONTAINED_MODE
-// because it never routes traffic to external cloud providers.
-const OLLAMA_ENABLED = TABULAR_NLP_PROVIDER === 'ollama' || CHAT_PROVIDER === 'ollama';
+const OLLAMA_REQUESTED = TABULAR_NLP_PROVIDER === 'ollama' || CHAT_PROVIDER === 'ollama';
+const OLLAMA_ENABLED = OLLAMA_REQUESTED && (!SELF_CONTAINED_MODE || isLocalUrl(OLLAMA_BASE_URL));
 
 const selfLearningService = createSelfLearningService({
   enabled: SELF_LEARNING_ENABLED,
