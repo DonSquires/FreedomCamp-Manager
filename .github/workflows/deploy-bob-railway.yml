@@ -69,15 +69,16 @@ jobs:
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_BOB_SERVICE_ID }}
         run: |
           echo "🔑 Validating Bob Railway token..."
-          if ! railway service list --json > /dev/null 2>&1; then
-            echo "::error::RAILWAY_BOB_TOKEN is invalid or expired."
-            echo "Generate a new project token in Railway (Project → Settings → Tokens) and update RAILWAY_BOB_TOKEN."
+          if ! railway service status --service "$RAILWAY_SERVICE_ID" --json > /dev/null 2>&1; then
+            echo "::error::RAILWAY_BOB_TOKEN or RAILWAY_BOB_SERVICE_ID is invalid."
+            echo "Verify the token belongs to Bob Inference project and service ID is correct."
             exit 1
           fi
 
-          echo "✅ Bob Railway token is valid"
+          echo "✅ Bob Railway token and service access are valid"
           echo "token_valid=true" >> "$GITHUB_OUTPUT"
 
       - name: Deploy Bob to Railway
@@ -88,8 +89,7 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_BOB_SERVICE_ID }}
         run: |
-          cd inference-service
-          echo "🚂 Deploying Bob from inference-service/ ..."
+          echo "🚂 Deploying Bob from repository root ..."
           railway up --service "$RAILWAY_SERVICE_ID" --detach
 
       - name: Verify Bob health and chat route
