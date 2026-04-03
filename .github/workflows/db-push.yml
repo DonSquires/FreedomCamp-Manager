@@ -134,8 +134,20 @@ jobs:
           set -euo pipefail
 
           LOG_FILE="$(mktemp)"
+          DB_HOST="db.${SUPABASE_PROJECT_REF}.supabase.co"
+          DB_HOSTADDR="$(getent ahostsv4 "$DB_HOST" | awk '{print $1}' | head -n1 || true)"
+
+          if [ -z "${DB_HOSTADDR:-}" ]; then
+            echo "::warning::Could not resolve IPv4 for ${DB_HOST}; direct mode may fail on IPv6-only routes."
+          else
+            echo "ℹ️  Using IPv4 hostaddr ${DB_HOSTADDR} for direct db push."
+          fi
+
           ENCODED_DB_PASSWORD="$(node -e 'console.log(encodeURIComponent(process.argv[1]))' "$SUPABASE_DB_PASSWORD")"
-          DB_URL="postgresql://postgres:${ENCODED_DB_PASSWORD}@db.${SUPABASE_PROJECT_REF}.supabase.co:5432/postgres?sslmode=require"
+          DB_URL="postgresql://postgres:${ENCODED_DB_PASSWORD}@${DB_HOST}:5432/postgres?sslmode=require"
+          if [ -n "${DB_HOSTADDR:-}" ]; then
+            DB_URL="${DB_URL}&hostaddr=${DB_HOSTADDR}"
+          fi
 
           if [ "${{ steps.link-project.outputs.linked_mode }}" != "true" ]; then
             echo "ℹ️  Running db push in direct DB URL mode (no Supabase API token)."
