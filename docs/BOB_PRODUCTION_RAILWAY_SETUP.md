@@ -165,9 +165,9 @@ After deploy:
 Example checks:
 
 ```bash
-curl -sS https://YOUR_BOB_DOMAIN/health
+curl -sS https://focused-courage-production-ccee.up.railway.app/health
 
-curl -sS -X POST https://YOUR_BOB_DOMAIN/chat \
+curl -sS -X POST https://focused-courage-production-ccee.up.railway.app/chat \
   -H 'Content-Type: application/json' \
   -d '{"message":"ping"}'
 ```
