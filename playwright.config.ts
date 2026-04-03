@@ -19,6 +19,39 @@ const chromiumLaunchOptions = {
   ...(nativeChromiumExecutablePath ? { executablePath: nativeChromiumExecutablePath } : {}),
 }
 
+const canUseWebkitOnHost = process.platform !== 'linux' || process.env.PLAYWRIGHT_FORCE_WEBKIT === '1'
+
+const desktopSafariProject = canUseWebkitOnHost
+  ? {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] },
+    }
+  : {
+      // Linux dev containers often lack WebKit runtime dependencies.
+      // Keep the project available by using Chromium with Safari-like viewport.
+      name: 'webkit',
+      use: {
+        ...devices['Desktop Safari'],
+        ...devices['Desktop Chrome'],
+        launchOptions: chromiumLaunchOptions,
+      },
+    }
+
+const mobileSafariProject = canUseWebkitOnHost
+  ? {
+      name: 'Mobile Safari',
+      use: { ...devices['iPhone 12'] },
+    }
+  : {
+      // Fallback to Chromium+iPhone emulation when WebKit cannot launch.
+      name: 'Mobile Safari',
+      use: {
+        ...devices['iPhone 12'],
+        ...devices['Pixel 5'],
+        launchOptions: chromiumLaunchOptions,
+      },
+    }
+
 /**
  * Playwright Configuration for FieldOps Manager
  * E2E Integration Testing - Phase 9
@@ -78,10 +111,7 @@ export default defineConfig({
       use: { ...devices['Desktop Firefox'] },
     },
 
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    },
+    desktopSafariProject,
 
     // Mobile viewports
     {
@@ -91,15 +121,12 @@ export default defineConfig({
         launchOptions: chromiumLaunchOptions,
       },
     },
-    {
-      name: 'Mobile Safari',
-      use: { ...devices['iPhone 12'] },
-    },
+    mobileSafariProject,
   ],
 
   // Run your local dev server before starting the tests
   webServer: {
-    command: 'npm run dev',
+    command: "sh -c 'set -a; [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; [ -f .env.playwright.local ] && . ./.env.playwright.local; set +a; npm run dev'",
     url: 'http://localhost:5173',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
