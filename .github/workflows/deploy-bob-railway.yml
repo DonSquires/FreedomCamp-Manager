@@ -73,17 +73,16 @@ jobs:
         run: |
           echo "🔑 Validating Bob Railway token..."
           if ! railway service list --json > /dev/null 2>&1; then
-            echo "::error::RAILWAY_BOB_TOKEN is invalid or expired."
-            echo "Generate a new Railway project token (Bob Inference project) and update RAILWAY_BOB_TOKEN."
-            exit 1
+            echo "::warning::Could not confirm RAILWAY_BOB_TOKEN via 'railway service list'."
+            echo "Project-scoped Railway tokens can fail this precheck; deployment will still be attempted."
+          else
+            if ! railway service list --json | grep -q "$RAILWAY_SERVICE_ID"; then
+              echo "::warning::RAILWAY_BOB_SERVICE_ID was not found in the token-scoped service list."
+              echo "Deploy will still be attempted and will fail if service ID is incorrect."
+            fi
           fi
 
-          if ! railway service list --json | grep -q "$RAILWAY_SERVICE_ID"; then
-            echo "::warning::RAILWAY_BOB_SERVICE_ID was not found in the token-scoped service list."
-            echo "Deploy will still be attempted and will fail if service ID is incorrect."
-          fi
-
-          echo "✅ Bob Railway token is valid"
+          echo "✅ Bob Railway validation step complete"
           echo "token_valid=true" >> "$GITHUB_OUTPUT"
 
       - name: Deploy Bob to Railway
