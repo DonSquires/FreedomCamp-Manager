@@ -132,6 +132,94 @@ async function fetchBreachOutcomeEvents(
   return { events, errors }
 }
 
+async function fetchEnforcementOutcomeEvents(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  sinceIso: string,
+  limit: number,
+): Promise<{ events: LearningEvent[]; errors: string[] }> {
+  const events: LearningEvent[] = []
+  const errors: string[] = []
+
+  try {
+    // Primary signal: explicitly completed actions.
+    const { data: completedRows, error: completedErr } = await supabaseAdmin
+      .from('enforcement_actions')
+      .select('id, action_type, status, breach_status, completed_at, completion_outcome, completion_notes, updated_at')
+      .gte('completed_at', sinceIso)
+      .order('completed_at', { ascending: false })
+      .limit(limit)
+
+    if (completedErr) {
+      errors.push(`enforcement_actions completed query failed: ${completedErr.message}`)
+    } else {
+      for (const row of completedRows ?? []) {
+        const outcome = String(row.completion_outcome || '').toLowerCase()
+        const status = String(row.status || '').toLowerCase()
+        const breachStatus = String(row.breach_status || '').toLowerCase()
+
+        const positiveOutcome =
+          outcome.includes('complied') ||
+          outcome.includes('resolved') ||
+          outcome.includes('paid') ||
+          outcome.includes('warning') ||
+          breachStatus === 'completed' ||
+          status === 'completed'
+
+        const negativeOutcome =
+          outcome.includes('cancel') ||
+          outcome.includes('dismiss') ||
+          outcome.includes('invalid') ||
+          outcome.includes('error') ||
+          outcome.includes('failed')
+
+        const wasCorrect = negativeOutcome ? false : positiveOutcome ? true : null
+
+        const confidence =
+          positiveOutcome ? 0.78 :
+          negativeOutcome ? 0.62 :
+          0.55
+
+        events.push({
+          pipeline: 'enforcement_action',
+          confidence,
+          was_correct: wasCorrect,
+          note: `enforcement ${row.id} ${status || 'unknown'} ${outcome || 'no_outcome'} (${String(row.action_type || 'unknown_action')})`,
+        })
+      }
+    }
+
+    // Secondary signal: actions moved to terminal statuses but with no completed_at set.
+    const { data: terminalRows, error: terminalErr } = await supabaseAdmin
+      .from('enforcement_actions')
+      .select('id, action_type, status, breach_status, completion_outcome, completion_notes, updated_at, completed_at')
+      .gte('updated_at', sinceIso)
+      .is('completed_at', null)
+      .in('status', ['resolved', 'closed', 'cancelled', 'dismissed'])
+      .order('updated_at', { ascending: false })
+      .limit(limit)
+
+    if (terminalErr) {
+      errors.push(`enforcement_actions terminal query failed: ${terminalErr.message}`)
+    } else {
+      for (const row of terminalRows ?? []) {
+        const status = String(row.status || '').toLowerCase()
+        const wasCorrect = status === 'resolved' || status === 'closed'
+
+        events.push({
+          pipeline: 'enforcement_action',
+          confidence: wasCorrect ? 0.7 : 0.58,
+          was_correct: wasCorrect,
+          note: `enforcement ${row.id} terminal status ${status} (${String(row.action_type || 'unknown_action')})`,
+        })
+      }
+    }
+  } catch (err: any) {
+    errors.push(`enforcement_actions exception: ${err?.message ?? String(err)}`)
+  }
+
+  return { events, errors }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: getCorsHeaders(req) })
@@ -195,13 +283,14 @@ Deno.serve(async (req: Request) => {
 
     const sinceIso = new Date(Date.now() - sinceHours * 60 * 60 * 1000).toISOString()
 
-    const [intakes, breaches] = await Promise.all([
+    const [intakes, breaches, enforcement] = await Promise.all([
       fetchImportIntakeEvents(supabaseAdmin, sinceIso, perSourceLimit),
       fetchBreachOutcomeEvents(supabaseAdmin, sinceIso, perSourceLimit),
+      fetchEnforcementOutcomeEvents(supabaseAdmin, sinceIso, perSourceLimit),
     ])
 
-    const events = [...intakes.events, ...breaches.events]
-    const gatherErrors = [...intakes.errors, ...breaches.errors]
+    const events = [...intakes.events, ...breaches.events, ...enforcement.events]
+    const gatherErrors = [...intakes.errors, ...breaches.errors, ...enforcement.errors]
 
     if (dryRun) {
       return new Response(JSON.stringify({
@@ -211,6 +300,11 @@ Deno.serve(async (req: Request) => {
         source,
         since_hours: sinceHours,
         events_collected: events.length,
+        source_counts: {
+          import_intakes: intakes.events.length,
+          breach_alerts: breaches.events.length,
+          enforcement_actions: enforcement.events.length,
+        },
         event_samples: events.slice(0, 20),
         gather_errors: gatherErrors,
       }), {
@@ -226,6 +320,11 @@ Deno.serve(async (req: Request) => {
         source,
         since_hours: sinceHours,
         events_collected: 0,
+        source_counts: {
+          import_intakes: intakes.events.length,
+          breach_alerts: breaches.events.length,
+          enforcement_actions: enforcement.events.length,
+        },
         message: 'No fresh resolved outcomes in selected window',
         gather_errors: gatherErrors,
       }), {
@@ -269,6 +368,11 @@ Deno.serve(async (req: Request) => {
       source,
       since_hours: sinceHours,
       events_collected: events.length,
+      source_counts: {
+        import_intakes: intakes.events.length,
+        breach_alerts: breaches.events.length,
+        enforcement_actions: enforcement.events.length,
+      },
       gather_errors: gatherErrors,
       inference_result: ingestJson,
     }), {
