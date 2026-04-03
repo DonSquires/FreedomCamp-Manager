@@ -36,6 +36,7 @@ jobs:
             echo "Add these GitHub Actions secrets:"
             echo "  RAILWAY_BOB_TOKEN      - Railway project token for the Bob project"
             echo "  RAILWAY_BOB_SERVICE_ID - Railway service ID for bob-inference/orc-ai-inference-service"
+            echo "  RAILWAY_BOB_PROJECT_ID - Optional Railway project ID for Bob Inference auto-resolution"
             echo "  BOB_SERVICE_URL        - Optional public Bob URL for post-deploy verification"
             echo "secrets_present=false" >> "$GITHUB_OUTPUT"
           else
@@ -92,13 +93,47 @@ jobs:
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_BOB_SERVICE_ID }}
+          RAILWAY_BOB_PROJECT_ID: ${{ secrets.RAILWAY_BOB_PROJECT_ID }}
         run: |
           echo "🚂 Deploying Bob from repository root ..."
-          if ! railway up --service "$RAILWAY_SERVICE_ID" --detach; then
-            echo "::error::Railway deploy command failed for RAILWAY_BOB_SERVICE_ID=$RAILWAY_SERVICE_ID"
-            echo "Verify RAILWAY_BOB_SERVICE_ID belongs to Bob Inference project and token has deploy access."
-            exit 1
+          SERVICE_TO_DEPLOY="$RAILWAY_SERVICE_ID"
+          PROJECT_TO_QUERY="${RAILWAY_BOB_PROJECT_ID:-151bb5d5-a999-4eff-8be5-cfe8fe93484f}"
+          DEPLOY_LOG="$(mktemp)"
+
+          if railway up --service "$SERVICE_TO_DEPLOY" --detach 2>&1 | tee "$DEPLOY_LOG"; then
+            exit 0
           fi
+
+          if grep -q "Service not found" "$DEPLOY_LOG"; then
+            echo "::warning::Configured RAILWAY_BOB_SERVICE_ID was not found. Attempting project-based service auto-resolution."
+
+            GRAPHQL_PAYLOAD=$(printf '{"query":"query { project(id:\"%s\") { services { edges { node { id name } } } } }"}' "$PROJECT_TO_QUERY")
+            GRAPHQL_RESPONSE=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
+              -H "Authorization: Bearer $RAILWAY_TOKEN" \
+              -H "Content-Type: application/json" \
+              --data "$GRAPHQL_PAYLOAD" || true)
+
+            RESOLVED_SERVICE_ID=$(node -e '
+              const data = JSON.parse(process.argv[1] || "{}");
+              const edges = data?.data?.project?.services?.edges || [];
+              const services = edges.map((edge) => edge.node).filter(Boolean);
+              const preferred = services.find((service) => ["bob", "bob inference", "bob-inference", "."].includes(String(service.name || "").toLowerCase()));
+              const fallback = services.find((service) => String(service.name || "").toLowerCase() !== "ollama");
+              const selected = preferred || fallback;
+              process.stdout.write(selected?.id || "");
+            ' "$GRAPHQL_RESPONSE")
+
+            if [ -n "$RESOLVED_SERVICE_ID" ] && [ "$RESOLVED_SERVICE_ID" != "$RAILWAY_SERVICE_ID" ]; then
+              echo "::warning::Resolved Bob service ID from Railway project. Retry deployment and update RAILWAY_BOB_SERVICE_ID secret to match."
+              if railway up --service "$RESOLVED_SERVICE_ID" --detach; then
+                exit 0
+              fi
+            fi
+          fi
+
+          echo "::error::Railway deploy command failed for RAILWAY_BOB_SERVICE_ID=$RAILWAY_SERVICE_ID"
+          echo "Verify RAILWAY_BOB_SERVICE_ID belongs to Bob Inference project and token has deploy access."
+          exit 1
 
       - name: Verify Bob health and chat route
         if: >-
