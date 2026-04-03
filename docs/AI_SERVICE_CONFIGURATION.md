@@ -1,6 +1,6 @@
 # AI Service Configuration Guide
 
-This guide explains how to configure the AI services for FreedomCamp Manager.
+This guide explains how to configure AI services for FieldOps Manager using a self-contained inference-service-only policy.
 
 ## Quick Fix for "AI service not connecting"
 
@@ -26,26 +26,15 @@ Go to Supabase Dashboard → Edge Functions → Manage Secrets and add:
 | Secret | Value | Required |
 |--------|-------|----------|
 | `INFERENCE_SERVICE_URL` | `https://orc-ai-inference-service-production.up.railway.app` | Yes |
-| `GITHUB_TOKEN` | GitHub PAT with `copilot` scope | For AI chat |
-| `OPENAI_API_KEY` | OpenAI API key | Alternative to GITHUB_TOKEN |
+| `INFERENCE_API_KEY` | Shared secret for inference-service auth | Recommended |
 | `PROXY_SERVER_URL` | Railway proxy URL | For NZSCV lookups |
 
 ## Required Secrets by Feature
 
-### AI Chat (Field Officer Portal)
+### AI Chat + Self-Healing Bug Analysis
 
-The AI chat feature in the Field Officer Portal requires one of:
-
-1. **GITHUB_TOKEN** (recommended) - GitHub Personal Access Token with `copilot` scope
-   - Go to https://github.com/settings/tokens/new
-   - Name: "FreedomCamp AI"
-   - Select scope: `copilot`
-   - Generate and copy the token
-
-2. **OPENAI_API_KEY** - OpenAI API key
-   - Go to https://platform.openai.com/api-keys
-   - Create new key
-   - Copy the key (starts with `sk-`)
+AI chat and bug self-healing run through Supabase Edge Functions and inference-service.
+No external cloud AI provider secrets are required under this policy.
 
 ### Vehicle Inference (ALPR, Face Recognition)
 
@@ -95,11 +84,14 @@ curl https://kxwjcupuxnnbnzcgmkoi.supabase.co/functions/v1/check-railway-health
 
 ## Troubleshooting
 
-### "AI chat request timed out after 25s"
+### "AI chat request timed out"
 
-**Cause**: No AI provider configured (missing GITHUB_TOKEN or OPENAI_API_KEY)
+**Cause**: Inference service unreachable or auth mismatch.
 
-**Fix**: Add one of these secrets to Supabase Edge Functions
+**Fix**:
+1. Verify `INFERENCE_SERVICE_URL` is configured.
+2. Verify `INFERENCE_API_KEY` matches the inference-service deployment.
+3. Check inference-service `/health` endpoint.
 
 ### "INFERENCE_SERVICE_URL not configured"
 
