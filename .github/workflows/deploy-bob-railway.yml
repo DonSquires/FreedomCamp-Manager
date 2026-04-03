@@ -72,13 +72,18 @@ jobs:
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_BOB_SERVICE_ID }}
         run: |
           echo "🔑 Validating Bob Railway token..."
-          if ! railway service status --service "$RAILWAY_SERVICE_ID" --json > /dev/null 2>&1; then
-            echo "::error::RAILWAY_BOB_TOKEN or RAILWAY_BOB_SERVICE_ID is invalid."
-            echo "Verify the token belongs to Bob Inference project and service ID is correct."
+          if ! railway service list --json > /dev/null 2>&1; then
+            echo "::error::RAILWAY_BOB_TOKEN is invalid or expired."
+            echo "Generate a new Railway project token (Bob Inference project) and update RAILWAY_BOB_TOKEN."
             exit 1
           fi
 
-          echo "✅ Bob Railway token and service access are valid"
+          if ! railway service list --json | grep -q "$RAILWAY_SERVICE_ID"; then
+            echo "::warning::RAILWAY_BOB_SERVICE_ID was not found in the token-scoped service list."
+            echo "Deploy will still be attempted and will fail if service ID is incorrect."
+          fi
+
+          echo "✅ Bob Railway token is valid"
           echo "token_valid=true" >> "$GITHUB_OUTPUT"
 
       - name: Deploy Bob to Railway
@@ -90,7 +95,11 @@ jobs:
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_BOB_SERVICE_ID }}
         run: |
           echo "🚂 Deploying Bob from repository root ..."
-          railway up --service "$RAILWAY_SERVICE_ID" --detach
+          if ! railway up --service "$RAILWAY_SERVICE_ID" --detach; then
+            echo "::error::Railway deploy command failed for RAILWAY_BOB_SERVICE_ID=$RAILWAY_SERVICE_ID"
+            echo "Verify RAILWAY_BOB_SERVICE_ID belongs to Bob Inference project and token has deploy access."
+            exit 1
+          fi
 
       - name: Verify Bob health and chat route
         if: >-
