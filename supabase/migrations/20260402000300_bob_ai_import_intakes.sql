@@ -43,7 +43,7 @@ DO $$ BEGIN
     ON public.ai_import_intakes FOR SELECT
     TO authenticated
     USING (
-      organization_id = ANY(get_user_organization_ids(auth.uid()))
+      organization_id = ANY(get_user_organization_ids())
       OR get_user_role(auth.uid()) IN ('master', 'grand_master')
     );
 EXCEPTION WHEN undefined_function THEN NULL;
@@ -55,7 +55,7 @@ DO $$ BEGIN
     ON public.ai_import_intakes FOR INSERT
     TO authenticated
     WITH CHECK (
-      organization_id = ANY(get_user_organization_ids(auth.uid()))
+      organization_id = ANY(get_user_organization_ids())
       OR get_user_role(auth.uid()) IN ('master', 'grand_master')
     );
 EXCEPTION WHEN undefined_function THEN NULL;
@@ -67,11 +67,11 @@ DO $$ BEGIN
     ON public.ai_import_intakes FOR UPDATE
     TO authenticated
     USING (
-      organization_id = ANY(get_user_organization_ids(auth.uid()))
+      organization_id = ANY(get_user_organization_ids())
       OR get_user_role(auth.uid()) IN ('master', 'grand_master')
     )
     WITH CHECK (
-      organization_id = ANY(get_user_organization_ids(auth.uid()))
+      organization_id = ANY(get_user_organization_ids())
       OR get_user_role(auth.uid()) IN ('master', 'grand_master')
     );
 EXCEPTION WHEN undefined_function THEN NULL;

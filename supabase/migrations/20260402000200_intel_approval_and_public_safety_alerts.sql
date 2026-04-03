@@ -89,7 +89,7 @@ DO $$ BEGIN
         OR EXISTS (
           SELECT 1
           FROM unnest(target_organization_ids) target_org_id
-          WHERE target_org_id = ANY(get_user_organization_ids(auth.uid()))
+          WHERE target_org_id = ANY(get_user_organization_ids())
         )
       )
     );
