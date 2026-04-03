@@ -32,14 +32,17 @@ In Railway dashboard, click the **Variables** tab and add:
 | `REQUIRE_SELF_CONTAINED_MODE` | `true` | Refuses startup if self-contained mode is not enabled |
 | `SELF_CONTAINED_STRICT_EGRESS` | `true` | Blocks all non-local outbound HTTP at runtime |
 
-#### AI Features (required for vehicle attribute extraction and face detection)
+#### Bob Self-Contained Mode (required for production)
 
 | Variable | Example Value | Description |
 |---|---|---|
-| `OPENAI_API_KEY` | `<key>` | OpenAI or AI Gateway key |
-| `VEHICLE_ATTRS_PROVIDER` | `chatgpt` | `basic` (no AI), `openai`/`chatgpt` (AI attribute extraction), or `ollama` (local LLM) |
-| `OPENAI_MODEL` | `gpt-4o-mini` | Model name — use `openai/gpt-4o-mini` for Vercel AI Gateway |
-| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | OpenAI API base URL — override to `https://ai-gateway.vercel.sh/v1` for Vercel AI Gateway or an Azure endpoint |
+| `SELF_CONTAINED_MODE` | `true` | Forces local-only execution mode |
+| `REQUIRE_SELF_CONTAINED_MODE` | `true` | Refuses startup if self-contained mode is not enabled |
+| `SELF_CONTAINED_STRICT_EGRESS` | `true` | Blocks non-local outbound HTTP at runtime |
+| `VEHICLE_ATTRS_PROVIDER` | `basic` | Keeps attribute extraction local-only |
+| `TABULAR_NLP_PROVIDER` | `heuristic` | Keeps tabular NLP local-only |
+| `CHAT_PROVIDER` | `heuristic` | Keeps chat local-only |
+| `SELF_HEALING_ENABLED` | `true` | Enables self-heal endpoints through Bob |
 
 #### Optional
 
@@ -118,16 +121,18 @@ curl "$RAILWAY_URL/health" | jq .
 # Confirm strict self-contained posture
 curl -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" "$RAILWAY_URL/audit/egress" | jq .
 
-# Expected (with AI features enabled):
+# Expected (production self-contained):
 # {
 #   "status": "healthy",
 #   "models": { "yolo": "loaded", "embedding": "loaded" },
 #   "config": {
-#     "VEHICLE_ATTRS_PROVIDER": "openai",
-#     "OPENAI_API_KEY_SET": true,
+#     "VEHICLE_ATTRS_PROVIDER": "basic",
+#     "TABULAR_NLP_PROVIDER": "heuristic",
+#     "CHAT_PROVIDER": "heuristic",
+#     "SELF_CONTAINED_MODE": true,
 #     "SUPABASE_SERVICE_ROLE_KEY_SET": true
 #   },
-#   "capabilities": { "plate_inference": true, "ai_attributes": true }
+#   "capabilities": { "plate_inference": true, "chat": true, "self_healing": true }
 # }
 ```
 
@@ -190,6 +195,7 @@ Uses your existing Railway account - no additional service!
 - This is fine if `SUPABASE_SERVICE_ROLE_KEY` is set — Edge Functions use the service role key for auth
 - Only set `INFERENCE_API_KEY` if you need an additional static key for direct API calls
 
-**"AI attributes not working"**
-- Confirm `VEHICLE_ATTRS_PROVIDER=openai` and `OPENAI_API_KEY` are set
-- If using Vercel AI Gateway, set `OPENAI_BASE_URL=https://ai-gateway.vercel.sh/v1` and prefix the model name: `OPENAI_MODEL=openai/gpt-4o-mini`
+**"Service unexpectedly calls cloud provider"**
+- Confirm `SELF_CONTAINED_MODE=true` and `SELF_CONTAINED_STRICT_EGRESS=true`
+- Confirm `VEHICLE_ATTRS_PROVIDER=basic`, `TABULAR_NLP_PROVIDER=heuristic`, and `CHAT_PROVIDER=heuristic`
+- Remove `OPENAI_*` variables from production unless explicitly approved for non-production experiments
