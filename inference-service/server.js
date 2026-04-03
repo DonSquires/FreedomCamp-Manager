@@ -462,6 +462,12 @@ function round4(value) {
   return Math.round(n * 10000) / 10000;
 }
 
+function safeEventKey(value) {
+  const key = String(value || '').trim();
+  if (!key) return null;
+  return key.slice(0, 240);
+}
+
 function buildInferenceAdvice(payload = {}) {
   const pipeline = String(payload.pipeline || 'vehicle_infer');
   const degraded = Boolean(payload.degraded);
@@ -2468,16 +2474,27 @@ app.post('/learn/ingest-feedback', inferenceRateLimit, requireInferenceAuth, asy
     const maxEvents = Math.min(events.length, 200);
     let compareFeedbackApplied = 0;
     let operationalFeedbackApplied = 0;
+    let duplicateEventsSkipped = 0;
     const warnings = [];
 
     for (let i = 0; i < maxEvents; i++) {
       const event = events[i] || {};
       const pipeline = String(event.pipeline || 'unknown').toLowerCase();
+      const incomingKey = safeEventKey(event.event_key);
+      const derivedKey = incomingKey || safeEventKey(`${source}|${pipeline}|${event.similarity ?? ''}|${event.actual_same_vehicle ?? ''}|${event.confidence ?? ''}|${event.was_correct ?? ''}|${event.note ?? ''}`);
+      if (derivedKey && selfLearningService.hasProcessedEventKey(derivedKey)) {
+        duplicateEventsSkipped += 1;
+        continue;
+      }
+
       const context = {
         source,
         event_index: i,
         operator_note: cleanText(event.note) || null,
+        event_key: derivedKey,
       };
+
+      let eventApplied = false;
 
       if (Number.isFinite(Number(event.similarity)) && typeof event.actual_same_vehicle === 'boolean') {
         try {
@@ -2487,6 +2504,7 @@ app.post('/learn/ingest-feedback', inferenceRateLimit, requireInferenceAuth, asy
             context,
           });
           compareFeedbackApplied += 1;
+          eventApplied = true;
         } catch (err) {
           warnings.push(`compare_feedback[${i}] rejected: ${err.message}`);
         }
@@ -2499,9 +2517,16 @@ app.post('/learn/ingest-feedback', inferenceRateLimit, requireInferenceAuth, asy
           was_correct: typeof event.was_correct === 'boolean' ? event.was_correct : null,
           context,
         });
-        if (result?.stored) operationalFeedbackApplied += 1;
+        if (result?.stored) {
+          operationalFeedbackApplied += 1;
+          eventApplied = true;
+        }
       } catch (err) {
         warnings.push(`operational_feedback[${i}] rejected: ${err.message}`);
+      }
+
+      if (eventApplied && derivedKey) {
+        selfLearningService.markProcessedEventKey(derivedKey);
       }
     }
 
@@ -2512,6 +2537,7 @@ app.post('/learn/ingest-feedback', inferenceRateLimit, requireInferenceAuth, asy
       events_processed: maxEvents,
       compare_feedback_applied: compareFeedbackApplied,
       operational_feedback_applied: operationalFeedbackApplied,
+      duplicate_events_skipped: duplicateEventsSkipped,
       warnings: warnings.slice(0, 20),
       learning: selfLearningService.getState(),
     });

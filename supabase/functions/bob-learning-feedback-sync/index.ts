@@ -3,6 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { getCorsHeaders } from '../_shared/withCors.ts'
 
 type LearningEvent = {
+  event_key?: string
   pipeline: string
   confidence?: number | null
   was_correct?: boolean | null
@@ -66,6 +67,7 @@ async function fetchImportIntakeEvents(
       const wasCorrect = status === 'imported' || status === 'actioned'
       if (status === 'failed') {
         events.push({
+          event_key: `ai_import_intakes:${row.id}:status:${status}`,
           pipeline: 'import_intake',
           confidence: normalizeConfidenceFromScore(row.recommendation_score),
           was_correct: false,
@@ -75,6 +77,7 @@ async function fetchImportIntakeEvents(
       }
 
       events.push({
+        event_key: `ai_import_intakes:${row.id}:status:${status}`,
         pipeline: 'import_intake',
         confidence: normalizeConfidenceFromScore(row.recommendation_score),
         was_correct: wasCorrect,
@@ -119,6 +122,7 @@ async function fetchBreachOutcomeEvents(
         null
 
       events.push({
+        event_key: `breach_alerts:${row.id}:status:${status}`,
         pipeline: 'breach_triage',
         confidence,
         was_correct: wasCorrect,
@@ -180,6 +184,7 @@ async function fetchEnforcementOutcomeEvents(
           0.55
 
         events.push({
+          event_key: `enforcement_actions:${row.id}:completed:${String(row.completed_at || row.updated_at || 'unknown')}`,
           pipeline: 'enforcement_action',
           confidence,
           was_correct: wasCorrect,
@@ -206,6 +211,7 @@ async function fetchEnforcementOutcomeEvents(
         const wasCorrect = status === 'resolved' || status === 'closed'
 
         events.push({
+          event_key: `enforcement_actions:${row.id}:terminal:${status}:${String(row.updated_at || 'unknown')}`,
           pipeline: 'enforcement_action',
           confidence: wasCorrect ? 0.7 : 0.58,
           was_correct: wasCorrect,
@@ -289,7 +295,16 @@ Deno.serve(async (req: Request) => {
       fetchEnforcementOutcomeEvents(supabaseAdmin, sinceIso, perSourceLimit),
     ])
 
-    const events = [...intakes.events, ...breaches.events, ...enforcement.events]
+    const eventsRaw = [...intakes.events, ...breaches.events, ...enforcement.events]
+    const dedupedEventsMap = new Map<string, LearningEvent>()
+    for (const event of eventsRaw) {
+      const key = String(event.event_key || '').trim() || `${event.pipeline}|${event.note || ''}`
+      if (!dedupedEventsMap.has(key)) {
+        dedupedEventsMap.set(key, event)
+      }
+    }
+    const events = Array.from(dedupedEventsMap.values())
+    const duplicateEventsSkipped = Math.max(0, eventsRaw.length - events.length)
     const gatherErrors = [...intakes.errors, ...breaches.errors, ...enforcement.errors]
 
     if (dryRun) {
@@ -300,6 +315,7 @@ Deno.serve(async (req: Request) => {
         source,
         since_hours: sinceHours,
         events_collected: events.length,
+        duplicate_events_skipped: duplicateEventsSkipped,
         source_counts: {
           import_intakes: intakes.events.length,
           breach_alerts: breaches.events.length,
@@ -320,6 +336,7 @@ Deno.serve(async (req: Request) => {
         source,
         since_hours: sinceHours,
         events_collected: 0,
+        duplicate_events_skipped: duplicateEventsSkipped,
         source_counts: {
           import_intakes: intakes.events.length,
           breach_alerts: breaches.events.length,
@@ -368,6 +385,7 @@ Deno.serve(async (req: Request) => {
       source,
       since_hours: sinceHours,
       events_collected: events.length,
+      duplicate_events_skipped: duplicateEventsSkipped,
       source_counts: {
         import_intakes: intakes.events.length,
         breach_alerts: breaches.events.length,

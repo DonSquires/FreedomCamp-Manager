@@ -42,6 +42,7 @@ function defaultState(initialThreshold) {
         alpr_ocr: 0.65,
       },
       recent_feedback: [],
+      processed_event_keys: [],
     },
   };
 }
@@ -79,6 +80,7 @@ function readState(filePath, initialThreshold) {
         alpr_ocr: 0.65,
       },
       recent_feedback: [],
+      processed_event_keys: [],
     };
     parsed.advisory.feedback_count = Number(parsed.advisory.feedback_count || 0);
     parsed.advisory.correct_count = Number(parsed.advisory.correct_count || 0);
@@ -91,6 +93,9 @@ function readState(filePath, initialThreshold) {
     };
     parsed.advisory.recent_feedback = Array.isArray(parsed.advisory.recent_feedback)
       ? parsed.advisory.recent_feedback.slice(-80)
+      : [];
+    parsed.advisory.processed_event_keys = Array.isArray(parsed.advisory.processed_event_keys)
+      ? parsed.advisory.processed_event_keys.map((v) => String(v)).slice(-500)
       : [];
     parsed.updated_at = new Date().toISOString();
     return parsed;
@@ -256,12 +261,31 @@ function createSelfLearningService(options = {}) {
     };
   }
 
+  function hasProcessedEventKey(eventKey) {
+    const key = String(eventKey || '').trim();
+    if (!key) return false;
+    return state.advisory.processed_event_keys.includes(key);
+  }
+
+  function markProcessedEventKey(eventKey) {
+    const key = String(eventKey || '').trim();
+    if (!key || !enabled) return false;
+    if (state.advisory.processed_event_keys.includes(key)) return false;
+    state.advisory.processed_event_keys.push(key);
+    state.advisory.processed_event_keys = state.advisory.processed_event_keys.slice(-500);
+    state.updated_at = new Date().toISOString();
+    writeState(statePath, state);
+    return true;
+  }
+
   return {
     enabled,
     getThreshold,
     getState,
     applyCompareFeedback,
     applyOperationalFeedback,
+    hasProcessedEventKey,
+    markProcessedEventKey,
   };
 }
 
