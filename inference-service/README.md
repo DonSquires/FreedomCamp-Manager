@@ -72,6 +72,8 @@ npm start
 
 Service runs on http://localhost:3000
 
+Deployment note: Railway inference deployments are triggered by changes under inference-service/ on main.
+
 ---
 
 ## **API Reference**
