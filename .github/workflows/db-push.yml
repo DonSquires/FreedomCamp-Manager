@@ -189,7 +189,10 @@ jobs:
                 for db_user in "${CANDIDATE_USERS[@]}"; do
                   for db_port in 5432 6543; do
                     CANDIDATE_URLS+=("postgresql://${db_user}:${ENCODED_DB_PASSWORD}@${db_host}:${db_port}/postgres?sslmode=require")
-                    CANDIDATE_LABELS+=("host=${db_host},user=${db_user},port=${db_port}")
+                    CANDIDATE_LABELS+=("host=${db_host},user=${db_user},port=${db_port},mode=default")
+
+                    CANDIDATE_URLS+=("postgresql://${db_user}:${ENCODED_DB_PASSWORD}@${db_host}:${db_port}/postgres?sslmode=require&default_query_exec_mode=simple_protocol")
+                    CANDIDATE_LABELS+=("host=${db_host},user=${db_user},port=${db_port},mode=simple-protocol")
                   done
                 done
               done
@@ -222,10 +225,18 @@ jobs:
                   echo "ℹ️  Candidate rejected by tenant/user routing; trying next candidate."
                   break
                 fi
+
+                if grep -Eaq 'prepared statement ".*" already exists|SQLSTATE 42P05' "$LOG_FILE"; then
+                  echo "ℹ️  Candidate hit prepared-statement pooler conflict; trying next candidate."
+                  break
+                fi
               done
             done
 
-            if grep -q "Tenant or user not found" "$LOG_FILE"; then
+            if grep -Eaq 'prepared statement ".*" already exists|SQLSTATE 42P05' "$LOG_FILE"; then
+              echo "::error::Supabase direct DB connection hit prepared-statement pooler conflicts for all candidates."
+              echo "Set SUPABASE_DB_URL to the exact Session pooler URI from Supabase Dashboard, or include default_query_exec_mode=simple_protocol in the URI."
+            elif grep -q "Tenant or user not found" "$LOG_FILE"; then
               echo "::error::Supabase direct DB connection rejected for all generated candidates."
               echo "Set SUPABASE_DB_URL to the exact connection string from Supabase Dashboard -> Connect -> Transaction pooler."
               echo "Alternatively set SUPABASE_DB_POOLER_HOST and SUPABASE_DB_USER to the exact values for this project."
