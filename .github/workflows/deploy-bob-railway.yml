@@ -1,0 +1,139 @@
+name: Deploy Bob Service to Railway
+
+# Deploys Bob as a dedicated Railway service from inference-service/.
+# This is intended for a separate Bob-focused Railway project with its own
+# token, service ID, and production URL.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'inference-service/**'
+      - '.github/workflows/deploy-bob-railway.yml'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  deploy-bob-railway:
+    name: Deploy Bob Service to Railway
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check required secrets
+        id: check-secrets
+        run: |
+          missing=""
+          [ -z "$RAILWAY_BOB_TOKEN" ]      && missing="$missing RAILWAY_BOB_TOKEN"
+          [ -z "$RAILWAY_BOB_SERVICE_ID" ] && missing="$missing RAILWAY_BOB_SERVICE_ID"
+
+          if [ -n "$missing" ]; then
+            echo "::warning::Required Bob deploy secrets not configured ($missing) — deployment skipped."
+            echo ""
+            echo "Add these GitHub Actions secrets:"
+            echo "  RAILWAY_BOB_TOKEN      - Railway project token for the Bob project"
+            echo "  RAILWAY_BOB_SERVICE_ID - Railway service ID for bob-inference/orc-ai-inference-service"
+            echo "  BOB_SERVICE_URL        - Optional public Bob URL for post-deploy verification"
+            echo "secrets_present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "✅ Bob Railway deploy secrets present"
+            echo "secrets_present=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          RAILWAY_BOB_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
+          RAILWAY_BOB_SERVICE_ID: ${{ secrets.RAILWAY_BOB_SERVICE_ID }}
+
+      - name: Checkout repository
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        uses: actions/checkout@v5
+
+      - name: Install Railway CLI
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        run: |
+          RAILWAY_CLI_VERSION="4.31.0"
+          TARGET="x86_64-unknown-linux-gnu"
+          URL="https://github.com/railwayapp/cli/releases/download/v${RAILWAY_CLI_VERSION}/railway-v${RAILWAY_CLI_VERSION}-${TARGET}.tar.gz"
+          TMP_DIR=$(mktemp -d)
+          cd "$TMP_DIR"
+          curl -fsSL -o railway.tar.gz "$URL"
+          tar -xzf railway.tar.gz
+          mkdir -p "$HOME/.railway/bin"
+          install -m 0755 railway "$HOME/.railway/bin/railway"
+          echo "$HOME/.railway/bin" >> "$GITHUB_PATH"
+
+      - name: Validate Railway token/service
+        id: validate-token
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_BOB_SERVICE_ID }}
+        run: |
+          echo "🔑 Validating Bob Railway token..."
+          if ! railway service status --service "$RAILWAY_SERVICE_ID" --json > /dev/null 2>&1; then
+            echo "::error::RAILWAY_BOB_TOKEN or RAILWAY_BOB_SERVICE_ID is invalid."
+            echo "Fix the Bob project token or service ID in GitHub Actions secrets."
+            exit 1
+          fi
+
+          echo "✅ Bob Railway token and service access are valid"
+          echo "token_valid=true" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy Bob to Railway
+        if: >-
+          steps.check-secrets.outputs.secrets_present == 'true' &&
+          steps.validate-token.outputs.token_valid == 'true'
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_BOB_SERVICE_ID }}
+        run: |
+          cd inference-service
+          echo "🚂 Deploying Bob from inference-service/ ..."
+          railway up --service "$RAILWAY_SERVICE_ID" --detach
+
+      - name: Verify Bob health and chat route
+        if: >-
+          steps.check-secrets.outputs.secrets_present == 'true' &&
+          steps.validate-token.outputs.token_valid == 'true'
+        env:
+          BOB_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
+        run: |
+          if [ -z "$BOB_SERVICE_URL" ]; then
+            echo "ℹ️  BOB_SERVICE_URL not set — skipping HTTP verification."
+            exit 0
+          fi
+
+          echo "⏳ Waiting 60s for Bob deployment to become ready..."
+          sleep 60
+
+          HEALTH_BODY=$(curl -s --max-time 30 "${BOB_SERVICE_URL}/health" || true)
+          HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${BOB_SERVICE_URL}/health" || echo "000")
+
+          if [ "$HEALTH_STATUS" != "200" ]; then
+            echo "::error::Bob /health returned HTTP $HEALTH_STATUS"
+            exit 1
+          fi
+
+          if ! echo "$HEALTH_BODY" | grep -q '"models"'; then
+            echo "::error::Bob /health response does not look like inference-service."
+            echo "Body preview: ${HEALTH_BODY:0:200}"
+            exit 1
+          fi
+
+          CHAT_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 30 \
+            -X POST "${BOB_SERVICE_URL}/chat" \
+            -H 'Content-Type: application/json' \
+            -d '{"message":"ping"}' || echo "000")
+
+          case "$CHAT_STATUS" in
+            200|400|401|403|429)
+              echo "✅ Bob /chat route exists (HTTP $CHAT_STATUS)."
+              ;;
+            *)
+              echo "::error::Bob /chat route check failed with HTTP $CHAT_STATUS"
+              exit 1
+              ;;
+          esac
