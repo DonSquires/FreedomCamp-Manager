@@ -83,7 +83,7 @@ jobs:
           echo "🔑 Validating Railway token..."
           if ! railway service status --service "$RAILWAY_SERVICE_ID" --json > /dev/null 2>&1; then
             echo ""
-            echo "::warning::RAILWAY_TOKEN is set but invalid — deployment skipped."
+            echo "::error::RAILWAY_TOKEN or RAILWAY_SERVICE_ID is invalid — deployment cannot proceed."
             echo ""
             echo "Common causes:"
             echo "  1. Token is revoked/expired."
@@ -92,8 +92,7 @@ jobs:
             echo ""
             echo "Fix: Update RAILWAY_TOKEN and/or RAILWAY_SERVICE_ID secrets at:"
             echo "  https://github.com/${{ github.repository }}/settings/secrets/actions"
-            echo "token_valid=false" >> "$GITHUB_OUTPUT"
-            exit 0
+            exit 1
           fi
           echo "✅ Railway token and service access are valid"
           echo "token_valid=true" >> "$GITHUB_OUTPUT"
