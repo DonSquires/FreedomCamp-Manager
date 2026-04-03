@@ -32,6 +32,35 @@ All frontend variables must be prefixed with `VITE_` to be exposed to the browse
 | `VITE_APP_VERSION` | Application version for display | `1.0.0` | Semver string |
 | `VITE_ENVIRONMENT` | Environment name | `development` | `development`, `staging`, `production` |
 
+### Deployment Environment Matrix (Vercel + Railway)
+
+Use distinct values for preview and production. Do not point preview at production services.
+
+| Deployment target | `VITE_SUPABASE_URL` | `VITE_INFERENCE_SERVICE_URL` | `VITE_PROXY_SERVER_URL` | `VITE_ENVIRONMENT` |
+|----------|----------|----------|----------|----------|
+| Vercel production | Production Supabase URL | Production inference Railway URL | Production proxy Railway URL | `production` |
+| Vercel preview | Preview/staging Supabase URL | Preview inference Railway URL | Preview proxy Railway URL | `preview` |
+
+### GitHub Secrets For Isolated Deployments
+
+The frontend deployment workflow supports environment-specific secrets and enforces preview isolation.
+
+| Secret | Purpose |
+|----------|----------|
+| `VITE_SUPABASE_URL_PRODUCTION` | Production frontend Supabase URL |
+| `VITE_SUPABASE_ANON_KEY_PRODUCTION` | Production frontend Supabase anon key |
+| `VITE_INFERENCE_SERVICE_URL_PRODUCTION` | Production inference URL (optional but recommended) |
+| `VITE_PROXY_SERVER_URL_PRODUCTION` | Production proxy URL (optional but recommended) |
+| `VITE_SUPABASE_URL_PREVIEW` | Preview frontend Supabase URL |
+| `VITE_SUPABASE_ANON_KEY_PREVIEW` | Preview frontend Supabase anon key |
+| `VITE_INFERENCE_SERVICE_URL_PREVIEW` | Preview inference URL |
+| `VITE_PROXY_SERVER_URL_PREVIEW` | Preview proxy URL |
+
+Notes:
+- Legacy fallback still works for production: `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+- Preview deployments are blocked if preview URLs match production URLs.
+- In Railway, map Vercel Preview to a non-production Railway environment.
+
 ### Example `.env` File (Development)
 
 ```bash
@@ -183,9 +212,10 @@ if (!INFERENCE_URL) {
 
 1. **Never commit `.env` files** - Use `.env.example` as a template
 2. **Use separate keys per environment** - Don't reuse production keys in development
-3. **Rotate keys regularly** - Especially after team member departures
-4. **Limit API key scopes** - Use least-privilege principle
-5. **DEV_CORS protection** - The `DEV_CORS=true` setting is automatically disabled when `ENVIRONMENT=production`
+3. **Separate preview and production backends** - Never point Vercel preview at production Supabase/Railway services
+4. **Rotate keys regularly** - Especially after team member departures
+5. **Limit API key scopes** - Use least-privilege principle
+6. **DEV_CORS protection** - The `DEV_CORS=true` setting is automatically disabled when `ENVIRONMENT=production`
 
 ---
 

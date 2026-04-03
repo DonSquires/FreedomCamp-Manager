@@ -44,15 +44,52 @@ jobs:
       contents: read
 
     steps:
+      - name: Resolve portal environment
+        id: resolve-env
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            portal_env="production"
+          elif [ "$GITHUB_EVENT_NAME" = "repository_dispatch" ]; then
+            portal_env="${{ github.event.client_payload.portal_environment || 'production' }}"
+          else
+            portal_env="${{ github.event.inputs.portal_environment || 'production' }}"
+          fi
+
+          case "$portal_env" in
+            production|preview) ;;
+            *)
+              echo "::warning::Unknown portal environment '$portal_env'; defaulting to production"
+              portal_env="production"
+              ;;
+          esac
+
+          echo "portal_environment=$portal_env" >> "$GITHUB_OUTPUT"
+          echo "Resolved portal environment: $portal_env"
+
       - name: Check required secrets
         id: check-secrets
         run: |
           missing=""
-          [ -z "$VITE_SUPABASE_URL" ]      && missing="$missing VITE_SUPABASE_URL"
-          [ -z "$VITE_SUPABASE_ANON_KEY" ] && missing="$missing VITE_SUPABASE_ANON_KEY"
           [ -z "$VERCEL_TOKEN" ]           && missing="$missing VERCEL_TOKEN"
           [ -z "$VERCEL_ORG_ID" ]          && missing="$missing VERCEL_ORG_ID"
           [ -z "$VERCEL_PROJECT_ID" ]      && missing="$missing VERCEL_PROJECT_ID"
+
+          # Production can continue using the legacy secrets. Preview requires
+          # explicit preview-specific runtime values to avoid cross-wiring.
+          if [ "$PORTAL_ENVIRONMENT" = "production" ]; then
+            if [ -z "$VITE_SUPABASE_URL_PRODUCTION" ] && [ -z "$VITE_SUPABASE_URL" ]; then
+              missing="$missing VITE_SUPABASE_URL_PRODUCTION (or legacy VITE_SUPABASE_URL)"
+            fi
+            if [ -z "$VITE_SUPABASE_ANON_KEY_PRODUCTION" ] && [ -z "$VITE_SUPABASE_ANON_KEY" ]; then
+              missing="$missing VITE_SUPABASE_ANON_KEY_PRODUCTION (or legacy VITE_SUPABASE_ANON_KEY)"
+            fi
+          else
+            [ -z "$VITE_SUPABASE_URL_PREVIEW" ]      && missing="$missing VITE_SUPABASE_URL_PREVIEW"
+            [ -z "$VITE_SUPABASE_ANON_KEY_PREVIEW" ] && missing="$missing VITE_SUPABASE_ANON_KEY_PREVIEW"
+            [ -z "$VITE_INFERENCE_SERVICE_URL_PREVIEW" ] && missing="$missing VITE_INFERENCE_SERVICE_URL_PREVIEW"
+            [ -z "$VITE_PROXY_SERVER_URL_PREVIEW" ]      && missing="$missing VITE_PROXY_SERVER_URL_PREVIEW"
+          fi
+
           if [ -n "$missing" ]; then
             echo "::warning::Secrets not configured ($missing) — deployment skipped."
             echo ""
@@ -64,17 +101,86 @@ jobs:
             echo "  VERCEL_TOKEN:           https://vercel.com/account/tokens"
             echo "  VERCEL_ORG_ID:          Vercel Dashboard → Settings → General → Team ID"
             echo "  VERCEL_PROJECT_ID:      Vercel Dashboard → Project → Settings → Project ID"
+            echo ""
+            echo "Environment-isolated runtime secrets:"
+            echo "  Production: VITE_SUPABASE_URL_PRODUCTION, VITE_SUPABASE_ANON_KEY_PRODUCTION"
+            echo "  Preview:    VITE_SUPABASE_URL_PREVIEW, VITE_SUPABASE_ANON_KEY_PREVIEW,"
+            echo "              VITE_INFERENCE_SERVICE_URL_PREVIEW, VITE_PROXY_SERVER_URL_PREVIEW"
             echo "secrets_present=false" >> "$GITHUB_OUTPUT"
           else
             echo "✅ All required secrets present"
             echo "secrets_present=true" >> "$GITHUB_OUTPUT"
           fi
         env:
+          PORTAL_ENVIRONMENT:      ${{ steps.resolve-env.outputs.portal_environment }}
+          VITE_SUPABASE_URL_PRODUCTION:      ${{ secrets.VITE_SUPABASE_URL_PRODUCTION }}
+          VITE_SUPABASE_ANON_KEY_PRODUCTION: ${{ secrets.VITE_SUPABASE_ANON_KEY_PRODUCTION }}
+          VITE_SUPABASE_URL_PREVIEW:         ${{ secrets.VITE_SUPABASE_URL_PREVIEW }}
+          VITE_SUPABASE_ANON_KEY_PREVIEW:    ${{ secrets.VITE_SUPABASE_ANON_KEY_PREVIEW }}
+          VITE_INFERENCE_SERVICE_URL_PREVIEW: ${{ secrets.VITE_INFERENCE_SERVICE_URL_PREVIEW }}
+          VITE_PROXY_SERVER_URL_PREVIEW:      ${{ secrets.VITE_PROXY_SERVER_URL_PREVIEW }}
           VITE_SUPABASE_URL:      ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VERCEL_TOKEN:           ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID:          ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID:      ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Resolve runtime variables for selected environment
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        id: resolve-runtime
+        run: |
+          if [ "$PORTAL_ENVIRONMENT" = "preview" ]; then
+            supabase_url="$VITE_SUPABASE_URL_PREVIEW"
+            supabase_anon="$VITE_SUPABASE_ANON_KEY_PREVIEW"
+            inference_url="$VITE_INFERENCE_SERVICE_URL_PREVIEW"
+            proxy_url="$VITE_PROXY_SERVER_URL_PREVIEW"
+
+            production_supabase_url="${VITE_SUPABASE_URL_PRODUCTION:-$VITE_SUPABASE_URL}"
+            production_inference_url="$VITE_INFERENCE_SERVICE_URL_PRODUCTION"
+            production_proxy_url="$VITE_PROXY_SERVER_URL_PRODUCTION"
+
+            if [ -n "$production_supabase_url" ] && [ "$supabase_url" = "$production_supabase_url" ]; then
+              echo "::error::Preview VITE_SUPABASE_URL_PREVIEW matches production URL. Refusing deployment."
+              exit 1
+            fi
+            if [ -n "$production_inference_url" ] && [ "$inference_url" = "$production_inference_url" ]; then
+              echo "::error::Preview VITE_INFERENCE_SERVICE_URL_PREVIEW matches production URL. Refusing deployment."
+              exit 1
+            fi
+            if [ -n "$production_proxy_url" ] && [ "$proxy_url" = "$production_proxy_url" ]; then
+              echo "::error::Preview VITE_PROXY_SERVER_URL_PREVIEW matches production URL. Refusing deployment."
+              exit 1
+            fi
+            vite_environment="preview"
+          else
+            supabase_url="${VITE_SUPABASE_URL_PRODUCTION:-$VITE_SUPABASE_URL}"
+            supabase_anon="${VITE_SUPABASE_ANON_KEY_PRODUCTION:-$VITE_SUPABASE_ANON_KEY}"
+            inference_url="$VITE_INFERENCE_SERVICE_URL_PRODUCTION"
+            proxy_url="$VITE_PROXY_SERVER_URL_PRODUCTION"
+            vite_environment="production"
+          fi
+
+          {
+            echo "supabase_url=$supabase_url"
+            echo "supabase_anon=$supabase_anon"
+            echo "inference_url=$inference_url"
+            echo "proxy_url=$proxy_url"
+            echo "vite_environment=$vite_environment"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "✅ Runtime variables resolved for $PORTAL_ENVIRONMENT"
+        env:
+          PORTAL_ENVIRONMENT: ${{ steps.resolve-env.outputs.portal_environment }}
+          VITE_SUPABASE_URL_PRODUCTION:       ${{ secrets.VITE_SUPABASE_URL_PRODUCTION }}
+          VITE_SUPABASE_ANON_KEY_PRODUCTION:  ${{ secrets.VITE_SUPABASE_ANON_KEY_PRODUCTION }}
+          VITE_INFERENCE_SERVICE_URL_PRODUCTION: ${{ secrets.VITE_INFERENCE_SERVICE_URL_PRODUCTION }}
+          VITE_PROXY_SERVER_URL_PRODUCTION:      ${{ secrets.VITE_PROXY_SERVER_URL_PRODUCTION }}
+          VITE_SUPABASE_URL_PREVIEW:          ${{ secrets.VITE_SUPABASE_URL_PREVIEW }}
+          VITE_SUPABASE_ANON_KEY_PREVIEW:     ${{ secrets.VITE_SUPABASE_ANON_KEY_PREVIEW }}
+          VITE_INFERENCE_SERVICE_URL_PREVIEW: ${{ secrets.VITE_INFERENCE_SERVICE_URL_PREVIEW }}
+          VITE_PROXY_SERVER_URL_PREVIEW:      ${{ secrets.VITE_PROXY_SERVER_URL_PREVIEW }}
+          VITE_SUPABASE_URL:       ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY:  ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - name: Checkout repository
         if: steps.check-secrets.outputs.secrets_present == 'true'
@@ -133,8 +239,11 @@ jobs:
         if: steps.check-secrets.outputs.secrets_present == 'true'
         run: bun run build
         env:
-          VITE_SUPABASE_URL:      ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_SUPABASE_URL:      ${{ steps.resolve-runtime.outputs.supabase_url }}
+          VITE_SUPABASE_ANON_KEY: ${{ steps.resolve-runtime.outputs.supabase_anon }}
+          VITE_INFERENCE_SERVICE_URL: ${{ steps.resolve-runtime.outputs.inference_url }}
+          VITE_PROXY_SERVER_URL:      ${{ steps.resolve-runtime.outputs.proxy_url }}
+          VITE_ENVIRONMENT:           ${{ steps.resolve-runtime.outputs.vite_environment }}
 
       - name: Install Vercel CLI
         if: steps.check-secrets.outputs.secrets_present == 'true'
