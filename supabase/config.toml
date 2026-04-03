@@ -270,6 +270,9 @@ verify_jwt = false
 [functions.onspace-ai-chat]
 verify_jwt = false
 
+[functions.auto-analyse-report]
+verify_jwt = false
+
 [functions.parkpow-photo-sync]
 verify_jwt = false
 
