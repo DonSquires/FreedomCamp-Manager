@@ -32,7 +32,7 @@ export default function CleanDataImport() {
   const [result, setResult] = useState<ImportResult | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const orgId = user?.user_metadata?.org_id as string | undefined
+  const orgId = user?.organization_id ?? undefined
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
@@ -61,12 +61,12 @@ export default function CleanDataImport() {
 
       if (importType === 'observations') {
         for (const row of rows) {
-          if (!row.plate_number && !row.zone_id) { skipped++; continue }
+          if (!row.plate_number || !row.zone_id) { skipped++; continue }
           const { error: err } = await supabase.from('observations').insert({
-            org_id: orgId,
-            plate_number: row.plate_number || null,
+            organization_id: orgId,
+            plate_number: row.plate_number.toUpperCase(),
             zone_id: row.zone_id || null,
-            observed_at: row.observed_at || new Date().toISOString(),
+            recorded_at: row.observed_at || new Date().toISOString(),
             observation_notes: row.observation_notes || row.notes || null,
             photo_url: row.photo_url || null,
           })
@@ -76,25 +76,23 @@ export default function CleanDataImport() {
         for (const row of rows) {
           if (!row.plate_number) { skipped++; continue }
           const { error: err } = await supabase.from('canonical_vehicles').upsert({
-            org_id: orgId,
             plate_number: row.plate_number.toUpperCase(),
-            plate_state: row.plate_state || null,
-            make: row.make || null,
-            model: row.model || null,
-            colour: row.colour || null,
-          }, { onConflict: 'org_id, plate_number' })
+            vehicle_make: row.make || null,
+            vehicle_model: row.model || null,
+            vehicle_color: row.colour || null,
+          }, { onConflict: 'plate_number' })
           if (err) { errors.push(`Row ${inserted + skipped + 1}: ${err.message}`); skipped++ } else { inserted++ }
         }
       } else if (importType === 'zones') {
         for (const row of rows) {
           if (!row.zone_name) { skipped++; continue }
           const { error: err } = await supabase.from('zones').insert({
-            org_id: orgId,
-            zone_name: row.zone_name,
+            organization_id: orgId,
+            name: row.zone_name,
             zone_type: row.zone_type || 'freedom_camping',
-            free_camping_allowed: row.free_camping_allowed === 'true',
             max_consecutive_nights: row.max_consecutive_nights ? parseInt(row.max_consecutive_nights) : null,
-            max_nights_per_month: row.max_nights_per_month ? parseInt(row.max_nights_per_month) : null,
+            nights_per_month: row.max_nights_per_month ? parseInt(row.max_nights_per_month) : null,
+            self_contained_required: row.free_camping_allowed === 'true' ? false : null,
           })
           if (err) { errors.push(`Row ${inserted + skipped + 1}: ${err.message}`); skipped++ } else { inserted++ }
         }

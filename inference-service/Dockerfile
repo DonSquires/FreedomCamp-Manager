@@ -27,12 +27,17 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev --no-audit --prefer-offline
 RUN npm prune --omit=dev
+COPY lib ./lib
+COPY scripts/pretrain-self-learning.js ./scripts/pretrain-self-learning.js
+RUN node scripts/pretrain-self-learning.js
 
 # Stage 2: Final Production Image
 FROM node:22-slim
 WORKDIR /app
 COPY --from=builder /app/node_modules ./node_modules
 COPY server.js ./
+COPY lib ./lib
+COPY --from=builder /app/data ./data
 COPY --from=model-exporter /export/models ./models
 
 RUN groupadd -g 1001 nodejs && \

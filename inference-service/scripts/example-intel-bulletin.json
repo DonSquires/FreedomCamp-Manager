@@ -1,0 +1,13 @@
+{
+  "bulletin": {
+    "type": "jurisdiction",
+    "title": "Boundary adjustment for Queenstown Lakes zone set",
+    "summary": "Updated jurisdiction boundary polygons were approved and must be applied before next patrol cycle.",
+    "source": "internal-governance-board",
+    "effective_date": "2026-04-15",
+    "metadata": {
+      "region": "Queenstown-Lakes",
+      "change_ticket": "JUR-2041"
+    }
+  }
+}

@@ -1,6 +1,6 @@
 # Edge Functions Deployment & Verification Runbook
 
-> **Audience:** Any developer or operator deploying FreedomCamp Manager to a Supabase project.
+> **Audience:** Any developer or operator deploying FieldOps Manager to a Supabase project.
 > This runbook covers deploying all 49 Edge Functions, verifying they are active, and running
 > smoke tests to confirm end-to-end connectivity.
 

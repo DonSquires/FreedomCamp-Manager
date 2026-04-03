@@ -1,4 +1,4 @@
-# FreedomCamp Manager — React Native Mobile App
+# FieldOps Manager — React Native Mobile App
 
 Native iOS and Android app for field officers. Built with **Expo** (React Native) and backed by the **same Supabase project** as the web admin portal.
 

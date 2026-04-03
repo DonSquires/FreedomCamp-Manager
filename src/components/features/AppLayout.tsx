@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { useSessionLockStore } from '@/stores/sessionLockStore'
 import { useFeedbackCapture } from '@/hooks/useFeedbackCapture'
@@ -9,6 +9,7 @@ import { FeedbackModal } from '@/components/features/FeedbackModal'
 import { useNotificationCount } from '@/hooks/useNotifications'
 import { useSessionPreferencesStore } from '@/stores/sessionPreferencesStore'
 import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
+import { PublicSafetyBanner } from '@/components/features/PublicSafetyBanner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
@@ -73,9 +74,11 @@ import {
   Globe,
   LayoutDashboard,
   ScanFace,
+  ShieldAlert,
   ShieldCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { signalSessionActivity } from '@/hooks/useSessionInactivityLock'
 
@@ -191,6 +194,10 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
       { path: '/admin/cleanup-recalculate', icon: RefreshCw, label: 'Cleanup & Recalculate', roles: ['admin', 'master'] },
       { path: '/data', icon: Database, label: 'Data Management', roles: ['admin', 'master'] },
       { path: '/admin/data-hub', icon: Database, label: 'Data Hub', roles: ['admin', 'master'] },
+      { path: '/intel-approvals', icon: ShieldAlert, label: 'Intel Approvals', roles: ['master'] },
+      { path: '/bob-intake-queue', icon: BrainCircuit, label: 'Bob Intake Queue', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/bob-assistant', icon: BrainCircuit, label: 'Bob Assistant', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/live-plan-reviews', icon: ShieldCheck, label: 'Live Plan Reviews', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/team-chat', icon: MessageSquare, label: 'Team Chat', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/import-historical', icon: Upload, label: 'Import Data', roles: ['admin', 'master'] },
       { path: '/photo-reingest', icon: Camera, label: 'Photo Reingest', roles: ['admin', 'admin_officer', 'master'] },
@@ -350,12 +357,101 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark' | 'high-contrast' | 'night-patrol'>('light')
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const location = useLocation()
 
   // Passive context capture for feedback reports
   useFeedbackCapture()
   // Automatic crash detection — submits bug reports without user action
   useAutoErrorReporter()
   const { data: notifCount = 0 } = useNotificationCount()
+
+  const teamChatSeenKey = user?.id ? `fc_team_chat_seen_at_${user.id}` : null
+
+  const scopedOrgIds = useMemo(() => {
+    if (!user) return [] as string[]
+    const ids = [user.organization_id, ...(user.extra_organization_ids || []), ...(user.authorized_work_locations || [])]
+    return Array.from(new Set(ids.filter(Boolean) as string[]))
+  }, [user])
+
+  const { data: chatSignalCount = 0 } = useQuery({
+    queryKey: ['layout-chat-signal-count', user?.id, user?.role, scopedOrgIds, location.pathname],
+    enabled: !!user,
+    staleTime: 20_000,
+    refetchInterval: 45_000,
+    queryFn: async () => {
+      if (!user) return 0
+
+      const seenAt = (() => {
+        if (typeof window === 'undefined' || !teamChatSeenKey) return null
+        const value = window.localStorage.getItem(teamChatSeenKey)
+        return value && !Number.isNaN(Date.parse(value)) ? value : null
+      })()
+
+      const isNewSinceSeen = (createdAt?: string | null) => {
+        if (!createdAt) return false
+        if (!seenAt) return true
+        return new Date(createdAt).getTime() > new Date(seenAt).getTime()
+      }
+
+      const now = new Date().toISOString()
+      const [alertsRes, acksRes] = await Promise.all([
+        ((supabase as any).from('public_safety_alerts') as any)
+          .select('id, scope, target_organization_ids, created_at')
+          .eq('status', 'active')
+          .lte('starts_at', now)
+          .or(`expires_at.is.null,expires_at.gte.${now}`),
+        ((supabase as any).from('public_safety_alert_acknowledgements') as any)
+          .select('alert_id')
+          .eq('user_id', user.id),
+      ])
+
+      if (alertsRes.error) throw alertsRes.error
+      if (acksRes.error) throw acksRes.error
+
+      const acked = new Set(((acksRes.data || []) as any[]).map((row) => row.alert_id))
+      const unackedAlerts = ((alertsRes.data || []) as any[]).filter((row) => {
+        if (acked.has(row.id)) return false
+        if (!isNewSinceSeen(row.created_at)) return false
+        if (row.scope === 'national') return true
+        const targets = Array.isArray(row.target_organization_ids) ? row.target_organization_ids : []
+        return targets.some((id: string) => scopedOrgIds.includes(id))
+      }).length
+
+      const isApprover = user.role === 'master' || user.role === 'grand_master'
+      if (!isApprover) {
+        return unackedAlerts
+      }
+
+      const [pendingBulletinsRes, pendingAlertsRes] = await Promise.all([
+        ((supabase as any).from('external_intel_bulletins') as any)
+          .select('id, created_at')
+          .eq('approval_status', 'pending')
+          .order('created_at', { ascending: false })
+          .limit(200),
+        ((supabase as any).from('public_safety_alerts') as any)
+          .select('id, created_at')
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false })
+          .limit(200),
+      ])
+
+      if (pendingBulletinsRes.error) throw pendingBulletinsRes.error
+      if (pendingAlertsRes.error) throw pendingAlertsRes.error
+
+      const pendingBulletinsNew = ((pendingBulletinsRes.data || []) as any[]).filter((row) => isNewSinceSeen(row.created_at)).length
+      const pendingAlertsNew = ((pendingAlertsRes.data || []) as any[]).filter((row) => isNewSinceSeen(row.created_at)).length
+
+      return unackedAlerts + pendingBulletinsNew + pendingAlertsNew
+    },
+  })
+
+  useEffect(() => {
+    if (!user || !teamChatSeenKey || location.pathname !== '/team-chat') return
+    if (typeof window === 'undefined') return
+
+    window.localStorage.setItem(teamChatSeenKey, new Date().toISOString())
+    queryClient.invalidateQueries({ queryKey: ['layout-chat-signal-count'] })
+  }, [location.pathname, queryClient, teamChatSeenKey, user])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -477,7 +573,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
               <SheetContent side="left" className="w-64 p-0">
                 <div className="flex flex-col h-full">
                   <div className="p-4 border-b dark:border-gray-700">
-                    <h2 className="font-semibold text-lg">FreedomCamp</h2>
+                    <h2 className="font-semibold text-lg">FieldOps</h2>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
                       {user?.full_name}
                     </p>
@@ -515,7 +611,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
             )}
           </div>
 
-          <h1 className="font-semibold text-lg truncate">{title || 'FreedomCamp'}</h1>
+          <h1 className="font-semibold text-lg truncate">{title || 'FieldOps'}</h1>
           
           {/* Mobile: notification bell */}
           <button
@@ -546,7 +642,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
           <div className="p-5 border-b dark:border-gray-700 bg-gradient-to-br from-cyan-700 to-cyan-800 dark:from-cyan-900 dark:to-cyan-950">
             <div className="flex items-start justify-between">
               <div className="min-w-0">
-                <h2 className="font-bold text-xl text-white">FreedomCamp</h2>
+                <h2 className="font-bold text-xl text-white">FieldOps</h2>
                 <p className="text-sm text-cyan-100 mt-0.5 truncate">
                   {user?.full_name}
                 </p>
@@ -648,19 +744,36 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
 
         {/* Page Content */}
         <main className="p-4 lg:p-6 relative">
+          <PublicSafetyBanner />
           {children}
 
           {/* Global feedback button — visible to all authenticated users */}
           {user && !isLocked && (
             <>
-              <button
-                onClick={() => setFeedbackOpen(true)}
-                title="Send feedback or report an issue"
-                className="fixed bottom-4 right-4 z-40 flex items-center gap-2 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg px-3 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all hover:shadow-xl group"
-              >
-                <MessageSquarePlus className="h-4 w-4 text-violet-500 group-hover:scale-110 transition-transform" />
-                <span className="hidden sm:inline">Feedback</span>
-              </button>
+              <div className="fixed bottom-4 right-4 z-40 flex flex-col items-end gap-2">
+                <button
+                  onClick={() => navigate('/team-chat')}
+                  title="Open Team Chat"
+                  className="relative flex items-center gap-2 rounded-full bg-primary text-primary-foreground shadow-lg px-3 py-2 text-xs font-medium hover:opacity-95 transition-all hover:shadow-xl"
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  <span className="hidden sm:inline">Team Chat</span>
+                  {location.pathname !== '/team-chat' && chatSignalCount > 0 && (
+                    <span className="absolute -top-2 -right-2 min-w-5 h-5 px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
+                      {chatSignalCount > 99 ? '99+' : chatSignalCount}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => setFeedbackOpen(true)}
+                  title="Send feedback or report an issue"
+                  className="flex items-center gap-2 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg px-3 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all hover:shadow-xl group"
+                >
+                  <MessageSquarePlus className="h-4 w-4 text-violet-500 group-hover:scale-110 transition-transform" />
+                  <span className="hidden sm:inline">Feedback</span>
+                </button>
+              </div>
               <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
             </>
           )}

@@ -282,27 +282,13 @@ Set these via **Supabase Dashboard → Project Settings → Edge Functions → M
 ```bash
 PROXY_SERVER_URL=https://your-proxy-server.railway.app
 INFERENCE_SERVICE_URL=https://your-inference-service.railway.app
+INFERENCE_API_KEY=your-inference-shared-secret
 ALPR_API_TOKEN=your-parkpow-token
 ALPR_API_URL=https://app.parkpow.com/api/v1
 
-# AI features (vehicle photo analysis, weather, document extraction, AI chat)
-# OPENAI_API_KEY — where to get it:
-#   1. Go to https://platform.openai.com/api-keys
-#   2. Sign in (or create a free account)
-#   3. Click "Create new secret key" — copy the value immediately
-# OPENAI_BASE_URL — leave unset to use OpenAI directly.
-#   Only needed when using an alternative OpenAI-compatible provider:
-#     Groq:        https://api.groq.com/openai/v1
-#     Together AI: https://api.together.xyz/v1
-#     Azure:       https://<resource>.openai.azure.com/openai/deployments/<deployment>
-OPENAI_API_KEY=sk-...your-key-here
-OPENAI_BASE_URL=
-# OPENAI_MODEL — optional, controls which model is used across all AI edge functions.
-#   Vision tasks (analyze-vehicle-photo, select-best-vehicle-photo) default to: gpt-4o
-#   Text tasks (get-weather, import-data, process-* functions)    default to: gpt-4o-mini
-#   Set this to override the default for all functions at once,
-#   or to use an alternative provider's model (e.g. llama-3.3-70b-versatile for Groq).
-OPENAI_MODEL=
+# AI policy: inference-service only (no direct external AI provider secrets in Supabase)
+# Keep INFERENCE_SERVICE_URL as a full HTTPS URL with scheme, for example:
+#   https://orc-ai-inference-service-production.up.railway.app
 
 # Edge Function SMTP email (report emails, infringement notices, notices to vacate)
 # User invitation emails are sent by Supabase Auth invite flow, configured under
@@ -314,6 +300,19 @@ SMTP_USERNAME=apikey
 SMTP_PASSWORD=your-smtp-password
 SMTP_FROM_EMAIL=noreply@yourdomain.co.nz
 SMTP_FROM_NAME=FreedomCamp Manager
+```
+
+Inference-service deployment env should enforce self-contained operation:
+
+```bash
+# Set these on Railway for inference-service (not in Supabase function secrets)
+SELF_CONTAINED_MODE=true
+REQUIRE_SELF_CONTAINED_MODE=true
+SELF_CONTAINED_STRICT_EGRESS=true
+CHAT_PROVIDER=heuristic
+VEHICLE_ATTRS_PROVIDER=basic
+TABULAR_NLP_PROVIDER=heuristic
+SELF_HEALING_ENABLED=true
 ```
 
 ### 2. Custom Domain (Optional)

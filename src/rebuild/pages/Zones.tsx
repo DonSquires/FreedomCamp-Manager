@@ -3,17 +3,14 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 
 interface Zone {
-  zone_id: string
-  org_id: string
-  zone_name: string
-  zone_type: string
-  free_camping_allowed: boolean
+  id: string
+  organization_id: string
+  name: string
+  zone_type: string | null
+  is_active: boolean | null
   max_consecutive_nights: number | null
-  max_nights_per_month: number | null
-  vehicle_types_permitted: string[] | null
-  geofence_geojson: any
-  created_at: string
-  updated_at: string
+  nights_per_month: number | null
+  updated_at: string | null
 }
 
 export default function CleanZones() {
@@ -29,21 +26,21 @@ export default function CleanZones() {
   const [form, setForm] = useState<Partial<Zone>>({})
   const [saving, setSaving] = useState(false)
 
-  const orgId = user?.user_metadata?.org_id as string | undefined
-  const role = user?.user_metadata?.role as string | undefined
+  const orgId = user?.organization_id ?? undefined
+  const role = user?.role ?? undefined
   const canEdit = role === 'admin' || role === 'master' || role === 'grand_master'
 
   async function fetchZones() {
     setLoading(true)
     setError(null)
     try {
-      let query = supabase.from('zones').select('*').order('zone_name', { ascending: true })
-      if (orgId) query = query.eq('org_id', orgId)
+      let query = supabase.from('zones').select('*').order('name', { ascending: true })
+      if (orgId) query = query.eq('organization_id', orgId)
       if (typeFilter) query = query.eq('zone_type', typeFilter)
-      if (search) query = query.ilike('zone_name', `%${search}%`)
+      if (search) query = query.ilike('name', `%${search}%`)
       const { data, error: err } = await query
       if (err) throw err
-      setZones(data as Zone[])
+      setZones(data as unknown as Zone[])
     } catch (e: any) {
       setError(e.message ?? 'Failed to load zones')
     } finally {
@@ -56,11 +53,11 @@ export default function CleanZones() {
   function openEdit(z: Zone) {
     setEditing(z)
     setForm({
-      zone_name: z.zone_name,
+      name: z.name,
       zone_type: z.zone_type,
-      free_camping_allowed: z.free_camping_allowed,
+      is_active: z.is_active,
       max_consecutive_nights: z.max_consecutive_nights,
-      max_nights_per_month: z.max_nights_per_month,
+      nights_per_month: z.nights_per_month,
     })
   }
 
@@ -70,20 +67,20 @@ export default function CleanZones() {
     const { error: err } = await supabase
       .from('zones')
       .update({
-        zone_name: form.zone_name,
+        name: form.name,
         zone_type: form.zone_type,
-        free_camping_allowed: form.free_camping_allowed,
+        is_active: form.is_active,
         max_consecutive_nights: form.max_consecutive_nights ?? null,
-        max_nights_per_month: form.max_nights_per_month ?? null,
+        nights_per_month: form.nights_per_month ?? null,
       })
-      .eq('zone_id', editing.zone_id)
+      .eq('id', editing.id)
     setSaving(false)
     if (err) { alert(err.message); return }
     setEditing(null)
     fetchZones()
   }
 
-  const zoneTypes = Array.from(new Set(zones.map(z => z.zone_type))).filter(Boolean)
+  const zoneTypes = Array.from(new Set(zones.map(z => z.zone_type).filter(Boolean) as string[]))
 
   return (
     <div className="p-6 space-y-6">
@@ -124,16 +121,16 @@ export default function CleanZones() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {zones.map(z => (
-            <div key={z.zone_id} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3 hover:shadow-sm transition-shadow">
+            <div key={z.id} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3 hover:shadow-sm transition-shadow">
               <div className="flex items-start justify-between">
                 <div>
-                  <h3 className="font-semibold text-gray-900">{z.zone_name}</h3>
-                  <span className="text-xs text-gray-500">{z.zone_type}</span>
+                  <h3 className="font-semibold text-gray-900">{z.name}</h3>
+                  <span className="text-xs text-gray-500">{z.zone_type ?? 'General'}</span>
                 </div>
                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                  z.free_camping_allowed ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                  z.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
                 }`}>
-                  {z.free_camping_allowed ? 'Camping allowed' : 'No camping'}
+                  {z.is_active ? 'Active' : 'Inactive'}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
@@ -143,18 +140,11 @@ export default function CleanZones() {
                 </div>
                 <div>
                   <span className="text-gray-400">Max nights/month</span>
-                  <p className="font-medium">{z.max_nights_per_month ?? 'Unlimited'}</p>
+                  <p className="font-medium">{z.nights_per_month ?? 'Unlimited'}</p>
                 </div>
               </div>
-              {z.vehicle_types_permitted && z.vehicle_types_permitted.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {z.vehicle_types_permitted.map(t => (
-                    <span key={t} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs">{t}</span>
-                  ))}
-                </div>
-              )}
               <div className="flex items-center justify-between pt-1">
-                <span className="text-xs text-gray-400">Updated {new Date(z.updated_at).toLocaleDateString('en-NZ')}</span>
+                <span className="text-xs text-gray-400">Updated {z.updated_at ? new Date(z.updated_at).toLocaleDateString('en-NZ') : '—'}</span>
                 {canEdit && (
                   <button onClick={() => openEdit(z)} className="text-xs text-blue-600 hover:underline">Edit</button>
                 )}
@@ -174,8 +164,8 @@ export default function CleanZones() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Zone name</label>
                 <input
                   type="text"
-                  value={form.zone_name ?? ''}
-                  onChange={e => setForm(f => ({ ...f, zone_name: e.target.value }))}
+                  value={form.name ?? ''}
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -191,10 +181,10 @@ export default function CleanZones() {
               <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={form.free_camping_allowed ?? false}
-                  onChange={e => setForm(f => ({ ...f, free_camping_allowed: e.target.checked }))}
+                  checked={form.is_active ?? false}
+                  onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))}
                 />
-                Free camping allowed
+                Active zone
               </label>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -210,8 +200,8 @@ export default function CleanZones() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Max nights/month</label>
                   <input
                     type="number"
-                    value={form.max_nights_per_month ?? ''}
-                    onChange={e => setForm(f => ({ ...f, max_nights_per_month: e.target.value ? parseInt(e.target.value) : null }))}
+                    value={form.nights_per_month ?? ''}
+                    onChange={e => setForm(f => ({ ...f, nights_per_month: e.target.value ? parseInt(e.target.value) : null }))}
                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>

@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
 
     const geocodeResponse = await fetch(geocodeUrl, {
       headers: {
-        'User-Agent': 'FreedomCampManager/1.0',
+        'User-Agent': 'FieldOpsManager/1.0',
         'Accept': 'application/json',
       },
     });

@@ -3,13 +3,10 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 
 interface OrgSettings {
-  org_id: string
-  org_name: string
-  org_slug: string
+  id: string
+  name: string
   contact_email: string | null
-  default_timezone: string | null
   logo_url: string | null
-  breach_escalation_days: number | null
 }
 
 interface RetentionPolicy {
@@ -30,8 +27,8 @@ export default function CleanSettings() {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const orgId = user?.user_metadata?.org_id as string | undefined
-  const role = user?.user_metadata?.role as string | undefined
+  const orgId = user?.organization_id ?? undefined
+  const role = user?.role ?? undefined
   const canEdit = role === 'admin' || role === 'master' || role === 'grand_master'
 
   useEffect(() => {
@@ -39,14 +36,22 @@ export default function CleanSettings() {
     async function load() {
       setLoading(true)
       const [orgRes, retRes] = await Promise.all([
-        supabase.from('organizations').select('*').eq('org_id', orgId).single(),
-        supabase.from('retention_policies').select('*').eq('org_id', orgId),
+        supabase.from('organizations').select('*').eq('id', orgId).single(),
+        (supabase as any).from('retention_policies').select('*').eq('organization_id', orgId),
       ])
       if (orgRes.data) {
         setOrg(orgRes.data as OrgSettings)
         setForm(orgRes.data as OrgSettings)
       }
-      if (retRes.data) setRetention(retRes.data as RetentionPolicy[])
+      if (retRes.data) {
+        const rows = (retRes.data as any[]).map((row) => ({
+          policy_id: row.policy_id ?? row.id,
+          table_name: row.table_name ?? row.target_table ?? 'unknown',
+          retention_days: row.retention_days ?? row.retention_period_days ?? 0,
+          delete_action: row.delete_action ?? row.action_on_expiry ?? 'delete',
+        }))
+        setRetention(rows as RetentionPolicy[])
+      }
       setLoading(false)
     }
     load()
@@ -60,12 +65,10 @@ export default function CleanSettings() {
     const { error: err } = await supabase
       .from('organizations')
       .update({
-        org_name: form.org_name,
+        name: form.name,
         contact_email: form.contact_email || null,
-        default_timezone: form.default_timezone || 'Pacific/Auckland',
-        breach_escalation_days: form.breach_escalation_days ?? null,
       })
-      .eq('org_id', org.org_id)
+      .eq('id', org.id)
     setSaving(false)
     if (err) { setError(err.message); return }
     setSaved(true)
@@ -99,8 +102,8 @@ export default function CleanSettings() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Organisation name</label>
             <input
               type="text"
-              value={form.org_name ?? ''}
-              onChange={e => setForm(f => ({ ...f, org_name: e.target.value }))}
+              value={form.name ?? ''}
+              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               disabled={!canEdit}
               className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
             />
@@ -111,31 +114,6 @@ export default function CleanSettings() {
               type="email"
               value={form.contact_email ?? ''}
               onChange={e => setForm(f => ({ ...f, contact_email: e.target.value }))}
-              disabled={!canEdit}
-              className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Timezone</label>
-            <select
-              value={form.default_timezone ?? 'Pacific/Auckland'}
-              onChange={e => setForm(f => ({ ...f, default_timezone: e.target.value }))}
-              disabled={!canEdit}
-              className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
-            >
-              <option value="Pacific/Auckland">Pacific/Auckland (NZ)</option>
-              <option value="Pacific/Chatham">Pacific/Chatham (Chatham Islands)</option>
-              <option value="UTC">UTC</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Breach escalation (working days)</label>
-            <input
-              type="number"
-              min={1}
-              max={30}
-              value={form.breach_escalation_days ?? ''}
-              onChange={e => setForm(f => ({ ...f, breach_escalation_days: e.target.value ? parseInt(e.target.value) : null }))}
               disabled={!canEdit}
               className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
             />

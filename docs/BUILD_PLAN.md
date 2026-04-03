@@ -434,14 +434,10 @@ SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
 PROXY_SERVER_URL=https://<proxy>.up.railway.app
 PROXY_SECRET=<shared-secret>
 INFERENCE_SERVICE_URL=https://<inference>.up.railway.app
+INFERENCE_API_KEY=<inference-shared-secret>
 
 # External APIs
 PLATERECOGNIZER_TOKEN=<plate-recognizer-api-key>
-# OpenAI-compatible AI (vehicle analysis, weather, document extraction, AI chat)
-# Get key: https://platform.openai.com/api-keys  → Create new secret key
-OPENAI_API_KEY=<openai-api-key>
-OPENAI_BASE_URL=                              # Leave blank for OpenAI; set for alternative providers
-OPENAI_MODEL=                                 # Optional: override default model (gpt-4o / gpt-4o-mini)
 PARKPOW_API_TOKEN=<parkpow-token>             # Optional: parking enforcement
 
 # Feature Flags
@@ -468,7 +464,13 @@ NODE_ENV=production
 PORT=3000
 NODE_ENV=production
 ALLOWED_ORIGINS=https://freedomcampmanager.onspace.build,https://fcmanager.co.nz
-OPENAI_API_KEY=<key>                  # Optional: enables plate/make/model extraction
+SELF_CONTAINED_MODE=true
+REQUIRE_SELF_CONTAINED_MODE=true
+SELF_CONTAINED_STRICT_EGRESS=true
+CHAT_PROVIDER=heuristic
+VEHICLE_ATTRS_PROVIDER=basic
+TABULAR_NLP_PROVIDER=heuristic
+INFERENCE_API_KEY=<inference-shared-secret>
 DETECTION_CONFIDENCE=0.5
 YOLO_MODEL_PATH=./models/yolov8n.onnx
 EMBEDDING_MODEL_PATH=./models/mobilenet_v3.onnx
@@ -621,7 +623,7 @@ Individual vehicle sightings — **the only operational table** for ALPR data.
 | vehicle_make | text | |
 | vehicle_model | text | |
 | vehicle_colour | text | |
-| vehicle_year | integer | Approximate year (from OpenAI Vision) |
+| vehicle_year | integer | Approximate year (from inference-service attribute pipeline) |
 | is_compliant | boolean | Compliance result |
 | compliance_snapshot | jsonb | Stored compliance context on the observation row |
 | processing_status | text | `pending`, `processing`, `complete`, `failed` |
@@ -1371,8 +1373,8 @@ for visual vehicle matching.
   "embedding": [0.123, -0.456, ...],  // 384 floats
   "vehicle_detected": true,
   "detection_confidence": 0.92,
-  "plate_number": "ABC123",           // Only if OPENAI_API_KEY set
-  "vehicle_make": "Toyota",           // Only if OPENAI_API_KEY set
+   "plate_number": "ABC123",           // If available from active ALPR/attribute pipeline
+   "vehicle_make": "Toyota",           // If available from active ALPR/attribute pipeline
   "vehicle_model": "Hiace",
   "vehicle_colour": "White"
 }
@@ -1596,10 +1598,8 @@ supabase functions deploy
 supabase secrets set PROXY_SERVER_URL=https://...
 supabase secrets set PROXY_SECRET=...
 supabase secrets set INFERENCE_SERVICE_URL=https://...
+supabase secrets set INFERENCE_API_KEY=...
 supabase secrets set PLATERECOGNIZER_TOKEN=...
-supabase secrets set OPENAI_API_KEY=sk-...         # https://platform.openai.com/api-keys
-supabase secrets set OPENAI_BASE_URL=              # Optional: leave blank to use OpenAI default
-supabase secrets set OPENAI_MODEL=                 # Optional: override model (default gpt-4o / gpt-4o-mini)
 ```
 
 ### Frontend Deployment

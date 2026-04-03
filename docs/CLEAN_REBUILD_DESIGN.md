@@ -159,7 +159,7 @@ councils enforce freedom camping rules**. Everything else is supporting infrastr
 | `create_auth_and_profiles` | Merge into `create-user` |
 | `upload-file` | Remove — frontend can upload direct to Supabase Storage |
 | `get-weather` | Remove — weather data is not core to compliance enforcement |
-| `onspace-ai-chat` | **Phase 2** — AI admin chat assistant. Uses `OPENAI_BASE_URL` (any OpenAI-compatible provider). Keep the edge function; disable in UI until Phase 2 |
+| `onspace-ai-chat` | **Phase 2** — AI admin chat assistant via inference-service `/chat` only. Keep the edge function; disable in UI until Phase 2 |
 | `process-credential-document` + `process-investigation-document` | **Phase 2** — AI document processing. Keep the edge functions; wire up in v2 |
 
 ---
@@ -393,8 +393,7 @@ GET /health
 
 | Feature | Status | Reason |
 |---|---|---|
-| `VEHICLE_ATTRS_PROVIDER=openai` path | Optional/keep | Useful when ONNX model quality is insufficient for make/model |
-| `TABULAR_NLP_PROVIDER=openai/ollama` path | Optional/keep | Useful for complex historical imports with dirty data |
+| Cloud AI provider paths | Remove | Production policy requires self-contained inference-service only |
 | Vehicle attribute extraction (make/model/year/colour via ONNX) | Keep | Supplements canonical_vehicles data |
 
 **Environment variables it needs:**
@@ -406,13 +405,15 @@ INFERENCE_API_KEY=<random-secret>           # How edge functions authenticate
 SUPABASE_URL=https://xxx.supabase.co        # For JWT verification (alternative auth)
 ALLOWED_ORIGINS=https://xxx.supabase.co     # CORS restriction
 
-# Optional (vehicle attribute enrichment via AI)
-VEHICLE_ATTRS_PROVIDER=basic                # basic | openai | ollama
-OPENAI_API_KEY=<key>                        # If using openai provider
-OPENAI_MODEL=gpt-4o-mini
+# Self-contained enforcement (required in production)
+SELF_CONTAINED_MODE=true
+REQUIRE_SELF_CONTAINED_MODE=true
+SELF_CONTAINED_STRICT_EGRESS=true
+VEHICLE_ATTRS_PROVIDER=basic                # basic only in strict mode
+CHAT_PROVIDER=heuristic
 
 # Optional (tabular NLP)
-TABULAR_NLP_PROVIDER=heuristic             # heuristic | openai | ollama
+TABULAR_NLP_PROVIDER=heuristic             # heuristic only in strict mode
 ```
 
 **How process-officer-scan calls it:**
@@ -442,7 +443,7 @@ fly deploy
 
 | Change | Why |
 |---|---|
-| Remove `VEHICLE_ATTRS_PROVIDER=ollama` support (keep basic + openai) | Ollama requires a local GPU server — too complex for hosted deployment |
+| Keep default providers at local-only settings (`basic` + `heuristic`) | Enforces no-cloud-AI policy and minimizes data egress risk |
 | Add request timeout (10s hard limit) to `/infer` | Prevents hung requests from blocking the scan pipeline |
 | Add `/health` response to include `INFERENCE_API_KEY` configured flag | Helps with deployment debugging |
 | Remove model download step from README (bake models into Docker image) | Simpler deployment — no manual `npm run download-models` step |
@@ -591,9 +592,8 @@ At $400–600/month per client, this is a ~10x margin on infrastructure.
 
 ### 6.4 AI Services
 
-The system has **three AI touch points**. All three use the same `OPENAI_BASE_URL` env var
-pattern — you can point any of them at OpenAI, Azure OpenAI, a local Ollama server, or
-any other OpenAI-compatible API without code changes.
+The system has **three AI touch points** and must run in **self-contained inference mode**.
+Do not configure direct external cloud AI providers for production enforcement workflows.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -604,24 +604,24 @@ any other OpenAI-compatible API without code changes.
 └─────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────┐
-│  AI Touch Point 2: OpenAI Vision (via inference-service │
-│  or directly from edge functions)                       │
+│  AI Touch Point 2: Inference attribute + tabular NLP    │
+│  (via inference-service only)                           │
 │                                                         │
 │  a) Vehicle attribute extraction (make/model/yr/colour) │
-│     VEHICLE_ATTRS_PROVIDER=openai in inference-service  │
-│     Fallback when ONNX attribute quality is low         │
+│     VEHICLE_ATTRS_PROVIDER=basic in inference-service   │
+│     Uses local model + deterministic heuristics         │
 │                                                         │
 │  b) SCV sticker detection (analyze-vehicle-photo)       │
-│     GPT-4o vision — detects blue/green SCV stickers     │
+│     Uses local inference pipeline only                   │
 │     Folded into process-officer-scan in clean rebuild   │
 │                                                         │
 │  c) Tabular NLP (inference-service /nlp/tabular/analyze)│
 │     Detects date formats and data quality in CSV imports│
 │     Used by import-data / DataImport.tsx wizard         │
-│     TABULAR_NLP_PROVIDER=openai (or heuristic, default) │
+│     TABULAR_NLP_PROVIDER=heuristic                      │
 │                                                         │
-│  Optional: only needed if you want AI-enhanced vehicle  │
-│  attribute accuracy or import date-format detection     │
+│  Optional local upgrade: Ollama (local network only)    │
+│  if approved; cloud providers are blocked in strict mode│
 └─────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────┐
@@ -635,30 +635,31 @@ any other OpenAI-compatible API without code changes.
 └─────────────────────────────────────────────────────────┘
 ```
 
-**Environment variables for AI (all optional in Phase 1):**
+**Environment variables for AI (production baseline):**
 
 ```env
 # Supabase Edge Function secrets
-OPENAI_API_KEY=<your-key>                    # Required for Touch Points 2b, 3
-OPENAI_BASE_URL=https://api.openai.com/v1    # Override for Azure / local Ollama / etc.
-OPENAI_MODEL=gpt-4o                          # Model for vision analysis
+INFERENCE_SERVICE_URL=https://<inference>.up.railway.app
+INFERENCE_API_KEY=<inference-shared-secret>
 
 # inference-service env vars (on Fly.io / Railway)
-VEHICLE_ATTRS_PROVIDER=basic                 # basic | openai (Touch Point 2a)
-TABULAR_NLP_PROVIDER=heuristic              # heuristic | openai (Touch Point 2c)
-OPENAI_API_KEY=<your-key>                    # Same key, set as Fly.io secret
-OPENAI_BASE_URL=https://api.openai.com/v1
-OPENAI_MODEL=gpt-4o-mini                     # Cheaper model for attribute extraction
+SELF_CONTAINED_MODE=true
+REQUIRE_SELF_CONTAINED_MODE=true
+SELF_CONTAINED_STRICT_EGRESS=true
+CHAT_PROVIDER=heuristic
+VEHICLE_ATTRS_PROVIDER=basic
+TABULAR_NLP_PROVIDER=heuristic
+SELF_HEALING_ENABLED=true
 ```
 
-**Phase 1 minimum (no OpenAI key needed):**
+**Phase 1 minimum:**
 - ONNX-only inference for vehicle detection and embeddings
 - Heuristic tabular NLP (no API call)
-- SCV sticker detection disabled (NZSCV registry is the source of truth anyway)
+- Self-contained chat and self-healing endpoints enabled
 
-**Phase 2 upgrade (requires OpenAI key):**
-- GPT-4o vision for vehicle attribute accuracy
-- AI-assisted tabular import for messy CSV data
+**Phase 2 upgrade (still inference-service only):**
+- Optional local Ollama-backed chat (local/private network only)
+- Expanded self-healing knowledge packs and patch-task automation
 - `onspace-ai-chat` enabled in admin UI — compliance trend analysis, officer summaries
 
 ---
@@ -1289,12 +1290,12 @@ It shows every area of the current build, whether V4 covers it, and what changed
 | # | Touch Point | Tech | Phase | Required? |
 |---|---|---|---|---|
 | 1 | ONNX vehicle detection + embeddings | YOLOv8n + MobileNetV3 (local, no API) | Phase 1 | Yes — every photo scan |
-| 2a | Vehicle attribute extraction (make/model/yr/colour) | OpenAI vision via inference-service (`VEHICLE_ATTRS_PROVIDER=openai`) | Phase 1 (optional) | No — basic ONNX works |
-| 2b | SCV sticker detection from photos | OpenAI GPT-4o vision (folded into process-officer-scan) | Phase 1 (optional) | No — NZSCV registry is source of truth |
-| 2c | Tabular NLP for historical data import | OpenAI or heuristic via inference-service (`TABULAR_NLP_PROVIDER`) | Phase 1 (optional) | No — heuristic works for most imports |
-| 3 | Admin AI chat assistant | OpenAI-compatible chat via `onspace-ai-chat` edge function | **Phase 2** | No |
+| 2a | Vehicle attribute extraction (make/model/yr/colour) | Local inference-service attribute pipeline (`VEHICLE_ATTRS_PROVIDER=basic`) | Phase 1 (optional) | No — basic ONNX works |
+| 2b | SCV sticker detection from photos | Local inference-service image pipeline | Phase 1 (optional) | No — NZSCV registry is source of truth |
+| 2c | Tabular NLP for historical data import | Heuristic inference-service parser (`TABULAR_NLP_PROVIDER=heuristic`) | Phase 1 (optional) | No — heuristic works for most imports |
+| 3 | Admin AI chat assistant | Inference-service `/chat` via `onspace-ai-chat` edge function | **Phase 2** | No |
 
-All AI providers use `OPENAI_BASE_URL` — you can swap in Azure OpenAI, local Ollama, or any OpenAI-compatible service without code changes.
+All AI traffic routes through inference-service and must run in self-contained mode for production.
 
 ---
 
@@ -1392,7 +1393,7 @@ against what V4 covers and what it defers.
 | **SMTP (denomailer)** | Outbound transactional email — compliance reports, infringement notices, NTV delivery, invite emails | `denomailer@1.0.0` SMTPClient in edge functions. Env: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` (+ optional `SMTP_TOTAL_TIMEOUT_MS`) | ✅ Keep — `send-report-email`, `generate-infringement`, `generate-notice-to-vacate` all use this |
 | **Supabase Auth email (inviteUserByEmail)** | Sends branded invite email when a new user is created | `create-user` calls `supabaseAdmin.auth.admin.inviteUserByEmail()`. Uses Supabase Dashboard SMTP config + `supabase/templates/invite.html` | ✅ Keep — unchanged |
 | **data.govt.nz + DOC ArcGIS + LINZ** | National freedom camping zone datasets. Used to auto-import zone polygons from authoritative NZ government sources | `sync-spatial-layers` calls DOC ArcGIS FeatureServers, LINZ Crown Property API, CKAN at catalogue.data.govt.nz. Falls back to static GeoJSON mirror | ✅ Keep — folded into `cleanup-and-recalculate` spatial sync step |
-| **OpenAI / OpenAI-compatible API** | (a) Vehicle attribute extraction from photos via GPT-4o vision. (b) SCV sticker detection. (c) Tabular CSV NLP. (d) Admin AI chat assistant (Phase 2) | Via `OPENAI_BASE_URL` (supports OpenAI, Azure OpenAI, Ollama, etc.). Used in `inference-service/server.js` + `analyze-vehicle-photo` + `onspace-ai-chat` edge fns | ✅ Phase 1 optional; Phase 2 AI chat |
+| **Inference-service local AI pipeline** | (a) Vehicle attribute extraction from local models/heuristics. (b) SCV sticker detection. (c) Tabular CSV NLP heuristics. (d) Admin AI chat assistant (Phase 2) | Via `INFERENCE_SERVICE_URL` + `INFERENCE_API_KEY` and strict self-contained env flags in `inference-service/server.js` | ✅ Phase 1 optional; Phase 2 AI chat |
 
 **Summary**: 8 external services currently integrated. V4 keeps all of them except
 ParkPow (no live deployment). All connection details are in proxy-server env vars,

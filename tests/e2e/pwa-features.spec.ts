@@ -21,8 +21,8 @@ test.describe('PWA - Installation', () => {
     expect(manifestResponse?.status()).toBe(200)
 
     const manifest = await manifestResponse?.json()
-    expect(manifest.name).toBe('FreedomCamp Manager')
-    expect(manifest.short_name).toBe('FreedomCamp')
+    expect(manifest.name).toBe('FieldOps Manager')
+    expect(manifest.short_name).toBe('FieldOps')
     expect(manifest.start_url).toBe('/')
     expect(manifest.display).toBe('standalone')
   })

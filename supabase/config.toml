@@ -74,19 +74,19 @@ enable_manual_linking = false
 # automatically for local development via `supabase start`.
 
 [auth.email.template.invite]
-subject = "You're invited to FreedomCamp Manager"
+subject = "You're invited to FieldOps Manager"
 content_path = "supabase/templates/invite.html"
 
 [auth.email.template.recovery]
-subject = "Reset Your Password - FreedomCamp Manager"
+subject = "Reset Your Password - FieldOps Manager"
 content_path = "supabase/templates/recovery.html"
 
 [auth.email.template.confirmation]
-subject = "Confirm Your Email - FreedomCamp Manager"
+subject = "Confirm Your Email - FieldOps Manager"
 content_path = "supabase/templates/confirmation.html"
 
 [auth.email.template.magic_link]
-subject = "Your Login Link - FreedomCamp Manager"
+subject = "Your Login Link - FieldOps Manager"
 content_path = "supabase/templates/magic_link.html"
 
 # ── Edge Function JWT verification settings ──────────────────────────────────
@@ -268,6 +268,9 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.onspace-ai-chat]
+verify_jwt = false
+
+[functions.auto-analyse-report]
 verify_jwt = false
 
 [functions.parkpow-photo-sync]

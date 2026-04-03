@@ -44,6 +44,7 @@ env:
   # These are deployed with --no-verify-jwt and expected to return non-5xx without auth.
   PUBLIC_FUNCTIONS: >-
     admin-incident-ops alpr-process alpr-retry analyze-vehicle-photo
+    auto-analyse-report
     check-almost-breaches check-data-integrity check-nzscv-status
     check-railway-health check-zone-corrections cleanup-and-recalculate
     correct-zone-assignments create-user create_auth_and_profiles

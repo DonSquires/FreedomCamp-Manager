@@ -40,3 +40,6 @@ coverage/
 
 # Deployment
 .fly/
+
+# Runtime model state
+data/

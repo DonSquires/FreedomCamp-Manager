@@ -2,7 +2,7 @@
 
 These tools help gather and prepare Onspace code artifacts so that lexical and
 semantic searches can be run to answer questions about how Onspace interacts with
-the FreedomCamp-Manager database schema (e.g. which edge functions reference
+the FieldOps-Manager database schema (e.g. which edge functions reference
 `observations_v2`, which workers call `vehicle_enrichment_jobs`, and so on).
 
 ---

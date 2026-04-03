@@ -3,15 +3,15 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 
 interface UserProfile {
-  user_id: string
-  org_id: string
-  full_name: string | null
+  id: string
+  organization_id: string | null
+  first_name: string | null
+  last_name: string | null
   email: string | null
   role: string
   is_active: boolean
-  badge_number: string | null
   phone: string | null
-  avatar_url: string | null
+  profile_photo_url: string | null
   created_at: string
 }
 
@@ -37,8 +37,8 @@ export default function CleanUserManagement() {
   const [form, setForm] = useState<Partial<UserProfile>>({})
   const [saving, setSaving] = useState(false)
 
-  const orgId = user?.user_metadata?.org_id as string | undefined
-  const role = user?.user_metadata?.role as string | undefined
+  const orgId = user?.organization_id ?? undefined
+  const role = user?.role ?? undefined
   const canEdit = role === 'admin' || role === 'master' || role === 'grand_master'
 
   async function fetchUsers() {
@@ -46,11 +46,11 @@ export default function CleanUserManagement() {
     setLoading(true)
     setError(null)
     try {
-      let query = supabase.from('user_profiles').select('*').eq('org_id', orgId).order('full_name', { ascending: true })
+      let query = supabase.from('user_profiles').select('*').eq('organization_id', orgId).order('first_name', { ascending: true })
       if (!showInactive) query = query.eq('is_active', true)
       const { data, error: err } = await query
       if (err) throw err
-      setUsers(data as UserProfile[])
+      setUsers(data as unknown as UserProfile[])
     } catch (e: any) {
       setError(e.message ?? 'Failed to load users')
     } finally {
@@ -62,7 +62,7 @@ export default function CleanUserManagement() {
 
   function openUser(u: UserProfile) {
     setSelected(u)
-    setForm({ full_name: u.full_name, role: u.role, badge_number: u.badge_number, phone: u.phone, is_active: u.is_active })
+    setForm({ first_name: u.first_name, last_name: u.last_name, role: u.role, phone: u.phone, is_active: u.is_active })
   }
 
   async function saveUser() {
@@ -71,13 +71,13 @@ export default function CleanUserManagement() {
     const { error: err } = await supabase
       .from('user_profiles')
       .update({
-        full_name: form.full_name || null,
+        first_name: form.first_name || null,
+        last_name: form.last_name || null,
         role: form.role,
-        badge_number: form.badge_number || null,
         phone: form.phone || null,
         is_active: form.is_active,
       })
-      .eq('user_id', selected.user_id)
+      .eq('id', selected.id)
     setSaving(false)
     if (err) { alert(err.message); return }
     setSelected(null)
@@ -85,8 +85,9 @@ export default function CleanUserManagement() {
   }
 
   async function deactivateUser(u: UserProfile) {
-    if (!confirm(`Deactivate ${u.full_name ?? u.email}?`)) return
-    await supabase.from('user_profiles').update({ is_active: false }).eq('user_id', u.user_id)
+    const displayName = [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email
+    if (!confirm(`Deactivate ${displayName}?`)) return
+    await supabase.from('user_profiles').update({ is_active: false }).eq('id', u.id)
     fetchUsers()
   }
 
@@ -116,7 +117,6 @@ export default function CleanUserManagement() {
                 <th className="px-4 py-3 text-left">Name</th>
                 <th className="px-4 py-3 text-left">Email</th>
                 <th className="px-4 py-3 text-left">Role</th>
-                <th className="px-4 py-3 text-left">Badge</th>
                 <th className="px-4 py-3 text-left">Status</th>
                 <th className="px-4 py-3 text-left">Joined</th>
                 {canEdit && <th className="px-4 py-3 text-left">Actions</th>}
@@ -126,13 +126,12 @@ export default function CleanUserManagement() {
               {users.length === 0 ? (
                 <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No users found</td></tr>
               ) : users.map(u => (
-                <tr key={u.user_id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-gray-900">{u.full_name ?? '—'}</td>
+                <tr key={u.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 font-medium text-gray-900">{[u.first_name, u.last_name].filter(Boolean).join(' ') || '—'}</td>
                   <td className="px-4 py-3 text-gray-600">{u.email ?? '—'}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${roleBadge(u.role)}`}>{u.role}</span>
                   </td>
-                  <td className="px-4 py-3 text-gray-600 font-mono text-xs">{u.badge_number ?? '—'}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${u.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-500'}`}>
                       {u.is_active ? 'Active' : 'Inactive'}
@@ -142,7 +141,7 @@ export default function CleanUserManagement() {
                   {canEdit && (
                     <td className="px-4 py-3 flex gap-3">
                       <button onClick={() => openUser(u)} className="text-blue-600 hover:underline text-xs">Edit</button>
-                      {u.is_active && u.user_id !== user?.id && (
+                      {u.is_active && u.id !== user?.id && (
                         <button onClick={() => deactivateUser(u)} className="text-red-600 hover:underline text-xs">Deactivate</button>
                       )}
                     </td>
@@ -161,11 +160,20 @@ export default function CleanUserManagement() {
             <h2 className="text-lg font-semibold text-gray-900">Edit User</h2>
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Full name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">First name</label>
                 <input
                   type="text"
-                  value={form.full_name ?? ''}
-                  onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))}
+                  value={form.first_name ?? ''}
+                  onChange={e => setForm(f => ({ ...f, first_name: e.target.value }))}
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Last name</label>
+                <input
+                  type="text"
+                  value={form.last_name ?? ''}
+                  onChange={e => setForm(f => ({ ...f, last_name: e.target.value }))}
                   className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -178,15 +186,6 @@ export default function CleanUserManagement() {
                 >
                   {ROLE_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Badge number</label>
-                <input
-                  type="text"
-                  value={form.badge_number ?? ''}
-                  onChange={e => setForm(f => ({ ...f, badge_number: e.target.value }))}
-                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>

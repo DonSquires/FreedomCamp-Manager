@@ -1,5 +1,5 @@
 /**
- * Testing Utilities for FreedomCamp Manager
+ * Testing Utilities for FieldOps Manager
  * 
  * Helper functions for smoke testing, data verification, and debugging
  */

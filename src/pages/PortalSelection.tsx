@@ -118,7 +118,7 @@ export default function PortalSelection() {
             className="h-12 w-12 rounded-xl object-cover shadow-md shrink-0"
           />
           <div>
-            <h1 className="text-2xl font-bold leading-tight">FreedomCamp Manager</h1>
+            <h1 className="text-2xl font-bold leading-tight">FieldOps Manager</h1>
             <p className="text-blue-300 text-sm">
               Welcome back, {user?.full_name || user?.email}
             </p>

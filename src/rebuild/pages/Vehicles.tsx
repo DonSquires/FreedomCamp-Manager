@@ -4,19 +4,17 @@ import { useAuthStore } from '@/stores/authStore'
 
 interface CanonicalVehicle {
   vehicle_id: string
-  org_id: string
   plate_number: string
-  plate_state: string | null
-  make: string | null
-  model: string | null
-  colour: string | null
-  is_flagged: boolean
-  flag_reason: string | null
-  nzscv_last_checked_at: string | null
-  created_at: string
+  vehicle_make: string | null
+  vehicle_model: string | null
+  vehicle_color: string | null
+  is_flagged: boolean | null
+  flagged_reason: string | null
+  nzscv_last_checked: string | null
+  created_at: string | null
 }
 
-type SortField = 'plate_number' | 'make' | 'created_at'
+type SortField = 'plate_number' | 'vehicle_make' | 'created_at'
 type SortDir = 'asc' | 'desc'
 
 export default function CleanVehicles() {
@@ -37,8 +35,6 @@ export default function CleanVehicles() {
   const [editIsFlagged, setEditIsFlagged] = useState(false)
   const [saving, setSaving] = useState(false)
 
-  const orgId = user?.user_metadata?.org_id as string | undefined
-
   async function fetchVehicles() {
     setLoading(true)
     setError(null)
@@ -49,13 +45,12 @@ export default function CleanVehicles() {
         .order(sortField, { ascending: sortDir === 'asc' })
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
 
-      if (orgId) query = query.eq('org_id', orgId)
       if (flaggedOnly) query = query.eq('is_flagged', true)
       if (search) query = query.ilike('plate_number', `%${search}%`)
 
       const { data, error: err } = await query
       if (err) throw err
-      setVehicles(data as CanonicalVehicle[])
+      setVehicles(data as unknown as CanonicalVehicle[])
     } catch (e: any) {
       setError(e.message ?? 'Failed to load vehicles')
     } finally {
@@ -63,7 +58,7 @@ export default function CleanVehicles() {
     }
   }
 
-  useEffect(() => { fetchVehicles() }, [orgId, flaggedOnly, sortField, sortDir, page]) // eslint-disable-line
+  useEffect(() => { fetchVehicles() }, [flaggedOnly, sortField, sortDir, page]) // eslint-disable-line
 
   function handleSort(field: SortField) {
     if (field === sortField) {
@@ -77,8 +72,8 @@ export default function CleanVehicles() {
 
   function openEdit(v: CanonicalVehicle) {
     setEditing(v)
-    setEditIsFlagged(v.is_flagged)
-    setEditFlagReason(v.flag_reason ?? '')
+    setEditIsFlagged(!!v.is_flagged)
+    setEditFlagReason(v.flagged_reason ?? '')
   }
 
   async function saveFlag() {
@@ -86,7 +81,7 @@ export default function CleanVehicles() {
     setSaving(true)
     const { error: err } = await supabase
       .from('canonical_vehicles')
-      .update({ is_flagged: editIsFlagged, flag_reason: editIsFlagged ? editFlagReason : null })
+      .update({ is_flagged: editIsFlagged, flagged_reason: editIsFlagged ? editFlagReason : null })
       .eq('vehicle_id', editing.vehicle_id)
     setSaving(false)
     if (err) { alert(err.message); return }
@@ -136,8 +131,8 @@ export default function CleanVehicles() {
                 Plate {sortField === 'plate_number' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
               </th>
               <th className="px-4 py-3 text-left">State</th>
-              <th className="px-4 py-3 text-left cursor-pointer hover:bg-gray-100" onClick={() => handleSort('make')}>
-                Make/Model {sortField === 'make' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+              <th className="px-4 py-3 text-left cursor-pointer hover:bg-gray-100" onClick={() => handleSort('vehicle_make')}>
+                Make/Model {sortField === 'vehicle_make' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
               </th>
               <th className="px-4 py-3 text-left">Colour</th>
               <th className="px-4 py-3 text-left">Flagged</th>
@@ -156,16 +151,16 @@ export default function CleanVehicles() {
             ) : vehicles.map(v => (
               <tr key={v.vehicle_id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-mono font-semibold text-gray-900">{v.plate_number}</td>
-                <td className="px-4 py-3 text-gray-600">{v.plate_state ?? '—'}</td>
-                <td className="px-4 py-3 text-gray-700">{[v.make, v.model].filter(Boolean).join(' ') || '—'}</td>
-                <td className="px-4 py-3 text-gray-600">{v.colour ?? '—'}</td>
+                <td className="px-4 py-3 text-gray-600">—</td>
+                <td className="px-4 py-3 text-gray-700">{[v.vehicle_make, v.vehicle_model].filter(Boolean).join(' ') || '—'}</td>
+                <td className="px-4 py-3 text-gray-600">{v.vehicle_color ?? '—'}</td>
                 <td className="px-4 py-3">
                   {v.is_flagged
-                    ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">⚑ {v.flag_reason ?? 'Flagged'}</span>
+                    ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">⚑ {v.flagged_reason ?? 'Flagged'}</span>
                     : <span className="text-gray-400 text-xs">—</span>}
                 </td>
-                <td className="px-4 py-3 text-gray-500 text-xs">{v.nzscv_last_checked_at ? new Date(v.nzscv_last_checked_at).toLocaleDateString('en-NZ') : 'Never'}</td>
-                <td className="px-4 py-3 text-gray-500 text-xs">{new Date(v.created_at).toLocaleDateString('en-NZ')}</td>
+                <td className="px-4 py-3 text-gray-500 text-xs">{v.nzscv_last_checked ? new Date(v.nzscv_last_checked).toLocaleDateString('en-NZ') : 'Never'}</td>
+                <td className="px-4 py-3 text-gray-500 text-xs">{v.created_at ? new Date(v.created_at).toLocaleDateString('en-NZ') : '—'}</td>
                 <td className="px-4 py-3">
                   <button onClick={() => openEdit(v)} className="text-blue-600 hover:underline text-xs">Edit flag</button>
                 </td>

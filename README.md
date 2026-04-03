@@ -1,4 +1,4 @@
-# FreedomCamp Manager
+# FieldOps Manager
 
 Web-based admin control centre for freedom camping enforcement in New Zealand.
 Provides live patrol monitoring, breach management, zone geofencing, compliance

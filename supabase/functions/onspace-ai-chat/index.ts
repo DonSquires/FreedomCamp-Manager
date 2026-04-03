@@ -1,39 +1,22 @@
 /**
  * onspace-ai-chat
  *
- * AI-powered analysis and chat for FreedomCamp Manager admins.
- * Supports any OpenAI-compatible API endpoint so operators can point it at
- * their own self-hosted model (e.g. Ollama, vLLM, LM Studio), the default
- * OpenAI service, or GitHub Copilot.
+ * AI-powered analysis and chat for FieldOps Manager admins.
  *
- * Configuration (Supabase Edge Function secrets) — in priority order:
- *   GITHUB_TOKEN      — GitHub personal access token with `copilot` scope.
- *                       When set, the function uses the GitHub Copilot API
- *                       (https://api.githubcopilot.com) as the AI provider.
- *                       This is the recommended provider for code-level fix
- *                       analysis (grand-master feedback inbox).
- *   OPENAI_API_KEY    — API key for the OpenAI (or compatible) provider.
- *                       Used when GITHUB_TOKEN is not set.
- *   OPENAI_BASE_URL   — Base URL of the OpenAI-compatible API
- *                       (default: https://api.openai.com/v1).
- *                       Set to e.g. http://my-server:11434/v1 for Ollama.
- *                       Ignored when GITHUB_TOKEN is set.
- *   AI_DEFAULT_MODEL  — Model name to use (default: gpt-4o)
+ * Self-contained policy:
+ *   This function proxies all AI chat requests to the Railway inference-service
+ *   /chat endpoint. It does not call external cloud AI providers directly.
  *
- * POST body (two accepted formats):
- *   Format A — full messages array (advanced):
- *     { messages: [{role,content},...], model?, temperature? }
- *   Format B — single message + optional context (simple, used by edgeFunctions.ts):
- *     { message: string, context?: any, model?, temperature? }
- *
- * Response:
- *   { response: string, model: string, provider: string, usage: { prompt_tokens, completion_tokens, total_tokens } }
+ * Required secrets:
+ *   INFERENCE_SERVICE_URL   Railway inference-service base URL.
+ *   INFERENCE_API_KEY       Optional shared key for inference auth.
+ *   AI_DEFAULT_MODEL        Optional UI hint only (handled by inference-service).
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
 
-const SYSTEM_PROMPT = `You are an AI assistant for FreedomCamp Manager — a freedom camping enforcement system used by councils and security contractors in New Zealand.
+const SYSTEM_PROMPT = `You are an AI assistant for FieldOps Manager — a freedom camping enforcement system used by councils and security contractors in New Zealand.
 
 You help admins and enforcement managers by:
 - Analysing compliance data, breach trends, and patrol performance
@@ -128,135 +111,84 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    // ── AI Provider ──────────────────────────────────────────────────────────
-    // Priority: GITHUB_TOKEN (GitHub Copilot) → OPENAI_API_KEY (OpenAI/custom)
-    const githubToken = Deno.env.get('GITHUB_TOKEN') || Deno.env.get('GH_TOKEN')
-    const openaiApiKey = Deno.env.get('OPENAI_API_KEY')
+    // ── Inference-service provider (self-contained only) ───────────────────
+    const inferenceUrl = (Deno.env.get('INFERENCE_SERVICE_URL') ?? '').replace(/\/$/, '')
+    const inferenceApiKey = Deno.env.get('INFERENCE_API_KEY') ?? ''
 
-    if (!githubToken && !openaiApiKey) {
+    if (!inferenceUrl) {
       return new Response(
         JSON.stringify({
           error: 'AI service not configured',
-          details: 'No AI provider configured. Set GITHUB_TOKEN (recommended — uses GitHub Copilot) or OPENAI_API_KEY in Supabase Dashboard > Edge Functions > Secrets.',
+          details: 'INFERENCE_SERVICE_URL is required for self-contained AI chat.',
         }),
         { status: 503, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
-    const providers: Array<{
-      name: 'github-copilot' | 'openai'
-      apiKey: string
-      baseUrl: string
-      modelsToTry: string[]
-    }> = []
-
-    if (githubToken) {
-      const fallbackModels = ['gpt-4.1', 'gpt-4o', 'gpt-4o-mini']
-      providers.push({
-        name: 'github-copilot',
-        apiKey: githubToken,
-        baseUrl: 'https://api.githubcopilot.com',
-        modelsToTry: [model, ...fallbackModels.filter((m) => m !== model)],
-      })
-    }
-
-    if (openaiApiKey) {
-      providers.push({
-        name: 'openai',
-        apiKey: openaiApiKey,
-        baseUrl: (Deno.env.get('OPENAI_BASE_URL') ?? 'https://api.openai.com/v1').replace(/\/$/, ''),
-        modelsToTry: [model],
-      })
-    }
-
-    let aiData: any = null
-    let finalModel = model
-    let providerName: 'github-copilot' | 'openai' = providers[0].name
-    let lastStatus = 500
-    let lastErrorText = ''
-
-    for (const provider of providers) {
-      providerName = provider.name
-      console.log(
-        `[AI] user=${user.email} model=${model} messages=${messages.length} provider=${provider.name} candidates=${provider.modelsToTry.join(',')}`
-      )
-
-      for (const candidateModel of provider.modelsToTry) {
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 60_000)
-
-        const aiResponse = await fetch(`${provider.baseUrl}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${provider.apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ model: candidateModel, messages, temperature, max_tokens: 4000 }),
-          signal: controller.signal,
-        })
-
-        clearTimeout(timeoutId)
-
-        if (aiResponse.ok) {
-          aiData = await aiResponse.json()
-          finalModel = candidateModel
-          break
-        }
-
-        const errorText = await aiResponse.text()
-        lastStatus = aiResponse.status
-        lastErrorText = errorText.slice(0, 500)
-        console.error(`[AI] Provider error ${aiResponse.status} provider=${provider.name} model=${candidateModel}:`, lastErrorText)
-
-        const mayRetryModel = provider.name === 'github-copilot' && (aiResponse.status === 400 || aiResponse.status === 404)
-        if (mayRetryModel) {
-          continue
-        }
-
-        const mayFailoverProvider =
-          provider.name === 'github-copilot' &&
-          openaiApiKey &&
-          (aiResponse.status === 401 || aiResponse.status === 403 || aiResponse.status === 429 || aiResponse.status >= 500)
-
-        if (mayFailoverProvider) {
-          console.warn(`[AI] Falling back from GitHub Copilot to OpenAI provider after ${aiResponse.status}`)
-          break
-        }
-
-        return new Response(
-          JSON.stringify({ error: `AI provider returned ${aiResponse.status}`, details: errorText.slice(0, 300) }),
-          { status: aiResponse.status, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
-        )
-      }
-
-      if (aiData) break
-    }
-
-    if (!aiData) {
+    const latestUserMessage = [...messages].reverse().find((m) => m.role === 'user')?.content?.trim() ?? ''
+    if (!latestUserMessage) {
       return new Response(
-        JSON.stringify({ error: `AI provider returned ${lastStatus}`, details: lastErrorText.slice(0, 300) }),
-        { status: lastStatus, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'No user message found in conversation.' }),
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
-    const responseText: string = aiData.choices?.[0]?.message?.content ?? ''
+    const history = messages
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .map((m) => ({ role: m.role, content: m.content }))
+      .slice(0, -1)
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 60_000)
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (inferenceApiKey) headers['x-inference-api-key'] = inferenceApiKey
+
+    const inferResponse = await fetch(`${inferenceUrl}/chat`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        message: latestUserMessage,
+        history,
+        context: {
+          user_email: user.email,
+          requested_model: model,
+          temperature,
+          source: 'onspace-ai-chat',
+        },
+      }),
+      signal: controller.signal,
+    })
+    clearTimeout(timeoutId)
+
+    const inferText = await inferResponse.text()
+    if (!inferResponse.ok) {
+      return new Response(
+        JSON.stringify({
+          error: `Inference chat returned ${inferResponse.status}`,
+          details: inferText.slice(0, 500),
+        }),
+        { status: inferResponse.status, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const inferData = (() => {
+      try { return JSON.parse(inferText) } catch { return null }
+    })()
+    const responseText: string = inferData?.message ?? ''
 
     if (!responseText) {
-      console.error('[AI] Empty response from provider:', JSON.stringify(aiData).slice(0, 300))
       return new Response(
-        JSON.stringify({ error: 'AI returned an empty response' }),
+        JSON.stringify({ error: 'Inference chat returned an empty response' }),
         { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
-    console.log(`[AI] OK — ${responseText.length} chars`)
-
     return new Response(
       JSON.stringify({
         response: responseText,
-        model: aiData.model ?? finalModel,
-        provider: providerName,
-        usage: aiData.usage ?? null,
+        model: 'inference-chat',
+        provider: `inference-${inferData?.provider ?? 'heuristic'}`,
+        usage: null,
       }),
       { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     )

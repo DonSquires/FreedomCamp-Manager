@@ -1,8 +1,8 @@
-# FreedomCamp Manager – Copilot Coding Agent Instructions
+# FieldOps Manager – Copilot Coding Agent Instructions
 
 ## Project Summary
 
-**FreedomCamp Manager** is a web-based admin control centre for freedom camping enforcement in New Zealand, operated by Iron Eagle Security / OnSpace AI. It provides live patrol monitoring, breach management, zone geofencing, compliance reporting, vehicle scanning (ALPR), officer welfare tracking, and multi-organisation support.
+**FieldOps Manager** is a web-based admin control centre for freedom camping enforcement in New Zealand, operated by Iron Eagle Security / OnSpace AI. It provides live patrol monitoring, breach management, zone geofencing, compliance reporting, vehicle scanning (ALPR), officer welfare tracking, and multi-organisation support.
 
 **Size / type**: ~80 page components, 45+ Supabase Edge Functions, 70+ database migrations. Large TypeScript SPA backed by Supabase.
 

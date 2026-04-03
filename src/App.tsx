@@ -105,6 +105,10 @@ const EMSPortal = lazy(() => import('@/pages/EMSPortal'))
 const SiteGuardPortal = lazy(() => import('@/pages/SiteGuardPortal'))
 const AccessControlPage = lazy(() => import('@/pages/AccessControlPage'))
 const TeamChat = lazy(() => import('@/pages/TeamChat'))
+const IntelApprovalQueue = lazy(() => import('@/pages/IntelApprovalQueue'))
+const BobIntakeQueue = lazy(() => import('@/pages/BobIntakeQueue'))
+const BobAssistantStudio = lazy(() => import('@/pages/BobAssistantStudio'))
+const OpsLivePlanReviewQueue = lazy(() => import('@/pages/OpsLivePlanReviewQueue'))
 
 // ---------------------------------------------------------------------------
 // PageLoader – minimal spinner shown while a lazy page chunk is downloading.
@@ -439,7 +443,7 @@ export default function App() {
             />
           </div>
           <div>
-            <p className="text-lg font-semibold text-foreground">FreedomCamp Manager</p>
+            <p className="text-lg font-semibold text-foreground">FieldOps Manager</p>
             <div className="flex items-center justify-center gap-1.5 mt-2">
               {[0, 1, 2].map((i) => (
                 <div
@@ -989,6 +993,50 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <TeamChat />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/intel-approvals"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['master', 'grand_master']}>
+                  <IntelApprovalQueue />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/bob-intake-queue"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
+                  <BobIntakeQueue />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/bob-assistant"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer', 'grand_master']}>
+                  <BobAssistantStudio />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/live-plan-reviews"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer', 'grand_master']}>
+                  <OpsLivePlanReviewQueue />
+                </RoleRoute>
               </ProtectedRoute>
             }
           />

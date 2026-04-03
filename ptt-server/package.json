@@ -1,7 +1,7 @@
 {
   "name": "ptt-signaling-server",
   "version": "1.0.0",
-  "description": "Push-to-Talk WebRTC signaling server for FreedomCamp Manager",
+  "description": "Push-to-Talk WebRTC signaling server for FieldOps Manager",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

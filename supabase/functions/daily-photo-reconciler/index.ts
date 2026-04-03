@@ -2,7 +2,7 @@
 // daily-photo-reconciler  Edge Function
 // ============================================================================
 // Continuous photo integrity monitoring and automated repair for the
-// FreedomCamp Manager evidence storage.
+// FieldOps Manager evidence storage.
 //
 // Runs daily (scheduled via cron or manual POST trigger) to:
 //   1. Detect new observations with missing photo_url or photo_hash

@@ -26,9 +26,24 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const fs = require('fs');
+const { createSelfLearningService } = require('./lib/self-learning');
+const { buildSelfHealingPlan, buildPatchTask, getKnowledgePacks } = require('./lib/assistant-knowledge');
+const { createIntelStore } = require('./lib/intel-updates');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+app.set('trust proxy', 1);
+
+// Reject downgraded requests when a reverse proxy forwards protocol headers.
+app.use((req, res, next) => {
+  if (process.env.NODE_ENV === 'production') {
+    const forwardedProto = req.headers['x-forwarded-proto'];
+    if (forwardedProto && String(forwardedProto).toLowerCase() !== 'https') {
+      return res.status(400).json({ error: 'HTTPS required', message: 'Plain HTTP requests are not accepted in production.' });
+    }
+  }
+  next();
+});
 
 // ---------------------------------------------------------------------------
 // Security headers with helmet
@@ -91,16 +106,38 @@ const faceRateLimit = rateLimit({
   message:          { error: 'Too many face detection requests — please slow down' },
 });
 
+function normalizeProvider(value, fallback) {
+  const provider = String(value || fallback || '').toLowerCase().trim();
+  if (provider === 'chatgpt') return 'openai';
+  return provider || fallback;
+}
+
 const YOLO_INPUT_SIZE = 640;
-const VEHICLE_ATTRS_PROVIDER = (process.env.VEHICLE_ATTRS_PROVIDER || 'basic').toLowerCase();
+const VEHICLE_ATTRS_PROVIDER_RAW = (process.env.VEHICLE_ATTRS_PROVIDER || 'basic').toLowerCase();
+const VEHICLE_ATTRS_PROVIDER = normalizeProvider(VEHICLE_ATTRS_PROVIDER_RAW, 'basic');
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 const ATTR_TIMEOUT_MS = Number(process.env.ATTR_TIMEOUT_MS || 2500);
-const TABULAR_NLP_PROVIDER = (process.env.TABULAR_NLP_PROVIDER || 'heuristic').toLowerCase();
+const TABULAR_NLP_PROVIDER_RAW = (process.env.TABULAR_NLP_PROVIDER || 'heuristic').toLowerCase();
+const TABULAR_NLP_PROVIDER = normalizeProvider(TABULAR_NLP_PROVIDER_RAW, 'heuristic');
+const CHAT_PROVIDER_RAW = (process.env.CHAT_PROVIDER || 'heuristic').toLowerCase();
+const CHAT_PROVIDER = normalizeProvider(CHAT_PROVIDER_RAW, 'heuristic');
+const CHAT_TIMEOUT_MS = Number(process.env.CHAT_TIMEOUT_MS || 2500);
 const TABULAR_NLP_TIMEOUT_MS = Number(process.env.TABULAR_NLP_TIMEOUT_MS || 2500);
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1:8b';
+const SELF_CONTAINED_MODE = ['1', 'true', 'yes', 'on'].includes((process.env.SELF_CONTAINED_MODE || '').toLowerCase());
+const REQUIRE_SELF_CONTAINED_MODE = ['1', 'true', 'yes', 'on'].includes((process.env.REQUIRE_SELF_CONTAINED_MODE || '').toLowerCase());
+const SELF_LEARNING_ENABLED = !['0', 'false', 'no', 'off'].includes((process.env.SELF_LEARNING_ENABLED || 'true').toLowerCase());
+const SELF_HEALING_ENABLED = !['0', 'false', 'no', 'off'].includes((process.env.SELF_HEALING_ENABLED || 'true').toLowerCase());
+const INTEL_STATE_PATH = process.env.INTEL_STATE_PATH || path.join(__dirname, 'data', 'intel-state.json');
+const INTEL_HMAC_KEY = process.env.INTEL_HMAC_KEY || '';
+const SELF_LEARNING_STATE_PATH = process.env.SELF_LEARNING_STATE_PATH || path.join(__dirname, 'data', 'self-learning-state.json');
+const SIMILARITY_THRESHOLD = Number(process.env.SIMILARITY_THRESHOLD || 0.85);
+const SIMILARITY_THRESHOLD_MIN = Number(process.env.SIMILARITY_THRESHOLD_MIN || 0.65);
+const SIMILARITY_THRESHOLD_MAX = Number(process.env.SIMILARITY_THRESHOLD_MAX || 0.95);
+const SELF_LEARNING_RATE = Number(process.env.SELF_LEARNING_RATE || 0.025);
 const INFERENCE_API_KEY = process.env.INFERENCE_API_KEY || '';
 const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
 const SUPABASE_JWKS_URL = process.env.SUPABASE_JWKS_URL || (SUPABASE_URL ? `${SUPABASE_URL}/auth/v1/.well-known/jwks.json` : '');
@@ -111,6 +148,86 @@ const SUPABASE_JWT_AUDIENCE = process.env.SUPABASE_JWT_AUDIENCE || '';
 // Set SUPABASE_SERVICE_ROLE_KEY on Railway to the same value as the Supabase
 // project's service role key.
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+
+function isLocalUrl(value) {
+  if (!value) return false;
+  try {
+    const url = new URL(value);
+    return url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '::1';
+  } catch {
+    return false;
+  }
+}
+
+const SELF_CONTAINED_STRICT_EGRESS = SELF_CONTAINED_MODE && !['0', 'false', 'no', 'off'].includes((process.env.SELF_CONTAINED_STRICT_EGRESS || 'true').toLowerCase());
+
+function assertEgressAllowed(url, providerLabel = 'unknown') {
+  if (!SELF_CONTAINED_STRICT_EGRESS) return;
+  if (!isLocalUrl(url)) {
+    recordEgressEvent(providerLabel, 'blocked', `Strict self-contained egress policy blocked URL: ${url}`);
+    throw new Error(`Outbound network blocked in SELF_CONTAINED_MODE: ${url}`);
+  }
+}
+
+async function safeFetch(url, options, providerLabel = 'unknown') {
+  assertEgressAllowed(url, providerLabel);
+  return fetch(url, options);
+}
+
+const OPENAI_ENABLED = !SELF_CONTAINED_MODE && !!OPENAI_API_KEY;
+const CLOUD_ALPR_ENABLED = !SELF_CONTAINED_MODE && !!process.env.PLATERECOGNIZER_TOKEN;
+const OLLAMA_ENABLED = (TABULAR_NLP_PROVIDER === 'ollama' || CHAT_PROVIDER === 'ollama') && (!SELF_CONTAINED_MODE || isLocalUrl(OLLAMA_BASE_URL));
+
+const selfLearningService = createSelfLearningService({
+  enabled: SELF_LEARNING_ENABLED,
+  statePath: SELF_LEARNING_STATE_PATH,
+  initialThreshold: SIMILARITY_THRESHOLD,
+  minThreshold: SIMILARITY_THRESHOLD_MIN,
+  maxThreshold: SIMILARITY_THRESHOLD_MAX,
+  learningRate: SELF_LEARNING_RATE,
+});
+
+const intelStore = createIntelStore({
+  statePath: INTEL_STATE_PATH,
+  hmacKey: INTEL_HMAC_KEY,
+});
+
+const egressAudit = {
+  started_at: new Date().toISOString(),
+  self_contained_mode: SELF_CONTAINED_MODE,
+  counts: {
+    openai_attempted: 0,
+    openai_blocked: 0,
+    cloud_alpr_attempted: 0,
+    cloud_alpr_blocked: 0,
+    ollama_attempted: 0,
+    ollama_blocked: 0,
+  },
+  last_event: null,
+};
+
+function recordEgressEvent(provider, outcome, details = null) {
+  const event = {
+    at: new Date().toISOString(),
+    provider,
+    outcome,
+    details,
+  };
+  egressAudit.last_event = event;
+
+  if (provider === 'openai') {
+    if (outcome === 'attempted') egressAudit.counts.openai_attempted += 1;
+    if (outcome === 'blocked') egressAudit.counts.openai_blocked += 1;
+  }
+  if (provider === 'cloud_alpr') {
+    if (outcome === 'attempted') egressAudit.counts.cloud_alpr_attempted += 1;
+    if (outcome === 'blocked') egressAudit.counts.cloud_alpr_blocked += 1;
+  }
+  if (provider === 'ollama') {
+    if (outcome === 'attempted') egressAudit.counts.ollama_attempted += 1;
+    if (outcome === 'blocked') egressAudit.counts.ollama_blocked += 1;
+  }
+}
 
 let joseRuntimePromise = null;
 let supabaseJwks = null;
@@ -177,6 +294,9 @@ async function getJoseRuntime() {
 }
 
 async function verifySupabaseJwt(token) {
+  if (SELF_CONTAINED_STRICT_EGRESS) {
+    throw new Error('Supabase JWKS verification is disabled in strict self-contained mode');
+  }
   if (!SUPABASE_JWKS_URL) {
     throw new Error('SUPABASE_JWKS_URL is not configured');
   }
@@ -451,10 +571,16 @@ function analyzeTabularDataHeuristic(sampleRows) {
 async function analyzeTabularDataWithOllama(sampleRows) {
   const heuristic = analyzeTabularDataHeuristic(sampleRows);
 
+  if (!OLLAMA_ENABLED) {
+    recordEgressEvent('ollama', 'blocked', 'SELF_CONTAINED_MODE with non-local OLLAMA_BASE_URL');
+    return heuristic;
+  }
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TABULAR_NLP_TIMEOUT_MS);
   try {
-    const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+    recordEgressEvent('ollama', 'attempted', 'analyzeTabularDataWithOllama');
+    const response = await safeFetch(`${OLLAMA_BASE_URL}/api/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -491,7 +617,7 @@ async function analyzeTabularDataWithOllama(sampleRows) {
           },
         ],
       }),
-    });
+    }, 'ollama');
 
     if (!response.ok) {
       return heuristic;
@@ -521,6 +647,86 @@ async function analyzeTabularDataWithOllama(sampleRows) {
   }
 }
 
+function generateHeuristicChatReply(message, context = {}) {
+  const text = String(message || '').trim();
+  if (!text) {
+    return 'Please share a question or instruction so I can help.';
+  }
+
+  const lowered = text.toLowerCase();
+  if (lowered.includes('status') || lowered.includes('health')) {
+    return 'Service is running in self-contained mode. I can help with patrol workflows, plate checks, and compliance process guidance.';
+  }
+  if (lowered.includes('privacy') || lowered.includes('data')) {
+    return 'This deployment is configured for local processing. External cloud calls are blocked by strict self-contained egress policy.';
+  }
+  if (lowered.includes('plate') || lowered.includes('rego')) {
+    return 'I can assist with plate workflow guidance. Upload evidence through the enforcement workflow and I can help summarize next steps.';
+  }
+
+  const tone = context?.tone === 'brief' ? 'briefly' : 'clearly';
+  return `I understand your request. I will respond ${tone} and keep recommendations aligned with local enforcement policy and evidence-first decisions.`;
+}
+
+async function generateChatReplyWithOllama(message, history = [], context = {}) {
+  if (!OLLAMA_ENABLED) {
+    recordEgressEvent('ollama', 'blocked', 'Chat requested ollama but local ollama is unavailable');
+    return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS);
+  try {
+    recordEgressEvent('ollama', 'attempted', 'chat response generation');
+    const response = await safeFetch(`${OLLAMA_BASE_URL}/api/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: OLLAMA_MODEL,
+        stream: false,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are FieldOps Assistant. Be concise, policy-aware, and avoid guessing facts. Return plain text only.',
+          },
+          ...history.slice(-12).map((m) => ({
+            role: m?.role === 'assistant' ? 'assistant' : 'user',
+            content: String(m?.content || ''),
+          })),
+          {
+            role: 'user',
+            content: String(message || ''),
+          },
+        ],
+      }),
+    }, 'ollama');
+
+    if (!response.ok) {
+      return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
+    }
+
+    const payload = await response.json();
+    const content = payload?.message?.content;
+    if (!content || typeof content !== 'string') {
+      return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
+    }
+
+    return {
+      provider: 'ollama',
+      text: content.trim(),
+      fallback: false,
+    };
+  } catch (error) {
+    console.warn('⚠️ Local chat via Ollama failed:', error.message);
+    return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 app.post('/nlp/tabular/analyze', tabularRateLimit, requireInferenceAuth, async (req, res) => {
   try {
     const sampleRows = req.body?.sampleRows;
@@ -528,7 +734,7 @@ app.post('/nlp/tabular/analyze', tabularRateLimit, requireInferenceAuth, async (
       return res.status(400).json({ error: 'sampleRows must be a non-empty array' });
     }
 
-    const analysis = TABULAR_NLP_PROVIDER === 'ollama'
+    const analysis = OLLAMA_ENABLED
       ? await analyzeTabularDataWithOllama(sampleRows)
       : analyzeTabularDataHeuristic(sampleRows);
 
@@ -544,6 +750,136 @@ app.post('/nlp/tabular/analyze', tabularRateLimit, requireInferenceAuth, async (
       message: error.message,
     });
   }
+});
+
+app.post('/chat', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const message = req.body?.message;
+    const history = Array.isArray(req.body?.history) ? req.body.history : [];
+    const context = req.body?.context && typeof req.body.context === 'object' ? req.body.context : {};
+
+    if (typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({ error: 'message must be a non-empty string' });
+    }
+
+    if (CHAT_PROVIDER === 'ollama') {
+      const reply = await generateChatReplyWithOllama(message, history, context);
+      return res.json({
+        success: true,
+        provider: reply.provider,
+        fallback: reply.fallback,
+        message: reply.text,
+      });
+    }
+
+    return res.json({
+      success: true,
+      provider: 'heuristic',
+      fallback: false,
+      message: generateHeuristicChatReply(message, context),
+    });
+  } catch (error) {
+    console.error('Chat endpoint error:', error);
+    return res.status(500).json({ error: 'Chat failed', message: error.message });
+  }
+});
+
+app.post('/self-heal/bug-report', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    if (!SELF_HEALING_ENABLED) {
+      return res.status(503).json({ error: 'Self-healing assistant is disabled' });
+    }
+
+    const report = req.body?.report;
+    if (!report || typeof report !== 'object') {
+      return res.status(400).json({ error: 'report object is required' });
+    }
+
+    if (typeof report.summary !== 'string' || !report.summary.trim()) {
+      return res.status(400).json({ error: 'report.summary must be a non-empty string' });
+    }
+
+    const plan = buildSelfHealingPlan(report, {
+      selfContainedMode: SELF_CONTAINED_MODE,
+    });
+
+    return res.json({
+      success: true,
+      self_healing_enabled: true,
+      plan,
+    });
+  } catch (error) {
+    console.error('Self-heal endpoint error:', error);
+    return res.status(500).json({ error: 'Self-heal planning failed', message: error.message });
+  }
+});
+
+app.get('/self-heal/knowledge', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  return res.json({
+    success: true,
+    self_healing_enabled: SELF_HEALING_ENABLED,
+    knowledge: getKnowledgePacks(),
+  });
+});
+
+app.post('/self-heal/patch-task', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    if (!SELF_HEALING_ENABLED) {
+      return res.status(503).json({ error: 'Self-healing assistant is disabled' });
+    }
+
+    const report = req.body?.report;
+    if (!report || typeof report !== 'object' || !String(report.summary || '').trim()) {
+      return res.status(400).json({ error: 'report with non-empty summary is required' });
+    }
+
+    const plan = req.body?.plan && typeof req.body.plan === 'object'
+      ? req.body.plan
+      : buildSelfHealingPlan(report, { selfContainedMode: SELF_CONTAINED_MODE });
+
+    const patchTask = buildPatchTask(report, plan);
+
+    return res.json({
+      success: true,
+      patch_task: patchTask,
+    });
+  } catch (error) {
+    console.error('Patch task endpoint error:', error);
+    return res.status(500).json({ error: 'Patch task generation failed', message: error.message });
+  }
+});
+
+app.post('/intel/ingest-bulletin', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const rawBody = JSON.stringify(req.body || {});
+    const signature = req.get('x-intel-signature') || '';
+
+    if (!intelStore.verifySignature(rawBody, signature)) {
+      return res.status(401).json({ error: 'Invalid or missing bulletin signature' });
+    }
+
+    const bulletin = req.body?.bulletin;
+    if (!bulletin || typeof bulletin !== 'object') {
+      return res.status(400).json({ error: 'bulletin object is required' });
+    }
+
+    const stored = intelStore.ingestBulletin(bulletin);
+    return res.json({
+      success: true,
+      stored,
+      state: intelStore.getState(),
+    });
+  } catch (error) {
+    console.error('Intel ingest error:', error);
+    return res.status(500).json({ error: 'Intel ingest failed', message: error.message });
+  }
+});
+
+app.get('/intel/state', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  return res.json({
+    success: true,
+    intel: intelStore.getState(),
+  });
 });
 
 function nearestColourName(r, g, b) {
@@ -743,7 +1079,8 @@ async function generateEmbedding(imageTensor) {
 }
 
 async function inferVehicleAttributesWithOpenAI(vehicleCropBuffer) {
-  if (!OPENAI_API_KEY) {
+  if (!OPENAI_ENABLED) {
+    recordEgressEvent('openai', 'blocked', 'SELF_CONTAINED_MODE or OPENAI_API_KEY missing');
     return null;
   }
 
@@ -752,7 +1089,8 @@ async function inferVehicleAttributesWithOpenAI(vehicleCropBuffer) {
   const timeout = setTimeout(() => controller.abort(), ATTR_TIMEOUT_MS);
 
   try {
-    const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+    recordEgressEvent('openai', 'attempted', 'inferVehicleAttributesWithOpenAI');
+    const response = await safeFetch(`${OPENAI_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -784,7 +1122,7 @@ async function inferVehicleAttributesWithOpenAI(vehicleCropBuffer) {
           },
         ],
       }),
-    });
+    }, 'openai');
 
     if (!response.ok) {
       console.warn(`⚠️ OpenAI attrs returned ${response.status}`);
@@ -982,14 +1320,18 @@ async function detectFacesWithONNX(imageBuffer) {
 // Returns { face_count, faces[] } or null on failure.
 // Each face: { bbox: {x,y,w,h} (normalised 0-1), confidence, approximate_age, gender, description }
 async function detectFacesWithOpenAI(imageBuffer) {
-  if (!OPENAI_API_KEY) return null;
+  if (!OPENAI_ENABLED) {
+    recordEgressEvent('openai', 'blocked', 'SELF_CONTAINED_MODE or OPENAI_API_KEY missing');
+    return null;
+  }
 
   const imageBase64 = imageBuffer.toString('base64');
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ATTR_TIMEOUT_MS);
 
   try {
-    const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+    recordEgressEvent('openai', 'attempted', 'detectFacesWithOpenAI');
+    const response = await safeFetch(`${OPENAI_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1032,7 +1374,7 @@ async function detectFacesWithOpenAI(imageBuffer) {
           },
         ],
       }),
-    });
+    }, 'openai');
 
     if (!response.ok) {
       console.warn(`⚠️ OpenAI face detection returned HTTP ${response.status}`);
@@ -1700,21 +2042,23 @@ app.post('/infer/chalk', inferenceRateLimit, upload.single('photo'), requireInfe
     // ── 1. Plate Recognition via Plate Recognizer ─────────────────────
     let plate = null;
     let plateConfidence = null;
-    if (process.env.PLATERECOGNIZER_TOKEN) {
+    if (CLOUD_ALPR_ENABLED) {
       try {
+        recordEgressEvent('cloud_alpr', 'attempted', 'chalk plate recognition');
         const formData = new FormData();
         const blob = new Blob([imageBuffer], { type: req.file.mimetype || 'image/jpeg' });
         formData.append('upload', blob, req.file.originalname || 'photo.jpg');
         formData.append('regions', process.env.ALPR_REGIONS || 'nz');
 
-        const alprResp = await fetch(
+        const alprResp = await safeFetch(
           process.env.ALPR_CLOUD_URL || 'https://api.platerecognizer.com/v1/plate-reader/',
           {
             method: 'POST',
             headers: { Authorization: `Token ${process.env.PLATERECOGNIZER_TOKEN}` },
             body: formData,
             signal: AbortSignal.timeout(5000),
-          }
+          },
+          'cloud_alpr'
         );
         if (alprResp.ok) {
           const alprData = await alprResp.json();
@@ -1727,6 +2071,8 @@ app.post('/infer/chalk', inferenceRateLimit, upload.single('photo'), requireInfe
       } catch (alprErr) {
         console.warn('⚠️  /infer/chalk ALPR failed (non-fatal):', alprErr.message);
       }
+    } else {
+      recordEgressEvent('cloud_alpr', 'blocked', 'SELF_CONTAINED_MODE or PLATERECOGNIZER_TOKEN missing');
     }
 
     // ── 2. Tyre valve position via OpenAI vision ──────────────────────
@@ -1734,14 +2080,15 @@ app.post('/infer/chalk', inferenceRateLimit, upload.single('photo'), requireInfe
     let valveConfidence = 0;
     let valveDescription = 'Valve position could not be determined';
 
-    if (OPENAI_API_KEY) {
+    if (OPENAI_ENABLED) {
       try {
+        recordEgressEvent('openai', 'attempted', 'chalk valve detection');
         const imageBase64 = imageBuffer.toString('base64');
         const mimeType = req.file.mimetype || 'image/jpeg';
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), ATTR_TIMEOUT_MS);
 
-        const valveResp = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+        const valveResp = await safeFetch(`${OPENAI_BASE_URL}/chat/completions`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1777,7 +2124,7 @@ app.post('/infer/chalk', inferenceRateLimit, upload.single('photo'), requireInfe
               },
             ],
           }),
-        });
+        }, 'openai');
 
         clearTimeout(timeout);
 
@@ -1797,6 +2144,8 @@ app.post('/infer/chalk', inferenceRateLimit, upload.single('photo'), requireInfe
       } catch (valveErr) {
         console.warn('⚠️  /infer/chalk valve detection failed (non-fatal):', valveErr.message);
       }
+    } else {
+      recordEgressEvent('openai', 'blocked', 'SELF_CONTAINED_MODE or OPENAI_API_KEY missing');
     }
 
     // ── 3. Vehicle detection + embedding + attributes ────────────────
@@ -1867,8 +2216,8 @@ app.post('/infer/chalk', inferenceRateLimit, upload.single('photo'), requireInfe
 
         metadata: {
           processing_time_ms: duration,
-          alpr_available:     !!process.env.PLATERECOGNIZER_TOKEN,
-          valve_ai_available: !!OPENAI_API_KEY,
+          alpr_available:     CLOUD_ALPR_ENABLED,
+          valve_ai_available: OPENAI_ENABLED,
           onnx_available:     modelsLoaded,
         },
       },
@@ -1912,17 +2261,19 @@ app.post('/infer/compare', inferenceRateLimit, requireInferenceAuth, async (req,
       ? dot / (Math.sqrt(norm1) * Math.sqrt(norm2))
       : 0;
 
-    // Thresholds tuned for MobileNetV3 384D embeddings on vehicle photos
-    const same_vehicle = similarity >= 0.85;
-    const confidence   = similarity >= 0.92 ? 'high'
-                        : similarity >= 0.85 ? 'medium'
-                        : similarity >= 0.70 ? 'low'
+    const activeThreshold = selfLearningService.getThreshold();
+    const same_vehicle = similarity >= activeThreshold;
+    const confidence   = similarity >= (activeThreshold + 0.07) ? 'high'
+                        : similarity >= activeThreshold ? 'medium'
+                        : similarity >= Math.max(0, activeThreshold - 0.15) ? 'low'
                         : 'different';
 
     return res.json({
       similarity: Math.round(similarity * 10000) / 10000,  // 4 decimal places
       same_vehicle,
       confidence,
+      threshold_used: Math.round(activeThreshold * 10000) / 10000,
+      self_learning_enabled: selfLearningService.enabled,
       interpretation:
         same_vehicle
           ? `Same vehicle detected (similarity ${(similarity * 100).toFixed(1)}%)`
@@ -1933,6 +2284,43 @@ app.post('/infer/compare', inferenceRateLimit, requireInferenceAuth, async (req,
     console.error('❌ /infer/compare error:', error);
     return res.status(500).json({ error: 'Comparison failed', message: error.message });
   }
+});
+
+// Collect labeled outcomes so similarity threshold can self-adjust over time.
+app.post('/learn/compare-feedback', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const similarity = Number(req.body?.similarity);
+    const actualSameVehicle = req.body?.actual_same_vehicle;
+    const context = req.body?.context || {};
+
+    if (!Number.isFinite(similarity) || similarity < 0 || similarity > 1) {
+      return res.status(400).json({ error: 'similarity must be a number between 0 and 1' });
+    }
+
+    if (typeof actualSameVehicle !== 'boolean') {
+      return res.status(400).json({ error: 'actual_same_vehicle must be a boolean' });
+    }
+
+    const learningResult = selfLearningService.applyCompareFeedback({
+      similarity,
+      actual_same_vehicle: actualSameVehicle,
+      context,
+    });
+
+    return res.json({
+      success: true,
+      learning: learningResult,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to apply learning feedback', message: error.message });
+  }
+});
+
+app.get('/learn/state', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  return res.json({
+    success: true,
+    learning: selfLearningService.getState(),
+  });
 });
 
 // ============================================================================
@@ -1987,7 +2375,7 @@ app.post('/infer/face', inferenceRateLimit, upload.single('photo'), requireInfer
     // Runs when:
     //   • ONNX found faces → enrich age/gender/description for each face
     //   • ONNX unavailable OR found 0 faces → full detection + description
-    if (OPENAI_API_KEY && (faces.length > 0 || !onnxAvailable)) {
+    if (OPENAI_ENABLED && (faces.length > 0 || !onnxAvailable)) {
       try {
         const visionResult = await detectFacesWithOpenAI(imageBuffer);
         if (visionResult) {
@@ -2067,7 +2455,7 @@ app.post('/infer/face', inferenceRateLimit, upload.single('photo'), requireInfer
         processing_time_ms:  duration,
         onnx_face_model:     onnxAvailable,
         onnx_embedding:      embeddingAvailable,
-        openai_available:    !!OPENAI_API_KEY,
+        openai_available:    OPENAI_ENABLED,
         embedding_available: embedding !== null,
       },
     });
@@ -2089,34 +2477,59 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
     },
     config: {
       VEHICLE_ATTRS_PROVIDER,
+      VEHICLE_ATTRS_PROVIDER_RAW,
       TABULAR_NLP_PROVIDER,
+      TABULAR_NLP_PROVIDER_RAW,
+      CHAT_PROVIDER,
+      CHAT_PROVIDER_RAW,
+      SELF_CONTAINED_MODE,
+      SELF_LEARNING_ENABLED,
+      SELF_HEALING_ENABLED,
+      INTEL_SIGNING_REQUIRED: !!INTEL_HMAC_KEY,
       SUPABASE_JWKS_CONFIGURED: !!SUPABASE_JWKS_URL,
       SUPABASE_JWT_ISSUER_CONFIGURED: !!SUPABASE_JWT_ISSUER,
       SUPABASE_JWT_AUDIENCE_CONFIGURED: !!SUPABASE_JWT_AUDIENCE,
       OPENAI_BASE_URL_CUSTOM: OPENAI_BASE_URL !== 'https://api.openai.com/v1',
       OPENAI_MODEL: OPENAI_MODEL || null,
-      OPENAI_API_KEY_SET: !!OPENAI_API_KEY,
+      OPENAI_API_KEY_SET: OPENAI_ENABLED,
       INFERENCE_API_KEY_SET: !!INFERENCE_API_KEY,
       SUPABASE_SERVICE_ROLE_KEY_SET: !!SUPABASE_SERVICE_ROLE_KEY,
     },
     capabilities: {
       plate_inference: modelsLoaded,
-      ai_attributes: VEHICLE_ATTRS_PROVIDER === 'openai' && !!OPENAI_API_KEY,
+      ai_attributes: VEHICLE_ATTRS_PROVIDER === 'openai' && OPENAI_ENABLED,
       tabular_nlp: true,
+      tabular_nlp_ollama_enabled: OLLAMA_ENABLED,
+      chat: true,
+      chat_local_ollama_enabled: CHAT_PROVIDER === 'ollama' && OLLAMA_ENABLED,
+      chat_heuristic_enabled: CHAT_PROVIDER === 'heuristic',
+      self_healing_bug_assistant: SELF_HEALING_ENABLED,
+      local_intel_updates: true,
       tabular_nlp_auth_api_key: !!INFERENCE_API_KEY,
       tabular_nlp_auth_supabase_jwt: !!SUPABASE_JWKS_URL,
       tabular_nlp_auth_service_role: !!SUPABASE_SERVICE_ROLE_KEY,
+      self_learning: selfLearningService.enabled,
+      compare_threshold: Math.round(selfLearningService.getThreshold() * 10000) / 10000,
       // Self-hosted ALPR
       local_alpr: true,                          // always available (tesseract.js)
       local_alpr_plate_model: fs.existsSync(PLATE_DETECT_MODEL_PATH),
-      chalk_valve_ai: VEHICLE_ATTRS_PROVIDER === 'openai' && !!OPENAI_API_KEY,
+      cloud_alpr_enabled: CLOUD_ALPR_ENABLED,
+      chalk_valve_ai: VEHICLE_ATTRS_PROVIDER === 'openai' && OPENAI_ENABLED,
       // Face recognition
-      face_detection: !!OPENAI_API_KEY || fs.existsSync(FACE_DETECT_MODEL_PATH),
+      face_detection: OPENAI_ENABLED || fs.existsSync(FACE_DETECT_MODEL_PATH),
       face_detection_onnx: fs.existsSync(FACE_DETECT_MODEL_PATH), // UltraFace-640
       face_embedding: modelsLoaded,              // MobileNetV3 embedding for comparison
     },
     uptime: process.uptime(),
     memory: process.memoryUsage()
+  });
+});
+
+// Egress audit endpoint (requires the same auth as protected inference routes).
+app.get('/audit/egress', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  res.json({
+    success: true,
+    audit: egressAudit,
   });
 });
 
@@ -2132,15 +2545,21 @@ app.use((err, req, res, next) => {
 
 // Start server
 loadModels().then(() => {
+  if (REQUIRE_SELF_CONTAINED_MODE && !SELF_CONTAINED_MODE) {
+    console.error('❌ REQUIRE_SELF_CONTAINED_MODE is true but SELF_CONTAINED_MODE is not enabled. Refusing to start.');
+    process.exit(1);
+  }
+
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 ORC/AI inference service running on port ${PORT}`);
     // Config summary — makes misconfiguration visible at a glance in Railway logs
     const usesOllama = VEHICLE_ATTRS_PROVIDER === 'ollama' || TABULAR_NLP_PROVIDER === 'ollama';
-    const usesOpenAI = VEHICLE_ATTRS_PROVIDER === 'openai' || TABULAR_NLP_PROVIDER === 'openai';
+    const usesOpenAI = (VEHICLE_ATTRS_PROVIDER === 'openai' || TABULAR_NLP_PROVIDER === 'openai') && OPENAI_ENABLED;
     console.log(`⚙️  Config:`, {
       VEHICLE_ATTRS_PROVIDER,
       TABULAR_NLP_PROVIDER,
       TABULAR_NLP_TIMEOUT_MS,
+      SELF_CONTAINED_MODE,
       ...(usesOllama && { OLLAMA_BASE_URL, OLLAMA_MODEL }),
       INFERENCE_API_KEY_SET: !!INFERENCE_API_KEY,
       SUPABASE_SERVICE_ROLE_KEY_SET: !!SUPABASE_SERVICE_ROLE_KEY,
@@ -2150,12 +2569,12 @@ loadModels().then(() => {
       ...(usesOpenAI && {
         OPENAI_BASE_URL: OPENAI_BASE_URL || '(not set)',
         OPENAI_MODEL: OPENAI_MODEL || '(not set)',
-        OPENAI_API_KEY_SET: !!OPENAI_API_KEY,
+        OPENAI_API_KEY_SET: OPENAI_ENABLED,
       }),
     });
     if (!INFERENCE_API_KEY && !SUPABASE_SERVICE_ROLE_KEY) {
       console.warn('⚠️  No static auth configured (INFERENCE_API_KEY and SUPABASE_SERVICE_ROLE_KEY are both unset).');
-      console.warn('   Authenticated endpoints (/infer/face, /infer/compare, /infer/alpr, /nlp/tabular/analyze)');
+      console.warn('   Authenticated endpoints (/infer/face, /infer/compare, /infer/alpr, /nlp/tabular/analyze, /chat, /self-heal/bug-report, /self-heal/knowledge, /self-heal/patch-task, /intel/ingest-bulletin, /intel/state)');
       console.warn('   will only accept valid Supabase user JWTs (Bearer token verified against JWKS).');
       console.warn('   Edge functions cannot call these endpoints without a user JWT.');
       console.warn('   Fix: set SUPABASE_SERVICE_ROLE_KEY environment variable to enable service-to-service auth.');
@@ -2172,6 +2591,12 @@ loadModels().then(() => {
     } else {
       console.log(`ℹ️  UltraFace-640 not present (models/version-RFB-640.onnx). Face detection will use OpenAI vision fallback.`);
       console.log(`   Run: node scripts/download-models.js   to download all optional models.`);
+    }
+    if (SELF_CONTAINED_MODE) {
+      console.log('🔒 SELF_CONTAINED_MODE enabled — outbound cloud AI/ALPR providers are disabled.');
+      if (TABULAR_NLP_PROVIDER === 'ollama' && !OLLAMA_ENABLED) {
+        console.log('ℹ️  OLLAMA_BASE_URL is non-local; tabular analysis will use heuristic mode.');
+      }
     }
   });
 });

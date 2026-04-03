@@ -4,9 +4,8 @@ import { useAuthStore } from '@/stores/authStore'
 import { Navigate } from 'react-router-dom'
 
 interface OrgSummary {
-  org_id: string
-  org_name: string
-  org_slug: string
+  id: string
+  name: string
   contact_email: string | null
   is_active: boolean
   created_at: string
@@ -16,7 +15,7 @@ interface OrgSummary {
 
 export default function CleanPlatform() {
   const { user } = useAuthStore()
-  const role = user?.user_metadata?.role as string | undefined
+  const role = user?.role ?? undefined
   const isGrandMaster = role === 'grand_master'
 
   const [orgs, setOrgs] = useState<OrgSummary[]>([])
@@ -32,14 +31,14 @@ export default function CleanPlatform() {
         const { data: orgData, error: orgErr } = await supabase
           .from('organizations')
           .select('*')
-          .order('org_name', { ascending: true })
+          .order('name', { ascending: true })
         if (orgErr) throw orgErr
 
         // Load per-org counts
         const enriched = await Promise.all((orgData ?? []).map(async (org: any) => {
           const [userRes, obsRes] = await Promise.all([
-            supabase.from('user_profiles').select('user_id', { count: 'exact', head: true }).eq('org_id', org.org_id).eq('is_active', true),
-            supabase.from('observations').select('observation_id', { count: 'exact', head: true }).eq('org_id', org.org_id),
+            supabase.from('user_profiles').select('id', { count: 'exact', head: true }).eq('organization_id', org.id).eq('is_active', true),
+            supabase.from('observations').select('observation_id', { count: 'exact', head: true }).eq('organization_id', org.id),
           ])
           return {
             ...org,
@@ -65,13 +64,13 @@ export default function CleanPlatform() {
 
   async function toggleOrg(org: OrgSummary) {
     const next = !org.is_active
-    if (!confirm(`${next ? 'Activate' : 'Deactivate'} organisation "${org.org_name}"?`)) return
+    if (!confirm(`${next ? 'Activate' : 'Deactivate'} organisation "${org.name}"?`)) return
     const { error: err } = await supabase
       .from('organizations')
       .update({ is_active: next })
-      .eq('org_id', org.org_id)
+      .eq('id', org.id)
     if (err) { alert(err.message); return }
-    setOrgs(orgs.map(o => o.org_id === org.org_id ? { ...o, is_active: next } : o))
+    setOrgs(orgs.map(o => o.id === org.id ? { ...o, is_active: next } : o))
   }
 
   // Guard — only grand_master
@@ -124,9 +123,9 @@ export default function CleanPlatform() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {orgs.map(org => (
-                  <tr key={org.org_id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-900">{org.org_name}</td>
-                    <td className="px-4 py-3 font-mono text-gray-600 text-xs">{org.org_slug}</td>
+                  <tr key={org.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium text-gray-900">{org.name}</td>
+                    <td className="px-4 py-3 font-mono text-gray-600 text-xs">{org.id}</td>
                     <td className="px-4 py-3 text-gray-600">{org.contact_email ?? '—'}</td>
                     <td className="px-4 py-3 text-gray-700 text-right">{org.user_count ?? 0}</td>
                     <td className="px-4 py-3 text-gray-700 text-right">{(org.observation_count ?? 0).toLocaleString()}</td>

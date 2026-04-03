@@ -120,6 +120,176 @@ curl -X POST http://localhost:3000/nlp/tabular/analyze \
 }
 ```
 
+### **POST /chat**
+
+User-facing assistant endpoint with local-first behavior.
+
+In strict self-contained mode:
+- `CHAT_PROVIDER=heuristic` returns deterministic local responses.
+- `CHAT_PROVIDER=ollama` is allowed only when `OLLAMA_BASE_URL` is local.
+- Any cloud provider path is blocked by runtime egress policy.
+
+Authentication:
+- `x-inference-api-key` matching `INFERENCE_API_KEY`
+- `Authorization: Bearer <supabase_jwt>` (if JWKS auth is enabled)
+- `Authorization: Bearer <service_role_key>`
+
+**Request:**
+```bash
+curl -X POST http://localhost:3000/chat \
+  -H "Content-Type: application/json" \
+  -H "x-inference-api-key: $INFERENCE_API_KEY" \
+  -d '{
+    "message": "What is our current enforcement status?",
+    "history": [],
+    "context": { "tone": "brief" }
+  }'
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "provider": "heuristic",
+  "fallback": false,
+  "message": "Service is running in self-contained mode..."
+}
+```
+
+### **POST /self-heal/bug-report**
+
+Build-aware self-healing planning endpoint for bug report automation.
+
+It returns:
+- Bug classification
+- Reproduction checklist
+- Remediation steps
+- Safeguards and rollout recommendations
+- NZ compliance guidance note (operational, not legal advice)
+
+**Request:**
+```bash
+curl -X POST http://localhost:3000/self-heal/bug-report \
+  -H "Content-Type: application/json" \
+  -H "x-inference-api-key: $INFERENCE_API_KEY" \
+  -d '{
+    "report": {
+      "summary": "Inference endpoint intermittently returns 500 on large uploads",
+      "severity": "high",
+      "stack_trace": "TypeError: Cannot read properties of undefined",
+      "service": "inference-service"
+    }
+  }'
+```
+
+### **GET /self-heal/knowledge**
+
+Returns loaded knowledge packs used by the self-healing planner:
+- FieldOps build context
+- NZ compliance context
+- Structured coding/problem-solving context
+
+### **POST /self-heal/patch-task**
+
+Generates a machine-readable patch task payload for your auto-fix worker.
+
+**Request:**
+```bash
+curl -X POST http://localhost:3000/self-heal/patch-task \
+  -H "Content-Type: application/json" \
+  -H "x-inference-api-key: $INFERENCE_API_KEY" \
+  -d '{
+    "report": {
+      "summary": "TypeError in patrol sync route",
+      "severity": "medium",
+      "stack_trace": "TypeError: Cannot read properties of undefined"
+    }
+  }'
+```
+
+### **POST /intel/ingest-bulletin**
+
+Secure local ingestion endpoint for updates related to:
+- NZ laws/policy
+- security risks/advisories
+- jurisdiction boundary changes
+- partner/system operational notices
+
+This endpoint does not fetch external data itself. You push vetted bulletins into it.
+
+If `INTEL_HMAC_KEY` is set, send `x-intel-signature` with SHA-256 HMAC of the raw JSON body.
+
+### **GET /intel/state**
+
+Returns stored intelligence bulletins and category counts for downstream decision logic.
+
+### **Secure Bulletin Feeder Script**
+
+Use the local feeder script to push vetted updates into `/intel/ingest-bulletin`:
+
+```bash
+# Dry-run first
+npm run intel:push-bulletin -- \
+  --file scripts/example-intel-bulletin.json \
+  --url https://your-inference-service/intel/ingest-bulletin \
+  --api-key "$INFERENCE_API_KEY" \
+  --hmac-key "$INTEL_HMAC_KEY" \
+  --dry-run true
+
+# Real push
+npm run intel:push-bulletin -- \
+  --file scripts/example-intel-bulletin.json \
+  --url https://your-inference-service/intel/ingest-bulletin \
+  --api-key "$INFERENCE_API_KEY" \
+  --hmac-key "$INTEL_HMAC_KEY"
+```
+
+Environment variable fallback is supported:
+- `INTEL_INGEST_URL`
+- `INFERENCE_API_KEY`
+- `INTEL_HMAC_KEY`
+
+### **Automated Feed Harvester**
+
+Use the scheduled harvester to scan vetted websites/feeds and ingest useful updates:
+
+```bash
+INTEL_FEED_URLS="https://example.com/rss,https://example.com/advisories.json" \
+INTEL_INGEST_URL="https://your-inference-service/intel/ingest-bulletin" \
+INFERENCE_API_KEY="$INFERENCE_API_KEY" \
+INTEL_HMAC_KEY="$INTEL_HMAC_KEY" \
+npm run intel:harvest-feeds
+```
+
+Optional DB sync to Supabase:
+- `INTEL_ENABLE_DB_SYNC=true`
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `INTEL_ORGANIZATION_ID`
+- `INTEL_DB_TABLE` (default `external_intel_bulletins`)
+
+Safety controls:
+- `INTEL_ALLOWED_HOSTS` to restrict scanning to approved domains only.
+- `INTEL_DRY_RUN=true` to test harvesting without ingesting or writing to DB.
+
+When explicit identifiers are found, the harvester can also add:
+- `persons_of_interest`
+- `vehicles_of_interest`
+
+Approval model:
+- Harvested bulletins are stored as `approval_status=pending`.
+- POI/VOI candidates are stored on the bulletin (`poi_candidate`, `voi_candidate`) and are not auto-promoted.
+- Only `master` / `grand_master` should approve and promote via DB function:
+  - `approve_external_intel_bulletin(...)`
+
+Emergency/public safety model:
+- High-risk events (Amber Alert, active offender, civil defense, severe weather, emergency alerts) create pending rows in `public_safety_alerts`.
+- Only `master` / `grand_master` can activate/reject via:
+  - `approve_public_safety_alert(...)`
+- Active alerts are shown as acknowledgement banners in the app layout for targeted users.
+- National scope alerts are shown to all users.
+- Regional scope alerts are targeted using `INTEL_REGION_ORG_MAP` and neighboring-region expansion.
+
 ### **POST /infer**
 
 Generate vehicle embedding from photo.
@@ -246,6 +416,17 @@ railway domain
 ---
 
 ## **Testing**
+
+### **Pretrain Self-Learning State**
+
+Seed the local self-learning model with a baseline profile before first runtime:
+
+```bash
+npm run pretrain:self-learning
+```
+
+This writes `data/self-learning-state.json` and improves first-run threshold quality.
+In Railway Docker builds, this pretraining step is executed automatically.
 
 ### **Local Test**
 

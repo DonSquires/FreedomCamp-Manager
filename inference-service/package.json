@@ -7,7 +7,11 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "download-models": "node scripts/download-models.js",
-    "test": "./test-local.sh"
+    "pretrain:self-learning": "node scripts/pretrain-self-learning.js",
+    "intel:push-bulletin": "node scripts/push-intel-bulletin.mjs",
+    "intel:harvest-feeds": "node scripts/harvest-intel-feeds.mjs",
+    "test": "./test-local.sh",
+    "test:self-contained": "node scripts/test-self-contained-mode.mjs"
   },
   "keywords": [
     "vehicle-detection",

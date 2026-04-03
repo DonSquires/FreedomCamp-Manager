@@ -26,48 +26,65 @@ const defaultPassword = sharedPassword(
   'API_TEST_PASSWORD'
 )
 
+const defaultLiveEmail = readEnv('PLAYWRIGHT_LIVE_EMAIL', 'E2E_LIVE_EMAIL', 'API_TEST_EMAIL')
+const defaultLivePassword = sharedPassword(
+  'PLAYWRIGHT_LIVE_PASSWORD',
+  'E2E_LIVE_PASSWORD',
+  'API_TEST_PASSWORD',
+  'PLAYWRIGHT_TEST_PASSWORD',
+  'E2E_TEST_PASSWORD'
+)
+
 export const testUsers: Record<TestUserKey, TestCredentials> = {
   master: {
-    email: readEnv('PLAYWRIGHT_MASTER_EMAIL', 'E2E_MASTER_EMAIL') || 'master@test.com',
+    email: readEnv('PLAYWRIGHT_MASTER_EMAIL', 'E2E_MASTER_EMAIL') || defaultLiveEmail || 'master@test.com',
     password: sharedPassword(
       'PLAYWRIGHT_MASTER_PASSWORD',
       'E2E_MASTER_PASSWORD',
+      'PLAYWRIGHT_LIVE_PASSWORD',
+      'E2E_LIVE_PASSWORD',
+      'API_TEST_PASSWORD',
       'PLAYWRIGHT_TEST_PASSWORD',
-      'E2E_TEST_PASSWORD',
-      'API_TEST_PASSWORD'
-    ),
+      'E2E_TEST_PASSWORD'
+    ) || defaultLivePassword,
   },
   adminOrg1: {
-    email: readEnv('PLAYWRIGHT_ADMIN_EMAIL', 'E2E_ADMIN_EMAIL', 'PLAYWRIGHT_ADMIN_ORG1_EMAIL') || 'admin@org1.com',
+    email: readEnv('PLAYWRIGHT_ADMIN_EMAIL', 'E2E_ADMIN_EMAIL', 'PLAYWRIGHT_ADMIN_ORG1_EMAIL') || defaultLiveEmail || 'admin@org1.com',
     password: sharedPassword(
       'PLAYWRIGHT_ADMIN_PASSWORD',
       'E2E_ADMIN_PASSWORD',
       'PLAYWRIGHT_ADMIN_ORG1_PASSWORD',
+      'PLAYWRIGHT_LIVE_PASSWORD',
+      'E2E_LIVE_PASSWORD',
+      'API_TEST_PASSWORD',
       'PLAYWRIGHT_TEST_PASSWORD',
-      'E2E_TEST_PASSWORD',
-      'API_TEST_PASSWORD'
-    ),
+      'E2E_TEST_PASSWORD'
+    ) || defaultLivePassword,
   },
   adminOrg2: {
-    email: readEnv('PLAYWRIGHT_ADMIN_ORG2_EMAIL', 'E2E_ADMIN_ORG2_EMAIL') || 'admin@org2.com',
+    email: readEnv('PLAYWRIGHT_ADMIN_ORG2_EMAIL', 'E2E_ADMIN_ORG2_EMAIL') || defaultLiveEmail || 'admin@org2.com',
     password: sharedPassword(
       'PLAYWRIGHT_ADMIN_ORG2_PASSWORD',
       'E2E_ADMIN_ORG2_PASSWORD',
+      'PLAYWRIGHT_LIVE_PASSWORD',
+      'E2E_LIVE_PASSWORD',
+      'API_TEST_PASSWORD',
       'PLAYWRIGHT_TEST_PASSWORD',
-      'E2E_TEST_PASSWORD',
-      'API_TEST_PASSWORD'
-    ),
+      'E2E_TEST_PASSWORD'
+    ) || defaultLivePassword,
   },
   officerOrg1: {
-    email: readEnv('PLAYWRIGHT_OFFICER_EMAIL', 'E2E_OFFICER_EMAIL', 'PLAYWRIGHT_OFFICER_ORG1_EMAIL') || 'officer@org1.com',
+    email: readEnv('PLAYWRIGHT_OFFICER_EMAIL', 'E2E_OFFICER_EMAIL', 'PLAYWRIGHT_OFFICER_ORG1_EMAIL') || defaultLiveEmail || 'officer@org1.com',
     password: sharedPassword(
       'PLAYWRIGHT_OFFICER_PASSWORD',
       'E2E_OFFICER_PASSWORD',
       'PLAYWRIGHT_OFFICER_ORG1_PASSWORD',
+      'PLAYWRIGHT_LIVE_PASSWORD',
+      'E2E_LIVE_PASSWORD',
+      'API_TEST_PASSWORD',
       'PLAYWRIGHT_TEST_PASSWORD',
-      'E2E_TEST_PASSWORD',
-      'API_TEST_PASSWORD'
-    ),
+      'E2E_TEST_PASSWORD'
+    ) || defaultLivePassword,
   },
 }
 

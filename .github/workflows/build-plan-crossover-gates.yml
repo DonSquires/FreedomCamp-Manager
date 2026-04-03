@@ -1,0 +1,151 @@
+name: Build Plan Crossover Gates
+
+# Enforces step-by-step crossover validation across web, edge APIs, and mobile.
+# This workflow is intended to be the execution gate for rebuild/restart work.
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  web-build-gate:
+    name: 1) Web Build Gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Type-check web app
+        run: bun run typecheck
+
+      - name: Build web app
+        run: bun run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+  api-edge-gate:
+    name: 2) Edge API Gate
+    runs-on: ubuntu-latest
+    needs: web-build-gate
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Ensure API test auth is configured
+        run: |
+          set -euo pipefail
+          if [ -n "${API_TEST_BEARER_TOKEN:-}" ]; then
+            echo "Using API_TEST_BEARER_TOKEN for protected endpoint checks."
+            exit 0
+          fi
+          if [ -n "${API_TEST_EMAIL:-}" ] && [ -n "${API_TEST_PASSWORD:-}" ]; then
+            echo "Using API_TEST_EMAIL/API_TEST_PASSWORD for token bootstrap."
+            exit 0
+          fi
+          echo "::error::API test auth is missing. Set API_TEST_BEARER_TOKEN or both API_TEST_EMAIL and API_TEST_PASSWORD."
+          exit 1
+        env:
+          API_TEST_BEARER_TOKEN: ${{ secrets.API_TEST_BEARER_TOKEN }}
+          API_TEST_EMAIL: ${{ secrets.API_TEST_EMAIL }}
+          API_TEST_PASSWORD: ${{ secrets.API_TEST_PASSWORD }}
+
+      - name: Run edge API response tests
+        run: npx playwright test --config=playwright.api.config.ts
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          API_TEST_BEARER_TOKEN: ${{ secrets.API_TEST_BEARER_TOKEN }}
+          API_TEST_EMAIL: ${{ secrets.API_TEST_EMAIL }}
+          API_TEST_PASSWORD: ${{ secrets.API_TEST_PASSWORD }}
+
+  inference-self-contained-gate:
+    name: 2b) Inference Self-Contained Gate
+    runs-on: ubuntu-latest
+    needs: api-edge-gate
+    defaults:
+      run:
+        working-directory: inference-service
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install inference dependencies
+        run: npm install
+
+      - name: Verify self-contained mode behavior
+        run: npm run test:self-contained
+
+  mobile-expo-gate:
+    name: 3) Mobile Expo Gate
+    runs-on: ubuntu-latest
+    needs: inference-self-contained-gate
+    defaults:
+      run:
+        working-directory: mobile-app
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install mobile dependencies
+        run: npm install
+
+      - name: Validate Expo config
+        run: npx expo config --type public
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+
+      - name: Build mobile TypeScript (no emit)
+        run: npx tsc --noEmit
+
+      - name: Validate web export from Expo
+        run: npx expo export --platform web --output-dir dist-web
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+
+  crossover-summary:
+    name: 4) Crossover Summary
+    runs-on: ubuntu-latest
+    needs: [web-build-gate, api-edge-gate, inference-self-contained-gate, mobile-expo-gate]
+    steps:
+      - name: Publish summary
+        run: |
+          echo "## Build Plan Crossover Gates" >> "$GITHUB_STEP_SUMMARY"
+          echo "All staged gates passed:" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Web build gate" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Edge API gate" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Mobile Expo gate" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Safe to proceed to deployment crossover." >> "$GITHUB_STEP_SUMMARY"
