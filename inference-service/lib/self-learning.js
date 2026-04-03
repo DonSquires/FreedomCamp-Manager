@@ -278,6 +278,42 @@ function createSelfLearningService(options = {}) {
     return true;
   }
 
+  function listProcessedEventKeys(limit = 200) {
+    const max = Math.max(1, Math.min(1000, Number(limit) || 200));
+    return state.advisory.processed_event_keys.slice(-max);
+  }
+
+  function clearProcessedEventKeys(options = {}) {
+    if (!enabled) {
+      return {
+        enabled,
+        removed: 0,
+        remaining: state.advisory.processed_event_keys.length,
+      };
+    }
+
+    const prefix = String(options.prefix || '').trim();
+    const before = state.advisory.processed_event_keys.length;
+
+    if (!prefix) {
+      state.advisory.processed_event_keys = [];
+    } else {
+      state.advisory.processed_event_keys = state.advisory.processed_event_keys
+        .filter((key) => !String(key).startsWith(prefix));
+    }
+
+    const removed = before - state.advisory.processed_event_keys.length;
+    state.updated_at = new Date().toISOString();
+    writeState(statePath, state);
+
+    return {
+      enabled,
+      removed,
+      remaining: state.advisory.processed_event_keys.length,
+      prefix: prefix || null,
+    };
+  }
+
   return {
     enabled,
     getThreshold,
@@ -286,6 +322,8 @@ function createSelfLearningService(options = {}) {
     applyOperationalFeedback,
     hasProcessedEventKey,
     markProcessedEventKey,
+    listProcessedEventKeys,
+    clearProcessedEventKeys,
   };
 }
 

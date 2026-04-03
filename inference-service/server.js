@@ -2588,6 +2588,34 @@ app.post('/learn/pretrain', inferenceRateLimit, requireInferenceAuth, async (req
   }
 });
 
+app.get('/learn/dedup-state', rateLimit({ windowMs: 60_000, max: 30, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  const limitRaw = Number(req.query?.limit || 200);
+  const limit = Number.isFinite(limitRaw) ? clamp(Math.floor(limitRaw), 1, 1000) : 200;
+  const keys = selfLearningService.listProcessedEventKeys(limit);
+
+  return res.json({
+    success: true,
+    limit,
+    dedup_keys_count: keys.length,
+    dedup_keys: keys,
+  });
+});
+
+app.post('/learn/dedup-reset', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const prefix = cleanText(req.body?.prefix || '') || '';
+    const resetResult = selfLearningService.clearProcessedEventKeys({ prefix });
+
+    return res.json({
+      success: true,
+      reset: resetResult,
+      learning: selfLearningService.getState(),
+    });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to reset dedup cache', message: error.message });
+  }
+});
+
 app.get('/learn/state', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
   return res.json({
     success: true,
