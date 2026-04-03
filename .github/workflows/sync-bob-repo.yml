@@ -66,8 +66,36 @@ jobs:
             "https://x-access-token:${BOB_SYNC_PAT}@github.com/${BOB_REPO}.git" \
             bob
 
+      - name: Validate Bob source layout
+        if: steps.check-secret.outputs.secret_present == 'true'
+        run: |
+          set -e
+
+          required=(
+            "source/inference-service/Dockerfile"
+            "source/inference-service/railway.json"
+            "source/inference-service/server.js"
+            "source/inference-service/.github/workflows/deploy-railway.yml"
+          )
+
+          missing=""
+          for f in "${required[@]}"; do
+            if [ ! -f "$f" ]; then
+              missing="$missing $f"
+            fi
+          done
+
+          if [ -n "$missing" ]; then
+            echo "::error::Bob sync source is incomplete. Missing:$missing"
+            exit 1
+          fi
+
+          echo "✅ Bob source layout validated"
+
       - name: Sync inference-service contents to Bob
         if: steps.check-secret.outputs.secret_present == 'true'
+        env:
+          SOURCE_SHA: ${{ github.sha }}
         run: |
           # Copy everything from inference-service/ into Bob's root, preserving
           # nested .github/workflows/ so Bob gets its own deploy pipeline.
@@ -81,6 +109,17 @@ jobs:
             --exclude='data/' \
             source/inference-service/ \
             bob/
+
+          # Write a small sync marker so the Bob repo always documents
+          # the canonical deploy entry points in its root.
+          {
+            echo "source_repo=${{ github.repository }}"
+            echo "source_sha=${SOURCE_SHA}"
+            echo "source_path=inference-service/"
+            echo "dockerfile=Dockerfile"
+            echo "railway_config=railway.json"
+            echo "deploy_workflow=.github/workflows/deploy-railway.yml"
+          } > bob/.sync-source
 
       - name: Commit and push to Bob
         if: steps.check-secret.outputs.secret_present == 'true'
