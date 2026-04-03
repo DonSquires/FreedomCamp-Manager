@@ -74,7 +74,7 @@ jobs:
           echo "🔑 Validating Bob Railway token..."
           if ! railway service status --service "$RAILWAY_SERVICE_ID" --json > /dev/null 2>&1; then
             echo "::error::RAILWAY_BOB_TOKEN or RAILWAY_BOB_SERVICE_ID is invalid."
-            echo "Fix the Bob project token or service ID in GitHub Actions secrets."
+            echo "Verify the token belongs to Bob Inference project and service ID is correct."
             exit 1
           fi
 
@@ -89,8 +89,7 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_BOB_SERVICE_ID }}
         run: |
-          cd inference-service
-          echo "🚂 Deploying Bob from inference-service/ ..."
+          echo "🚂 Deploying Bob from repository root ..."
           railway up --service "$RAILWAY_SERVICE_ID" --detach
 
       - name: Verify Bob health and chat route
