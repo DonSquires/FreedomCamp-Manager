@@ -6,11 +6,8 @@ name: Deploy Inference Service to Railway
 # Can also be triggered manually via workflow_dispatch.
 #
 # Required secrets:
-#   RAILWAY_TOKEN      — Railway project token (not a personal token)
-#   RAILWAY_INFERENCE_SERVICE_ID — Railway project → Service → Settings → Service ID (preferred)
-#
-# Legacy fallback:
-#   RAILWAY_SERVICE_ID — still accepted for backward compatibility
+#   RAILWAY_TOKEN                — Railway project token for the inference service project
+#   RAILWAY_INFERENCE_SERVICE_ID — Railway project → Service → Settings → Service ID
 #
 # Optional secrets:
 #   INFERENCE_SERVICE_URL — deployed Railway URL; enables health check after deploy
@@ -37,33 +34,26 @@ jobs:
         id: check-secrets
         run: |
           missing=""
-          service_id="${RAILWAY_INFERENCE_SERVICE_ID:-${RAILWAY_SERVICE_ID:-}}"
-          [ -z "$RAILWAY_TOKEN" ] && missing="$missing RAILWAY_TOKEN"
-          [ -z "$service_id" ]    && missing="$missing RAILWAY_INFERENCE_SERVICE_ID (or legacy RAILWAY_SERVICE_ID)"
+          [ -z "$RAILWAY_TOKEN" ]                  && missing="$missing RAILWAY_TOKEN"
+          [ -z "$RAILWAY_INFERENCE_SERVICE_ID" ]   && missing="$missing RAILWAY_INFERENCE_SERVICE_ID"
           if [ -n "$missing" ]; then
             echo "::warning::Required secrets not configured ($missing) — deployment skipped."
             echo ""
             echo "To enable Railway deployments, add the following secrets at:"
             echo "  https://github.com/${{ github.repository }}/settings/secrets/actions"
             echo ""
-            echo "  RAILWAY_TOKEN:      Railway token with deploy access to the target service/project"
-            echo "                      (project token recommended for CI)."
+            echo "  RAILWAY_TOKEN:                Railway token with deploy access to the inference service project"
+            echo "                                (project token recommended for CI)."
             echo "  RAILWAY_INFERENCE_SERVICE_ID: Railway project → Service → Settings → Service ID"
             echo "secrets_present=false" >> "$GITHUB_OUTPUT"
           else
             echo "✅ Railway secrets present"
-            if [ -n "${RAILWAY_INFERENCE_SERVICE_ID:-}" ]; then
-              echo "Using RAILWAY_INFERENCE_SERVICE_ID"
-            else
-              echo "::warning::Using legacy RAILWAY_SERVICE_ID. Rename to RAILWAY_INFERENCE_SERVICE_ID to avoid service mixups."
-            fi
-            echo "service_id=$service_id" >> "$GITHUB_OUTPUT"
+            echo "service_id=$RAILWAY_INFERENCE_SERVICE_ID" >> "$GITHUB_OUTPUT"
             echo "secrets_present=true" >> "$GITHUB_OUTPUT"
           fi
         env:
-          RAILWAY_TOKEN:      ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_TOKEN:                ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_INFERENCE_SERVICE_ID: ${{ secrets.RAILWAY_INFERENCE_SERVICE_ID }}
-          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
 
       - name: Checkout repository
         if: steps.check-secrets.outputs.secrets_present == 'true'
@@ -88,20 +78,20 @@ jobs:
         id: validate-token
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
-          RAILWAY_TOKEN:      ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_SERVICE_ID: ${{ steps.check-secrets.outputs.service_id }}
+          RAILWAY_TOKEN:                ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_INFERENCE_SERVICE_ID: ${{ steps.check-secrets.outputs.service_id }}
         run: |
           echo "🔑 Validating Railway token..."
-          if ! railway service status --service "$RAILWAY_SERVICE_ID" --json > /dev/null 2>&1; then
+          if ! railway service status --service "$RAILWAY_INFERENCE_SERVICE_ID" --json > /dev/null 2>&1; then
             echo ""
-            echo "::error::RAILWAY_TOKEN or RAILWAY_SERVICE_ID is invalid — deployment cannot proceed."
+            echo "::error::RAILWAY_TOKEN or RAILWAY_INFERENCE_SERVICE_ID is invalid — deployment cannot proceed."
             echo ""
             echo "Common causes:"
             echo "  1. Token is revoked/expired."
-            echo "  2. Token does not have access to the service ID in RAILWAY_SERVICE_ID."
-            echo "  3. RAILWAY_SERVICE_ID is wrong (copied from a different project/service)."
+            echo "  2. Token does not have access to the service ID in RAILWAY_INFERENCE_SERVICE_ID."
+            echo "  3. RAILWAY_INFERENCE_SERVICE_ID is wrong (copied from a different project/service)."
             echo ""
-            echo "Fix: Update RAILWAY_TOKEN and/or RAILWAY_SERVICE_ID secrets at:"
+            echo "Fix: Update RAILWAY_TOKEN and/or RAILWAY_INFERENCE_SERVICE_ID secrets at:"
             echo "  https://github.com/${{ github.repository }}/settings/secrets/actions"
             exit 1
           fi
@@ -113,12 +103,12 @@ jobs:
           steps.check-secrets.outputs.secrets_present == 'true' &&
           steps.validate-token.outputs.token_valid == 'true'
         env:
-          RAILWAY_TOKEN:      ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_SERVICE_ID: ${{ steps.check-secrets.outputs.service_id }}
+          RAILWAY_TOKEN:                ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_INFERENCE_SERVICE_ID: ${{ steps.check-secrets.outputs.service_id }}
         run: |
           cd inference-service
           echo "🚂 Deploying inference-service to Railway..."
-          railway up --service "$RAILWAY_SERVICE_ID" --detach
+          railway up --service "$RAILWAY_INFERENCE_SERVICE_ID" --detach
           echo "✅ Deploy triggered. Check Railway dashboard for status."
           echo ""
           echo "Railway Dashboard: https://railway.app/dashboard"

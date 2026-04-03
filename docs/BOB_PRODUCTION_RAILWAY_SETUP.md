@@ -1,67 +1,73 @@
 # Bob Production Railway Setup
 
-This guide provisions Bob as a dedicated inference service in its own Railway project for production isolation.
+Bob is an independent AI inference service with his own repository: **DonSquires/Bob**.
 
-Recommended target state: Bob plus Ollama in the same Bob-only Railway project.
+Code lives in `inference-service/` inside FreedomCamp-Manager and is automatically
+mirrored to DonSquires/Bob whenever `inference-service/` changes on `main`.
+Railway deploys from DonSquires/Bob.
 
-## Recommended Project Layout
+Recommended architecture: Bob + Ollama in the same Bob Railway project, but as
+separate services.
 
-Use a separate Railway project for Bob so it does not compete with proxy, PTT, or other operational services.
+## Repository Setup (one-time)
 
-1. Railway project: bob-production
-2. Service: bob-inference (or orc-ai-inference-service)
-3. Companion service: ollama
-4. Source repository: DonSquires/FreedomCamp-Manager
-5. Root directory for Bob: /inference-service
+### 1. Enable sync from FreedomCamp-Manager -> Bob repo
 
-The existing inference-service Docker build already exports and bundles ONNX models during image build. No separate model image is required.
+Add a secret to **DonSquires/FreedomCamp-Manager** -> Settings -> Secrets -> Actions:
 
-This layout gives Bob his own compute boundary while still allowing a private internal LLM service for richer responses.
+| Secret | Value |
+|---|---|
+| `BOB_SYNC_PAT` | GitHub PAT (classic or fine-grained) with **Contents: Read & Write** on `DonSquires/Bob` |
 
-## Create Bob Service
+Once set, any push to `main` that touches `inference-service/` automatically syncs
+to the Bob repo via `.github/workflows/sync-bob-repo.yml`.
 
-1. In Railway, create a new project for Bob, for example bob-production.
-2. Inside that project, create a new service from GitHub repository.
-3. Select repository: DonSquires/FreedomCamp-Manager.
-4. Set service name: bob-inference (or orc-ai-inference-service).
-5. Set branch: main.
-6. Set root directory: /inference-service.
-7. Use Dockerfile build.
-8. Set healthcheck path: /health.
-9. Set healthcheck timeout: 60.
-10. Expose HTTP domain on port 3000.
+To trigger a one-off sync without a code change, run the workflow manually:
+`Actions -> Sync Bob Repo -> Run workflow`.
 
-## Create Ollama Service
+### 2. Add secrets to the Bob repo
 
-Add Ollama as a second service in the same bob-production project.
+Add these secrets to **DonSquires/Bob** -> Settings -> Secrets -> Actions:
 
-1. Create a new service named ollama.
-2. Use an Ollama-compatible Docker image or Railway template.
-3. Keep Ollama on private networking only.
-4. Do not expose Ollama publicly unless you explicitly need that.
-5. Size Ollama separately from Bob so model memory usage does not starve Bob's HTTP runtime.
+| Secret | Value |
+|---|---|
+| `RAILWAY_TOKEN` | Railway project token with deploy access to Bob's service |
+| `RAILWAY_SERVICE_ID` | Railway project -> Bob service -> Settings -> Service ID |
+| `BOB_URL` | Bob's Railway domain (e.g. `https://bob-production.up.railway.app`). Optional; enables post-deploy health check. |
 
-Recommended internal URL:
+## Create Railway Services (bob-production project)
 
-```env
-OLLAMA_BASE_URL=http://ollama.railway.internal:11434
-```
+### Bob service
 
-Use the actual private Railway hostname if it differs.
+1. In Railway production, create a new service from GitHub repository.
+2. Select repository: **DonSquires/Bob**.
+3. Set service name: `bob` (or `bob-inference-service`).
+4. Set branch: `main`.
+5. Leave root directory empty (Bob repo root is the service root).
+6. Use Dockerfile build.
+7. Set healthcheck path: `/health`.
+8. Set healthcheck timeout: 60.
+9. Expose HTTP domain on port 3000.
+
+### Ollama service
+
+1. Create a second service named `ollama` in the same Railway project.
+2. Keep Ollama on private networking only.
+3. Do not expose Ollama publicly unless explicitly required.
+4. Size Ollama separately from Bob so model RAM/CPU does not starve Bob's API runtime.
 
 ## Docker and ONNX Build Notes
 
-The Bob image build already performs ONNX export and bundles the model artifacts.
-
-1. Python stage exports ONNX models via scripts/export-models.py.
-2. Node builder stage installs production dependencies and pretrains self-learning state.
-3. Final image copies server.js, lib, data, and generated /models into the runtime container.
-
-This means a fresh Bob Railway project can deploy directly from /inference-service without any manual model upload step.
+The Bob image build already performs ONNX export and bundles model artifacts.
+No manual model upload step is required.
 
 ## Environment Variables
 
-Use this exact baseline block for Bob with Ollama.
+Choose one of the supported runtime profiles below.
+
+### Profile A: Bob + separate Ollama service (recommended)
+
+Use this when Ollama runs as another Railway service via internal DNS.
 
 ```env
 # --- Core runtime ---
@@ -77,12 +83,12 @@ SUPABASE_JWT_ISSUER=https://REPLACE_WITH_PROJECT_REF.supabase.co/auth/v1
 # Optional:
 # SUPABASE_JWT_AUDIENCE=authenticated
 
-# --- Self-contained posture (recommended for Bob production) ---
-SELF_CONTAINED_MODE=true
-REQUIRE_SELF_CONTAINED_MODE=true
-SELF_CONTAINED_STRICT_EGRESS=true
+# --- Egress mode for separate Ollama service ---
+SELF_CONTAINED_MODE=false
+REQUIRE_SELF_CONTAINED_MODE=false
+SELF_CONTAINED_STRICT_EGRESS=false
 
-# --- Bob chat/nlp defaults (Bob + Ollama) ---
+# --- Bob chat/nlp via Ollama ---
 CHAT_PROVIDER=ollama
 TABULAR_NLP_PROVIDER=ollama
 CHAT_TIMEOUT_MS=30000
@@ -96,36 +102,56 @@ SIMILARITY_THRESHOLD_MAX=0.95
 SELF_LEARNING_ENABLED=true
 SELF_HEALING_ENABLED=true
 
-# --- Local Ollama (same Bob project, private networking only) ---
+# --- Internal Ollama URL ---
 OLLAMA_BASE_URL=http://ollama.railway.internal:11434
 OLLAMA_MODEL=llama3.1:8b
 ```
 
-If you want the lowest-risk first deploy, use this reduced mode instead:
+### Profile B: strict self-contained Bob
+
+Use this when you want strict local-only behavior. In this profile, a separate
+Railway Ollama hostname is not treated as local by current code, so keep chat/NLP
+heuristic unless Ollama is available on localhost in the same container.
 
 ```env
+# --- Core runtime ---
+NODE_ENV=production
+PORT=3000
+
+# --- Security / auth ---
+INFERENCE_API_KEY=REPLACE_WITH_STRONG_RANDOM_SECRET
+SUPABASE_URL=https://REPLACE_WITH_PROJECT_REF.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=REPLACE_WITH_SUPABASE_SERVICE_ROLE_KEY
+SUPABASE_JWKS_URL=https://REPLACE_WITH_PROJECT_REF.supabase.co/auth/v1/.well-known/jwks.json
+SUPABASE_JWT_ISSUER=https://REPLACE_WITH_PROJECT_REF.supabase.co/auth/v1
+# Optional:
+# SUPABASE_JWT_AUDIENCE=authenticated
+
+# --- Self-contained posture ---
+SELF_CONTAINED_MODE=true
+REQUIRE_SELF_CONTAINED_MODE=true
+SELF_CONTAINED_STRICT_EGRESS=true
+
+# --- Bob chat/nlp defaults ---
 CHAT_PROVIDER=heuristic
 TABULAR_NLP_PROVIDER=heuristic
+CHAT_TIMEOUT_MS=30000
+TABULAR_NLP_TIMEOUT_MS=2500
+
+# --- Vision / inference defaults ---
+VEHICLE_ATTRS_PROVIDER=basic
+SIMILARITY_THRESHOLD=0.85
+SIMILARITY_THRESHOLD_MIN=0.65
+SIMILARITY_THRESHOLD_MAX=0.95
+SELF_LEARNING_ENABLED=true
+SELF_HEALING_ENABLED=true
+
+# --- Optional same-container Ollama mode ---
+# CHAT_PROVIDER=ollama
+# TABULAR_NLP_PROVIDER=ollama
+# OLLAMA_BASE_URL=http://127.0.0.1:11434
+# OLLAMA_MODEL=llama3.1:8b
 ```
-
-## Why Add Ollama
-
-Ollama gives Bob a local/private LLM for:
-
-1. Better conversational responses
-2. Better summarization and explanation quality
-3. More assistant-like answers for open-ended operational questions
-
-Ollama is not required for Bob to run, but it is the right add-on if you want Bob to feel like a real assistant rather than a heuristic responder.
-
-## Resource Guidance
-
-Keep Bob and Ollama as separate services in the same Bob project.
-
-1. Bob handles HTTP API, auth, ONNX inference, and orchestration.
-2. Ollama handles LLM inference.
-3. Scale them independently.
-4. Do not co-locate Ollama inside the Bob process.
 
 ## Verify Deployment
 
@@ -133,9 +159,8 @@ After deploy:
 
 1. GET /health on Bob domain must return healthy JSON.
 2. POST /chat on Bob domain must return non-404.
-3. Ensure Supabase INFERENCE_SERVICE_URL points to Bob domain.
-4. Ensure Bob is not sharing CPU/memory with proxy-server or ptt-server.
-5. If using Ollama, confirm Bob can reach the internal Ollama URL.
+3. Ensure Supabase `INFERENCE_SERVICE_URL` points to Bob domain.
+4. If using Profile A, confirm Bob can reach the internal Ollama URL.
 
 Example checks:
 
@@ -147,36 +172,32 @@ curl -sS -X POST https://YOUR_BOB_DOMAIN/chat \
   -d '{"message":"ping"}'
 ```
 
-Expected result with Ollama enabled:
-
-1. `/chat` returns non-404 and uses the configured LLM path after auth succeeds.
-2. Bob logs show `CHAT_PROVIDER=ollama` and a private `OLLAMA_BASE_URL`.
+For Profile A, also verify Bob logs indicate `CHAT_PROVIDER=ollama`.
 
 ## Service Separation Rules
 
 1. Bob inference URL and proxy URL must be different services.
 2. Do not use proxy domain for Bob chat endpoints.
 3. Keep preview and production endpoints isolated.
-4. Keep Ollama private inside the Bob project.
-5. Do not point Bob to a public Ollama URL in self-contained mode.
+4. Keep Ollama private inside the Bob project network.
 
 ## GitHub Secrets Alignment
 
-For deploy workflows:
+**DonSquires/Bob** (Bob deploy workflow):
 
-1. RAILWAY_INFERENCE_SERVICE_ID must be the Railway service ID (not public domain).
-2. RAILWAY_PROXY_SERVICE_ID must be the proxy Railway service ID.
-3. RAILWAY_TOKEN must have access to the target production project.
-4. Avoid legacy RAILWAY_SERVICE_ID when dedicated IDs are available.
+| Secret | Purpose |
+|---|---|
+| `RAILWAY_TOKEN` | Railway token for Bob's service |
+| `RAILWAY_SERVICE_ID` | Bob's Railway service ID |
+| `BOB_URL` | Bob's public Railway URL (for health check) |
 
-## Dedicated Bob Deploy Workflow
+**DonSquires/FreedomCamp-Manager** (sync + core deploy workflows):
 
-The repository includes a dedicated workflow for a separate Bob Railway project:
+| Secret | Purpose |
+|---|---|
+| `BOB_SYNC_PAT` | GitHub PAT to push changes to DonSquires/Bob |
+| `RAILWAY_INFERENCE_SERVICE_ID` | Legacy: kept for backward compatibility during transition |
+| `RAILWAY_PROXY_SERVICE_ID` | Railway service ID for the proxy service |
+| `RAILWAY_TOKEN` | Railway token with access to proxy and other core services |
 
-1. .github/workflows/deploy-bob-railway.yml
-
-Configure these GitHub Actions secrets for that workflow:
-
-1. RAILWAY_BOB_TOKEN
-2. RAILWAY_BOB_SERVICE_ID
-3. BOB_SERVICE_URL
+> Bob's own `RAILWAY_TOKEN` and `RAILWAY_SERVICE_ID` live in DonSquires/Bob, not in FreedomCamp-Manager.

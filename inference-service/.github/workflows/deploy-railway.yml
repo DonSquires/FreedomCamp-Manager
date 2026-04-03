@@ -1,0 +1,133 @@
+name: Deploy Bob to Railway
+
+# Deploys Bob (ORC/AI Inference Service) to Railway.
+#
+# Auto-triggers on any push to main.
+# Can also be triggered manually via workflow_dispatch.
+#
+# Required secrets (set in DonSquires/Bob → Settings → Secrets → Actions):
+#   RAILWAY_TOKEN      — Railway project token (project token, not personal)
+#   RAILWAY_SERVICE_ID — Railway project → Service → Settings → Service ID
+#
+# Optional secrets:
+#   BOB_URL — deployed Railway domain; enables health check after deploy
+#             (e.g. https://bob-production.up.railway.app)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  deploy-bob:
+    name: Deploy Bob to Railway
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check required secrets
+        id: check-secrets
+        run: |
+          missing=""
+          [ -z "$RAILWAY_TOKEN" ]      && missing="$missing RAILWAY_TOKEN"
+          [ -z "$RAILWAY_SERVICE_ID" ] && missing="$missing RAILWAY_SERVICE_ID"
+          if [ -n "$missing" ]; then
+            echo "::warning::Required secrets not configured ($missing) — deployment skipped."
+            echo ""
+            echo "To enable Railway deployments, add the following secrets at:"
+            echo "  https://github.com/DonSquires/Bob/settings/secrets/actions"
+            echo ""
+            echo "  RAILWAY_TOKEN:      Railway token with deploy access to Bob's service."
+            echo "  RAILWAY_SERVICE_ID: Railway project → Bob service → Settings → Service ID."
+            echo "secrets_present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "✅ Railway secrets present"
+            echo "secrets_present=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          RAILWAY_TOKEN:      ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
+
+      - name: Checkout repository
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        uses: actions/checkout@v5
+
+      - name: Install Railway CLI
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        run: |
+          RAILWAY_CLI_VERSION="4.31.0"
+          TARGET="x86_64-unknown-linux-gnu"
+          URL="https://github.com/railwayapp/cli/releases/download/v${RAILWAY_CLI_VERSION}/railway-v${RAILWAY_CLI_VERSION}-${TARGET}.tar.gz"
+          TMP_DIR=$(mktemp -d)
+          cd "$TMP_DIR"
+          curl -fsSL -o railway.tar.gz "$URL"
+          tar -xzf railway.tar.gz
+          mkdir -p "$HOME/.railway/bin"
+          install -m 0755 railway "$HOME/.railway/bin/railway"
+          echo "$HOME/.railway/bin" >> "$GITHUB_PATH"
+
+      - name: Deploy Bob to Railway
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        env:
+          RAILWAY_TOKEN:      ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
+        run: |
+          echo "🤖 Deploying Bob to Railway..."
+          railway up --service "$RAILWAY_SERVICE_ID" --detach
+          echo "✅ Bob deploy triggered. Check Railway dashboard for status."
+          echo ""
+          echo "Railway Dashboard: https://railway.app/dashboard"
+
+      - name: Wait for Bob and verify health
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        env:
+          BOB_URL: ${{ secrets.BOB_URL }}
+        run: |
+          if [ -z "$BOB_URL" ]; then
+            echo "ℹ️  BOB_URL not set — skipping health check."
+            echo "   Once deployed, get your URL from Railway → Bob service → Settings → Networking"
+            echo "   Then add it as a GitHub secret: BOB_URL"
+            exit 0
+          fi
+
+          echo "⏳ Waiting 60s for Railway to finish deploying Bob..."
+          sleep 60
+
+          echo "🏥 Checking Bob health at ${BOB_URL}/health ..."
+          HEALTH_BODY=$(curl -s --max-time 30 "${BOB_URL}/health" || true)
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${BOB_URL}/health" || echo "000")
+
+          if [ "$HTTP_STATUS" = "200" ]; then
+            if echo "$HEALTH_BODY" | grep -q '"models"'; then
+              echo "✅ Bob is healthy and live!"
+            else
+              echo "::error::Bob health endpoint missing expected fields."
+              echo "Body: ${HEALTH_BODY:0:200}"
+              exit 1
+            fi
+          else
+            echo "⚠️  Bob health check returned HTTP $HTTP_STATUS"
+            echo "   Railway may still be starting. Check dashboard in 1-2 minutes."
+            exit 1
+          fi
+
+          echo "🧠 Checking Bob /chat route..."
+          CHAT_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 30 \
+            -X POST "${BOB_URL}/chat" \
+            -H 'Content-Type: application/json' \
+            -d '{"message":"ping"}' || echo "000")
+
+          case "$CHAT_STATUS" in
+            200|400|401|403|429)
+              echo "✅ Bob /chat route is live (HTTP $CHAT_STATUS)."
+              ;;
+            *)
+              echo "::error::Bob /chat route check failed (HTTP $CHAT_STATUS)."
+              exit 1
+              ;;
+          esac
