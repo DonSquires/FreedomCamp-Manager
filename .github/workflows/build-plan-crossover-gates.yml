@@ -40,6 +40,8 @@ jobs:
     name: 2) Edge API Gate
     runs-on: ubuntu-latest
     needs: web-build-gate
+    outputs:
+      api_auth_available: ${{ steps.api-auth.outputs.auth_available }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -88,6 +90,17 @@ jobs:
           API_TEST_BEARER_TOKEN: ${{ secrets.API_TEST_BEARER_TOKEN }}
           API_TEST_EMAIL: ${{ secrets.API_TEST_EMAIL }}
           API_TEST_PASSWORD: ${{ secrets.API_TEST_PASSWORD }}
+
+      - name: Summarize Edge API Gate status
+        run: |
+          echo "## Edge API Gate" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.api-auth.outputs.auth_available }}" = "true" ]; then
+            echo "- API auth present: yes" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Protected endpoint tests: executed" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- API auth present: no" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Protected endpoint tests: skipped (PR run without API auth secrets)" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   inference-self-contained-gate:
     name: 2b) Inference Self-Contained Gate
@@ -156,6 +169,11 @@ jobs:
           echo "All staged gates passed:" >> "$GITHUB_STEP_SUMMARY"
           echo "- Web build gate" >> "$GITHUB_STEP_SUMMARY"
           echo "- Edge API gate" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ needs.api-edge-gate.outputs.api_auth_available }}" = "true" ]; then
+            echo "  - API tests executed with auth" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "  - API tests skipped (PR run without API auth secrets)" >> "$GITHUB_STEP_SUMMARY"
+          fi
           echo "- Mobile Expo gate" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Safe to proceed to deployment crossover." >> "$GITHUB_STEP_SUMMARY"
