@@ -134,7 +134,8 @@ jobs:
           set -euo pipefail
 
           LOG_FILE="$(mktemp)"
-          DB_URL="postgresql://postgres:${SUPABASE_DB_PASSWORD}@db.${SUPABASE_PROJECT_REF}.supabase.co:5432/postgres?sslmode=require"
+          ENCODED_DB_PASSWORD="$(node -e 'console.log(encodeURIComponent(process.argv[1]))' "$SUPABASE_DB_PASSWORD")"
+          DB_URL="postgresql://postgres:${ENCODED_DB_PASSWORD}@db.${SUPABASE_PROJECT_REF}.supabase.co:5432/postgres?sslmode=require"
 
           if [ "${{ steps.link-project.outputs.linked_mode }}" != "true" ]; then
             echo "ℹ️  Running db push in direct DB URL mode (no Supabase API token)."
@@ -256,10 +257,10 @@ jobs:
           fi
 
           # Force IPv4 with hostaddr to avoid runner environments that cannot route IPv6.
-          DB_URI="postgresql://postgres:${SUPABASE_DB_PASSWORD}@${DB_HOST}:5432/postgres?sslmode=require&hostaddr=${DB_HOSTADDR}"
+          DB_URI="postgresql://postgres@${DB_HOST}:5432/postgres?sslmode=require&hostaddr=${DB_HOSTADDR}"
 
           echo "Running post-migration breach timestamp alignment check..."
-          if ! psql "$DB_URI" -v ON_ERROR_STOP=1 <<'SQL'
+          if ! PGPASSWORD="$SUPABASE_DB_PASSWORD" psql "$DB_URI" -v ON_ERROR_STOP=1 <<'SQL'
           WITH direct_links AS (
             SELECT ba.id, ba.created_at, o.recorded_at AS expected_at
             FROM public.breach_alerts ba
