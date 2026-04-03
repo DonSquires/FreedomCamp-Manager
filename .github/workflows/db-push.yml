@@ -147,11 +147,9 @@ jobs:
           set -euo pipefail
 
           LOG_FILE="$(mktemp)"
-          DB_HOST="${SUPABASE_DB_POOLER_HOST:-aws-0-ap-southeast-2.pooler.supabase.com}"
 
           if [ "${{ steps.link-project.outputs.linked_mode }}" != "true" ]; then
             echo "ℹ️  Running db push in direct DB URL mode (no Supabase API token)."
-            echo "ℹ️  Direct mode endpoint: ${DB_HOST}"
 
             CANDIDATE_URLS=()
             CANDIDATE_LABELS=()
@@ -161,6 +159,16 @@ jobs:
               CANDIDATE_LABELS+=("secret:SUPABASE_DB_URL")
             else
               ENCODED_DB_PASSWORD="$(node -e 'console.log(encodeURIComponent(process.argv[1]))' "$SUPABASE_DB_PASSWORD")"
+
+              CANDIDATE_HOSTS=()
+              if [ -n "${SUPABASE_DB_POOLER_HOST:-}" ]; then
+                CANDIDATE_HOSTS+=("$SUPABASE_DB_POOLER_HOST")
+              else
+                CANDIDATE_HOSTS+=(
+                  "aws-0-ap-southeast-2.pooler.supabase.com"
+                  "aws-1-ap-southeast-2.pooler.supabase.com"
+                )
+              fi
 
               EFFECTIVE_PROJECT_REF="$SUPABASE_PROJECT_REF"
               if [[ "${SUPABASE_URL:-}" =~ ^https?://([^.]+)\.supabase\.co/?$ ]]; then
@@ -177,10 +185,12 @@ jobs:
               fi
               CANDIDATE_USERS+=("postgres.${EFFECTIVE_PROJECT_REF}" "postgres.${SUPABASE_PROJECT_REF}" "postgres")
 
-              for db_user in "${CANDIDATE_USERS[@]}"; do
-                for db_port in 5432 6543; do
-                  CANDIDATE_URLS+=("postgresql://${db_user}:${ENCODED_DB_PASSWORD}@${DB_HOST}:${db_port}/postgres?sslmode=require")
-                  CANDIDATE_LABELS+=("user=${db_user},port=${db_port}")
+              for db_host in "${CANDIDATE_HOSTS[@]}"; do
+                for db_user in "${CANDIDATE_USERS[@]}"; do
+                  for db_port in 5432 6543; do
+                    CANDIDATE_URLS+=("postgresql://${db_user}:${ENCODED_DB_PASSWORD}@${db_host}:${db_port}/postgres?sslmode=require")
+                    CANDIDATE_LABELS+=("host=${db_host},user=${db_user},port=${db_port}")
+                  done
                 done
               done
             fi
@@ -196,12 +206,14 @@ jobs:
                   echo "supabase db push --db-url <candidate> --yes attempt $attempt..."
                   if supabase db push --db-url "$DB_URL" --yes 2>&1 | tee "$LOG_FILE"; then
                     echo "Migration push succeeded in direct mode on attempt $attempt"
+                    echo "EFFECTIVE_SUPABASE_DB_URL=$DB_URL" >> "$GITHUB_ENV"
                     exit 0
                   fi
                 else
                   echo "supabase db push --db-url <candidate> --include-all --yes attempt $attempt..."
                   if supabase db push --db-url "$DB_URL" --include-all --yes 2>&1 | tee "$LOG_FILE"; then
                     echo "Migration push succeeded in direct mode on attempt $attempt"
+                    echo "EFFECTIVE_SUPABASE_DB_URL=$DB_URL" >> "$GITHUB_ENV"
                     exit 0
                   fi
                 fi
@@ -306,6 +318,7 @@ jobs:
         env:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          EFFECTIVE_SUPABASE_DB_URL: ${{ env.EFFECTIVE_SUPABASE_DB_URL }}
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           SUPABASE_DB_POOLER_HOST: ${{ secrets.SUPABASE_DB_POOLER_HOST }}
           SUPABASE_DB_USER: ${{ secrets.SUPABASE_DB_USER }}
@@ -317,7 +330,9 @@ jobs:
             exit 0
           fi
 
-          if [ -n "${SUPABASE_DB_URL:-}" ]; then
+          if [ -n "${EFFECTIVE_SUPABASE_DB_URL:-}" ]; then
+            DB_URI="$EFFECTIVE_SUPABASE_DB_URL"
+          elif [ -n "${SUPABASE_DB_URL:-}" ]; then
             DB_URI="$SUPABASE_DB_URL"
           else
             DB_HOST="${SUPABASE_DB_POOLER_HOST:-aws-0-ap-southeast-2.pooler.supabase.com}"
