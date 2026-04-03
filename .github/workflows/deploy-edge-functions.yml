@@ -108,10 +108,42 @@ jobs:
         with:
           version: latest
 
+      - name: Validate Supabase deploy auth
+        id: validate-supabase-auth
+        if: >-
+          steps.check-secrets.outputs.secrets_present == 'true' &&
+          github.event.inputs.mode != 'verify-only'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF:  ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          set -euo pipefail
+
+          AUTH_LOG="$(mktemp)"
+          echo "🔑 Validating Supabase deploy auth ..."
+
+          if supabase functions list --project-ref "$SUPABASE_PROJECT_REF" > /dev/null 2>"$AUTH_LOG"; then
+            echo "✅ Supabase deploy auth is valid"
+            echo "auth_valid=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if grep -q '401' "$AUTH_LOG" || grep -qi 'unauthorized' "$AUTH_LOG"; then
+            echo "::error::SUPABASE_ACCESS_TOKEN is invalid, expired, or not authorized for project $SUPABASE_PROJECT_REF."
+            echo "Generate a new personal access token at https://supabase.com/dashboard/account/tokens"
+            echo "and update GitHub secret SUPABASE_ACCESS_TOKEN."
+          else
+            echo "::error::Supabase deploy auth preflight failed."
+            cat "$AUTH_LOG"
+          fi
+
+          exit 1
+
       # ── Deploy ────────────────────────────────────────────────────────
       - name: Resolve functions to deploy
         if: >-
           steps.check-secrets.outputs.secrets_present == 'true' &&
+          steps.validate-supabase-auth.outputs.auth_valid == 'true' &&
           github.event.inputs.mode != 'verify-only' &&
           github.event.inputs.function_name == ''
         id: resolve-functions
@@ -145,6 +177,7 @@ jobs:
       - name: Deploy — single function
         if: >-
           steps.check-secrets.outputs.secrets_present == 'true' &&
+          steps.validate-supabase-auth.outputs.auth_valid == 'true' &&
           github.event.inputs.mode != 'verify-only' &&
           github.event.inputs.function_name != ''
         env:
@@ -170,6 +203,7 @@ jobs:
       - name: Deploy — selected/all functions
         if: >-
           steps.check-secrets.outputs.secrets_present == 'true' &&
+          steps.validate-supabase-auth.outputs.auth_valid == 'true' &&
           github.event.inputs.mode != 'verify-only' &&
           github.event.inputs.function_name == ''
         env:
@@ -235,6 +269,7 @@ jobs:
       - name: Push Supabase auth config (CORS origins)
         if: >-
           steps.check-secrets.outputs.secrets_present == 'true' &&
+          steps.validate-supabase-auth.outputs.auth_valid == 'true' &&
           github.event.inputs.mode != 'verify-only'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
