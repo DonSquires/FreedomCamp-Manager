@@ -230,12 +230,38 @@ jobs:
                   echo "ℹ️  Candidate hit prepared-statement pooler conflict; trying next candidate."
                   break
                 fi
+
+                if grep -q "Remote migration versions not found in local migrations directory" "$LOG_FILE"; then
+                  echo "⚠️  Candidate connected, but remote migration history drift was detected."
+
+                  REVERT_VERSIONS=$(grep -oE 'supabase migration repair --status reverted [0-9 ]+' "$LOG_FILE" | sed -E 's/^supabase migration repair --status reverted //' | head -n1)
+                  if [ -n "${REVERT_VERSIONS:-}" ]; then
+                    echo "Attempting drift repair in direct mode: $REVERT_VERSIONS"
+                    # shellcheck disable=SC2086
+                    supabase migration repair --status reverted $REVERT_VERSIONS || true
+
+                    echo "Retrying include-all push after drift repair..."
+                    if supabase db push --db-url "$DB_URL" --include-all --yes 2>&1 | tee "$LOG_FILE"; then
+                      echo "Migration push succeeded in direct mode after drift repair"
+                      echo "EFFECTIVE_SUPABASE_DB_URL=$DB_URL" >> "$GITHUB_ENV"
+                      exit 0
+                    fi
+                  fi
+
+                  echo "::error::Remote migration drift detected while using direct DB mode."
+                  echo "Set SUPABASE_ACCESS_TOKEN so linked-mode migration repair can run automatically,"
+                  echo "or run the suggested 'supabase migration repair --status reverted ...' command manually."
+                  exit 1
+                fi
               done
             done
 
             if grep -Eaq 'prepared statement ".*" already exists|SQLSTATE 42P05' "$LOG_FILE"; then
               echo "::error::Supabase direct DB connection hit prepared-statement pooler conflicts for all candidates."
               echo "Set SUPABASE_DB_URL to the exact Session pooler URI from Supabase Dashboard, or include default_query_exec_mode=simple_protocol in the URI."
+            elif grep -q "Remote migration versions not found in local migrations directory" "$LOG_FILE"; then
+              echo "::error::Remote migration history drift detected in direct mode."
+              echo "Set SUPABASE_ACCESS_TOKEN so linked-mode repair can run automatically, or repair manually as suggested in logs."
             elif grep -q "Tenant or user not found" "$LOG_FILE"; then
               echo "::error::Supabase direct DB connection rejected for all generated candidates."
               echo "Set SUPABASE_DB_URL to the exact connection string from Supabase Dashboard -> Connect -> Transaction pooler."
