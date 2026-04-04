@@ -266,6 +266,14 @@ const ollamaCircuitBreaker = {
       cooldownMs:        OLLAMA_CB_COOLDOWN_MS,
     };
   },
+
+  /** Force-trip the breaker into open state (e.g. startup probe failure). */
+  trip(error) {
+    this.failures  = OLLAMA_CB_THRESHOLD;
+    this.lastError = error?.message || String(error);
+    this.state     = 'open';
+    this.openedAt  = Date.now();
+  },
 };
 
 const selfLearningService = createSelfLearningService({
@@ -3040,10 +3048,8 @@ loadModels().then(() => {
           console.warn(`❌ Ollama unreachable at ${OLLAMA_BASE_URL}: ${err.message}`);
           console.warn(`   Chat and tabular NLP will fall back to heuristic mode.`);
           console.warn(`   Verify OLLAMA_BASE_URL port matches the Ollama service (check OLLAMA_HOST on the Ollama container).`);
-          // Pre-trip the circuit breaker so the first N real requests don't spam logs
-          ollamaCircuitBreaker.recordFailure(err);
-          ollamaCircuitBreaker.recordFailure(err);
-          ollamaCircuitBreaker.recordFailure(err);
+          // Pre-trip the circuit breaker so real requests don't spam logs
+          ollamaCircuitBreaker.trip(err);
         });
     }
   });
