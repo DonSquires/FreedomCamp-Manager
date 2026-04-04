@@ -9,6 +9,9 @@
  * 
  * Response:
  *   { token, channelScope, expiresIn, iceServers }
+ *
+ * CORS note:
+ *   Origin matching and headers are provided via getCorsHeaders from _shared/withCors.ts.
  */
 
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
