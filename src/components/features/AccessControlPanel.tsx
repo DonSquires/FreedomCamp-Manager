@@ -584,7 +584,7 @@ export function AccessControlPanel({
       const { data: faceData, error: faceError } = await edgeFunctions.processFaceScan({
         action: 'detect_and_match',
         photo_url: photoUrl,
-        organization_id: selectedZone?.organization_id ?? operationalOrganizationId ?? undefined,
+        organization_id: accessZones.find((z) => z.id === selectedZoneId)?.organization_id ?? operationalOrganizationId ?? undefined,
         zone_id: selectedZoneId || undefined,
         save: false,
       })
@@ -662,7 +662,7 @@ export function AccessControlPanel({
     } finally {
       setIsProcessing(false)
     }
-  }, [user, isStreamConnected, autoCapture])
+  }, [user, isStreamConnected, autoCapture, accessZones, operationalOrganizationId, selectedZoneId])
   
   // Auto-capture effect
   useEffect(() => {
@@ -719,7 +719,7 @@ export function AccessControlPanel({
       const { data: faceData, error: faceError } = await edgeFunctions.processFaceScan({
         action: 'detect_and_match',
         photo_url: photoUrl,
-        organization_id: selectedZone?.organization_id ?? operationalOrganizationId ?? undefined,
+        organization_id: accessZones.find((z) => z.id === selectedZoneId)?.organization_id ?? operationalOrganizationId ?? undefined,
         zone_id: selectedZoneId || undefined,
         save: false,
       })
@@ -805,7 +805,7 @@ export function AccessControlPanel({
     } finally {
       setIsProcessing(false)
     }
-  }, [user, stopCamera, scanMode])
+  }, [user, stopCamera, scanMode, accessZones, operationalOrganizationId, selectedZoneId])
   
   // ── Scan All Faces (multi-face mode) ─────────────────────────────────────────
   
@@ -826,7 +826,7 @@ export function AccessControlPanel({
         const { data: matchData, error: matchError } = await edgeFunctions.processFaceScan({
           action: 'match',
           embedding: face.embedding,
-          organization_id: selectedZone?.organization_id ?? operationalOrganizationId ?? undefined,
+          organization_id: accessZones.find((z) => z.id === selectedZoneId)?.organization_id ?? operationalOrganizationId ?? undefined,
           zone_id: selectedZoneId || undefined,
           max_results: 3,
         })
@@ -881,7 +881,7 @@ export function AccessControlPanel({
     } finally {
       setIsProcessing(false)
     }
-  }, [capturedPhoto, detectedFaces, selectedZoneId, user])
+  }, [capturedPhoto, detectedFaces, accessZones, operationalOrganizationId, selectedZoneId, user])
   
   // ── Verification ──────────────────────────────────────────────────────────
   

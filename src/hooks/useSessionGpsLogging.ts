@@ -44,5 +44,5 @@ export function useSessionGpsLogging(): void {
         console.warn('Session GPS logging failed:', error)
       }
     })()
-  }, [shouldTrack, user?.id, coords?.latitude, coords?.longitude, coords?.accuracy, timestamp])
+  }, [shouldTrack, user?.id, coords, timestamp])
 }

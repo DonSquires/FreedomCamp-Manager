@@ -1069,7 +1069,8 @@ export default function BobAssistantStudio() {
     return () => {
       stopVoiceConversation()
     }
-  }, [voiceActivatedConversation, speechEnabled, accent, thinking])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voiceActivatedConversation, speechEnabled])
 
   useEffect(() => {
     return () => {
@@ -1078,6 +1079,7 @@ export default function BobAssistantStudio() {
         window.speechSynthesis.cancel()
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const openDirections = () => {

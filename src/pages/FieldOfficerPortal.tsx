@@ -693,6 +693,7 @@ export default function FieldOfficerPortal() {
       clearTimeout(initialDelay)
       clearInterval(interval)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, employerOrganizationId, isServiceProviderMember, shiftOrgId, currentPatrolZone, setZone, recordGPSUpdate, zoneName, shareLiveLocationWithClient])
 
   // ── Shift management — explicit Start/End (not auto-start) ──────────────

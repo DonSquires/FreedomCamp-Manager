@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useNotifications } from '@/hooks/useNotifications'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
+import { useBobCollaboration } from '@/hooks/useBobCollaboration'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -35,6 +36,7 @@ function isEscalation(row: EscalationRow): boolean {
 export default function ComplianceEscalations() {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
+  const { askBob } = useBobCollaboration()
   const { markAsRead, markAllAsRead } = useNotifications({ read: undefined, limit: 200 })
   const [keywordDraft, setKeywordDraft] = useState('')
 
@@ -237,6 +239,16 @@ export default function ComplianceEscalations() {
               ? 'Potential criminal/privacy breach'
               : 'Policy escalation'
 
+            const bobPrompt = [
+              'Self-heal review request from Compliance Escalations.',
+              `Escalation title: ${row.title}`,
+              `Escalation type: ${escalationType}`,
+              `Priority: ${row.priority}`,
+              `Body: ${row.body}`,
+              `Data: ${JSON.stringify(data).slice(0, 2000)}`,
+              'Return: blocker assessment, likely root cause, safe remediation steps, and verification checks.',
+            ].join(' ')
+
             return (
               <Card key={row.id} className={!row.read ? 'border-red-300 bg-red-50/30' : ''}>
                 <CardHeader>
@@ -268,6 +280,27 @@ export default function ComplianceEscalations() {
                         <CheckCheck className="h-4 w-4 mr-1" /> Mark read
                       </Button>
                     )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        askBob({
+                          title: `Self-heal escalation review: ${row.title}`,
+                          prompt: bobPrompt,
+                          source: 'system',
+                          summary: `Escalation ${row.id} requires remediation guidance`,
+                          autoSubmit: true,
+                          returnRoute: '/compliance-escalations',
+                          metadata: {
+                            escalation_id: row.id,
+                            escalation_priority: row.priority,
+                            escalation_type: escalationType,
+                          },
+                        })
+                      }}
+                    >
+                      Ask Bob (Self-Heal)
+                    </Button>
                   </div>
                 </CardContent>
               </Card>

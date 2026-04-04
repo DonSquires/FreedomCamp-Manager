@@ -364,7 +364,7 @@ export function FaceRecognition({
     } finally {
       setIsProcessing(false)
     }
-  }, [isProcessing, user, compareEmbedding, onFaceCaptured, serviceStatus?.apiKeyConfigured, serviceStatus?.serviceApiKeyRequired])
+  }, [isProcessing, user, compareEmbedding, onFaceCaptured, organizationId, zoneId, serviceStatus?.apiKeyConfigured, serviceStatus?.serviceApiKeyRequired])
 
   // ── Flip camera ─────────────────────────────────────────────────────────────
 
