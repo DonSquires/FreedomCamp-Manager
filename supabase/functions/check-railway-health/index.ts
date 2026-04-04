@@ -13,9 +13,14 @@ const inferenceValidation = validateServiceUrl(
   Deno.env.get('INFERENCE_SERVICE_URL'),
   'INFERENCE_SERVICE_URL'
 )
+const pttValidation = validateServiceUrl(
+  Deno.env.get('PTT_SERVER_URL'),
+  'PTT_SERVER_URL'
+)
 
 const PROXY_SERVER_URL = proxyValidation.url
 const INFERENCE_SERVICE_URL = inferenceValidation.url
+const PTT_SERVER_URL = pttValidation.url
 
 /** Safely parse a fetch Response as JSON, falling back to a status object. */
 async function safeJson(response: Response): Promise<Record<string, unknown>> {
@@ -57,6 +62,14 @@ Deno.serve(async (req) => {
           warning: inferenceValidation.warning,
         },
         inference_url: INFERENCE_SERVICE_URL || null,
+        ptt: PTT_SERVER_URL
+          ? { status: 'unknown', warning: 'PTT health check skipped while core services are not configured' }
+          : {
+              status: 'offline',
+              error: pttValidation.error || 'PTT_SERVER_URL not configured',
+              warning: pttValidation.warning,
+            },
+        ptt_url: PTT_SERVER_URL || null,
         inference_api_key_configured: !!INFERENCE_API_KEY,
         checked_at: new Date().toISOString(),
       }),
@@ -69,7 +82,7 @@ Deno.serve(async (req) => {
 
   try {
     // Check both services in parallel
-    const [proxyCheck, inferenceCheck] = await Promise.allSettled([
+    const [proxyCheck, inferenceCheck, pttCheck] = await Promise.allSettled([
       fetch(`${PROXY_SERVER_URL}/health`, {
         method: 'GET',
         signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT_MS), // cold-start grace period
@@ -78,6 +91,12 @@ Deno.serve(async (req) => {
         method: 'GET',
         signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT_MS),
       }),
+      PTT_SERVER_URL
+        ? fetch(`${PTT_SERVER_URL}/health`, {
+            method: 'GET',
+            signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT_MS),
+          })
+        : Promise.reject(new Error('PTT_SERVER_URL not configured')),
     ])
 
     // Resolve health status for each service independently to avoid unsafe
@@ -95,17 +114,27 @@ Deno.serve(async (req) => {
       return json ?? { status: 'ok' }
     }
 
-    const [proxyJson, inferenceJson] = await Promise.all([
+    const [proxyJson, inferenceJson, pttJson] = await Promise.all([
       proxyCheck.status === 'fulfilled' && proxyCheck.value.ok
         ? safeJson(proxyCheck.value)
         : Promise.resolve(null),
       inferenceCheck.status === 'fulfilled' && inferenceCheck.value.ok
         ? safeJson(inferenceCheck.value)
         : Promise.resolve(null),
+      pttCheck.status === 'fulfilled' && pttCheck.value.ok
+        ? safeJson(pttCheck.value)
+        : Promise.resolve(null),
     ])
 
     const proxyStatus = resolveStatus(proxyCheck, proxyJson)
     const inferenceStatus = resolveStatus(inferenceCheck, inferenceJson)
+    const pttStatus = PTT_SERVER_URL
+      ? resolveStatus(pttCheck, pttJson)
+      : {
+          status: 'offline',
+          error: pttValidation.error || 'PTT_SERVER_URL not configured',
+          warning: pttValidation.warning,
+        }
 
     return new Response(
       JSON.stringify({
@@ -113,6 +142,8 @@ Deno.serve(async (req) => {
         proxy_url: PROXY_SERVER_URL,
         inference: inferenceStatus,
         inference_url: INFERENCE_SERVICE_URL,
+        ptt: pttStatus,
+        ptt_url: PTT_SERVER_URL || null,
         inference_api_key_configured: !!INFERENCE_API_KEY,
         checked_at: new Date().toISOString(),
       }),

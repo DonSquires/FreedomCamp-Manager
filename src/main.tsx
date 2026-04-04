@@ -1,12 +1,13 @@
-import { StrictMode } from 'react'
+import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
-import App from './App.tsx'
-import CleanAppScaffold from './rebuild/CleanAppScaffold.tsx'
 import { RebuildSurfaceSwitcher } from './rebuild/RebuildSurfaceSwitcher.tsx'
 import './index.css'
 import 'leaflet/dist/leaflet.css'
 import { supabaseConfigured } from './lib/supabase.ts'
 import { registerServiceWorker } from './lib/pwa.ts'
+
+const App = lazy(() => import('./App.tsx'))
+const CleanAppScaffold = lazy(() => import('./rebuild/CleanAppScaffold.tsx'))
 
 // Inject a preconnect hint for the Supabase backend at runtime so the browser
 // can open the TCP+TLS connection before any API calls are made.
@@ -69,7 +70,9 @@ if (!supabaseConfigured) {
 } else {
   createRoot(root).render(
     <StrictMode>
-      {useCleanSurface ? <CleanAppScaffold /> : <App />}
+      <Suspense fallback={null}>
+        {useCleanSurface ? <CleanAppScaffold /> : <App />}
+      </Suspense>
       <RebuildSurfaceSwitcher />
     </StrictMode>
   )

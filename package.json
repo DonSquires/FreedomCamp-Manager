@@ -7,7 +7,7 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
     "lint": "eslint .",
-    "review:evidence": "node scripts/generate-bob-build-review-evidence.mjs",
+    "review:evidence": "node scripts/generate-bob-build-review-evidence.mjs tools/bob-build-review-evidence.json",
     "bob:self-heal-bridge": "node scripts/generate-bob-self-heal-bridge.mjs",
     "preview": "vite preview",
     "start": "sh -c 'vite preview --host 0.0.0.0 --port ${PORT:-4173}'",

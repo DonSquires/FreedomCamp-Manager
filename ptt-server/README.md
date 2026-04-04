@@ -76,6 +76,10 @@ railway status
 | `TURN_USERNAME` | No | TURN server username |
 | `TURN_CREDENTIAL` | No | TURN server password |
 
+Proxy secret compatibility:
+- The server accepts any of these env names for the same shared secret:
+- `PTT_PROXY_SECRET` (preferred), `PROXY_SECRET`, `PROXY_SERVER_SECRET`, `NZSCV_PROXY_SECRET`
+
 ## API Endpoints
 
 ### HTTP

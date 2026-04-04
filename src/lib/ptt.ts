@@ -58,6 +58,24 @@ interface PTTMessage {
   message?: string
 }
 
+export function normalizePTTErrorMessage(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error || 'Failed to connect')
+  const text = raw.toLowerCase()
+
+  // Most common production failure mode: token edge function unavailable.
+  // Keep this non-blocking and user-friendly because text chat can still work.
+  if (
+    text.includes('unable to reach the edge function') ||
+    text.includes('ptt-signaling-token') ||
+    text.includes('not be deployed') ||
+    text.includes('network connectivity issue')
+  ) {
+    return 'Push to Talk is currently unavailable. You can continue using text chat.'
+  }
+
+  return raw
+}
+
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
@@ -91,7 +109,7 @@ let bluetoothMediaSession: MediaSession | null = null
 export async function requestPTTToken(channelScope: string): Promise<PTTTokenResponse> {
   const { data, error } = await edgeFunctions.pttSignalingToken({ channelScope })
 
-  if (error) throw new Error(error)
+  if (error) throw new Error(normalizePTTErrorMessage(error))
   if (!data) throw new Error('No token data received')
 
   return data as PTTTokenResponse
@@ -135,8 +153,21 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
     ws.onclose = (event) => {
       console.log('🎤 PTT: Disconnected', event.code, event.reason)
       cleanupConnection()
-      
-      if (event.code !== 1000 && event.code !== 4001 && event.code !== 4002) {
+
+      if (event.code === 4001 || event.code === 4002) {
+        // Token/auth failures are terminal until backend config or auth state is corrected.
+        store.setConnection('error')
+        store.setError('Push to Talk authorization failed. Please sign in again or contact support.')
+        return
+      }
+
+      if (event.code === 4003) {
+        store.setConnection('error')
+        store.setError('Push to Talk channel is full. Please try again shortly.')
+        return
+      }
+
+      if (event.code !== 1000) {
         // Attempt reconnect for unexpected disconnects
         store.setConnection('reconnecting')
         scheduleReconnect(channelScope)
@@ -147,7 +178,7 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
 
     ws.onerror = (error) => {
       console.error('🎤 PTT: WebSocket error', error)
-      store.setError('Connection error')
+      store.setError('Push to Talk connection issue. You can continue using text chat.')
     }
 
     ws.onmessage = (event) => {
@@ -155,9 +186,10 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
     }
   } catch (error: any) {
     console.error('🎤 PTT: Connection failed', error)
+    const normalizedMessage = normalizePTTErrorMessage(error)
     store.setConnection('error')
-    store.setError(error.message || 'Failed to connect')
-    throw error
+    store.setError(normalizedMessage)
+    throw new Error(normalizedMessage)
   }
 }
 
@@ -266,7 +298,7 @@ function handleServerMessage(message: PTTMessage): void {
 
     case 'error':
       console.error('🎤 PTT: Server error', message.code, message.message)
-      store.setError(message.message || 'Server error')
+      store.setError(normalizePTTErrorMessage(message.message || 'Server error'))
       break
 
     case 'pong':
@@ -856,4 +888,16 @@ export async function connectToDirectChannel(targetUserId: string, targetUserNam
  */
 export async function connectToIncidentChannel(incidentId: string, incidentName?: string): Promise<void> {
   await connectToPTT(`incident:${incidentId}`, incidentName || 'Incident')
+}
+
+/**
+ * Reconnect to the currently selected PTT channel.
+ */
+export async function reconnectCurrentPTTChannel(): Promise<void> {
+  const { channelId, channelName } = usePTTStore.getState()
+  if (!channelId) {
+    throw new Error('No active PTT channel to reconnect')
+  }
+
+  await connectToPTT(channelId, channelName || undefined)
 }

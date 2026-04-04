@@ -102,6 +102,15 @@ These are set in Supabase Dashboard → Project Settings → Edge Functions → 
 | `NZSCV_API_KEY` | NZ SCV API key | For SCV lookups | Ministry of Transport API |
 | `PARKPOW_API_KEY` | ParkPow API key | For ALPR integration | Third-party ALPR service |
 | `RESEND_API_KEY` | Resend email API key | For email notifications | Email service |
+| `PTT_SERVER_URL` | Railway PTT signaling service URL | For push-to-talk | Used by `ptt-signaling-token` |
+| `PTT_PROXY_SECRET` | Shared secret for PTT token mint calls | For push-to-talk | Preferred secret for PTT token broker |
+
+PTT proxy secret compatibility (Edge Functions):
+- The `ptt-signaling-token` function accepts any one of these names:
+- `PTT_PROXY_SECRET` (preferred)
+- `PROXY_SECRET`
+- `PROXY_SERVER_SECRET`
+- `NZSCV_PROXY_SECRET`
 
 ### CORS Configuration
 

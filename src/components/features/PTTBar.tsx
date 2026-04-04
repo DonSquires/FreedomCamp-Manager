@@ -61,6 +61,7 @@ import {
 import {
   connectToOrgChannel,
   connectToDirectChannel,
+  reconnectCurrentPTTChannel,
   startSpeaking,
   stopSpeaking,
   startVoxMonitoring,
@@ -70,9 +71,11 @@ import {
   initBluetoothPTT,
   cleanupBluetoothPTT,
   playClip,
+  normalizePTTErrorMessage,
 } from '@/lib/ptt'
 import { useAuthStore } from '@/stores/authStore'
 import { useChatTargetStore } from '@/stores/chatTargetStore'
+import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 
 interface PTTBarProps {
   className?: string
@@ -82,6 +85,7 @@ interface PTTBarProps {
 export function PTTBar({ className, compact = false }: PTTBarProps) {
   const { user } = useAuthStore()
   const { target } = useChatTargetStore()
+  const selectedOrganizationId = useGlobalFiltersStore((s) => s.organizationId)
   
   const connectionStatus = usePTTStore((s) => s.connectionStatus)
   const channelId = usePTTStore((s) => s.channelId)
@@ -107,7 +111,13 @@ export function PTTBar({ className, compact = false }: PTTBarProps) {
   const canSpeak = usePTTCanSpeak()
   
   const [isPttPressed, setIsPttPressed] = useState(false)
+  const [isRetrying, setIsRetrying] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+
+  const operationalOrganizationId =
+    user?.role === 'master' || user?.role === 'grand_master'
+      ? selectedOrganizationId || user?.organization_id || null
+      : user?.organization_id || null
 
   // Switch to appropriate channel based on chat target
   // The background service maintains the connection, we just switch channels
@@ -126,7 +136,7 @@ export function PTTBar({ className, compact = false }: PTTBarProps) {
         }
       } catch (err: any) {
         console.error('PTT: Failed to switch channel', err)
-        setError(err.message || 'Failed to switch PTT channel')
+        setError(normalizePTTErrorMessage(err))
       }
     }
 
@@ -142,7 +152,7 @@ export function PTTBar({ className, compact = false }: PTTBarProps) {
       await startSpeaking()
     } catch (err: any) {
       console.error('PTT: Failed to start speaking', err)
-      setError(err.message || 'Failed to start speaking')
+      setError(normalizePTTErrorMessage(err))
     }
   }, [canSpeak, inputMode, setError])
 
@@ -167,7 +177,7 @@ export function PTTBar({ className, compact = false }: PTTBarProps) {
       }
     } catch (err: any) {
       console.error('PTT: Toggle failed', err)
-      setError(err.message || 'Toggle failed')
+      setError(normalizePTTErrorMessage(err))
     }
   }, [inputMode, isSpeaking, canSpeak, setError])
 
@@ -183,7 +193,7 @@ export function PTTBar({ className, compact = false }: PTTBarProps) {
       }
     } catch (err: any) {
       console.error('PTT: VOX toggle failed', err)
-      setError(err.message || 'VOX toggle failed')
+      setError(normalizePTTErrorMessage(err))
     }
   }, [setInputMode, setError])
 
@@ -205,6 +215,27 @@ export function PTTBar({ className, compact = false }: PTTBarProps) {
       stopVoxMonitoring()
     }
   }, [setInputMode, voxEnabled])
+
+  const handleRetryConnection = useCallback(async () => {
+    if (isRetrying) return
+    setIsRetrying(true)
+    setError(null)
+
+    try {
+      if (target.type === 'user') {
+        await connectToDirectChannel(target.user.id, `${target.user.first_name} ${target.user.last_name}`)
+      } else if (operationalOrganizationId) {
+        await connectToOrgChannel(operationalOrganizationId, 'Organization')
+      } else {
+        await reconnectCurrentPTTChannel()
+      }
+    } catch (err: any) {
+      console.error('PTT: Retry connection failed', err)
+      setError(normalizePTTErrorMessage(err))
+    } finally {
+      setIsRetrying(false)
+    }
+  }, [isRetrying, operationalOrganizationId, setError, target])
 
   // Connection status indicator
   const getConnectionIcon = () => {
@@ -497,9 +528,21 @@ export function PTTBar({ className, compact = false }: PTTBarProps) {
 
       {/* Error display */}
       {error && (
-        <div className="flex items-center gap-2 text-xs text-red-500">
+        <div className="flex items-center justify-between gap-2 text-xs text-red-500">
+          <div className="flex items-center gap-2">
           <AlertCircle className="h-3 w-3" />
           {error}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-6 px-2 text-xs"
+            onClick={handleRetryConnection}
+            disabled={isRetrying}
+          >
+            {isRetrying ? 'Retrying…' : 'Retry'}
+          </Button>
         </div>
       )}
     </div>

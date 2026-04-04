@@ -18,7 +18,27 @@ import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_share
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
 
 const PTT_SERVER_URL = Deno.env.get('PTT_SERVER_URL') || ''
-const PROXY_SECRET = Deno.env.get('PROXY_SECRET') || ''
+const PROXY_SECRET =
+  Deno.env.get('PTT_PROXY_SECRET') ||
+  Deno.env.get('PROXY_SECRET') ||
+  Deno.env.get('PROXY_SERVER_SECRET') ||
+  Deno.env.get('NZSCV_PROXY_SECRET') ||
+  ''
+
+function normalizeBaseUrl(value: string): string {
+  return value.replace(/\/+$/, '')
+}
+
+function toWsUrl(baseHttpUrl: string): string {
+  const normalized = normalizeBaseUrl(baseHttpUrl)
+  if (normalized.startsWith('https://')) {
+    return normalized.replace('https://', 'wss://') + '/ws'
+  }
+  if (normalized.startsWith('http://')) {
+    return normalized.replace('http://', 'ws://') + '/ws'
+  }
+  return normalized + '/ws'
+}
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -33,6 +53,16 @@ Deno.serve(async (req) => {
         JSON.stringify({
           error: 'PTT server not configured',
           message: 'PTT_SERVER_URL environment variable is not set',
+        }),
+        { status: 503, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      )
+    }
+
+    if (!PROXY_SECRET) {
+      return new Response(
+        JSON.stringify({
+          error: 'PTT proxy secret not configured',
+          message: 'Set one of: PTT_PROXY_SECRET, PROXY_SECRET, PROXY_SERVER_SECRET, or NZSCV_PROXY_SECRET',
         }),
         { status: 503, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
@@ -173,7 +203,9 @@ Deno.serve(async (req) => {
     }
 
     // Call PTT server to mint token
-    const mintResponse = await fetch(`${PTT_SERVER_URL}/api/token/mint`, {
+    const normalizedPttServerUrl = normalizeBaseUrl(PTT_SERVER_URL)
+
+    const mintResponse = await fetch(`${normalizedPttServerUrl}/api/token/mint`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -219,7 +251,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         ...tokenData,
-        wsUrl: PTT_SERVER_URL.replace(/^http/, 'ws') + '/ws',
+        wsUrl: toWsUrl(normalizedPttServerUrl),
       }),
       { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     )

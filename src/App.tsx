@@ -7,9 +7,6 @@ import { useSessionInactivityLock } from '@/hooks/useSessionInactivityLock'
 import { useThemeMode } from '@/hooks/useThemeMode'
 import { usePTTAutoConnect } from '@/hooks/usePTTAutoConnect'
 import { useSessionGpsLogging } from '@/hooks/useSessionGpsLogging'
-import { NetworkStatusBar } from '@/components/features/NetworkStatusBar'
-import { PWAInstallPrompt } from '@/components/features/PWAInstallPrompt'
-import { GlobalOperationsBar } from '@/components/features/GlobalOperationsBar'
 
 // ---------------------------------------------------------------------------
 // Lazy-loaded page chunks — Vite code-splits each of these into a separate
@@ -112,6 +109,9 @@ const BobIntakeQueue = lazy(() => import('@/pages/BobIntakeQueue'))
 const BobAssistantStudio = lazy(() => import('@/pages/BobAssistantStudio'))
 const OpsLivePlanReviewQueue = lazy(() => import('@/pages/OpsLivePlanReviewQueue'))
 const OfficerHomePage = lazy(() => import('@/pages/OfficerHomePage'))
+const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
+const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
+const GlobalOperationsBar = lazy(() => import('@/components/features/GlobalOperationsBar').then((m) => ({ default: m.GlobalOperationsBar })))
 
 // ---------------------------------------------------------------------------
 // PageLoader – minimal spinner shown while a lazy page chunk is downloading.
@@ -467,8 +467,10 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <RouteChangeCleanup />
-        <NetworkStatusBar />
-        <PWAInstallPrompt />
+        <Suspense fallback={null}>
+          <NetworkStatusBar />
+          <PWAInstallPrompt />
+        </Suspense>
         <RouteErrorBoundary>
         <Suspense fallback={<PageLoader />}>
         <Routes>
@@ -1503,7 +1505,9 @@ export default function App() {
         </Suspense>
         </RouteErrorBoundary>
         <Toaster position="top-right" />
-        <GlobalOperationsBar />
+        <Suspense fallback={null}>
+          <GlobalOperationsBar />
+        </Suspense>
       </BrowserRouter>
     </QueryClientProvider>
   )

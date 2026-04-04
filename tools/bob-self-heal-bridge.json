@@ -1,0 +1,75 @@
+{
+  "generatedAt": "2026-04-04T13:25:05.362Z",
+  "inputPath": "tools/bob-build-review-evidence.json",
+  "privacyMode": "self-contained",
+  "report": {
+    "summary": "Build review: 0 lint errors, 0 warnings, largest bundle hotspot assets/pdf.worker-xSiVJ7U_.mjs 2186.23kB.",
+    "severity": "high",
+    "stack_trace": "",
+    "expected_behavior": "Build succeeds, lint is clean, and Bob can review the state using internal evidence only.",
+    "actual_behavior": "Build success=true; lint errors=0; lint warnings=0; chunk warning=true.",
+    "reproduction_steps": [
+      "Run bun run review:evidence to refresh build and lint evidence.",
+      "Inspect generated Bob evidence JSON and identify top lint/build issues.",
+      "Feed the summary into Bob collaboration or self-heal planner for remediation guidance."
+    ],
+    "environment": "local-self-contained",
+    "evidence": {
+      "lint_issues": [],
+      "large_chunks": [
+        "assets/pdf.worker-xSiVJ7U_.mjs 2186.23kB",
+        "assets/index-v8gsyCqS.js 493.74kB",
+        "assets/pdf-CXh85JJT.js 453.37kB",
+        "assets/vendor-charts-D0rNoxVe.js 433.67kB",
+        "assets/vendor-xlsx-D_0l8YDs.js 429.03kB",
+        "assets/vendor-maps-JK5d1o3i.js 198.73kB"
+      ],
+      "privacy_mode": "self-contained"
+    }
+  },
+  "selfHealRequest": {
+    "report": {
+      "summary": "Build review: 0 lint errors, 0 warnings, largest bundle hotspot assets/pdf.worker-xSiVJ7U_.mjs 2186.23kB.",
+      "severity": "high",
+      "stack_trace": "",
+      "expected_behavior": "Build succeeds, lint is clean, and Bob can review the state using internal evidence only.",
+      "actual_behavior": "Build success=true; lint errors=0; lint warnings=0; chunk warning=true.",
+      "reproduction_steps": [
+        "Run bun run review:evidence to refresh build and lint evidence.",
+        "Inspect generated Bob evidence JSON and identify top lint/build issues.",
+        "Feed the summary into Bob collaboration or self-heal planner for remediation guidance."
+      ],
+      "environment": "local-self-contained",
+      "evidence": {
+        "lint_issues": [],
+        "large_chunks": [
+          "assets/pdf.worker-xSiVJ7U_.mjs 2186.23kB",
+          "assets/index-v8gsyCqS.js 493.74kB",
+          "assets/pdf-CXh85JJT.js 453.37kB",
+          "assets/vendor-charts-D0rNoxVe.js 433.67kB",
+          "assets/vendor-xlsx-D_0l8YDs.js 429.03kB",
+          "assets/vendor-maps-JK5d1o3i.js 198.73kB"
+        ],
+        "privacy_mode": "self-contained"
+      }
+    }
+  },
+  "collaborationPacketDraft": {
+    "source": "copilot",
+    "title": "Copilot Self-Heal Review Request",
+    "summary": "Build review: 0 lint errors, 0 warnings, largest bundle hotspot assets/pdf.worker-xSiVJ7U_.mjs 2186.23kB.",
+    "autoSubmit": false,
+    "returnRoute": "/bob-assistant",
+    "prompt": "You are Bob operating in self-contained internal mode. Review this engineering incident and propose a safe remediation path. Summary: Build review: 0 lint errors, 0 warnings, largest bundle hotspot assets/pdf.worker-xSiVJ7U_.mjs 2186.23kB. Severity: high Actual behavior: Build success=true; lint errors=0; lint warnings=0; chunk warning=true. Top lint issues: none Top chunk hotspots: assets/pdf.worker-xSiVJ7U_.mjs 2186.23kB; assets/index-v8gsyCqS.js 493.74kB; assets/pdf-CXh85JJT.js 453.37kB; assets/vendor-charts-D0rNoxVe.js 433.67kB; assets/vendor-xlsx-D_0l8YDs.js 429.03kB; assets/vendor-maps-JK5d1o3i.js 198.73kB Return sections: blockers, root cause hypotheses, minimal fixes, regression checks, privacy-safe rollout notes.",
+    "metadata": {
+      "workflow": "bob-copilot-self-heal-bridge",
+      "privacyMode": "self-contained",
+      "generatedAt": "2026-04-04T13:25:05.373Z"
+    }
+  },
+  "notes": [
+    "This artifact is internal-only and safe for self-contained Bob review workflows.",
+    "Use with /self-heal/bug-report, /self-heal/patch-task, or the in-app Bob collaboration queue.",
+    "No external/cloud inference is required or assumed."
+  ]
+}

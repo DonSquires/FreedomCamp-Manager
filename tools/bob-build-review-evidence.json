@@ -1,0 +1,117 @@
+{
+  "generatedAt": "2026-04-04T13:25:04.537Z",
+  "privacyMode": "self-contained",
+  "commands": {
+    "build": "bun run build",
+    "lint": "bun run lint"
+  },
+  "build": {
+    "exitCode": 0,
+    "succeeded": true,
+    "hasChunkWarning": true,
+    "largeChunks": [
+      {
+        "file": "assets/pdf.worker-xSiVJ7U_.mjs",
+        "sizeKb": 2186.23,
+        "gzipKb": null
+      },
+      {
+        "file": "assets/index-v8gsyCqS.js",
+        "sizeKb": 493.74,
+        "gzipKb": 129.45
+      },
+      {
+        "file": "assets/pdf-CXh85JJT.js",
+        "sizeKb": 453.37,
+        "gzipKb": 134.7
+      },
+      {
+        "file": "assets/vendor-charts-D0rNoxVe.js",
+        "sizeKb": 433.67,
+        "gzipKb": 114.53
+      },
+      {
+        "file": "assets/vendor-xlsx-D_0l8YDs.js",
+        "sizeKb": 429.03,
+        "gzipKb": 141.91
+      },
+      {
+        "file": "assets/vendor-maps-JK5d1o3i.js",
+        "sizeKb": 198.73,
+        "gzipKb": 59.78
+      },
+      {
+        "file": "assets/vendor-supabase-BhDb04ig.js",
+        "sizeKb": 194.28,
+        "gzipKb": 51.04
+      },
+      {
+        "file": "assets/FieldOfficerPortal-Bab8o60V.js",
+        "sizeKb": 168.26,
+        "gzipKb": 43.48
+      },
+      {
+        "file": "assets/vendor-react-o2oDURbw.js",
+        "sizeKb": 163.55,
+        "gzipKb": 53.36
+      },
+      {
+        "file": "assets/index-DuEaQbYG.css",
+        "sizeKb": 159.78,
+        "gzipKb": 28.59
+      }
+    ],
+    "tail": [
+      "dist/assets/EnforcementActions-nMMKDxsO.js             25.45 kB │ gzip:   6.87 kB",
+      "dist/assets/OfficerSkills-CkVplLZD.js                  25.73 kB │ gzip:   6.54 kB",
+      "dist/assets/SiteGuardPortal-CV8aIUJT.js                26.10 kB │ gzip:   7.58 kB",
+      "dist/assets/VehicleDetailPage-B6XzeKrd.js              26.41 kB │ gzip:   6.85 kB",
+      "dist/assets/InfringementNotices-CwjqnDTx.js            27.61 kB │ gzip:   8.22 kB",
+      "dist/assets/CanonicalRecordsManager-D_DYRVq3.js        28.36 kB │ gzip:   6.16 kB",
+      "dist/assets/CleanDashboard-BDXkIEcM.js                 29.86 kB │ gzip:   5.90 kB",
+      "dist/assets/RosterPlanner-C8pT1jEZ.js                  29.95 kB │ gzip:   8.86 kB",
+      "dist/assets/CompliancePage-C6YLjiGu.js                 30.03 kB │ gzip:   7.81 kB",
+      "dist/assets/Platform-Rkke2uAN.js                       31.03 kB │ gzip:   8.92 kB",
+      "dist/assets/ZoneManagement-Cz8lMp-B.js                 32.10 kB │ gzip:   7.69 kB",
+      "dist/assets/ParkingEnforcementPortal-CaRes4vn.js       32.40 kB │ gzip:   8.23 kB",
+      "dist/assets/SpatialComplianceAdmin-BwL-n35w.js         32.79 kB │ gzip:   8.56 kB",
+      "dist/assets/PointsOfInterest-aNQIXcwa.js               33.28 kB │ gzip:   7.07 kB",
+      "dist/assets/VehicleManagement-cie0ZzgY.js              34.71 kB │ gzip:   9.68 kB",
+      "dist/assets/UserManagement-C5vFrxeB.js                 35.56 kB │ gzip:   7.71 kB",
+      "dist/assets/NoiseControlPortal-XUdA92Od.js             35.96 kB │ gzip:   8.22 kB",
+      "dist/assets/ParkingOfficerPortal-Dls1r-0P.js           39.93 kB │ gzip:  11.25 kB",
+      "dist/assets/ImportData-BSEKcAbY.js                     41.96 kB │ gzip:  11.66 kB",
+      "dist/assets/vendor-query-B7lUqn63.js                   42.02 kB │ gzip:  12.72 kB",
+      "dist/assets/NoiseOfficerPortal-hpzj19rf.js             46.41 kB │ gzip:  12.04 kB",
+      "dist/assets/AdminPortal-ClmWCWsm.js                    49.36 kB │ gzip:  12.78 kB",
+      "dist/assets/IdentityVerificationPage-BJcMSDvr.js       50.85 kB │ gzip:  12.58 kB",
+      "dist/assets/vendor-utils-B4ny7bXT.js                   53.41 kB │ gzip:  16.47 kB",
+      "dist/assets/BreachAlerts-CHAZt_74.js                   58.12 kB │ gzip:  14.22 kB",
+      "dist/assets/card-DrRKhazr.js                           61.50 kB │ gzip:  18.17 kB",
+      "dist/assets/BobAssistantStudio-Cqv0hZqB.js             64.45 kB │ gzip:  21.81 kB",
+      "dist/assets/CleanAppScaffold-DyqrKd6h.js               69.99 kB │ gzip:  14.30 kB",
+      "dist/assets/App-C7BExiQv.js                            70.63 kB │ gzip:  18.81 kB",
+      "dist/assets/AppLayout-hedjlgeT.js                      82.19 kB │ gzip:  22.41 kB",
+      "dist/assets/vendor-radix-DBlAVzBm.js                  128.35 kB │ gzip:  39.68 kB",
+      "dist/assets/vendor-react-o2oDURbw.js                  163.55 kB │ gzip:  53.36 kB",
+      "dist/assets/FieldOfficerPortal-Bab8o60V.js            168.26 kB │ gzip:  43.48 kB",
+      "dist/assets/vendor-supabase-BhDb04ig.js               194.28 kB │ gzip:  51.04 kB",
+      "dist/assets/vendor-maps-JK5d1o3i.js                   198.73 kB │ gzip:  59.78 kB",
+      "dist/assets/vendor-xlsx-D_0l8YDs.js                   429.03 kB │ gzip: 141.91 kB",
+      "dist/assets/vendor-charts-D0rNoxVe.js                 433.67 kB │ gzip: 114.53 kB",
+      "dist/assets/pdf-CXh85JJT.js                           453.37 kB │ gzip: 134.70 kB",
+      "dist/assets/index-v8gsyCqS.js                         493.74 kB │ gzip: 129.45 kB",
+      "✓ built in 16.61s"
+    ]
+  },
+  "lint": {
+    "exitCode": 0,
+    "succeeded": true,
+    "totalProblems": 0,
+    "totalErrors": 0,
+    "totalWarnings": 0,
+    "fileIssues": [],
+    "tail": []
+  },
+  "bobReviewPrompt": "You are Bob in self-contained internal mode. Review this build evidence and return sections: Critical blockers, Performance risks, Reliability risks, Privacy checks, 14-day remediation plan. Build succeeded: true. Chunk warning: true. Top large chunks: assets/pdf.worker-xSiVJ7U_.mjs 2186.23kB; assets/index-v8gsyCqS.js 493.74kB; assets/pdf-CXh85JJT.js 453.37kB; assets/vendor-charts-D0rNoxVe.js 433.67kB; assets/vendor-xlsx-D_0l8YDs.js 429.03kB; assets/vendor-maps-JK5d1o3i.js 198.73kB. Lint exit code: 0. Errors: 0. Warnings: 0. Top lint issues: none."
+}

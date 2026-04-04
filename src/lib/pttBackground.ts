@@ -29,6 +29,7 @@ let isServiceRunning = false
 let reconnectAttempts = 0
 const MAX_RECONNECT_ATTEMPTS = 10
 const RECONNECT_DELAY_MS = 3000
+const STEADY_STATE_RECONNECT_DELAY_MS = 30000
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
 let visibilityHandler: (() => void) | null = null
 
@@ -214,17 +215,21 @@ export function stopPTTBackgroundService(): void {
 function scheduleReconnect(): void {
   if (!isServiceRunning) return
   if (reconnectTimeout) return
-  if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-    console.error('🎤 PTT Background: Max reconnect attempts reached')
-    usePTTStore.getState().setError('Connection lost. Please refresh the page.')
-    return
-  }
 
   reconnectAttempts++
-  // Exponential backoff capped at 5x base delay (15 seconds max) to balance
-  // quick recovery with avoiding server overload during outages
+  // After initial burst attempts, keep retrying in steady-state mode instead
+  // of hard-stopping behind a refresh requirement.
+  const steadyState = reconnectAttempts > MAX_RECONNECT_ATTEMPTS
   const MAX_BACKOFF_MULTIPLIER = 5
-  const delay = RECONNECT_DELAY_MS * Math.min(reconnectAttempts, MAX_BACKOFF_MULTIPLIER)
+  const delay = steadyState
+    ? STEADY_STATE_RECONNECT_DELAY_MS
+    : RECONNECT_DELAY_MS * Math.min(reconnectAttempts, MAX_BACKOFF_MULTIPLIER)
+
+  if (steadyState) {
+    usePTTStore
+      .getState()
+      .setError('Push to Talk is reconnecting in the background. Text chat remains available.')
+  }
 
   console.log(`🎤 PTT Background: Scheduling reconnect in ${delay}ms (attempt ${reconnectAttempts})`)
 
