@@ -417,7 +417,7 @@ export default function TeamChat() {
       const approvalMessages: ChatMessage[] = [
         ...((pendingBulletinsRes.data || []) as any[]).map((row) => ({
           id: `system-pending-bulletin-${row.id}`,
-          body: `Approval needed: external intelligence bulletin \"${row.title}\" is pending review in Intel Approvals.`,
+          body: `Approval needed: external intelligence bulletin "${row.title}" is pending review in Intel Approvals.`,
           senderId: 'system',
           senderName: 'System Approval Queue',
           senderRole: 'system',
@@ -428,7 +428,7 @@ export default function TeamChat() {
         })),
         ...((pendingAlertsRes.data || []) as any[]).map((row) => ({
           id: `system-pending-alert-${row.id}`,
-          body: `Approval needed: ${String(row.severity || '').toUpperCase()} safety alert \"${row.title}\" is pending activation.`,
+          body: `Approval needed: ${String(row.severity || '').toUpperCase()} safety alert "${row.title}" is pending activation.`,
           senderId: 'system',
           senderName: 'System Approval Queue',
           senderRole: 'system',

@@ -749,7 +749,7 @@ export default function ImportData() {
       }))
     } else {
       let encoded = ''
-      let importName = file?.name || `${batchName.trim() || 'pasted-historical-import'}.csv`
+      const importName = file?.name || `${batchName.trim() || 'pasted-historical-import'}.csv`
 
       if (pastedTextInput.trim()) {
         encoded = btoa(unescape(encodeURIComponent(pastedTextInput.trim())))

@@ -42,7 +42,7 @@ export function PublicSafetyBanner() {
     refetchInterval: 60_000,
     queryFn: async () => {
       const now = new Date().toISOString()
-      let query = ((supabase as any).from('public_safety_alerts') as any)
+      const query = ((supabase as any).from('public_safety_alerts') as any)
         .select('id, title, message, severity, event_type, scope, target_organization_ids, created_at, starts_at, expires_at')
         .eq('status', 'active')
         .lte('starts_at', now)
