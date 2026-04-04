@@ -13,9 +13,9 @@
  *   AI_DEFAULT_MODEL        Optional UI hint only (handled by inference-service).
  *
  * Optional secrets for Ollama fallback/support:
- *   OLLAMA_BASE_URL         e.g. http://localhost:11434
+ *   OLLAMA_BASE_URL         e.g. http://localhost:11434 (defaults to INFERENCE_SERVICE_URL)
  *   OLLAMA_MODEL            e.g. llama3.1:8b
- *   OLLAMA_API_KEY          Optional bearer key for hosted Ollama gateways
+ *   OLLAMA_API_KEY          Optional bearer key (defaults to INFERENCE_API_KEY)
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
@@ -251,9 +251,10 @@ Deno.serve(async (req: Request) => {
     // ── Provider configuration ──────────────────────────────────────────────
     const inferenceUrl = (Deno.env.get('INFERENCE_SERVICE_URL') ?? '').replace(/\/$/, '')
     const inferenceApiKey = Deno.env.get('INFERENCE_API_KEY') ?? ''
-    const ollamaBaseUrl = (Deno.env.get('OLLAMA_BASE_URL') ?? '').replace(/\/$/, '')
+    // Ollama defaults to the same Railway project location/credential as Bob inference.
+    const ollamaBaseUrl = (Deno.env.get('OLLAMA_BASE_URL') ?? inferenceUrl).replace(/\/$/, '')
     const ollamaModel = Deno.env.get('OLLAMA_MODEL') ?? model
-    const ollamaApiKey = Deno.env.get('OLLAMA_API_KEY') ?? ''
+    const ollamaApiKey = Deno.env.get('OLLAMA_API_KEY') ?? inferenceApiKey
     const providerPreference = String(requestedProvider ?? 'auto').toLowerCase()
 
     if (!inferenceUrl && !ollamaBaseUrl) {
