@@ -66,6 +66,7 @@ function typeIcon(incident_type: string | null) {
 
 export default function IncidentManagement() {
   const { user } = useAuthStore()
+  const isAdmin = ['admin', 'admin_officer', 'master'].includes(user?.role ?? '')
   const queryClient = useQueryClient()
   const { dateFrom, dateTo, organizationId, zoneId } = useGlobalFiltersStore()
   const { operationalOrganizationId } = useOperationalOrganization()
@@ -328,7 +329,8 @@ export default function IncidentManagement() {
                   )}
                 </div>
 
-                {/* Status actions */}
+                {/* Status actions — admin only */}
+                {isAdmin && (
                 <div className="mt-4 flex gap-2">
                   {incident.status === 'open' && (
                     <Button
@@ -354,6 +356,7 @@ export default function IncidentManagement() {
                     <Badge variant="default" className="text-xs">Resolved</Badge>
                   )}
                 </div>
+                )}
               </CardContent>
             </Card>
           ))

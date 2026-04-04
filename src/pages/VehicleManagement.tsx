@@ -62,6 +62,7 @@ interface VehicleQueryDebug {
 
 export default function VehicleManagement() {
   const { user } = useAuthStore()
+  const isAdmin = ['admin', 'admin_officer', 'master'].includes(user?.role ?? '')
   const {
     organizationId,
     zoneId,
@@ -1109,6 +1110,7 @@ export default function VehicleManagement() {
                       >
                         Quick Tools
                       </Button>
+                      {isAdmin && (
                       <Button
                         variant={vehicle.is_flagged ? 'destructive' : 'outline'}
                         size="sm"
@@ -1118,6 +1120,7 @@ export default function VehicleManagement() {
                       >
                         <Flag className={`h-3.5 w-3.5 ${vehicle.is_flagged ? 'fill-white' : ''}`} />
                       </Button>
+                      )}
                       <Button
                         variant="default"
                         size="sm"
@@ -1336,7 +1339,8 @@ export default function VehicleManagement() {
                   )}
                 </div>
 
-                {/* Vehicle details enrichment */}
+                {/* Vehicle details enrichment — admin only */}
+                {isAdmin && (
                 <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
                   <div className="flex items-center justify-between">
                     <div className="text-sm font-semibold">Vehicle Details Enrichment</div>
@@ -1357,8 +1361,10 @@ export default function VehicleManagement() {
                     Pull make, model, colour, and year from registry enrichment.
                   </div>
                 </div>
+                )}
 
-                {/* Scrape sales sites */}
+                {/* Scrape sales sites — admin only */}
+                {isAdmin && (
                 <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="text-sm font-semibold">Scrape Sales Sites</div>
@@ -1391,6 +1397,7 @@ export default function VehicleManagement() {
                     the best available photo and enriches vehicle details.
                   </div>
                 </div>
+                )}
 
                 <div className="flex gap-2 pt-2 border-t">
                   <Button

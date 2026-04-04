@@ -69,6 +69,7 @@ interface Incident {
 
 export default function IncidentReports() {
   const { user } = useAuthStore()
+  const isAdmin = ['admin', 'admin_officer', 'master'].includes(user?.role ?? '')
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
   const [searchQuery, setSearchQuery] = useState('')
@@ -570,6 +571,7 @@ export default function IncidentReports() {
                       View Details
                     </Button>
 
+                    {isAdmin && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -591,6 +593,7 @@ export default function IncidentReports() {
                         </>
                       )}
                     </Button>
+                    )}
 
                     <Button variant="outline" size="sm">
                       <Download className="h-4 w-4 mr-1" />
