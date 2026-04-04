@@ -40,14 +40,14 @@ jobs:
           [ -z "$INTEL_REGION_ORG_MAP" ] && echo "::warning::INTEL_REGION_ORG_MAP not set; regional alerts may not target neighboring organizations."
 
           if [ -n "$missing$auth_missing" ]; then
-            echo "::error::Missing required secrets:$missing$auth_missing"
+            echo "::warning::Intel feed sync skipped — missing secrets:$missing$auth_missing"
             echo "Configure these in GitHub -> Settings -> Secrets and variables -> Actions:"
             echo "  INTEL_FEED_URLS            (comma/newline feed URLs)"
             echo "  INTEL_INGEST_URL           (Bob endpoint, e.g. https://.../intel/ingest-bulletin)"
             echo "  INFERENCE_API_KEY          (or use SUPABASE_SERVICE_ROLE_KEY instead)"
             echo "  SUPABASE_SERVICE_ROLE_KEY  (optional alternative auth key for ingest endpoint)"
             echo "secrets_present=false" >> "$GITHUB_OUTPUT"
-            exit 1
+            exit 0
           fi
 
           echo "secrets_present=true" >> "$GITHUB_OUTPUT"
