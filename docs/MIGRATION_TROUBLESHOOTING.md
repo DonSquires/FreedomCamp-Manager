@@ -91,12 +91,15 @@ entries with no corresponding single local file:
 | `20260320` | `20260320000001_…` through `20260320000003_…` |
 | `20260321` | `20260321_reassign_observations_to_current_zones.sql` |
 | `20260323` | `20260323000001_parking_enforcement_tables.sql`, `20260323000002_noise_control_tables.sql`, `20260323_photo_recovery_infrastructure.sql` |
+| `20260326` | `20260326000001_add_portal_access_columns.sql`, `20260326000002_fix_get_user_organization_ids_stability.sql`, `20260326_evidence_bucket_import_policy.sql` |
+| `20260329` | `20260329000001_allow_grand_master_bug_report_admin.sql`, `20260329000002_ptt_tables.sql`, `20260329_fix_breach_alerts_observation_fk.sql` |
+| `20260330` | `20260330000001_grand_master_notices_to_vacate_rls.sql`, `20260330_fix_observations_idempotency_key.sql` |
 
 Revert all of them in one command:
 
 ```bash
 supabase migration repair --status reverted \
-   20250127 20260309 20260312 20260313 20260315 20260316 20260317 20260318 20260319 20260320 20260321 20260323
+   20250127 20260309 20260312 20260313 20260315 20260316 20260317 20260318 20260319 20260320 20260321 20260323 20260326 20260329 20260330
 ```
 
 ---
@@ -186,7 +189,7 @@ supabase migration list
 
 ```bash
 supabase migration repair --status reverted \
-   20250127 20260309 20260312 20260313 20260315 20260316 20260317 20260318 20260319 20260320 20260321 20260323
+   20250127 20260309 20260312 20260313 20260315 20260316 20260317 20260318 20260319 20260320 20260321 20260323 20260326 20260329 20260330
 ```
 
 ### Step 3 — Try a standard push

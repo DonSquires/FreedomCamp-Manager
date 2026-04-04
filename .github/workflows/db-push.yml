@@ -130,8 +130,8 @@ jobs:
           # Repair is safe and idempotent; each call is a no-op if the version is absent.
           # Keep this list aligned with scripts/migration-utils.sh and
           # docs/MIGRATION_TROUBLESHOOTING.md.
-          for version in 20250127 20260309 20260312 20260313 20260315 20260316 20260317 20260318 20260319 20260320 20260321 20260323 20260326; do
-            supabase migration repair --status reverted "$version" || true
+          for version in 20250127 20260309 20260312 20260313 20260315 20260316 20260317 20260318 20260319 20260320 20260321 20260323 20260326 20260329 20260330; do
+            supabase migration repair --linked -p "$SUPABASE_DB_PASSWORD" --status reverted "$version" || true
           done
 
       - name: Apply migrations
@@ -340,7 +340,8 @@ jobs:
               if [ -n "${REVERT_VERSIONS:-}" ]; then
                 echo "Reverting remote-only migration versions: $REVERT_VERSIONS"
                 # shellcheck disable=SC2086
-                supabase migration repair --status reverted $REVERT_VERSIONS || true
+                # shellcheck disable=SC2086
+                supabase migration repair --linked -p "$SUPABASE_DB_PASSWORD" --status reverted $REVERT_VERSIONS || true
                 handled=true
               fi
             fi
@@ -355,7 +356,7 @@ jobs:
                 | while read -r version; do
                     if [ -n "$version" ]; then
                       echo "Marking migration as applied: $version"
-                      supabase migration repair --status applied "$version" || true
+                      supabase migration repair --linked -p "$SUPABASE_DB_PASSWORD" --status applied "$version" || true
                     fi
                   done
               handled=true
@@ -377,7 +378,7 @@ jobs:
               if [ -n "${DUP_VERSION:-}" ]; then
                 echo "Detected duplicate schema_migrations version: $DUP_VERSION"
                 echo "Repairing duplicate by marking version applied, then retrying..."
-                supabase migration repair --status applied "$DUP_VERSION" || true
+                supabase migration repair --linked -p "$SUPABASE_DB_PASSWORD" --status applied "$DUP_VERSION" || true
                 handled=true
               fi
             fi
