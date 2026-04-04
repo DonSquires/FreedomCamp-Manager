@@ -151,7 +151,7 @@ jobs:
             exit 1
           fi
 
-          if ! echo "$BODY" | grep -qi 'ptt\|signaling\|push.to.talk'; then
+          if ! echo "$BODY" | grep -qi 'ptt\|signaling\|push-to-talk'; then
             echo "::warning::PTT health response did not include expected marker. Body preview: ${BODY:0:200}"
           else
             echo "✅ PTT server health check passed"
@@ -188,7 +188,9 @@ jobs:
           cd "$TMP_DIR"
           curl -fsSL -o supabase.tar.gz "$URL"
           tar -xzf supabase.tar.gz
-          install -m 0755 supabase "$HOME/.railway/bin/supabase"
+          mkdir -p "$HOME/.local/bin"
+          install -m 0755 supabase "$HOME/.local/bin/supabase"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           echo "✅ Supabase CLI installed"
 
       - name: Sync PTT secrets to Supabase
@@ -213,7 +215,7 @@ jobs:
             SECRETS_ARGS="${SECRETS_ARGS} PROXY_SECRET=${PROXY_SECRET}"
           fi
 
-          if "$HOME/.railway/bin/supabase" secrets set $SECRETS_ARGS \
+          if "$HOME/.local/bin/supabase" secrets set $SECRETS_ARGS \
               --project-ref "$SUPABASE_PROJECT_REF"; then
             echo "✅ Supabase secrets updated:"
             echo "   • PTT_SERVER_URL = ${PTT_SERVER_URL}"
