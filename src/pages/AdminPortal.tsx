@@ -1290,7 +1290,7 @@ export default function AdminPortal() {
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
                   {[
                     { path: '/reports-hub',         label: 'Reports Hub',         Icon: FileBarChart,  color: 'text-gray-600',   bg: 'bg-gray-100 dark:bg-gray-800/30' },
-                    { path: '/ai-analysis',          label: 'AI Analysis',         Icon: Sparkles,      color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    { path: '/ai-analysis',          label: 'Bob Analysis',        Icon: Sparkles,      color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
                     { path: '/compliance-analytics', label: 'Compliance Analytics',Icon: PieChart,      color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                     { path: '/observations-report',  label: 'Obs. Report',         Icon: LayoutGrid,    color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
                     { path: '/audit-log',            label: 'Audit Log',           Icon: ScrollText,    color: 'text-gray-600',   bg: 'bg-gray-100 dark:bg-gray-800/30' },

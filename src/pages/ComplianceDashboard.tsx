@@ -140,7 +140,7 @@ export default function ComplianceDashboard() {
   const jurisdictionZones = zoneBreakdown.filter(z => z.parent_zone_id === null)
   const specificZones     = zoneBreakdown.filter(z => z.parent_zone_id !== null)
 
-  // Railway Integration: Analyze recent vehicle photos with AI
+  // Railway Integration: Analyze recent vehicle photos with Bob
   const handleAnalyzeRecentPhotos = async () => {
     setAnalyzingPhotos(true)
     try {
@@ -179,7 +179,7 @@ export default function ComplianceDashboard() {
         embedding: data?.embedding,
       })
 
-      toast.success('AI analysis complete')
+      toast.success('Bob analysis complete')
     } catch (error: any) {
       toast.error(error.message || 'Failed to analyse photos')
     } finally {
@@ -359,14 +359,14 @@ export default function ComplianceDashboard() {
             </Card>
           )}
 
-          {/* Railway Integration: AI Photo Analysis */}
+          {/* Railway Integration: Bob Photo Analysis */}
           <Card className="mb-8">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <Brain className="h-5 w-5" />
-                    AI Photo Analysis
+                    Bob Photo Analysis
                   </CardTitle>
                   <CardDescription>
                     Analyse vehicle photos using Railway inference service
@@ -412,7 +412,7 @@ export default function ComplianceDashboard() {
                 </div>
               ) : (
                 <div className="text-center py-8 text-gray-600">
-                  Click "Analyse Photos" to run AI analysis on recent observations
+                  Click "Analyse Photos" to run Bob analysis on recent observations
                 </div>
               )}
             </CardContent>

@@ -1,7 +1,7 @@
 /**
  * onspace-ai-chat
  *
- * AI-powered analysis and chat for FieldOps Manager admins.
+ * Bob-powered analysis and chat for FieldOps Manager admins.
  *
  * Self-contained policy:
  *   Primary provider is Railway inference-service (/chat endpoint).
@@ -21,7 +21,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
 
-const SYSTEM_PROMPT = `You are an AI assistant for FieldOps Manager — a freedom camping enforcement system used by councils and security contractors in New Zealand.
+const SYSTEM_PROMPT = `You are Bob, the inference agent and assistant for FieldOps Manager — a freedom camping enforcement system used by councils and security contractors in New Zealand.
 
 You help admins and enforcement managers by:
 - Analysing compliance data, breach trends, and patrol performance
@@ -50,6 +50,7 @@ Conversation style requirements:
 - Ask one clarifying question when the request is broad or ambiguous.
 - For simple asks, give direct answers first, then brief optional next steps.
 - Never pretend to have completed actions you cannot perform; clearly state what you can do next.
+- You are the primary point of contact for build and ops support across UI, DB, Expo, Railway, and Vercel workflows, using available connected tools, telemetry, and approved permissions.
 
 Critical policy rules:
 - Maintain strict confidentiality. Do not reveal personal user information unless the user has given express permission.
@@ -307,7 +308,7 @@ Deno.serve(async (req: Request) => {
       return new Response(
         JSON.stringify({
           response:
-            'Bob is online, but no AI provider has been configured yet. To enable full AI chat, set INFERENCE_SERVICE_URL in the edge function secrets. In the meantime, share your question or operational issue and I will provide a structured response using built-in knowledge.',
+            'Bob is online, but no inference provider has been configured yet. To enable full Bob chat, set INFERENCE_SERVICE_URL in the edge function secrets. In the meantime, share your question or operational issue and I will provide a structured response using built-in knowledge.',
           model: 'bob-unconfigured',
           provider: 'local-failsafe',
           usage: null,
@@ -349,7 +350,7 @@ Deno.serve(async (req: Request) => {
           reason: 'missing_express_permission',
         })
       } catch (auditErr) {
-        console.error('[AI] Failed to write privacy audit (blocked):', auditErr)
+        console.error('[Bob] Failed to write privacy audit (blocked):', auditErr)
       }
 
       return new Response(
@@ -377,7 +378,7 @@ Deno.serve(async (req: Request) => {
           reason: isGrandMaster ? 'grand_master_override' : 'express_permission_present',
         })
       } catch (auditErr) {
-        console.error('[AI] Failed to write privacy audit (allowed):', auditErr)
+        console.error('[Bob] Failed to write privacy audit (allowed):', auditErr)
       }
     }
 
@@ -392,7 +393,7 @@ Deno.serve(async (req: Request) => {
           latestUserMessage.slice(0, 400),
         )
       } catch (notifyErr) {
-        console.error('[AI] Failed to notify grand masters for escalation:', notifyErr)
+        console.error('[Bob] Failed to notify grand masters for escalation:', notifyErr)
       }
     }
 
@@ -566,7 +567,7 @@ Deno.serve(async (req: Request) => {
 
     if (!providerResult) {
       const fallbackText =
-        'Bob is online, but the upstream AI provider is currently unavailable. I can still help with operational triage: share the issue, target route/file, and expected behaviour, and I will provide a structured action plan while services recover.'
+        'Bob is online, but the upstream inference provider is currently unavailable. I can still help with operational triage: share the issue, target route/file, and expected behaviour, and I will provide a structured action plan while services recover.'
 
       return new Response(
         JSON.stringify({
@@ -584,7 +585,7 @@ Deno.serve(async (req: Request) => {
 
     if (!responseText) {
       return new Response(
-        JSON.stringify({ error: 'AI provider returned an empty response' }),
+        JSON.stringify({ error: 'Bob inference provider returned an empty response' }),
         { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
@@ -604,13 +605,13 @@ Deno.serve(async (req: Request) => {
     )
   } catch (err: any) {
     if (err?.name === 'AbortError') {
-      console.error('[AI] Request timed out after 60s')
+      console.error('[Bob] Request timed out after 60s')
       return new Response(
-        JSON.stringify({ error: 'AI request timed out after 60 seconds' }),
+        JSON.stringify({ error: 'Bob request timed out after 60 seconds' }),
         { status: 504, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
-    console.error('[AI] Unhandled error:', err?.message)
+    console.error('[Bob] Unhandled error:', err?.message)
     return new Response(
       JSON.stringify({ error: 'Internal server error', message: err?.message ?? 'Unknown error' }),
       { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }

@@ -142,7 +142,7 @@ export default function Login() {
               'Officer patrol tracking & welfare monitoring',
               'Automated breach detection & enforcement pipeline',
               'Roster, timesheets & workforce management',
-              'AI-powered analysis & legislation guidance',
+              'Bob inference-agent analysis & legislation guidance',
             ].map((feature) => (
               <li key={feature} className="flex items-start gap-3">
                 <CheckCircle2 className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
@@ -153,7 +153,7 @@ export default function Login() {
         </div>
 
         <p className="text-xs text-blue-400/70 mt-8">
-          Trusted by Iron Eagle Security · OnSpace AI
+          Trusted by Iron Eagle Security · OnSpace
         </p>
       </div>
 

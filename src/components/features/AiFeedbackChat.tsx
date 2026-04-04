@@ -1,16 +1,16 @@
 /**
  * AiFeedbackChat
  *
- * AI-guided chat intake for bug reports, feature requests, and performance
- * issues.  The AI asks targeted questions, understands the user's problem,
+ * Bob-guided chat intake for bug reports, feature requests, and performance
+ * issues. Bob asks targeted questions, understands the user's problem,
  * then produces a structured JSON summary that is submitted automatically —
  * no confirmation step required.
  *
  * Flow:
- *   1. AI receives the user's full navigation history and any console errors
+ *   1. Bob receives the user's full navigation history and any console errors
  *      as context so it already knows what the user was doing.
- *   2. AI greets the user and asks 3–5 targeted questions.
- *   3. When the AI has enough information it embeds a JSON block
+ *   2. Bob greets the user and asks 3–5 targeted questions.
+ *   3. When Bob has enough information it embeds a JSON block
  *      (```json ... ```) in its response.
  *   4. The component detects the JSON, strips it from the visible message,
  *      and immediately submits the report — no extra tap required.
@@ -89,7 +89,7 @@ For severity use one of: low, medium, high, critical`
 function buildContextBlock(): string {
   const snapshot = getFeedbackSnapshot()
 
-  // Full navigation history — most recent last so the AI reads it in order
+  // Full navigation history — most recent last so Bob reads it in order
   const navLines = snapshot.navigationHistory.length > 0
     ? snapshot.navigationHistory.map((n, i) => {
         const time = new Date(n.timestamp).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -131,7 +131,7 @@ function buildBobHandoffPrompt(messages: ChatMsg[], draftInput: string): string 
     .join('\n\n')
 }
 
-/** Extract the first ```json ... ``` block from AI response text. */
+/** Extract the first ```json ... ``` block from Bob response text. */
 function extractJsonBlock(text: string): ExtractedReport | null {
   const match = text.match(/```json\s*([\s\S]+?)\s*```/)
   if (!match) return null
@@ -225,7 +225,7 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
     msgs.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }))
   , [])
 
-  /** Auto-submit a report extracted from the AI response. No user action required. */
+  /** Auto-submit a report extracted from the Bob response. No user action required. */
   const autoSubmit = useCallback(async (reportData: ExtractedReport, convMessages: ChatMsg[]) => {
     if (!user?.id) return
     setSubmitting(true)
@@ -251,7 +251,7 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
               ...snapshot.browserInfo,
               // Full navigation log stored for grand-master review
               navigationHistory: snapshot.navigationHistory,
-              // Full AI conversation stored for audit trail
+              // Full Bob conversation stored for audit trail
               ai_intake_conversation: convMessages.map(m => ({
                 role: m.role,
                 content: m.content.slice(0, 600),
@@ -270,7 +270,7 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
       )
 
       if (inserted?.id) {
-        // Fire-and-forget AI analysis with CI health check
+        // Fire-and-forget Bob analysis with CI health check
         edgeFunctions.autoAnalyseReport({ report_id: inserted.id }).catch(() => {})
       }
 
@@ -281,11 +281,11 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
     }
   }, [user, onSubmitted])
 
-  /** Call the AI edge function with the current conversation history. */
+  /** Call the Bob edge function with the current conversation history. */
   const sendAiMessage = useCallback(async (currentMsgs: ChatMsg[]) => {
     setLoading(true)
 
-    // Inject full context on every call so the AI always has the latest snapshot
+    // Inject full context on every call so Bob always has the latest snapshot
     const systemWithContext = INTAKE_SYSTEM_PROMPT + buildContextBlock()
     const history = buildHistory(currentMsgs)
 
@@ -300,23 +300,23 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
           temperature: 0.5,
         }),
         25000,
-        'AI chat request'
+        'Bob chat request'
       )
 
       if (result.error) {
         // Detect configuration issues vs. transient failures
-        const isConfigError = result.error.includes('not configured') || result.error.includes('AI service')
+        const isConfigError = result.error.includes('not configured') || result.error.includes('Bob service')
         const msg = isConfigError 
-          ? `AI service not configured. A system administrator needs to set GITHUB_TOKEN or OPENAI_API_KEY in Supabase Edge Function secrets: ${result.error}`
+          ? `Bob service not configured. A system administrator needs to set GITHUB_TOKEN or OPENAI_API_KEY in Supabase Edge Function secrets: ${result.error}`
           : result.error
         throw new Error(msg)
       }
 
       const responseText = result.data?.response ?? "I'm having trouble connecting right now."
 
-      // Check if the AI has produced the structured report JSON
+      // Check if Bob has produced the structured report JSON
       const reportData = extractJsonBlock(responseText)
-      // Show the AI message with the JSON block removed — it's not human-readable
+      // Show the Bob message with the JSON block removed — it's not human-readable
       const visibleText = reportData ? stripJsonBlock(responseText) : responseText
 
       const assistantMsg: ChatMsg = {
@@ -328,7 +328,7 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
       const updatedMsgs = [...currentMsgs, assistantMsg]
       setMessages(updatedMsgs)
 
-      // Auto-submit immediately if the AI provided structured data
+      // Auto-submit immediately if Bob provided structured data
       if (reportData) {
         await autoSubmit(reportData, updatedMsgs)
       }
@@ -368,7 +368,7 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
     publishBobCollaborationPacket({
       source: 'feedback-ai',
       title: 'Feedback Intake Handoff',
-      summary: 'AI feedback intake could not reach its edge-backed assistant and has handed context to Bob.',
+      summary: 'Bob feedback intake could not reach its edge-backed inference assistant and has handed context to Bob Assistant.',
       prompt: bobHandoffPrompt,
       route: '/bob-assistant',
       expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
@@ -484,7 +484,7 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
             </div>
           ))}
 
-          {/* Typing indicator while AI is thinking */}
+          {/* Typing indicator while Bob is thinking */}
           {loading && messages.length > 0 && !submitting && (
             <div className="flex gap-2 items-start">
               <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 mt-0.5">
@@ -590,7 +590,7 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
         {!submitting && (
           <p className="text-[11px] text-muted-foreground italic flex items-center gap-1">
             <CheckCircle2 className="h-3 w-3 text-violet-500" />
-            {isPttSupported ? 'AI submits automatically when ready. Hold mic to dictate.' : 'AI submits automatically when ready'}
+            {isPttSupported ? 'Bob submits automatically when ready. Hold mic to dictate.' : 'Bob submits automatically when ready'}
           </p>
         )}
       </div>

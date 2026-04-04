@@ -4,14 +4,14 @@
  * Enhanced report dialog for bugs, feature requests, and performance issues.
  * Offers two modes:
  *   - Form: traditional structured form (manual fill)
- *   - Chat: AI-guided intake — the AI asks targeted questions and submits the
+ *   - Chat: Bob-guided intake — Bob asks targeted questions and submits the
  *           report automatically (AiFeedbackChat component)
  *
  * Auto-captures rich context (navigation history, console errors, browser info)
  * via getFeedbackSnapshot() regardless of mode.
  *
  * Saves to the bug_reports table.  Grand-master users can review and trigger
- * AI-assisted fix analysis from Platform.tsx.
+ * Bob-assisted fix analysis from Platform.tsx.
  */
 
 import { useState } from 'react'
@@ -136,7 +136,7 @@ export function FeedbackModal({ open, onClose }: FeedbackModalProps) {
       setSubmitted(true)
       toast.success('Report submitted — thank you!')
 
-      // Fire-and-forget: auto-analyse the report with AI in the background.
+      // Fire-and-forget: auto-analyse the report with Bob in the background.
       // This runs asynchronously so it never blocks the user flow.
       if (inserted?.id) {
         edgeFunctions.autoAnalyseReport({ report_id: inserted.id }).catch(() => {
@@ -164,7 +164,7 @@ export function FeedbackModal({ open, onClose }: FeedbackModalProps) {
             <div>
               <p className="font-semibold text-base">Report Received</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Your report has been sent to the platform team. AI will analyse it automatically.
+                Your report has been sent to the platform team. Bob will analyse it automatically.
               </p>
             </div>
             <Button onClick={handleClose} className="w-full">Done</Button>
@@ -207,7 +207,7 @@ export function FeedbackModal({ open, onClose }: FeedbackModalProps) {
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            <Bot className="h-3.5 w-3.5" /> Chat with AI
+            <Bot className="h-3.5 w-3.5" /> Chat with Bob
           </button>
         </div>
 

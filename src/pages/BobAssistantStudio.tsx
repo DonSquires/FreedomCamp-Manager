@@ -362,7 +362,7 @@ function buildBobReply(message: string, tone: string): string {
   ) {
     return [
       'I can triage this now. The failure appears to be an edge-function connectivity path issue.',
-      'Please confirm: 1) exact page and time of failure, 2) whether other AI actions failed too, 3) whether the error is constant or intermittent.',
+      'Please confirm: 1) exact page and time of failure, 2) whether other Bob-assisted actions failed too, 3) whether the error is constant or intermittent.',
       'Immediate checks: verify Supabase function status, confirm auth session is valid, then retry with a short prompt to isolate payload-size or timeout issues.',
       'If you want, I will walk you through a step-by-step incident flow and produce a copy-ready support handoff summary.',
     ].join(' ')
@@ -892,7 +892,7 @@ export default function BobAssistantStudio() {
           return data
         }
 
-        lastError = error ?? new Error('AI returned an empty response')
+        lastError = error ?? new Error('Bob returned an empty response')
       }
 
       const { data: sessionData } = await supabase.auth.getSession()
@@ -928,7 +928,7 @@ export default function BobAssistantStudio() {
       }
 
       if (!directJson?.response) {
-        throw new Error('AI returned an empty response')
+        throw new Error('Bob returned an empty response')
       }
 
       return directJson
@@ -1003,7 +1003,7 @@ export default function BobAssistantStudio() {
 
       if (autoSpeakReplies) speak(replyText)
       const shortError = String(err?.message || 'unknown_error').slice(0, 120)
-      toast.error(`AI service unavailable — using local fallback (${shortError})`)
+      toast.error(`Bob inference service unavailable — using local fallback (${shortError})`)
     } finally {
       setThinking(false)
     }
@@ -1603,7 +1603,7 @@ export default function BobAssistantStudio() {
                 <span className="flex items-center gap-2"><BrainCircuit className="h-4 w-4" /> Conversation</span>
                 <Badge variant="outline">{displayName}</Badge>
               </CardTitle>
-              <CardDescription>Talk to Bob by typing or voice. Replies can be spoken back with your selected voice profile.</CardDescription>
+              <CardDescription>Talk to Bob by typing or voice. Bob is your inference agent and assistant, and can coordinate build context across DB, UI, Expo, Railway, and Vercel workflows.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {collaborationPacket && (

@@ -150,7 +150,7 @@ const FEATURE_GROUPS = [
       { path: '/reports', label: 'Reports', icon: FileText },
       { path: '/reports-hub', label: 'Reports Hub', icon: FileText },
       { path: '/compliance-dashboard', label: 'Compliance Dashboard', icon: BarChart3 },
-      { path: '/ai-analysis', label: 'AI Analysis', icon: BrainCircuit },
+      { path: '/ai-analysis', label: 'Bob Analysis', icon: BrainCircuit },
       { path: '/incidents', label: 'Incidents & Evidence', icon: Shield },
       { path: '/incident-reports', label: 'Incident Reports', icon: FileText },
     ],
@@ -267,17 +267,17 @@ export default function Platform() {
     enabled: isGrandMaster,
   })
 
-  // AI self-healing: analyse a report and store diagnosis + fix suggestion
+  // Bob self-healing: analyse a report and store diagnosis + fix suggestion
   const analyseWithAI = useCallback(async (report: FeedbackReport) => {
     setAnalyzingId(report.id)
     try {
       // If the report is newly submitted, mark it as acknowledged immediately so
-      // owners can see it's being worked on before the AI response returns.
+      // owners can see it's being worked on before the Bob response returns.
       let statusForTransition = report.status
       if (shouldAutoAcknowledge(report.status)) {
         const { error: ackError } = await supabase.from('bug_reports').update({ status: 'acknowledged' }).eq('id', report.id)
         if (ackError) {
-          console.error('Failed to auto-acknowledge report before AI analysis', ackError)
+          console.error('Failed to auto-acknowledge report before Bob analysis', ackError)
         } else {
           statusForTransition = 'acknowledged'
         }
@@ -315,7 +315,7 @@ ${consoleErrors.slice(-10).map((e: any) => `[${e.level}] ${e.message}${e.stack ?
 4. **Effort estimate**: Low (< 1 hour) / Medium (half day) / High (1-2 days).
 5. **PR plan**: Outline the PR or change set you would raise (files to touch, tests to add/update).
 6. **Build impact**: Call out any build/devops changes and the expected outcome once applied.
-7. **Where to view**: Note that results show in the Admin → Platform → Feedback inbox for grand master users and can also be reviewed via the GitHub AI provider response.
+7. **Where to view**: Note that results show in the Admin → Platform → Feedback inbox for grand master users and can also be reviewed via the GitHub provider response.
 
 Be specific. Name exact files and line-level changes where possible.`
 
@@ -342,9 +342,9 @@ Be specific. Name exact files and line-level changes where possible.`
         .eq('id', report.id)
 
       queryClient.invalidateQueries({ queryKey: ['platform-feedback'] })
-      toast.success('AI analysis complete')
+      toast.success('Bob analysis complete')
     } catch (err: any) {
-      toast.error('AI analysis failed', { description: err.message })
+      toast.error('Bob analysis failed', { description: err.message })
     } finally {
       setAnalyzingId(null)
     }
@@ -670,7 +670,7 @@ Be specific. Name exact files and line-level changes where possible.`
               <div>
                 <h3 className="font-semibold text-sm">Feedback Inbox</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Bug reports, feature requests and performance issues from all users. Use AI to diagnose and generate fix suggestions.
+                  Bug reports, feature requests and performance issues from all users. Use Bob to diagnose and generate fix suggestions.
                 </p>
               </div>
               <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['platform-feedback'] })}>
@@ -861,7 +861,7 @@ function FeedbackReportCard({
             )}
             {report.ai_analyzed && (
               <span className="flex items-center gap-1 text-[10px] text-violet-600 dark:text-violet-400 font-medium">
-                <Sparkles className="h-3 w-3" /> AI analysed
+                <Sparkles className="h-3 w-3" /> Bob analysed
               </span>
             )}
           </div>
@@ -945,12 +945,12 @@ function FeedbackReportCard({
             )}
           </div>
 
-          {/* AI analysis section */}
+          {/* Bob analysis section */}
           {report.ai_suggested_fix ? (
             <div className="rounded-lg border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-900/20 overflow-hidden">
               <div className="flex items-center gap-2 px-3 py-2 border-b border-violet-200 dark:border-violet-800">
                 <Sparkles className="h-3.5 w-3.5 text-violet-600" />
-                <span className="text-xs font-semibold text-violet-700 dark:text-violet-300">AI Diagnosis & Fix Suggestion</span>
+                <span className="text-xs font-semibold text-violet-700 dark:text-violet-300">Bob Diagnosis & Fix Suggestion</span>
                 {report.ai_analysis?.provider && (
                   <span className="text-[10px] bg-violet-100 dark:bg-violet-800/50 text-violet-600 dark:text-violet-300 rounded px-1.5 py-0.5 font-medium">
                     {report.ai_analysis.provider === 'github-copilot' ? '⚡ GitHub Copilot' : report.ai_analysis.provider}
@@ -978,7 +978,7 @@ function FeedbackReportCard({
               <div className="flex items-center gap-2">
                 <Code2 className="h-4 w-4 text-violet-500 shrink-0" />
                 <div>
-                  <p className="text-xs font-medium">No AI analysis yet</p>
+                  <p className="text-xs font-medium">No Bob analysis yet</p>
                   <p className="text-[11px] text-muted-foreground">
                     Auto-analysis runs on every submission; you can re-run it manually to refresh the diagnosis and code-level fix plan.
                   </p>

@@ -1,19 +1,19 @@
 /**
  * AiAnalysis.tsx
  *
- * AI — AI-powered analysis and chat for admins and master users.
+ * Bob Analysis — Bob-powered analysis and chat for admins and master users.
  *
  * Uses the onspace-ai-chat edge function which connects to any
- * OpenAI-compatible backend.  Supported providers (in priority order):
+ * Bob-compatible inference backend. Supported providers (in priority order):
  *   1. GitHub Copilot  — set GITHUB_TOKEN secret in Supabase Edge Functions.
  *                        Recommended for code-level fix analysis.
- *   2. OpenAI / custom — set OPENAI_API_KEY (and optionally OPENAI_BASE_URL)
- *                        to point at OpenAI, Azure, Ollama, vLLM, etc.
+ *   2. Custom inference backend — set OPENAI_API_KEY (and optionally OPENAI_BASE_URL)
+ *                        to point at Azure, Ollama, vLLM, or compatible providers.
  *
  * Features:
  *   - Multi-turn conversation with full message history
  *   - Domain-specific suggested prompts
- *   - Markdown-style formatting for AI responses
+ *   - Markdown-style formatting for Bob responses
  *   - Model selector (optional override)
  *   - Clear conversation button
  *   - Auto-scroll to latest message
@@ -362,7 +362,7 @@ export default function AiAnalysis() {
       const result = await withTimeout(
         edgeFunctions.aiChat({ messages: conversationHistory }),
         25000,
-        'AI chat request'
+        'Bob chat request'
       )
 
       if (result.error) {
@@ -385,7 +385,7 @@ export default function AiAnalysis() {
         isError: true,
       }
       setMessages(prev => [...prev, errorMsg])
-      toast.error('AI request failed', { description: err.message })
+      toast.error('Bob request failed', { description: err.message })
     } finally {
       setIsLoading(false)
       textareaRef.current?.focus()
@@ -430,9 +430,9 @@ export default function AiAnalysis() {
               <Sparkles className="h-4.5 w-4.5 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold leading-tight">AI</h1>
+              <h1 className="text-lg font-semibold leading-tight">Bob Analysis</h1>
               <p className="text-xs text-muted-foreground">
-                AI-powered analysis for FieldOps Manager
+                Bob inference agent and assistant for FieldOps Manager
               </p>
             </div>
           </div>
@@ -490,7 +490,7 @@ export default function AiAnalysis() {
                 disabled={!latestBug}
                 className="whitespace-nowrap"
               >
-                Ask AI for progress
+                Ask Bob for progress
               </Button>
             </div>
           </CardContent>
@@ -533,7 +533,7 @@ export default function AiAnalysis() {
                         <Bot className="h-8 w-8 text-violet-600 dark:text-violet-400" />
                       </div>
                       <div>
-                        <p className="font-semibold text-base">Welcome to AI</p>
+                        <p className="font-semibold text-base">Welcome to Bob</p>
                         <p className="text-sm text-muted-foreground mt-1 max-w-sm">
                           Ask anything about compliance, enforcement, NZ legislation, breach trends, or operational strategy.
                         </p>
@@ -682,7 +682,7 @@ export default function AiAnalysis() {
                   </Button>
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-2 px-0.5">
-                  AI uses your organisation's AI backend. Responses may not always be accurate — verify important information.
+                  Bob uses your organisation's inference backend. Responses may not always be accurate — verify important information.
                 </p>
                 <p className="text-[10px] text-muted-foreground mt-1 px-0.5">
                   {isPttSupported ? 'Push-to-talk: hold the mic button while speaking.' : 'Push-to-talk works in Chrome/Edge.'}

@@ -116,7 +116,7 @@ const PURPOSE_OPTIONS: Array<{ value: ImportPurpose; label: string; description:
   },
   {
     value: 'general_document',
-    label: 'General document for AI review',
+    label: 'General document for Bob review',
     description: 'PDF, Word, spreadsheet, or mixed evidence requiring guided review.',
   },
 ]
@@ -146,7 +146,7 @@ function buildAiIntakeStoragePath(organizationId: string | null | undefined, pur
   const safeOrg = (organizationId || 'unassigned-org').replace(/[^a-zA-Z0-9_-]/g, '_')
   const safePurpose = purpose.replace(/[^a-zA-Z0-9_-]/g, '_')
   const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_')
-  return `ai-intake/${safeOrg}/${safePurpose}/${Date.now()}-${safeName}`
+  return `bob-intake/${safeOrg}/${safePurpose}/${Date.now()}-${safeName}`
 }
 
 function getPurposeQuestions(purpose: ImportPurpose, fileKind: FileKind): string[] {
@@ -180,7 +180,7 @@ function getPurposeQuestions(purpose: ImportPurpose, fileKind: FileKind): string
       return [
         'Is this an observation photo, field note, breach evidence, or supporting context?',
         'What date or location should be used if it is not obvious in the file?',
-        `Can the AI safely extract structured data from this ${fileKind}?`,
+        `Can Bob safely extract structured data from this ${fileKind}?`,
       ]
     case 'general_document':
       return [
@@ -203,7 +203,7 @@ function getRecommendedRoute(purpose: ImportPurpose): { path: string; label: str
     case 'identity_reference':
       return { path: '/identity-verification', label: 'Open Identity Verification' }
     default:
-      return { path: '/ai-analysis', label: 'Open AI Analysis' }
+      return { path: '/ai-analysis', label: 'Open Bob Analysis' }
   }
 }
 
@@ -707,7 +707,7 @@ export default function ImportData() {
     return {
       success: true,
       mode: 'intake-package',
-      message: `${ASSISTANT_NAME} created an AI intake package. The file has been staged for guided review and correct routing.`,
+      message: `${ASSISTANT_NAME} created a Bob intake package. The file has been staged for guided review and correct routing.`,
       intakeId,
       storagePath,
       filePublicUrl,
@@ -958,13 +958,13 @@ export default function ImportData() {
         toast.success(nextResult.batchId ? `Historical import started — batch ${String(nextResult.batchId).slice(0, 8)}...` : 'Historical import started')
       } else if (shouldForceStaging || fileKind === 'document') {
         nextResult = await createAiIntakePackage()
-        toast.success('AI intake package created')
+        toast.success('Bob intake package created')
       } else if (fileKind === 'image' || fileKind === 'text') {
         nextResult = await runDirectAiImport()
-        toast.success(nextResult?.success ? 'AI import completed' : 'AI import finished with warnings')
+        toast.success(nextResult?.success ? 'Bob import completed' : 'Bob import finished with warnings')
       } else {
         nextResult = await createAiIntakePackage()
-        toast.success('AI intake package created')
+        toast.success('Bob intake package created')
       }
 
       setResult(nextResult)
@@ -981,7 +981,7 @@ export default function ImportData() {
   const selectedPurpose = PURPOSE_OPTIONS.find((option) => option.value === purpose)
 
   return (
-    <AppLayout title="Import Data" description={`One-stop AI-guided import intake powered by ${ASSISTANT_NAME} for historical records, photos, PDFs, Word documents, and structured review.`}>
+    <AppLayout title="Import Data" description={`One-stop Bob-guided import intake powered by ${ASSISTANT_NAME} for historical records, photos, PDFs, Word documents, and structured review.`}>
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="intake" className="flex items-center gap-1.5">
@@ -1030,7 +1030,7 @@ export default function ImportData() {
                       <FileText className="h-4 w-4 text-amber-600" />
                       PDF and Word documents
                     </div>
-                    <p className="mt-2 text-sm text-muted-foreground">Use for identity references, procedures, source documents, and files that need guided AI review before import.</p>
+                    <p className="mt-2 text-sm text-muted-foreground">Use for identity references, procedures, source documents, and files that need guided Bob review before import.</p>
                   </div>
                   <div className="rounded-lg border p-4">
                     <div className="flex items-center gap-2 text-sm font-medium">
@@ -1168,7 +1168,7 @@ export default function ImportData() {
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <Label>Fields the AI should check or extract</Label>
+                        <Label>Fields Bob should check or extract</Label>
                         <Textarea
                           value={expectedFields}
                           onChange={(e) => setExpectedFields(e.target.value)}
@@ -1183,7 +1183,7 @@ export default function ImportData() {
                     <Textarea
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
-                      placeholder="Explain what the AI should look for, where this data belongs, and any quality risks in the file."
+                      placeholder="Explain what Bob should look for, where this data belongs, and any quality risks in the file."
                     />
                   </div>
                 </CardContent>
@@ -1279,7 +1279,7 @@ export default function ImportData() {
                 ) : fileKind === 'image' || fileKind === 'text' ? (
                   <span className="flex items-center gap-2">
                     <BrainCircuit className="h-4 w-4" />
-                    Analyse and Import with AI
+                    Analyse and Import with Bob
                   </span>
                 ) : (
                   <span className="flex items-center gap-2">
@@ -1298,7 +1298,7 @@ export default function ImportData() {
                       ) : (
                         <CheckCircle className="h-5 w-5 text-green-500" />
                       )}
-                      <span className="font-semibold">{result.error ? 'Import Error' : 'AI Intake Result'}</span>
+                      <span className="font-semibold">{result.error ? 'Import Error' : 'Bob Intake Result'}</span>
                     </div>
 
                     {result.message && <p className="text-sm text-muted-foreground">{result.message}</p>}

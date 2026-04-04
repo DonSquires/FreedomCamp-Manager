@@ -186,12 +186,12 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
     ],
   },
   {
-    label: 'AI & Bob',
+    label: 'Bob',
     icon: BrainCircuit,
     items: [
       { path: '/bob-assistant', icon: BrainCircuit, label: 'Bob Assistant', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/bob-intake-queue', icon: ClipboardList, label: 'Bob Intake Queue', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/ai-analysis', icon: BrainCircuit, label: 'AI Analysis', roles: ['admin', 'master'] },
+      { path: '/ai-analysis', icon: BrainCircuit, label: 'Bob Analysis', roles: ['admin', 'master'] },
       { path: '/live-plan-reviews', icon: ShieldCheck, label: 'Live Plan Reviews', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
