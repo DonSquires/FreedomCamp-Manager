@@ -39,10 +39,18 @@ function isAllowedPreview(origin: string): boolean {
   try {
     const u = new URL(origin);
     const host = u.host;
-    return (
-      host.endsWith('.onspace.build') &&
-      host.startsWith('preview-react-9b4t5o-')
-    );
+
+    // Allow all hosted preview deployments under the controlled onspace.build domain.
+    if (host.endsWith('.onspace.build')) {
+      return true;
+    }
+
+    // Allow Vercel preview/prod deployments for this project.
+    if (host.endsWith('.vercel.app')) {
+      return true;
+    }
+
+    return false;
   } catch {
     return false;
   }
