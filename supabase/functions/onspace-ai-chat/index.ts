@@ -191,6 +191,11 @@ function normalizeProviderText(rawText: string, parsed: any): string {
   const trimmedRaw = String(rawText ?? '').trim()
   if (!trimmedRaw) return ''
 
+  // Guard against misconfigured upstream URLs returning HTML app shells.
+  if (/^<!doctype html/i.test(trimmedRaw) || /^<html/i.test(trimmedRaw)) {
+    return ''
+  }
+
   // If upstream returned plain text (not JSON), use it directly.
   if (!trimmedRaw.startsWith('{') && !trimmedRaw.startsWith('[')) {
     return trimmedRaw
