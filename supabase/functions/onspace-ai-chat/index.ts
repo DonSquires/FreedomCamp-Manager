@@ -204,6 +204,13 @@ function normalizeProviderText(rawText: string, parsed: any): string {
   return ''
 }
 
+function normalizeBaseUrl(raw?: string | null): string {
+  const trimmed = String(raw ?? '').trim().replace(/\/$/, '')
+  if (!trimmed) return ''
+  if (/^https?:\/\//i.test(trimmed)) return trimmed
+  return `https://${trimmed}`
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: getCorsHeaders(req) })
@@ -280,10 +287,10 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── Provider configuration ──────────────────────────────────────────────
-    const inferenceUrl = (Deno.env.get('INFERENCE_SERVICE_URL') ?? '').replace(/\/$/, '')
+    const inferenceUrl = normalizeBaseUrl(Deno.env.get('INFERENCE_SERVICE_URL'))
     const inferenceApiKey = Deno.env.get('INFERENCE_API_KEY') ?? ''
     // Ollama defaults to the same Railway project location/credential as Bob inference.
-    const ollamaBaseUrl = (Deno.env.get('OLLAMA_BASE_URL') ?? inferenceUrl).replace(/\/$/, '')
+    const ollamaBaseUrl = normalizeBaseUrl(Deno.env.get('OLLAMA_BASE_URL') ?? inferenceUrl)
     const ollamaModel = Deno.env.get('OLLAMA_MODEL') ?? model
     const ollamaApiKey = Deno.env.get('OLLAMA_API_KEY') ?? inferenceApiKey
     const providerPreference = String(requestedProvider ?? 'auto').toLowerCase()
