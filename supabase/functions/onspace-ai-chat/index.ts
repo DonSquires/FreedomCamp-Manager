@@ -390,52 +390,68 @@ Deno.serve(async (req: Request) => {
       .slice(0, -1)
 
     async function callInferenceProvider() {
-      if (!inferenceUrl) {
+      const configuredFallbackUrl = normalizeBaseUrl(Deno.env.get('INFERENCE_SERVICE_FALLBACK_URL'))
+      const hardFallbackUrl = 'https://focused-courage-production-ccee.up.railway.app'
+      const candidates = Array.from(new Set([
+        inferenceUrl,
+        configuredFallbackUrl,
+        hardFallbackUrl,
+      ].filter(Boolean)))
+
+      if (!candidates.length) {
         throw new Error('INFERENCE_SERVICE_URL is not configured')
       }
 
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 60_000)
-      try {
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-        if (inferenceApiKey) headers['x-inference-api-key'] = inferenceApiKey
+      let lastError: Error | null = null
 
-        const inferResponse = await fetch(`${inferenceUrl}/chat`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            message: latestUserMessage,
-            history,
-            context: {
-              user_email: user.email,
-              requested_model: model,
-              temperature,
-              source: 'onspace-ai-chat',
-            },
-          }),
-          signal: controller.signal,
-        })
+      for (const candidateUrl of candidates) {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 60_000)
+        try {
+          const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+          if (inferenceApiKey) headers['x-inference-api-key'] = inferenceApiKey
 
-        const inferText = await inferResponse.text()
-        if (!inferResponse.ok) {
-          throw new Error(`Inference chat returned ${inferResponse.status}: ${inferText.slice(0, 300)}`)
+          const inferResponse = await fetch(`${candidateUrl}/chat`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              message: latestUserMessage,
+              history,
+              context: {
+                user_email: user.email,
+                requested_model: model,
+                temperature,
+                source: 'onspace-ai-chat',
+              },
+            }),
+            signal: controller.signal,
+          })
+
+          const inferText = await inferResponse.text()
+          if (!inferResponse.ok) {
+            throw new Error(`Inference chat returned ${inferResponse.status}: ${inferText.slice(0, 300)} (${candidateUrl})`)
+          }
+
+          const inferData = (() => {
+            try { return JSON.parse(inferText) } catch { return null }
+          })()
+
+          const responseText = normalizeProviderText(inferText, inferData)
+          if (!responseText) throw new Error(`Inference chat returned an empty response (${candidateUrl})`)
+
+          return {
+            responseText,
+            provider: `inference-${inferData?.provider ?? 'heuristic'}`,
+            model: 'inference-chat',
+          }
+        } catch (err: any) {
+          lastError = err instanceof Error ? err : new Error(String(err?.message ?? err))
+        } finally {
+          clearTimeout(timeoutId)
         }
-
-        const inferData = (() => {
-          try { return JSON.parse(inferText) } catch { return null }
-        })()
-
-        const responseText = normalizeProviderText(inferText, inferData)
-        if (!responseText) throw new Error('Inference chat returned an empty response')
-
-        return {
-          responseText,
-          provider: `inference-${inferData?.provider ?? 'heuristic'}`,
-          model: 'inference-chat',
-        }
-      } finally {
-        clearTimeout(timeoutId)
       }
+
+      throw lastError ?? new Error('Inference provider failed for all candidate URLs')
     }
 
     async function callOllamaProvider() {
