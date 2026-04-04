@@ -58,6 +58,7 @@ env:
     nightly-privacy-cleanup observations-export observations-in-bounds
     observations-list onspace-ai-chat parkpow-photo-sync
     parkpow-sync photo-recovery plate-scanner-photo-first
+    ptt-signaling-token
     process-credential-document process-face-scan process-homeless-data
     process-investigation-document process-officer-scan public-case-lookup
     recalculate-compliance-v3
