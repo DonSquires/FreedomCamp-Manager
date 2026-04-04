@@ -238,7 +238,14 @@ function buildMapDirectionsUrl(from: string, to: string, mode: string) {
   return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}&travelmode=${encodeURIComponent(travelMode)}`
 }
 
-const BOB_WAKE_PHRASES = ['hay bob', 'hey bob']
+const BOB_WAKE_PHRASES = [
+  'hay bob',
+  'hey bob',
+  'ok bob',
+  'okay bob',
+  'hello bob',
+  'bob are you there',
+]
 const BOB_END_PHRASES = [
   'thank you',
   'thanks',
@@ -515,6 +522,24 @@ export default function BobAssistantStudio() {
   // Track whether we've already published a response for the current packet
   const hasPublishedResponseRef = useRef(false)
 
+  const applyClassicCommandVoicePreset = () => {
+    setVoiceGender('male')
+    setAccent('en-GB')
+    setTone('friendly')
+    setSpeechEnabled(true)
+    setAutoSpeakReplies(true)
+    toast.success('Classic command voice preset applied')
+  }
+
+  const applySoftConversationalPreset = () => {
+    setVoiceGender('male')
+    setAccent('en-NZ')
+    setTone('professional')
+    setSpeechEnabled(true)
+    setAutoSpeakReplies(true)
+    toast.success('Soft conversational preset applied')
+  }
+
   useEffect(() => {
     const packet = consumeLatestBobCollaborationPacket()
     if (!packet) return
@@ -624,10 +649,18 @@ export default function BobAssistantStudio() {
     const accentMatches = availableVoices.filter((voice) => voice.lang.toLowerCase().startsWith(accent.toLowerCase()))
     const englishPool = accentMatches.length ? accentMatches : availableVoices.filter((voice) => voice.lang.toLowerCase().startsWith('en'))
 
-    const maleHints = ['david', 'matthew', 'male', 'guy', 'james', 'tom']
+    const maleHints = ['david', 'matthew', 'male', 'guy', 'james', 'tom', 'daniel', 'uk', 'british']
+    const maleScottishHints = ['scotland', 'scottish', 'glasgow', 'edinburgh', 'angus', 'malcolm']
     const femaleHints = ['samantha', 'karen', 'female', 'zira', 'aria', 'susan']
 
     if (voiceGender === 'male') {
+      if (accent === 'en-GB') {
+        return (
+          englishPool.find((voice) => maleScottishHints.some((hint) => voice.name.toLowerCase().includes(hint))) ||
+          englishPool.find((voice) => maleHints.some((hint) => voice.name.toLowerCase().includes(hint))) ||
+          englishPool[0]
+        )
+      }
       return englishPool.find((voice) => maleHints.some((hint) => voice.name.toLowerCase().includes(hint))) || englishPool[0]
     }
     if (voiceGender === 'female') {
@@ -648,6 +681,7 @@ export default function BobAssistantStudio() {
     if (selectedVoice) utterance.voice = selectedVoice
     utterance.lang = accent
     utterance.rate = tone === 'professional' ? 0.95 : tone === 'coach' ? 1.03 : 1
+    utterance.pitch = voiceGender === 'male' ? 0.9 : voiceGender === 'female' ? 1.08 : 1
     utterance.onend = () => {
       speakingRef.current = false
       if (voiceConversationActiveRef.current) {
@@ -1297,6 +1331,18 @@ export default function BobAssistantStudio() {
                 <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Bob" />
               </div>
 
+              <div className="rounded-md border p-2 space-y-2">
+                <div className="text-xs text-muted-foreground">Quick voice presets</div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={applyClassicCommandVoicePreset}>
+                    Classic Command
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={applySoftConversationalPreset}>
+                    Soft Conversational
+                  </Button>
+                </div>
+              </div>
+
               <div className="space-y-1.5">
                 <Label>Tone</Label>
                 <Select value={tone} onValueChange={(value) => setTone(value as any)}>
@@ -1332,6 +1378,7 @@ export default function BobAssistantStudio() {
                     <SelectItem value="en-US">United States English</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">For a classic warm male assistant vibe, use Male + British English.</p>
               </div>
 
               <div className="flex items-center justify-between">
@@ -1404,7 +1451,7 @@ export default function BobAssistantStudio() {
               </div>
               {voiceActivatedConversation && (
                 <div className="text-xs text-muted-foreground">
-                  Say "Hay Bob" to start, and "thank you" (or similar) to end. Bob auto-stops after 29 seconds of inactivity.
+                  Say "Hey Bob" (or "OK Bob") to start, then continue naturally. Say "thank you" (or similar) to end. Bob auto-stops after 29 seconds of inactivity.
                 </div>
               )}
             </CardContent>
