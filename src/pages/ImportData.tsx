@@ -32,10 +32,19 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
-import { extractDocumentData } from '@/lib/documentExtraction'
 
 const ASSISTANT_NAME = 'Bob'
 const ASSISTANT_TITLE = 'Built-in Operations Brain'
+
+let extractionModulePromise: Promise<typeof import('@/lib/documentExtraction')> | null = null
+
+async function extractDocumentDataLazy(file: File, options?: { enableImageOcr?: boolean }) {
+  if (!extractionModulePromise) {
+    extractionModulePromise = import('@/lib/documentExtraction')
+  }
+  const module = await extractionModulePromise
+  return module.extractDocumentData(file, options)
+}
 
 interface ImportBatch {
   id: string
@@ -649,7 +658,7 @@ export default function ImportData() {
       reader.readAsDataURL(nextFile)
       reader.onload = () => setFileContent(reader.result as string)
       try {
-        const extracted = await extractDocumentData(nextFile, { enableImageOcr: true })
+        const extracted = await extractDocumentDataLazy(nextFile, { enableImageOcr: true })
         setAnalysisText(extracted.text || null)
         setExtractedHeaders(extracted.headers || [])
         setExtractionStrategy(extracted.strategy)
@@ -662,7 +671,7 @@ export default function ImportData() {
     }
 
     try {
-      const extracted = await extractDocumentData(nextFile)
+      const extracted = await extractDocumentDataLazy(nextFile)
       setFileContent(nextKind === 'text' ? extracted.text || null : null)
       setAnalysisText(extracted.text || null)
       setExtractedHeaders(extracted.headers || [])

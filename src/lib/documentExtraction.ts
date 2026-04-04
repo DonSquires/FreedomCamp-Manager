@@ -1,9 +1,38 @@
-import * as XLSX from 'xlsx'
-import mammoth from 'mammoth'
-import * as pdfjsLib from 'pdfjs-dist'
-import Tesseract from 'tesseract.js'
+let xlsxModulePromise: Promise<typeof import('xlsx')> | null = null
+let mammothModulePromise: Promise<typeof import('mammoth')> | null = null
+let pdfjsModulePromise: Promise<typeof import('pdfjs-dist')> | null = null
+let tesseractModulePromise: Promise<typeof import('tesseract.js')> | null = null
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.mjs', import.meta.url).toString()
+async function getXlsxModule() {
+  if (!xlsxModulePromise) {
+    xlsxModulePromise = import('xlsx')
+  }
+  return xlsxModulePromise
+}
+
+async function getMammothModule() {
+  if (!mammothModulePromise) {
+    mammothModulePromise = import('mammoth')
+  }
+  return mammothModulePromise
+}
+
+async function getPdfjsModule() {
+  if (!pdfjsModulePromise) {
+    pdfjsModulePromise = import('pdfjs-dist').then((module) => {
+      module.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.mjs', import.meta.url).toString()
+      return module
+    })
+  }
+  return pdfjsModulePromise
+}
+
+async function getTesseractModule() {
+  if (!tesseractModulePromise) {
+    tesseractModulePromise = import('tesseract.js')
+  }
+  return tesseractModulePromise
+}
 
 export interface ExtractedDocumentData {
   text: string
@@ -68,6 +97,7 @@ export async function extractDocumentData(file: File, options: ExtractionOptions
   }
 
   if (['xls', 'xlsx'].includes(extension)) {
+    const XLSX = await getXlsxModule()
     const buffer = await file.arrayBuffer()
     const workbook = XLSX.read(buffer, { type: 'array' })
     const sheetName = workbook.SheetNames[0]
@@ -95,6 +125,7 @@ export async function extractDocumentData(file: File, options: ExtractionOptions
         rationale: 'DOCX is large enough that Bob should stage it instead of extracting all text in the browser.',
       }
     }
+    const mammoth = await getMammothModule()
     const buffer = await file.arrayBuffer()
     const result = await mammoth.extractRawText({ arrayBuffer: buffer })
     return { text: result.value || '', headers: [], strategy: 'full' }
@@ -109,6 +140,7 @@ export async function extractDocumentData(file: File, options: ExtractionOptions
         rationale: 'PDF is large enough that Bob should stage it instead of extracting all text in the browser.',
       }
     }
+    const pdfjsLib = await getPdfjsModule()
     const buffer = await file.arrayBuffer()
     const pdf = await pdfjsLib.getDocument({ data: buffer }).promise
     const pages: string[] = []
@@ -147,6 +179,7 @@ export async function extractDocumentData(file: File, options: ExtractionOptions
       }
     }
 
+    const Tesseract = await getTesseractModule()
     const { data } = await Tesseract.recognize(file, 'eng')
     return {
       text: data.text || '',
