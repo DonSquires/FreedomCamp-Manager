@@ -339,6 +339,7 @@ const CANNED_REJECTION_REASONS = [
 export default function BreachAlerts() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
+  const isAdmin = ['admin', 'admin_officer', 'master'].includes(user?.role ?? '')
   const {
     organizationId,
     zoneId,
@@ -1222,7 +1223,7 @@ export default function BreachAlerts() {
           </div>
 
           {/* Select All + Bulk Actions */}
-          {breaches && breaches.length > 0 && (
+          {breaches && breaches.length > 0 && isAdmin && (
             <div className="px-3 py-2 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex items-center gap-2 flex-shrink-0">
               <Checkbox
                 id="select-all"
@@ -1638,6 +1639,7 @@ export default function BreachAlerts() {
                             <Badge variant="outline" className="text-xs bg-blue-50 dark:bg-blue-950">Exempt</Badge>
                           )}
                         </div>
+                        {isAdmin && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -1650,6 +1652,7 @@ export default function BreachAlerts() {
                             : <><Database className="h-3 w-3 mr-1" />Re-fetch Vehicle Details</>
                           }
                         </Button>
+                        )}
                       </div>
                     </div>
                   ) : (
@@ -1660,7 +1663,7 @@ export default function BreachAlerts() {
                         {triggeringObservation && formatVehicleDescription(triggeringObservation.vehicle_make, triggeringObservation.vehicle_model, triggeringObservation.vehicle_year, triggeringObservation.vehicle_color) && (
                           <p className="text-gray-700 dark:text-gray-300">{formatVehicleDescription(triggeringObservation.vehicle_make, triggeringObservation.vehicle_model, triggeringObservation.vehicle_year, triggeringObservation.vehicle_color)}</p>
                         )}
-                        {activeBreach.plate_number && (
+                        {activeBreach.plate_number && isAdmin && (
                           <Button
                             variant="outline"
                             size="sm"
@@ -1764,7 +1767,9 @@ export default function BreachAlerts() {
               </div>
 
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                {/* Primary Decision Buttons */}
+                {/* Primary Decision Buttons — admin only */}
+                {isAdmin ? (
+                <>
                 <Button
                   className="w-full bg-green-600 hover:bg-green-700 text-white justify-between"
                   onClick={handleIssueEnforcement}
@@ -1897,6 +1902,15 @@ export default function BreachAlerts() {
                     {activeBreach.resolution_notes}
                   </div>
                 )}
+                </>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-center text-sm text-gray-400 p-4 gap-2">
+                    <Shield className="h-8 w-8 opacity-30" />
+                    <p className="font-medium">Read-only view</p>
+                    <p className="text-xs">Breach decisions are restricted to supervisors. Contact your administrator to take action.</p>
+                  </div>
+                )}
+
               </div>
 
               {/* Keyboard Shortcuts Footer */}
@@ -2003,7 +2017,8 @@ export default function BreachAlerts() {
               </div>
             )}
 
-            {/* Mobile Decision Buttons */}
+            {/* Mobile Decision Buttons — admin only */}
+            {isAdmin && (
             <div className="space-y-2">
               <Label className="text-xs text-gray-500">Rejection Reason</Label>
               <Select value={rejectionReason} onValueChange={setRejectionReason}>
@@ -2026,6 +2041,7 @@ export default function BreachAlerts() {
                 className="text-sm resize-none"
               />
             </div>
+            )}
 
             {['admin', 'master'].includes(user?.role ?? '') && (
               <div className="grid grid-cols-2 gap-2 pt-2">
@@ -2046,6 +2062,7 @@ export default function BreachAlerts() {
               </div>
             )}
 
+            {isAdmin && (
             <div className="grid grid-cols-3 gap-2 pt-2">
               <Button
                 className="bg-green-600 hover:bg-green-700 text-white text-xs h-12"
@@ -2078,8 +2095,9 @@ export default function BreachAlerts() {
                 </div>
               </Button>
             </div>
+            )}
 
-            {['pending', 'acknowledged', 'enforcement_started'].includes(activeBreach.status) && (
+            {isAdmin && ['pending', 'acknowledged', 'enforcement_started'].includes(activeBreach.status) && (
               <Button
                 variant="outline"
                 className="w-full"

@@ -952,7 +952,9 @@ export default function App() {
             path="/hotspots"
             element={
               <ProtectedRoute>
-                <HotspotsMap />
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <HotspotsMap />
+                </RoleRoute>
               </ProtectedRoute>
             }
           />
@@ -983,7 +985,9 @@ export default function App() {
             path="/incident-reports"
             element={
               <ProtectedRoute>
-                <IncidentReports />
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <IncidentReports />
+                </RoleRoute>
               </ProtectedRoute>
             }
           />
@@ -992,7 +996,9 @@ export default function App() {
             path="/observations"
             element={
               <ProtectedRoute>
-                <ObservationsView />
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <ObservationsView />
+                </RoleRoute>
               </ProtectedRoute>
             }
           />
@@ -1288,7 +1294,9 @@ export default function App() {
             path="/observations-report"
             element={
               <ProtectedRoute>
-                <ObservationsReport />
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <ObservationsReport />
+                </RoleRoute>
               </ProtectedRoute>
             }
           />
