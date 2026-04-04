@@ -831,9 +831,14 @@ async function generateChatReplyWithOllama(message, history = [], context = {}) 
       return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
     }
 
+    const trimmed = content.trim();
+    if (!trimmed) {
+      return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
+    }
+
     return {
       provider: 'ollama',
-      text: content.trim(),
+      text: trimmed,
       fallback: false,
     };
   } catch (error) {
