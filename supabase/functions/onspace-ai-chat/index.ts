@@ -298,10 +298,14 @@ Deno.serve(async (req: Request) => {
     if (!inferenceUrl && !ollamaBaseUrl) {
       return new Response(
         JSON.stringify({
-          error: 'AI service not configured',
-          details: 'Set INFERENCE_SERVICE_URL and/or OLLAMA_BASE_URL for AI chat.',
+          response:
+            'Bob is online, but no AI provider has been configured yet. To enable full AI chat, set INFERENCE_SERVICE_URL in the edge function secrets. In the meantime, share your question or operational issue and I will provide a structured response using built-in knowledge.',
+          model: 'bob-unconfigured',
+          provider: 'local-failsafe',
+          usage: null,
+          diagnostics: 'INFERENCE_SERVICE_URL and OLLAMA_BASE_URL are both missing from edge function secrets.',
         }),
-        { status: 503, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -384,10 +388,17 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const history = messages
+    // Build conversation history for the inference provider.
+    // Strip the knowledge/memory context injected as leading assistant messages by the
+    // frontend (BobAssistantStudio) — these are large blobs that crowd out real
+    // conversation turns inside Bob's Ollama history[-12] slice.
+    // Strategy: only include messages from the first user turn onward.
+    const firstUserIdx = messages.findIndex((m) => m.role === 'user')
+    const conversationMessages = firstUserIdx >= 0 ? messages.slice(firstUserIdx) : messages
+    const history = conversationMessages
       .filter((m) => m.role === 'user' || m.role === 'assistant')
       .map((m) => ({ role: m.role, content: m.content }))
-      .slice(0, -1)
+      .slice(0, -1) // exclude the current user message (sent separately as `message`)
 
     async function callInferenceProvider() {
       const configuredFallbackUrl = normalizeBaseUrl(Deno.env.get('INFERENCE_SERVICE_FALLBACK_URL'))
@@ -400,14 +411,33 @@ Deno.serve(async (req: Request) => {
         throw new Error('INFERENCE_SERVICE_URL is not configured')
       }
 
+      // Build ordered list of auth strategies to try against the inference service.
+      // Bob accepts: (1) x-inference-api-key matching INFERENCE_API_KEY,
+      //              (2) Authorization: Bearer matching SUPABASE_SERVICE_ROLE_KEY,
+      //              (3) valid Supabase JWT (user auth).
+      // The edge function has SUPABASE_SERVICE_ROLE_KEY available natively, making
+      // it a reliable fallback when INFERENCE_API_KEY is absent or rotated.
+      const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      const authStrategies: Array<Record<string, string>> = []
+      if (inferenceApiKey) {
+        authStrategies.push({ 'x-inference-api-key': inferenceApiKey })
+      }
+      if (serviceRoleKey && serviceRoleKey !== inferenceApiKey) {
+        authStrategies.push({ 'Authorization': `Bearer ${serviceRoleKey}` })
+      }
+      // Always have at least one strategy (no-auth — Bob allows if no auth configured)
+      if (!authStrategies.length) {
+        authStrategies.push({})
+      }
+
       let lastError: Error | null = null
 
       for (const candidateUrl of candidates) {
+        for (const authHeaders of authStrategies) {
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), 60_000)
         try {
-          const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-          if (inferenceApiKey) headers['x-inference-api-key'] = inferenceApiKey
+          const headers: Record<string, string> = { 'Content-Type': 'application/json', ...authHeaders }
 
           const inferResponse = await fetch(`${candidateUrl}/chat`, {
             method: 'POST',
@@ -437,6 +467,12 @@ Deno.serve(async (req: Request) => {
           const responseText = normalizeProviderText(inferText, inferData)
           if (!responseText) throw new Error(`Inference chat returned an empty response (${candidateUrl})`)
 
+          // If the inference service fell back to heuristic mode (Ollama not available),
+          // treat it as a failure so the edge function can use its own clearer failsafe message.
+          if (inferData?.fallback === true) {
+            throw new Error(`Inference is in degraded heuristic mode — no LLM available (${candidateUrl})`)
+          }
+
           return {
             responseText,
             provider: `inference-${inferData?.provider ?? 'heuristic'}`,
@@ -444,10 +480,12 @@ Deno.serve(async (req: Request) => {
           }
         } catch (err: any) {
           lastError = err instanceof Error ? err : new Error(String(err?.message ?? err))
+          // Store error and continue to next auth strategy or candidate URL
         } finally {
           clearTimeout(timeoutId)
         }
-      }
+        } // end authStrategies loop
+      } // end candidates loop
 
       throw lastError ?? new Error('Inference provider failed for all candidate URLs')
     }

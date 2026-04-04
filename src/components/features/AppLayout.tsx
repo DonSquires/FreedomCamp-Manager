@@ -95,7 +95,9 @@ type NavItem = { path: string; icon: React.FC<{ className?: string }>; label: st
 const pinnedItems: NavItem[] = [
   { path: '/platform', icon: Globe, label: 'Platform Overview', roles: ['grand_master'] },
   { path: '/admin', icon: LayoutDashboard, label: 'Command Centre', roles: ['grand_master'] },
+  { path: '/compliance-escalations', icon: ShieldAlert, label: 'Escalations', roles: ['grand_master'] },
   { path: '/', icon: Home, label: 'Home', roles: ['admin', 'admin_officer', 'master', 'officer', 'nzscv_monitor'] },
+  { path: '/bob-assistant', icon: BrainCircuit, label: 'Bob Assistant', roles: ['officer'] },
   { path: '/search', icon: Search, label: 'Search', roles: ['admin', 'admin_officer', 'master', 'officer', 'nzscv_monitor', 'grand_master'] },
 ]
 
@@ -106,24 +108,31 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
     icon: BarChart3,
     items: [
       { path: '/compliance-unified', icon: ShieldCheck, label: 'Compliance Hub', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/compliance', icon: BarChart3, label: 'Compliance (Legacy)', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/observation-records', icon: ImageIcon, label: 'Observations', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/observations-report', icon: FileBarChart, label: 'Observations Report', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/breaches', icon: AlertTriangle, label: 'Breaches & Alerts', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/breach-notices', icon: ScrollText, label: 'Breach Notices', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/enforcement-actions', icon: Gavel, label: 'Enforcement Actions', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/enforcement-review', icon: ClipboardCheck, label: 'Enforcement Review', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/enforcement-command-center', icon: MonitorPlay, label: 'Enforcement Console', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/disputes', icon: AlertTriangle, label: 'Disputes', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/admin/discrepancies', icon: AlertTriangle, label: 'Discrepancies', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/infringements', icon: Receipt, label: 'Infringements', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-      { path: '/enforcement-command-center', icon: MonitorPlay, label: 'Command Centre', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/live-tracking', icon: Activity, label: 'Live Tracking', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/live-patrol', icon: MonitorPlay, label: 'Live Patrol Monitor', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/hotspots', icon: FlameKindling, label: 'Hotspots Map', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/compliance-analytics', icon: PieChart, label: 'Compliance Analytics', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/patrol-checkpoints', icon: ScanLine, label: 'Checkpoints', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/patrol-schedule', icon: CalendarDays, label: 'Patrol Schedule', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/patrol-kpis', icon: TrendingUp, label: 'Patrol KPIs', roles: ['admin', 'admin_officer', 'master'] },
+    ],
+  },
+  {
+    label: 'Live Ops',
+    icon: MonitorPlay,
+    items: [
+      { path: '/live-tracking', icon: Activity, label: 'Live Tracking', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/live-patrol', icon: MonitorPlay, label: 'Live Patrol Monitor', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/hotspots', icon: FlameKindling, label: 'Hotspots Map', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/dispatch', icon: Radio, label: 'Dispatch Console', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/team-chat', icon: MessageSquare, label: 'Team Chat', roles: ['admin', 'admin_officer', 'master', 'officer'] },
     ],
   },
   {
@@ -135,6 +144,7 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
       { path: '/admin/nzscv', icon: Car, label: 'NZSCV Monitor', roles: ['admin', 'master', 'nzscv_monitor'] },
       { path: '/admin/canonical-records', icon: Database, label: 'Canonical Records', roles: ['admin', 'master'] },
       { path: '/zones', icon: MapPin, label: 'Zones', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/client-sites', icon: Building2, label: 'Client Sites (CRM)', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/users', icon: Users, label: 'Users', roles: ['admin', 'master'] },
       { path: '/organization-profile', icon: Building2, label: 'Organisation', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/organizations', icon: Building2, label: 'Organisations', roles: ['master'] },
@@ -165,15 +175,6 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
     ],
   },
   {
-    label: 'Dispatch',
-    icon: Radio,
-    items: [
-      { path: '/dispatch', icon: Radio, label: 'Dispatch Console', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/client-sites', icon: Building2, label: 'Client Sites (CRM)', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/investigations', icon: BrainCircuit, label: 'Investigation Jobs', roles: ['admin', 'admin_officer', 'master'] },
-    ],
-  },
-  {
     label: 'Roster & Workforce',
     icon: CalendarRange,
     items: [
@@ -185,20 +186,25 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
     ],
   },
   {
+    label: 'AI & Bob',
+    icon: BrainCircuit,
+    items: [
+      { path: '/bob-assistant', icon: BrainCircuit, label: 'Bob Assistant', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/bob-intake-queue', icon: ClipboardList, label: 'Bob Intake Queue', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/ai-analysis', icon: BrainCircuit, label: 'AI Analysis', roles: ['admin', 'master'] },
+      { path: '/live-plan-reviews', icon: ShieldCheck, label: 'Live Plan Reviews', roles: ['admin', 'admin_officer', 'master'] },
+    ],
+  },
+  {
     label: 'Tools',
     icon: Wrench,
     items: [
-      { path: '/ai-analysis', icon: BrainCircuit, label: 'AI Analysis', roles: ['admin', 'master'] },
       { path: '/spatial-compliance', icon: Map, label: 'Spatial Compliance', roles: ['admin', 'master'] },
       { path: '/compliance-recalculation', icon: Shield, label: 'Recalculation', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/admin/cleanup-recalculate', icon: RefreshCw, label: 'Cleanup & Recalculate', roles: ['admin', 'master'] },
       { path: '/data', icon: Database, label: 'Data Management', roles: ['admin', 'master'] },
       { path: '/admin/data-hub', icon: Database, label: 'Data Hub', roles: ['admin', 'master'] },
       { path: '/intel-approvals', icon: ShieldAlert, label: 'Intel Approvals', roles: ['master'] },
-      { path: '/bob-intake-queue', icon: BrainCircuit, label: 'Bob Intake Queue', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/bob-assistant', icon: BrainCircuit, label: 'Bob Assistant', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-      { path: '/live-plan-reviews', icon: ShieldCheck, label: 'Live Plan Reviews', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/team-chat', icon: MessageSquare, label: 'Team Chat', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/import-historical', icon: Upload, label: 'Import Data', roles: ['admin', 'master'] },
       { path: '/photo-reingest', icon: Camera, label: 'Photo Reingest', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/diagnostics', icon: Settings, label: 'Diagnostics', roles: ['master'] },

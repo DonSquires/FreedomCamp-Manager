@@ -42,7 +42,31 @@ import {
   BOB_RESPONSE_EVENT,
   publishBobCollaborationPacket,
   consumeBobResponse,
+  peekBobResponses,
 } from '@/lib/bobCollaboration'
+
+const PENDING_ID_KEY = 'bob-collaboration-pending-id'
+
+function readPendingId(): string | null {
+  try {
+    return (typeof window !== 'undefined' && window.sessionStorage.getItem(PENDING_ID_KEY)) || null
+  } catch {
+    return null
+  }
+}
+
+function writePendingId(id: string | null) {
+  try {
+    if (typeof window === 'undefined') return
+    if (id) {
+      window.sessionStorage.setItem(PENDING_ID_KEY, id)
+    } else {
+      window.sessionStorage.removeItem(PENDING_ID_KEY)
+    }
+  } catch {
+    // sessionStorage unavailable — ref-only mode
+  }
+}
 
 interface AskBobOptions {
   title: string
@@ -73,38 +97,48 @@ export function useBobCollaboration(): UseBobCollaborationReturn {
   const [pendingPacket, setPendingPacket] = useState<BobCollaborationPacket | null>(null)
   const [bobResponse, setBobResponse] = useState<BobResponsePacket | null>(null)
   const [isWaiting, setIsWaiting] = useState(false)
-  const pendingIdRef = useRef<string | null>(null)
+  const pendingIdRef = useRef<string | null>(readPendingId())
+
+  const resolveResponse = useCallback((id: string) => {
+    const response = consumeBobResponse(id)
+    if (response) {
+      setBobResponse(response)
+      setIsWaiting(false)
+      setPendingPacket(null)
+      pendingIdRef.current = null
+      writePendingId(null)
+    }
+  }, [])
 
   // Listen for BOB_RESPONSE_READY events fired by BobAssistantStudio
   useEffect(() => {
     const handler = (e: Event) => {
       const { requestId } = (e as CustomEvent<{ requestId: string }>).detail
       if (!pendingIdRef.current || requestId !== pendingIdRef.current) return
-
-      const response = consumeBobResponse(requestId)
-      if (response) {
-        setBobResponse(response)
-        setIsWaiting(false)
-        setPendingPacket(null)
-        pendingIdRef.current = null
-      }
+      resolveResponse(requestId)
     }
 
     window.addEventListener(BOB_RESPONSE_EVENT, handler)
     return () => window.removeEventListener(BOB_RESPONSE_EVENT, handler)
-  }, [])
+  }, [resolveResponse])
 
-  // On mount: check if we already have a response for an in-flight request
-  // (handles the case of navigating back to this page after Bob answered)
+  // On mount: check sessionStorage for an in-flight request whose response already
+  // arrived while we were navigated away (the React ref is gone but sessionStorage persists).
   useEffect(() => {
-    if (!pendingIdRef.current) return
-    const response = consumeBobResponse(pendingIdRef.current)
-    if (response) {
-      setBobResponse(response)
-      setIsWaiting(false)
-      setPendingPacket(null)
-      pendingIdRef.current = null
+    const id = readPendingId()
+    if (!id) return
+
+    // Hydrate React state from sessionStorage so isWaiting shows correctly
+    pendingIdRef.current = id
+    setIsWaiting(true)
+
+    // Check if Bob already answered while we were away
+    const queued = peekBobResponses()
+    const existing = queued.find((r) => r.requestId === id)
+    if (existing) {
+      resolveResponse(id)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const askBob = useCallback((options: AskBobOptions): BobCollaborationPacket => {
@@ -120,6 +154,7 @@ export function useBobCollaboration(): UseBobCollaborationReturn {
     })
 
     pendingIdRef.current = packet.id
+    writePendingId(packet.id)
     setPendingPacket(packet)
     setIsWaiting(true)
     setBobResponse(null)
@@ -133,6 +168,7 @@ export function useBobCollaboration(): UseBobCollaborationReturn {
     setIsWaiting(false)
     setPendingPacket(null)
     pendingIdRef.current = null
+    writePendingId(null)
   }, [])
 
   return { askBob, bobResponse, isWaiting, pendingPacket, clearResponse }

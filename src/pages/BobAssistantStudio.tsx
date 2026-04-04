@@ -935,6 +935,12 @@ export default function BobAssistantStudio() {
       if (collaborationPacket && !hasPublishedResponseRef.current) {
         hasPublishedResponseRef.current = true
         publishBobResponse(collaborationPacket.id, replyText)
+
+        // Auto-return to the originating page when the packet was submitted automatically
+        // (i.e. the caller navigated here on behalf of the user, so return them when done).
+        if (collaborationPacket.autoSubmit && collaborationPacket.returnRoute) {
+          setTimeout(() => navigate(collaborationPacket.returnRoute!), 1800)
+        }
       }
 
       if (autoSpeakReplies) {
