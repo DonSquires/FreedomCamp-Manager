@@ -4,13 +4,18 @@
  * AI-powered analysis and chat for FieldOps Manager admins.
  *
  * Self-contained policy:
- *   This function proxies all AI chat requests to the Railway inference-service
- *   /chat endpoint. It does not call external cloud AI providers directly.
+ *   Primary provider is Railway inference-service (/chat endpoint).
+ *   Optional fallback provider is Ollama (/api/chat), controlled via env vars.
  *
  * Required secrets:
  *   INFERENCE_SERVICE_URL   Railway inference-service base URL.
  *   INFERENCE_API_KEY       Optional shared key for inference auth.
  *   AI_DEFAULT_MODEL        Optional UI hint only (handled by inference-service).
+ *
+ * Optional secrets for Ollama fallback/support:
+ *   OLLAMA_BASE_URL         e.g. http://localhost:11434
+ *   OLLAMA_MODEL            e.g. llama3.1:8b
+ *   OLLAMA_API_KEY          Optional bearer key for hosted Ollama gateways
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
@@ -211,6 +216,7 @@ Deno.serve(async (req: Request) => {
       context,
       messages: rawMessages,
       model: requestedModel,
+      provider: requestedProvider,
       temperature = 0.7,
     } = body
 
@@ -242,15 +248,19 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    // ── Inference-service provider (self-contained only) ───────────────────
+    // ── Provider configuration ──────────────────────────────────────────────
     const inferenceUrl = (Deno.env.get('INFERENCE_SERVICE_URL') ?? '').replace(/\/$/, '')
     const inferenceApiKey = Deno.env.get('INFERENCE_API_KEY') ?? ''
+    const ollamaBaseUrl = (Deno.env.get('OLLAMA_BASE_URL') ?? '').replace(/\/$/, '')
+    const ollamaModel = Deno.env.get('OLLAMA_MODEL') ?? model
+    const ollamaApiKey = Deno.env.get('OLLAMA_API_KEY') ?? ''
+    const providerPreference = String(requestedProvider ?? 'auto').toLowerCase()
 
-    if (!inferenceUrl) {
+    if (!inferenceUrl && !ollamaBaseUrl) {
       return new Response(
         JSON.stringify({
           error: 'AI service not configured',
-          details: 'INFERENCE_SERVICE_URL is required for self-contained AI chat.',
+          details: 'Set INFERENCE_SERVICE_URL and/or OLLAMA_BASE_URL for AI chat.',
         }),
         { status: 503, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
@@ -340,47 +350,138 @@ Deno.serve(async (req: Request) => {
       .map((m) => ({ role: m.role, content: m.content }))
       .slice(0, -1)
 
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 60_000)
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (inferenceApiKey) headers['x-inference-api-key'] = inferenceApiKey
+    async function callInferenceProvider() {
+      if (!inferenceUrl) {
+        throw new Error('INFERENCE_SERVICE_URL is not configured')
+      }
 
-    const inferResponse = await fetch(`${inferenceUrl}/chat`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        message: latestUserMessage,
-        history,
-        context: {
-          user_email: user.email,
-          requested_model: model,
-          temperature,
-          source: 'onspace-ai-chat',
-        },
-      }),
-      signal: controller.signal,
-    })
-    clearTimeout(timeoutId)
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 60_000)
+      try {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+        if (inferenceApiKey) headers['x-inference-api-key'] = inferenceApiKey
 
-    const inferText = await inferResponse.text()
-    if (!inferResponse.ok) {
+        const inferResponse = await fetch(`${inferenceUrl}/chat`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            message: latestUserMessage,
+            history,
+            context: {
+              user_email: user.email,
+              requested_model: model,
+              temperature,
+              source: 'onspace-ai-chat',
+            },
+          }),
+          signal: controller.signal,
+        })
+
+        const inferText = await inferResponse.text()
+        if (!inferResponse.ok) {
+          throw new Error(`Inference chat returned ${inferResponse.status}: ${inferText.slice(0, 300)}`)
+        }
+
+        const inferData = (() => {
+          try { return JSON.parse(inferText) } catch { return null }
+        })()
+
+        const responseText: string = inferData?.message ?? ''
+        if (!responseText) throw new Error('Inference chat returned an empty response')
+
+        return {
+          responseText,
+          provider: `inference-${inferData?.provider ?? 'heuristic'}`,
+          model: 'inference-chat',
+        }
+      } finally {
+        clearTimeout(timeoutId)
+      }
+    }
+
+    async function callOllamaProvider() {
+      if (!ollamaBaseUrl) {
+        throw new Error('OLLAMA_BASE_URL is not configured')
+      }
+
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 60_000)
+      try {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+        if (ollamaApiKey) headers['Authorization'] = `Bearer ${ollamaApiKey}`
+
+        const ollamaMessages = messages.map((m) => ({ role: m.role, content: m.content }))
+
+        const ollamaResponse = await fetch(`${ollamaBaseUrl}/api/chat`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            model: ollamaModel,
+            messages: ollamaMessages,
+            stream: false,
+            options: { temperature },
+          }),
+          signal: controller.signal,
+        })
+
+        const ollamaText = await ollamaResponse.text()
+        if (!ollamaResponse.ok) {
+          throw new Error(`Ollama chat returned ${ollamaResponse.status}: ${ollamaText.slice(0, 300)}`)
+        }
+
+        const ollamaData = (() => {
+          try { return JSON.parse(ollamaText) } catch { return null }
+        })()
+
+        const responseText: string = ollamaData?.message?.content ?? ''
+        if (!responseText) throw new Error('Ollama chat returned an empty response')
+
+        return {
+          responseText,
+          provider: 'ollama',
+          model: ollamaModel,
+        }
+      } finally {
+        clearTimeout(timeoutId)
+      }
+    }
+
+    const providerOrder =
+      providerPreference === 'inference'
+        ? ['inference', 'ollama']
+        : providerPreference === 'ollama'
+          ? ['ollama', 'inference']
+          : ['inference', 'ollama']
+
+    let providerResult: { responseText: string; provider: string; model: string } | null = null
+    const providerErrors: string[] = []
+
+    for (const providerName of providerOrder) {
+      try {
+        providerResult = providerName === 'inference'
+          ? await callInferenceProvider()
+          : await callOllamaProvider()
+        break
+      } catch (providerErr: any) {
+        providerErrors.push(`${providerName}: ${providerErr?.message ?? 'unknown error'}`)
+      }
+    }
+
+    if (!providerResult) {
       return new Response(
         JSON.stringify({
-          error: `Inference chat returned ${inferResponse.status}`,
-          details: inferText.slice(0, 500),
+          error: 'All AI providers failed',
+          details: providerErrors.join(' | ').slice(0, 1200),
         }),
-        { status: inferResponse.status, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+        { status: 503, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
-    const inferData = (() => {
-      try { return JSON.parse(inferText) } catch { return null }
-    })()
-    const responseText: string = inferData?.message ?? ''
+    const responseText = providerResult.responseText
 
     if (!responseText) {
       return new Response(
-        JSON.stringify({ error: 'Inference chat returned an empty response' }),
+        JSON.stringify({ error: 'AI provider returned an empty response' }),
         { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
@@ -392,8 +493,8 @@ Deno.serve(async (req: Request) => {
     return new Response(
       JSON.stringify({
         response: finalResponse,
-        model: 'inference-chat',
-        provider: `inference-${inferData?.provider ?? 'heuristic'}`,
+        model: providerResult.model,
+        provider: providerResult.provider,
         usage: null,
       }),
       { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }

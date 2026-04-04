@@ -18,7 +18,7 @@ import { toast } from 'sonner'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { consumeLatestBobCollaborationPacket, publishBobResponse, type BobCollaborationPacket } from '@/lib/bobCollaboration'
 import { BOB_PROJECT_KNOWLEDGE } from '@/lib/bobKnowledgeBase'
-import { buildBobLearningContext, learnFromBobExchange } from '@/lib/bobLearningMemory'
+import { buildBobLearningContext, buildBobLearningContextRemote, persistBobLearningRemote } from '@/lib/bobLearningMemory'
 
 type ChatMessage = {
   id: string
@@ -454,6 +454,7 @@ export default function BobAssistantStudio() {
   const [voiceSupported, setVoiceSupported] = useState(false)
   const [codeTaskLoading, setCodeTaskLoading] = useState(false)
   const [codeTaskResult, setCodeTaskResult] = useState('')
+  const [remoteLearningContext, setRemoteLearningContext] = useState('')
   const [codeChangeRequest, setCodeChangeRequest] = useState<CodeChangeRequest>({
     summary: '',
     details: '',
@@ -476,6 +477,26 @@ export default function BobAssistantStudio() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chat, thinking])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadRemoteLearning = async () => {
+      if (!user?.id) {
+        setRemoteLearningContext('')
+        return
+      }
+
+      const context = await buildBobLearningContextRemote(user.id, 20)
+      if (!cancelled) setRemoteLearningContext(context)
+    }
+
+    loadRemoteLearning()
+
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id])
 
   // Track whether we've already published a response for the current packet
   const hasPublishedResponseRef = useRef(false)
@@ -787,6 +808,7 @@ export default function BobAssistantStudio() {
       const rawMessages = [
         { role: 'assistant', content: BOB_PROJECT_KNOWLEDGE },
         ...(longTermMemory ? [{ role: 'assistant', content: longTermMemory }] : []),
+        ...(remoteLearningContext ? [{ role: 'assistant', content: remoteLearningContext }] : []),
         ...historyMessages,
         { role: 'user', content: message },
       ]
@@ -825,13 +847,20 @@ export default function BobAssistantStudio() {
 
       // Continuous learning: persist each exchange so future prompts can reuse
       // Bob's prior outcomes instead of starting from scratch.
-      learnFromBobExchange({
+      await persistBobLearningRemote({
         userId: learningUserId,
+        organizationId: user?.organization_id ?? null,
         route: '/bob-assistant',
         source: collaborationPacket?.source ?? 'bob-studio',
         userMessage: message,
         assistantReply: replyText,
       })
+
+      // Refresh remote context opportunistically after successful persistence.
+      if (learningUserId !== 'anonymous') {
+        const refreshedRemote = await buildBobLearningContextRemote(learningUserId, 20)
+        setRemoteLearningContext(refreshedRemote)
+      }
 
       // Publish response back to the originating component (sub-agent pattern)
       if (collaborationPacket && !hasPublishedResponseRef.current) {
@@ -853,8 +882,9 @@ export default function BobAssistantStudio() {
       setChat((prev) => [...prev, bobMsg])
 
       // Even in degraded mode, capture what was asked and what was answered.
-      learnFromBobExchange({
+      await persistBobLearningRemote({
         userId: learningUserId,
+        organizationId: user?.organization_id ?? null,
         route: '/bob-assistant',
         source: collaborationPacket?.source ?? 'local-fallback',
         userMessage: message,

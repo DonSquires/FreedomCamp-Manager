@@ -1,3 +1,5 @@
+import { supabase } from '@/lib/supabase'
+
 export interface BobLearningEntry {
   id: string
   userId: string
@@ -152,4 +154,85 @@ export function clearBobLearningMemory(userId?: string) {
   }
   const entries = readAll().filter((e) => e.userId !== userId)
   writeAll(entries)
+}
+
+interface PersistRemoteLearningInput {
+  userId: string
+  organizationId?: string | null
+  route?: string
+  source?: string
+  userMessage: string
+  assistantReply: string
+}
+
+export async function persistBobLearningRemote(input: PersistRemoteLearningInput) {
+  try {
+    const localEntry = learnFromBobExchange({
+      userId: input.userId,
+      route: input.route,
+      source: input.source,
+      userMessage: input.userMessage,
+      assistantReply: input.assistantReply,
+    })
+
+    if (!localEntry) return
+
+    const payload = {
+      user_id: input.userId,
+      organization_id: input.organizationId ?? null,
+      route: localEntry.route,
+      source: localEntry.source,
+      topic: localEntry.topic,
+      tags: localEntry.tags,
+      user_intent: localEntry.userIntent,
+      assistant_outcome: localEntry.assistantOutcome,
+      use_count: localEntry.useCount,
+      last_used_at: localEntry.lastUsedAt,
+    }
+
+    // Try to merge with a recent entry of same user/topic to avoid noisy growth.
+    const { data: existingRows } = await ((supabase as any).from('bob_learning_memory') as any)
+      .select('id, use_count')
+      .eq('user_id', input.userId)
+      .eq('topic', localEntry.topic)
+      .order('last_used_at', { ascending: false })
+      .limit(1)
+
+    const existing = Array.isArray(existingRows) && existingRows.length > 0 ? existingRows[0] : null
+
+    if (existing?.id) {
+      await (((supabase as any).from('bob_learning_memory') as any)
+        .update({
+          ...payload,
+          use_count: Math.max(Number(existing.use_count ?? 0) + 1, localEntry.useCount),
+        })
+        .eq('id', existing.id))
+      return
+    }
+
+    await (((supabase as any).from('bob_learning_memory') as any).insert(payload))
+  } catch {
+    // Keep local memory functional even if remote table/migration is not available yet.
+  }
+}
+
+export async function buildBobLearningContextRemote(userId: string, maxEntries = 20) {
+  try {
+    const { data, error } = await ((supabase as any).from('bob_learning_memory') as any)
+      .select('topic, tags, user_intent, assistant_outcome, last_used_at')
+      .eq('user_id', userId)
+      .order('last_used_at', { ascending: false })
+      .limit(maxEntries)
+
+    if (error || !Array.isArray(data) || data.length === 0) return ''
+
+    return [
+      'Long-term memory synced from secure server history. Use these prior lessons for continuity:',
+      ...data.map((row: any, index: number) =>
+        `${index + 1}. Topic: ${row.topic} | Tags: ${(row.tags ?? []).join(', ')} | Prior user intent: ${row.user_intent} | Prior Bob outcome: ${row.assistant_outcome}`,
+      ),
+    ].join('\n')
+  } catch {
+    return ''
+  }
 }
