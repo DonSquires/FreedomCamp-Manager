@@ -13,7 +13,7 @@ A security audit of the `officer` role identified 11 issues where officers could
 - See and trigger admin-only action buttons within pages they legitimately access
 - Encounter confusing silent redirects from nav items that link to restricted routes
 
-All 11 issues have been **fixed** in the same commit as this report.
+**10 of 11 issues have been fixed** in the same commit as this report. BUG-011 (raw error message exposure) is documented and tracked but deferred for a follow-up fix.
 
 ---
 
