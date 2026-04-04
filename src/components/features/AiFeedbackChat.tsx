@@ -18,6 +18,7 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -27,6 +28,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { getFeedbackSnapshot } from '@/hooks/useFeedbackCapture'
 import { edgeFunctions } from '@/lib/edgeFunctions'
+import { publishBobCollaborationPacket } from '@/lib/bobCollaboration'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -111,6 +113,24 @@ function buildContextBlock(): string {
     `**Console errors at time of report:**\n${errorLines}`
 }
 
+function buildBobHandoffPrompt(messages: ChatMsg[], draftInput: string): string {
+  const snapshot = getFeedbackSnapshot()
+  const conversation = messages
+    .map((msg) => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
+    .join('\n')
+
+  return [
+    'Help me continue this FieldOps feedback or bug report.',
+    `Current page: ${snapshot.currentPage || '/'}`,
+    `App version: ${snapshot.appVersion}`,
+    draftInput.trim() ? `Unsent draft: ${draftInput.trim()}` : '',
+    conversation ? `Conversation so far:\n${conversation}` : '',
+    'Please help triage the issue, gather any missing detail, and take over this support flow.',
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+}
+
 /** Extract the first ```json ... ``` block from AI response text. */
 function extractJsonBlock(text: string): ExtractedReport | null {
   const match = text.match(/```json\s*([\s\S]+?)\s*```/)
@@ -160,10 +180,12 @@ function renderInline(text: string): React.ReactNode {
 
 export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
   const { user } = useAuthStore()
+  const navigate = useNavigate()
   const [messages, setMessages] = useState<ChatMsg[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [bobHandoffPrompt, setBobHandoffPrompt] = useState<string | null>(null)
   const [isPttSupported, setIsPttSupported] = useState(false)
   const [isPttRecording, setIsPttRecording] = useState(false)
   const endRef = useRef<HTMLDivElement>(null)
@@ -268,6 +290,7 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
     const history = buildHistory(currentMsgs)
 
     try {
+      setBobHandoffPrompt(null)
       const result = await withTimeout(
         edgeFunctions.aiChat({
           messages: [
@@ -289,7 +312,7 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
         throw new Error(msg)
       }
 
-      const responseText = result.data?.response ?? "I'm having trouble connecting. Please try the form instead."
+      const responseText = result.data?.response ?? "I'm having trouble connecting right now."
 
       // Check if the AI has produced the structured report JSON
       const reportData = extractJsonBlock(responseText)
@@ -310,16 +333,17 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
         await autoSubmit(reportData, updatedMsgs)
       }
     } catch (err: any) {
+      setBobHandoffPrompt(buildBobHandoffPrompt(currentMsgs, input))
       setMessages(prev => [...prev, {
         id: `e-${Date.now()}`,
         role: 'assistant',
-        content: `⚠️ ${err.message || 'Something went wrong. Please try the form instead.'}`,
+        content: `⚠️ ${err.message || 'Something went wrong.'}\n\nBob Assistant is available to continue this report with full build context.`,
         timestamp: new Date(),
       }])
     } finally {
       setLoading(false)
     }
-  }, [buildHistory, autoSubmit])
+  }, [buildHistory, autoSubmit, input])
 
   // Fire the opening greeting once on mount, using a ref guard so it fires
   // exactly once even if sendAiMessage changes identity after mount.
@@ -338,6 +362,22 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
     setInput('')
     await sendAiMessage(nextMsgs)
   }, [input, loading, submitting, messages, sendAiMessage])
+
+  const openBobAssistant = useCallback(() => {
+    if (!bobHandoffPrompt) return
+    publishBobCollaborationPacket({
+      source: 'feedback-ai',
+      title: 'Feedback Intake Handoff',
+      summary: 'AI feedback intake could not reach its edge-backed assistant and has handed context to Bob.',
+      prompt: bobHandoffPrompt,
+      route: '/bob-assistant',
+      expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      metadata: {
+        flow: 'feedback-intake',
+      },
+    })
+    navigate('/bob-assistant')
+  }, [bobHandoffPrompt, navigate])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
@@ -523,6 +563,22 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
           >
             <Send className="h-3.5 w-3.5" />
           </Button>
+        </div>
+      )}
+
+      {bobHandoffPrompt && !submitting && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm dark:border-amber-800 dark:bg-amber-950/30">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="font-medium text-amber-900 dark:text-amber-200">Continue with Bob Assistant</p>
+              <p className="mt-1 text-amber-800 dark:text-amber-300">
+                Your current report context is ready to hand off to Bob so you can continue in one place.
+              </p>
+            </div>
+            <Button type="button" size="sm" onClick={openBobAssistant}>
+              Open Bob
+            </Button>
+          </div>
         </div>
       )}
 

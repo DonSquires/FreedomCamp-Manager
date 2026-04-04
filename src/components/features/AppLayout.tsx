@@ -161,7 +161,7 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
       { path: '/noise-control', icon: Volume2, label: 'Noise Control', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/parking', icon: ParkingSquare, label: 'Parking Enforcement', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/officer-welfare', icon: HeartPulse, label: 'Officer Welfare', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/identity-verification', icon: ShieldCheck, label: 'ID Verification', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/identity-verification', icon: ShieldCheck, label: 'ID Verification', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -170,7 +170,7 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
     items: [
       { path: '/dispatch', icon: Radio, label: 'Dispatch Console', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/client-sites', icon: Building2, label: 'Client Sites (CRM)', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/investigations', icon: BrainCircuit, label: 'Investigation Jobs', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/investigations', icon: BrainCircuit, label: 'Investigation Jobs', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -197,7 +197,7 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
       { path: '/intel-approvals', icon: ShieldAlert, label: 'Intel Approvals', roles: ['master'] },
       { path: '/bob-intake-queue', icon: BrainCircuit, label: 'Bob Intake Queue', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/bob-assistant', icon: BrainCircuit, label: 'Bob Assistant', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-      { path: '/live-plan-reviews', icon: ShieldCheck, label: 'Live Plan Reviews', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/live-plan-reviews', icon: ShieldCheck, label: 'Live Plan Reviews', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/team-chat', icon: MessageSquare, label: 'Team Chat', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/import-historical', icon: Upload, label: 'Import Data', roles: ['admin', 'master'] },
       { path: '/photo-reingest', icon: Camera, label: 'Photo Reingest', roles: ['admin', 'admin_officer', 'master'] },

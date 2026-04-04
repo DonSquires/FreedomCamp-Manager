@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useSessionInactivityLock } from '@/hooks/useSessionInactivityLock'
 import { useThemeMode } from '@/hooks/useThemeMode'
 import { usePTTAutoConnect } from '@/hooks/usePTTAutoConnect'
+import { useSessionGpsLogging } from '@/hooks/useSessionGpsLogging'
 import { NetworkStatusBar } from '@/components/features/NetworkStatusBar'
 import { PWAInstallPrompt } from '@/components/features/PWAInstallPrompt'
 import { GlobalOperationsBar } from '@/components/features/GlobalOperationsBar'
@@ -235,6 +236,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   // Auto-connect to PTT when authenticated
   usePTTAutoConnect()
+  useSessionGpsLogging()
 
   const hasPortalChoice = () => {
     if (typeof window === 'undefined') return false
@@ -1059,7 +1061,7 @@ export default function App() {
             path="/live-plan-reviews"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer', 'grand_master']}>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
                   <OpsLivePlanReviewQueue />
                 </RoleRoute>
               </ProtectedRoute>
@@ -1244,7 +1246,7 @@ export default function App() {
             path="/identity-verification"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <IdentityVerificationPage />
                 </RoleRoute>
               </ProtectedRoute>

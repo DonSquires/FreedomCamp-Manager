@@ -14,6 +14,7 @@
 
 import { usePTTStore } from '@/stores/pttStore'
 import { useAuthStore } from '@/stores/authStore'
+import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import {
   connectToOrgChannel,
   disconnectFromPTT,
@@ -30,6 +31,19 @@ const MAX_RECONNECT_ATTEMPTS = 10
 const RECONNECT_DELAY_MS = 3000
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
 let visibilityHandler: (() => void) | null = null
+
+function resolveOperationalOrganizationId(): string | null {
+  const { user } = useAuthStore.getState()
+  const { organizationId } = useGlobalFiltersStore.getState()
+
+  if (!user) return null
+
+  if (user.role === 'master' || user.role === 'grand_master') {
+    return organizationId || user.organization_id || null
+  }
+
+  return user.organization_id || null
+}
 
 // ---------------------------------------------------------------------------
 // Notification Support
@@ -102,8 +116,8 @@ export async function startPTTBackgroundService(): Promise<void> {
     return
   }
 
-  const { user } = useAuthStore.getState()
-  if (!user?.organization_id) {
+  const operationalOrganizationId = resolveOperationalOrganizationId()
+  if (!operationalOrganizationId) {
     console.warn('🎤 PTT Background: No user or organization')
     return
   }
@@ -124,7 +138,7 @@ export async function startPTTBackgroundService(): Promise<void> {
 
   // Connect to org channel
   try {
-    await connectToOrgChannel(user.organization_id, 'Organization')
+    await connectToOrgChannel(operationalOrganizationId, 'Organization')
     reconnectAttempts = 0
     console.log('🎤 PTT Background: Connected to org channel')
   } catch (err) {
@@ -226,8 +240,8 @@ function scheduleReconnect(): void {
 async function reconnect(): Promise<void> {
   if (!isServiceRunning) return
 
-  const { user } = useAuthStore.getState()
-  if (!user?.organization_id) {
+  const operationalOrganizationId = resolveOperationalOrganizationId()
+  if (!operationalOrganizationId) {
     console.warn('🎤 PTT Background: No user for reconnect')
     return
   }
@@ -235,7 +249,7 @@ async function reconnect(): Promise<void> {
   console.log('🎤 PTT Background: Reconnecting...')
 
   try {
-    await connectToOrgChannel(user.organization_id, 'Organization')
+    await connectToOrgChannel(operationalOrganizationId, 'Organization')
     reconnectAttempts = 0
     console.log('🎤 PTT Background: Reconnected')
   } catch (err) {
@@ -271,9 +285,10 @@ export function usePTTAutoStart(): void {
  * Call this when user logs in
  */
 export function initializePTTOnLogin(): void {
-  const { user, isAuthenticated } = useAuthStore.getState()
+  const { isAuthenticated } = useAuthStore.getState()
+  const operationalOrganizationId = resolveOperationalOrganizationId()
 
-  if (isAuthenticated && user?.organization_id) {
+  if (isAuthenticated && operationalOrganizationId) {
     startPTTBackgroundService()
   }
 }

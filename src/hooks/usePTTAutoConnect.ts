@@ -9,6 +9,7 @@
 import { useEffect, useRef } from 'react'
 import { useAuthStore } from '@/stores/authStore'
 import { usePTTStore } from '@/stores/pttStore'
+import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import {
   startPTTBackgroundService,
   stopPTTBackgroundService,
@@ -21,8 +22,14 @@ import {
  */
 export function usePTTAutoConnect(): void {
   const { user, isAuthenticated, loading } = useAuthStore()
+  const selectedOrganizationId = useGlobalFiltersStore((s) => s.organizationId)
   const connectionStatus = usePTTStore((s) => s.connectionStatus)
   const hasStarted = useRef(false)
+
+  const operationalOrganizationId =
+    user?.role === 'master' || user?.role === 'grand_master'
+      ? selectedOrganizationId || user?.organization_id || null
+      : user?.organization_id || null
 
   useEffect(() => {
     // Wait until the auth check has fully resolved before starting PTT.
@@ -32,7 +39,7 @@ export function usePTTAutoConnect(): void {
     if (loading) return
 
     // Start PTT service when user is authenticated
-    if (isAuthenticated && user?.organization_id && !hasStarted.current) {
+    if (isAuthenticated && operationalOrganizationId && !hasStarted.current) {
       hasStarted.current = true
       
       // Request notification permission first
@@ -53,7 +60,7 @@ export function usePTTAutoConnect(): void {
       // Don't stop on unmount - service should persist
       // Only stop on explicit logout (handled above)
     }
-  }, [loading, isAuthenticated, user?.organization_id])
+  }, [loading, isAuthenticated, operationalOrganizationId])
 
   // Log connection status changes
   useEffect(() => {

@@ -169,25 +169,25 @@ function OfficerContextPanel({ userId, title = 'Officer context', organizationId
                 <span className="text-muted-foreground">Loading latest location…</span>
               ) : locationData ? (
                 <div className="space-y-1">
-                  <div className="font-semibold">{locationData.zone_name || 'Unknown zone'}</div>
+                  <div className="font-semibold">{locationData.last_scan_zone || 'Unknown location'}</div>
                   <div className="text-xs text-muted-foreground">
-                    {locationData.gps_latitude?.toFixed(6)}, {locationData.gps_longitude?.toFixed(6)}
+                    {locationData.last_gps_latitude?.toFixed(6)}, {locationData.last_gps_longitude?.toFixed(6)}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Last activity: {locationData.last_activity_at ? formatDateTime(locationData.last_activity_at) : 'Unknown'}
+                    Last GPS update: {locationData.last_gps_update ? formatDateTime(locationData.last_gps_update) : 'Unknown'}
                   </div>
                   <div className="flex items-center gap-1 text-xs">
                     <Activity className="h-3.5 w-3.5 text-green-600" />
-                    {locationData.activity_type || 'No recent activity'}
+                    {locationData.recent_scans ? `${locationData.recent_scans} scan${locationData.recent_scans === 1 ? '' : 's'} today` : 'No recent activity'}
                   </div>
-                  {locationData.gps_latitude && locationData.gps_longitude && (
+                  {locationData.last_gps_latitude && locationData.last_gps_longitude && (
                     <Button
                       variant="outline"
                       size="sm"
                       className="mt-2"
                       onClick={() => {
                         window.open(
-                          `https://www.google.com/maps?q=${locationData.gps_latitude},${locationData.gps_longitude}`,
+                          `https://www.google.com/maps?q=${locationData.last_gps_latitude},${locationData.last_gps_longitude}`,
                           '_blank'
                         )
                       }}
@@ -322,7 +322,10 @@ export default function TeamChat() {
   const targetUserRef = useRef<Participant | null>(target.type === 'user' ? target.user : null)
 
   const effectiveOrgId = useMemo(
-    () => (user?.role === 'master' ? organizationId || null : user?.organization_id || null),
+    () =>
+      user?.role === 'master' || user?.role === 'grand_master'
+        ? organizationId || user?.organization_id || null
+        : user?.organization_id || null,
     [organizationId, user?.organization_id, user?.role],
   )
 
@@ -512,7 +515,7 @@ export default function TeamChat() {
         if (m.senderRole === 'system') return true
         if (m.recipientRole === 'admin') {
           // Show all admin-directed messages, plus admin replies to specific users
-          if (user?.role === 'admin' || user?.role === 'admin_officer' || user?.role === 'master') return true
+          if (user?.role === 'admin' || user?.role === 'admin_officer' || user?.role === 'master' || user?.role === 'grand_master') return true
           return m.senderId === user?.id
         }
         return false

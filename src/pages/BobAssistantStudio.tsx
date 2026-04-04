@@ -16,6 +16,7 @@ import { supabase } from '@/lib/supabase'
 import { BrainCircuit, ClipboardList, Loader2, MapPinned, Mic, MicOff, Paintbrush2, Route, Send, Volume2, VolumeX, Wrench, Github, ShieldAlert } from 'lucide-react'
 import { toast } from 'sonner'
 import { edgeFunctions } from '@/lib/edgeFunctions'
+import { consumeLatestBobCollaborationPacket, type BobCollaborationPacket } from '@/lib/bobCollaboration'
 
 type ChatMessage = {
   id: string
@@ -447,6 +448,7 @@ export default function BobAssistantStudio() {
     fieldStaffCanView: true,
   })
   const [generatedPlan, setGeneratedPlan] = useState('')
+  const [collaborationPacket, setCollaborationPacket] = useState<BobCollaborationPacket | null>(null)
   const [voiceSupported, setVoiceSupported] = useState(false)
   const [codeTaskLoading, setCodeTaskLoading] = useState(false)
   const [codeTaskResult, setCodeTaskResult] = useState('')
@@ -472,6 +474,14 @@ export default function BobAssistantStudio() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chat, thinking])
+
+  useEffect(() => {
+    const packet = consumeLatestBobCollaborationPacket()
+    if (!packet) return
+    setCollaborationPacket(packet)
+    setChatInput((prev) => prev || packet.prompt)
+    toast.message(`${packet.title} loaded into Bob Assistant`)
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -1390,6 +1400,22 @@ export default function BobAssistantStudio() {
               <CardDescription>Talk to Bob by typing or voice. Replies can be spoken back with your selected voice profile.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
+              {collaborationPacket && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm dark:border-amber-800 dark:bg-amber-950/30">
+                  <div className="flex items-center gap-2 font-medium text-amber-900 dark:text-amber-200">
+                    <ShieldAlert className="h-4 w-4" /> Collaboration Context Loaded
+                  </div>
+                  <p className="mt-1 text-amber-800 dark:text-amber-300">{collaborationPacket.title}</p>
+                  {collaborationPacket.summary && (
+                    <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{collaborationPacket.summary}</p>
+                  )}
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-amber-700 dark:text-amber-400">
+                    <span>Source: {collaborationPacket.source}</span>
+                    <span>Created: {new Date(collaborationPacket.createdAt).toLocaleString('en-NZ')}</span>
+                  </div>
+                </div>
+              )}
+
               <div className="max-h-[300px] overflow-auto rounded border p-3 space-y-2 bg-muted/20">
                 {chat.length === 0 && !thinking ? (
                   <div className="text-sm text-muted-foreground">No messages yet. Ask Bob for import help, directions, or operational guidance.</div>
