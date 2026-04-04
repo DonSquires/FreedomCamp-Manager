@@ -16,7 +16,7 @@ import { supabase } from '@/lib/supabase'
 import { BrainCircuit, ClipboardList, Loader2, MapPinned, Mic, MicOff, Paintbrush2, Route, Send, Volume2, VolumeX, Wrench, Github, ShieldAlert } from 'lucide-react'
 import { toast } from 'sonner'
 import { edgeFunctions } from '@/lib/edgeFunctions'
-import { consumeLatestBobCollaborationPacket, type BobCollaborationPacket } from '@/lib/bobCollaboration'
+import { consumeLatestBobCollaborationPacket, publishBobResponse, type BobCollaborationPacket } from '@/lib/bobCollaboration'
 
 type ChatMessage = {
   id: string
@@ -475,12 +475,25 @@ export default function BobAssistantStudio() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chat, thinking])
 
+  // Track whether we've already published a response for the current packet
+  const hasPublishedResponseRef = useRef(false)
+
   useEffect(() => {
     const packet = consumeLatestBobCollaborationPacket()
     if (!packet) return
     setCollaborationPacket(packet)
+    hasPublishedResponseRef.current = false
     setChatInput((prev) => prev || packet.prompt)
     toast.message(`${packet.title} loaded into Bob Assistant`)
+
+    // autoSubmit: act as a sub-agent — send the prompt automatically
+    if (packet.autoSubmit) {
+      // Small delay so the component has fully mounted
+      setTimeout(() => {
+        sendMessage(packet.prompt)
+      }, 400)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -796,6 +809,12 @@ export default function BobAssistantStudio() {
       }
 
       setChat((prev) => [...prev, bobMsg])
+
+      // Publish response back to the originating component (sub-agent pattern)
+      if (collaborationPacket && !hasPublishedResponseRef.current) {
+        hasPublishedResponseRef.current = true
+        publishBobResponse(collaborationPacket.id, replyText)
+      }
 
       if (autoSpeakReplies) {
         speak(replyText)
@@ -1409,9 +1428,23 @@ export default function BobAssistantStudio() {
                   {collaborationPacket.summary && (
                     <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{collaborationPacket.summary}</p>
                   )}
-                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-amber-700 dark:text-amber-400">
-                    <span>Source: {collaborationPacket.source}</span>
-                    <span>Created: {new Date(collaborationPacket.createdAt).toLocaleString('en-NZ')}</span>
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-700 dark:text-amber-400">
+                    <div className="flex flex-wrap gap-2">
+                      <span>Source: {collaborationPacket.source}</span>
+                      <span>·</span>
+                      <span>{new Date(collaborationPacket.createdAt).toLocaleString('en-NZ')}</span>
+                      {collaborationPacket.autoSubmit && <span className="font-semibold text-amber-800 dark:text-amber-300">· Auto-submitted</span>}
+                    </div>
+                    {collaborationPacket.returnRoute && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 border-amber-400 px-2 text-xs text-amber-800 hover:bg-amber-100 dark:border-amber-600 dark:text-amber-300 dark:hover:bg-amber-900/30"
+                        onClick={() => navigate(collaborationPacket.returnRoute!)}
+                      >
+                        ← Return
+                      </Button>
+                    )}
                   </div>
                 </div>
               )}
