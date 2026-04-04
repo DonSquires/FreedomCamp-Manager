@@ -391,11 +391,9 @@ Deno.serve(async (req: Request) => {
 
     async function callInferenceProvider() {
       const configuredFallbackUrl = normalizeBaseUrl(Deno.env.get('INFERENCE_SERVICE_FALLBACK_URL'))
-      const hardFallbackUrl = 'https://focused-courage-production-ccee.up.railway.app'
       const candidates = Array.from(new Set([
         inferenceUrl,
         configuredFallbackUrl,
-        hardFallbackUrl,
       ].filter(Boolean)))
 
       if (!candidates.length) {
