@@ -18,6 +18,7 @@ import { toast } from 'sonner'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { consumeLatestBobCollaborationPacket, publishBobResponse, type BobCollaborationPacket } from '@/lib/bobCollaboration'
 import { BOB_PROJECT_KNOWLEDGE } from '@/lib/bobKnowledgeBase'
+import { buildBobLearningContext, learnFromBobExchange } from '@/lib/bobLearningMemory'
 
 type ChatMessage = {
   id: string
@@ -774,6 +775,7 @@ export default function BobAssistantStudio() {
     setChat((prev) => [...prev, userMsg])
     setChatInput('')
     setThinking(true)
+    const learningUserId = user?.id ?? 'anonymous'
 
     try {
       // Format A — full messages array. Injects project knowledge as the first assistant
@@ -781,8 +783,10 @@ export default function BobAssistantStudio() {
       // Also correctly passes conversation history (history field was silently ignored by
       // the edge function; it reads body.messages, not body.history).
       const historyMessages = chat.slice(-16).map((m) => ({ role: m.role, content: m.text }))
+      const longTermMemory = buildBobLearningContext(learningUserId, 20)
       const rawMessages = [
         { role: 'assistant', content: BOB_PROJECT_KNOWLEDGE },
+        ...(longTermMemory ? [{ role: 'assistant', content: longTermMemory }] : []),
         ...historyMessages,
         { role: 'user', content: message },
       ]
@@ -819,6 +823,16 @@ export default function BobAssistantStudio() {
 
       setChat((prev) => [...prev, bobMsg])
 
+      // Continuous learning: persist each exchange so future prompts can reuse
+      // Bob's prior outcomes instead of starting from scratch.
+      learnFromBobExchange({
+        userId: learningUserId,
+        route: '/bob-assistant',
+        source: collaborationPacket?.source ?? 'bob-studio',
+        userMessage: message,
+        assistantReply: replyText,
+      })
+
       // Publish response back to the originating component (sub-agent pattern)
       if (collaborationPacket && !hasPublishedResponseRef.current) {
         hasPublishedResponseRef.current = true
@@ -837,6 +851,16 @@ export default function BobAssistantStudio() {
         createdAt: new Date().toISOString(),
       }
       setChat((prev) => [...prev, bobMsg])
+
+      // Even in degraded mode, capture what was asked and what was answered.
+      learnFromBobExchange({
+        userId: learningUserId,
+        route: '/bob-assistant',
+        source: collaborationPacket?.source ?? 'local-fallback',
+        userMessage: message,
+        assistantReply: replyText,
+      })
+
       if (autoSpeakReplies) speak(replyText)
       toast.error('AI service unavailable — using local fallback')
     } finally {
