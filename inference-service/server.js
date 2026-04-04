@@ -188,6 +188,94 @@ const CLOUD_ALPR_ENABLED = !SELF_CONTAINED_MODE && !!process.env.PLATERECOGNIZER
 const OLLAMA_REQUESTED = TABULAR_NLP_PROVIDER === 'ollama' || CHAT_PROVIDER === 'ollama';
 const OLLAMA_ENABLED = OLLAMA_REQUESTED && (!SELF_CONTAINED_MODE || isLocalUrl(OLLAMA_BASE_URL));
 
+// ---------------------------------------------------------------------------
+// Ollama circuit breaker – avoids log spam when Ollama is unreachable.
+// After OLLAMA_CB_THRESHOLD consecutive failures the circuit "opens" and all
+// requests short-circuit to the heuristic fallback for OLLAMA_CB_COOLDOWN_MS,
+// after which a single probe request is allowed through ("half-open").
+// ---------------------------------------------------------------------------
+const OLLAMA_CB_THRESHOLD  = Number(process.env.OLLAMA_CB_THRESHOLD  || 3);
+const OLLAMA_CB_COOLDOWN_MS = Number(process.env.OLLAMA_CB_COOLDOWN_MS || 60000);
+
+const ollamaCircuitBreaker = {
+  failures:   0,
+  state:      'closed',   // closed | open | half-open
+  openedAt:   0,
+  lastError:  null,
+
+  /** Record a successful Ollama call – resets the breaker. */
+  recordSuccess() {
+    if (this.failures > 0 || this.state !== 'closed') {
+      console.log('✅ Ollama circuit breaker reset — connection restored');
+    }
+    this.failures  = 0;
+    this.state     = 'closed';
+    this.openedAt  = 0;
+    this.lastError = null;
+  },
+
+  /** Record a failed Ollama call – may trip the breaker. */
+  recordFailure(error) {
+    this.failures += 1;
+    this.lastError = error?.message || String(error);
+    if (this.state === 'half-open') {
+      // Probe failed — re-open the circuit for another cooldown period
+      this.state    = 'open';
+      this.openedAt = Date.now();
+      console.warn(
+        `🔌 Ollama circuit breaker re-OPEN — probe failed ` +
+        `(${OLLAMA_BASE_URL}). Will retry in ${OLLAMA_CB_COOLDOWN_MS / 1000}s.`
+      );
+    } else if (this.failures >= OLLAMA_CB_THRESHOLD && this.state === 'closed') {
+      this.state    = 'open';
+      this.openedAt = Date.now();
+      console.warn(
+        `🔌 Ollama circuit breaker OPEN after ${this.failures} consecutive failures ` +
+        `(${OLLAMA_BASE_URL}). Will retry in ${OLLAMA_CB_COOLDOWN_MS / 1000}s. ` +
+        `Last error: ${this.lastError}`
+      );
+    }
+  },
+
+  /**
+   * Returns true if the request should be allowed through.
+   * Transitions open → half-open after cooldown expires.
+   */
+  allowRequest() {
+    if (this.state === 'closed') return true;
+    if (this.state === 'open') {
+      if (Date.now() - this.openedAt >= OLLAMA_CB_COOLDOWN_MS) {
+        this.state = 'half-open';
+        console.log('🔄 Ollama circuit breaker HALF-OPEN — allowing probe request');
+        return true;
+      }
+      return false;
+    }
+    // half-open: allow one probe
+    return true;
+  },
+
+  /** Snapshot for /health and diagnostics. */
+  toJSON() {
+    return {
+      state:             this.state,
+      consecutiveFailures: this.failures,
+      lastError:         this.lastError,
+      openedAt:          this.openedAt ? new Date(this.openedAt).toISOString() : null,
+      threshold:         OLLAMA_CB_THRESHOLD,
+      cooldownMs:        OLLAMA_CB_COOLDOWN_MS,
+    };
+  },
+
+  /** Force-trip the breaker into open state (e.g. startup probe failure). */
+  trip(error) {
+    this.failures  = OLLAMA_CB_THRESHOLD;
+    this.lastError = error?.message || String(error);
+    this.state     = 'open';
+    this.openedAt  = Date.now();
+  },
+};
+
 const selfLearningService = createSelfLearningService({
   enabled: SELF_LEARNING_ENABLED,
   statePath: SELF_LEARNING_STATE_PATH,
@@ -693,6 +781,10 @@ async function analyzeTabularDataWithOllama(sampleRows) {
     return heuristic;
   }
 
+  if (!ollamaCircuitBreaker.allowRequest()) {
+    return heuristic;
+  }
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TABULAR_NLP_TIMEOUT_MS);
   try {
@@ -737,6 +829,7 @@ async function analyzeTabularDataWithOllama(sampleRows) {
     }, 'ollama');
 
     if (!response.ok) {
+      ollamaCircuitBreaker.recordFailure(new Error(`HTTP ${response.status}`));
       return heuristic;
     }
 
@@ -747,6 +840,7 @@ async function analyzeTabularDataWithOllama(sampleRows) {
     }
 
     const parsed = JSON.parse(content);
+    ollamaCircuitBreaker.recordSuccess();
     return {
       ...heuristic,
       ...parsed,
@@ -757,7 +851,12 @@ async function analyzeTabularDataWithOllama(sampleRows) {
       recommendations: Array.isArray(parsed?.recommendations) ? parsed.recommendations : heuristic.recommendations,
     };
   } catch (error) {
-    console.warn('⚠️ Tabular NLP via Ollama failed:', error.message);
+    ollamaCircuitBreaker.recordFailure(error);
+    if (ollamaCircuitBreaker.state === 'open') {
+      // First time tripping — the breaker itself already logged the details
+    } else {
+      console.warn(`⚠️ Tabular NLP via Ollama failed (${OLLAMA_BASE_URL}):`, error.message);
+    }
     return heuristic;
   } finally {
     clearTimeout(timeout);
@@ -788,6 +887,10 @@ function generateHeuristicChatReply(message, context = {}) {
 async function generateChatReplyWithOllama(message, history = [], context = {}) {
   if (!OLLAMA_ENABLED) {
     recordEgressEvent('ollama', 'blocked', 'Chat requested ollama but local ollama is unavailable');
+    return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
+  }
+
+  if (!ollamaCircuitBreaker.allowRequest()) {
     return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
   }
 
@@ -822,6 +925,7 @@ async function generateChatReplyWithOllama(message, history = [], context = {}) 
     }, 'ollama');
 
     if (!response.ok) {
+      ollamaCircuitBreaker.recordFailure(new Error(`HTTP ${response.status}`));
       return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
     }
 
@@ -836,13 +940,19 @@ async function generateChatReplyWithOllama(message, history = [], context = {}) 
       return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
     }
 
+    ollamaCircuitBreaker.recordSuccess();
     return {
       provider: 'ollama',
       text: trimmed,
       fallback: false,
     };
   } catch (error) {
-    console.warn('⚠️ Local chat via Ollama failed:', error.message);
+    ollamaCircuitBreaker.recordFailure(error);
+    if (ollamaCircuitBreaker.state === 'open') {
+      // First time tripping — the breaker itself already logged the details
+    } else {
+      console.warn(`⚠️ Local chat via Ollama failed (${OLLAMA_BASE_URL}):`, error.message);
+    }
     return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
   } finally {
     clearTimeout(timeout);
@@ -2828,6 +2938,7 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       face_detection_onnx: fs.existsSync(FACE_DETECT_MODEL_PATH), // UltraFace-640
       face_embedding: modelsLoaded,              // MobileNetV3 embedding for comparison
     },
+    ollama_circuit_breaker: OLLAMA_ENABLED ? ollamaCircuitBreaker.toJSON() : null,
     uptime: process.uptime(),
     memory: process.memoryUsage()
   });
@@ -2905,6 +3016,41 @@ loadModels().then(() => {
       if (TABULAR_NLP_PROVIDER === 'ollama' && !OLLAMA_ENABLED) {
         console.log('ℹ️  OLLAMA_BASE_URL is non-local; tabular analysis will use heuristic mode.');
       }
+    }
+
+    // -----------------------------------------------------------------------
+    // Startup Ollama connectivity probe – surfaces misconfigurations early.
+    // Non-blocking: the server is already listening and can serve requests.
+    // -----------------------------------------------------------------------
+    if (OLLAMA_ENABLED) {
+      const probeUrl = `${OLLAMA_BASE_URL}/api/tags`;
+      console.log(`🔍 Probing Ollama at ${probeUrl} …`);
+      const probeController = new AbortController();
+      const probeTimeout = setTimeout(() => probeController.abort(), 5000);
+      fetch(probeUrl, { signal: probeController.signal })
+        .then(async (resp) => {
+          clearTimeout(probeTimeout);
+          if (resp.ok) {
+            const body = await resp.json().catch(() => null);
+            const models = body?.models?.map((m) => m.name) || [];
+            console.log(`✅ Ollama reachable — ${models.length} model(s) available${models.length ? ': ' + models.join(', ') : ''}`);
+            const wantedModel = OLLAMA_MODEL.split(':')[0];
+            if (models.length > 0 && !models.some((n) => n.startsWith(wantedModel))) {
+              console.warn(`⚠️  Configured model "${OLLAMA_MODEL}" not found on Ollama. Available: ${models.join(', ')}`);
+              console.warn(`   Requests will block while Ollama pulls the model on first use.`);
+            }
+          } else {
+            console.warn(`⚠️  Ollama probe returned HTTP ${resp.status} (${OLLAMA_BASE_URL})`);
+          }
+        })
+        .catch((err) => {
+          clearTimeout(probeTimeout);
+          console.warn(`❌ Ollama unreachable at ${OLLAMA_BASE_URL}: ${err.message}`);
+          console.warn(`   Chat and tabular NLP will fall back to heuristic mode.`);
+          console.warn(`   Verify OLLAMA_BASE_URL port matches the Ollama service (check OLLAMA_HOST on the Ollama container).`);
+          // Pre-trip the circuit breaker so real requests don't spam logs
+          ollamaCircuitBreaker.trip(err);
+        });
     }
   });
 });
