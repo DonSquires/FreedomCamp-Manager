@@ -17,6 +17,7 @@ import { BrainCircuit, ClipboardList, Loader2, MapPinned, Mic, MicOff, Paintbrus
 import { toast } from 'sonner'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { consumeLatestBobCollaborationPacket, publishBobResponse, type BobCollaborationPacket } from '@/lib/bobCollaboration'
+import { BOB_PROJECT_KNOWLEDGE } from '@/lib/bobKnowledgeBase'
 
 type ChatMessage = {
   id: string
@@ -775,12 +776,20 @@ export default function BobAssistantStudio() {
     setThinking(true)
 
     try {
-      const history = chat.slice(-20).map((m) => ({ role: m.role, content: m.text }))
+      // Format A — full messages array. Injects project knowledge as the first assistant
+      // message so every conversation is grounded in accurate build context.
+      // Also correctly passes conversation history (history field was silently ignored by
+      // the edge function; it reads body.messages, not body.history).
+      const historyMessages = chat.slice(-16).map((m) => ({ role: m.role, content: m.text }))
+      const rawMessages = [
+        { role: 'assistant', content: BOB_PROJECT_KNOWLEDGE },
+        ...historyMessages,
+        { role: 'user', content: message },
+      ]
 
       const { data, error } = await supabase.functions.invoke('onspace-ai-chat', {
         body: {
-          message,
-          history,
+          messages: rawMessages,
           context: {
             tone,
             source: 'bob-studio',
