@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { Badge } from '@/components/ui/badge'
@@ -12,8 +13,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { useBobAssistantStore } from '@/stores/bobAssistantStore'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
-import { BrainCircuit, ClipboardList, Loader2, MapPinned, Mic, MicOff, Paintbrush2, Route, Send, Volume2, VolumeX } from 'lucide-react'
+import { BrainCircuit, ClipboardList, Loader2, MapPinned, Mic, MicOff, Paintbrush2, Route, Send, Volume2, VolumeX, Wrench, Github, ShieldAlert } from 'lucide-react'
 import { toast } from 'sonner'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 
 type ChatMessage = {
   id: string
@@ -66,6 +68,16 @@ interface PlanForm {
 type AssignmentOption = {
   id: string
   name: string
+}
+
+interface CodeChangeRequest {
+  summary: string
+  details: string
+  stackTrace: string
+  severity: 'low' | 'medium' | 'high' | 'critical'
+  complexity: 'simple' | 'moderate' | 'complex'
+  targetPaths: string
+  confirmed: boolean
 }
 
 function isHazardReviewRequiredPlan(planType: PlanType): boolean {
@@ -223,6 +235,22 @@ function buildMapDirectionsUrl(from: string, to: string, mode: string) {
   return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}&travelmode=${encodeURIComponent(travelMode)}`
 }
 
+const BOB_WAKE_PHRASES = ['hay bob', 'hey bob']
+const BOB_END_PHRASES = [
+  'thank you',
+  'thanks',
+  'thanks bob',
+  'thank you bob',
+  'goodbye',
+  'bye',
+  'that is all',
+  "that's all",
+  'end conversation',
+  'stop listening',
+  'we are done',
+]
+const VOICE_INACTIVITY_TIMEOUT_MS = 29_000
+
 function BobSketchPad() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const [drawing, setDrawing] = useState(false)
@@ -345,7 +373,9 @@ function buildBobReply(message: string, tone: string): string {
 }
 
 export default function BobAssistantStudio() {
+  const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
+  const isGrandMaster = user?.role === 'grand_master'
 
   const {
     displayName,
@@ -354,12 +384,22 @@ export default function BobAssistantStudio() {
     accent,
     speechEnabled,
     autoSpeakReplies,
+    voiceActivatedConversation,
+    expressUserDataPermission,
+    permittedUserIdentity,
+    voicePatternLearningConsent,
+    faceClarificationConsent,
     setDisplayName,
     setTone,
     setVoiceGender,
     setAccent,
     setSpeechEnabled,
     setAutoSpeakReplies,
+    setVoiceActivatedConversation,
+    setExpressUserDataPermission,
+    setPermittedUserIdentity,
+    setVoicePatternLearningConsent,
+    setFaceClarificationConsent,
   } = useBobAssistantStore()
 
   const [chatInput, setChatInput] = useState('')
@@ -407,9 +447,25 @@ export default function BobAssistantStudio() {
     fieldStaffCanView: true,
   })
   const [generatedPlan, setGeneratedPlan] = useState('')
+  const [voiceSupported, setVoiceSupported] = useState(false)
+  const [codeTaskLoading, setCodeTaskLoading] = useState(false)
+  const [codeTaskResult, setCodeTaskResult] = useState('')
+  const [codeChangeRequest, setCodeChangeRequest] = useState<CodeChangeRequest>({
+    summary: '',
+    details: '',
+    stackTrace: '',
+    severity: 'medium',
+    complexity: 'moderate',
+    targetPaths: '',
+    confirmed: false,
+  })
 
   const recognitionRef = useRef<any>(null)
   const chatEndRef = useRef<HTMLDivElement | null>(null)
+  const voiceConversationActiveRef = useRef(false)
+  const speakingRef = useRef(false)
+  const wakeUnlockedRef = useRef(false)
+  const inactivityTimerRef = useRef<number | null>(null)
 
   const planRecommendations = useMemo(() => buildPlanRecommendations(planForm), [planForm])
 
@@ -427,6 +483,10 @@ export default function BobAssistantStudio() {
     return () => {
       window.speechSynthesis.onvoiceschanged = null
     }
+  }, [])
+
+  useEffect(() => {
+    setVoiceSupported(!!getSpeechRecognitionCtor())
   }, [])
 
   useEffect(() => {
@@ -518,12 +578,162 @@ export default function BobAssistantStudio() {
 
   const speak = (text: string) => {
     if (!speechEnabled || typeof window === 'undefined') return
+    if (voiceConversationActiveRef.current && recognitionRef.current) {
+      recognitionRef.current.stop()
+      recognitionRef.current = null
+    }
+
+    speakingRef.current = true
     const utterance = new SpeechSynthesisUtterance(text)
     if (selectedVoice) utterance.voice = selectedVoice
     utterance.lang = accent
     utterance.rate = tone === 'professional' ? 0.95 : tone === 'coach' ? 1.03 : 1
+    utterance.onend = () => {
+      speakingRef.current = false
+      if (voiceConversationActiveRef.current) {
+        startVoiceConversation()
+      }
+    }
+    utterance.onerror = () => {
+      speakingRef.current = false
+      if (voiceConversationActiveRef.current) {
+        startVoiceConversation()
+      }
+    }
     window.speechSynthesis.cancel()
     window.speechSynthesis.speak(utterance)
+  }
+
+  const clearVoiceInactivityTimer = () => {
+    if (inactivityTimerRef.current !== null) {
+      window.clearTimeout(inactivityTimerRef.current)
+      inactivityTimerRef.current = null
+    }
+  }
+
+  const resetVoiceInactivityTimer = () => {
+    if (typeof window === 'undefined') return
+    clearVoiceInactivityTimer()
+    inactivityTimerRef.current = window.setTimeout(() => {
+      if (!voiceConversationActiveRef.current) return
+      stopVoiceConversation()
+      setVoiceActivatedConversation(false)
+      toast.message('Voice conversation ended after 29 seconds of inactivity')
+    }, VOICE_INACTIVITY_TIMEOUT_MS)
+  }
+
+  const containsEndPhrase = (text: string) => {
+    const normalized = normalize(text)
+    return BOB_END_PHRASES.some((phrase) => normalized.includes(phrase))
+  }
+
+  const stripWakePhrase = (text: string) => {
+    const normalized = normalize(text)
+    for (const phrase of BOB_WAKE_PHRASES) {
+      const idx = normalized.indexOf(phrase)
+      if (idx >= 0) {
+        const stripped = text.slice(idx + phrase.length).replace(/^[\s,:-]+/, '').trim()
+        return { matched: true, stripped }
+      }
+    }
+    return { matched: false, stripped: text.trim() }
+  }
+
+  const stopVoiceConversation = () => {
+    voiceConversationActiveRef.current = false
+    wakeUnlockedRef.current = false
+    clearVoiceInactivityTimer()
+    if (recognitionRef.current) {
+      recognitionRef.current.stop()
+      recognitionRef.current = null
+    }
+    setListening(false)
+  }
+
+  const startVoiceConversation = () => {
+    const Ctor = getSpeechRecognitionCtor()
+    if (!Ctor) {
+      setVoiceActivatedConversation(false)
+      setListening(false)
+      toast.error('Speech recognition is not supported in this browser')
+      return
+    }
+    if (!voiceConversationActiveRef.current) return
+    if (recognitionRef.current || speakingRef.current || thinking) return
+
+    try {
+      const recognition = new Ctor()
+      recognition.lang = accent
+      recognition.interimResults = false
+      recognition.continuous = true
+      recognition.maxAlternatives = 1
+
+      recognition.onresult = (event: any) => {
+        const results = Array.from(event?.results ?? []) as any[]
+        const finalTranscript = results
+          .filter((r) => r?.isFinal)
+          .map((r) => r?.[0]?.transcript ?? '')
+          .join(' ')
+          .trim()
+
+        if (!finalTranscript) return
+        resetVoiceInactivityTimer()
+
+        if (containsEndPhrase(finalTranscript)) {
+          stopVoiceConversation()
+          setVoiceActivatedConversation(false)
+          toast.success('Voice conversation ended')
+          return
+        }
+
+        if (!wakeUnlockedRef.current) {
+          const wake = stripWakePhrase(finalTranscript)
+          if (!wake.matched) {
+            return
+          }
+
+          wakeUnlockedRef.current = true
+
+          if (!wake.stripped) {
+            speak('Yes, I am listening.')
+            return
+          }
+
+          sendMessage(wake.stripped)
+          return
+        }
+
+        sendMessage(finalTranscript)
+      }
+
+      recognition.onerror = (event: any) => {
+        setListening(false)
+        recognitionRef.current = null
+        const code = event?.error ?? 'unknown'
+        if (voiceConversationActiveRef.current && code !== 'aborted' && code !== 'no-speech') {
+          toast.error(`Voice capture error: ${code}`)
+        }
+      }
+
+      recognition.onend = () => {
+        setListening(false)
+        recognitionRef.current = null
+        if (voiceConversationActiveRef.current && !speakingRef.current && !thinking) {
+          setTimeout(() => startVoiceConversation(), 250)
+        }
+      }
+
+      recognitionRef.current = recognition
+      recognition.start()
+      setListening(true)
+      resetVoiceInactivityTimer()
+    } catch {
+      setListening(false)
+      recognitionRef.current = null
+      if (voiceConversationActiveRef.current) {
+        toast.error('Could not start voice conversation')
+      }
+    }
   }
 
   const sendMessage = async (override?: string) => {
@@ -548,7 +758,19 @@ export default function BobAssistantStudio() {
         body: {
           message,
           history,
-          context: { tone, source: 'bob-studio' },
+          context: {
+            tone,
+            source: 'bob-studio',
+            privacy: {
+              expressPermission: expressUserDataPermission,
+              permittedUserIdentity: permittedUserIdentity || null,
+            },
+            biometric_scaffold: {
+              voicePatternLearningConsent,
+              faceClarificationConsent,
+              note: 'Consent scaffold only - no biometric persistence enabled in this build.',
+            },
+          },
         },
       })
 
@@ -585,6 +807,10 @@ export default function BobAssistantStudio() {
   }
 
   const toggleListening = () => {
+    if (voiceActivatedConversation) {
+      toast.message('Voice Activated Conversation is enabled. Disable it to use one-shot voice input.')
+      return
+    }
     const Ctor = getSpeechRecognitionCtor()
     if (!Ctor) {
       toast.error('Speech recognition is not supported in this browser')
@@ -619,6 +845,37 @@ export default function BobAssistantStudio() {
     recognition.start()
     setListening(true)
   }
+
+  useEffect(() => {
+    if (!speechEnabled && voiceActivatedConversation) {
+      setVoiceActivatedConversation(false)
+      stopVoiceConversation()
+      return
+    }
+
+    if (!voiceActivatedConversation) {
+      stopVoiceConversation()
+      return
+    }
+
+    voiceConversationActiveRef.current = true
+    wakeUnlockedRef.current = false
+    resetVoiceInactivityTimer()
+    startVoiceConversation()
+
+    return () => {
+      stopVoiceConversation()
+    }
+  }, [voiceActivatedConversation, speechEnabled, accent, thinking])
+
+  useEffect(() => {
+    return () => {
+      stopVoiceConversation()
+      if (typeof window !== 'undefined') {
+        window.speechSynthesis.cancel()
+      }
+    }
+  }, [])
 
   const openDirections = () => {
     if (!origin.trim() || !destination.trim()) {
@@ -749,6 +1006,111 @@ export default function BobAssistantStudio() {
     toast.success('Plan copied to clipboard')
   }
 
+  const submitCodeChangeRequest = async () => {
+    if (!codeChangeRequest.summary.trim()) {
+      toast.error('Code change summary is required')
+      return
+    }
+    if (!codeChangeRequest.confirmed) {
+      toast.error('Please confirm before generating a code patch task')
+      return
+    }
+
+    setCodeTaskLoading(true)
+    try {
+      if (!isGrandMaster) {
+        const requesterName = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || user?.email || 'Unknown user'
+        const summary = codeChangeRequest.summary.trim()
+        const details = codeChangeRequest.details.trim()
+
+        const { data: approvers, error: approverError } = await (supabase.from('user_profiles') as any)
+          .select('id, first_name, last_name, email, role, is_active')
+          .eq('role', 'grand_master')
+          .eq('is_active', true)
+          .limit(20)
+
+        if (approverError) throw approverError
+
+        const rows = (approvers ?? []).map((approver: any) => {
+          const approverName = [approver.first_name, approver.last_name].filter(Boolean).join(' ').toLowerCase()
+          const isDon = approverName.includes('don') || String(approver.email || '').toLowerCase().includes('don')
+          return {
+            user_id: approver.id,
+            type: 'system_alert',
+            title: isDon ? 'Bob: Don approval requested for code fix' : 'Bob: Grand Master approval requested for code fix',
+            body: `${requesterName} reported a bug that requires code-fix approval. Summary: ${summary}`,
+            data: {
+              source: 'bob-assistant-studio',
+              requires_code_fix_approval: true,
+              requester_name: requesterName,
+              requester_id: user?.id ?? null,
+              summary,
+              details,
+              severity: codeChangeRequest.severity,
+              complexity: codeChangeRequest.complexity,
+              target_paths: codeChangeRequest.targetPaths,
+            },
+            priority: codeChangeRequest.severity === 'critical' || codeChangeRequest.severity === 'high' ? 'high' : 'normal',
+            read: false,
+            delivered: false,
+          }
+        })
+
+        if (!rows.length) {
+          toast.error('No active Grand Master approver found')
+          return
+        }
+
+        const { error: notifyError } = await (supabase.from('notifications') as any).insert(rows)
+        if (notifyError) throw notifyError
+
+        setCodeTaskResult(JSON.stringify({
+          status: 'approval_requested',
+          approvers_notified: rows.length,
+          note: 'Only Grand Master can approve code changes. Bob has notified Don/Grand Master approvers.',
+        }, null, 2))
+
+        toast.success('Approval request sent to Don/Grand Master approvers')
+        return
+      }
+
+      const targetPaths = codeChangeRequest.targetPaths
+        .split(',')
+        .map((p) => p.trim())
+        .filter(Boolean)
+
+      const { data, error } = await edgeFunctions.bobCodeChangeTask({
+        summary: codeChangeRequest.summary.trim(),
+        details: codeChangeRequest.details.trim() || undefined,
+        stack_trace: codeChangeRequest.stackTrace.trim() || undefined,
+        severity: codeChangeRequest.severity,
+        complexity: codeChangeRequest.complexity,
+        target_paths: targetPaths.length ? targetPaths : undefined,
+      })
+
+      if (error) throw new Error(String(error) || 'Could not generate code patch task')
+
+      const payload = {
+        execution_mode: data?.execution_mode,
+        github_assist_required: data?.github_assist_required,
+        note: data?.note,
+        patch_task: data?.patch_task,
+      }
+
+      setCodeTaskResult(JSON.stringify(payload, null, 2))
+
+      if (data?.github_assist_required) {
+        toast.success('Complex issue routed to GitHub-assist mode')
+      } else {
+        toast.success('Self-healing patch task generated')
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to generate code patch task')
+    } finally {
+      setCodeTaskLoading(false)
+    }
+  }
+
   return (
     <AppLayout title="Bob Assistant Studio" description="Personality, voice, mapping, and drawing controls for Bob.">
       <GlobalFilterRibbon />
@@ -813,9 +1175,69 @@ export default function BobAssistantStudio() {
                 <Switch id="autospeak-enabled" checked={autoSpeakReplies} onCheckedChange={setAutoSpeakReplies} />
               </div>
 
+              <div className="flex items-center justify-between">
+                <Label htmlFor="voice-activated-conversation">Voice activated conversation</Label>
+                <Switch
+                  id="voice-activated-conversation"
+                  checked={voiceActivatedConversation}
+                  onCheckedChange={setVoiceActivatedConversation}
+                  disabled={!speechEnabled || !voiceSupported}
+                />
+              </div>
+
               <div className="text-xs text-muted-foreground">
                 Active voice: {selectedVoice ? `${selectedVoice.name} (${selectedVoice.lang})` : 'No compatible voice found'}
+                {voiceSupported ? '' : ' · Voice input not supported in this browser'}
               </div>
+
+              <div className="rounded-md border p-3 space-y-2">
+                <div className="text-xs font-medium text-muted-foreground">Privacy & Permission Controls</div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="express-user-permission">Express user permission for personal data requests</Label>
+                  <Switch
+                    id="express-user-permission"
+                    checked={expressUserDataPermission}
+                    onCheckedChange={setExpressUserDataPermission}
+                  />
+                </div>
+                <Input
+                  value={permittedUserIdentity}
+                  onChange={(e) => setPermittedUserIdentity(e.target.value)}
+                  placeholder="Permitted user identity (name/email)"
+                  disabled={!expressUserDataPermission}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Any personal-data request is audited. If permission is off, Bob blocks disclosure unless Grand Master override applies.
+                </p>
+              </div>
+
+              <div className="rounded-md border p-3 space-y-2">
+                <div className="text-xs font-medium text-muted-foreground">Biometric Consent Scaffold (No Storage)</div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="voice-pattern-consent">Voice pattern clarification consent</Label>
+                  <Switch
+                    id="voice-pattern-consent"
+                    checked={voicePatternLearningConsent}
+                    onCheckedChange={setVoicePatternLearningConsent}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="face-clarification-consent">Face clarification consent</Label>
+                  <Switch
+                    id="face-clarification-consent"
+                    checked={faceClarificationConsent}
+                    onCheckedChange={setFaceClarificationConsent}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Scaffold only: this build does not store or train on biometric templates.
+                </p>
+              </div>
+              {voiceActivatedConversation && (
+                <div className="text-xs text-muted-foreground">
+                  Say "Hay Bob" to start, and "thank you" (or similar) to end. Bob auto-stops after 29 seconds of inactivity.
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -836,6 +1258,124 @@ export default function BobAssistantStudio() {
                 </SelectContent>
               </Select>
               <Button className="w-full" onClick={openDirections}><Route className="h-4 w-4 mr-1" /> Open Directions</Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Wrench className="h-4 w-4" /> Code Change Request</CardTitle>
+              <CardDescription>
+                Use Bob to generate executable patch tasks. Simple/moderate issues run through self-healing mode; complex issues are escalated to GitHub assist.
+              </CardDescription>
+              {isGrandMaster && (
+                <div>
+                  <Button variant="outline" size="sm" onClick={() => navigate('/compliance-escalations')}>
+                    <ShieldAlert className="h-4 w-4 mr-1" /> Open Compliance Escalations
+                  </Button>
+                </div>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Input
+                value={codeChangeRequest.summary}
+                onChange={(e) => setCodeChangeRequest((prev) => ({ ...prev, summary: e.target.value }))}
+                placeholder="Short summary of the code issue"
+              />
+              <Textarea
+                value={codeChangeRequest.details}
+                onChange={(e) => setCodeChangeRequest((prev) => ({ ...prev, details: e.target.value }))}
+                placeholder="Details / expected behavior / acceptance criteria"
+              />
+              <Textarea
+                value={codeChangeRequest.stackTrace}
+                onChange={(e) => setCodeChangeRequest((prev) => ({ ...prev, stackTrace: e.target.value }))}
+                placeholder="Stack trace (optional)"
+              />
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Severity</Label>
+                  <Select
+                    value={codeChangeRequest.severity}
+                    onValueChange={(value) =>
+                      setCodeChangeRequest((prev) => ({ ...prev, severity: value as CodeChangeRequest['severity'] }))
+                    }
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                      <SelectItem value="critical">Critical</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Complexity</Label>
+                  <Select
+                    value={codeChangeRequest.complexity}
+                    onValueChange={(value) =>
+                      setCodeChangeRequest((prev) => ({ ...prev, complexity: value as CodeChangeRequest['complexity'] }))
+                    }
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="simple">Simple</SelectItem>
+                      <SelectItem value="moderate">Moderate</SelectItem>
+                      <SelectItem value="complex">Complex (GitHub assist)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Input
+                value={codeChangeRequest.targetPaths}
+                onChange={(e) => setCodeChangeRequest((prev) => ({ ...prev, targetPaths: e.target.value }))}
+                placeholder="Target paths (comma separated, optional)"
+              />
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="bob-code-confirm">I confirm Bob should generate a code patch task</Label>
+                <Switch
+                  id="bob-code-confirm"
+                  checked={codeChangeRequest.confirmed}
+                  onCheckedChange={(checked) =>
+                    setCodeChangeRequest((prev) => ({ ...prev, confirmed: checked }))
+                  }
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <Button onClick={submitCodeChangeRequest} disabled={codeTaskLoading}>
+                  {codeTaskLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Wrench className="h-4 w-4 mr-1" />}
+                  {isGrandMaster ? 'Generate Patch Task' : 'Request Grand Master Approval'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    if (!codeTaskResult.trim()) return
+                    await navigator.clipboard.writeText(codeTaskResult)
+                    toast.success('Patch task copied')
+                  }}
+                  disabled={!codeTaskResult.trim()}
+                >
+                  <Github className="h-4 w-4 mr-1" /> Copy for GitHub/Copilot
+                </Button>
+              </div>
+
+              <Textarea
+                value={codeTaskResult}
+                readOnly
+                placeholder="Generated patch-task payload will appear here"
+                className="min-h-[180px] font-mono text-xs"
+              />
+
+              {!isGrandMaster && (
+                <p className="text-xs text-muted-foreground">
+                  Only Grand Master can approve and execute code changes. Bob will notify Don/Grand Master approvers when you submit a bug fix request.
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>

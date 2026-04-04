@@ -78,6 +78,10 @@ interface FaceRecognitionProps {
   compareEmbedding?: number[] | null
   /** Optional: label for the comparison target */
   compareLabel?: string
+  /** Optional: operational org scope for multi-tenant POI matching */
+  organizationId?: string | null
+  /** Optional: active zone scope */
+  zoneId?: string | null
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -87,6 +91,8 @@ export function FaceRecognition({
   onFaceCaptured,
   compareEmbedding,
   compareLabel,
+  organizationId,
+  zoneId,
 }: FaceRecognitionProps) {
   const videoRef   = useRef<HTMLVideoElement>(null)
   const canvasRef  = useRef<HTMLCanvasElement>(null)
@@ -263,7 +269,12 @@ export function FaceRecognition({
 
       // Call inference service via edge function — detect_and_match searches POI
       const { data: faceData, error: faceError } = await edgeFunctions.processFaceScan(
-        { action: 'detect_and_match', photo_url: photoUrl }
+        {
+          action: 'detect_and_match',
+          photo_url: photoUrl,
+          organization_id: organizationId ?? undefined,
+          zone_id: zoneId ?? undefined,
+        }
       )
 
       if (faceError) throw new Error(faceError || 'Face detection failed')

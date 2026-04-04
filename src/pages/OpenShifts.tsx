@@ -10,6 +10,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useZones } from '@/hooks/useZones'
+import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -128,16 +129,17 @@ function formatShiftTime(dateStr: string, timeStr: string | null): string {
 
 export default function OpenShifts() {
   const { user } = useAuthStore()
+  const { operationalOrganizationId } = useOperationalOrganization()
   const qc = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'filled' | 'cancelled'>('all')
   const [form, setForm] = useState<ShiftForm>(emptyForm())
 
-  const { data: zones = [] } = useZones({ organizationId: user?.organization_id })
+  const { data: zones = [] } = useZones({ organizationId: operationalOrganizationId ?? undefined })
 
   // ── Fetch open shifts ──────────────────────────────────────────────────────
   const { data: shifts = [], isLoading } = useQuery<OpenShift[]>({
-    queryKey: ['open-shifts', user?.organization_id, statusFilter],
+    queryKey: ['open-shifts', operationalOrganizationId, statusFilter],
     queryFn: async () => {
       let q = (supabase as any)
         .from('open_shifts')
@@ -149,7 +151,7 @@ export default function OpenShifts() {
           claimed_by_user:user_profiles!claimed_by(first_name, last_name),
           created_by_user:user_profiles!created_by(first_name, last_name)
         `)
-        .eq('organization_id', user?.organization_id ?? '')
+        .eq('organization_id', operationalOrganizationId ?? '')
         .order('shift_date', { ascending: true })
 
       if (statusFilter !== 'all') q = q.eq('status', statusFilter)
@@ -158,7 +160,7 @@ export default function OpenShifts() {
       if (error) throw error
       return (data ?? []) as unknown as OpenShift[]
     },
-    enabled: !!user?.organization_id,
+    enabled: !!operationalOrganizationId,
   })
 
   // ── Summary ────────────────────────────────────────────────────────────────
@@ -170,7 +172,7 @@ export default function OpenShifts() {
   const createShift = useMutation({
     mutationFn: async (f: ShiftForm) => {
       const payload: any = {
-        organization_id: user?.organization_id,
+        organization_id: operationalOrganizationId,
         created_by:      user?.id,
         title:           f.title,
         shift_date:      f.shift_date,

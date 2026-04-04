@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
+import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -67,8 +68,11 @@ export default function IncidentManagement() {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
   const { dateFrom, dateTo, organizationId, zoneId } = useGlobalFiltersStore()
+  const { operationalOrganizationId } = useOperationalOrganization()
   const effectiveOrganizationId =
-    user?.role === 'master' ? organizationId || null : user?.organization_id || null
+    user?.role === 'master' || user?.role === 'grand_master'
+      ? organizationId || null
+      : operationalOrganizationId || null
   const startDate = dateFrom ? nzDateToUTCStart(dateFrom) : null
   const endDate = dateTo ? nzDateToUTCEnd(dateTo) : null
   const [searchTerm, setSearchTerm] = useState('')
@@ -118,7 +122,7 @@ export default function IncidentManagement() {
   const createMutation = useMutation({
     mutationFn: async (formData: IncidentFormData) => {
       const { data: incident, error } = await ((supabase as any).from('incidents') as any).insert({
-        organization_id:  user?.organization_id,
+        organization_id:  effectiveOrganizationId,
         user_id:          user?.id,
         zone_id:          formData.zone_id || null,
         plate_number:     formData.vehicle_plate?.toUpperCase() || null,

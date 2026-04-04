@@ -11,7 +11,7 @@
  *
  * Inference service (ONNX) is used for vehicle detection + plate pre-fill.
  */
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
@@ -30,6 +30,9 @@ import { formatDateTime } from '@/lib/utils'
 import { FieldSafetyBar } from '@/components/features/FieldSafetyBar'
 import { VOILookup } from '@/components/features/VOILookup'
 import { ParkingPhotoCapture } from '@/components/features/ParkingPhotoCapture'
+import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
+import { useShiftGate } from '@/hooks/useShiftGate'
+import { GeofenceWarningBanner } from '@/components/features/GeofenceWarningBanner'
 import type { ParkingPhotoCaptureResult } from '@/components/features/ParkingPhotoCapture'
 import {
   Camera, Car, Clock, MapPin, AlertTriangle, CheckCircle,
@@ -152,8 +155,17 @@ const STATUS_COLOURS: Record<string, string> = {
 
 export default function ParkingOfficerPortal() {
   const { user } = useAuthStore()
+  const { operationalOrganizationId } = useOperationalOrganization()
   const navigate  = useNavigate()
   const qc        = useQueryClient()
+
+  // ── Shift gate: non-rostered officers redirect to /officer-home ───────
+  const { gateApplies, canAccessPortal, canUseFeature, geofenceViolation, isLoading: gateLoading } = useShiftGate()
+  useEffect(() => {
+    if (!gateLoading && gateApplies && (!canAccessPortal || !canUseFeature('parking'))) {
+      navigate('/officer-home', { replace: true })
+    }
+  }, [gateApplies, canAccessPortal, canUseFeature, gateLoading, navigate])
 
   const [mode, setMode]           = useState<PassMode>(null)
   const [searchPlate, setSearch]  = useState('')
@@ -192,12 +204,12 @@ export default function ParkingOfficerPortal() {
 
   // ── Fetch active sessions for my zone / org ──────────────────
   const { data: activeSessions = [], refetch: refetchSessions } = useQuery({
-    queryKey: ['parking-officer-sessions', user?.organization_id],
+    queryKey: ['parking-officer-sessions', operationalOrganizationId],
     queryFn: async ({ signal }) => {
       const { data, error } = await supabase
         .from('parking_sessions')
         .select('*, parking_zones(name, max_stay_minutes, zone_type, address)')
-        .eq('organization_id', user!.organization_id)
+        .eq('organization_id', operationalOrganizationId!)
         .is('exit_time', null)
         .order('entry_time', { ascending: false })
         .limit(50)
@@ -205,25 +217,25 @@ export default function ParkingOfficerPortal() {
       if (error) throw error
       return data ?? []
     },
-    enabled: !!user?.organization_id,
+    enabled: !!operationalOrganizationId,
     refetchInterval: 30_000,
   })
 
   // ── Fetch parking zones for this org ─────────────────────────
   const { data: zones = [] } = useQuery({
-    queryKey: ['parking-zones', user?.organization_id],
+    queryKey: ['parking-zones', operationalOrganizationId],
     queryFn: async ({ signal }) => {
       const { data, error } = await supabase
         .from('parking_zones')
         .select('id, name, zone_type, max_stay_minutes, fine_amount_nzd, address')
-        .eq('organization_id', user!.organization_id)
+        .eq('organization_id', operationalOrganizationId!)
         .eq('is_active', true)
         .order('name')
         .abortSignal(signal)
       if (error) throw error
       return data ?? []
     },
-    enabled: !!user?.organization_id,
+    enabled: !!operationalOrganizationId,
   })
 
   // ── Search a plate (recheck flow) ─────────────────────────────
@@ -236,7 +248,7 @@ export default function ParkingOfficerPortal() {
       const { data, error } = await supabase
         .from('parking_sessions')
         .select('*, parking_zones(name, max_stay_minutes, fine_amount_nzd, zone_type, address)')
-        .eq('organization_id', user!.organization_id)
+        .eq('organization_id', operationalOrganizationId!)
         .eq('plate_number', plate.toUpperCase().trim())
         .is('exit_time', null)
         .order('entry_time', { ascending: false })
@@ -287,7 +299,7 @@ export default function ParkingOfficerPortal() {
     } finally {
       setSearching(false)
     }
-  }, [searchPlate, user])
+  }, [searchPlate, operationalOrganizationId])
 
   // ── Submit chalk pass (first observation) ────────────────────
   const handleChalkPass = useCallback(async () => {
@@ -301,7 +313,7 @@ export default function ParkingOfficerPortal() {
       const { data: existing } = await supabase
         .from('parking_sessions')
         .select('id, entry_time')
-        .eq('organization_id', user!.organization_id)
+        .eq('organization_id', operationalOrganizationId!)
         .eq('plate_number', chalkForm.plate_number.toUpperCase())
         .eq('parking_zone_id', chalkForm.parking_zone_id)
         .is('exit_time', null)
@@ -316,7 +328,7 @@ export default function ParkingOfficerPortal() {
       const { error } = await supabase
         .from('parking_sessions')
         .insert({
-          organization_id:      user!.organization_id,
+          organization_id:      operationalOrganizationId!,
           parking_zone_id:      chalkForm.parking_zone_id,
           plate_number:         chalkForm.plate_number.toUpperCase().trim(),
           entry_tyre_valve_pos: chalkForm.tyre_valve_pos,
@@ -349,7 +361,7 @@ export default function ParkingOfficerPortal() {
     } finally {
       setChalking(false)
     }
-  }, [chalkForm, user, qc])
+  }, [chalkForm, user, qc, operationalOrganizationId])
 
   // ── Issue infringement ────────────────────────────────────────
   const handleIssueInfringement = useCallback(async () => {
@@ -361,13 +373,13 @@ export default function ParkingOfficerPortal() {
     try {
       // Generate infringement number
       const { data: numData, error: numErr } = await supabase
-        .rpc('next_parking_infringement_number', { p_org_id: user!.organization_id })
+        .rpc('next_parking_infringement_number', { p_org_id: operationalOrganizationId! })
       if (numErr) throw numErr
 
       const { error } = await supabase
         .from('parking_infringements')
         .insert({
-          organization_id:     user!.organization_id,
+          organization_id:     operationalOrganizationId!,
           infringement_number: numData,
           parking_session_id:  infForm.session_id || null,
           plate_number:        infForm.plate_number.toUpperCase(),
@@ -406,7 +418,7 @@ export default function ParkingOfficerPortal() {
     } finally {
       setIssuing(false)
     }
-  }, [infForm, user, qc])
+  }, [infForm, user, qc, operationalOrganizationId])
 
   // ── Mark session as vehicle moved (valve position changed) ────
   const handleVehicleMoved = useCallback(async (sessionId: string) => {

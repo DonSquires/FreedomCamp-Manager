@@ -14,6 +14,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
+import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 import {
   CalendarDays, Clock, Plus, Trash2, AlertTriangle, CheckCircle,
   XCircle, User, ChevronRight, Calendar, Shield
@@ -98,6 +99,7 @@ const DEFAULT_PATTERNS: DayPattern[] = [1, 2, 3, 4, 5, 6, 0].map((d) => ({
 
 function OfficerView() {
   const { user } = useAuthStore()
+  const { operationalOrganizationId } = useOperationalOrganization()
   const qc = useQueryClient()
   const [patterns, setPatterns] = useState<DayPattern[]>(DEFAULT_PATTERNS)
   const [patternsLoaded, setPatternsLoaded] = useState(false)
@@ -188,7 +190,7 @@ function OfficerView() {
       const ops = patterns.map((p) => ({
         id: p.existing_id,
         officer_id: user!.id,
-        organization_id: user!.organization_id,
+        organization_id: operationalOrganizationId,
         day_of_week: p.day_of_week,
         specific_date: null,
         is_available: p.is_available,
@@ -211,7 +213,7 @@ function OfficerView() {
     mutationFn: async () => {
       const { error } = await (supabase as any).from('officer_availability').insert({
         officer_id: user!.id,
-        organization_id: user!.organization_id,
+        organization_id: operationalOrganizationId,
         day_of_week: null,
         specific_date: blockForm.specific_date,
         is_available: false,
@@ -469,49 +471,50 @@ function OfficerView() {
 
 function AdminView() {
   const { user } = useAuthStore()
+  const { operationalOrganizationId } = useOperationalOrganization()
   const [selectedOfficer, setSelectedOfficer] = useState<OfficerProfile | null>(null)
 
   // Load all officers in org
   const { data: officers } = useQuery({
-    queryKey: ['officers_list', user?.organization_id],
+    queryKey: ['officers_list', operationalOrganizationId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('user_profiles')
         .select('id, first_name, last_name, organization_id')
-        .eq('organization_id', user!.organization_id)
+        .eq('organization_id', operationalOrganizationId!)
         .eq('role', 'officer')
         .order('first_name')
       if (error) throw error
       return (data ?? []).map((p: any) => ({ ...p, full_name: `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() })) as OfficerProfile[]
     },
-    enabled: !!user?.organization_id,
+    enabled: !!operationalOrganizationId,
   })
 
   // Load all weekly availability for org
   const { data: allWeekly } = useQuery({
-    queryKey: ['all_weekly_availability', user?.organization_id],
+    queryKey: ['all_weekly_availability', operationalOrganizationId],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('officer_availability')
         .select('*')
-        .eq('organization_id', user!.organization_id)
+        .eq('organization_id', operationalOrganizationId!)
         .is('specific_date', null)
       if (error) throw error
       return data as OfficerAvailabilityRow[]
     },
-    enabled: !!user?.organization_id,
+    enabled: !!operationalOrganizationId,
   })
 
   // Load all date blocks for org (next 90 days)
   const today = new Date().toISOString().split('T')[0]
   const in90 = new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0]
   const { data: allBlocks } = useQuery({
-    queryKey: ['all_blocks', user?.organization_id],
+    queryKey: ['all_blocks', operationalOrganizationId],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('officer_availability')
         .select('*')
-        .eq('organization_id', user!.organization_id)
+        .eq('organization_id', operationalOrganizationId!)
         .not('specific_date', 'is', null)
         .gte('specific_date', today)
         .lte('specific_date', in90)
@@ -520,13 +523,13 @@ function AdminView() {
       if (error) throw error
       return data as OfficerAvailabilityRow[]
     },
-    enabled: !!user?.organization_id,
+    enabled: !!operationalOrganizationId,
   })
 
   // Load upcoming shifts for conflict detection
   const in14 = new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0]
   const { data: upcomingShifts } = useQuery({
-    queryKey: ['upcoming_shifts_admin', user?.organization_id],
+    queryKey: ['upcoming_shifts_admin', operationalOrganizationId],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('roster_shifts')
@@ -577,7 +580,7 @@ function AdminView() {
       <OfficerDetailDrilldown
         officer={selectedOfficer}
         onBack={() => setSelectedOfficer(null)}
-        organizationId={user!.organization_id}
+        organizationId={operationalOrganizationId!}
       />
     )
   }

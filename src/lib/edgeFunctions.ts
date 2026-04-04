@@ -1205,6 +1205,27 @@ export const edgeFunctions = {
   },
 
   /**
+   * Bob self-healing code change task.
+   *
+   * Generates an executable patch task payload from the inference-service
+   * /self-heal/patch-task endpoint.
+   *
+   * Routing rule:
+   * - simple/moderate => self-heal worker mode
+   * - complex => github assist mode
+   */
+  bobCodeChangeTask: async (params: {
+    summary: string
+    details?: string
+    stack_trace?: string
+    severity?: 'low' | 'medium' | 'high' | 'critical'
+    complexity?: 'simple' | 'moderate' | 'complex'
+    target_paths?: string[]
+  }) => {
+    return callEdgeFunction('bob-code-change-task', params, { showToast: false })
+  },
+
+  /**
    * Auto-analyse a newly-submitted bug report.
    *
    * Called fire-and-forget from FeedbackModal immediately after the bug_reports
@@ -1346,6 +1367,7 @@ export const edgeFunctions = {
     /** GPS coordinates */
     latitude?: number
     longitude?: number
+    organization_id?: string
     zone_id?: string
     notes?: string
     label?: string

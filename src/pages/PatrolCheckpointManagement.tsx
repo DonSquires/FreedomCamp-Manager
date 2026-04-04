@@ -7,6 +7,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -89,6 +90,7 @@ const emptyForm = (): CheckpointFormState => ({
 
 export default function PatrolCheckpointManagement() {
   const { user } = useAuthStore()
+  const { operationalOrganizationId } = useOperationalOrganization()
   const queryClient = useQueryClient()
 
   const [showCreate, setShowCreate] = useState(false)
@@ -101,32 +103,32 @@ export default function PatrolCheckpointManagement() {
   // ─── Data ─────────────────────────────────────────────────────────────────
 
   const { data: checkpoints = [], isLoading } = useQuery({
-    queryKey: ['patrol_checkpoints', user?.organization_id],
+    queryKey: ['patrol_checkpoints', operationalOrganizationId],
     queryFn: async () => {
       const { data, error } = await (supabase
         .from('patrol_checkpoints' as any) as any)
         .select('*, zone:zones(id, name)')
-        .eq('organization_id', user!.organization_id!)
+        .eq('organization_id', operationalOrganizationId!)
         .order('name')
       if (error) throw error
       return data as PatrolCheckpoint[]
     },
-    enabled: !!user?.organization_id,
+    enabled: !!operationalOrganizationId,
   })
 
   const { data: zones = [] } = useQuery({
-    queryKey: ['zones_list', user?.organization_id],
+    queryKey: ['zones_list', operationalOrganizationId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('zones')
         .select('id, name')
-        .eq('organization_id', user!.organization_id!)
+        .eq('organization_id', operationalOrganizationId!)
         .eq('is_active', true)
         .order('name')
       if (error) throw error
       return data as { id: string; name: string }[]
     },
-    enabled: !!user?.organization_id,
+    enabled: !!operationalOrganizationId,
   })
 
   // ─── Mutations ─────────────────────────────────────────────────────────────
@@ -134,7 +136,7 @@ export default function PatrolCheckpointManagement() {
   const createMutation = useMutation({
     mutationFn: async (f: CheckpointFormState) => {
       const { error } = await (supabase.from('patrol_checkpoints' as any) as any).insert({
-        organization_id: user!.organization_id!,
+        organization_id: operationalOrganizationId!,
         name: f.name.trim(),
         description: f.description.trim() || null,
         location_lat: f.location_lat ? parseFloat(f.location_lat) : null,

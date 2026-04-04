@@ -35,6 +35,7 @@ import {
   FileText, Edit, Ban, CircleCheck, RotateCcw, TrendingUp,
   Users, Timer, Printer,
 } from 'lucide-react'
+import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
 
@@ -168,6 +169,7 @@ function generateParkingNoticeHtml(inf: any): string {
 
 export default function ParkingEnforcementPortal() {
   const { user }  = useAuthStore()
+  const { operationalOrganizationId } = useOperationalOrganization()
   const navigate  = useNavigate()
   const qc        = useQueryClient()
 
@@ -183,12 +185,12 @@ export default function ParkingEnforcementPortal() {
   // ── Queries ──────────────────────────────────────────────────
 
   const { data: sessions = [], refetch: refetchSessions } = useQuery({
-    queryKey: ['parking-admin-sessions', user?.organization_id],
+    queryKey: ['parking-admin-sessions', operationalOrganizationId],
     queryFn: async ({ signal }) => {
       const { data, error } = await supabase
         .from('parking_sessions')
         .select('*, parking_zones(name, max_stay_minutes, zone_type)')
-        .eq('organization_id', user!.organization_id)
+        .eq('organization_id', operationalOrganizationId!)
         .is('exit_time', null)
         .order('entry_time', { ascending: false })
         .limit(200)
@@ -196,17 +198,17 @@ export default function ParkingEnforcementPortal() {
       if (error) throw error
       return data ?? []
     },
-    enabled: !!user?.organization_id,
+    enabled: !!operationalOrganizationId,
     refetchInterval: 60_000,
   })
 
   const { data: infringements = [], refetch: refetchInf } = useQuery({
-    queryKey: ['parking-infringements', user?.organization_id, statusFilter, searchPlate],
+    queryKey: ['parking-infringements', operationalOrganizationId, statusFilter, searchPlate],
     queryFn: async ({ signal }) => {
       let q = supabase
         .from('parking_infringements')
         .select('*')
-        .eq('organization_id', user!.organization_id)
+        .eq('organization_id', operationalOrganizationId!)
         .order('issued_at', { ascending: false })
         .limit(100)
         .abortSignal(signal)
@@ -216,16 +218,16 @@ export default function ParkingEnforcementPortal() {
       if (error) throw error
       return data ?? []
     },
-    enabled: !!user?.organization_id,
+    enabled: !!operationalOrganizationId,
   })
 
   const { data: permits = [], refetch: refetchPermits } = useQuery({
-    queryKey: ['parking-permits', user?.organization_id],
+    queryKey: ['parking-permits', operationalOrganizationId],
     queryFn: async ({ signal }) => {
       const { data, error } = await supabase
         .from('parking_permits')
         .select('*, parking_zones(name)')
-        .eq('organization_id', user!.organization_id)
+        .eq('organization_id', operationalOrganizationId!)
         .eq('is_active', true)
         .order('created_at', { ascending: false })
         .limit(200)
@@ -233,22 +235,22 @@ export default function ParkingEnforcementPortal() {
       if (error) throw error
       return data ?? []
     },
-    enabled: !!user?.organization_id,
+    enabled: !!operationalOrganizationId,
   })
 
   const { data: zones = [], refetch: refetchZones } = useQuery({
-    queryKey: ['parking-zones-admin', user?.organization_id],
+    queryKey: ['parking-zones-admin', operationalOrganizationId],
     queryFn: async ({ signal }) => {
       const { data, error } = await supabase
         .from('parking_zones')
         .select('*')
-        .eq('organization_id', user!.organization_id)
+        .eq('organization_id', operationalOrganizationId!)
         .order('name')
         .abortSignal(signal)
       if (error) throw error
       return data ?? []
     },
-    enabled: !!user?.organization_id,
+    enabled: !!operationalOrganizationId,
   })
 
   // ── Analytics ────────────────────────────────────────────────
@@ -829,7 +831,7 @@ export default function ParkingEnforcementPortal() {
       {/* ── New Zone dialog ───────────────────────────────────── */}
       <NewZoneDialog
         open={showNewZone}
-        organizationId={user?.organization_id ?? ''}
+        organizationId={operationalOrganizationId ?? ''}
         onClose={() => setShowNewZone(false)}
         onSaved={() => { setShowNewZone(false); refetchZones() }}
       />
@@ -837,7 +839,7 @@ export default function ParkingEnforcementPortal() {
       {/* ── New Permit dialog ─────────────────────────────────── */}
       <NewPermitDialog
         open={showNewPermit}
-        organizationId={user?.organization_id ?? ''}
+        organizationId={operationalOrganizationId ?? ''}
         zones={zones}
         onClose={() => setShowNewPermit(false)}
         onSaved={() => { setShowNewPermit(false); refetchPermits() }}

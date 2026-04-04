@@ -11,12 +11,12 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import { useAuthStore } from '@/stores/authStore'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Search, Car, AlertTriangle, X } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
+import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -51,7 +51,7 @@ interface VOILookupProps {
 }
 
 export function VOILookup({ inline = false }: VOILookupProps) {
-  const { user } = useAuthStore()
+  const { operationalOrganizationId } = useOperationalOrganization()
   const [plate, setPlate]       = useState('')
   const [submitted, setSubmitted] = useState('')
 
@@ -62,9 +62,9 @@ export function VOILookup({ inline = false }: VOILookupProps) {
   }
 
   const { data: results = [], isFetching } = useQuery<VOIRecord[]>({
-    queryKey: ['voi_lookup', user?.organization_id, submitted],
+    queryKey: ['voi_lookup', operationalOrganizationId, submitted],
     queryFn: async () => {
-      if (!user?.organization_id || !submitted) return []
+      if (!operationalOrganizationId || !submitted) return []
       const { data, error } = await (supabase as any)
         .from('vehicles_of_interest')
         .select(`
@@ -73,7 +73,7 @@ export function VOILookup({ inline = false }: VOILookupProps) {
           expires_at, notes,
           linked_person:persons_of_interest!linked_person_id(full_name)
         `)
-        .eq('organization_id', user.organization_id)
+        .eq('organization_id', operationalOrganizationId)
         .eq('active', true)
         .ilike('plate_number', `%${submitted}%`)
         .order('plate_number')
@@ -84,7 +84,7 @@ export function VOILookup({ inline = false }: VOILookupProps) {
         linked_person: Array.isArray(v.linked_person) ? v.linked_person[0] ?? null : v.linked_person,
       })) as VOIRecord[]
     },
-    enabled: !!submitted && !!user?.organization_id,
+    enabled: !!submitted && !!operationalOrganizationId,
   })
 
   const hasResult = submitted.length > 0

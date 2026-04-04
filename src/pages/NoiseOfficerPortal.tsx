@@ -22,6 +22,7 @@
  *  Hamilton City Council, Tauranga City Council.
  */
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
@@ -39,6 +40,9 @@ import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { FieldSafetyBar } from '@/components/features/FieldSafetyBar'
+import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
+import { useShiftGate } from '@/hooks/useShiftGate'
+import { GeofenceWarningBanner } from '@/components/features/GeofenceWarningBanner'
 import {
   Volume2, ShieldAlert, AlertTriangle, FileText, Package,
   CheckCircle, Radio, MapPin, Clock, Camera, Gavel,
@@ -137,8 +141,18 @@ const REC_STYLES: Record<string, string> = {
 
 export default function NoiseOfficerPortal() {
   const { user } = useAuthStore()
-  const orgId = user?.organization_id
+  const { operationalOrganizationId } = useOperationalOrganization()
+  const orgId = operationalOrganizationId
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
+
+  // ── Shift gate: non-rostered officers redirect to /officer-home ───────
+  const { gateApplies, canAccessPortal, canUseFeature, geofenceViolation, isLoading: gateLoading } = useShiftGate()
+  useEffect(() => {
+    if (!gateLoading && gateApplies && (!canAccessPortal || !canUseFeature('noise'))) {
+      navigate('/officer-home', { replace: true })
+    }
+  }, [gateApplies, canAccessPortal, canUseFeature, gateLoading, navigate])
 
   const speechRecognitionRef = useRef<any>(null)
   const pttBaseNotesRef = useRef('')
@@ -466,7 +480,7 @@ export default function NoiseOfficerPortal() {
           comply_by: complyBy,
           issuing_officer_id: user?.id,
           issuing_officer_name: user?.full_name || null,
-          authority: user?.organization_id,
+          authority: orgId,
           status: 'issued',
           previous_notice_count: selectedJob.prior_notice_count,
           notes: noticeForm.notes || null,
@@ -595,6 +609,8 @@ export default function NoiseOfficerPortal() {
   return (
     <AppLayout>
       <div className="p-4 space-y-5 max-w-2xl mx-auto">
+
+        {geofenceViolation && <GeofenceWarningBanner />}
 
         {/* Safety bar — welfare, SOS, quick reports */}
         <FieldSafetyBar compact />

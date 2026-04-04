@@ -89,6 +89,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { formatDateTime } from '@/lib/utils'
 import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -115,6 +116,7 @@ interface PersonRecord {
 
 interface AccessControlZone {
   id: string
+  organization_id: string
   name: string
   location_lat: number
   location_lng: number
@@ -219,6 +221,7 @@ export function AccessControlPanel({
   onVerificationComplete,
 }: AccessControlPanelProps) {
   const { user } = useAuthStore()
+  const { operationalOrganizationId } = useOperationalOrganization()
   const queryClient = useQueryClient()
   
   // ── State ─────────────────────────────────────────────────────────────────
@@ -275,7 +278,7 @@ export function AccessControlPanel({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const streamVideoRef = useRef<HTMLVideoElement>(null)
-  const autoCaptureTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const autoCaptureTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const additionalVideoRef = useRef<HTMLVideoElement>(null)
   const additionalCanvasRef = useRef<HTMLCanvasElement>(null)
   const additionalStreamRef = useRef<MediaStream | null>(null)
@@ -298,31 +301,34 @@ export function AccessControlPanel({
   
   // Fetch access control enabled zones
   const { data: accessZones = [] } = useQuery({
-    queryKey: ['access-control-zones', user?.organization_id],
+    queryKey: ['access-control-zones', operationalOrganizationId],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('zones')
-        .select('id, name, location_lat, location_lng, radius_meters, access_control_enabled, access_control_config')
+        .select('id, organization_id, name, location_lat, location_lng, radius_meters, access_control_enabled, access_control_config')
         .eq('access_control_enabled', true)
-        .eq('organization_id', user?.organization_id)
+        .eq('organization_id', operationalOrganizationId)
         .eq('is_active', true)
         .order('name')
       
       if (error) throw error
       return (data ?? []) as AccessControlZone[]
     },
-    enabled: !!user?.organization_id,
+    enabled: !!operationalOrganizationId,
   })
   
   // Search persons
   const { data: searchResults = [], isLoading: isSearching } = useQuery({
-    queryKey: ['access-control-person-search', searchQuery, user?.organization_id],
+    queryKey: ['access-control-person-search', searchQuery, selectedZoneId, operationalOrganizationId],
     queryFn: async () => {
       if (!searchQuery || searchQuery.length < 2) return []
+      const targetOrganizationId = accessZones.find(z => z.id === selectedZoneId)?.organization_id ?? operationalOrganizationId
+      if (!targetOrganizationId) return []
       
       const { data, error } = await (supabase as any)
         .from('person_records')
         .select('id, first_name, last_name, date_of_birth, profile_photo_url, profile_photo_embedding, access_clearance_level, access_badge_number, id_document_number, id_document_type')
+        .eq('organization_id', targetOrganizationId)
         .or(`first_name.ilike.%${searchQuery}%,last_name.ilike.%${searchQuery}%,access_badge_number.ilike.%${searchQuery}%`)
         .limit(20)
       
@@ -357,11 +363,14 @@ export function AccessControlPanel({
   
   // Fetch temporary visitors
   const { data: temporaryVisitors = [], refetch: refetchVisitors } = useQuery({
-    queryKey: ['temporary-visitors', user?.organization_id],
+    queryKey: ['temporary-visitors', selectedZoneId, operationalOrganizationId],
     queryFn: async () => {
+      const targetOrganizationId = accessZones.find(z => z.id === selectedZoneId)?.organization_id ?? operationalOrganizationId
+      if (!targetOrganizationId) return []
       const { data, error } = await (supabase as any)
         .from('person_records')
         .select('id, first_name, last_name, visitor_type, data_retention_until, auto_delete_on_expiry, visit_purpose, visit_start_date, visit_end_date, profile_photo_url, access_badge_number, created_at')
+        .eq('organization_id', targetOrganizationId)
         .eq('is_temporary_visitor', true)
         .is('deleted_at', null)
         .order('data_retention_until', { ascending: true })
@@ -370,22 +379,24 @@ export function AccessControlPanel({
       if (error) throw error
       return (data ?? []) as PersonRecord[]
     },
-    enabled: !!user?.organization_id,
+    enabled: !!operationalOrganizationId,
   })
   
   // Fetch expiring visitors (within 7 days)
   const { data: expiringVisitors = [] } = useQuery({
-    queryKey: ['expiring-visitors', user?.organization_id],
+    queryKey: ['expiring-visitors', selectedZoneId, operationalOrganizationId],
     queryFn: async () => {
+      const targetOrganizationId = accessZones.find(z => z.id === selectedZoneId)?.organization_id ?? operationalOrganizationId
+      if (!targetOrganizationId) return []
       const { data, error } = await (supabase as any).rpc('list_expiring_visitors', {
-        p_organization_id: user?.organization_id,
+        p_organization_id: targetOrganizationId,
         p_days_until_expiry: 7,
       })
       
       if (error) throw error
       return data ?? []
     },
-    enabled: !!user?.organization_id,
+    enabled: !!operationalOrganizationId,
   })
   
   // ── Location Monitoring ───────────────────────────────────────────────────
@@ -573,6 +584,8 @@ export function AccessControlPanel({
       const { data: faceData, error: faceError } = await edgeFunctions.processFaceScan({
         action: 'detect_and_match',
         photo_url: photoUrl,
+        organization_id: selectedZone?.organization_id ?? operationalOrganizationId ?? undefined,
+        zone_id: selectedZoneId || undefined,
         save: false,
       })
       
@@ -706,6 +719,8 @@ export function AccessControlPanel({
       const { data: faceData, error: faceError } = await edgeFunctions.processFaceScan({
         action: 'detect_and_match',
         photo_url: photoUrl,
+        organization_id: selectedZone?.organization_id ?? operationalOrganizationId ?? undefined,
+        zone_id: selectedZoneId || undefined,
         save: false,
       })
       
@@ -811,6 +826,8 @@ export function AccessControlPanel({
         const { data: matchData, error: matchError } = await edgeFunctions.processFaceScan({
           action: 'match',
           embedding: face.embedding,
+          organization_id: selectedZone?.organization_id ?? operationalOrganizationId ?? undefined,
+          zone_id: selectedZoneId || undefined,
           max_results: 3,
         })
         
@@ -895,7 +912,7 @@ export function AccessControlPanel({
       const verificationMethod = result.verification?.face_match_passed ? 'face_only' : 'denied_no_match'
       
       const { data: entryId, error: logError } = await (supabase as any).rpc('log_access_entry', {
-        p_organization_id: user?.organization_id,
+        p_organization_id: selectedZone?.organization_id ?? operationalOrganizationId,
         p_zone_id: selectedZoneId,
         p_person_record_id: selectedPerson?.id ?? null,
         p_entry_type: entryType,
@@ -1046,7 +1063,7 @@ export function AccessControlPanel({
       vehicleNotes?: string
     }) => {
       const { data, error } = await (supabase as any).rpc('create_access_control_incident', {
-        p_organization_id: user?.organization_id,
+        p_organization_id: selectedZone?.organization_id ?? operationalOrganizationId,
         p_zone_id: selectedZoneId,
         p_incident_type: params.incidentType,
         p_title: params.title,

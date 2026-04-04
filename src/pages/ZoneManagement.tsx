@@ -18,6 +18,8 @@ import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
 import { ZoneGeofenceEditor } from '@/components/features/ZoneGeofenceEditor'
 import { ZoneGeofenceIndicator } from '@/components/features/ZoneGeofenceIndicator'
+import { Checkbox } from '@/components/ui/checkbox'
+import { ZONE_FEATURES } from '@/lib/zoneFeatures'
 
 interface Zone {
   id: string
@@ -43,6 +45,7 @@ interface Zone {
   bylaw_reference?: string | null
   seasonal_open_month?: number | null
   seasonal_close_month?: number | null
+  zone_features?: string[] | null
   created_at: string
   organization?: {
     id: string
@@ -88,6 +91,7 @@ export default function ZoneManagement() {
   const [editSeasonalOpenMonth, setEditSeasonalOpenMonth] = useState<number | null>(null)
   const [editSeasonalCloseMonth, setEditSeasonalCloseMonth] = useState<number | null>(null)
   const [showGeofenceEditor, setShowGeofenceEditor] = useState(false)
+  const [editZoneFeatures, setEditZoneFeatures] = useState<string[]>([])
 
   // zone_legal_config payment & objections fields
   const [editPaymentOnlineUrl, setEditPaymentOnlineUrl] = useState('')
@@ -111,6 +115,7 @@ export default function ZoneManagement() {
   const [createBylawReference, setCreateBylawReference] = useState('')
   const [createSeasonalOpenMonth, setCreateSeasonalOpenMonth] = useState<number | null>(null)
   const [createSeasonalCloseMonth, setCreateSeasonalCloseMonth] = useState<number | null>(null)
+  const [createZoneFeatures, setCreateZoneFeatures] = useState<string[]>([])
 
   // Fetch all organizations (for Masters only)
   const { data: organizations } = useQuery({
@@ -314,6 +319,7 @@ export default function ZoneManagement() {
           bylaw_reference: createBylawReference || null,
           seasonal_open_month: createSeasonalOpenMonth,
           seasonal_close_month: createSeasonalCloseMonth,
+          zone_features: createZoneFeatures,
           is_active: true,
         })
 
@@ -354,6 +360,7 @@ export default function ZoneManagement() {
     setEditBylawClause('')
     setEditBylawUrl('')
     setShowGeofenceEditor(false)
+    setEditZoneFeatures([])
     setEditPaymentOnlineUrl('')
     setEditPaymentBankAccount('')
     setEditPaymentInstructions('')
@@ -376,6 +383,7 @@ export default function ZoneManagement() {
     setCreateBylawReference('')
     setCreateSeasonalOpenMonth(null)
     setCreateSeasonalCloseMonth(null)
+    setCreateZoneFeatures([])
   }
 
   const openEditDialog = (zone: any) => {
@@ -397,6 +405,7 @@ export default function ZoneManagement() {
     setEditBylawReference(zone.bylaw_reference || '')
     setEditSeasonalOpenMonth(zone.seasonal_open_month ?? null)
     setEditSeasonalCloseMonth(zone.seasonal_close_month ?? null)
+    setEditZoneFeatures(zone.zone_features ?? [])
     setShowGeofenceEditor(false)
 
     // Load legal + payment fields from zone_legal_config
@@ -991,6 +1000,41 @@ export default function ZoneManagement() {
               </div>
             </div>
 
+            {/* Officer Portal Access */}
+            <div className="border-t pt-4 space-y-3">
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Officer Portal Access</h4>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Select which functions officers can access at this zone. Leave all unchecked to allow all features (default).
+                </p>
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                {ZONE_FEATURES.map((feat) => (
+                  <label
+                    key={feat.key}
+                    className="flex items-start gap-3 rounded-lg border px-3 py-2.5 cursor-pointer hover:bg-muted/50 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5"
+                  >
+                    <Checkbox
+                      id={`edit-feat-${feat.key}`}
+                      checked={editZoneFeatures.includes(feat.key)}
+                      onCheckedChange={(checked) =>
+                        setEditZoneFeatures(prev =>
+                          checked
+                            ? [...prev, feat.key]
+                            : prev.filter(k => k !== feat.key)
+                        )
+                      }
+                      className="mt-0.5"
+                    />
+                    <div>
+                      <p className="text-sm font-medium leading-none">{feat.label}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{feat.description}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
             {/* Zone Boundary Section */}
             <div className="border-t pt-4">
               <div className="flex items-center justify-between mb-2">
@@ -1045,6 +1089,7 @@ export default function ZoneManagement() {
                   bylaw_reference: editBylawReference || null,
                   seasonal_open_month: editSeasonalOpenMonth,
                   seasonal_close_month: editSeasonalCloseMonth,
+                  zone_features: editZoneFeatures,
                 }
                 
                 // Masters can change organization, zone type, and parent
@@ -1240,6 +1285,41 @@ export default function ZoneManagement() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+            </div>
+
+            {/* Officer Portal Access */}
+            <div className="border-t pt-4 space-y-3">
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Officer Portal Access</h4>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Select which functions officers can access at this zone. Leave all unchecked to allow all features (default).
+                </p>
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                {ZONE_FEATURES.map((feat) => (
+                  <label
+                    key={feat.key}
+                    className="flex items-start gap-3 rounded-lg border px-3 py-2.5 cursor-pointer hover:bg-muted/50 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5"
+                  >
+                    <Checkbox
+                      id={`create-feat-${feat.key}`}
+                      checked={createZoneFeatures.includes(feat.key)}
+                      onCheckedChange={(checked) =>
+                        setCreateZoneFeatures(prev =>
+                          checked
+                            ? [...prev, feat.key]
+                            : prev.filter(k => k !== feat.key)
+                        )
+                      }
+                      className="mt-0.5"
+                    />
+                    <div>
+                      <p className="text-sm font-medium leading-none">{feat.label}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{feat.description}</p>
+                    </div>
+                  </label>
+                ))}
               </div>
             </div>
           </div>

@@ -77,6 +77,7 @@ const CanonicalRecordsManager = lazy(() => import('@/pages/CanonicalRecordsManag
 const PublicDisputePortal = lazy(() => import('@/pages/PublicDisputePortal'))
 const Disputes = lazy(() => import('@/pages/Disputes'))
 const Platform = lazy(() => import('@/pages/Platform'))
+const ComplianceEscalations = lazy(() => import('@/pages/ComplianceEscalations'))
 const ParkingEnforcementPortal = lazy(() => import('@/pages/ParkingEnforcementPortal'))
 const ParkingOfficerPortal = lazy(() => import('@/pages/ParkingOfficerPortal'))
 const NoiseControlPortal = lazy(() => import('@/pages/NoiseControlPortal'))
@@ -109,6 +110,7 @@ const IntelApprovalQueue = lazy(() => import('@/pages/IntelApprovalQueue'))
 const BobIntakeQueue = lazy(() => import('@/pages/BobIntakeQueue'))
 const BobAssistantStudio = lazy(() => import('@/pages/BobAssistantStudio'))
 const OpsLivePlanReviewQueue = lazy(() => import('@/pages/OpsLivePlanReviewQueue'))
+const OfficerHomePage = lazy(() => import('@/pages/OfficerHomePage'))
 
 // ---------------------------------------------------------------------------
 // PageLoader – minimal spinner shown while a lazy page chunk is downloading.
@@ -482,6 +484,18 @@ export default function App() {
             }
           />
 
+          {/* Officer home – shown when not rostered / outside geofence */}
+          <Route
+            path="/officer-home"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['officer', 'admin_officer']}>
+                  <OfficerHomePage />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
           {/* Field Officer Portal */}
           <Route
             path="/field-officer"
@@ -504,7 +518,7 @@ export default function App() {
             element={
               <ProtectedRoute>
                 {user?.role === 'officer' ? (
-                  <FieldOfficerPortal />
+                  <Navigate to="/officer-home" replace />
                 ) : user?.role === 'admin_officer' ? (
                   <Navigate to="/portal-selection" replace />
                 ) : user?.role === 'nzscv_monitor' ? (
@@ -630,6 +644,17 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['grand_master']}>
                   <Platform />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/compliance-escalations"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['grand_master']}>
+                  <ComplianceEscalations />
                 </RoleRoute>
               </ProtectedRoute>
             }

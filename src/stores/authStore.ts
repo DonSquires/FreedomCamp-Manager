@@ -40,6 +40,7 @@ interface AuthUser {
   email: string
   role: 'master' | 'admin' | 'officer' | 'admin_officer' | 'nzscv_monitor' | 'grand_master' | 'client_viewer'
   organization_id: string | null
+  employer_organization_id: string | null
   full_name: string | null
   first_name: string | null
   last_name: string | null
@@ -91,7 +92,7 @@ export const useAuthStore = create<AuthState>()(
             }
 
             const { data: profile, error: profileError } = await (supabase.from('user_profiles') as any)
-              .select('id, email, role, organization_id, first_name, last_name, portal_access, authorized_work_locations, extra_organization_ids')
+              .select('id, email, role, organization_id, employer_organization_id, first_name, last_name, portal_access, authorized_work_locations, extra_organization_ids')
               .eq('id', session.user.id)
               .single()
 
@@ -116,6 +117,7 @@ export const useAuthStore = create<AuthState>()(
               email: profile.email,
               role: profile.role as AuthUser['role'],
               organization_id: profile.organization_id,
+              employer_organization_id: (profile as any).employer_organization_id ?? null,
               full_name: `${profile.first_name} ${profile.last_name}`,
               first_name: profile.first_name ?? null,
               last_name: profile.last_name ?? null,
@@ -174,7 +176,7 @@ export const useAuthStore = create<AuthState>()(
         // Fetch user profile
         const { data: profile, error: profileError } = await supabase
           .from('user_profiles')
-          .select('id, email, role, organization_id, first_name, last_name, portal_access, authorized_work_locations, extra_organization_ids')
+          .select('id, email, role, organization_id, employer_organization_id, first_name, last_name, portal_access, authorized_work_locations, extra_organization_ids')
           .eq('id', data.user.id)
           .single()
 
@@ -188,6 +190,7 @@ export const useAuthStore = create<AuthState>()(
           email: p.email,
           role: p.role as AuthUser['role'],
           organization_id: p.organization_id,
+          employer_organization_id: p.employer_organization_id ?? null,
           full_name: `${p.first_name} ${p.last_name}`,
           first_name: p.first_name ?? null,
           last_name: p.last_name ?? null,
@@ -255,7 +258,7 @@ export const useAuthStore = create<AuthState>()(
 
           // Fetch user profile
           const { data: profile, error: profileError } = await (supabase.from('user_profiles') as any)
-            .select('id, email, role, organization_id, first_name, last_name, portal_access, authorized_work_locations, extra_organization_ids')
+            .select('id, email, role, organization_id, employer_organization_id, first_name, last_name, portal_access, authorized_work_locations, extra_organization_ids')
             .eq('id', session.user.id)
             .single()
 
@@ -276,6 +279,7 @@ export const useAuthStore = create<AuthState>()(
               email: profile.email,
               role: profile.role as AuthUser['role'],
               organization_id: profile.organization_id,
+              employer_organization_id: (profile as any).employer_organization_id ?? null,
               full_name: `${profile.first_name} ${profile.last_name}`,
               first_name: profile.first_name ?? null,
               last_name: profile.last_name ?? null,

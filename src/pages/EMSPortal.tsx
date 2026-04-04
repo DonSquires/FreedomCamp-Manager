@@ -9,11 +9,14 @@
  * Route: /ems
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
+import { GeofenceWarningBanner } from '@/components/features/GeofenceWarningBanner'
+import { useShiftGate } from '@/hooks/useShiftGate'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -133,9 +136,17 @@ function billableHours(startTime: string, endTime: string, date: string): number
 
 export default function EMSPortal() {
   const { user } = useAuthStore()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [form, setForm] = useState<EMSFormData>(emptyForm)
+
+  const { gateApplies, canAccessPortal, canUseFeature, geofenceViolation, isLoading: gateLoading } = useShiftGate()
+  useEffect(() => {
+    if (!gateLoading && gateApplies && (!canAccessPortal || !canUseFeature('ems'))) {
+      navigate('/officer-home', { replace: true })
+    }
+  }, [gateApplies, canAccessPortal, canUseFeature, gateLoading, navigate])
 
   function set<K extends keyof EMSFormData>(key: K, value: EMSFormData[K]) {
     setForm(f => ({ ...f, [key]: value }))
@@ -251,6 +262,7 @@ export default function EMSPortal() {
       description="Electronic Monitoring Services"
       showBackButton
     >
+      {geofenceViolation && <GeofenceWarningBanner />}
       {/* Header strip */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">

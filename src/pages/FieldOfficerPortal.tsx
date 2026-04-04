@@ -25,6 +25,8 @@ import { captureAndSave, SCAN_PROGRESS_LABELS, type ScanProgressStage } from '@/
 import { useManDownDetection } from '@/hooks/useManDownDetection'
 import { useWelfareCheckin } from '@/hooks/useWelfareCheckin'
 import { useRosteredShift } from '@/hooks/useRosteredShift'
+import { useShiftGate } from '@/hooks/useShiftGate'
+import { GeofenceWarningBanner } from '@/components/features/GeofenceWarningBanner'
 import { reverseGeocode } from '@/lib/geocoding'
 import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
 import {
@@ -226,15 +228,24 @@ async function postgrestInsertWithTimeout(table: string, payload: Record<string,
 
 export default function FieldOfficerPortal() {
   const { user } = useAuthStore()
-  const { zoneId, zoneName, setZone } = useGlobalFiltersStore()
+  const { zoneId, zoneName, setZone, setOrganization } = useGlobalFiltersStore()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const { themeMode, setThemeMode } = useThemePreferencesStore()
   const isNightPatrol = themeMode === 'night-patrol'
+  const employerOrganizationId = user?.employer_organization_id || user?.organization_id || null
 
   // ── Roster context ────────────────────────────────────────────────────────
   const { rosteredShift } = useRosteredShift()
+
+  // ── Shift gate: redirect to /officer-home if not rostered ─────────────────
+  const { gateApplies, canAccessPortal, canUseFeature, geofenceViolation, isLoading: gateLoading } = useShiftGate()
+  useEffect(() => {
+    if (!gateLoading && gateApplies && (!canAccessPortal || !canUseFeature('freedom_camping'))) {
+      navigate('/officer-home', { replace: true })
+    }
+  }, [gateApplies, canAccessPortal, canUseFeature, gateLoading, navigate])
 
   // ── Service type selection — pre-fill from URL param or roster ────────────
   const [activeService, setActiveService] = useState<ServiceType | null>(() => {
@@ -345,8 +356,9 @@ export default function FieldOfficerPortal() {
   const [feedbackShiftId,   setFeedbackShiftId]   = useState<string | null>(null)
 
   // ── Shift organization/zone selection for ad-hoc shifts ───────────────────
-  const [shiftOrgId, setShiftOrgId] = useState<string>(user?.organization_id ?? '')
+  const [shiftOrgId, setShiftOrgId] = useState<string>(employerOrganizationId ?? '')
   const [shiftZoneId, setShiftZoneId] = useState<string>('')
+  const [shareLiveLocationWithClient, setShareLiveLocationWithClient] = useState<boolean>(true)
 
   // Check if user is a service provider member (has access to multiple organizations)
   const isServiceProviderMember = (user?.authorized_work_locations?.length ?? 0) > 0 ||
@@ -359,6 +371,7 @@ export default function FieldOfficerPortal() {
       if (!user?.id) return []
 
       const orgIds = new Set<string>()
+      if (employerOrganizationId) orgIds.add(employerOrganizationId)
       if (user.organization_id) orgIds.add(user.organization_id)
       user.authorized_work_locations?.forEach(id => orgIds.add(id))
       user.extra_organization_ids?.forEach(id => orgIds.add(id))
@@ -405,10 +418,10 @@ export default function FieldOfficerPortal() {
 
   // Set default org when user loads
   useEffect(() => {
-    if (user?.organization_id && !shiftOrgId) {
-      setShiftOrgId(user.organization_id)
+    if (employerOrganizationId && !shiftOrgId) {
+      setShiftOrgId(employerOrganizationId)
     }
-  }, [user?.organization_id, shiftOrgId])
+  }, [employerOrganizationId, shiftOrgId])
 
   // ── Unread notifications ──────────────────────────────────────────────────
   const { data: unreadNotifications = [] } = useQuery({
@@ -618,7 +631,7 @@ export default function FieldOfficerPortal() {
       const { error } = await (supabase
         .from('enforcement_actions') as any)
         .insert({
-          organization_id: user?.organization_id,
+          organization_id: (activeShift as any)?.organization_id || shiftOrgId || employerOrganizationId,
           created_by: user?.id,
           zone_id: obsZoneId,
           plate_number: plateNumber,
@@ -643,12 +656,19 @@ export default function FieldOfficerPortal() {
 
   // Auto-monitor geofence and manage patrol
   useEffect(() => {
-    if (!user?.id || !user?.organization_id) return
+    if (!user?.id || !employerOrganizationId) return
+
+    const geofenceOrgId =
+      isServiceProviderMember
+        ? (activeShift as any)?.organization_id || shiftOrgId || employerOrganizationId
+        : employerOrganizationId
+
+    const gpsActivityType = shareLiveLocationWithClient ? 'gps_update' : 'gps_private'
 
     const checkGeofence = () => {
       monitorGeofenceAndPatrol(
         user.id,
-        user.organization_id!,
+        geofenceOrgId,
         currentPatrolZone,
         (newZoneId, newZoneName) => {
           setCurrentPatrolZone(newZoneId)
@@ -659,7 +679,7 @@ export default function FieldOfficerPortal() {
             setCurrentLocation({ latitude, longitude })
             recordGPSUpdate(latitude, longitude)
           },
-          activityType: 'gps_update',
+          activityType: gpsActivityType,
           currentZoneName: zoneName,
         },
       )
@@ -673,7 +693,7 @@ export default function FieldOfficerPortal() {
       clearTimeout(initialDelay)
       clearInterval(interval)
     }
-  }, [user, currentPatrolZone, setZone, recordGPSUpdate, zoneName])
+  }, [user, employerOrganizationId, isServiceProviderMember, shiftOrgId, currentPatrolZone, setZone, recordGPSUpdate, zoneName, shareLiveLocationWithClient])
 
   // ── Shift management — explicit Start/End (not auto-start) ──────────────
   // Fetch active shift for current officer
@@ -683,14 +703,14 @@ export default function FieldOfficerPortal() {
       if (!user?.id) return null
       const { data, error } = await (supabase
         .from('officer_shifts') as any)
-        .select('id, started_at, parent_zone_id, gps_start_lat, gps_start_lng')
+        .select('id, organization_id, started_at, parent_zone_id, gps_start_lat, gps_start_lng')
         .eq('officer_id', user.id)
         .is('ended_at', null)
         .order('started_at', { ascending: false })
         .limit(1)
         .maybeSingle()
       if (error) return null
-      return data as { id: string; started_at: string; parent_zone_id: string | null; gps_start_lat: number | null; gps_start_lng: number | null } | null
+      return data as { id: string; organization_id: string; started_at: string; parent_zone_id: string | null; gps_start_lat: number | null; gps_start_lng: number | null } | null
     },
     enabled: !!user?.id,
     refetchInterval: 300000,
@@ -700,8 +720,9 @@ export default function FieldOfficerPortal() {
   const [isEndingShift,   setIsEndingShift]   = useState(false)
 
   const handleStartShift = useCallback(async () => {
-    // Use selected org/zone if service provider member, otherwise use user's default
-    const effectiveOrgId = isServiceProviderMember && shiftOrgId ? shiftOrgId : user?.organization_id
+    // Service-provider members can choose a client jurisdiction to work in.
+    // Single-organisation officers are bound to their employer jurisdiction.
+    const effectiveOrgId = isServiceProviderMember && shiftOrgId ? shiftOrgId : employerOrganizationId
     const effectiveZoneId = shiftZoneId || zoneId || null
 
     if (!user?.id || !effectiveOrgId) return
@@ -726,10 +747,13 @@ export default function FieldOfficerPortal() {
       }).select('id').single()
       if (error) throw error
 
+      const effectiveOrgName = accessibleOrgs.find((org) => org.id === effectiveOrgId)?.name ?? null
+      setOrganization(effectiveOrgId, effectiveOrgName)
+
       // Register welfare push schedule on server (enables background reminders)
       await (supabase.rpc as any)('upsert_welfare_push_schedule', {
         p_officer_id:       user.id,
-        p_organization_id:  effectiveOrgId,
+        p_organization_id:  employerOrganizationId,
         p_shift_id:         shiftRow?.id ?? null,
         p_interval_minutes: 30, // default; overridden by officer_welfare_settings
         p_last_checkin_at:  new Date().toISOString(),
@@ -755,7 +779,7 @@ export default function FieldOfficerPortal() {
     } finally {
       setIsStartingShift(false)
     }
-  }, [user, zoneId, shiftOrgId, shiftZoneId, isServiceProviderMember, refetchShift, queryClient])
+  }, [user, employerOrganizationId, zoneId, shiftOrgId, shiftZoneId, isServiceProviderMember, refetchShift, queryClient, accessibleOrgs, setOrganization])
 
   const handleEndShift = useCallback(async () => {
     if (!activeShift?.id) return
@@ -819,7 +843,7 @@ export default function FieldOfficerPortal() {
   // ── WelfareFirst: I'm OK check-in (only active while shift is running) ────
   const { state: checkinState, checkIn: rawCheckIn } = useWelfareCheckin({
     officerId:      user?.id ?? null,
-    organizationId: user?.organization_id ?? null,
+    organizationId: employerOrganizationId,
     shiftId:        activeShift?.id ?? null,
     position:       currentLocation,
     isShiftActive:  !!activeShift,
@@ -829,10 +853,10 @@ export default function FieldOfficerPortal() {
   const checkIn = useCallback(() => {
     rawCheckIn()
     // Update server-side welfare push schedule so next reminder is rescheduled
-    if (user?.id && user?.organization_id && activeShift?.id) {
+    if (user?.id && employerOrganizationId && activeShift?.id) {
       ;(supabase.rpc as any)('upsert_welfare_push_schedule', {
         p_officer_id:       user.id,
-        p_organization_id:  user.organization_id,
+        p_organization_id:  employerOrganizationId,
         p_shift_id:         activeShift.id,
         p_interval_minutes: checkinState.intervalMinutes || 30,
         p_last_checkin_at:  new Date().toISOString(),
@@ -842,7 +866,7 @@ export default function FieldOfficerPortal() {
     if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
       navigator.serviceWorker.controller.postMessage({ type: 'WELFARE_CHECKIN' })
     }
-  }, [rawCheckIn, user, activeShift, checkinState.intervalMinutes])
+  }, [rawCheckIn, user, activeShift, checkinState.intervalMinutes, employerOrganizationId])
 
   // Listen for the service-worker "I'm OK" action (tapped from notification)
   useEffect(() => {
@@ -1175,6 +1199,9 @@ export default function FieldOfficerPortal() {
       description={`Welcome, ${user?.full_name || 'Officer'}${followUpCount > 0 ? ` · ${followUpCount} follow-up${followUpCount > 1 ? 's' : ''} assigned` : ''}`}
     >
 
+      {/* Geofence violation warning — shown when officer drifts out of assigned zone */}
+      {geofenceViolation && <GeofenceWarningBanner zoneName={zoneName} />}
+
       {quickReportStatusText && (
         <div
           className={`mb-4 rounded-lg border px-4 py-3 text-sm font-medium ${
@@ -1253,8 +1280,29 @@ export default function FieldOfficerPortal() {
                 <p className="text-[11px] text-blue-500 dark:text-blue-500 mt-0.5">
                   Shift not started — welfare monitoring is off
                 </p>
+                {isServiceProviderMember && (
+                  <p className="text-[11px] text-blue-500 dark:text-blue-500 mt-0.5">
+                    Live client tracking: {shareLiveLocationWithClient ? 'shared' : 'private to employer'}
+                  </p>
+                )}
               </div>
             </div>
+
+            {isServiceProviderMember && (
+              <div className="pt-2 border-t border-blue-200 dark:border-blue-700 flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">Share Live Location With Client</p>
+                  <p className="text-[11px] text-blue-500 dark:text-blue-500">When off, GPS still drives geofence and welfare but is hidden from client live tracking.</p>
+                </div>
+                <Button
+                  size="sm"
+                  variant={shareLiveLocationWithClient ? 'default' : 'outline'}
+                  onClick={() => setShareLiveLocationWithClient(v => !v)}
+                >
+                  {shareLiveLocationWithClient ? 'Sharing On' : 'Sharing Off'}
+                </Button>
+              </div>
+            )}
 
             {/* Organization/Zone selection for service provider members */}
             {isServiceProviderMember && accessibleOrgs.length > 1 && (

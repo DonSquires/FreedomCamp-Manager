@@ -16,13 +16,15 @@
  * Routing: /site-guard?site=<client_site_id>&roster=<roster_shift_id>
  */
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
 import { AppLayout } from '@/components/features/AppLayout'
 import { FieldSafetyBar } from '@/components/features/FieldSafetyBar'
+import { GeofenceWarningBanner } from '@/components/features/GeofenceWarningBanner'
+import { useShiftGate } from '@/hooks/useShiftGate'
 import { VOILookup } from '@/components/features/VOILookup'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -251,6 +253,13 @@ export default function SiteGuardPortal() {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
 
+  const { gateApplies, canAccessPortal, canUseFeature, geofenceViolation, isLoading: gateLoading } = useShiftGate()
+  useEffect(() => {
+    if (!gateLoading && gateApplies && (!canAccessPortal || !canUseFeature('guarding'))) {
+      navigate('/officer-home', { replace: true })
+    }
+  }, [gateApplies, canAccessPortal, canUseFeature, gateLoading, navigate])
+
   const clientSiteId = searchParams.get('site')
   const rosterShiftId = searchParams.get('roster')
 
@@ -367,8 +376,7 @@ export default function SiteGuardPortal() {
       title={site?.name ?? 'Site Guard'}
       description={site?.address ?? ''}
       showBackButton
-    >
-      {/* ── Safety bar — always visible ──────────────────────────────────── */}
+    >      {geofenceViolation && <GeofenceWarningBanner />}      {/* ── Safety bar — always visible ──────────────────────────────────── */}
       <FieldSafetyBar
         zoneId={site?.id ?? null}
         position={null}

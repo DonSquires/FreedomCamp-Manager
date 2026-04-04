@@ -45,6 +45,81 @@ function inferenceAuthHeaders(): Record<string, string> {
   return {};
 }
 
+type UserScopeProfile = {
+  organization_id: string | null;
+  employer_organization_id: string | null;
+  authorized_work_locations: string[] | null;
+  extra_organization_ids: string[] | null;
+  role: string | null;
+};
+
+function getScopedOrganizationIds(profile: UserScopeProfile): string[] {
+  return [...new Set([
+    ...(profile.organization_id ? [profile.organization_id] : []),
+    ...(profile.authorized_work_locations ?? []),
+    ...(profile.extra_organization_ids ?? []),
+  ])];
+}
+
+function canAccessOrganization(profile: UserScopeProfile, organizationId: string): boolean {
+  if (!organizationId) return false;
+  if (profile.role === 'master' || profile.role === 'grand_master') return true;
+  return getScopedOrganizationIds(profile).includes(organizationId);
+}
+
+async function getUserScopeProfile(supabase: ReturnType<typeof createClient>, userId: string): Promise<UserScopeProfile> {
+  const { data: profile, error } = await supabase
+    .from('user_profiles')
+    .select('organization_id, employer_organization_id, authorized_work_locations, extra_organization_ids, role')
+    .eq('id', userId)
+    .single();
+
+  if (error || !profile) {
+    throw new Error('Unable to resolve user organization scope');
+  }
+
+  return profile as UserScopeProfile;
+}
+
+async function resolveOperationalOrganizationId(
+  supabase: ReturnType<typeof createClient>,
+  profile: UserScopeProfile,
+  requestedOrganizationId?: string | null,
+  zoneId?: string | null,
+): Promise<string> {
+  let zoneOrganizationId: string | null = null;
+
+  if (zoneId) {
+    const { data: zone, error } = await supabase
+      .from('zones')
+      .select('organization_id')
+      .eq('id', zoneId)
+      .single();
+
+    if (error || !zone?.organization_id) {
+      throw new Error('Zone not found or missing organization scope');
+    }
+
+    zoneOrganizationId = zone.organization_id;
+  }
+
+  if (requestedOrganizationId && zoneOrganizationId && requestedOrganizationId !== zoneOrganizationId) {
+    throw new Error('Requested organization does not match selected zone');
+  }
+
+  const resolvedOrganizationId = zoneOrganizationId ?? requestedOrganizationId ?? profile.organization_id;
+
+  if (!resolvedOrganizationId) {
+    throw new Error('No organization scope available for this request');
+  }
+
+  if (!canAccessOrganization(profile, resolvedOrganizationId)) {
+    throw new Error('Requested organization is outside your authorized scope');
+  }
+
+  return resolvedOrganizationId;
+}
+
 Deno.serve(async (req) => {
   // ── CORS preflight ────────────────────────────────────────────────────────
   if (req.method === 'OPTIONS') {
@@ -154,22 +229,25 @@ Deno.serve(async (req) => {
         );
       }
 
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('organization_id')
-        .eq('id', authData.user.id)
-        .single();
-
-      if (!profile?.organization_id) {
+      let organizationId: string;
+      try {
+        const profile = await getUserScopeProfile(supabase, authData.user.id);
+        organizationId = await resolveOperationalOrganizationId(
+          supabase,
+          profile,
+          body.organization_id ?? null,
+          body.zone_id ?? null,
+        );
+      } catch (error: any) {
         return new Response(
-          JSON.stringify({ error: 'User has no organisation', matches: [] }),
-          { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+          JSON.stringify({ error: error.message || 'Invalid organization scope', matches: [] }),
+          { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         );
       }
 
       const { data: matches, error: matchError } = await supabase.rpc('match_face', {
         p_embedding:   embedding,
-        p_org_id:      profile.organization_id,
+        p_org_id:      organizationId,
         p_k:           body.max_results ?? 5,
         p_min_quality: body.min_quality ?? 0.3,
       });
@@ -225,6 +303,48 @@ Deno.serve(async (req) => {
         return new Response(
           JSON.stringify({ error: 'face_record_id and person_record_id are required' }),
           { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const profile = await getUserScopeProfile(supabase, authData.user.id);
+
+      const { data: faceRecord, error: faceRecordError } = await supabase
+        .from('face_records')
+        .select('organization_id')
+        .eq('id', face_record_id)
+        .single();
+
+      if (faceRecordError || !faceRecord?.organization_id) {
+        return new Response(
+          JSON.stringify({ error: 'Face record not found' }),
+          { status: 404, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const { data: personRecord, error: personRecordError } = await supabase
+        .from('person_records')
+        .select('organization_id')
+        .eq('id', person_record_id)
+        .single();
+
+      if (personRecordError || !personRecord?.organization_id) {
+        return new Response(
+          JSON.stringify({ error: 'Person record not found' }),
+          { status: 404, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (faceRecord.organization_id !== personRecord.organization_id) {
+        return new Response(
+          JSON.stringify({ error: 'Face record and person record belong to different organizations' }),
+          { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (!canAccessOrganization(profile, faceRecord.organization_id)) {
+        return new Response(
+          JSON.stringify({ error: 'Requested organization is outside your authorized scope' }),
+          { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         );
       }
 
@@ -309,15 +429,25 @@ Deno.serve(async (req) => {
     let savedFaceRecordId: string | null = null;
     let orgId: string | null = null;
 
+    let profile: UserScopeProfile | null = null;
+    try {
+      profile = await getUserScopeProfile(supabase, authData.user.id);
+      orgId = await resolveOperationalOrganizationId(
+        supabase,
+        profile,
+        body.organization_id ?? null,
+        body.zone_id ?? null,
+      );
+    } catch (error: any) {
+      if (body.organization_id || body.zone_id || isDetectAndMatch || body.save !== false) {
+        return new Response(
+          JSON.stringify({ error: error.message || 'Invalid organization scope' }),
+          { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     if (result.face_count > 0 && body.save !== false) {
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('organization_id')
-        .eq('id', authData.user.id)
-        .single();
-
-      orgId = profile?.organization_id ?? null;
-
       if (orgId) {
         const { data: insertedRecord } = await supabase.from('face_records').insert({
           organization_id: orgId,

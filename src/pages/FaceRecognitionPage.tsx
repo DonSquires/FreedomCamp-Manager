@@ -30,6 +30,7 @@ import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -74,36 +75,39 @@ export default function FaceRecognitionPage() {
 
   const user = useAuthStore(s => s.user)
   const queryClient = useQueryClient()
+  const { operationalOrganizationId } = useOperationalOrganization()
 
   // Fetch recent face records
   const { data: recentRecords, refetch } = useQuery({
-    queryKey: ['face-records', user?.organization_id],
+    queryKey: ['face-records', operationalOrganizationId],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('face_records')
         .select('id, photo_url, face_count, faces, detection_method, officer_id, label, notes, person_record_id, created_at')
+        .eq('organization_id', operationalOrganizationId)
         .order('created_at', { ascending: false })
         .limit(50)
 
       if (error) throw error
       return (data ?? []) as FaceRecordRow[]
     },
-    enabled: !!user?.organization_id,
+    enabled: !!operationalOrganizationId,
   })
 
   // Fetch person records for the link dialog
   const { data: personOptions = [] } = useQuery({
-    queryKey: ['person-records-options'],
+    queryKey: ['person-records-options', operationalOrganizationId],
     queryFn: async () => {
       const { data, error } = await ((supabase as any).from('person_records') as any)
         .select('id, first_name, last_name, is_of_interest, trespass_notice_issued')
+        .eq('organization_id', operationalOrganizationId)
         .order('last_name', { ascending: true })
         .limit(500)
 
       if (error) throw error
       return (data ?? []) as PersonOption[]
     },
-    enabled: !!linkDialog,
+    enabled: !!linkDialog && !!operationalOrganizationId,
   })
 
   const handleFaceCaptured = useCallback((result: any) => {
@@ -143,6 +147,7 @@ export default function FaceRecognitionPage() {
         <FaceRecognition
           onClose={() => setCameraOpen(false)}
           onFaceCaptured={handleFaceCaptured}
+          organizationId={operationalOrganizationId}
         />
       </div>
     )

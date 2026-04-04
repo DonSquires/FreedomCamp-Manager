@@ -9639,6 +9639,7 @@ export type Database = {
           seasonal_open_month: number | null
           self_contained_required: boolean | null
           updated_at: string | null
+          zone_features: string[] | null
           zone_type: string | null
         }
         Insert: {
@@ -9669,6 +9670,7 @@ export type Database = {
           seasonal_open_month?: number | null
           self_contained_required?: boolean | null
           updated_at?: string | null
+          zone_features?: string[] | null
           zone_type?: string | null
         }
         Update: {
@@ -9699,6 +9701,7 @@ export type Database = {
           seasonal_open_month?: number | null
           self_contained_required?: boolean | null
           updated_at?: string | null
+          zone_features?: string[] | null
           zone_type?: string | null
         }
         Relationships: [

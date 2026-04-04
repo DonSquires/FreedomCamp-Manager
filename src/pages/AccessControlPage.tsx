@@ -12,13 +12,14 @@
  * Route: /access-control
  */
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useNavigate } from 'react-router-dom'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
+import { useShiftGate } from '@/hooks/useShiftGate'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -126,6 +127,13 @@ export default function AccessControlPage() {
   const { user } = useAuthStore()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+
+  const { gateApplies, canAccessPortal, canUseFeature, isLoading: gateLoading } = useShiftGate()
+  useEffect(() => {
+    if (!gateLoading && gateApplies && (!canAccessPortal || !canUseFeature('access_control'))) {
+      navigate('/officer-home', { replace: true })
+    }
+  }, [gateApplies, canAccessPortal, canUseFeature, gateLoading, navigate])
 
   const [search, setSearch]           = useState('')
   const [selectedUser, setSelectedUser] = useState<UserRow | null>(null)

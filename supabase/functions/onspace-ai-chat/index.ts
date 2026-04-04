@@ -36,7 +36,130 @@ Context about the system:
 - Zones have legal configuration: allowed days, max consecutive nights, max nights/month
 - Homeless/vulnerable vehicle occupants receive different consideration under policy
 
-Always be professional, concise, and accurate. When citing NZ law, be precise about section numbers. Acknowledge uncertainty when relevant.`
+Always be professional, concise, and accurate. When citing NZ law, be precise about section numbers. Acknowledge uncertainty when relevant.
+
+Critical policy rules:
+- Maintain strict confidentiality. Do not reveal personal user information unless the user has given express permission.
+- Be loyal to the authenticated user in-session and protect their privacy by default.
+- Grand Master can override normal information restrictions when necessary for lawful operational control.
+- If you detect likely criminal behavior, privacy breach, evidence tampering, or deliberate rule/law evasion, you must warn the user and escalate to Grand Master immediately.
+- If a user appears to be requesting something unlawful or non-compliant, advise them they may be about to breach policy or law and suggest compliant alternatives.`
+
+const PRIVACY_REQUEST_PATTERN = /(share|show|reveal|give|tell|export|download).*(user|officer|profile|email|phone|address|location|personal|private|details)/i
+const EXPLICIT_PERMISSION_PATTERN = /(with permission|has permission|consent|authori[sz]ed by user|user approved|user said yes)/i
+
+const DEFAULT_ESCALATION_KEYWORDS = [
+  'illegal',
+  'break the law',
+  'privacy breach',
+  'unauthorized access',
+  'steal',
+  'hack',
+  'cover up',
+  'hide evidence',
+  'tamper',
+  'forge',
+  'falsify',
+  'dox',
+  'blackmail',
+  'bribe',
+  'harass',
+]
+
+function looksLikeEscalationContent(message: string, keywords: string[]): boolean {
+  const text = message.toLowerCase()
+  return keywords.some((kw) => text.includes(kw))
+}
+
+async function loadEscalationKeywords(
+  supabaseAdmin: ReturnType<typeof createClient>,
+): Promise<string[]> {
+  try {
+    const { data } = await (supabaseAdmin.from('bob_policy_controls') as any)
+      .select('escalation_keywords')
+      .eq('singleton_key', 'default')
+      .maybeSingle()
+
+    const keywords = (data?.escalation_keywords ?? []) as string[]
+    if (!Array.isArray(keywords) || keywords.length === 0) {
+      return DEFAULT_ESCALATION_KEYWORDS
+    }
+
+    const cleaned = keywords
+      .map((k) => String(k).trim().toLowerCase())
+      .filter(Boolean)
+
+    return cleaned.length ? cleaned : DEFAULT_ESCALATION_KEYWORDS
+  } catch {
+    return DEFAULT_ESCALATION_KEYWORDS
+  }
+}
+
+async function notifyGrandMasters(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  reportingUserId: string,
+  reportingUserEmail: string,
+  messagePreview: string,
+) {
+  const { data: grandMasters } = await (supabaseAdmin.from('user_profiles') as any)
+    .select('id, is_active')
+    .eq('role', 'grand_master')
+    .eq('is_active', true)
+    .limit(20)
+
+  if (!grandMasters?.length) return
+
+  const rows = grandMasters.map((gm: { id: string }) => ({
+    user_id: gm.id,
+    type: 'system_alert',
+    title: 'Compliance escalation from Bob',
+    body: `Potential criminal/privacy-risk behavior detected in Bob conversation by ${reportingUserEmail}.`,
+    data: {
+      source: 'onspace-ai-chat',
+      reporting_user_id: reportingUserId,
+      reporting_user_email: reportingUserEmail,
+      message_preview: messagePreview,
+      escalation_reason: 'possible_criminal_or_privacy_breach',
+      escalated_at: new Date().toISOString(),
+    },
+    priority: 'high',
+    read: false,
+    delivered: false,
+  }))
+
+  await (supabaseAdmin.from('notifications') as any).insert(rows)
+}
+
+async function writePrivacyAudit(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  input: {
+    performedBy: string
+    organizationId: string | null
+    action: string
+    message: string
+    expressPermission: boolean
+    permittedUserIdentity: string | null
+    granted: boolean
+    reason: string
+  },
+) {
+  await (supabaseAdmin.from('audit_log') as any).insert({
+    action: input.action,
+    entity_type: 'bob_chat_privacy_request',
+    entity_id: input.performedBy,
+    performed_by: input.performedBy,
+    organization_id: input.organizationId,
+    new_values: {
+      message_preview: input.message.slice(0, 400),
+      express_permission: input.expressPermission,
+      permitted_user_identity: input.permittedUserIdentity,
+      granted: input.granted,
+      reason: input.reason,
+      source: 'onspace-ai-chat',
+      created_at: new Date().toISOString(),
+    },
+  })
+}
 
 function extractBearerToken(req: Request): string | null {
   const authHeader = req.headers.get('Authorization') || req.headers.get('authorization')
@@ -72,6 +195,14 @@ Deno.serve(async (req: Request) => {
         { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
+
+    const { data: profile } = await (supabaseAdmin.from('user_profiles') as any)
+      .select('role, first_name, last_name, organization_id')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    const userRole = (profile?.role ?? 'officer') as string
+    const isGrandMaster = userRole === 'grand_master'
 
     // ── Parse body ───────────────────────────────────────────────────────────
     const body = await req.json()
@@ -133,6 +264,77 @@ Deno.serve(async (req: Request) => {
       )
     }
 
+    const privacyContext = (context as any)?.privacy ?? {}
+    const expressPermissionFromContext = Boolean(privacyContext?.expressPermission)
+    const permittedUserIdentity = privacyContext?.permittedUserIdentity
+      ? String(privacyContext.permittedUserIdentity)
+      : null
+
+    const isPrivacyRequest = PRIVACY_REQUEST_PATTERN.test(latestUserMessage)
+    const hasExplicitPermission = EXPLICIT_PERMISSION_PATTERN.test(latestUserMessage) || expressPermissionFromContext
+
+    // Confidentiality gate: no user-data disclosure requests unless explicit
+    // permission is provided, except for grand master override.
+    if (isPrivacyRequest && !isGrandMaster && !hasExplicitPermission) {
+      try {
+        await writePrivacyAudit(supabaseAdmin, {
+          performedBy: user.id,
+          organizationId: profile?.organization_id ?? null,
+          action: 'bob_user_data_request_blocked',
+          message: latestUserMessage,
+          expressPermission: hasExplicitPermission,
+          permittedUserIdentity,
+          granted: false,
+          reason: 'missing_express_permission',
+        })
+      } catch (auditErr) {
+        console.error('[AI] Failed to write privacy audit (blocked):', auditErr)
+      }
+
+      return new Response(
+        JSON.stringify({
+          response:
+            'I cannot provide personal user information without that user\'s express permission. Please obtain explicit consent first. If this is a security or legal incident, escalate to Grand Master.',
+          model: 'policy-guard',
+          provider: 'policy-enforcer',
+          usage: null,
+        }),
+        { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
+      )
+    }
+
+    if (isPrivacyRequest) {
+      try {
+        await writePrivacyAudit(supabaseAdmin, {
+          performedBy: user.id,
+          organizationId: profile?.organization_id ?? null,
+          action: isGrandMaster ? 'bob_user_data_request_grand_master_override' : 'bob_user_data_request_allowed',
+          message: latestUserMessage,
+          expressPermission: hasExplicitPermission,
+          permittedUserIdentity,
+          granted: true,
+          reason: isGrandMaster ? 'grand_master_override' : 'express_permission_present',
+        })
+      } catch (auditErr) {
+        console.error('[AI] Failed to write privacy audit (allowed):', auditErr)
+      }
+    }
+
+    const escalationKeywords = await loadEscalationKeywords(supabaseAdmin)
+    const shouldEscalate = looksLikeEscalationContent(latestUserMessage, escalationKeywords)
+    if (shouldEscalate) {
+      try {
+        await notifyGrandMasters(
+          supabaseAdmin,
+          user.id,
+          user.email ?? 'unknown@unknown',
+          latestUserMessage.slice(0, 400),
+        )
+      } catch (notifyErr) {
+        console.error('[AI] Failed to notify grand masters for escalation:', notifyErr)
+      }
+    }
+
     const history = messages
       .filter((m) => m.role === 'user' || m.role === 'assistant')
       .map((m) => ({ role: m.role, content: m.content }))
@@ -183,9 +385,13 @@ Deno.serve(async (req: Request) => {
       )
     }
 
+    const finalResponse = shouldEscalate
+      ? `Compliance Notice: This request may indicate a potential policy or legal breach. Grand Master has been advised.\n\n${responseText}`
+      : responseText
+
     return new Response(
       JSON.stringify({
-        response: responseText,
+        response: finalResponse,
         model: 'inference-chat',
         provider: `inference-${inferData?.provider ?? 'heuristic'}`,
         usage: null,
