@@ -173,6 +173,32 @@ function extractBearerToken(req: Request): string | null {
   return match?.[1]?.trim() ?? null
 }
 
+function normalizeProviderText(rawText: string, parsed: any): string {
+  const fromStructured =
+    parsed?.message?.content ??
+    parsed?.message ??
+    parsed?.response ??
+    parsed?.text ??
+    parsed?.output_text ??
+    parsed?.data?.message ??
+    parsed?.data?.response ??
+    ''
+
+  if (typeof fromStructured === 'string' && fromStructured.trim()) {
+    return fromStructured.trim()
+  }
+
+  const trimmedRaw = String(rawText ?? '').trim()
+  if (!trimmedRaw) return ''
+
+  // If upstream returned plain text (not JSON), use it directly.
+  if (!trimmedRaw.startsWith('{') && !trimmedRaw.startsWith('[')) {
+    return trimmedRaw
+  }
+
+  return ''
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: getCorsHeaders(req) })
@@ -387,7 +413,7 @@ Deno.serve(async (req: Request) => {
           try { return JSON.parse(inferText) } catch { return null }
         })()
 
-        const responseText: string = inferData?.message ?? ''
+        const responseText = normalizeProviderText(inferText, inferData)
         if (!responseText) throw new Error('Inference chat returned an empty response')
 
         return {
@@ -434,7 +460,7 @@ Deno.serve(async (req: Request) => {
           try { return JSON.parse(ollamaText) } catch { return null }
         })()
 
-        const responseText: string = ollamaData?.message?.content ?? ''
+        const responseText = normalizeProviderText(ollamaText, ollamaData)
         if (!responseText) throw new Error('Ollama chat returned an empty response')
 
         return {
@@ -448,11 +474,9 @@ Deno.serve(async (req: Request) => {
     }
 
     const providerOrder =
-      providerPreference === 'inference'
-        ? ['inference', 'ollama']
-        : providerPreference === 'ollama'
-          ? ['ollama', 'inference']
-          : ['inference', 'ollama']
+      providerPreference === 'ollama'
+        ? ['ollama', 'inference']
+        : ['inference']
 
     let providerResult: { responseText: string; provider: string; model: string } | null = null
     const providerErrors: string[] = []
@@ -469,12 +493,18 @@ Deno.serve(async (req: Request) => {
     }
 
     if (!providerResult) {
+      const fallbackText =
+        'Bob is online, but the upstream AI provider is currently unavailable. I can still help with operational triage: share the issue, target route/file, and expected behaviour, and I will provide a structured action plan while services recover.'
+
       return new Response(
         JSON.stringify({
-          error: 'All AI providers failed',
-          details: providerErrors.join(' | ').slice(0, 1200),
+          response: fallbackText,
+          model: 'bob-failsafe',
+          provider: 'local-fallback',
+          usage: null,
+          diagnostics: providerErrors.join(' | ').slice(0, 1200),
         }),
-        { status: 503, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 
