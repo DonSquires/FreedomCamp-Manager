@@ -347,6 +347,20 @@ function BobSketchPad() {
 function buildBobReply(message: string, tone: string): string {
   const text = normalize(message)
 
+  if (
+    text.includes('unable to reach the edge function') ||
+    text.includes('edge function') ||
+    text.includes('network connectivity issue') ||
+    text.includes('could not reach')
+  ) {
+    return [
+      'I can triage this now. The failure appears to be an edge-function connectivity path issue.',
+      'Please confirm: 1) exact page and time of failure, 2) whether other AI actions failed too, 3) whether the error is constant or intermittent.',
+      'Immediate checks: verify Supabase function status, confirm auth session is valid, then retry with a short prompt to isolate payload-size or timeout issues.',
+      'If you want, I will walk you through a step-by-step incident flow and produce a copy-ready support handoff summary.',
+    ].join(' ')
+  }
+
   if (text.includes('directions') || text.includes('route') || text.includes('map')) {
     return 'I can help with routing. Enter origin and destination in the directions panel, then I will open turn-by-turn navigation in Google Maps.'
   }
@@ -798,41 +812,96 @@ export default function BobAssistantStudio() {
     setThinking(true)
     const learningUserId = user?.id ?? 'anonymous'
 
-    try {
-      // Format A — full messages array. Injects project knowledge as the first assistant
-      // message so every conversation is grounded in accurate build context.
-      // Also correctly passes conversation history (history field was silently ignored by
-      // the edge function; it reads body.messages, not body.history).
+    const buildRequestBody = () => {
       const historyMessages = chat.slice(-16).map((m) => ({ role: m.role, content: m.text }))
       const longTermMemory = buildBobLearningContext(learningUserId, 20)
+      const compactKnowledge = BOB_PROJECT_KNOWLEDGE.slice(0, 9_000)
+      const compactLongTermMemory = longTermMemory.slice(0, 5_000)
+      const compactRemoteMemory = remoteLearningContext.slice(0, 5_000)
+
       const rawMessages = [
-        { role: 'assistant', content: BOB_PROJECT_KNOWLEDGE },
-        ...(longTermMemory ? [{ role: 'assistant', content: longTermMemory }] : []),
-        ...(remoteLearningContext ? [{ role: 'assistant', content: remoteLearningContext }] : []),
+        { role: 'assistant', content: compactKnowledge },
+        ...(compactLongTermMemory ? [{ role: 'assistant', content: compactLongTermMemory }] : []),
+        ...(compactRemoteMemory ? [{ role: 'assistant', content: compactRemoteMemory }] : []),
         ...historyMessages,
         { role: 'user', content: message },
       ]
 
-      const { data, error } = await supabase.functions.invoke('onspace-ai-chat', {
-        body: {
-          messages: rawMessages,
-          context: {
-            tone,
-            source: 'bob-studio',
-            privacy: {
-              expressPermission: expressUserDataPermission,
-              permittedUserIdentity: permittedUserIdentity || null,
-            },
-            biometric_scaffold: {
-              voicePatternLearningConsent,
-              faceClarificationConsent,
-              note: 'Consent scaffold only - no biometric persistence enabled in this build.',
-            },
+      return {
+        messages: rawMessages,
+        context: {
+          tone,
+          source: 'bob-studio',
+          privacy: {
+            expressPermission: expressUserDataPermission,
+            permittedUserIdentity: permittedUserIdentity || null,
+          },
+          biometric_scaffold: {
+            voicePatternLearningConsent,
+            faceClarificationConsent,
+            note: 'Consent scaffold only - no biometric persistence enabled in this build.',
           },
         },
+      }
+    }
+
+    const invokeBobWithResilience = async () => {
+      const requestBody = buildRequestBody()
+      let lastError: any = null
+
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        const { data, error } = await supabase.functions.invoke('onspace-ai-chat', {
+          body: requestBody,
+        })
+
+        if (!error && data?.response) {
+          return data
+        }
+
+        lastError = error ?? new Error('AI returned an empty response')
+      }
+
+      const { data: sessionData } = await supabase.auth.getSession()
+      const sessionJwt = sessionData?.session?.access_token
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+
+      if (!sessionJwt || !supabaseUrl || !anonKey) {
+        throw lastError ?? new Error('No valid edge invocation path available')
+      }
+
+      const directResponse = await fetch(`${supabaseUrl}/functions/v1/onspace-ai-chat`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${sessionJwt}`,
+          apikey: anonKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
       })
 
-      if (error) throw error
+      const directText = await directResponse.text()
+      const directJson = (() => {
+        try {
+          return JSON.parse(directText)
+        } catch {
+          return null
+        }
+      })()
+
+      if (!directResponse.ok) {
+        throw new Error(directJson?.error || `Edge function returned ${directResponse.status}`)
+      }
+
+      if (!directJson?.response) {
+        throw new Error('AI returned an empty response')
+      }
+
+      return directJson
+    }
+
+    try {
+      const data = await invokeBobWithResilience()
 
       const replyText: string = data?.response || 'I could not generate a response. Please try again.'
 
@@ -872,6 +941,7 @@ export default function BobAssistantStudio() {
         speak(replyText)
       }
     } catch (err: any) {
+      console.error('Bob assistant invoke failed; switching to local fallback:', err)
       const replyText = buildBobReply(message, tone)
       const bobMsg: ChatMessage = {
         id: crypto.randomUUID(),
@@ -892,7 +962,8 @@ export default function BobAssistantStudio() {
       })
 
       if (autoSpeakReplies) speak(replyText)
-      toast.error('AI service unavailable — using local fallback')
+      const shortError = String(err?.message || 'unknown_error').slice(0, 120)
+      toast.error(`AI service unavailable — using local fallback (${shortError})`)
     } finally {
       setThinking(false)
     }
