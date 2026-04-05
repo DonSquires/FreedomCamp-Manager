@@ -167,6 +167,14 @@ function deriveComplexity(severity: string | null | undefined): 'simple' | 'mode
   return 'moderate'
 }
 
+function normalizeServiceBaseUrl(value: string): string {
+  const trimmed = String(value || '').trim()
+  if (!trimmed) return ''
+
+  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+  return withScheme.replace(/\/+$/, '')
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: getCorsHeaders(req) })
@@ -252,7 +260,7 @@ Deno.serve(async (req: Request) => {
     const consoleErrors: any[] = Array.isArray(report.console_errors) ? report.console_errors : []
 
     // ── Inference-service self-heal provider ────────────────────────────────
-    const inferenceUrl = (Deno.env.get('INFERENCE_SERVICE_URL') ?? '').replace(/\/$/, '')
+    const inferenceUrl = normalizeServiceBaseUrl(Deno.env.get('INFERENCE_SERVICE_URL') ?? '')
     const inferenceApiKey = Deno.env.get('INFERENCE_API_KEY') ?? ''
 
     if (!inferenceUrl) {
