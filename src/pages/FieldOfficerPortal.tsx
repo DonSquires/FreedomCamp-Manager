@@ -893,6 +893,13 @@ export default function FieldOfficerPortal() {
     return () => navigator.serviceWorker?.removeEventListener('message', handler)
   }, [checkIn])
 
+  // Auto-dismiss the quick-report status banner after 5 s (errors stay until dismissed)
+  useEffect(() => {
+    if (!quickReportStatusText || quickReportStatusKind !== 'success') return
+    const t = setTimeout(() => setQuickReportStatusText(null), 5000)
+    return () => clearTimeout(t)
+  }, [quickReportStatusText, quickReportStatusKind])
+
   // ── Detail scan: capture handler ─────────────────────────────────────────
   const handleDetailCapture = useCallback(async (file: File) => {
     if (!user?.id || !user?.organization_id) {
@@ -1028,7 +1035,11 @@ export default function FieldOfficerPortal() {
   const handleViewHistory = () => {
     if (user?.role === 'officer') {
       const panel = document.getElementById('recent-scans-panel')
-      panel?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      if (panel) {
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      } else {
+        toast.info('No scans recorded in the last 24 hours')
+      }
       return
     }
     navigate('/compliance')
@@ -1679,7 +1690,7 @@ export default function FieldOfficerPortal() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setShowManualEntry(false)}
+                onClick={() => { setShowManualEntry(false); setManualPlate(''); setManualZoneId('') }}
                 disabled={isProcessing || manualSubmitting}
               >
                 Camera Capture
@@ -1788,10 +1799,11 @@ export default function FieldOfficerPortal() {
             orgWorkflow={orgWorkflow || 'admin_first'}
             onIssueAction={(p) => issueAction.mutate(p)}
             isIssuingAction={issueAction.isPending}
-            onActivity={() => recordGPSUpdate(
-              currentLocation?.latitude ?? 0,
-              currentLocation?.longitude ?? 0,
-            )}
+            onActivity={() => {
+              if (currentLocation?.latitude && currentLocation?.longitude) {
+                recordGPSUpdate(currentLocation.latitude, currentLocation.longitude)
+              }
+            }}
           />
 
           {/* ═══════════════════════════════════════════════════════════
@@ -2176,7 +2188,7 @@ export default function FieldOfficerPortal() {
                   <CardDescription>Manage your patrol session</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Button className="w-full" variant="outline" onClick={() => toast.info('Patrol tracking active via geofence')}>
+                  <Button className="w-full" variant="outline" onClick={() => navigate('/live-patrol')}>
                     Patrol Status
                   </Button>
                 </CardContent>
@@ -2339,9 +2351,9 @@ export default function FieldOfficerPortal() {
                             <div className="flex items-center gap-2 mb-1 flex-wrap">
                               <span className="font-mono text-xs text-muted-foreground">{job.job_number}</span>
                               <Badge variant="outline" className={`text-xs ${job.priority === 'urgent' ? 'border-red-400 text-red-700 animate-pulse' : 'border-blue-300 text-blue-700'}`}>
-                                {job.priority.toUpperCase()}
+                                {(job.priority ?? 'normal').toUpperCase()}
                               </Badge>
-                              <Badge variant="outline" className="text-xs capitalize">{job.status.replace('_', ' ')}</Badge>
+                              <Badge variant="outline" className="text-xs capitalize">{job.status.replaceAll('_', ' ')}</Badge>
                             </div>
                             <p className="font-semibold text-sm">{job.title}</p>
                             {job.address && (
@@ -2505,7 +2517,10 @@ export default function FieldOfficerPortal() {
             </div>
             <div className="flex justify-between">
               <span>Organisation:</span>
-              <span>{user?.organization_id?.substring(0, 8)}...</span>
+              <span className="font-medium text-right truncate max-w-[60%]">
+                {accessibleOrgs.find(o => o.id === (activeShift?.organization_id ?? employerOrganizationId))?.name
+                  ?? user?.organization_id?.substring(0, 8) + '…'}
+              </span>
             </div>
             <div className="flex justify-between items-center">
               <span>Enforcement Mode:</span>
@@ -2666,27 +2681,29 @@ export default function FieldOfficerPortal() {
                   {/* Enforcement action buttons — only shown for breach + AI complete */}
                   {inBreach && (
                     <div className="flex gap-1 shrink-0">
-                      {/* Warning: shown for all workflows */}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 px-2 text-[11px] border-yellow-400 text-yellow-700 hover:bg-yellow-50"
-                        disabled={issueAction.isPending}
-                        onClick={() =>
-                          issueAction.mutate({
-                            observationId: scan.id,
-                            zoneId: scan.zone_id || '',
-                            plateNumber: scan.plate_number,
-                            actionType: 'warning',
-                          })
-                        }
-                      >
-                        <FileWarning className="h-3 w-3 mr-1" />
-                        Warn
-                      </Button>
-
-                      {/* Notice to Vacate: officer_direct and hybrid */}
+                      {/* Warning: only in officer_direct or hybrid — admin_first handles enforcement server-side */}
                       {(orgWorkflow === 'officer_direct' || orgWorkflow === 'hybrid') && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-[11px] border-yellow-400 text-yellow-700 hover:bg-yellow-50"
+                          disabled={issueAction.isPending}
+                          onClick={() =>
+                            issueAction.mutate({
+                              observationId: scan.id,
+                              zoneId: scan.zone_id || '',
+                              plateNumber: scan.plate_number,
+                              actionType: 'warning',
+                            })
+                          }
+                        >
+                          <FileWarning className="h-3 w-3 mr-1" />
+                          Warn
+                        </Button>
+                      )}
+
+                      {/* Notice to Vacate: officer_direct only */}
+                      {orgWorkflow === 'officer_direct' && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -2726,19 +2743,10 @@ export default function FieldOfficerPortal() {
                     </div>
                   )}
 
-                  {/* Compliant: green tick */}
+                  {/* Compliant: green tick only */}
                   {!inBreach && !isProcessingAI && (
                     <div className="flex items-center gap-1 shrink-0">
                       <CheckCircle className="h-4 w-4 text-green-500" />
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 px-2 text-[11px] border-blue-300 text-blue-700 hover:bg-blue-50"
-                        onClick={() => navigate(`/infringements?observation_id=${encodeURIComponent(scan.id)}`)}
-                      >
-                        <Printer className="h-3 w-3 mr-1" />
-                        Ticket
-                      </Button>
                     </div>
                   )}
                 </div>
@@ -2761,10 +2769,11 @@ export default function FieldOfficerPortal() {
         orgWorkflow={orgWorkflow || 'admin_first'}
         onIssueAction={(p) => issueAction.mutate(p)}
         isIssuingAction={issueAction.isPending}
-        onActivity={() => recordGPSUpdate(
-          currentLocation?.latitude ?? 0,
-          currentLocation?.longitude ?? 0,
-        )}
+        onActivity={() => {
+          if (currentLocation?.latitude && currentLocation?.longitude) {
+            recordGPSUpdate(currentLocation.latitude, currentLocation.longitude)
+          }
+        }}
       />
 
       {/* ── Quick Standalone Report Modal ─────────────────────────────── */}
