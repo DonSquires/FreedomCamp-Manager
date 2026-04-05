@@ -169,7 +169,7 @@ function buildSelfHealingPlan(report, options = {}) {
     summary: trimText(report.summary, 500),
     severity: sev,
     bug_type: bugType,
-    recommended_owner: bugType === 'database' ? 'backend-data-team' : bugType === 'deployment' ? 'platform-engineering' : 'platform-engineering',
+    recommended_owner: bugType === 'database' ? 'backend-data-team' : 'platform-engineering',
     reproduction,
     remediation,
     safeguards,
