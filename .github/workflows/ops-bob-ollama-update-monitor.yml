@@ -182,6 +182,44 @@ jobs:
               core.notice(`Created new update issue #${created.data.number}`);
             }
 
+      - name: Auto-close resolved Ollama update issue
+        if: steps.compare.outputs.ollama_update_available != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const existing = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              state: 'open',
+              per_page: 100,
+            });
+
+            const sameFamily = existing.find((issue) =>
+              issue.title.startsWith('[Ops Monitor] Ollama update available:')
+            );
+
+            if (!sameFamily) {
+              core.notice('No open Ollama update issue found; nothing to close.');
+              return;
+            }
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: sameFamily.number,
+              body: 'Auto-closing: pinned Ollama image tag now matches upstream release signal.',
+            });
+
+            await github.rest.issues.update({
+              owner,
+              repo,
+              issue_number: sameFamily.number,
+              state: 'closed',
+            });
+
+            core.notice(`Closed resolved update issue #${sameFamily.number}`);
+
       - name: Upload update monitor report
         uses: actions/upload-artifact@v4
         with:
