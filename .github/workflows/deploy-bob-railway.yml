@@ -95,6 +95,8 @@ jobs:
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_BOB_SERVICE_ID }}
           RAILWAY_BOB_PROJECT_ID: ${{ secrets.RAILWAY_BOB_PROJECT_ID }}
         run: |
+          set -euo pipefail
+
           echo "🚂 Deploying Bob from repository root ..."
           SERVICE_TO_DEPLOY="$RAILWAY_SERVICE_ID"
           PROJECT_TO_QUERY="${RAILWAY_BOB_PROJECT_ID:-151bb5d5-a999-4eff-8be5-cfe8fe93484f}"
