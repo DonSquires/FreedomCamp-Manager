@@ -1,0 +1,155 @@
+name: Deploy Ollama to Railway
+
+# Deploys the Ollama LLM service (ollama/) to the Bob Railway project.
+# Ollama runs as a separate service in the same project so Bob can reach it
+# via Railway private networking (http://ollama.railway.internal:3000).
+#
+# Trigger: manual only — Ollama image updates are deliberate, not tied to
+# source code changes.
+#
+# Required secrets:
+#   RAILWAY_BOB_TOKEN          — Railway project token (shared with Bob service)
+#   RAILWAY_OLLAMA_SERVICE_ID  — Railway service ID for the Ollama service
+#
+# Optional secrets:
+#   OLLAMA_SERVICE_URL — public Railway URL for post-deploy health check
+
+on:
+  workflow_dispatch:
+    inputs:
+      pull_model:
+        description: 'Pull model after deploy (e.g. llama3.1:8b). Leave empty to skip.'
+        required: false
+        type: string
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  deploy-ollama:
+    name: Deploy Ollama to Railway
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check required secrets
+        id: check-secrets
+        run: |
+          missing=""
+          [ -z "$RAILWAY_BOB_TOKEN" ]          && missing="$missing RAILWAY_BOB_TOKEN"
+          [ -z "$RAILWAY_OLLAMA_SERVICE_ID" ]  && missing="$missing RAILWAY_OLLAMA_SERVICE_ID"
+
+          if [ -n "$missing" ]; then
+            echo "::warning::Required Ollama deploy secrets not configured ($missing) — deployment skipped."
+            echo ""
+            echo "Add these GitHub Actions secrets:"
+            echo "  RAILWAY_BOB_TOKEN          - Railway project token for the Bob project (shared with Bob service)"
+            echo "  RAILWAY_OLLAMA_SERVICE_ID  - Railway service ID for the Ollama service"
+            echo "  OLLAMA_SERVICE_URL         - Optional public Ollama URL for post-deploy health check"
+            echo "secrets_present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "✅ Ollama Railway deploy secrets present"
+            echo "secrets_present=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          RAILWAY_BOB_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
+          RAILWAY_OLLAMA_SERVICE_ID: ${{ secrets.RAILWAY_OLLAMA_SERVICE_ID }}
+
+      - name: Checkout repository
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        uses: actions/checkout@v5
+
+      - name: Install Railway CLI
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        run: |
+          RAILWAY_CLI_VERSION="4.31.0"
+          TARGET="x86_64-unknown-linux-gnu"
+          URL="https://github.com/railwayapp/cli/releases/download/v${RAILWAY_CLI_VERSION}/railway-v${RAILWAY_CLI_VERSION}-${TARGET}.tar.gz"
+          TMP_DIR=$(mktemp -d)
+          cd "$TMP_DIR"
+          curl -fsSL -o railway.tar.gz "$URL"
+          tar -xzf railway.tar.gz
+          mkdir -p "$HOME/.railway/bin"
+          install -m 0755 railway "$HOME/.railway/bin/railway"
+          echo "$HOME/.railway/bin" >> "$GITHUB_PATH"
+
+      - name: Validate Railway token
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
+        run: |
+          echo "🔑 Validating Railway token..."
+          if ! railway service list --json > /dev/null 2>&1; then
+            echo "::warning::Could not confirm RAILWAY_BOB_TOKEN via 'railway service list'."
+            echo "Project-scoped tokens can fail this precheck; deployment will still be attempted."
+          fi
+          echo "✅ Railway validation step complete"
+
+      - name: Deploy Ollama to Railway
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
+          RAILWAY_OLLAMA_SERVICE_ID: ${{ secrets.RAILWAY_OLLAMA_SERVICE_ID }}
+        run: |
+          cd ollama
+          echo "🚂 Deploying Ollama to Railway..."
+          railway up --service "$RAILWAY_OLLAMA_SERVICE_ID" --detach
+          echo "✅ Ollama deploy triggered. Check Railway dashboard for status."
+
+      - name: Verify Ollama health
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        env:
+          OLLAMA_SERVICE_URL: ${{ secrets.OLLAMA_SERVICE_URL }}
+        run: |
+          if [ -z "$OLLAMA_SERVICE_URL" ]; then
+            echo "ℹ️  OLLAMA_SERVICE_URL not set — skipping HTTP health check."
+            echo "   Railway built-in health check will use /api/tags."
+            exit 0
+          fi
+
+          echo "⏳ Waiting 45s for Ollama deployment to become ready..."
+          sleep 45
+
+          echo "🏥 Checking health at ${OLLAMA_SERVICE_URL}/api/tags ..."
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${OLLAMA_SERVICE_URL}/api/tags" || echo "000")
+
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✅ Ollama health check passed"
+          else
+            echo "::warning::Ollama health check returned HTTP $HTTP_STATUS. Service may still be starting."
+          fi
+
+      - name: Pull model (optional)
+        if: >-
+          steps.check-secrets.outputs.secrets_present == 'true' &&
+          github.event.inputs.pull_model != ''
+        env:
+          OLLAMA_SERVICE_URL: ${{ secrets.OLLAMA_SERVICE_URL }}
+          MODEL_NAME: ${{ github.event.inputs.pull_model }}
+        run: |
+          if [ -z "$OLLAMA_SERVICE_URL" ]; then
+            echo "::error::OLLAMA_SERVICE_URL secret must be set to pull models remotely."
+            exit 1
+          fi
+
+          # Validate model name format (alphanumeric, colons, dots, hyphens, slashes)
+          if ! echo "$MODEL_NAME" | grep -qE '^[a-zA-Z0-9._:/-]+$'; then
+            echo "::error::Invalid model name format: $MODEL_NAME"
+            exit 1
+          fi
+
+          echo "📦 Requesting model pull: $MODEL_NAME (this may take several minutes)..."
+          PAYLOAD=$(jq -n --arg model "$MODEL_NAME" '{"name": $model}')
+          HTTP_STATUS=$(curl -s -o /tmp/pull-output.txt -w "%{http_code}" \
+            --max-time 600 \
+            -X POST "${OLLAMA_SERVICE_URL}/api/pull" \
+            -H 'Content-Type: application/json' \
+            -d "$PAYLOAD" || echo "000")
+
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✅ Model pull completed: $MODEL_NAME"
+          else
+            echo "::warning::Model pull returned HTTP $HTTP_STATUS. Check Ollama logs in Railway dashboard."
+            tail -c 500 /tmp/pull-output.txt 2>/dev/null || true
+          fi

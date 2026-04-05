@@ -40,41 +40,40 @@ Add these secrets to **DonSquires/Bob** -> Settings -> Secrets -> Actions:
 | Component | Status | Domain / Notes |
 |---|---|---|
 | Bob Inference | ✅ Deployed | `https://focused-courage-production-ccee.up.railway.app` |
-| Ollama | ⏳ Pending | Needs creation in Railway UI |
+| Ollama | ✅ Deployed | `ollama-production-8631.up.railway.app` (us-west2, CPU, 22 GiB RAM, Ollama v0.20.2) |
 
-## Next Steps (Action Items)
+## Ollama Service Details
 
-### 1. Create Ollama Service in Railway
+- **Image**: `ollama/ollama` (v0.20.2)
+- **Region**: us-west2
+- **Replicas**: 1
+- **Compute**: CPU-only (22.4 GiB RAM available)
+- **Internal port**: 3000 (configured via `OLLAMA_HOST=http://0.0.0.0:3000`)
+- **Internal URL**: `http://ollama.railway.internal:3000`
+- **Keep-alive**: 24 hours (`OLLAMA_KEEP_ALIVE=24h0m0s`)
+- **Default context**: 4096 tokens
 
-In **Bob project → + New Service**:
-1. Select **Docker Image**
-2. Image: `ollama/ollama:latest`
-3. Service name: `ollama`
-4. **Do NOT expose public domain** (keep private)
-5. After deployed, add:
-   - **Volume**: `/root/.ollama` (persistent storage for models)
-   - **Environment variable**: `OLLAMA_ORIGINS=*`
+> **Note**: Railway's Ollama service listens on port **3000** (not the default 11434).
+> Bob must use `http://ollama.railway.internal:3000` as `OLLAMA_BASE_URL`.
 
-### 2. Pull the LLM Model in Ollama
+## Setup Steps
 
-Once Ollama is running, pull the model:
+### 1. Pull the LLM Model in Ollama
+
+Shell into the Ollama service and pull the model:
 ```bash
-# Option A: Shell into Ollama service
 ollama pull llama3.1:8b
-
-# Option B: Via curl from Bob (after following step 3)
-# Should work automatically once Bob env vars are set and Ollama responds
 ```
 
-### 3. Configure Bob Inference Environment Variables
+### 2. Configure Bob Inference Environment Variables
 
 In **Bob Inference service → Settings → Variables**, add exactly these variables:
 
 ```
-INFERENCE_API_KEY=1f1c42063172d64fcaeceb3228d313951db76fbd88239d635ce9962b970dd6ce
+INFERENCE_API_KEY=<strong random secret>
 CHAT_PROVIDER=ollama
 TABULAR_NLP_PROVIDER=ollama
-OLLAMA_BASE_URL=http://ollama.railway.internal:11434
+OLLAMA_BASE_URL=http://ollama.railway.internal:3000
 OLLAMA_MODEL=llama3.1:8b
 SELF_CONTAINED_MODE=false
 ```
@@ -86,20 +85,22 @@ SUPABASE_JWKS_URL=https://<PROJECT_ID>.supabase.co/auth/v1/.well-known/jwks.json
 SUPABASE_JWT_ISSUER=https://<PROJECT_ID>.supabase.co/auth/v1
 ```
 
-### 4. Redeploy Bob Inference
+### 3. Redeploy Bob Inference
 
 In **Bob Inference service → click Redeploy** (or push to `main` on DonSquires/Bob).
 
-### 5. Verify Bob + Ollama
+### 4. Verify Bob + Ollama
 
 ```bash
+BOB_URL="https://focused-courage-production-ccee.up.railway.app"
+
 # Test Bob health
-curl -sS https://focused-courage-production-ccee.up.railway.app/health | jq .
+curl -sS "$BOB_URL/health" | jq .
 
 # Test Bob chat with Ollama
-curl -sS -X POST https://focused-courage-production-ccee.up.railway.app/chat \
+curl -sS -X POST "$BOB_URL/chat" \
   -H 'Content-Type: application/json' \
-  -H 'x-inference-api-key: 1f1c42063172d64fcaeceb3228d313951db76fbd88239d635ce9962b970dd6ce' \
+  -H 'x-inference-api-key: <your-api-key>' \
   -d '{"message":"hello"}'
 ```
 
@@ -151,8 +152,8 @@ SIMILARITY_THRESHOLD_MAX=0.95
 SELF_LEARNING_ENABLED=true
 SELF_HEALING_ENABLED=true
 
-# --- Internal Ollama URL ---
-OLLAMA_BASE_URL=http://ollama.railway.internal:11434
+# --- Internal Ollama URL (port 3000 matches OLLAMA_HOST on Railway) ---
+OLLAMA_BASE_URL=http://ollama.railway.internal:3000
 OLLAMA_MODEL=llama3.1:8b
 ```
 
@@ -245,11 +246,33 @@ For Profile A, also verify Bob logs indicate `CHAT_PROVIDER=ollama`.
 | Secret | Purpose |
 |---|---|
 | `BOB_SYNC_PAT` | GitHub PAT to push changes to DonSquires/Bob |
+| `RAILWAY_BOB_TOKEN` | Railway project token for the Bob project (shared by Bob + Ollama services) |
+| `RAILWAY_BOB_SERVICE_ID` | Railway service ID for Bob inference |
+| `RAILWAY_BOB_PROJECT_ID` | Optional Railway project ID for Bob auto-resolution |
+| `BOB_SERVICE_URL` | Optional Bob public URL for post-deploy health check |
+| `RAILWAY_OLLAMA_SERVICE_ID` | Railway service ID for the Ollama service |
+| `OLLAMA_SERVICE_URL` | Optional public Ollama URL for post-deploy health check |
 | `RAILWAY_INFERENCE_SERVICE_ID` | Legacy: kept for backward compatibility during transition |
 | `RAILWAY_PROXY_SERVICE_ID` | Railway service ID for the proxy service |
 | `RAILWAY_TOKEN` | Railway token with access to proxy and other core services |
 
 > Bob's own `RAILWAY_TOKEN` and `RAILWAY_SERVICE_ID` live in DonSquires/Bob, not in FreedomCamp-Manager.
+> Ollama shares the Bob project token (`RAILWAY_BOB_TOKEN`) but has its own service ID (`RAILWAY_OLLAMA_SERVICE_ID`).
+
+## CI/CD Workflows
+
+| Workflow | Trigger | Service |
+|---|---|---|
+| `deploy-bob-railway.yml` | Push to `main` (inference-service/) or manual | Bob inference |
+| `deploy-ollama-railway.yml` | Manual only | Ollama LLM server |
+| `sync-bob-repo.yml` | Push to `main` (inference-service/) | Syncs to DonSquires/Bob |
+
+### Deploying Ollama via CI
+
+1. Go to **Actions → Deploy Ollama to Railway → Run workflow**
+2. Optionally enter a model name (e.g. `llama3.1:8b`) to pull after deploy
+3. The workflow deploys `ollama/Dockerfile` to the Ollama Railway service
+4. If `OLLAMA_SERVICE_URL` is set, it verifies health via `/api/tags`
 
 ## Troubleshooting
 
@@ -275,9 +298,16 @@ For Profile A, also verify Bob logs indicate `CHAT_PROVIDER=ollama`.
 1. Verify Ollama service is running: **Railway → Ollama → Deploy tab** should show status **Running**.
 2. Model may not be pulled yet. SSH into Ollama container and run: `ollama pull llama3.1:8b`
 3. Confirm Bob can reach Ollama: In Bob logs, look for messages about Ollama connection state.
+4. Confirm `OLLAMA_BASE_URL` uses port **3000** (not 11434). Railway Ollama listens on 3000 via `OLLAMA_HOST`.
 
 ### Bob calls Ollama but gets timeout
 1. Ollama may be overloaded or model is still loading.
 2. Increase **Ollama service → Resources** (CPU/memory) if available on plan.
 3. Check Ollama logs for OOM or compute issues.
 4. As fallback, Bob will use heuristic providers if `SELF_CONTAINED_MODE=true` and Ollama fails.
+
+### Updating Ollama version
+1. Edit `ollama/Dockerfile` — change the image tag (e.g. `ollama/ollama:0.20.2` → `0.21.0`)
+2. Merge to `main`
+3. Run **Actions → Deploy Ollama to Railway → Run workflow**
+4. Verify health: `curl https://<ollama-url>/api/tags`
