@@ -205,6 +205,7 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN || secrets.RAILWAY_TOKEN }}
           RAILWAY_SERVICE_ID: ${{ steps.resolve-service.outputs.service_id }}
           RAILWAY_BOB_PROJECT_ID: ${{ steps.resolve-service.outputs.project_id }}
+          RAILWAY_BOB_SERVICE_NAME: ${{ secrets.RAILWAY_BOB_SERVICE_NAME }}
         run: |
           set -euo pipefail
 
@@ -257,6 +258,19 @@ jobs:
                 fi
               fi
 
+              echo "::warning::Attempting Bob deployment by common service names as final fallback."
+              FALLBACK_NAMES="${RAILWAY_BOB_SERVICE_NAME:-} bob bob-inference bob-inference-service inference-service orc-ai-inference-service"
+              for NAME in $FALLBACK_NAMES; do
+                if [ -z "$NAME" ]; then
+                  continue
+                fi
+                echo "ℹ️ Trying Railway service selector: $NAME"
+                if railway up --service "$NAME" --detach; then
+                  echo "✅ Bob deploy succeeded using service selector: $NAME"
+                  exit 0
+                fi
+              done
+
               echo "::error::Could not resolve a deployable Bob service ID from Railway token scope."
               exit 1
             fi
@@ -283,6 +297,19 @@ jobs:
                 exit 0
               fi
             fi
+
+            echo "::warning::Project-based resolution did not deploy. Attempting Bob deployment by common service names."
+            FALLBACK_NAMES="${RAILWAY_BOB_SERVICE_NAME:-} bob bob-inference bob-inference-service inference-service orc-ai-inference-service"
+            for NAME in $FALLBACK_NAMES; do
+              if [ -z "$NAME" ]; then
+                continue
+              fi
+              echo "ℹ️ Trying Railway service selector: $NAME"
+              if railway up --service "$NAME" --detach; then
+                echo "✅ Bob deploy succeeded using service selector: $NAME"
+                exit 0
+              fi
+            done
           fi
 
           echo "::error::Railway deploy command failed for RAILWAY_BOB_SERVICE_ID=$RAILWAY_SERVICE_ID"

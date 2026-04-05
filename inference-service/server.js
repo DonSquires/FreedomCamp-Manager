@@ -1,6 +1,6 @@
 /**
  * ORC/AI Inference Service
- * Vehicle Detection + Embedding Generation + Face Recognition
+ * Vehicle Detection + Embedding Generation + Face Recognition + UI Assessment + Stack Navigation + NZ Legal Framework
  * 
  * Stack:
  * - YOLOv8n (vehicle detection)
@@ -14,6 +14,27 @@
  * - POST /infer/chalk - Chalk pass AI
  * - POST /infer/face  - Face detection + embedding
  * - POST /infer/compare - Cosine similarity
+ * - POST /assess/ui  - Analyze component code for layout, a11y, design consistency
+ * - POST /assess/ui/screenshot - Analyze UI screenshot for colours, contrast, aesthetics
+ * - POST /assess/ui/colours - Check colour palette contrast ratios (WCAG)
+ * - POST /assess/ui/trace - Trace UI element behaviour (button → handler → API → DB)
+ * - GET  /assess/ui/design-system - Get FieldOps design system reference
+ * - GET  /navigate/stack-map - Full stack topology and debugging playbook
+ * - GET  /navigate/route - Look up route details by path
+ * - POST /navigate/debug - Get debugging steps for a described symptom
+ * - GET  /legal/framework - NZ legal framework overview (all acts)
+ * - GET  /legal/act/:key - Detailed view of a specific NZ act
+ * - GET  /legal/guardrails - AI guardrails (G1-G12) Bob and Ollama must follow
+ * - POST /legal/check - Check a proposed action against NZ legal guardrails
+ * - POST /assess/ptt - Diagnose PTT (Push-to-Talk) issues from symptom description
+ * - POST /assess/platform - Diagnose infrastructure platform issues (Supabase, Railway, Vercel, etc.)
+ * - GET  /platform/:key - Get Bob's knowledge about a specific platform
+ * - GET  /platform/stack - Get full hybrid stack overview
+ * - POST /ask-copilot - Queue a knowledge request for Copilot to research
+ * - GET  /ask-copilot/pending - List unanswered knowledge requests (for Copilot workflow)
+ * - GET  /ask-copilot - List all knowledge requests
+ * - POST /ask-copilot/:id/answer - Receive a researched answer back from Copilot
+ * - DELETE /ask-copilot/:id - Remove a knowledge request
  * - GET  /health     - Health check
  */
 
@@ -30,6 +51,11 @@ const { createSelfLearningService } = require('./lib/self-learning');
 const { profileExamples } = require('./lib/pretrain-profiles');
 const { buildSelfHealingPlan, buildPatchTask, getKnowledgePacks } = require('./lib/assistant-knowledge');
 const { createIntelStore } = require('./lib/intel-updates');
+const { analyzeComponentCode, analyzeScreenshot, assessColourPalette, identifyLayoutPattern, DESIGN_SYSTEM } = require('./lib/ui-assessment');
+const { traceUIElement, getStackMap, findRoute, getDebuggingSteps, ROUTE_MAP, DEBUGGING_PLAYBOOK } = require('./lib/stack-navigation');
+const { checkLegalCompliance, getLegalFramework, getLegalDetail, AI_LEGAL_GUARDRAILS } = require('./lib/nz-legal-framework');
+const { getPlatformKnowledge, diagnosePlatformIssue, getHybridStackOverview } = require('./lib/platform-knowledge');
+const { createKnowledgeRequestStore } = require('./lib/knowledge-requests');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -128,10 +154,8 @@ const CHAT_TIMEOUT_MS = Number(process.env.CHAT_TIMEOUT_MS || 30000);
 const TABULAR_NLP_TIMEOUT_MS = Number(process.env.TABULAR_NLP_TIMEOUT_MS || 2500);
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1:8b';
-const REQUIRED_OLLAMA_BASE_URL = 'http://ollama.railway.internal:11434';
-// Hard lock: Bob runs in self-contained mode only.
-const SELF_CONTAINED_MODE = true;
-const REQUIRE_SELF_CONTAINED_MODE = true;
+const SELF_CONTAINED_MODE = ['1', 'true', 'yes', 'on'].includes((process.env.SELF_CONTAINED_MODE || '').toLowerCase());
+const REQUIRE_SELF_CONTAINED_MODE = ['1', 'true', 'yes', 'on'].includes((process.env.REQUIRE_SELF_CONTAINED_MODE || '').toLowerCase());
 const SELF_LEARNING_ENABLED = !['0', 'false', 'no', 'off'].includes((process.env.SELF_LEARNING_ENABLED || 'true').toLowerCase());
 const SELF_HEALING_ENABLED = !['0', 'false', 'no', 'off'].includes((process.env.SELF_HEALING_ENABLED || 'true').toLowerCase());
 const INTEL_STATE_PATH = process.env.INTEL_STATE_PATH || path.join(__dirname, 'data', 'intel-state.json');
@@ -158,18 +182,13 @@ function isLocalUrl(value) {
   if (!value) return false;
   try {
     const url = new URL(value);
-    // Recognize loopback addresses (localhost, 127.0.0.1, ::1)
-    const isLoopback = url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '::1';
-    // Recognize Railway internal DNS as local (no external egress)
-    const isRailwayInternal = url.hostname === 'ollama.railway.internal';
-    return isLoopback || isRailwayInternal;
+    return url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '::1';
   } catch {
     return false;
   }
 }
 
-// Hard lock: strict egress is always enabled.
-const SELF_CONTAINED_STRICT_EGRESS = true;
+const SELF_CONTAINED_STRICT_EGRESS = SELF_CONTAINED_MODE && !['0', 'false', 'no', 'off'].includes((process.env.SELF_CONTAINED_STRICT_EGRESS || 'true').toLowerCase());
 
 function assertEgressAllowed(url, providerLabel = 'unknown') {
   if (!SELF_CONTAINED_STRICT_EGRESS) return;
@@ -296,6 +315,10 @@ const intelStore = createIntelStore({
   statePath: INTEL_STATE_PATH,
   hmacKey: INTEL_HMAC_KEY,
 });
+
+const knowledgeRequestsStore = createKnowledgeRequestStore(
+  process.env.KNOWLEDGE_REQUESTS_PATH || path.join(__dirname, 'data', 'knowledge-requests.json')
+);
 
 const egressAudit = {
   started_at: new Date().toISOString(),
@@ -878,7 +901,7 @@ function generateHeuristicChatReply(message, context = {}) {
 
   const lowered = text.toLowerCase();
   if (lowered.includes('status') || lowered.includes('health')) {
-    return 'Service is running in self-contained mode. I can help with patrol workflows, plate checks, and compliance process guidance.';
+    return 'Service is running in self-contained mode. I can help with patrol workflows, plate checks, compliance process guidance, and UI assessment.';
   }
   if (lowered.includes('privacy') || lowered.includes('data')) {
     return 'This deployment is configured for local processing. External cloud calls are blocked by strict self-contained egress policy.';
@@ -887,8 +910,151 @@ function generateHeuristicChatReply(message, context = {}) {
     return 'I can assist with plate workflow guidance. Upload evidence through the enforcement workflow and I can help summarize next steps.';
   }
 
+  // UI/UX design domain
+  if (lowered.includes('design system') || lowered.includes('theme') || lowered.includes('color') || lowered.includes('colour')) {
+    return 'FieldOps uses a Tailwind CSS + shadcn/ui design system with HSL CSS variables. Four themes: light, dark, high-contrast, and night-patrol. Primary is teal (187°), accent is amber (48°), destructive is red. Use POST /assess/ui to analyze component code, or POST /assess/ui/colours to check contrast ratios.';
+  }
+  if (lowered.includes('accessibility') || lowered.includes('a11y') || lowered.includes('wcag') || lowered.includes('screen reader')) {
+    return 'FieldOps targets WCAG AA compliance. Requirements: 4.5:1 contrast for text, 3:1 for large text. Use ARIA attributes, semantic HTML (<section>, <nav>, <main>), visible labels on all inputs, focus-visible rings for keyboard navigation, and sr-only for screen-reader-only text. Night-patrol mode needs 56px button height for gloved use.';
+  }
+  if (lowered.includes('layout') || lowered.includes('responsive') || lowered.includes('mobile') || lowered.includes('breakpoint')) {
+    return 'FieldOps uses mobile-first responsive design. Breakpoints: sm (640px), md (768px), lg (1024px), xl (1280px). Dashboard pattern: grid-cols-1 sm:grid-cols-2 lg:grid-cols-4. Forms need visible labels, not placeholder-only. Tables need overflow-x-auto on mobile. Use POST /assess/ui with component code for detailed layout analysis.';
+  }
+  if (lowered.includes('night patrol') || lowered.includes('dark mode') || lowered.includes('night mode')) {
+    return 'Night-patrol mode: pure black background (3% lightness), bright cyan primary for max legibility, 56px min button height, 52px min input height, 17px base font. Designed for officers wearing gloves in low-light. Applied via class="night-patrol" on <html> alongside "dark".';
+  }
+  if (lowered.includes('ui') || lowered.includes('component') || lowered.includes('button') || lowered.includes('card') || lowered.includes('form') || lowered.includes('table')) {
+    return 'I can assess UI components for human-friendliness. Use POST /assess/ui with {code: "..."} to analyze JSX/TSX source code. I evaluate accessibility (35%), responsiveness (30%), and design consistency (35%). I also identify layout patterns (dashboard, form, list, detail, map) and provide actionable recommendations. Use POST /assess/ui/trace with {code: "..."} to trace what a button/link/form does — I follow the chain from onClick handler to Supabase query to database table.';
+  }
+  if (lowered.includes('screenshot') || lowered.includes('visual') || lowered.includes('aesthetic')) {
+    return 'I can analyze UI screenshots for aesthetics. Use POST /assess/ui/screenshot with a screenshot file. I evaluate colour harmony, whitespace balance (15-40% ideal), WCAG contrast, and visual complexity. The analysis includes specific recommendations for improvement.';
+  }
+
+  // Navigation and debugging domain
+  if (lowered.includes('route') || lowered.includes('navigate') || lowered.includes('page') || lowered.includes('path')) {
+    return 'I know the full FieldOps route map. Use GET /navigate/route?path=/vehicles to look up any route — I will tell you the target component, required roles, and description. Use GET /navigate/stack-map for the full system topology from UI through to database. There are 60+ routes in App.tsx with ProtectedRoute, RoleRoute, and AreaRoute guards.';
+  }
+  if (lowered.includes('debug') || lowered.includes('fix') || lowered.includes('error') || lowered.includes('broken') || lowered.includes('not working') || lowered.includes('issue')) {
+    return 'I can help debug FieldOps issues. Use POST /navigate/debug with {symptom: "button not working"} and I will give you step-by-step debugging instructions. I know common failure patterns: button not clickable (check disabled/onClick/mutation), link 404 (check route path), form error (check zod/RLS), blank page (check hook errors), data not loading (check RLS/filters/auth). I can also trace any UI element — POST /assess/ui/trace with the component code.';
+  }
+  if (lowered.includes('stack') || lowered.includes('architecture') || lowered.includes('how does') || lowered.includes('topology')) {
+    return 'FieldOps stack: React UI (src/pages/) → Zustand + TanStack Query hooks (src/hooks/) → Supabase client (src/lib/supabase.ts) → Postgres with RLS (supabase/migrations/) → Edge Functions (supabase/functions/) → Bob inference on Railway (inference-service/). CI/CD via GitHub Actions (.github/workflows/). Use GET /navigate/stack-map for the full interactive topology.';
+  }
+  if (lowered.includes('supabase') || lowered.includes('database') || lowered.includes('rls') || lowered.includes('migration')) {
+    return 'FieldOps uses Supabase Postgres with Row Level Security on every table. Key tables: vehicles, observations, zones, breaches, enforcement_actions, patrols, users, organizations. Types are generated in src/types/database.ts. Migrations in supabase/migrations/ (70+ files). Edge Functions in supabase/functions/ (70+ functions). All queries go through the typed Supabase client in src/lib/supabase.ts.';
+  }
+  if (lowered.includes('railway') || lowered.includes('deploy') || lowered.includes('ci') || lowered.includes('github action')) {
+    return 'FieldOps deployment: Frontend deploys to Supabase via deploy-frontend.yml. Bob (inference-service) deploys to Railway via deploy-bob-railway.yml. Ollama deploys to Railway via deploy-ollama-railway.yml. Edge Functions deploy via deploy-edge-functions.yml. DB migrations via db-run-migrations.yml. All in .github/workflows/. Railway uses project tokens validated with "railway service list --json". bun.lock must be regenerated when deps change or frozen-lockfile fails.';
+  }
+  if (lowered.includes('hook') || lowered.includes('query') || lowered.includes('mutation') || lowered.includes('tanstack') || lowered.includes('zustand')) {
+    return 'Data flow: Components use TanStack Query hooks (src/hooks/useXxx.ts) for server state. useQuery fetches data with automatic caching. useMutation writes data and invalidates queries on success. Zustand stores (src/stores/) hold auth state (authStore.ts) and global filters (globalFiltersStore.ts). The Supabase client is typed with Database types from src/types/database.ts.';
+  }
+
+  // PTT (Push-to-Talk) domain — specific patterns first, general catch-all last
+  if (lowered.includes('ptt connect') || lowered.includes('ptt unavailable') || lowered.includes('ptt error') || lowered.includes('ptt disconnect')) {
+    return 'PTT connection troubleshooting: (1) Check ptt-signaling-token Edge Function is deployed. (2) Verify PTT_SERVER_URL set in Supabase secrets. (3) Check ptt-server /health on Railway. (4) PTT_JWT_SECRET and PROXY_SECRET must match on both Edge Function and ptt-server. (5) User must be authenticated with valid organization_id. (6) Token errors (4001/4002) mean re-login needed. (7) 4003 = channel full (>50 users). (8) "Unable to reach edge function" = Edge Function not deployed. Run set-ptt-secret.yml workflow to configure.';
+  }
+  if (lowered.includes('ptt server') || lowered.includes('signaling server') || (lowered.includes('signaling') && lowered.includes('ptt'))) {
+    return 'PTT signaling server: ptt-server/ directory (Node.js + Express + ws). Railway deployment via Dockerfile. Env vars: PTT_JWT_SECRET (required), PROXY_SECRET (required), PORT (auto), TURN_URL/USERNAME/CREDENTIAL (optional for NAT traversal). WebSocket path: /ws?token=<jwt>. Messages: start_speaking, stop_speaking, signal (WebRTC SDP/ICE), status, ping/pong. Half-duplex enforced server-side. In-memory state (single instance; Redis for multi-instance scaling). Health: GET /health.';
+  }
+  if (lowered.includes('vox') || lowered.includes('voice activated') || lowered.includes('voice operated')) {
+    return 'VOX (Voice Operated Exchange) mode: Auto-transmits when voice level exceeds threshold. Uses AudioContext + AnalyserNode to monitor audio level at 50ms intervals. Threshold configurable 0-100 (default in PTT settings popover). 500ms silence delay before stopping. Start: startVoxMonitoring() → creates audio context → checks level vs threshold → auto-calls startSpeaking()/stopSpeaking(). Adjust threshold lower (20-30%) for quiet speakers, higher (50-70%) for noisy environments.';
+  }
+  if (lowered.includes('bluetooth') || lowered.includes('headset') || lowered.includes('hardware button')) {
+    return 'Bluetooth PTT: Uses Media Session API to capture hardware play/pause/stop buttons on Bluetooth headsets. initBluetoothPTT() plays silent audio loop to keep Media Session active, then maps play→startSpeaking, pause/stop→stopSpeaking. Requires user interaction to activate (click "Enable Bluetooth" in PTT settings). getBluetoothDevices() enumerates audio input devices with bluetooth/wireless/headset in label. Cleanup: cleanupBluetoothPTT() removes all handlers.';
+  }
+  if ((lowered.includes('microphone') || lowered.includes('mic')) && (lowered.includes('ptt') || lowered.includes('push to talk') || lowered.includes('speak'))) {
+    return 'PTT audio: Microphone access uses getUserMedia({audio: {echoCancellation, noiseSuppression, autoGainControl}}). Audio clips recorded via MediaRecorder (audio/webm;codecs=opus), max 60s / 3MB, uploaded to ptt-clips Supabase Storage bucket with 24h signed URLs. If mic denied: check chrome://settings/content/microphone. If CHANNEL_BUSY: another user is speaking — half-duplex, wait for them. If audio cuts out: check VOX threshold (lower it to 20-30%). For Bluetooth PTT: uses Media Session API — requires user interaction to activate.';
+  }
+  if (lowered.includes('push to talk') || lowered.includes('ptt') || lowered.includes('walkie') || lowered.includes('voice chat')) {
+    return 'Push-to-Talk (PTT) stack: PTTBar.tsx (UI) → ptt.ts (WebSocket + WebRTC) → pttBackground.ts (auto-connect) → pttStore.ts (Zustand) → ptt-signaling-token Edge Function → ptt-server on Railway (WebSocket signaling). Channel scopes: org:<uuid>, team:<uuid>, deployment:<uuid>, incident:<uuid>, direct:<uuid>. Input modes: PTT (hold to talk), Toggle (click), VOX (voice-activated). Half-duplex — one speaker at a time. PTTBar is used in TeamChat and OfficerHomePage. Use POST /assess/ptt with {symptom: "..."} to diagnose PTT issues.';
+  }
+  if (lowered.includes('websocket') || lowered.includes('webrtc') || lowered.includes('signaling')) {
+    return 'PTT signaling server: ptt-server/ directory (Node.js + Express + ws). Railway deployment via Dockerfile. Env vars: PTT_JWT_SECRET (required), PROXY_SECRET (required), PORT (auto), TURN_URL/USERNAME/CREDENTIAL (optional for NAT traversal). WebSocket path: /ws?token=<jwt>. Messages: start_speaking, stop_speaking, signal (WebRTC SDP/ICE), status, ping/pong. Half-duplex enforced server-side. In-memory state (single instance; Redis for multi-instance scaling). Health: GET /health.';
+  }
+
+  // NZ legal domain
+  if (lowered.includes('privacy act') || lowered.includes('ipp') || lowered.includes('personal information') || lowered.includes('privacy breach')) {
+    return 'Privacy Act 2020 has 13 Information Privacy Principles (IPPs). Key: minimise collection (IPP 1), ensure security (IPP 5), limit use (IPP 10), limit disclosure (IPP 11), restrict cross-border transfers (IPP 12). Mandatory breach reporting for serious harm — notify Privacy Commissioner and affected individuals. Bob processes ALPR/face data under IPP 1 (necessary for enforcement) with audit logs (IPP 5). Use GET /legal/act/privacy_act_2020 for full details, or POST /legal/check to validate any action.';
+  }
+  if (lowered.includes('bill of rights') || lowered.includes('nzbora') || lowered.includes('human rights') || lowered.includes('natural justice')) {
+    return 'NZBORA 1990 affirms fundamental rights. Key for enforcement: freedom of movement (s 18), unreasonable search protection (s 21), right to natural justice (s 27). Enforcement officers cannot detain — only Police have arrest powers. Automated breach detection must allow human review. All enforcement must be proportionate. Use GET /legal/act/nzbora_1990 for full details.';
+  }
+  if (lowered.includes('rma') || lowered.includes('resource management') || lowered.includes('environment')) {
+    return 'RMA 1991: sustainable management of natural resources. Freedom camping must not cause environmental damage (waste, contamination). Māori cultural sites and wāhi tapu need special consideration. Enforcement data should track environmental impact alongside stay-limit breaches. Use GET /legal/act/rma_1991 for full details.';
+  }
+  if (lowered.includes('police') || lowered.includes('arrest') || lowered.includes('detain') || lowered.includes('force')) {
+    return 'Policing Act 2008: Only NZ Police have arrest/detention/force powers — camping enforcement officers cannot arrest, detain, or use force. Involve Police for: threats of violence, criminal damage, refusal to identify (FCA s 27), stolen vehicles, drug offences, welfare concerns. Share only necessary information and log all disclosures. Use GET /legal/act/policing_act_2008 for full details.';
+  }
+  if (lowered.includes('nzdf') || lowered.includes('defence') || lowered.includes('military')) {
+    return 'NZDF considerations: Defence land is outside council jurisdiction (managed under Defence Act 1990). NZDF may assist in civil emergencies. Military personnel subject to NZ law including Privacy Act and NZBORA. Do not share surveillance data with NZDF without authorisation. Security perimeters around facilities may restrict nearby camping. Use GET /legal/act/nzdf for full details.';
+  }
+  if (lowered.includes('evidence') || lowered.includes('admissib') || lowered.includes('chain of custody') || lowered.includes('court')) {
+    return 'Evidence Act 2006: Computer-generated evidence (ALPR, breach detection) is admissible if system reliability is established (s 137). Chain of custody must be documented. Improperly obtained evidence may be excluded (s 30). Bob maintains audit trails with algorithm version, input data, and confidence scores. Photo evidence preserves original metadata. Use GET /legal/act/evidence_act_2006 for full details.';
+  }
+  if (lowered.includes('search') || lowered.includes('surveillance') || lowered.includes('alpr') || lowered.includes('camera')) {
+    return 'Search and Surveillance Act 2012: Observation from public places is lawful — no warrant needed. ALPR scanning from public roads is lawful (plates are publicly visible). Photography from public land is lawful. Entering vehicles/tents requires warrant or consent. Covert surveillance (hidden cameras, tracking) requires authorisation. GPS tracking of officers is lawful with employer notice. Use GET /legal/act/search_surveillance_2012.';
+  }
+  if (lowered.includes('freedom camping act') || lowered.includes('fca') || lowered.includes('bylaw') || lowered.includes('infringement')) {
+    return 'Freedom Camping Act 2011: Camping is permitted unless restricted by bylaw. Officers can issue infringement notices (≤$200), NTV, request name/address. Officers CANNOT arrest, detain, use force, or enter vehicles. Bylaws vary by council — zone rules are district-specific. SCV certification under NZS 5465:2001 can grant exemptions. Seizure/impounding requires specific grounds and judicial oversight. Use GET /legal/act/freedom_camping_act_2011.';
+  }
+  if (lowered.includes('guardrail') || lowered.includes('legal check') || lowered.includes('compliance check') || lowered.includes('lawful')) {
+    return 'Bob follows 12 AI legal guardrails (G1-G12): privacy by design, lawful evidence only, human review required, proportionate enforcement, no Police powers, full audit trail, no cross-border leakage, data security, breach notification, respect for rights, not legal advice, vulnerable persons consideration. Use POST /legal/check with {description: "proposed action"} to check any action against these guardrails. Use GET /legal/guardrails for the full list.';
+  }
+  if (lowered.includes('oia') || lowered.includes('official information') || lowered.includes('information request')) {
+    return 'OIA 1982: Public can request official information from local authorities within 20 working days. Enforcement data, patrol logs, and compliance stats may be subject to OIA requests. Data must be stored in retrievable format. Personal information should be separable for redaction. Do not delete data that may be subject to OIA requests. Use GET /legal/act/oia_1982 for full details.';
+  }
+  if (lowered.includes('vulnerable') || lowered.includes('homeless') || lowered.includes('welfare') || lowered.includes('special consideration')) {
+    return 'Guardrail G12 — vulnerable persons: When encountering homeless individuals, families with young children, elderly, or disabled persons, consider welfare referrals before enforcement. These situations may require social services rather than infringement notices. Bob flags vulnerable person indicators and recommends proportionate responses. This aligns with NZBORA s 27 (natural justice) and operational policy.';
+  }
+  if (lowered.includes('law') || lowered.includes('legal') || lowered.includes('legislation') || lowered.includes('act')) {
+    return 'I know NZ law relevant to freedom camping enforcement: Privacy Act 2020, NZBORA 1990, Freedom Camping Act 2011, Local Government Act 2002, RMA 1991, Search and Surveillance Act 2012, Evidence Act 2006, Policing Act 2008, Criminal Procedure Act 2011, Harmful Digital Communications Act 2015, OIA 1982, and NZDF considerations. Use GET /legal/framework for overview, GET /legal/act/{key} for details, POST /legal/check to validate actions. All guidance is operational — not formal legal advice.';
+  }
+
+  // Platform infrastructure domain
+  if (lowered.includes('supabase') && (lowered.includes('function') || lowered.includes('edge'))) {
+    return 'Supabase Edge Functions: 47 functions in supabase/functions/<name>/index.ts. Deno runtime. Must handle OPTIONS preflight. CORS via _shared/withCors.ts. Secrets via Supabase Dashboard → Settings → Edge Functions. Deploy: supabase functions deploy <name> --project-ref kxwjcupuxnnbnzcgmkoi. Key shared modules: withCors.ts (CORS), compliance.ts (breach calc), alpr.ts (plate recognition), orgConfig.ts (SMTP). Use POST /assess/platform with {symptom:"..."} to diagnose.';
+  }
+  if (lowered.includes('supabase') || (lowered.includes('rls') || lowered.includes('row level security') || lowered.includes('postgres') || lowered.includes('migration'))) {
+    return 'Supabase: project ref kxwjcupuxnnbnzcgmkoi, AWS ap-southeast-2 (Sydney), PostgreSQL 17. Auth JWT 3600s expiry, token rotation on. RLS on every table — auth.uid() + organization_id. 70+ migrations in supabase/migrations/ (YYYYMMDD_* prefix). Apply: supabase db push. Types: supabase gen types typescript → src/types/database.ts. Connection pooler (Transaction mode) for Edge Functions. Anon key (RLS-enforced) for frontend; service role (bypasses RLS) for Edge Functions only. Use GET /platform/supabase for full knowledge. Use POST /assess/platform with {symptom:"..."} to diagnose.';
+  }
+  if ((lowered.includes('railway') && !lowered.includes('ptt server')) || lowered.includes('dockerfile') || lowered.includes('oom') || lowered.includes('health check') && lowered.includes('service')) {
+    return 'Railway services: Bob (inference-service/, port 3000, 60s health), Proxy (proxy-server/, port 3000), PTT (ptt-server/, port 3002), Ollama (ollama/, port 3000). All must listen on process.env.PORT. Bob → Ollama via http://ollama.railway.internal:3000 (private network). Ollama pinned v0.20.2 (OLLAMA_HOST=0.0.0.0:3000). Bob needs 1GB+ RAM for ONNX. Tokens: RAILWAY_BOB_TOKEN (Bob+Ollama), RAILWAY_PTT_SERVICE_ID, RAILWAY_PROXY_SERVICE_ID. Deploy via GitHub Actions workflows. Use GET /platform/railway for full knowledge.';
+  }
+  if (lowered.includes('github action') || lowered.includes('workflow') || lowered.includes('ci/cd') || lowered.includes('codespace')) {
+    return 'GitHub: 25 Actions workflows in .github/workflows/. Deploy: frontend (Vercel), Bob/Ollama/PTT/Proxy (Railway), mobile (EAS), Edge Functions (Supabase). Database: db-push.yml (requires @DonSquires approval). Ops crons: Bob feedback 03:47 NZST, self-learning pretrain 04:21 NZST, intel every 6h. Codespaces: Node 22, Bun, Supabase CLI, Deno (ports: 5173/3000/3002/8080). bun.lock must be committed or Railway deploy fails. Bob sync: sync-bob-repo.yml → DonSquires/Bob. Use GET /platform/github for full knowledge.';
+  }
+  if (lowered.includes('vercel') || (lowered.includes('frontend') && lowered.includes('deploy'))) {
+    return 'Vercel hosts the React/Vite SPA. Build: bun run build → dist/. SPA rewrite: all routes → /index.html. Security headers: HSTS 1yr, X-Frame-Options:DENY, CSP (connect-src: *.supabase.co wss: *.railway.app). Environments: production (VITE_SUPABASE_URL_PRODUCTION) and preview (VITE_SUPABASE_URL_PREVIEW). Domain: fcmanager.co.nz. DNS: CNAME www → cname.vercel-dns.com. Client env vars must be prefixed VITE_. Use GET /platform/vercel for full knowledge.';
+  }
+  if (lowered.includes('expo') || lowered.includes('mobile app') || lowered.includes('eas build') || (lowered.includes('mobile') && lowered.includes('deploy'))) {
+    return 'Expo/EAS mobile app in mobile-app/. EAS project: 9ec25722-38ca-44d3-a8f5-62a8d8a64e6d. Android: com.ironeagle.fieldops.manager. Plugins: expo-camera, expo-location, expo-notifications, expo-secure-store. Build: eas build --platform android --profile production. OTA: eas update --channel production. Deploy workflow: deploy-mobile.yml. Keystore: ops-generate-keystore.yml. PTT on mobile uses Expo Audio + WebSocket. Use GET /platform/expo for full knowledge.';
+  }
+  if (lowered.includes('smtp') || lowered.includes('email') || (lowered.includes('mail') && !lowered.includes('gmail'))) {
+    return 'Email: Zoho SMTP (smtp.zoho.com:465, SSL) for global send. Use App-Specific Password (not account password). Resend API (RESEND_API_KEY in Supabase secrets) for transactional email. Per-org SMTP stored encrypted in DB, retrieved via _shared/orgConfig.ts. Auth templates in supabase/templates/ (invite, recovery, confirmation, magic_link). DNS: SPF (include:zoho.com), DKIM from Zoho/Resend dashboard, DMARC. Zoho limit: ~200/day free. Use Resend for high volume. Use GET /platform/email for full knowledge.';
+  }
+  if ((lowered.includes('domain') || lowered.includes('dns') || lowered.includes('ssl') || lowered.includes('cors')) && !lowered.includes('ptt')) {
+    return 'Domain: fcmanager.co.nz (.co.nz via NZRS). Vercel CNAME: www.fcmanager.co.nz → cname.vercel-dns.com. A record: @ → 76.76.21.21. SSL: Let\'s Encrypt auto-managed by Vercel. Supabase redirect_urls: fcmanager.co.nz, www, *.onspace.build, *.vercel.app, localhost:5173/3000. CORS allowlist in _shared/withCors.ts (DEV_CORS=true for local). Adding new domain: (1) Supabase redirect_urls, (2) CORS allowlist, (3) DNS records, (4) SSL. Use GET /platform/domain for full knowledge.';
+  }
+  if (lowered.includes('hybrid') || lowered.includes('architecture') || lowered.includes('stack overview') || lowered.includes('how everything') || lowered.includes('all the pieces')) {
+    return 'FieldOps hybrid stack: Web (React → Vercel) + Mobile (Expo → EAS) → Supabase BaaS (auth/DB/47 Edge Functions/Storage) + Railway microservices (Bob/Proxy/PTT/Ollama). CI/CD: 25 GitHub Actions. Plate scan: Mobile → Edge Function → Proxy → NZSCV → observation → compliance check → breach. AI: Photo → Bob ONNX → plate result. PTT: Button → Edge Function → PTT server JWT → WebSocket → WebRTC audio. Self-learning: nightly GitHub Actions → Bob /learn/pretrain. Similar: ParkPow, Genetec, Axon Field, Parking+Plus NZ. Use GET /platform/stack for full architecture overview.';
+  }
+  if (lowered.includes('platform') || lowered.includes('infrastructure') || lowered.includes('hosting')) {
+    return 'FieldOps infrastructure: Vercel (frontend SPA), Supabase (auth/DB/Edge Functions/Storage, project kxwjcupuxnnbnzcgmkoi), Railway (Bob/Proxy/PTT/Ollama microservices), GitHub Actions (25 CI/CD workflows), Expo EAS (mobile builds). Primary domain: fcmanager.co.nz. Email: Zoho SMTP + Resend. Use GET /platform/:key for knowledge on supabase/railway/github/vercel/expo/domain/email. Use POST /assess/platform with {symptom:"..."} to diagnose. Use POST /ask-copilot to queue questions Bob cannot answer.';
+  }
+  if (lowered.includes('ask copilot') || lowered.includes('knowledge request') || lowered.includes('learn') || lowered.includes('don\'t know') || lowered.includes('not sure')) {
+    return 'Bob can queue knowledge requests for Copilot to research. Use POST /ask-copilot with {question: "...", category: "supabase|railway|github|vercel|expo|domain|email|ptt|general"} to submit a question. Copilot\'s ops-bob-ask-copilot.yml workflow polls GET /ask-copilot/pending hourly, researches answers via GitHub Models API, and sends answers back via POST /ask-copilot/:id/answer — which auto-ingests the knowledge into Bob\'s intel feed. Check status: GET /ask-copilot. Answered knowledge is available via /intel/state.';
+  }
+
   const tone = context?.tone === 'brief' ? 'briefly' : 'clearly';
-  return `I understand your request. I will respond ${tone} and keep recommendations aligned with local enforcement policy and evidence-first decisions.`;
+  // Auto-queue unknown questions for Copilot research
+  try {
+    knowledgeRequestsStore.queueRequest(text, { source: 'heuristic-chat-fallback', context: context?.page || null });
+  } catch (err) {
+    // Non-blocking — queue failure should not affect chat response
+    console.warn('Failed to queue knowledge request:', err.message);
+  }
+  return `I don't have a specific answer for that in my current knowledge. I've queued this question for Copilot research — it will be answered and added to my intel feed via the ops-bob-ask-copilot workflow. Check GET /ask-copilot/pending to monitor status. In the meantime, I will respond ${tone} with what I know and keep recommendations aligned with local enforcement policy and NZ legal requirements.`;
 }
 
 async function generateChatReplyWithOllama(message, history = [], context = {}) {
@@ -901,78 +1067,69 @@ async function generateChatReplyWithOllama(message, history = [], context = {}) 
     return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
   }
 
-  let lastError = null;
-  for (let attempt = 1; attempt <= OLLAMA_CHAT_RETRY_ATTEMPTS; attempt += 1) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS);
-    try {
-      recordEgressEvent('ollama', 'attempted', `chat response generation (attempt ${attempt}/${OLLAMA_CHAT_RETRY_ATTEMPTS})`);
-      const response = await safeFetch(`${OLLAMA_BASE_URL}/api/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        signal: controller.signal,
-        body: JSON.stringify({
-          model: OLLAMA_MODEL,
-          stream: false,
-          messages: [
-            {
-              role: 'system',
-              content: 'You are Bob, the AI assistant embedded in FieldOps Manager — a freedom camping enforcement platform used by councils and security contractors in New Zealand.\n\nYou assist officers, supervisors, and administrators with:\n- NZ freedom camping law: Freedom Camping Act 2011, Local Government Act 2002, RMA 1991, Privacy Act 2020\n- Compliance analysis: breach trends, stay-night calculations, zone rule interpretation\n- Patrol operations: shift planning, route guidance, officer welfare checks\n- Enforcement actions: Notice to Vacate, Warning Notice, Infringement Notice, Noise Notice\n- Vehicle and plate workflows: ALPR results, SCV certification via NZSCV register\n- Incident and evidence management and investigation notes\n- Risk assessments, SOPs, H&S plans, evacuation plans, active offender procedures\n- Data import, system diagnostics, and operational guidance\n\nKey facts:\n- Zones have allowed_days, max_consecutive_nights, max_nights_per_month\n- Observations track plate_number, zone, recorded_at, and photo evidence\n- Breach triggers when stay limits are exceeded\n- Homeless or vulnerable occupants receive special consideration under policy\n- SCV status from NZSCV register can grant zone exemptions\n- All times are NZ timezone (Pacific/Auckland)\n\nBe concise — field officers need fast actionable answers. When you do not know something specific, say so. Never fabricate data or plate numbers. Return plain text only, no markdown formatting.',
-            },
-            ...history.slice(-12).map((m) => ({
-              role: m?.role === 'assistant' ? 'assistant' : 'user',
-              content: String(m?.content || ''),
-            })),
-            {
-              role: 'user',
-              content: String(message || ''),
-            },
-          ],
-        }),
-      }, 'ollama');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS);
+  try {
+    recordEgressEvent('ollama', 'attempted', 'chat response generation');
+    const response = await safeFetch(`${OLLAMA_BASE_URL}/api/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: OLLAMA_MODEL,
+        stream: false,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are Bob, the AI assistant embedded in FieldOps Manager — a freedom camping enforcement platform used by councils and security contractors in New Zealand.\n\nYou assist officers, supervisors, and administrators with:\n- NZ freedom camping law: Freedom Camping Act 2011, Local Government Act 2002, RMA 1991, Privacy Act 2020\n- Compliance analysis: breach trends, stay-night calculations, zone rule interpretation\n- Patrol operations: shift planning, route guidance, officer welfare checks\n- Enforcement actions: Notice to Vacate, Warning Notice, Infringement Notice, Noise Notice\n- Vehicle and plate workflows: ALPR results, SCV certification via NZSCV register\n- Incident and evidence management and investigation notes\n- Risk assessments, SOPs, H&S plans, evacuation plans, active offender procedures\n- Data import, system diagnostics, and operational guidance\n\nNZ Legal Framework (Bob and Ollama MUST abide by these rules):\n- Privacy Act 2020: 13 IPPs. Minimise collection, ensure security, limit use/disclosure, restrict cross-border transfers. Mandatory breach reporting.\n- NZBORA 1990: Rights to movement (s 18), protection from unreasonable search (s 21), natural justice (s 27). All enforcement must respect these.\n- Freedom Camping Act 2011: Officers can issue infringements/NTV/request identity. Officers CANNOT arrest, detain, use force, or enter vehicles — only Police can.\n- RMA 1991: Protect environment. Track environmental impact. Respect Māori cultural sites.\n- Search and Surveillance Act 2012: Public observation/ALPR lawful. Entering vehicles requires warrant/consent. Covert surveillance requires authorisation.\n- Evidence Act 2006: Computer evidence admissible if reliability established (s 137). Maintain chain of custody and audit trails.\n- Policing Act 2008: Involve Police for threats, violence, stolen vehicles, refusal to identify. Share only necessary info, log disclosures.\n- NZDF: Defence land outside council jurisdiction. Do not share surveillance data without authorisation.\n- AI Guardrails: G1 privacy by design, G2 lawful evidence, G3 human review, G4 proportionate enforcement, G5 no Police powers, G6 audit trail, G7 no cross-border leakage, G8 data security, G9 breach notification, G10 respect rights, G11 not legal advice, G12 vulnerable persons.\n- Use POST /legal/check to validate any action. GET /legal/framework for overview. GET /legal/guardrails for full rules.\n\nUI/UX Design Assessment:\n- Design system: Tailwind CSS v3 + shadcn/ui (Radix) with HSL CSS variable theming\n- Four themes: light, dark, high-contrast, night-patrol (for officers in low-light with gloves)\n- Colours: primary teal (HSL 187 72% 37%), accent amber (HSL 48 96% 53%), destructive red (HSL 0 84% 60%)\n- Night-patrol mode: pure black bg, bright cyan primary, 56px min button height, 52px min input height, 17px base font\n- WCAG AA target: 4.5:1 contrast for text, 3:1 for large text, semantic HTML, ARIA attributes, focus-visible rings\n- Responsive breakpoints: sm 640px, md 768px, lg 1024px, xl 1280px (mobile-first)\n- Layout patterns: dashboard (grid cards + table), form (labelled inputs + validation), list (virtualized + empty states), detail (hero + tabs), map (full-height + overlays)\n- Human-friendliness: score components on accessibility (35%), responsiveness (30%), design consistency (35%)\n- Use POST /assess/ui for code analysis, POST /assess/ui/screenshot for visual analysis, POST /assess/ui/colours for contrast checks\n\nFull-Stack Navigation & Debugging:\n- Stack: React UI (src/pages/) → hooks (src/hooks/) → Supabase client → Postgres with RLS → Edge Functions (supabase/functions/) → Railway inference\n- Routes: react-router-dom v6 in App.tsx with ProtectedRoute, RoleRoute, AreaRoute guards. 60+ routes.\n- Button trace: onClick handler → mutation.mutate() → supabase.from(table).insert/update/delete → Postgres → RLS → response → cache invalidation\n- Link trace: <Link to="/path"> → route match → role guard → page component → useParams → hook data fetch\n- Form trace: react-hook-form + zod validation → onSubmit → mutation → Supabase → success toast\n- Debug: POST /navigate/debug with symptom. GET /navigate/stack-map for topology. GET /navigate/route?path= for route lookup.\n- POST /assess/ui/trace to trace any button/link/form from JSX through to database\n- Common fixes: button disabled (check loading state), 404 (check route path), 403 (check RLS), blank page (check hook errors)\n\nPush-to-Talk (PTT) System:\n- Stack: PTTBar.tsx (UI) → ptt.ts (WebSocket + WebRTC) → pttBackground.ts (auto-connect) → pttStore.ts (Zustand) → ptt-signaling-token Edge Function → ptt-server on Railway (WebSocket)\n- Channel types: org:<uuid> (org-wide), team:<uuid>, deployment:<uuid>, incident:<uuid>, direct:<uuid> (1:1)\n- Token flow: requestPTTToken() → Edge Function validates auth + org → ptt-server /api/token/mint → JWT (10min expiry) → WebSocket connect with ?token=jwt\n- Input modes: PTT (hold to talk), Toggle (click), VOX (voice-activated with threshold). Half-duplex — one speaker per channel.\n- Auto-connect: usePTTAutoConnect hook in App.tsx starts pttBackground service on login. Maintains connection with ping/pong heartbeat.\n- Audio: getUserMedia with echoCancellation + noiseSuppression. MediaRecorder (opus/webm, max 60s/3MB). Clips upload to ptt-clips Supabase Storage.\n- Common issues: "PTT unavailable" = Edge Function not deployed or PTT_SERVER_URL not set. 4001/4002 = auth failure. 4003 = channel full. CHANNEL_BUSY = someone else talking.\n- PTT server env: PTT_JWT_SECRET + PROXY_SECRET (required, must match Edge Function). TURN_URL/USERNAME/CREDENTIAL (optional NAT traversal).\n- DB tables: ptt_messages (clip metadata), ptt_presence (online status), ptt_channels (config). All org-scoped with RLS.\n- Voice data privacy: Audio clips have 24h signed URLs, 30-day retention default, org-scoped access. Privacy Act IPP 5 applies.\n- Use POST /assess/ptt with {symptom: "..."} to diagnose PTT issues.\n\nKey facts:\n- Zones have allowed_days, max_consecutive_nights, max_nights_per_month\n- Observations track plate_number, zone, recorded_at, and photo evidence\n- Breach triggers when stay limits are exceeded\n- Homeless or vulnerable occupants receive special consideration under policy\n- SCV status from NZSCV register can grant zone exemptions\n- All times are NZ timezone (Pacific/Auckland)\n\nBe concise — field officers need fast actionable answers. When you do not know something specific, say so. Never fabricate data or plate numbers. All guidance is operational, not formal legal advice. Return plain text only, no markdown formatting.',
+          },
+          ...history.slice(-12).map((m) => ({
+            role: m?.role === 'assistant' ? 'assistant' : 'user',
+            content: String(m?.content || ''),
+          })),
+          {
+            role: 'user',
+            content: String(message || ''),
+          },
+        ],
+      }),
+    }, 'ollama');
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const payload = await response.json();
-      const content = payload?.message?.content;
-      if (!content || typeof content !== 'string') {
-        throw new Error('Invalid or missing message content in Ollama response');
-      }
-
-      const trimmed = content.trim();
-      if (!trimmed) {
-        throw new Error('Empty message content in Ollama response');
-      }
-
-      ollamaCircuitBreaker.recordSuccess();
-      return {
-        provider: 'ollama',
-        text: trimmed,
-        fallback: false,
-      };
-    } catch (error) {
-      lastError = error;
-      if (attempt < OLLAMA_CHAT_RETRY_ATTEMPTS) {
-        const waitMs = OLLAMA_CHAT_RETRY_BACKOFF_MS * attempt;
-        console.warn(`⚠️ Local chat via Ollama attempt ${attempt}/${OLLAMA_CHAT_RETRY_ATTEMPTS} failed (${OLLAMA_BASE_URL}): ${error.message}. Retrying in ${waitMs}ms.`);
-        await delay(waitMs);
-      }
-    } finally {
-      clearTimeout(timeout);
+    if (!response.ok) {
+      ollamaCircuitBreaker.recordFailure(new Error(`HTTP ${response.status}`));
+      return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
     }
-  }
 
-  ollamaCircuitBreaker.recordFailure(lastError || new Error('Unknown Ollama chat failure'));
-  if (ollamaCircuitBreaker.state === 'open') {
-    // First time tripping — the breaker itself already logged the details
-  } else {
-    console.warn(`⚠️ Local chat via Ollama failed after ${OLLAMA_CHAT_RETRY_ATTEMPTS} attempts (${OLLAMA_BASE_URL}):`, (lastError && lastError.message) || 'unknown error');
+    const payload = await response.json();
+    const content = payload?.message?.content;
+    if (!content || typeof content !== 'string') {
+      return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
+    }
+
+    const trimmed = content.trim();
+    if (!trimmed) {
+      return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
+    }
+
+    ollamaCircuitBreaker.recordSuccess();
+    return {
+      provider: 'ollama',
+      text: trimmed,
+      fallback: false,
+    };
+  } catch (error) {
+    ollamaCircuitBreaker.recordFailure(error);
+    if (ollamaCircuitBreaker.state === 'open') {
+      // First time tripping — the breaker itself already logged the details
+    } else {
+      console.warn(`⚠️ Local chat via Ollama failed (${OLLAMA_BASE_URL}):`, error.message);
+    }
+    return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
+  } finally {
+    clearTimeout(timeout);
   }
-  return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
 }
 
 app.post('/nlp/tabular/analyze', tabularRateLimit, requireInferenceAuth, async (req, res) => {
@@ -1005,13 +1162,12 @@ app.post('/chat', inferenceRateLimit, requireInferenceAuth, async (req, res) => 
     const message = req.body?.message;
     const history = Array.isArray(req.body?.history) ? req.body.history : [];
     const context = req.body?.context && typeof req.body.context === 'object' ? req.body.context : {};
-    const requestedProvider = normalizeProvider(req.body?.provider, CHAT_PROVIDER);
 
     if (typeof message !== 'string' || !message.trim()) {
       return res.status(400).json({ error: 'message must be a non-empty string' });
     }
 
-    if (requestedProvider === 'ollama') {
+    if (CHAT_PROVIDER === 'ollama') {
       const reply = await generateChatReplyWithOllama(message, history, context);
       return res.json({
         success: true,
@@ -1024,7 +1180,7 @@ app.post('/chat', inferenceRateLimit, requireInferenceAuth, async (req, res) => 
     return res.json({
       success: true,
       provider: 'heuristic',
-      fallback: requestedProvider !== 'heuristic',
+      fallback: false,
       message: generateHeuristicChatReply(message, context),
     });
   } catch (error) {
@@ -1129,6 +1285,519 @@ app.get('/intel/state', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: 
     success: true,
     intel: intelStore.getState(),
   });
+});
+
+// ---------------------------------------------------------------------------
+// UI Assessment endpoints — teach Bob to visualise and evaluate UI
+// ---------------------------------------------------------------------------
+
+app.post('/assess/ui', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const code = req.body?.code;
+    if (typeof code !== 'string' || !code.trim()) {
+      return res.status(400).json({ error: 'code must be a non-empty string containing component JSX/TSX source' });
+    }
+
+    if (code.length > 100_000) {
+      return res.status(400).json({ error: 'code exceeds maximum length of 100,000 characters' });
+    }
+
+    const analysis = analyzeComponentCode(code);
+    const layoutPatterns = identifyLayoutPattern(code);
+
+    return res.json({
+      success: true,
+      analysis,
+      layout_patterns: layoutPatterns,
+      design_system: DESIGN_SYSTEM,
+    });
+  } catch (error) {
+    console.error('UI code assessment error:', error);
+    return res.status(500).json({ error: 'UI assessment failed', message: error.message });
+  }
+});
+
+app.post('/assess/ui/screenshot', inferenceRateLimit, upload.single('screenshot'), requireInferenceAuth, async (req, res) => {
+  try {
+    if (!req.file?.buffer) {
+      return res.status(400).json({ error: 'screenshot file is required (multipart/form-data, field name: screenshot)' });
+    }
+
+    const screenshotAnalysis = await analyzeScreenshot(req.file.buffer);
+
+    return res.json({
+      success: true,
+      screenshot: screenshotAnalysis,
+      design_system: DESIGN_SYSTEM,
+    });
+  } catch (error) {
+    console.error('UI screenshot assessment error:', error);
+    return res.status(500).json({ error: 'Screenshot assessment failed', message: error.message });
+  }
+});
+
+app.post('/assess/ui/colours', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const colours = req.body?.colours;
+    if (!Array.isArray(colours) || colours.length === 0) {
+      return res.status(400).json({ error: 'colours must be a non-empty array of { name, hsl: [h,s,l] } or { name, rgb: [r,g,b] } objects' });
+    }
+
+    if (colours.length > 20) {
+      return res.status(400).json({ error: 'Maximum 20 colours per assessment' });
+    }
+
+    const paletteAssessment = assessColourPalette(colours);
+
+    return res.json({
+      success: true,
+      palette: paletteAssessment,
+      design_system_colours: DESIGN_SYSTEM.color_tokens,
+    });
+  } catch (error) {
+    console.error('Colour assessment error:', error);
+    return res.status(500).json({ error: 'Colour assessment failed', message: error.message });
+  }
+});
+
+app.get('/assess/ui/design-system', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  return res.json({
+    success: true,
+    design_system: DESIGN_SYSTEM,
+    knowledge: getKnowledgePacks().ui_design_context || null,
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Stack Navigation endpoints — teach Bob to trace UI → DB and debug issues
+// ---------------------------------------------------------------------------
+
+app.post('/assess/ui/trace', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const code = req.body?.code;
+    if (typeof code !== 'string' || !code.trim()) {
+      return res.status(400).json({ error: 'code must be a non-empty string containing component JSX/TSX source' });
+    }
+
+    if (code.length > 100_000) {
+      return res.status(400).json({ error: 'code exceeds maximum length of 100,000 characters' });
+    }
+
+    const elementType = req.body?.element_type || 'auto';
+    const trace = traceUIElement(code, elementType);
+
+    return res.json({
+      success: true,
+      trace,
+    });
+  } catch (error) {
+    console.error('UI trace error:', error);
+    return res.status(500).json({ error: 'UI element trace failed', message: error.message });
+  }
+});
+
+app.get('/navigate/stack-map', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  return res.json({
+    success: true,
+    stack: getStackMap(),
+  });
+});
+
+app.get('/navigate/route', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  const path = req.query?.path;
+  if (!path) {
+    return res.json({ success: true, routes: ROUTE_MAP });
+  }
+
+  const route = findRoute(String(path));
+  if (!route) {
+    return res.json({
+      success: true,
+      route: null,
+      message: `No route found for path "${path}". Check App.tsx for valid routes. The catch-all route redirects unknown paths to /.`,
+    });
+  }
+
+  return res.json({ success: true, route });
+});
+
+app.post('/navigate/debug', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const symptom = req.body?.symptom;
+    if (typeof symptom !== 'string' || !symptom.trim()) {
+      return res.status(400).json({ error: 'symptom must be a non-empty string describing the issue' });
+    }
+
+    const steps = getDebuggingSteps(symptom);
+
+    return res.json({
+      success: true,
+      debugging: steps,
+    });
+  } catch (error) {
+    console.error('Debug navigation error:', error);
+    return res.status(500).json({ error: 'Debug navigation failed', message: error.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// NZ Legal Framework endpoints — teach Bob NZ law and compliance guardrails
+// ---------------------------------------------------------------------------
+
+app.get('/legal/framework', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  return res.json({
+    success: true,
+    framework: getLegalFramework(),
+  });
+});
+
+app.get('/legal/act/:actKey', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  const actKey = req.params.actKey;
+  const detail = getLegalDetail(actKey);
+  if (!detail) {
+    return res.status(404).json({
+      error: `Act "${actKey}" not found.`,
+      available: [
+        'privacy_act_2020', 'nzbora_1990', 'freedom_camping_act_2011', 'local_government_act_2002',
+        'rma_1991', 'search_surveillance_2012', 'evidence_act_2006', 'policing_act_2008',
+        'criminal_procedure_2011', 'harmful_digital_comms_2015', 'oia_1982', 'nzdf', 'ai_guardrails',
+      ],
+    });
+  }
+  return res.json({ success: true, act: detail });
+});
+
+app.get('/legal/guardrails', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  return res.json({
+    success: true,
+    guardrails: AI_LEGAL_GUARDRAILS,
+  });
+});
+
+app.post('/legal/check', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const action = req.body;
+    if (!action?.description || typeof action.description !== 'string') {
+      return res.status(400).json({ error: 'action.description must be a non-empty string describing the proposed action' });
+    }
+
+    const result = checkLegalCompliance(action);
+
+    return res.json({
+      success: true,
+      compliance: result,
+    });
+  } catch (error) {
+    console.error('Legal compliance check error:', error);
+    return res.status(500).json({ error: 'Legal compliance check failed', message: error.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// PTT Diagnostics endpoint — diagnose PTT issues
+// ---------------------------------------------------------------------------
+
+const PTT_DIAGNOSTICS = {
+  connection: {
+    keywords: ['connect', 'unavailable', 'disconnect', 'offline', 'wifi off', 'not connecting', 'error connecting'],
+    diagnosis: 'PTT connection failure',
+    checks: [
+      { step: 'Check ptt-signaling-token Edge Function is deployed', detail: 'Run set-ptt-secret.yml workflow or: supabase functions deploy ptt-signaling-token --project-ref $REF --no-verify-jwt' },
+      { step: 'Verify PTT_SERVER_URL in Supabase secrets', detail: 'Supabase Dashboard → Settings → Edge Functions → Secrets. Should be the Railway URL of ptt-server (e.g., https://ptt-server-production.up.railway.app)' },
+      { step: 'Check ptt-server health on Railway', detail: 'GET https://<ptt-server-url>/health — should return {status:"ok",channels:N,connectedUsers:N}' },
+      { step: 'Verify PTT_JWT_SECRET matches', detail: 'Same secret must be set on both Supabase Edge Function secrets AND Railway ptt-server environment variables' },
+      { step: 'Verify PROXY_SECRET matches', detail: 'Edge Function uses this to authenticate with ptt-server /api/token/mint. Must match between Supabase secrets and Railway env.' },
+      { step: 'Check user authentication', detail: 'User must be logged in with a valid session. PTT waits for auth loading to complete before connecting (usePTTAutoConnect).' },
+      { step: 'Check organization_id', detail: 'User must have an organization_id. Master/grand_master users need an org selected in global filter dropdown.' },
+      { step: 'Check browser Console for error details', detail: 'Look for "🎤 PTT:" messages. "unable to reach the edge function" = Edge Function not deployed. WebSocket close codes: 4001/4002=auth, 4003=channel full.' },
+    ],
+  },
+  speaking: {
+    keywords: ['speak', 'talk', 'mic', 'microphone', 'button grey', 'cannot talk', 'greyed out', 'muted', 'channel busy'],
+    diagnosis: 'PTT speaking/microphone issue',
+    checks: [
+      { step: 'Verify PTT connection is active', detail: 'Green wifi icon in PTTBar = connected. If not connected, fix connection first (see connection diagnostics).' },
+      { step: 'Check if channel is busy', detail: 'Half-duplex: only one speaker at a time. If someone else is speaking (yellow PTT button), wait for them to finish.' },
+      { step: 'Check mute state', detail: 'If isMuted=true, PTT button is disabled. Click the mute/unmute button in PTTBar to toggle.' },
+      { step: 'Check browser microphone permission', detail: 'Chrome: chrome://settings/content/microphone. Firefox: about:preferences#privacy. Ensure site is allowed.' },
+      { step: 'Test microphone independently', detail: 'Use browser\'s built-in audio recorder or a site like mictests.com to verify mic works outside PTT.' },
+      { step: 'Check WebSocket readyState', detail: 'In browser Console: ws.readyState should be 1 (OPEN). If 0 (CONNECTING) or 3 (CLOSED), connection is broken.' },
+      { step: 'For VOX: adjust threshold', detail: 'If VOX mode and threshold too high, voice won\'t trigger. Lower threshold to 20-30% in PTT settings popover.' },
+    ],
+  },
+  audio_quality: {
+    keywords: ['choppy', 'echo', 'noise', 'quality', 'cutting out', 'one way', 'can\'t hear', 'no sound', 'static'],
+    diagnosis: 'PTT audio quality issue',
+    checks: [
+      { step: 'Check network connection', detail: 'WebRTC audio requires stable connection. High latency or packet loss causes choppy audio. Try a different network.' },
+      { step: 'Check for echo', detail: 'echoCancellation is enabled by default. If echo persists: use headphones/earbuds, or lower speaker volume.' },
+      { step: 'Check for background noise', detail: 'noiseSuppression is enabled. If noisy: use a directional microphone, move to quieter area, or raise VOX threshold.' },
+      { step: 'Check NAT traversal', detail: 'If behind corporate firewall/symmetric NAT, STUN alone may not work. Configure TURN server: set TURN_URL, TURN_USERNAME, TURN_CREDENTIAL on ptt-server.' },
+      { step: 'Check one-way audio', detail: 'Both parties need microphone permission. Check WebRTC ICE connection state in DevTools. If ICE fails, TURN server is needed.' },
+      { step: 'Check clip playback', detail: 'After speaking, clip uploads to ptt-clips Storage bucket. Check Network tab for upload success. If upload fails: check Storage bucket exists and RLS allows upload.' },
+      { step: 'Check browser support', detail: 'audio/webm;codecs=opus required. Chrome, Firefox, Edge support it. Safari has limited WebM support — may need audio/mp4 fallback.' },
+    ],
+  },
+  deployment: {
+    keywords: ['deploy', 'railway', 'setup', 'install', 'configure', 'secret', 'env'],
+    diagnosis: 'PTT deployment/configuration issue',
+    checks: [
+      { step: 'Deploy ptt-server to Railway', detail: 'Create Railway service from ptt-server/ directory. Set builder to Dockerfile. Configure env vars.' },
+      { step: 'Set required env vars on Railway', detail: 'PTT_JWT_SECRET (generate: openssl rand -hex 32), PROXY_SECRET (shared with Edge Function), PORT (auto-set by Railway).' },
+      { step: 'Set Supabase Edge Function secrets', detail: 'Run set-ptt-secret.yml workflow or manually set PTT_SERVER_URL and PTT_PROXY_SECRET in Supabase Dashboard.' },
+      { step: 'Deploy ptt-signaling-token Edge Function', detail: 'supabase functions deploy ptt-signaling-token --project-ref $REF --no-verify-jwt' },
+      { step: 'Create ptt-clips Storage bucket', detail: 'Supabase Dashboard → Storage → New Bucket → name: ptt-clips. Set RLS policies for org-scoped access.' },
+      { step: 'Run PTT migration', detail: 'Migration 20260329000002_ptt_tables.sql creates ptt_messages, ptt_presence, ptt_channels tables.' },
+      { step: 'Verify health endpoint', detail: 'GET https://<railway-url>/health should return status:ok. If not, check Railway logs for startup errors.' },
+      { step: 'Optional: Configure TURN server', detail: 'For NAT traversal in corporate/restricted networks. Set TURN_URL, TURN_USERNAME, TURN_CREDENTIAL on ptt-server.' },
+    ],
+  },
+};
+
+app.post('/assess/ptt', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const symptom = String(req.body?.symptom || '').trim().toLowerCase();
+    if (!symptom) {
+      return res.status(400).json({ error: 'symptom is required', example: '{ "symptom": "PTT button greyed out" }' });
+    }
+
+    // Match symptom to diagnostic category
+    let matched = null;
+    let bestScore = 0;
+    for (const [category, diag] of Object.entries(PTT_DIAGNOSTICS)) {
+      let score = 0;
+      for (const kw of diag.keywords) {
+        if (symptom.includes(kw)) score += 1;
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        matched = { category, ...diag };
+      }
+    }
+
+    // Default to connection if no match
+    if (!matched) {
+      matched = { category: 'connection', ...PTT_DIAGNOSTICS.connection };
+    }
+
+    return res.json({
+      success: true,
+      symptom: req.body?.symptom,
+      diagnosis: matched.diagnosis,
+      category: matched.category,
+      checks: matched.checks,
+      stack_overview: 'PTTBar.tsx → ptt.ts → pttBackground.ts → pttStore.ts → ptt-signaling-token Edge Function → ptt-server (Railway)',
+      files: {
+        ui_component: 'src/components/features/PTTBar.tsx',
+        library: 'src/lib/ptt.ts',
+        background: 'src/lib/pttBackground.ts',
+        store: 'src/stores/pttStore.ts',
+        hook: 'src/hooks/usePTTAutoConnect.ts',
+        edge_function: 'supabase/functions/ptt-signaling-token/index.ts',
+        signaling_server: 'ptt-server/server.js',
+        migration: 'supabase/migrations/20260329000002_ptt_tables.sql',
+        secrets_workflow: '.github/workflows/set-ptt-secret.yml',
+      },
+    });
+  } catch (error) {
+    console.error('PTT assessment error:', error);
+    return res.status(500).json({ error: 'PTT assessment failed', message: error.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Platform knowledge & diagnostics
+// ---------------------------------------------------------------------------
+
+app.post('/assess/platform', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const symptom = String(req.body?.symptom || '').trim();
+    if (!symptom) {
+      return res.status(400).json({ error: 'symptom is required', example: '{ "symptom": "Railway service keeps crashing on startup" }' });
+    }
+
+    const result = diagnosePlatformIssue(symptom);
+    return res.json({
+      success: true,
+      symptom,
+      platform: result.platform,
+      diagnosis: result.diagnosis,
+      checks: result.checks,
+      tip: 'For deeper knowledge use GET /platform/:key. To queue a research question for Copilot use POST /ask-copilot.',
+    });
+  } catch (error) {
+    console.error('Platform assessment error:', error);
+    return res.status(500).json({ error: 'Platform assessment failed', message: error.message });
+  }
+});
+
+app.get('/platform/stack', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  return res.json({ success: true, overview: getHybridStackOverview() });
+});
+
+app.get('/platform/:key', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  const key = String(req.params.key || '').toLowerCase();
+  const knowledge = getPlatformKnowledge(key);
+  if (!knowledge) {
+    return res.status(404).json({
+      error: 'Unknown platform key',
+      valid_keys: ['supabase', 'railway', 'github', 'vercel', 'expo', 'domain', 'dns', 'email', 'smtp', 'hybrid', 'stack'],
+    });
+  }
+  return res.json({ success: true, platform: key, knowledge });
+});
+
+// ---------------------------------------------------------------------------
+// Ask-Copilot endpoints — Bob's bidirectional knowledge channel
+// ---------------------------------------------------------------------------
+
+// Queue a new knowledge request
+app.post('/ask-copilot', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const question = String(req.body?.question || '').trim();
+    if (!question) {
+      return res.status(400).json({
+        error: 'question is required',
+        example: '{ "question": "How do I set up Supabase custom domain?", "category": "domain" }',
+      });
+    }
+
+    const request = knowledgeRequestsStore.queueRequest(question, {
+      category: req.body?.category,
+      context: req.body?.context,
+      source: req.body?.source || 'api',
+      priority: req.body?.priority,
+    });
+
+    return res.status(201).json({
+      success: true,
+      request,
+      message: 'Knowledge request queued. Copilot will research and answer via POST /ask-copilot/:id/answer. Monitor: GET /ask-copilot/pending.',
+    });
+  } catch (error) {
+    console.error('Ask-copilot queue error:', error);
+    return res.status(500).json({ error: 'Failed to queue knowledge request', message: error.message });
+  }
+});
+
+// List ALL knowledge requests (with optional status filter)
+app.get('/ask-copilot', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  try {
+    const status = req.query.status;
+    const category = req.query.category;
+    const limit = req.query.limit ? parseInt(req.query.limit, 10) : 50;
+
+    const requests = knowledgeRequestsStore.listRequests({ status, category, limit });
+    return res.json({
+      success: true,
+      requests,
+      counts: knowledgeRequestsStore.getCounts(),
+    });
+  } catch (error) {
+    console.error('Ask-copilot list error:', error);
+    return res.status(500).json({ error: 'Failed to list knowledge requests', message: error.message });
+  }
+});
+
+// List PENDING requests only (polled by ops-bob-ask-copilot.yml workflow)
+app.get('/ask-copilot/pending', rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  try {
+    const limit = req.query.limit ? parseInt(req.query.limit, 10) : 20;
+    const priority = req.query.priority;
+
+    const requests = knowledgeRequestsStore.listRequests({
+      status: 'pending',
+      priority: priority || undefined,
+      limit,
+    });
+
+    return res.json({
+      success: true,
+      pending_count: requests.length,
+      requests,
+      counts: knowledgeRequestsStore.getCounts(),
+      tip: 'POST /ask-copilot/:id/answer to send a researched answer. POST /ask-copilot/:id/skip to mark unanswerable.',
+    });
+  } catch (error) {
+    console.error('Ask-copilot pending error:', error);
+    return res.status(500).json({ error: 'Failed to list pending requests', message: error.message });
+  }
+});
+
+// Receive an answer from Copilot — auto-ingests into Bob's intel feed
+app.post('/ask-copilot/:id/answer', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const answer = String(req.body?.answer || '').trim();
+    if (!answer) {
+      return res.status(400).json({ error: 'answer is required' });
+    }
+
+    const answerSource = String(req.body?.source || 'copilot').slice(0, 100);
+    const githubIssueUrl = req.body?.github_issue_url ? String(req.body.github_issue_url) : undefined;
+
+    // Update the knowledge request record
+    const request = knowledgeRequestsStore.answerRequest(id, answer, {
+      source: answerSource,
+      github_issue_url: githubIssueUrl,
+    });
+
+    // Auto-ingest into Bob's intel feed so all future queries benefit
+    try {
+      intelStore.ingestBulletin({
+        type: 'system',
+        title: `Copilot Answer: ${request.question.slice(0, 80)}`,
+        summary: answer.slice(0, 500),
+        content: answer,
+        tags: [request.category, 'copilot-research', 'knowledge-request'],
+        source: answerSource,
+        metadata: {
+          knowledge_request_id: id,
+          question: request.question,
+          category: request.category,
+          answered_at: request.answered_at,
+        },
+      });
+    } catch (ingestError) {
+      // Log but don't fail — the answer is recorded even if intel ingest fails
+      console.warn('Knowledge answer recorded but intel ingest failed:', ingestError.message);
+    }
+
+    return res.json({
+      success: true,
+      request,
+      ingested_to_intel: true,
+      message: 'Answer recorded and ingested into Bob\'s intel feed. Future chat queries will benefit from this knowledge.',
+    });
+  } catch (error) {
+    const status = error.message.includes('not found') ? 404 : 500;
+    console.error('Ask-copilot answer error:', error);
+    return res.status(status).json({ error: 'Failed to record answer', message: error.message });
+  }
+});
+
+// Mark a request as skipped (Copilot could not research an answer)
+app.post('/ask-copilot/:id/skip', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const reason = req.body?.reason;
+    const request = knowledgeRequestsStore.skipRequest(id, reason);
+    return res.json({ success: true, request });
+  } catch (error) {
+    const status = error.message.includes('not found') ? 404 : 500;
+    return res.status(status).json({ error: 'Failed to skip request', message: error.message });
+  }
+});
+
+// Delete a knowledge request
+app.delete('/ask-copilot/:id', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    knowledgeRequestsStore.deleteRequest(req.params.id);
+    return res.json({ success: true });
+  } catch (error) {
+    const status = error.message.includes('not found') ? 404 : 500;
+    return res.status(status).json({ error: 'Failed to delete request', message: error.message });
+  }
 });
 
 function nearestColourName(r, g, b) {
@@ -2918,8 +3587,6 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       CHAT_PROVIDER,
       CHAT_PROVIDER_RAW,
       SELF_CONTAINED_MODE,
-      REQUIRE_SELF_CONTAINED_MODE,
-      SELF_CONTAINED_STRICT_EGRESS,
       SELF_LEARNING_ENABLED,
       SELF_HEALING_ENABLED,
       INTEL_SIGNING_REQUIRED: !!INTEL_HMAC_KEY,
@@ -2958,6 +3625,7 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       face_embedding: modelsLoaded,              // MobileNetV3 embedding for comparison
     },
     ollama_circuit_breaker: OLLAMA_ENABLED ? ollamaCircuitBreaker.toJSON() : null,
+    knowledge_requests: knowledgeRequestsStore.getState(),
     uptime: process.uptime(),
     memory: process.memoryUsage()
   });
@@ -2998,7 +3666,6 @@ loadModels().then(() => {
       process.exit(1);
     }
   }
-
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 ORC/AI inference service running on port ${PORT}`);
     // Config summary — makes misconfiguration visible at a glance in Railway logs
@@ -3023,7 +3690,7 @@ loadModels().then(() => {
     });
     if (!INFERENCE_API_KEY && !SUPABASE_SERVICE_ROLE_KEY) {
       console.warn('⚠️  No static auth configured (INFERENCE_API_KEY and SUPABASE_SERVICE_ROLE_KEY are both unset).');
-      console.warn('   Authenticated endpoints (/infer/face, /infer/compare, /infer/alpr, /nlp/tabular/analyze, /chat, /self-heal/bug-report, /self-heal/knowledge, /self-heal/patch-task, /intel/ingest-bulletin, /intel/state)');
+      console.warn('   Authenticated endpoints (/infer/face, /infer/compare, /infer/alpr, /nlp/tabular/analyze, /chat, /self-heal/*, /intel/*, /assess/ui/*, /navigate/*)');
       console.warn('   will only accept valid Supabase user JWTs (Bearer token verified against JWKS).');
       console.warn('   Edge functions cannot call these endpoints without a user JWT.');
       console.warn('   Fix: set SUPABASE_SERVICE_ROLE_KEY environment variable to enable service-to-service auth.');
