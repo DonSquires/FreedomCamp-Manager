@@ -17,19 +17,24 @@ jobs:
 
     steps:
       - name: Validate required secrets
+        id: validate-secrets
         run: |
           missing=""
           [ -z "$BOB_FEEDBACK_SYNC_URL" ] && missing="$missing BOB_FEEDBACK_SYNC_URL"
           [ -z "$BOB_FEEDBACK_SYNC_KEY" ] && missing="$missing BOB_FEEDBACK_SYNC_KEY"
           if [ -n "$missing" ]; then
-            echo "::error::Missing required secrets:$missing"
-            exit 1
+            echo "::warning::Missing required secrets:$missing"
+            echo "Skipping Bob feedback sync. Configure the missing secrets to enable this job."
+            echo "can_run=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          echo "can_run=true" >> "$GITHUB_OUTPUT"
         env:
           BOB_FEEDBACK_SYNC_URL: ${{ secrets.BOB_FEEDBACK_SYNC_URL }}
           BOB_FEEDBACK_SYNC_KEY: ${{ secrets.BOB_FEEDBACK_SYNC_KEY }}
 
       - name: Trigger feedback sync
+        if: steps.validate-secrets.outputs.can_run == 'true'
         env:
           BOB_FEEDBACK_SYNC_URL: ${{ secrets.BOB_FEEDBACK_SYNC_URL }}
           BOB_FEEDBACK_SYNC_KEY: ${{ secrets.BOB_FEEDBACK_SYNC_KEY }}
@@ -56,3 +61,8 @@ jobs:
           fi
 
           echo "✅ Bob feedback sync completed"
+
+      - name: Sync skipped (not configured)
+        if: steps.validate-secrets.outputs.can_run != 'true'
+        run: |
+          echo "ℹ️ Bob feedback sync skipped because required secrets are not configured."
