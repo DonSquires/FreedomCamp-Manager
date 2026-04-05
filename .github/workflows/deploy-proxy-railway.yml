@@ -69,20 +69,25 @@ jobs:
           echo "$HOME/.railway/bin" >> "$GITHUB_PATH"
 
       - name: Validate Railway token/service
+        id: validate-token
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN || secrets.RAILWAY_BOB_TOKEN }}
         run: |
           echo "🔑 Validating Railway proxy token..."
           if ! railway service list --json > /dev/null 2>&1; then
-            echo "::error::RAILWAY_TOKEN is invalid or expired."
+            echo "::warning::RAILWAY_TOKEN is invalid or expired — proxy deploy will be skipped."
             echo "Generate a new project token in Railway (Project → Settings → Tokens) and update RAILWAY_TOKEN."
-            exit 1
+            echo "token_valid=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           echo "✅ Railway token is valid"
+          echo "token_valid=true" >> "$GITHUB_OUTPUT"
 
       - name: Deploy proxy-server to Railway
-        if: steps.check-secrets.outputs.secrets_present == 'true'
+        if: >-
+          steps.check-secrets.outputs.secrets_present == 'true' &&
+          steps.validate-token.outputs.token_valid == 'true'
         env:
           RAILWAY_TOKEN:            ${{ secrets.RAILWAY_TOKEN || secrets.RAILWAY_BOB_TOKEN }}
           RAILWAY_PROXY_SERVICE_ID: ${{ secrets.RAILWAY_PROXY_SERVICE_ID }}
@@ -92,7 +97,9 @@ jobs:
           railway up --service "$RAILWAY_PROXY_SERVICE_ID" --detach
 
       - name: Verify proxy health
-        if: steps.check-secrets.outputs.secrets_present == 'true'
+        if: >-
+          steps.check-secrets.outputs.secrets_present == 'true' &&
+          steps.validate-token.outputs.token_valid == 'true'
         env:
           PROXY_SERVICE_URL: ${{ secrets.PROXY_SERVICE_URL }}
         run: |

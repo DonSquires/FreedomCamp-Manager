@@ -82,7 +82,7 @@ jobs:
           echo "🔑 Validating Railway token..."
           if ! railway service list --json > /dev/null 2>&1; then
             echo ""
-            echo "::error::RAILWAY_TOKEN is invalid or expired — deployment cannot proceed."
+            echo "::warning::RAILWAY_TOKEN is invalid or expired — inference deploy will be skipped."
             echo ""
             echo "Common causes:"
             echo "  1. Token is revoked/expired."
@@ -91,7 +91,8 @@ jobs:
             echo "Fix: Generate a new project token in Railway (Project → Settings → Tokens)"
             echo "and update RAILWAY_TOKEN at:"
             echo "  https://github.com/${{ github.repository }}/settings/secrets/actions"
-            exit 1
+            echo "token_valid=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           echo "✅ Railway token is valid"
           echo "token_valid=true" >> "$GITHUB_OUTPUT"
