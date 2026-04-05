@@ -50,12 +50,42 @@ const KNOWLEDGE_PACKS = {
       'When deploying via CI only, prefer GitHub Actions workflow triggers over local Railway CLI access.',
     ],
   },
+  deployment_context: {
+    name: 'railway-bun-deployment-context',
+    summary: 'Railway uses Railpack with bun install --frozen-lockfile. bun.lock must be committed and in sync with package.json or builds fail.',
+    key_points: [
+      'Railpack (Railpack 0.23+) detects bun and runs: bun install --frozen-lockfile then bun run build.',
+      'Error "lockfile had changes, but lockfile is frozen" means bun.lock is out of sync with package.json.',
+      'Root cause: a dependency was added or changed in package.json but bun.lock was not regenerated.',
+      'Fix: run "bun install" locally (without --frozen-lockfile) and commit the updated bun.lock.',
+      'Railpack copies ALL subdirectory package.json files (inference-service, mobile-app, proxy-server, ptt-server) into the install layer.',
+      'bun.lock is a JSON file with lockfileVersion:1; it records exact resolved versions for every package.',
+      'When adding devDependencies (e.g. vitest, jsdom, @testing-library/*), always commit the regenerated bun.lock.',
+      'Verify the fix locally with: bun install --frozen-lockfile (should output "no changes").',
+      'PR #365 added vitest@4.1.2, jsdom@29.0.1, @testing-library/react@16.3.2, @testing-library/jest-dom@6.9.1 — bun.lock was regenerated to include these on 2026-04-05.',
+    ],
+  },
+  testing_context: {
+    name: 'vitest-unit-testing-context',
+    summary: 'Vitest unit testing framework added in PR #365: 195 tests across 10 suites covering core utility modules.',
+    key_points: [
+      'Test runner: Vitest with jsdom environment; config in vitest.config.ts with @/* path alias.',
+      'Test scripts: "test:unit" (bun run test:unit) and "test:unit:watch" for watch mode.',
+      'Test files located in src/**/__tests__/*.test.ts pattern.',
+      'Setup file: src/test/setup.ts imports @testing-library/jest-dom matchers.',
+      'Coverage: timezone.ts, globalFiltersStore.ts, supabase client, auth utils, and other core lib modules.',
+      'NZ timezone functions use fixed offsets (not DST-aware): nzDateToUTCStart +13:00, nzDateToUTCEnd +12:00.',
+      'Run unit tests with: npx vitest run or bun run test:unit.',
+      'E2E tests remain in Playwright (tests/e2e/) — vitest is for unit/integration only.',
+    ],
+  },
 };
 
 function classifyBugType(report) {
   const text = `${report.summary || ''}\n${report.stack_trace || ''}`.toLowerCase();
   if (text.includes('timeout') || text.includes('latency')) return 'performance';
   if (text.includes('permission') || text.includes('forbidden') || text.includes('unauthorized')) return 'auth';
+  if (text.includes('frozen') || text.includes('lockfile') || text.includes('bun install') || text.includes('frozen-lockfile')) return 'deployment';
   if (text.includes('cannot') && text.includes('module')) return 'dependency';
   if (text.includes('null') || text.includes('undefined') || text.includes('typeerror')) return 'runtime';
   if (text.includes('cors')) return 'cors';
@@ -97,6 +127,13 @@ function buildSelfHealingPlan(report, options = {}) {
   }
   if (bugType === 'dependency') {
     remediation.unshift('Check runtime image includes required module/native library artifacts.');
+  }
+  if (bugType === 'deployment') {
+    remediation.unshift(
+      'Run "bun install" (without --frozen-lockfile) locally and commit the updated bun.lock.',
+      'Check which package.json dependency was added or changed without regenerating bun.lock.',
+      'Verify fix with: bun install --frozen-lockfile (should output "no changes").',
+    );
   }
   if (inSelfContainedMode) {
     remediation.push('Verify no external network dependency is introduced by the fix.');
