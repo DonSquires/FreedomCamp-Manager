@@ -246,11 +246,33 @@ For Profile A, also verify Bob logs indicate `CHAT_PROVIDER=ollama`.
 | Secret | Purpose |
 |---|---|
 | `BOB_SYNC_PAT` | GitHub PAT to push changes to DonSquires/Bob |
+| `RAILWAY_BOB_TOKEN` | Railway project token for the Bob project (shared by Bob + Ollama services) |
+| `RAILWAY_BOB_SERVICE_ID` | Railway service ID for Bob inference |
+| `RAILWAY_BOB_PROJECT_ID` | Optional Railway project ID for Bob auto-resolution |
+| `BOB_SERVICE_URL` | Optional Bob public URL for post-deploy health check |
+| `RAILWAY_OLLAMA_SERVICE_ID` | Railway service ID for the Ollama service |
+| `OLLAMA_SERVICE_URL` | Optional public Ollama URL for post-deploy health check |
 | `RAILWAY_INFERENCE_SERVICE_ID` | Legacy: kept for backward compatibility during transition |
 | `RAILWAY_PROXY_SERVICE_ID` | Railway service ID for the proxy service |
 | `RAILWAY_TOKEN` | Railway token with access to proxy and other core services |
 
 > Bob's own `RAILWAY_TOKEN` and `RAILWAY_SERVICE_ID` live in DonSquires/Bob, not in FreedomCamp-Manager.
+> Ollama shares the Bob project token (`RAILWAY_BOB_TOKEN`) but has its own service ID (`RAILWAY_OLLAMA_SERVICE_ID`).
+
+## CI/CD Workflows
+
+| Workflow | Trigger | Service |
+|---|---|---|
+| `deploy-bob-railway.yml` | Push to `main` (inference-service/) or manual | Bob inference |
+| `deploy-ollama-railway.yml` | Manual only | Ollama LLM server |
+| `sync-bob-repo.yml` | Push to `main` (inference-service/) | Syncs to DonSquires/Bob |
+
+### Deploying Ollama via CI
+
+1. Go to **Actions → Deploy Ollama to Railway → Run workflow**
+2. Optionally enter a model name (e.g. `llama3.1:8b`) to pull after deploy
+3. The workflow deploys `ollama/Dockerfile` to the Ollama Railway service
+4. If `OLLAMA_SERVICE_URL` is set, it verifies health via `/api/tags`
 
 ## Troubleshooting
 
@@ -276,9 +298,16 @@ For Profile A, also verify Bob logs indicate `CHAT_PROVIDER=ollama`.
 1. Verify Ollama service is running: **Railway → Ollama → Deploy tab** should show status **Running**.
 2. Model may not be pulled yet. SSH into Ollama container and run: `ollama pull llama3.1:8b`
 3. Confirm Bob can reach Ollama: In Bob logs, look for messages about Ollama connection state.
+4. Confirm `OLLAMA_BASE_URL` uses port **3000** (not 11434). Railway Ollama listens on 3000 via `OLLAMA_HOST`.
 
 ### Bob calls Ollama but gets timeout
 1. Ollama may be overloaded or model is still loading.
 2. Increase **Ollama service → Resources** (CPU/memory) if available on plan.
 3. Check Ollama logs for OOM or compute issues.
 4. As fallback, Bob will use heuristic providers if `SELF_CONTAINED_MODE=true` and Ollama fails.
+
+### Updating Ollama version
+1. Edit `ollama/Dockerfile` — change the image tag (e.g. `ollama/ollama:0.20.2` → `0.21.0`)
+2. Merge to `main`
+3. Run **Actions → Deploy Ollama to Railway → Run workflow**
+4. Verify health: `curl https://<ollama-url>/api/tags`
