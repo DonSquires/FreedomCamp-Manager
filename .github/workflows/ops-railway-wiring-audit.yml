@@ -70,6 +70,10 @@ jobs:
           PTT_STATUS="$(jq -r '.ptt.status // "unknown"' /tmp/railway-health.json)"
           CHAT_PROVIDER="$(jq -r '.inference.config.CHAT_PROVIDER // ""' /tmp/railway-health.json)"
           TABULAR_PROVIDER="$(jq -r '.inference.config.TABULAR_NLP_PROVIDER // ""' /tmp/railway-health.json)"
+          SELF_CONTAINED_MODE="$(jq -r '.inference.config.SELF_CONTAINED_MODE // false' /tmp/railway-health.json)"
+          REQUIRE_SELF_CONTAINED_MODE="$(jq -r '.inference.config.REQUIRE_SELF_CONTAINED_MODE // false' /tmp/railway-health.json)"
+          SELF_CONTAINED_STRICT_EGRESS="$(jq -r '.inference.config.SELF_CONTAINED_STRICT_EGRESS // false' /tmp/railway-health.json)"
+          OPENAI_API_KEY_SET="$(jq -r '.inference.config.OPENAI_API_KEY_SET // false' /tmp/railway-health.json)"
           INFERENCE_KEY_CONFIGURED="$(jq -r '.inference_api_key_configured // false' /tmp/railway-health.json)"
 
           [ "$ACTUAL_PROXY_URL" = "$EXPECT_PROXY_URL" ] || { echo "::error::Proxy URL mismatch. expected=$EXPECT_PROXY_URL actual=$ACTUAL_PROXY_URL"; exit 1; }
@@ -80,6 +84,10 @@ jobs:
           [ "$PTT_STATUS" = "ok" ] || { echo "::error::PTT status is not ok: $PTT_STATUS"; exit 1; }
           [ "$CHAT_PROVIDER" = "ollama" ] || { echo "::error::Expected CHAT_PROVIDER=ollama but got $CHAT_PROVIDER"; exit 1; }
           [ "$TABULAR_PROVIDER" = "ollama" ] || { echo "::error::Expected TABULAR_NLP_PROVIDER=ollama but got $TABULAR_PROVIDER"; exit 1; }
+          [ "$SELF_CONTAINED_MODE" = "true" ] || { echo "::error::Expected SELF_CONTAINED_MODE=true but got $SELF_CONTAINED_MODE"; exit 1; }
+          [ "$REQUIRE_SELF_CONTAINED_MODE" = "true" ] || { echo "::error::Expected REQUIRE_SELF_CONTAINED_MODE=true but got $REQUIRE_SELF_CONTAINED_MODE"; exit 1; }
+          [ "$SELF_CONTAINED_STRICT_EGRESS" = "true" ] || { echo "::error::Expected SELF_CONTAINED_STRICT_EGRESS=true but got $SELF_CONTAINED_STRICT_EGRESS"; exit 1; }
+          [ "$OPENAI_API_KEY_SET" = "false" ] || { echo "::error::Expected OPENAI_API_KEY_SET=false in self-contained mode but got $OPENAI_API_KEY_SET"; exit 1; }
           [ "$INFERENCE_KEY_CONFIGURED" = "true" ] || { echo "::error::Inference API key is not configured from edge perspective"; exit 1; }
 
           echo "✅ Railway + Edge wiring is consistent"

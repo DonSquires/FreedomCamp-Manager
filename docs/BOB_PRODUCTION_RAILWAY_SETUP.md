@@ -75,7 +75,15 @@ CHAT_PROVIDER=ollama
 TABULAR_NLP_PROVIDER=ollama
 OLLAMA_BASE_URL=http://ollama.railway.internal:11434
 OLLAMA_MODEL=llama3.1:8b
-SELF_CONTAINED_MODE=false
+SELF_CONTAINED_MODE=true
+REQUIRE_SELF_CONTAINED_MODE=true
+SELF_CONTAINED_STRICT_EGRESS=true
+```
+
+In the Ollama service, also set:
+
+```
+OLLAMA_NO_CLOUD=true
 ```
 
 Plus from your **Supabase dashboard** (Settings → API):

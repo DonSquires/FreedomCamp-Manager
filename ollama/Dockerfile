@@ -12,4 +12,7 @@ ENV OLLAMA_ORIGINS=*
 # Keep models loaded in memory for 24 hours to minimize cold-start latency.
 ENV OLLAMA_KEEP_ALIVE=24h
 
+# Explicitly disable Ollama cloud connectivity for privacy-safe operation.
+ENV OLLAMA_NO_CLOUD=true
+
 EXPOSE 11434
