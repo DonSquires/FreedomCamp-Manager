@@ -901,69 +901,78 @@ async function generateChatReplyWithOllama(message, history = [], context = {}) 
     return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS);
-  try {
-    recordEgressEvent('ollama', 'attempted', 'chat response generation');
-    const response = await safeFetch(`${OLLAMA_BASE_URL}/api/chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      signal: controller.signal,
-      body: JSON.stringify({
-        model: OLLAMA_MODEL,
-        stream: false,
-        messages: [
-          {
-            role: 'system',
-            content: 'You are Bob, the AI assistant embedded in FieldOps Manager — a freedom camping enforcement platform used by councils and security contractors in New Zealand.\n\nYou assist officers, supervisors, and administrators with:\n- NZ freedom camping law: Freedom Camping Act 2011, Local Government Act 2002, RMA 1991, Privacy Act 2020\n- Compliance analysis: breach trends, stay-night calculations, zone rule interpretation\n- Patrol operations: shift planning, route guidance, officer welfare checks\n- Enforcement actions: Notice to Vacate, Warning Notice, Infringement Notice, Noise Notice\n- Vehicle and plate workflows: ALPR results, SCV certification via NZSCV register\n- Incident and evidence management and investigation notes\n- Risk assessments, SOPs, H&S plans, evacuation plans, active offender procedures\n- Data import, system diagnostics, and operational guidance\n\nKey facts:\n- Zones have allowed_days, max_consecutive_nights, max_nights_per_month\n- Observations track plate_number, zone, recorded_at, and photo evidence\n- Breach triggers when stay limits are exceeded\n- Homeless or vulnerable occupants receive special consideration under policy\n- SCV status from NZSCV register can grant zone exemptions\n- All times are NZ timezone (Pacific/Auckland)\n\nBe concise — field officers need fast actionable answers. When you do not know something specific, say so. Never fabricate data or plate numbers. Return plain text only, no markdown formatting.',
-          },
-          ...history.slice(-12).map((m) => ({
-            role: m?.role === 'assistant' ? 'assistant' : 'user',
-            content: String(m?.content || ''),
-          })),
-          {
-            role: 'user',
-            content: String(message || ''),
-          },
-        ],
-      }),
-    }, 'ollama');
+  let lastError = null;
+  for (let attempt = 1; attempt <= OLLAMA_CHAT_RETRY_ATTEMPTS; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS);
+    try {
+      recordEgressEvent('ollama', 'attempted', `chat response generation (attempt ${attempt}/${OLLAMA_CHAT_RETRY_ATTEMPTS})`);
+      const response = await safeFetch(`${OLLAMA_BASE_URL}/api/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          model: OLLAMA_MODEL,
+          stream: false,
+          messages: [
+            {
+              role: 'system',
+              content: 'You are Bob, the AI assistant embedded in FieldOps Manager — a freedom camping enforcement platform used by councils and security contractors in New Zealand.\n\nYou assist officers, supervisors, and administrators with:\n- NZ freedom camping law: Freedom Camping Act 2011, Local Government Act 2002, RMA 1991, Privacy Act 2020\n- Compliance analysis: breach trends, stay-night calculations, zone rule interpretation\n- Patrol operations: shift planning, route guidance, officer welfare checks\n- Enforcement actions: Notice to Vacate, Warning Notice, Infringement Notice, Noise Notice\n- Vehicle and plate workflows: ALPR results, SCV certification via NZSCV register\n- Incident and evidence management and investigation notes\n- Risk assessments, SOPs, H&S plans, evacuation plans, active offender procedures\n- Data import, system diagnostics, and operational guidance\n\nKey facts:\n- Zones have allowed_days, max_consecutive_nights, max_nights_per_month\n- Observations track plate_number, zone, recorded_at, and photo evidence\n- Breach triggers when stay limits are exceeded\n- Homeless or vulnerable occupants receive special consideration under policy\n- SCV status from NZSCV register can grant zone exemptions\n- All times are NZ timezone (Pacific/Auckland)\n\nBe concise — field officers need fast actionable answers. When you do not know something specific, say so. Never fabricate data or plate numbers. Return plain text only, no markdown formatting.',
+            },
+            ...history.slice(-12).map((m) => ({
+              role: m?.role === 'assistant' ? 'assistant' : 'user',
+              content: String(m?.content || ''),
+            })),
+            {
+              role: 'user',
+              content: String(message || ''),
+            },
+          ],
+        }),
+      }, 'ollama');
 
-    if (!response.ok) {
-      ollamaCircuitBreaker.recordFailure(new Error(`HTTP ${response.status}`));
-      return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
-    }
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
 
-    const payload = await response.json();
-    const content = payload?.message?.content;
-    if (!content || typeof content !== 'string') {
-      return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
-    }
+      const payload = await response.json();
+      const content = payload?.message?.content;
+      if (!content || typeof content !== 'string') {
+        throw new Error('Invalid or missing message content in Ollama response');
+      }
 
-    const trimmed = content.trim();
-    if (!trimmed) {
-      return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
-    }
+      const trimmed = content.trim();
+      if (!trimmed) {
+        throw new Error('Empty message content in Ollama response');
+      }
 
-    ollamaCircuitBreaker.recordSuccess();
-    return {
-      provider: 'ollama',
-      text: trimmed,
-      fallback: false,
-    };
-  } catch (error) {
-    ollamaCircuitBreaker.recordFailure(error);
-    if (ollamaCircuitBreaker.state === 'open') {
-      // First time tripping — the breaker itself already logged the details
-    } else {
-      console.warn(`⚠️ Local chat via Ollama failed (${OLLAMA_BASE_URL}):`, error.message);
+      ollamaCircuitBreaker.recordSuccess();
+      return {
+        provider: 'ollama',
+        text: trimmed,
+        fallback: false,
+      };
+    } catch (error) {
+      lastError = error;
+      if (attempt < OLLAMA_CHAT_RETRY_ATTEMPTS) {
+        const waitMs = OLLAMA_CHAT_RETRY_BACKOFF_MS * attempt;
+        console.warn(`⚠️ Local chat via Ollama attempt ${attempt}/${OLLAMA_CHAT_RETRY_ATTEMPTS} failed (${OLLAMA_BASE_URL}): ${error.message}. Retrying in ${waitMs}ms.`);
+        await delay(waitMs);
+      }
+    } finally {
+      clearTimeout(timeout);
     }
-    return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
-  } finally {
-    clearTimeout(timeout);
   }
+
+  ollamaCircuitBreaker.recordFailure(lastError || new Error('Unknown Ollama chat failure'));
+  if (ollamaCircuitBreaker.state === 'open') {
+    // First time tripping — the breaker itself already logged the details
+  } else {
+    console.warn(`⚠️ Local chat via Ollama failed after ${OLLAMA_CHAT_RETRY_ATTEMPTS} attempts (${OLLAMA_BASE_URL}):`, (lastError && lastError.message) || 'unknown error');
+  }
+  return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
 }
 
 app.post('/nlp/tabular/analyze', tabularRateLimit, requireInferenceAuth, async (req, res) => {
