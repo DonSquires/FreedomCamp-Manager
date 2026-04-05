@@ -38,7 +38,6 @@ jobs:
         env:
           RAILWAY_DEPLOY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN || secrets.RAILWAY_TOKEN }}
           RAILWAY_OLLAMA_SERVICE_ID: ${{ secrets.RAILWAY_OLLAMA_SERVICE_ID }}
-          RAILWAY_SERVICE_ID_FALLBACK: ${{ secrets.RAILWAY_SERVICE_ID }}
         run: |
           missing=""
           [ -z "$RAILWAY_DEPLOY_TOKEN" ]       && missing="$missing RAILWAY_BOB_TOKEN-or-RAILWAY_TOKEN"
@@ -54,7 +53,7 @@ jobs:
           else
             echo "✅ Ollama Railway deploy secrets present"
             echo "secrets_present=true" >> "$GITHUB_OUTPUT"
-            CANDIDATE_SERVICE_ID="${RAILWAY_OLLAMA_SERVICE_ID:-${RAILWAY_SERVICE_ID_FALLBACK:-}}"
+            CANDIDATE_SERVICE_ID="${RAILWAY_OLLAMA_SERVICE_ID:-}"
             if [ -n "$CANDIDATE_SERVICE_ID" ]; then
               echo "resolved_candidate_service_id=$CANDIDATE_SERVICE_ID" >> "$GITHUB_OUTPUT"
             else
@@ -177,11 +176,60 @@ jobs:
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN || secrets.RAILWAY_TOKEN }}
           RAILWAY_OLLAMA_SERVICE_ID: ${{ steps.resolve-service.outputs.service_id }}
+          RAILWAY_OLLAMA_PROJECT_ID: ${{ steps.resolve-service.outputs.project_id || secrets.RAILWAY_BOB_PROJECT_ID || secrets.RAILWAY_PROJECT_ID }}
         run: |
+          set -euo pipefail
+
           cd ollama
           echo "🚂 Deploying Ollama to Railway..."
-          railway up --service "$RAILWAY_OLLAMA_SERVICE_ID" --detach
-          echo "✅ Ollama deploy triggered. Check Railway dashboard for status."
+          DEPLOY_LOG="$(mktemp)"
+
+          if railway up --service "$RAILWAY_OLLAMA_SERVICE_ID" --detach 2>&1 | tee "$DEPLOY_LOG"; then
+            echo "✅ Ollama deploy triggered. Check Railway dashboard for status."
+            exit 0
+          fi
+
+          if grep -q "Service not found" "$DEPLOY_LOG"; then
+            echo "::warning::Configured Ollama service ID was not found. Attempting automatic re-discovery and retry."
+
+            if [ -n "${RAILWAY_OLLAMA_PROJECT_ID:-}" ]; then
+              GRAPHQL_PAYLOAD=$(printf '{"query":"query { project(id:\"%s\") { services { edges { node { id name } } } } }"}' "$RAILWAY_OLLAMA_PROJECT_ID")
+              GRAPHQL_RESPONSE=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
+                -H "Authorization: Bearer $RAILWAY_TOKEN" \
+                -H "Content-Type: application/json" \
+                --data "$GRAPHQL_PAYLOAD" || true)
+            else
+              GRAPHQL_PAYLOAD='{"query":"query { me { projects { edges { node { id name services { edges { node { id name } } } } } } } }"}'
+              GRAPHQL_RESPONSE=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
+                -H "Authorization: Bearer $RAILWAY_TOKEN" \
+                -H "Content-Type: application/json" \
+                --data "$GRAPHQL_PAYLOAD" || true)
+            fi
+
+            RESOLVED_SERVICE_ID=$(node -e '
+              const data = JSON.parse(process.argv[1] || "{}");
+              const fromProject = (data?.data?.project?.services?.edges || []).map((e) => e.node).filter(Boolean);
+              const fromTokenScope = (data?.data?.me?.projects?.edges || [])
+                .flatMap((p) => ((p?.node?.services?.edges || []).map((e) => e?.node).filter(Boolean)));
+              const services = [...fromProject, ...fromTokenScope];
+              const chosen = services.find((s) => String(s?.name || "").toLowerCase().includes("ollama"));
+              process.stdout.write(chosen?.id || "");
+            ' "$GRAPHQL_RESPONSE")
+
+            if [ -n "$RESOLVED_SERVICE_ID" ] && [ "$RESOLVED_SERVICE_ID" != "$RAILWAY_OLLAMA_SERVICE_ID" ]; then
+              echo "::warning::Retrying deploy with resolved Ollama service ID: $RESOLVED_SERVICE_ID"
+              railway up --service "$RESOLVED_SERVICE_ID" --detach
+              echo "✅ Ollama deploy triggered with auto-resolved service ID."
+              exit 0
+            fi
+
+            echo "::error::Service not found and auto-retry could not resolve a different Ollama service ID."
+            echo "::error::Set RAILWAY_OLLAMA_SERVICE_ID and/or RAILWAY_BOB_PROJECT_ID explicitly."
+            exit 1
+          fi
+
+          echo "::error::Railway deploy command failed for Ollama service ID=$RAILWAY_OLLAMA_SERVICE_ID"
+          exit 1
 
       - name: Verify Ollama health
         if: steps.check-secrets.outputs.secrets_present == 'true'
