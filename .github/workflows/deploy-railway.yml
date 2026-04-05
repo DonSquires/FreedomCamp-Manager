@@ -32,9 +32,12 @@ jobs:
     steps:
       - name: Check required secrets
         id: check-secrets
+        env:
+          RAILWAY_DEPLOY_TOKEN: ${{ secrets.RAILWAY_TOKEN || secrets.RAILWAY_BOB_TOKEN }}
+          RAILWAY_INFERENCE_SERVICE_ID: ${{ secrets.RAILWAY_INFERENCE_SERVICE_ID }}
         run: |
           missing=""
-          [ -z "$RAILWAY_TOKEN" ]                  && missing="$missing RAILWAY_TOKEN"
+          [ -z "$RAILWAY_DEPLOY_TOKEN" ]           && missing="$missing RAILWAY_TOKEN-or-RAILWAY_BOB_TOKEN"
           [ -z "$RAILWAY_INFERENCE_SERVICE_ID" ]   && missing="$missing RAILWAY_INFERENCE_SERVICE_ID"
           if [ -n "$missing" ]; then
             echo "::warning::Required secrets not configured ($missing) — deployment skipped."
@@ -51,10 +54,6 @@ jobs:
             echo "service_id=$RAILWAY_INFERENCE_SERVICE_ID" >> "$GITHUB_OUTPUT"
             echo "secrets_present=true" >> "$GITHUB_OUTPUT"
           fi
-        env:
-          RAILWAY_TOKEN:                ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_INFERENCE_SERVICE_ID: ${{ secrets.RAILWAY_INFERENCE_SERVICE_ID }}
-
       - name: Checkout repository
         if: steps.check-secrets.outputs.secrets_present == 'true'
         uses: actions/checkout@v5
@@ -78,12 +77,12 @@ jobs:
         id: validate-token
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN || secrets.RAILWAY_BOB_TOKEN }}
         run: |
           echo "🔑 Validating Railway token..."
           if ! railway service list --json > /dev/null 2>&1; then
             echo ""
-            echo "::error::RAILWAY_TOKEN is invalid or expired — deployment cannot proceed."
+            echo "::warning::RAILWAY_TOKEN is invalid or expired — inference deploy will be skipped."
             echo ""
             echo "Common causes:"
             echo "  1. Token is revoked/expired."
@@ -92,7 +91,8 @@ jobs:
             echo "Fix: Generate a new project token in Railway (Project → Settings → Tokens)"
             echo "and update RAILWAY_TOKEN at:"
             echo "  https://github.com/${{ github.repository }}/settings/secrets/actions"
-            exit 1
+            echo "token_valid=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           echo "✅ Railway token is valid"
           echo "token_valid=true" >> "$GITHUB_OUTPUT"
@@ -102,7 +102,7 @@ jobs:
           steps.check-secrets.outputs.secrets_present == 'true' &&
           steps.validate-token.outputs.token_valid == 'true'
         env:
-          RAILWAY_TOKEN:                ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_TOKEN:                ${{ secrets.RAILWAY_TOKEN || secrets.RAILWAY_BOB_TOKEN }}
           RAILWAY_INFERENCE_SERVICE_ID: ${{ steps.check-secrets.outputs.service_id }}
         run: |
           cd inference-service
@@ -117,26 +117,31 @@ jobs:
           steps.check-secrets.outputs.secrets_present == 'true' &&
           steps.validate-token.outputs.token_valid == 'true'
         env:
-          RAILWAY_TOKEN:         ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_TOKEN:         ${{ secrets.RAILWAY_TOKEN || secrets.RAILWAY_BOB_TOKEN }}
           INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL }}
         run: |
-          if [ -z "$INFERENCE_SERVICE_URL" ]; then
+          BASE_URL="${INFERENCE_SERVICE_URL%/}"
+          if [ -z "$BASE_URL" ]; then
             echo "ℹ️  INFERENCE_SERVICE_URL not set — skipping health check."
             echo "   Once deployed, get your URL from Railway → Settings → Networking"
             echo "   Then add it as GitHub secret AND Supabase secret."
             exit 0
           fi
 
+          if [[ "$BASE_URL" != http://* && "$BASE_URL" != https://* ]]; then
+            BASE_URL="https://$BASE_URL"
+          fi
+
           echo "⏳ Waiting 60s for Railway to finish deploying..."
           sleep 60
 
-          echo "🏥 Checking health at ${INFERENCE_SERVICE_URL}/health ..."
+          echo "🏥 Checking health at ${BASE_URL}/health ..."
           HEALTH_BODY=$(curl -s \
             --max-time 30 \
-            "${INFERENCE_SERVICE_URL}/health" || true)
+            "${BASE_URL}/health" || true)
           HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             --max-time 30 \
-            "${INFERENCE_SERVICE_URL}/health" || echo "000")
+            "${BASE_URL}/health" || echo "000")
 
           if [ "$HTTP_STATUS" = "200" ]; then
             if echo "$HEALTH_BODY" | grep -q '"models"'; then
@@ -155,7 +160,7 @@ jobs:
           echo "🧠 Checking /chat route shape ..."
           CHAT_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             --max-time 30 \
-            -X POST "${INFERENCE_SERVICE_URL}/chat" \
+            -X POST "${BASE_URL}/chat" \
             -H 'Content-Type: application/json' \
             -d '{"message":"ping"}' || echo "000")
 

@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
-import { NON_TERMINAL_BUG_REPORT_STATUSES, nextStatusAfterAnalysis, shouldAutoAcknowledge } from '@/lib/bugReportStatus'
+import { nextStatusAfterAnalysis, shouldAutoAcknowledge } from '@/lib/bugReportStatus'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -252,9 +252,9 @@ export default function Platform() {
     ? Math.round(((stats.scans_in_period - stats.breaches_in_period) / stats.scans_in_period) * 100)
     : null
 
-  const isNonTerminalStatus = useCallback((status: string | null | undefined) => {
+  const isPendingAnalysisStatus = useCallback((status: string | null | undefined) => {
     const normalized = status ?? 'submitted'
-    return (NON_TERMINAL_BUG_REPORT_STATUSES as readonly string[]).includes(normalized)
+    return normalized === 'submitted' || normalized === 'acknowledged'
   }, [])
 
   // Bug / feedback reports
@@ -386,9 +386,12 @@ Be specific. Name exact files and line-level changes where possible.`
   }, [queryClient])
 
   const runBulkAutoAnalysis = useCallback(async () => {
-    const reports = (feedbackReports ?? []).filter((report) => isNonTerminalStatus(report.status))
+    const reports = (feedbackReports ?? []).filter((report) => (
+      isPendingAnalysisStatus(report.status) && !report.ai_analyzed
+    ))
+
     if (reports.length === 0) {
-      toast.info('No unresolved reports to process')
+      toast.info('No pending reports to analyse')
       return
     }
 
@@ -423,7 +426,7 @@ Be specific. Name exact files and line-level changes where possible.`
     }
 
     toast.success(`Backfill completed: ${succeeded} analysed`)
-  }, [analyseWithAI, feedbackReports, isNonTerminalStatus, queryClient])
+  }, [analyseWithAI, feedbackReports, isPendingAnalysisStatus, queryClient])
 
   // Redirect non-grand-master users away (after all hooks)
   if (!isGrandMaster) {
@@ -533,9 +536,9 @@ Be specific. Name exact files and line-level changes where possible.`
             <TabsTrigger value="billing">Usage / Billing</TabsTrigger>
             <TabsTrigger value="feedback" className="gap-1.5">
               Feedback & Issues
-              {(feedbackReports ?? []).filter(r => isNonTerminalStatus(r.status)).length > 0 && (
+              {(feedbackReports ?? []).filter(r => isPendingAnalysisStatus(r.status) && !r.ai_analyzed).length > 0 && (
                 <span className="ml-1 rounded-full bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 leading-none">
-                  {(feedbackReports ?? []).filter(r => isNonTerminalStatus(r.status)).length}
+                  {(feedbackReports ?? []).filter(r => isPendingAnalysisStatus(r.status) && !r.ai_analyzed).length}
                 </span>
               )}
             </TabsTrigger>
@@ -747,7 +750,7 @@ Be specific. Name exact files and line-level changes where possible.`
                   variant="default"
                   size="sm"
                   onClick={runBulkAutoAnalysis}
-                  disabled={bulkAnalyzing || feedbackLoading}
+                  disabled={bulkAnalyzing || feedbackLoading || (feedbackReports ?? []).filter(r => isPendingAnalysisStatus(r.status) && !r.ai_analyzed).length === 0}
                 >
                   {bulkAnalyzing ? (
                     <>

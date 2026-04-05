@@ -1,0 +1,4 @@
+Bob deploy trigger
+Updated: 2026-04-05
+
+Purpose: force GitHub Actions Bob Railway deploy workflow via push path filter when local Railway CLI access is unavailable.

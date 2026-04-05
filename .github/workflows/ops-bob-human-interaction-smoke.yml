@@ -1,0 +1,178 @@
+name: Ops Bob Human Interaction Smoke
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 * * * *'
+
+jobs:
+  smoke-chat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL }}
+      INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
+      EXPECT_PROVIDER: ollama
+    steps:
+      - name: Validate required secrets
+        run: |
+          set -euo pipefail
+          if [[ -z "${INFERENCE_SERVICE_URL:-}" ]]; then
+            echo "INFERENCE_SERVICE_URL is missing"
+            exit 1
+          fi
+
+      - name: Normalize URL
+        run: |
+          set -euo pipefail
+          URL="${INFERENCE_SERVICE_URL}"
+          if [[ "$URL" != http://* && "$URL" != https://* ]]; then
+            URL="https://$URL"
+          fi
+          echo "CHAT_URL=${URL%/}/chat" >> "$GITHUB_ENV"
+          echo "HEALTH_URL=${URL%/}/health" >> "$GITHUB_ENV"
+
+      - name: Preflight inference health and Ollama wiring
+        run: |
+          set -euo pipefail
+
+          HTTP_STATUS=$(curl -sS -m 30 -o /tmp/inference-health.json -w "%{http_code}" "$HEALTH_URL")
+          cat /tmp/inference-health.json
+
+          if [[ "$HTTP_STATUS" != "200" ]]; then
+            echo "Inference health endpoint returned HTTP $HTTP_STATUS"
+            exit 1
+          fi
+
+          STATUS="$(jq -r '.status // "unknown"' /tmp/inference-health.json)"
+          CHAT_PROVIDER="$(jq -r '.config.CHAT_PROVIDER // ""' /tmp/inference-health.json)"
+          TABULAR_PROVIDER="$(jq -r '.config.TABULAR_NLP_PROVIDER // ""' /tmp/inference-health.json)"
+          SELF_CONTAINED_MODE="$(jq -r '.config.SELF_CONTAINED_MODE // false' /tmp/inference-health.json)"
+          REQUIRE_SELF_CONTAINED_MODE="$(jq -r '.config.REQUIRE_SELF_CONTAINED_MODE // false' /tmp/inference-health.json)"
+          SELF_CONTAINED_STRICT_EGRESS="$(jq -r '.config.SELF_CONTAINED_STRICT_EGRESS // false' /tmp/inference-health.json)"
+          OPENAI_API_KEY_SET="$(jq -r '.config.OPENAI_API_KEY_SET // false' /tmp/inference-health.json)"
+          CHAT_OLLAMA_ENABLED="$(jq -r '.capabilities.chat_local_ollama_enabled // false' /tmp/inference-health.json)"
+          TABULAR_OLLAMA_ENABLED="$(jq -r '.capabilities.tabular_nlp_ollama_enabled // false' /tmp/inference-health.json)"
+
+          [[ "$STATUS" == "healthy" ]] || { echo "Inference status is not healthy: $STATUS"; exit 1; }
+          [[ "$CHAT_PROVIDER" == "ollama" ]] || { echo "Expected CHAT_PROVIDER=ollama but got $CHAT_PROVIDER"; exit 1; }
+          [[ "$TABULAR_PROVIDER" == "ollama" ]] || { echo "Expected TABULAR_NLP_PROVIDER=ollama but got $TABULAR_PROVIDER"; exit 1; }
+          [[ "$SELF_CONTAINED_MODE" == "true" ]] || { echo "Expected SELF_CONTAINED_MODE=true but got $SELF_CONTAINED_MODE"; exit 1; }
+          [[ "$REQUIRE_SELF_CONTAINED_MODE" == "true" ]] || { echo "Expected REQUIRE_SELF_CONTAINED_MODE=true but got $REQUIRE_SELF_CONTAINED_MODE"; exit 1; }
+          [[ "$SELF_CONTAINED_STRICT_EGRESS" == "true" ]] || { echo "Expected SELF_CONTAINED_STRICT_EGRESS=true but got $SELF_CONTAINED_STRICT_EGRESS"; exit 1; }
+          [[ "$OPENAI_API_KEY_SET" == "false" ]] || { echo "Expected OPENAI_API_KEY_SET=false in self-contained mode but got $OPENAI_API_KEY_SET"; exit 1; }
+          [[ "$CHAT_OLLAMA_ENABLED" == "true" ]] || { echo "chat_local_ollama_enabled is false"; exit 1; }
+          [[ "$TABULAR_OLLAMA_ENABLED" == "true" ]] || { echo "tabular_nlp_ollama_enabled is false"; exit 1; }
+
+          cp /tmp/inference-health.json inference-health-preflight.json
+
+      - name: Human interaction smoke prompts
+        run: |
+          set -euo pipefail
+
+          LOG_FILE="bob-human-interaction-smoke.log"
+          : > "$LOG_FILE"
+
+          snapshot_health () {
+            local label="$1"
+            local out_file="inference-health-${label}.json"
+            curl -sS -m 30 "$HEALTH_URL" > "$out_file" || true
+            echo "Health snapshot ($label):" | tee -a "$LOG_FILE"
+            cat "$out_file" | tee -a "$LOG_FILE"
+          }
+
+          call_chat () {
+            local prompt="$1"
+            if [[ -n "${INFERENCE_API_KEY:-}" ]]; then
+              curl -sS -m 30 -X POST "$CHAT_URL" \
+                -H 'Content-Type: application/json' \
+                -H "x-inference-api-key: ${INFERENCE_API_KEY}" \
+                -d "{\"provider\":\"ollama\",\"message\":$(jq -Rn --arg p "$prompt" '$p')}"
+            else
+              curl -sS -m 30 -X POST "$CHAT_URL" \
+                -H 'Content-Type: application/json' \
+                -d "{\"provider\":\"ollama\",\"message\":$(jq -Rn --arg p "$prompt" '$p')}"
+            fi
+          }
+
+          retry_chat_prompt () {
+            local prompt="$1"
+            local attempt=1
+            local max_attempts=4
+            local resp=""
+
+            while [[ "$attempt" -le "$max_attempts" ]]; do
+              resp="$(call_chat "$prompt")"
+              local provider
+              local fallback
+              local message
+              provider="$(echo "$resp" | jq -r '.provider // empty')"
+              fallback="$(echo "$resp" | jq -r '.fallback // false')"
+              message="$(echo "$resp" | jq -r '.message // empty')"
+
+              echo "Attempt ${attempt}/${max_attempts}: provider=${provider:-<empty>} fallback=${fallback}" | tee -a "$LOG_FILE"
+              echo "Response: $resp" | tee -a "$LOG_FILE"
+
+              if [[ -n "$message" && "$provider" == "$EXPECT_PROVIDER" && "$fallback" != "true" ]]; then
+                echo "$resp"
+                return 0
+              fi
+
+              snapshot_health "attempt-${attempt}"
+
+              if [[ "$attempt" -lt "$max_attempts" ]]; then
+                echo "Retrying after transient Ollama fallback..." | tee -a "$LOG_FILE"
+                sleep 5
+              fi
+
+              attempt=$((attempt + 1))
+            done
+
+            echo "$resp"
+            return 1
+          }
+
+          snapshot_health "before-chat"
+
+          RESP1="$(retry_chat_prompt 'Give me a short, human update for officers about an intermittent PTT outage and immediate next steps.')"
+          RESP2="$(retry_chat_prompt 'Summarize a bug report for non-technical council managers in plain English.')"
+          RESP3="$(retry_chat_prompt 'Ask me one clarifying question before proposing a fix for this intermittent issue.')"
+
+          echo "Response 1: $RESP1" | tee -a "$LOG_FILE"
+          echo "Response 2: $RESP2" | tee -a "$LOG_FILE"
+          echo "Response 3: $RESP3" | tee -a "$LOG_FILE"
+
+          for RESP in "$RESP1" "$RESP2" "$RESP3"; do
+            PROVIDER="$(echo "$RESP" | jq -r '.provider // empty')"
+            FALLBACK="$(echo "$RESP" | jq -r '.fallback // false')"
+            MESSAGE="$(echo "$RESP" | jq -r '.message // empty')"
+
+            if [[ -z "$MESSAGE" ]]; then
+              echo "Empty message in response"
+              exit 1
+            fi
+
+            if [[ "$PROVIDER" != "$EXPECT_PROVIDER" ]]; then
+              echo "Expected provider $EXPECT_PROVIDER but got $PROVIDER"
+              exit 1
+            fi
+
+            if [[ "$FALLBACK" == "true" ]]; then
+              echo "Unexpected fallback=true in response"
+              exit 1
+            fi
+          done
+
+      - name: Upload smoke transcript
+        uses: actions/upload-artifact@v4
+        with:
+          name: bob-human-interaction-smoke
+          path: |
+            bob-human-interaction-smoke.log
+            inference-health-preflight.json
+            inference-health-before-chat.json
+            inference-health-attempt-1.json
+            inference-health-attempt-2.json
+            inference-health-attempt-3.json
+            inference-health-attempt-4.json
+          if-no-files-found: ignore

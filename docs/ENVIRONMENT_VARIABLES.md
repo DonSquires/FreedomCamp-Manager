@@ -163,6 +163,10 @@ VITE_TURNSTILE_SITE_KEY=0x4AAAAA...  # Cloudflare Turnstile site key
 | `INFERENCE_API_KEY` | Shared secret for API auth | Optional | None |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key | Optional | For DB access |
 | `MODEL_PATH` | Path to ONNX model files | No | `./models` |
+| `CHAT_PROVIDER` | Chat provider mode | Recommended | `ollama` |
+| `TABULAR_NLP_PROVIDER` | Tabular NLP provider mode | Recommended | `ollama` |
+| `OLLAMA_BASE_URL` | Ollama endpoint for chat/NLP | Recommended | `http://127.0.0.1:11434` |
+| `OLLAMA_MODEL` | Ollama model name | Recommended | `llama3.1:8b` |
 
 ### Proxy Server (`/proxy-server/`)
 
@@ -181,6 +185,37 @@ VITE_TURNSTILE_SITE_KEY=0x4AAAAA...  # Cloudflare Turnstile site key
 | `PORT` | WebSocket port | No | `8080` |
 | `SUPABASE_URL` | Supabase project URL | Yes | - |
 | `SUPABASE_SERVICE_ROLE_KEY` | For channel auth | Yes | - |
+
+### Bob Edge Chat Routing (`supabase/functions/onspace-ai-chat`)
+
+| Variable | Description | Required | Default |
+|----------|-------------|----------|---------|
+| `BOB_CHAT_PROVIDER` | Provider preference (`ollama`, `inference`, `auto`) | Recommended | `ollama` |
+| `BOB_CHAT_ALLOW_FALLBACK` | Allow automatic fallback to secondary provider | Recommended | `false` |
+| `OLLAMA_BASE_URL` | Optional override for direct Ollama edge calls | No | falls back to `INFERENCE_SERVICE_URL` |
+| `OLLAMA_MODEL` | Ollama model name used by edge fallback path | No | request/default model |
+
+### GitHub Actions Railway Secret Matrix
+
+Canonical secret names used by deploy workflows:
+
+| Secret | Used by |
+|----------|----------|
+| `RAILWAY_TOKEN` | Inference + proxy deploy workflows |
+| `RAILWAY_BOB_TOKEN` | Bob + Ollama deploy workflows |
+| `RAILWAY_INFERENCE_SERVICE_ID` | Inference deploy workflow |
+| `RAILWAY_PROXY_SERVICE_ID` | Proxy deploy workflow |
+| `RAILWAY_BOB_SERVICE_ID` | Bob deploy workflow |
+| `RAILWAY_BOB_PROJECT_ID` | Bob service auto-resolution fallback |
+| `RAILWAY_OLLAMA_SERVICE_ID` | Ollama deploy workflow |
+| `INFERENCE_SERVICE_URL` | Health checks + Bob pretrain workflows |
+| `PROXY_SERVICE_URL` | Proxy health check |
+| `BOB_SERVICE_URL` | Bob health + chat route verification |
+| `OLLAMA_SERVICE_URL` | Ollama health/model pull verification |
+
+Notes:
+- Deploy workflows now accept token fallback (`RAILWAY_TOKEN` <-> `RAILWAY_BOB_TOKEN`) to reduce CI drift during token rotations.
+- Service IDs remain mandatory for deterministic deployments.
 
 ---
 

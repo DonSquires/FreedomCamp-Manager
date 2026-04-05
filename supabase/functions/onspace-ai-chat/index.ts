@@ -220,6 +220,22 @@ function normalizeBaseUrl(raw?: string | null): string {
   return `https://${trimmed}`
 }
 
+function parseProviderPreference(raw: unknown): 'auto' | 'inference' | 'ollama' {
+  const normalized = String(raw ?? '').trim().toLowerCase()
+  if (normalized === 'ollama' || normalized === 'inference' || normalized === 'auto') {
+    return normalized
+  }
+  return 'auto'
+}
+
+function parseBooleanEnv(raw: string | undefined, defaultValue: boolean): boolean {
+  if (raw === undefined || raw === null) return defaultValue
+  const normalized = String(raw).trim().toLowerCase()
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true
+  if (['0', 'false', 'no', 'off'].includes(normalized)) return false
+  return defaultValue
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: getCorsHeaders(req) })
@@ -302,7 +318,9 @@ Deno.serve(async (req: Request) => {
     const ollamaBaseUrl = normalizeBaseUrl(Deno.env.get('OLLAMA_BASE_URL') ?? inferenceUrl)
     const ollamaModel = Deno.env.get('OLLAMA_MODEL') ?? model
     const ollamaApiKey = Deno.env.get('OLLAMA_API_KEY') ?? inferenceApiKey
-    const providerPreference = String(requestedProvider ?? 'auto').toLowerCase()
+    const configuredProviderPreference = parseProviderPreference(Deno.env.get('BOB_CHAT_PROVIDER') ?? Deno.env.get('AI_CHAT_PROVIDER') ?? 'ollama')
+    const providerPreference = parseProviderPreference(requestedProvider ?? configuredProviderPreference)
+    const allowProviderFallback = parseBooleanEnv(Deno.env.get('BOB_CHAT_ALLOW_FALLBACK'), false)
 
     if (!inferenceUrl && !ollamaBaseUrl) {
       return new Response(
@@ -454,6 +472,7 @@ Deno.serve(async (req: Request) => {
             body: JSON.stringify({
               message: latestUserMessage,
               history,
+              provider: providerPreference === 'inference' ? 'inference' : providerPreference === 'ollama' ? 'ollama' : undefined,
               context: {
                 user_email: user.email,
                 requested_model: model,
@@ -546,10 +565,15 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const providerOrder =
-      providerPreference === 'ollama'
-        ? ['ollama', 'inference']
-        : ['inference']
+    const providerOrder = (() => {
+      if (providerPreference === 'ollama') {
+        return allowProviderFallback ? ['ollama', 'inference'] : ['ollama']
+      }
+      if (providerPreference === 'inference') {
+        return allowProviderFallback ? ['inference', 'ollama'] : ['inference']
+      }
+      return ['ollama', 'inference']
+    })()
 
     let providerResult: { responseText: string; provider: string; model: string } | null = null
     const providerErrors: string[] = []

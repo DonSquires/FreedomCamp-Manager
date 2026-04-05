@@ -1,0 +1,228 @@
+name: Ops Bob/Ollama Update Monitor
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 2 * * *'
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  monitor:
+    name: Monitor upstream updates and privacy posture
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Verify ingress-only privacy guards
+        run: |
+          set -euo pipefail
+
+          grep -q "ENV OLLAMA_NO_CLOUD=true" ollama/Dockerfile || {
+            echo "::error::Missing OLLAMA_NO_CLOUD=true in ollama/Dockerfile"
+            exit 1
+          }
+
+          grep -q "const SELF_CONTAINED_MODE = true;" inference-service/server.js || {
+            echo "::error::Missing hard lock SELF_CONTAINED_MODE=true in inference-service/server.js"
+            exit 1
+          }
+
+          grep -q "const SELF_CONTAINED_STRICT_EGRESS = true;" inference-service/server.js || {
+            echo "::error::Missing hard lock SELF_CONTAINED_STRICT_EGRESS=true in inference-service/server.js"
+            exit 1
+          }
+
+          echo "✅ Ingress-only privacy guards are present"
+
+      - name: Collect pinned versions
+        run: |
+          set -euo pipefail
+
+          OLLAMA_PINNED="$(sed -nE 's/^FROM ollama\/ollama:([^ ]+).*$/\1/p' ollama/Dockerfile | head -1)"
+          NODE_PINNED="$(sed -nE 's/^FROM node:([^ ]+).*$/\1/p' inference-service/Dockerfile | head -1)"
+
+          jq -n \
+            --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg ollama_pinned "$OLLAMA_PINNED" \
+            --arg node_pinned "$NODE_PINNED" \
+            '{
+              checked_at: $timestamp,
+              policy: "ingress-only",
+              pinned: {
+                ollama_image_tag: $ollama_pinned,
+                node_image_tag: $node_pinned
+              }
+            }' > /tmp/update-report.json
+
+      - name: Query upstream release signals
+        run: |
+          set -euo pipefail
+
+          OLLAMA_LATEST="$(curl -fsSL https://api.github.com/repos/ollama/ollama/releases/latest | jq -r '.tag_name // "unknown"')"
+          OLLAMA_LATEST_STRIPPED="${OLLAMA_LATEST#v}"
+
+          OLLAMA_DOCKER_TAG="$(curl -fsSL 'https://registry.hub.docker.com/v2/repositories/ollama/ollama/tags?page_size=20' \
+            | jq -r '[.results[].name | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))][0] // "unknown"')"
+
+          jq \
+            --arg ollama_latest_release "$OLLAMA_LATEST" \
+            --arg ollama_latest_release_stripped "$OLLAMA_LATEST_STRIPPED" \
+            --arg ollama_latest_docker_tag "$OLLAMA_DOCKER_TAG" \
+            '.upstream = {
+              ollama_latest_release: $ollama_latest_release,
+              ollama_latest_release_stripped: $ollama_latest_release_stripped,
+              ollama_latest_docker_tag: $ollama_latest_docker_tag
+            }' \
+            /tmp/update-report.json > /tmp/update-report.with-upstream.json
+
+          mv /tmp/update-report.with-upstream.json /tmp/update-report.json
+
+      - name: Compare and summarize
+        id: compare
+        run: |
+          set -euo pipefail
+
+          OLLAMA_PINNED="$(jq -r '.pinned.ollama_image_tag' /tmp/update-report.json)"
+          OLLAMA_LATEST_RELEASE_STRIPPED="$(jq -r '.upstream.ollama_latest_release_stripped' /tmp/update-report.json)"
+          OLLAMA_LATEST_DOCKER_TAG="$(jq -r '.upstream.ollama_latest_docker_tag' /tmp/update-report.json)"
+
+          OLLAMA_UPDATE_AVAILABLE="false"
+          if [[ "$OLLAMA_PINNED" != "$OLLAMA_LATEST_RELEASE_STRIPPED" && "$OLLAMA_LATEST_RELEASE_STRIPPED" != "unknown" ]]; then
+            OLLAMA_UPDATE_AVAILABLE="true"
+          fi
+
+          {
+            echo "ollama_update_available=$OLLAMA_UPDATE_AVAILABLE"
+            echo "ollama_pinned=$OLLAMA_PINNED"
+            echo "ollama_latest=$OLLAMA_LATEST_RELEASE_STRIPPED"
+            echo "ollama_latest_docker=$OLLAMA_LATEST_DOCKER_TAG"
+          } >> "$GITHUB_OUTPUT"
+
+          jq \
+            --arg ollama_update_available "$OLLAMA_UPDATE_AVAILABLE" \
+            '.status = {
+              ollama_update_available: ($ollama_update_available == "true")
+            }' \
+            /tmp/update-report.json > bob-ollama-update-report.json
+
+          echo "## Bob/Ollama Update Monitor" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Policy: ingress-only (receive cloud signals, block runtime egress)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Pinned Ollama image tag: $OLLAMA_PINNED" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Latest Ollama release tag: $OLLAMA_LATEST_RELEASE_STRIPPED" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Latest Ollama Docker semver tag: $OLLAMA_LATEST_DOCKER_TAG" >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$OLLAMA_UPDATE_AVAILABLE" == "true" ]]; then
+            echo "- Status: UPDATE AVAILABLE for Ollama" >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::Ollama update available. Pinned=$OLLAMA_PINNED latest_release=$OLLAMA_LATEST_RELEASE_STRIPPED"
+          else
+            echo "- Status: no Ollama version drift detected" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Open or update Ollama update issue
+        if: steps.compare.outputs.ollama_update_available == 'true'
+        uses: actions/github-script@v7
+        env:
+          OLLAMA_PINNED: ${{ steps.compare.outputs.ollama_pinned }}
+          OLLAMA_LATEST: ${{ steps.compare.outputs.ollama_latest }}
+          OLLAMA_LATEST_DOCKER: ${{ steps.compare.outputs.ollama_latest_docker }}
+        with:
+          script: |
+            const title = `[Ops Monitor] Ollama update available: ${process.env.OLLAMA_PINNED} -> ${process.env.OLLAMA_LATEST}`;
+            const body = [
+              'Automated alert from `ops-bob-ollama-update-monitor.yml`.',
+              '',
+              `- Pinned Ollama image tag: ${process.env.OLLAMA_PINNED}`,
+              `- Latest Ollama release tag: ${process.env.OLLAMA_LATEST}`,
+              `- Latest Ollama Docker semver tag: ${process.env.OLLAMA_LATEST_DOCKER}`,
+              '',
+              'Policy reminder:',
+              '- Bob and Ollama remain runtime egress-blocked (ingress-only cloud signals).',
+              '- Update rollout is performed by Copilot/operator workflows, not runtime services.',
+              '',
+              'Suggested follow-up:',
+              '1. Update `ollama/Dockerfile` pinned tag.',
+              '2. Deploy Ollama service.',
+              '3. Run wiring audit and Bob smoke workflows.',
+            ].join('\n');
+
+            const { owner, repo } = context.repo;
+            const existing = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              state: 'open',
+              per_page: 100,
+            });
+
+            const sameFamily = existing.find((issue) =>
+              issue.title.startsWith('[Ops Monitor] Ollama update available:')
+            );
+
+            if (sameFamily) {
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: sameFamily.number,
+                title,
+                body,
+              });
+              core.notice(`Updated existing update issue #${sameFamily.number}`);
+            } else {
+              const created = await github.rest.issues.create({
+                owner,
+                repo,
+                title,
+                body,
+              });
+              core.notice(`Created new update issue #${created.data.number}`);
+            }
+
+      - name: Auto-close resolved Ollama update issue
+        if: steps.compare.outputs.ollama_update_available != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const existing = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              state: 'open',
+              per_page: 100,
+            });
+
+            const sameFamily = existing.find((issue) =>
+              issue.title.startsWith('[Ops Monitor] Ollama update available:')
+            );
+
+            if (!sameFamily) {
+              core.notice('No open Ollama update issue found; nothing to close.');
+              return;
+            }
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: sameFamily.number,
+              body: 'Auto-closing: pinned Ollama image tag now matches upstream release signal.',
+            });
+
+            await github.rest.issues.update({
+              owner,
+              repo,
+              issue_number: sameFamily.number,
+              state: 'closed',
+            });
+
+            core.notice(`Closed resolved update issue #${sameFamily.number}`);
+
+      - name: Upload update monitor report
+        uses: actions/upload-artifact@v4
+        with:
+          name: bob-ollama-update-monitor
+          path: bob-ollama-update-report.json
+          if-no-files-found: error

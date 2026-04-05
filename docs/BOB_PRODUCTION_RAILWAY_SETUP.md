@@ -48,13 +48,13 @@ Add these secrets to **DonSquires/Bob** -> Settings -> Secrets -> Actions:
 - **Region**: us-west2
 - **Replicas**: 1
 - **Compute**: CPU-only (22.4 GiB RAM available)
-- **Internal port**: 3000 (configured via `OLLAMA_HOST=http://0.0.0.0:3000`)
-- **Internal URL**: `http://ollama.railway.internal:3000`
+- **Internal port**: 11434 (configured via `OLLAMA_HOST=http://0.0.0.0:11434`)
+- **Internal URL**: `http://ollama.railway.internal:11434`
 - **Keep-alive**: 24 hours (`OLLAMA_KEEP_ALIVE=24h0m0s`)
 - **Default context**: 4096 tokens
 
-> **Note**: Railway's Ollama service listens on port **3000** (not the default 11434).
-> Bob must use `http://ollama.railway.internal:3000` as `OLLAMA_BASE_URL`.
+> **Note**: Railway's Ollama service listens on port **11434**.
+> Bob must use `http://ollama.railway.internal:11434` as `OLLAMA_BASE_URL`.
 
 ## Setup Steps
 
@@ -73,9 +73,17 @@ In **Bob Inference service → Settings → Variables**, add exactly these varia
 INFERENCE_API_KEY=<strong random secret>
 CHAT_PROVIDER=ollama
 TABULAR_NLP_PROVIDER=ollama
-OLLAMA_BASE_URL=http://ollama.railway.internal:3000
+OLLAMA_BASE_URL=http://ollama.railway.internal:11434
 OLLAMA_MODEL=llama3.1:8b
-SELF_CONTAINED_MODE=false
+SELF_CONTAINED_MODE=true
+REQUIRE_SELF_CONTAINED_MODE=true
+SELF_CONTAINED_STRICT_EGRESS=true
+```
+
+In the Ollama service, also set:
+
+```
+OLLAMA_NO_CLOUD=true
 ```
 
 Plus from your **Supabase dashboard** (Settings → API):
@@ -153,7 +161,7 @@ SELF_LEARNING_ENABLED=true
 SELF_HEALING_ENABLED=true
 
 # --- Internal Ollama URL (port 3000 matches OLLAMA_HOST on Railway) ---
-OLLAMA_BASE_URL=http://ollama.railway.internal:3000
+OLLAMA_BASE_URL=http://ollama.railway.internal:11434
 OLLAMA_MODEL=llama3.1:8b
 ```
 
@@ -298,7 +306,7 @@ For Profile A, also verify Bob logs indicate `CHAT_PROVIDER=ollama`.
 1. Verify Ollama service is running: **Railway → Ollama → Deploy tab** should show status **Running**.
 2. Model may not be pulled yet. SSH into Ollama container and run: `ollama pull llama3.1:8b`
 3. Confirm Bob can reach Ollama: In Bob logs, look for messages about Ollama connection state.
-4. Confirm `OLLAMA_BASE_URL` uses port **3000** (not 11434). Railway Ollama listens on 3000 via `OLLAMA_HOST`.
+4. Confirm `OLLAMA_BASE_URL` uses port **11434**. Railway Ollama listens on 11434 via `OLLAMA_HOST`.
 
 ### Bob calls Ollama but gets timeout
 1. Ollama may be overloaded or model is still loading.

@@ -25,10 +25,14 @@ jobs:
     steps:
       - name: Check required secrets
         id: check-secrets
+        env:
+          RAILWAY_DEPLOY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN || secrets.RAILWAY_TOKEN }}
+          RAILWAY_BOB_SERVICE_ID: ${{ secrets.RAILWAY_BOB_SERVICE_ID }}
+          RAILWAY_INFERENCE_SERVICE_ID: ${{ secrets.RAILWAY_INFERENCE_SERVICE_ID }}
+          RAILWAY_SERVICE_ID_FALLBACK: ${{ secrets.RAILWAY_SERVICE_ID }}
         run: |
           missing=""
-          [ -z "$RAILWAY_BOB_TOKEN" ]      && missing="$missing RAILWAY_BOB_TOKEN"
-          [ -z "$RAILWAY_BOB_SERVICE_ID" ] && missing="$missing RAILWAY_BOB_SERVICE_ID"
+          [ -z "$RAILWAY_DEPLOY_TOKEN" ]   && missing="$missing RAILWAY_BOB_TOKEN-or-RAILWAY_TOKEN"
 
           if [ -n "$missing" ]; then
             echo "::warning::Required Bob deploy secrets not configured ($missing) — deployment skipped."
@@ -42,11 +46,14 @@ jobs:
           else
             echo "✅ Bob Railway deploy secrets present"
             echo "secrets_present=true" >> "$GITHUB_OUTPUT"
+            CANDIDATE_SERVICE_ID="${RAILWAY_BOB_SERVICE_ID:-${RAILWAY_INFERENCE_SERVICE_ID:-${RAILWAY_SERVICE_ID_FALLBACK:-}}}"
+            if [ -z "$CANDIDATE_SERVICE_ID" ]; then
+              echo "::warning::No explicit Bob service ID secret found — workflow will attempt automatic service discovery."
+            else
+              echo "resolved_candidate_service_id=$CANDIDATE_SERVICE_ID" >> "$GITHUB_OUTPUT"
+              echo "✅ Found candidate service ID from secrets"
+            fi
           fi
-        env:
-          RAILWAY_BOB_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
-          RAILWAY_BOB_SERVICE_ID: ${{ secrets.RAILWAY_BOB_SERVICE_ID }}
-
       - name: Checkout repository
         if: steps.check-secrets.outputs.secrets_present == 'true'
         uses: actions/checkout@v5
@@ -69,8 +76,8 @@ jobs:
         id: validate-token
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
-          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_BOB_SERVICE_ID }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN || secrets.RAILWAY_TOKEN }}
+          RAILWAY_SERVICE_ID: ${{ steps.check-secrets.outputs.resolved_candidate_service_id }}
         run: |
           echo "🔑 Validating Bob Railway token..."
           if ! railway service list --json > /dev/null 2>&1; then
@@ -86,18 +93,124 @@ jobs:
           echo "✅ Bob Railway validation step complete"
           echo "token_valid=true" >> "$GITHUB_OUTPUT"
 
-      - name: Deploy Bob to Railway
+      - name: Resolve Bob service identity
+        id: resolve-service
         if: >-
           steps.check-secrets.outputs.secrets_present == 'true' &&
           steps.validate-token.outputs.token_valid == 'true'
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
-          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_BOB_SERVICE_ID }}
-          RAILWAY_BOB_PROJECT_ID: ${{ secrets.RAILWAY_BOB_PROJECT_ID }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN || secrets.RAILWAY_TOKEN }}
+          EXPLICIT_SERVICE_ID: ${{ steps.check-secrets.outputs.resolved_candidate_service_id }}
+          EXPLICIT_PROJECT_ID: ${{ secrets.RAILWAY_BOB_PROJECT_ID || secrets.RAILWAY_PROJECT_ID }}
         run: |
+          set -euo pipefail
+
+          if [ -n "$EXPLICIT_SERVICE_ID" ]; then
+            echo "service_id=$EXPLICIT_SERVICE_ID" >> "$GITHUB_OUTPUT"
+            echo "project_id=${EXPLICIT_PROJECT_ID}" >> "$GITHUB_OUTPUT"
+            echo "✅ Using explicit RAILWAY_BOB_SERVICE_ID"
+            exit 0
+          fi
+
+          if [ -n "$EXPLICIT_PROJECT_ID" ]; then
+            echo "ℹ️ Attempting Bob service auto-discovery from explicit project ID..."
+            GRAPHQL_PAYLOAD=$(printf '{"query":"query { project(id:\"%s\") { services { edges { node { id name } } } } }"}' "$EXPLICIT_PROJECT_ID")
+            GRAPHQL_RESPONSE=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
+              -H "Authorization: Bearer $RAILWAY_TOKEN" \
+              -H "Content-Type: application/json" \
+              --data "$GRAPHQL_PAYLOAD")
+
+            RESOLVED=$(node -e '
+              const data = JSON.parse(process.argv[1] || "{}");
+              const services = data?.data?.project?.services?.edges?.map((edge) => edge?.node).filter(Boolean) || [];
+              const candidates = [];
+              for (const s of services) {
+                const name = String(s?.name || "").toLowerCase();
+                const score = (
+                  (name.includes("bob") ? 10 : 0) +
+                  (name.includes("inference") ? 6 : 0) +
+                  (name.includes("orc") ? 4 : 0) -
+                  (name.includes("ollama") ? 10 : 0)
+                );
+                if (score > 0) candidates.push({ projectId: process.argv[2], serviceId: s.id, serviceName: s.name, score });
+              }
+              candidates.sort((a, b) => b.score - a.score);
+              const top = candidates[0];
+              if (!top) process.exit(2);
+              process.stdout.write(JSON.stringify(top));
+            ' "$GRAPHQL_RESPONSE" "$EXPLICIT_PROJECT_ID") || true
+
+            if [ -n "${RESOLVED:-}" ]; then
+              RESOLVED_SERVICE_ID=$(echo "$RESOLVED" | jq -r '.serviceId')
+              RESOLVED_PROJECT_ID=$(echo "$RESOLVED" | jq -r '.projectId')
+              RESOLVED_SERVICE_NAME=$(echo "$RESOLVED" | jq -r '.serviceName')
+              echo "service_id=$RESOLVED_SERVICE_ID" >> "$GITHUB_OUTPUT"
+              echo "project_id=$RESOLVED_PROJECT_ID" >> "$GITHUB_OUTPUT"
+              echo "✅ Auto-resolved Bob service from project: $RESOLVED_SERVICE_NAME ($RESOLVED_SERVICE_ID)"
+              exit 0
+            fi
+          fi
+
+          echo "ℹ️ Attempting Bob service auto-discovery from Railway token scope..."
+
+          GRAPHQL_PAYLOAD='{"query":"query { me { projects { edges { node { id name services { edges { node { id name } } } } } } } }"}'
+          GRAPHQL_RESPONSE=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data "$GRAPHQL_PAYLOAD")
+
+          RESOLVED=$(node -e '
+            const data = JSON.parse(process.argv[1] || "{}");
+            const projects = data?.data?.me?.projects?.edges?.map((edge) => edge?.node).filter(Boolean) || [];
+            const candidates = [];
+            for (const p of projects) {
+              const services = p?.services?.edges?.map((edge) => edge?.node).filter(Boolean) || [];
+              for (const s of services) {
+                const name = String(s?.name || "").toLowerCase();
+                const score = (
+                  (name.includes("bob") ? 10 : 0) +
+                  (name.includes("inference") ? 6 : 0) +
+                  (name.includes("orc") ? 4 : 0) -
+                  (name.includes("ollama") ? 10 : 0)
+                );
+                if (score > 0) {
+                  candidates.push({ projectId: p.id, serviceId: s.id, serviceName: s.name, score });
+                }
+              }
+            }
+            candidates.sort((a, b) => b.score - a.score);
+            const top = candidates[0];
+            if (!top) process.exit(2);
+            process.stdout.write(JSON.stringify(top));
+          ' "$GRAPHQL_RESPONSE") || {
+            echo "::error::Unable to auto-resolve Bob service ID from Railway token scope."
+            echo "::error::Set one of: RAILWAY_BOB_SERVICE_ID, RAILWAY_INFERENCE_SERVICE_ID, or RAILWAY_BOB_PROJECT_ID."
+            exit 1
+          }
+
+          RESOLVED_SERVICE_ID=$(echo "$RESOLVED" | jq -r '.serviceId')
+          RESOLVED_PROJECT_ID=$(echo "$RESOLVED" | jq -r '.projectId')
+          RESOLVED_SERVICE_NAME=$(echo "$RESOLVED" | jq -r '.serviceName')
+
+          echo "service_id=$RESOLVED_SERVICE_ID" >> "$GITHUB_OUTPUT"
+          echo "project_id=$RESOLVED_PROJECT_ID" >> "$GITHUB_OUTPUT"
+          echo "✅ Auto-resolved Bob service: $RESOLVED_SERVICE_NAME ($RESOLVED_SERVICE_ID)"
+
+      - name: Deploy Bob to Railway
+        if: >-
+          steps.check-secrets.outputs.secrets_present == 'true' &&
+          steps.validate-token.outputs.token_valid == 'true' &&
+          steps.resolve-service.outputs.service_id != ''
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN || secrets.RAILWAY_TOKEN }}
+          RAILWAY_SERVICE_ID: ${{ steps.resolve-service.outputs.service_id }}
+          RAILWAY_BOB_PROJECT_ID: ${{ steps.resolve-service.outputs.project_id }}
+        run: |
+          set -euo pipefail
+
           echo "🚂 Deploying Bob from repository root ..."
           SERVICE_TO_DEPLOY="$RAILWAY_SERVICE_ID"
-          PROJECT_TO_QUERY="${RAILWAY_BOB_PROJECT_ID:-151bb5d5-a999-4eff-8be5-cfe8fe93484f}"
+          PROJECT_TO_QUERY="${RAILWAY_BOB_PROJECT_ID:-}"
           DEPLOY_LOG="$(mktemp)"
 
           if railway up --service "$SERVICE_TO_DEPLOY" --detach 2>&1 | tee "$DEPLOY_LOG"; then
@@ -106,6 +219,47 @@ jobs:
 
           if grep -q "Service not found" "$DEPLOY_LOG"; then
             echo "::warning::Configured RAILWAY_BOB_SERVICE_ID was not found. Attempting project-based service auto-resolution."
+
+            if [ -z "$PROJECT_TO_QUERY" ]; then
+              echo "::warning::RAILWAY_BOB_PROJECT_ID not set. Attempting global service auto-resolution from token scope."
+
+              GLOBAL_GRAPHQL='{"query":"query { me { projects { edges { node { id name services { edges { node { id name } } } } } } } }"}'
+              GLOBAL_RESPONSE=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
+                -H "Authorization: Bearer $RAILWAY_TOKEN" \
+                -H "Content-Type: application/json" \
+                --data "$GLOBAL_GRAPHQL" || true)
+
+              GLOBAL_RESOLVED_SERVICE_ID=$(node -e '
+                const data = JSON.parse(process.argv[1] || "{}");
+                const projects = data?.data?.me?.projects?.edges?.map((edge) => edge?.node).filter(Boolean) || [];
+                const candidates = [];
+                for (const p of projects) {
+                  const services = p?.services?.edges?.map((edge) => edge?.node).filter(Boolean) || [];
+                  for (const s of services) {
+                    const name = String(s?.name || "").toLowerCase();
+                    const score = (
+                      (name.includes("bob") ? 10 : 0) +
+                      (name.includes("inference") ? 6 : 0) +
+                      (name.includes("orc") ? 4 : 0) -
+                      (name.includes("ollama") ? 10 : 0)
+                    );
+                    if (score > 0) candidates.push({ id: s.id, score });
+                  }
+                }
+                candidates.sort((a, b) => b.score - a.score);
+                process.stdout.write(candidates[0]?.id || "");
+              ' "$GLOBAL_RESPONSE")
+
+              if [ -n "$GLOBAL_RESOLVED_SERVICE_ID" ] && [ "$GLOBAL_RESOLVED_SERVICE_ID" != "$RAILWAY_SERVICE_ID" ]; then
+                echo "::warning::Global auto-resolution found candidate Bob service ID; retrying deployment."
+                if railway up --service "$GLOBAL_RESOLVED_SERVICE_ID" --detach; then
+                  exit 0
+                fi
+              fi
+
+              echo "::error::Could not resolve a deployable Bob service ID from Railway token scope."
+              exit 1
+            fi
 
             GRAPHQL_PAYLOAD=$(printf '{"query":"query { project(id:\"%s\") { services { edges { node { id name } } } } }"}' "$PROJECT_TO_QUERY")
             GRAPHQL_RESPONSE=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
@@ -142,16 +296,21 @@ jobs:
         env:
           BOB_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
         run: |
-          if [ -z "$BOB_SERVICE_URL" ]; then
+          BASE_URL="${BOB_SERVICE_URL%/}"
+          if [ -z "$BASE_URL" ]; then
             echo "ℹ️  BOB_SERVICE_URL not set — skipping HTTP verification."
             exit 0
+          fi
+
+          if [[ "$BASE_URL" != http://* && "$BASE_URL" != https://* ]]; then
+            BASE_URL="https://$BASE_URL"
           fi
 
           echo "⏳ Waiting 60s for Bob deployment to become ready..."
           sleep 60
 
-          HEALTH_BODY=$(curl -s --max-time 30 "${BOB_SERVICE_URL}/health" || true)
-          HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${BOB_SERVICE_URL}/health" || echo "000")
+          HEALTH_BODY=$(curl -s --max-time 30 "${BASE_URL}/health" || true)
+          HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${BASE_URL}/health" || echo "000")
 
           if [ "$HEALTH_STATUS" != "200" ]; then
             echo "::error::Bob /health returned HTTP $HEALTH_STATUS"
@@ -166,7 +325,7 @@ jobs:
 
           CHAT_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             --max-time 30 \
-            -X POST "${BOB_SERVICE_URL}/chat" \
+            -X POST "${BASE_URL}/chat" \
             -H 'Content-Type: application/json' \
             -d '{"message":"ping"}' || echo "000")
 
