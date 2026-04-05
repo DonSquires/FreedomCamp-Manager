@@ -26,6 +26,22 @@ on:
         description: 'Pull model after deploy (e.g. llama3.1:8b). Leave empty to skip.'
         required: false
         type: string
+      railway_token_override:
+        description: 'Optional Railway token override for this run only'
+        required: false
+        type: string
+      ollama_service_id_override:
+        description: 'Optional Ollama Railway service ID override for this run only'
+        required: false
+        type: string
+      bob_project_id_override:
+        description: 'Optional Bob Railway project ID override for this run only'
+        required: false
+        type: string
+      ollama_service_url_override:
+        description: 'Optional Ollama service URL override for this run only'
+        required: false
+        type: string
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -52,6 +68,32 @@ jobs:
           OLLAMA_SERVICE_URL: ${{ secrets.OLLAMA_SERVICE_URL }}
         run: |
           source ./scripts/load-railway-secrets-from-github-env.sh --quiet
+
+      - name: Apply workflow dispatch overrides
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          TOKEN_OVERRIDE: ${{ github.event.inputs.railway_token_override }}
+          SERVICE_ID_OVERRIDE: ${{ github.event.inputs.ollama_service_id_override }}
+          PROJECT_ID_OVERRIDE: ${{ github.event.inputs.bob_project_id_override }}
+          SERVICE_URL_OVERRIDE: ${{ github.event.inputs.ollama_service_url_override }}
+        run: |
+          set -euo pipefail
+          if [ -n "${TOKEN_OVERRIDE:-}" ]; then
+            echo "::add-mask::${TOKEN_OVERRIDE}"
+            {
+              echo "RAILWAY_BOB_TOKEN=${TOKEN_OVERRIDE}"
+              echo "RAILWAY_TOKEN=${TOKEN_OVERRIDE}"
+            } >> "$GITHUB_ENV"
+          fi
+          if [ -n "${SERVICE_ID_OVERRIDE:-}" ]; then
+            echo "RAILWAY_OLLAMA_SERVICE_ID=${SERVICE_ID_OVERRIDE}" >> "$GITHUB_ENV"
+          fi
+          if [ -n "${PROJECT_ID_OVERRIDE:-}" ]; then
+            echo "RAILWAY_BOB_PROJECT_ID=${PROJECT_ID_OVERRIDE}" >> "$GITHUB_ENV"
+          fi
+          if [ -n "${SERVICE_URL_OVERRIDE:-}" ]; then
+            echo "OLLAMA_SERVICE_URL=${SERVICE_URL_OVERRIDE}" >> "$GITHUB_ENV"
+          fi
 
       - name: Check required secrets
         id: check-secrets
