@@ -128,6 +128,7 @@ const CHAT_TIMEOUT_MS = Number(process.env.CHAT_TIMEOUT_MS || 30000);
 const TABULAR_NLP_TIMEOUT_MS = Number(process.env.TABULAR_NLP_TIMEOUT_MS || 2500);
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1:8b';
+const REQUIRED_OLLAMA_BASE_URL = 'http://ollama.railway.internal:11434';
 // Hard lock: Bob runs in self-contained mode only.
 const SELF_CONTAINED_MODE = true;
 const REQUIRE_SELF_CONTAINED_MODE = true;
@@ -2975,6 +2976,11 @@ app.use((err, req, res, next) => {
 loadModels().then(() => {
   if (REQUIRE_SELF_CONTAINED_MODE && !SELF_CONTAINED_MODE) {
     console.error('❌ REQUIRE_SELF_CONTAINED_MODE is true but SELF_CONTAINED_MODE is not enabled. Refusing to start.');
+    process.exit(1);
+  }
+
+  if (OLLAMA_REQUESTED && OLLAMA_BASE_URL !== REQUIRED_OLLAMA_BASE_URL) {
+    console.error(`❌ OLLAMA_BASE_URL must be exactly ${REQUIRED_OLLAMA_BASE_URL} in production. Current value: ${OLLAMA_BASE_URL}`);
     process.exit(1);
   }
 
