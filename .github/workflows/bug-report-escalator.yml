@@ -84,6 +84,7 @@ jobs:
 
             code=$(curl -sS -o /tmp/auto_analyse_resp.json -w "%{http_code}" \
               -X POST "${VITE_SUPABASE_URL}/functions/v1/auto-analyse-report" \
+              -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
               -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
               -H "Content-Type: application/json" \
               -d "{\"report_id\":\"${report_id}\"}")
