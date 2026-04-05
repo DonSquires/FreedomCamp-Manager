@@ -989,12 +989,13 @@ app.post('/chat', inferenceRateLimit, requireInferenceAuth, async (req, res) => 
     const message = req.body?.message;
     const history = Array.isArray(req.body?.history) ? req.body.history : [];
     const context = req.body?.context && typeof req.body.context === 'object' ? req.body.context : {};
+    const requestedProvider = normalizeProvider(req.body?.provider, CHAT_PROVIDER);
 
     if (typeof message !== 'string' || !message.trim()) {
       return res.status(400).json({ error: 'message must be a non-empty string' });
     }
 
-    if (CHAT_PROVIDER === 'ollama') {
+    if (requestedProvider === 'ollama') {
       const reply = await generateChatReplyWithOllama(message, history, context);
       return res.json({
         success: true,
@@ -1007,7 +1008,7 @@ app.post('/chat', inferenceRateLimit, requireInferenceAuth, async (req, res) => 
     return res.json({
       success: true,
       provider: 'heuristic',
-      fallback: false,
+      fallback: requestedProvider !== 'heuristic',
       message: generateHeuristicChatReply(message, context),
     });
   } catch (error) {

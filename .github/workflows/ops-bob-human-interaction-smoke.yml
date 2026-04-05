@@ -1,0 +1,90 @@
+name: Ops Bob Human Interaction Smoke
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 * * * *'
+
+jobs:
+  smoke-chat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL }}
+      INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
+      EXPECT_PROVIDER: ollama
+    steps:
+      - name: Validate required secrets
+        run: |
+          set -euo pipefail
+          if [[ -z "${INFERENCE_SERVICE_URL:-}" ]]; then
+            echo "INFERENCE_SERVICE_URL is missing"
+            exit 1
+          fi
+
+      - name: Normalize URL
+        run: |
+          set -euo pipefail
+          URL="${INFERENCE_SERVICE_URL}"
+          if [[ "$URL" != http://* && "$URL" != https://* ]]; then
+            URL="https://$URL"
+          fi
+          echo "CHAT_URL=${URL%/}/chat" >> "$GITHUB_ENV"
+
+      - name: Human interaction smoke prompts
+        run: |
+          set -euo pipefail
+
+          LOG_FILE="bob-human-interaction-smoke.log"
+          : > "$LOG_FILE"
+
+          call_chat () {
+            local prompt="$1"
+            if [[ -n "${INFERENCE_API_KEY:-}" ]]; then
+              curl -sS -m 30 -X POST "$CHAT_URL" \
+                -H 'Content-Type: application/json' \
+                -H "x-inference-api-key: ${INFERENCE_API_KEY}" \
+                -d "{\"provider\":\"ollama\",\"message\":$(jq -Rn --arg p "$prompt" '$p')}"
+            else
+              curl -sS -m 30 -X POST "$CHAT_URL" \
+                -H 'Content-Type: application/json' \
+                -d "{\"provider\":\"ollama\",\"message\":$(jq -Rn --arg p "$prompt" '$p')}"
+            fi
+          }
+
+          RESP1="$(call_chat 'Give me a short, human update for officers about an intermittent PTT outage and immediate next steps.')"
+          RESP2="$(call_chat 'Summarize a bug report for non-technical council managers in plain English.')"
+          RESP3="$(call_chat 'Ask me one clarifying question before proposing a fix for this intermittent issue.')"
+
+          echo "Response 1: $RESP1" | tee -a "$LOG_FILE"
+          echo "Response 2: $RESP2" | tee -a "$LOG_FILE"
+          echo "Response 3: $RESP3" | tee -a "$LOG_FILE"
+
+          for RESP in "$RESP1" "$RESP2" "$RESP3"; do
+            PROVIDER="$(echo "$RESP" | jq -r '.provider // empty')"
+            FALLBACK="$(echo "$RESP" | jq -r '.fallback // false')"
+            MESSAGE="$(echo "$RESP" | jq -r '.message // empty')"
+
+            if [[ -z "$MESSAGE" ]]; then
+              echo "Empty message in response"
+              exit 1
+            fi
+
+            if [[ "$PROVIDER" != "$EXPECT_PROVIDER" ]]; then
+              echo "Expected provider $EXPECT_PROVIDER but got $PROVIDER"
+              exit 1
+            fi
+
+            if [[ "$FALLBACK" == "true" ]]; then
+              echo "Unexpected fallback=true in response"
+              exit 1
+            fi
+          done
+
+      - name: Upload smoke transcript
+        uses: actions/upload-artifact@v4
+        with:
+          name: bob-human-interaction-smoke
+          path: |
+            bob-human-interaction-smoke.log
+          if-no-files-found: ignore
