@@ -60,24 +60,42 @@ function getProjectRefFromSupabaseUrl(value: string): string | null {
   }
 }
 
-function isServiceRoleCaller(token: string | null): boolean {
+function looksLikeServiceRoleOpaqueKey(value: string): boolean {
+  return value.startsWith('sb_secret_') && value.length > 'sb_secret_'.length + 16
+}
+
+function isServiceRoleCaller(req: Request, token: string | null): boolean {
   if (!token) return false
+
+  const apikey = (req.headers.get('apikey') || req.headers.get('x-api-key') || '').trim()
 
   // Fast path: exact match with configured service-role key.
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  if (serviceRoleKey.length > 0 && token === serviceRoleKey) return true
+  if (serviceRoleKey.length > 0 && (token === serviceRoleKey || apikey === serviceRoleKey)) return true
 
   // Compatibility path: accept a valid-looking service_role JWT for this project.
   // This avoids brittle exact-string coupling when automation secrets rotate out
   // of sync with edge env while still requiring project-scoped service role.
-  const payload = decodeJwtPayload(token)
-  if (!payload) return false
-
-  const role = String(payload.role ?? '')
-  const ref = String(payload.ref ?? '')
   const projectRef = getProjectRefFromSupabaseUrl(Deno.env.get('SUPABASE_URL') ?? '')
+  const candidates = [token, apikey].filter(Boolean)
+  for (const candidate of candidates) {
+    const payload = decodeJwtPayload(candidate)
+    if (!payload) continue
 
-  return role === 'service_role' && !!projectRef && ref === projectRef
+    const role = String(payload.role ?? '')
+    const ref = String(payload.ref ?? '')
+    if (role === 'service_role' && !!projectRef && ref === projectRef) {
+      return true
+    }
+  }
+
+  // Opaque-key path (newer Supabase secrets). Require both Authorization and
+  // apikey to match the same opaque key and use service-role key prefix.
+  if (apikey && token === apikey && looksLikeServiceRoleOpaqueKey(token)) {
+    return true
+  }
+
+  return false
 }
 
 /** Fetch the last N workflow runs from GitHub Actions for context. */
@@ -172,7 +190,7 @@ Deno.serve(async (req: Request) => {
     // Permit internal automation callers (e.g., synthetic monitor workflow)
     // that authenticate with the exact service-role key. Regular browser
     // callers must still present a valid user bearer token.
-    if (!isServiceRoleCaller(token)) {
+    if (!isServiceRoleCaller(req, token)) {
       const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
       if (authError || !user) {
         return new Response(
