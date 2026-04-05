@@ -22,7 +22,9 @@
     "test:reports": "playwright test tests/e2e/report-generation.spec.ts",
     "test:smoke": "playwright test --grep @smoke",
     "test:api": "playwright test -c playwright.api.config.ts",
-    "install:playwright": "playwright install"
+    "install:playwright": "playwright install",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -106,6 +108,10 @@
     "tailwindcss": "^3.4.11",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.0.1",
-    "vite": "^5.4.1"
+    "vite": "^5.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "jsdom": "^29.0.1",
+    "vitest": "^4.1.2"
   }
 }
