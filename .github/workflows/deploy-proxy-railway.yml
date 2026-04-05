@@ -29,9 +29,12 @@ jobs:
     steps:
       - name: Check required secrets
         id: check-secrets
+        env:
+          RAILWAY_DEPLOY_TOKEN: ${{ secrets.RAILWAY_TOKEN || secrets.RAILWAY_BOB_TOKEN }}
+          RAILWAY_PROXY_SERVICE_ID: ${{ secrets.RAILWAY_PROXY_SERVICE_ID }}
         run: |
           missing=""
-          [ -z "$RAILWAY_TOKEN" ]            && missing="$missing RAILWAY_TOKEN"
+          [ -z "$RAILWAY_DEPLOY_TOKEN" ]     && missing="$missing RAILWAY_TOKEN-or-RAILWAY_BOB_TOKEN"
           [ -z "$RAILWAY_PROXY_SERVICE_ID" ] && missing="$missing RAILWAY_PROXY_SERVICE_ID"
 
           if [ -n "$missing" ]; then
@@ -47,10 +50,6 @@ jobs:
             echo "✅ Railway proxy secrets present"
             echo "secrets_present=true" >> "$GITHUB_OUTPUT"
           fi
-        env:
-          RAILWAY_TOKEN:            ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_PROXY_SERVICE_ID: ${{ secrets.RAILWAY_PROXY_SERVICE_ID }}
-
       - name: Checkout repository
         if: steps.check-secrets.outputs.secrets_present == 'true'
         uses: actions/checkout@v5
@@ -72,7 +71,7 @@ jobs:
       - name: Validate Railway token/service
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN || secrets.RAILWAY_BOB_TOKEN }}
         run: |
           echo "🔑 Validating Railway proxy token..."
           if ! railway service list --json > /dev/null 2>&1; then
@@ -85,7 +84,7 @@ jobs:
       - name: Deploy proxy-server to Railway
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
-          RAILWAY_TOKEN:            ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_TOKEN:            ${{ secrets.RAILWAY_TOKEN || secrets.RAILWAY_BOB_TOKEN }}
           RAILWAY_PROXY_SERVICE_ID: ${{ secrets.RAILWAY_PROXY_SERVICE_ID }}
         run: |
           cd proxy-server
@@ -97,17 +96,22 @@ jobs:
         env:
           PROXY_SERVICE_URL: ${{ secrets.PROXY_SERVICE_URL }}
         run: |
-          if [ -z "$PROXY_SERVICE_URL" ]; then
+          BASE_URL="${PROXY_SERVICE_URL%/}"
+          if [ -z "$BASE_URL" ]; then
             echo "ℹ️  PROXY_SERVICE_URL not set — skipping health check."
             exit 0
+          fi
+
+          if [[ "$BASE_URL" != http://* && "$BASE_URL" != https://* ]]; then
+            BASE_URL="https://$BASE_URL"
           fi
 
           echo "⏳ Waiting 45s for Railway to finish deploying..."
           sleep 45
 
-          echo "🏥 Checking health at ${PROXY_SERVICE_URL}/health ..."
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${PROXY_SERVICE_URL}/health" || echo "000")
-          BODY=$(curl -s --max-time 30 "${PROXY_SERVICE_URL}/health" || true)
+          echo "🏥 Checking health at ${BASE_URL}/health ..."
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${BASE_URL}/health" || echo "000")
+          BODY=$(curl -s --max-time 30 "${BASE_URL}/health" || true)
 
           if [ "$HTTP_STATUS" != "200" ]; then
             echo "::error::Proxy health check failed with HTTP $HTTP_STATUS"

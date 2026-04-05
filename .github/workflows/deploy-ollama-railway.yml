@@ -35,9 +35,12 @@ jobs:
     steps:
       - name: Check required secrets
         id: check-secrets
+        env:
+          RAILWAY_DEPLOY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN || secrets.RAILWAY_TOKEN }}
+          RAILWAY_OLLAMA_SERVICE_ID: ${{ secrets.RAILWAY_OLLAMA_SERVICE_ID }}
         run: |
           missing=""
-          [ -z "$RAILWAY_BOB_TOKEN" ]          && missing="$missing RAILWAY_BOB_TOKEN"
+          [ -z "$RAILWAY_DEPLOY_TOKEN" ]       && missing="$missing RAILWAY_BOB_TOKEN-or-RAILWAY_TOKEN"
           [ -z "$RAILWAY_OLLAMA_SERVICE_ID" ]  && missing="$missing RAILWAY_OLLAMA_SERVICE_ID"
 
           if [ -n "$missing" ]; then
@@ -52,10 +55,6 @@ jobs:
             echo "✅ Ollama Railway deploy secrets present"
             echo "secrets_present=true" >> "$GITHUB_OUTPUT"
           fi
-        env:
-          RAILWAY_BOB_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
-          RAILWAY_OLLAMA_SERVICE_ID: ${{ secrets.RAILWAY_OLLAMA_SERVICE_ID }}
-
       - name: Checkout repository
         if: steps.check-secrets.outputs.secrets_present == 'true'
         uses: actions/checkout@v5
@@ -77,7 +76,7 @@ jobs:
       - name: Validate Railway token
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN || secrets.RAILWAY_TOKEN }}
         run: |
           echo "🔑 Validating Railway token..."
           if ! railway service list --json > /dev/null 2>&1; then
@@ -89,7 +88,7 @@ jobs:
       - name: Deploy Ollama to Railway
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN || secrets.RAILWAY_TOKEN }}
           RAILWAY_OLLAMA_SERVICE_ID: ${{ secrets.RAILWAY_OLLAMA_SERVICE_ID }}
         run: |
           cd ollama
@@ -102,17 +101,22 @@ jobs:
         env:
           OLLAMA_SERVICE_URL: ${{ secrets.OLLAMA_SERVICE_URL }}
         run: |
-          if [ -z "$OLLAMA_SERVICE_URL" ]; then
+          BASE_URL="${OLLAMA_SERVICE_URL%/}"
+          if [ -z "$BASE_URL" ]; then
             echo "ℹ️  OLLAMA_SERVICE_URL not set — skipping HTTP health check."
             echo "   Railway built-in health check will use /api/tags."
             exit 0
           fi
 
+          if [[ "$BASE_URL" != http://* && "$BASE_URL" != https://* ]]; then
+            BASE_URL="https://$BASE_URL"
+          fi
+
           echo "⏳ Waiting 45s for Ollama deployment to become ready..."
           sleep 45
 
-          echo "🏥 Checking health at ${OLLAMA_SERVICE_URL}/api/tags ..."
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${OLLAMA_SERVICE_URL}/api/tags" || echo "000")
+          echo "🏥 Checking health at ${BASE_URL}/api/tags ..."
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${BASE_URL}/api/tags" || echo "000")
 
           if [ "$HTTP_STATUS" = "200" ]; then
             echo "✅ Ollama health check passed"

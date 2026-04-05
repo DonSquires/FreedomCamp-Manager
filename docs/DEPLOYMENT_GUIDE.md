@@ -309,10 +309,20 @@ Inference-service deployment env should enforce self-contained operation:
 SELF_CONTAINED_MODE=true
 REQUIRE_SELF_CONTAINED_MODE=true
 SELF_CONTAINED_STRICT_EGRESS=true
-CHAT_PROVIDER=heuristic
+CHAT_PROVIDER=ollama
 VEHICLE_ATTRS_PROVIDER=basic
-TABULAR_NLP_PROVIDER=heuristic
+TABULAR_NLP_PROVIDER=ollama
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+OLLAMA_MODEL=llama3.1:8b
 SELF_HEALING_ENABLED=true
+```
+
+Bob edge routing should remain Ollama-first unless explicitly overridden:
+
+```bash
+# Set these in Supabase Edge Function secrets
+BOB_CHAT_PROVIDER=ollama
+BOB_CHAT_ALLOW_FALLBACK=false
 ```
 
 ### 2. Custom Domain (Optional)
