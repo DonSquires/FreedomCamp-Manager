@@ -39,10 +39,15 @@ jobs:
           set -euo pipefail
           PROFILE="${PRETRAIN_PROFILE:-nz-enforcement-v1}"
           MULTIPLIER="${PRETRAIN_MULTIPLIER:-8}"
+          BASE_URL="${INFERENCE_SERVICE_URL%/}"
+          if [[ "$BASE_URL" != http://* && "$BASE_URL" != https://* ]]; then
+            BASE_URL="https://$BASE_URL"
+          fi
 
           HTTP_STATUS=$(curl -sS -o /tmp/pretrain-response.json -w "%{http_code}" \
+            -L \
             --max-time 45 \
-            -X POST "${INFERENCE_SERVICE_URL}/learn/pretrain" \
+            -X POST "${BASE_URL}/learn/pretrain" \
             -H "Content-Type: application/json" \
             -H "x-inference-api-key: ${INFERENCE_API_KEY}" \
             -d "{\"profile\":\"${PROFILE}\",\"multiplier\":${MULTIPLIER}}")
