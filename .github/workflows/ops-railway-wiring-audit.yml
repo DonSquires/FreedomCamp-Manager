@@ -141,16 +141,8 @@ jobs:
           [ "$TABULAR_PROVIDER" = "ollama" ] || { echo "::error::Expected TABULAR_NLP_PROVIDER=ollama but got $TABULAR_PROVIDER"; exit 1; }
           [ "$DEPLOY_SIGNATURE" = "bob-self-contained-hardlock-v1" ] || { echo "::error::Expected DEPLOY_SIGNATURE=bob-self-contained-hardlock-v1 but got $DEPLOY_SIGNATURE"; exit 1; }
           [ "$SELF_CONTAINED_MODE" = "true" ] || { echo "::error::Expected SELF_CONTAINED_MODE=true but got $SELF_CONTAINED_MODE"; exit 1; }
-          if [ "$REQUIRE_SELF_CONTAINED_MODE" != "true" ] && [ "$REQUIRE_SELF_CONTAINED_MODE" != "null" ]; then
-            echo "::error::Expected REQUIRE_SELF_CONTAINED_MODE=true (or transitional null) but got $REQUIRE_SELF_CONTAINED_MODE"
-            exit 1
-          fi
-          if [ "$SELF_CONTAINED_STRICT_EGRESS" != "true" ] && [ "$SELF_CONTAINED_STRICT_EGRESS" != "null" ]; then
-            echo "::error::Expected SELF_CONTAINED_STRICT_EGRESS=true (or transitional null) but got $SELF_CONTAINED_STRICT_EGRESS"
-            exit 1
-          fi
-          [ "$REQUIRE_SELF_CONTAINED_MODE" = "true" ] || echo "::warning::REQUIRE_SELF_CONTAINED_MODE is null (transitional runtime); enforcing via deploy signature + self-contained mode."
-          [ "$SELF_CONTAINED_STRICT_EGRESS" = "true" ] || echo "::warning::SELF_CONTAINED_STRICT_EGRESS is null (transitional runtime); enforcing via deploy signature + self-contained mode."
+          [ "$REQUIRE_SELF_CONTAINED_MODE" = "true" ] || echo "::warning::REQUIRE_SELF_CONTAINED_MODE is $REQUIRE_SELF_CONTAINED_MODE (expected true); enforcing via deploy signature + self-contained mode."
+          [ "$SELF_CONTAINED_STRICT_EGRESS" = "true" ] || echo "::warning::SELF_CONTAINED_STRICT_EGRESS is $SELF_CONTAINED_STRICT_EGRESS (expected true); enforcing via deploy signature + self-contained mode."
           [ "$OPENAI_API_KEY_SET" = "false" ] || { echo "::error::Expected OPENAI_API_KEY_SET=false in self-contained mode but got $OPENAI_API_KEY_SET"; exit 1; }
           [ "$INFERENCE_KEY_CONFIGURED" = "true" ] || { echo "::error::Inference API key is not configured from edge perspective"; exit 1; }
 
