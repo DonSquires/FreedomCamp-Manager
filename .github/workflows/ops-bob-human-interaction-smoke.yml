@@ -65,6 +65,14 @@ jobs:
           LOG_FILE="bob-human-interaction-smoke.log"
           : > "$LOG_FILE"
 
+          snapshot_health () {
+            local label="$1"
+            local out_file="inference-health-${label}.json"
+            curl -sS -m 30 "$HEALTH_URL" > "$out_file" || true
+            echo "Health snapshot ($label):" | tee -a "$LOG_FILE"
+            cat "$out_file" | tee -a "$LOG_FILE"
+          }
+
           call_chat () {
             local prompt="$1"
             if [[ -n "${INFERENCE_API_KEY:-}" ]]; then
@@ -79,9 +87,48 @@ jobs:
             fi
           }
 
-          RESP1="$(call_chat 'Give me a short, human update for officers about an intermittent PTT outage and immediate next steps.')"
-          RESP2="$(call_chat 'Summarize a bug report for non-technical council managers in plain English.')"
-          RESP3="$(call_chat 'Ask me one clarifying question before proposing a fix for this intermittent issue.')"
+          retry_chat_prompt () {
+            local prompt="$1"
+            local attempt=1
+            local max_attempts=4
+            local resp=""
+
+            while [[ "$attempt" -le "$max_attempts" ]]; do
+              resp="$(call_chat "$prompt")"
+              local provider
+              local fallback
+              local message
+              provider="$(echo "$resp" | jq -r '.provider // empty')"
+              fallback="$(echo "$resp" | jq -r '.fallback // false')"
+              message="$(echo "$resp" | jq -r '.message // empty')"
+
+              echo "Attempt ${attempt}/${max_attempts}: provider=${provider:-<empty>} fallback=${fallback}" | tee -a "$LOG_FILE"
+              echo "Response: $resp" | tee -a "$LOG_FILE"
+
+              if [[ -n "$message" && "$provider" == "$EXPECT_PROVIDER" && "$fallback" != "true" ]]; then
+                echo "$resp"
+                return 0
+              fi
+
+              snapshot_health "attempt-${attempt}"
+
+              if [[ "$attempt" -lt "$max_attempts" ]]; then
+                echo "Retrying after transient Ollama fallback..." | tee -a "$LOG_FILE"
+                sleep 5
+              fi
+
+              attempt=$((attempt + 1))
+            done
+
+            echo "$resp"
+            return 1
+          }
+
+          snapshot_health "before-chat"
+
+          RESP1="$(retry_chat_prompt 'Give me a short, human update for officers about an intermittent PTT outage and immediate next steps.')"
+          RESP2="$(retry_chat_prompt 'Summarize a bug report for non-technical council managers in plain English.')"
+          RESP3="$(retry_chat_prompt 'Ask me one clarifying question before proposing a fix for this intermittent issue.')"
 
           echo "Response 1: $RESP1" | tee -a "$LOG_FILE"
           echo "Response 2: $RESP2" | tee -a "$LOG_FILE"
@@ -115,4 +162,9 @@ jobs:
           path: |
             bob-human-interaction-smoke.log
             inference-health-preflight.json
+            inference-health-before-chat.json
+            inference-health-attempt-1.json
+            inference-health-attempt-2.json
+            inference-health-attempt-3.json
+            inference-health-attempt-4.json
           if-no-files-found: ignore
