@@ -26,6 +26,7 @@
  * - GET  /legal/act/:key - Detailed view of a specific NZ act
  * - GET  /legal/guardrails - AI guardrails (G1-G12) Bob and Ollama must follow
  * - POST /legal/check - Check a proposed action against NZ legal guardrails
+ * - POST /assess/ptt - Diagnose PTT (Push-to-Talk) issues from symptom description
  * - GET  /health     - Health check
  */
 
@@ -935,6 +936,29 @@ function generateHeuristicChatReply(message, context = {}) {
     return 'Data flow: Components use TanStack Query hooks (src/hooks/useXxx.ts) for server state. useQuery fetches data with automatic caching. useMutation writes data and invalidates queries on success. Zustand stores (src/stores/) hold auth state (authStore.ts) and global filters (globalFiltersStore.ts). The Supabase client is typed with Database types from src/types/database.ts.';
   }
 
+  // PTT (Push-to-Talk) domain — specific patterns first, general catch-all last
+  if (lowered.includes('ptt connect') || lowered.includes('ptt unavailable') || lowered.includes('ptt error') || lowered.includes('ptt disconnect')) {
+    return 'PTT connection troubleshooting: (1) Check ptt-signaling-token Edge Function is deployed. (2) Verify PTT_SERVER_URL set in Supabase secrets. (3) Check ptt-server /health on Railway. (4) PTT_JWT_SECRET and PROXY_SECRET must match on both Edge Function and ptt-server. (5) User must be authenticated with valid organization_id. (6) Token errors (4001/4002) mean re-login needed. (7) 4003 = channel full (>50 users). (8) "Unable to reach edge function" = Edge Function not deployed. Run set-ptt-secret.yml workflow to configure.';
+  }
+  if (lowered.includes('ptt server') || lowered.includes('signaling server') || (lowered.includes('signaling') && lowered.includes('ptt'))) {
+    return 'PTT signaling server: ptt-server/ directory (Node.js + Express + ws). Railway deployment via Dockerfile. Env vars: PTT_JWT_SECRET (required), PROXY_SECRET (required), PORT (auto), TURN_URL/USERNAME/CREDENTIAL (optional for NAT traversal). WebSocket path: /ws?token=<jwt>. Messages: start_speaking, stop_speaking, signal (WebRTC SDP/ICE), status, ping/pong. Half-duplex enforced server-side. In-memory state (single instance; Redis for multi-instance scaling). Health: GET /health.';
+  }
+  if (lowered.includes('vox') || lowered.includes('voice activated') || lowered.includes('voice operated')) {
+    return 'VOX (Voice Operated Exchange) mode: Auto-transmits when voice level exceeds threshold. Uses AudioContext + AnalyserNode to monitor audio level at 50ms intervals. Threshold configurable 0-100 (default in PTT settings popover). 500ms silence delay before stopping. Start: startVoxMonitoring() → creates audio context → checks level vs threshold → auto-calls startSpeaking()/stopSpeaking(). Adjust threshold lower (20-30%) for quiet speakers, higher (50-70%) for noisy environments.';
+  }
+  if (lowered.includes('bluetooth') || lowered.includes('headset') || lowered.includes('hardware button')) {
+    return 'Bluetooth PTT: Uses Media Session API to capture hardware play/pause/stop buttons on Bluetooth headsets. initBluetoothPTT() plays silent audio loop to keep Media Session active, then maps play→startSpeaking, pause/stop→stopSpeaking. Requires user interaction to activate (click "Enable Bluetooth" in PTT settings). getBluetoothDevices() enumerates audio input devices with bluetooth/wireless/headset in label. Cleanup: cleanupBluetoothPTT() removes all handlers.';
+  }
+  if ((lowered.includes('microphone') || lowered.includes('mic')) && (lowered.includes('ptt') || lowered.includes('push to talk') || lowered.includes('speak'))) {
+    return 'PTT audio: Microphone access uses getUserMedia({audio: {echoCancellation, noiseSuppression, autoGainControl}}). Audio clips recorded via MediaRecorder (audio/webm;codecs=opus), max 60s / 3MB, uploaded to ptt-clips Supabase Storage bucket with 24h signed URLs. If mic denied: check chrome://settings/content/microphone. If CHANNEL_BUSY: another user is speaking — half-duplex, wait for them. If audio cuts out: check VOX threshold (lower it to 20-30%). For Bluetooth PTT: uses Media Session API — requires user interaction to activate.';
+  }
+  if (lowered.includes('push to talk') || lowered.includes('ptt') || lowered.includes('walkie') || lowered.includes('voice chat')) {
+    return 'Push-to-Talk (PTT) stack: PTTBar.tsx (UI) → ptt.ts (WebSocket + WebRTC) → pttBackground.ts (auto-connect) → pttStore.ts (Zustand) → ptt-signaling-token Edge Function → ptt-server on Railway (WebSocket signaling). Channel scopes: org:<uuid>, team:<uuid>, deployment:<uuid>, incident:<uuid>, direct:<uuid>. Input modes: PTT (hold to talk), Toggle (click), VOX (voice-activated). Half-duplex — one speaker at a time. PTTBar is used in TeamChat and OfficerHomePage. Use POST /assess/ptt with {symptom: "..."} to diagnose PTT issues.';
+  }
+  if (lowered.includes('websocket') || lowered.includes('webrtc') || lowered.includes('signaling')) {
+    return 'PTT signaling server: ptt-server/ directory (Node.js + Express + ws). Railway deployment via Dockerfile. Env vars: PTT_JWT_SECRET (required), PROXY_SECRET (required), PORT (auto), TURN_URL/USERNAME/CREDENTIAL (optional for NAT traversal). WebSocket path: /ws?token=<jwt>. Messages: start_speaking, stop_speaking, signal (WebRTC SDP/ICE), status, ping/pong. Half-duplex enforced server-side. In-memory state (single instance; Redis for multi-instance scaling). Health: GET /health.';
+  }
+
   // NZ legal domain
   if (lowered.includes('privacy act') || lowered.includes('ipp') || lowered.includes('personal information') || lowered.includes('privacy breach')) {
     return 'Privacy Act 2020 has 13 Information Privacy Principles (IPPs). Key: minimise collection (IPP 1), ensure security (IPP 5), limit use (IPP 10), limit disclosure (IPP 11), restrict cross-border transfers (IPP 12). Mandatory breach reporting for serious harm — notify Privacy Commissioner and affected individuals. Bob processes ALPR/face data under IPP 1 (necessary for enforcement) with audit logs (IPP 5). Use GET /legal/act/privacy_act_2020 for full details, or POST /legal/check to validate any action.';
@@ -1003,7 +1027,7 @@ async function generateChatReplyWithOllama(message, history = [], context = {}) 
         messages: [
           {
             role: 'system',
-            content: 'You are Bob, the AI assistant embedded in FieldOps Manager — a freedom camping enforcement platform used by councils and security contractors in New Zealand.\n\nYou assist officers, supervisors, and administrators with:\n- NZ freedom camping law: Freedom Camping Act 2011, Local Government Act 2002, RMA 1991, Privacy Act 2020\n- Compliance analysis: breach trends, stay-night calculations, zone rule interpretation\n- Patrol operations: shift planning, route guidance, officer welfare checks\n- Enforcement actions: Notice to Vacate, Warning Notice, Infringement Notice, Noise Notice\n- Vehicle and plate workflows: ALPR results, SCV certification via NZSCV register\n- Incident and evidence management and investigation notes\n- Risk assessments, SOPs, H&S plans, evacuation plans, active offender procedures\n- Data import, system diagnostics, and operational guidance\n\nNZ Legal Framework (Bob and Ollama MUST abide by these rules):\n- Privacy Act 2020: 13 IPPs. Minimise collection, ensure security, limit use/disclosure, restrict cross-border transfers. Mandatory breach reporting.\n- NZBORA 1990: Rights to movement (s 18), protection from unreasonable search (s 21), natural justice (s 27). All enforcement must respect these.\n- Freedom Camping Act 2011: Officers can issue infringements/NTV/request identity. Officers CANNOT arrest, detain, use force, or enter vehicles — only Police can.\n- RMA 1991: Protect environment. Track environmental impact. Respect Māori cultural sites.\n- Search and Surveillance Act 2012: Public observation/ALPR lawful. Entering vehicles requires warrant/consent. Covert surveillance requires authorisation.\n- Evidence Act 2006: Computer evidence admissible if reliability established (s 137). Maintain chain of custody and audit trails.\n- Policing Act 2008: Involve Police for threats, violence, stolen vehicles, refusal to identify. Share only necessary info, log disclosures.\n- NZDF: Defence land outside council jurisdiction. Do not share surveillance data without authorisation.\n- AI Guardrails: G1 privacy by design, G2 lawful evidence, G3 human review, G4 proportionate enforcement, G5 no Police powers, G6 audit trail, G7 no cross-border leakage, G8 data security, G9 breach notification, G10 respect rights, G11 not legal advice, G12 vulnerable persons.\n- Use POST /legal/check to validate any action. GET /legal/framework for overview. GET /legal/guardrails for full rules.\n\nUI/UX Design Assessment:\n- Design system: Tailwind CSS v3 + shadcn/ui (Radix) with HSL CSS variable theming\n- Four themes: light, dark, high-contrast, night-patrol (for officers in low-light with gloves)\n- Colours: primary teal (HSL 187 72% 37%), accent amber (HSL 48 96% 53%), destructive red (HSL 0 84% 60%)\n- Night-patrol mode: pure black bg, bright cyan primary, 56px min button height, 52px min input height, 17px base font\n- WCAG AA target: 4.5:1 contrast for text, 3:1 for large text, semantic HTML, ARIA attributes, focus-visible rings\n- Responsive breakpoints: sm 640px, md 768px, lg 1024px, xl 1280px (mobile-first)\n- Layout patterns: dashboard (grid cards + table), form (labelled inputs + validation), list (virtualized + empty states), detail (hero + tabs), map (full-height + overlays)\n- Human-friendliness: score components on accessibility (35%), responsiveness (30%), design consistency (35%)\n- Use POST /assess/ui for code analysis, POST /assess/ui/screenshot for visual analysis, POST /assess/ui/colours for contrast checks\n\nFull-Stack Navigation & Debugging:\n- Stack: React UI (src/pages/) → hooks (src/hooks/) → Supabase client → Postgres with RLS → Edge Functions (supabase/functions/) → Railway inference\n- Routes: react-router-dom v6 in App.tsx with ProtectedRoute, RoleRoute, AreaRoute guards. 60+ routes.\n- Button trace: onClick handler → mutation.mutate() → supabase.from(table).insert/update/delete → Postgres → RLS → response → cache invalidation\n- Link trace: <Link to="/path"> → route match → role guard → page component → useParams → hook data fetch\n- Form trace: react-hook-form + zod validation → onSubmit → mutation → Supabase → success toast\n- Debug: POST /navigate/debug with symptom. GET /navigate/stack-map for topology. GET /navigate/route?path= for route lookup.\n- POST /assess/ui/trace to trace any button/link/form from JSX through to database\n- Common fixes: button disabled (check loading state), 404 (check route path), 403 (check RLS), blank page (check hook errors)\n\nKey facts:\n- Zones have allowed_days, max_consecutive_nights, max_nights_per_month\n- Observations track plate_number, zone, recorded_at, and photo evidence\n- Breach triggers when stay limits are exceeded\n- Homeless or vulnerable occupants receive special consideration under policy\n- SCV status from NZSCV register can grant zone exemptions\n- All times are NZ timezone (Pacific/Auckland)\n\nBe concise — field officers need fast actionable answers. When you do not know something specific, say so. Never fabricate data or plate numbers. All guidance is operational, not formal legal advice. Return plain text only, no markdown formatting.',
+            content: 'You are Bob, the AI assistant embedded in FieldOps Manager — a freedom camping enforcement platform used by councils and security contractors in New Zealand.\n\nYou assist officers, supervisors, and administrators with:\n- NZ freedom camping law: Freedom Camping Act 2011, Local Government Act 2002, RMA 1991, Privacy Act 2020\n- Compliance analysis: breach trends, stay-night calculations, zone rule interpretation\n- Patrol operations: shift planning, route guidance, officer welfare checks\n- Enforcement actions: Notice to Vacate, Warning Notice, Infringement Notice, Noise Notice\n- Vehicle and plate workflows: ALPR results, SCV certification via NZSCV register\n- Incident and evidence management and investigation notes\n- Risk assessments, SOPs, H&S plans, evacuation plans, active offender procedures\n- Data import, system diagnostics, and operational guidance\n\nNZ Legal Framework (Bob and Ollama MUST abide by these rules):\n- Privacy Act 2020: 13 IPPs. Minimise collection, ensure security, limit use/disclosure, restrict cross-border transfers. Mandatory breach reporting.\n- NZBORA 1990: Rights to movement (s 18), protection from unreasonable search (s 21), natural justice (s 27). All enforcement must respect these.\n- Freedom Camping Act 2011: Officers can issue infringements/NTV/request identity. Officers CANNOT arrest, detain, use force, or enter vehicles — only Police can.\n- RMA 1991: Protect environment. Track environmental impact. Respect Māori cultural sites.\n- Search and Surveillance Act 2012: Public observation/ALPR lawful. Entering vehicles requires warrant/consent. Covert surveillance requires authorisation.\n- Evidence Act 2006: Computer evidence admissible if reliability established (s 137). Maintain chain of custody and audit trails.\n- Policing Act 2008: Involve Police for threats, violence, stolen vehicles, refusal to identify. Share only necessary info, log disclosures.\n- NZDF: Defence land outside council jurisdiction. Do not share surveillance data without authorisation.\n- AI Guardrails: G1 privacy by design, G2 lawful evidence, G3 human review, G4 proportionate enforcement, G5 no Police powers, G6 audit trail, G7 no cross-border leakage, G8 data security, G9 breach notification, G10 respect rights, G11 not legal advice, G12 vulnerable persons.\n- Use POST /legal/check to validate any action. GET /legal/framework for overview. GET /legal/guardrails for full rules.\n\nUI/UX Design Assessment:\n- Design system: Tailwind CSS v3 + shadcn/ui (Radix) with HSL CSS variable theming\n- Four themes: light, dark, high-contrast, night-patrol (for officers in low-light with gloves)\n- Colours: primary teal (HSL 187 72% 37%), accent amber (HSL 48 96% 53%), destructive red (HSL 0 84% 60%)\n- Night-patrol mode: pure black bg, bright cyan primary, 56px min button height, 52px min input height, 17px base font\n- WCAG AA target: 4.5:1 contrast for text, 3:1 for large text, semantic HTML, ARIA attributes, focus-visible rings\n- Responsive breakpoints: sm 640px, md 768px, lg 1024px, xl 1280px (mobile-first)\n- Layout patterns: dashboard (grid cards + table), form (labelled inputs + validation), list (virtualized + empty states), detail (hero + tabs), map (full-height + overlays)\n- Human-friendliness: score components on accessibility (35%), responsiveness (30%), design consistency (35%)\n- Use POST /assess/ui for code analysis, POST /assess/ui/screenshot for visual analysis, POST /assess/ui/colours for contrast checks\n\nFull-Stack Navigation & Debugging:\n- Stack: React UI (src/pages/) → hooks (src/hooks/) → Supabase client → Postgres with RLS → Edge Functions (supabase/functions/) → Railway inference\n- Routes: react-router-dom v6 in App.tsx with ProtectedRoute, RoleRoute, AreaRoute guards. 60+ routes.\n- Button trace: onClick handler → mutation.mutate() → supabase.from(table).insert/update/delete → Postgres → RLS → response → cache invalidation\n- Link trace: <Link to="/path"> → route match → role guard → page component → useParams → hook data fetch\n- Form trace: react-hook-form + zod validation → onSubmit → mutation → Supabase → success toast\n- Debug: POST /navigate/debug with symptom. GET /navigate/stack-map for topology. GET /navigate/route?path= for route lookup.\n- POST /assess/ui/trace to trace any button/link/form from JSX through to database\n- Common fixes: button disabled (check loading state), 404 (check route path), 403 (check RLS), blank page (check hook errors)\n\nPush-to-Talk (PTT) System:\n- Stack: PTTBar.tsx (UI) → ptt.ts (WebSocket + WebRTC) → pttBackground.ts (auto-connect) → pttStore.ts (Zustand) → ptt-signaling-token Edge Function → ptt-server on Railway (WebSocket)\n- Channel types: org:<uuid> (org-wide), team:<uuid>, deployment:<uuid>, incident:<uuid>, direct:<uuid> (1:1)\n- Token flow: requestPTTToken() → Edge Function validates auth + org → ptt-server /api/token/mint → JWT (10min expiry) → WebSocket connect with ?token=jwt\n- Input modes: PTT (hold to talk), Toggle (click), VOX (voice-activated with threshold). Half-duplex — one speaker per channel.\n- Auto-connect: usePTTAutoConnect hook in App.tsx starts pttBackground service on login. Maintains connection with ping/pong heartbeat.\n- Audio: getUserMedia with echoCancellation + noiseSuppression. MediaRecorder (opus/webm, max 60s/3MB). Clips upload to ptt-clips Supabase Storage.\n- Common issues: "PTT unavailable" = Edge Function not deployed or PTT_SERVER_URL not set. 4001/4002 = auth failure. 4003 = channel full. CHANNEL_BUSY = someone else talking.\n- PTT server env: PTT_JWT_SECRET + PROXY_SECRET (required, must match Edge Function). TURN_URL/USERNAME/CREDENTIAL (optional NAT traversal).\n- DB tables: ptt_messages (clip metadata), ptt_presence (online status), ptt_channels (config). All org-scoped with RLS.\n- Voice data privacy: Audio clips have 24h signed URLs, 30-day retention default, org-scoped access. Privacy Act IPP 5 applies.\n- Use POST /assess/ptt with {symptom: "..."} to diagnose PTT issues.\n\nKey facts:\n- Zones have allowed_days, max_consecutive_nights, max_nights_per_month\n- Observations track plate_number, zone, recorded_at, and photo evidence\n- Breach triggers when stay limits are exceeded\n- Homeless or vulnerable occupants receive special consideration under policy\n- SCV status from NZSCV register can grant zone exemptions\n- All times are NZ timezone (Pacific/Auckland)\n\nBe concise — field officers need fast actionable answers. When you do not know something specific, say so. Never fabricate data or plate numbers. All guidance is operational, not formal legal advice. Return plain text only, no markdown formatting.',
           },
           ...history.slice(-12).map((m) => ({
             role: m?.role === 'assistant' ? 'assistant' : 'user',
@@ -1410,6 +1434,118 @@ app.post('/legal/check', inferenceRateLimit, requireInferenceAuth, async (req, r
   } catch (error) {
     console.error('Legal compliance check error:', error);
     return res.status(500).json({ error: 'Legal compliance check failed', message: error.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// PTT Diagnostics endpoint — diagnose PTT issues
+// ---------------------------------------------------------------------------
+
+const PTT_DIAGNOSTICS = {
+  connection: {
+    keywords: ['connect', 'unavailable', 'disconnect', 'offline', 'wifi off', 'not connecting', 'error connecting'],
+    diagnosis: 'PTT connection failure',
+    checks: [
+      { step: 'Check ptt-signaling-token Edge Function is deployed', detail: 'Run set-ptt-secret.yml workflow or: supabase functions deploy ptt-signaling-token --project-ref $REF --no-verify-jwt' },
+      { step: 'Verify PTT_SERVER_URL in Supabase secrets', detail: 'Supabase Dashboard → Settings → Edge Functions → Secrets. Should be the Railway URL of ptt-server (e.g., https://ptt-server-production.up.railway.app)' },
+      { step: 'Check ptt-server health on Railway', detail: 'GET https://<ptt-server-url>/health — should return {status:"ok",channels:N,connectedUsers:N}' },
+      { step: 'Verify PTT_JWT_SECRET matches', detail: 'Same secret must be set on both Supabase Edge Function secrets AND Railway ptt-server environment variables' },
+      { step: 'Verify PROXY_SECRET matches', detail: 'Edge Function uses this to authenticate with ptt-server /api/token/mint. Must match between Supabase secrets and Railway env.' },
+      { step: 'Check user authentication', detail: 'User must be logged in with a valid session. PTT waits for auth loading to complete before connecting (usePTTAutoConnect).' },
+      { step: 'Check organization_id', detail: 'User must have an organization_id. Master/grand_master users need an org selected in global filter dropdown.' },
+      { step: 'Check browser Console for error details', detail: 'Look for "🎤 PTT:" messages. "unable to reach the edge function" = Edge Function not deployed. WebSocket close codes: 4001/4002=auth, 4003=channel full.' },
+    ],
+  },
+  speaking: {
+    keywords: ['speak', 'talk', 'mic', 'microphone', 'button grey', 'cannot talk', 'greyed out', 'muted', 'channel busy'],
+    diagnosis: 'PTT speaking/microphone issue',
+    checks: [
+      { step: 'Verify PTT connection is active', detail: 'Green wifi icon in PTTBar = connected. If not connected, fix connection first (see connection diagnostics).' },
+      { step: 'Check if channel is busy', detail: 'Half-duplex: only one speaker at a time. If someone else is speaking (yellow PTT button), wait for them to finish.' },
+      { step: 'Check mute state', detail: 'If isMuted=true, PTT button is disabled. Click the mute/unmute button in PTTBar to toggle.' },
+      { step: 'Check browser microphone permission', detail: 'Chrome: chrome://settings/content/microphone. Firefox: about:preferences#privacy. Ensure site is allowed.' },
+      { step: 'Test microphone independently', detail: 'Use browser\'s built-in audio recorder or a site like mictests.com to verify mic works outside PTT.' },
+      { step: 'Check WebSocket readyState', detail: 'In browser Console: ws.readyState should be 1 (OPEN). If 0 (CONNECTING) or 3 (CLOSED), connection is broken.' },
+      { step: 'For VOX: adjust threshold', detail: 'If VOX mode and threshold too high, voice won\'t trigger. Lower threshold to 20-30% in PTT settings popover.' },
+    ],
+  },
+  audio_quality: {
+    keywords: ['choppy', 'echo', 'noise', 'quality', 'cutting out', 'one way', 'can\'t hear', 'no sound', 'static'],
+    diagnosis: 'PTT audio quality issue',
+    checks: [
+      { step: 'Check network connection', detail: 'WebRTC audio requires stable connection. High latency or packet loss causes choppy audio. Try a different network.' },
+      { step: 'Check for echo', detail: 'echoCancellation is enabled by default. If echo persists: use headphones/earbuds, or lower speaker volume.' },
+      { step: 'Check for background noise', detail: 'noiseSuppression is enabled. If noisy: use a directional microphone, move to quieter area, or raise VOX threshold.' },
+      { step: 'Check NAT traversal', detail: 'If behind corporate firewall/symmetric NAT, STUN alone may not work. Configure TURN server: set TURN_URL, TURN_USERNAME, TURN_CREDENTIAL on ptt-server.' },
+      { step: 'Check one-way audio', detail: 'Both parties need microphone permission. Check WebRTC ICE connection state in DevTools. If ICE fails, TURN server is needed.' },
+      { step: 'Check clip playback', detail: 'After speaking, clip uploads to ptt-clips Storage bucket. Check Network tab for upload success. If upload fails: check Storage bucket exists and RLS allows upload.' },
+      { step: 'Check browser support', detail: 'audio/webm;codecs=opus required. Chrome, Firefox, Edge support it. Safari has limited WebM support — may need audio/mp4 fallback.' },
+    ],
+  },
+  deployment: {
+    keywords: ['deploy', 'railway', 'setup', 'install', 'configure', 'secret', 'env'],
+    diagnosis: 'PTT deployment/configuration issue',
+    checks: [
+      { step: 'Deploy ptt-server to Railway', detail: 'Create Railway service from ptt-server/ directory. Set builder to Dockerfile. Configure env vars.' },
+      { step: 'Set required env vars on Railway', detail: 'PTT_JWT_SECRET (generate: openssl rand -hex 32), PROXY_SECRET (shared with Edge Function), PORT (auto-set by Railway).' },
+      { step: 'Set Supabase Edge Function secrets', detail: 'Run set-ptt-secret.yml workflow or manually set PTT_SERVER_URL and PTT_PROXY_SECRET in Supabase Dashboard.' },
+      { step: 'Deploy ptt-signaling-token Edge Function', detail: 'supabase functions deploy ptt-signaling-token --project-ref $REF --no-verify-jwt' },
+      { step: 'Create ptt-clips Storage bucket', detail: 'Supabase Dashboard → Storage → New Bucket → name: ptt-clips. Set RLS policies for org-scoped access.' },
+      { step: 'Run PTT migration', detail: 'Migration 20260329000002_ptt_tables.sql creates ptt_messages, ptt_presence, ptt_channels tables.' },
+      { step: 'Verify health endpoint', detail: 'GET https://<railway-url>/health should return status:ok. If not, check Railway logs for startup errors.' },
+      { step: 'Optional: Configure TURN server', detail: 'For NAT traversal in corporate/restricted networks. Set TURN_URL, TURN_USERNAME, TURN_CREDENTIAL on ptt-server.' },
+    ],
+  },
+};
+
+app.post('/assess/ptt', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const symptom = String(req.body?.symptom || '').trim().toLowerCase();
+    if (!symptom) {
+      return res.status(400).json({ error: 'symptom is required', example: '{ "symptom": "PTT button greyed out" }' });
+    }
+
+    // Match symptom to diagnostic category
+    let matched = null;
+    let bestScore = 0;
+    for (const [category, diag] of Object.entries(PTT_DIAGNOSTICS)) {
+      let score = 0;
+      for (const kw of diag.keywords) {
+        if (symptom.includes(kw)) score += 1;
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        matched = { category, ...diag };
+      }
+    }
+
+    // Default to connection if no match
+    if (!matched) {
+      matched = { category: 'connection', ...PTT_DIAGNOSTICS.connection };
+    }
+
+    return res.json({
+      success: true,
+      symptom: req.body?.symptom,
+      diagnosis: matched.diagnosis,
+      category: matched.category,
+      checks: matched.checks,
+      stack_overview: 'PTTBar.tsx → ptt.ts → pttBackground.ts → pttStore.ts → ptt-signaling-token Edge Function → ptt-server (Railway)',
+      files: {
+        ui_component: 'src/components/features/PTTBar.tsx',
+        library: 'src/lib/ptt.ts',
+        background: 'src/lib/pttBackground.ts',
+        store: 'src/stores/pttStore.ts',
+        hook: 'src/hooks/usePTTAutoConnect.ts',
+        edge_function: 'supabase/functions/ptt-signaling-token/index.ts',
+        signaling_server: 'ptt-server/server.js',
+        migration: 'supabase/migrations/20260329000002_ptt_tables.sql',
+        secrets_workflow: '.github/workflows/set-ptt-secret.yml',
+      },
+    });
+  } catch (error) {
+    console.error('PTT assessment error:', error);
+    return res.status(500).json({ error: 'PTT assessment failed', message: error.message });
   }
 });
 

@@ -32,7 +32,7 @@ const ROUTE_MAP = {
     { path: '/patrol-checkpoints', component: 'PatrolCheckpoints', roles: ['admin', 'admin_officer', 'master'], description: 'Manage patrol checkpoint locations' },
     { path: '/patrol-schedule', component: 'PatrolSchedule', roles: ['admin', 'admin_officer', 'master'], description: 'Plan and assign patrol shifts' },
     { path: '/patrol-kpis', component: 'PatrolKPIs', roles: ['admin', 'admin_officer', 'master'], description: 'Patrol performance metrics dashboard' },
-    { path: '/team-chat', component: 'TeamChat', roles: ['admin', 'admin_officer', 'officer', 'master'], description: 'Internal team messaging' },
+    { path: '/team-chat', component: 'TeamChat', roles: ['admin', 'admin_officer', 'officer', 'master'], description: 'Internal team messaging with PTT voice bar' },
   ],
   admin: [
     { path: '/admin', component: 'AdminPortal', roles: ['admin', 'admin_officer', 'master'], description: 'Admin dashboard — stats, recent activity, system health' },
@@ -322,6 +322,51 @@ const UI_ELEMENT_PATTERNS = {
       ],
     },
   },
+  ptt_button: {
+    description: 'Push-to-Talk control button with hold-to-talk, toggle, and VOX modes.',
+    anatomy: {
+      component: '<PTTBar compact={false}> wraps the full PTT UI in src/components/features/PTTBar.tsx',
+      hold_mode: 'onMouseDown={handlePttDown} → startSpeaking(), onMouseUp={handlePttUp} → stopSpeaking(). Touch events also handled.',
+      toggle_mode: 'onClick={handleToggle} — toggles between startSpeaking() and stopSpeaking()',
+      vox_mode: 'startVoxMonitoring() monitors audio level via AudioContext + AnalyserNode, auto-triggers startSpeaking() when level > threshold',
+    },
+    trace_pattern: [
+      '1. PTTBar renders a <Button> with onMouseDown/onMouseUp (PTT mode) or onClick (toggle mode)',
+      '2. handlePttDown() calls startSpeaking() from src/lib/ptt.ts',
+      '3. startSpeaking() → getUserMedia({audio}) → creates MediaRecorder → ws.send({type:"start_speaking"})',
+      '4. WebSocket message goes to ptt-server → server broadcasts speaking:start to all channel members',
+      '5. Other clients receive speaking event → pttStore updates speakerId/speakerName → UI shows who is talking',
+      '6. handlePttUp() calls stopSpeaking() → MediaRecorder.stop() → upload clip to Supabase Storage (ptt-clips bucket)',
+      '7. ws.send({type:"stop_speaking", clipUrl, duration}) → server broadcasts speaking:stop → clip available for replay',
+    ],
+    common_issues: {
+      button_greyed_out: [
+        'Check usePTTAvailable() — needs connectionStatus === "connected"',
+        'Check usePTTCanSpeak() — needs available + not muted + not someone else speaking',
+        'Check if PTT connection is in error state — look at connectionStatus in pttStore',
+        'Check if isMuted is true — unmute via toggleMute()',
+      ],
+      no_audio_out: [
+        'Check browser microphone permission (getUserMedia failing)',
+        'Check if WebSocket is actually open (ws.readyState === WebSocket.OPEN)',
+        'Check WebRTC peer connections — ICE may fail behind NAT without TURN',
+        'Check MediaRecorder support — browser may not support audio/webm;codecs=opus',
+      ],
+      channel_busy: [
+        'Half-duplex enforcement: only one speaker at a time per channel',
+        'Server returns CHANNEL_BUSY error if another user has the floor',
+        'Wait for the current speaker to stop, then press PTT',
+        'Check if a disconnected user left the speakerId set — server should clear on disconnect',
+      ],
+      connection_fails: [
+        'Check ptt-signaling-token Edge Function is deployed (503 = not deployed)',
+        'Check PTT_SERVER_URL env var is set in Supabase secrets',
+        'Check PTT_JWT_SECRET and PROXY_SECRET match between Edge Function and ptt-server',
+        'Check if ptt-server is running on Railway (GET /health)',
+        'Check auth — user must be authenticated with valid organization_id',
+      ],
+    },
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -359,6 +404,16 @@ const DATA_FLOW_PATTERNS = {
     description: 'Calling Bob (inference-service) on Railway',
     flow: 'Component → fetch("https://bob.railway.app/endpoint", { headers: { "x-inference-api-key": key } }) → Bob Express handler → ONNX/Sharp processing → JSON response',
     hooks_pattern: 'Direct fetch calls or through an Edge Function that proxies to Bob.',
+  },
+  ptt_voice: {
+    description: 'PTT push-to-talk voice communication',
+    flow: 'PTT Button press → startSpeaking() → getUserMedia({audio}) → MediaRecorder.start() → ws.send({type:"start_speaking"}) → ptt-server broadcasts to channel → WebRTC audio stream to peers → on release: stopSpeaking() → MediaRecorder.stop() → upload blob to Supabase Storage ptt-clips bucket → ws.send({type:"stop_speaking",clipUrl,duration})',
+    hooks_pattern: 'usePTTAutoConnect in App.tsx starts background service. PTTBar.tsx renders controls. pttStore.ts holds all state. No TanStack Query — WebSocket-driven real-time state.',
+  },
+  ptt_token: {
+    description: 'PTT token acquisition for channel access',
+    flow: 'requestPTTToken(channelScope) → edgeFunctions.pttSignalingToken({channelScope}) → ptt-signaling-token Edge Function → validates user auth + org membership + channelScope → POST /api/token/mint on ptt-server with PROXY_SECRET → JWT signed with PTT_JWT_SECRET → returns {token, wsUrl, iceServers, expiresIn: 600} → client connects WebSocket with ?token=jwt',
+    hooks_pattern: 'Called automatically by connectToPTT() in ptt.ts. Edge Function calls ptt-server /api/token/mint. Secrets: PTT_SERVER_URL, PROXY_SECRET, PTT_JWT_SECRET.',
   },
 };
 
@@ -458,6 +513,44 @@ const DEBUGGING_PLAYBOOK = {
       '7. For DB migrations: check if the migration SQL has syntax errors or conflicts',
     ],
   },
+  ptt_not_connecting: {
+    symptoms: ['PTT unavailable', 'Push to Talk disconnected', 'No voice connection', 'WifiOff icon in PTT bar'],
+    steps: [
+      '1. Check if ptt-signaling-token Edge Function is deployed — run set-ptt-secret.yml workflow or deploy via Supabase CLI',
+      '2. Check if PTT_SERVER_URL is set in Supabase Edge Function secrets (Settings → Edge Functions → Secrets)',
+      '3. Check if the PTT signaling server is running on Railway — hit its /health endpoint directly',
+      '4. Check if PTT_JWT_SECRET and PROXY_SECRET are set on both the Edge Function AND the PTT server (they must match)',
+      '5. Check browser Console for the specific error message — "unable to reach the edge function" means the Edge Function is not deployed',
+      '6. Check if the user is authenticated and has an organization_id — PTT requires both',
+      '7. For master/grand_master users: ensure an organization is selected in the global filter dropdown',
+      '8. Check Network tab for the ptt-signaling-token request — look at status code (401=auth, 403=org mismatch, 503=not configured)',
+    ],
+  },
+  ptt_cannot_speak: {
+    symptoms: ['PTT button greyed out', 'CHANNEL_BUSY error', 'Microphone not working', 'No audio transmitted'],
+    steps: [
+      '1. Check if the PTT connection status is "connected" (green wifi icon) — if not, fix connection first',
+      '2. Check if another user is currently speaking — half-duplex means only one speaker at a time. Wait for them to finish.',
+      '3. Check browser microphone permission — chrome://settings/content/microphone. Ensure site is allowed.',
+      '4. If "Audio is muted" error: click the unmute button in PTT bar',
+      '5. If no audio reaches other users: check WebRTC peer connections — open DevTools → Application → WebRTC → check if ICE connection succeeds',
+      '6. If behind corporate firewall/NAT: TURN server may be needed — check if TURN_URL/USERNAME/CREDENTIAL are configured on ptt-server',
+      '7. For VOX mode: check threshold slider — if too high, voice will not trigger transmission. Try lowering to 20-30%.',
+      '8. For Bluetooth: Media Session API requires user interaction first. Click "Enable Bluetooth" toggle in PTT settings.',
+    ],
+  },
+  ptt_audio_quality: {
+    symptoms: ['Choppy audio', 'Echo', 'Background noise', 'Audio cutting out', 'One-way audio'],
+    steps: [
+      '1. Check network connection — WebRTC requires stable connection. High packet loss causes choppy audio.',
+      '2. Echo: verify echoCancellation is enabled in getUserMedia constraints (it is by default in ptt.ts)',
+      '3. Background noise: noiseSuppression and autoGainControl are enabled by default. If still noisy, adjust VOX threshold higher.',
+      '4. Audio cutting out: check if VOX silence timeout (500ms) is too aggressive for the speaker\'s cadence. PTT hold mode avoids this.',
+      '5. One-way audio: check if both users have microphone permission. Check WebRTC ICE connectivity — STUN may not work behind symmetric NAT, need TURN.',
+      '6. Check clip upload: after speaking, clip should upload to ptt-clips bucket. Check Network tab for Supabase Storage upload request.',
+      '7. Check MediaRecorder support: audio/webm;codecs=opus is preferred. Some older browsers may not support it.',
+    ],
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -474,6 +567,9 @@ const KEY_TABLES = {
   users: { description: 'System users (officers, admins, masters).', key_columns: 'id, email, role, organization_id, full_name', related: 'patrols, observations, enforcement_actions' },
   organizations: { description: 'Multi-tenant organizations (councils, contractors).', key_columns: 'id, name, type, settings', related: 'users, vehicles, zones' },
   incidents: { description: 'Incident reports — safety, welfare, operational.', key_columns: 'id, title, severity, status, reported_by, created_at', related: 'users, incident_photos' },
+  ptt_messages: { description: 'Push-to-Talk audio clip metadata for replay/audit.', key_columns: 'id, organization_id, channel, sender_id, clip_url, duration_seconds, file_size_bytes, created_at', related: 'users, organizations' },
+  ptt_presence: { description: 'PTT user presence cache (online/busy/offshift).', key_columns: 'user_id (PK), organization_id, channel, status, last_seen_at', related: 'users, organizations' },
+  ptt_channels: { description: 'PTT channel configuration.', key_columns: 'id, channel_key (unique), organization_id, channel_type, name, recording_enabled, max_participants', related: 'organizations' },
 };
 
 // ---------------------------------------------------------------------------

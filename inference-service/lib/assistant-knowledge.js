@@ -69,6 +69,22 @@ const KNOWLEDGE_PACKS = {
       'Image analysis: assess whitespace (15-40% ideal), colour variety (5-15 significant buckets), contrast ratio, visual complexity via edge density.',
     ],
   },
+  ptt_comms_context: {
+    name: 'push-to-talk-communications',
+    summary: 'Push-to-Talk (PTT) subsystem: WebRTC signaling, WebSocket channels, half-duplex voice, VOX, Bluetooth, and Railway deployment.',
+    key_points: [
+      'Architecture: PTTBar.tsx (UI) → ptt.ts (WebSocket + WebRTC) → pttBackground.ts (auto-connect service) → pttStore.ts (Zustand state) → ptt-signaling-token Edge Function → ptt-server (Railway WebSocket server).',
+      'Channel scopes: org:<uuid> (org-wide), team:<uuid>, deployment:<uuid>, incident:<uuid>, direct:<uuid> (1:1). Scope determines who can join. validated by Edge Function against user_profiles.organization_id.',
+      'Token flow: PTTBar → requestPTTToken() → edgeFunctions.pttSignalingToken({channelScope}) → ptt-signaling-token Edge Function → validates auth + org + role → POST /api/token/mint on ptt-server → JWT signed with PTT_JWT_SECRET → returns token + wsUrl + iceServers → connect WebSocket with ?token=jwt.',
+      'Connection lifecycle: usePTTAutoConnect hook in App.tsx → startPTTBackgroundService() on login → connectToOrgChannel() → WebSocket /ws?token=jwt → server sync (presence, speakerId) → ping/pong heartbeat every 30s → auto-reconnect on drop (3s delay, then 30s steady-state).',
+      'Speaking flow (half-duplex): hold PTT button → handlePttDown() → startSpeaking() → getUserMedia(audio) → MediaRecorder starts → ws.send({type:"start_speaking"}) → server broadcasts speaking:start → on release: stopSpeaking() → MediaRecorder stops → upload clip to ptt-clips bucket → ws.send({type:"stop_speaking",clipUrl,duration}).',
+      'Input modes: PTT (hold button to talk, release to stop), Toggle (click to start, click to stop), VOX (voice-operated, auto-transmit when audio > threshold). VOX uses AudioContext + AnalyserNode at 50ms intervals, 500ms silence delay before stopping.',
+      'Common PTT failures: (1) "PTT unavailable" — ptt-signaling-token Edge Function not deployed or PTT_SERVER_URL not set. (2) WebSocket 4001/4002 — token/auth failure, re-login needed. (3) WebSocket 4003 — channel full (>50 participants). (4) CHANNEL_BUSY error — another user is speaking (half-duplex). (5) Microphone denied — browser permission prompt was rejected.',
+      'PTT server (ptt-server/): Node.js + Express + ws. Railway deployment. Env: PTT_JWT_SECRET (required), PROXY_SECRET (required, shared with Edge Function), PORT (auto), TURN_URL/USERNAME/CREDENTIAL (optional NAT traversal). Health: GET /health. In-memory state (single instance; Redis for multi-instance).',
+      'Database tables: ptt_messages (clip metadata for replay/audit), ptt_presence (user online status cache), ptt_channels (channel config). All org-scoped with RLS. Cleanup: cleanup_old_ptt_clips(retention_days) function deletes clips older than N days (default 30).',
+      'Privacy: Audio clips stored in ptt-clips Supabase Storage bucket with 24h signed URLs. PTT tokens expire in 10 minutes. Recordings limited to 60s / 3MB. All voice data is org-scoped and auditable. Privacy Act IPP 5 requires security safeguards on voice data.',
+    ],
+  },
   stack_navigation_context: {
     name: 'full-stack-navigation-debugging',
     summary: 'Navigate the full FieldOps stack (UI → hooks → Supabase → DB → Edge Functions → Railway → GitHub CI) and diagnose UI element behaviour.',
