@@ -1,0 +1,289 @@
+name: Ops Bob Ask Copilot
+
+# Bob queues knowledge requests when he can't answer a question.
+# This workflow polls Bob's GET /ask-copilot/pending endpoint, researches
+# each question using GitHub's Copilot API (via GITHUB_TOKEN), and sends
+# the answer back to Bob via POST /ask-copilot/:id/answer.
+#
+# Bob auto-ingests every answer into his intel feed so future queries benefit.
+#
+# Triggers:
+#   - Scheduled: every hour
+#   - Manual:    workflow_dispatch (with optional single-question override)
+#
+# Required repository secrets:
+#   BOB_SERVICE_URL         — Railway URL for inference service (e.g. https://bob.railway.app)
+#   BOB_INFERENCE_API_KEY   — x-inference-api-key header value
+#
+# Optional:
+#   BOB_ASK_COPILOT_LIMIT   — max pending questions per run (default: 10)
+
+on:
+  schedule:
+    - cron: '0 * * * *'   # every hour
+  workflow_dispatch:
+    inputs:
+      question:
+        description: 'Optional: manually queue a specific question for Bob'
+        required: false
+        type: string
+      category:
+        description: 'Category for the manual question (supabase/railway/github/vercel/expo/domain/email/ptt/general)'
+        required: false
+        default: 'general'
+        type: string
+      limit:
+        description: 'Max number of pending questions to answer per run'
+        required: false
+        default: '10'
+        type: string
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  answer-bob-questions:
+    name: Research Bob's Knowledge Gaps
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      models: read      # Required for GitHub Models / Copilot API access
+
+    steps:
+      - name: Validate required secrets
+        id: validate
+        run: |
+          missing=""
+          [ -z "$BOB_SERVICE_URL" ]       && missing="$missing BOB_SERVICE_URL"
+          [ -z "$BOB_INFERENCE_API_KEY" ] && missing="$missing BOB_INFERENCE_API_KEY"
+          if [ -n "$missing" ]; then
+            echo "::warning::Missing required secrets:$missing"
+            echo "Skipping Bob ask-copilot run. Configure the missing secrets to enable this workflow."
+            echo "can_run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "can_run=true" >> "$GITHUB_OUTPUT"
+        env:
+          BOB_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
+          BOB_INFERENCE_API_KEY: ${{ secrets.BOB_INFERENCE_API_KEY }}
+
+      # If a manual question was provided, queue it in Bob first
+      - name: Queue manual question (if provided)
+        if: steps.validate.outputs.can_run == 'true' && inputs.question != ''
+        env:
+          BOB_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
+          BOB_INFERENCE_API_KEY: ${{ secrets.BOB_INFERENCE_API_KEY }}
+        run: |
+          QUESTION="${{ inputs.question }}"
+          CATEGORY="${{ inputs.category }}"
+          echo "📝 Queuing manual question: $QUESTION"
+
+          HTTP_STATUS=$(curl -s -o /tmp/queue-resp.json -w "%{http_code}" \
+            --max-time 30 \
+            -X POST "${BOB_SERVICE_URL}/ask-copilot" \
+            -H "Content-Type: application/json" \
+            -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" \
+            -d "{\"question\":$(echo "$QUESTION" | jq -Rs .),\"category\":\"${CATEGORY}\",\"source\":\"workflow_dispatch\"}")
+
+          cat /tmp/queue-resp.json
+          echo ""
+          [ "$HTTP_STATUS" != "200" ] && [ "$HTTP_STATUS" != "201" ] && \
+            echo "::warning::Queue returned HTTP $HTTP_STATUS" || \
+            echo "✅ Question queued"
+
+      # Fetch pending questions from Bob
+      - name: Fetch pending knowledge requests
+        id: fetch
+        if: steps.validate.outputs.can_run == 'true'
+        env:
+          BOB_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
+          BOB_INFERENCE_API_KEY: ${{ secrets.BOB_INFERENCE_API_KEY }}
+        run: |
+          LIMIT="${{ inputs.limit || vars.BOB_ASK_COPILOT_LIMIT || '10' }}"
+          echo "🔍 Fetching up to $LIMIT pending knowledge requests from Bob..."
+
+          HTTP_STATUS=$(curl -s -o /tmp/pending.json -w "%{http_code}" \
+            --max-time 30 \
+            "${BOB_SERVICE_URL}/ask-copilot/pending?limit=${LIMIT}" \
+            -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}")
+
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "::error::Bob /ask-copilot/pending returned HTTP $HTTP_STATUS"
+            cat /tmp/pending.json
+            exit 1
+          fi
+
+          COUNT=$(jq '.pending_count' /tmp/pending.json)
+          echo "📋 Found $COUNT pending questions"
+          echo "pending_count=$COUNT" >> "$GITHUB_OUTPUT"
+
+          if [ "$COUNT" -eq 0 ]; then
+            echo "✅ No pending questions — nothing to research"
+          else
+            jq -r '.requests[] | "  [\(.id[:8])] (\(.category)) \(.question[:80])"' /tmp/pending.json
+          fi
+
+      # Research and answer each pending question using GitHub Copilot / Models API
+      - name: Research and answer questions
+        if: steps.validate.outputs.can_run == 'true' && steps.fetch.outputs.pending_count != '0'
+        env:
+          BOB_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
+          BOB_INFERENCE_API_KEY: ${{ secrets.BOB_INFERENCE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+
+          # FieldOps system context given to Copilot for each question
+          SYSTEM_PROMPT="You are a technical research assistant helping Bob, the AI embedded in FieldOps Manager — a freedom camping enforcement platform in New Zealand.
+
+FieldOps Manager infrastructure summary:
+- Frontend: React 18 + Vite + Tailwind + shadcn/ui, hosted on Vercel at fcmanager.co.nz
+- Backend: Supabase (PostgreSQL 17, 47 Edge Functions, Auth, Storage) — project ref kxwjcupuxnnbnzcgmkoi, AWS ap-southeast-2
+- Railway microservices: Bob inference (Node/ONNX, port 3000), Proxy (NZSCV, port 3000), PTT server (WebSocket, port 3002), Ollama (LLM, port 3000)
+- Mobile: React Native + Expo EAS, bundle com.ironeagle.fieldops.manager, project 9ec25722-38ca-44d3-a8f5-62a8d8a64e6d
+- CI/CD: 25 GitHub Actions workflows. bun package manager. TypeScript.
+- Email: Zoho SMTP (port 465) + Resend API. Per-org SMTP in DB via orgConfig.ts.
+- Domain: fcmanager.co.nz. SSL via Let's Encrypt (Vercel-managed). CORS via _shared/withCors.ts.
+- PTT: PTTBar.tsx → ptt.ts → pttBackground.ts → pttStore.ts → ptt-signaling-token Edge Function → ptt-server Railway
+- Bob is SELF_CONTAINED_MODE — no internet access. He learns only from this channel.
+- NZ-specific: NZSCV API (vehicle registration), Freedom Camping Act 2011, Privacy Act 2020, NZBORA 1990
+
+Answer the following question with specific, accurate, actionable information. Be concise but thorough. Include:
+1. Direct answer to the question
+2. Specific file paths, env var names, URLs, or commands relevant to FieldOps
+3. Common gotchas or failure modes
+4. Where to look next if the answer is incomplete
+
+Format as clear prose (no markdown headers). Keep under 800 words."
+
+          # Process each pending request
+          jq -c '.requests[]' /tmp/pending.json | while IFS= read -r request; do
+            ID=$(echo "$request" | jq -r '.id')
+            QUESTION=$(echo "$request" | jq -r '.question')
+            CATEGORY=$(echo "$request" | jq -r '.category')
+            SHORT_ID="${ID:0:8}"
+
+            echo ""
+            echo "🔬 Researching [$SHORT_ID] ($CATEGORY): ${QUESTION:0:100}..."
+
+            # Build the research prompt
+            USER_PROMPT="Category: $CATEGORY
+Question: $QUESTION"
+
+            # Call GitHub Models API (GPT-4o-mini via GitHub Copilot)
+            # This uses the built-in GITHUB_TOKEN with models: read permission
+            MODELS_PAYLOAD=$(jq -n \
+              --arg sys "$SYSTEM_PROMPT" \
+              --arg usr "$USER_PROMPT" \
+              '{
+                "model": "gpt-4o-mini",
+                "messages": [
+                  {"role": "system", "content": $sys},
+                  {"role": "user", "content": $usr}
+                ],
+                "max_tokens": 1000,
+                "temperature": 0.3
+              }')
+
+            MODELS_STATUS=$(curl -s -o /tmp/answer-raw.json -w "%{http_code}" \
+              --max-time 60 \
+              -X POST "https://models.inference.ai.azure.com/chat/completions" \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "$MODELS_PAYLOAD" 2>/dev/null || echo "000")
+
+            ANSWER=""
+            ANSWER_SOURCE="github-models-gpt-4o-mini"
+
+            if [ "$MODELS_STATUS" = "200" ]; then
+              ANSWER=$(jq -r '.choices[0].message.content // ""' /tmp/answer-raw.json)
+              echo "  ✅ Got answer from GitHub Models API (${#ANSWER} chars)"
+            else
+              echo "  ⚠️ GitHub Models API returned HTTP $MODELS_STATUS"
+              # Try GitHub Copilot API as fallback
+              COPILOT_STATUS=$(curl -s -o /tmp/copilot-raw.json -w "%{http_code}" \
+                --max-time 60 \
+                -X POST "https://api.githubcopilot.com/chat/completions" \
+                -H "Authorization: Bearer $GITHUB_TOKEN" \
+                -H "Content-Type: application/json" \
+                -H "Copilot-Integration-Id: vscode-chat" \
+                -d "$MODELS_PAYLOAD" 2>/dev/null || echo "000")
+
+              if [ "$COPILOT_STATUS" = "200" ]; then
+                ANSWER=$(jq -r '.choices[0].message.content // ""' /tmp/copilot-raw.json)
+                ANSWER_SOURCE="github-copilot-api"
+                echo "  ✅ Got answer from GitHub Copilot API (${#ANSWER} chars)"
+              else
+                echo "  ⚠️ Copilot API also unavailable (HTTP $COPILOT_STATUS). Skipping this question."
+                # Mark as skipped rather than failing the whole run
+                curl -s --max-time 20 \
+                  -X POST "${BOB_SERVICE_URL}/ask-copilot/${ID}/skip" \
+                  -H "Content-Type: application/json" \
+                  -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" \
+                  -d '{"reason":"GitHub Models and Copilot APIs unavailable during this run"}' \
+                  > /dev/null
+                continue
+              fi
+            fi
+
+            # Validate we got a non-empty answer
+            if [ -z "$ANSWER" ] || [ "$ANSWER" = "null" ]; then
+              echo "  ⚠️ Empty answer received. Skipping."
+              curl -s --max-time 20 \
+                -X POST "${BOB_SERVICE_URL}/ask-copilot/${ID}/skip" \
+                -H "Content-Type: application/json" \
+                -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" \
+                -d '{"reason":"Empty answer returned from AI provider"}' \
+                > /dev/null
+              continue
+            fi
+
+            # Send the answer back to Bob
+            ANSWER_PAYLOAD=$(jq -n \
+              --arg answer "$ANSWER" \
+              --arg source "$ANSWER_SOURCE" \
+              '{"answer": $answer, "source": $source}')
+
+            SEND_STATUS=$(curl -s -o /tmp/send-resp.json -w "%{http_code}" \
+              --max-time 30 \
+              -X POST "${BOB_SERVICE_URL}/ask-copilot/${ID}/answer" \
+              -H "Content-Type: application/json" \
+              -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" \
+              -d "$ANSWER_PAYLOAD")
+
+            if [ "$SEND_STATUS" = "200" ]; then
+              echo "  📥 Answer sent to Bob and ingested into intel feed ✅"
+            else
+              echo "  ::error::Failed to send answer to Bob (HTTP $SEND_STATUS)"
+              cat /tmp/send-resp.json
+            fi
+
+            # Brief pause between questions to respect API rate limits
+            sleep 3
+          done
+
+          echo ""
+          echo "🎓 Research run complete"
+
+      - name: Summary
+        if: steps.validate.outputs.can_run == 'true'
+        env:
+          BOB_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
+          BOB_INFERENCE_API_KEY: ${{ secrets.BOB_INFERENCE_API_KEY }}
+        run: |
+          echo "📊 Knowledge request summary:"
+          curl -s --max-time 15 \
+            "${BOB_SERVICE_URL}/ask-copilot?limit=5" \
+            -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" | \
+            jq '.counts'
+
+      - name: Skipped (not configured)
+        if: steps.validate.outputs.can_run != 'true'
+        run: |
+          echo "ℹ️ Bob ask-copilot workflow skipped — configure BOB_SERVICE_URL and BOB_INFERENCE_API_KEY secrets to enable."
+          echo ""
+          echo "Setup:"
+          echo "  1. Go to GitHub → Settings → Secrets and variables → Actions"
+          echo "  2. Add BOB_SERVICE_URL = https://<your-bob-railway-url>"
+          echo "  3. Add BOB_INFERENCE_API_KEY = <your-inference-api-key>"
+          echo "  4. Re-run this workflow"

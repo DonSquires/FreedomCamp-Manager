@@ -26,6 +26,22 @@ const KNOWLEDGE_PACKS = {
       'Ensure traceability of automated decisions and allow human review.',
     ],
   },
+  nz_legal_framework: {
+    name: 'nz-legal-framework',
+    summary: 'Comprehensive NZ legal knowledge for Bob and Ollama. Both MUST abide by these rules and help humans work within them.',
+    key_points: [
+      'Privacy Act 2020: 13 Information Privacy Principles (IPPs). Minimise collection (IPP 1), ensure security (IPP 5), limit use (IPP 10), limit disclosure (IPP 11), restrict cross-border transfers (IPP 12). Mandatory breach reporting for serious harm.',
+      'NZBORA 1990: Fundamental rights including freedom of movement (s 18), unreasonable search protection (s 21), right to natural justice (s 27). All enforcement actions must respect these rights. Automated decisions require human review.',
+      'Freedom Camping Act 2011: Permits camping unless restricted by bylaw. Officers can issue infringement notices (≤$200), NTV, request name/address. Officers CANNOT arrest, detain, use force, or enter vehicles. Only Police have those powers.',
+      'RMA 1991: Sustainable management of resources. Freedom camping must not cause environmental damage. Māori cultural sites need special consideration. Track environmental impact alongside compliance.',
+      'Search and Surveillance Act 2012: Observation from public places is lawful. ALPR scanning from public roads is lawful. Entering vehicles/tents requires warrant or consent. Covert surveillance requires authorisation.',
+      'Evidence Act 2006: Computer-generated evidence (ALPR, breach detection) is admissible if system reliability is established (s 137). Chain of custody must be documented. Improperly obtained evidence may be excluded.',
+      'Policing Act 2008: Police have arrest powers — camping enforcement officers do not. Involve Police for threats, violence, refusal to identify, stolen vehicles, criminal activity. Share only necessary information, log all disclosures.',
+      'NZDF: Defence land is outside council jurisdiction. NZDF may assist in civil emergencies. Military personnel subject to NZ law. Do not share surveillance data with NZDF without authorisation.',
+      'AI guardrails (G1-G12): Privacy by design, lawful evidence only, human review required, proportionate enforcement, no Police powers, full audit trail, no cross-border leakage, data security, breach notification, respect for rights, not legal advice, vulnerable persons consideration.',
+      'Criminal Procedure Act 2011: Infringement notices must include all required particulars. Individuals can challenge notices in court. Evidence integrity must be maintained. OIA 1982: Public can request enforcement data — store in retrievable format, separate personal data for redaction.',
+    ],
+  },
   coding_context: {
     name: 'solution-engineering-context',
     summary: 'Structured debugging and remediation planning for production systems.',
@@ -37,46 +53,164 @@ const KNOWLEDGE_PACKS = {
       'Document assumptions and unknowns in every remediation plan.',
     ],
   },
-  runtime_service_topology: {
-    name: 'runtime-service-topology',
-    summary: 'Live operational topology and credential wiring for Bob, PTT, proxy, and inference services.',
+  ui_design_context: {
+    name: 'ui-ux-design-assessment',
+    summary: 'UI visualisation, layout analysis, colour assessment, accessibility auditing, and human-friendliness evaluation for FieldOps Manager pages.',
     key_points: [
-      'Bob chat path: Supabase edge function onspace-ai-chat -> Railway inference-service /chat.',
-      'Inference provider target is Ollama-first (CHAT_PROVIDER=ollama, TABULAR_NLP_PROVIDER=ollama).',
-      'PTT stack: frontend -> ptt-signaling-token edge function -> Railway ptt-server.',
-      'Proxy stack: app services -> Railway NZSCV proxy via PROXY_SERVER_URL/NZSCV_PROXY_URL.',
-      'Critical env wiring: INFERENCE_SERVICE_URL, INFERENCE_API_KEY, PTT_SERVER_URL, PTT_SERVER_SECRET.',
-      'Credential checks should confirm INFERENCE_API_KEY_SET and SUPABASE_SERVICE_ROLE_KEY_SET on inference /health.',
-      'When deploying via CI only, prefer GitHub Actions workflow triggers over local Railway CLI access.',
+      'Design system: Tailwind CSS v3 + shadcn/ui (Radix). HSL CSS variables for theming. Four themes: light, dark, high-contrast, night-patrol.',
+      'Primary colour: teal (HSL 187 72% 37%). Accent: amber (HSL 48 96% 53%). Destructive: red (HSL 0 84% 60%). All from CSS custom properties.',
+      'Night-patrol mode: pure black background, bright cyan primary, 56px min button height, 52px min input height, 17px base font — designed for gloves and low-light.',
+      'WCAG accessibility: minimum AA contrast (4.5:1 text, 3:1 large text). Use ARIA attributes, semantic HTML, focus-visible rings, sr-only labels.',
+      'Responsive breakpoints: sm 640px, md 768px, lg 1024px, xl 1280px. Mobile-first layout with flex/grid containers.',
+      'Component patterns: dashboard (grid cards + table), form (labelled inputs + validation), list (virtualized + empty states), detail (hero + tabs), map (full-height + overlays).',
+      'Spacing rhythm: consistent padding/margin scale (Tailwind p-2/p-4/p-6). Cards use rounded-lg (0.75rem). Elevated cards have multi-layer box-shadow.',
+      'Typography hierarchy: headings (text-lg to text-3xl, font-semibold/bold), body (text-sm/text-base), muted captions (text-muted-foreground).',
+      'Human-friendliness rubric: accessibility (35% weight), responsiveness (30% weight), design consistency (35% weight). Score 80+ is good.',
+      'Image analysis: assess whitespace (15-40% ideal), colour variety (5-15 significant buckets), contrast ratio, visual complexity via edge density.',
     ],
   },
-  deployment_context: {
-    name: 'railway-bun-deployment-context',
-    summary: 'Railway uses Railpack with bun install --frozen-lockfile. bun.lock must be committed and in sync with package.json or builds fail.',
+  ptt_comms_context: {
+    name: 'push-to-talk-communications',
+    summary: 'Push-to-Talk (PTT) subsystem: WebRTC signaling, WebSocket channels, half-duplex voice, VOX, Bluetooth, and Railway deployment.',
     key_points: [
-      'Railpack (Railpack 0.23+) detects bun and runs: bun install --frozen-lockfile then bun run build.',
-      'Error "lockfile had changes, but lockfile is frozen" means bun.lock is out of sync with package.json.',
-      'Root cause: a dependency was added or changed in package.json but bun.lock was not regenerated.',
-      'Fix: run "bun install" locally (without --frozen-lockfile) and commit the updated bun.lock.',
-      'Railpack copies ALL subdirectory package.json files (inference-service, mobile-app, proxy-server, ptt-server) into the install layer.',
-      'bun.lock is a JSON file with lockfileVersion:1; it records exact resolved versions for every package.',
-      'When adding devDependencies (e.g. vitest, jsdom, @testing-library/*), always commit the regenerated bun.lock.',
-      'Verify the fix locally with: bun install --frozen-lockfile (should output "no changes").',
-      'PR #365 added vitest@4.1.2, jsdom@29.0.1, @testing-library/react@16.3.2, @testing-library/jest-dom@6.9.1 — bun.lock was regenerated to include these on 2026-04-05.',
+      'Architecture: PTTBar.tsx (UI) → ptt.ts (WebSocket + WebRTC) → pttBackground.ts (auto-connect service) → pttStore.ts (Zustand state) → ptt-signaling-token Edge Function → ptt-server (Railway WebSocket server).',
+      'Channel scopes: org:<uuid> (org-wide), team:<uuid>, deployment:<uuid>, incident:<uuid>, direct:<uuid> (1:1). Scope determines who can join. validated by Edge Function against user_profiles.organization_id.',
+      'Token flow: PTTBar → requestPTTToken() → edgeFunctions.pttSignalingToken({channelScope}) → ptt-signaling-token Edge Function → validates auth + org + role → POST /api/token/mint on ptt-server → JWT signed with PTT_JWT_SECRET → returns token + wsUrl + iceServers → connect WebSocket with ?token=jwt.',
+      'Connection lifecycle: usePTTAutoConnect hook in App.tsx → startPTTBackgroundService() on login → connectToOrgChannel() → WebSocket /ws?token=jwt → server sync (presence, speakerId) → ping/pong heartbeat every 30s → auto-reconnect on drop (3s delay, then 30s steady-state).',
+      'Speaking flow (half-duplex): hold PTT button → handlePttDown() → startSpeaking() → getUserMedia(audio) → MediaRecorder starts → ws.send({type:"start_speaking"}) → server broadcasts speaking:start → on release: stopSpeaking() → MediaRecorder stops → upload clip to ptt-clips bucket → ws.send({type:"stop_speaking",clipUrl,duration}).',
+      'Input modes: PTT (hold button to talk, release to stop), Toggle (click to start, click to stop), VOX (voice-operated, auto-transmit when audio > threshold). VOX uses AudioContext + AnalyserNode at 50ms intervals, 500ms silence delay before stopping.',
+      'Common PTT failures: (1) "PTT unavailable" — ptt-signaling-token Edge Function not deployed or PTT_SERVER_URL not set. (2) WebSocket 4001/4002 — token/auth failure, re-login needed. (3) WebSocket 4003 — channel full (>50 participants). (4) CHANNEL_BUSY error — another user is speaking (half-duplex). (5) Microphone denied — browser permission prompt was rejected.',
+      'PTT server (ptt-server/): Node.js + Express + ws. Railway deployment. Env: PTT_JWT_SECRET (required), PROXY_SECRET (required, shared with Edge Function), PORT (auto), TURN_URL/USERNAME/CREDENTIAL (optional NAT traversal). Health: GET /health. In-memory state (single instance; Redis for multi-instance).',
+      'Database tables: ptt_messages (clip metadata for replay/audit), ptt_presence (user online status cache), ptt_channels (channel config). All org-scoped with RLS. Cleanup: cleanup_old_ptt_clips(retention_days) function deletes clips older than N days (default 30).',
+      'Privacy: Audio clips stored in ptt-clips Supabase Storage bucket with 24h signed URLs. PTT tokens expire in 10 minutes. Recordings limited to 60s / 3MB. All voice data is org-scoped and auditable. Privacy Act IPP 5 requires security safeguards on voice data.',
     ],
   },
-  testing_context: {
-    name: 'vitest-unit-testing-context',
-    summary: 'Vitest unit testing framework added in PR #365: 195 tests across 10 suites covering core utility modules.',
+  supabase_platform: {
+    name: 'supabase-platform-knowledge',
+    summary: 'Complete Supabase knowledge: Auth, PostgreSQL, Edge Functions, Storage, Realtime, RLS, migrations, secrets, and common issues.',
     key_points: [
-      'Test runner: Vitest with jsdom environment; config in vitest.config.ts with @/* path alias.',
-      'Test scripts: "test:unit" (bun run test:unit) and "test:unit:watch" for watch mode.',
-      'Test files located in src/**/__tests__/*.test.ts pattern.',
-      'Setup file: src/test/setup.ts imports @testing-library/jest-dom matchers.',
-      'Coverage: timezone.ts, globalFiltersStore.ts, supabase client, auth utils, and other core lib modules.',
-      'NZ timezone functions use fixed offsets (not DST-aware): nzDateToUTCStart +13:00, nzDateToUTCEnd +12:00.',
-      'Run unit tests with: npx vitest run or bun run test:unit.',
-      'E2E tests remain in Playwright (tests/e2e/) — vitest is for unit/integration only.',
+      'Project ref: kxwjcupuxnnbnzcgmkoi. URL: https://kxwjcupuxnnbnzcgmkoi.supabase.co. Region: AWS ap-southeast-2 (Sydney). PostgreSQL 17.',
+      'Auth: JWT expiry 3600s. Refresh token rotation on. Redirect URLs: fcmanager.co.nz, *.onspace.build, *.vercel.app, localhost:5173. Email templates in supabase/templates/.',
+      'RLS on every table: policies use auth.uid() + organization_id. Anon key respects RLS (frontend). Service role bypasses RLS (Edge Functions only).',
+      'Edge Functions: 47 functions in supabase/functions/<name>/index.ts. Deno runtime. Must handle OPTIONS preflight. CORS via _shared/withCors.ts. Deploy secrets via Dashboard → Settings → Edge Functions.',
+      'Migrations: 70+ SQL files in supabase/migrations/ (YYYYMMDD_* prefix). Apply: supabase db push. Types: supabase gen types typescript → src/types/database.ts.',
+      'Storage buckets: ptt-clips (audio), evidence-photos, vehicle-photos, report-exports. Signed URLs for private access. 24h expiry on PTT clips.',
+      'Key shared modules: _shared/withCors.ts (CORS allowlist), _shared/compliance.ts (breach calc), _shared/alpr.ts (plate recognition), _shared/orgConfig.ts (per-org SMTP).',
+      'Common fix: RLS blocking → check policies in dashboard. 503 Edge Function → deploy the function. Type drift → regenerate types. JWT expired → call refreshSession().',
+    ],
+  },
+  railway_platform: {
+    name: 'railway-deployment-knowledge',
+    summary: 'Railway deployment: Bob, Proxy, PTT, Ollama services. Env vars, health checks, private networking, Docker, and common issues.',
+    key_points: [
+      'Four Railway services: Bob (inference-service/, port 3000), Proxy (proxy-server/, port 3000), PTT (ptt-server/, port 3002), Ollama (ollama/, port 3000).',
+      'Every service must listen on process.env.PORT. Health: /health (Bob timeout 60s, PTT 30s, Proxy 45s). /api/tags for Ollama.',
+      'Deploy tokens: RAILWAY_BOB_TOKEN (Bob+Ollama shared). RAILWAY_PTT_SERVICE_ID, RAILWAY_PROXY_SERVICE_ID, RAILWAY_OLLAMA_SERVICE_ID for each.',
+      'Private network: Bob → Ollama via http://ollama.railway.internal:3000. No public egress. Both must be in same Railway project.',
+      'Ollama: version 0.20.2 pinned. Port 3000 (not default 11434). OLLAMA_HOST=0.0.0.0:3000. OLLAMA_ORIGINS=*. Bob circuit breaker: 3 failures → 60s cooldown.',
+      'Bob Docker: multi-stage (Python ONNX export → Node builder → production image). Non-root nodejs user. 1GB+ RAM for ONNX models.',
+      'Deploy workflows: deploy-bob-railway.yml, deploy-ollama-railway.yml, deploy-railway.yml (PTT), deploy-proxy-railway.yml.',
+      'Common fix: crash → check Railway logs. OOM → upgrade RAM plan. RAILWAY_TOKEN expired → regenerate in dashboard + update GitHub secret.',
+    ],
+  },
+  github_platform: {
+    name: 'github-cicd-knowledge',
+    summary: '25 GitHub Actions workflows for deployment, database, operations, monitoring. Codespaces dev environment. Copilot integration.',
+    key_points: [
+      '25 workflows in .github/workflows/. Deploy: frontend (Vercel), Bob/Ollama/PTT/Proxy (Railway), mobile (EAS), Edge Functions (Supabase).',
+      'Required secrets: RAILWAY_BOB_TOKEN, RAILWAY_PTT_SERVICE_ID, RAILWAY_PROXY_SERVICE_ID, VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID, SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF, EXPO_TOKEN, INFERENCE_API_KEY.',
+      'Database governance: db-push.yml (production migration, requires @DonSquires approval in "production-schema" environment).',
+      'Ops crons: Bob feedback sync 03:47 NZST, self-learning pretrain 04:21 NZST, intel feed every 6h, ParkPow nightly, geofence review monthly.',
+      'Codespaces: .devcontainer/devcontainer.json. Node 22, Bun, GitHub CLI, Supabase CLI 2.78.1, Deno. Ports forwarded: 5173, 3000, 3002, 8080.',
+      'bun.lock must be committed — Railway runs bun install --frozen-lockfile. Outdated lockfile = deploy failure.',
+      'Bob sync: sync-bob-repo.yml mirrors inference-service/ to DonSquires/Bob repo via BOB_SYNC_PAT token.',
+      'Common fix: workflow failed → Actions tab → find run → read error. Lockfile stale → bun install + commit. Secrets expired → regenerate.',
+    ],
+  },
+  vercel_platform: {
+    name: 'vercel-hosting-knowledge',
+    summary: 'Vercel frontend hosting: React/Vite SPA. SPA rewrites, security headers, CSP, caching, environments, domain management.',
+    key_points: [
+      'Vercel hosts React/Vite SPA. Build: bun run build. Output: dist/. vercel.json at root.',
+      'SPA routing: rewrites [{ source: "/(.*)", destination: "/index.html" }] — all routes handled by react-router-dom.',
+      'Security: HSTS 1yr, X-Frame-Options:DENY, X-Content-Type-Options, CSP (connect-src: *.supabase.co wss: *.railway.app), Permissions-Policy (geolocation, camera, microphone).',
+      'Environments: production uses VITE_SUPABASE_URL_PRODUCTION. Preview uses VITE_SUPABASE_URL_PREVIEW. All client vars must be prefixed VITE_.',
+      'Domains: fcmanager.co.nz (production). *.vercel.app (previews). DNS: CNAME www → cname.vercel-dns.com. A @ → 76.76.21.21.',
+      'Assets cached 1 year (immutable). HTML no-cache. Service worker allowed at root.',
+      'Deploy: deploy-frontend.yml on main push. Manual: vercel --prod.',
+      'Common fix: build fails → bun run build locally. CSP blocks request → add domain to connect-src. Preview auth → add *.vercel.app to Supabase redirect_urls.',
+    ],
+  },
+  expo_mobile_platform: {
+    name: 'expo-mobile-app-knowledge',
+    summary: 'React Native mobile app using Expo/EAS. iOS + Android. Camera, GPS, notifications, PTT audio. OTA updates.',
+    key_points: [
+      'Mobile app in mobile-app/. Expo SDK. EAS project: 9ec25722-38ca-44d3-a8f5-62a8d8a64e6d. Owner: iron-eagle-security.',
+      'Android: com.ironeagle.fieldops.manager. Permissions: CAMERA, ACCESS_FINE/BACKGROUND_LOCATION, VIBRATE.',
+      'iOS: same bundle ID. Camera usage: plate photography. Background GPS: patrol welfare tracking.',
+      'Plugins: expo-secure-store, expo-camera, expo-location, expo-notifications.',
+      'EAS: eas build --platform android --profile production. OTA: eas update --channel production. Store: eas submit.',
+      'Secrets: EXPO_TOKEN, EXPO_PROJECT_ID, ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD. Keystore: ops-generate-keystore.yml.',
+      'Deploy workflow: deploy-mobile.yml. PTT on mobile: Expo Audio + WebSocket (not WebRTC). Background PTT via Expo foreground service.',
+      'Common fix: build fails → check expo.dev logs. EXPO_TOKEN expired → regenerate. OTA not received → run eas update.',
+    ],
+  },
+  domain_dns_platform: {
+    name: 'domain-dns-ssl-knowledge',
+    summary: 'Domain fcmanager.co.nz, DNS records, SSL, CORS allowlists, Supabase redirect_urls, and multi-domain management.',
+    key_points: [
+      'Primary domain: fcmanager.co.nz (.co.nz via NZRS). Vercel frontend. Supabase site_url = https://fcmanager.co.nz.',
+      'Supabase redirect_urls: fcmanager.co.nz, www.fcmanager.co.nz, freedomcampmanager.onspace.build, *.onspace.build, *.vercel.app, localhost:5173/3000.',
+      'SSL: automatic Let\'s Encrypt on Vercel (auto-renewal). HSTS enforced. Railway auto-TLS on *.railway.app.',
+      'DNS for Vercel: CNAME www.fcmanager.co.nz → cname.vercel-dns.com. A record @ → 76.76.21.21.',
+      'DNS for email: SPF TXT (include:zoho.com include:sendgrid.net), DKIM from Zoho/Resend, DMARC (v=DMARC1; p=quarantine).',
+      'CORS allowlist: _shared/withCors.ts for Edge Functions. ptt-server corsOptions. DEV_CORS=true for local development.',
+      'Add new domain: (1) add to Supabase redirect_urls, (2) add to CORS allowlist, (3) DNS records, (4) SSL via Vercel/Supabase.',
+      'Common fix: domain not resolving → check DNS at registrar. CORS blocked → add to withCors.ts. Auth redirect fails → add to redirect_urls.',
+    ],
+  },
+  email_smtp_platform: {
+    name: 'email-smtp-knowledge',
+    summary: 'Email via Zoho SMTP and Resend API. Per-org SMTP. Auth email templates. SPF/DKIM/DMARC DNS records.',
+    key_points: [
+      'Primary SMTP: Zoho Mail. smtp.zoho.com:465 (SSL). Use App-Specific Password (not account password). In proxy-server/.env.',
+      'Transactional email: Resend API. RESEND_API_KEY in Supabase Edge Function secrets. POST https://api.resend.com/emails.',
+      'Per-org SMTP: custom SMTP per organization stored encrypted in DB. Retrieved via _shared/orgConfig.ts → getSmtpConfig(orgId). Falls back to global.',
+      'Auth templates: supabase/templates/ — invite.html, recovery.html, confirmation.html, magic_link.html. Variables: {{ .Token }}, {{ .SiteURL }}, {{ .Email }}.',
+      'Env vars: SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM_EMAIL, SMTP_FROM_NAME, SITE_URL.',
+      'Email DNS: SPF on fcmanager.co.nz, DKIM from Zoho/Resend dashboard, DMARC policy.',
+      'Limits: Zoho free ~200/day. Use Resend for high volume transactional.',
+      'Common fix: spam → SPF/DKIM/DMARC. Auth failed → use App Password. Templates → check {{ variable }} syntax. RESEND_API_KEY → add to Supabase secrets.',
+    ],
+  },
+  hybrid_stack_platform: {
+    name: 'hybrid-stack-architecture',
+    summary: 'Complete FieldOps Manager hybrid stack: web + mobile + BaaS + microservices + AI + CI/CD. How all layers connect.',
+    key_points: [
+      'Layers: Web (Vercel) + Mobile (EAS) → Supabase BaaS (auth/DB/functions/storage) + Railway microservices (Bob/Proxy/PTT/Ollama).',
+      'Plate scan flow: Officer scans → Edge Function → Proxy → NZSCV API → observation stored → compliance check → breach if exceeded.',
+      'AI flow: Photo → Edge Function → Bob /infer/alpr → ONNX model → plate result → DB. Nightly self-learning via GitHub Actions.',
+      'PTT flow: Press button → ptt-signaling-token Edge Function → PTT server JWT → WebSocket → WebRTC audio.',
+      'CI/CD: 25 GitHub Actions → Vercel (frontend), Railway (microservices), Supabase (functions+migrations), EAS (mobile).',
+      'Security: JWT everywhere. RLS on all DB tables. SELF_CONTAINED_MODE blocks Bob from internet. PROXY_SECRET authenticates Edge Functions to services.',
+      'Similar apps: ParkPow (parking violations), Genetec Security Center (surveillance), Axon Field (evidence management), Veolia SMART (environmental), Parking+Plus NZ, Connect IT NZ.',
+      'Build commands: bun run dev/build/lint (web), eas build (mobile), supabase functions deploy (Edge Functions), supabase db push (migrations), node server.js (Bob).',
+    ],
+  },
+  stack_navigation_context: {
+    name: 'full-stack-navigation-debugging',
+    summary: 'Navigate the full FieldOps stack (UI → hooks → Supabase → DB → Edge Functions → Railway → GitHub CI) and diagnose UI element behaviour.',
+    key_points: [
+      'Stack layers: React UI (src/pages/) → Zustand/TanStack Query hooks (src/hooks/) → Supabase client (src/lib/supabase.ts) → Postgres (supabase/migrations/) → Edge Functions (supabase/functions/) → Railway (inference-service/).',
+      'Route system: react-router-dom v6 in App.tsx. Guards: ProtectedRoute (auth), RoleRoute (role check), AreaRoute (portal area). Roles: admin, admin_officer, officer, master.',
+      'Button trace: JSX onClick → handler function → mutation.mutate() → supabase.from("table").insert/update/delete → Postgres → RLS check → response → cache invalidation → re-render.',
+      'Link trace: <Link to="/path"> → Route match in App.tsx → role guard check → target page component → useParams for dynamic segments → hook fetches data.',
+      'Form trace: <Form onSubmit={handleSubmit}> → react-hook-form + zod validation → onSubmit handler → mutation → supabase call → success toast + cache invalidation.',
+      'Data flow: useQuery fetches from Supabase with caching (TanStack Query). useMutation writes to Supabase. invalidateQueries forces re-fetch after writes.',
+      'Common failures: button not working (check onClick/disabled/mutation), link 404 (check route path in App.tsx), form error (check zod schema/RLS), blank page (check hook data loading).',
+      'Debugging tools: browser DevTools Console (render errors), Network tab (API responses), Supabase dashboard (Edge Function logs), Railway dashboard (inference logs), GitHub Actions (CI/CD logs).',
+      'Key tables: vehicles, observations, zones, breaches, enforcement_actions, patrols, users, organizations, incidents. All have RLS policies and organization_id scoping.',
+      'Edge Functions: 70+ in supabase/functions/. Must import CORS from _shared/cors.ts and handle OPTIONS preflight. Run in Deno. Deploy via GitHub Actions.',
     ],
   },
 };
@@ -85,7 +219,6 @@ function classifyBugType(report) {
   const text = `${report.summary || ''}\n${report.stack_trace || ''}`.toLowerCase();
   if (text.includes('timeout') || text.includes('latency')) return 'performance';
   if (text.includes('permission') || text.includes('forbidden') || text.includes('unauthorized')) return 'auth';
-  if (text.includes('frozen') || text.includes('lockfile') || text.includes('bun install') || text.includes('frozen-lockfile')) return 'deployment';
   if (text.includes('cannot') && text.includes('module')) return 'dependency';
   if (text.includes('null') || text.includes('undefined') || text.includes('typeerror')) return 'runtime';
   if (text.includes('cors')) return 'cors';
@@ -127,13 +260,6 @@ function buildSelfHealingPlan(report, options = {}) {
   }
   if (bugType === 'dependency') {
     remediation.unshift('Check runtime image includes required module/native library artifacts.');
-  }
-  if (bugType === 'deployment') {
-    remediation.unshift(
-      'Run "bun install" (without --frozen-lockfile) locally and commit the updated bun.lock.',
-      'Check which package.json dependency was added or changed without regenerating bun.lock.',
-      'Verify fix with: bun install --frozen-lockfile (should output "no changes").',
-    );
   }
   if (inSelfContainedMode) {
     remediation.push('Verify no external network dependency is introduced by the fix.');
