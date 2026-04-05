@@ -1,0 +1,85 @@
+name: Ops Railway Wiring Audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-railway-wiring-audit.yml'
+      - '.github/workflows/deploy-*.yml'
+      - 'supabase/functions/check-railway-health/**'
+      - 'docs/ENVIRONMENT_VARIABLES.md'
+      - 'docs/DEPLOYMENT_GUIDE.md'
+  schedule:
+    - cron: '11 * * * *'
+  workflow_dispatch:
+
+jobs:
+  audit:
+    name: Validate Railway Edge Wiring
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL }}
+      PROXY_SERVER_URL: ${{ secrets.PROXY_SERVER_URL }}
+      PTT_SERVER_URL: ${{ secrets.PTT_SERVER_URL }}
+      INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
+
+    steps:
+      - name: Validate required secret presence
+        run: |
+          set -euo pipefail
+          missing=""
+          [ -z "${VITE_SUPABASE_URL:-}" ] && missing="$missing VITE_SUPABASE_URL"
+          [ -z "${INFERENCE_SERVICE_URL:-}" ] && missing="$missing INFERENCE_SERVICE_URL"
+          [ -z "${PROXY_SERVER_URL:-}" ] && missing="$missing PROXY_SERVER_URL"
+          [ -z "${PTT_SERVER_URL:-}" ] && missing="$missing PTT_SERVER_URL"
+          [ -z "${INFERENCE_API_KEY:-}" ] && missing="$missing INFERENCE_API_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing required secrets:$missing"
+            exit 1
+          fi
+
+      - name: Query and validate check-railway-health
+        run: |
+          set -euo pipefail
+
+          normalize_url() {
+            local value="${1%/}"
+            if [[ "$value" != http://* && "$value" != https://* ]]; then
+              value="https://$value"
+            fi
+            printf "%s" "$value"
+          }
+
+          EXPECT_INFERENCE_URL="$(normalize_url "$INFERENCE_SERVICE_URL")"
+          EXPECT_PROXY_URL="$(normalize_url "$PROXY_SERVER_URL")"
+          EXPECT_PTT_URL="$(normalize_url "$PTT_SERVER_URL")"
+          FN_URL="${VITE_SUPABASE_URL%/}/functions/v1/check-railway-health"
+
+          HTTP_STATUS=$(curl -sS -o /tmp/railway-health.json -w "%{http_code}" --max-time 30 "$FN_URL")
+          cat /tmp/railway-health.json
+          [ "$HTTP_STATUS" = "200" ] || { echo "::error::check-railway-health returned HTTP $HTTP_STATUS"; exit 1; }
+
+          ACTUAL_PROXY_URL="$(jq -r '.proxy_url // ""' /tmp/railway-health.json)"
+          ACTUAL_INFERENCE_URL="$(jq -r '.inference_url // ""' /tmp/railway-health.json)"
+          ACTUAL_PTT_URL="$(jq -r '.ptt_url // ""' /tmp/railway-health.json)"
+          PROXY_STATUS="$(jq -r '.proxy.status // "unknown"' /tmp/railway-health.json)"
+          INFERENCE_STATUS="$(jq -r '.inference.status // "unknown"' /tmp/railway-health.json)"
+          PTT_STATUS="$(jq -r '.ptt.status // "unknown"' /tmp/railway-health.json)"
+          CHAT_PROVIDER="$(jq -r '.inference.config.CHAT_PROVIDER // ""' /tmp/railway-health.json)"
+          TABULAR_PROVIDER="$(jq -r '.inference.config.TABULAR_NLP_PROVIDER // ""' /tmp/railway-health.json)"
+          INFERENCE_KEY_CONFIGURED="$(jq -r '.inference_api_key_configured // false' /tmp/railway-health.json)"
+
+          [ "$ACTUAL_PROXY_URL" = "$EXPECT_PROXY_URL" ] || { echo "::error::Proxy URL mismatch. expected=$EXPECT_PROXY_URL actual=$ACTUAL_PROXY_URL"; exit 1; }
+          [ "$ACTUAL_INFERENCE_URL" = "$EXPECT_INFERENCE_URL" ] || { echo "::error::Inference URL mismatch. expected=$EXPECT_INFERENCE_URL actual=$ACTUAL_INFERENCE_URL"; exit 1; }
+          [ "$ACTUAL_PTT_URL" = "$EXPECT_PTT_URL" ] || { echo "::error::PTT URL mismatch. expected=$EXPECT_PTT_URL actual=$ACTUAL_PTT_URL"; exit 1; }
+          [ "$PROXY_STATUS" = "ok" ] || { echo "::error::Proxy status is not ok: $PROXY_STATUS"; exit 1; }
+          [ "$INFERENCE_STATUS" = "healthy" ] || { echo "::error::Inference status is not healthy: $INFERENCE_STATUS"; exit 1; }
+          [ "$PTT_STATUS" = "ok" ] || { echo "::error::PTT status is not ok: $PTT_STATUS"; exit 1; }
+          [ "$CHAT_PROVIDER" = "ollama" ] || { echo "::error::Expected CHAT_PROVIDER=ollama but got $CHAT_PROVIDER"; exit 1; }
+          [ "$TABULAR_PROVIDER" = "ollama" ] || { echo "::error::Expected TABULAR_NLP_PROVIDER=ollama but got $TABULAR_PROVIDER"; exit 1; }
+          [ "$INFERENCE_KEY_CONFIGURED" = "true" ] || { echo "::error::Inference API key is not configured from edge perspective"; exit 1; }
+
+          echo "✅ Railway + Edge wiring is consistent"
