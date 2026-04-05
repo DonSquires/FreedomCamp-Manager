@@ -567,7 +567,7 @@ function traceUIElement(code, elementType = 'auto') {
           const pattern = r.path.replace(/:\w+/g, '[^/]+');
           return new RegExp(`^${pattern}$`).test(target);
         });
-        if (!routeExists && !target.startsWith('/') === false) {
+        if (!routeExists && target.startsWith('/')) {
           analysis.issues.push({ severity: 'low', message: `Link target "${target}" — verify this path exists in App.tsx route map.` });
         }
       });
