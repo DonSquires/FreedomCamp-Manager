@@ -26,6 +26,22 @@ const KNOWLEDGE_PACKS = {
       'Ensure traceability of automated decisions and allow human review.',
     ],
   },
+  nz_legal_framework: {
+    name: 'nz-legal-framework',
+    summary: 'Comprehensive NZ legal knowledge for Bob and Ollama. Both MUST abide by these rules and help humans work within them.',
+    key_points: [
+      'Privacy Act 2020: 13 Information Privacy Principles (IPPs). Minimise collection (IPP 1), ensure security (IPP 5), limit use (IPP 10), limit disclosure (IPP 11), restrict cross-border transfers (IPP 12). Mandatory breach reporting for serious harm.',
+      'NZBORA 1990: Fundamental rights including freedom of movement (s 18), unreasonable search protection (s 21), right to natural justice (s 27). All enforcement actions must respect these rights. Automated decisions require human review.',
+      'Freedom Camping Act 2011: Permits camping unless restricted by bylaw. Officers can issue infringement notices (≤$200), NTV, request name/address. Officers CANNOT arrest, detain, use force, or enter vehicles. Only Police have those powers.',
+      'RMA 1991: Sustainable management of resources. Freedom camping must not cause environmental damage. Māori cultural sites need special consideration. Track environmental impact alongside compliance.',
+      'Search and Surveillance Act 2012: Observation from public places is lawful. ALPR scanning from public roads is lawful. Entering vehicles/tents requires warrant or consent. Covert surveillance requires authorisation.',
+      'Evidence Act 2006: Computer-generated evidence (ALPR, breach detection) is admissible if system reliability is established (s 137). Chain of custody must be documented. Improperly obtained evidence may be excluded.',
+      'Policing Act 2008: Police have arrest powers — camping enforcement officers do not. Involve Police for threats, violence, refusal to identify, stolen vehicles, criminal activity. Share only necessary information, log all disclosures.',
+      'NZDF: Defence land is outside council jurisdiction. NZDF may assist in civil emergencies. Military personnel subject to NZ law. Do not share surveillance data with NZDF without authorisation.',
+      'AI guardrails (G1-G12): Privacy by design, lawful evidence only, human review required, proportionate enforcement, no Police powers, full audit trail, no cross-border leakage, data security, breach notification, respect for rights, not legal advice, vulnerable persons consideration.',
+      'Criminal Procedure Act 2011: Infringement notices must include all required particulars. Individuals can challenge notices in court. Evidence integrity must be maintained. OIA 1982: Public can request enforcement data — store in retrievable format, separate personal data for redaction.',
+    ],
+  },
   coding_context: {
     name: 'solution-engineering-context',
     summary: 'Structured debugging and remediation planning for production systems.',

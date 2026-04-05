@@ -1,6 +1,6 @@
 /**
  * ORC/AI Inference Service
- * Vehicle Detection + Embedding Generation + Face Recognition + UI Assessment + Stack Navigation
+ * Vehicle Detection + Embedding Generation + Face Recognition + UI Assessment + Stack Navigation + NZ Legal Framework
  * 
  * Stack:
  * - YOLOv8n (vehicle detection)
@@ -22,6 +22,10 @@
  * - GET  /navigate/stack-map - Full stack topology and debugging playbook
  * - GET  /navigate/route - Look up route details by path
  * - POST /navigate/debug - Get debugging steps for a described symptom
+ * - GET  /legal/framework - NZ legal framework overview (all acts)
+ * - GET  /legal/act/:key - Detailed view of a specific NZ act
+ * - GET  /legal/guardrails - AI guardrails (G1-G12) Bob and Ollama must follow
+ * - POST /legal/check - Check a proposed action against NZ legal guardrails
  * - GET  /health     - Health check
  */
 
@@ -40,6 +44,7 @@ const { buildSelfHealingPlan, buildPatchTask, getKnowledgePacks } = require('./l
 const { createIntelStore } = require('./lib/intel-updates');
 const { analyzeComponentCode, analyzeScreenshot, assessColourPalette, identifyLayoutPattern, DESIGN_SYSTEM } = require('./lib/ui-assessment');
 const { traceUIElement, getStackMap, findRoute, getDebuggingSteps, ROUTE_MAP, DEBUGGING_PLAYBOOK } = require('./lib/stack-navigation');
+const { checkLegalCompliance, getLegalFramework, getLegalDetail, AI_LEGAL_GUARDRAILS } = require('./lib/nz-legal-framework');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -930,8 +935,46 @@ function generateHeuristicChatReply(message, context = {}) {
     return 'Data flow: Components use TanStack Query hooks (src/hooks/useXxx.ts) for server state. useQuery fetches data with automatic caching. useMutation writes data and invalidates queries on success. Zustand stores (src/stores/) hold auth state (authStore.ts) and global filters (globalFiltersStore.ts). The Supabase client is typed with Database types from src/types/database.ts.';
   }
 
+  // NZ legal domain
+  if (lowered.includes('privacy act') || lowered.includes('ipp') || lowered.includes('personal information') || lowered.includes('privacy breach')) {
+    return 'Privacy Act 2020 has 13 Information Privacy Principles (IPPs). Key: minimise collection (IPP 1), ensure security (IPP 5), limit use (IPP 10), limit disclosure (IPP 11), restrict cross-border transfers (IPP 12). Mandatory breach reporting for serious harm — notify Privacy Commissioner and affected individuals. Bob processes ALPR/face data under IPP 1 (necessary for enforcement) with audit logs (IPP 5). Use GET /legal/act/privacy_act_2020 for full details, or POST /legal/check to validate any action.';
+  }
+  if (lowered.includes('bill of rights') || lowered.includes('nzbora') || lowered.includes('human rights') || lowered.includes('natural justice')) {
+    return 'NZBORA 1990 affirms fundamental rights. Key for enforcement: freedom of movement (s 18), unreasonable search protection (s 21), right to natural justice (s 27). Enforcement officers cannot detain — only Police have arrest powers. Automated breach detection must allow human review. All enforcement must be proportionate. Use GET /legal/act/nzbora_1990 for full details.';
+  }
+  if (lowered.includes('rma') || lowered.includes('resource management') || lowered.includes('environment')) {
+    return 'RMA 1991: sustainable management of natural resources. Freedom camping must not cause environmental damage (waste, contamination). Māori cultural sites and wāhi tapu need special consideration. Enforcement data should track environmental impact alongside stay-limit breaches. Use GET /legal/act/rma_1991 for full details.';
+  }
+  if (lowered.includes('police') || lowered.includes('arrest') || lowered.includes('detain') || lowered.includes('force')) {
+    return 'Policing Act 2008: Only NZ Police have arrest/detention/force powers — camping enforcement officers cannot arrest, detain, or use force. Involve Police for: threats of violence, criminal damage, refusal to identify (FCA s 27), stolen vehicles, drug offences, welfare concerns. Share only necessary information and log all disclosures. Use GET /legal/act/policing_act_2008 for full details.';
+  }
+  if (lowered.includes('nzdf') || lowered.includes('defence') || lowered.includes('military')) {
+    return 'NZDF considerations: Defence land is outside council jurisdiction (managed under Defence Act 1990). NZDF may assist in civil emergencies. Military personnel subject to NZ law including Privacy Act and NZBORA. Do not share surveillance data with NZDF without authorisation. Security perimeters around facilities may restrict nearby camping. Use GET /legal/act/nzdf for full details.';
+  }
+  if (lowered.includes('evidence') || lowered.includes('admissib') || lowered.includes('chain of custody') || lowered.includes('court')) {
+    return 'Evidence Act 2006: Computer-generated evidence (ALPR, breach detection) is admissible if system reliability is established (s 137). Chain of custody must be documented. Improperly obtained evidence may be excluded (s 30). Bob maintains audit trails with algorithm version, input data, and confidence scores. Photo evidence preserves original metadata. Use GET /legal/act/evidence_act_2006 for full details.';
+  }
+  if (lowered.includes('search') || lowered.includes('surveillance') || lowered.includes('alpr') || lowered.includes('camera')) {
+    return 'Search and Surveillance Act 2012: Observation from public places is lawful — no warrant needed. ALPR scanning from public roads is lawful (plates are publicly visible). Photography from public land is lawful. Entering vehicles/tents requires warrant or consent. Covert surveillance (hidden cameras, tracking) requires authorisation. GPS tracking of officers is lawful with employer notice. Use GET /legal/act/search_surveillance_2012.';
+  }
+  if (lowered.includes('freedom camping act') || lowered.includes('fca') || lowered.includes('bylaw') || lowered.includes('infringement')) {
+    return 'Freedom Camping Act 2011: Camping is permitted unless restricted by bylaw. Officers can issue infringement notices (≤$200), NTV, request name/address. Officers CANNOT arrest, detain, use force, or enter vehicles. Bylaws vary by council — zone rules are district-specific. SCV certification under NZS 5465:2001 can grant exemptions. Seizure/impounding requires specific grounds and judicial oversight. Use GET /legal/act/freedom_camping_act_2011.';
+  }
+  if (lowered.includes('guardrail') || lowered.includes('legal check') || lowered.includes('compliance check') || lowered.includes('lawful')) {
+    return 'Bob follows 12 AI legal guardrails (G1-G12): privacy by design, lawful evidence only, human review required, proportionate enforcement, no Police powers, full audit trail, no cross-border leakage, data security, breach notification, respect for rights, not legal advice, vulnerable persons consideration. Use POST /legal/check with {description: "proposed action"} to check any action against these guardrails. Use GET /legal/guardrails for the full list.';
+  }
+  if (lowered.includes('oia') || lowered.includes('official information') || lowered.includes('information request')) {
+    return 'OIA 1982: Public can request official information from local authorities within 20 working days. Enforcement data, patrol logs, and compliance stats may be subject to OIA requests. Data must be stored in retrievable format. Personal information should be separable for redaction. Do not delete data that may be subject to OIA requests. Use GET /legal/act/oia_1982 for full details.';
+  }
+  if (lowered.includes('vulnerable') || lowered.includes('homeless') || lowered.includes('welfare') || lowered.includes('special consideration')) {
+    return 'Guardrail G12 — vulnerable persons: When encountering homeless individuals, families with young children, elderly, or disabled persons, consider welfare referrals before enforcement. These situations may require social services rather than infringement notices. Bob flags vulnerable person indicators and recommends proportionate responses. This aligns with NZBORA s 27 (natural justice) and operational policy.';
+  }
+  if (lowered.includes('law') || lowered.includes('legal') || lowered.includes('legislation') || lowered.includes('act')) {
+    return 'I know NZ law relevant to freedom camping enforcement: Privacy Act 2020, NZBORA 1990, Freedom Camping Act 2011, Local Government Act 2002, RMA 1991, Search and Surveillance Act 2012, Evidence Act 2006, Policing Act 2008, Criminal Procedure Act 2011, Harmful Digital Communications Act 2015, OIA 1982, and NZDF considerations. Use GET /legal/framework for overview, GET /legal/act/{key} for details, POST /legal/check to validate actions. All guidance is operational — not formal legal advice.';
+  }
+
   const tone = context?.tone === 'brief' ? 'briefly' : 'clearly';
-  return `I understand your request. I will respond ${tone} and keep recommendations aligned with local enforcement policy and evidence-first decisions.`;
+  return `I understand your request. I will respond ${tone} and keep recommendations aligned with local enforcement policy, NZ legal requirements, and evidence-first decisions.`;
 }
 
 async function generateChatReplyWithOllama(message, history = [], context = {}) {
@@ -960,7 +1003,7 @@ async function generateChatReplyWithOllama(message, history = [], context = {}) 
         messages: [
           {
             role: 'system',
-            content: 'You are Bob, the AI assistant embedded in FieldOps Manager — a freedom camping enforcement platform used by councils and security contractors in New Zealand.\n\nYou assist officers, supervisors, and administrators with:\n- NZ freedom camping law: Freedom Camping Act 2011, Local Government Act 2002, RMA 1991, Privacy Act 2020\n- Compliance analysis: breach trends, stay-night calculations, zone rule interpretation\n- Patrol operations: shift planning, route guidance, officer welfare checks\n- Enforcement actions: Notice to Vacate, Warning Notice, Infringement Notice, Noise Notice\n- Vehicle and plate workflows: ALPR results, SCV certification via NZSCV register\n- Incident and evidence management and investigation notes\n- Risk assessments, SOPs, H&S plans, evacuation plans, active offender procedures\n- Data import, system diagnostics, and operational guidance\n\nUI/UX Design Assessment:\n- Design system: Tailwind CSS v3 + shadcn/ui (Radix) with HSL CSS variable theming\n- Four themes: light, dark, high-contrast, night-patrol (for officers in low-light with gloves)\n- Colours: primary teal (HSL 187 72% 37%), accent amber (HSL 48 96% 53%), destructive red (HSL 0 84% 60%)\n- Night-patrol mode: pure black bg, bright cyan primary, 56px min button height, 52px min input height, 17px base font\n- WCAG AA target: 4.5:1 contrast for text, 3:1 for large text, semantic HTML, ARIA attributes, focus-visible rings\n- Responsive breakpoints: sm 640px, md 768px, lg 1024px, xl 1280px (mobile-first)\n- Layout patterns: dashboard (grid cards + table), form (labelled inputs + validation), list (virtualized + empty states), detail (hero + tabs), map (full-height + overlays)\n- Human-friendliness: score components on accessibility (35%), responsiveness (30%), design consistency (35%)\n- Use POST /assess/ui for code analysis, POST /assess/ui/screenshot for visual analysis, POST /assess/ui/colours for contrast checks\n\nFull-Stack Navigation & Debugging:\n- Stack: React UI (src/pages/) → hooks (src/hooks/) → Supabase client → Postgres with RLS → Edge Functions (supabase/functions/) → Railway inference\n- Routes: react-router-dom v6 in App.tsx with ProtectedRoute, RoleRoute, AreaRoute guards. 60+ routes.\n- Button trace: onClick handler → mutation.mutate() → supabase.from(table).insert/update/delete → Postgres → RLS → response → cache invalidation\n- Link trace: <Link to="/path"> → route match → role guard → page component → useParams → hook data fetch\n- Form trace: react-hook-form + zod validation → onSubmit → mutation → Supabase → success toast\n- Debug: POST /navigate/debug with symptom. GET /navigate/stack-map for topology. GET /navigate/route?path= for route lookup.\n- POST /assess/ui/trace to trace any button/link/form from JSX through to database\n- Common fixes: button disabled (check loading state), 404 (check route path), 403 (check RLS), blank page (check hook errors)\n\nKey facts:\n- Zones have allowed_days, max_consecutive_nights, max_nights_per_month\n- Observations track plate_number, zone, recorded_at, and photo evidence\n- Breach triggers when stay limits are exceeded\n- Homeless or vulnerable occupants receive special consideration under policy\n- SCV status from NZSCV register can grant zone exemptions\n- All times are NZ timezone (Pacific/Auckland)\n\nBe concise — field officers need fast actionable answers. When you do not know something specific, say so. Never fabricate data or plate numbers. Return plain text only, no markdown formatting.',
+            content: 'You are Bob, the AI assistant embedded in FieldOps Manager — a freedom camping enforcement platform used by councils and security contractors in New Zealand.\n\nYou assist officers, supervisors, and administrators with:\n- NZ freedom camping law: Freedom Camping Act 2011, Local Government Act 2002, RMA 1991, Privacy Act 2020\n- Compliance analysis: breach trends, stay-night calculations, zone rule interpretation\n- Patrol operations: shift planning, route guidance, officer welfare checks\n- Enforcement actions: Notice to Vacate, Warning Notice, Infringement Notice, Noise Notice\n- Vehicle and plate workflows: ALPR results, SCV certification via NZSCV register\n- Incident and evidence management and investigation notes\n- Risk assessments, SOPs, H&S plans, evacuation plans, active offender procedures\n- Data import, system diagnostics, and operational guidance\n\nNZ Legal Framework (Bob and Ollama MUST abide by these rules):\n- Privacy Act 2020: 13 IPPs. Minimise collection, ensure security, limit use/disclosure, restrict cross-border transfers. Mandatory breach reporting.\n- NZBORA 1990: Rights to movement (s 18), protection from unreasonable search (s 21), natural justice (s 27). All enforcement must respect these.\n- Freedom Camping Act 2011: Officers can issue infringements/NTV/request identity. Officers CANNOT arrest, detain, use force, or enter vehicles — only Police can.\n- RMA 1991: Protect environment. Track environmental impact. Respect Māori cultural sites.\n- Search and Surveillance Act 2012: Public observation/ALPR lawful. Entering vehicles requires warrant/consent. Covert surveillance requires authorisation.\n- Evidence Act 2006: Computer evidence admissible if reliability established (s 137). Maintain chain of custody and audit trails.\n- Policing Act 2008: Involve Police for threats, violence, stolen vehicles, refusal to identify. Share only necessary info, log disclosures.\n- NZDF: Defence land outside council jurisdiction. Do not share surveillance data without authorisation.\n- AI Guardrails: G1 privacy by design, G2 lawful evidence, G3 human review, G4 proportionate enforcement, G5 no Police powers, G6 audit trail, G7 no cross-border leakage, G8 data security, G9 breach notification, G10 respect rights, G11 not legal advice, G12 vulnerable persons.\n- Use POST /legal/check to validate any action. GET /legal/framework for overview. GET /legal/guardrails for full rules.\n\nUI/UX Design Assessment:\n- Design system: Tailwind CSS v3 + shadcn/ui (Radix) with HSL CSS variable theming\n- Four themes: light, dark, high-contrast, night-patrol (for officers in low-light with gloves)\n- Colours: primary teal (HSL 187 72% 37%), accent amber (HSL 48 96% 53%), destructive red (HSL 0 84% 60%)\n- Night-patrol mode: pure black bg, bright cyan primary, 56px min button height, 52px min input height, 17px base font\n- WCAG AA target: 4.5:1 contrast for text, 3:1 for large text, semantic HTML, ARIA attributes, focus-visible rings\n- Responsive breakpoints: sm 640px, md 768px, lg 1024px, xl 1280px (mobile-first)\n- Layout patterns: dashboard (grid cards + table), form (labelled inputs + validation), list (virtualized + empty states), detail (hero + tabs), map (full-height + overlays)\n- Human-friendliness: score components on accessibility (35%), responsiveness (30%), design consistency (35%)\n- Use POST /assess/ui for code analysis, POST /assess/ui/screenshot for visual analysis, POST /assess/ui/colours for contrast checks\n\nFull-Stack Navigation & Debugging:\n- Stack: React UI (src/pages/) → hooks (src/hooks/) → Supabase client → Postgres with RLS → Edge Functions (supabase/functions/) → Railway inference\n- Routes: react-router-dom v6 in App.tsx with ProtectedRoute, RoleRoute, AreaRoute guards. 60+ routes.\n- Button trace: onClick handler → mutation.mutate() → supabase.from(table).insert/update/delete → Postgres → RLS → response → cache invalidation\n- Link trace: <Link to="/path"> → route match → role guard → page component → useParams → hook data fetch\n- Form trace: react-hook-form + zod validation → onSubmit → mutation → Supabase → success toast\n- Debug: POST /navigate/debug with symptom. GET /navigate/stack-map for topology. GET /navigate/route?path= for route lookup.\n- POST /assess/ui/trace to trace any button/link/form from JSX through to database\n- Common fixes: button disabled (check loading state), 404 (check route path), 403 (check RLS), blank page (check hook errors)\n\nKey facts:\n- Zones have allowed_days, max_consecutive_nights, max_nights_per_month\n- Observations track plate_number, zone, recorded_at, and photo evidence\n- Breach triggers when stay limits are exceeded\n- Homeless or vulnerable occupants receive special consideration under policy\n- SCV status from NZSCV register can grant zone exemptions\n- All times are NZ timezone (Pacific/Auckland)\n\nBe concise — field officers need fast actionable answers. When you do not know something specific, say so. Never fabricate data or plate numbers. All guidance is operational, not formal legal advice. Return plain text only, no markdown formatting.',
           },
           ...history.slice(-12).map((m) => ({
             role: m?.role === 'assistant' ? 'assistant' : 'user',
@@ -1314,6 +1357,59 @@ app.post('/navigate/debug', inferenceRateLimit, requireInferenceAuth, async (req
   } catch (error) {
     console.error('Debug navigation error:', error);
     return res.status(500).json({ error: 'Debug navigation failed', message: error.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// NZ Legal Framework endpoints — teach Bob NZ law and compliance guardrails
+// ---------------------------------------------------------------------------
+
+app.get('/legal/framework', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  return res.json({
+    success: true,
+    framework: getLegalFramework(),
+  });
+});
+
+app.get('/legal/act/:actKey', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  const actKey = req.params.actKey;
+  const detail = getLegalDetail(actKey);
+  if (!detail) {
+    return res.status(404).json({
+      error: `Act "${actKey}" not found.`,
+      available: [
+        'privacy_act_2020', 'nzbora_1990', 'freedom_camping_act_2011', 'local_government_act_2002',
+        'rma_1991', 'search_surveillance_2012', 'evidence_act_2006', 'policing_act_2008',
+        'criminal_procedure_2011', 'harmful_digital_comms_2015', 'oia_1982', 'nzdf', 'ai_guardrails',
+      ],
+    });
+  }
+  return res.json({ success: true, act: detail });
+});
+
+app.get('/legal/guardrails', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  return res.json({
+    success: true,
+    guardrails: AI_LEGAL_GUARDRAILS,
+  });
+});
+
+app.post('/legal/check', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const action = req.body;
+    if (!action?.description || typeof action.description !== 'string') {
+      return res.status(400).json({ error: 'action.description must be a non-empty string describing the proposed action' });
+    }
+
+    const result = checkLegalCompliance(action);
+
+    return res.json({
+      success: true,
+      compliance: result,
+    });
+  } catch (error) {
+    console.error('Legal compliance check error:', error);
+    return res.status(500).json({ error: 'Legal compliance check failed', message: error.message });
   }
 });
 
