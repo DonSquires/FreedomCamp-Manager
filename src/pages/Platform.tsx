@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
-import { nextStatusAfterAnalysis, shouldAutoAcknowledge } from '@/lib/bugReportStatus'
+import { NON_TERMINAL_BUG_REPORT_STATUSES, nextStatusAfterAnalysis, shouldAutoAcknowledge } from '@/lib/bugReportStatus'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -210,6 +210,8 @@ export default function Platform() {
   const [periodDays, setPeriodDays] = useState(30)
   const [analyzingId, setAnalyzingId] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [bulkAnalyzing, setBulkAnalyzing] = useState(false)
+  const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 })
 
   const isGrandMaster = user?.role === 'grand_master'
 
@@ -249,6 +251,11 @@ export default function Platform() {
   const complianceRate = stats && stats.scans_in_period > 0
     ? Math.round(((stats.scans_in_period - stats.breaches_in_period) / stats.scans_in_period) * 100)
     : null
+
+  const isNonTerminalStatus = useCallback((status: string | null | undefined) => {
+    const normalized = status ?? 'submitted'
+    return (NON_TERMINAL_BUG_REPORT_STATUSES as readonly string[]).includes(normalized)
+  }, [])
 
   // Bug / feedback reports
   const { data: feedbackReports, isLoading: feedbackLoading } = useQuery<FeedbackReport[]>({
@@ -355,6 +362,46 @@ Be specific. Name exact files and line-level changes where possible.`
     if (error) { toast.error('Failed to update status'); return }
     queryClient.invalidateQueries({ queryKey: ['platform-feedback'] })
   }, [queryClient])
+
+  const runBulkAutoAnalysis = useCallback(async () => {
+    const reports = (feedbackReports ?? []).filter((report) => isNonTerminalStatus(report.status))
+    if (reports.length === 0) {
+      toast.info('No unresolved reports to process')
+      return
+    }
+
+    setBulkAnalyzing(true)
+    setBulkProgress({ done: 0, total: reports.length })
+
+    let succeeded = 0
+    let failed = 0
+
+    for (let index = 0; index < reports.length; index += 1) {
+      const report = reports[index]
+      setBulkProgress({ done: index + 1, total: reports.length })
+
+      try {
+        const result = await edgeFunctions.autoAnalyseReport({ report_id: report.id })
+        if (result.error) {
+          failed += 1
+        } else {
+          succeeded += 1
+        }
+      } catch {
+        failed += 1
+      }
+    }
+
+    setBulkAnalyzing(false)
+    queryClient.invalidateQueries({ queryKey: ['platform-feedback'] })
+
+    if (failed > 0) {
+      toast.warning(`Backfill completed: ${succeeded} analysed, ${failed} failed`)
+      return
+    }
+
+    toast.success(`Backfill completed: ${succeeded} analysed`)
+  }, [feedbackReports, isNonTerminalStatus, queryClient])
 
   // Redirect non-grand-master users away (after all hooks)
   if (!isGrandMaster) {
@@ -464,9 +511,9 @@ Be specific. Name exact files and line-level changes where possible.`
             <TabsTrigger value="billing">Usage / Billing</TabsTrigger>
             <TabsTrigger value="feedback" className="gap-1.5">
               Feedback & Issues
-              {(feedbackReports ?? []).filter(r => r.status === 'open').length > 0 && (
+              {(feedbackReports ?? []).filter(r => isNonTerminalStatus(r.status)).length > 0 && (
                 <span className="ml-1 rounded-full bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 leading-none">
-                  {(feedbackReports ?? []).filter(r => r.status === 'open').length}
+                  {(feedbackReports ?? []).filter(r => isNonTerminalStatus(r.status)).length}
                 </span>
               )}
             </TabsTrigger>
@@ -673,9 +720,29 @@ Be specific. Name exact files and line-level changes where possible.`
                   Bug reports, feature requests and performance issues from all users. Use Bob to diagnose and generate fix suggestions.
                 </p>
               </div>
-              <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['platform-feedback'] })}>
-                <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refresh
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={runBulkAutoAnalysis}
+                  disabled={bulkAnalyzing || feedbackLoading}
+                >
+                  {bulkAnalyzing ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                      Backfilling {bulkProgress.done}/{bulkProgress.total}
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                      Analyse Unresolved
+                    </>
+                  )}
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['platform-feedback'] })}>
+                  <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refresh
+                </Button>
+              </div>
             </div>
 
             {feedbackLoading ? (
