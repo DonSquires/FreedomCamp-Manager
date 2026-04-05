@@ -26,6 +26,9 @@ const ALLOWED_ORIGINS_EXACT = new Set<string>([
   'https://freedomcampmanager.onspace.build',  // Hosted app build
   'https://fcmanager.co.nz',                   // Production domain
   'https://www.fcmanager.co.nz',               // Production domain (www)
+  'https://onspace.ai',                        // Production domain
+  'https://www.onspace.ai',                    // Production domain (www)
+  'https://app.onspace.ai',                    // App subdomain
   'https://react-9b4t5o.onspace.build',        // Static build
   'http://localhost:5173',                      // Local dev
   'http://localhost:3000',                      // Local dev (alternate port)
