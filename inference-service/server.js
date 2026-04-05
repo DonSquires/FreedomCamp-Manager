@@ -27,6 +27,14 @@
  * - GET  /legal/guardrails - AI guardrails (G1-G12) Bob and Ollama must follow
  * - POST /legal/check - Check a proposed action against NZ legal guardrails
  * - POST /assess/ptt - Diagnose PTT (Push-to-Talk) issues from symptom description
+ * - POST /assess/platform - Diagnose infrastructure platform issues (Supabase, Railway, Vercel, etc.)
+ * - GET  /platform/:key - Get Bob's knowledge about a specific platform
+ * - GET  /platform/stack - Get full hybrid stack overview
+ * - POST /ask-copilot - Queue a knowledge request for Copilot to research
+ * - GET  /ask-copilot/pending - List unanswered knowledge requests (for Copilot workflow)
+ * - GET  /ask-copilot - List all knowledge requests
+ * - POST /ask-copilot/:id/answer - Receive a researched answer back from Copilot
+ * - DELETE /ask-copilot/:id - Remove a knowledge request
  * - GET  /health     - Health check
  */
 
@@ -46,6 +54,8 @@ const { createIntelStore } = require('./lib/intel-updates');
 const { analyzeComponentCode, analyzeScreenshot, assessColourPalette, identifyLayoutPattern, DESIGN_SYSTEM } = require('./lib/ui-assessment');
 const { traceUIElement, getStackMap, findRoute, getDebuggingSteps, ROUTE_MAP, DEBUGGING_PLAYBOOK } = require('./lib/stack-navigation');
 const { checkLegalCompliance, getLegalFramework, getLegalDetail, AI_LEGAL_GUARDRAILS } = require('./lib/nz-legal-framework');
+const { getPlatformKnowledge, diagnosePlatformIssue, getHybridStackOverview } = require('./lib/platform-knowledge');
+const { createKnowledgeRequestStore } = require('./lib/knowledge-requests');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -305,6 +315,10 @@ const intelStore = createIntelStore({
   statePath: INTEL_STATE_PATH,
   hmacKey: INTEL_HMAC_KEY,
 });
+
+const knowledgeRequestsStore = createKnowledgeRequestStore(
+  process.env.KNOWLEDGE_REQUESTS_PATH || path.join(__dirname, 'data', 'knowledge-requests.json')
+);
 
 const egressAudit = {
   started_at: new Date().toISOString(),
@@ -997,8 +1011,49 @@ function generateHeuristicChatReply(message, context = {}) {
     return 'I know NZ law relevant to freedom camping enforcement: Privacy Act 2020, NZBORA 1990, Freedom Camping Act 2011, Local Government Act 2002, RMA 1991, Search and Surveillance Act 2012, Evidence Act 2006, Policing Act 2008, Criminal Procedure Act 2011, Harmful Digital Communications Act 2015, OIA 1982, and NZDF considerations. Use GET /legal/framework for overview, GET /legal/act/{key} for details, POST /legal/check to validate actions. All guidance is operational — not formal legal advice.';
   }
 
+  // Platform infrastructure domain
+  if (lowered.includes('supabase') && (lowered.includes('function') || lowered.includes('edge'))) {
+    return 'Supabase Edge Functions: 47 functions in supabase/functions/<name>/index.ts. Deno runtime. Must handle OPTIONS preflight. CORS via _shared/withCors.ts. Secrets via Supabase Dashboard → Settings → Edge Functions. Deploy: supabase functions deploy <name> --project-ref kxwjcupuxnnbnzcgmkoi. Key shared modules: withCors.ts (CORS), compliance.ts (breach calc), alpr.ts (plate recognition), orgConfig.ts (SMTP). Use POST /assess/platform with {symptom:"..."} to diagnose.';
+  }
+  if (lowered.includes('supabase') || (lowered.includes('rls') || lowered.includes('row level security') || lowered.includes('postgres') || lowered.includes('migration'))) {
+    return 'Supabase: project ref kxwjcupuxnnbnzcgmkoi, AWS ap-southeast-2 (Sydney), PostgreSQL 17. Auth JWT 3600s expiry, token rotation on. RLS on every table — auth.uid() + organization_id. 70+ migrations in supabase/migrations/ (YYYYMMDD_* prefix). Apply: supabase db push. Types: supabase gen types typescript → src/types/database.ts. Connection pooler (Transaction mode) for Edge Functions. Anon key (RLS-enforced) for frontend; service role (bypasses RLS) for Edge Functions only. Use GET /platform/supabase for full knowledge. Use POST /assess/platform with {symptom:"..."} to diagnose.';
+  }
+  if ((lowered.includes('railway') && !lowered.includes('ptt server')) || lowered.includes('dockerfile') || lowered.includes('oom') || lowered.includes('health check') && lowered.includes('service')) {
+    return 'Railway services: Bob (inference-service/, port 3000, 60s health), Proxy (proxy-server/, port 3000), PTT (ptt-server/, port 3002), Ollama (ollama/, port 3000). All must listen on process.env.PORT. Bob → Ollama via http://ollama.railway.internal:3000 (private network). Ollama pinned v0.20.2 (OLLAMA_HOST=0.0.0.0:3000). Bob needs 1GB+ RAM for ONNX. Tokens: RAILWAY_BOB_TOKEN (Bob+Ollama), RAILWAY_PTT_SERVICE_ID, RAILWAY_PROXY_SERVICE_ID. Deploy via GitHub Actions workflows. Use GET /platform/railway for full knowledge.';
+  }
+  if (lowered.includes('github action') || lowered.includes('workflow') || lowered.includes('ci/cd') || lowered.includes('codespace')) {
+    return 'GitHub: 25 Actions workflows in .github/workflows/. Deploy: frontend (Vercel), Bob/Ollama/PTT/Proxy (Railway), mobile (EAS), Edge Functions (Supabase). Database: db-push.yml (requires @DonSquires approval). Ops crons: Bob feedback 03:47 NZST, self-learning pretrain 04:21 NZST, intel every 6h. Codespaces: Node 22, Bun, Supabase CLI, Deno (ports: 5173/3000/3002/8080). bun.lock must be committed or Railway deploy fails. Bob sync: sync-bob-repo.yml → DonSquires/Bob. Use GET /platform/github for full knowledge.';
+  }
+  if (lowered.includes('vercel') || (lowered.includes('frontend') && lowered.includes('deploy'))) {
+    return 'Vercel hosts the React/Vite SPA. Build: bun run build → dist/. SPA rewrite: all routes → /index.html. Security headers: HSTS 1yr, X-Frame-Options:DENY, CSP (connect-src: *.supabase.co wss: *.railway.app). Environments: production (VITE_SUPABASE_URL_PRODUCTION) and preview (VITE_SUPABASE_URL_PREVIEW). Domain: fcmanager.co.nz. DNS: CNAME www → cname.vercel-dns.com. Client env vars must be prefixed VITE_. Use GET /platform/vercel for full knowledge.';
+  }
+  if (lowered.includes('expo') || lowered.includes('mobile app') || lowered.includes('eas build') || (lowered.includes('mobile') && lowered.includes('deploy'))) {
+    return 'Expo/EAS mobile app in mobile-app/. EAS project: 9ec25722-38ca-44d3-a8f5-62a8d8a64e6d. Android: com.ironeagle.fieldops.manager. Plugins: expo-camera, expo-location, expo-notifications, expo-secure-store. Build: eas build --platform android --profile production. OTA: eas update --channel production. Deploy workflow: deploy-mobile.yml. Keystore: ops-generate-keystore.yml. PTT on mobile uses Expo Audio + WebSocket. Use GET /platform/expo for full knowledge.';
+  }
+  if (lowered.includes('smtp') || lowered.includes('email') || (lowered.includes('mail') && !lowered.includes('gmail'))) {
+    return 'Email: Zoho SMTP (smtp.zoho.com:465, SSL) for global send. Use App-Specific Password (not account password). Resend API (RESEND_API_KEY in Supabase secrets) for transactional email. Per-org SMTP stored encrypted in DB, retrieved via _shared/orgConfig.ts. Auth templates in supabase/templates/ (invite, recovery, confirmation, magic_link). DNS: SPF (include:zoho.com), DKIM from Zoho/Resend dashboard, DMARC. Zoho limit: ~200/day free. Use Resend for high volume. Use GET /platform/email for full knowledge.';
+  }
+  if ((lowered.includes('domain') || lowered.includes('dns') || lowered.includes('ssl') || lowered.includes('cors')) && !lowered.includes('ptt')) {
+    return 'Domain: fcmanager.co.nz (.co.nz via NZRS). Vercel CNAME: www.fcmanager.co.nz → cname.vercel-dns.com. A record: @ → 76.76.21.21. SSL: Let\'s Encrypt auto-managed by Vercel. Supabase redirect_urls: fcmanager.co.nz, www, *.onspace.build, *.vercel.app, localhost:5173/3000. CORS allowlist in _shared/withCors.ts (DEV_CORS=true for local). Adding new domain: (1) Supabase redirect_urls, (2) CORS allowlist, (3) DNS records, (4) SSL. Use GET /platform/domain for full knowledge.';
+  }
+  if (lowered.includes('hybrid') || lowered.includes('architecture') || lowered.includes('stack overview') || lowered.includes('how everything') || lowered.includes('all the pieces')) {
+    return 'FieldOps hybrid stack: Web (React → Vercel) + Mobile (Expo → EAS) → Supabase BaaS (auth/DB/47 Edge Functions/Storage) + Railway microservices (Bob/Proxy/PTT/Ollama). CI/CD: 25 GitHub Actions. Plate scan: Mobile → Edge Function → Proxy → NZSCV → observation → compliance check → breach. AI: Photo → Bob ONNX → plate result. PTT: Button → Edge Function → PTT server JWT → WebSocket → WebRTC audio. Self-learning: nightly GitHub Actions → Bob /learn/pretrain. Similar: ParkPow, Genetec, Axon Field, Parking+Plus NZ. Use GET /platform/stack for full architecture overview.';
+  }
+  if (lowered.includes('platform') || lowered.includes('infrastructure') || lowered.includes('hosting')) {
+    return 'FieldOps infrastructure: Vercel (frontend SPA), Supabase (auth/DB/Edge Functions/Storage, project kxwjcupuxnnbnzcgmkoi), Railway (Bob/Proxy/PTT/Ollama microservices), GitHub Actions (25 CI/CD workflows), Expo EAS (mobile builds). Primary domain: fcmanager.co.nz. Email: Zoho SMTP + Resend. Use GET /platform/:key for knowledge on supabase/railway/github/vercel/expo/domain/email. Use POST /assess/platform with {symptom:"..."} to diagnose. Use POST /ask-copilot to queue questions Bob cannot answer.';
+  }
+  if (lowered.includes('ask copilot') || lowered.includes('knowledge request') || lowered.includes('learn') || lowered.includes('don\'t know') || lowered.includes('not sure')) {
+    return 'Bob can queue knowledge requests for Copilot to research. Use POST /ask-copilot with {question: "...", category: "supabase|railway|github|vercel|expo|domain|email|ptt|general"} to submit a question. Copilot\'s ops-bob-ask-copilot.yml workflow polls GET /ask-copilot/pending hourly, researches answers via GitHub Models API, and sends answers back via POST /ask-copilot/:id/answer — which auto-ingests the knowledge into Bob\'s intel feed. Check status: GET /ask-copilot. Answered knowledge is available via /intel/state.';
+  }
+
   const tone = context?.tone === 'brief' ? 'briefly' : 'clearly';
-  return `I understand your request. I will respond ${tone} and keep recommendations aligned with local enforcement policy, NZ legal requirements, and evidence-first decisions.`;
+  // Auto-queue unknown questions for Copilot research
+  try {
+    knowledgeRequestsStore.queueRequest(text, { source: 'heuristic-chat-fallback', context: context?.page || null });
+  } catch {
+    // Non-blocking — queue failure should not affect chat response
+  }
+  return `I don't have a specific answer for that in my current knowledge. I've queued this question for Copilot research — it will be answered and added to my intel feed via the ops-bob-ask-copilot workflow. Check GET /ask-copilot/pending to monitor status. In the meantime, I will respond ${tone} with what I know and keep recommendations aligned with local enforcement policy and NZ legal requirements.`;
 }
 
 async function generateChatReplyWithOllama(message, history = [], context = {}) {
@@ -1546,6 +1601,201 @@ app.post('/assess/ptt', inferenceRateLimit, requireInferenceAuth, async (req, re
   } catch (error) {
     console.error('PTT assessment error:', error);
     return res.status(500).json({ error: 'PTT assessment failed', message: error.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Platform knowledge & diagnostics
+// ---------------------------------------------------------------------------
+
+app.post('/assess/platform', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const symptom = String(req.body?.symptom || '').trim();
+    if (!symptom) {
+      return res.status(400).json({ error: 'symptom is required', example: '{ "symptom": "Railway service keeps crashing on startup" }' });
+    }
+
+    const result = diagnosePlatformIssue(symptom);
+    return res.json({
+      success: true,
+      symptom,
+      platform: result.platform,
+      diagnosis: result.diagnosis,
+      checks: result.checks,
+      tip: 'For deeper knowledge use GET /platform/:key. To queue a research question for Copilot use POST /ask-copilot.',
+    });
+  } catch (error) {
+    console.error('Platform assessment error:', error);
+    return res.status(500).json({ error: 'Platform assessment failed', message: error.message });
+  }
+});
+
+app.get('/platform/stack', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  return res.json({ success: true, overview: getHybridStackOverview() });
+});
+
+app.get('/platform/:key', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  const key = String(req.params.key || '').toLowerCase();
+  const knowledge = getPlatformKnowledge(key);
+  if (!knowledge) {
+    return res.status(404).json({
+      error: 'Unknown platform key',
+      valid_keys: ['supabase', 'railway', 'github', 'vercel', 'expo', 'domain', 'dns', 'email', 'smtp', 'hybrid', 'stack'],
+    });
+  }
+  return res.json({ success: true, platform: key, knowledge });
+});
+
+// ---------------------------------------------------------------------------
+// Ask-Copilot endpoints — Bob's bidirectional knowledge channel
+// ---------------------------------------------------------------------------
+
+// Queue a new knowledge request
+app.post('/ask-copilot', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const question = String(req.body?.question || '').trim();
+    if (!question) {
+      return res.status(400).json({
+        error: 'question is required',
+        example: '{ "question": "How do I set up Supabase custom domain?", "category": "domain" }',
+      });
+    }
+
+    const request = knowledgeRequestsStore.queueRequest(question, {
+      category: req.body?.category,
+      context: req.body?.context,
+      source: req.body?.source || 'api',
+      priority: req.body?.priority,
+    });
+
+    return res.status(201).json({
+      success: true,
+      request,
+      message: 'Knowledge request queued. Copilot will research and answer via POST /ask-copilot/:id/answer. Monitor: GET /ask-copilot/pending.',
+    });
+  } catch (error) {
+    console.error('Ask-copilot queue error:', error);
+    return res.status(500).json({ error: 'Failed to queue knowledge request', message: error.message });
+  }
+});
+
+// List ALL knowledge requests (with optional status filter)
+app.get('/ask-copilot', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  try {
+    const status = req.query.status;
+    const category = req.query.category;
+    const limit = req.query.limit ? parseInt(req.query.limit, 10) : 50;
+
+    const requests = knowledgeRequestsStore.listRequests({ status, category, limit });
+    return res.json({
+      success: true,
+      requests,
+      counts: knowledgeRequestsStore.getCounts(),
+    });
+  } catch (error) {
+    console.error('Ask-copilot list error:', error);
+    return res.status(500).json({ error: 'Failed to list knowledge requests', message: error.message });
+  }
+});
+
+// List PENDING requests only (polled by ops-bob-ask-copilot.yml workflow)
+app.get('/ask-copilot/pending', rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  try {
+    const limit = req.query.limit ? parseInt(req.query.limit, 10) : 20;
+    const priority = req.query.priority;
+
+    const requests = knowledgeRequestsStore.listRequests({
+      status: 'pending',
+      priority: priority || undefined,
+      limit,
+    });
+
+    return res.json({
+      success: true,
+      pending_count: requests.length,
+      requests,
+      counts: knowledgeRequestsStore.getCounts(),
+      tip: 'POST /ask-copilot/:id/answer to send a researched answer. POST /ask-copilot/:id/skip to mark unanswerable.',
+    });
+  } catch (error) {
+    console.error('Ask-copilot pending error:', error);
+    return res.status(500).json({ error: 'Failed to list pending requests', message: error.message });
+  }
+});
+
+// Receive an answer from Copilot — auto-ingests into Bob's intel feed
+app.post('/ask-copilot/:id/answer', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const answer = String(req.body?.answer || '').trim();
+    if (!answer) {
+      return res.status(400).json({ error: 'answer is required' });
+    }
+
+    const answerSource = String(req.body?.source || 'copilot').slice(0, 100);
+    const githubIssueUrl = req.body?.github_issue_url ? String(req.body.github_issue_url) : undefined;
+
+    // Update the knowledge request record
+    const request = knowledgeRequestsStore.answerRequest(id, answer, {
+      source: answerSource,
+      github_issue_url: githubIssueUrl,
+    });
+
+    // Auto-ingest into Bob's intel feed so all future queries benefit
+    try {
+      intelStore.ingestBulletin({
+        type: 'system',
+        title: `Copilot Answer: ${request.question.slice(0, 80)}`,
+        summary: answer.slice(0, 500),
+        content: answer,
+        tags: [request.category, 'copilot-research', 'knowledge-request'],
+        source: answerSource,
+        metadata: {
+          knowledge_request_id: id,
+          question: request.question,
+          category: request.category,
+          answered_at: request.answered_at,
+        },
+      });
+    } catch (ingestError) {
+      // Log but don't fail — the answer is recorded even if intel ingest fails
+      console.warn('Knowledge answer recorded but intel ingest failed:', ingestError.message);
+    }
+
+    return res.json({
+      success: true,
+      request,
+      ingested_to_intel: true,
+      message: 'Answer recorded and ingested into Bob\'s intel feed. Future chat queries will benefit from this knowledge.',
+    });
+  } catch (error) {
+    const status = error.message.includes('not found') ? 404 : 500;
+    console.error('Ask-copilot answer error:', error);
+    return res.status(status).json({ error: 'Failed to record answer', message: error.message });
+  }
+});
+
+// Mark a request as skipped (Copilot could not research an answer)
+app.post('/ask-copilot/:id/skip', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const reason = req.body?.reason;
+    const request = knowledgeRequestsStore.skipRequest(id, reason);
+    return res.json({ success: true, request });
+  } catch (error) {
+    const status = error.message.includes('not found') ? 404 : 500;
+    return res.status(status).json({ error: 'Failed to skip request', message: error.message });
+  }
+});
+
+// Delete a knowledge request
+app.delete('/ask-copilot/:id', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    knowledgeRequestsStore.deleteRequest(req.params.id);
+    return res.json({ success: true });
+  } catch (error) {
+    const status = error.message.includes('not found') ? 404 : 500;
+    return res.status(status).json({ error: 'Failed to delete request', message: error.message });
   }
 });
 
@@ -3374,6 +3624,7 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       face_embedding: modelsLoaded,              // MobileNetV3 embedding for comparison
     },
     ollama_circuit_breaker: OLLAMA_ENABLED ? ollamaCircuitBreaker.toJSON() : null,
+    knowledge_requests: knowledgeRequestsStore.getState(),
     uptime: process.uptime(),
     memory: process.memoryUsage()
   });
