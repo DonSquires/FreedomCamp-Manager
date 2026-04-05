@@ -53,6 +53,22 @@ const KNOWLEDGE_PACKS = {
       'Image analysis: assess whitespace (15-40% ideal), colour variety (5-15 significant buckets), contrast ratio, visual complexity via edge density.',
     ],
   },
+  stack_navigation_context: {
+    name: 'full-stack-navigation-debugging',
+    summary: 'Navigate the full FieldOps stack (UI → hooks → Supabase → DB → Edge Functions → Railway → GitHub CI) and diagnose UI element behaviour.',
+    key_points: [
+      'Stack layers: React UI (src/pages/) → Zustand/TanStack Query hooks (src/hooks/) → Supabase client (src/lib/supabase.ts) → Postgres (supabase/migrations/) → Edge Functions (supabase/functions/) → Railway (inference-service/).',
+      'Route system: react-router-dom v6 in App.tsx. Guards: ProtectedRoute (auth), RoleRoute (role check), AreaRoute (portal area). Roles: admin, admin_officer, officer, master.',
+      'Button trace: JSX onClick → handler function → mutation.mutate() → supabase.from("table").insert/update/delete → Postgres → RLS check → response → cache invalidation → re-render.',
+      'Link trace: <Link to="/path"> → Route match in App.tsx → role guard check → target page component → useParams for dynamic segments → hook fetches data.',
+      'Form trace: <Form onSubmit={handleSubmit}> → react-hook-form + zod validation → onSubmit handler → mutation → supabase call → success toast + cache invalidation.',
+      'Data flow: useQuery fetches from Supabase with caching (TanStack Query). useMutation writes to Supabase. invalidateQueries forces re-fetch after writes.',
+      'Common failures: button not working (check onClick/disabled/mutation), link 404 (check route path in App.tsx), form error (check zod schema/RLS), blank page (check hook data loading).',
+      'Debugging tools: browser DevTools Console (render errors), Network tab (API responses), Supabase dashboard (Edge Function logs), Railway dashboard (inference logs), GitHub Actions (CI/CD logs).',
+      'Key tables: vehicles, observations, zones, breaches, enforcement_actions, patrols, users, organizations, incidents. All have RLS policies and organization_id scoping.',
+      'Edge Functions: 70+ in supabase/functions/. Must import CORS from _shared/cors.ts and handle OPTIONS preflight. Run in Deno. Deploy via GitHub Actions.',
+    ],
+  },
 };
 
 function classifyBugType(report) {

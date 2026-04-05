@@ -1,6 +1,6 @@
 /**
  * ORC/AI Inference Service
- * Vehicle Detection + Embedding Generation + Face Recognition + UI Assessment
+ * Vehicle Detection + Embedding Generation + Face Recognition + UI Assessment + Stack Navigation
  * 
  * Stack:
  * - YOLOv8n (vehicle detection)
@@ -17,7 +17,11 @@
  * - POST /assess/ui  - Analyze component code for layout, a11y, design consistency
  * - POST /assess/ui/screenshot - Analyze UI screenshot for colours, contrast, aesthetics
  * - POST /assess/ui/colours - Check colour palette contrast ratios (WCAG)
+ * - POST /assess/ui/trace - Trace UI element behaviour (button → handler → API → DB)
  * - GET  /assess/ui/design-system - Get FieldOps design system reference
+ * - GET  /navigate/stack-map - Full stack topology and debugging playbook
+ * - GET  /navigate/route - Look up route details by path
+ * - POST /navigate/debug - Get debugging steps for a described symptom
  * - GET  /health     - Health check
  */
 
@@ -35,6 +39,7 @@ const { profileExamples } = require('./lib/pretrain-profiles');
 const { buildSelfHealingPlan, buildPatchTask, getKnowledgePacks } = require('./lib/assistant-knowledge');
 const { createIntelStore } = require('./lib/intel-updates');
 const { analyzeComponentCode, analyzeScreenshot, assessColourPalette, identifyLayoutPattern, DESIGN_SYSTEM } = require('./lib/ui-assessment');
+const { traceUIElement, getStackMap, findRoute, getDebuggingSteps, ROUTE_MAP, DEBUGGING_PLAYBOOK } = require('./lib/stack-navigation');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -899,10 +904,30 @@ function generateHeuristicChatReply(message, context = {}) {
     return 'Night-patrol mode: pure black background (3% lightness), bright cyan primary for max legibility, 56px min button height, 52px min input height, 17px base font. Designed for officers wearing gloves in low-light. Applied via class="night-patrol" on <html> alongside "dark".';
   }
   if (lowered.includes('ui') || lowered.includes('component') || lowered.includes('button') || lowered.includes('card') || lowered.includes('form') || lowered.includes('table')) {
-    return 'I can assess UI components for human-friendliness. Use POST /assess/ui with {code: "..."} to analyze JSX/TSX source code. I evaluate accessibility (35%), responsiveness (30%), and design consistency (35%). I also identify layout patterns (dashboard, form, list, detail, map) and provide actionable recommendations.';
+    return 'I can assess UI components for human-friendliness. Use POST /assess/ui with {code: "..."} to analyze JSX/TSX source code. I evaluate accessibility (35%), responsiveness (30%), and design consistency (35%). I also identify layout patterns (dashboard, form, list, detail, map) and provide actionable recommendations. Use POST /assess/ui/trace with {code: "..."} to trace what a button/link/form does — I follow the chain from onClick handler to Supabase query to database table.';
   }
   if (lowered.includes('screenshot') || lowered.includes('visual') || lowered.includes('aesthetic')) {
     return 'I can analyze UI screenshots for aesthetics. Use POST /assess/ui/screenshot with a screenshot file. I evaluate colour harmony, whitespace balance (15-40% ideal), WCAG contrast, and visual complexity. The analysis includes specific recommendations for improvement.';
+  }
+
+  // Navigation and debugging domain
+  if (lowered.includes('route') || lowered.includes('navigate') || lowered.includes('page') || lowered.includes('path')) {
+    return 'I know the full FieldOps route map. Use GET /navigate/route?path=/vehicles to look up any route — I will tell you the target component, required roles, and description. Use GET /navigate/stack-map for the full system topology from UI through to database. There are 60+ routes in App.tsx with ProtectedRoute, RoleRoute, and AreaRoute guards.';
+  }
+  if (lowered.includes('debug') || lowered.includes('fix') || lowered.includes('error') || lowered.includes('broken') || lowered.includes('not working') || lowered.includes('issue')) {
+    return 'I can help debug FieldOps issues. Use POST /navigate/debug with {symptom: "button not working"} and I will give you step-by-step debugging instructions. I know common failure patterns: button not clickable (check disabled/onClick/mutation), link 404 (check route path), form error (check zod/RLS), blank page (check hook errors), data not loading (check RLS/filters/auth). I can also trace any UI element — POST /assess/ui/trace with the component code.';
+  }
+  if (lowered.includes('stack') || lowered.includes('architecture') || lowered.includes('how does') || lowered.includes('topology')) {
+    return 'FieldOps stack: React UI (src/pages/) → Zustand + TanStack Query hooks (src/hooks/) → Supabase client (src/lib/supabase.ts) → Postgres with RLS (supabase/migrations/) → Edge Functions (supabase/functions/) → Bob inference on Railway (inference-service/). CI/CD via GitHub Actions (.github/workflows/). Use GET /navigate/stack-map for the full interactive topology.';
+  }
+  if (lowered.includes('supabase') || lowered.includes('database') || lowered.includes('rls') || lowered.includes('migration')) {
+    return 'FieldOps uses Supabase Postgres with Row Level Security on every table. Key tables: vehicles, observations, zones, breaches, enforcement_actions, patrols, users, organizations. Types are generated in src/types/database.ts. Migrations in supabase/migrations/ (70+ files). Edge Functions in supabase/functions/ (70+ functions). All queries go through the typed Supabase client in src/lib/supabase.ts.';
+  }
+  if (lowered.includes('railway') || lowered.includes('deploy') || lowered.includes('ci') || lowered.includes('github action')) {
+    return 'FieldOps deployment: Frontend deploys to Supabase via deploy-frontend.yml. Bob (inference-service) deploys to Railway via deploy-bob-railway.yml. Ollama deploys to Railway via deploy-ollama-railway.yml. Edge Functions deploy via deploy-edge-functions.yml. DB migrations via db-run-migrations.yml. All in .github/workflows/. Railway uses project tokens validated with "railway service list --json". bun.lock must be regenerated when deps change or frozen-lockfile fails.';
+  }
+  if (lowered.includes('hook') || lowered.includes('query') || lowered.includes('mutation') || lowered.includes('tanstack') || lowered.includes('zustand')) {
+    return 'Data flow: Components use TanStack Query hooks (src/hooks/useXxx.ts) for server state. useQuery fetches data with automatic caching. useMutation writes data and invalidates queries on success. Zustand stores (src/stores/) hold auth state (authStore.ts) and global filters (globalFiltersStore.ts). The Supabase client is typed with Database types from src/types/database.ts.';
   }
 
   const tone = context?.tone === 'brief' ? 'briefly' : 'clearly';
@@ -935,7 +960,7 @@ async function generateChatReplyWithOllama(message, history = [], context = {}) 
         messages: [
           {
             role: 'system',
-            content: 'You are Bob, the AI assistant embedded in FieldOps Manager — a freedom camping enforcement platform used by councils and security contractors in New Zealand.\n\nYou assist officers, supervisors, and administrators with:\n- NZ freedom camping law: Freedom Camping Act 2011, Local Government Act 2002, RMA 1991, Privacy Act 2020\n- Compliance analysis: breach trends, stay-night calculations, zone rule interpretation\n- Patrol operations: shift planning, route guidance, officer welfare checks\n- Enforcement actions: Notice to Vacate, Warning Notice, Infringement Notice, Noise Notice\n- Vehicle and plate workflows: ALPR results, SCV certification via NZSCV register\n- Incident and evidence management and investigation notes\n- Risk assessments, SOPs, H&S plans, evacuation plans, active offender procedures\n- Data import, system diagnostics, and operational guidance\n\nUI/UX Design Assessment:\n- Design system: Tailwind CSS v3 + shadcn/ui (Radix) with HSL CSS variable theming\n- Four themes: light, dark, high-contrast, night-patrol (for officers in low-light with gloves)\n- Colours: primary teal (HSL 187 72% 37%), accent amber (HSL 48 96% 53%), destructive red (HSL 0 84% 60%)\n- Night-patrol mode: pure black bg, bright cyan primary, 56px min button height, 52px min input height, 17px base font\n- WCAG AA target: 4.5:1 contrast for text, 3:1 for large text, semantic HTML, ARIA attributes, focus-visible rings\n- Responsive breakpoints: sm 640px, md 768px, lg 1024px, xl 1280px (mobile-first)\n- Layout patterns: dashboard (grid cards + table), form (labelled inputs + validation), list (virtualized + empty states), detail (hero + tabs), map (full-height + overlays)\n- Human-friendliness: score components on accessibility (35%), responsiveness (30%), design consistency (35%)\n- Use POST /assess/ui for code analysis, POST /assess/ui/screenshot for visual analysis, POST /assess/ui/colours for contrast checks\n\nKey facts:\n- Zones have allowed_days, max_consecutive_nights, max_nights_per_month\n- Observations track plate_number, zone, recorded_at, and photo evidence\n- Breach triggers when stay limits are exceeded\n- Homeless or vulnerable occupants receive special consideration under policy\n- SCV status from NZSCV register can grant zone exemptions\n- All times are NZ timezone (Pacific/Auckland)\n\nBe concise — field officers need fast actionable answers. When you do not know something specific, say so. Never fabricate data or plate numbers. Return plain text only, no markdown formatting.',
+            content: 'You are Bob, the AI assistant embedded in FieldOps Manager — a freedom camping enforcement platform used by councils and security contractors in New Zealand.\n\nYou assist officers, supervisors, and administrators with:\n- NZ freedom camping law: Freedom Camping Act 2011, Local Government Act 2002, RMA 1991, Privacy Act 2020\n- Compliance analysis: breach trends, stay-night calculations, zone rule interpretation\n- Patrol operations: shift planning, route guidance, officer welfare checks\n- Enforcement actions: Notice to Vacate, Warning Notice, Infringement Notice, Noise Notice\n- Vehicle and plate workflows: ALPR results, SCV certification via NZSCV register\n- Incident and evidence management and investigation notes\n- Risk assessments, SOPs, H&S plans, evacuation plans, active offender procedures\n- Data import, system diagnostics, and operational guidance\n\nUI/UX Design Assessment:\n- Design system: Tailwind CSS v3 + shadcn/ui (Radix) with HSL CSS variable theming\n- Four themes: light, dark, high-contrast, night-patrol (for officers in low-light with gloves)\n- Colours: primary teal (HSL 187 72% 37%), accent amber (HSL 48 96% 53%), destructive red (HSL 0 84% 60%)\n- Night-patrol mode: pure black bg, bright cyan primary, 56px min button height, 52px min input height, 17px base font\n- WCAG AA target: 4.5:1 contrast for text, 3:1 for large text, semantic HTML, ARIA attributes, focus-visible rings\n- Responsive breakpoints: sm 640px, md 768px, lg 1024px, xl 1280px (mobile-first)\n- Layout patterns: dashboard (grid cards + table), form (labelled inputs + validation), list (virtualized + empty states), detail (hero + tabs), map (full-height + overlays)\n- Human-friendliness: score components on accessibility (35%), responsiveness (30%), design consistency (35%)\n- Use POST /assess/ui for code analysis, POST /assess/ui/screenshot for visual analysis, POST /assess/ui/colours for contrast checks\n\nFull-Stack Navigation & Debugging:\n- Stack: React UI (src/pages/) → hooks (src/hooks/) → Supabase client → Postgres with RLS → Edge Functions (supabase/functions/) → Railway inference\n- Routes: react-router-dom v6 in App.tsx with ProtectedRoute, RoleRoute, AreaRoute guards. 60+ routes.\n- Button trace: onClick handler → mutation.mutate() → supabase.from(table).insert/update/delete → Postgres → RLS → response → cache invalidation\n- Link trace: <Link to="/path"> → route match → role guard → page component → useParams → hook data fetch\n- Form trace: react-hook-form + zod validation → onSubmit → mutation → Supabase → success toast\n- Debug: POST /navigate/debug with symptom. GET /navigate/stack-map for topology. GET /navigate/route?path= for route lookup.\n- POST /assess/ui/trace to trace any button/link/form from JSX through to database\n- Common fixes: button disabled (check loading state), 404 (check route path), 403 (check RLS), blank page (check hook errors)\n\nKey facts:\n- Zones have allowed_days, max_consecutive_nights, max_nights_per_month\n- Observations track plate_number, zone, recorded_at, and photo evidence\n- Breach triggers when stay limits are exceeded\n- Homeless or vulnerable occupants receive special consideration under policy\n- SCV status from NZSCV register can grant zone exemptions\n- All times are NZ timezone (Pacific/Auckland)\n\nBe concise — field officers need fast actionable answers. When you do not know something specific, say so. Never fabricate data or plate numbers. Return plain text only, no markdown formatting.',
           },
           ...history.slice(-12).map((m) => ({
             role: m?.role === 'assistant' ? 'assistant' : 'user',
@@ -1218,6 +1243,78 @@ app.get('/assess/ui/design-system', rateLimit({ windowMs: 60_000, max: 60, stand
     design_system: DESIGN_SYSTEM,
     knowledge: getKnowledgePacks().ui_design_context || null,
   });
+});
+
+// ---------------------------------------------------------------------------
+// Stack Navigation endpoints — teach Bob to trace UI → DB and debug issues
+// ---------------------------------------------------------------------------
+
+app.post('/assess/ui/trace', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const code = req.body?.code;
+    if (typeof code !== 'string' || !code.trim()) {
+      return res.status(400).json({ error: 'code must be a non-empty string containing component JSX/TSX source' });
+    }
+
+    if (code.length > 100_000) {
+      return res.status(400).json({ error: 'code exceeds maximum length of 100,000 characters' });
+    }
+
+    const elementType = req.body?.element_type || 'auto';
+    const trace = traceUIElement(code, elementType);
+
+    return res.json({
+      success: true,
+      trace,
+    });
+  } catch (error) {
+    console.error('UI trace error:', error);
+    return res.status(500).json({ error: 'UI element trace failed', message: error.message });
+  }
+});
+
+app.get('/navigate/stack-map', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  return res.json({
+    success: true,
+    stack: getStackMap(),
+  });
+});
+
+app.get('/navigate/route', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  const path = req.query?.path;
+  if (!path) {
+    return res.json({ success: true, routes: ROUTE_MAP });
+  }
+
+  const route = findRoute(String(path));
+  if (!route) {
+    return res.json({
+      success: true,
+      route: null,
+      message: `No route found for path "${path}". Check App.tsx for valid routes. The catch-all route redirects unknown paths to /.`,
+    });
+  }
+
+  return res.json({ success: true, route });
+});
+
+app.post('/navigate/debug', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const symptom = req.body?.symptom;
+    if (typeof symptom !== 'string' || !symptom.trim()) {
+      return res.status(400).json({ error: 'symptom must be a non-empty string describing the issue' });
+    }
+
+    const steps = getDebuggingSteps(symptom);
+
+    return res.json({
+      success: true,
+      debugging: steps,
+    });
+  } catch (error) {
+    console.error('Debug navigation error:', error);
+    return res.status(500).json({ error: 'Debug navigation failed', message: error.message });
+  }
 });
 
 function nearestColourName(r, g, b) {
@@ -3099,7 +3196,7 @@ loadModels().then(() => {
     });
     if (!INFERENCE_API_KEY && !SUPABASE_SERVICE_ROLE_KEY) {
       console.warn('⚠️  No static auth configured (INFERENCE_API_KEY and SUPABASE_SERVICE_ROLE_KEY are both unset).');
-      console.warn('   Authenticated endpoints (/infer/face, /infer/compare, /infer/alpr, /nlp/tabular/analyze, /chat, /self-heal/bug-report, /self-heal/knowledge, /self-heal/patch-task, /intel/ingest-bulletin, /intel/state)');
+      console.warn('   Authenticated endpoints (/infer/face, /infer/compare, /infer/alpr, /nlp/tabular/analyze, /chat, /self-heal/*, /intel/*, /assess/ui/*, /navigate/*)');
       console.warn('   will only accept valid Supabase user JWTs (Bearer token verified against JWKS).');
       console.warn('   Edge functions cannot call these endpoints without a user JWT.');
       console.warn('   Fix: set SUPABASE_SERVICE_ROLE_KEY environment variable to enable service-to-service auth.');
