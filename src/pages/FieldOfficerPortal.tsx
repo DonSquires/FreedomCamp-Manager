@@ -36,6 +36,7 @@ import {
   Moon, Sun, ParkingSquare, Volume2, Video, Eye, Tent, Timer,
   ScanFace, CalendarPlus, Siren, Bell, PhoneCall, Lock,
 } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
@@ -752,11 +753,24 @@ export default function FieldOfficerPortal() {
       setOrganization(effectiveOrgId, effectiveOrgName)
 
       // Register welfare push schedule on server (enables background reminders)
+      // Fetch the officer's configured interval so the server-side schedule matches the UI.
+      let welfareIntervalMinutes = 30
+      try {
+        const { data: welfareSettings } = await supabase
+          .from('officer_welfare_settings')
+          .select('check_in_interval_minutes')
+          .eq('user_id', user.id)
+          .maybeSingle()
+        if ((welfareSettings as any)?.check_in_interval_minutes) {
+          welfareIntervalMinutes = (welfareSettings as any).check_in_interval_minutes
+        }
+      } catch { /* non-critical */ }
+
       await (supabase.rpc as any)('upsert_welfare_push_schedule', {
         p_officer_id:       user.id,
         p_organization_id:  employerOrganizationId,
         p_shift_id:         shiftRow?.id ?? null,
-        p_interval_minutes: 30, // default; overridden by officer_welfare_settings
+        p_interval_minutes: welfareIntervalMinutes,
         p_last_checkin_at:  new Date().toISOString(),
       }).catch(() => { /* non-critical */ })
 
@@ -810,7 +824,6 @@ export default function FieldOfficerPortal() {
           .eq('is_active', true)
           if (deactivateError) {
             // non-critical: shift has ended even if schedule cleanup fails
-            console.warn('Failed to deactivate welfare push schedule:', deactivateError)
           }
       }
 
@@ -1362,16 +1375,27 @@ export default function FieldOfficerPortal() {
 
             {/* Start Shift button */}
             <div className="flex justify-end">
-              <Button
-                size="sm"
-                onClick={handleStartShift}
-                disabled={isStartingShift || (isServiceProviderMember && accessibleOrgs.length > 1 && !shiftOrgId)}
-                className="shrink-0 bg-green-600 hover:bg-green-700 text-white font-semibold"
-              >
-                {isStartingShift
-                  ? <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />Starting…</span>
-                  : <><Clock className="h-4 w-4 mr-1.5" />Start Shift</>}
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <Button
+                        size="sm"
+                        onClick={handleStartShift}
+                        disabled={isStartingShift || (isServiceProviderMember && accessibleOrgs.length > 1 && !shiftOrgId)}
+                        className="shrink-0 bg-green-600 hover:bg-green-700 text-white font-semibold"
+                      >
+                        {isStartingShift
+                          ? <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />Starting…</span>
+                          : <><Clock className="h-4 w-4 mr-1.5" />Start Shift</>}
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {isServiceProviderMember && accessibleOrgs.length > 1 && !shiftOrgId && (
+                    <TooltipContent>Select an organisation above to start your shift</TooltipContent>
+                  )}
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
         </div>
@@ -1479,7 +1503,7 @@ export default function FieldOfficerPortal() {
                     checkinState.isOverdue
                       ? 'bg-red-500 hover:bg-red-600 text-white'
                       : checkinState.isDueSoon5
-                        ? 'bg-orange-500 hover:bg-orange-600 text-white'
+                        ? 'bg-orange-600 hover:bg-orange-700 text-white'
                         : 'bg-green-600 hover:bg-green-700 text-white'
                   }`}
                 >
@@ -1775,12 +1799,10 @@ export default function FieldOfficerPortal() {
               ═══════════════════════════════════════════════════════════ */}
           {activeService === 'freedom_camping' && (
             <>
-              {activeService === 'freedom_camping' && (
-                <h3 className="text-xs font-bold text-green-700 dark:text-green-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <Tent className="h-3.5 w-3.5" />
-                  Freedom Camping Patrol
-                </h3>
-              )}
+              <h3 className="text-xs font-bold text-green-700 dark:text-green-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Tent className="h-3.5 w-3.5" />
+                Freedom Camping Patrol
+              </h3>
               <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 mb-6">
                 {/* ── Detail Scan card ────────────────────────────── */}
                 <Card
@@ -1884,12 +1906,10 @@ export default function FieldOfficerPortal() {
               ═══════════════════════════════════════════════════════════ */}
           {activeService === 'guarding' && (
             <>
-              {activeService === 'guarding' && (
-                <h3 className="text-xs font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <Shield className="h-3.5 w-3.5" />
-                  Guarding
-                </h3>
-              )}
+              <h3 className="text-xs font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Shield className="h-3.5 w-3.5" />
+                Guarding
+              </h3>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
                 {/* QR Checkpoint */}
                 <Card className="hover:shadow-lg transition-shadow border-indigo-200 dark:border-indigo-900 border-2">
@@ -1922,7 +1942,7 @@ export default function FieldOfficerPortal() {
                     <CardDescription>Manage your patrol session</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <Button className="w-full" variant="outline" onClick={() => toast.info('Patrol tracking active via geofence')}>
+                    <Button className="w-full" variant="outline" onClick={() => navigate('/live-patrol')}>
                       Patrol Status
                     </Button>
                   </CardContent>
@@ -2048,12 +2068,10 @@ export default function FieldOfficerPortal() {
               ═══════════════════════════════════════════════════════════ */}
           {activeService === 'parking' && (
             <>
-              {activeService === 'parking' && (
-                <h3 className="text-xs font-bold text-orange-700 dark:text-orange-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <ParkingSquare className="h-3.5 w-3.5" />
-                  Parking Enforcement
-                </h3>
-              )}
+              <h3 className="text-xs font-bold text-orange-700 dark:text-orange-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <ParkingSquare className="h-3.5 w-3.5" />
+                Parking Enforcement
+              </h3>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
                 <Card className="hover:shadow-lg transition-shadow border-orange-200 dark:border-orange-900 border-2">
                   <CardHeader>
@@ -2097,12 +2115,10 @@ export default function FieldOfficerPortal() {
               ═══════════════════════════════════════════════════════════ */}
           {activeService === 'noise' && (
             <>
-              {activeService === 'noise' && (
-                <h3 className="text-xs font-bold text-yellow-700 dark:text-yellow-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <Volume2 className="h-3.5 w-3.5" />
-                  Noise Control
-                </h3>
-              )}
+              <h3 className="text-xs font-bold text-yellow-700 dark:text-yellow-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Volume2 className="h-3.5 w-3.5" />
+                Noise Control
+              </h3>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
                 <Card className="hover:shadow-lg transition-shadow border-yellow-200 dark:border-yellow-900 border-2">
                   <CardHeader>

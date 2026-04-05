@@ -204,13 +204,17 @@ export function OfficerFollowUpQueue({ onCountChange, onActivity, orgWorkflow, o
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm flex items-center gap-2">
             <ClipboardList className="h-4 w-4 text-blue-600" />
-            Admin-Assigned Follow-Ups
+            Assigned Follow-Ups
             <Badge
               className={`text-[10px] ${overdueCount > 0 ? 'bg-red-600 text-white animate-pulse' : 'bg-blue-600 text-white'}`}
             >
               {followUps.length}
-              {overdueCount > 0 && ` · ${overdueCount} overdue`}
             </Badge>
+            {overdueCount > 0 && (
+              <Badge className="text-[10px] bg-red-600 text-white animate-pulse">
+                {overdueCount} overdue
+              </Badge>
+            )}
           </CardTitle>
           <button
             className="text-muted-foreground hover:text-foreground"
@@ -293,7 +297,7 @@ export function OfficerFollowUpQueue({ onCountChange, onActivity, orgWorkflow, o
                       variant="outline"
                       size="sm"
                       className="h-11 px-3 text-sm border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300"
-                      onClick={() => { onActivity?.(); navigate('/breaches') }}
+                      onClick={() => { onActivity?.(); navigate(`/breaches?alert_id=${encodeURIComponent(fu.id)}`) }}
                     >
                       <ExternalLink className="h-4 w-4 mr-1.5" />
                       View Alert

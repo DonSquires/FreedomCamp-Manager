@@ -95,7 +95,10 @@ export function FieldSafetyBar({
   }
 
   async function fireSOS() {
-    if (!user?.id || !user?.organization_id) return
+    if (!user?.id || !user?.organization_id) {
+      toast.error('Not authenticated — call emergency services directly (111)')
+      return
+    }
     try {
       await supabase.from('officer_welfare_alerts').insert({
         officer_id:       user.id,
@@ -206,9 +209,9 @@ export function FieldSafetyBar({
               disabled={checkinState.isSubmitting}
               className={`flex-1 font-semibold text-xs ${
                 isOverdue
-                  ? 'bg-orange-500 hover:bg-orange-600 text-white'
+                  ? 'bg-orange-600 hover:bg-orange-700 text-white'
                   : checkinDue
-                  ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
+                  ? 'bg-yellow-500 hover:bg-yellow-600 text-yellow-950'
                   : 'bg-green-600 hover:bg-green-700 text-white'
               }`}
             >
