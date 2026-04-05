@@ -10,10 +10,22 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL }}
-      INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
       EXPECT_PROVIDER: ollama
     steps:
+      - name: Normalize Bob runtime endpoint and auth key
+        run: |
+          set -euo pipefail
+          BASE_URL="${INFERENCE_SERVICE_URL:-${BOB_SERVICE_URL:-}}"
+          API_KEY="${INFERENCE_API_KEY:-${BOB_INFERENCE_API_KEY:-}}"
+
+          echo "INFERENCE_SERVICE_URL=$BASE_URL" >> "$GITHUB_ENV"
+          echo "INFERENCE_API_KEY=$API_KEY" >> "$GITHUB_ENV"
+        env:
+          INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL }}
+          BOB_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
+          INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
+          BOB_INFERENCE_API_KEY: ${{ secrets.BOB_INFERENCE_API_KEY }}
+
       - name: Validate required secrets
         run: |
           set -euo pipefail
@@ -21,6 +33,8 @@ jobs:
             echo "INFERENCE_SERVICE_URL is missing"
             exit 1
           fi
+        env:
+          INFERENCE_SERVICE_URL: ${{ env.INFERENCE_SERVICE_URL }}
 
       - name: Normalize URL
         run: |
@@ -31,6 +45,8 @@ jobs:
           fi
           echo "CHAT_URL=${URL%/}/chat" >> "$GITHUB_ENV"
           echo "HEALTH_URL=${URL%/}/health" >> "$GITHUB_ENV"
+        env:
+          INFERENCE_SERVICE_URL: ${{ env.INFERENCE_SERVICE_URL }}
 
       - name: Preflight inference health and Ollama wiring
         run: |
@@ -162,6 +178,9 @@ jobs:
               exit 1
             fi
           done
+        env:
+          INFERENCE_API_KEY: ${{ env.INFERENCE_API_KEY }}
+          EXPECT_PROVIDER: ${{ env.EXPECT_PROVIDER }}
 
       - name: Upload smoke transcript
         uses: actions/upload-artifact@v4

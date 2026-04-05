@@ -211,10 +211,12 @@ Canonical secret names used by deploy workflows:
 | `INFERENCE_SERVICE_URL` | Health checks + Bob pretrain workflows |
 | `PROXY_SERVICE_URL` | Proxy health check |
 | `BOB_SERVICE_URL` | Bob health + chat route verification |
+| `BOB_INFERENCE_API_KEY` | Bob ops workflow auth alias for `INFERENCE_API_KEY` |
 | `OLLAMA_SERVICE_URL` | Ollama health/model pull verification |
 
 Notes:
 - Deploy workflows now accept token fallback (`RAILWAY_TOKEN` <-> `RAILWAY_BOB_TOKEN`) to reduce CI drift during token rotations.
+- Bob ops workflows accept URL/key aliases to reduce naming drift: `BOB_SERVICE_URL` <-> `INFERENCE_SERVICE_URL` and `BOB_INFERENCE_API_KEY` <-> `INFERENCE_API_KEY`.
 - Service IDs remain mandatory for deterministic deployments.
 
 ---

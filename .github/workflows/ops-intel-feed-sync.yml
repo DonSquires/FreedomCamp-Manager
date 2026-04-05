@@ -31,9 +31,24 @@ jobs:
           missing=""
           auth_missing=""
 
+          BASE_URL="${BOB_SERVICE_URL:-${INFERENCE_SERVICE_URL:-}}"
+          NORMALIZED_INGEST_URL="${INTEL_INGEST_URL:-}"
+          NORMALIZED_API_KEY="${INFERENCE_API_KEY:-${BOB_INFERENCE_API_KEY:-}}"
+
+          if [ -z "$NORMALIZED_INGEST_URL" ] && [ -n "$BASE_URL" ]; then
+            BASE_URL="${BASE_URL%/}"
+            if [[ "$BASE_URL" != http://* && "$BASE_URL" != https://* ]]; then
+              BASE_URL="https://$BASE_URL"
+            fi
+            NORMALIZED_INGEST_URL="${BASE_URL}/intel/ingest-bulletin"
+          fi
+
+          echo "INTEL_INGEST_URL=$NORMALIZED_INGEST_URL" >> "$GITHUB_ENV"
+          echo "INFERENCE_API_KEY=$NORMALIZED_API_KEY" >> "$GITHUB_ENV"
+
           [ -z "$INTEL_FEED_URLS" ] && missing="$missing INTEL_FEED_URLS"
-          [ -z "$INTEL_INGEST_URL" ] && missing="$missing INTEL_INGEST_URL"
-          if [ -z "$INFERENCE_API_KEY" ] && [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+          [ -z "$NORMALIZED_INGEST_URL" ] && missing="$missing INTEL_INGEST_URL-or-BOB_SERVICE_URL-or-INFERENCE_SERVICE_URL"
+          if [ -z "$NORMALIZED_API_KEY" ] && [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
             auth_missing=" INFERENCE_API_KEY|SUPABASE_SERVICE_ROLE_KEY"
           fi
 
@@ -55,6 +70,9 @@ jobs:
           INTEL_FEED_URLS: ${{ secrets.INTEL_FEED_URLS }}
           INTEL_INGEST_URL: ${{ secrets.INTEL_INGEST_URL }}
           INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
+          BOB_INFERENCE_API_KEY: ${{ secrets.BOB_INFERENCE_API_KEY }}
+          BOB_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
+          INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           INTEL_REGION_ORG_MAP: ${{ secrets.INTEL_REGION_ORG_MAP }}
 
@@ -64,8 +82,8 @@ jobs:
         env:
           INTEL_FEED_URLS: ${{ secrets.INTEL_FEED_URLS }}
           INTEL_ALLOWED_HOSTS: ${{ secrets.INTEL_ALLOWED_HOSTS }}
-          INTEL_INGEST_URL: ${{ secrets.INTEL_INGEST_URL }}
-          INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
+          INTEL_INGEST_URL: ${{ env.INTEL_INGEST_URL }}
+          INFERENCE_API_KEY: ${{ env.INFERENCE_API_KEY }}
           INTEL_HMAC_KEY: ${{ secrets.INTEL_HMAC_KEY }}
           INTEL_ENABLE_DB_SYNC: ${{ secrets.INTEL_ENABLE_DB_SYNC }}
           INTEL_ORGANIZATION_ID: ${{ secrets.INTEL_ORGANIZATION_ID }}

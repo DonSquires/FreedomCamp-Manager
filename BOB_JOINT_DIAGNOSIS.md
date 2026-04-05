@@ -8,6 +8,19 @@
 
 ## Known Issues Discovered
 
+### 0. **Current Blocking Mismatches (verified live)**
+**Evidence source**: `https://focused-courage-production-ccee.up.railway.app/health`
+
+- `REQUIRE_SELF_CONTAINED_MODE`: `null` (workflow expects `true`)
+- `SELF_CONTAINED_STRICT_EGRESS`: `null` (workflow expects `true`)
+- `CHAT_PROVIDER`: `ollama` (good)
+- `TABULAR_NLP_PROVIDER`: `ollama` (good)
+- `capabilities.chat_local_ollama_enabled`: `true` (good)
+
+**Impact on workflows**:
+- `.github/workflows/ops-bob-human-interaction-smoke.yml` fails preflight strict assertions.
+- `.github/workflows/ops-railway-wiring-audit.yml` fails if `VITE_SUPABASE_URL` secret is missing.
+
 ### 1. **Smoke Test Failure: Ollama Provider Fallback**
 **Severity**: HIGH  
 **Evidence**: `.github/workflows/ops-bob-human-interaction-smoke.yml` failed with:
@@ -74,14 +87,64 @@ Traced:
 # Check these via Railway dashboard:
 CHAT_PROVIDER=ollama              # Must be set
 TABULAR_NLP_PROVIDER=ollama       # Must be set
-OLLAMA_BASE_URL=http://ollama.railway.internal:3000  # NOT 11434
-SELF_CONTAINED_MODE=false         # Or true if Ollama is on same pod
+OLLAMA_BASE_URL=http://ollama.railway.internal:3000  # Railway targetPort is 3000
+SELF_CONTAINED_MODE=true
+REQUIRE_SELF_CONTAINED_MODE=true
+SELF_CONTAINED_STRICT_EGRESS=true
 ```
 
 **Validation**: Run wiring audit workflow (already has these checks)
 ```
 .github/workflows/ops-railway-wiring-audit.yml
 ```
+
+### Fix A1: Set missing GitHub Actions secret for wiring audit
+**Owner**: Repo admin
+
+`ops-railway-wiring-audit.yml` requires `VITE_SUPABASE_URL` in Actions secrets.
+
+Set:
+
+```bash
+VITE_SUPABASE_URL=https://kxwjcupuxnnbnzcgmkoi.supabase.co
+```
+
+If your canonical production URL differs, use the production one actually used by Edge Functions.
+
+### Fix A2: Railway variable update checklist (Bob service)
+**Owner**: Railway project admin
+
+Minimum variables to satisfy strict workflow checks:
+
+```bash
+SELF_CONTAINED_MODE=true
+REQUIRE_SELF_CONTAINED_MODE=true
+SELF_CONTAINED_STRICT_EGRESS=true
+CHAT_PROVIDER=ollama
+TABULAR_NLP_PROVIDER=ollama
+OLLAMA_BASE_URL=http://ollama.railway.internal:3000
+```
+
+After saving variables, redeploy/restart Bob service and verify:
+
+```bash
+curl -fsS --max-time 20 https://focused-courage-production-ccee.up.railway.app/health | jq '{
+   status,
+   require:.config.REQUIRE_SELF_CONTAINED_MODE,
+   strict:.config.SELF_CONTAINED_STRICT_EGRESS,
+   chat:.config.CHAT_PROVIDER,
+   tabular:.config.TABULAR_NLP_PROVIDER,
+   ollama_chat:.capabilities.chat_local_ollama_enabled
+}'
+```
+
+Expected:
+- `status = "healthy"`
+- `require = true`
+- `strict = true`
+- `chat = "ollama"`
+- `tabular = "ollama"`
+- `ollama_chat = true`
 
 ---
 
