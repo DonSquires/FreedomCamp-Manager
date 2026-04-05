@@ -879,6 +879,18 @@ function generateHeuristicChatReply(message, context = {}) {
   if (lowered.includes('plate') || lowered.includes('rego')) {
     return 'I can assist with plate workflow guidance. Upload evidence through the enforcement workflow and I can help summarize next steps.';
   }
+  if (
+    lowered.includes('lockfile') ||
+    lowered.includes('frozen') ||
+    lowered.includes('bun install') ||
+    lowered.includes('bun.lock') ||
+    (lowered.includes('deploy') && (lowered.includes('fail') || lowered.includes('error') || lowered.includes('broken')))
+  ) {
+    return 'Railway deployment failure: "lockfile had changes, but lockfile is frozen" means bun.lock is out of sync with package.json. Fix: run "bun install" locally (no --frozen-lockfile flag) and commit the updated bun.lock. Verify with: bun install --frozen-lockfile (should say "no changes").';
+  }
+  if (lowered.includes('vitest') || lowered.includes('test:unit') || (lowered.includes('unit test') && lowered.includes('run'))) {
+    return 'Unit tests use Vitest with jsdom. Run with: bun run test:unit (or npx vitest run). Test files are in src/**/__tests__/*.test.ts. Setup in vitest.config.ts. 195 tests across 10 suites covering timezone, auth, stores, and core utilities.';
+  }
 
   const tone = context?.tone === 'brief' ? 'briefly' : 'clearly';
   return `I understand your request. I will respond ${tone} and keep recommendations aligned with local enforcement policy and evidence-first decisions.`;
