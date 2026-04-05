@@ -9,6 +9,12 @@ Railway deploys from DonSquires/Bob.
 Recommended architecture: Bob + Ollama in the same Bob Railway project, but as
 separate services.
 
+**⚠️ Authority Reference:** See [RAILWAY_SERVICES_AUTHORITY.md](RAILWAY_SERVICES_AUTHORITY.md) for:
+- Authoritative list of all Railway services and their ownership
+- Required secrets for each service (no ambiguous fallbacks)
+- Validation rules and deployment standards
+- Secret storage locations (GitHub Actions vs. Supabase Vault)
+
 ## Repository Setup (one-time)
 
 ### 1. Enable sync from FreedomCamp-Manager -> Bob repo
@@ -25,15 +31,28 @@ to the Bob repo via `.github/workflows/sync-bob-repo.yml`.
 To trigger a one-off sync without a code change, run the workflow manually:
 `Actions -> Sync Bob Repo -> Run workflow`.
 
-### 2. Add secrets to the Bob repo
+### 2. Add secrets to FreedomCamp-Manager for Bob + Ollama deploys
 
-Add these secrets to **DonSquires/Bob** -> Settings -> Secrets -> Actions:
+Add these secrets to **DonSquires/FreedomCamp-Manager** -> Settings -> Secrets -> Actions:
 
 | Secret | Value |
 |---|---|
-| `RAILWAY_TOKEN` | Railway project token with deploy access to Bob's service |
-| `RAILWAY_SERVICE_ID` | Railway project -> Bob service -> Settings -> Service ID |
-| `BOB_URL` | Bob's Railway domain (e.g. `https://bob-production.up.railway.app`). Optional; enables post-deploy health check. |
+| `RAILWAY_BOB_TOKEN` | Railway project token for the Bob project (from Railway → Bob project → Settings → Tokens) |
+| `RAILWAY_BOB_SERVICE_ID` | Railway project → Bob service → Settings → Service ID |
+| `RAILWAY_BOB_PROJECT_ID` | Railway project ID for Bob (optional; for auto-resolution if SERVICE_ID not set) |
+| `RAILWAY_OLLAMA_SERVICE_ID` | Railway project → Ollama service → Settings → Service ID |
+| `BOB_SERVICE_URL` | Bob's Railway domain (e.g. `https://bob-production.up.railway.app`). Optional; enables post-deploy health check. |
+| `OLLAMA_SERVICE_URL` | Ollama service Railway domain. Optional. |
+
+### 3. Add secrets to DonSquires/Bob for Bob's own deploy workflow
+
+Bob's own canonical deploy repo (`DonSquires/Bob`) should have:
+
+| Secret | Value |
+|---|---|
+| `RAILWAY_TOKEN` | Railway project token for Bob's Railway project (same as RAILWAY_BOB_TOKEN above) |
+| `RAILWAY_SERVICE_ID` | Bob service ID (same as RAILWAY_BOB_SERVICE_ID above) |
+| `BOB_URL` | Bob's Railway domain. Optional; enables post-deploy health check. |
 
 ## Current Status
 
@@ -319,3 +338,38 @@ For Profile A, also verify Bob logs indicate `CHAT_PROVIDER=ollama`.
 2. Merge to `main`
 3. Run **Actions → Deploy Ollama to Railway → Run workflow**
 4. Verify health: `curl https://<ollama-url>/api/tags`
+
+---
+
+## Validating Secrets Without Admin Access
+
+If you need to check which secrets are configured and valid **without requiring GitHub Actions admin permissions**, use the credential validation workaround:
+
+```bash
+# Load secrets from your local environment or .env file
+source .env.local
+
+# Run the validator
+./scripts/validate-railway-credentials.sh
+```
+
+The script will:
+- Test Railway tokens via the `railway` CLI (if available)
+- Check service IDs exist in token scope
+- Test service connectivity via HTTP health checks
+- Report which secrets are valid, invalid, or missing
+- Mask sensitive values in output (safe to share logs)
+
+**Requirements:**
+- `railway` CLI installed (or skip token validation)
+- `curl` and `jq` available
+
+---
+
+## References
+
+- **[RAILWAY_SERVICES_AUTHORITY.md](RAILWAY_SERVICES_AUTHORITY.md)** — Authoritative list of all Railway services, required secrets, and deployment standards (all services, not just Bob)
+- **[RAILWAY_DEPLOYMENT_GUIDE.md](RAILWAY_DEPLOYMENT_GUIDE.md)** — General Railway deployment guide
+- **[ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md)** — Comprehensive environment variable reference
+- **scripts/validate-railway-credentials.sh** — Workaround for validating secrets without admin access
+- **DonSquires/Bob** — Bob's canonical deploy repository
