@@ -160,12 +160,34 @@ async function callEdgeFunction<T = any>(
       return { data: null, error: errorMessage }
     }
 
-    const { data, error } = await supabase.functions.invoke(functionName, {
+    const { data, error: initialError } = await supabase.functions.invoke(functionName, {
       body: body || {},
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
     })
+
+    let error = initialError
+
+    // PTT token calls can intermittently fail on some browsers/networks when the
+    // explicit Authorization header path is blocked at the gateway/CORS layer.
+    // Fall back to the default Supabase invoke path (session-managed auth) once.
+    if (
+      error &&
+      functionName === 'ptt-signaling-token' &&
+      (error instanceof FunctionsFetchError || error instanceof FunctionsRelayError)
+    ) {
+      const fallbackResult = await supabase.functions.invoke(functionName, {
+        body: body || {},
+      })
+
+      if (!fallbackResult.error) {
+        unlock()
+        return { data: fallbackResult.data as T, error: null }
+      }
+
+      error = fallbackResult.error
+    }
 
     if (error) {
       // Retry once after forced refresh for transient JWT invalid/expired responses.
