@@ -2,7 +2,7 @@ name: Deploy Ollama to Railway
 
 # Deploys the Ollama LLM service (ollama/) to the Bob Railway project.
 # Ollama runs as a separate service in the same project so Bob can reach it
-# via Railway private networking (http://ollama.railway.internal:3000).
+# via Railway private networking (http://ollama.railway.internal:11434).
 #
 # Trigger: manual only — Ollama image updates are deliberate, not tied to
 # source code changes.
