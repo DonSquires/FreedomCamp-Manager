@@ -175,7 +175,43 @@ jobs:
             echo "::warning::Configured RAILWAY_BOB_SERVICE_ID was not found. Attempting project-based service auto-resolution."
 
             if [ -z "$PROJECT_TO_QUERY" ]; then
-              echo "::error::RAILWAY_BOB_PROJECT_ID is required for service auto-resolution when service ID is invalid."
+              echo "::warning::RAILWAY_BOB_PROJECT_ID not set. Attempting global service auto-resolution from token scope."
+
+              GLOBAL_GRAPHQL='{"query":"query { me { projects { edges { node { id name services { edges { node { id name } } } } } } } }"}'
+              GLOBAL_RESPONSE=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
+                -H "Authorization: Bearer $RAILWAY_TOKEN" \
+                -H "Content-Type: application/json" \
+                --data "$GLOBAL_GRAPHQL" || true)
+
+              GLOBAL_RESOLVED_SERVICE_ID=$(node -e '
+                const data = JSON.parse(process.argv[1] || "{}");
+                const projects = data?.data?.me?.projects?.edges?.map((edge) => edge?.node).filter(Boolean) || [];
+                const candidates = [];
+                for (const p of projects) {
+                  const services = p?.services?.edges?.map((edge) => edge?.node).filter(Boolean) || [];
+                  for (const s of services) {
+                    const name = String(s?.name || "").toLowerCase();
+                    const score = (
+                      (name.includes("bob") ? 10 : 0) +
+                      (name.includes("inference") ? 6 : 0) +
+                      (name.includes("orc") ? 4 : 0) -
+                      (name.includes("ollama") ? 10 : 0)
+                    );
+                    if (score > 0) candidates.push({ id: s.id, score });
+                  }
+                }
+                candidates.sort((a, b) => b.score - a.score);
+                process.stdout.write(candidates[0]?.id || "");
+              ' "$GLOBAL_RESPONSE")
+
+              if [ -n "$GLOBAL_RESOLVED_SERVICE_ID" ] && [ "$GLOBAL_RESOLVED_SERVICE_ID" != "$RAILWAY_SERVICE_ID" ]; then
+                echo "::warning::Global auto-resolution found candidate Bob service ID; retrying deployment."
+                if railway up --service "$GLOBAL_RESOLVED_SERVICE_ID" --detach; then
+                  exit 0
+                fi
+              fi
+
+              echo "::error::Could not resolve a deployable Bob service ID from Railway token scope."
               exit 1
             fi
 
