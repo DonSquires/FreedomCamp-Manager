@@ -324,7 +324,7 @@ jobs:
           DESCRIPTION="${DESCRIPTION}Checked URL: ${APP_URL}\n"
           DESCRIPTION="${DESCRIPTION}Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-          curl -sS -X POST \
+          INSERT_RESPONSE=$(curl -sS -X POST \
             "${VITE_SUPABASE_URL}/rest/v1/bug_reports" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
@@ -353,7 +353,29 @@ jobs:
                 }
               }
             }" \
-            --fail-with-body || echo "::warning::Could not file auto bug report (REST insert failed)"
+            --fail-with-body) || {
+              echo "::warning::Could not file auto bug report (REST insert failed)"
+              exit 0
+            }
+
+          REPORT_ID=$(echo "$INSERT_RESPONSE" | jq -r '.[0].id // empty')
+          if [ -z "$REPORT_ID" ]; then
+            echo "::warning::Bug report inserted but no id returned; skipping auto-analyse-report trigger"
+            exit 0
+          fi
+
+          ANALYSE_CODE=$(curl -sS -o /tmp/auto_analyse_resp.json -w "%{http_code}" \
+            -X POST "${VITE_SUPABASE_URL}/functions/v1/auto-analyse-report" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"report_id\":\"${REPORT_ID}\"}")
+
+          if [ "$ANALYSE_CODE" -ge 200 ] && [ "$ANALYSE_CODE" -lt 300 ]; then
+            echo "✅ auto-analyse-report triggered for synthetic monitor report ${REPORT_ID}"
+          else
+            echo "::warning::auto-analyse-report trigger failed for ${REPORT_ID} (HTTP ${ANALYSE_CODE})"
+            cat /tmp/auto_analyse_resp.json || true
+          fi
         env:
           VITE_SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

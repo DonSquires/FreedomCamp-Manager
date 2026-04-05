@@ -36,6 +36,12 @@ function extractBearerToken(req: Request): string | null {
   return match?.[1]?.trim() ?? null
 }
 
+function isServiceRoleCaller(token: string | null): boolean {
+  if (!token) return false
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  return serviceRoleKey.length > 0 && token === serviceRoleKey
+}
+
 /** Fetch the last N workflow runs from GitHub Actions for context. */
 async function fetchCiStatus(githubToken: string, repo: string): Promise<string> {
   try {
@@ -113,12 +119,17 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid or expired session' }),
-        { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
-      )
+    // Permit internal automation callers (e.g., synthetic monitor workflow)
+    // that authenticate with the exact service-role key. Regular browser
+    // callers must still present a valid user bearer token.
+    if (!isServiceRoleCaller(token)) {
+      const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
+      if (authError || !user) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid or expired session' }),
+          { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+        )
+      }
     }
 
     // ── Input ─────────────────────────────────────────────────────────────────
