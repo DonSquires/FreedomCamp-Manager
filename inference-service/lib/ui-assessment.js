@@ -372,6 +372,8 @@ async function analyzeScreenshot(imageBuffer) {
     for (let i = 0; i < edgeData.length; i++) edgeSum += edgeData[i];
     edgeDensity = Math.round((edgeSum / (edgeData.length * 255)) * 100);
   } catch {
+    // Edge density is a supplementary metric; if the convolution fails (e.g. unusual
+    // image format or insufficient dimensions) we gracefully fall back to null.
     edgeDensity = null;
   }
 
