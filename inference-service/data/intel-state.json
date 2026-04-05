@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "created_at": "2026-04-05T11:45:00.000Z",
+  "updated_at": "2026-04-05T11:45:00.000Z",
+  "counts": {
+    "law": 0,
+    "security": 1,
+    "jurisdiction": 0,
+    "system": 3,
+    "other": 0
+  },
+  "bulletins": [
+    {
+      "id": "f34f6f12-c772-4ec2-a88a-8a32a3c5d001",
+      "at": "2026-04-05T11:45:00.000Z",
+      "type": "security",
+      "title": "Bob training policy: self-contained evidence only",
+      "summary": "Bob must train and evaluate in self-contained mode only. Training and inference must avoid outbound cloud calls, use internal evidence only such as build logs, lint logs, and repository code context, and strip sensitive values before storing prompts or logs.",
+      "source": "bob-self-contained-build-review-training-pack",
+      "effective_date": "2026-04-05",
+      "metadata": {
+        "pack": "BOB_SELF_CONTAINED_BUILD_REVIEW_TRAINING_PACK",
+        "section": "ground-rules"
+      }
+    },
+    {
+      "id": "f34f6f12-c772-4ec2-a88a-8a32a3c5d002",
+      "at": "2026-04-05T11:45:00.000Z",
+      "type": "system",
+      "title": "Bob build-review training baseline and priorities",
+      "summary": "Training baseline from the 2026-04-04 validation run: build succeeded with large chunk warnings, lint failed with 6 errors and 8 warnings, ImportData was the main bundle hotspot, and hook dependency warnings were concentrated in operational pages. Bob should separate blockers from advisories, cite concrete evidence, prioritize impact, and propose short execution plans without asking for cloud access.",
+      "source": "bob-self-contained-build-review-training-pack",
+      "effective_date": "2026-04-05",
+      "metadata": {
+        "pack": "BOB_SELF_CONTAINED_BUILD_REVIEW_TRAINING_PACK",
+        "section": "baseline-and-objective"
+      }
+    },
+    {
+      "id": "f34f6f12-c772-4ec2-a88a-8a32a3c5d003",
+      "at": "2026-04-05T11:45:00.000Z",
+      "type": "system",
+      "title": "Bob gold-answer structure for internal build reviews",
+      "summary": "Expected review order is: critical blockers, performance risks, reliability risks, privacy checks, and a 14-day remediation plan. Lint must be zero-error before release, ImportData is the highest-impact bundle hotspot, stale hook dependencies must be fixed on high-traffic pages first, and privacy checks must confirm no outbound dependency is required for the training loop.",
+      "source": "bob-self-contained-build-review-training-pack",
+      "effective_date": "2026-04-05",
+      "metadata": {
+        "pack": "BOB_SELF_CONTAINED_BUILD_REVIEW_TRAINING_PACK",
+        "section": "gold-answer-outline"
+      }
+    },
+    {
+      "id": "f34f6f12-c772-4ec2-a88a-8a32a3c5d004",
+      "at": "2026-04-05T11:45:00.000Z",
+      "type": "system",
+      "title": "Bob training execution and acceptance gate",
+      "summary": "Internal training loop: run build and lint, feed evidence into Bob, score against the rubric, coach with blocker-only triage and reliability prompts if score is below 9, and repeat after each fix batch. Go-live acceptance requires zero lint errors, successful builds, a chunk strategy for large routes, review scores of at least 9 across three consecutive runs, and no outbound dependency in the training loop.",
+      "source": "bob-self-contained-build-review-training-pack",
+      "effective_date": "2026-04-05",
+      "metadata": {
+        "pack": "BOB_SELF_CONTAINED_BUILD_REVIEW_TRAINING_PACK",
+        "section": "execution-loop-and-acceptance-gate"
+      }
+    }
+  ]
+}

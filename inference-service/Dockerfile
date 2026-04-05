@@ -26,6 +26,7 @@ FROM node:22-slim AS builder
 WORKDIR /app
 COPY package*.json ./
 RUN npm install --omit=dev --no-audit --prefer-offline
+COPY data ./data
 COPY lib ./lib
 COPY scripts/pretrain-self-learning.js ./scripts/pretrain-self-learning.js
 RUN node scripts/pretrain-self-learning.js

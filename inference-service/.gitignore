@@ -42,4 +42,5 @@ coverage/
 .fly/
 
 # Runtime model state
-data/
+data/*
+!data/intel-state.json
