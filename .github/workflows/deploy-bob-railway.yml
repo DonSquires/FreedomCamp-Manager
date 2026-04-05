@@ -23,18 +23,31 @@ jobs:
       contents: read
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Load normalized Railway credential env
+        env:
+          RAILWAY_BOB_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_TOKEN_BOB: ${{ secrets.RAILWAY_TOKEN_BOB }}
+          RAILWAY_BOB_SERVICE_ID: ${{ secrets.RAILWAY_BOB_SERVICE_ID }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
+          RAILWAY_BOB_PROJECT_ID: ${{ secrets.RAILWAY_BOB_PROJECT_ID }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+          BOB_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
+          INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL }}
+        run: |
+          source ./scripts/load-railway-secrets-from-github-env.sh --quiet
+
       - name: Check required secrets
         id: check-secrets
-        env:
-          RAILWAY_DEPLOY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN || secrets.RAILWAY_TOKEN }}
-          RAILWAY_BOB_SERVICE_ID: ${{ secrets.RAILWAY_BOB_SERVICE_ID }}
-          RAILWAY_BOB_PROJECT_ID: ${{ secrets.RAILWAY_BOB_PROJECT_ID }}
         run: |
           missing=""
-          [ -z "$RAILWAY_DEPLOY_TOKEN" ]   && missing="$missing RAILWAY_BOB_TOKEN-or-RAILWAY_TOKEN"
+          [ -z "${RAILWAY_BOB_TOKEN:-${RAILWAY_TOKEN:-}}" ]   && missing="$missing RAILWAY_BOB_TOKEN-or-RAILWAY_TOKEN"
 
           # Bob deploy requires either explicit service ID OR project ID for auto-resolution
-          if [ -z "$RAILWAY_BOB_SERVICE_ID" ] && [ -z "$RAILWAY_BOB_PROJECT_ID" ]; then
+          if [ -z "${RAILWAY_BOB_SERVICE_ID:-}" ] && [ -z "${RAILWAY_BOB_PROJECT_ID:-}" ]; then
             missing="$missing RAILWAY_BOB_SERVICE_ID-or-RAILWAY_BOB_PROJECT_ID"
           fi
 
@@ -58,9 +71,6 @@ jobs:
           else
             echo "ℹ️  Will attempt auto-resolution from RAILWAY_BOB_PROJECT_ID"
           fi
-      - name: Checkout repository
-        if: steps.check-secrets.outputs.secrets_present == 'true'
-        uses: actions/checkout@v5
 
       - name: Install Railway CLI
         if: steps.check-secrets.outputs.secrets_present == 'true'
@@ -80,7 +90,7 @@ jobs:
         id: validate-token
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN || secrets.RAILWAY_TOKEN }}
+          RAILWAY_TOKEN: ${{ env.RAILWAY_BOB_TOKEN || env.RAILWAY_TOKEN }}
           RAILWAY_SERVICE_ID: ${{ steps.check-secrets.outputs.resolved_candidate_service_id }}
         run: |
           echo "🔑 Validating Bob Railway token..."
@@ -103,9 +113,9 @@ jobs:
           steps.check-secrets.outputs.secrets_present == 'true' &&
           steps.validate-token.outputs.token_valid == 'true'
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN || secrets.RAILWAY_TOKEN }}
+          RAILWAY_TOKEN: ${{ env.RAILWAY_BOB_TOKEN || env.RAILWAY_TOKEN }}
           EXPLICIT_SERVICE_ID: ${{ steps.check-secrets.outputs.resolved_candidate_service_id }}
-          EXPLICIT_PROJECT_ID: ${{ secrets.RAILWAY_BOB_PROJECT_ID || secrets.RAILWAY_PROJECT_ID }}
+          EXPLICIT_PROJECT_ID: ${{ env.RAILWAY_BOB_PROJECT_ID || env.RAILWAY_PROJECT_ID }}
         run: |
           set -euo pipefail
 
@@ -206,7 +216,7 @@ jobs:
           steps.validate-token.outputs.token_valid == 'true' &&
           steps.resolve-service.outputs.service_id != ''
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN || secrets.RAILWAY_TOKEN }}
+          RAILWAY_TOKEN: ${{ env.RAILWAY_BOB_TOKEN || env.RAILWAY_TOKEN }}
           RAILWAY_SERVICE_ID: ${{ steps.resolve-service.outputs.service_id }}
           RAILWAY_BOB_PROJECT_ID: ${{ steps.resolve-service.outputs.project_id }}
           RAILWAY_BOB_SERVICE_NAME: ${{ secrets.RAILWAY_BOB_SERVICE_NAME }}
@@ -353,6 +363,28 @@ jobs:
             echo "Body preview: ${HEALTH_BODY:0:200}"
             exit 1
           fi
+
+          DEPLOY_SIGNATURE=$(printf '%s' "$HEALTH_BODY" | jq -r '.config.DEPLOY_SIGNATURE // empty')
+          SELF_CONTAINED_MODE=$(printf '%s' "$HEALTH_BODY" | jq -r '.config.SELF_CONTAINED_MODE // empty')
+          REQUIRE_SELF_CONTAINED_MODE=$(printf '%s' "$HEALTH_BODY" | jq -r '.config.REQUIRE_SELF_CONTAINED_MODE // empty')
+          SELF_CONTAINED_STRICT_EGRESS=$(printf '%s' "$HEALTH_BODY" | jq -r '.config.SELF_CONTAINED_STRICT_EGRESS // empty')
+
+          [ "$DEPLOY_SIGNATURE" = "bob-self-contained-hardlock-v1" ] || {
+            echo "::error::Bob deploy drift detected. Expected DEPLOY_SIGNATURE=bob-self-contained-hardlock-v1, got ${DEPLOY_SIGNATURE:-<missing>}"
+            exit 1
+          }
+          [ "$SELF_CONTAINED_MODE" = "true" ] || {
+            echo "::error::Bob deploy drift detected. Expected SELF_CONTAINED_MODE=true, got ${SELF_CONTAINED_MODE:-<missing>}"
+            exit 1
+          }
+          [ "$REQUIRE_SELF_CONTAINED_MODE" = "true" ] || {
+            echo "::error::Bob deploy drift detected. Expected REQUIRE_SELF_CONTAINED_MODE=true, got ${REQUIRE_SELF_CONTAINED_MODE:-<missing>}"
+            exit 1
+          }
+          [ "$SELF_CONTAINED_STRICT_EGRESS" = "true" ] || {
+            echo "::error::Bob deploy drift detected. Expected SELF_CONTAINED_STRICT_EGRESS=true, got ${SELF_CONTAINED_STRICT_EGRESS:-<missing>}"
+            exit 1
+          }
 
           CHAT_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             --max-time 30 \

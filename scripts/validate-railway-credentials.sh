@@ -35,6 +35,13 @@
 
 set -euo pipefail
 
+# If present, normalize credentials from GitHub Actions-injected secret names.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/load-railway-secrets-from-github-env.sh" ]; then
+  # shellcheck disable=SC1091
+  source "$SCRIPT_DIR/load-railway-secrets-from-github-env.sh" --quiet
+fi
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'

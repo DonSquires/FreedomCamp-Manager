@@ -27,12 +27,6 @@ on:
         required: false
         type: string
 
-*** Add File: /workspaces/FreedomCamp-Manager/inference-service/.deploy-trigger
-Deploy trigger marker for Bob Railway workflow.
-
-*** Add File: /workspaces/FreedomCamp-Manager/ollama/.deploy-trigger
-Deploy trigger marker for Ollama Railway workflow.
-
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -44,17 +38,28 @@ jobs:
       contents: read
 
     steps:
-      - name: Check required secrets
-        id: check-secrets
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Load normalized Railway credential env
         env:
-          RAILWAY_DEPLOY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN || secrets.RAILWAY_TOKEN }}
+          RAILWAY_BOB_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_TOKEN_BOB: ${{ secrets.RAILWAY_TOKEN_BOB }}
           RAILWAY_OLLAMA_SERVICE_ID: ${{ secrets.RAILWAY_OLLAMA_SERVICE_ID }}
           RAILWAY_BOB_PROJECT_ID: ${{ secrets.RAILWAY_BOB_PROJECT_ID }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+          OLLAMA_SERVICE_URL: ${{ secrets.OLLAMA_SERVICE_URL }}
+        run: |
+          source ./scripts/load-railway-secrets-from-github-env.sh --quiet
+
+      - name: Check required secrets
+        id: check-secrets
         run: |
           missing=""
-          [ -z "$RAILWAY_DEPLOY_TOKEN" ]   && missing="$missing RAILWAY_BOB_TOKEN-or-RAILWAY_TOKEN"
+          [ -z "${RAILWAY_BOB_TOKEN:-${RAILWAY_TOKEN:-}}" ]   && missing="$missing RAILWAY_BOB_TOKEN-or-RAILWAY_TOKEN"
 
-          if [ -z "$RAILWAY_OLLAMA_SERVICE_ID" ] && [ -z "$RAILWAY_BOB_PROJECT_ID" ]; then
+          if [ -z "${RAILWAY_OLLAMA_SERVICE_ID:-}" ] && [ -z "${RAILWAY_BOB_PROJECT_ID:-}" ]; then
             missing="$missing RAILWAY_OLLAMA_SERVICE_ID-or-RAILWAY_BOB_PROJECT_ID"
           fi
 
@@ -79,9 +84,6 @@ jobs:
           else
             echo "ℹ️  Will attempt auto-resolution from RAILWAY_BOB_PROJECT_ID"
           fi
-      - name: Checkout repository
-        if: steps.check-secrets.outputs.secrets_present == 'true'
-        uses: actions/checkout@v5
 
       - name: Install Railway CLI
         if: steps.check-secrets.outputs.secrets_present == 'true'
@@ -100,7 +102,7 @@ jobs:
       - name: Validate Railway token
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN || secrets.RAILWAY_TOKEN }}
+          RAILWAY_TOKEN: ${{ env.RAILWAY_BOB_TOKEN || env.RAILWAY_TOKEN }}
         run: |
           echo "🔑 Validating Railway token..."
           if ! railway service list --json > /dev/null 2>&1; then
@@ -113,9 +115,9 @@ jobs:
         id: resolve-service
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN || secrets.RAILWAY_TOKEN }}
+          RAILWAY_TOKEN: ${{ env.RAILWAY_BOB_TOKEN || env.RAILWAY_TOKEN }}
           EXPLICIT_SERVICE_ID: ${{ steps.check-secrets.outputs.resolved_candidate_service_id }}
-          EXPLICIT_PROJECT_ID: ${{ secrets.RAILWAY_BOB_PROJECT_ID || secrets.RAILWAY_PROJECT_ID }}
+          EXPLICIT_PROJECT_ID: ${{ env.RAILWAY_BOB_PROJECT_ID || env.RAILWAY_PROJECT_ID }}
         run: |
           set -euo pipefail
 
@@ -193,9 +195,9 @@ jobs:
       - name: Deploy Ollama to Railway
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN || secrets.RAILWAY_TOKEN }}
+          RAILWAY_TOKEN: ${{ env.RAILWAY_BOB_TOKEN || env.RAILWAY_TOKEN }}
           RAILWAY_OLLAMA_SERVICE_ID: ${{ steps.resolve-service.outputs.service_id }}
-          RAILWAY_OLLAMA_PROJECT_ID: ${{ steps.resolve-service.outputs.project_id || secrets.RAILWAY_BOB_PROJECT_ID || secrets.RAILWAY_PROJECT_ID }}
+          RAILWAY_OLLAMA_PROJECT_ID: ${{ steps.resolve-service.outputs.project_id || env.RAILWAY_BOB_PROJECT_ID || env.RAILWAY_PROJECT_ID }}
         run: |
           set -euo pipefail
 

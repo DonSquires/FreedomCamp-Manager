@@ -27,15 +27,26 @@ jobs:
       contents: read
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Load normalized Railway credential env
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_CORE_TOKEN: ${{ secrets.RAILWAY_CORE_TOKEN }}
+          RAILWAY_PROXY_SERVICE_ID: ${{ secrets.RAILWAY_PROXY_SERVICE_ID }}
+          PROXY_SERVER_URL: ${{ secrets.PROXY_SERVER_URL }}
+          PROXY_SERVICE_URL: ${{ secrets.PROXY_SERVICE_URL }}
+          NZSCV_PROXY_URL: ${{ secrets.NZSCV_PROXY_URL }}
+        run: |
+          source ./scripts/load-railway-secrets-from-github-env.sh --quiet
+
       - name: Check required secrets
         id: check-secrets
-        env:
-          RAILWAY_DEPLOY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_PROXY_SERVICE_ID: ${{ secrets.RAILWAY_PROXY_SERVICE_ID }}
         run: |
           missing=""
-          [ -z "$RAILWAY_DEPLOY_TOKEN" ]     && missing="$missing RAILWAY_TOKEN"
-          [ -z "$RAILWAY_PROXY_SERVICE_ID" ] && missing="$missing RAILWAY_PROXY_SERVICE_ID"
+          [ -z "${RAILWAY_TOKEN:-}" ]            && missing="$missing RAILWAY_TOKEN"
+          [ -z "${RAILWAY_PROXY_SERVICE_ID:-}" ] && missing="$missing RAILWAY_PROXY_SERVICE_ID"
 
           if [ -n "$missing" ]; then
             echo "::error::Required secrets not configured ($missing) — deployment skipped."
@@ -50,9 +61,6 @@ jobs:
 
           echo "✅ Railway proxy secrets present"
           echo "secrets_present=true" >> "$GITHUB_OUTPUT"
-      - name: Checkout repository
-        if: steps.check-secrets.outputs.secrets_present == 'true'
-        uses: actions/checkout@v5
 
       - name: Install Railway CLI
         if: steps.check-secrets.outputs.secrets_present == 'true'
@@ -71,9 +79,6 @@ jobs:
       - name: Validate Railway token/service
         id: validate-token
         if: steps.check-secrets.outputs.secrets_present == 'true'
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_PROXY_SERVICE_ID: ${{ secrets.RAILWAY_PROXY_SERVICE_ID }}
         run: |
           echo "🔑 Validating Railway token..."
           if ! railway service list --json > /dev/null 2>&1; then
@@ -95,9 +100,6 @@ jobs:
         if: >-
           steps.check-secrets.outputs.secrets_present == 'true' &&
           steps.validate-token.outputs.token_valid == 'true'
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_PROXY_SERVICE_ID: ${{ secrets.RAILWAY_PROXY_SERVICE_ID }}
         run: |
           cd proxy-server
           echo "🚂 Deploying proxy-server to Railway..."
@@ -108,12 +110,11 @@ jobs:
         if: >-
           steps.check-secrets.outputs.secrets_present == 'true' &&
           steps.validate-token.outputs.token_valid == 'true'
-        env:
-          PROXY_SERVICE_URL: ${{ secrets.PROXY_SERVICE_URL }}
         run: |
-          BASE_URL="${PROXY_SERVICE_URL%/}"
+          BASE_URL="${PROXY_SERVER_URL:-${PROXY_SERVICE_URL:-}}"
+          BASE_URL="${BASE_URL%/}"
           if [ -z "$BASE_URL" ]; then
-            echo "ℹ️  PROXY_SERVICE_URL not set — skipping health check."
+            echo "ℹ️  PROXY_SERVER_URL/PROXY_SERVICE_URL not set — skipping health check."
             exit 0
           fi
 
