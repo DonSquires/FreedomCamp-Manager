@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       stale_minutes:
-        description: 'Minimum age in minutes for submitted reports'
+        description: 'Minimum age in minutes for submitted/acknowledged reports'
         required: false
         default: '10'
       max_reports:
@@ -59,9 +59,9 @@ jobs:
           fi
 
           cutoff=$(date -u -d "-${stale_minutes} minutes" +"%Y-%m-%dT%H:%M:%SZ")
-          url="${VITE_SUPABASE_URL}/rest/v1/bug_reports?select=id,created_at,title&status=eq.submitted&created_at=lt.${cutoff}&order=created_at.asc&limit=${max_reports}"
+          url="${VITE_SUPABASE_URL}/rest/v1/bug_reports?select=id,created_at,title,status,ai_analyzed&status=in.(submitted,acknowledged)&created_at=lt.${cutoff}&order=created_at.asc&limit=${max_reports}"
 
-          echo "Looking for submitted reports older than ${stale_minutes} minutes (cutoff: ${cutoff})"
+          echo "Looking for submitted/acknowledged reports older than ${stale_minutes} minutes (cutoff: ${cutoff})"
 
           reports_json=$(curl -sS "$url" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
@@ -70,11 +70,11 @@ jobs:
 
           total=$(echo "$reports_json" | jq 'length')
           if [ "$total" -eq 0 ]; then
-            echo "No stale submitted reports found."
+            echo "No stale submitted/acknowledged reports found."
             exit 0
           fi
 
-          echo "Found ${total} stale submitted reports. Triggering auto analysis..."
+          echo "Found ${total} stale submitted/acknowledged reports. Triggering auto analysis..."
 
           success=0
           failed=0
@@ -103,7 +103,7 @@ jobs:
             echo "## Stale Bug Report Escalator"
             echo ""
             echo "- Cutoff minutes: ${stale_minutes}"
-            echo "- Found stale submitted: ${total}"
+            echo "- Found stale submitted/acknowledged: ${total}"
             echo "- Escalated successfully: ${success}"
             echo "- Failed: ${failed}"
           } >> "$GITHUB_STEP_SUMMARY"
