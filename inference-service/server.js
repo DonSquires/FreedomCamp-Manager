@@ -156,7 +156,11 @@ function isLocalUrl(value) {
   if (!value) return false;
   try {
     const url = new URL(value);
-    return url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '::1';
+    // Recognize loopback addresses (localhost, 127.0.0.1, ::1)
+    const isLoopback = url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '::1';
+    // Recognize Railway internal DNS as local (no external egress)
+    const isRailwayInternal = url.hostname === 'ollama.railway.internal';
+    return isLoopback || isRailwayInternal;
   } catch {
     return false;
   }
