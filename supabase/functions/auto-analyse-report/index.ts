@@ -99,6 +99,18 @@ function planToText(plan: any): string {
   ].join('\n')
 }
 
+function isDesignChangeIssueType(issueType: string | null | undefined): boolean {
+  const normalized = String(issueType ?? '').toLowerCase()
+  return normalized === 'feature_request' || normalized === 'enhancement' || normalized === 'ui_ux'
+}
+
+function deriveComplexity(severity: string | null | undefined): 'simple' | 'moderate' | 'complex' {
+  const normalized = String(severity ?? 'medium').toLowerCase()
+  if (normalized === 'critical' || normalized === 'high') return 'complex'
+  if (normalized === 'low') return 'simple'
+  return 'moderate'
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: getCorsHeaders(req) })
@@ -233,6 +245,65 @@ Deno.serve(async (req: Request) => {
     const healJson = await healResp.json()
     const responseText: string = planToText(healJson?.plan)
 
+    // ── Stage 2: GitHub-assist escalation for non-design bug fixes ─────────
+    const designChange = isDesignChangeIssueType(report.issue_type)
+    const complexity = deriveComplexity(report.severity)
+    const shouldEscalateToGithubAssist = !designChange
+
+    let escalationResult: Record<string, unknown> | null = null
+    if (shouldEscalateToGithubAssist) {
+      try {
+        const patchPayload = {
+          report: {
+            summary: `${report.title ?? 'Untitled'}: ${report.description ?? ''}`.trim(),
+            severity: report.severity ?? 'medium',
+            issue_type: report.issue_type ?? 'bug',
+            details: responseText,
+            stack_trace: typeof report.actual_behavior === 'string' ? report.actual_behavior : '',
+            source: 'auto-analyse-report',
+            requested_at: new Date().toISOString(),
+            execution_mode_hint: 'github_assist',
+            complexity,
+          },
+          plan: healJson?.plan,
+        }
+
+        const patchResp = await fetch(`${inferenceUrl}/self-heal/patch-task`, {
+          method: 'POST',
+          headers: healHeaders,
+          body: JSON.stringify(patchPayload),
+          signal: AbortSignal.timeout(30_000),
+        })
+
+        if (patchResp.ok) {
+          const patchJson = await patchResp.json()
+          escalationResult = {
+            requested: true,
+            routed_to: 'github_assist',
+            complexity,
+            patch_task: patchJson?.patch_task ?? patchJson,
+            generated_at: new Date().toISOString(),
+          }
+        } else {
+          const patchErrText = await patchResp.text()
+          escalationResult = {
+            requested: true,
+            routed_to: 'github_assist',
+            complexity,
+            error: `patch-task returned HTTP ${patchResp.status}`,
+            details: patchErrText.slice(0, 300),
+          }
+        }
+      } catch (patchErr: any) {
+        escalationResult = {
+          requested: true,
+          routed_to: 'github_assist',
+          complexity,
+          error: patchErr?.message ?? 'Patch-task escalation failed',
+        }
+      }
+    }
+
     // ── Persist analysis ──────────────────────────────────────────────────────
     const nextStatus = nextStatusAfterAnalysis(statusForTransition)
 
@@ -247,6 +318,8 @@ Deno.serve(async (req: Request) => {
           provider: 'inference-self-heal',
           auto: true,
           ci_status_included: githubToken ? true : false,
+          design_change: designChange,
+          github_assist_escalation: escalationResult,
         },
         status: nextStatus,
         requires_human_review: true,
