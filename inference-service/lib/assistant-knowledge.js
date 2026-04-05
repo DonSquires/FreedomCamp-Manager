@@ -37,6 +37,22 @@ const KNOWLEDGE_PACKS = {
       'Document assumptions and unknowns in every remediation plan.',
     ],
   },
+  ui_design_context: {
+    name: 'ui-ux-design-assessment',
+    summary: 'UI visualisation, layout analysis, colour assessment, accessibility auditing, and human-friendliness evaluation for FieldOps Manager pages.',
+    key_points: [
+      'Design system: Tailwind CSS v3 + shadcn/ui (Radix). HSL CSS variables for theming. Four themes: light, dark, high-contrast, night-patrol.',
+      'Primary colour: teal (HSL 187 72% 37%). Accent: amber (HSL 48 96% 53%). Destructive: red (HSL 0 84% 60%). All from CSS custom properties.',
+      'Night-patrol mode: pure black background, bright cyan primary, 56px min button height, 52px min input height, 17px base font — designed for gloves and low-light.',
+      'WCAG accessibility: minimum AA contrast (4.5:1 text, 3:1 large text). Use ARIA attributes, semantic HTML, focus-visible rings, sr-only labels.',
+      'Responsive breakpoints: sm 640px, md 768px, lg 1024px, xl 1280px. Mobile-first layout with flex/grid containers.',
+      'Component patterns: dashboard (grid cards + table), form (labelled inputs + validation), list (virtualized + empty states), detail (hero + tabs), map (full-height + overlays).',
+      'Spacing rhythm: consistent padding/margin scale (Tailwind p-2/p-4/p-6). Cards use rounded-lg (0.75rem). Elevated cards have multi-layer box-shadow.',
+      'Typography hierarchy: headings (text-lg to text-3xl, font-semibold/bold), body (text-sm/text-base), muted captions (text-muted-foreground).',
+      'Human-friendliness rubric: accessibility (35% weight), responsiveness (30% weight), design consistency (35% weight). Score 80+ is good.',
+      'Image analysis: assess whitespace (15-40% ideal), colour variety (5-15 significant buckets), contrast ratio, visual complexity via edge density.',
+    ],
+  },
 };
 
 function classifyBugType(report) {

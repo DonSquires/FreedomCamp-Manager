@@ -1,6 +1,6 @@
 /**
  * ORC/AI Inference Service
- * Vehicle Detection + Embedding Generation + Face Recognition
+ * Vehicle Detection + Embedding Generation + Face Recognition + UI Assessment
  * 
  * Stack:
  * - YOLOv8n (vehicle detection)
@@ -14,6 +14,10 @@
  * - POST /infer/chalk - Chalk pass AI
  * - POST /infer/face  - Face detection + embedding
  * - POST /infer/compare - Cosine similarity
+ * - POST /assess/ui  - Analyze component code for layout, a11y, design consistency
+ * - POST /assess/ui/screenshot - Analyze UI screenshot for colours, contrast, aesthetics
+ * - POST /assess/ui/colours - Check colour palette contrast ratios (WCAG)
+ * - GET  /assess/ui/design-system - Get FieldOps design system reference
  * - GET  /health     - Health check
  */
 
@@ -30,6 +34,7 @@ const { createSelfLearningService } = require('./lib/self-learning');
 const { profileExamples } = require('./lib/pretrain-profiles');
 const { buildSelfHealingPlan, buildPatchTask, getKnowledgePacks } = require('./lib/assistant-knowledge');
 const { createIntelStore } = require('./lib/intel-updates');
+const { analyzeComponentCode, analyzeScreenshot, assessColourPalette, identifyLayoutPattern, DESIGN_SYSTEM } = require('./lib/ui-assessment');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -871,13 +876,33 @@ function generateHeuristicChatReply(message, context = {}) {
 
   const lowered = text.toLowerCase();
   if (lowered.includes('status') || lowered.includes('health')) {
-    return 'Service is running in self-contained mode. I can help with patrol workflows, plate checks, and compliance process guidance.';
+    return 'Service is running in self-contained mode. I can help with patrol workflows, plate checks, compliance process guidance, and UI assessment.';
   }
   if (lowered.includes('privacy') || lowered.includes('data')) {
     return 'This deployment is configured for local processing. External cloud calls are blocked by strict self-contained egress policy.';
   }
   if (lowered.includes('plate') || lowered.includes('rego')) {
     return 'I can assist with plate workflow guidance. Upload evidence through the enforcement workflow and I can help summarize next steps.';
+  }
+
+  // UI/UX design domain
+  if (lowered.includes('design system') || lowered.includes('theme') || lowered.includes('color') || lowered.includes('colour')) {
+    return 'FieldOps uses a Tailwind CSS + shadcn/ui design system with HSL CSS variables. Four themes: light, dark, high-contrast, and night-patrol. Primary is teal (187°), accent is amber (48°), destructive is red. Use POST /assess/ui to analyze component code, or POST /assess/ui/colours to check contrast ratios.';
+  }
+  if (lowered.includes('accessibility') || lowered.includes('a11y') || lowered.includes('wcag') || lowered.includes('screen reader')) {
+    return 'FieldOps targets WCAG AA compliance. Requirements: 4.5:1 contrast for text, 3:1 for large text. Use ARIA attributes, semantic HTML (<section>, <nav>, <main>), visible labels on all inputs, focus-visible rings for keyboard navigation, and sr-only for screen-reader-only text. Night-patrol mode needs 56px button height for gloved use.';
+  }
+  if (lowered.includes('layout') || lowered.includes('responsive') || lowered.includes('mobile') || lowered.includes('breakpoint')) {
+    return 'FieldOps uses mobile-first responsive design. Breakpoints: sm (640px), md (768px), lg (1024px), xl (1280px). Dashboard pattern: grid-cols-1 sm:grid-cols-2 lg:grid-cols-4. Forms need visible labels, not placeholder-only. Tables need overflow-x-auto on mobile. Use POST /assess/ui with component code for detailed layout analysis.';
+  }
+  if (lowered.includes('night patrol') || lowered.includes('dark mode') || lowered.includes('night mode')) {
+    return 'Night-patrol mode: pure black background (3% lightness), bright cyan primary for max legibility, 56px min button height, 52px min input height, 17px base font. Designed for officers wearing gloves in low-light. Applied via class="night-patrol" on <html> alongside "dark".';
+  }
+  if (lowered.includes('ui') || lowered.includes('component') || lowered.includes('button') || lowered.includes('card') || lowered.includes('form') || lowered.includes('table')) {
+    return 'I can assess UI components for human-friendliness. Use POST /assess/ui with {code: "..."} to analyze JSX/TSX source code. I evaluate accessibility (35%), responsiveness (30%), and design consistency (35%). I also identify layout patterns (dashboard, form, list, detail, map) and provide actionable recommendations.';
+  }
+  if (lowered.includes('screenshot') || lowered.includes('visual') || lowered.includes('aesthetic')) {
+    return 'I can analyze UI screenshots for aesthetics. Use POST /assess/ui/screenshot with a screenshot file. I evaluate colour harmony, whitespace balance (15-40% ideal), WCAG contrast, and visual complexity. The analysis includes specific recommendations for improvement.';
   }
 
   const tone = context?.tone === 'brief' ? 'briefly' : 'clearly';
@@ -910,7 +935,7 @@ async function generateChatReplyWithOllama(message, history = [], context = {}) 
         messages: [
           {
             role: 'system',
-            content: 'You are Bob, the AI assistant embedded in FieldOps Manager — a freedom camping enforcement platform used by councils and security contractors in New Zealand.\n\nYou assist officers, supervisors, and administrators with:\n- NZ freedom camping law: Freedom Camping Act 2011, Local Government Act 2002, RMA 1991, Privacy Act 2020\n- Compliance analysis: breach trends, stay-night calculations, zone rule interpretation\n- Patrol operations: shift planning, route guidance, officer welfare checks\n- Enforcement actions: Notice to Vacate, Warning Notice, Infringement Notice, Noise Notice\n- Vehicle and plate workflows: ALPR results, SCV certification via NZSCV register\n- Incident and evidence management and investigation notes\n- Risk assessments, SOPs, H&S plans, evacuation plans, active offender procedures\n- Data import, system diagnostics, and operational guidance\n\nKey facts:\n- Zones have allowed_days, max_consecutive_nights, max_nights_per_month\n- Observations track plate_number, zone, recorded_at, and photo evidence\n- Breach triggers when stay limits are exceeded\n- Homeless or vulnerable occupants receive special consideration under policy\n- SCV status from NZSCV register can grant zone exemptions\n- All times are NZ timezone (Pacific/Auckland)\n\nBe concise — field officers need fast actionable answers. When you do not know something specific, say so. Never fabricate data or plate numbers. Return plain text only, no markdown formatting.',
+            content: 'You are Bob, the AI assistant embedded in FieldOps Manager — a freedom camping enforcement platform used by councils and security contractors in New Zealand.\n\nYou assist officers, supervisors, and administrators with:\n- NZ freedom camping law: Freedom Camping Act 2011, Local Government Act 2002, RMA 1991, Privacy Act 2020\n- Compliance analysis: breach trends, stay-night calculations, zone rule interpretation\n- Patrol operations: shift planning, route guidance, officer welfare checks\n- Enforcement actions: Notice to Vacate, Warning Notice, Infringement Notice, Noise Notice\n- Vehicle and plate workflows: ALPR results, SCV certification via NZSCV register\n- Incident and evidence management and investigation notes\n- Risk assessments, SOPs, H&S plans, evacuation plans, active offender procedures\n- Data import, system diagnostics, and operational guidance\n\nUI/UX Design Assessment:\n- Design system: Tailwind CSS v3 + shadcn/ui (Radix) with HSL CSS variable theming\n- Four themes: light, dark, high-contrast, night-patrol (for officers in low-light with gloves)\n- Colours: primary teal (HSL 187 72% 37%), accent amber (HSL 48 96% 53%), destructive red (HSL 0 84% 60%)\n- Night-patrol mode: pure black bg, bright cyan primary, 56px min button height, 52px min input height, 17px base font\n- WCAG AA target: 4.5:1 contrast for text, 3:1 for large text, semantic HTML, ARIA attributes, focus-visible rings\n- Responsive breakpoints: sm 640px, md 768px, lg 1024px, xl 1280px (mobile-first)\n- Layout patterns: dashboard (grid cards + table), form (labelled inputs + validation), list (virtualized + empty states), detail (hero + tabs), map (full-height + overlays)\n- Human-friendliness: score components on accessibility (35%), responsiveness (30%), design consistency (35%)\n- Use POST /assess/ui for code analysis, POST /assess/ui/screenshot for visual analysis, POST /assess/ui/colours for contrast checks\n\nKey facts:\n- Zones have allowed_days, max_consecutive_nights, max_nights_per_month\n- Observations track plate_number, zone, recorded_at, and photo evidence\n- Breach triggers when stay limits are exceeded\n- Homeless or vulnerable occupants receive special consideration under policy\n- SCV status from NZSCV register can grant zone exemptions\n- All times are NZ timezone (Pacific/Auckland)\n\nBe concise — field officers need fast actionable answers. When you do not know something specific, say so. Never fabricate data or plate numbers. Return plain text only, no markdown formatting.',
           },
           ...history.slice(-12).map((m) => ({
             role: m?.role === 'assistant' ? 'assistant' : 'user',
@@ -1111,6 +1136,87 @@ app.get('/intel/state', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: 
   return res.json({
     success: true,
     intel: intelStore.getState(),
+  });
+});
+
+// ---------------------------------------------------------------------------
+// UI Assessment endpoints — teach Bob to visualise and evaluate UI
+// ---------------------------------------------------------------------------
+
+app.post('/assess/ui', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const code = req.body?.code;
+    if (typeof code !== 'string' || !code.trim()) {
+      return res.status(400).json({ error: 'code must be a non-empty string containing component JSX/TSX source' });
+    }
+
+    if (code.length > 100_000) {
+      return res.status(400).json({ error: 'code exceeds maximum length of 100,000 characters' });
+    }
+
+    const analysis = analyzeComponentCode(code);
+    const layoutPatterns = identifyLayoutPattern(code);
+
+    return res.json({
+      success: true,
+      analysis,
+      layout_patterns: layoutPatterns,
+      design_system: DESIGN_SYSTEM,
+    });
+  } catch (error) {
+    console.error('UI code assessment error:', error);
+    return res.status(500).json({ error: 'UI assessment failed', message: error.message });
+  }
+});
+
+app.post('/assess/ui/screenshot', inferenceRateLimit, upload.single('screenshot'), requireInferenceAuth, async (req, res) => {
+  try {
+    if (!req.file?.buffer) {
+      return res.status(400).json({ error: 'screenshot file is required (multipart/form-data, field name: screenshot)' });
+    }
+
+    const screenshotAnalysis = await analyzeScreenshot(req.file.buffer);
+
+    return res.json({
+      success: true,
+      screenshot: screenshotAnalysis,
+      design_system: DESIGN_SYSTEM,
+    });
+  } catch (error) {
+    console.error('UI screenshot assessment error:', error);
+    return res.status(500).json({ error: 'Screenshot assessment failed', message: error.message });
+  }
+});
+
+app.post('/assess/ui/colours', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const colours = req.body?.colours;
+    if (!Array.isArray(colours) || colours.length === 0) {
+      return res.status(400).json({ error: 'colours must be a non-empty array of { name, hsl: [h,s,l] } or { name, rgb: [r,g,b] } objects' });
+    }
+
+    if (colours.length > 20) {
+      return res.status(400).json({ error: 'Maximum 20 colours per assessment' });
+    }
+
+    const paletteAssessment = assessColourPalette(colours);
+
+    return res.json({
+      success: true,
+      palette: paletteAssessment,
+      design_system_colours: DESIGN_SYSTEM.color_tokens,
+    });
+  } catch (error) {
+    console.error('Colour assessment error:', error);
+    return res.status(500).json({ error: 'Colour assessment failed', message: error.message });
+  }
+});
+
+app.get('/assess/ui/design-system', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  return res.json({
+    success: true,
+    design_system: DESIGN_SYSTEM,
+    knowledge: getKnowledgePacks().ui_design_context || null,
   });
 });
 
