@@ -30,6 +30,33 @@ jobs:
             URL="https://$URL"
           fi
           echo "CHAT_URL=${URL%/}/chat" >> "$GITHUB_ENV"
+          echo "HEALTH_URL=${URL%/}/health" >> "$GITHUB_ENV"
+
+      - name: Preflight inference health and Ollama wiring
+        run: |
+          set -euo pipefail
+
+          HTTP_STATUS=$(curl -sS -m 30 -o /tmp/inference-health.json -w "%{http_code}" "$HEALTH_URL")
+          cat /tmp/inference-health.json
+
+          if [[ "$HTTP_STATUS" != "200" ]]; then
+            echo "Inference health endpoint returned HTTP $HTTP_STATUS"
+            exit 1
+          fi
+
+          STATUS="$(jq -r '.status // "unknown"' /tmp/inference-health.json)"
+          CHAT_PROVIDER="$(jq -r '.config.CHAT_PROVIDER // ""' /tmp/inference-health.json)"
+          TABULAR_PROVIDER="$(jq -r '.config.TABULAR_NLP_PROVIDER // ""' /tmp/inference-health.json)"
+          CHAT_OLLAMA_ENABLED="$(jq -r '.capabilities.chat_local_ollama_enabled // false' /tmp/inference-health.json)"
+          TABULAR_OLLAMA_ENABLED="$(jq -r '.capabilities.tabular_nlp_ollama_enabled // false' /tmp/inference-health.json)"
+
+          [[ "$STATUS" == "healthy" ]] || { echo "Inference status is not healthy: $STATUS"; exit 1; }
+          [[ "$CHAT_PROVIDER" == "ollama" ]] || { echo "Expected CHAT_PROVIDER=ollama but got $CHAT_PROVIDER"; exit 1; }
+          [[ "$TABULAR_PROVIDER" == "ollama" ]] || { echo "Expected TABULAR_NLP_PROVIDER=ollama but got $TABULAR_PROVIDER"; exit 1; }
+          [[ "$CHAT_OLLAMA_ENABLED" == "true" ]] || { echo "chat_local_ollama_enabled is false"; exit 1; }
+          [[ "$TABULAR_OLLAMA_ENABLED" == "true" ]] || { echo "tabular_nlp_ollama_enabled is false"; exit 1; }
+
+          cp /tmp/inference-health.json inference-health-preflight.json
 
       - name: Human interaction smoke prompts
         run: |
@@ -87,4 +114,5 @@ jobs:
           name: bob-human-interaction-smoke
           path: |
             bob-human-interaction-smoke.log
+            inference-health-preflight.json
           if-no-files-found: ignore
