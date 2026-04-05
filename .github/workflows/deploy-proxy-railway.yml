@@ -30,26 +30,26 @@ jobs:
       - name: Check required secrets
         id: check-secrets
         env:
-          RAILWAY_DEPLOY_TOKEN: ${{ secrets.RAILWAY_TOKEN || secrets.RAILWAY_BOB_TOKEN }}
+          RAILWAY_DEPLOY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_PROXY_SERVICE_ID: ${{ secrets.RAILWAY_PROXY_SERVICE_ID }}
         run: |
           missing=""
-          [ -z "$RAILWAY_DEPLOY_TOKEN" ]     && missing="$missing RAILWAY_TOKEN-or-RAILWAY_BOB_TOKEN"
+          [ -z "$RAILWAY_DEPLOY_TOKEN" ]     && missing="$missing RAILWAY_TOKEN"
           [ -z "$RAILWAY_PROXY_SERVICE_ID" ] && missing="$missing RAILWAY_PROXY_SERVICE_ID"
 
           if [ -n "$missing" ]; then
-            echo "::warning::Required secrets not configured ($missing) — deployment skipped."
+            echo "::error::Required secrets not configured ($missing) — deployment skipped."
             echo ""
-            echo "To enable Railway proxy deployments, add secrets at:"
-            echo "  https://github.com/${{ github.repository }}/settings/secrets/actions"
-            echo ""
-            echo "  RAILWAY_TOKEN: Railway token with deploy access"
+            echo "Add these GitHub Actions secrets to this repository:"
+            echo "  RAILWAY_TOKEN: Railway project token with deploy access to proxy service"
             echo "  RAILWAY_PROXY_SERVICE_ID: Railway proxy service ID"
-            echo "secrets_present=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "✅ Railway proxy secrets present"
-            echo "secrets_present=true" >> "$GITHUB_OUTPUT"
+            echo ""
+            echo "See docs/RAILWAY_SERVICES_AUTHORITY.md for setup instructions."
+            exit 1
           fi
+
+          echo "✅ Railway proxy secrets present"
+          echo "secrets_present=true" >> "$GITHUB_OUTPUT"
       - name: Checkout repository
         if: steps.check-secrets.outputs.secrets_present == 'true'
         uses: actions/checkout@v5
@@ -72,16 +72,23 @@ jobs:
         id: validate-token
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN || secrets.RAILWAY_BOB_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROXY_SERVICE_ID: ${{ secrets.RAILWAY_PROXY_SERVICE_ID }}
         run: |
-          echo "🔑 Validating Railway proxy token..."
+          echo "🔑 Validating Railway token..."
           if ! railway service list --json > /dev/null 2>&1; then
-            echo "::warning::RAILWAY_TOKEN is invalid or expired — proxy deploy will be skipped."
+            echo "::error::RAILWAY_TOKEN is invalid or expired."
             echo "Generate a new project token in Railway (Project → Settings → Tokens) and update RAILWAY_TOKEN."
-            echo "token_valid=false" >> "$GITHUB_OUTPUT"
-            exit 0
+            exit 1
           fi
+          
           echo "✅ Railway token is valid"
+          echo "Checking if proxy service exists in token scope..."
+          if ! railway service list --json | grep -q "$RAILWAY_PROXY_SERVICE_ID"; then
+            echo "::warning::Proxy service ID not found in token scope. Deploy may still succeed if ID is correct."
+          else
+            echo "✅ Proxy service found in token scope"
+          fi
           echo "token_valid=true" >> "$GITHUB_OUTPUT"
 
       - name: Deploy proxy-server to Railway
@@ -89,12 +96,13 @@ jobs:
           steps.check-secrets.outputs.secrets_present == 'true' &&
           steps.validate-token.outputs.token_valid == 'true'
         env:
-          RAILWAY_TOKEN:            ${{ secrets.RAILWAY_TOKEN || secrets.RAILWAY_BOB_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_PROXY_SERVICE_ID: ${{ secrets.RAILWAY_PROXY_SERVICE_ID }}
         run: |
           cd proxy-server
           echo "🚂 Deploying proxy-server to Railway..."
           railway up --service "$RAILWAY_PROXY_SERVICE_ID" --detach
+          echo "✅ Deploy triggered. Check Railway dashboard for status."
 
       - name: Verify proxy health
         if: >-

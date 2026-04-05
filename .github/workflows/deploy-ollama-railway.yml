@@ -49,27 +49,35 @@ jobs:
         env:
           RAILWAY_DEPLOY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN || secrets.RAILWAY_TOKEN }}
           RAILWAY_OLLAMA_SERVICE_ID: ${{ secrets.RAILWAY_OLLAMA_SERVICE_ID }}
+          RAILWAY_BOB_PROJECT_ID: ${{ secrets.RAILWAY_BOB_PROJECT_ID }}
         run: |
           missing=""
-          [ -z "$RAILWAY_DEPLOY_TOKEN" ]       && missing="$missing RAILWAY_BOB_TOKEN-or-RAILWAY_TOKEN"
+          [ -z "$RAILWAY_DEPLOY_TOKEN" ]   && missing="$missing RAILWAY_BOB_TOKEN-or-RAILWAY_TOKEN"
+
+          if [ -z "$RAILWAY_OLLAMA_SERVICE_ID" ] && [ -z "$RAILWAY_BOB_PROJECT_ID" ]; then
+            missing="$missing RAILWAY_OLLAMA_SERVICE_ID-or-RAILWAY_BOB_PROJECT_ID"
+          fi
 
           if [ -n "$missing" ]; then
-            echo "::warning::Required Ollama deploy secrets not configured ($missing) — deployment skipped."
+            echo "::error::Required Ollama deploy secrets not configured ($missing) — deployment skipped."
             echo ""
-            echo "Add these GitHub Actions secrets:"
-            echo "  RAILWAY_BOB_TOKEN          - Railway project token for the Bob project (shared with Bob service)"
-            echo "  RAILWAY_OLLAMA_SERVICE_ID  - Railway service ID for the Ollama service"
+            echo "Add these GitHub Actions secrets to this repository:"
+            echo "  RAILWAY_BOB_TOKEN          - Railway project token for the Bob project (required)"
+            echo "  RAILWAY_OLLAMA_SERVICE_ID  - Railway service ID for Ollama service (required if no PROJECT_ID)"
+            echo "  RAILWAY_BOB_PROJECT_ID     - Railway project ID for Bob (required if no SERVICE_ID)"
             echo "  OLLAMA_SERVICE_URL         - Optional public Ollama URL for post-deploy health check"
-            echo "secrets_present=false" >> "$GITHUB_OUTPUT"
+            echo ""
+            echo "See docs/RAILWAY_SERVICES_AUTHORITY.md for setup instructions."
+            exit 1
+          fi
+
+          echo "✅ Ollama Railway deploy secrets present"
+          echo "secrets_present=true" >> "$GITHUB_OUTPUT"
+          if [ -n "$RAILWAY_OLLAMA_SERVICE_ID" ]; then
+            echo "resolved_candidate_service_id=$RAILWAY_OLLAMA_SERVICE_ID" >> "$GITHUB_OUTPUT"
+            echo "✅ Using explicit RAILWAY_OLLAMA_SERVICE_ID"
           else
-            echo "✅ Ollama Railway deploy secrets present"
-            echo "secrets_present=true" >> "$GITHUB_OUTPUT"
-            CANDIDATE_SERVICE_ID="${RAILWAY_OLLAMA_SERVICE_ID:-}"
-            if [ -n "$CANDIDATE_SERVICE_ID" ]; then
-              echo "resolved_candidate_service_id=$CANDIDATE_SERVICE_ID" >> "$GITHUB_OUTPUT"
-            else
-              echo "::warning::No explicit Ollama service ID secret found — workflow will attempt auto-discovery."
-            fi
+            echo "ℹ️  Will attempt auto-resolution from RAILWAY_BOB_PROJECT_ID"
           fi
       - name: Checkout repository
         if: steps.check-secrets.outputs.secrets_present == 'true'

@@ -33,22 +33,21 @@ jobs:
       - name: Check required secrets
         id: check-secrets
         env:
-          RAILWAY_DEPLOY_TOKEN: ${{ secrets.RAILWAY_TOKEN || secrets.RAILWAY_BOB_TOKEN }}
+          RAILWAY_DEPLOY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_INFERENCE_SERVICE_ID: ${{ secrets.RAILWAY_INFERENCE_SERVICE_ID }}
         run: |
           missing=""
-          [ -z "$RAILWAY_DEPLOY_TOKEN" ]           && missing="$missing RAILWAY_TOKEN-or-RAILWAY_BOB_TOKEN"
+          [ -z "$RAILWAY_DEPLOY_TOKEN" ]           && missing="$missing RAILWAY_TOKEN"
           [ -z "$RAILWAY_INFERENCE_SERVICE_ID" ]   && missing="$missing RAILWAY_INFERENCE_SERVICE_ID"
           if [ -n "$missing" ]; then
-            echo "::warning::Required secrets not configured ($missing) — deployment skipped."
+            echo "::error::Required secrets not configured ($missing) — deployment skipped."
             echo ""
-            echo "To enable Railway deployments, add the following secrets at:"
-            echo "  https://github.com/${{ github.repository }}/settings/secrets/actions"
+            echo "Add these GitHub Actions secrets to this repository:"
+            echo "  RAILWAY_TOKEN:                Railway project token (required)"
+            echo "  RAILWAY_INFERENCE_SERVICE_ID: Railway service ID for inference service (required)"
             echo ""
-            echo "  RAILWAY_TOKEN:                Railway token with deploy access to the inference service project"
-            echo "                                (project token recommended for CI)."
-            echo "  RAILWAY_INFERENCE_SERVICE_ID: Railway project → Service → Settings → Service ID"
-            echo "secrets_present=false" >> "$GITHUB_OUTPUT"
+            echo "See docs/RAILWAY_SERVICES_AUTHORITY.md for setup instructions."
+            exit 1
           else
             echo "✅ Railway secrets present"
             echo "service_id=$RAILWAY_INFERENCE_SERVICE_ID" >> "$GITHUB_OUTPUT"
@@ -102,7 +101,7 @@ jobs:
           steps.check-secrets.outputs.secrets_present == 'true' &&
           steps.validate-token.outputs.token_valid == 'true'
         env:
-          RAILWAY_TOKEN:                ${{ secrets.RAILWAY_TOKEN || secrets.RAILWAY_BOB_TOKEN }}
+          RAILWAY_TOKEN:                ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_INFERENCE_SERVICE_ID: ${{ steps.check-secrets.outputs.service_id }}
         run: |
           cd inference-service
@@ -117,7 +116,7 @@ jobs:
           steps.check-secrets.outputs.secrets_present == 'true' &&
           steps.validate-token.outputs.token_valid == 'true'
         env:
-          RAILWAY_TOKEN:         ${{ secrets.RAILWAY_TOKEN || secrets.RAILWAY_BOB_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL }}
         run: |
           BASE_URL="${INFERENCE_SERVICE_URL%/}"

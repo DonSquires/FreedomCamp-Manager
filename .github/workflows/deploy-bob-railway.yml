@@ -28,31 +28,35 @@ jobs:
         env:
           RAILWAY_DEPLOY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN || secrets.RAILWAY_TOKEN }}
           RAILWAY_BOB_SERVICE_ID: ${{ secrets.RAILWAY_BOB_SERVICE_ID }}
-          RAILWAY_INFERENCE_SERVICE_ID: ${{ secrets.RAILWAY_INFERENCE_SERVICE_ID }}
-          RAILWAY_SERVICE_ID_FALLBACK: ${{ secrets.RAILWAY_SERVICE_ID }}
+          RAILWAY_BOB_PROJECT_ID: ${{ secrets.RAILWAY_BOB_PROJECT_ID }}
         run: |
           missing=""
           [ -z "$RAILWAY_DEPLOY_TOKEN" ]   && missing="$missing RAILWAY_BOB_TOKEN-or-RAILWAY_TOKEN"
 
+          # Bob deploy requires either explicit service ID OR project ID for auto-resolution
+          if [ -z "$RAILWAY_BOB_SERVICE_ID" ] && [ -z "$RAILWAY_BOB_PROJECT_ID" ]; then
+            missing="$missing RAILWAY_BOB_SERVICE_ID-or-RAILWAY_BOB_PROJECT_ID"
+          fi
+
           if [ -n "$missing" ]; then
-            echo "::warning::Required Bob deploy secrets not configured ($missing) — deployment skipped."
+            echo "::error::Required Bob deploy secrets not configured ($missing) — deployment skipped."
             echo ""
-            echo "Add these GitHub Actions secrets:"
-            echo "  RAILWAY_BOB_TOKEN      - Railway project token for the Bob project"
-            echo "  RAILWAY_BOB_SERVICE_ID - Railway service ID for bob-inference/orc-ai-inference-service"
-            echo "  RAILWAY_BOB_PROJECT_ID - Optional Railway project ID for Bob Inference auto-resolution"
-            echo "  BOB_SERVICE_URL        - Optional public Bob URL for post-deploy verification"
-            echo "secrets_present=false" >> "$GITHUB_OUTPUT"
+            echo "Add these GitHub Actions secrets to this repository:"
+            echo "  RAILWAY_BOB_TOKEN       - Railway project token for the Bob project (required)"
+            echo "  RAILWAY_BOB_SERVICE_ID  - Railway service ID for Bob inference service (required if no PROJECT_ID)"
+            echo "  RAILWAY_BOB_PROJECT_ID  - Railway project ID for Bob (required if no SERVICE_ID)"
+            echo ""
+            echo "See docs/BOB_PRODUCTION_RAILWAY_SETUP.md for setup instructions."
+            exit 1
+          fi
+
+          echo "✅ Bob Railway deploy secrets present"
+          echo "secrets_present=true" >> "$GITHUB_OUTPUT"
+          if [ -n "$RAILWAY_BOB_SERVICE_ID" ]; then
+            echo "resolved_candidate_service_id=$RAILWAY_BOB_SERVICE_ID" >> "$GITHUB_OUTPUT"
+            echo "✅ Using explicit RAILWAY_BOB_SERVICE_ID"
           else
-            echo "✅ Bob Railway deploy secrets present"
-            echo "secrets_present=true" >> "$GITHUB_OUTPUT"
-            CANDIDATE_SERVICE_ID="${RAILWAY_BOB_SERVICE_ID:-${RAILWAY_INFERENCE_SERVICE_ID:-${RAILWAY_SERVICE_ID_FALLBACK:-}}}"
-            if [ -z "$CANDIDATE_SERVICE_ID" ]; then
-              echo "::warning::No explicit Bob service ID secret found — workflow will attempt automatic service discovery."
-            else
-              echo "resolved_candidate_service_id=$CANDIDATE_SERVICE_ID" >> "$GITHUB_OUTPUT"
-              echo "✅ Found candidate service ID from secrets"
-            fi
+            echo "ℹ️  Will attempt auto-resolution from RAILWAY_BOB_PROJECT_ID"
           fi
       - name: Checkout repository
         if: steps.check-secrets.outputs.secrets_present == 'true'
@@ -184,7 +188,7 @@ jobs:
             process.stdout.write(JSON.stringify(top));
           ' "$GRAPHQL_RESPONSE") || {
             echo "::error::Unable to auto-resolve Bob service ID from Railway token scope."
-            echo "::error::Set one of: RAILWAY_BOB_SERVICE_ID, RAILWAY_INFERENCE_SERVICE_ID, or RAILWAY_BOB_PROJECT_ID."
+            echo "::error::Set RAILWAY_BOB_SERVICE_ID or RAILWAY_BOB_PROJECT_ID explicitly."
             exit 1
           }
 
