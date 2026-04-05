@@ -37,6 +37,19 @@ const KNOWLEDGE_PACKS = {
       'Document assumptions and unknowns in every remediation plan.',
     ],
   },
+  runtime_service_topology: {
+    name: 'runtime-service-topology',
+    summary: 'Live operational topology and credential wiring for Bob, PTT, proxy, and inference services.',
+    key_points: [
+      'Bob chat path: Supabase edge function onspace-ai-chat -> Railway inference-service /chat.',
+      'Inference provider target is Ollama-first (CHAT_PROVIDER=ollama, TABULAR_NLP_PROVIDER=ollama).',
+      'PTT stack: frontend -> ptt-signaling-token edge function -> Railway ptt-server.',
+      'Proxy stack: app services -> Railway NZSCV proxy via PROXY_SERVER_URL/NZSCV_PROXY_URL.',
+      'Critical env wiring: INFERENCE_SERVICE_URL, INFERENCE_API_KEY, PTT_SERVER_URL, PTT_SERVER_SECRET.',
+      'Credential checks should confirm INFERENCE_API_KEY_SET and SUPABASE_SERVICE_ROLE_KEY_SET on inference /health.',
+      'When deploying via CI only, prefer GitHub Actions workflow triggers over local Railway CLI access.',
+    ],
+  },
 };
 
 function classifyBugType(report) {
