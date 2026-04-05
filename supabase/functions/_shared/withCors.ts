@@ -48,6 +48,11 @@ function isAllowedPreview(origin: string): boolean {
       return true;
     }
 
+    // Allow hosted production app variants under onspace.ai.
+    if (host === 'onspace.ai' || host.endsWith('.onspace.ai')) {
+      return true;
+    }
+
     // Allow Vercel preview/prod deployments for this project.
     if (host.endsWith('.vercel.app')) {
       return true;
