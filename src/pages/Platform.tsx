@@ -274,10 +274,28 @@ export default function Platform() {
     enabled: isGrandMaster,
   })
 
-  // Bob self-healing: analyse a report and store diagnosis + fix suggestion
-  const analyseWithAI = useCallback(async (report: FeedbackReport) => {
+  // Bob self-healing: analyse a report and store diagnosis + fix suggestion.
+  // Returns true on success, false on failure.
+  const analyseWithAI = useCallback(async (
+    report: FeedbackReport,
+    options: { silent?: boolean; useEdgeAutoFirst?: boolean } = {}
+  ): Promise<boolean> => {
+    const { silent = false, useEdgeAutoFirst = false } = options
+
     setAnalyzingId(report.id)
     try {
+      // First try the dedicated edge worker path when requested. This keeps
+      // parity with automatic intake flows but can fail if its env is stale.
+      if (useEdgeAutoFirst) {
+        const edgeAttempt = await edgeFunctions.autoAnalyseReport({ report_id: report.id })
+        if (!edgeAttempt.error) {
+          queryClient.invalidateQueries({ queryKey: ['platform-feedback'] })
+          if (!silent) toast.success('Bob analysis complete')
+          return true
+        }
+        console.warn('auto-analyse-report failed, falling back to interactive Bob analysis', edgeAttempt.error)
+      }
+
       // If the report is newly submitted, mark it as acknowledged immediately so
       // owners can see it's being worked on before the Bob response returns.
       let statusForTransition = report.status
@@ -349,9 +367,13 @@ Be specific. Name exact files and line-level changes where possible.`
         .eq('id', report.id)
 
       queryClient.invalidateQueries({ queryKey: ['platform-feedback'] })
-      toast.success('Bob analysis complete')
+      if (!silent) toast.success('Bob analysis complete')
+      return true
     } catch (err: any) {
-      toast.error('Bob analysis failed', { description: err.message })
+      if (!silent) {
+        toast.error('Bob analysis failed', { description: err.message })
+      }
+      return false
     } finally {
       setAnalyzingId(null)
     }
@@ -381,11 +403,11 @@ Be specific. Name exact files and line-level changes where possible.`
       setBulkProgress({ done: index + 1, total: reports.length })
 
       try {
-        const result = await edgeFunctions.autoAnalyseReport({ report_id: report.id })
-        if (result.error) {
-          failed += 1
-        } else {
+        const ok = await analyseWithAI(report, { silent: true, useEdgeAutoFirst: true })
+        if (ok) {
           succeeded += 1
+        } else {
+          failed += 1
         }
       } catch {
         failed += 1
@@ -401,7 +423,7 @@ Be specific. Name exact files and line-level changes where possible.`
     }
 
     toast.success(`Backfill completed: ${succeeded} analysed`)
-  }, [feedbackReports, isNonTerminalStatus, queryClient])
+  }, [analyseWithAI, feedbackReports, isNonTerminalStatus, queryClient])
 
   // Redirect non-grand-master users away (after all hooks)
   if (!isGrandMaster) {
@@ -764,7 +786,7 @@ Be specific. Name exact files and line-level changes where possible.`
                     expanded={expandedId === report.id}
                     onToggle={() => setExpandedId(expandedId === report.id ? null : report.id)}
                     analyzing={analyzingId === report.id}
-                    onAnalyse={() => analyseWithAI(report)}
+                    onAnalyse={() => { void analyseWithAI(report, { silent: false, useEdgeAutoFirst: true }) }}
                     onStatusChange={(s) => updateStatus(report.id, s)}
                   />
                 ))}
