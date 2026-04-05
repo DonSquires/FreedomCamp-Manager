@@ -15,12 +15,23 @@ name: Deploy Ollama to Railway
 #   OLLAMA_SERVICE_URL — public Railway URL for post-deploy health check
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'ollama/**'
+      - '.github/workflows/deploy-ollama-railway.yml'
   workflow_dispatch:
     inputs:
       pull_model:
         description: 'Pull model after deploy (e.g. llama3.1:8b). Leave empty to skip.'
         required: false
         type: string
+
+*** Add File: /workspaces/FreedomCamp-Manager/inference-service/.deploy-trigger
+Deploy trigger marker for Bob Railway workflow.
+
+*** Add File: /workspaces/FreedomCamp-Manager/ollama/.deploy-trigger
+Deploy trigger marker for Ollama Railway workflow.
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
