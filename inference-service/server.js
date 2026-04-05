@@ -3662,6 +3662,16 @@ loadModels().then(() => {
     process.exit(1);
   }
 
+  if (OLLAMA_REQUESTED && OLLAMA_BASE_URL !== REQUIRED_OLLAMA_BASE_URL) {
+    if (SELF_CONTAINED_MODE) {
+      console.warn(`⚠️  OLLAMA_BASE_URL is not the required production internal URL (${REQUIRED_OLLAMA_BASE_URL}). Current value: ${OLLAMA_BASE_URL}`);
+      console.warn('   SELF_CONTAINED_MODE will keep Ollama disabled unless the URL is local/internal; chat and tabular NLP will fall back safely.');
+      recordEgressEvent('ollama', 'blocked', 'self-contained startup with non-local/non-required OLLAMA_BASE_URL');
+    } else {
+      console.error(`❌ OLLAMA_BASE_URL must be exactly ${REQUIRED_OLLAMA_BASE_URL} in production. Current value: ${OLLAMA_BASE_URL}`);
+      process.exit(1);
+    }
+  }
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 ORC/AI inference service running on port ${PORT}`);
     // Config summary — makes misconfiguration visible at a glance in Railway logs

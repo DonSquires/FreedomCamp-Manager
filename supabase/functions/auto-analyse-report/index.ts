@@ -314,7 +314,25 @@ Deno.serve(async (req: Request) => {
     const complexity = deriveComplexity(report.severity)
     const shouldEscalateToGithubAssist = !designChange
 
-    let escalationResult: Record<string, unknown> | null = null
+    interface PatchTask {
+      risk_score?: number
+      requires_human_approval?: boolean
+      tasks?: { id: string; title: string; status: string }[]
+      safeguards?: string[]
+      [key: string]: unknown
+    }
+
+    interface EscalationResult {
+      requested: boolean
+      routed_to: string
+      complexity: string
+      patch_task?: PatchTask
+      error?: string
+      details?: string
+      generated_at?: string
+    }
+
+    let escalationResult: EscalationResult | null = null
     if (shouldEscalateToGithubAssist) {
       try {
         const patchPayload = {
@@ -369,7 +387,20 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── Persist analysis ──────────────────────────────────────────────────────
+    // Design changes (feature_request, enhancement, ui_ux) are routed to human
+    // review and stay at 'investigating'. Non-design bugs move to 'in_progress'
+    // via the triage workflow which will assign them to Copilot automatically.
     const nextStatus = nextStatusAfterAnalysis(statusForTransition)
+
+    // Use Bob's risk assessment from the patch task to determine whether human
+    // review is required. Design changes always require human review since no
+    // patch task is generated for them.
+    const patchTaskFromEscalation = escalationResult?.patch_task
+    const requiresHumanReview: boolean = designChange
+      ? true
+      : patchTaskFromEscalation
+        ? Boolean(patchTaskFromEscalation.requires_human_approval)
+        : true
 
     const { error: updateErr } = await supabaseAdmin
       .from('bug_reports')
@@ -386,7 +417,7 @@ Deno.serve(async (req: Request) => {
           github_assist_escalation: escalationResult,
         },
         status: nextStatus,
-        requires_human_review: true,
+        requires_human_review: requiresHumanReview,
       })
       .eq('id', report_id)
 

@@ -29,7 +29,10 @@ export function isKnownBugReportStatus(status: unknown): status is typeof BUG_RE
 }
 
 export function nextStatusAfterAnalysis(status: string | null | undefined): string {
-  return isTerminalBugReportStatus(status) ? status : 'in_progress'
+  // After AI analysis the report moves to 'investigating' (Bob has examined it
+  // and produced a plan). 'in_progress' is reserved for when a GitHub issue has
+  // been opened and active work has started.
+  return isTerminalBugReportStatus(status) ? status : 'investigating'
 }
 
 export function shouldAutoAcknowledge(status: string | null | undefined): boolean {
