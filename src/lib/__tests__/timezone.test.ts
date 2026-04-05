@@ -112,10 +112,10 @@ describe('toNZISOString', () => {
 // ── parseNZDate ─────────────────────────────────────────────────────────────
 
 describe('parseNZDate', () => {
-  it('parses a YYYY-MM-DD date string as NZ timezone', () => {
+  it('parses a YYYY-MM-DD date string using fixed +12:00 NZ offset', () => {
     const result = parseNZDate('2025-06-15')
     expect(result).toBeInstanceOf(Date)
-    // The date string "2025-06-15T00:00:00+12:00" in UTC is "2025-06-14T12:00:00Z"
+    // parseNZDate always uses +12:00 (NZST): "2025-06-15T00:00:00+12:00" → UTC "2025-06-14T12:00:00Z"
     expect(result.toISOString()).toBe('2025-06-14T12:00:00.000Z')
   })
 })
@@ -123,22 +123,22 @@ describe('parseNZDate', () => {
 // ── nzDateToUTCStart / nzDateToUTCEnd ───────────────────────────────────────
 
 describe('nzDateToUTCStart', () => {
-  it('converts NZ date to UTC start using +13:00 offset', () => {
+  it('uses fixed +13:00 offset to ensure no NZ data is missed at start of day', () => {
     const result = nzDateToUTCStart('2025-06-15')
-    // 2025-06-15T00:00:00+13:00 in UTC = 2025-06-14T11:00:00Z
+    // Always uses +13:00 (max NZ offset) regardless of DST season
     expect(result).toBe('2025-06-14T11:00:00.000Z')
   })
 
-  it('handles January dates (NZDT)', () => {
+  it('works for January dates', () => {
     const result = nzDateToUTCStart('2025-01-01')
     expect(result).toBe('2024-12-31T11:00:00.000Z')
   })
 })
 
 describe('nzDateToUTCEnd', () => {
-  it('converts NZ date to UTC end using +12:00 offset', () => {
+  it('uses fixed +12:00 offset to ensure no NZ data is missed at end of day', () => {
     const result = nzDateToUTCEnd('2025-06-15')
-    // 2025-06-15T23:59:59+12:00 in UTC = 2025-06-15T11:59:59Z
+    // Always uses +12:00 (min NZ offset) regardless of DST season
     expect(result).toBe('2025-06-15T11:59:59.000Z')
   })
 

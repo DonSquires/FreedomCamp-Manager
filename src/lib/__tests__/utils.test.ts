@@ -38,12 +38,12 @@ describe('cn', () => {
 // ── formatDateTime ──────────────────────────────────────────────────────────
 
 describe('formatDateTime', () => {
-  it('formats a date string to NZ locale', () => {
+  it('formats a date string to NZ locale with date and time', () => {
     const result = formatDateTime('2025-01-15T02:30:00Z')
-    // NZ is UTC+13 (NZDT in Jan), so 02:30 UTC = 15:30 NZDT
-    expect(result).toContain('15')
     expect(result).toContain('Jan')
     expect(result).toContain('2025')
+    // Should contain a colon (time component)
+    expect(result).toContain(':')
   })
 
   it('handles ISO date strings', () => {
