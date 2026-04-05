@@ -38,10 +38,10 @@ jobs:
         env:
           RAILWAY_DEPLOY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN || secrets.RAILWAY_TOKEN }}
           RAILWAY_OLLAMA_SERVICE_ID: ${{ secrets.RAILWAY_OLLAMA_SERVICE_ID }}
+          RAILWAY_SERVICE_ID_FALLBACK: ${{ secrets.RAILWAY_SERVICE_ID }}
         run: |
           missing=""
           [ -z "$RAILWAY_DEPLOY_TOKEN" ]       && missing="$missing RAILWAY_BOB_TOKEN-or-RAILWAY_TOKEN"
-          [ -z "$RAILWAY_OLLAMA_SERVICE_ID" ]  && missing="$missing RAILWAY_OLLAMA_SERVICE_ID"
 
           if [ -n "$missing" ]; then
             echo "::warning::Required Ollama deploy secrets not configured ($missing) — deployment skipped."
@@ -54,6 +54,12 @@ jobs:
           else
             echo "✅ Ollama Railway deploy secrets present"
             echo "secrets_present=true" >> "$GITHUB_OUTPUT"
+            CANDIDATE_SERVICE_ID="${RAILWAY_OLLAMA_SERVICE_ID:-${RAILWAY_SERVICE_ID_FALLBACK:-}}"
+            if [ -n "$CANDIDATE_SERVICE_ID" ]; then
+              echo "resolved_candidate_service_id=$CANDIDATE_SERVICE_ID" >> "$GITHUB_OUTPUT"
+            else
+              echo "::warning::No explicit Ollama service ID secret found — workflow will attempt auto-discovery."
+            fi
           fi
       - name: Checkout repository
         if: steps.check-secrets.outputs.secrets_present == 'true'
@@ -85,11 +91,92 @@ jobs:
           fi
           echo "✅ Railway validation step complete"
 
+      - name: Resolve Ollama service identity
+        id: resolve-service
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN || secrets.RAILWAY_TOKEN }}
+          EXPLICIT_SERVICE_ID: ${{ steps.check-secrets.outputs.resolved_candidate_service_id }}
+          EXPLICIT_PROJECT_ID: ${{ secrets.RAILWAY_BOB_PROJECT_ID || secrets.RAILWAY_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "$EXPLICIT_SERVICE_ID" ]; then
+            echo "service_id=$EXPLICIT_SERVICE_ID" >> "$GITHUB_OUTPUT"
+            echo "project_id=${EXPLICIT_PROJECT_ID}" >> "$GITHUB_OUTPUT"
+            echo "✅ Using explicit Ollama service ID"
+            exit 0
+          fi
+
+          if [ -n "$EXPLICIT_PROJECT_ID" ]; then
+            echo "ℹ️ Attempting Ollama service auto-discovery from explicit project ID..."
+            GRAPHQL_PAYLOAD=$(printf '{"query":"query { project(id:\"%s\") { services { edges { node { id name } } } } }"}' "$EXPLICIT_PROJECT_ID")
+            GRAPHQL_RESPONSE=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
+              -H "Authorization: Bearer $RAILWAY_TOKEN" \
+              -H "Content-Type: application/json" \
+              --data "$GRAPHQL_PAYLOAD")
+
+            RESOLVED=$(node -e '
+              const data = JSON.parse(process.argv[1] || "{}");
+              const services = data?.data?.project?.services?.edges?.map((edge) => edge?.node).filter(Boolean) || [];
+              const chosen = services.find((s) => String(s?.name || "").toLowerCase().includes("ollama"));
+              if (!chosen) process.exit(2);
+              process.stdout.write(JSON.stringify({ projectId: process.argv[2], serviceId: chosen.id, serviceName: chosen.name }));
+            ' "$GRAPHQL_RESPONSE" "$EXPLICIT_PROJECT_ID") || true
+
+            if [ -n "${RESOLVED:-}" ]; then
+              RESOLVED_SERVICE_ID=$(echo "$RESOLVED" | jq -r '.serviceId')
+              RESOLVED_PROJECT_ID=$(echo "$RESOLVED" | jq -r '.projectId')
+              RESOLVED_SERVICE_NAME=$(echo "$RESOLVED" | jq -r '.serviceName')
+              echo "service_id=$RESOLVED_SERVICE_ID" >> "$GITHUB_OUTPUT"
+              echo "project_id=$RESOLVED_PROJECT_ID" >> "$GITHUB_OUTPUT"
+              echo "✅ Auto-resolved Ollama service from project: $RESOLVED_SERVICE_NAME ($RESOLVED_SERVICE_ID)"
+              exit 0
+            fi
+          fi
+
+          echo "ℹ️ Attempting Ollama service auto-discovery from token scope..."
+          GRAPHQL_PAYLOAD='{"query":"query { me { projects { edges { node { id name services { edges { node { id name } } } } } } } }"}'
+          GRAPHQL_RESPONSE=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data "$GRAPHQL_PAYLOAD")
+
+          RESOLVED=$(node -e '
+            const data = JSON.parse(process.argv[1] || "{}");
+            const projects = data?.data?.me?.projects?.edges?.map((edge) => edge?.node).filter(Boolean) || [];
+            const matches = [];
+            for (const p of projects) {
+              const services = p?.services?.edges?.map((edge) => edge?.node).filter(Boolean) || [];
+              for (const s of services) {
+                const name = String(s?.name || "").toLowerCase();
+                if (name.includes("ollama")) {
+                  matches.push({ projectId: p.id, serviceId: s.id, serviceName: s.name });
+                }
+              }
+            }
+            const top = matches[0];
+            if (!top) process.exit(2);
+            process.stdout.write(JSON.stringify(top));
+          ' "$GRAPHQL_RESPONSE") || {
+            echo "::error::Could not resolve a deployable Ollama service ID from Railway token scope."
+            echo "::error::Set one of: RAILWAY_OLLAMA_SERVICE_ID, RAILWAY_SERVICE_ID, or RAILWAY_BOB_PROJECT_ID."
+            exit 1
+          }
+
+          RESOLVED_SERVICE_ID=$(echo "$RESOLVED" | jq -r '.serviceId')
+          RESOLVED_PROJECT_ID=$(echo "$RESOLVED" | jq -r '.projectId')
+          RESOLVED_SERVICE_NAME=$(echo "$RESOLVED" | jq -r '.serviceName')
+
+          echo "service_id=$RESOLVED_SERVICE_ID" >> "$GITHUB_OUTPUT"
+          echo "project_id=$RESOLVED_PROJECT_ID" >> "$GITHUB_OUTPUT"
+          echo "✅ Auto-resolved Ollama service: $RESOLVED_SERVICE_NAME ($RESOLVED_SERVICE_ID)"
+
       - name: Deploy Ollama to Railway
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN || secrets.RAILWAY_TOKEN }}
-          RAILWAY_OLLAMA_SERVICE_ID: ${{ secrets.RAILWAY_OLLAMA_SERVICE_ID }}
+          RAILWAY_OLLAMA_SERVICE_ID: ${{ steps.resolve-service.outputs.service_id }}
         run: |
           cd ollama
           echo "🚂 Deploying Ollama to Railway..."
