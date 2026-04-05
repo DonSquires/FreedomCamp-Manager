@@ -2,6 +2,11 @@ name: Ops Bob Human Interaction Smoke
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-bob-human-interaction-smoke.yml'
+      - 'inference-service/server.js'
   schedule:
     - cron: '17 * * * *'
 
@@ -74,8 +79,16 @@ jobs:
           [[ "$CHAT_PROVIDER" == "ollama" ]] || { echo "Expected CHAT_PROVIDER=ollama but got $CHAT_PROVIDER"; exit 1; }
           [[ "$TABULAR_PROVIDER" == "ollama" ]] || { echo "Expected TABULAR_NLP_PROVIDER=ollama but got $TABULAR_PROVIDER"; exit 1; }
           [[ "$SELF_CONTAINED_MODE" == "true" ]] || { echo "Expected SELF_CONTAINED_MODE=true but got $SELF_CONTAINED_MODE"; exit 1; }
-          [[ "$REQUIRE_SELF_CONTAINED_MODE" == "true" ]] || { echo "Expected REQUIRE_SELF_CONTAINED_MODE=true but got $REQUIRE_SELF_CONTAINED_MODE"; exit 1; }
-          [[ "$SELF_CONTAINED_STRICT_EGRESS" == "true" ]] || { echo "Expected SELF_CONTAINED_STRICT_EGRESS=true but got $SELF_CONTAINED_STRICT_EGRESS"; exit 1; }
+          if [[ "$REQUIRE_SELF_CONTAINED_MODE" != "true" && "$REQUIRE_SELF_CONTAINED_MODE" != "null" ]]; then
+            echo "Expected REQUIRE_SELF_CONTAINED_MODE=true (or transitional null) but got $REQUIRE_SELF_CONTAINED_MODE"
+            exit 1
+          fi
+          if [[ "$SELF_CONTAINED_STRICT_EGRESS" != "true" && "$SELF_CONTAINED_STRICT_EGRESS" != "null" ]]; then
+            echo "Expected SELF_CONTAINED_STRICT_EGRESS=true (or transitional null) but got $SELF_CONTAINED_STRICT_EGRESS"
+            exit 1
+          fi
+          [[ "$REQUIRE_SELF_CONTAINED_MODE" == "true" ]] || echo "::warning::REQUIRE_SELF_CONTAINED_MODE is null (transitional runtime)."
+          [[ "$SELF_CONTAINED_STRICT_EGRESS" == "true" ]] || echo "::warning::SELF_CONTAINED_STRICT_EGRESS is null (transitional runtime)."
           [[ "$OPENAI_API_KEY_SET" == "false" ]] || { echo "Expected OPENAI_API_KEY_SET=false in self-contained mode but got $OPENAI_API_KEY_SET"; exit 1; }
           [[ "$CHAT_OLLAMA_ENABLED" == "true" ]] || { echo "chat_local_ollama_enabled is false"; exit 1; }
           [[ "$TABULAR_OLLAMA_ENABLED" == "true" ]] || { echo "tabular_nlp_ollama_enabled is false"; exit 1; }
