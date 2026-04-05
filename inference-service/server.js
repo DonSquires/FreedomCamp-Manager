@@ -1050,8 +1050,9 @@ function generateHeuristicChatReply(message, context = {}) {
   // Auto-queue unknown questions for Copilot research
   try {
     knowledgeRequestsStore.queueRequest(text, { source: 'heuristic-chat-fallback', context: context?.page || null });
-  } catch {
+  } catch (err) {
     // Non-blocking — queue failure should not affect chat response
+    console.warn('Failed to queue knowledge request:', err.message);
   }
   return `I don't have a specific answer for that in my current knowledge. I've queued this question for Copilot research — it will be answered and added to my intel feed via the ops-bob-ask-copilot workflow. Check GET /ask-copilot/pending to monitor status. In the meantime, I will respond ${tone} with what I know and keep recommendations aligned with local enforcement policy and NZ legal requirements.`;
 }

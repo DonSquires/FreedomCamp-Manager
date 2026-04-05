@@ -97,6 +97,13 @@ function inferCategory(question) {
 function createKnowledgeRequestStore(statePath = DEFAULT_PATH) {
   let state = readState(statePath);
 
+  // O(1) dedup index: maps normalized question text → request id for pending requests
+  const pendingIndex = new Map(
+    state.requests
+      .filter(r => r.status === 'pending')
+      .map(r => [r.question.toLowerCase(), r.id])
+  );
+
   function save() {
     state.updated_at = new Date().toISOString();
     writeState(statePath, state);
@@ -122,6 +129,7 @@ function createKnowledgeRequestStore(statePath = DEFAULT_PATH) {
       if (r.status === 'pending' && now - new Date(r.asked_at).getTime() > cutoff) {
         r.status = 'expired';
         r.expired_at = new Date().toISOString();
+        pendingIndex.delete(r.question.toLowerCase());
         changed = true;
       }
     }
@@ -149,12 +157,14 @@ function createKnowledgeRequestStore(statePath = DEFAULT_PATH) {
     }
 
     const trimmed = question.trim().slice(0, 2000);
+    const key = trimmed.toLowerCase();
 
-    // De-duplicate: if an identical pending question already exists, return it
-    const existing = state.requests.find(
-      r => r.status === 'pending' && r.question.toLowerCase() === trimmed.toLowerCase()
-    );
-    if (existing) return existing;
+    // O(1) dedup: if an identical pending question already exists, return it
+    const existingId = pendingIndex.get(key);
+    if (existingId) {
+      const existing = state.requests.find(r => r.id === existingId);
+      if (existing) return existing;
+    }
 
     expireOldRequests();
 
@@ -173,6 +183,7 @@ function createKnowledgeRequestStore(statePath = DEFAULT_PATH) {
       github_issue_url: null,
     };
 
+    pendingIndex.set(key, request.id);
     state.requests.push(request);
     pruneToLimit();
     rebuildCounts();
@@ -194,6 +205,7 @@ function createKnowledgeRequestStore(statePath = DEFAULT_PATH) {
     const trimmedAnswer = String(answer || '').trim().slice(0, 10000);
     if (!trimmedAnswer) throw new Error('answer must be a non-empty string');
 
+    pendingIndex.delete(request.question.toLowerCase());
     request.status = 'answered';
     request.answer = trimmedAnswer;
     request.answer_source = options.source ? String(options.source).slice(0, 100) : 'copilot';
@@ -217,6 +229,7 @@ function createKnowledgeRequestStore(statePath = DEFAULT_PATH) {
     if (!request) throw new Error(`Knowledge request not found: ${id}`);
     if (request.status !== 'pending') return request;
 
+    pendingIndex.delete(request.question.toLowerCase());
     request.status = 'skipped';
     request.skip_reason = reason ? String(reason).slice(0, 500) : 'No answer available';
     request.skipped_at = new Date().toISOString();
