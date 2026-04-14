@@ -318,7 +318,7 @@ Deno.serve(async (req: Request) => {
     const ollamaBaseUrl = normalizeBaseUrl(Deno.env.get('OLLAMA_BASE_URL') ?? inferenceUrl)
     const ollamaModel = Deno.env.get('OLLAMA_MODEL') ?? model
     const ollamaApiKey = Deno.env.get('OLLAMA_API_KEY') ?? inferenceApiKey
-    const configuredProviderPreference = parseProviderPreference(Deno.env.get('BOB_CHAT_PROVIDER') ?? Deno.env.get('AI_CHAT_PROVIDER') ?? 'ollama')
+    const configuredProviderPreference = parseProviderPreference(Deno.env.get('BOB_CHAT_PROVIDER') ?? Deno.env.get('AI_CHAT_PROVIDER') ?? 'auto')
     const providerPreference = parseProviderPreference(requestedProvider ?? configuredProviderPreference)
     const allowProviderFallback = parseBooleanEnv(Deno.env.get('BOB_CHAT_ALLOW_FALLBACK'), false)
 
@@ -572,7 +572,7 @@ Deno.serve(async (req: Request) => {
       if (providerPreference === 'inference') {
         return allowProviderFallback ? ['inference', 'ollama'] : ['inference']
       }
-      return ['ollama', 'inference']
+      return ['inference', 'ollama']
     })()
 
     let providerResult: { responseText: string; provider: string; model: string } | null = null
