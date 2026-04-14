@@ -1370,29 +1370,40 @@ app.post('/self-heal/bug-report', inferenceRateLimit, requireInferenceAuth, asyn
           const payload = await ollamaResp.json();
           const content = payload?.message?.content;
           if (content && typeof content === 'string') {
-            const parsed = JSON.parse(content);
-            ollamaCircuitBreaker.recordSuccess();
+            let parsed;
+            try {
+              parsed = JSON.parse(content);
+            } catch {
+              // LLM returned malformed JSON despite format:json directive — fall through to heuristic.
+              ollamaCircuitBreaker.recordSuccess(); // The request itself succeeded; don't penalise circuit breaker.
+              console.warn('⚠️  Self-heal Ollama response was not valid JSON — using heuristic fallback.');
+              parsed = null;
+            }
 
-            // Merge Ollama analysis into the heuristic plan, keeping heuristic fields as fallback.
-            const enhancedPlan = {
-              ...heuristicPlan,
-              bug_type: parsed.bug_type || heuristicPlan.bug_type,
-              root_cause: parsed.root_cause || heuristicPlan.root_cause,
-              confidence: parsed.confidence || 'medium',
-              suggested_fix: parsed.suggested_fix || heuristicPlan.suggested_fix,
-              affected_files: Array.isArray(parsed.affected_files) ? parsed.affected_files : [],
-              risk_score: Number.isInteger(parsed.risk_score) ? parsed.risk_score : heuristicPlan.risk_score,
-              requires_human_approval: typeof parsed.requires_human_approval === 'boolean'
-                ? parsed.requires_human_approval
-                : heuristicPlan.requires_human_approval,
-              analysis_provider: 'ollama',
-            };
+            if (parsed) {
+              ollamaCircuitBreaker.recordSuccess();
 
-            return res.json({
-              success: true,
-              self_healing_enabled: true,
-              plan: enhancedPlan,
-            });
+              // Merge Ollama analysis into the heuristic plan, keeping heuristic fields as fallback.
+              const enhancedPlan = {
+                ...heuristicPlan,
+                bug_type: parsed.bug_type || heuristicPlan.bug_type,
+                root_cause: parsed.root_cause || heuristicPlan.root_cause,
+                confidence: parsed.confidence || 'medium',
+                suggested_fix: parsed.suggested_fix || heuristicPlan.suggested_fix,
+                affected_files: Array.isArray(parsed.affected_files) ? parsed.affected_files : [],
+                risk_score: Number.isInteger(parsed.risk_score) ? parsed.risk_score : heuristicPlan.risk_score,
+                requires_human_approval: typeof parsed.requires_human_approval === 'boolean'
+                  ? parsed.requires_human_approval
+                  : heuristicPlan.requires_human_approval,
+                analysis_provider: 'ollama',
+              };
+
+              return res.json({
+                success: true,
+                self_healing_enabled: true,
+                plan: enhancedPlan,
+              });
+            }
           }
         } else {
           ollamaCircuitBreaker.recordFailure(new Error(`HTTP ${ollamaResp.status}`));

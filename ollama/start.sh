@@ -26,6 +26,10 @@ elapsed=0
 until curl -s -o /dev/null -f "http://localhost:11434/api/tags"; do
   if [ $elapsed -ge $MAX_WAIT ]; then
     echo "❌ Ollama daemon did not start within ${MAX_WAIT}s"
+    echo "  Possible causes:"
+    echo "    - Container ran out of memory (check Railway service RAM allocation)"
+    echo "    - OLLAMA_HOST is not set to 0.0.0.0:11434 (check Railway service variables)"
+    echo "    - The ollama binary failed to start (check Railway build logs)"
     exit 1
   fi
   sleep 2
