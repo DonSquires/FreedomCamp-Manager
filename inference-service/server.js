@@ -35,6 +35,23 @@
  * - GET  /ask-copilot - List all knowledge requests
  * - POST /ask-copilot/:id/answer - Receive a researched answer back from Copilot
  * - DELETE /ask-copilot/:id - Remove a knowledge request
+ * - POST /code/assist - Natural language coding question → template + steps
+ * - GET  /code/patterns - All code pattern templates (page, hook, edge function, migration, etc.)
+ * - GET  /code/conventions - Naming conventions, TypeScript config, roles, timezone
+ * - GET  /code/tasks - Step-by-step guides for common coding tasks
+ * - GET  /code/tech-stack - Full tech stack reference
+ * - GET  /code/layout - Project directory layout
+ * - GET  /code/build - Build and dev commands
+ * - GET  /code/file-guide - File-to-feature mapping
+ * - POST /code/task - Submit a code-writing task for Bob to plan + workflow to execute
+ * - GET  /code/tasks/pending - List pending code tasks (for ops-bob-code-task workflow)
+ * - GET  /code/tasks - List all code tasks (filter ?status=pending|in_progress|completed|failed)
+ * - GET  /code/tasks/:id - Get a single code task
+ * - POST /code/tasks/:id/start - Mark a task in_progress (workflow picked it up)
+ * - POST /code/tasks/:id/result - Record successful PR creation
+ * - POST /code/tasks/:id/fail - Record task failure
+ * - POST /code/tasks/:id/skip - Manually skip a pending task
+ * - DELETE /code/tasks/:id - Remove a task
  * - GET  /health     - Health check
  */
 
@@ -56,6 +73,13 @@ const { traceUIElement, getStackMap, findRoute, getDebuggingSteps, ROUTE_MAP, DE
 const { checkLegalCompliance, getLegalFramework, getLegalDetail, AI_LEGAL_GUARDRAILS } = require('./lib/nz-legal-framework');
 const { getPlatformKnowledge, diagnosePlatformIssue, getHybridStackOverview, RAILWAY_SERVICES_AUDIT } = require('./lib/platform-knowledge');
 const { createKnowledgeRequestStore } = require('./lib/knowledge-requests');
+const { createCodeTaskStore } = require('./lib/code-tasks');
+const {
+  getTechStack, getProjectLayout, getBuildCommands, getCodePattern,
+  getAllPatterns, getConventions, getCommonTask, getAllCommonTasks,
+  getFileGuide, answerCodingQuestion,
+  TECH_STACK, CODE_PATTERNS, CONVENTIONS, COMMON_TASKS,
+} = require('./lib/coding-knowledge');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -405,6 +429,10 @@ function answerFromTrainingIntel(message) {
 
 const knowledgeRequestsStore = createKnowledgeRequestStore(
   process.env.KNOWLEDGE_REQUESTS_PATH || path.join(__dirname, 'data', 'knowledge-requests.json')
+);
+
+const codeTaskStore = createCodeTaskStore(
+  process.env.CODE_TASKS_PATH || path.join(__dirname, 'data', 'code-tasks.json')
 );
 
 const egressAudit = {
@@ -980,6 +1008,27 @@ async function analyzeTabularDataWithOllama(sampleRows) {
   }
 }
 
+// Build the prompt Bob sends to Ollama when generating an initial code plan for a task
+function buildCodePlanPrompt(task, context, targetFiles) {
+  const lines = [
+    `Task: ${task}`,
+  ];
+  if (context) lines.push(`Context: ${context}`);
+  if (Array.isArray(targetFiles) && targetFiles.length) {
+    lines.push(`Target files: ${targetFiles.join(', ')}`);
+  }
+  lines.push('');
+  lines.push('FieldOps codebase conventions:');
+  lines.push('- React 18 + TypeScript + Vite + Tailwind CSS v3 + shadcn/ui. State: Zustand + TanStack Query v5. Forms: react-hook-form + zod.');
+  lines.push('- Pages in src/pages/, hooks in src/hooks/, stores in src/stores/. Path alias @/* → ./src/*.');
+  lines.push('- Supabase client: import { supabase } from "@/lib/supabase". Typed with Database from @/types/database.');
+  lines.push('- Edge Functions: supabase/functions/<name>/index.ts, Deno runtime, withCors from ../_shared/withCors.ts.');
+  lines.push('- Migrations: supabase/migrations/YYYYMMDD_HHMMSS_description.sql. RLS required on every table.');
+  lines.push('- TypeScript: noImplicitAny=false, strictNullChecks=false. Do NOT tighten.');
+  lines.push('- shadcn/ui components from @/components/ui/. Never re-implement them.');
+  return lines.join('\n');
+}
+
 function generateHeuristicChatReply(message, context = {}) {
   const text = String(message || '').trim();
   if (!text) {
@@ -1134,6 +1183,78 @@ function generateHeuristicChatReply(message, context = {}) {
     return 'Bob can queue knowledge requests for Copilot to research. Use POST /ask-copilot with {question: "...", category: "supabase|railway|github|vercel|expo|domain|email|ptt|general"} to submit a question. Copilot\'s ops-bob-ask-copilot.yml workflow polls GET /ask-copilot/pending hourly, researches answers via GitHub Models API, and sends answers back via POST /ask-copilot/:id/answer — which auto-ingests the knowledge into Bob\'s intel feed. Check status: GET /ask-copilot. Answered knowledge is available via /intel/state.';
   }
 
+  // ---------------------------------------------------------------------------
+  // Coding domain — FieldOps codebase patterns and conventions
+  // ---------------------------------------------------------------------------
+  if (lowered.includes('tech stack') || lowered.includes('what technology') || (lowered.includes('what') && lowered.includes('built with'))) {
+    const s = TECH_STACK;
+    return `FieldOps Manager tech stack: ${s.frontend.framework} + ${s.frontend.language} + ${s.frontend.bundler} + ${s.frontend.styling} + ${s.frontend.components}. State: ${s.frontend.state}. Forms: ${s.frontend.forms}. Routing: ${s.frontend.routing}. Package manager: ${s.package_manager}. Backend: ${s.backend.platform} (${s.backend.database}, Edge Functions, Auth, Storage). Services on Railway: ${s.services.inference}, ${s.services.proxy}, ${s.services.ptt}. Frontend hosted on Vercel, mobile on ${s.hosting.mobile}. Use GET /code/tech-stack for full details or POST /code/assist with {question:"..."} for coding guidance.`;
+  }
+  if ((lowered.includes('create') || lowered.includes('add') || lowered.includes('build') || lowered.includes('make')) && lowered.includes('page')) {
+    const steps = COMMON_TASKS.add_page.join(' ');
+    return `To add a new page in FieldOps: ${steps} Pattern: export default function MyPage() { const { user } = useAuthStore(); ... return <div className="p-6">...</div> }. Import shadcn/ui from @/components/ui/. Add route in App.tsx with RoleRoute. Run bun run build to check. Use POST /code/assist with {question:"create page"} for the full template.`;
+  }
+  if ((lowered.includes('create') || lowered.includes('add') || lowered.includes('write') || lowered.includes('make')) && (lowered.includes('hook') || lowered.includes('usequery') || lowered.includes('data fetch'))) {
+    const steps = COMMON_TASKS.add_hook.join(' ');
+    return `To create a hook in FieldOps (src/hooks/useMyData.ts): ${steps} Pattern: import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"; import { supabase } from "@/lib/supabase"; export function useMyData({ organizationId }) { return useQuery({ queryKey: ["table", organizationId], queryFn: async () => { const { data, error } = await supabase.from("table").select("*"); if (error) throw error; return data; } }); } Use POST /code/assist with {question:"create hook"} for the full template.`;
+  }
+  if ((lowered.includes('create') || lowered.includes('add') || lowered.includes('write')) && (lowered.includes('edge function') || lowered.includes('supabase function') || lowered.includes('deno function'))) {
+    const steps = COMMON_TASKS.add_edge_function.join(' ');
+    return `To create a Supabase Edge Function: ${steps} Template: import { withCors, jsonResponse, errorResponse, getCorsHeaders } from "../_shared/withCors.ts"; Deno.serve(async (req) => { if (req.method === "OPTIONS") return new Response("ok", { headers: getCorsHeaders(req) }); try { ... return jsonResponse({ success: true, data }, req); } catch (err) { return errorResponse(err.message, req); } }); Deploy: supabase functions deploy <name> --project-ref kxwjcupuxnnbnzcgmkoi. Use POST /code/assist with {question:"create edge function"} for the full template.`;
+  }
+  if ((lowered.includes('create') || lowered.includes('add') || lowered.includes('write')) && (lowered.includes('migration') || lowered.includes('table') || (lowered.includes('database') && lowered.includes('schema')))) {
+    const steps = COMMON_TASKS.add_table.join(' ');
+    return `To add a table/migration in FieldOps: ${steps} Pattern: File name supabase/migrations/YYYYMMDD_HHMMSS_description.sql. Include: create table public.my_table (id uuid primary key default gen_random_uuid(), organization_id uuid not null references public.organizations(id), ...); alter table public.my_table enable row level security; (add RLS policies). Always include organization_id for multi-tenant scoping. Use POST /code/assist with {question:"create migration"} for the full template.`;
+  }
+  if ((lowered.includes('create') || lowered.includes('add') || lowered.includes('write')) && lowered.includes('form')) {
+    return `FieldOps forms use react-hook-form + zod. Pattern: const schema = z.object({ name: z.string().min(1) }); const form = useForm({ resolver: zodResolver(schema), defaultValues: { name: "" } }); Return <Form {...form}><form onSubmit={form.handleSubmit(onSubmit)}><FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} /></form></Form>. Import Form, FormField, FormItem, FormLabel, FormControl, FormMessage from "@/components/ui/form". Use POST /code/assist with {question:"create form"} for the full template.`;
+  }
+  if ((lowered.includes('create') || lowered.includes('add') || lowered.includes('write')) && (lowered.includes('store') || lowered.includes('zustand'))) {
+    return `Zustand stores live in src/stores/. Pattern: import { create } from "zustand"; import { createJSONStorage, persist } from "zustand/middleware"; export const useMyStore = create()(persist((set) => ({ value: "", setValue: (v) => set({ value: v }) }), { name: "my-store", storage: createJSONStorage(() => sessionStorage) })). Use sessionStorage not localStorage for security. Keep stores small — data fetching belongs in hooks. Use POST /code/assist with {question:"create store"} for the full template.`;
+  }
+  if ((lowered.includes('add') || lowered.includes('register') || lowered.includes('create')) && lowered.includes('route')) {
+    return `Routes are in src/App.tsx using react-router-dom v6. Pattern: <Route path="/my-page" element={<RoleRoute roles={["admin","admin_officer","master"]}><MyPage /></RoleRoute>} />. Four roles: admin, master, officer, admin_officer. Use RoleRoute for role-gated pages, ProtectedRoute for any authenticated user, AreaRoute for portal area gates. Import your new page component at the top of App.tsx. Use POST /code/assist with {question:"add route"} for the full template.`;
+  }
+  if (lowered.includes('shadcn') || (lowered.includes('how') && lowered.includes('import') && (lowered.includes('button') || lowered.includes('card') || lowered.includes('component')))) {
+    return `shadcn/ui components are in src/components/ui/. Import pattern: import { Button } from "@/components/ui/button"; import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"; import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog". Never re-implement them. Available: button, card, dialog, form, input, label, select, table, badge, alert, tabs, dropdown-menu, sheet, tooltip, calendar, checkbox, radio-group, switch, textarea. Feature components go in src/components/features/.`;
+  }
+  if (lowered.includes('typescript') && (lowered.includes('config') || lowered.includes('tsconfig') || lowered.includes('strict') || lowered.includes('setting'))) {
+    return `FieldOps TypeScript config (tsconfig.app.json): noImplicitAny=false, strictNullChecks=false, skipLibCheck=true. Do NOT tighten these settings — the codebase relies on lenient TypeScript. Path alias @/* → ./src/* is defined in both tsconfig.json and vite.config.ts. Build: bun run build (runs tsc -b && vite build).`;
+  }
+  if ((lowered.includes('naming') || lowered.includes('convention') || lowered.includes('where to put') || lowered.includes('where should')) && (lowered.includes('file') || lowered.includes('component') || lowered.includes('hook') || lowered.includes('page'))) {
+    const n = CONVENTIONS.naming;
+    return `FieldOps naming conventions: ${n.pages} — ${n.hooks} — ${n.components} — ${n.stores} — ${n.edge_functions} — ${n.migrations}. Path alias @/* → ./src/*. All client env vars must be prefixed VITE_. Use POST /code/assist for code templates.`;
+  }
+  if (lowered.includes('path alias') || (lowered.includes('@/') && (lowered.includes('import') || lowered.includes('resolve')))) {
+    return `FieldOps uses @/* → ./src/* path alias. Defined in tsconfig.json (paths) and vite.config.ts (resolve.alias). Examples: import { supabase } from "@/lib/supabase"; import { Button } from "@/components/ui/button"; import { useBreaches } from "@/hooks/useBreaches"; import { useAuthStore } from "@/stores/authStore"; import type { Database } from "@/types/database".`;
+  }
+  if (lowered.includes('env') && (lowered.includes('variable') || lowered.includes('var') || lowered.includes('secret'))) {
+    return `FieldOps env vars: Frontend (Vercel) must be prefixed VITE_ — VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are required. Edge Function secrets: supabase secrets set KEY=value --project-ref kxwjcupuxnnbnzcgmkoi. Railway service vars: set in Railway Dashboard → service → Variables. Bob service needs: INFERENCE_API_KEY, CHAT_PROVIDER=ollama, TABULAR_NLP_PROVIDER=ollama, SELF_CONTAINED_MODE=true, OLLAMA_BASE_URL=http://ollama.railway.internal:11434.`;
+  }
+  if (lowered.includes('bun') && (lowered.includes('install') || lowered.includes('lock') || lowered.includes('frozen'))) {
+    return `bun.lock must be committed alongside package.json changes. Railway runs bun install --frozen-lockfile and will fail if bun.lock is stale or missing. Fix: run bun install (no --frozen-lockfile), commit the updated bun.lock. Verify: bun install --frozen-lockfile should output "no changes". Never use npm/yarn/pnpm in the root — use bun only.`;
+  }
+  if (lowered.includes('file') && (lowered.includes('guide') || lowered.includes('structure') || lowered.includes('layout') || lowered.includes('directory'))) {
+    const fg = getFileGuide();
+    const summary = Object.entries(fg).slice(0, 6).map(([f, d]) => `${f}: ${d}`).join('. ');
+    return `FieldOps file guide: ${summary}. Use GET /code/layout for full structure, GET /code/file-guide for file-to-feature map, POST /code/assist for coding templates.`;
+  }
+  if (lowered.includes('rls') || (lowered.includes('row level') && lowered.includes('security'))) {
+    return `Every Supabase table must have RLS enabled (alter table ... enable row level security). Policies scope by auth.uid() + organization_id. Frontend anon key respects RLS. Service role (in Edge Functions) bypasses RLS. If data is missing unexpectedly: check RLS policies in Supabase Dashboard → Table Editor → Policies. Common fix: add a SELECT policy that checks organization_id = (select organization_id from user_profiles where id = auth.uid()).`;
+  }
+  if (lowered.includes('code') || lowered.includes('coding') || lowered.includes('implement') || lowered.includes('develop') || lowered.includes('how do i build') || lowered.includes('how do i create')) {
+    return 'I have full FieldOps coding knowledge. Use POST /code/assist with {question: "..."} for code templates and step-by-step guidance. I can help create pages (src/pages/), hooks (src/hooks/), Edge Functions (supabase/functions/), SQL migrations (supabase/migrations/), Zustand stores (src/stores/), forms (react-hook-form+zod), and routes (App.tsx). Use GET /code/patterns for all pattern templates, GET /code/conventions for naming and config rules, GET /code/tech-stack for the full stack reference.';
+  }
+  if (
+    (lowered.includes('write') || lowered.includes('generate') || lowered.includes('build') || lowered.includes('make me')) &&
+    (lowered.includes('code') || lowered.includes('page') || lowered.includes('component') || lowered.includes('hook') || lowered.includes('function') || lowered.includes('migration'))
+  ) {
+    return 'I can write code for you. Submit a coding task via POST /code/task with {task: "build a vehicle filter page with search and pagination", priority: "normal"}. The ops-bob-code-task workflow will generate the code using GitHub Models API with full FieldOps context, apply it to the repo, run bun run build to validate, then open a PR. Monitor progress: GET /code/tasks/pending. I also draft an initial plan with Ollama when the task is submitted.';
+  }
+  if (lowered.includes('code task') || lowered.includes('/code/task') || (lowered.includes('task') && lowered.includes('pr'))) {
+    return 'Bob code tasks: POST /code/task {task:"...", context:"...", target_files:["src/pages/X.tsx"], priority:"normal|high"} to queue a task. GET /code/tasks/pending to see queued tasks. GET /code/tasks to list all (filter with ?status=pending|in_progress|completed|failed). GET /code/tasks/:id for a specific task. POST /code/tasks/:id/skip to cancel. DELETE /code/tasks/:id to remove. Completed tasks include the PR URL and list of files changed.';
+  }
+
   const tone = context?.tone === 'brief' ? 'briefly' : 'clearly';
   // Auto-queue unknown questions for Copilot research
   try {
@@ -1173,7 +1294,7 @@ async function generateChatReplyWithOllama(message, history = [], context = {}) 
         messages: [
           {
             role: 'system',
-            content: 'You are Bob, the AI assistant embedded in FieldOps Manager — a freedom camping enforcement platform used by councils and security contractors in New Zealand.\n\nYou assist officers, supervisors, and administrators with:\n- NZ freedom camping law: Freedom Camping Act 2011, Local Government Act 2002, RMA 1991, Privacy Act 2020\n- Compliance analysis: breach trends, stay-night calculations, zone rule interpretation\n- Patrol operations: shift planning, route guidance, officer welfare checks\n- Enforcement actions: Notice to Vacate, Warning Notice, Infringement Notice, Noise Notice\n- Vehicle and plate workflows: ALPR results, SCV certification via NZSCV register\n- Incident and evidence management and investigation notes\n- Risk assessments, SOPs, H&S plans, evacuation plans, active offender procedures\n- Data import, system diagnostics, and operational guidance\n\nNZ Legal Framework (Bob and Ollama MUST abide by these rules):\n- Privacy Act 2020: 13 IPPs. Minimise collection, ensure security, limit use/disclosure, restrict cross-border transfers. Mandatory breach reporting.\n- NZBORA 1990: Rights to movement (s 18), protection from unreasonable search (s 21), natural justice (s 27). All enforcement must respect these.\n- Freedom Camping Act 2011: Officers can issue infringements/NTV/request identity. Officers CANNOT arrest, detain, use force, or enter vehicles — only Police can.\n- RMA 1991: Protect environment. Track environmental impact. Respect Māori cultural sites.\n- Search and Surveillance Act 2012: Public observation/ALPR lawful. Entering vehicles requires warrant/consent. Covert surveillance requires authorisation.\n- Evidence Act 2006: Computer evidence admissible if reliability established (s 137). Maintain chain of custody and audit trails.\n- Policing Act 2008: Involve Police for threats, violence, stolen vehicles, refusal to identify. Share only necessary info, log disclosures.\n- NZDF: Defence land outside council jurisdiction. Do not share surveillance data without authorisation.\n- AI Guardrails: G1 privacy by design, G2 lawful evidence, G3 human review, G4 proportionate enforcement, G5 no Police powers, G6 audit trail, G7 no cross-border leakage, G8 data security, G9 breach notification, G10 respect rights, G11 not legal advice, G12 vulnerable persons.\n- Use POST /legal/check to validate any action. GET /legal/framework for overview. GET /legal/guardrails for full rules.\n\nUI/UX Design Assessment:\n- Design system: Tailwind CSS v3 + shadcn/ui (Radix) with HSL CSS variable theming\n- Four themes: light, dark, high-contrast, night-patrol (for officers in low-light with gloves)\n- Colours: primary teal (HSL 187 72% 37%), accent amber (HSL 48 96% 53%), destructive red (HSL 0 84% 60%)\n- Night-patrol mode: pure black bg, bright cyan primary, 56px min button height, 52px min input height, 17px base font\n- WCAG AA target: 4.5:1 contrast for text, 3:1 for large text, semantic HTML, ARIA attributes, focus-visible rings\n- Responsive breakpoints: sm 640px, md 768px, lg 1024px, xl 1280px (mobile-first)\n- Layout patterns: dashboard (grid cards + table), form (labelled inputs + validation), list (virtualized + empty states), detail (hero + tabs), map (full-height + overlays)\n- Human-friendliness: score components on accessibility (35%), responsiveness (30%), design consistency (35%)\n- Use POST /assess/ui for code analysis, POST /assess/ui/screenshot for visual analysis, POST /assess/ui/colours for contrast checks\n\nFull-Stack Navigation & Debugging:\n- Stack: React UI (src/pages/) → hooks (src/hooks/) → Supabase client → Postgres with RLS → Edge Functions (supabase/functions/) → Railway inference\n- Routes: react-router-dom v6 in App.tsx with ProtectedRoute, RoleRoute, AreaRoute guards. 60+ routes.\n- Button trace: onClick handler → mutation.mutate() → supabase.from(table).insert/update/delete → Postgres → RLS → response → cache invalidation\n- Link trace: <Link to="/path"> → route match → role guard → page component → useParams → hook data fetch\n- Form trace: react-hook-form + zod validation → onSubmit → mutation → Supabase → success toast\n- Debug: POST /navigate/debug with symptom. GET /navigate/stack-map for topology. GET /navigate/route?path= for route lookup.\n- POST /assess/ui/trace to trace any button/link/form from JSX through to database\n- Common fixes: button disabled (check loading state), 404 (check route path), 403 (check RLS), blank page (check hook errors)\n\nPush-to-Talk (PTT) System:\n- Stack: PTTBar.tsx (UI) → ptt.ts (WebSocket + WebRTC) → pttBackground.ts (auto-connect) → pttStore.ts (Zustand) → ptt-signaling-token Edge Function → ptt-server on Railway (WebSocket)\n- Channel types: org:<uuid> (org-wide), team:<uuid>, deployment:<uuid>, incident:<uuid>, direct:<uuid> (1:1)\n- Token flow: requestPTTToken() → Edge Function validates auth + org → ptt-server /api/token/mint → JWT (10min expiry) → WebSocket connect with ?token=jwt\n- Input modes: PTT (hold to talk), Toggle (click), VOX (voice-activated with threshold). Half-duplex — one speaker per channel.\n- Auto-connect: usePTTAutoConnect hook in App.tsx starts pttBackground service on login. Maintains connection with ping/pong heartbeat.\n- Audio: getUserMedia with echoCancellation + noiseSuppression. MediaRecorder (opus/webm, max 60s/3MB). Clips upload to ptt-clips Supabase Storage.\n- Common issues: "PTT unavailable" = Edge Function not deployed or PTT_SERVER_URL not set. 4001/4002 = auth failure. 4003 = channel full. CHANNEL_BUSY = someone else talking.\n- PTT server env: PTT_JWT_SECRET + PROXY_SECRET (required, must match Edge Function). TURN_URL/USERNAME/CREDENTIAL (optional NAT traversal).\n- DB tables: ptt_messages (clip metadata), ptt_presence (online status), ptt_channels (config). All org-scoped with RLS.\n- Voice data privacy: Audio clips have 24h signed URLs, 30-day retention default, org-scoped access. Privacy Act IPP 5 applies.\n- Use POST /assess/ptt with {symptom: "..."} to diagnose PTT issues.\n\nCurrent internal training and vetted intel:\n' + intelContext + '\n\nKey facts:\n- Zones have allowed_days, max_consecutive_nights, max_nights_per_month\n- Observations track plate_number, zone, recorded_at, and photo evidence\n- Breach triggers when stay limits are exceeded\n- Homeless or vulnerable occupants receive special consideration under policy\n- SCV status from NZSCV register can grant zone exemptions\n- All times are NZ timezone (Pacific/Auckland)\n\nBe concise — field officers need fast actionable answers. When you do not know something specific, say so. Never fabricate data or plate numbers. All guidance is operational, not formal legal advice. Return plain text only, no markdown formatting.',
+            content: 'You are Bob, the AI assistant embedded in FieldOps Manager — a freedom camping enforcement platform used by councils and security contractors in New Zealand.\n\nYou assist officers, supervisors, and administrators with:\n- NZ freedom camping law: Freedom Camping Act 2011, Local Government Act 2002, RMA 1991, Privacy Act 2020\n- Compliance analysis: breach trends, stay-night calculations, zone rule interpretation\n- Patrol operations: shift planning, route guidance, officer welfare checks\n- Enforcement actions: Notice to Vacate, Warning Notice, Infringement Notice, Noise Notice\n- Vehicle and plate workflows: ALPR results, SCV certification via NZSCV register\n- Incident and evidence management and investigation notes\n- Risk assessments, SOPs, H&S plans, evacuation plans, active offender procedures\n- Data import, system diagnostics, and operational guidance\n\nNZ Legal Framework (Bob and Ollama MUST abide by these rules):\n- Privacy Act 2020: 13 IPPs. Minimise collection, ensure security, limit use/disclosure, restrict cross-border transfers. Mandatory breach reporting.\n- NZBORA 1990: Rights to movement (s 18), protection from unreasonable search (s 21), natural justice (s 27). All enforcement must respect these.\n- Freedom Camping Act 2011: Officers can issue infringements/NTV/request identity. Officers CANNOT arrest, detain, use force, or enter vehicles — only Police can.\n- RMA 1991: Protect environment. Track environmental impact. Respect Māori cultural sites.\n- Search and Surveillance Act 2012: Public observation/ALPR lawful. Entering vehicles requires warrant/consent. Covert surveillance requires authorisation.\n- Evidence Act 2006: Computer evidence admissible if reliability established (s 137). Maintain chain of custody and audit trails.\n- Policing Act 2008: Involve Police for threats, violence, stolen vehicles, refusal to identify. Share only necessary info, log disclosures.\n- NZDF: Defence land outside council jurisdiction. Do not share surveillance data without authorisation.\n- AI Guardrails: G1 privacy by design, G2 lawful evidence, G3 human review, G4 proportionate enforcement, G5 no Police powers, G6 audit trail, G7 no cross-border leakage, G8 data security, G9 breach notification, G10 respect rights, G11 not legal advice, G12 vulnerable persons.\n- Use POST /legal/check to validate any action. GET /legal/framework for overview. GET /legal/guardrails for full rules.\n\nUI/UX Design Assessment:\n- Design system: Tailwind CSS v3 + shadcn/ui (Radix) with HSL CSS variable theming\n- Four themes: light, dark, high-contrast, night-patrol (for officers in low-light with gloves)\n- Colours: primary teal (HSL 187 72% 37%), accent amber (HSL 48 96% 53%), destructive red (HSL 0 84% 60%)\n- Night-patrol mode: pure black bg, bright cyan primary, 56px min button height, 52px min input height, 17px base font\n- WCAG AA target: 4.5:1 contrast for text, 3:1 for large text, semantic HTML, ARIA attributes, focus-visible rings\n- Responsive breakpoints: sm 640px, md 768px, lg 1024px, xl 1280px (mobile-first)\n- Layout patterns: dashboard (grid cards + table), form (labelled inputs + validation), list (virtualized + empty states), detail (hero + tabs), map (full-height + overlays)\n- Human-friendliness: score components on accessibility (35%), responsiveness (30%), design consistency (35%)\n- Use POST /assess/ui for code analysis, POST /assess/ui/screenshot for visual analysis, POST /assess/ui/colours for contrast checks\n\nFull-Stack Navigation & Debugging:\n- Stack: React UI (src/pages/) → hooks (src/hooks/) → Supabase client → Postgres with RLS → Edge Functions (supabase/functions/) → Railway inference\n- Routes: react-router-dom v6 in App.tsx with ProtectedRoute, RoleRoute, AreaRoute guards. 60+ routes.\n- Button trace: onClick handler → mutation.mutate() → supabase.from(table).insert/update/delete → Postgres → RLS → response → cache invalidation\n- Link trace: <Link to="/path"> → route match → role guard → page component → useParams → hook data fetch\n- Form trace: react-hook-form + zod validation → onSubmit → mutation → Supabase → success toast\n- Debug: POST /navigate/debug with symptom. GET /navigate/stack-map for topology. GET /navigate/route?path= for route lookup.\n- POST /assess/ui/trace to trace any button/link/form from JSX through to database\n- Common fixes: button disabled (check loading state), 404 (check route path), 403 (check RLS), blank page (check hook errors)\n\nPush-to-Talk (PTT) System:\n- Stack: PTTBar.tsx (UI) → ptt.ts (WebSocket + WebRTC) → pttBackground.ts (auto-connect) → pttStore.ts (Zustand) → ptt-signaling-token Edge Function → ptt-server on Railway (WebSocket)\n- Channel types: org:<uuid> (org-wide), team:<uuid>, deployment:<uuid>, incident:<uuid>, direct:<uuid> (1:1)\n- Token flow: requestPTTToken() → Edge Function validates auth + org → ptt-server /api/token/mint → JWT (10min expiry) → WebSocket connect with ?token=jwt\n- Input modes: PTT (hold to talk), Toggle (click), VOX (voice-activated with threshold). Half-duplex — one speaker per channel.\n- Auto-connect: usePTTAutoConnect hook in App.tsx starts pttBackground service on login. Maintains connection with ping/pong heartbeat.\n- Audio: getUserMedia with echoCancellation + noiseSuppression. MediaRecorder (opus/webm, max 60s/3MB). Clips upload to ptt-clips Supabase Storage.\n- Common issues: "PTT unavailable" = Edge Function not deployed or PTT_SERVER_URL not set. 4001/4002 = auth failure. 4003 = channel full. CHANNEL_BUSY = someone else talking.\n- PTT server env: PTT_JWT_SECRET + PROXY_SECRET (required, must match Edge Function). TURN_URL/USERNAME/CREDENTIAL (optional NAT traversal).\n- DB tables: ptt_messages (clip metadata), ptt_presence (online status), ptt_channels (config). All org-scoped with RLS.\n- Voice data privacy: Audio clips have 24h signed URLs, 30-day retention default, org-scoped access. Privacy Act IPP 5 applies.\n- Use POST /assess/ptt with {symptom: "..."} to diagnose PTT issues.\n\nFieldOps Codebase Coding Knowledge:\n- Tech stack: React 18 + TypeScript + Vite + Tailwind CSS v3 + shadcn/ui. State: Zustand + TanStack Query v5. Forms: react-hook-form + zod. Package manager: bun. Backend: Supabase (PostgreSQL 17, 47 Edge Functions, RLS). Services: Bob (inference-service/), Proxy (proxy-server/), PTT (ptt-server/), Ollama on Railway.\n- Project layout: pages in src/pages/, hooks in src/hooks/, stores in src/stores/, shadcn primitives in src/components/ui/ (never re-implement), feature components in src/components/features/. Path alias @/* → ./src/*.\n- Supabase client: import { supabase } from "@/lib/supabase". Typed with Database from @/types/database. Row types: Database["public"]["Tables"]["table"]["Row"]. All queries go through this typed client.\n- Hooks: useQuery for reads, useMutation for writes. queryKey must include all filter vars. invalidateQueries after mutations. toast from sonner for notifications. Files in src/hooks/useXxx.ts.\n- Edge Functions: supabase/functions/<name>/index.ts, Deno TypeScript. Always import withCors + getCorsHeaders + jsonResponse + errorResponse from ../_shared/withCors.ts. Always handle OPTIONS preflight. Deploy: supabase functions deploy <name> --project-ref kxwjcupuxnnbnzcgmkoi.\n- Migrations: supabase/migrations/YYYYMMDD_HHMMSS_description.sql. Every table needs RLS enabled. Policies scope by auth.uid() + organization_id. After migration regenerate types.\n- TypeScript config: noImplicitAny=false, strictNullChecks=false, skipLibCheck=true. Do NOT tighten these. Build: bun run build. Dev: bun run dev.\n- Roles: admin, master, officer, admin_officer. Route guards: RoleRoute, ProtectedRoute, AreaRoute in App.tsx. authStore.ts holds current user + organization_id.\n- All datetimes in Pacific/Auckland timezone. bun.lock must be committed — Railway uses --frozen-lockfile.\n- For coding templates and step-by-step guides: GET /code/patterns, GET /code/conventions, GET /code/tasks, POST /code/assist.\n- To write or update code: POST /code/task {task:"...", context:"...", target_files:[], priority:"normal|high"} — queues a task for the ops-bob-code-task workflow which generates code, applies file operations, runs bun run build, and opens a PR. Monitor: GET /code/tasks/pending.\n\nCurrent internal training and vetted intel:\n' + intelContext + '\n\nKey facts:\n- Zones have allowed_days, max_consecutive_nights, max_nights_per_month\n- Observations track plate_number, zone, recorded_at, and photo evidence\n- Breach triggers when stay limits are exceeded\n- Homeless or vulnerable occupants receive special consideration under policy\n- SCV status from NZSCV register can grant zone exemptions\n- All times are NZ timezone (Pacific/Auckland)\n\nBe concise — field officers need fast actionable answers. When you do not know something specific, say so. Never fabricate data or plate numbers. All guidance is operational, not formal legal advice. Return plain text only, no markdown formatting.',
           },
           ...(trainingFocusedQuery
             ? [{
@@ -1650,6 +1771,111 @@ app.post('/navigate/debug', inferenceRateLimit, requireInferenceAuth, async (req
 });
 
 // ---------------------------------------------------------------------------
+// Coding Knowledge endpoints — FieldOps codebase patterns and conventions
+// (Same context as the Copilot coding agent / Claude Opus 4.5)
+// ---------------------------------------------------------------------------
+
+const codeRateLimit = rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false });
+
+// GET /code/tech-stack — full tech stack reference
+app.get('/code/tech-stack', codeRateLimit, requireInferenceAuth, (req, res) => {
+  return res.json({ success: true, tech_stack: getTechStack() });
+});
+
+// GET /code/layout — project directory layout
+app.get('/code/layout', codeRateLimit, requireInferenceAuth, (req, res) => {
+  return res.json({ success: true, layout: getProjectLayout() });
+});
+
+// GET /code/build — build and dev commands
+app.get('/code/build', codeRateLimit, requireInferenceAuth, (req, res) => {
+  return res.json({ success: true, commands: getBuildCommands() });
+});
+
+// GET /code/patterns — all code patterns with templates
+app.get('/code/patterns', codeRateLimit, requireInferenceAuth, (req, res) => {
+  const key = req.query.key;
+  if (key) {
+    const pattern = getCodePattern(String(key));
+    if (!pattern) {
+      return res.status(404).json({
+        error: `Pattern "${key}" not found.`,
+        available: Object.keys(getAllPatterns()),
+      });
+    }
+    return res.json({ success: true, pattern });
+  }
+  return res.json({ success: true, patterns: getAllPatterns() });
+});
+
+// GET /code/conventions — naming, TypeScript config, roles, timezone
+app.get('/code/conventions', codeRateLimit, requireInferenceAuth, (req, res) => {
+  return res.json({ success: true, conventions: getConventions() });
+});
+
+// GET /code/tasks — common task step-by-step guides
+app.get('/code/tasks', codeRateLimit, requireInferenceAuth, (req, res) => {
+  const key = req.query.key;
+  if (key) {
+    const task = getCommonTask(String(key));
+    if (!task) {
+      return res.status(404).json({
+        error: `Task "${key}" not found.`,
+        available: Object.keys(getAllCommonTasks()),
+      });
+    }
+    return res.json({ success: true, task });
+  }
+  return res.json({ success: true, tasks: getAllCommonTasks() });
+});
+
+// GET /code/file-guide — file-to-feature mapping
+app.get('/code/file-guide', codeRateLimit, requireInferenceAuth, (req, res) => {
+  return res.json({ success: true, file_guide: getFileGuide() });
+});
+
+// POST /code/assist — natural language coding question → structured answer + template
+app.post('/code/assist', inferenceRateLimit, requireInferenceAuth, (req, res) => {
+  try {
+    const question = req.body?.question;
+    if (typeof question !== 'string' || !question.trim()) {
+      return res.status(400).json({ error: 'question must be a non-empty string' });
+    }
+    if (question.length > 2000) {
+      return res.status(400).json({ error: 'question must be 2000 characters or fewer' });
+    }
+
+    const answer = answerCodingQuestion(question);
+    if (!answer) {
+      return res.json({
+        success: true,
+        question,
+        answer: null,
+        message: 'No specific coding pattern found for this question. Use GET /code/patterns for all templates, or POST /ask-copilot to queue a knowledge request.',
+        endpoints: {
+          patterns: 'GET /code/patterns',
+          conventions: 'GET /code/conventions',
+          tasks: 'GET /code/tasks',
+          tech_stack: 'GET /code/tech-stack',
+          layout: 'GET /code/layout',
+          file_guide: 'GET /code/file-guide',
+          queue_question: 'POST /ask-copilot',
+        },
+      });
+    }
+
+    return res.json({
+      success: true,
+      question,
+      answer,
+    });
+  } catch (error) {
+    console.error('Code assist error:', error);
+    return res.status(500).json({ error: 'Code assist failed', message: error.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // NZ Legal Framework endpoints — teach Bob NZ law and compliance guardrails
 // ---------------------------------------------------------------------------
 
@@ -1658,22 +1884,6 @@ app.get('/legal/framework', rateLimit({ windowMs: 60_000, max: 60, standardHeade
     success: true,
     framework: getLegalFramework(),
   });
-});
-
-app.get('/legal/act/:actKey', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
-  const actKey = req.params.actKey;
-  const detail = getLegalDetail(actKey);
-  if (!detail) {
-    return res.status(404).json({
-      error: `Act "${actKey}" not found.`,
-      available: [
-        'privacy_act_2020', 'nzbora_1990', 'freedom_camping_act_2011', 'local_government_act_2002',
-        'rma_1991', 'search_surveillance_2012', 'evidence_act_2006', 'policing_act_2008',
-        'criminal_procedure_2011', 'harmful_digital_comms_2015', 'oia_1982', 'nzdf', 'ai_guardrails',
-      ],
-    });
-  }
-  return res.json({ success: true, act: detail });
 });
 
 app.get('/legal/guardrails', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
@@ -2019,6 +2229,193 @@ app.delete('/ask-copilot/:id', inferenceRateLimit, requireInferenceAuth, async (
   } catch (error) {
     const status = error.message.includes('not found') ? 404 : 500;
     return res.status(status).json({ error: 'Failed to delete request', message: error.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Code Task endpoints — Bob writes and updates code (same as Copilot agent)
+//
+// Flow:
+//   1. POST /code/task         — submit a task; Bob drafts a plan with Ollama
+//   2. GET  /code/tasks/pending — ops-bob-code-task.yml polls this
+//   3. Workflow uses GitHub Models API + FieldOps context to generate files
+//   4. POST /code/tasks/:id/start  — workflow marks task in_progress
+//   5. POST /code/tasks/:id/result — workflow reports PR URL + build result
+//   6. POST /code/tasks/:id/fail   — workflow reports failure
+//   7. POST /code/tasks/:id/skip   — manually skip a pending task
+//   8. DELETE /code/tasks/:id      — remove a task
+// ---------------------------------------------------------------------------
+
+const codeTaskRateLimit = rateLimit({ windowMs: 60_000, max: 30, standardHeaders: true, legacyHeaders: false });
+
+// POST /code/task — submit a coding task
+app.post('/code/task', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const task = req.body?.task;
+    const context = req.body?.context;
+    const target_files = req.body?.target_files;
+    const priority = req.body?.priority;
+    const requested_by = req.body?.requested_by;
+
+    if (typeof task !== 'string' || !task.trim()) {
+      return res.status(400).json({ error: 'task must be a non-empty string describing what to build or fix' });
+    }
+    if (task.length > 4000) {
+      return res.status(400).json({ error: 'task must be 4000 characters or fewer' });
+    }
+
+    // Attempt to generate an initial plan with Ollama (non-blocking — fall back silently)
+    let bob_plan = null;
+    if (OLLAMA_ENABLED && !SELF_CONTAINED_MODE) {
+      try {
+        const planPrompt = buildCodePlanPrompt(task, context, target_files);
+        const planResp = await fetchWithEgressCheck(
+          `${OLLAMA_BASE_URL}/api/chat`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: OLLAMA_MODEL,
+              stream: false,
+              options: { temperature: 0.2, num_predict: 1024 },
+              messages: [
+                {
+                  role: 'system',
+                  content: 'You are Bob, an AI coding assistant for FieldOps Manager. Your job is to produce a concise implementation plan for the given task. Output a numbered list of steps covering: files to create or modify, key patterns to follow, and any caveats. Keep it under 500 words.',
+                },
+                { role: 'user', content: planPrompt },
+              ],
+            }),
+          },
+          'ollama'
+        );
+        if (planResp.ok) {
+          const planPayload = await planResp.json();
+          const planText = planPayload?.message?.content;
+          if (planText && typeof planText === 'string' && planText.trim()) {
+            bob_plan = planText.trim().slice(0, 8000);
+          }
+        }
+      } catch (planErr) {
+        console.warn('⚠️  Bob code plan generation failed (non-fatal):', planErr.message);
+      }
+    }
+
+    const entry = codeTaskStore.queueTask({
+      task: task.trim(),
+      context: context ? String(context).slice(0, 2000) : null,
+      target_files: Array.isArray(target_files) ? target_files : [],
+      priority: priority === 'high' ? 'high' : 'normal',
+      requested_by: requested_by ? String(requested_by).slice(0, 200) : null,
+      bob_plan,
+    });
+
+    return res.status(201).json({
+      success: true,
+      task: entry,
+      message: `Task queued [${entry.short_id}]. The ops-bob-code-task workflow will pick it up, generate code, and open a PR. Monitor: GET /code/tasks/${entry.id}`,
+    });
+  } catch (error) {
+    console.error('Code task queue error:', error);
+    return res.status(500).json({ error: 'Failed to queue code task', message: error.message });
+  }
+});
+
+// GET /code/tasks/pending — for ops-bob-code-task workflow to poll
+app.get('/code/tasks/pending', codeTaskRateLimit, requireInferenceAuth, (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 5, 20);
+    const tasks = codeTaskStore.listPending(limit);
+    return res.json({ success: true, count: tasks.length, tasks });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to list pending tasks', message: error.message });
+  }
+});
+
+// GET /code/tasks — list all tasks with optional status filter
+app.get('/code/tasks', codeTaskRateLimit, requireInferenceAuth, (req, res) => {
+  try {
+    const status = req.query.status;
+    const tasks = codeTaskStore.listTasks({ status: status || undefined, limit: 50 });
+    return res.json({ success: true, count: tasks.length, tasks, state: codeTaskStore.getState() });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to list tasks', message: error.message });
+  }
+});
+
+// GET /code/tasks/:id — get a single task
+app.get('/code/tasks/:id', codeTaskRateLimit, requireInferenceAuth, (req, res) => {
+  try {
+    const task = codeTaskStore.getTask(req.params.id);
+    if (!task) return res.status(404).json({ error: `Task not found: ${req.params.id}` });
+    return res.json({ success: true, task });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to get task', message: error.message });
+  }
+});
+
+// POST /code/tasks/:id/start — workflow marks task in_progress
+app.post('/code/tasks/:id/start', codeTaskRateLimit, requireInferenceAuth, (req, res) => {
+  try {
+    const task = codeTaskStore.startTask(req.params.id);
+    return res.json({ success: true, task });
+  } catch (error) {
+    const status = error.message.includes('not found') ? 404 : 400;
+    return res.status(status).json({ error: 'Failed to start task', message: error.message });
+  }
+});
+
+// POST /code/tasks/:id/result — workflow reports successful PR creation
+app.post('/code/tasks/:id/result', codeTaskRateLimit, requireInferenceAuth, (req, res) => {
+  try {
+    const { pr_url, pr_number, files_changed, build_passed, branch } = req.body || {};
+    const task = codeTaskStore.completeTask(req.params.id, {
+      pr_url,
+      pr_number,
+      files_changed,
+      build_passed: build_passed === true,
+      branch,
+    });
+    console.log(`🎉 Code task result received [${task.short_id}]: PR ${task.pr_url}`);
+    return res.json({ success: true, task });
+  } catch (error) {
+    const status = error.message.includes('not found') ? 404 : 400;
+    return res.status(status).json({ error: 'Failed to record task result', message: error.message });
+  }
+});
+
+// POST /code/tasks/:id/fail — workflow reports failure
+app.post('/code/tasks/:id/fail', codeTaskRateLimit, requireInferenceAuth, (req, res) => {
+  try {
+    const error = req.body?.error;
+    const task = codeTaskStore.failTask(req.params.id, error);
+    return res.json({ success: true, task });
+  } catch (err) {
+    const status = err.message.includes('not found') ? 404 : 400;
+    return res.status(status).json({ error: 'Failed to record task failure', message: err.message });
+  }
+});
+
+// POST /code/tasks/:id/skip — manually skip a pending task
+app.post('/code/tasks/:id/skip', codeTaskRateLimit, requireInferenceAuth, (req, res) => {
+  try {
+    const reason = req.body?.reason;
+    const task = codeTaskStore.skipTask(req.params.id, reason);
+    return res.json({ success: true, task });
+  } catch (error) {
+    const status = error.message.includes('not found') ? 404 : 400;
+    return res.status(status).json({ error: 'Failed to skip task', message: error.message });
+  }
+});
+
+// DELETE /code/tasks/:id — remove a task
+app.delete('/code/tasks/:id', codeTaskRateLimit, requireInferenceAuth, (req, res) => {
+  try {
+    codeTaskStore.deleteTask(req.params.id);
+    return res.json({ success: true });
+  } catch (error) {
+    const status = error.message.includes('not found') ? 404 : 500;
+    return res.status(status).json({ error: 'Failed to delete task', message: error.message });
   }
 });
 
@@ -3847,9 +4244,16 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       face_detection: OPENAI_ENABLED || fs.existsSync(FACE_DETECT_MODEL_PATH),
       face_detection_onnx: fs.existsSync(FACE_DETECT_MODEL_PATH), // UltraFace-640
       face_embedding: modelsLoaded,              // MobileNetV3 embedding for comparison
+      // Coding knowledge (FieldOps codebase — same as Copilot coding agent context)
+      code_assist: true,
+      code_patterns_available: Object.keys(CODE_PATTERNS),
+      // Code writing (Bob queues tasks; ops-bob-code-task workflow executes them)
+      code_task_queue: true,
+      code_tasks_pending: codeTaskStore.getState().counts.pending,
     },
     ollama_circuit_breaker: OLLAMA_ENABLED ? ollamaCircuitBreaker.toJSON() : null,
     knowledge_requests: knowledgeRequestsStore.getState(),
+    code_tasks: codeTaskStore.getState(),
     uptime: process.uptime(),
     memory: process.memoryUsage()
   });

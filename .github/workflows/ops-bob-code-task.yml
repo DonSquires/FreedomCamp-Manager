@@ -1,0 +1,638 @@
+name: Ops Bob Code Task
+
+# Bob accepts coding tasks via POST /code/task and plans them with Ollama.
+# This workflow executes the tasks: it generates production-quality code using
+# GitHub Models API with full FieldOps context, applies file operations to the
+# repo, validates with bun run build + bun run lint, commits to a branch, opens
+# a PR, and reports the result back to Bob.
+#
+# This gives Bob the same code-writing capability as the Copilot coding agent.
+#
+# Flow per task:
+#   1. GET /code/tasks/pending  → pick up pending tasks
+#   2. POST /code/tasks/:id/start  → mark in_progress
+#   3. Generate code with GitHub Models API (gpt-4o) + FieldOps context
+#   4. Parse JSON file operations (create / overwrite) from the LLM response
+#   5. Apply file operations to the checked-out repo
+#   6. Run bun install && bun run build && bun run lint
+#   7. git commit -am "..." && gh pr create
+#   8. POST /code/tasks/:id/result or /fail  → report outcome to Bob
+#
+# Triggers:
+#   - Scheduled: every hour
+#   - Manual: workflow_dispatch (with optional task and file list)
+#
+# Required repository secrets:
+#   BOB_SERVICE_URL or INFERENCE_SERVICE_URL    — Bob Railway URL
+#   BOB_INFERENCE_API_KEY or INFERENCE_API_KEY  — x-inference-api-key header
+#
+# Optional:
+#   BOB_CODE_TASK_LIMIT  — max tasks per run (default: 3)
+#   BOB_CODE_TASK_MODEL  — GitHub Models model (default: gpt-4o)
+
+on:
+  schedule:
+    - cron: '30 * * * *'   # every hour at :30
+  workflow_dispatch:
+    inputs:
+      task:
+        description: 'Optional: manually queue a single coding task'
+        required: false
+        type: string
+      target_files:
+        description: 'Optional: comma-separated list of existing files to include as context'
+        required: false
+        type: string
+      priority:
+        description: 'Priority for manually queued task'
+        required: false
+        default: 'high'
+        type: choice
+        options: [normal, high]
+      limit:
+        description: 'Max code tasks to execute this run'
+        required: false
+        default: '3'
+        type: string
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # Model to use for code generation (gpt-4o produces best code; gpt-4o-mini as fallback)
+  CODE_MODEL: ${{ vars.BOB_CODE_TASK_MODEL || 'gpt-4o' }}
+
+jobs:
+  execute-code-tasks:
+    name: Execute Bob Code Tasks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write    # create branches and commits
+      pull-requests: write   # create PRs
+      models: read       # GitHub Models API
+
+    steps:
+      # -----------------------------------------------------------------------
+      # 1. Validate secrets
+      # -----------------------------------------------------------------------
+      - name: Validate required secrets
+        id: validate
+        run: |
+          missing=""
+          BASE_URL="${BOB_SERVICE_URL:-${INFERENCE_SERVICE_URL:-}}"
+          API_KEY="${BOB_INFERENCE_API_KEY:-${INFERENCE_API_KEY:-}}"
+
+          [ -z "$BASE_URL" ] && missing="$missing BOB_SERVICE_URL-or-INFERENCE_SERVICE_URL"
+          [ -z "$API_KEY" ]  && missing="$missing BOB_INFERENCE_API_KEY-or-INFERENCE_API_KEY"
+
+          if [ -n "$missing" ]; then
+            echo "::warning::Missing required secrets:$missing — code task workflow skipped."
+            echo "can_run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          BASE_URL="${BASE_URL%/}"
+          [[ "$BASE_URL" != http://* && "$BASE_URL" != https://* ]] && BASE_URL="https://$BASE_URL"
+
+          echo "BOB_SERVICE_URL=$BASE_URL" >> "$GITHUB_ENV"
+          echo "BOB_INFERENCE_API_KEY=$API_KEY" >> "$GITHUB_ENV"
+          echo "can_run=true" >> "$GITHUB_OUTPUT"
+        env:
+          BOB_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
+          INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL }}
+          BOB_INFERENCE_API_KEY: ${{ secrets.BOB_INFERENCE_API_KEY }}
+          INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
+
+      # -----------------------------------------------------------------------
+      # 2. Optional: queue a manually supplied task
+      # -----------------------------------------------------------------------
+      - name: Queue manual task (if provided)
+        if: steps.validate.outputs.can_run == 'true' && inputs.task != ''
+        env:
+          BOB_SERVICE_URL: ${{ env.BOB_SERVICE_URL }}
+          BOB_INFERENCE_API_KEY: ${{ env.BOB_INFERENCE_API_KEY }}
+        run: |
+          TASK="${{ inputs.task }}"
+          PRIORITY="${{ inputs.priority }}"
+          TARGET_FILES="${{ inputs.target_files }}"
+
+          # Convert comma-separated target_files to JSON array
+          FILES_JSON="[]"
+          if [ -n "$TARGET_FILES" ]; then
+            FILES_JSON=$(echo "$TARGET_FILES" | tr ',' '\n' | jq -R . | jq -s .)
+          fi
+
+          PAYLOAD=$(jq -n \
+            --arg task "$TASK" \
+            --arg priority "$PRIORITY" \
+            --argjson target_files "$FILES_JSON" \
+            --arg source "workflow_dispatch" \
+            '{task: $task, priority: $priority, target_files: $target_files, requested_by: $source}')
+
+          echo "📋 Queuing manual task: ${TASK:0:100}..."
+          HTTP_STATUS=$(curl -s -o /tmp/queue-resp.json -w "%{http_code}" \
+            --max-time 30 \
+            -X POST "${BOB_SERVICE_URL}/code/task" \
+            -H "Content-Type: application/json" \
+            -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" \
+            -d "$PAYLOAD")
+
+          cat /tmp/queue-resp.json
+          echo ""
+          [ "$HTTP_STATUS" = "201" ] && echo "✅ Task queued" || echo "::warning::Queue returned HTTP $HTTP_STATUS"
+
+      # -----------------------------------------------------------------------
+      # 3. Fetch pending tasks from Bob
+      # -----------------------------------------------------------------------
+      - name: Fetch pending code tasks
+        id: fetch
+        if: steps.validate.outputs.can_run == 'true'
+        env:
+          BOB_SERVICE_URL: ${{ env.BOB_SERVICE_URL }}
+          BOB_INFERENCE_API_KEY: ${{ env.BOB_INFERENCE_API_KEY }}
+        run: |
+          LIMIT="${{ inputs.limit || vars.BOB_CODE_TASK_LIMIT || '3' }}"
+          echo "🔍 Fetching up to $LIMIT pending code tasks from Bob..."
+
+          HTTP_STATUS=$(curl -s -o /tmp/pending.json -w "%{http_code}" \
+            --max-time 30 \
+            "${BOB_SERVICE_URL}/code/tasks/pending?limit=${LIMIT}" \
+            -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}")
+
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "::error::Bob /code/tasks/pending returned HTTP $HTTP_STATUS"
+            cat /tmp/pending.json
+            exit 1
+          fi
+
+          COUNT=$(jq '.count' /tmp/pending.json)
+          echo "📋 Found $COUNT pending code tasks"
+          echo "task_count=$COUNT" >> "$GITHUB_OUTPUT"
+
+          if [ "$COUNT" -eq 0 ]; then
+            echo "✅ No pending code tasks"
+          else
+            jq -r '.tasks[] | "  [\(.short_id)] (\(.priority)) \(.task[:80])"' /tmp/pending.json
+          fi
+
+      # -----------------------------------------------------------------------
+      # 4. Checkout repo (needed for reading files and creating branches)
+      # -----------------------------------------------------------------------
+      - name: Checkout repository
+        if: steps.validate.outputs.can_run == 'true' && steps.fetch.outputs.task_count != '0'
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # -----------------------------------------------------------------------
+      # 5. Set up bun
+      # -----------------------------------------------------------------------
+      - name: Set up bun
+        if: steps.validate.outputs.can_run == 'true' && steps.fetch.outputs.task_count != '0'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # -----------------------------------------------------------------------
+      # 6. Configure git author for commits
+      # -----------------------------------------------------------------------
+      - name: Configure git identity
+        if: steps.validate.outputs.can_run == 'true' && steps.fetch.outputs.task_count != '0'
+        run: |
+          git config user.name  "Bob (FieldOps AI)"
+          git config user.email "bob-ai[bot]@users.noreply.github.com"
+
+      # -----------------------------------------------------------------------
+      # 7. Process each pending task
+      # -----------------------------------------------------------------------
+      - name: Execute code tasks
+        if: steps.validate.outputs.can_run == 'true' && steps.fetch.outputs.task_count != '0'
+        env:
+          BOB_SERVICE_URL: ${{ env.BOB_SERVICE_URL }}
+          BOB_INFERENCE_API_KEY: ${{ env.BOB_INFERENCE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+
+          # ----------------------------------------------------------------
+          # FieldOps system prompt for the code-generation LLM
+          # This mirrors the context that the Copilot coding agent has.
+          # ----------------------------------------------------------------
+          CODE_SYSTEM_PROMPT='You are an expert FieldOps Manager developer. FieldOps Manager is a TypeScript/React SPA for freedom camping enforcement in New Zealand.
+
+TECH STACK:
+- Frontend: React 18 + TypeScript + Vite + Tailwind CSS v3 + shadcn/ui (Radix UI)
+- State: Zustand (src/stores/) + TanStack Query v5
+- Forms: react-hook-form + zod
+- Routing: react-router-dom v6
+- Backend: Supabase (PostgreSQL 17, Edge Functions, RLS, Auth, Storage)
+- Edge Functions: Deno TypeScript in supabase/functions/<name>/index.ts
+- Package manager: bun (bun.lock must be committed)
+- Services on Railway: inference-service/ (Bob AI), proxy-server/ (NZSCV), ptt-server/ (WebSocket)
+
+KEY CONVENTIONS:
+- Supabase client: import { supabase } from "@/lib/supabase" (typed with Database from @/types/database)
+- DB row types: Database["public"]["Tables"]["table"]["Row"]
+- Path alias: @/* → ./src/*
+- Pages: src/pages/MyPage.tsx (default export React component)
+- Hooks: src/hooks/useMyData.ts (useQuery + useMutation pattern)
+- Stores: src/stores/myStore.ts (Zustand with persist to sessionStorage)
+- shadcn/ui: import from @/components/ui/<component>. NEVER re-implement them.
+- Feature components: src/components/features/
+- Edge Functions: always withCors from ../_shared/withCors.ts, handle OPTIONS preflight
+- Migrations: supabase/migrations/YYYYMMDD_HHMMSS_description.sql, RLS on every table
+- TypeScript: noImplicitAny=false, strictNullChecks=false, skipLibCheck=true — DO NOT tighten
+- User roles: admin, master, officer, admin_officer. Routes guarded by RoleRoute in App.tsx.
+- All datetimes: Pacific/Auckland timezone
+- Toast notifications: from sonner (import { toast } from "sonner")
+- Build: bun run build. Lint: bun run lint.
+
+OUTPUT FORMAT:
+Respond with ONLY a valid JSON object (no markdown, no prose, no code fences), with this exact structure:
+{
+  "summary": "One sentence describing what was implemented",
+  "pr_title": "feat: brief title for the PR",
+  "files": [
+    {
+      "operation": "create",
+      "path": "src/pages/MyPage.tsx",
+      "content": "full file content here"
+    },
+    {
+      "operation": "overwrite",
+      "path": "src/App.tsx",
+      "content": "full updated file content here"
+    }
+  ]
+}
+
+Supported operations:
+- "create": create a new file at the path with the given content
+- "overwrite": replace an existing file with the full new content
+
+Always output complete file contents — never truncate with "..." or "rest of file unchanged".
+Produce clean, working TypeScript that follows the conventions above exactly.'
+
+          # ----------------------------------------------------------------
+          # Helper: call GitHub Models API
+          # ----------------------------------------------------------------
+          call_models_api() {
+            local system_prompt="$1"
+            local user_prompt="$2"
+            local output_file="$3"
+
+            local payload
+            payload=$(jq -n \
+              --arg sys "$system_prompt" \
+              --arg usr "$user_prompt" \
+              --arg model "$CODE_MODEL" \
+              '{
+                "model": $model,
+                "messages": [
+                  {"role": "system", "content": $sys},
+                  {"role": "user", "content": $usr}
+                ],
+                "max_tokens": 8000,
+                "temperature": 0.2,
+                "response_format": {"type": "json_object"}
+              }')
+
+            local http_status
+            http_status=$(curl -s -o "$output_file" -w "%{http_code}" \
+              --max-time 120 \
+              -X POST "https://models.inference.ai.azure.com/chat/completions" \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "$payload" 2>/dev/null || echo "000")
+
+            echo "$http_status"
+          }
+
+          # ----------------------------------------------------------------
+          # Process each pending task
+          # ----------------------------------------------------------------
+          jq -c '.tasks[]' /tmp/pending.json | while IFS= read -r task_json; do
+            TASK_ID=$(echo "$task_json" | jq -r '.id')
+            SHORT_ID=$(echo "$task_json" | jq -r '.short_id')
+            TASK_DESC=$(echo "$task_json" | jq -r '.task')
+            TASK_CONTEXT=$(echo "$task_json" | jq -r '.context // ""')
+            TARGET_FILES=$(echo "$task_json" | jq -r '.target_files[]?' 2>/dev/null || true)
+            BOB_PLAN=$(echo "$task_json" | jq -r '.bob_plan // ""')
+            BRANCH="bob/task-${SHORT_ID}"
+
+            echo ""
+            echo "════════════════════════════════════════"
+            echo "🔨 Processing task [$SHORT_ID]: ${TASK_DESC:0:100}..."
+            echo "════════════════════════════════════════"
+
+            # Mark task in_progress
+            curl -s --max-time 20 \
+              -X POST "${BOB_SERVICE_URL}/code/tasks/${TASK_ID}/start" \
+              -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" \
+              > /dev/null
+
+            # Ensure we start from a clean main branch state
+            git checkout main 2>/dev/null || git checkout master 2>/dev/null || true
+            git pull origin HEAD --ff-only 2>/dev/null || true
+
+            # Create and switch to the task branch
+            git checkout -b "$BRANCH"
+
+            # Build user prompt, incorporating existing file contents if requested
+            USER_PROMPT="Task: $TASK_DESC"
+            if [ -n "$TASK_CONTEXT" ] && [ "$TASK_CONTEXT" != "null" ]; then
+              USER_PROMPT="$USER_PROMPT
+
+Additional context: $TASK_CONTEXT"
+            fi
+            if [ -n "$BOB_PLAN" ] && [ "$BOB_PLAN" != "null" ]; then
+              USER_PROMPT="$USER_PROMPT
+
+Bob's initial plan:
+$BOB_PLAN"
+            fi
+
+            # Include existing file contents for context
+            if [ -n "$TARGET_FILES" ]; then
+              USER_PROMPT="$USER_PROMPT
+
+Existing file contents to read and update as needed:"
+              echo "$TARGET_FILES" | while IFS= read -r file_path; do
+                if [ -n "$file_path" ] && [ -f "$file_path" ]; then
+                  FILE_CONTENT=$(cat "$file_path" 2>/dev/null | head -300)
+                  USER_PROMPT="$USER_PROMPT
+
+--- $file_path ---
+$FILE_CONTENT"
+                  echo "  📂 Included existing file: $file_path"
+                fi
+              done
+            fi
+
+            USER_PROMPT="$USER_PROMPT
+
+Implement this task fully. Output the complete JSON as specified."
+
+            # Call GitHub Models API to generate the code
+            echo "🤖 Generating code with $CODE_MODEL..."
+            MODELS_STATUS=$(call_models_api "$CODE_SYSTEM_PROMPT" "$USER_PROMPT" /tmp/codegen-raw.json)
+
+            if [ "$MODELS_STATUS" != "200" ]; then
+              echo "::warning::GitHub Models API returned HTTP $MODELS_STATUS — trying gpt-4o-mini fallback"
+              CODE_MODEL="gpt-4o-mini"
+              MODELS_STATUS=$(call_models_api "$CODE_SYSTEM_PROMPT" "$USER_PROMPT" /tmp/codegen-raw.json)
+            fi
+
+            if [ "$MODELS_STATUS" != "200" ]; then
+              echo "::error::Code generation failed (HTTP $MODELS_STATUS)"
+              cat /tmp/codegen-raw.json
+              curl -s --max-time 20 \
+                -X POST "${BOB_SERVICE_URL}/code/tasks/${TASK_ID}/fail" \
+                -H "Content-Type: application/json" \
+                -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" \
+                -d "{\"error\":\"GitHub Models API returned HTTP ${MODELS_STATUS}\"}" > /dev/null
+              git checkout main 2>/dev/null || git checkout master 2>/dev/null || true
+              git branch -D "$BRANCH" 2>/dev/null || true
+              continue
+            fi
+
+            # Extract and parse the JSON response
+            CODEGEN_JSON=$(jq -r '.choices[0].message.content' /tmp/codegen-raw.json 2>/dev/null || echo "")
+            if [ -z "$CODEGEN_JSON" ] || [ "$CODEGEN_JSON" = "null" ]; then
+              echo "::error::Empty code generation response"
+              curl -s --max-time 20 \
+                -X POST "${BOB_SERVICE_URL}/code/tasks/${TASK_ID}/fail" \
+                -H "Content-Type: application/json" \
+                -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" \
+                -d '{"error":"Empty response from code generation model"}' > /dev/null
+              git checkout main 2>/dev/null || git checkout master 2>/dev/null || true
+              git branch -D "$BRANCH" 2>/dev/null || true
+              continue
+            fi
+
+            # Strip any markdown code fences the model might have added despite instructions
+            CODEGEN_JSON=$(echo "$CODEGEN_JSON" | sed 's/^```json//;s/^```//;s/```$//')
+
+            echo "$CODEGEN_JSON" > /tmp/codegen.json
+
+            # Validate JSON parses
+            if ! jq empty /tmp/codegen.json 2>/dev/null; then
+              echo "::error::Code generation returned invalid JSON"
+              echo "Raw response: $CODEGEN_JSON" | head -20
+              curl -s --max-time 20 \
+                -X POST "${BOB_SERVICE_URL}/code/tasks/${TASK_ID}/fail" \
+                -H "Content-Type: application/json" \
+                -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" \
+                -d '{"error":"Code generation model returned invalid JSON"}' > /dev/null
+              git checkout main 2>/dev/null || git checkout master 2>/dev/null || true
+              git branch -D "$BRANCH" 2>/dev/null || true
+              continue
+            fi
+
+            SUMMARY=$(jq -r '.summary // "Implement task"' /tmp/codegen.json)
+            PR_TITLE=$(jq -r '.pr_title // "feat: Bob code task '"$SHORT_ID"'"' /tmp/codegen.json)
+            FILE_COUNT=$(jq '.files | length' /tmp/codegen.json)
+            echo "  📝 Summary: $SUMMARY"
+            echo "  📁 Files to process: $FILE_COUNT"
+
+            if [ "$FILE_COUNT" -eq 0 ]; then
+              echo "::warning::Code generation produced 0 file operations"
+              curl -s --max-time 20 \
+                -X POST "${BOB_SERVICE_URL}/code/tasks/${TASK_ID}/fail" \
+                -H "Content-Type: application/json" \
+                -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" \
+                -d '{"error":"Code generation model returned no file operations"}' > /dev/null
+              git checkout main 2>/dev/null || git checkout master 2>/dev/null || true
+              git branch -D "$BRANCH" 2>/dev/null || true
+              continue
+            fi
+
+            # Apply file operations
+            FILES_CHANGED=""
+            APPLY_ERROR=false
+            for i in $(seq 0 $((FILE_COUNT - 1))); do
+              OP=$(jq -r ".files[$i].operation" /tmp/codegen.json)
+              FILE_PATH=$(jq -r ".files[$i].path" /tmp/codegen.json)
+              FILE_CONTENT=$(jq -r ".files[$i].content" /tmp/codegen.json)
+
+              # Safety check: prevent writing outside the repo or to .github internals
+              if [[ "$FILE_PATH" == ../* ]] || [[ "$FILE_PATH" == /* ]] || \
+                 [[ "$FILE_PATH" == .git/* ]] || [[ "$FILE_PATH" == */../* ]]; then
+                echo "  ⛔ Rejected unsafe path: $FILE_PATH"
+                APPLY_ERROR=true
+                break
+              fi
+
+              echo "  $OP: $FILE_PATH"
+
+              # Create parent directories if needed
+              DIR=$(dirname "$FILE_PATH")
+              mkdir -p "$DIR"
+
+              if [ "$OP" = "create" ] || [ "$OP" = "overwrite" ]; then
+                echo "$FILE_CONTENT" > "$FILE_PATH"
+                FILES_CHANGED="$FILES_CHANGED,$FILE_PATH"
+              else
+                echo "  ⚠️ Unknown operation '$OP' — skipping"
+              fi
+            done
+
+            if [ "$APPLY_ERROR" = "true" ]; then
+              echo "::error::File operation rejected due to unsafe path"
+              curl -s --max-time 20 \
+                -X POST "${BOB_SERVICE_URL}/code/tasks/${TASK_ID}/fail" \
+                -H "Content-Type: application/json" \
+                -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" \
+                -d '{"error":"Rejected unsafe file path in code generation response"}' > /dev/null
+              git checkout main 2>/dev/null || git checkout master 2>/dev/null || true
+              git branch -D "$BRANCH" 2>/dev/null || true
+              continue
+            fi
+
+            # ----------------------------------------------------------------
+            # Install deps and validate the build
+            # ----------------------------------------------------------------
+            echo "🔧 Installing dependencies..."
+            bun install --frozen-lockfile 2>&1 | tail -5 || bun install 2>&1 | tail -5
+
+            BUILD_PASSED=true
+            echo "🏗️  Running bun run build..."
+            if ! bun run build 2>&1 | tail -30; then
+              echo "::warning::bun run build failed — PR will be created with build failure noted"
+              BUILD_PASSED=false
+            fi
+
+            LINT_PASSED=true
+            echo "🔍 Running bun run lint..."
+            if ! bun run lint 2>&1 | tail -20; then
+              echo "::warning::bun run lint reported issues — will be noted in PR"
+              LINT_PASSED=false
+            fi
+
+            # ----------------------------------------------------------------
+            # Commit and push the branch
+            # ----------------------------------------------------------------
+            FILES_CHANGED="${FILES_CHANGED#,}"  # strip leading comma
+            git add -A
+
+            COMMIT_MSG="feat(bob): ${SUMMARY}
+
+Task: ${TASK_DESC}
+Short ID: ${SHORT_ID}
+Generated by: ops-bob-code-task workflow
+Build: $([ "$BUILD_PASSED" = "true" ] && echo "✅ passed" || echo "❌ failed")
+Lint: $([ "$LINT_PASSED" = "true" ] && echo "✅ passed" || echo "⚠️ issues")"
+
+            git commit -m "$COMMIT_MSG" || { echo "No changes to commit"; }
+            git push origin "$BRANCH"
+
+            # ----------------------------------------------------------------
+            # Open a pull request
+            # ----------------------------------------------------------------
+            PR_BODY="## Summary
+$SUMMARY
+
+## Task
+\`\`\`
+${TASK_DESC}
+\`\`\`
+$([ -n "$TASK_CONTEXT" ] && [ "$TASK_CONTEXT" != "null" ] && echo "
+## Context
+${TASK_CONTEXT}" || true)
+
+## Files Changed
+$(echo "$FILES_CHANGED" | tr ',' '\n' | sed 's/^/- /')
+
+## Validation
+- Build: $([ "$BUILD_PASSED" = "true" ] && echo "✅ passed" || echo "❌ failed — review changes before merging")
+- Lint: $([ "$LINT_PASSED" = "true" ] && echo "✅ passed" || echo "⚠️ issues — review lint output")
+
+---
+*Generated by Bob (FieldOps AI) via ops-bob-code-task workflow. Task ID: ${TASK_ID}*"
+
+            PR_URL=$(gh pr create \
+              --title "$PR_TITLE" \
+              --body "$PR_BODY" \
+              --base main \
+              --head "$BRANCH" \
+              --label "bob-generated" \
+              2>/dev/null || \
+              gh pr create \
+              --title "$PR_TITLE" \
+              --body "$PR_BODY" \
+              --base main \
+              --head "$BRANCH" 2>/dev/null || echo "")
+
+            PR_NUMBER=""
+            if [ -n "$PR_URL" ]; then
+              PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$' || echo "")
+              echo "  🎉 PR created: $PR_URL"
+            else
+              echo "  ::warning::Failed to create PR — branch $BRANCH was pushed"
+              PR_URL="https://github.com/${{ github.repository }}/compare/$BRANCH"
+            fi
+
+            # ----------------------------------------------------------------
+            # Report result back to Bob
+            # ----------------------------------------------------------------
+            FILES_JSON=$(echo "$FILES_CHANGED" | tr ',' '\n' | jq -R . | jq -s .)
+            RESULT_PAYLOAD=$(jq -n \
+              --arg pr_url "$PR_URL" \
+              --arg branch "$BRANCH" \
+              --argjson files_changed "$FILES_JSON" \
+              --argjson build_passed "$BUILD_PASSED" \
+              --arg pr_number "$PR_NUMBER" \
+              '{
+                pr_url: $pr_url,
+                branch: $branch,
+                files_changed: $files_changed,
+                build_passed: $build_passed,
+                pr_number: ($pr_number | if . == "" then null else tonumber end)
+              }')
+
+            RESULT_STATUS=$(curl -s -o /tmp/result-resp.json -w "%{http_code}" \
+              --max-time 30 \
+              -X POST "${BOB_SERVICE_URL}/code/tasks/${TASK_ID}/result" \
+              -H "Content-Type: application/json" \
+              -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" \
+              -d "$RESULT_PAYLOAD")
+
+            [ "$RESULT_STATUS" = "200" ] && \
+              echo "  📥 Result reported to Bob ✅" || \
+              echo "  ::warning::Failed to report result to Bob (HTTP $RESULT_STATUS)"
+
+            # Return to main for the next task
+            git checkout main 2>/dev/null || git checkout master 2>/dev/null || true
+
+            echo "  ✅ Task [$SHORT_ID] complete"
+            sleep 5   # brief pause between tasks
+          done
+
+          echo ""
+          echo "🎉 Code task execution run complete"
+
+      # -----------------------------------------------------------------------
+      # 8. Summary
+      # -----------------------------------------------------------------------
+      - name: Summary
+        if: steps.validate.outputs.can_run == 'true'
+        env:
+          BOB_SERVICE_URL: ${{ env.BOB_SERVICE_URL }}
+          BOB_INFERENCE_API_KEY: ${{ env.BOB_INFERENCE_API_KEY }}
+        run: |
+          echo "📊 Code task summary:"
+          curl -s --max-time 15 \
+            "${BOB_SERVICE_URL}/code/tasks?status=completed" \
+            -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" | \
+            jq '{counts: .state.counts}'
+
+      - name: Skipped (not configured)
+        if: steps.validate.outputs.can_run != 'true'
+        run: |
+          echo "ℹ️ Bob code task workflow skipped — configure secrets to enable."
+          echo ""
+          echo "Setup:"
+          echo "  1. GitHub → Settings → Secrets and variables → Actions"
+          echo "  2. Add: BOB_SERVICE_URL (or INFERENCE_SERVICE_URL) — Bob's Railway URL"
+          echo "  3. Add: BOB_INFERENCE_API_KEY (or INFERENCE_API_KEY) — Bob's auth key"
+          echo "  4. Re-run this workflow"

@@ -53,6 +53,22 @@ const KNOWLEDGE_PACKS = {
       'Document assumptions and unknowns in every remediation plan.',
     ],
   },
+  codebase_coding: {
+    name: 'fieldops-codebase-coding-knowledge',
+    summary: 'Full coding knowledge for FieldOps Manager — same context as the Copilot coding agent. Enables Bob to guide code creation without GitHub.',
+    key_points: [
+      'Tech stack: React 18 + TypeScript + Vite + Tailwind CSS v3 + shadcn/ui. State: Zustand + TanStack Query v5. Forms: react-hook-form + zod. Package manager: bun.',
+      'Project layout: pages in src/pages/, hooks in src/hooks/, stores in src/stores/, shadcn primitives in src/components/ui/, feature components in src/components/features/. Path alias @/* → ./src/*.',
+      'Supabase client: always import { supabase } from "@/lib/supabase". Typed with Database from @/types/database. DB row types via Database["public"]["Tables"]["table"]["Row"].',
+      'Edge Functions: supabase/functions/<name>/index.ts, Deno runtime, withCors + getCorsHeaders + jsonResponse + errorResponse from ../_shared/withCors.ts. Always handle OPTIONS preflight.',
+      'Migrations: supabase/migrations/YYYYMMDD_HHMMSS_description.sql. Every table needs RLS enabled. Policies scope by auth.uid() + organization_id. After migration: regenerate types.',
+      'Hooks pattern: useQuery for reads, useMutation for writes, invalidateQueries on success, toast from sonner for notifications. queryKey must include all filter variables.',
+      'User roles: admin, master, officer, admin_officer. Route guards: RoleRoute, ProtectedRoute, AreaRoute in App.tsx. authStore.ts has current user + organization_id.',
+      'TypeScript: noImplicitAny=false, strictNullChecks=false, skipLibCheck=true. Do NOT tighten. All datetimes in Pacific/Auckland timezone.',
+      'shadcn/ui: import from @/components/ui/<component>. Never re-implement. Available: button, card, dialog, form, input, label, select, table, badge, alert, tabs, sheet, tooltip.',
+      'Build: bun run build (tsc + vite). Dev: bun run dev. Lint: bun run lint. bun.lock must be committed — Railway uses --frozen-lockfile. Use POST /code/assist for coding guidance.',
+    ],
+  },
   ui_design_context: {
     name: 'ui-ux-design-assessment',
     summary: 'UI visualisation, layout analysis, colour assessment, accessibility auditing, and human-friendliness evaluation for FieldOps Manager pages.',
