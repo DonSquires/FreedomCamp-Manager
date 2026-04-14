@@ -705,26 +705,31 @@ function getFileGuide() {
 function answerCodingQuestion(question) {
   const q = String(question || '').toLowerCase();
 
+  // Action verbs: any of these counts as "create/build"
+  const actionVerb = q.includes('create') || q.includes('add') || q.includes('write') ||
+    q.includes('make') || q.includes('build') || q.includes('generate') ||
+    q.includes('implement') || q.includes('develop');
+
   // Page / component creation
-  if (q.includes('create') && (q.includes('page') || q.includes('screen'))) {
+  if (actionVerb && (q.includes('page') || q.includes('screen'))) {
     return { pattern: CODE_PATTERNS.page, task: COMMON_TASKS.add_page };
   }
-  if (q.includes('create') && (q.includes('hook') || q.includes('usequery') || q.includes('usemutation') || q.includes('fetch'))) {
+  if (actionVerb && (q.includes('hook') || q.includes('usequery') || q.includes('usemutation') || q.includes('data fetch') || q.includes('fetching'))) {
     return { pattern: CODE_PATTERNS.hook, task: COMMON_TASKS.add_hook };
   }
-  if (q.includes('create') && (q.includes('edge function') || q.includes('supabase function') || q.includes('deno'))) {
+  if (actionVerb && (q.includes('edge function') || q.includes('supabase function') || q.includes('deno'))) {
     return { pattern: CODE_PATTERNS.edge_function, task: COMMON_TASKS.add_edge_function };
   }
-  if (q.includes('create') && (q.includes('migration') || q.includes('table') || q.includes('schema'))) {
+  if (actionVerb && (q.includes('migration') || q.includes('table') || (q.includes('database') && q.includes('schema')))) {
     return { pattern: CODE_PATTERNS.migration, task: COMMON_TASKS.add_table };
   }
-  if (q.includes('create') && (q.includes('form'))) {
+  if (actionVerb && q.includes('form')) {
     return { pattern: CODE_PATTERNS.form, task: null };
   }
-  if (q.includes('create') && (q.includes('store') || q.includes('zustand'))) {
+  if (actionVerb && (q.includes('store') || q.includes('zustand'))) {
     return { pattern: CODE_PATTERNS.store, task: null };
   }
-  if (q.includes('add') && q.includes('route')) {
+  if ((actionVerb || q.includes('register')) && q.includes('route')) {
     return { pattern: CODE_PATTERNS.route, task: COMMON_TASKS.add_page };
   }
 
