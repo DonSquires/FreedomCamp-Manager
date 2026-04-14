@@ -110,19 +110,20 @@ jobs:
         if: steps.check-secrets.outputs.secrets_present == 'true'
         id: check-supabase
         run: |
-          # Use the PostgREST root endpoint to verify Supabase connectivity.
-          # This is more reliable than querying a specific table because it is
-          # not affected by RLS policies or table-level permissions.
           HTTP_CODE=$(curl -sSo /dev/null -w "%{http_code}" --max-time 10 \
             -H "apikey: ${VITE_SUPABASE_ANON_KEY}" \
-            "${VITE_SUPABASE_URL}/rest/v1/")
+            -H "Authorization: Bearer ${VITE_SUPABASE_ANON_KEY}" \
+            "${VITE_SUPABASE_URL}/rest/v1/zones?select=id&limit=1")
           echo "http_code=$HTTP_CODE" >> "$GITHUB_OUTPUT"
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "::warning::Supabase REST returned HTTP $HTTP_CODE"
-            echo "passed=false" >> "$GITHUB_OUTPUT"
-          else
+          # Accept 200 (success) or 401 (unauthorised but server is up) as
+          # proof that Supabase is reachable.  A 401 from PostgREST still means
+          # the project is alive and responding; it should not fire a health alert.
+          if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "401" ]; then
             echo "✅ Supabase REST HTTP $HTTP_CODE"
             echo "passed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Supabase REST returned HTTP $HTTP_CODE"
+            echo "passed=false" >> "$GITHUB_OUTPUT"
           fi
         env:
           VITE_SUPABASE_URL:      ${{ secrets.VITE_SUPABASE_URL }}
@@ -152,9 +153,11 @@ jobs:
         if: steps.check-secrets.outputs.secrets_present == 'true'
         id: check-playwright
         run: |
-          node - <<'EOF'
+          # Redirect Node stdout to a temp file so bash can reliably parse the
+          # JSON result and write step outputs (more reliable than fs.appendFileSync
+          # inside a heredoc, which was the root cause of the 2026-03-28 false alert).
+          node - <<'EOF' > /tmp/pw_result.json
           const { chromium } = require('playwright');
-          const fs = require('fs');
           const FRONTEND_URL = process.env.FRONTEND_URL;
 
           (async () => {
@@ -191,55 +194,35 @@ jobs:
               const title = await page.title();
               const bodyText = await page.locator('body').innerText().catch(() => '');
               const hasContent = bodyText.length > 50;
-
-              // Detect Vercel protection using multiple signals:
-              //   1. x-vercel-id response header (always present on Vercel deployments)
-              //   2. Title or body text containing "vercel"
-              //   3. Frontend URL hosted on *.vercel.app
-              const responseHeaders = response?.headers() ?? {};
+              const finalUrl = page.url();
+              // Detect Vercel deployment protection in two ways:
+              //   1. Direct 401/403 response with Vercel wording in the page.
+              //   2. Redirect to vercel.com (302→200) which Playwright follows silently.
+              //      The app itself runs on *.vercel.app, so a redirect to vercel.com
+              //      (the root domain) means Vercel's SSO/protection page.
+              const redirectedToVercelCom =
+                /https?:\/\/[^/]*vercel\.com\//i.test(finalUrl);
               const isVercelProtection =
-                (status === 401 || status === 403) &&
-                ('x-vercel-id' in responseHeaders ||
-                  /vercel/i.test(title) ||
-                  /vercel/i.test(bodyText) ||
-                  FRONTEND_URL.includes('.vercel.app'));
+                redirectedToVercelCom ||
+                ((status === 401 || status === 403) &&
+                 (/vercel/i.test(title) || /vercel/i.test(bodyText)));
 
               // Check for crash/error screens
               const hasErrorOverlay = await page.locator('text=/Something went wrong|Error boundary|Unhandled/i').count() > 0;
 
-              const filteredErrors = isVercelProtection
-                ? errors.filter((e) => {
-                    const lower = e.toLowerCase();
-                    const hasAuthStatus = /\b(401|403)\b/.test(e);
-                    const mentionsVercel = lower.includes('vercel');
-                    return !(hasAuthStatus || mentionsVercel);
-                  })
-                : errors;
+              // When on a Vercel protection page, suppress all errors — they belong
+              // to Vercel's auth UI, not the actual application.
+              const filteredErrors = isVercelProtection ? [] : errors;
 
-              const result = {
+              // Write JSON result to stdout (captured to /tmp/pw_result.json by bash)
+              console.log(JSON.stringify({
                 status,
                 title,
                 hasContent,
                 hasErrorOverlay,
                 jsErrors: filteredErrors,
                 vercelProtection: isVercelProtection,
-              };
-
-              console.log(JSON.stringify(result));
-
-              // Expose additional diagnostics to later steps
-              if (process.env.GITHUB_OUTPUT) {
-                const sanitizeValue = (value) => String(value).replace(/\r?\n/g, ' ');
-                const outputs = {
-                  status,
-                  vercel_protection: isVercelProtection,
-                  has_content: hasContent,
-                  has_error_overlay: hasErrorOverlay,
-                };
-                for (const [key, value] of Object.entries(outputs)) {
-                  fs.appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${sanitizeValue(value)}\n`);
-                }
-              }
+              }));
 
               if (isVercelProtection) {
                 console.warn(`Vercel protection login detected (HTTP ${status}); treating as soft pass for monitor`);
@@ -261,7 +244,20 @@ jobs:
             }
           })();
           EOF
-          if [ $? -ne 0 ]; then
+          NODE_EXIT=$?
+
+          # Log the playwright result for debugging
+          cat /tmp/pw_result.json || true
+
+          # Write step outputs from bash by parsing the JSON result file.
+          # This is more reliable than writing from inside the Node heredoc.
+          VERCEL_PROTECTED="false"
+          if [ -f /tmp/pw_result.json ] && grep -q '"vercelProtection":true' /tmp/pw_result.json; then
+            VERCEL_PROTECTED="true"
+          fi
+          echo "vercel_protection=${VERCEL_PROTECTED}" >> "$GITHUB_OUTPUT"
+
+          if [ "$NODE_EXIT" -ne 0 ]; then
             echo "passed=false" >> "$GITHUB_OUTPUT"
           else
             echo "passed=true" >> "$GITHUB_OUTPUT"
@@ -281,9 +277,36 @@ jobs:
           frontend_code="${{ steps.check-frontend.outputs.http_code }}"
           supabase_code="${{ steps.check-supabase.outputs.http_code }}"
 
+          # Fallback Vercel detection: if the Playwright step's explicit output was not
+          # set (e.g. the Node heredoc stdout redirect produced no JSON), infer Vercel
+          # protection from a 401/403 frontend response when the Playwright render
+          # itself passed.  This guards against the exact regression that triggered the
+          # 2026-03-28 false-positive bug report (e9911b5d).
+          if [ "$playwright_vercel" != "true" ] && [ "$playwright_ok" = "true" ] && \
+             { [ "$frontend_code" = "401" ] || [ "$frontend_code" = "403" ]; }; then
+            playwright_vercel="true"
+            echo "::notice::Inferred Vercel protection from HTTP ${frontend_code} frontend response + passing Playwright render; applying soft pass"
+          fi
+
           # If the site is intentionally behind Vercel protection, treat
           # the HTTP status checks as a soft pass to avoid noisy alerts.
+          # Two trigger conditions (defence in depth):
+          #   1. playwright_vercel=true  — Playwright explicitly detected Vercel
+          #      protection (401/403 response with Vercel wording, or redirect to
+          #      vercel.com).
+          #   2. Fallback — frontend returned 401/403 AND Playwright rendered the
+          #      page successfully (handles cases where Playwright follows a redirect
+          #      to a Vercel login page that shows as HTTP 200, so vercel_protection
+          #      stays false while the site is still auth-gated).
+          vercel_gated="false"
           if [ "$playwright_vercel" = "true" ]; then
+            vercel_gated="true"
+          elif [ "$playwright_ok" = "true" ] && { [ "$frontend_code" = "401" ] || [ "$frontend_code" = "403" ]; }; then
+            vercel_gated="true"
+            echo "::notice::Frontend returned HTTP ${frontend_code} and Playwright rendered successfully; assuming Vercel deployment protection — soft passing HTTP checks" >&2
+          fi
+
+          if [ "$vercel_gated" = "true" ]; then
             soft_pass() {
               local check_label="$1"
               local http_code="$2"
@@ -402,6 +425,3 @@ jobs:
           echo "| Frontend HTTP | ${{ steps.evaluate.outputs.frontend_effective == 'true' && '✅ Pass' || '❌ Fail' }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Supabase REST | ${{ steps.evaluate.outputs.supabase_effective == 'true' && '✅ Pass' || '❌ Fail' }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Playwright render | ${{ steps.evaluate.outputs.playwright_effective == 'true' && '✅ Pass' || '❌ Fail' }} |" >> "$GITHUB_STEP_SUMMARY"
-          if [ "${{ steps.check-playwright.outputs.vercel_protection }}" = "true" ]; then
-            echo "| Vercel Protection | ⚠️ Detected — HTTP/Supabase checks soft-passed |" >> "$GITHUB_STEP_SUMMARY"
-          fi

@@ -8,20 +8,22 @@ The synthetic UI monitor is a scheduled GitHub Actions workflow that exercises t
 - **URL resolution:** uses `FRONTEND_URL` by default, or the `frontend_url_override` input when dispatched manually.
 - **Checks performed (in order):**
   1. **HTTP 200 check** against the frontend URL.
-  2. **Supabase reachability** via `GET /rest/v1/` (the PostgREST root endpoint) with the anon key. Using the root endpoint avoids false positives from RLS policies or table-level access restrictions on specific tables.
+  2. **Supabase reachability** via the REST endpoint with the anon key.
   3. **Playwright render check** (headless Chromium) that:
      - Loads the login page and captures JS/console errors (filters common noise).
      - Detects error overlays and multiple JS errors.
-     - Detects Vercel protection using multiple signals: the `x-vercel-id` response header, "vercel" in the page title/body, or a `*.vercel.app` URL. A 401/403 combined with any of these signals is treated as a **soft pass** for the HTTP/Supabase checks to avoid noisy alerts when protection is enabled.
+     - Detects Vercel protection (401/403 plus Vercel wording) and treats it as a **soft pass** for the HTTP/Supabase checks to avoid noisy alerts when protection is enabled.
+     - Writes the JSON result to a temp file; bash parses it and writes `vercel_protection` as a step output (more reliable than writing from inside Node).
 
 - **Health evaluation:** marks the run unhealthy if any check fails (after applying the Vercel soft-pass logic).
+  - Vercel protection is detected either from the Playwright step's explicit `vercel_protection` output **or** by inferring it from a 401/403 frontend HTTP response when the Playwright render itself passed — this fallback prevents false-positive bug reports even if the Node output write fails (root cause of incident e9911b5d).
 
 ## Failure handling
 - When unhealthy **and** `SUPABASE_SERVICE_ROLE_KEY` + `SYNTHETIC_MONITOR_USER_ID` are set, the workflow inserts a `bug_reports` row via Supabase REST:
   - `app_version: "synthetic-monitor"`
   - `auto_reported: true`
   - Severity `high` with a summary of which checks failed and the workflow run URL.
-- A step summary is appended to the GitHub Actions run with pass/fail for each check. When Vercel protection is detected, an additional ⚠️ row is shown in the summary.
+- A step summary is appended to the GitHub Actions run with pass/fail for each check.
 
 ## Required secrets
 - `FRONTEND_URL` – production portal URL (e.g., `https://app.freedomcamp.co.nz`)

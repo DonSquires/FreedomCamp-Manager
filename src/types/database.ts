@@ -3909,7 +3909,11 @@ export type Database = {
           responsible_person_name: string | null
           responsible_person_warned: boolean | null
           time_category: string
+          matrix_total_score: number | null
+          time_score: number | null
+          tone_score: number | null
           verbal_warning_given: boolean | null
+          volume_score: number | null
           zone_classification: string | null
         }
         Insert: {
@@ -3923,6 +3927,7 @@ export type Database = {
           gps_lat?: number | null
           gps_lng?: number | null
           id?: string
+          matrix_total_score?: number | null
           measurement_location?: string | null
           measurement_method?: string
           noise_job_id?: string | null
@@ -3938,7 +3943,10 @@ export type Database = {
           responsible_person_name?: string | null
           responsible_person_warned?: boolean | null
           time_category?: string
+          time_score?: number | null
+          tone_score?: number | null
           verbal_warning_given?: boolean | null
+          volume_score?: number | null
           zone_classification?: string | null
         }
         Update: {
@@ -3952,6 +3960,7 @@ export type Database = {
           gps_lat?: number | null
           gps_lng?: number | null
           id?: string
+          matrix_total_score?: number | null
           measurement_location?: string | null
           measurement_method?: string
           noise_job_id?: string | null
@@ -3967,7 +3976,10 @@ export type Database = {
           responsible_person_name?: string | null
           responsible_person_warned?: boolean | null
           time_category?: string
+          time_score?: number | null
+          tone_score?: number | null
           verbal_warning_given?: boolean | null
+          volume_score?: number | null
           zone_classification?: string | null
         }
         Relationships: [
@@ -4403,19 +4415,26 @@ export type Database = {
           address: string
           court_order_ref: string | null
           created_at: string
+          defects_noted: string | null
           disposal_method: string | null
           equipment_condition: string | null
           equipment_count: number
           equipment_description: string
+          equipment_make: string | null
+          equipment_type: string | null
           estimated_value_nzd: number | null
           gps_lat: number | null
           gps_lng: number | null
           id: string
+          identification_marks: string | null
           noise_job_id: string | null
           noise_notice_id: string | null
           notes: string | null
           organization_id: string
+          owner_name: string | null
           photos: string[] | null
+          police_officer_name: string | null
+          police_present: boolean
           return_conditions: string | null
           return_date: string | null
           returned_to: string | null
@@ -4435,19 +4454,26 @@ export type Database = {
           address: string
           court_order_ref?: string | null
           created_at?: string
+          defects_noted?: string | null
           disposal_method?: string | null
           equipment_condition?: string | null
           equipment_count?: number
           equipment_description: string
+          equipment_make?: string | null
+          equipment_type?: string | null
           estimated_value_nzd?: number | null
           gps_lat?: number | null
           gps_lng?: number | null
           id?: string
+          identification_marks?: string | null
           noise_job_id?: string | null
           noise_notice_id?: string | null
           notes?: string | null
           organization_id: string
+          owner_name?: string | null
           photos?: string[] | null
+          police_officer_name?: string | null
+          police_present?: boolean
           return_conditions?: string | null
           return_date?: string | null
           returned_to?: string | null
@@ -4467,19 +4493,26 @@ export type Database = {
           address?: string
           court_order_ref?: string | null
           created_at?: string
+          defects_noted?: string | null
           disposal_method?: string | null
           equipment_condition?: string | null
           equipment_count?: number
           equipment_description?: string
+          equipment_make?: string | null
+          equipment_type?: string | null
           estimated_value_nzd?: number | null
           gps_lat?: number | null
           gps_lng?: number | null
           id?: string
+          identification_marks?: string | null
           noise_job_id?: string | null
           noise_notice_id?: string | null
           notes?: string | null
           organization_id?: string
+          owner_name?: string | null
           photos?: string[] | null
+          police_officer_name?: string | null
+          police_present?: boolean
           return_conditions?: string | null
           return_date?: string | null
           returned_to?: string | null
@@ -4760,6 +4793,7 @@ export type Database = {
           delivered: boolean
           delivered_at: string | null
           id: string
+          organization_id: string | null
           priority: string
           read: boolean
           read_at: string | null
@@ -4774,6 +4808,7 @@ export type Database = {
           delivered?: boolean
           delivered_at?: string | null
           id?: string
+          organization_id?: string | null
           priority?: string
           read?: boolean
           read_at?: string | null
@@ -4788,6 +4823,7 @@ export type Database = {
           delivered?: boolean
           delivered_at?: string | null
           id?: string
+          organization_id?: string | null
           priority?: string
           read?: boolean
           read_at?: string | null
@@ -8575,6 +8611,7 @@ export type Database = {
           profile_photo_url: string | null
           push_token: string | null
           push_token_updated_at: string | null
+          push_subscription: Json | null
           requires_driver_license: boolean
           role: string | null
           updated_at: string | null
@@ -8627,6 +8664,7 @@ export type Database = {
           profile_photo_url?: string | null
           push_token?: string | null
           push_token_updated_at?: string | null
+          push_subscription?: Json | null
           requires_driver_license?: boolean
           role?: string | null
           updated_at?: string | null
@@ -8679,6 +8717,7 @@ export type Database = {
           profile_photo_url?: string | null
           push_token?: string | null
           push_token_updated_at?: string | null
+          push_subscription?: Json | null
           requires_driver_license?: boolean
           role?: string | null
           updated_at?: string | null
