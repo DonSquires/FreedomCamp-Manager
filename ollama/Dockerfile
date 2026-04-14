@@ -15,4 +15,15 @@ ENV OLLAMA_KEEP_ALIVE=24h
 # Explicitly disable Ollama cloud connectivity for privacy-safe operation.
 ENV OLLAMA_NO_CLOUD=true
 
+# Model to pre-pull on first startup. Override this Railway env var to switch
+# models without rebuilding the image (e.g. llama3.1:8b, mistral:7b).
+ENV OLLAMA_MODEL=llama3.1:8b
+
 EXPOSE 11434
+
+# Copy and enable the startup script that pre-pulls the model so the first
+# /api/chat request from Bob does not block while the model downloads.
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
+
+CMD ["/bin/sh", "/start.sh"]

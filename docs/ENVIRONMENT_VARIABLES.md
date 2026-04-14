@@ -2,6 +2,8 @@
 
 Complete reference for all environment variables used in FreedomCamp Manager.
 
+> **Looking for secrets setup instructions?** See the **[Secrets Registry](SECRETS_REGISTRY.md)** for a complete list of every secret — what it does, where to configure it (GitHub Actions, Supabase vault, or Railway service), accepted aliases, and a copy-paste setup checklist.
+
 ## Table of Contents
 
 1. [Frontend (Vite) Variables](#frontend-vite-variables)

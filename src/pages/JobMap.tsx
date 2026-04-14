@@ -255,7 +255,13 @@ export default function JobMap() {
   
   const updateStatusMutation = useMutation({
     mutationFn: async ({ jobId, newStatus }: { jobId: string; newStatus: string }) => {
-      const update: Record<string, any> = { status: newStatus }
+      const update: {
+        status: string
+        acknowledged_at?: string
+        en_route_at?: string
+        on_scene_at?: string
+        completed_at?: string
+      } = { status: newStatus }
       
       if (newStatus === 'acknowledged') update.acknowledged_at = new Date().toISOString()
       if (newStatus === 'en_route') update.en_route_at = new Date().toISOString()
