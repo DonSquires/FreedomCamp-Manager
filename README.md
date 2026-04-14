@@ -21,6 +21,20 @@ bun run dev                   # http://localhost:5173
 For the original full from-zero baseline, use [docs/NEW_PROJECT_SETUP.md](docs/NEW_PROJECT_SETUP.md).
 For browser-only deployment steps, use [ONLINE_DEPLOYMENT_GUIDE.md](ONLINE_DEPLOYMENT_GUIDE.md).
 
+### Codespaces startup logs
+
+When reviewing `.codespaces/.persistedshare/creation.log`, it is normal to see
+multiple `devcontainer up` entries during one startup. Codespaces runs separate
+lifecycle phases (create, blocking commands, attach), and each phase can invoke
+the devcontainer CLI.
+
+This is expected platform behavior, not a failure by itself. Treat startup as
+healthy when outcomes are success and the process exits with code 0.
+
+To avoid duplicated side effects when these phases run, the repository uses an
+idempotent `.devcontainer/postStart.sh` guard so the Vite dev server is only
+started once.
+
 ---
 
 ## Database Migrations
