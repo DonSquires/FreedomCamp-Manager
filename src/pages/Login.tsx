@@ -152,7 +152,7 @@ export default function Login() {
           </ul>
         </div>
 
-        <p className="text-xs text-blue-400/70 mt-8">
+        <p className="text-xs text-blue-300 mt-8">
           Trusted by Iron Eagle Security · OnSpace
         </p>
       </div>
@@ -168,7 +168,7 @@ export default function Login() {
               className="h-16 w-16 rounded-2xl object-cover shadow-md mb-3"
             />
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">FieldOps Manager</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Field Operations Management Platform</p>
+            <p className="text-sm text-gray-600 mt-0.5">Field Operations Management Platform</p>
           </div>
 
           <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-1">
@@ -262,7 +262,7 @@ export default function Login() {
             </form>
           )}
 
-          <div className="mt-8 text-center text-xs text-gray-400 dark:text-gray-500">
+          <div className="mt-8 text-center text-xs text-gray-600 dark:text-gray-400">
             <p>Iron Eagle Security · Field Operations Management</p>
           </div>
         </div>

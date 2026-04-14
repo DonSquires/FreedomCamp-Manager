@@ -245,7 +245,7 @@ export default function OfficerHomePage() {
                 <CalendarDays className="h-5 w-5 text-green-600" />
               </div>
               <div className="text-left">
-                <p className="text-sm font-semibold text-gray-900">Available Shifts</p>
+                <p className="text-sm font-semibold text-gray-900">Browse Open Shifts</p>
                 <p className="text-xs text-gray-500">Browse and claim open shifts</p>
               </div>
             </div>

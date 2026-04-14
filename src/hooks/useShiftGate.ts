@@ -203,10 +203,11 @@ export function useShiftGate(): ShiftGateState {
   const isRostered = !!rosteredShift
   const hasActiveShift = !!activeShiftRecord
 
-  // Portal access: must be rostered; if non-patrol also needs to be inside geofence
+  // Portal access: must be rostered OR have an active shift (e.g. approved ad-hoc);
+  // if non-patrol also needs to be inside geofence.
   const canAccessPortal =
     !isLoading &&
-    isRostered &&
+    (isRostered || hasActiveShift) &&
     (isPatrolBased || isInsideGeofence)
 
   return {

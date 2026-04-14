@@ -36,6 +36,7 @@ import {
   Moon, Sun, ParkingSquare, Volume2, Video, Eye, Tent, Timer,
   ScanFace, CalendarPlus, Siren, Bell, PhoneCall, Lock,
 } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
@@ -752,11 +753,24 @@ export default function FieldOfficerPortal() {
       setOrganization(effectiveOrgId, effectiveOrgName)
 
       // Register welfare push schedule on server (enables background reminders)
+      // Fetch the officer's configured interval so the server-side schedule matches the UI.
+      let welfareIntervalMinutes = 30
+      try {
+        const { data: welfareSettings } = await supabase
+          .from('officer_welfare_settings')
+          .select('check_in_interval_minutes')
+          .eq('user_id', user.id)
+          .maybeSingle()
+        if ((welfareSettings as any)?.check_in_interval_minutes) {
+          welfareIntervalMinutes = (welfareSettings as any).check_in_interval_minutes
+        }
+      } catch { /* non-critical */ }
+
       await (supabase.rpc as any)('upsert_welfare_push_schedule', {
         p_officer_id:       user.id,
         p_organization_id:  employerOrganizationId,
         p_shift_id:         shiftRow?.id ?? null,
-        p_interval_minutes: 30, // default; overridden by officer_welfare_settings
+        p_interval_minutes: welfareIntervalMinutes,
         p_last_checkin_at:  new Date().toISOString(),
       }).catch(() => { /* non-critical */ })
 
@@ -810,7 +824,6 @@ export default function FieldOfficerPortal() {
           .eq('is_active', true)
           if (deactivateError) {
             // non-critical: shift has ended even if schedule cleanup fails
-            console.warn('Failed to deactivate welfare push schedule:', deactivateError)
           }
       }
 
@@ -879,6 +892,13 @@ export default function FieldOfficerPortal() {
     navigator.serviceWorker?.addEventListener('message', handler)
     return () => navigator.serviceWorker?.removeEventListener('message', handler)
   }, [checkIn])
+
+  // Auto-dismiss the quick-report status banner after 5 s (errors stay until dismissed)
+  useEffect(() => {
+    if (!quickReportStatusText || quickReportStatusKind !== 'success') return
+    const t = setTimeout(() => setQuickReportStatusText(null), 5000)
+    return () => clearTimeout(t)
+  }, [quickReportStatusText, quickReportStatusKind])
 
   // ── Detail scan: capture handler ─────────────────────────────────────────
   const handleDetailCapture = useCallback(async (file: File) => {
@@ -1015,7 +1035,11 @@ export default function FieldOfficerPortal() {
   const handleViewHistory = () => {
     if (user?.role === 'officer') {
       const panel = document.getElementById('recent-scans-panel')
-      panel?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      if (panel) {
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      } else {
+        toast.info('No scans recorded in the last 24 hours')
+      }
       return
     }
     navigate('/compliance')
@@ -1362,16 +1386,27 @@ export default function FieldOfficerPortal() {
 
             {/* Start Shift button */}
             <div className="flex justify-end">
-              <Button
-                size="sm"
-                onClick={handleStartShift}
-                disabled={isStartingShift || (isServiceProviderMember && accessibleOrgs.length > 1 && !shiftOrgId)}
-                className="shrink-0 bg-green-600 hover:bg-green-700 text-white font-semibold"
-              >
-                {isStartingShift
-                  ? <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />Starting…</span>
-                  : <><Clock className="h-4 w-4 mr-1.5" />Start Shift</>}
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <Button
+                        size="sm"
+                        onClick={handleStartShift}
+                        disabled={isStartingShift || (isServiceProviderMember && accessibleOrgs.length > 1 && !shiftOrgId)}
+                        className="shrink-0 bg-green-600 hover:bg-green-700 text-white font-semibold"
+                      >
+                        {isStartingShift
+                          ? <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />Starting…</span>
+                          : <><Clock className="h-4 w-4 mr-1.5" />Start Shift</>}
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {isServiceProviderMember && accessibleOrgs.length > 1 && !shiftOrgId && (
+                    <TooltipContent>Select an organisation above to start your shift</TooltipContent>
+                  )}
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
         </div>
@@ -1479,7 +1514,7 @@ export default function FieldOfficerPortal() {
                     checkinState.isOverdue
                       ? 'bg-red-500 hover:bg-red-600 text-white'
                       : checkinState.isDueSoon5
-                        ? 'bg-orange-500 hover:bg-orange-600 text-white'
+                        ? 'bg-orange-600 hover:bg-orange-700 text-white'
                         : 'bg-green-600 hover:bg-green-700 text-white'
                   }`}
                 >
@@ -1655,7 +1690,7 @@ export default function FieldOfficerPortal() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setShowManualEntry(false)}
+                onClick={() => { setShowManualEntry(false); setManualPlate(''); setManualZoneId('') }}
                 disabled={isProcessing || manualSubmitting}
               >
                 Camera Capture
@@ -1764,10 +1799,11 @@ export default function FieldOfficerPortal() {
             orgWorkflow={orgWorkflow || 'admin_first'}
             onIssueAction={(p) => issueAction.mutate(p)}
             isIssuingAction={issueAction.isPending}
-            onActivity={() => recordGPSUpdate(
-              currentLocation?.latitude ?? 0,
-              currentLocation?.longitude ?? 0,
-            )}
+            onActivity={() => {
+              if (currentLocation?.latitude && currentLocation?.longitude) {
+                recordGPSUpdate(currentLocation.latitude, currentLocation.longitude)
+              }
+            }}
           />
 
           {/* ═══════════════════════════════════════════════════════════
@@ -1775,12 +1811,10 @@ export default function FieldOfficerPortal() {
               ═══════════════════════════════════════════════════════════ */}
           {activeService === 'freedom_camping' && (
             <>
-              {activeService === 'freedom_camping' && (
-                <h3 className="text-xs font-bold text-green-700 dark:text-green-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <Tent className="h-3.5 w-3.5" />
-                  Freedom Camping Patrol
-                </h3>
-              )}
+              <h3 className="text-xs font-bold text-green-700 dark:text-green-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Tent className="h-3.5 w-3.5" />
+                Freedom Camping Patrol
+              </h3>
               <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 mb-6">
                 {/* ── Detail Scan card ────────────────────────────── */}
                 <Card
@@ -1884,12 +1918,10 @@ export default function FieldOfficerPortal() {
               ═══════════════════════════════════════════════════════════ */}
           {activeService === 'guarding' && (
             <>
-              {activeService === 'guarding' && (
-                <h3 className="text-xs font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <Shield className="h-3.5 w-3.5" />
-                  Guarding
-                </h3>
-              )}
+              <h3 className="text-xs font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Shield className="h-3.5 w-3.5" />
+                Guarding
+              </h3>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
                 {/* QR Checkpoint */}
                 <Card className="hover:shadow-lg transition-shadow border-indigo-200 dark:border-indigo-900 border-2">
@@ -1922,7 +1954,7 @@ export default function FieldOfficerPortal() {
                     <CardDescription>Manage your patrol session</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <Button className="w-full" variant="outline" onClick={() => toast.info('Patrol tracking active via geofence')}>
+                    <Button className="w-full" variant="outline" onClick={() => navigate('/live-patrol')}>
                       Patrol Status
                     </Button>
                   </CardContent>
@@ -2048,12 +2080,10 @@ export default function FieldOfficerPortal() {
               ═══════════════════════════════════════════════════════════ */}
           {activeService === 'parking' && (
             <>
-              {activeService === 'parking' && (
-                <h3 className="text-xs font-bold text-orange-700 dark:text-orange-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <ParkingSquare className="h-3.5 w-3.5" />
-                  Parking Enforcement
-                </h3>
-              )}
+              <h3 className="text-xs font-bold text-orange-700 dark:text-orange-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <ParkingSquare className="h-3.5 w-3.5" />
+                Parking Enforcement
+              </h3>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
                 <Card className="hover:shadow-lg transition-shadow border-orange-200 dark:border-orange-900 border-2">
                   <CardHeader>
@@ -2097,12 +2127,10 @@ export default function FieldOfficerPortal() {
               ═══════════════════════════════════════════════════════════ */}
           {activeService === 'noise' && (
             <>
-              {activeService === 'noise' && (
-                <h3 className="text-xs font-bold text-yellow-700 dark:text-yellow-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <Volume2 className="h-3.5 w-3.5" />
-                  Noise Control
-                </h3>
-              )}
+              <h3 className="text-xs font-bold text-yellow-700 dark:text-yellow-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Volume2 className="h-3.5 w-3.5" />
+                Noise Control
+              </h3>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
                 <Card className="hover:shadow-lg transition-shadow border-yellow-200 dark:border-yellow-900 border-2">
                   <CardHeader>
@@ -2160,7 +2188,7 @@ export default function FieldOfficerPortal() {
                   <CardDescription>Manage your patrol session</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Button className="w-full" variant="outline" onClick={() => toast.info('Patrol tracking active via geofence')}>
+                  <Button className="w-full" variant="outline" onClick={() => navigate('/live-patrol')}>
                     Patrol Status
                   </Button>
                 </CardContent>
@@ -2323,9 +2351,9 @@ export default function FieldOfficerPortal() {
                             <div className="flex items-center gap-2 mb-1 flex-wrap">
                               <span className="font-mono text-xs text-muted-foreground">{job.job_number}</span>
                               <Badge variant="outline" className={`text-xs ${job.priority === 'urgent' ? 'border-red-400 text-red-700 animate-pulse' : 'border-blue-300 text-blue-700'}`}>
-                                {job.priority.toUpperCase()}
+                                {(job.priority ?? 'normal').toUpperCase()}
                               </Badge>
-                              <Badge variant="outline" className="text-xs capitalize">{job.status.replace('_', ' ')}</Badge>
+                              <Badge variant="outline" className="text-xs capitalize">{job.status.replaceAll('_', ' ')}</Badge>
                             </div>
                             <p className="font-semibold text-sm">{job.title}</p>
                             {job.address && (
@@ -2489,7 +2517,10 @@ export default function FieldOfficerPortal() {
             </div>
             <div className="flex justify-between">
               <span>Organisation:</span>
-              <span>{user?.organization_id?.substring(0, 8)}...</span>
+              <span className="font-medium text-right truncate max-w-[60%]">
+                {accessibleOrgs.find(o => o.id === (activeShift?.organization_id ?? employerOrganizationId))?.name
+                  ?? user?.organization_id?.substring(0, 8) + '…'}
+              </span>
             </div>
             <div className="flex justify-between items-center">
               <span>Enforcement Mode:</span>
@@ -2650,27 +2681,29 @@ export default function FieldOfficerPortal() {
                   {/* Enforcement action buttons — only shown for breach + AI complete */}
                   {inBreach && (
                     <div className="flex gap-1 shrink-0">
-                      {/* Warning: shown for all workflows */}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 px-2 text-[11px] border-yellow-400 text-yellow-700 hover:bg-yellow-50"
-                        disabled={issueAction.isPending}
-                        onClick={() =>
-                          issueAction.mutate({
-                            observationId: scan.id,
-                            zoneId: scan.zone_id || '',
-                            plateNumber: scan.plate_number,
-                            actionType: 'warning',
-                          })
-                        }
-                      >
-                        <FileWarning className="h-3 w-3 mr-1" />
-                        Warn
-                      </Button>
-
-                      {/* Notice to Vacate: officer_direct and hybrid */}
+                      {/* Warning: only in officer_direct or hybrid — admin_first handles enforcement server-side */}
                       {(orgWorkflow === 'officer_direct' || orgWorkflow === 'hybrid') && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-[11px] border-yellow-400 text-yellow-700 hover:bg-yellow-50"
+                          disabled={issueAction.isPending}
+                          onClick={() =>
+                            issueAction.mutate({
+                              observationId: scan.id,
+                              zoneId: scan.zone_id || '',
+                              plateNumber: scan.plate_number,
+                              actionType: 'warning',
+                            })
+                          }
+                        >
+                          <FileWarning className="h-3 w-3 mr-1" />
+                          Warn
+                        </Button>
+                      )}
+
+                      {/* Notice to Vacate: officer_direct only */}
+                      {orgWorkflow === 'officer_direct' && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -2710,19 +2743,10 @@ export default function FieldOfficerPortal() {
                     </div>
                   )}
 
-                  {/* Compliant: green tick */}
+                  {/* Compliant: green tick only */}
                   {!inBreach && !isProcessingAI && (
                     <div className="flex items-center gap-1 shrink-0">
                       <CheckCircle className="h-4 w-4 text-green-500" />
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 px-2 text-[11px] border-blue-300 text-blue-700 hover:bg-blue-50"
-                        onClick={() => navigate(`/infringements?observation_id=${encodeURIComponent(scan.id)}`)}
-                      >
-                        <Printer className="h-3 w-3 mr-1" />
-                        Ticket
-                      </Button>
                     </div>
                   )}
                 </div>
@@ -2745,10 +2769,11 @@ export default function FieldOfficerPortal() {
         orgWorkflow={orgWorkflow || 'admin_first'}
         onIssueAction={(p) => issueAction.mutate(p)}
         isIssuingAction={issueAction.isPending}
-        onActivity={() => recordGPSUpdate(
-          currentLocation?.latitude ?? 0,
-          currentLocation?.longitude ?? 0,
-        )}
+        onActivity={() => {
+          if (currentLocation?.latitude && currentLocation?.longitude) {
+            recordGPSUpdate(currentLocation.latitude, currentLocation.longitude)
+          }
+        }}
       />
 
       {/* ── Quick Standalone Report Modal ─────────────────────────────── */}
