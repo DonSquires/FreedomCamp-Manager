@@ -56,7 +56,7 @@
   // Dev server logs are written to ~/vite-dev.log — run `tail -f ~/vite-dev.log`
   // in the terminal if you need to diagnose startup issues.
   // -----------------------------------------------------------------------
-  "postStartCommand": "nohup npm run dev -- --host 0.0.0.0 > ~/vite-dev.log 2>&1 &",
+  "postStartCommand": "bash .devcontainer/postStart.sh",
 
   // Forward the Vite dev server port so you can preview the app in your
   // browser tab directly from Codespaces.
