@@ -137,9 +137,10 @@ export function usePersonsOfInterest(options?: {
 
   const updatePerson = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<PersonOfInterest> & { id: string }) => {
+      const { creator: _creator, ...dbUpdates } = updates
       const { data, error } = await supabase
         .from('persons_of_interest')
-        .update(updates)
+        .update(dbUpdates)
         .eq('id', id)
         .select()
         .single()
@@ -218,9 +219,10 @@ export function useVehiclesOfInterest(options?: {
 
   const updateVehicle = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<VehicleOfInterest> & { id: string }) => {
+      const { creator: _creator, linked_person: _linked_person, ...dbUpdates } = updates
       const { data, error } = await supabase
         .from('vehicles_of_interest')
-        .update(updates)
+        .update(dbUpdates)
         .eq('id', id)
         .select()
         .single()
@@ -307,9 +309,10 @@ export function useTrespassNotices(options?: {
 
   const updateNotice = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<TrespassNotice> & { id: string }) => {
+      const { person: _person, vehicle: _vehicle, zone: _zone, issuer: _issuer, ...dbUpdates } = updates
       const { data, error } = await supabase
         .from('trespass_notices')
-        .update(updates)
+        .update(dbUpdates)
         .eq('id', id)
         .select()
         .single()
