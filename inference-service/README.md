@@ -547,6 +547,22 @@ railway logs
 
 ## **Security**
 
+### **Authentication in Production (Strict Self-Contained Mode)**
+
+> ⚠️ **Known limitation:** When Bob is deployed on Railway with `SELF_CONTAINED_STRICT_EGRESS=true`
+> (the production default), outbound network calls are blocked — including the JWKS fetch required
+> to verify Supabase user JWTs.
+>
+> **In production, Edge Functions must authenticate to Bob using one of:**
+> - `x-inference-api-key: <INFERENCE_API_KEY>` header (recommended)
+> - `x-inference-api-key: <SUPABASE_SERVICE_ROLE_KEY>` header (accepted as equivalent)
+>
+> User-issued JWTs (`Authorization: Bearer <supabase_jwt>`) are **not** accepted when strict egress
+> is enabled. Set `INFERENCE_API_KEY` on the Bob Railway service and in Supabase vault — both must
+> have the same value.
+>
+> See [docs/SECRETS_REGISTRY.md](../docs/SECRETS_REGISTRY.md) for the full secrets setup guide.
+
 ### **CORS**
 
 Only allow requests from your Supabase Edge Function:
