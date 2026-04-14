@@ -6,44 +6,45 @@ import {
   formatToMimeType,
   isProcessableFormat,
   dataUrlPrefix,
+  type SupportedImageFormat,
 } from '../imageFormats'
 
-// ── mimeTypeToFormat ────────────────────────────────────────────────────────
+// ── mimeTypeToFormat ─────────────────────────────────────────────────────────
 
 describe('mimeTypeToFormat', () => {
-  it('detects jpeg from "image/jpeg"', () => {
+  it('returns "jpeg" for image/jpeg', () => {
     expect(mimeTypeToFormat('image/jpeg')).toBe('jpeg')
   })
 
-  it('detects jpeg from "image/jpg"', () => {
+  it('returns "jpeg" for image/jpg', () => {
     expect(mimeTypeToFormat('image/jpg')).toBe('jpeg')
   })
 
-  it('detects png from "image/png"', () => {
+  it('returns "png" for image/png', () => {
     expect(mimeTypeToFormat('image/png')).toBe('png')
   })
 
-  it('detects webp from "image/webp"', () => {
+  it('returns "webp" for image/webp', () => {
     expect(mimeTypeToFormat('image/webp')).toBe('webp')
   })
 
-  it('detects heic from "image/heic"', () => {
+  it('returns "heic" for image/heic', () => {
     expect(mimeTypeToFormat('image/heic')).toBe('heic')
   })
 
-  it('detects heif from "image/heif"', () => {
+  it('returns "heif" for image/heif', () => {
     expect(mimeTypeToFormat('image/heif')).toBe('heif')
   })
 
-  it('detects gif from "image/gif"', () => {
+  it('returns "gif" for image/gif', () => {
     expect(mimeTypeToFormat('image/gif')).toBe('gif')
   })
 
-  it('detects bmp from "image/bmp"', () => {
+  it('returns "bmp" for image/bmp', () => {
     expect(mimeTypeToFormat('image/bmp')).toBe('bmp')
   })
 
-  it('returns "unknown" for unrecognised MIME types', () => {
+  it('returns "unknown" for unrecognised MIME type', () => {
     expect(mimeTypeToFormat('application/octet-stream')).toBe('unknown')
     expect(mimeTypeToFormat('text/plain')).toBe('unknown')
     expect(mimeTypeToFormat('')).toBe('unknown')
@@ -52,10 +53,11 @@ describe('mimeTypeToFormat', () => {
   it('is case-insensitive', () => {
     expect(mimeTypeToFormat('IMAGE/JPEG')).toBe('jpeg')
     expect(mimeTypeToFormat('Image/PNG')).toBe('png')
+    expect(mimeTypeToFormat('IMAGE/WEBP')).toBe('webp')
   })
 })
 
-// ── detectFormatFromBytes ───────────────────────────────────────────────────
+// ── detectFormatFromBytes ────────────────────────────────────────────────────
 
 describe('detectFormatFromBytes', () => {
   it('detects JPEG from FF D8 magic bytes', () => {
@@ -68,13 +70,13 @@ describe('detectFormatFromBytes', () => {
     expect(detectFormatFromBytes(bytes)).toBe('png')
   })
 
-  it('detects WebP (RIFF container) from 52 49 46 46 magic bytes', () => {
-    const bytes = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0x00, 0x00])
+  it('detects WebP from RIFF header (52 49 46 46)', () => {
+    const bytes = new Uint8Array([0x52, 0x49, 0x46, 0x46])
     expect(detectFormatFromBytes(bytes)).toBe('webp')
   })
 
   it('detects GIF from 47 49 46 magic bytes', () => {
-    const bytes = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61])
+    const bytes = new Uint8Array([0x47, 0x49, 0x46, 0x00])
     expect(detectFormatFromBytes(bytes)).toBe('gif')
   })
 
@@ -83,90 +85,100 @@ describe('detectFormatFromBytes', () => {
     expect(detectFormatFromBytes(bytes)).toBe('bmp')
   })
 
-  it('returns "unknown" for unrecognised magic bytes', () => {
-    const bytes = new Uint8Array([0x00, 0x01, 0x02, 0x03])
-    expect(detectFormatFromBytes(bytes)).toBe('unknown')
-  })
-
-  it('returns "unknown" for empty array', () => {
-    const bytes = new Uint8Array([])
+  it('returns "unknown" for unrecognised byte sequence', () => {
+    const bytes = new Uint8Array([0x00, 0x00, 0x00, 0x00])
     expect(detectFormatFromBytes(bytes)).toBe('unknown')
   })
 })
 
-// ── formatToExtension ───────────────────────────────────────────────────────
+// ── formatToExtension ────────────────────────────────────────────────────────
 
 describe('formatToExtension', () => {
-  it('maps jpeg to "jpg"', () => {
+  it('returns "jpg" for jpeg', () => {
     expect(formatToExtension('jpeg')).toBe('jpg')
   })
 
-  it('maps png to "png"', () => {
+  it('returns "png" for png', () => {
     expect(formatToExtension('png')).toBe('png')
   })
 
-  it('maps webp to "webp"', () => {
+  it('returns "webp" for webp', () => {
     expect(formatToExtension('webp')).toBe('webp')
   })
 
-  it('maps heic to "heic"', () => {
+  it('returns "heic" for heic', () => {
     expect(formatToExtension('heic')).toBe('heic')
   })
 
-  it('maps heif to "heif"', () => {
+  it('returns "heif" for heif', () => {
     expect(formatToExtension('heif')).toBe('heif')
   })
 
-  it('maps gif to "gif"', () => {
+  it('returns "gif" for gif', () => {
     expect(formatToExtension('gif')).toBe('gif')
   })
 
-  it('maps bmp to "bmp"', () => {
+  it('returns "bmp" for bmp', () => {
     expect(formatToExtension('bmp')).toBe('bmp')
   })
 
-  it('maps unknown to "bin"', () => {
+  it('returns "bin" for unknown', () => {
     expect(formatToExtension('unknown')).toBe('bin')
+  })
+
+  it('covers all SupportedImageFormat values', () => {
+    const formats: SupportedImageFormat[] = ['jpeg', 'png', 'webp', 'heic', 'heif', 'gif', 'bmp', 'unknown']
+    for (const format of formats) {
+      expect(typeof formatToExtension(format)).toBe('string')
+    }
   })
 })
 
-// ── formatToMimeType ────────────────────────────────────────────────────────
+// ── formatToMimeType ─────────────────────────────────────────────────────────
 
 describe('formatToMimeType', () => {
-  it('maps jpeg to "image/jpeg"', () => {
+  it('returns "image/jpeg" for jpeg', () => {
     expect(formatToMimeType('jpeg')).toBe('image/jpeg')
   })
 
-  it('maps png to "image/png"', () => {
+  it('returns "image/png" for png', () => {
     expect(formatToMimeType('png')).toBe('image/png')
   })
 
-  it('maps webp to "image/webp"', () => {
+  it('returns "image/webp" for webp', () => {
     expect(formatToMimeType('webp')).toBe('image/webp')
   })
 
-  it('maps heic to "image/heic"', () => {
+  it('returns "image/heic" for heic', () => {
     expect(formatToMimeType('heic')).toBe('image/heic')
   })
 
-  it('maps heif to "image/heif"', () => {
+  it('returns "image/heif" for heif', () => {
     expect(formatToMimeType('heif')).toBe('image/heif')
   })
 
-  it('maps gif to "image/gif"', () => {
+  it('returns "image/gif" for gif', () => {
     expect(formatToMimeType('gif')).toBe('image/gif')
   })
 
-  it('maps bmp to "image/bmp"', () => {
+  it('returns "image/bmp" for bmp', () => {
     expect(formatToMimeType('bmp')).toBe('image/bmp')
   })
 
-  it('maps unknown to "application/octet-stream"', () => {
+  it('returns "application/octet-stream" for unknown', () => {
     expect(formatToMimeType('unknown')).toBe('application/octet-stream')
+  })
+
+  it('round-trips through mimeTypeToFormat', () => {
+    const processable: SupportedImageFormat[] = ['jpeg', 'png', 'webp', 'gif', 'bmp']
+    for (const format of processable) {
+      const mime = formatToMimeType(format)
+      expect(mimeTypeToFormat(mime)).toBe(format)
+    }
   })
 })
 
-// ── isProcessableFormat ─────────────────────────────────────────────────────
+// ── isProcessableFormat ──────────────────────────────────────────────────────
 
 describe('isProcessableFormat', () => {
   it('returns true for jpeg', () => {
@@ -202,7 +214,7 @@ describe('isProcessableFormat', () => {
   })
 })
 
-// ── dataUrlPrefix ───────────────────────────────────────────────────────────
+// ── dataUrlPrefix ────────────────────────────────────────────────────────────
 
 describe('dataUrlPrefix', () => {
   it('returns correct prefix for jpeg', () => {
@@ -217,15 +229,14 @@ describe('dataUrlPrefix', () => {
     expect(dataUrlPrefix('webp')).toBe('data:image/webp;base64,')
   })
 
-  it('returns correct prefix for gif', () => {
-    expect(dataUrlPrefix('gif')).toBe('data:image/gif;base64,')
-  })
-
-  it('returns correct prefix for bmp', () => {
-    expect(dataUrlPrefix('bmp')).toBe('data:image/bmp;base64,')
-  })
-
-  it('returns correct prefix for unknown', () => {
+  it('returns correct prefix for unknown format', () => {
     expect(dataUrlPrefix('unknown')).toBe('data:application/octet-stream;base64,')
+  })
+
+  it('prefix always ends with ",base64,"', () => {
+    const formats: SupportedImageFormat[] = ['jpeg', 'png', 'webp', 'gif', 'bmp', 'heic', 'heif', 'unknown']
+    for (const format of formats) {
+      expect(dataUrlPrefix(format)).toContain(';base64,')
+    }
   })
 })

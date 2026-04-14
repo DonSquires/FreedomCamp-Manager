@@ -157,17 +157,17 @@ See [SECRETS_REGISTRY.md](SECRETS_REGISTRY.md) for full details, aliases, and th
 
 ---
 
-### 5. PTT Server (`ppt-server/` — Push-to-Talk WebRTC)
+### 5. PTT Server (`ptt-server/` — Push-to-Talk WebRTC)
 
 | Property | Value |
 |---|---|
 | **Owns** | Real-time voice communication (WebRTC signaling) |
 | **Code Location** | `/ptt-server/` (Node/Express with WebRTC) |
-| **Deploy Authority** | FreedomCamp-Manager (no dedicated workflow yet; see workaround below) |
+| **Deploy Authority** | FreedomCamp-Manager |
 | **Railway Project** | Core/Admin project (shared with proxy + inference) |
 | **Railway Service** | `ptt` or `ptt-server` or `push-to-talk` |
-| **Deploy Workflow** | ❌ None yet — use manual Railway CLI or workaround |
-| **Internal URL** | `http://ptt.railway.internal:4000` (if in same project) |
+| **Deploy Workflow** | `.github/workflows/deploy-ptt-railway.yml` |
+| **Internal URL** | `http://ptt.railway.internal:3002` (if in same project) |
 | **Public URL** | `https://<railway-domain>.railway.app` |
 
 **Required GitHub Actions Secrets (FreedomCamp-Manager):**
@@ -298,33 +298,6 @@ When a service token expires or needs rotation:
 3. Run post-deploy health check to validate token scope
 4. Run wiring audit to confirm Supabase can reach all services
 5. Monitor logs for 30 minutes post-rollover
-
----
-
-## Workarounds for Missing Deploy Workflows
-
-### PTT Server (Push-to-Talk)
-
-**Status:** No dedicated `.github/workflows/deploy-ppt-server-railway.yml` yet.
-
-**Workaround:** Manual Railway CLI or create workaround workflow.
-
-### Create PTT Server Deploy Workflow
-
-If you want automated PTT deploys:
-
-```bash
-# Copy and adapt template:
-cp .github/workflows/deploy-proxy-railway.yml .github/workflows/deploy-ppt-server-railway.yml
-# Edit:
-# - name: Deploy PTT Server to Railway
-# - paths: ['ppt-server/**']
-# - RAILWAY_PTT_SERVICE_ID
-# - cd ppt-server
-# - RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_PTT_SERVICE_ID }}
-```
-
-Then add secrets: `RAILWAY_PTT_SERVICE_ID` to GitHub Actions.
 
 ---
 

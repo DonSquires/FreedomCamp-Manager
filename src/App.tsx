@@ -107,6 +107,7 @@ const TeamChat = lazy(() => import('@/pages/TeamChat'))
 const IntelApprovalQueue = lazy(() => import('@/pages/IntelApprovalQueue'))
 const BobIntakeQueue = lazy(() => import('@/pages/BobIntakeQueue'))
 const BobAssistantStudio = lazy(() => import('@/pages/BobAssistantStudio'))
+const GrandmasterCodingStudio = lazy(() => import('@/pages/GrandmasterCodingStudio'))
 const OpsLivePlanReviewQueue = lazy(() => import('@/pages/OpsLivePlanReviewQueue'))
 const OfficerHomePage = lazy(() => import('@/pages/OfficerHomePage'))
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
@@ -648,6 +649,17 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['grand_master']}>
                   <Platform />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/grandmaster-code-studio"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['grand_master']}>
+                  <GrandmasterCodingStudio />
                 </RoleRoute>
               </ProtectedRoute>
             }
