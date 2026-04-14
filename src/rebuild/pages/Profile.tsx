@@ -73,7 +73,6 @@ export default function CleanProfile() {
         first_name: (form.first_name ?? '').trim() || null,
         last_name: (form.last_name ?? '').trim() || null,
         phone: form.phone || null,
-        badge_number: form.badge_number || null,
       })
       .eq('id', profile.id)
     setSaving(false)

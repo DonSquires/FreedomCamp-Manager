@@ -327,6 +327,10 @@ const intelStore = createIntelStore({
   hmacKey: INTEL_HMAC_KEY,
 });
 
+if (!INTEL_HMAC_KEY) {
+  console.warn('⚠️  INTEL_HMAC_KEY not set — bulletin signature verification disabled. Set INTEL_HMAC_KEY to enforce HMAC signing on /intel/ingest-bulletin.');
+}
+
 function buildRecentIntelContext(limit = 6) {
   const state = intelStore.getState();
   const bulletins = Array.isArray(state?.bulletins) ? state.bulletins.slice(-limit) : [];
@@ -1102,7 +1106,7 @@ function generateHeuristicChatReply(message, context = {}) {
     return 'Supabase: project ref kxwjcupuxnnbnzcgmkoi, AWS ap-southeast-2 (Sydney), PostgreSQL 17. Auth JWT 3600s expiry, token rotation on. RLS on every table — auth.uid() + organization_id. 70+ migrations in supabase/migrations/ (YYYYMMDD_* prefix). Apply: supabase db push. Types: supabase gen types typescript → src/types/database.ts. Connection pooler (Transaction mode) for Edge Functions. Anon key (RLS-enforced) for frontend; service role (bypasses RLS) for Edge Functions only. Use GET /platform/supabase for full knowledge. Use POST /assess/platform with {symptom:"..."} to diagnose.';
   }
   if ((lowered.includes('railway') && !lowered.includes('ptt server')) || lowered.includes('dockerfile') || lowered.includes('oom') || lowered.includes('health check') && lowered.includes('service')) {
-    return 'Railway services: Bob (inference-service/, port 3000, 60s health), Proxy (proxy-server/, port 3000), PTT (ptt-server/, port 3002), Ollama (ollama/, port 3000). All must listen on process.env.PORT. Bob → Ollama via http://ollama.railway.internal:3000 (private network). Ollama pinned v0.20.2 (OLLAMA_HOST=0.0.0.0:3000). Bob needs 1GB+ RAM for ONNX. Tokens: RAILWAY_BOB_TOKEN (Bob+Ollama), RAILWAY_PTT_SERVICE_ID, RAILWAY_PROXY_SERVICE_ID. Deploy via GitHub Actions workflows. Use GET /platform/railway for full knowledge.';
+    return 'Railway services: Bob (inference-service/, port 3000, 60s health), Proxy (proxy-server/, port 3000), PTT (ptt-server/, port 3002), Ollama (ollama/, port 11434). All must listen on process.env.PORT. Bob → Ollama via http://ollama.railway.internal:11434 (private network). Ollama pinned v0.20.2 (OLLAMA_HOST=0.0.0.0:11434). Bob needs 1GB+ RAM for ONNX. Tokens: RAILWAY_BOB_TOKEN (Bob+Ollama), RAILWAY_TOKEN (Proxy+PTT). Deploy via GitHub Actions workflows. Use GET /platform/railway for full knowledge.';
   }
   if (lowered.includes('github action') || lowered.includes('workflow') || lowered.includes('ci/cd') || lowered.includes('codespace')) {
     return 'GitHub: 25 Actions workflows in .github/workflows/. Deploy: frontend (Vercel), Bob/Ollama/PTT/Proxy (Railway), mobile (EAS), Edge Functions (Supabase). Database: db-push.yml (requires @DonSquires approval). Ops crons: Bob feedback 03:47 NZST, self-learning pretrain 04:21 NZST, intel every 6h. Codespaces: Node 22, Bun, Supabase CLI, Deno (ports: 5173/3000/3002/8080). bun.lock must be committed or Railway deploy fails. Bob sync: sync-bob-repo.yml → DonSquires/Bob. Use GET /platform/github for full knowledge.';
@@ -1305,14 +1309,117 @@ app.post('/self-heal/bug-report', inferenceRateLimit, requireInferenceAuth, asyn
       return res.status(400).json({ error: 'report.summary must be a non-empty string' });
     }
 
-    const plan = buildSelfHealingPlan(report, {
+    // Build the heuristic plan first — used as fallback and to populate bug_type/summary.
+    const heuristicPlan = buildSelfHealingPlan(report, {
       selfContainedMode: SELF_CONTAINED_MODE,
     });
+
+    // When Ollama is available, enhance the analysis with LLM root-cause reasoning.
+    if (OLLAMA_ENABLED && ollamaCircuitBreaker.allowRequest()) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+      try {
+        recordEgressEvent('ollama', 'attempted', 'self-heal/bug-report');
+        const systemPrompt = [
+          'You are Bob, an AI assistant for FieldOps Manager — a field operations platform for freedom camping enforcement in New Zealand.',
+          'Your task: perform root-cause analysis on a user-submitted bug report and return a structured JSON object.',
+          'Rules: stay concise; do not invent reproduction steps not implied by the report; use NZ English.',
+          'The JSON must conform exactly to the shape in the user message.',
+        ].join(' ');
+
+        const userPrompt = JSON.stringify({
+          task: 'root_cause_analysis',
+          report: {
+            summary: String(report.summary || '').slice(0, 800),
+            description: String(report.description || '').slice(0, 1200),
+            severity: report.severity || 'medium',
+            issue_type: report.issue_type || 'bug',
+            current_page: report.current_page || null,
+            steps_to_reproduce: String(report.steps_to_reproduce || '').slice(0, 600),
+            actual_behavior: String(report.actual_behavior || '').slice(0, 600),
+            expected_behavior: String(report.expected_behavior || '').slice(0, 600),
+          },
+          heuristic_bug_type: heuristicPlan.bug_type,
+          expectedResponseShape: {
+            bug_type: 'one of: auth | database | ui | network | performance | data | patrol | alpr | ptt | configuration | unknown',
+            root_cause: 'concise 1-2 sentence root cause hypothesis',
+            confidence: 'high | medium | low',
+            suggested_fix: 'short actionable description of the fix',
+            affected_files: ['list of likely affected source files or edge functions, max 5'],
+            risk_score: 'integer 1-10 (10 = highest risk)',
+            requires_human_approval: 'boolean',
+          },
+        });
+
+        const ollamaResp = await safeFetch(`${OLLAMA_BASE_URL}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            model: OLLAMA_MODEL,
+            stream: false,
+            format: 'json',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt },
+            ],
+          }),
+        }, 'ollama');
+
+        if (ollamaResp.ok) {
+          const payload = await ollamaResp.json();
+          const content = payload?.message?.content;
+          if (content && typeof content === 'string') {
+            let parsed;
+            try {
+              parsed = JSON.parse(content);
+            } catch {
+              // LLM returned malformed JSON despite format:json directive — fall through to heuristic.
+              ollamaCircuitBreaker.recordSuccess(); // The request itself succeeded; don't penalise circuit breaker.
+              console.warn('⚠️  Self-heal Ollama response was not valid JSON — using heuristic fallback.');
+              parsed = null;
+            }
+
+            if (parsed) {
+              ollamaCircuitBreaker.recordSuccess();
+
+              // Merge Ollama analysis into the heuristic plan, keeping heuristic fields as fallback.
+              const enhancedPlan = {
+                ...heuristicPlan,
+                bug_type: parsed.bug_type || heuristicPlan.bug_type,
+                root_cause: parsed.root_cause || heuristicPlan.root_cause,
+                confidence: parsed.confidence || 'medium',
+                suggested_fix: parsed.suggested_fix || heuristicPlan.suggested_fix,
+                affected_files: Array.isArray(parsed.affected_files) ? parsed.affected_files : [],
+                risk_score: Number.isInteger(parsed.risk_score) ? parsed.risk_score : heuristicPlan.risk_score,
+                requires_human_approval: typeof parsed.requires_human_approval === 'boolean'
+                  ? parsed.requires_human_approval
+                  : heuristicPlan.requires_human_approval,
+                analysis_provider: 'ollama',
+              };
+
+              return res.json({
+                success: true,
+                self_healing_enabled: true,
+                plan: enhancedPlan,
+              });
+            }
+          }
+        } else {
+          ollamaCircuitBreaker.recordFailure(new Error(`HTTP ${ollamaResp.status}`));
+        }
+      } catch (ollamaError) {
+        ollamaCircuitBreaker.recordFailure(ollamaError);
+        console.warn('⚠️  Self-heal Ollama analysis failed, falling back to heuristic:', ollamaError.message);
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
 
     return res.json({
       success: true,
       self_healing_enabled: true,
-      plan,
+      plan: { ...heuristicPlan, analysis_provider: 'heuristic' },
     });
   } catch (error) {
     console.error('Self-heal endpoint error:', error);

@@ -394,7 +394,6 @@ export default function ParkingOfficerPortal() {
           status:              'issued',
           officer_id:          user!.id,
           officer_name:        user!.full_name ?? user!.email,
-          notes:               infForm.notes || null,
         })
       if (error) throw error
 

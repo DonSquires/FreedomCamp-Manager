@@ -73,7 +73,7 @@ export async function subscribeWebPush(userId: string): Promise<boolean> {
     const { error } = await supabase
       .from('user_profiles')
       .update({
-        push_subscription:        subJson,
+        push_subscription:        subJson as any,
         push_token:               'web-push',
         push_token_updated_at:    new Date().toISOString(),
       })

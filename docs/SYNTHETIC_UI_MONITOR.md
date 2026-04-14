@@ -15,6 +15,7 @@ The synthetic UI monitor is a scheduled GitHub Actions workflow that exercises t
      - Detects Vercel deployment protection via three signals: (a) 401/403 with "vercel" in the page content, (b) final URL redirected to a `vercel.com` auth/SSO page, or (c) `x-vercel-id` response header present. Any detected protection is treated as a **soft pass** for the HTTP/Supabase checks.
 
 - **Health evaluation:** marks the run unhealthy if any check fails (after applying Vercel soft-pass logic). An additional fallback soft-pass activates for the frontend check if the browser rendered the page successfully but the direct HTTP check returned 401/403 — this handles Vercel auth redirect flows where the browser follows the redirect (final status 200) while `curl` sees the initial 401/403.
+    - Writes the JSON result to a temp file; bash parses it and writes `vercel_protection` as a step output (more reliable than writing from inside Node).
 
 ## Failure handling
 - When unhealthy **and** `SUPABASE_SERVICE_ROLE_KEY` + `SYNTHETIC_MONITOR_USER_ID` are set, the workflow inserts a `bug_reports` row via Supabase REST:

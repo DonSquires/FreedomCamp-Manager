@@ -40,7 +40,6 @@ interface CreateIncidentInput {
 
 interface UpdateIncidentInput {
   status?: string
-  resolution_notes?: string
   retention_hold?: boolean
 }
 
