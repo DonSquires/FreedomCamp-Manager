@@ -8,15 +8,14 @@ The synthetic UI monitor is a scheduled GitHub Actions workflow that exercises t
 - **URL resolution:** uses `FRONTEND_URL` by default, or the `frontend_url_override` input when dispatched manually.
 - **Checks performed (in order):**
   1. **HTTP 200 check** against the frontend URL.
-  2. **Supabase reachability** via the REST endpoint with the anon key.
+  2. **Supabase reachability** via the REST root endpoint (`/rest/v1/`) with the anon key. This returns the OpenAPI schema (HTTP 200) without depending on any specific table or RLS policy.
   3. **Playwright render check** (headless Chromium) that:
      - Loads the login page and captures JS/console errors (filters common noise).
      - Detects error overlays and multiple JS errors.
-     - Detects Vercel protection (401/403 plus Vercel wording) and treats it as a **soft pass** for the HTTP/Supabase checks to avoid noisy alerts when protection is enabled.
-     - Writes the JSON result to a temp file; bash parses it and writes `vercel_protection` as a step output (more reliable than writing from inside Node).
+     - Detects Vercel deployment protection via three signals: (a) 401/403 with "vercel" in the page content, (b) final URL redirected to a `vercel.com` auth/SSO page, or (c) `x-vercel-id` response header present. Any detected protection is treated as a **soft pass** for the HTTP/Supabase checks.
 
-- **Health evaluation:** marks the run unhealthy if any check fails (after applying the Vercel soft-pass logic).
-  - Vercel protection is detected either from the Playwright step's explicit `vercel_protection` output **or** by inferring it from a 401/403 frontend HTTP response when the Playwright render itself passed — this fallback prevents false-positive bug reports even if the Node output write fails (root cause of incident e9911b5d).
+- **Health evaluation:** marks the run unhealthy if any check fails (after applying Vercel soft-pass logic). An additional fallback soft-pass activates for the frontend check if the browser rendered the page successfully but the direct HTTP check returned 401/403 — this handles Vercel auth redirect flows where the browser follows the redirect (final status 200) while `curl` sees the initial 401/403.
+    - Writes the JSON result to a temp file; bash parses it and writes `vercel_protection` as a step output (more reliable than writing from inside Node).
 
 ## Failure handling
 - When unhealthy **and** `SUPABASE_SERVICE_ROLE_KEY` + `SYNTHETIC_MONITOR_USER_ID` are set, the workflow inserts a `bug_reports` row via Supabase REST:
