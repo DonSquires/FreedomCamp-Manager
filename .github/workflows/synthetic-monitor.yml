@@ -150,7 +150,9 @@ jobs:
         if: steps.check-secrets.outputs.secrets_present == 'true'
         id: check-playwright
         run: |
-          node - <<'EOF'
+          # Capture stdout so the shell can parse the JSON result and reliably
+          # write step outputs (console.warn/error still stream via stderr).
+          PLAYWRIGHT_JSON=$(node - <<'EOF'
           const { chromium } = require('playwright');
           const fs = require('fs');
           const FRONTEND_URL = process.env.FRONTEND_URL;
@@ -250,7 +252,19 @@ jobs:
             }
           })();
           EOF
-          if [ $? -ne 0 ]; then
+          )
+          NODE_EXIT=$?
+
+          # Echo the captured JSON so it still appears in the workflow log.
+          echo "$PLAYWRIGHT_JSON"
+
+          # Write vercel_protection from the shell by parsing the captured JSON.
+          # This is more reliable than relying solely on the Node.js subprocess
+          # writing directly to GITHUB_OUTPUT from within the heredoc.
+          VERCEL_PROT=$(printf '%s' "$PLAYWRIGHT_JSON" | jq -r 'if .vercelProtection then "true" else "false" end' 2>/dev/null || echo "false")
+          echo "vercel_protection=${VERCEL_PROT}" >> "$GITHUB_OUTPUT"
+
+          if [ "$NODE_EXIT" -ne 0 ]; then
             echo "passed=false" >> "$GITHUB_OUTPUT"
           else
             echo "passed=true" >> "$GITHUB_OUTPUT"
@@ -269,6 +283,18 @@ jobs:
           playwright_vercel="${{ steps.check-playwright.outputs.vercel_protection }}"
           frontend_code="${{ steps.check-frontend.outputs.http_code }}"
           supabase_code="${{ steps.check-supabase.outputs.http_code }}"
+
+          # Belt-and-suspenders: if the vercel_protection step output was not
+          # propagated (e.g. the Node.js write to GITHUB_OUTPUT inside the
+          # heredoc was skipped) but the frontend returned 401/403 while
+          # Playwright itself passed, infer Vercel deployment protection so the
+          # soft-pass logic still applies and avoids a false-positive alert.
+          if [ "$playwright_vercel" != "true" ] && [ "$playwright_ok" = "true" ]; then
+            if [ "$frontend_code" = "401" ] || [ "$frontend_code" = "403" ]; then
+              playwright_vercel="true"
+              echo "::notice::Vercel deployment protection inferred from HTTP ${frontend_code} with passing Playwright render; applying soft-pass"
+            fi
+          fi
 
           # If the site is intentionally behind Vercel protection, treat
           # the HTTP status checks as a soft pass to avoid noisy alerts.
