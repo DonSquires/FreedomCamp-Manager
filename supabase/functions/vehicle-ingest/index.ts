@@ -50,13 +50,6 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
   }
 }
 
-function getCorsHeaders(_req?: Request) {
-  return {
-    ...getCorsHeaders(req),
-    "Access-Control-Max-Age": "3600",
-  };
-}
-
 async function sha256Hash(data: Uint8Array): Promise<string> {
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
