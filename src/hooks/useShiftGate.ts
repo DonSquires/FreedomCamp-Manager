@@ -53,6 +53,12 @@ export interface ShiftGateState {
    */
   geofenceViolation: boolean
   /**
+   * The ID of the currently open officer_shifts record, or null if none.
+   * Exposed so pages outside the FieldOfficerPortal (e.g. OfficerHomePage)
+   * can end a stale active shift.
+   */
+  activeShiftId: string | null
+  /**
    * Portal feature keys the admin has enabled for the officer's rostered zone.
    * Empty array = all features are permitted (unconfigured / legacy zone).
    * Non-empty = only the listed keys are accessible.
@@ -190,6 +196,7 @@ export function useShiftGate(): ShiftGateState {
       gateApplies: false,
       isRostered: true,
       hasActiveShift: true,
+      activeShiftId: null,
       isInsideGeofence: true,
       isPatrolBased: false,
       canAccessPortal: true,
@@ -214,6 +221,7 @@ export function useShiftGate(): ShiftGateState {
     gateApplies,
     isRostered,
     hasActiveShift,
+    activeShiftId: activeShiftRecord?.id ?? null,
     isInsideGeofence,
     isPatrolBased,
     canAccessPortal,

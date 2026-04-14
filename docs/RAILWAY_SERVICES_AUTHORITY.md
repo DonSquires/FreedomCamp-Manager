@@ -1,13 +1,52 @@
 # Railway Services Authority Map
 
-**Updated:** April 5, 2026  
-**Purpose:** Single source of truth for Railway service ownership, required secrets, and deployment authority.
+**Updated:** April 14, 2026  
+**Purpose:** Single source of truth for Railway service ownership and deployment authority.
+
+> **For the complete secrets reference** (every secret name, alias, storage location, and setup checklist), see:
+> **[docs/SECRETS_REGISTRY.md](SECRETS_REGISTRY.md)**
 
 This doc defines:
 - Which GitHub repo owns each Railway service
 - Which secrets each service needs
 - Where secrets should be stored
 - What constitutes a valid deployment
+
+---
+
+## Required Secrets — Quick Reference
+
+| Secret | GitHub Actions | Supabase Vault | Railway: Bob | Railway: Proxy | Railway: PTT |
+|---|:---:|:---:|:---:|:---:|:---:|
+| `RAILWAY_BOB_TOKEN` | ✅ | | | | |
+| `RAILWAY_TOKEN` | ✅ | | | | |
+| `RAILWAY_BOB_SERVICE_ID` | ✅ | | | | |
+| `RAILWAY_OLLAMA_SERVICE_ID` | ✅ | | | | |
+| `RAILWAY_PROXY_SERVICE_ID` | ✅ | | | | |
+| `VITE_SUPABASE_URL` | ✅ | | | | |
+| `VITE_SUPABASE_ANON_KEY` | ✅ | | | | |
+| `SUPABASE_ACCESS_TOKEN` | ✅ | | | | |
+| `SUPABASE_PROJECT_REF` | ✅ | | | | |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | | | ✅ | ✅ |
+| `SUPABASE_DB_PASSWORD` | ✅ | | | | |
+| `INFERENCE_API_KEY` | ✅ | ✅ | ✅ | | |
+| `VERCEL_TOKEN` | ✅ | | | | |
+| `BOB_SYNC_PAT` | ✅ | | | | |
+| `BOB_SERVICE_URL` | ✅ | | | | |
+| `PROXY_SERVER_URL` | ✅ | ✅ | | | |
+| `PTT_SERVER_URL` | ✅ | ✅ | | | |
+| `PTT_PROXY_SECRET` | ✅ | ✅ | | | ✅ (`PROXY_SECRET`) |
+| `INTEL_HMAC_KEY` | ✅ | | ✅ | | |
+| `OLLAMA_BASE_URL` | | | ✅ | | |
+| `NZSCV_API_KEY` | | | | ✅ | |
+| `PTT_JWT_SECRET` | | | | | ✅ |
+
+See [SECRETS_REGISTRY.md](SECRETS_REGISTRY.md) for full details, aliases, and the setup checklist.
+
+> **⚠️ Auth limitation in strict self-contained mode:** When `SELF_CONTAINED_STRICT_EGRESS=true` on Bob,
+> user JWT verification (JWKS) is disabled because it requires an outbound network call.
+> Edge Functions **must** authenticate to Bob using `INFERENCE_API_KEY` in the `x-inference-api-key` header
+> (or `SUPABASE_SERVICE_ROLE_KEY`). User JWTs are **not** accepted by Bob in production.
 
 ---
 

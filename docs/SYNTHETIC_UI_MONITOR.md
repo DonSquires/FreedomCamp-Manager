@@ -13,10 +13,10 @@ The synthetic UI monitor is a scheduled GitHub Actions workflow that exercises t
      - Loads the login page and captures JS/console errors (filters common noise).
      - Detects error overlays and multiple JS errors.
      - Detects Vercel protection (401/403 plus Vercel wording) and treats it as a **soft pass** for the HTTP/Supabase checks to avoid noisy alerts when protection is enabled.
-     - Writes the JSON result to a temp file (`/tmp/playwright_result.json`); bash parses it and writes `vercel_protection` as a step output (more reliable than writing from inside Node, which can silently fail if the async event loop exits early).
+     - Writes the JSON result to a temp file; bash parses it and writes `vercel_protection` as a step output (more reliable than writing from inside Node).
 
 - **Health evaluation:** marks the run unhealthy if any check fails (after applying the Vercel soft-pass logic).
-  - Vercel protection is detected either from the Playwright step's explicit `vercel_protection` output **or** by inferring it from a 401/403 frontend HTTP response when the Playwright render itself passed — this fallback prevents false-positive bug reports even if the Node output write fails (root cause of incident e9911b5d / 6bdf32a4).
+  - Vercel protection is detected either from the Playwright step's explicit `vercel_protection` output **or** by inferring it from a 401/403 frontend HTTP response when the Playwright render itself passed — this fallback prevents false-positive bug reports even if the Node output write fails (root cause of incident e9911b5d).
 
 ## Failure handling
 - When unhealthy **and** `SUPABASE_SERVICE_ROLE_KEY` + `SYNTHETIC_MONITOR_USER_ID` are set, the workflow inserts a `bug_reports` row via Supabase REST:
