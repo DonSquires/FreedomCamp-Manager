@@ -174,27 +174,49 @@ Copy the generated UUID — you'll need it when creating officer accounts.
 
 ## Part 2 — Deploy Edge Functions
 
-### 2.1 Set Supabase secrets
+### 2.1 Set Supabase Edge Function secrets
 
-These secrets are used by edge functions. Set them all before deploying:
+> **Full secrets reference:** [docs/SECRETS_REGISTRY.md](SECRETS_REGISTRY.md) is the single source of truth
+> for every secret name, alias, storage location, and the setup checklist.  The variables below are
+> the minimum subset needed to get edge functions running.
+
+Use the Supabase CLI to set secrets before deploying:
 
 ```bash
 supabase secrets set \
+  INFERENCE_SERVICE_URL="https://YOUR_BOB_RAILWAY_URL" \
+  INFERENCE_API_KEY="YOUR_SHARED_API_KEY" \
+  PROXY_SERVER_URL="https://YOUR_RAILWAY_PROXY_URL" \
+  PTT_SERVER_URL="https://YOUR_RAILWAY_PTT_URL" \
+  PTT_PROXY_SECRET="YOUR_PTT_SHARED_SECRET" \
   PLATERECOGNIZER_TOKEN="YOUR_PLATE_RECOGNIZER_API_KEY" \
-  NZSCV_PROXY_URL="https://YOUR_RAILWAY_PROXY_URL" \
-  NZSCV_PROXY_SECRET="YOUR_SHARED_SECRET" \
-  RAILWAY_PROXY_URL="https://YOUR_RAILWAY_PROXY_URL" \
-  INFERENCE_SERVICE_URL="https://YOUR_RAILWAY_INFERENCE_URL" \
   PARKPOW_API_TOKEN="YOUR_PARKPOW_TOKEN" \
-  OPENWEATHER_API_KEY="YOUR_OPENWEATHER_KEY" \
-  EXPO_ACCESS_TOKEN="YOUR_EXPO_ACCESS_TOKEN"
+  VAPID_PUBLIC_KEY="YOUR_VAPID_PUBLIC_KEY" \
+  VAPID_PRIVATE_KEY="YOUR_VAPID_PRIVATE_KEY" \
+  VAPID_SUBJECT="mailto:admin@fcmanager.co.nz" \
+  SMTP_HOST="smtp.zoho.com" \
+  SMTP_PORT="465" \
+  SMTP_USERNAME="you@yourdomain.com" \
+  SMTP_PASSWORD="YOUR_APP_SPECIFIC_PASSWORD" \
+  SMTP_FROM_EMAIL="you@yourdomain.com" \
+  ENVIRONMENT="production"
+```
+
+To generate the required random secrets:
+```bash
+# Shared API key (Bob ↔ Edge Functions ↔ GitHub Actions)
+openssl rand -hex 32   # → INFERENCE_API_KEY
+
+# PTT shared secret (PTT server ↔ ptt-signaling-token edge function)
+openssl rand -hex 32   # → PTT_PROXY_SECRET
+
+# VAPID key pair for web push notifications
+node scripts/generate-vapid-keys.js
 ```
 
 To get API keys:
 - **Plate Recognizer**: https://platerecognizer.com — free tier includes 2,500 lookups/month
-- **OpenWeather**: https://openweathermap.org/api — free tier sufficient
 - **ParkPow**: https://parkpow.com — optional, for parking enforcement platform sync
-- **Expo**: https://expo.dev/accounts/YOUR_USERNAME/settings/access-tokens
 
 ### 2.2 Deploy all edge functions
 
@@ -223,46 +245,111 @@ supabase functions invoke check-nzscv-status --body '{"plate_number": "TEST123"}
 
 ## Part 3 — Railway Services
 
-### 3.1 proxy-server (NZSCV static IP)
+> **Full Railway setup reference:** [docs/BOB_PRODUCTION_RAILWAY_SETUP.md](BOB_PRODUCTION_RAILWAY_SETUP.md) and
+> [docs/RAILWAY_SERVICES_AUTHORITY.md](RAILWAY_SERVICES_AUTHORITY.md).  The sections below give a brief
+> overview; consult those docs for authoritative variable lists and deployment authority.
+
+FieldOps Manager uses **two Railway projects**:
+
+| Project | Services | GitHub Actions token secret |
+|---|---|---|
+| **Bob** | `bob` (inference) + `ollama` (LLM) | `RAILWAY_BOB_TOKEN` |
+| **Core** | `proxy-server` + `ptt-server` | `RAILWAY_TOKEN` |
+
+Bob and Ollama **must be in the same Railway project** so they can communicate via
+`railway.internal` private networking (`SELF_CONTAINED_STRICT_EGRESS=true` blocks
+public-internet fallback).
+
+### 3.1 Bob Inference Service + Ollama LLM
+
+1. Go to [https://railway.app](https://railway.app) → **New Project → Deploy from GitHub repo**
+2. Select `DonSquires/Bob` (Bob's canonical deploy repo, auto-synced from `inference-service/`)
+3. After deploy, add a second service inside the same project:
+   - New Service → Docker image → `ollama/ollama`
+4. Configure environment variables for the **Bob service**:
+
+```
+INFERENCE_API_KEY=YOUR_SHARED_API_KEY   # openssl rand -hex 32
+SUPABASE_URL=https://YOUR_REF.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
+OLLAMA_BASE_URL=http://ollama.railway.internal:11434
+OLLAMA_MODEL=llama3.1:8b
+CHAT_PROVIDER=ollama
+TABULAR_NLP_PROVIDER=ollama
+SELF_CONTAINED_MODE=true
+REQUIRE_SELF_CONTAINED_MODE=true
+SELF_CONTAINED_STRICT_EGRESS=true
+NODE_ENV=production
+```
+
+5. Configure environment variables for the **Ollama service**:
+
+```
+OLLAMA_MODEL=llama3.1:8b
+OLLAMA_KEEP_ALIVE=24h
+OLLAMA_NO_CLOUD=true
+OLLAMA_ORIGINS=*
+OLLAMA_HOST=0.0.0.0:11434
+```
+
+6. Note the Bob public Railway URL → add as GitHub Actions secrets `BOB_SERVICE_URL` and `INFERENCE_SERVICE_URL`
+
+Verify Bob is healthy:
+```bash
+curl https://YOUR_BOB_URL/health   # should return {"status":"ok","models":[...]}
+```
+
+### 3.2 Proxy Server (NZSCV static IP)
 
 The NZSCV API requires a whitelisted static IP. Railway provides this.
 
-1. Go to [https://railway.app](https://railway.app) → **New Project → Deploy from GitHub repo**
-2. Select your fork/repo → choose the `proxy-server/` service directory
-   - Or: create a new Railway project and push the `proxy-server/` folder
+1. In the **Core Railway project** → New Service → GitHub repo → `proxy-server/` root directory
+2. Under Railway → proxy-server → **Settings → Networking** → enable **Static IP**
+   - Note the static IP → provide this to NZSCV/PGDB for whitelisting
+3. Configure environment variables:
 
-Configure environment variables in Railway → proxy-server service:
 ```
-PORT=3001
-NZSCV_API_URL=https://api.nzscv.govt.nz   (confirm with NZSCV)
-NZSCV_API_KEY=YOUR_NZSCV_KEY
-MOTORWEB_API_URL=https://api.motorweb.co.nz
-MOTORWEB_USERNAME=YOUR_MOTORWEB_USERNAME
-MOTORWEB_PASSWORD=YOUR_MOTORWEB_PASSWORD
-PROXY_SECRET=YOUR_SHARED_SECRET            (must match NZSCV_PROXY_SECRET above)
-```
-
-3. Under Railway → proxy-server → **Settings → Networking**:
-   - Enable **Static IP** (costs ~$5/month extra)
-   - Note the static IP address → provide this to NZSCV for whitelisting
-   - Note the Railway public URL (e.g. `https://freedomcamp-proxy.up.railway.app`)
-     → set this as `NZSCV_PROXY_URL` in Supabase secrets
-
-### 3.2 inference-service (ONNX AI)
-
-1. In the same Railway project → **New Service → GitHub repo**
-2. Root directory: `inference-service/`
-3. Environment variables:
-```
-PORT=3002
+PROXY_SECRET=YOUR_PTT_PROXY_SECRET       # must match Supabase vault PTT_PROXY_SECRET
+NZSCV_API_KEY=YOUR_NZSCV_AUTHORIZATION_HEADER
+NZSCV_ID_KEY=YOUR_NZSCV_IDENTIFIER_HEADER
+NZSCV_ENDPOINT_URL=https://www.nzscv.co.nz/api/rest/scv/v1/vehicleregistrationinfo
+MOTORWEB_API_KEY=YOUR_MOTORWEB_KEY
+MOTORWEB_ID_KEY=YOUR_MOTORWEB_IDENTIFIER
+MOTORWEB_BASE_URL=https://robot.motorweb.co.nz
+SMTP_HOST=smtp.zoho.com
+SMTP_PORT=465
+SMTP_USERNAME=you@yourdomain.com
+SMTP_PASSWORD=YOUR_APP_SPECIFIC_PASSWORD
+SMTP_FROM_EMAIL=you@yourdomain.com
+SMTP_FROM_NAME=FieldOps Manager
+SITE_URL=https://fcmanager.co.nz
 NODE_ENV=production
 ```
-4. Note the Railway public URL → set as `INFERENCE_SERVICE_URL` in Supabase secrets
+
+4. Note the Railway public URL → add as GitHub Actions secret `PROXY_SERVER_URL`
+
+### 3.3 PTT Signaling Server (Push-to-Talk)
+
+1. In the **Core Railway project** → New Service → GitHub repo → `ptt-server/` root directory
+2. Configure environment variables:
+
+```
+PROXY_SECRET=YOUR_PTT_PROXY_SECRET       # same value as PROXY_SERVER_URL's PROXY_SECRET above
+PTT_JWT_SECRET=YOUR_JWT_SIGNING_SECRET   # openssl rand -hex 32
+SUPABASE_URL=https://YOUR_REF.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
+NODE_ENV=production
+MAX_PARTICIPANTS_PER_CHANNEL=50
+```
+
+3. Note the Railway public URL → add as GitHub Actions secret `PTT_SERVER_URL`
+4. Run the `set-ptt-secret.yml` workflow to automatically write `PTT_SERVER_URL` and `PTT_PROXY_SECRET`
+   into the Supabase vault.
 
 Verify both services are healthy:
 ```bash
 curl https://YOUR_PROXY_URL/health        # should return {"status":"ok"}
-curl https://YOUR_INFERENCE_URL/health    # should return {"status":"ok","models":["yolo","mobilenet"]}
+curl https://YOUR_PTT_URL/health          # should return {"status":"ok"}
 ```
 
 ---
@@ -508,22 +595,31 @@ Compliance (NZ Privacy Act 2020):
 
 ## Quick Reference — Environment Variables
 
+> For the complete list of every secret (with aliases, storage locations, and the
+> setup checklist) see [docs/SECRETS_REGISTRY.md](SECRETS_REGISTRY.md).
+
 | Variable | Where it goes | Required |
 |---|---|---|
-| `VITE_SUPABASE_URL` | Web app `.env` + Vercel | ✅ |
-| `VITE_SUPABASE_ANON_KEY` | Web app `.env` + Vercel | ✅ |
+| `VITE_SUPABASE_URL` | Web app `.env` + Vercel env vars | ✅ |
+| `VITE_SUPABASE_ANON_KEY` | Web app `.env` + Vercel env vars | ✅ |
+| `VITE_VAPID_PUBLIC_KEY` | Web app `.env` + Vercel env vars | For push notifications |
+| `VITE_TURNSTILE_SITE_KEY` | Web app `.env` + Vercel env vars | For CAPTCHA on public endpoints |
 | `EXPO_PUBLIC_SUPABASE_URL` | Mobile app `.env` | ✅ |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Mobile app `.env` | ✅ |
-| `PLATERECOGNIZER_TOKEN` | Supabase secrets | ✅ |
-| `NZSCV_PROXY_URL` | Supabase secrets | ✅ |
-| `NZSCV_PROXY_SECRET` | Supabase secrets + Railway proxy | ✅ |
-| `INFERENCE_SERVICE_URL` | Supabase secrets | ✅ |
-| `OPENWEATHER_API_KEY` | Supabase secrets | ✅ |
-| `PARKPOW_API_TOKEN` | Supabase secrets | Optional |
-| `EXPO_ACCESS_TOKEN` | Supabase secrets | For push notif |
-| `NZSCV_API_KEY` | Railway proxy env | ✅ |
-| `MOTORWEB_USERNAME` | Railway proxy env | Optional |
-| `MOTORWEB_PASSWORD` | Railway proxy env | Optional |
+| `INFERENCE_SERVICE_URL` | Supabase Edge Function secrets | ✅ (for AI features) |
+| `INFERENCE_API_KEY` | Supabase secrets + Railway Bob vars + GitHub Actions | ✅ |
+| `PROXY_SERVER_URL` | Supabase Edge Function secrets | ✅ (for NZSCV lookups) |
+| `PTT_SERVER_URL` | Supabase Edge Function secrets | ✅ (for PTT) |
+| `PTT_PROXY_SECRET` | Supabase secrets + Railway PTT `PROXY_SECRET` | ✅ (for PTT) |
+| `PLATERECOGNIZER_TOKEN` | Supabase Edge Function secrets | ✅ (for ALPR) |
+| `PARKPOW_API_TOKEN` | Supabase Edge Function secrets | Optional |
+| `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` + `VAPID_SUBJECT` | Supabase Edge Function secrets | For push notifications |
+| `SMTP_HOST` + `SMTP_USERNAME` + `SMTP_PASSWORD` + `SMTP_FROM_EMAIL` | Supabase Edge Function secrets | For email |
+| `TURNSTILE_SECRET_KEY` | Supabase Edge Function secrets | For CAPTCHA in production |
+| `NZSCV_API_KEY` + `NZSCV_ID_KEY` | Railway proxy service vars | ✅ |
+| `MOTORWEB_API_KEY` + `MOTORWEB_ID_KEY` | Railway proxy service vars | Optional |
+| `OLLAMA_BASE_URL` + `OLLAMA_MODEL` | Railway Bob service vars | ✅ (for LLM) |
+| `PTT_JWT_SECRET` | Railway PTT service vars + Supabase secrets | ✅ (for PTT) |
 
 ---
 
