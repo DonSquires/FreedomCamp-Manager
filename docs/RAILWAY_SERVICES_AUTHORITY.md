@@ -157,17 +157,17 @@ See [SECRETS_REGISTRY.md](SECRETS_REGISTRY.md) for full details, aliases, and th
 
 ---
 
-### 5. PTT Server (`ppt-server/` — Push-to-Talk WebRTC)
+### 5. PTT Server (`ptt-server/` — Push-to-Talk WebRTC)
 
 | Property | Value |
 |---|---|
 | **Owns** | Real-time voice communication (WebRTC signaling) |
 | **Code Location** | `/ptt-server/` (Node/Express with WebRTC) |
-| **Deploy Authority** | FreedomCamp-Manager (no dedicated workflow yet; see workaround below) |
+| **Deploy Authority** | FreedomCamp-Manager |
 | **Railway Project** | Core/Admin project (shared with proxy + inference) |
 | **Railway Service** | `ptt` or `ptt-server` or `push-to-talk` |
-| **Deploy Workflow** | ❌ None yet — use manual Railway CLI or workaround |
-| **Internal URL** | `http://ptt.railway.internal:4000` (if in same project) |
+| **Deploy Workflow** | `.github/workflows/deploy-ptt-railway.yml` |
+| **Internal URL** | `http://ptt.railway.internal:3002` (if in same project) |
 | **Public URL** | `https://<railway-domain>.railway.app` |
 
 **Required GitHub Actions Secrets (FreedomCamp-Manager):**
