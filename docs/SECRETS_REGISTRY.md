@@ -24,6 +24,7 @@ Secrets live in exactly one of three places:
 4. [Railway Service Environment Variables](#railway-service-environment-variables)
 5. [Alias / Fallback Map](#alias--fallback-map)
 6. [Secrets Checklist](#secrets-checklist)
+7. [CLI Bootstrap (GitHub Secrets)](#cli-bootstrap-github-secrets)
 
 ---
 
@@ -54,6 +55,35 @@ The absolute minimum to get the system running. Every item must be set before an
 | `BOB_SERVICE_URL` | Set after first Bob deploy | Bob's public Railway URL; enables post-deploy health checks |
 | `PROXY_SERVER_URL` | Set after first Proxy deploy | Proxy's public Railway URL |
 | `PTT_SERVER_URL` | Set after first PTT deploy | PTT server's public Railway URL |
+
+## CLI Bootstrap (GitHub Secrets)
+
+Use the repository script to set canonical GitHub Actions secrets in one pass.
+
+### Prerequisites
+
+- A GitHub token with permission to manage repository Actions secrets
+- `gh` authenticated with that token (`GH_TOKEN` or `GITHUB_TOKEN` in env)
+
+### Steps
+
+1. Copy the template:
+	- `cp docs/actions-secrets-template.env .env.actions.local`
+2. Fill in values in `.env.actions.local`.
+3. Dry run validation:
+	- `GH_TOKEN=<token> ./scripts/set-actions-secrets.sh --repo DonSquires/FreedomCamp-Manager --file .env.actions.local --dry-run`
+4. Apply to repository secrets:
+	- `GH_TOKEN=<token> ./scripts/set-actions-secrets.sh --repo DonSquires/FreedomCamp-Manager --file .env.actions.local`
+
+The bootstrap script safely parses `KEY=VALUE` lines (without executing shell code from the file), sets canonical secrets, and also writes compatibility alias secrets for workflows that still consume legacy names.
+
+### Environment-scoped secrets (optional)
+
+If you use GitHub Environments, target one explicitly:
+
+- `GH_TOKEN=<token> ./scripts/set-actions-secrets.sh --repo DonSquires/FreedomCamp-Manager --file .env.actions.local --env production`
+
+The script sets canonical names and skips optional keys when blank.
 
 ### Step 2 — Supabase Edge Function Secrets
 

@@ -153,6 +153,37 @@ jobs:
             return 1
           }
 
+          wait_for_chat_circuit () {
+            local attempt=1
+            local max_attempts=8
+
+            while [[ "$attempt" -le "$max_attempts" ]]; do
+              local health
+              health="$(curl -sS -m 30 "$HEALTH_URL" || true)"
+              local state
+              state="$(echo "$health" | jq -r '.ollama_circuit_breaker.state // "unknown"')"
+              local failures
+              failures="$(echo "$health" | jq -r '.ollama_circuit_breaker.consecutiveFailures // 0')"
+
+              echo "Circuit check ${attempt}/${max_attempts}: state=${state} failures=${failures}" | tee -a "$LOG_FILE"
+
+              if [[ "$state" != "open" ]]; then
+                return 0
+              fi
+
+              if [[ "$attempt" -lt "$max_attempts" ]]; then
+                echo "Ollama circuit is open; waiting 10s before retrying..." | tee -a "$LOG_FILE"
+                sleep 10
+              fi
+
+              attempt=$((attempt + 1))
+            done
+
+            echo "Ollama circuit remained open after wait window" | tee -a "$LOG_FILE"
+            return 1
+          }
+
+          wait_for_chat_circuit
           snapshot_health "before-chat"
 
           RESP1="$(retry_chat_prompt 'Give me a short, human update for officers about an intermittent PTT outage and immediate next steps.')"

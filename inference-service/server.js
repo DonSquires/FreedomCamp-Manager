@@ -152,7 +152,24 @@ const CHAT_PROVIDER_RAW = (process.env.CHAT_PROVIDER || 'ollama').toLowerCase();
 const CHAT_PROVIDER = normalizeProvider(CHAT_PROVIDER_RAW, 'heuristic');
 const CHAT_TIMEOUT_MS = Number(process.env.CHAT_TIMEOUT_MS || 30000);
 const TABULAR_NLP_TIMEOUT_MS = Number(process.env.TABULAR_NLP_TIMEOUT_MS || 2500);
-const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
+function normalizeOllamaBaseUrl(rawValue) {
+  const fallback = 'http://127.0.0.1:11434';
+  const candidate = String(rawValue || fallback).trim();
+  try {
+    const parsed = new URL(candidate);
+    // Accept common misconfiguration patterns and normalize to host root.
+    parsed.pathname = parsed.pathname.replace(/\/+$/, '');
+    if (parsed.pathname === '/api' || parsed.pathname === '/api/chat' || parsed.pathname === '/api/tags') {
+      parsed.pathname = '';
+    }
+    return parsed.toString().replace(/\/+$/, '');
+  } catch {
+    return fallback;
+  }
+}
+
+const OLLAMA_BASE_URL = normalizeOllamaBaseUrl(process.env.OLLAMA_BASE_URL);
+const OLLAMA_API_BASE_URL = `${OLLAMA_BASE_URL}/api`;
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1:8b';
 const REQUIRED_OLLAMA_BASE_URL = 'http://ollama.railway.internal:11434';
 const DEPLOY_SIGNATURE = 'bob-self-contained-hardlock-v1';
@@ -906,7 +923,7 @@ async function analyzeTabularDataWithOllama(sampleRows) {
   const timeout = setTimeout(() => controller.abort(), TABULAR_NLP_TIMEOUT_MS);
   try {
     recordEgressEvent('ollama', 'attempted', 'analyzeTabularDataWithOllama');
-    const response = await safeFetch(`${OLLAMA_BASE_URL}/api/chat`, {
+    const response = await safeFetch(`${OLLAMA_API_BASE_URL}/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1160,7 +1177,7 @@ async function generateChatReplyWithOllama(message, history = [], context = {}) 
   const trainingFocusedQuery = isTrainingFocusedQuery(message);
   try {
     recordEgressEvent('ollama', 'attempted', 'chat response generation');
-    const response = await safeFetch(`${OLLAMA_BASE_URL}/api/chat`, {
+    const response = await safeFetch(`${OLLAMA_API_BASE_URL}/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1351,7 +1368,7 @@ app.post('/self-heal/bug-report', inferenceRateLimit, requireInferenceAuth, asyn
           },
         });
 
-        const ollamaResp = await safeFetch(`${OLLAMA_BASE_URL}/api/chat`, {
+        const ollamaResp = await safeFetch(`${OLLAMA_API_BASE_URL}/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           signal: controller.signal,
@@ -3930,7 +3947,7 @@ loadModels().then(() => {
     // Non-blocking: the server is already listening and can serve requests.
     // -----------------------------------------------------------------------
     if (OLLAMA_ENABLED) {
-      const probeUrl = `${OLLAMA_BASE_URL}/api/tags`;
+      const probeUrl = `${OLLAMA_API_BASE_URL}/tags`;
       console.log(`🔍 Probing Ollama at ${probeUrl} …`);
       const probeController = new AbortController();
       const probeTimeout = setTimeout(() => probeController.abort(), 5000);

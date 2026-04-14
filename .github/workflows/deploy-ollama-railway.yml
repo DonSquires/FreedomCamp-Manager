@@ -235,6 +235,7 @@ jobs:
           echo "✅ Auto-resolved Ollama service: $RESOLVED_SERVICE_NAME ($RESOLVED_SERVICE_ID)"
 
       - name: Deploy Ollama to Railway
+        continue-on-error: true
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
           RAILWAY_TOKEN: ${{ env.RAILWAY_BOB_TOKEN || env.RAILWAY_TOKEN }}

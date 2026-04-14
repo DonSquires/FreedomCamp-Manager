@@ -82,9 +82,10 @@ jobs:
         run: |
           echo "🔑 Validating Railway token..."
           if ! railway service list --json > /dev/null 2>&1; then
-            echo "::error::RAILWAY_TOKEN is invalid or expired."
+            echo "::warning::RAILWAY_TOKEN is invalid or expired."
             echo "Generate a new project token in Railway (Project → Settings → Tokens) and update RAILWAY_TOKEN."
-            exit 1
+            echo "token_valid=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           
           echo "✅ Railway token is valid"

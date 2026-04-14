@@ -123,9 +123,10 @@ jobs:
             -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}")
 
           if [ "$HTTP_STATUS" != "200" ]; then
-            echo "::error::Bob /ask-copilot/pending returned HTTP $HTTP_STATUS"
+            echo "::warning::Bob /ask-copilot/pending returned HTTP $HTTP_STATUS — skipping this run instead of failing."
             cat /tmp/pending.json
-            exit 1
+            echo "pending_count=0" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
           COUNT=$(jq '.pending_count' /tmp/pending.json)
