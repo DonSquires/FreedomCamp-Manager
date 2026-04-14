@@ -216,7 +216,13 @@ jobs:
 
               console.log(JSON.stringify(result));
 
-              // Expose additional diagnostics to later steps
+              // Write result to a temp file so bash can reliably re-export it;
+              // writing from within an async Node process can silently fail if
+              // the event loop exits before the write flushes (root cause of
+              // incident e9911b5d).
+              fs.writeFileSync('/tmp/playwright_result.json', JSON.stringify(result));
+
+              // Also write directly to GITHUB_OUTPUT as belt-and-suspenders.
               if (process.env.GITHUB_OUTPUT) {
                 const sanitizeValue = (value) => String(value).replace(/\r?\n/g, ' ');
                 const outputs = {
@@ -250,7 +256,17 @@ jobs:
             }
           })();
           EOF
-          if [ $? -ne 0 ]; then
+          NODE_EXIT=$?
+          # Parse the JSON result file for a reliable vercel_protection value;
+          # this covers the edge case where Node's async GITHUB_OUTPUT write
+          # never completed (e.g., an exception exited the event loop early).
+          if [ -f /tmp/playwright_result.json ]; then
+            VP=$(jq -r '.vercelProtection // false' /tmp/playwright_result.json)
+            if [ "$VP" = "true" ]; then
+              echo "vercel_protection=true" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+          if [ $NODE_EXIT -ne 0 ]; then
             echo "passed=false" >> "$GITHUB_OUTPUT"
           else
             echo "passed=true" >> "$GITHUB_OUTPUT"
@@ -269,6 +285,17 @@ jobs:
           playwright_vercel="${{ steps.check-playwright.outputs.vercel_protection }}"
           frontend_code="${{ steps.check-frontend.outputs.http_code }}"
           supabase_code="${{ steps.check-supabase.outputs.http_code }}"
+
+          # Fallback: infer Vercel protection when the explicit step output was
+          # not set but Playwright passed and the frontend returned 401/403.
+          # This guards against false-positive bug reports if the Node
+          # GITHUB_OUTPUT write was never reached (e.g., early async exit).
+          if [ "$playwright_vercel" != "true" ] && [ "$playwright_ok" = "true" ]; then
+            if [ "$frontend_code" = "401" ] || [ "$frontend_code" = "403" ]; then
+              playwright_vercel="true"
+              echo "::notice::Inferred Vercel protection from HTTP ${frontend_code} + Playwright pass (fallback); applying soft pass"
+            fi
+          fi
 
           # If the site is intentionally behind Vercel protection, treat
           # the HTTP status checks as a soft pass to avoid noisy alerts.
