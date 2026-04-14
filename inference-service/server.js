@@ -54,7 +54,7 @@ const { createIntelStore } = require('./lib/intel-updates');
 const { analyzeComponentCode, analyzeScreenshot, assessColourPalette, identifyLayoutPattern, DESIGN_SYSTEM } = require('./lib/ui-assessment');
 const { traceUIElement, getStackMap, findRoute, getDebuggingSteps, ROUTE_MAP, DEBUGGING_PLAYBOOK } = require('./lib/stack-navigation');
 const { checkLegalCompliance, getLegalFramework, getLegalDetail, AI_LEGAL_GUARDRAILS } = require('./lib/nz-legal-framework');
-const { getPlatformKnowledge, diagnosePlatformIssue, getHybridStackOverview } = require('./lib/platform-knowledge');
+const { getPlatformKnowledge, diagnosePlatformIssue, getHybridStackOverview, RAILWAY_SERVICES_AUDIT } = require('./lib/platform-knowledge');
 const { createKnowledgeRequestStore } = require('./lib/knowledge-requests');
 
 const app = express();
@@ -1031,7 +1031,8 @@ function generateHeuristicChatReply(message, context = {}) {
     return 'FieldOps uses Supabase Postgres with Row Level Security on every table. Key tables: vehicles, observations, zones, breaches, enforcement_actions, patrols, users, organizations. Types are generated in src/types/database.ts. Migrations in supabase/migrations/ (70+ files). Edge Functions in supabase/functions/ (70+ functions). All queries go through the typed Supabase client in src/lib/supabase.ts.';
   }
   if (lowered.includes('railway') || lowered.includes('deploy') || lowered.includes('ci') || lowered.includes('github action')) {
-    return 'FieldOps deployment: Frontend deploys to Supabase via deploy-frontend.yml. Bob (inference-service) deploys to Railway via deploy-bob-railway.yml. Ollama deploys to Railway via deploy-ollama-railway.yml. Edge Functions deploy via deploy-edge-functions.yml. DB migrations via db-run-migrations.yml. All in .github/workflows/. Railway uses project tokens validated with "railway service list --json". bun.lock must be regenerated when deps change or frozen-lockfile fails.';
+    const auditSummary = RAILWAY_SERVICES_AUDIT.known_issues_resolved.map(i => `[${i.id}] ${i.title} — ${i.fix_applied}`).join(' | ');
+    return `FieldOps Railway services: Bob (inference-service/, deploy-bob-railway.yml), Proxy (proxy-server/, deploy-proxy-railway.yml), PTT (ptt-server/, deploy-ptt-railway.yml), Ollama (ollama/, deploy-ollama-railway.yml). Bob and Ollama share one Railway project for private networking (OLLAMA_BASE_URL=http://ollama.railway.internal:11434). Production Bob must have CHAT_PROVIDER=ollama, TABULAR_NLP_PROVIDER=ollama, SELF_CONTAINED_MODE=true. Check config via GET /health. Use GET /platform/railway-audit for full audit findings (${RAILWAY_SERVICES_AUDIT.known_issues_resolved.length} resolved issues). Quick summary: ${auditSummary}`;
   }
   if (lowered.includes('hook') || lowered.includes('query') || lowered.includes('mutation') || lowered.includes('tanstack') || lowered.includes('zustand')) {
     return 'Data flow: Components use TanStack Query hooks (src/hooks/useXxx.ts) for server state. useQuery fetches data with automatic caching. useMutation writes data and invalidates queries on success. Zustand stores (src/stores/) hold auth state (authStore.ts) and global filters (globalFiltersStore.ts). The Supabase client is typed with Database types from src/types/database.ts.';
@@ -1825,13 +1826,22 @@ app.post('/assess/platform', inferenceRateLimit, requireInferenceAuth, async (re
     }
 
     const result = diagnosePlatformIssue(symptom);
+
+    // Attach relevant Railway audit checks when the issue is Railway-related
+    let railwayAuditChecks = null;
+    const loweredSymptom = symptom.toLowerCase();
+    if (result.platform === 'railway' || loweredSymptom.includes('railway') || loweredSymptom.includes('ollama') || loweredSymptom.includes('chat_provider') || loweredSymptom.includes('tabular') || loweredSymptom.includes('wiring audit') || loweredSymptom.includes('self-contained')) {
+      railwayAuditChecks = RAILWAY_SERVICES_AUDIT.assessment_checks;
+    }
+
     return res.json({
       success: true,
       symptom,
       platform: result.platform,
       diagnosis: result.diagnosis,
       checks: result.checks,
-      tip: 'For deeper knowledge use GET /platform/:key. To queue a research question for Copilot use POST /ask-copilot.',
+      ...(railwayAuditChecks ? { railway_audit_checks: railwayAuditChecks } : {}),
+      tip: 'For deeper knowledge use GET /platform/:key. For full Railway audit use GET /platform/railway-audit. To queue a research question for Copilot use POST /ask-copilot.',
     });
   } catch (error) {
     console.error('Platform assessment error:', error);
@@ -1843,13 +1853,17 @@ app.get('/platform/stack', rateLimit({ windowMs: 60_000, max: 60, standardHeader
   return res.json({ success: true, overview: getHybridStackOverview() });
 });
 
+app.get('/platform/railway-audit', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  return res.json({ success: true, audit: RAILWAY_SERVICES_AUDIT });
+});
+
 app.get('/platform/:key', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
   const key = String(req.params.key || '').toLowerCase();
   const knowledge = getPlatformKnowledge(key);
   if (!knowledge) {
     return res.status(404).json({
       error: 'Unknown platform key',
-      valid_keys: ['supabase', 'railway', 'github', 'vercel', 'expo', 'domain', 'dns', 'email', 'smtp', 'hybrid', 'stack'],
+      valid_keys: ['supabase', 'railway', 'railway-audit', 'github', 'vercel', 'expo', 'domain', 'dns', 'email', 'smtp', 'hybrid', 'stack'],
     });
   }
   return res.json({ success: true, platform: key, knowledge });

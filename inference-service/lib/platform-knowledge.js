@@ -143,7 +143,7 @@ const RAILWAY_KNOWLEDGE = {
       port: 3002,
       health_path: '/health',
       health_timeout: 30,
-      deploy_workflow: '.github/workflows/deploy-railway.yml',
+      deploy_workflow: '.github/workflows/deploy-ptt-railway.yml',
       secrets_needed: ['PTT_JWT_SECRET', 'PROXY_SECRET', 'MAX_PARTICIPANTS_PER_CHANNEL', 'TURN_URL', 'TURN_USERNAME', 'TURN_CREDENTIAL'],
       notes: 'WebSocket signaling server for PTT. In-memory state (single instance). PROXY_SECRET must match Supabase Edge Function secret.',
     },
@@ -152,12 +152,12 @@ const RAILWAY_KNOWLEDGE = {
       root: 'ollama/',
       dockerfile: 'ollama/Dockerfile',
       railway_json: 'ollama/railway.json',
-      port: 3000,
+      port: 11434,
       health_path: '/api/tags',
-      health_timeout: 30,
+      health_timeout: 300,
       deploy_workflow: '.github/workflows/deploy-ollama-railway.yml',
-      internal_url: 'http://ollama.railway.internal:3000',
-      notes: 'Ollama pinned at 0.20.2. Listens on port 3000 (not default 11434). OLLAMA_HOST=0.0.0.0:3000. OLLAMA_ORIGINS=*. Bob accesses via Railway private network. OLLAMA_KEEP_ALIVE=24h.',
+      internal_url: 'http://ollama.railway.internal:11434',
+      notes: 'Ollama pinned at 0.20.2. Listens on port 11434 (default). OLLAMA_HOST=0.0.0.0:11434. OLLAMA_ORIGINS=*. Bob accesses via Railway private network at http://ollama.railway.internal:11434. OLLAMA_KEEP_ALIVE=24h.',
     },
   },
   deployment: {
@@ -166,7 +166,7 @@ const RAILWAY_KNOWLEDGE = {
     env_vars: 'railway variables set KEY=value. Or Railway Dashboard → Service → Variables.',
     health_check: 'Railway calls healthcheckPath after deploy. If it returns non-200 within healthcheckTimeout seconds, deploy is marked failed.',
     restart_policy: 'ON_FAILURE with 3 max retries. Service restarts automatically on crash.',
-    private_networking: 'Services in same Railway project communicate via *.railway.internal URLs (no egress to internet needed). Bob → Ollama uses http://ollama.railway.internal:3000.',
+    private_networking: 'Services in same Railway project communicate via *.railway.internal URLs (no egress to internet needed). Bob → Ollama uses http://ollama.railway.internal:11434.',
     scaling: 'numReplicas: 1 (default). In-memory state (PTT, Bob self-learning) means multi-instance requires Redis for shared state.',
     ports: 'Railway auto-assigns PORT env var. Services must listen on process.env.PORT or Railway will not route traffic.',
     domains: 'Railway auto-assigns *.railway.app domains. Custom domains can be added via dashboard.',
@@ -193,7 +193,7 @@ const GITHUB_KNOWLEDGE = {
     'deploy-frontend.yml': 'Deploys React/Vite admin to Vercel. Triggers on main push or workflow_dispatch. Supports production/preview environments. Uses VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID.',
     'deploy-bob-railway.yml': 'Deploys Bob inference service to Railway. Triggers on inference-service/ changes. 60s health wait. Auto-resolves service ID via GraphQL if not found.',
     'deploy-ollama-railway.yml': 'Deploys Ollama LLM to Railway. Manual trigger only (deliberate). Optional model pull post-deploy. Shares RAILWAY_BOB_TOKEN with Bob service.',
-    'deploy-railway.yml': 'Deploys ptt-server to Railway. Triggers on ptt-server/ changes. 30s health wait.',
+    'deploy-railway.yml': 'Deploys ONNX inference service (core/fallback project) to Railway. Triggers on inference-service/ changes. Uses RAILWAY_INFERENCE_SERVICE_ID. Legacy workflow — main Bob deploy uses deploy-bob-railway.yml.',
     'deploy-proxy-railway.yml': 'Deploys proxy-server to Railway. Triggers on proxy-server/ changes. 45s health wait.',
     'deploy-mobile.yml': 'Deploys mobile app via Expo EAS. Requires EXPO_TOKEN, EXPO_PROJECT_ID. Builds for android/ios/all. OTA updates via EAS Update.',
     'deploy-edge-functions.yml': 'Deploys 47 Supabase Edge Functions. Triggers on supabase/functions/ changes. JWT verification auto-detected via PUBLIC_FUNCTIONS list.',
@@ -546,7 +546,156 @@ const HYBRID_STACK_KNOWLEDGE = {
 };
 
 // ---------------------------------------------------------------------------
-// Platform diagnostic categories
+// RAILWAY SERVICES AUDIT KNOWLEDGE
+// Teaches Bob how to assess, detect and explain Railway config issues.
+// Used by POST /assess/platform and GET /platform/railway.
+// ---------------------------------------------------------------------------
+
+const RAILWAY_SERVICES_AUDIT = {
+  summary: 'Self-assessment rules for verifying all Railway service configurations are correct and internally consistent.',
+  last_audited: '2026-04-14',
+  audit_outcome: 'All issues resolved — see findings below for reference.',
+
+  known_issues_resolved: [
+    {
+      id: 'RAIL-001',
+      severity: 'high',
+      service: 'Bob (inference-service)',
+      file: 'inference-service/RAILWAY_DEPLOY.md',
+      title: 'RAILWAY_DEPLOY.md "Bob Self-Contained Mode" table listed CHAT_PROVIDER and TABULAR_NLP_PROVIDER as "heuristic"',
+      root_cause: 'Documentation was written with conservative local-dev defaults instead of production values. Production Bob uses Ollama for both, which is the whole point of deploying it.',
+      fix_applied: 'Updated table to show CHAT_PROVIDER=ollama, TABULAR_NLP_PROVIDER=ollama, and added OLLAMA_BASE_URL=http://ollama.railway.internal:11434 and OLLAMA_MODEL=llama3.1:8b to the required variables.',
+      validation: 'ops-railway-wiring-audit.yml checks CHAT_PROVIDER=ollama and TABULAR_NLP_PROVIDER=ollama. Will now pass with correct production config.',
+    },
+    {
+      id: 'RAIL-002',
+      severity: 'high',
+      service: 'Bob (inference-service)',
+      file: 'inference-service/RAILWAY_DEPLOY.md',
+      title: 'OLLAMA_BASE_URL in Optional table showed wrong port (3000 instead of 11434)',
+      root_cause: 'Ollama listens on its default port 11434, not 3000. The wrong port causes Bob to silently fail Ollama connectivity.',
+      fix_applied: 'Corrected to http://ollama.railway.internal:11434 in both RAILWAY_DEPLOY.md and all platform-knowledge.js references.',
+      validation: 'Bob health endpoint GET /health shows capabilities.chat_local_ollama_enabled=true when Ollama is reachable.',
+    },
+    {
+      id: 'RAIL-003',
+      severity: 'medium',
+      service: 'PTT Server (ptt-server)',
+      file: 'docs/RAILWAY_SERVICES_AUTHORITY.md',
+      title: 'RAILWAY_SERVICES_AUTHORITY.md PTT section said "❌ No dedicated workflow yet" and listed wrong internal port (4000 vs 3002)',
+      root_cause: 'Documentation not updated after deploy-ptt-railway.yml was created. PTT server listens on 3002 by default (not 4000).',
+      fix_applied: 'Updated PTT row: deploy_workflow → deploy-ptt-railway.yml, internal URL port → 3002. Removed entire "Workarounds" section.',
+      validation: 'push to main touching ptt-server/ now triggers deploy-ptt-railway.yml automatically.',
+    },
+    {
+      id: 'RAIL-004',
+      severity: 'medium',
+      service: 'Bob (inference-service)',
+      file: 'inference-service/Dockerfile',
+      title: 'Bob Dockerfile HEALTHCHECK hardcoded port 3000 instead of reading process.env.PORT',
+      root_cause: 'PTT and Proxy Dockerfiles correctly use process.env.PORT, but Bob was hardcoded. Railway assigns $PORT dynamically.',
+      fix_applied: 'Changed HEALTHCHECK CMD to use process.env.PORT || 3000.',
+      validation: 'Healthcheck now respects Railway-assigned PORT env var.',
+    },
+    {
+      id: 'RAIL-005',
+      severity: 'medium',
+      service: 'PTT Server (ptt-server)',
+      file: 'ptt-server/.env.example',
+      title: 'ptt-server/.env.example missing NODE_ENV=production',
+      root_cause: 'PTT server has HTTPS-only enforcement middleware that checks x-forwarded-proto header, but only activates when NODE_ENV=production. Without it, the check is silently skipped in Railway deployments that use the .env.example as a template.',
+      fix_applied: 'Added NODE_ENV=production to ptt-server/.env.example.',
+      validation: 'ptt-server enforces HTTPS in production. HTTP requests return 400 (not silently allowed).',
+    },
+    {
+      id: 'RAIL-006',
+      severity: 'low',
+      service: 'Proxy Server (proxy-server)',
+      file: '.github/workflows/deploy-proxy-railway.yml',
+      title: 'Post-deploy health check grepped for the string "proxy" — fragile and imprecise',
+      root_cause: 'The check worked incidentally (the service name "NZSCV Proxy Server" contains "proxy") but was not intentional. Any service name change would silently break the check.',
+      fix_applied: 'Changed grep to check for "status":"ok" (the actual field the health endpoint returns).',
+      validation: 'Health check now validates the semantic payload rather than a substring match.',
+    },
+    {
+      id: 'RAIL-007',
+      severity: 'low',
+      service: 'Bob (inference-service) — platform-knowledge.js',
+      file: 'inference-service/lib/platform-knowledge.js',
+      title: 'platform-knowledge.js had wrong Ollama port (3000 vs 11434) and wrong PTT deploy workflow',
+      root_cause: 'Bob\'s own knowledge base had stale data from an earlier experimental Ollama config that remapped the port. Also deploy-railway.yml was incorrectly described as deploying PTT (it deploys the legacy inference service).',
+      fix_applied: 'Corrected Ollama port to 11434 in services.ollama, deployment.private_networking, and PLATFORM_DIAGNOSTICS.railway. Fixed PTT deploy_workflow to deploy-ptt-railway.yml. Corrected deploy-railway.yml description to say it deploys the legacy ONNX inference service.',
+      validation: 'Bob now provides accurate Railway topology when asked. POST /assess/platform returns correct service config.',
+    },
+  ],
+
+  assessment_checks: [
+    {
+      check_id: 'CHK-01',
+      description: 'Verify Bob production env has CHAT_PROVIDER=ollama',
+      how_to_verify: 'GET <BOB_URL>/health → check config.CHAT_PROVIDER === "ollama". If "heuristic", update Railway Variables on Bob service.',
+      expected: 'ollama',
+      if_wrong: 'Set CHAT_PROVIDER=ollama in Bob Railway service Variables. Bob will fall back to heuristic if Ollama is unreachable anyway.',
+    },
+    {
+      check_id: 'CHK-02',
+      description: 'Verify Bob production env has TABULAR_NLP_PROVIDER=ollama',
+      how_to_verify: 'GET <BOB_URL>/health → check config.TABULAR_NLP_PROVIDER === "ollama". Validated by ops-railway-wiring-audit.yml.',
+      expected: 'ollama',
+      if_wrong: 'Set TABULAR_NLP_PROVIDER=ollama in Bob Railway service Variables.',
+    },
+    {
+      check_id: 'CHK-03',
+      description: 'Verify Bob can reach Ollama via private network',
+      how_to_verify: 'GET <BOB_URL>/health → check capabilities.chat_local_ollama_enabled === true.',
+      expected: true,
+      if_wrong: 'Check OLLAMA_BASE_URL=http://ollama.railway.internal:11434 on Bob. Check Bob and Ollama are in the same Railway project. Check Ollama service is running (GET <OLLAMA_URL>/api/tags returns 200).',
+    },
+    {
+      check_id: 'CHK-04',
+      description: 'Verify wiring audit passes (runs every hour)',
+      how_to_verify: 'GitHub → Actions → Ops Railway Wiring Audit → most recent run should be green.',
+      expected: 'passing',
+      if_wrong: 'Read the audit job logs. Common failures: CHAT_PROVIDER not ollama, URL mismatch (GitHub secret vs Supabase edge function), service down.',
+    },
+    {
+      check_id: 'CHK-05',
+      description: 'Verify DEPLOY_SIGNATURE is set to bob-self-contained-hardlock-v1',
+      how_to_verify: 'GET <BOB_URL>/health → check config.DEPLOY_SIGNATURE === "bob-self-contained-hardlock-v1". This is hardcoded in server.js:158 and cannot be overridden.',
+      expected: 'bob-self-contained-hardlock-v1',
+      if_wrong: 'If wrong, the image is outdated. Redeploy Bob from the latest DonSquires/Bob main branch.',
+    },
+    {
+      check_id: 'CHK-06',
+      description: 'Verify SELF_CONTAINED_MODE is true',
+      how_to_verify: 'GET <BOB_URL>/health → check config.SELF_CONTAINED_MODE === true.',
+      expected: true,
+      if_wrong: 'Set SELF_CONTAINED_MODE=true in Bob Railway service Variables. Without this Bob may make outbound internet calls.',
+    },
+    {
+      check_id: 'CHK-07',
+      description: 'Verify OPENAI_API_KEY is NOT set (Bob is self-contained)',
+      how_to_verify: 'GET <BOB_URL>/health → check config.OPENAI_API_KEY_SET === false.',
+      expected: false,
+      if_wrong: 'Remove OPENAI_API_KEY from Bob Railway Variables. Self-contained mode must not leak to OpenAI.',
+    },
+    {
+      check_id: 'CHK-08',
+      description: 'Verify PTT server deploy workflow is deploy-ptt-railway.yml (not deploy-railway.yml)',
+      how_to_verify: 'Check .github/workflows/deploy-ptt-railway.yml exists and has paths: [\'ptt-server/**\']. deploy-railway.yml deploys the legacy ONNX inference service.',
+      expected: 'deploy-ptt-railway.yml',
+      if_wrong: 'This was a documentation issue now resolved. The correct workflow is deploy-ptt-railway.yml.',
+    },
+  ],
+
+  how_bob_should_respond: {
+    when_asked_about_railway: 'Report the 4 services (Bob, Proxy, PTT, Ollama), their projects, deploy workflows, and key env vars. Always note that Ollama uses port 11434 and private networking URL is http://ollama.railway.internal:11434.',
+    when_asked_to_assess: 'Run through assessment_checks CHK-01 through CHK-08. Ask the user to share GET /health response from Bob for the config fields. Report each check result and remediation if needed.',
+    when_asked_to_fix: 'Guide user to Railway Dashboard → Bob service → Variables tab. Provide exact key=value pairs to add/update. Then trigger redeploy.',
+  },
+};
+
+// ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
 
 const PLATFORM_DIAGNOSTICS = {
@@ -574,7 +723,7 @@ const PLATFORM_DIAGNOSTICS = {
       { step: 'Check PORT binding', detail: 'Service MUST listen on process.env.PORT. Railway sets this automatically. Hardcoded ports will not receive traffic.' },
       { step: 'Check OOM errors', detail: 'Railway logs: "OOM" or "Killed". Upgrade to higher RAM plan in Railway Dashboard → service → Settings → Resources.' },
       { step: 'Check RAILWAY_TOKEN', detail: 'If deploy workflow fails: go to Railway Dashboard → Account → Tokens. Regenerate and update GitHub secret RAILWAY_BOB_TOKEN.' },
-      { step: 'Check private networking', detail: 'Bob → Ollama must use http://ollama.railway.internal:3000. Both services must be in the same Railway project.' },
+      { step: 'Check private networking', detail: 'Bob → Ollama must use http://ollama.railway.internal:11434. Both services must be in the same Railway project.' },
       { step: 'Check Docker build', detail: 'Review Dockerfile. Bob uses multi-stage: Python ONNX export → Node builder → production. Build errors in Stage 0 prevent model files from being present.' },
     ],
   },
@@ -701,6 +850,7 @@ function getHybridStackOverview() {
 module.exports = {
   SUPABASE_KNOWLEDGE,
   RAILWAY_KNOWLEDGE,
+  RAILWAY_SERVICES_AUDIT,
   GITHUB_KNOWLEDGE,
   VERCEL_KNOWLEDGE,
   EXPO_KNOWLEDGE,

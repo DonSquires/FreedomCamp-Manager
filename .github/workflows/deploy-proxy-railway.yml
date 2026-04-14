@@ -134,8 +134,8 @@ jobs:
             exit 1
           fi
 
-          if ! echo "$BODY" | grep -qi 'proxy'; then
-            echo "::warning::Proxy health response did not include expected marker. Body preview: ${BODY:0:200}"
+          if ! echo "$BODY" | grep -qiE '"status"\s*:\s*"ok"'; then
+            echo "::warning::Proxy health response did not include expected status:ok marker. Body preview: ${BODY:0:200}"
           else
             echo "✅ Proxy health check passed"
           fi

@@ -301,33 +301,6 @@ When a service token expires or needs rotation:
 
 ---
 
-## Workarounds for Missing Deploy Workflows
-
-### PTT Server (Push-to-Talk)
-
-**Status:** No dedicated `.github/workflows/deploy-ppt-server-railway.yml` yet.
-
-**Workaround:** Manual Railway CLI or create workaround workflow.
-
-### Create PTT Server Deploy Workflow
-
-If you want automated PTT deploys:
-
-```bash
-# Copy and adapt template:
-cp .github/workflows/deploy-proxy-railway.yml .github/workflows/deploy-ppt-server-railway.yml
-# Edit:
-# - name: Deploy PTT Server to Railway
-# - paths: ['ppt-server/**']
-# - RAILWAY_PTT_SERVICE_ID
-# - cd ppt-server
-# - RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_PTT_SERVICE_ID }}
-```
-
-Then add secrets: `RAILWAY_PTT_SERVICE_ID` to GitHub Actions.
-
----
-
 ## References
 
 - [BOB_PRODUCTION_RAILWAY_SETUP.md](BOB_PRODUCTION_RAILWAY_SETUP.md) — Bob-specific setup
