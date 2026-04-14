@@ -8,6 +8,19 @@ Use [NEW_PROJECT_SETUP.md](NEW_PROJECT_SETUP.md) as the baseline for full from-z
 
 This deployment guide is the operational companion for production rollout checks and drift recovery procedures.
 
+## Codespaces Startup Log Interpretation
+
+When reviewing `.codespaces/.persistedshare/creation.log`, multiple `devcontainer up`
+entries during one startup are expected. Codespaces runs separate lifecycle phases
+(create, blocking commands, attach), and each phase can invoke the devcontainer CLI.
+
+Treat startup as healthy when outcomes are success and the process exits with code 0.
+Repeated entries alone are not a failure signal.
+
+To prevent duplicate side effects when post-start hooks run more than once, keep
+startup commands idempotent (this repository uses `.devcontainer/postStart.sh` to
+avoid launching duplicate Vite dev servers).
+
 ---
 
 ## 📋 Pre-Deployment Checklist
