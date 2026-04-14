@@ -993,8 +993,17 @@ Deno.serve(async (req: Request) => {
 
       // SCV status exclusively from canonical_scv
       try {
+        const scvCols = [
+          'is_self_contained',
+          'certificate_expiry',
+          'certificate_status',
+          'certificate_issue_date',
+          'vin',
+          'max_occupants',
+          'logo_url',
+        ].join(', ');
         const { data: scvRow } = await (supabase.from('canonical_scv') as any)
-          .select('is_self_contained, certificate_expiry, certificate_status, certificate_issue_date, vin, max_occupants, logo_url')
+          .select(scvCols)
           .eq('plate_number', plate)
           .maybeSingle();
 
@@ -1463,20 +1472,16 @@ Deno.serve(async (req: Request) => {
       observationUpdate.self_contained_expiry = nzscv.selfContainedExpiry;
       // NZSCV enrichment fields — write when available so observations carry
       // the full registry snapshot for mismatch detection and audit display.
-      if (nzscv.certificateStatus !== null) {
-        observationUpdate.nzscv_certificate_status = nzscv.certificateStatus;
-      }
-      if (nzscv.issueDate !== null) {
-        observationUpdate.nzscv_certificate_issue_date = nzscv.issueDate;
-      }
-      if (nzscv.vin !== null) {
-        observationUpdate.vehicle_vin = nzscv.vin;
-      }
-      if (nzscv.maxOccupants !== null) {
-        observationUpdate.vehicle_max_occupants = nzscv.maxOccupants;
-      }
-      if (nzscv.logoUrl !== null) {
-        observationUpdate.nzscv_logo_url = nzscv.logoUrl;
+      // Use a mapping to avoid repetitive conditional blocks.
+      const nzscvEnrichment: Record<string, unknown> = {
+        nzscv_certificate_status:      nzscv.certificateStatus,
+        nzscv_certificate_issue_date:  nzscv.issueDate,
+        vehicle_vin:                   nzscv.vin,
+        vehicle_max_occupants:         nzscv.maxOccupants,
+        nzscv_logo_url:                nzscv.logoUrl,
+      };
+      for (const [col, val] of Object.entries(nzscvEnrichment)) {
+        if (val !== null) observationUpdate[col] = val;
       }
       // Always stamp the time of the NZSCV check so we know how fresh the data is.
       observationUpdate.nzscv_checked_at = new Date().toISOString();
