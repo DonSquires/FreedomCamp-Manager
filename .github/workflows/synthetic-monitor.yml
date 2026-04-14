@@ -189,9 +189,16 @@ jobs:
               const title = await page.title();
               const bodyText = await page.locator('body').innerText().catch(() => '');
               const hasContent = bodyText.length > 50;
+              // Detect Vercel deployment protection in two forms:
+              //  1. Direct 401/403 response with Vercel branding (password protection)
+              //  2. Redirect to a Vercel auth/login page (SSO/team protection, final URL
+              //     lands on vercel.com even though the navigation response was 2xx)
+              const finalUrl = page.url();
+              const isRedirectedToVercel = /[./]vercel\.com(\/|$)/i.test(finalUrl);
               const isVercelProtection =
-                (status === 401 || status === 403) &&
-                (/vercel/i.test(title) || /vercel/i.test(bodyText));
+                isRedirectedToVercel ||
+                ((status === 401 || status === 403) &&
+                 (/vercel/i.test(title) || /vercel/i.test(bodyText)));
 
               // Check for crash/error screens
               const hasErrorOverlay = await page.locator('text=/Something went wrong|Error boundary|Unhandled/i').count() > 0;
@@ -273,21 +280,14 @@ jobs:
           # If the site is intentionally behind Vercel protection, treat
           # the HTTP status checks as a soft pass to avoid noisy alerts.
           if [ "$playwright_vercel" = "true" ]; then
-            soft_pass() {
-              local check_label="$1"
-              local http_code="$2"
-              local current_status="$3"
-              if [ "$current_status" != "true" ]; then
-                # Emit notice without polluting the returned status value
-                echo "::notice::${check_label} requires Vercel protection login (HTTP ${http_code}); soft passing ${check_label} check" >&2
-                echo "true"
-              else
-                echo "$current_status"
-              fi
-            }
-
-            frontend_ok=$(soft_pass "Frontend" "$frontend_code" "$frontend_ok")
-            supabase_ok=$(soft_pass "Supabase REST" "$supabase_code" "$supabase_ok")
+            if [ "$frontend_ok" != "true" ]; then
+              echo "::notice::Frontend requires Vercel deployment protection login (HTTP ${frontend_code}); soft passing Frontend check"
+              frontend_ok="true"
+            fi
+            if [ "$supabase_ok" != "true" ]; then
+              echo "::notice::Supabase REST soft passing — Vercel deployment protection is active (HTTP ${supabase_code})"
+              supabase_ok="true"
+            fi
           fi
 
           echo "frontend_effective=$frontend_ok" >> "$GITHUB_OUTPUT"
@@ -391,3 +391,4 @@ jobs:
           echo "| Frontend HTTP | ${{ steps.evaluate.outputs.frontend_effective == 'true' && '✅ Pass' || '❌ Fail' }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Supabase REST | ${{ steps.evaluate.outputs.supabase_effective == 'true' && '✅ Pass' || '❌ Fail' }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Playwright render | ${{ steps.evaluate.outputs.playwright_effective == 'true' && '✅ Pass' || '❌ Fail' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Vercel protection | ${{ steps.check-playwright.outputs.vercel_protection == 'true' && '🔒 Detected (HTTP/Supabase checks soft-passed)' || '—' }} |" >> "$GITHUB_STEP_SUMMARY"
