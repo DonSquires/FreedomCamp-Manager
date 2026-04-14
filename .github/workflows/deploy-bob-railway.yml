@@ -444,3 +444,21 @@ jobs:
               exit 1
               ;;
           esac
+
+          # ── Ollama connectivity check ─────────────────────────────────────────
+          # Verify Bob can reach Ollama via private networking.
+          # A false value means OLLAMA_BASE_URL is not set or Ollama is unreachable.
+          OLLAMA_ENABLED_FLAG=$(printf '%s' "$HEALTH_BODY" | jq -r '.chat_local_ollama_enabled // .config.OLLAMA_ENABLED // "unknown"')
+          if [ "$OLLAMA_ENABLED_FLAG" = "true" ]; then
+            echo "✅ Bob reports chat_local_ollama_enabled=true — Ollama private networking is working."
+          elif [ "$OLLAMA_ENABLED_FLAG" = "false" ]; then
+            echo "::warning::Bob reports chat_local_ollama_enabled=false."
+            echo "  This means Ollama is unreachable or OLLAMA_BASE_URL is not set on the Bob Railway service."
+            echo "  Action required:"
+            echo "    1. Ensure Bob and Ollama are in the SAME Railway project (not just the same account)."
+            echo "    2. Set OLLAMA_BASE_URL=http://ollama.railway.internal:11434 on the Bob service."
+            echo "    3. Set CHAT_PROVIDER=ollama on the Bob service."
+            echo "    4. Verify the Ollama service is running and healthy: GET <ollama-url>/api/tags"
+          else
+            echo "ℹ️  chat_local_ollama_enabled not found in health response — may be an older Bob build."
+          fi

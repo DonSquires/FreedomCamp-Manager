@@ -8,15 +8,15 @@ The synthetic UI monitor is a scheduled GitHub Actions workflow that exercises t
 - **URL resolution:** uses `FRONTEND_URL` by default, or the `frontend_url_override` input when dispatched manually.
 - **Checks performed (in order):**
   1. **HTTP 200 check** against the frontend URL.
-  2. **Supabase reachability** via a lightweight probe to the PostgREST root (`/rest/v1/`) which returns the OpenAPI schema with HTTP 200 using only the anon key — no table grants or RLS policy required. This avoids false negatives caused by restrictive RLS on individual tables (e.g. `zones`).
+  2. **Supabase reachability** via the REST endpoint with the anon key.
   3. **Playwright render check** (headless Chromium) that:
      - Loads the login page and captures JS/console errors (filters common noise).
      - Detects error overlays and multiple JS errors.
-     - Detects Vercel protection (401/403 plus Vercel wording) and emits a `vercel_protection` output.
+     - Detects Vercel protection (401/403 plus Vercel wording) and treats it as a **soft pass** for the HTTP/Supabase checks to avoid noisy alerts when protection is enabled.
+     - Writes the JSON result to a temp file; bash parses it and writes `vercel_protection` as a step output (more reliable than writing from inside Node).
 
-- **Health evaluation:** marks the run unhealthy if any check fails, after applying Vercel deployment-protection soft-pass logic:
-  - **Explicit detection:** if the Playwright check sets `vercel_protection=true` (page title/body contains "Vercel" and HTTP status was 401/403), the Frontend HTTP and Supabase REST checks are soft-passed.
-  - **Implicit inference (fallback):** if `vercel_protection` was not set (e.g. the browser was redirected to a Vercel-hosted 200 auth page) but the curl-based frontend check returned 401/403 and Playwright rendered the page successfully, deployment protection is inferred and the same soft-pass is applied. This prevents false alerts in either Vercel protection mode.
+- **Health evaluation:** marks the run unhealthy if any check fails (after applying the Vercel soft-pass logic).
+  - Vercel protection is detected either from the Playwright step's explicit `vercel_protection` output **or** by inferring it from a 401/403 frontend HTTP response when the Playwright render itself passed — this fallback prevents false-positive bug reports even if the Node output write fails (root cause of incident e9911b5d).
 
 ## Failure handling
 - When unhealthy **and** `SUPABASE_SERVICE_ROLE_KEY` + `SYNTHETIC_MONITOR_USER_ID` are set, the workflow inserts a `bug_reports` row via Supabase REST:

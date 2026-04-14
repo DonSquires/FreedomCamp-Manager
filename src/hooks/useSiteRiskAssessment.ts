@@ -163,9 +163,10 @@ export function useSiteRiskAssessments(options?: {
 
   const updateAssessment = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<SiteRiskAssessment> & { id: string }) => {
+      const { zone: _zone, assessor: _assessor, reviewer: _reviewer, ...dbUpdates } = updates
       const { data, error } = await supabase
         .from('site_risk_assessments')
-        .update(updates)
+        .update(dbUpdates)
         .eq('id', id)
         .select()
         .single()
