@@ -186,7 +186,10 @@ export default function UserManagement() {
       }
 
       if (filterOrg !== 'all') {
-        query = query.or(`organization_id.eq.${filterOrg},extra_organization_ids.cs.{${filterOrg}}`)
+        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+        if (uuidPattern.test(filterOrg)) {
+          query = query.or(`organization_id.eq.${filterOrg},extra_organization_ids.cs.{${filterOrg}}`)
+        }
       }
 
       const { data, error } = await query
@@ -761,19 +764,26 @@ export default function UserManagement() {
                       <div className="text-xs text-gray-400 mt-1 flex items-center gap-1 flex-wrap">
                         <Globe className="h-3 w-3" />
                         <span>Also authorised in:</span>
-                        {userProfile.extra_organization_ids.map((orgId) => {
-                          const extraOrg = availableOrgs.find((o) => o.id === orgId)
-                          return extraOrg ? (
-                            <Badge key={orgId} variant="outline" className="text-xs px-1.5 py-0 h-auto">
-                              {extraOrg.name}
-                            </Badge>
-                          ) : null
-                        })}
-                        {userProfile.extra_organization_ids.filter((id) => !availableOrgs.find((o) => o.id === id)).length > 0 && (
-                          <span className="text-gray-400">
-                            +{userProfile.extra_organization_ids.filter((id) => !availableOrgs.find((o) => o.id === id)).length} more
-                          </span>
-                        )}
+                        {(() => {
+                          const hiddenIds = userProfile.extra_organization_ids.filter(
+                            (id) => !availableOrgs.find((o) => o.id === id)
+                          )
+                          return (
+                            <>
+                              {userProfile.extra_organization_ids.map((orgId) => {
+                                const extraOrg = availableOrgs.find((o) => o.id === orgId)
+                                return extraOrg ? (
+                                  <Badge key={orgId} variant="outline" className="text-xs px-1.5 py-0 h-auto">
+                                    {extraOrg.name}
+                                  </Badge>
+                                ) : null
+                              })}
+                              {hiddenIds.length > 0 && (
+                                <span className="text-gray-400">+{hiddenIds.length} more</span>
+                              )}
+                            </>
+                          )
+                        })()}
                       </div>
                     )}
                     {userProfile.job_title && (
