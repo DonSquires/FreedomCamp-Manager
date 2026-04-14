@@ -1249,6 +1249,57 @@ export const edgeFunctions = {
   },
 
   /**
+   * Grandmaster Coding Studio — proxy to Bob's code-task and knowledge endpoints.
+   *
+   * All actions require an authenticated grand_master session. The edge function
+   * validates role server-side before proxying to the inference service.
+   *
+   * Actions:
+   *  code_task_submit  — queue a new Bob code task (POST /code/task)
+   *  code_tasks_list   — list tasks with optional ?status filter
+   *  code_task_get     — fetch a single task by id
+   *  code_task_skip    — skip a pending task
+   *  code_task_delete  — delete a task
+   *  code_patterns     — retrieve all codebase pattern templates
+   *  code_conventions  — retrieve naming conventions + TS config
+   *  code_tech_stack   — retrieve full tech stack reference
+   *  code_assist       — natural language coding question → structured answer
+   *  ask_copilot_submit — queue a knowledge question for Copilot to research
+   *  ask_copilot_list  — list all knowledge requests
+   *  health_check      — Bob health + config booleans (no secret values)
+   */
+  grandmasterStudio: async (params: {
+    action:
+      | 'code_task_submit'
+      | 'code_tasks_list'
+      | 'code_task_get'
+      | 'code_task_skip'
+      | 'code_task_delete'
+      | 'code_patterns'
+      | 'code_conventions'
+      | 'code_tech_stack'
+      | 'code_assist'
+      | 'ask_copilot_submit'
+      | 'ask_copilot_list'
+      | 'health_check'
+    // code_task_submit
+    task?: string
+    context?: string
+    target_files?: string[]
+    priority?: 'high' | 'normal'
+    // code_task_get / skip / delete
+    task_id?: string
+    // code_tasks_list / ask_copilot_list
+    status?: string
+    // code_assist / ask_copilot_submit
+    question?: string
+    // ask_copilot_submit
+    category?: string
+  }) => {
+    return callEdgeFunction('grandmaster-studio', params, { showToast: false })
+  },
+
+  /**
    * Auto-analyse a newly-submitted bug report.
    *
    * Called fire-and-forget from FeedbackModal immediately after the bug_reports
