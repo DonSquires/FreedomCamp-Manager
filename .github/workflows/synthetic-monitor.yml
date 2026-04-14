@@ -110,10 +110,14 @@ jobs:
         if: steps.check-secrets.outputs.secrets_present == 'true'
         id: check-supabase
         run: |
+          # Use the PostgREST root endpoint (/rest/v1/) which returns the
+          # OpenAPI schema with HTTP 200 using only the anon key — no table
+          # grants or RLS policy required. This is a stable health probe that
+          # won't produce false negatives when the zones table has restrictive
+          # RLS or when the anon role lacks a direct SELECT grant.
           HTTP_CODE=$(curl -sSo /dev/null -w "%{http_code}" --max-time 10 \
             -H "apikey: ${VITE_SUPABASE_ANON_KEY}" \
-            -H "Authorization: Bearer ${VITE_SUPABASE_ANON_KEY}" \
-            "${VITE_SUPABASE_URL}/rest/v1/zones?select=id&limit=1")
+            "${VITE_SUPABASE_URL}/rest/v1/")
           echo "http_code=$HTTP_CODE" >> "$GITHUB_OUTPUT"
           if [ "$HTTP_CODE" != "200" ]; then
             echo "::warning::Supabase REST returned HTTP $HTTP_CODE"
@@ -269,6 +273,19 @@ jobs:
           playwright_vercel="${{ steps.check-playwright.outputs.vercel_protection }}"
           frontend_code="${{ steps.check-frontend.outputs.http_code }}"
           supabase_code="${{ steps.check-supabase.outputs.http_code }}"
+
+          # Fallback Vercel-protection inference: if the Playwright script did
+          # not set the vercel_protection output (e.g. the browser was silently
+          # redirected to a Vercel-hosted auth page that returned HTTP 200), but
+          # the curl-based frontend check got a 401/403 and Playwright rendered
+          # the page successfully, we can safely infer deployment protection is
+          # active and apply the same soft-pass to avoid noisy false alerts.
+          if [ "$playwright_vercel" != "true" ] && \
+             [ "$playwright_ok" = "true" ] && \
+             { [ "$frontend_code" = "401" ] || [ "$frontend_code" = "403" ]; }; then
+            playwright_vercel="true"
+            echo "::notice::Inferred Vercel deployment protection from frontend HTTP ${frontend_code} + successful Playwright render; applying soft-pass"
+          fi
 
           # If the site is intentionally behind Vercel protection, treat
           # the HTTP status checks as a soft pass to avoid noisy alerts.
