@@ -150,9 +150,11 @@ jobs:
         if: steps.check-secrets.outputs.secrets_present == 'true'
         id: check-playwright
         run: |
-          node - <<'EOF'
+          # Redirect Node stdout to a temp file so bash can reliably parse the
+          # JSON result and write step outputs (more reliable than fs.appendFileSync
+          # inside a heredoc, which was the root cause of the 2026-03-28 false alert).
+          node - <<'EOF' > /tmp/pw_result.json
           const { chromium } = require('playwright');
-          const fs = require('fs');
           const FRONTEND_URL = process.env.FRONTEND_URL;
 
           (async () => {
@@ -205,30 +207,15 @@ jobs:
                   })
                 : errors;
 
-              const result = {
+              // Write JSON result to stdout (captured to /tmp/pw_result.json by bash)
+              console.log(JSON.stringify({
                 status,
                 title,
                 hasContent,
                 hasErrorOverlay,
                 jsErrors: filteredErrors,
                 vercelProtection: isVercelProtection,
-              };
-
-              console.log(JSON.stringify(result));
-
-              // Expose additional diagnostics to later steps
-              if (process.env.GITHUB_OUTPUT) {
-                const sanitizeValue = (value) => String(value).replace(/\r?\n/g, ' ');
-                const outputs = {
-                  status,
-                  vercel_protection: isVercelProtection,
-                  has_content: hasContent,
-                  has_error_overlay: hasErrorOverlay,
-                };
-                for (const [key, value] of Object.entries(outputs)) {
-                  fs.appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${sanitizeValue(value)}\n`);
-                }
-              }
+              }));
 
               if (isVercelProtection) {
                 console.warn(`Vercel protection login detected (HTTP ${status}); treating as soft pass for monitor`);
@@ -250,7 +237,20 @@ jobs:
             }
           })();
           EOF
-          if [ $? -ne 0 ]; then
+          NODE_EXIT=$?
+
+          # Log the playwright result for debugging
+          cat /tmp/pw_result.json || true
+
+          # Write step outputs from bash by parsing the JSON result file.
+          # This is more reliable than writing from inside the Node heredoc.
+          VERCEL_PROTECTED="false"
+          if [ -f /tmp/pw_result.json ] && grep -q '"vercelProtection":true' /tmp/pw_result.json; then
+            VERCEL_PROTECTED="true"
+          fi
+          echo "vercel_protection=${VERCEL_PROTECTED}" >> "$GITHUB_OUTPUT"
+
+          if [ "$NODE_EXIT" -ne 0 ]; then
             echo "passed=false" >> "$GITHUB_OUTPUT"
           else
             echo "passed=true" >> "$GITHUB_OUTPUT"
@@ -269,6 +269,17 @@ jobs:
           playwright_vercel="${{ steps.check-playwright.outputs.vercel_protection }}"
           frontend_code="${{ steps.check-frontend.outputs.http_code }}"
           supabase_code="${{ steps.check-supabase.outputs.http_code }}"
+
+          # Fallback Vercel detection: if the Playwright step's explicit output was not
+          # set (e.g. the Node heredoc stdout redirect produced no JSON), infer Vercel
+          # protection from a 401/403 frontend response when the Playwright render
+          # itself passed.  This guards against the exact regression that triggered the
+          # 2026-03-28 false-positive bug report (e9911b5d).
+          if [ "$playwright_vercel" != "true" ] && [ "$playwright_ok" = "true" ] && \
+             { [ "$frontend_code" = "401" ] || [ "$frontend_code" = "403" ]; }; then
+            playwright_vercel="true"
+            echo "::notice::Inferred Vercel protection from HTTP ${frontend_code} frontend response + passing Playwright render; applying soft pass"
+          fi
 
           # If the site is intentionally behind Vercel protection, treat
           # the HTTP status checks as a soft pass to avoid noisy alerts.
