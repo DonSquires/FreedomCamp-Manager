@@ -8,7 +8,7 @@ The synthetic UI monitor is a scheduled GitHub Actions workflow that exercises t
 - **URL resolution:** uses `FRONTEND_URL` by default, or the `frontend_url_override` input when dispatched manually.
 - **Checks performed (in order):**
   1. **HTTP 200 check** against the frontend URL.
-  2. **Supabase reachability** via the REST endpoint with the anon key.
+  2. **Supabase reachability** via `GET /rest/v1/` (the PostgREST OpenAPI schema endpoint). This endpoint returns 200 with a valid anon key whenever PostgREST is running, regardless of table-level grants or RLS policies. (Previously queried the `zones` table directly, which caused HTTP 403 false-failures because the `anon` role lacks `SELECT` on that table.)
   3. **Playwright render check** (headless Chromium) that:
      - Loads the login page and captures JS/console errors (filters common noise).
      - Detects error overlays and multiple JS errors.

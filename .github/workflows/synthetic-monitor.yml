@@ -110,10 +110,16 @@ jobs:
         if: steps.check-secrets.outputs.secrets_present == 'true'
         id: check-supabase
         run: |
+          # Use the PostgREST OpenAPI schema endpoint (/rest/v1/) instead of
+          # querying a specific table.  The schema endpoint always returns 200
+          # with a valid apikey header when PostgREST is running, and does not
+          # require any table-level GRANTs or RLS policies — so it is immune to
+          # "permission denied for table <name>" false failures that arise when
+          # the anon role lacks SELECT on the table being queried.
           HTTP_CODE=$(curl -sSo /dev/null -w "%{http_code}" --max-time 10 \
             -H "apikey: ${VITE_SUPABASE_ANON_KEY}" \
             -H "Authorization: Bearer ${VITE_SUPABASE_ANON_KEY}" \
-            "${VITE_SUPABASE_URL}/rest/v1/zones?select=id&limit=1")
+            "${VITE_SUPABASE_URL}/rest/v1/")
           echo "http_code=$HTTP_CODE" >> "$GITHUB_OUTPUT"
           if [ "$HTTP_CODE" != "200" ]; then
             echo "::warning::Supabase REST returned HTTP $HTTP_CODE"
