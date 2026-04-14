@@ -731,7 +731,7 @@ export default function UserManagement() {
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
-                      <div className="font-medium">
+                      <div className="font-medium text-foreground">
                         {userProfile.first_name} {userProfile.last_name}
                       </div>
                       <Badge variant={userProfile.is_active ? 'default' : 'secondary'}>
@@ -771,7 +771,7 @@ export default function UserManagement() {
                     {(userProfile.coa_number || userProfile.warrant_number) && (
                       <div className="mt-2 space-y-1">
                         {userProfile.coa_number && (
-                          <div className="text-xs flex items-center gap-2">
+                          <div className="text-xs flex items-center gap-2 text-foreground">
                             <FileText className="h-3 w-3 text-blue-600" />
                             <span className="font-medium">COA:</span>
                             <span className="font-mono">{userProfile.coa_number}</span>
@@ -788,7 +788,7 @@ export default function UserManagement() {
                           </div>
                         )}
                         {userProfile.warrant_number && (
-                          <div className="text-xs flex items-center gap-2">
+                          <div className="text-xs flex items-center gap-2 text-foreground">
                             <Award className="h-3 w-3 text-purple-600" />
                             <span className="font-medium">Warrant:</span>
                             <span className="font-mono">{userProfile.warrant_number}</span>
