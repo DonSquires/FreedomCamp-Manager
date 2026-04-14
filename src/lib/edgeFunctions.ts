@@ -1282,6 +1282,8 @@ export const edgeFunctions = {
       | 'ask_copilot_submit'
       | 'ask_copilot_list'
       | 'health_check'
+      | 'intel_bulletin_submit'
+      | 'intel_state'
     // code_task_submit
     task?: string
     context?: string
@@ -1295,6 +1297,12 @@ export const edgeFunctions = {
     question?: string
     // ask_copilot_submit
     category?: string
+    // intel_bulletin_submit
+    title?: string
+    summary?: string
+    type?: string
+    source?: string
+    metadata?: Record<string, unknown>
   }) => {
     return callEdgeFunction('grandmaster-studio', params, { showToast: false })
   },

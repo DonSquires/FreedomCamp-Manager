@@ -16,7 +16,8 @@ import {
   BrainCircuit, CheckCircle2, ChevronDown, ChevronRight, Clock, Code2,
   FileCode2, Loader2, RefreshCw, Send, ShieldCheck, Sparkles, Trash2,
   XCircle, Activity, BookOpen, HelpCircle, AlertTriangle, SkipForward,
-  Terminal, Layers, Wrench,
+  Terminal, Layers, Wrench, ArrowLeftRight, Lightbulb, GitPullRequest,
+  Bot, User2, Newspaper,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -239,6 +240,17 @@ export default function GrandmasterCodingStudio() {
   const [healthLoading, setHealthLoading] = useState(false)
   const [health, setHealth] = useState<BobHealth | null>(null)
 
+  // ── Collaboration / Intel ────────────────────────────────────────────────
+  const [bulletinTitle, setBulletinTitle] = useState('')
+  const [bulletinSummary, setBulletinSummary] = useState('')
+  const [bulletinType, setBulletinType] = useState('operational')
+  const [bulletinLoading, setBulletinLoading] = useState(false)
+  const [intelLoading, setIntelLoading] = useState(false)
+  const [intelState, setIntelState] = useState<{
+    bulletins: Array<{ id: string; title: string; summary: string; type: string; source: string; at: string }>
+    counts: Record<string, number>
+  } | null>(null)
+
   // ── Actions ──────────────────────────────────────────────────────────────
 
   const submitTask = useCallback(async () => {
@@ -345,6 +357,21 @@ export default function GrandmasterCodingStudio() {
     }
   }, [assistQuestion])
 
+  const loadKnowledge = useCallback(async () => {
+    setKnowledgeLoading(true)
+    try {
+      const { data, error } = await edgeFunctions.grandmasterStudio({ action: 'ask_copilot_list' })
+      if (error) throw new Error(String(error))
+      const d = data as any
+      setKnowledgeRequests(d?.requests ?? [])
+      setKnowledgeCounts(d?.counts ?? {})
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to load knowledge requests')
+    } finally {
+      setKnowledgeLoading(false)
+    }
+  }, [])
+
   const submitAsk = useCallback(async () => {
     if (!askQuestion.trim()) { toast.error('Question is required'); return }
     setAskLoading(true)
@@ -363,22 +390,45 @@ export default function GrandmasterCodingStudio() {
     } finally {
       setAskLoading(false)
     }
-  }, [askQuestion, askCategory])
+  }, [askQuestion, askCategory, loadKnowledge])
 
-  const loadKnowledge = useCallback(async () => {
-    setKnowledgeLoading(true)
+  const loadIntelState = useCallback(async () => {
+    setIntelLoading(true)
     try {
-      const { data, error } = await edgeFunctions.grandmasterStudio({ action: 'ask_copilot_list' })
+      const { data, error } = await edgeFunctions.grandmasterStudio({ action: 'intel_state' })
       if (error) throw new Error(String(error))
       const d = data as any
-      setKnowledgeRequests(d?.requests ?? [])
-      setKnowledgeCounts(d?.counts ?? {})
+      setIntelState(d?.intel ?? null)
     } catch (err: any) {
-      toast.error(err?.message || 'Failed to load knowledge requests')
+      toast.error(err?.message || 'Failed to load intel state')
     } finally {
-      setKnowledgeLoading(false)
+      setIntelLoading(false)
     }
   }, [])
+
+  const submitBulletin = useCallback(async () => {
+    if (!bulletinTitle.trim()) { toast.error('Title is required'); return }
+    if (!bulletinSummary.trim()) { toast.error('Summary is required'); return }
+    setBulletinLoading(true)
+    try {
+      const { error } = await edgeFunctions.grandmasterStudio({
+        action: 'intel_bulletin_submit',
+        title: bulletinTitle.trim(),
+        summary: bulletinSummary.trim(),
+        type: bulletinType,
+        source: 'grandmaster-studio-copilot',
+      })
+      if (error) throw new Error(String(error))
+      toast.success('Intel bulletin injected into Bob\'s knowledge feed')
+      setBulletinTitle('')
+      setBulletinSummary('')
+      loadIntelState()
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to submit bulletin')
+    } finally {
+      setBulletinLoading(false)
+    }
+  }, [bulletinTitle, bulletinSummary, bulletinType, loadIntelState])
 
   const loadHealth = useCallback(async () => {
     setHealthLoading(true)
@@ -421,6 +471,9 @@ export default function GrandmasterCodingStudio() {
           </TabsTrigger>
           <TabsTrigger value="health" className="gap-1.5" onClick={() => { if (!health) loadHealth() }}>
             <Activity className="h-3.5 w-3.5" /> Service Health
+          </TabsTrigger>
+          <TabsTrigger value="collab" className="gap-1.5" onClick={() => { if (!intelState) loadIntelState() }}>
+            <ArrowLeftRight className="h-3.5 w-3.5" /> Collaboration
           </TabsTrigger>
         </TabsList>
 
@@ -950,6 +1003,184 @@ export default function GrandmasterCodingStudio() {
                 <p className="text-sm text-muted-foreground">Click Refresh to load Bob's health status.</p>
                 <Button onClick={loadHealth} className="gap-2">
                   <RefreshCw className="h-4 w-4" /> Load health
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* ── Collaboration ───────────────────────────────────────────────── */}
+        <TabsContent value="collab" className="space-y-4">
+
+          {/* Pipeline diagram */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ArrowLeftRight className="h-4 w-4" /> Bob ↔ Copilot Collaboration Pipeline
+              </CardTitle>
+              <CardDescription>
+                Bob is the internal AI embedded in this build. Copilot (GitHub) is the external AI that executes code tasks and researches knowledge gaps. Together they form a fully automated development loop.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-2">
+                  <div className="flex items-center gap-2 font-semibold text-blue-700">
+                    <Bot className="h-4 w-4" /> Bob (Internal AI)
+                  </div>
+                  <ul className="text-xs space-y-1 text-blue-900">
+                    <li>• Queues code tasks via this studio or automatically from bug reports</li>
+                    <li>• Asks research questions when it encounters knowledge gaps</li>
+                    <li>• Ingests Copilot's answers into its intel feed automatically</li>
+                    <li>• Plans each task with Ollama before Copilot executes it</li>
+                  </ul>
+                </div>
+                <div className="rounded-lg border bg-muted p-4 space-y-3 flex flex-col items-center justify-center text-center">
+                  <ArrowLeftRight className="h-6 w-6 text-muted-foreground" />
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p><strong>Tasks:</strong> Bob queues → Copilot picks up hourly</p>
+                    <p><strong>Knowledge:</strong> Bob asks → Copilot researches + answers hourly</p>
+                    <p><strong>Intel:</strong> Grandmaster pushes context → Bob learns instantly</p>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-purple-200 bg-purple-50 p-4 space-y-2">
+                  <div className="flex items-center gap-2 font-semibold text-purple-700">
+                    <User2 className="h-4 w-4" /> Copilot (External AI)
+                  </div>
+                  <ul className="text-xs space-y-1 text-purple-900">
+                    <li>• <code className="bg-purple-100 px-1 rounded">ops-bob-code-task.yml</code> runs hourly — generates code with gpt-4o, opens PRs on <code className="bg-purple-100 px-1 rounded">bob/task-*</code> branches</li>
+                    <li>• <code className="bg-purple-100 px-1 rounded">ops-bob-ask-copilot.yml</code> runs hourly — researches answers via GitHub Models API</li>
+                    <li>• Reports results back to Bob so the intel feed stays current</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-lg border border-yellow-200 bg-yellow-50 p-3 flex items-start gap-3">
+                <Lightbulb className="h-4 w-4 text-yellow-600 shrink-0 mt-0.5" />
+                <p className="text-xs text-yellow-800">
+                  <strong>No GitHub dependency for code management:</strong> This studio lets you submit tasks, view the queue, monitor PRs, and push knowledge into Bob — all from within the app. GitHub Actions workflows are the executor, but you control everything from here.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Intel bulletin — push knowledge from Copilot into Bob */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Newspaper className="h-4 w-4" /> Push Intel Bulletin to Bob
+              </CardTitle>
+              <CardDescription>
+                Inject knowledge, context, or Copilot findings directly into Bob's intel feed. Bob will use this in future chat responses and assessments.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="bull-title">Title</Label>
+                <Input
+                  id="bull-title"
+                  placeholder="e.g. Copilot added CSV export to VehicleManagement — PR #142 merged"
+                  value={bulletinTitle}
+                  onChange={(e) => setBulletinTitle(e.target.value)}
+                  maxLength={300}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="bull-summary">Summary</Label>
+                <Textarea
+                  id="bull-summary"
+                  placeholder="Describe what was done, what changed, or what Bob should now know. Bob will reference this in future responses."
+                  value={bulletinSummary}
+                  onChange={(e) => setBulletinSummary(e.target.value)}
+                  rows={3}
+                  maxLength={2000}
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="space-y-1.5">
+                  <Label>Type</Label>
+                  <Select value={bulletinType} onValueChange={setBulletinType}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {['operational', 'legal', 'technical', 'vehicle', 'person', 'zone', 'system', 'other'].map((t) => (
+                        <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="mt-5">
+                  <Button onClick={submitBulletin} disabled={bulletinLoading || !bulletinTitle.trim() || !bulletinSummary.trim()} className="gap-2">
+                    {bulletinLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    Push to Bob
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Intel state — Bob's current knowledge bulletins */}
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold">Bob's Current Intel Feed</h3>
+            <Button variant="outline" size="sm" onClick={loadIntelState} disabled={intelLoading} className="gap-1.5">
+              {intelLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              Refresh
+            </Button>
+          </div>
+
+          {intelLoading && !intelState && (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          )}
+
+          {intelState && (
+            <>
+              {Object.keys(intelState.counts ?? {}).length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(intelState.counts).map(([type, count]) => (
+                    <Badge key={type} variant="secondary" className="capitalize">{type}: {count}</Badge>
+                  ))}
+                </div>
+              )}
+              {(intelState.bulletins ?? []).length === 0 ? (
+                <Card>
+                  <CardContent className="flex flex-col items-center justify-center py-10 text-muted-foreground gap-2">
+                    <Newspaper className="h-7 w-7" />
+                    <p className="text-sm">No intel bulletins yet. Push one above to seed Bob's knowledge.</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-2">
+                  {[...(intelState.bulletins ?? [])].reverse().map((b) => (
+                    <Card key={b.id} className="p-3">
+                      <div className="flex items-start gap-3">
+                        <GitPullRequest className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 mb-0.5">
+                            <Badge variant="outline" className="capitalize text-xs">{b.type}</Badge>
+                            <span className="text-xs text-muted-foreground">{relativeTime(b.at)}</span>
+                            {b.source && <span className="text-xs text-muted-foreground">· {b.source}</span>}
+                          </div>
+                          <p className="text-sm font-medium">{b.title}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-3">{b.summary}</p>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {!intelState && !intelLoading && (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-10 gap-3">
+                <Newspaper className="h-8 w-8 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Click Refresh to see Bob's current intel bulletins.</p>
+                <Button onClick={loadIntelState} className="gap-2">
+                  <RefreshCw className="h-4 w-4" /> Load intel
                 </Button>
               </CardContent>
             </Card>

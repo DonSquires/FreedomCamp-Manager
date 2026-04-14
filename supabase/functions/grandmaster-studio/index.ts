@@ -14,6 +14,8 @@ type Action =
   | 'ask_copilot_submit'
   | 'ask_copilot_list'
   | 'health_check'
+  | 'intel_bulletin_submit'
+  | 'intel_state'
 
 function extractBearerToken(req: Request): string | null {
   const authHeader = req.headers.get('Authorization') || req.headers.get('authorization')
@@ -207,6 +209,50 @@ Deno.serve(async (req: Request) => {
       return proxyResponse(result, req)
     }
 
+    if (action === 'intel_bulletin_submit') {
+      const { title, summary, type, source, metadata } = body
+      if (!title || typeof title !== 'string') return json400('title is required', req)
+      if (!summary || typeof summary !== 'string') return json400('summary is required', req)
+
+      const bulletin = {
+        title: title.trim(),
+        summary: summary.trim(),
+        type: type || 'operational',
+        source: source || 'grandmaster-studio-copilot',
+        metadata: metadata && typeof metadata === 'object' ? metadata : {},
+      }
+
+      const rawBody = JSON.stringify({ bulletin })
+
+      // Compute HMAC if INTEL_HMAC_KEY is configured (Bob verifies this)
+      const hmacKey = Deno.env.get('INTEL_HMAC_KEY') ?? ''
+      const extraHeaders: Record<string, string> = {}
+      if (hmacKey) {
+        const keyData = new TextEncoder().encode(hmacKey)
+        const msgData = new TextEncoder().encode(rawBody)
+        const cryptoKey = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+        const sig = await crypto.subtle.sign('HMAC', cryptoKey, msgData)
+        const sigHex = Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, '0')).join('')
+        extraHeaders['x-intel-signature'] = sigHex
+      }
+
+      const resp = await fetch(`${inferenceUrl}/intel/ingest-bulletin`, {
+        method: 'POST',
+        headers: { ...bobHeaders, ...extraHeaders },
+        body: rawBody,
+      })
+      const text = await resp.text()
+      return new Response(text, {
+        status: resp.status,
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
+      })
+    }
+
+    if (action === 'intel_state') {
+      const result = await bobGet('/intel/state')
+      return proxyResponse(result, req)
+    }
+
     return new Response(
       JSON.stringify({
         error: 'Unknown action',
@@ -215,6 +261,7 @@ Deno.serve(async (req: Request) => {
           'code_task_skip', 'code_task_delete',
           'code_patterns', 'code_conventions', 'code_tech_stack', 'code_assist',
           'ask_copilot_submit', 'ask_copilot_list', 'health_check',
+          'intel_bulletin_submit', 'intel_state',
         ],
       }),
       { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
