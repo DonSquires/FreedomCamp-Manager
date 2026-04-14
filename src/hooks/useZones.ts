@@ -102,8 +102,9 @@ export function useUpdateZone() {
 
   return useMutation({
     mutationFn: async ({ zoneId, updates }: { zoneId: string; updates: Partial<Zone> }) => {
+      const { _count: _count_, ...dbUpdates } = updates
       const { error } = await supabase.from('zones')
-        .update(updates)
+        .update(dbUpdates)
         .eq('id', zoneId)
 
       if (error) throw error

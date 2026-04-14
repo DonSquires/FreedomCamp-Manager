@@ -130,6 +130,7 @@ jobs:
           SELF_CONTAINED_STRICT_EGRESS="$(jq -r '.inference.config.SELF_CONTAINED_STRICT_EGRESS // false' /tmp/railway-health.json)"
           OPENAI_API_KEY_SET="$(jq -r '.inference.config.OPENAI_API_KEY_SET // false' /tmp/railway-health.json)"
           INFERENCE_KEY_CONFIGURED="$(jq -r '.inference_api_key_configured // false' /tmp/railway-health.json)"
+          CHAT_LOCAL_OLLAMA_ENABLED="$(jq -r '.inference.chat_local_ollama_enabled // .inference.config.OLLAMA_ENABLED // "unknown"' /tmp/railway-health.json)"
 
           [ "$ACTUAL_PROXY_URL" = "$EXPECT_PROXY_URL" ] || { echo "::error::Proxy URL mismatch. expected=$EXPECT_PROXY_URL actual=$ACTUAL_PROXY_URL"; exit 1; }
           [ "$ACTUAL_INFERENCE_URL" = "$EXPECT_INFERENCE_URL" ] || { echo "::error::Inference URL mismatch. expected=$EXPECT_INFERENCE_URL actual=$ACTUAL_INFERENCE_URL"; exit 1; }
@@ -145,5 +146,17 @@ jobs:
           [ "$SELF_CONTAINED_STRICT_EGRESS" = "true" ] || echo "::warning::SELF_CONTAINED_STRICT_EGRESS is $SELF_CONTAINED_STRICT_EGRESS (expected true); enforcing via deploy signature + self-contained mode."
           [ "$OPENAI_API_KEY_SET" = "false" ] || { echo "::error::Expected OPENAI_API_KEY_SET=false in self-contained mode but got $OPENAI_API_KEY_SET"; exit 1; }
           [ "$INFERENCE_KEY_CONFIGURED" = "true" ] || { echo "::error::Inference API key is not configured from edge perspective"; exit 1; }
+
+          # Ollama private networking check — warning only (Ollama may be warming up).
+          if [ "$CHAT_LOCAL_OLLAMA_ENABLED" = "true" ]; then
+            echo "✅ chat_local_ollama_enabled=true — Bob ↔ Ollama private networking is working."
+          elif [ "$CHAT_LOCAL_OLLAMA_ENABLED" = "false" ]; then
+            echo "::warning::chat_local_ollama_enabled=false — Bob cannot reach Ollama via private network."
+            echo "  Check: OLLAMA_BASE_URL=http://ollama.railway.internal:11434 on Bob Railway service."
+            echo "  Check: Bob and Ollama are in the SAME Railway project."
+            echo "  Check: Ollama service is running (GET <ollama-url>/api/tags)."
+          else
+            echo "ℹ️  chat_local_ollama_enabled not in health response — Bob build may be older than this check."
+          fi
 
           echo "✅ Railway + Edge wiring is consistent"

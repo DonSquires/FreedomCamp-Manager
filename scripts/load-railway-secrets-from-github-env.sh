@@ -71,23 +71,31 @@ set_if_present() {
 }
 
 # Bob + Ollama project credentials
+# Canonical: RAILWAY_BOB_TOKEN  |  @deprecated alias: RAILWAY_TOKEN_BOB
 set_if_present RAILWAY_BOB_TOKEN RAILWAY_BOB_TOKEN RAILWAY_TOKEN_BOB || true
 set_if_present RAILWAY_BOB_PROJECT_ID RAILWAY_BOB_PROJECT_ID || true
+# Canonical: RAILWAY_BOB_SERVICE_ID  |  @deprecated alias: RAILWAY_SERVICE_ID
 set_if_present RAILWAY_BOB_SERVICE_ID RAILWAY_BOB_SERVICE_ID RAILWAY_SERVICE_ID || true
 set_if_present RAILWAY_OLLAMA_SERVICE_ID RAILWAY_OLLAMA_SERVICE_ID || true
 
 # Core project credentials
+# Canonical: RAILWAY_TOKEN  |  @deprecated alias: RAILWAY_CORE_TOKEN
 set_if_present RAILWAY_TOKEN RAILWAY_TOKEN RAILWAY_CORE_TOKEN || true
 set_if_present RAILWAY_INFERENCE_SERVICE_ID RAILWAY_INFERENCE_SERVICE_ID || true
 set_if_present RAILWAY_PROXY_SERVICE_ID RAILWAY_PROXY_SERVICE_ID || true
 set_if_present RAILWAY_PTT_SERVICE_ID RAILWAY_PTT_SERVICE_ID || true
 
 # Runtime URL/API secrets
+# Canonical: VITE_SUPABASE_URL  |  @deprecated alias: SUPABASE_URL
 set_if_present VITE_SUPABASE_URL VITE_SUPABASE_URL SUPABASE_URL || true
+# Canonical: INFERENCE_SERVICE_URL / BOB_SERVICE_URL (both accepted; set both to same value)
 set_if_present INFERENCE_SERVICE_URL INFERENCE_SERVICE_URL BOB_SERVICE_URL || true
 set_if_present BOB_SERVICE_URL BOB_SERVICE_URL INFERENCE_SERVICE_URL || true
+# Canonical: PROXY_SERVER_URL  |  @deprecated aliases: PROXY_SERVICE_URL, NZSCV_PROXY_URL
 set_if_present PROXY_SERVER_URL PROXY_SERVER_URL PROXY_SERVICE_URL NZSCV_PROXY_URL || true
+# Canonical: PTT_SERVER_URL  |  @deprecated alias: PTT_SERVICE_URL
 set_if_present PTT_SERVER_URL PTT_SERVER_URL PTT_SERVICE_URL || true
+# Canonical: INFERENCE_API_KEY  |  @deprecated alias: BOB_INFERENCE_API_KEY
 set_if_present INFERENCE_API_KEY INFERENCE_API_KEY BOB_INFERENCE_API_KEY || true
 set_if_present BOB_INFERENCE_API_KEY BOB_INFERENCE_API_KEY INFERENCE_API_KEY || true
 
