@@ -340,13 +340,19 @@ async function callInference(imageBytes: Uint8Array): Promise<InferenceResult> {
 
 // ─── Step 5: NZSCV lookup ────────────────────────────────────────────────────
 // Guaranteed fields: isSelfContained, selfContainedExpiry.
-// Optional fields (make/model/year/vin/colour/maxOccupants): populated when
+// Optional fields (make/model/year/vin/colour/maxOccupants/etc.): populated when
 // NZSCV provides them in the response, null otherwise.
 interface NZSCVResult {
   /** Whether the SC certificate is current */
   isSelfContained: boolean;
   /** ISO date string of SC certificate expiry, or null if not on register */
   selfContainedExpiry: string | null;
+  /** Raw certificate status string: Current | Issued | Revoked | Expired | null */
+  certificateStatus: string | null;
+  /** ISO date string of when the SC certificate was issued, or null */
+  issueDate: string | null;
+  /** Official NZSCV badge/logo URL for UI display, or null */
+  logoUrl: string | null;
   /** Optional — vehicle make if provided by NZSCV */
   make: string | null;
   /** Optional — vehicle model if provided by NZSCV */
@@ -391,6 +397,7 @@ async function lookupNZSCV(plate: string): Promise<NZSCVResult | null> {
       if (res.status === 404) {
         return {
           isSelfContained: false, selfContainedExpiry: null,
+          certificateStatus: null, issueDate: null, logoUrl: null,
           make: null, model: null, year: null, vin: null, colour: null, maxOccupants: null,
         };
       }
@@ -435,6 +442,27 @@ async function lookupNZSCV(plate: string): Promise<NZSCVResult | null> {
       cert?.cert_status,
       data?.CertificateStatus,
       data?.certificateStatus,
+    );
+
+    // Derive certificate issue date
+    const issueDate: string | null = firstPresent(
+      vr?.CertificateIssueDate,
+      vr?.certificateIssueDate,
+      vr?.IssueDate,
+      cert?.issue_date,
+      cert?.issueDate,
+      cert?.certificate_issue_date,
+      data?.CertificateIssueDate,
+      data?.certificateIssueDate,
+    );
+
+    // Derive logo URL
+    const logoUrl: string | null = firstPresent(
+      data?.LogoURL,
+      data?.logoUrl,
+      data?.logo_url,
+      cert?.logo_url,
+      cert?.logoUrl,
     );
 
     // A vehicle is self-contained if:
@@ -518,6 +546,9 @@ async function lookupNZSCV(plate: string): Promise<NZSCVResult | null> {
     return {
       isSelfContained,
       selfContainedExpiry: expiry,
+      certificateStatus:   status,
+      issueDate:           issueDate,
+      logoUrl:             logoUrl ? String(logoUrl) : null,
       make:         rawMake   ? String(rawMake)                     : null,
       model:        rawModel  ? String(rawModel)                    : null,
       year:         rawYear   ? parseInt(String(rawYear), 10) || null : null,
@@ -963,19 +994,22 @@ Deno.serve(async (req: Request) => {
       // SCV status exclusively from canonical_scv
       try {
         const { data: scvRow } = await (supabase.from('canonical_scv') as any)
-          .select('is_self_contained, certificate_expiry')
+          .select('is_self_contained, certificate_expiry, certificate_status, certificate_issue_date, vin, max_occupants, logo_url')
           .eq('plate_number', plate)
           .maybeSingle();
 
         nzscv = {
           isSelfContained: scvRow?.is_self_contained ?? false,
           selfContainedExpiry: scvRow?.certificate_expiry ?? null,
+          certificateStatus: scvRow?.certificate_status ?? null,
+          issueDate: scvRow?.certificate_issue_date ?? null,
+          logoUrl: scvRow?.logo_url ?? null,
           make: null,
           model: null,
           year: null,
-          vin: null,
+          vin: scvRow?.vin ?? null,
           colour: null,
-          maxOccupants: null,
+          maxOccupants: scvRow?.max_occupants ?? null,
         };
 
         console.log('✅ SCV status from canonical_scv:', {
@@ -1427,6 +1461,25 @@ Deno.serve(async (req: Request) => {
       // SC certification — always present when NZSCV lookup succeeded
       observationUpdate.self_contained        = nzscv.isSelfContained;
       observationUpdate.self_contained_expiry = nzscv.selfContainedExpiry;
+      // NZSCV enrichment fields — write when available so observations carry
+      // the full registry snapshot for mismatch detection and audit display.
+      if (nzscv.certificateStatus !== null) {
+        observationUpdate.nzscv_certificate_status = nzscv.certificateStatus;
+      }
+      if (nzscv.issueDate !== null) {
+        observationUpdate.nzscv_certificate_issue_date = nzscv.issueDate;
+      }
+      if (nzscv.vin !== null) {
+        observationUpdate.vehicle_vin = nzscv.vin;
+      }
+      if (nzscv.maxOccupants !== null) {
+        observationUpdate.vehicle_max_occupants = nzscv.maxOccupants;
+      }
+      if (nzscv.logoUrl !== null) {
+        observationUpdate.nzscv_logo_url = nzscv.logoUrl;
+      }
+      // Always stamp the time of the NZSCV check so we know how fresh the data is.
+      observationUpdate.nzscv_checked_at = new Date().toISOString();
     }
     // Inference-provided vehicle attributes (also write when NZSCV didn't provide them)
     if (!observationUpdate.vehicle_make  && inference.inferMake)   observationUpdate.vehicle_make  = inference.inferMake;
@@ -1473,6 +1526,8 @@ Deno.serve(async (req: Request) => {
         'sticker_presence', 'sticker_color', 'sticker_detection_confidence',
         'vehicle_color', 'has_discrepancies', 'discrepancy_flags',
         'vehicle_attribute_sources',
+        'nzscv_certificate_status', 'nzscv_certificate_issue_date',
+        'vehicle_vin', 'vehicle_max_occupants', 'nzscv_logo_url', 'nzscv_checked_at',
       ];
       for (const col of optionalCols) delete observationUpdate[col];
       await supabase
