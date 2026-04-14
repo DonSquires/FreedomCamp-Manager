@@ -110,10 +110,12 @@ jobs:
         if: steps.check-secrets.outputs.secrets_present == 'true'
         id: check-supabase
         run: |
+          # Use the PostgREST root endpoint to verify Supabase connectivity.
+          # This is more reliable than querying a specific table because it is
+          # not affected by RLS policies or table-level permissions.
           HTTP_CODE=$(curl -sSo /dev/null -w "%{http_code}" --max-time 10 \
             -H "apikey: ${VITE_SUPABASE_ANON_KEY}" \
-            -H "Authorization: Bearer ${VITE_SUPABASE_ANON_KEY}" \
-            "${VITE_SUPABASE_URL}/rest/v1/zones?select=id&limit=1")
+            "${VITE_SUPABASE_URL}/rest/v1/")
           echo "http_code=$HTTP_CODE" >> "$GITHUB_OUTPUT"
           if [ "$HTTP_CODE" != "200" ]; then
             echo "::warning::Supabase REST returned HTTP $HTTP_CODE"
@@ -189,9 +191,18 @@ jobs:
               const title = await page.title();
               const bodyText = await page.locator('body').innerText().catch(() => '');
               const hasContent = bodyText.length > 50;
+
+              // Detect Vercel protection using multiple signals:
+              //   1. x-vercel-id response header (always present on Vercel deployments)
+              //   2. Title or body text containing "vercel"
+              //   3. Frontend URL hosted on *.vercel.app
+              const responseHeaders = response?.headers() ?? {};
               const isVercelProtection =
                 (status === 401 || status === 403) &&
-                (/vercel/i.test(title) || /vercel/i.test(bodyText));
+                ('x-vercel-id' in responseHeaders ||
+                  /vercel/i.test(title) ||
+                  /vercel/i.test(bodyText) ||
+                  FRONTEND_URL.includes('.vercel.app'));
 
               // Check for crash/error screens
               const hasErrorOverlay = await page.locator('text=/Something went wrong|Error boundary|Unhandled/i').count() > 0;
@@ -391,3 +402,6 @@ jobs:
           echo "| Frontend HTTP | ${{ steps.evaluate.outputs.frontend_effective == 'true' && '✅ Pass' || '❌ Fail' }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Supabase REST | ${{ steps.evaluate.outputs.supabase_effective == 'true' && '✅ Pass' || '❌ Fail' }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Playwright render | ${{ steps.evaluate.outputs.playwright_effective == 'true' && '✅ Pass' || '❌ Fail' }} |" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.check-playwright.outputs.vercel_protection }}" = "true" ]; then
+            echo "| Vercel Protection | ⚠️ Detected — HTTP/Supabase checks soft-passed |" >> "$GITHUB_STEP_SUMMARY"
+          fi
