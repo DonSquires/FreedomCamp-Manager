@@ -490,6 +490,28 @@ const DEBUGGING_PLAYBOOK = {
       '6. Check if the function needs a secret/env var that\'s not set in Supabase dashboard',
     ],
   },
+  railway_config_mismatch: {
+    symptoms: [
+      'ops-railway-wiring-audit.yml fails with CHAT_PROVIDER or TABULAR_NLP_PROVIDER not ollama',
+      'Bob /health shows chat_local_ollama_enabled=false',
+      'Wiring audit error: URL mismatch (expected vs actual)',
+      'Bob returns heuristic responses when Ollama should be active',
+      'OPENAI_API_KEY_SET=true in self-contained mode',
+    ],
+    steps: [
+      '1. Get Bob\'s current config: GET <BOB_URL>/health — read the "config" and "capabilities" sections.',
+      '2. Check CHAT_PROVIDER: must be "ollama" in production. If "heuristic", set CHAT_PROVIDER=ollama in Bob Railway service → Variables.',
+      '3. Check TABULAR_NLP_PROVIDER: must be "ollama" in production. Same fix if "heuristic".',
+      '4. Check capabilities.chat_local_ollama_enabled: must be true. If false, OLLAMA_BASE_URL is wrong or Ollama is not running.',
+      '5. Verify OLLAMA_BASE_URL: must be http://ollama.railway.internal:11434 (not port 3000, not a public URL). Set in Bob Railway Variables.',
+      '6. Verify Bob and Ollama are in the same Railway project (same project ID). Private networking only works within a project.',
+      '7. Verify Ollama is running: GET <OLLAMA_SERVICE_URL>/api/tags should return 200 with a model list.',
+      '8. If OPENAI_API_KEY_SET=true: remove OPENAI_API_KEY from Bob Railway Variables — Bob is self-contained and must not call OpenAI.',
+      '9. Check SELF_CONTAINED_MODE: must be "true". If not, set SELF_CONTAINED_MODE=true in Bob Railway Variables.',
+      '10. After fixing variables, redeploy Bob: Railway Dashboard → Bob service → Deployments → Redeploy. Wait 60s for health check.',
+      '11. Re-run wiring audit: GitHub → Actions → Ops Railway Wiring Audit → Run workflow to confirm all checks pass.',
+    ],
+  },
   railway_service_down: {
     symptoms: ['Bob not responding', 'Inference timeout', '/health returns error'],
     steps: [
