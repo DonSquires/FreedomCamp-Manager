@@ -11,7 +11,7 @@
  * is shown instead and they are prompted to return to their assigned location.
  */
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
@@ -58,7 +58,7 @@ export default function OfficerHomePage() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
   const { rosteredShift } = useRosteredShift()
-  const { geofenceViolation, isRostered, hasActiveShift } = useShiftGate()
+  const { geofenceViolation, isRostered, hasActiveShift, activeShiftId } = useShiftGate()
   const { operationalOrganizationId } = useOperationalOrganization()
   const queryClient = useQueryClient()
 
@@ -68,6 +68,41 @@ export default function OfficerHomePage() {
   const [adhocEndTime, setAdhocEndTime] = useState('16:00')
   const [adhocNotes, setAdhocNotes] = useState('')
   const [adhocServiceType, setAdhocServiceType] = useState('freedom_camping')
+  const [isEndingShift, setIsEndingShift] = useState(false)
+
+  // ── End active shift from home page (e.g. stale/geofence-locked shift) ─────
+  const handleEndShift = useCallback(async () => {
+    if (!activeShiftId) return
+    setIsEndingShift(true)
+    try {
+      const { error } = await (supabase.from('officer_shifts') as any)
+        .update({ ended_at: new Date().toISOString() })
+        .eq('id', activeShiftId)
+      if (error) throw error
+
+      // Deactivate welfare push schedule
+      if (user?.id) {
+        await supabase
+          .from('welfare_push_schedule' as any)
+          .update({ is_active: false })
+          .eq('officer_id', user.id)
+          .eq('is_active', true)
+      }
+
+      // Notify service worker to dismiss welfare notifications
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: 'WELFARE_SHIFT_END' })
+      }
+
+      toast.success('Shift ended — welfare monitoring stopped')
+      queryClient.invalidateQueries({ queryKey: ['officer-active-shift-gate'] })
+      queryClient.invalidateQueries({ queryKey: ['officer-active-shift'] })
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Failed to end shift')
+    } finally {
+      setIsEndingShift(false)
+    }
+  }, [activeShiftId, user, queryClient])
 
   // ── Ad-hoc shift request ──────────────────────────────────────────────────
   const requestAdhocMutation = useMutation({
@@ -164,11 +199,21 @@ export default function OfficerHomePage() {
         ) : hasActiveShift ? (
           <div className="w-full rounded-xl border border-green-200 bg-green-50 p-4 flex gap-3">
             <MapPin className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
-            <div>
+            <div className="flex-1">
               <p className="text-sm font-semibold text-green-800">Shift active – waiting for geofence</p>
               <p className="text-xs text-green-600 mt-0.5">
                 Move into your assigned zone to unlock the full portal.
               </p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleEndShift}
+                disabled={isEndingShift}
+                className="mt-2 text-xs border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+              >
+                <LogOut className="h-3.5 w-3.5 mr-1.5" />
+                {isEndingShift ? 'Ending…' : 'End Shift'}
+              </Button>
             </div>
           </div>
         ) : (
