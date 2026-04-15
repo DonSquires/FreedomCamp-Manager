@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
+import { requireAuth } from '../_shared/requireAuth.ts';
 
 /**
  * Generate Court-Ready PDF for Incident Reports
@@ -29,9 +30,14 @@ serve(async (req) => {
       );
     }
 
-    // Get auth token
-    const authHeader = req.headers.get('Authorization');
-    const token = authHeader?.replace('Bearer ', '');
+    // Authenticate — only logged-in users may generate incident PDFs.
+    const authResult = await requireAuth(req);
+    if (!authResult.user) {
+      return new Response(
+        JSON.stringify({ error: authResult.error ?? 'Unauthorized' }),
+        { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      );
+    }
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',

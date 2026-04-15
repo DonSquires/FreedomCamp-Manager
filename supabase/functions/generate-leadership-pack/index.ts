@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
+import { requireAuth } from '../_shared/requireAuth.ts';
 
 /**
  * Generate Leadership Pack PDF
@@ -23,6 +24,15 @@ serve(async (req) => {
   }
 
   try {
+    // Authenticate — only logged-in users may generate leadership packs.
+    const authResult = await requireAuth(req);
+    if (!authResult.user) {
+      return new Response(
+        JSON.stringify({ error: authResult.error ?? 'Unauthorized' }),
+        { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      );
+    }
+
     const {
       organization_id,
       date_range_start,

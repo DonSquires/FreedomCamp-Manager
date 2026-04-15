@@ -14,6 +14,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
+import { requireAuth } from '../_shared/requireAuth.ts'
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
@@ -21,6 +22,15 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    // Authenticate — only logged-in users may generate seizure receipts.
+    const authResult = await requireAuth(req);
+    if (!authResult.user) {
+      return new Response(
+        JSON.stringify({ error: authResult.error ?? 'Unauthorized' }),
+        { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      )
+    }
+
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',

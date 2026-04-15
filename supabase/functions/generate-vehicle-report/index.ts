@@ -6,6 +6,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
+import { requireAuth } from '../_shared/requireAuth.ts';
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -14,6 +15,15 @@ serve(async (req) => {
   }
 
   try {
+    // Authenticate — only logged-in users may generate vehicle reports.
+    const authResult = await requireAuth(req);
+    if (!authResult.user) {
+      return new Response(
+        JSON.stringify({ error: authResult.error ?? 'Unauthorized' }),
+        { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      );
+    }
+
     const {
       vehicle,
       observations,

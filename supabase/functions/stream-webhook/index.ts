@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 import { adaptiveObservationInsert } from '../_shared/observationInsert.ts';
+import { requireAuth } from '../_shared/requireAuth.ts';
 
 /**
  * PLATE RECOGNIZER STREAM WEBHOOK ENDPOINT
@@ -54,6 +55,39 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // ── Authentication ────────────────────────────────────────────────────────
+    // Accept either:
+    //   1. A shared secret from Plate Recognizer Stream hardware:
+    //      Authorization: Bearer <STREAM_WEBHOOK_SECRET>
+    //   2. A valid Supabase user JWT (frontend test calls via callEdgeFunction).
+    const streamSecret = Deno.env.get('STREAM_WEBHOOK_SECRET');
+    const authHeader = req.headers.get('Authorization') || req.headers.get('authorization') || '';
+    const bearerToken = authHeader.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() ?? '';
+
+    if (streamSecret) {
+      // Shared secret is configured — accept it OR a valid user JWT.
+      if (bearerToken !== streamSecret) {
+        // Not the hardware secret — fall back to JWT validation.
+        const authResult = await requireAuth(req);
+        if (!authResult.user) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Unauthorized' }),
+            { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+    } else {
+      // No secret configured — require a valid user JWT.
+      console.warn('⚠️ STREAM_WEBHOOK_SECRET is not set. Set it to authenticate ALPR hardware calls.');
+      const authResult = await requireAuth(req);
+      if (!authResult.user) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Unauthorized' }),
+          { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
