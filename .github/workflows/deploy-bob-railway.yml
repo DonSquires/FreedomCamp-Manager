@@ -145,7 +145,8 @@ jobs:
             [ -z "$token" ] && return 1
 
             export RAILWAY_TOKEN="$token"
-            if railway service list --json > /tmp/railway-services.json 2>/tmp/railway-token-check.err; then
+            # Use 'railway whoami' to check if token is valid (doesn't require --json)
+            if railway whoami > /tmp/railway-whoami.txt 2>/tmp/railway-token-check.err; then
               echo "::add-mask::$token"
               echo "SELECTED_RAILWAY_TOKEN=$token" >> "$GITHUB_ENV"
               echo "selected_token_source=$source_label" >> "$GITHUB_OUTPUT"
@@ -189,9 +190,8 @@ jobs:
             exit 1
           fi
 
-          if [ -n "${RAILWAY_SERVICE_ID:-}" ] && ! grep -q "$RAILWAY_SERVICE_ID" /tmp/railway-services.json; then
-            echo "::warning::Resolved service ID was not found in token-scoped service list."
-            echo "Deploy will still be attempted with auto-resolution fallbacks."
+          if [ -n "${RAILWAY_SERVICE_ID:-}" ]; then
+            echo "ℹ️  Will deploy using service ID: $RAILWAY_SERVICE_ID"
           fi
 
           echo "✅ Bob Railway validation step complete"
