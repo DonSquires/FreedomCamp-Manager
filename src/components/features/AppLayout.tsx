@@ -77,6 +77,9 @@ import {
   ScanFace,
   ShieldAlert,
   ShieldCheck,
+  Wand2,
+  ListChecks,
+  LayoutList,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -134,6 +137,9 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
       { path: '/live-patrol', icon: MonitorPlay, label: 'Live Patrol Monitor', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/hotspots', icon: FlameKindling, label: 'Hotspots Map', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/dispatch', icon: Radio, label: 'Dispatch Console', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/dispatch-monitor', icon: LayoutList, label: 'Dispatch Monitor', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/dispatch-wizard', icon: Wand2, label: 'Dispatch Wizard', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/dispatched-jobs', icon: ListChecks, label: 'Dispatched Jobs', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/team-chat', icon: MessageSquare, label: 'Team Chat', roles: ['admin', 'admin_officer', 'master', 'officer'] },
     ],
   },
@@ -146,7 +152,9 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
       { path: '/admin/nzscv', icon: Car, label: 'NZSCV Monitor', roles: ['admin', 'master', 'nzscv_monitor'] },
       { path: '/admin/canonical-records', icon: Database, label: 'Canonical Records', roles: ['admin', 'master'] },
       { path: '/zones', icon: MapPin, label: 'Zones', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/client-sites', icon: Building2, label: 'Client Sites (CRM)', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/client-master-list', icon: ListChecks, label: 'Client Master List', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/client-sites', icon: Building2, label: 'Client Sites', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/crm', icon: Building2, label: 'CRM / Accounts', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/users', icon: Users, label: 'Users', roles: ['admin', 'master'] },
       { path: '/organization-profile', icon: Building2, label: 'Organisation', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/organizations', icon: Building2, label: 'Organisations', roles: ['master'] },

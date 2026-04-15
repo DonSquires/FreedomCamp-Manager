@@ -60,7 +60,8 @@ export function usePatrols(options: UsePatrolsOptions = {}) {
         .select(`
           *,
           zone:zones(name),
-          officer:user_profiles!patrols_officer_id_fkey(first_name, last_name)
+          officer:user_profiles!patrols_officer_id_fkey(first_name, last_name),
+          patrol_route:patrol_routes!patrol_route_id(call_sign, route_name)
         `)
         .order('created_at', { ascending: false })
 
@@ -201,6 +202,7 @@ interface CreateScheduleParams {
   patrol_date: string
   shift: string
   assigned_to: string | null
+  patrol_route_id?: string | null
   scheduled_start_time?: string | null
   scheduled_end_time?: string | null
   description?: string | null
@@ -232,6 +234,7 @@ export function useCreatePatrolSchedule() {
           priority: params.priority ?? 'normal',
           recurrence: params.recurrence ?? 'none',
           notes: params.notes ?? null,
+          patrol_route_id: params.patrol_route_id ?? null,
           status: 'scheduled',
         })
         .select('id')

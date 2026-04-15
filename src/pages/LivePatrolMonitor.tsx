@@ -48,6 +48,10 @@ interface ActivePatrol {
     last_name: string
     phone: string | null
   }
+  patrol_route: {
+    call_sign: string | null
+    route_name: string
+  } | null
   _vehicles_checked: number
   _duration_minutes: number
   _last_gps_update: string | null
@@ -117,7 +121,8 @@ export default function LivePatrolMonitor() {
             created_at,
             updated_at,
             zone:zones(id, name),
-            officer:user_profiles!patrols_assigned_to_fkey(id, first_name, last_name, phone)
+            officer:user_profiles!patrols_assigned_to_fkey(id, first_name, last_name, phone),
+            patrol_route:patrol_routes!patrol_route_id(call_sign, route_name)
           `)
           // Show in_progress and scheduled patrols; also include today's completed ones
           .in('status', ['in_progress', 'scheduled', 'completed'])
@@ -590,6 +595,11 @@ export default function LivePatrolMonitor() {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
+                      {patrol.patrol_route?.call_sign && (
+                        <Badge className="font-mono font-bold bg-blue-600 text-white gap-1 shrink-0">
+                          <Radio className="h-3 w-3" />{patrol.patrol_route.call_sign}
+                        </Badge>
+                      )}
                       <CardTitle className="text-lg font-bold flex items-center gap-2">
                         <User className="h-5 w-5 text-blue-600" />
                         {patrol.officer.first_name} {patrol.officer.last_name}

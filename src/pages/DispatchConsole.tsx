@@ -11,6 +11,7 @@
  */
 
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -41,7 +42,7 @@ import {
 import {
   AlertTriangle, Clock, MapPin, User, Radio, CheckCircle,
   XCircle, Navigation, Siren, Plus, RefreshCw, Car, Zap,
-  PhoneCall, FileText, Building2,
+  PhoneCall, FileText, Building2, Wand2, LayoutList, ListChecks,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
@@ -52,6 +53,7 @@ interface DispatchJob {
   id: string
   job_number: string
   job_type: string
+  alarm_type: string | null
   priority: 'low' | 'normal' | 'high' | 'urgent'
   status: 'pending' | 'dispatched' | 'acknowledged' | 'en_route' | 'on_scene' | 'completed' | 'cancelled'
   title: string
@@ -87,6 +89,7 @@ interface OfficerStatus {
 
 interface JobForm {
   job_type: string
+  alarm_type: string
   priority: 'low' | 'normal' | 'high' | 'urgent'
   title: string
   description: string
@@ -118,14 +121,58 @@ const PRIORITY_CONFIG: Record<string, { label: string; className: string }> = {
 }
 
 const JOB_TYPE_LABELS: Record<string, string> = {
-  general: 'General', welfare_check: 'Welfare Check', alarm_response: 'Alarm Response',
-  patrol: 'Patrol', noise_complaint: 'Noise Complaint', freedom_camping: 'Freedom Camping',
-  parking: 'Parking', medical: 'Medical', fire: 'Fire', suspicious_activity: 'Suspicious Activity',
-  escort: 'Escort', lock_unlock: 'Lock/Unlock', property_check: 'Property Check',
-  vandalism: 'Vandalism', other: 'Other',
+  // WILSAR core types
+  alarm_response:       'Alarm Response',
+  permanent_patrol:     'Permanent Patrol',
+  casual_patrol:        'Casual Patrol',
+  escort:               'Escort',
+  key_collection:       'Key Collection',
+  key_return:           'Key Return',
+  let_in:               'Let In',
+  let_out:              'Let Out',
+  lockup:               'Lockup',
+  open:                 'Open',
+  alarm_reset:          'Alarm Reset',
+  first_line_one_guard: 'First Line One Guard',
+  first_line_two_guard: 'First Line Two Guard',
+  second_line_response: 'Second Line Response',
+  cash_in_transit:      'Cash In Transit',
+  // FieldOps-native types
+  patrol:               'Patrol',
+  welfare_check:        'Welfare Check',
+  noise_complaint:      'Noise Complaint',
+  freedom_camping:      'Freedom Camping',
+  parking:              'Parking',
+  medical:              'Medical',
+  fire:                 'Fire',
+  suspicious_activity:  'Suspicious Activity',
+  lock_unlock:          'Lock/Unlock',
+  property_check:       'Property Check',
+  vandalism:            'Vandalism',
+  general:              'General',
+  other:                'Other',
+}
+
+const ALARM_TYPE_LABELS: Record<string, string> = {
+  intruder_alarm:  'Intruder Alarm',
+  duress_hold_up:  'Duress / Hold Up',
+  animal_control:  'Animal Control',
+  cardreader_fault:'Cardreader Fault',
+  late_to_close:   'Late to Close',
+  lock_broken:     'Lock Broken',
+  noise:           'Noise',
+  parking:         'Parking',
+  traffic:         'Traffic',
+  vandalism:       'Vandalism',
+  alarm_reset:     'Alarm Reset',
+  other:           'Other',
 }
 
 const ACTIVE_STATUSES = ['pending', 'dispatched', 'acknowledged', 'en_route', 'on_scene']
+
+const ALARM_JOB_TYPES = new Set([
+  'alarm_response', 'first_line_one_guard', 'first_line_two_guard', 'second_line_response',
+])
 
 function minutesSince(dateStr: string | null): number {
   if (!dateStr) return 0
@@ -134,7 +181,7 @@ function minutesSince(dateStr: string | null): number {
 
 function emptyForm(): JobForm {
   return {
-    job_type: 'general', priority: 'normal', title: '', description: '',
+    job_type: 'general', alarm_type: '', priority: 'normal', title: '', description: '',
     address: '', caller_name: '', caller_phone: '', client_site_id: '', zone_id: '', response_sla_minutes: 60,
   }
 }
@@ -145,6 +192,7 @@ export default function DispatchConsole() {
   const { user } = useAuthStore()
   const { organizationId: filterOrgId } = useGlobalFiltersStore()
   const qc = useQueryClient()
+  const navigate = useNavigate()
   const orgId = filterOrgId || user?.organization_id
 
   const [statusFilter, setStatusFilter] = useState<'active' | 'completed' | 'all'>('active')
@@ -167,7 +215,7 @@ export default function DispatchConsole() {
       let q = (supabase as any)
         .from('dispatch_jobs')
         .select(`
-          id, job_number, job_type, priority, status, title, description,
+          id, job_number, job_type, alarm_type, priority, status, title, description,
           address, caller_name, caller_phone, created_at, dispatched_at,
           acknowledged_at, on_scene_at, completed_at,
           response_sla_minutes, sla_breached, escalation_level,
@@ -315,6 +363,7 @@ export default function DispatchConsole() {
         organization_id:      orgId,
         created_by:           user?.id,
         job_type:             f.job_type,
+        alarm_type:           f.alarm_type || null,
         priority:             f.priority,
         title:                f.title,
         description:          f.description || null,
@@ -359,9 +408,18 @@ export default function DispatchConsole() {
               GDS CATS-style job dispatch — assign jobs to officers in real time
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <Button variant="outline" size="sm" onClick={() => navigate('/dispatch-monitor')} className="gap-1.5">
+              <LayoutList className="h-4 w-4" /> Monitor
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => navigate('/dispatched-jobs')} className="gap-1.5">
+              <ListChecks className="h-4 w-4" /> Job List
+            </Button>
             <Button variant="outline" size="sm" onClick={() => qc.invalidateQueries({ queryKey: ['dispatch-jobs'] })}>
               <RefreshCw className="h-4 w-4 mr-1.5" /> Refresh
+            </Button>
+            <Button onClick={() => navigate('/dispatch-wizard')} variant="outline" size="sm" className="gap-1.5">
+              <Wand2 className="h-4 w-4" /> Wizard
             </Button>
             <Button onClick={() => setShowCreate(true)}>
               <Plus className="h-4 w-4 mr-1.5" /> New Job
@@ -528,8 +586,9 @@ export default function DispatchConsole() {
 
             <div className="space-y-3 text-sm">
               <div className="grid grid-cols-2 gap-3 bg-muted/40 rounded-lg p-3 text-sm">
-                <div><p className="text-xs text-muted-foreground">Type</p><p className="font-medium">{JOB_TYPE_LABELS[selectedJob.job_type] ?? selectedJob.job_type}</p></div>
+                <div><p className="text-xs text-muted-foreground">Job Type</p><p className="font-medium">{JOB_TYPE_LABELS[selectedJob.job_type] ?? selectedJob.job_type}</p></div>
                 <div><p className="text-xs text-muted-foreground">Created</p><p className="font-medium">{formatDateTime(selectedJob.created_at)}</p></div>
+                {selectedJob.alarm_type && <div className="col-span-2"><p className="text-xs text-muted-foreground">Alarm Type</p><p className="font-medium">{ALARM_TYPE_LABELS[selectedJob.alarm_type] ?? selectedJob.alarm_type}</p></div>}
                 {selectedJob.address && <div className="col-span-2"><p className="text-xs text-muted-foreground">Address</p><p className="font-medium">{selectedJob.address}</p></div>}
                 {selectedJob.client_site && <div className="col-span-2"><p className="text-xs text-muted-foreground">Site</p><p className="font-medium">{selectedJob.client_site.name}</p></div>}
                 {selectedJob.caller_name && <div><p className="text-xs text-muted-foreground">Caller</p><p className="font-medium">{selectedJob.caller_name}</p></div>}
@@ -609,8 +668,8 @@ export default function DispatchConsole() {
           <form onSubmit={handleCreate} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Type</Label>
-                <Select value={form.job_type} onValueChange={v => setForm(f => ({ ...f, job_type: v }))}>
+                <Label>Job Type</Label>
+                <Select value={form.job_type} onValueChange={v => setForm(f => ({ ...f, job_type: v, alarm_type: ALARM_JOB_TYPES.has(v) ? f.alarm_type : '' }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {Object.entries(JOB_TYPE_LABELS).map(([k, v]) => (
@@ -629,6 +688,21 @@ export default function DispatchConsole() {
                 </Select>
               </div>
             </div>
+
+            {ALARM_JOB_TYPES.has(form.job_type) && (
+              <div className="space-y-1.5">
+                <Label>Alarm Type</Label>
+                <Select value={form.alarm_type} onValueChange={v => setForm(f => ({ ...f, alarm_type: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select alarm type…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">— Not specified —</SelectItem>
+                    {Object.entries(ALARM_TYPE_LABELS).map(([k, v]) => (
+                      <SelectItem key={k} value={k}>{v}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label>Title <span className="text-destructive">*</span></Label>

@@ -57,6 +57,7 @@ import {
   Play,
   Square,
   Send,
+  Radio,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { format, formatDistanceToNow, parseISO } from 'date-fns'
@@ -76,6 +77,7 @@ interface ScheduleForm {
   priority: 'low' | 'normal' | 'high' | 'urgent'
   recurrence: 'none' | 'daily' | 'weekly' | 'fortnightly' | 'monthly'
   notes: string
+  patrol_route_id: string
 }
 
 const emptyForm = (): ScheduleForm => ({
@@ -89,6 +91,7 @@ const emptyForm = (): ScheduleForm => ({
   priority: 'normal',
   recurrence: 'none',
   notes: '',
+  patrol_route_id: '',
 })
 
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
@@ -155,6 +158,21 @@ export default function PatrolScheduleManagement() {
     enabled: !!user?.organization_id,
   })
 
+  const { data: patrolRoutes = [] } = useQuery({
+    queryKey: ['patrol_routes_list', user?.organization_id],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('patrol_routes')
+        .select('id, route_name, call_sign, default_shift')
+        .eq('organization_id', user!.organization_id!)
+        .eq('is_active', true)
+        .order('call_sign', { ascending: true, nullsFirst: false })
+      if (error) throw error
+      return data as { id: string; route_name: string; call_sign: string | null; default_shift: string | null }[]
+    },
+    enabled: !!user?.organization_id,
+  })
+
   // ─── Mutations ────────────────────────────────────────────────────────────
 
   const createMutation = useCreatePatrolSchedule()
@@ -187,6 +205,7 @@ export default function PatrolScheduleManagement() {
       priority: form.priority,
       recurrence: form.recurrence,
       notes: form.notes || null,
+      patrol_route_id: form.patrol_route_id || null,
     }, {
       onSuccess: () => {
         setShowCreate(false)
@@ -271,6 +290,7 @@ export default function PatrolScheduleManagement() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Call Sign</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Shift</TableHead>
                   <TableHead>Zone</TableHead>
@@ -286,14 +306,14 @@ export default function PatrolScheduleManagement() {
               <TableBody>
                 {isLoading && (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
                       Loading…
                     </TableCell>
                   </TableRow>
                 )}
                 {!isLoading && patrols.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
                       No patrol schedules found. Click "Create Patrol Schedule" to get started.
                     </TableCell>
                   </TableRow>
@@ -301,8 +321,18 @@ export default function PatrolScheduleManagement() {
                 {patrols.map((patrol: any) => {
                   const statusInfo = STATUS_BADGE[patrol.status] ?? STATUS_BADGE.scheduled
                   const priorityInfo = PRIORITY_BADGE[patrol.priority] ?? PRIORITY_BADGE.normal
+                  const callSign = patrol.patrol_route?.call_sign
                   return (
                     <TableRow key={patrol.id}>
+                      <TableCell>
+                        {callSign ? (
+                          <Badge variant="outline" className="font-mono font-bold text-blue-700 border-blue-400 gap-1">
+                            <Radio className="h-3 w-3" />{callSign}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">—</span>
+                        )}
+                      </TableCell>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-1">
                           <Calendar className="h-3 w-3 text-gray-500" />
@@ -409,6 +439,24 @@ export default function PatrolScheduleManagement() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4">
+            {/* Patrol Route / Call Sign */}
+            <div className="grid gap-2">
+              <Label className="flex items-center gap-1.5"><Radio className="h-3.5 w-3.5 text-blue-600" />Patrol Route / Call Sign</Label>
+              <Select value={form.patrol_route_id} onValueChange={v => setForm(f => ({ ...f, patrol_route_id: v }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select patrol route (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">No route</SelectItem>
+                  {patrolRoutes.map(r => (
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.call_sign ? `${r.call_sign} – ${r.route_name}` : r.route_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Zone */}
             <div className="grid gap-2">
               <Label>Primary Zone *</Label>

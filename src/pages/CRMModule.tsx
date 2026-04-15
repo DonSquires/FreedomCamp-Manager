@@ -197,7 +197,7 @@ export default function CRMModule() {
   return (
     <AppLayout title="CRM" description="Accounts, contacts and contracts" showBackButton>
       <Tabs defaultValue="accounts">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <TabsList>
             <TabsTrigger value="accounts">
               <Building2 className="h-4 w-4 mr-1.5" />
@@ -214,6 +214,9 @@ export default function CRMModule() {
               </span>
             </TabsTrigger>
           </TabsList>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => navigate('/client-master-list')}>
+            <ChevronRight className="h-4 w-4" /> Master List of Clients
+          </Button>
         </div>
 
         {/* ── Accounts tab ────────────────────────────────────────────────── */}

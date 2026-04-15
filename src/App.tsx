@@ -94,6 +94,10 @@ const OpenShifts = lazy(() => import('@/pages/OpenShifts'))
 const DispatchConsole = lazy(() => import('@/pages/DispatchConsole'))
 const JobMap = lazy(() => import('@/pages/JobMap'))
 const ClientSites = lazy(() => import('@/pages/ClientSites'))
+const ClientMasterList = lazy(() => import('@/pages/ClientMasterList'))
+const DispatchMonitor = lazy(() => import('@/pages/DispatchMonitor'))
+const DispatchWizard = lazy(() => import('@/pages/DispatchWizard'))
+const DispatchedJobsList = lazy(() => import('@/pages/DispatchedJobsList'))
 const RosterPlanner = lazy(() => import('@/pages/RosterPlanner'))
 const OfficerSkills = lazy(() => import('@/pages/OfficerSkills'))
 const OfficerAvailability = lazy(() => import('@/pages/OfficerAvailability'))
@@ -1419,6 +1423,36 @@ export default function App() {
             }
           />
           <Route
+            path="/dispatch-monitor"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <DispatchMonitor />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dispatch-wizard"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <DispatchWizard />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dispatched-jobs"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <DispatchedJobsList />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/job-map"
             element={
               <ProtectedRoute>
@@ -1434,6 +1468,16 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <ClientSites />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/client-master-list"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <ClientMasterList />
                 </RoleRoute>
               </ProtectedRoute>
             }
