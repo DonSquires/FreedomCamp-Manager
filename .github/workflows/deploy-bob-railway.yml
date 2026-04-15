@@ -198,7 +198,7 @@ jobs:
 
           if [ -n "$EXPLICIT_PROJECT_ID" ]; then
             echo "ℹ️ Attempting Bob service auto-discovery from explicit project ID..."
-            GRAPHQL_PAYLOAD=$(printf '{"query":"query { project(id:\"%s\") { services { edges { node { id name } } } } }"}' "$EXPLICIT_PROJECT_ID")
+            GRAPHQL_PAYLOAD=$(jq -n --arg projectId "$EXPLICIT_PROJECT_ID" '{query: "query ($id: String!) { project(id: $id) { services { edges { node { id name } } } } }", variables: { id: $projectId }}')
             GRAPHQL_RESPONSE=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
               -H "Authorization: Bearer $RAILWAY_TOKEN" \
               -H "Content-Type: application/json" \
@@ -345,7 +345,7 @@ jobs:
               fi
 
               echo "::warning::Attempting Bob deployment by common service names as final fallback."
-              FALLBACK_NAMES="${RAILWAY_BOB_SERVICE_NAME:-} bob bob-inference bob-inference-service inference-service orc-ai-inference-service"
+              FALLBACK_NAMES="${RAILWAY_BOB_SERVICE_NAME:-} bob bob-inference bob-inference-service"
               for NAME in $FALLBACK_NAMES; do
                 if [ -z "$NAME" ]; then
                   continue
@@ -370,7 +370,7 @@ jobs:
               attempt_global_resolution
             fi
 
-            GRAPHQL_PAYLOAD=$(printf '{"query":"query { project(id:\"%s\") { services { edges { node { id name } } } } }"}' "$PROJECT_TO_QUERY")
+            GRAPHQL_PAYLOAD=$(jq -n --arg projectId "$PROJECT_TO_QUERY" '{query: "query ($id: String!) { project(id: $id) { services { edges { node { id name } } } } }", variables: { id: $projectId }}')
             GRAPHQL_HTTP_STATUS=$(curl -sS -o /tmp/railway-project-lookup.json -w "%{http_code}" https://backboard.railway.app/graphql/v2 \
               -H "Authorization: Bearer $RAILWAY_TOKEN" \
               -H "Content-Type: application/json" \
