@@ -66,6 +66,7 @@ jobs:
           fi
 
           STATUS="$(jq -r '.status // "unknown"' /tmp/inference-health.json)"
+          OPERATING_MODE="$(jq -r '.config.OPERATING_MODE // "unknown"' /tmp/inference-health.json)"
           CHAT_PROVIDER="$(jq -r '.config.CHAT_PROVIDER // ""' /tmp/inference-health.json)"
           TABULAR_PROVIDER="$(jq -r '.config.TABULAR_NLP_PROVIDER // ""' /tmp/inference-health.json)"
           SELF_CONTAINED_MODE="$(jq -r '.config.SELF_CONTAINED_MODE // false' /tmp/inference-health.json)"
@@ -76,12 +77,20 @@ jobs:
           TABULAR_OLLAMA_ENABLED="$(jq -r '.capabilities.tabular_nlp_ollama_enabled // false' /tmp/inference-health.json)"
 
           [[ "$STATUS" == "healthy" ]] || { echo "Inference status is not healthy: $STATUS"; exit 1; }
+          [[ "$OPERATING_MODE" == "self-contained" || "$OPERATING_MODE" == "build-training" ]] || { echo "Unexpected OPERATING_MODE=$OPERATING_MODE"; exit 1; }
           [[ "$CHAT_PROVIDER" == "ollama" ]] || { echo "Expected CHAT_PROVIDER=ollama but got $CHAT_PROVIDER"; exit 1; }
           [[ "$TABULAR_PROVIDER" == "ollama" ]] || { echo "Expected TABULAR_NLP_PROVIDER=ollama but got $TABULAR_PROVIDER"; exit 1; }
-          [[ "$SELF_CONTAINED_MODE" == "true" ]] || { echo "Expected SELF_CONTAINED_MODE=true but got $SELF_CONTAINED_MODE"; exit 1; }
-          [[ "$REQUIRE_SELF_CONTAINED_MODE" == "true" ]] || echo "::warning::REQUIRE_SELF_CONTAINED_MODE is $REQUIRE_SELF_CONTAINED_MODE (expected true)."
-          [[ "$SELF_CONTAINED_STRICT_EGRESS" == "true" ]] || echo "::warning::SELF_CONTAINED_STRICT_EGRESS is $SELF_CONTAINED_STRICT_EGRESS (expected true)."
-          [[ "$OPENAI_API_KEY_SET" == "false" ]] || { echo "Expected OPENAI_API_KEY_SET=false in self-contained mode but got $OPENAI_API_KEY_SET"; exit 1; }
+
+          if [[ "$OPERATING_MODE" == "self-contained" ]]; then
+            [[ "$SELF_CONTAINED_MODE" == "true" ]] || { echo "Expected SELF_CONTAINED_MODE=true but got $SELF_CONTAINED_MODE"; exit 1; }
+            [[ "$REQUIRE_SELF_CONTAINED_MODE" == "true" ]] || echo "::warning::REQUIRE_SELF_CONTAINED_MODE is $REQUIRE_SELF_CONTAINED_MODE (expected true)."
+            [[ "$SELF_CONTAINED_STRICT_EGRESS" == "true" ]] || echo "::warning::SELF_CONTAINED_STRICT_EGRESS is $SELF_CONTAINED_STRICT_EGRESS (expected true)."
+            [[ "$OPENAI_API_KEY_SET" == "false" ]] || { echo "Expected OPENAI_API_KEY_SET=false in self-contained mode but got $OPENAI_API_KEY_SET"; exit 1; }
+          else
+            [[ "$SELF_CONTAINED_MODE" == "false" ]] || echo "::warning::Expected SELF_CONTAINED_MODE=false in build-training mode; got $SELF_CONTAINED_MODE"
+            [[ "$OPENAI_API_KEY_SET" == "false" ]] || echo "::warning::OPENAI_API_KEY_SET is $OPENAI_API_KEY_SET (expected false for Ollama-only runtime)."
+          fi
+
           [[ "$CHAT_OLLAMA_ENABLED" == "true" ]] || { echo "chat_local_ollama_enabled is false"; exit 1; }
           [[ "$TABULAR_OLLAMA_ENABLED" == "true" ]] || { echo "tabular_nlp_ollama_enabled is false"; exit 1; }
 

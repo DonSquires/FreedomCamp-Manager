@@ -25,6 +25,7 @@ name: Ops Bob Code Task
 # Required repository secrets:
 #   BOB_SERVICE_URL or INFERENCE_SERVICE_URL    — Bob Railway URL
 #   BOB_INFERENCE_API_KEY or INFERENCE_API_KEY  — x-inference-api-key header
+#   (optional fallback) SUPABASE_SERVICE_ROLE_KEY — accepted by inference auth
 #
 # Optional:
 #   BOB_CODE_TASK_LIMIT  — max tasks per run (default: 3)
@@ -74,12 +75,12 @@ jobs:
       - name: Validate required secrets
         id: validate
         run: |
+          set -euo pipefail
+
           missing=""
           BASE_URL="${BOB_SERVICE_URL:-${INFERENCE_SERVICE_URL:-}}"
-          API_KEY="${BOB_INFERENCE_API_KEY:-${INFERENCE_API_KEY:-}}"
 
           [ -z "$BASE_URL" ] && missing="$missing BOB_SERVICE_URL-or-INFERENCE_SERVICE_URL"
-          [ -z "$API_KEY" ]  && missing="$missing BOB_INFERENCE_API_KEY-or-INFERENCE_API_KEY"
 
           if [ -n "$missing" ]; then
             echo "::warning::Missing required secrets:$missing — code task workflow skipped."
@@ -90,14 +91,44 @@ jobs:
           BASE_URL="${BASE_URL%/}"
           [[ "$BASE_URL" != http://* && "$BASE_URL" != https://* ]] && BASE_URL="https://$BASE_URL"
 
+          CANDIDATE_KEYS=(
+            "${BOB_INFERENCE_API_KEY:-}"
+            "${INFERENCE_API_KEY:-}"
+            "${SUPABASE_SERVICE_ROLE_KEY:-}"
+          )
+
+          SELECTED_KEY=""
+          for KEY in "${CANDIDATE_KEYS[@]}"; do
+            [ -z "$KEY" ] && continue
+
+            HTTP_STATUS=$(curl -s -o /tmp/pending-auth-probe.json -w "%{http_code}" \
+              --max-time 20 \
+              "${BASE_URL}/code/tasks/pending?limit=1" \
+              -H "x-inference-api-key: ${KEY}")
+
+            if [ "$HTTP_STATUS" = "200" ]; then
+              SELECTED_KEY="$KEY"
+              break
+            fi
+          done
+
+          if [ -z "$SELECTED_KEY" ]; then
+            echo "::error::Could not authenticate to Bob /code/tasks/pending with any configured key."
+            echo "Tried: BOB_INFERENCE_API_KEY, INFERENCE_API_KEY, SUPABASE_SERVICE_ROLE_KEY"
+            echo "can_run=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
           echo "BOB_SERVICE_URL=$BASE_URL" >> "$GITHUB_ENV"
-          echo "BOB_INFERENCE_API_KEY=$API_KEY" >> "$GITHUB_ENV"
+          echo "::add-mask::$SELECTED_KEY"
+          echo "BOB_INFERENCE_API_KEY=$SELECTED_KEY" >> "$GITHUB_ENV"
           echo "can_run=true" >> "$GITHUB_OUTPUT"
         env:
           BOB_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
           INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL }}
           BOB_INFERENCE_API_KEY: ${{ secrets.BOB_INFERENCE_API_KEY }}
           INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       # -----------------------------------------------------------------------
       # 2. Optional: queue a manually supplied task

@@ -133,18 +133,47 @@ jobs:
         id: validate-token
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
-          RAILWAY_TOKEN: ${{ env.RAILWAY_BOB_TOKEN || env.RAILWAY_TOKEN }}
+          PRIMARY_RAILWAY_TOKEN: ${{ env.RAILWAY_BOB_TOKEN }}
+          SECONDARY_RAILWAY_TOKEN: ${{ env.RAILWAY_TOKEN }}
           RAILWAY_SERVICE_ID: ${{ steps.check-secrets.outputs.resolved_candidate_service_id }}
         run: |
-          echo "🔑 Validating Bob Railway token..."
-          if ! railway service list --json > /dev/null 2>&1; then
-            echo "::warning::Could not confirm RAILWAY_BOB_TOKEN via 'railway service list'."
-            echo "Project-scoped Railway tokens can fail this precheck; deployment will still be attempted."
-          else
-            if ! railway service list --json | grep -q "$RAILWAY_SERVICE_ID"; then
-              echo "::warning::RAILWAY_BOB_SERVICE_ID was not found in the token-scoped service list."
-              echo "Deploy will still be attempted and will fail if service ID is incorrect."
+          set -euo pipefail
+
+          select_working_token() {
+            local token="$1"
+            local source_label="$2"
+            [ -z "$token" ] && return 1
+
+            export RAILWAY_TOKEN="$token"
+            if railway service list --json > /tmp/railway-services.json 2>/tmp/railway-token-check.err; then
+              echo "::add-mask::$token"
+              echo "SELECTED_RAILWAY_TOKEN=$token" >> "$GITHUB_ENV"
+              echo "selected_token_source=$source_label" >> "$GITHUB_OUTPUT"
+              return 0
             fi
+            return 1
+          }
+
+          echo "🔑 Validating Bob Railway token..."
+          if select_working_token "${PRIMARY_RAILWAY_TOKEN:-}" "RAILWAY_BOB_TOKEN"; then
+            echo "✅ Using RAILWAY_BOB_TOKEN"
+          elif select_working_token "${SECONDARY_RAILWAY_TOKEN:-}" "RAILWAY_TOKEN"; then
+            echo "::warning::RAILWAY_BOB_TOKEN validation failed; using RAILWAY_TOKEN fallback for this run."
+          else
+            echo ""
+            echo "::error::No valid Railway token found for Bob deployment."
+            echo ""
+            echo "Tried:"
+            echo "  1. RAILWAY_BOB_TOKEN"
+            echo "  2. RAILWAY_TOKEN"
+            echo ""
+            echo "Fix: Regenerate Bob project token in Railway and update GitHub secrets."
+            exit 1
+          fi
+
+          if [ -n "${RAILWAY_SERVICE_ID:-}" ] && ! grep -q "$RAILWAY_SERVICE_ID" /tmp/railway-services.json; then
+            echo "::warning::Resolved service ID was not found in token-scoped service list."
+            echo "Deploy will still be attempted with auto-resolution fallbacks."
           fi
 
           echo "✅ Bob Railway validation step complete"
@@ -156,7 +185,7 @@ jobs:
           steps.check-secrets.outputs.secrets_present == 'true' &&
           steps.validate-token.outputs.token_valid == 'true'
         env:
-          RAILWAY_TOKEN: ${{ env.RAILWAY_BOB_TOKEN || env.RAILWAY_TOKEN }}
+          RAILWAY_TOKEN: ${{ env.SELECTED_RAILWAY_TOKEN }}
           EXPLICIT_SERVICE_ID: ${{ steps.check-secrets.outputs.resolved_candidate_service_id }}
           EXPLICIT_PROJECT_ID: ${{ env.RAILWAY_BOB_PROJECT_ID || env.RAILWAY_PROJECT_ID }}
         run: |
@@ -259,7 +288,7 @@ jobs:
           steps.validate-token.outputs.token_valid == 'true' &&
           steps.resolve-service.outputs.service_id != ''
         env:
-          RAILWAY_TOKEN: ${{ env.RAILWAY_BOB_TOKEN || env.RAILWAY_TOKEN }}
+          RAILWAY_TOKEN: ${{ env.SELECTED_RAILWAY_TOKEN }}
           RAILWAY_SERVICE_ID: ${{ steps.resolve-service.outputs.service_id }}
           RAILWAY_BOB_PROJECT_ID: ${{ steps.resolve-service.outputs.project_id }}
           RAILWAY_BOB_SERVICE_NAME: ${{ secrets.RAILWAY_BOB_SERVICE_NAME }}
