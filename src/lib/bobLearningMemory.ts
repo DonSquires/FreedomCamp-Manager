@@ -176,6 +176,13 @@ interface PersistConversationTurnRemoteInput {
   destinationHint?: string
 }
 
+export interface BobMemorySnapshot {
+  conversationTurns: number
+  learningEntries: number
+  recentTurns: Array<{ role: 'user' | 'assistant'; message: string; createdAt: string }>
+  recentLearning: Array<{ topic: string; tags: string[]; useCount: number; lastUsedAt: string }>
+}
+
 export async function persistBobLearningRemote(input: PersistRemoteLearningInput) {
   try {
     const localEntry = learnFromBobExchange({
@@ -322,4 +329,114 @@ export async function buildConversationContinuationContextRemote(userId: string,
   } catch {
     return ''
   }
+}
+
+export async function getBobMemorySnapshotRemote(userId: string, maxItems = 8): Promise<BobMemorySnapshot> {
+  const empty: BobMemorySnapshot = {
+    conversationTurns: 0,
+    learningEntries: 0,
+    recentTurns: [],
+    recentLearning: [],
+  }
+
+  try {
+    const [turnsResult, learningResult] = await Promise.all([
+      ((supabase as any).from('bob_conversation_memory') as any)
+        .select('role, message, created_at', { count: 'exact' })
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(maxItems),
+      ((supabase as any).from('bob_learning_memory') as any)
+        .select('topic, tags, use_count, last_used_at', { count: 'exact' })
+        .eq('user_id', userId)
+        .order('last_used_at', { ascending: false })
+        .limit(maxItems),
+    ])
+
+    const recentTurns = Array.isArray(turnsResult.data)
+      ? turnsResult.data.map((row: any) => ({
+          role: row?.role === 'assistant' ? 'assistant' : 'user',
+          message: String(row?.message ?? ''),
+          createdAt: String(row?.created_at ?? ''),
+        }))
+      : []
+
+    const recentLearning = Array.isArray(learningResult.data)
+      ? learningResult.data.map((row: any) => ({
+          topic: String(row?.topic ?? ''),
+          tags: Array.isArray(row?.tags) ? row.tags.map((t: any) => String(t)) : [],
+          useCount: Number(row?.use_count ?? 0),
+          lastUsedAt: String(row?.last_used_at ?? ''),
+        }))
+      : []
+
+    return {
+      conversationTurns: Number(turnsResult.count ?? recentTurns.length ?? 0),
+      learningEntries: Number(learningResult.count ?? recentLearning.length ?? 0),
+      recentTurns,
+      recentLearning,
+    }
+  } catch {
+    return empty
+  }
+}
+
+export async function forgetLastConversationRemote(userId: string) {
+  try {
+    const { data: latestTurns } = await ((supabase as any).from('bob_conversation_memory') as any)
+      .select('created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    const latestCreatedAt = Array.isArray(latestTurns) && latestTurns[0]?.created_at
+      ? String(latestTurns[0].created_at)
+      : ''
+
+    if (latestCreatedAt) {
+      await (((supabase as any).from('bob_conversation_memory') as any)
+        .delete()
+        .eq('user_id', userId)
+        .eq('created_at', latestCreatedAt))
+    }
+
+    const { data: latestLearningRows } = await ((supabase as any).from('bob_learning_memory') as any)
+      .select('id')
+      .eq('user_id', userId)
+      .order('last_used_at', { ascending: false })
+      .limit(1)
+
+    const latestLearningId = Array.isArray(latestLearningRows) && latestLearningRows[0]?.id
+      ? String(latestLearningRows[0].id)
+      : ''
+
+    if (latestLearningId) {
+      await (((supabase as any).from('bob_learning_memory') as any)
+        .delete()
+        .eq('user_id', userId)
+        .eq('id', latestLearningId))
+    }
+
+    const local = readAll().filter((e) => e.userId !== userId)
+    writeAll(local)
+  } catch {
+    // Best effort only.
+  }
+}
+
+export async function clearAllBobMemoryRemote(userId: string) {
+  try {
+    await Promise.all([
+      (((supabase as any).from('bob_conversation_memory') as any)
+        .delete()
+        .eq('user_id', userId)),
+      (((supabase as any).from('bob_learning_memory') as any)
+        .delete()
+        .eq('user_id', userId)),
+    ])
+  } catch {
+    // Best effort only.
+  }
+
+  clearBobLearningMemory(userId)
 }

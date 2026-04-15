@@ -22,6 +22,10 @@ import {
   buildBobLearningContext,
   buildBobLearningContextRemote,
   buildConversationContinuationContextRemote,
+  clearAllBobMemoryRemote,
+  forgetLastConversationRemote,
+  getBobMemorySnapshotRemote,
+  type BobMemorySnapshot,
   persistBobLearningRemote,
   persistConversationTurnRemote,
 } from '@/lib/bobLearningMemory'
@@ -483,6 +487,9 @@ export default function BobAssistantStudio() {
   const [codeTaskResult, setCodeTaskResult] = useState('')
   const [remoteLearningContext, setRemoteLearningContext] = useState('')
   const [conversationContinuationContext, setConversationContinuationContext] = useState('')
+  const [memorySnapshot, setMemorySnapshot] = useState<BobMemorySnapshot | null>(null)
+  const [memoryLoading, setMemoryLoading] = useState(false)
+  const [memoryPanelOpen, setMemoryPanelOpen] = useState(false)
   const [codeChangeRequest, setCodeChangeRequest] = useState<CodeChangeRequest>({
     summary: '',
     details: '',
@@ -1054,6 +1061,67 @@ export default function BobAssistantStudio() {
       toast.error(`Bob inference service unavailable — using local fallback (${shortError})`)
     } finally {
       setThinking(false)
+    }
+  }
+
+  const handleViewMyMemory = async () => {
+    if (!user?.id) {
+      toast.error('Please sign in to view memory')
+      return
+    }
+    setMemoryLoading(true)
+    try {
+      const snapshot = await getBobMemorySnapshotRemote(user.id, 8)
+      setMemorySnapshot(snapshot)
+      setMemoryPanelOpen(true)
+    } finally {
+      setMemoryLoading(false)
+    }
+  }
+
+  const handleForgetLastConversation = async () => {
+    if (!user?.id) {
+      toast.error('Please sign in to manage memory')
+      return
+    }
+    setMemoryLoading(true)
+    try {
+      await forgetLastConversationRemote(user.id)
+      const [learningContext, continuationContext, snapshot] = await Promise.all([
+        buildBobLearningContextRemote(user.id, 20),
+        buildConversationContinuationContextRemote(user.id, 16),
+        getBobMemorySnapshotRemote(user.id, 8),
+      ])
+      setRemoteLearningContext(learningContext)
+      setConversationContinuationContext(continuationContext)
+      setMemorySnapshot(snapshot)
+      setMemoryPanelOpen(true)
+      toast.success('Last conversation memory removed')
+    } finally {
+      setMemoryLoading(false)
+    }
+  }
+
+  const handleClearAllMemory = async () => {
+    if (!user?.id) {
+      toast.error('Please sign in to manage memory')
+      return
+    }
+    setMemoryLoading(true)
+    try {
+      await clearAllBobMemoryRemote(user.id)
+      setRemoteLearningContext('')
+      setConversationContinuationContext('')
+      setMemorySnapshot({
+        conversationTurns: 0,
+        learningEntries: 0,
+        recentTurns: [],
+        recentLearning: [],
+      })
+      setMemoryPanelOpen(true)
+      toast.success('All Bob memory cleared for your account')
+    } finally {
+      setMemoryLoading(false)
     }
   }
 
@@ -1704,6 +1772,55 @@ export default function BobAssistantStudio() {
                   </div>
                 )}
                 <div ref={chatEndRef} />
+              </div>
+
+              <div className="rounded-md border p-3 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-sm font-medium">Personal Memory Controls</div>
+                  <Badge variant="outline">Per-user</Badge>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" onClick={handleViewMyMemory} disabled={memoryLoading || !user?.id}>
+                    {memoryLoading ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : null}
+                    View My Memory
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleForgetLastConversation} disabled={memoryLoading || !user?.id}>
+                    {memoryLoading ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : null}
+                    Forget Last Conversation
+                  </Button>
+                  <Button variant="destructive" size="sm" onClick={handleClearAllMemory} disabled={memoryLoading || !user?.id}>
+                    {memoryLoading ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : null}
+                    Clear All My Memory
+                  </Button>
+                </div>
+                {memoryPanelOpen && (
+                  <div className="rounded border bg-muted/30 p-2 space-y-2 text-xs">
+                    <div className="flex flex-wrap gap-3 text-muted-foreground">
+                      <span>Conversation turns: {memorySnapshot?.conversationTurns ?? 0}</span>
+                      <span>Learning entries: {memorySnapshot?.learningEntries ?? 0}</span>
+                    </div>
+                    {(memorySnapshot?.recentTurns?.length ?? 0) > 0 && (
+                      <div className="space-y-1">
+                        <div className="font-medium">Recent conversation memory</div>
+                        {memorySnapshot?.recentTurns.slice(0, 4).map((turn, idx) => (
+                          <div key={`${turn.createdAt}-${idx}`} className="text-muted-foreground truncate">
+                            {turn.role === 'assistant' ? 'Bob' : 'You'}: {turn.message}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {(memorySnapshot?.recentLearning?.length ?? 0) > 0 && (
+                      <div className="space-y-1">
+                        <div className="font-medium">Recent long-term learning</div>
+                        {memorySnapshot?.recentLearning.slice(0, 4).map((entry, idx) => (
+                          <div key={`${entry.lastUsedAt}-${idx}`} className="text-muted-foreground truncate">
+                            {entry.topic} (uses: {entry.useCount})
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-2">
