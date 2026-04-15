@@ -17,7 +17,6 @@ import { useSessionGpsLogging } from '@/hooks/useSessionGpsLogging'
 const Login = lazy(() => import('@/pages/Login'))
 const AdminHub = lazy(() => import('@/pages/AdminHub'))
 const AdminPortal = lazy(() => import('@/pages/AdminPortal'))
-const AdminPortalDashboard = AdminPortal // alias — same component, different route
 const FieldOfficerPortal = lazy(() => import('@/pages/FieldOfficerPortal'))
 const VehicleManagement = lazy(() => import('@/pages/VehicleManagement'))
 const ZoneManagement = lazy(() => import('@/pages/ZoneManagement'))
@@ -562,7 +561,7 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <AdminPortalDashboard />
+                  <AdminPortal />
                 </RoleRoute>
               </ProtectedRoute>
             }
