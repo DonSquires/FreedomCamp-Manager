@@ -60,7 +60,8 @@ export function usePatrols(options: UsePatrolsOptions = {}) {
         .select(`
           *,
           zone:zones(name),
-          officer:user_profiles!patrols_officer_id_fkey(first_name, last_name)
+          officer:user_profiles!patrols_officer_id_fkey(first_name, last_name),
+          patrol_route:patrol_routes!patrol_route_id(call_sign, route_name)
         `)
         .order('created_at', { ascending: false })
 

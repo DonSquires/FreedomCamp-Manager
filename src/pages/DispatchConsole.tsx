@@ -87,6 +87,7 @@ interface OfficerStatus {
 
 interface JobForm {
   job_type: string
+  alarm_type: string
   priority: 'low' | 'normal' | 'high' | 'urgent'
   title: string
   description: string
@@ -118,11 +119,51 @@ const PRIORITY_CONFIG: Record<string, { label: string; className: string }> = {
 }
 
 const JOB_TYPE_LABELS: Record<string, string> = {
-  general: 'General', welfare_check: 'Welfare Check', alarm_response: 'Alarm Response',
-  patrol: 'Patrol', noise_complaint: 'Noise Complaint', freedom_camping: 'Freedom Camping',
-  parking: 'Parking', medical: 'Medical', fire: 'Fire', suspicious_activity: 'Suspicious Activity',
-  escort: 'Escort', lock_unlock: 'Lock/Unlock', property_check: 'Property Check',
-  vandalism: 'Vandalism', other: 'Other',
+  // WILSAR core types
+  alarm_response:       'Alarm Response',
+  permanent_patrol:     'Permanent Patrol',
+  casual_patrol:        'Casual Patrol',
+  escort:               'Escort',
+  key_collection:       'Key Collection',
+  key_return:           'Key Return',
+  let_in:               'Let In',
+  let_out:              'Let Out',
+  lockup:               'Lockup',
+  open:                 'Open',
+  alarm_reset:          'Alarm Reset',
+  first_line_one_guard: 'First Line One Guard',
+  first_line_two_guard: 'First Line Two Guard',
+  second_line_response: 'Second Line Response',
+  cash_in_transit:      'Cash In Transit',
+  // FieldOps-native types
+  patrol:               'Patrol',
+  welfare_check:        'Welfare Check',
+  noise_complaint:      'Noise Complaint',
+  freedom_camping:      'Freedom Camping',
+  parking:              'Parking',
+  medical:              'Medical',
+  fire:                 'Fire',
+  suspicious_activity:  'Suspicious Activity',
+  lock_unlock:          'Lock/Unlock',
+  property_check:       'Property Check',
+  vandalism:            'Vandalism',
+  general:              'General',
+  other:                'Other',
+}
+
+const ALARM_TYPE_LABELS: Record<string, string> = {
+  intruder_alarm:  'Intruder Alarm',
+  duress_hold_up:  'Duress / Hold Up',
+  animal_control:  'Animal Control',
+  cardreader_fault:'Cardreader Fault',
+  late_to_close:   'Late to Close',
+  lock_broken:     'Lock Broken',
+  noise:           'Noise',
+  parking:         'Parking',
+  traffic:         'Traffic',
+  vandalism:       'Vandalism',
+  alarm_reset:     'Alarm Reset',
+  other:           'Other',
 }
 
 const ACTIVE_STATUSES = ['pending', 'dispatched', 'acknowledged', 'en_route', 'on_scene']
@@ -134,7 +175,7 @@ function minutesSince(dateStr: string | null): number {
 
 function emptyForm(): JobForm {
   return {
-    job_type: 'general', priority: 'normal', title: '', description: '',
+    job_type: 'general', alarm_type: '', priority: 'normal', title: '', description: '',
     address: '', caller_name: '', caller_phone: '', client_site_id: '', zone_id: '', response_sla_minutes: 60,
   }
 }
@@ -315,6 +356,7 @@ export default function DispatchConsole() {
         organization_id:      orgId,
         created_by:           user?.id,
         job_type:             f.job_type,
+        alarm_type:           f.alarm_type || null,
         priority:             f.priority,
         title:                f.title,
         description:          f.description || null,
