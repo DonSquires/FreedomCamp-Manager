@@ -1572,6 +1572,55 @@ export default function BobAssistantStudio() {
                   Say "Hey Bob" (or "OK Bob") to start, then continue naturally. Say "thank you" (or similar) to end. Bob auto-stops after 29 seconds of inactivity.
                 </div>
               )}
+
+              <div className="rounded-md border p-3 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-xs font-medium text-muted-foreground">Bob Memory Controls</div>
+                  <Badge variant="outline">Per-user</Badge>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" onClick={handleViewMyMemory} disabled={memoryLoading || !user?.id}>
+                    {memoryLoading ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : null}
+                    View My Memory
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleForgetLastConversation} disabled={memoryLoading || !user?.id}>
+                    {memoryLoading ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : null}
+                    Forget Last Conversation
+                  </Button>
+                  <Button variant="destructive" size="sm" onClick={handleClearAllMemory} disabled={memoryLoading || !user?.id}>
+                    {memoryLoading ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : null}
+                    Clear All My Memory
+                  </Button>
+                </div>
+                {memoryPanelOpen && (
+                  <div className="rounded border bg-muted/30 p-2 space-y-2 text-xs">
+                    <div className="flex flex-wrap gap-3 text-muted-foreground">
+                      <span>Conversation turns: {memorySnapshot?.conversationTurns ?? 0}</span>
+                      <span>Learning entries: {memorySnapshot?.learningEntries ?? 0}</span>
+                    </div>
+                    {(memorySnapshot?.recentTurns?.length ?? 0) > 0 && (
+                      <div className="space-y-1">
+                        <div className="font-medium">Recent conversation memory</div>
+                        {memorySnapshot?.recentTurns.slice(0, 4).map((turn, idx) => (
+                          <div key={`${turn.createdAt}-${idx}`} className="text-muted-foreground truncate">
+                            {turn.role === 'assistant' ? 'Bob' : 'You'}: {turn.message}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {(memorySnapshot?.recentLearning?.length ?? 0) > 0 && (
+                      <div className="space-y-1">
+                        <div className="font-medium">Recent long-term learning</div>
+                        {memorySnapshot?.recentLearning.slice(0, 4).map((entry, idx) => (
+                          <div key={`${entry.lastUsedAt}-${idx}`} className="text-muted-foreground truncate">
+                            {entry.topic} (uses: {entry.useCount})
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
 
@@ -1772,55 +1821,6 @@ export default function BobAssistantStudio() {
                   </div>
                 )}
                 <div ref={chatEndRef} />
-              </div>
-
-              <div className="rounded-md border p-3 space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="text-sm font-medium">Personal Memory Controls</div>
-                  <Badge variant="outline">Per-user</Badge>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" onClick={handleViewMyMemory} disabled={memoryLoading || !user?.id}>
-                    {memoryLoading ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : null}
-                    View My Memory
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={handleForgetLastConversation} disabled={memoryLoading || !user?.id}>
-                    {memoryLoading ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : null}
-                    Forget Last Conversation
-                  </Button>
-                  <Button variant="destructive" size="sm" onClick={handleClearAllMemory} disabled={memoryLoading || !user?.id}>
-                    {memoryLoading ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : null}
-                    Clear All My Memory
-                  </Button>
-                </div>
-                {memoryPanelOpen && (
-                  <div className="rounded border bg-muted/30 p-2 space-y-2 text-xs">
-                    <div className="flex flex-wrap gap-3 text-muted-foreground">
-                      <span>Conversation turns: {memorySnapshot?.conversationTurns ?? 0}</span>
-                      <span>Learning entries: {memorySnapshot?.learningEntries ?? 0}</span>
-                    </div>
-                    {(memorySnapshot?.recentTurns?.length ?? 0) > 0 && (
-                      <div className="space-y-1">
-                        <div className="font-medium">Recent conversation memory</div>
-                        {memorySnapshot?.recentTurns.slice(0, 4).map((turn, idx) => (
-                          <div key={`${turn.createdAt}-${idx}`} className="text-muted-foreground truncate">
-                            {turn.role === 'assistant' ? 'Bob' : 'You'}: {turn.message}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {(memorySnapshot?.recentLearning?.length ?? 0) > 0 && (
-                      <div className="space-y-1">
-                        <div className="font-medium">Recent long-term learning</div>
-                        {memorySnapshot?.recentLearning.slice(0, 4).map((entry, idx) => (
-                          <div key={`${entry.lastUsedAt}-${idx}`} className="text-muted-foreground truncate">
-                            {entry.topic} (uses: {entry.useCount})
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
 
               <div className="flex gap-2">

@@ -84,13 +84,13 @@ jobs:
 
       # If a manual question was provided, queue it in Bob first
       - name: Queue manual question (if provided)
-        if: steps.validate.outputs.can_run == 'true' && inputs.question != ''
+        if: steps.validate.outputs.can_run == 'true' && github.event_name == 'workflow_dispatch' && github.event.inputs.question != ''
         env:
           BOB_SERVICE_URL: ${{ env.BOB_SERVICE_URL }}
           BOB_INFERENCE_API_KEY: ${{ env.BOB_INFERENCE_API_KEY }}
         run: |
-          QUESTION="${{ inputs.question }}"
-          CATEGORY="${{ inputs.category }}"
+          QUESTION="${{ github.event.inputs.question }}"
+          CATEGORY="${{ github.event.inputs.category || 'general' }}"
           echo "📝 Queuing manual question: $QUESTION"
 
           HTTP_STATUS=$(curl -s -o /tmp/queue-resp.json -w "%{http_code}" \
@@ -114,7 +114,7 @@ jobs:
           BOB_SERVICE_URL: ${{ env.BOB_SERVICE_URL }}
           BOB_INFERENCE_API_KEY: ${{ env.BOB_INFERENCE_API_KEY }}
         run: |
-          LIMIT="${{ inputs.limit || vars.BOB_ASK_COPILOT_LIMIT || '10' }}"
+          LIMIT="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.limit || vars.BOB_ASK_COPILOT_LIMIT || '10' }}"
           echo "🔍 Fetching up to $LIMIT pending knowledge requests from Bob..."
 
           HTTP_STATUS=$(curl -s -o /tmp/pending.json -w "%{http_code}" \

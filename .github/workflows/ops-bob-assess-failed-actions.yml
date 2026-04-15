@@ -1,0 +1,87 @@
+name: Ops Bob Assess Failed Actions
+
+# Sends recent failed GitHub Actions runs to Bob so he can learn from failures
+# and queue follow-up knowledge tasks via /ask-copilot.
+
+on:
+  workflow_run:
+    workflows: ["Deploy Admin Portal to Vercel", "Deploy Ollama to Railway", "Deploy Inference Service to Railway", "Database - Migration Check"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  report-failures-to-bob:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate Bob connection secrets
+        id: validate
+        run: |
+          BASE_URL="${BOB_SERVICE_URL:-${INFERENCE_SERVICE_URL:-}}"
+          API_KEY="${BOB_INFERENCE_API_KEY:-${INFERENCE_API_KEY:-}}"
+
+          if [ -z "$BASE_URL" ] || [ -z "$API_KEY" ]; then
+            echo "::warning::Bob URL/API key not configured; skipping failure forwarding."
+            echo "can_run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          BASE_URL="${BASE_URL%/}"
+          if [[ "$BASE_URL" != http://* && "$BASE_URL" != https://* ]]; then
+            BASE_URL="https://$BASE_URL"
+          fi
+
+          echo "BOB_SERVICE_URL=$BASE_URL" >> "$GITHUB_ENV"
+          echo "BOB_INFERENCE_API_KEY=$API_KEY" >> "$GITHUB_ENV"
+          echo "can_run=true" >> "$GITHUB_OUTPUT"
+        env:
+          BOB_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
+          INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL }}
+          BOB_INFERENCE_API_KEY: ${{ secrets.BOB_INFERENCE_API_KEY }}
+          INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
+
+      - name: Build failure report payload
+        if: steps.validate.outputs.can_run == 'true'
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            TITLE="Workflow failed: ${{ github.event.workflow_run.name }}"
+            QUESTION="A workflow failed and needs triage.\nWorkflow: ${{ github.event.workflow_run.name }}\nRun URL: ${{ github.event.workflow_run.html_url }}\nBranch: ${{ github.event.workflow_run.head_branch }}\nHead SHA: ${{ github.event.workflow_run.head_sha }}\nConclusion: ${{ github.event.workflow_run.conclusion }}\nPlease provide likely root cause, immediate checks, and concrete FieldOps fixes."
+          else
+            TITLE="Manual failure triage request"
+            QUESTION="Manual trigger: review recent failed GitHub Actions in FieldOps and provide prioritized root-cause analysis and fixes."
+          fi
+
+          jq -n \
+            --arg title "$TITLE" \
+            --arg question "$QUESTION" \
+            '{title: $title, question: $question, category: "github", source: "ops-bob-assess-failed-actions"}' > /tmp/bob-failure-question.json
+
+          cat /tmp/bob-failure-question.json
+
+      - name: Queue question in Bob ask-copilot
+        if: steps.validate.outputs.can_run == 'true'
+        env:
+          BOB_SERVICE_URL: ${{ env.BOB_SERVICE_URL }}
+          BOB_INFERENCE_API_KEY: ${{ env.BOB_INFERENCE_API_KEY }}
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/bob-queue-response.json -w "%{http_code}" \
+            --max-time 30 \
+            -X POST "${BOB_SERVICE_URL}/ask-copilot" \
+            -H "Content-Type: application/json" \
+            -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}" \
+            -d @/tmp/bob-failure-question.json)
+
+          cat /tmp/bob-queue-response.json
+
+          if [ "$HTTP_STATUS" = "200" ] || [ "$HTTP_STATUS" = "201" ]; then
+            echo "✅ Failure context queued for Bob learning + follow-up"
+          else
+            echo "::warning::Failed to queue Bob failure context (HTTP $HTTP_STATUS)"
+          fi

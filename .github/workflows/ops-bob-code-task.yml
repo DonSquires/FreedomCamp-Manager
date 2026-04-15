@@ -105,14 +105,14 @@ jobs:
       # 2. Optional: queue a manually supplied task
       # -----------------------------------------------------------------------
       - name: Queue manual task (if provided)
-        if: steps.validate.outputs.can_run == 'true' && inputs.task != ''
+        if: steps.validate.outputs.can_run == 'true' && github.event_name == 'workflow_dispatch' && github.event.inputs.task != ''
         env:
           BOB_SERVICE_URL: ${{ env.BOB_SERVICE_URL }}
           BOB_INFERENCE_API_KEY: ${{ env.BOB_INFERENCE_API_KEY }}
         run: |
-          TASK="${{ inputs.task }}"
-          PRIORITY="${{ inputs.priority }}"
-          TARGET_FILES="${{ inputs.target_files }}"
+          TASK="${{ github.event.inputs.task }}"
+          PRIORITY="${{ github.event.inputs.priority || 'high' }}"
+          TARGET_FILES="${{ github.event.inputs.target_files }}"
 
           # Convert comma-separated target_files to JSON array
           FILES_JSON="[]"
@@ -149,7 +149,7 @@ jobs:
           BOB_SERVICE_URL: ${{ env.BOB_SERVICE_URL }}
           BOB_INFERENCE_API_KEY: ${{ env.BOB_INFERENCE_API_KEY }}
         run: |
-          LIMIT="${{ inputs.limit || vars.BOB_CODE_TASK_LIMIT || '3' }}"
+          LIMIT="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.limit || vars.BOB_CODE_TASK_LIMIT || '3' }}"
           echo "🔍 Fetching up to $LIMIT pending code tasks from Bob..."
 
           HTTP_STATUS=$(curl -s -o /tmp/pending.json -w "%{http_code}" \
