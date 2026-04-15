@@ -19,6 +19,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 import { alprWithBytes } from '../_shared/alpr.ts';
+import { requireAuth } from '../_shared/requireAuth.ts';
 
 // API Configuration
 const RAILWAY_INFERENCE_URL = Deno.env.get('INFERENCE_SERVICE_URL');
@@ -384,6 +385,17 @@ Deno.serve(async (req) => {
   // block can flip it to 'failed' if an unhandled exception aborts the pipeline.
   let processingObservationId: string | null = null;
   let processingObservationKey: 'observation_id' | 'id' = 'observation_id';
+
+  // ============================================================================
+  // STEP 2: AUTHENTICATE REQUEST
+  // ============================================================================
+  const authResult = await requireAuth(req);
+  if (!authResult.user) {
+    return new Response(
+      JSON.stringify({ success: false, error: authResult.error ?? 'Unauthorized' }),
+      { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+    );
+  }
 
   try {
     let supportsIdempotencyKeyColumn = true;
