@@ -29,21 +29,8 @@ CREATE TABLE IF NOT EXISTS public.ptt_channels (
   UNIQUE (organization_id, channel_number)
 );
 
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1
-    FROM information_schema.columns
-    WHERE table_schema = 'public'
-      AND table_name = 'ptt_channels'
-      AND column_name = 'channel_number'
-  ) THEN
-    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_ptt_channels_org ON public.ptt_channels (organization_id, channel_number)';
-  ELSE
-    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_ptt_channels_org ON public.ptt_channels (organization_id)';
-  END IF;
-END;
-$$;
+CREATE INDEX IF NOT EXISTS idx_ptt_channels_org
+  ON public.ptt_channels (organization_id);
 
 -- ────────────────────────────────────────────────────────────
 -- 3.  ptt_transmission_log — history of radio transmissions
