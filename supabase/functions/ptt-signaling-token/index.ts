@@ -17,7 +17,10 @@
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
 
-const PTT_SERVER_URL = Deno.env.get('PTT_SERVER_URL') || ''
+const PTT_SERVER_URL =
+  Deno.env.get('PTT_SERVER_URL') ||
+  Deno.env.get('PTT_SERVICE_URL') ||
+  ''
 const PROXY_SECRET =
   Deno.env.get('PTT_PROXY_SECRET') ||
   Deno.env.get('PROXY_SECRET') ||
@@ -80,8 +83,17 @@ Deno.serve(async (req) => {
     const accessToken = authHeader.replace('Bearer ', '')
 
     // Initialize Supabase client with user's token
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return new Response(
+        JSON.stringify({
+          error: 'Supabase config missing',
+          message: 'SUPABASE_URL and SUPABASE_ANON_KEY (or SUPABASE_SERVICE_ROLE_KEY) are required',
+        }),
+        { status: 503, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      )
+    }
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: `Bearer ${accessToken}` } },
     })
