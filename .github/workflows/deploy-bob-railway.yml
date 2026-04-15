@@ -296,19 +296,21 @@ jobs:
           RAILWAY_SERVICE_ID: ${{ steps.resolve-service.outputs.service_id }}
           RAILWAY_BOB_PROJECT_ID: ${{ steps.resolve-service.outputs.project_id }}
           RAILWAY_BOB_SERVICE_NAME: ${{ secrets.RAILWAY_BOB_SERVICE_NAME }}
+          RAILWAY_BOB_ENVIRONMENT: ${{ secrets.RAILWAY_BOB_ENVIRONMENT }}
         run: |
           set -euo pipefail
 
           echo "🚂 Deploying Bob from repository root ..."
           SERVICE_TO_DEPLOY="$RAILWAY_SERVICE_ID"
           PROJECT_TO_QUERY="${RAILWAY_BOB_PROJECT_ID:-}"
+          DEPLOY_ENVIRONMENT="${RAILWAY_BOB_ENVIRONMENT:-production}"
           DEPLOY_LOG="$(mktemp)"
 
           deploy_selector() {
             local selector="$1"
             local project_id="${2:-}"
             if [ -n "$project_id" ]; then
-              railway up --project "$project_id" --service "$selector" --detach
+              railway up --project "$project_id" --environment "$DEPLOY_ENVIRONMENT" --service "$selector" --detach
             else
               railway up --service "$selector" --detach
             fi
