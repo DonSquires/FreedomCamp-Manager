@@ -742,29 +742,31 @@ BEGIN
   LOOP
 
     -- ── 1. Create client organisation ──────────────────────────────────────────
-    INSERT INTO public.organizations (
-      name,
-      organization_type,
-      organization_level,
-      parent_organization_id,
-      is_active,
-      enforcement_workflow,
-      overnight_verification_mode
-    )
-    SELECT
-      rec.loc_name,
-      'client',
-      4,
-      v_nelson_id,
-      true,
-      'officer_first',
-      'two_photo_verification'
-    WHERE NOT EXISTS (
+    IF NOT EXISTS (
       SELECT 1
       FROM   public.organizations
       WHERE  name                  = rec.loc_name
         AND  parent_organization_id = v_nelson_id
-    );
+    ) THEN
+      INSERT INTO public.organizations (
+        name,
+        organization_type,
+        organization_level,
+        parent_organization_id,
+        is_active,
+        enforcement_workflow,
+        overnight_verification_mode
+      )
+      VALUES (
+        rec.loc_name,
+        'client',
+        4,
+        v_nelson_id,
+        true,
+        'officer_first',
+        'two_photo_verification'
+      );
+    END IF;
 
     SELECT id INTO v_org_id
     FROM   public.organizations
@@ -773,40 +775,42 @@ BEGIN
     LIMIT  1;
 
     -- ── 2. Create zone with GeoJSON polygon geofence ───────────────────────────
-    INSERT INTO public.zones (
-      organization_id,
-      name,
-      description,
-      is_active,
-      location_lat,
-      location_lng,
-      geometry
-    )
-    SELECT
-      v_org_id,
-      rec.loc_name,
-      rec.areas_note,
-      true,
-      rec.lat,
-      rec.lng,
-      jsonb_build_object(
-        'type', 'Polygon',
-        'coordinates', jsonb_build_array(
-          jsonb_build_array(
-            jsonb_build_array(rec.lng - rec.dlng, rec.lat - rec.dlat),
-            jsonb_build_array(rec.lng + rec.dlng, rec.lat - rec.dlat),
-            jsonb_build_array(rec.lng + rec.dlng, rec.lat + rec.dlat),
-            jsonb_build_array(rec.lng - rec.dlng, rec.lat + rec.dlat),
-            jsonb_build_array(rec.lng - rec.dlng, rec.lat - rec.dlat)
-          )
-        )
-      )
-    WHERE NOT EXISTS (
+    IF NOT EXISTS (
       SELECT 1
       FROM   public.zones
       WHERE  organization_id = v_org_id
         AND  name            = rec.loc_name
-    );
+    ) THEN
+      INSERT INTO public.zones (
+        organization_id,
+        name,
+        description,
+        is_active,
+        location_lat,
+        location_lng,
+        geometry
+      )
+      VALUES (
+        v_org_id,
+        rec.loc_name,
+        rec.areas_note,
+        true,
+        rec.lat,
+        rec.lng,
+        jsonb_build_object(
+          'type', 'Polygon',
+          'coordinates', jsonb_build_array(
+            jsonb_build_array(
+              jsonb_build_array(rec.lng - rec.dlng, rec.lat - rec.dlat),
+              jsonb_build_array(rec.lng + rec.dlng, rec.lat - rec.dlat),
+              jsonb_build_array(rec.lng + rec.dlng, rec.lat + rec.dlat),
+              jsonb_build_array(rec.lng - rec.dlng, rec.lat + rec.dlat),
+              jsonb_build_array(rec.lng - rec.dlng, rec.lat - rec.dlat)
+            )
+          )
+        )
+      );
+    END IF;
 
     SELECT id INTO v_zone_id
     FROM   public.zones
@@ -815,35 +819,37 @@ BEGIN
     LIMIT  1;
 
     -- ── 3. Create client site ──────────────────────────────────────────────────
-    INSERT INTO public.client_sites (
-      organization_id,
-      zone_id,
-      name,
-      site_type,
-      address,
-      city,
-      gps_lat,
-      gps_lng,
-      notes,
-      is_active
-    )
-    SELECT
-      v_org_id,
-      v_zone_id,
-      rec.loc_name,
-      rec.site_type,
-      rec.address,
-      rec.city,
-      rec.lat,
-      rec.lng,
-      rec.areas_note,
-      true
-    WHERE NOT EXISTS (
+    IF NOT EXISTS (
       SELECT 1
       FROM   public.client_sites
       WHERE  organization_id = v_org_id
         AND  name            = rec.loc_name
-    );
+    ) THEN
+      INSERT INTO public.client_sites (
+        organization_id,
+        zone_id,
+        name,
+        site_type,
+        address,
+        city,
+        gps_lat,
+        gps_lng,
+        notes,
+        is_active
+      )
+      VALUES (
+        v_org_id,
+        v_zone_id,
+        rec.loc_name,
+        rec.site_type,
+        rec.address,
+        rec.city,
+        rec.lat,
+        rec.lng,
+        rec.areas_note,
+        true
+      );
+    END IF;
 
   END LOOP;
 
