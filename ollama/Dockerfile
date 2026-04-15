@@ -26,4 +26,9 @@ EXPOSE 11434
 COPY start.sh /start.sh
 RUN chmod +x /start.sh
 
+# The upstream image sets ENTRYPOINT to the `ollama` binary. Clear it so
+# Railway executes our startup script instead of passing `/start.sh` as an
+# argument to `ollama`.
+ENTRYPOINT []
+
 CMD ["/bin/sh", "/start.sh"]
