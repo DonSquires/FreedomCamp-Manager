@@ -150,11 +150,24 @@ jobs:
               echo "SELECTED_RAILWAY_TOKEN=$token" >> "$GITHUB_ENV"
               echo "selected_token_source=$source_label" >> "$GITHUB_OUTPUT"
               return 0
+            else
+              local err_msg
+              err_msg=$(cat /tmp/railway-token-check.err 2>/dev/null || echo "unknown error")
+              echo "    ❌ $source_label failed: $err_msg"
+              return 1
             fi
-            return 1
           }
 
           echo "🔑 Validating Bob Railway token..."
+          
+          if [ -z "${PRIMARY_RAILWAY_TOKEN:-}" ] && [ -z "${SECONDARY_RAILWAY_TOKEN:-}" ]; then
+            echo "::error::No Railway tokens are available (both PRIMARY and SECONDARY are empty)."
+            echo "  PRIMARY_RAILWAY_TOKEN (RAILWAY_BOB_TOKEN): not set"
+            echo "  SECONDARY_RAILWAY_TOKEN (RAILWAY_TOKEN): not set"
+            echo "This means the secrets are not reaching the workflow. Check GitHub Actions secrets."
+            exit 1
+          fi
+          
           if select_working_token "${PRIMARY_RAILWAY_TOKEN:-}" "RAILWAY_BOB_TOKEN"; then
             echo "✅ Using RAILWAY_BOB_TOKEN"
           elif select_working_token "${SECONDARY_RAILWAY_TOKEN:-}" "RAILWAY_TOKEN"; then
@@ -167,7 +180,12 @@ jobs:
             echo "  1. RAILWAY_BOB_TOKEN"
             echo "  2. RAILWAY_TOKEN"
             echo ""
-            echo "Fix: Regenerate Bob project token in Railway and update GitHub secrets."
+            echo "Possible causes:"
+            echo "  - Token is expired or revoked (regenerate in Railway)"
+            echo "  - Token doesn't have deploy permissions"
+            echo "  - Token is for wrong Railway project"
+            echo ""
+            echo "Fix: Check Railway dashboard, regenerate token if needed, update GitHub secrets."
             exit 1
           fi
 
