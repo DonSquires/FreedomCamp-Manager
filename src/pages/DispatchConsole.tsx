@@ -10,10 +10,11 @@
  * Jobs overdue on SLA are highlighted automatically.
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { formatDistance } from '@/lib/geo'
 import { useAuthStore } from '@/stores/authStore'
 import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
@@ -60,6 +61,8 @@ interface DispatchJob {
   title: string
   description: string | null
   address: string | null
+  gps_lat: number | null
+  gps_lng: number | null
   caller_name: string | null
   caller_phone: string | null
   created_at: string
@@ -84,9 +87,14 @@ interface OfficerStatus {
   last_gps_lat: number | null
   last_gps_lng: number | null
   last_gps_update: string | null
+  gps_age_minutes: number | null
   active_job_count: number
   is_on_shift: boolean
+  distance_km: number | null   // populated when dispatching a job with GPS coords
 }
+
+// ── Haversine distance helper imported from @/lib/geo
+
 
 interface JobForm {
   job_type: string
@@ -218,7 +226,7 @@ export default function DispatchConsole() {
         .from('dispatch_jobs')
         .select(`
           id, job_number, job_type, alarm_type, priority, status, title, description,
-          address, caller_name, caller_phone, created_at, dispatched_at,
+          address, gps_lat, gps_lng, caller_name, caller_phone, created_at, dispatched_at,
           acknowledged_at, on_scene_at, completed_at,
           response_sla_minutes, sla_breached, escalation_level,
           assigned_officer:user_profiles!assigned_to(id, first_name, last_name, phone),
@@ -239,11 +247,37 @@ export default function DispatchConsole() {
     enabled: !!orgId,
   })
 
-  // ── Officers query (on-shift officers only) ──────────────────────────────
+  // ── Officers query — uses proximity ranking when selected job has GPS ──────
   const { data: officers = [] } = useQuery<OfficerStatus[]>({
-    queryKey: ['dispatch-officers', orgId, tick],
+    queryKey: ['dispatch-officers', orgId, tick, selectedJob?.id ?? null],
     queryFn: async () => {
-      // Officers with an active shift (no ended_at)
+      // If the selected job has GPS coordinates, use the proximity RPC
+      if (selectedJob?.gps_lat && selectedJob?.gps_lng) {
+        const { data, error } = await (supabase as any).rpc('get_nearest_officers', {
+          p_job_lat:          selectedJob.gps_lat,
+          p_job_lng:          selectedJob.gps_lng,
+          p_organization_id:  orgId ?? null,
+          p_max_results:      30,
+          p_max_age_minutes:  120,
+        })
+        if (error) throw error
+        return (data ?? []).map((o: any) => ({
+          id:               o.officer_id,
+          first_name:       o.first_name,
+          last_name:        o.last_name,
+          phone:            o.phone,
+          role:             o.role,
+          is_on_shift:      o.is_on_shift,
+          active_job_count: Number(o.active_job_count ?? 0),
+          last_gps_lat:     o.last_gps_latitude ?? null,
+          last_gps_lng:     o.last_gps_longitude ?? null,
+          last_gps_update:  o.last_gps_update ?? null,
+          gps_age_minutes:  o.gps_age_minutes ?? null,
+          distance_km:      o.distance_km ?? null,
+        })) as OfficerStatus[]
+      }
+
+      // Fallback: no GPS on job — return all on-shift officers
       const { data: shiftData } = await supabase
         .from('officer_shifts')
         .select('officer_id')
@@ -275,9 +309,13 @@ export default function DispatchConsole() {
 
       return (data ?? []).map((o: any) => ({
         ...o,
-        is_on_shift: onShiftIds.includes(o.id),
+        is_on_shift:     onShiftIds.includes(o.id),
         active_job_count: countMap[o.id] ?? 0,
-        last_gps_lat: null, last_gps_lng: null, last_gps_update: null,
+        last_gps_lat:    null,
+        last_gps_lng:    null,
+        last_gps_update: null,
+        gps_age_minutes: null,
+        distance_km:     null,
       })) as OfficerStatus[]
     },
     enabled: !!orgId,
@@ -395,6 +433,12 @@ export default function DispatchConsole() {
     if (!form.title.trim()) { toast.error('Title is required'); return }
     createMutation.mutate(form)
   }
+
+  // Pre-compute nearest on-shift officer with GPS for the selected job
+  const nearestOfficer = useMemo(() => {
+    if (!selectedJob?.gps_lat) return null
+    return officers.find(o => o.is_on_shift && o.distance_km !== null) ?? null
+  }, [officers, selectedJob])
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -620,20 +664,90 @@ export default function DispatchConsole() {
               {/* Dispatch controls */}
               {selectedJob.status === 'pending' && (
                 <div className="space-y-2 pt-2 border-t">
-                  <Label>Assign to Officer</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Assign to Officer</Label>
+                    {selectedJob.gps_lat && selectedJob.gps_lng && (
+                      <span className="text-[10px] text-green-700 dark:text-green-400 flex items-center gap-1">
+                        <Navigation className="h-3 w-3" />
+                        Ranked by proximity
+                      </span>
+                    )}
+                  </div>
                   <Select value={assignTarget} onValueChange={setAssignTarget}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select officer…" />
                     </SelectTrigger>
                     <SelectContent>
-                      {officers.filter(o => o.is_on_shift).map(o => (
+                      {officers.filter(o => o.is_on_shift).map((o, idx) => (
                         <SelectItem key={o.id} value={o.id}>
-                          {o.first_name} {o.last_name}
-                          {o.active_job_count > 0 ? ` (${o.active_job_count} jobs)` : ' – Available'}
+                          <div className="flex items-center gap-2 w-full">
+                            {/* Rank badge when proximity-sorted */}
+                            {selectedJob.gps_lat && idx < 3 && (
+                              <span className={`text-[10px] font-bold rounded px-1 leading-tight shrink-0 ${
+                                idx === 0 ? 'bg-green-100 text-green-700' :
+                                idx === 1 ? 'bg-blue-100 text-blue-700' :
+                                            'bg-gray-100 text-gray-600'
+                              }`}>
+                                #{idx + 1}
+                              </span>
+                            )}
+                            <span>
+                              {o.first_name} {o.last_name}
+                            </span>
+                            {/* Distance badge */}
+                            {o.distance_km !== null && (
+                              <span className="text-[10px] bg-green-50 text-green-700 border border-green-200 rounded px-1.5 py-0.5 font-medium shrink-0">
+                                {formatDistance(o.distance_km)}
+                              </span>
+                            )}
+                            {/* GPS age warning */}
+                            {o.gps_age_minutes !== null && o.gps_age_minutes > 30 && (
+                              <span className="text-[10px] text-amber-600 shrink-0">
+                                GPS {o.gps_age_minutes}m old
+                              </span>
+                            )}
+                            {/* No GPS */}
+                            {o.distance_km === null && !selectedJob.gps_lat && (
+                              <span className="text-[10px] text-muted-foreground">
+                                {o.active_job_count > 0 ? `${o.active_job_count} jobs` : 'Available'}
+                              </span>
+                            )}
+                          </div>
                         </SelectItem>
                       ))}
+                      {/* Off-shift officers (below fold) */}
+                      {officers.filter(o => !o.is_on_shift).length > 0 && (
+                        <>
+                          <div className="px-2 py-1.5 text-[10px] text-muted-foreground font-semibold uppercase tracking-wide border-t mt-1">
+                            Off shift
+                          </div>
+                          {officers.filter(o => !o.is_on_shift).map(o => (
+                            <SelectItem key={o.id} value={o.id} className="opacity-60">
+                              {o.first_name} {o.last_name}
+                              {o.distance_km !== null && (
+                                <span className="ml-2 text-[10px] text-muted-foreground">
+                                  {formatDistance(o.distance_km)}
+                                </span>
+                              )}
+                            </SelectItem>
+                          ))}
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
+
+                  {/* Nearest officer hint */}
+                  {nearestOfficer && (
+                    <p className="text-xs text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/20 rounded px-2 py-1.5 flex items-center gap-1.5">
+                      <Navigation className="h-3 w-3 shrink-0" />
+                      Nearest: <strong>{nearestOfficer.first_name} {nearestOfficer.last_name}</strong>
+                      <span className="ml-1 font-semibold">{formatDistance(nearestOfficer.distance_km)}</span>
+                      away
+                      {nearestOfficer.active_job_count > 0 && (
+                        <span className="ml-1 text-amber-600">· {nearestOfficer.active_job_count} active job{nearestOfficer.active_job_count !== 1 ? 's' : ''}</span>
+                      )}
+                    </p>
+                  )}
                 </div>
               )}
             </div>

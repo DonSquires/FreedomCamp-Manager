@@ -7,6 +7,8 @@
  *
  * UX inspired by: Lighthouse IO (KPI tiles), Rapid Global (RAG status),
  * GDS CATS (clean accessible tables), Deputy (activity feed).
+ *
+ * Enhanced with card-based navigation hub at the top.
  */
 
 import { useState } from 'react'
@@ -35,8 +37,67 @@ import {
   Clock,
   TrendingUp,
   Phone,
+  ChevronRight,
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
+
+// ─── Client hub card ──────────────────────────────────────────────────────────
+
+function ClientModuleCard({
+  title,
+  description,
+  Icon,
+  accentColor,
+  bgGradient,
+  iconBg,
+  metric,
+  onClick,
+  active,
+}: {
+  title: string
+  description: string
+  Icon: React.ElementType
+  accentColor: string
+  bgGradient: string
+  iconBg: string
+  metric?: { value: string | number; label: string; urgent?: boolean }
+  onClick: () => void
+  active?: boolean
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`text-left w-full rounded-xl overflow-hidden border-2 transition-all ${
+        active
+          ? 'border-purple-400 dark:border-purple-500 shadow-md'
+          : 'border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-md'
+      } ${bgGradient}`}
+    >
+      <div className={`h-1 w-full ${accentColor}`} />
+      <div className="p-3 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className={`p-2 rounded-lg ${iconBg} shrink-0`}>
+            <Icon className="h-4 w-4 text-white" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{title}</p>
+            <p className="text-[11px] text-muted-foreground truncate">{description}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {metric && (
+            <div className="text-right">
+              <p className={`text-lg font-bold leading-tight ${metric.urgent ? 'text-red-600' : 'text-gray-700 dark:text-gray-200'}`}>
+                {metric.value}
+              </p>
+            </div>
+          )}
+          <ChevronRight className={`h-4 w-4 ${active ? 'text-purple-500' : 'text-gray-400'}`} />
+        </div>
+      </div>
+    </button>
+  )
+}
 
 // ─── RAG status helper — Rapid Global inspired ───────────────────────────────
 
@@ -106,6 +167,7 @@ export default function ClientOrganisationPortal() {
   const navigate = useNavigate()
   const orgId = user?.organization_id
   const [searchTerm, setSearchTerm] = useState('')
+  const [activeTab, setActiveTab] = useState('patrols')
 
   // ── Organisation details ─────────────────────────────────────────────────
 
@@ -353,6 +415,75 @@ export default function ClientOrganisationPortal() {
           </div>
         </div>
 
+        {/* ── Module card hub ──────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+          {[
+            {
+              id: 'patrols',
+              title: 'Patrol Activity',
+              description: 'Guard tours & check-ins',
+              Icon: Shield,
+              accentColor: 'bg-green-500',
+              bgGradient: 'bg-green-50/80 dark:bg-green-950/30',
+              iconBg: 'bg-green-600',
+              metric: { value: stats?.patrolsThisMonth ?? '—', label: 'patrols (30d)' },
+            },
+            {
+              id: 'breaches',
+              title: 'Compliance',
+              description: 'Breaches & alerts',
+              Icon: AlertTriangle,
+              accentColor: 'bg-red-500',
+              bgGradient: 'bg-red-50/80 dark:bg-red-950/30',
+              iconBg: 'bg-red-600',
+              metric: { value: stats?.openBreaches ?? '—', label: 'open breaches', urgent: (stats?.openBreaches ?? 0) > 0 },
+            },
+            {
+              id: 'enforcement',
+              title: 'Enforcement',
+              description: 'Notices & infringements',
+              Icon: FileText,
+              accentColor: 'bg-amber-500',
+              bgGradient: 'bg-amber-50/80 dark:bg-amber-950/30',
+              iconBg: 'bg-amber-600',
+              metric: { value: stats?.enforcementTotal ?? '—', label: 'actions total' },
+            },
+            {
+              id: 'zones',
+              title: 'Zones',
+              description: 'Monitored areas',
+              Icon: MapPin,
+              accentColor: 'bg-purple-500',
+              bgGradient: 'bg-purple-50/80 dark:bg-purple-950/30',
+              iconBg: 'bg-purple-600',
+              metric: { value: zones.length || '—', label: 'active zones' },
+            },
+            {
+              id: 'sites',
+              title: 'Sites',
+              description: 'Service locations',
+              Icon: Building2,
+              accentColor: 'bg-blue-500',
+              bgGradient: 'bg-blue-50/80 dark:bg-blue-950/30',
+              iconBg: 'bg-blue-600',
+              metric: { value: (stats?.activeSites ?? clientSites.length) || '—', label: 'active sites' },
+            },
+          ].map((card) => (
+            <ClientModuleCard
+              key={card.id}
+              title={card.title}
+              description={card.description}
+              Icon={card.Icon}
+              accentColor={card.accentColor}
+              bgGradient={card.bgGradient}
+              iconBg={card.iconBg}
+              metric={card.metric}
+              active={activeTab === card.id}
+              onClick={() => setActiveTab(card.id)}
+            />
+          ))}
+        </div>
+
         {/* ── KPI Stats Grid — Lighthouse IO inspired ─────────────────────── */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <StatCard
@@ -411,7 +542,7 @@ export default function ClientOrganisationPortal() {
         </div>
 
         {/* ── Tabs — GDS CATS / Lighthouse IO inspired ─────────────────────── */}
-        <Tabs defaultValue="patrols">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid grid-cols-5 w-full max-w-2xl">
             <TabsTrigger value="patrols" className="gap-1.5 text-xs">
               <Shield className="h-3.5 w-3.5" />

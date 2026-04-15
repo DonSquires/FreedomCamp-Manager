@@ -101,7 +101,8 @@ const pinnedItems: NavItem[] = [
   { path: '/admin', icon: LayoutDashboard, label: 'Command Centre', roles: ['grand_master'] },
   { path: '/compliance-escalations', icon: ShieldAlert, label: 'Escalations', roles: ['grand_master'] },
   { path: '/grandmaster-code-studio', icon: Code2, label: 'Coding Studio', roles: ['grand_master'] },
-  { path: '/', icon: Home, label: 'Home', roles: ['admin', 'admin_officer', 'master', 'officer', 'nzscv_monitor'] },
+  { path: '/', icon: Home, label: 'Admin Hub', roles: ['admin', 'admin_officer', 'master'] },
+  { path: '/', icon: Home, label: 'Home', roles: ['officer', 'nzscv_monitor'] },
   { path: '/bob-assistant', icon: BrainCircuit, label: 'Bob Assistant', roles: ['officer'] },
   { path: '/search', icon: Search, label: 'Search', roles: ['admin', 'admin_officer', 'master', 'officer', 'nzscv_monitor', 'grand_master'] },
 ]
@@ -135,6 +136,7 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
     items: [
       { path: '/live-tracking', icon: Activity, label: 'Live Tracking', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/live-patrol', icon: MonitorPlay, label: 'Live Patrol Monitor', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/operations-map', icon: Layers, label: 'Operations Map', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/hotspots', icon: FlameKindling, label: 'Hotspots Map', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/dispatch', icon: Radio, label: 'Dispatch Console', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/dispatch-monitor', icon: LayoutList, label: 'Dispatch Monitor', roles: ['admin', 'admin_officer', 'master'] },
@@ -155,6 +157,9 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
       { path: '/client-master-list', icon: ListChecks, label: 'Client Master List', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/client-sites', icon: Building2, label: 'Client Sites', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/crm', icon: Building2, label: 'CRM / Accounts', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/pricing', icon: DollarSign, label: 'Service Pricing', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/invoicing', icon: Receipt, label: 'Invoicing', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/admin/dashboard', icon: MonitorPlay, label: 'Ops Dashboard', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/users', icon: Users, label: 'Users', roles: ['admin', 'master'] },
       { path: '/organization-profile', icon: Building2, label: 'Organisation', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/organizations', icon: Building2, label: 'Organisations', roles: ['master'] },

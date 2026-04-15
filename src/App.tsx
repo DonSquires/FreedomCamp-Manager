@@ -15,6 +15,7 @@ import { useSessionGpsLogging } from '@/hooks/useSessionGpsLogging'
 // performance scores (FCP, LCP, TTI).
 // ---------------------------------------------------------------------------
 const Login = lazy(() => import('@/pages/Login'))
+const AdminHub = lazy(() => import('@/pages/AdminHub'))
 const AdminPortal = lazy(() => import('@/pages/AdminPortal'))
 const FieldOfficerPortal = lazy(() => import('@/pages/FieldOfficerPortal'))
 const VehicleManagement = lazy(() => import('@/pages/VehicleManagement'))
@@ -102,6 +103,9 @@ const RosterPlanner = lazy(() => import('@/pages/RosterPlanner'))
 const OfficerSkills = lazy(() => import('@/pages/OfficerSkills'))
 const OfficerAvailability = lazy(() => import('@/pages/OfficerAvailability'))
 const ClientOrganisationPortal = lazy(() => import('@/pages/ClientOrganisationPortal'))
+const InvoicingPage = lazy(() => import('@/pages/InvoicingPage'))
+const PricingPage = lazy(() => import('@/pages/PricingPage'))
+const OperationsMap = lazy(() => import('@/pages/OperationsMap'))
 const CRMModule = lazy(() => import('@/pages/CRMModule'))
 const ContractorAccountPage = lazy(() => import('@/pages/ContractorAccountPage'))
 const ClientAccountPage = lazy(() => import('@/pages/ClientAccountPage'))
@@ -534,7 +538,7 @@ export default function App() {
                 ) : user?.role === 'nzscv_monitor' ? (
                   <Navigate to="/admin/nzscv" replace />
                 ) : (
-                  <AdminPortal />
+                  <AdminHub />
                 )}
               </ProtectedRoute>
             }
@@ -543,6 +547,18 @@ export default function App() {
           {/* Admin/Master routes */}
           <Route
             path="/admin"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <AdminHub />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Full operational dashboard — accessible from the hub card */}
+          <Route
+            path="/admin/dashboard"
             element={
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
@@ -1389,6 +1405,30 @@ export default function App() {
             }
           />
 
+          {/* Invoicing — read-only billing view */}
+          <Route
+            path="/invoicing"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
+                  <InvoicingPage />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Pricing — per-client service rate management */}
+          <Route
+            path="/pricing"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
+                  <PricingPage />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
           {/* Catch all */}
           <Route path="*" element={<Navigate to="/" replace />} />
 
@@ -1459,6 +1499,16 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
                   <JobMap />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/operations-map"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <OperationsMap />
                 </RoleRoute>
               </ProtectedRoute>
             }
