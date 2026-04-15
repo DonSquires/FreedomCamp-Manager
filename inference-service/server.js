@@ -191,6 +191,7 @@ const TABULAR_NLP_PROVIDER_RAW = (process.env.TABULAR_NLP_PROVIDER || 'heuristic
 const TABULAR_NLP_PROVIDER = normalizeProvider(TABULAR_NLP_PROVIDER_RAW, 'heuristic');
 const CHAT_PROVIDER_RAW = (process.env.CHAT_PROVIDER || 'ollama').toLowerCase();
 const CHAT_PROVIDER = normalizeProvider(CHAT_PROVIDER_RAW, 'heuristic');
+const HEURISTIC_PLAYBOOK_MODE = (process.env.HEURISTIC_PLAYBOOK_MODE || 'compact').toLowerCase();
 const CHAT_TIMEOUT_MS = Number(process.env.CHAT_TIMEOUT_MS || 30000);
 const TABULAR_NLP_TIMEOUT_MS = Number(process.env.TABULAR_NLP_TIMEOUT_MS || 2500);
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
@@ -1068,6 +1069,15 @@ function generateHeuristicChatReply(message, context = {}) {
   }
 
   const lowered = text.toLowerCase();
+  const trainingReply = answerFromTrainingIntel(text);
+  if (trainingReply) {
+    return trainingReply;
+  }
+
+  const useLegacyPlaybook =
+    HEURISTIC_PLAYBOOK_MODE === 'legacy' ||
+    context?.legacy_playbook === true;
+
   if (lowered.includes('can you hear me') || lowered.includes('can you hear') || lowered.includes('hear me')) {
     return 'I receive voice input as transcribed text from the app. I cannot hear live audio directly, but I can respond to what your mic capture sends here.';
   }
@@ -1096,6 +1106,20 @@ function generateHeuristicChatReply(message, context = {}) {
   }
   if (lowered.includes('plate') || lowered.includes('rego')) {
     return 'I can assist with plate workflow guidance. Upload evidence through the enforcement workflow and I can help summarize next steps.';
+  }
+
+  // Compact fallback mode (default) keeps Bob aligned with trained behavior
+  // and prevents stale endpoint/playbook dumps from overriding conversation.
+  // Set HEURISTIC_PLAYBOOK_MODE=legacy (or context.legacy_playbook=true) to
+  // re-enable the full historical rulebook below.
+  if (!useLegacyPlaybook) {
+    try {
+      knowledgeRequestsStore.queueRequest(text, { source: 'heuristic-chat-fallback', context: context?.page || null });
+    } catch (err) {
+      console.warn('Failed to queue knowledge request:', err.message);
+    }
+
+    return 'I can help with this. Share the exact symptom, page/route, and expected behaviour, and I will give a focused diagnostic plan. I have queued this question for Copilot research so the answer is added to my intel feed.';
   }
 
   // UI/UX design domain
