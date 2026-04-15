@@ -136,14 +136,14 @@ export function PTTBar({ className, compact = false }: PTTBarProps) {
   // Switch to appropriate channel based on chat target
   // The background service maintains the connection, we just switch channels
   useEffect(() => {
-    if (!user?.organization_id) return
+    if (!operationalOrganizationId) return
     if (connectionStatus !== 'connected') return
 
     const switchChannel = async () => {
       try {
         if (target.type === 'admin') {
           // Switch to org-wide channel for admin chat
-          await connectToOrgChannel(user.organization_id!, 'Organization')
+          await connectToOrgChannel(operationalOrganizationId, 'Organization')
         } else if (target.type === 'user') {
           // Switch to direct channel for user chat
           await connectToDirectChannel(target.user.id, `${target.user.first_name} ${target.user.last_name}`)
@@ -156,7 +156,7 @@ export function PTTBar({ className, compact = false }: PTTBarProps) {
 
     switchChannel()
     // Note: We don't disconnect on cleanup - background service manages connection
-  }, [target, user?.organization_id, connectionStatus, setError])
+  }, [target, operationalOrganizationId, connectionStatus, setError])
 
   // Handle PTT button press/release
   const handlePttDown = useCallback(async () => {
