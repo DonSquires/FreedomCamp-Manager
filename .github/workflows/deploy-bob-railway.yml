@@ -352,9 +352,18 @@ jobs:
                   }
                 }
                 candidates.sort((a, b) => b.score - a.score);
-                if (!candidates[0]) process.exit(2);
-                process.stdout.write(JSON.stringify(candidates[0]));
-              ' "$GLOBAL_RESPONSE")
+                process.stdout.write(JSON.stringify(candidates[0] || {}));
+              ' "$GLOBAL_RESPONSE" || true)
+
+              GLOBAL_ERRORS=$(node -e '
+                const data = JSON.parse(process.argv[1] || "{}");
+                const errors = Array.isArray(data?.errors) ? data.errors : [];
+                process.stdout.write(String(errors.length));
+              ' "$GLOBAL_RESPONSE" || echo "0")
+              if [ "$GLOBAL_ERRORS" != "0" ]; then
+                echo "::warning::Global Railway GraphQL lookup returned errors; continuing with service-name fallbacks."
+                sed -n '1,3p' <<<"$GLOBAL_RESPONSE" || true
+              fi
 
               GLOBAL_RESOLVED_SERVICE_ID=$(echo "$GLOBAL_RESOLVED" | jq -r '.serviceId // empty')
               GLOBAL_RESOLVED_PROJECT_ID=$(echo "$GLOBAL_RESOLVED" | jq -r '.projectId // empty')
