@@ -304,11 +304,21 @@ jobs:
           PROJECT_TO_QUERY="${RAILWAY_BOB_PROJECT_ID:-}"
           DEPLOY_LOG="$(mktemp)"
 
-          if railway up --service "$SERVICE_TO_DEPLOY" --detach 2>&1 | tee "$DEPLOY_LOG"; then
+          deploy_selector() {
+            local selector="$1"
+            local project_id="${2:-}"
+            if [ -n "$project_id" ]; then
+              railway up --project "$project_id" --service "$selector" --detach
+            else
+              railway up --service "$selector" --detach
+            fi
+          }
+
+          if deploy_selector "$SERVICE_TO_DEPLOY" "$PROJECT_TO_QUERY" 2>&1 | tee "$DEPLOY_LOG"; then
             exit 0
           fi
 
-          if grep -q "Service not found" "$DEPLOY_LOG"; then
+          if grep -Eqi "Service not found|Project not found" "$DEPLOY_LOG"; then
             echo "::warning::Configured RAILWAY_BOB_SERVICE_ID was not found. Attempting project-based service auto-resolution."
 
             attempt_global_resolution() {
@@ -320,7 +330,7 @@ jobs:
                 -H "Content-Type: application/json" \
                 --data "$GLOBAL_GRAPHQL" || true)
 
-              GLOBAL_RESOLVED_SERVICE_ID=$(node -e '
+              GLOBAL_RESOLVED=$(node -e '
                 const data = JSON.parse(process.argv[1] || "{}");
                 const projects = data?.data?.me?.projects?.edges?.map((edge) => edge?.node).filter(Boolean) || [];
                 const candidates = [];
@@ -336,16 +346,20 @@ jobs:
                       (name.includes("orc") ? 4 : 0) -
                       (name.includes("ollama") ? 10 : 0)
                     );
-                    if (score > 0) candidates.push({ id: s.id, score });
+                    if (score > 0) candidates.push({ projectId: p.id, serviceId: s.id, serviceName: s.name, score });
                   }
                 }
                 candidates.sort((a, b) => b.score - a.score);
-                process.stdout.write(candidates[0]?.id || "");
+                if (!candidates[0]) process.exit(2);
+                process.stdout.write(JSON.stringify(candidates[0]));
               ' "$GLOBAL_RESPONSE")
+
+              GLOBAL_RESOLVED_SERVICE_ID=$(echo "$GLOBAL_RESOLVED" | jq -r '.serviceId // empty')
+              GLOBAL_RESOLVED_PROJECT_ID=$(echo "$GLOBAL_RESOLVED" | jq -r '.projectId // empty')
 
               if [ -n "$GLOBAL_RESOLVED_SERVICE_ID" ] && [ "$GLOBAL_RESOLVED_SERVICE_ID" != "$RAILWAY_SERVICE_ID" ]; then
                 echo "::warning::Global auto-resolution found candidate Bob service ID; retrying deployment."
-                if railway up --service "$GLOBAL_RESOLVED_SERVICE_ID" --detach; then
+                if deploy_selector "$GLOBAL_RESOLVED_SERVICE_ID" "$GLOBAL_RESOLVED_PROJECT_ID"; then
                   exit 0
                 fi
               fi
@@ -357,7 +371,7 @@ jobs:
                   continue
                 fi
                 echo "ℹ️ Trying Railway service selector: $NAME"
-                if railway up --service "$NAME" --detach; then
+                if deploy_selector "$NAME" "$PROJECT_TO_QUERY"; then
                   echo "✅ Bob deploy succeeded using service selector: $NAME"
                   exit 0
                 fi
@@ -413,7 +427,7 @@ jobs:
 
             if [ -n "$RESOLVED_SERVICE_ID" ] && [ "$RESOLVED_SERVICE_ID" != "$RAILWAY_SERVICE_ID" ]; then
               echo "::warning::Resolved Bob service ID from Railway project. Retry deployment and update RAILWAY_BOB_SERVICE_ID secret to match."
-              if railway up --service "$RESOLVED_SERVICE_ID" --detach; then
+              if deploy_selector "$RESOLVED_SERVICE_ID" "$PROJECT_TO_QUERY"; then
                 exit 0
               fi
             fi
