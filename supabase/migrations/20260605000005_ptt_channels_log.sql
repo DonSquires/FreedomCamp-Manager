@@ -29,8 +29,23 @@ CREATE TABLE IF NOT EXISTS public.ptt_channels (
   UNIQUE (organization_id, channel_number)
 );
 
-CREATE INDEX IF NOT EXISTS idx_ptt_channels_org
-  ON public.ptt_channels (organization_id, channel_number);
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'ptt_channels'
+      AND column_name = 'channel_number'
+  ) THEN
+    CREATE INDEX IF NOT EXISTS idx_ptt_channels_org
+      ON public.ptt_channels (organization_id, channel_number);
+  ELSE
+    CREATE INDEX IF NOT EXISTS idx_ptt_channels_org
+      ON public.ptt_channels (organization_id);
+  END IF;
+END;
+$$;
 
 -- ────────────────────────────────────────────────────────────
 -- 3.  ptt_transmission_log — history of radio transmissions
@@ -139,17 +154,44 @@ CREATE POLICY ptt_tx_log_insert ON public.ptt_transmission_log
 CREATE OR REPLACE FUNCTION public.seed_default_ptt_channels(p_organization_id uuid)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
 BEGIN
-  INSERT INTO public.ptt_channels (organization_id, channel_number, name, channel_type, color, is_priority, description)
-  VALUES
-    (p_organization_id, 1, 'All Units',          'primary',    '#3b82f6', false, 'Org-wide primary channel'),
-    (p_organization_id, 2, 'Dispatch',            'dispatch',   '#f97316', false, 'Dispatch coordination'),
-    (p_organization_id, 3, 'Operations',          'team',       '#22c55e', false, 'Operational team channel'),
-    (p_organization_id, 4, 'Incident Primary',    'incident',   '#ef4444', false, 'Active incident response'),
-    (p_organization_id, 5, 'Incident Secondary',  'incident',   '#dc2626', false, 'Secondary incident channel'),
-    (p_organization_id, 6, 'Welfare Check',       'welfare',    '#a855f7', false, 'Officer welfare monitoring'),
-    (p_organization_id, 7, 'Admin',               'admin',      '#6b7280', false, 'Administrative use only'),
-    (p_organization_id, 9, 'EMERGENCY',           'emergency',  '#ff0000', true,  'All-call emergency broadcast')
-  ON CONFLICT (organization_id, channel_number) DO NOTHING;
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'ptt_channels'
+      AND column_name = 'channel_number'
+  ) THEN
+    INSERT INTO public.ptt_channels (organization_id, channel_number, name, channel_type, color, is_priority, description)
+    VALUES
+      (p_organization_id, 1, 'All Units',          'primary',    '#3b82f6', false, 'Org-wide primary channel'),
+      (p_organization_id, 2, 'Dispatch',           'dispatch',   '#f97316', false, 'Dispatch coordination'),
+      (p_organization_id, 3, 'Operations',         'team',       '#22c55e', false, 'Operational team channel'),
+      (p_organization_id, 4, 'Incident Primary',   'incident',   '#ef4444', false, 'Active incident response'),
+      (p_organization_id, 5, 'Incident Secondary', 'incident',   '#dc2626', false, 'Secondary incident channel'),
+      (p_organization_id, 6, 'Welfare Check',      'welfare',    '#a855f7', false, 'Officer welfare monitoring'),
+      (p_organization_id, 7, 'Admin',              'admin',      '#6b7280', false, 'Administrative use only'),
+      (p_organization_id, 9, 'EMERGENCY',          'emergency',  '#ff0000', true,  'All-call emergency broadcast')
+    ON CONFLICT DO NOTHING;
+  ELSE
+    INSERT INTO public.ptt_channels (
+      organization_id,
+      channel_key,
+      name,
+      channel_type,
+      description,
+      is_active
+    )
+    VALUES
+      (p_organization_id, 'org:' || p_organization_id::text || ':all-units',         'All Units',          'org',      'Org-wide primary channel', true),
+      (p_organization_id, 'org:' || p_organization_id::text || ':dispatch',          'Dispatch',           'org',      'Dispatch coordination', true),
+      (p_organization_id, 'org:' || p_organization_id::text || ':operations',        'Operations',         'org',      'Operational team channel', true),
+      (p_organization_id, 'incident:' || p_organization_id::text || ':primary',      'Incident Primary',   'incident', 'Active incident response', true),
+      (p_organization_id, 'incident:' || p_organization_id::text || ':secondary',    'Incident Secondary', 'incident', 'Secondary incident channel', true),
+      (p_organization_id, 'org:' || p_organization_id::text || ':welfare',           'Welfare Check',      'org',      'Officer welfare monitoring', true),
+      (p_organization_id, 'org:' || p_organization_id::text || ':admin',             'Admin',              'org',      'Administrative use only', true),
+      (p_organization_id, 'org:' || p_organization_id::text || ':emergency',         'EMERGENCY',          'org',      'All-call emergency broadcast', true)
+    ON CONFLICT DO NOTHING;
+  END IF;
 END;
 $$;
 
