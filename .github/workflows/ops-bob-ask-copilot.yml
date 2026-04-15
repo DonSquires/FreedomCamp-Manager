@@ -88,11 +88,9 @@ jobs:
         env:
           BOB_SERVICE_URL: ${{ env.BOB_SERVICE_URL }}
           BOB_INFERENCE_API_KEY: ${{ env.BOB_INFERENCE_API_KEY }}
-          INPUT_QUESTION: ${{ github.event.inputs.question }}
-          INPUT_CATEGORY: ${{ github.event.inputs.category }}
         run: |
-          QUESTION="${INPUT_QUESTION:-}"
-          CATEGORY="${INPUT_CATEGORY:-general}"
+          QUESTION=$(jq -r '.inputs.question // ""' "$GITHUB_EVENT_PATH")
+          CATEGORY=$(jq -r '.inputs.category // "general"' "$GITHUB_EVENT_PATH")
           if [ -z "$QUESTION" ]; then
             echo "ℹ️ No manual question provided"
             exit 0
@@ -119,10 +117,14 @@ jobs:
         env:
           BOB_SERVICE_URL: ${{ env.BOB_SERVICE_URL }}
           BOB_INFERENCE_API_KEY: ${{ env.BOB_INFERENCE_API_KEY }}
-          INPUT_LIMIT: ${{ github.event.inputs.limit }}
-          DEFAULT_LIMIT: ${{ vars.BOB_ASK_COPILOT_LIMIT }}
         run: |
-          LIMIT="${INPUT_LIMIT:-${DEFAULT_LIMIT:-10}}"
+          LIMIT="10"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            INPUT_LIMIT=$(jq -r '.inputs.limit // ""' "$GITHUB_EVENT_PATH")
+            if [ -n "$INPUT_LIMIT" ]; then
+              LIMIT="$INPUT_LIMIT"
+            fi
+          fi
           echo "🔍 Fetching up to $LIMIT pending knowledge requests from Bob..."
 
           HTTP_STATUS=$(curl -s -o /tmp/pending.json -w "%{http_code}" \

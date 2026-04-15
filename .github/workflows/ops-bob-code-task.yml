@@ -107,13 +107,10 @@ jobs:
         env:
           BOB_SERVICE_URL: ${{ env.BOB_SERVICE_URL }}
           BOB_INFERENCE_API_KEY: ${{ env.BOB_INFERENCE_API_KEY }}
-          INPUT_TASK: ${{ github.event.inputs.task }}
-          INPUT_PRIORITY: ${{ github.event.inputs.priority }}
-          INPUT_TARGET_FILES: ${{ github.event.inputs.target_files }}
         run: |
-          TASK="${INPUT_TASK:-}"
-          PRIORITY="${INPUT_PRIORITY:-high}"
-          TARGET_FILES="${INPUT_TARGET_FILES:-}"
+          TASK=$(jq -r '.inputs.task // ""' "$GITHUB_EVENT_PATH")
+          PRIORITY=$(jq -r '.inputs.priority // "high"' "$GITHUB_EVENT_PATH")
+          TARGET_FILES=$(jq -r '.inputs.target_files // ""' "$GITHUB_EVENT_PATH")
           if [ -z "$TASK" ]; then
             echo "ℹ️ No manual task provided"
             exit 0
@@ -153,10 +150,14 @@ jobs:
         env:
           BOB_SERVICE_URL: ${{ env.BOB_SERVICE_URL }}
           BOB_INFERENCE_API_KEY: ${{ env.BOB_INFERENCE_API_KEY }}
-          INPUT_LIMIT: ${{ github.event.inputs.limit }}
-          DEFAULT_LIMIT: ${{ vars.BOB_CODE_TASK_LIMIT }}
         run: |
-          LIMIT="${INPUT_LIMIT:-${DEFAULT_LIMIT:-3}}"
+          LIMIT="3"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            INPUT_LIMIT=$(jq -r '.inputs.limit // ""' "$GITHUB_EVENT_PATH")
+            if [ -n "$INPUT_LIMIT" ]; then
+              LIMIT="$INPUT_LIMIT"
+            fi
+          fi
           echo "🔍 Fetching up to $LIMIT pending code tasks from Bob..."
 
           HTTP_STATUS=$(curl -s -o /tmp/pending.json -w "%{http_code}" \
@@ -218,10 +219,9 @@ jobs:
           BOB_INFERENCE_API_KEY: ${{ env.BOB_INFERENCE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CODE_MODEL: ${{ vars.BOB_CODE_TASK_MODEL }}
+          CODE_MODEL: gpt-4o
         run: |
           set -e
-          CODE_MODEL="${CODE_MODEL:-gpt-4o}"
 
           # ----------------------------------------------------------------
           # FieldOps system prompt for the code-generation LLM
