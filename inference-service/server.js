@@ -163,6 +163,11 @@ function normalizeProvider(value, fallback) {
   return provider || fallback;
 }
 
+function envFlag(value, fallback) {
+  if (value === undefined || value === null || value === '') return fallback;
+  return !['0', 'false', 'no', 'off'].includes(String(value).toLowerCase());
+}
+
 const YOLO_INPUT_SIZE = 640;
 const VEHICLE_ATTRS_PROVIDER_RAW = (process.env.VEHICLE_ATTRS_PROVIDER || 'basic').toLowerCase();
 const VEHICLE_ATTRS_PROVIDER = normalizeProvider(VEHICLE_ATTRS_PROVIDER_RAW, 'basic');
@@ -181,11 +186,10 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1:8b';
 const REQUIRED_OLLAMA_BASE_URL = 'http://ollama.railway.internal:11434';
 const DEPLOY_SIGNATURE = 'bob-self-contained-hardlock-v1';
 const SOURCE_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.SOURCE_VERSION || process.env.GITHUB_SHA || '';
-// Hard lock: Bob runs in self-contained mode only.
-const SELF_CONTAINED_MODE = true;
-const REQUIRE_SELF_CONTAINED_MODE = true;
-const SELF_LEARNING_ENABLED = !['0', 'false', 'no', 'off'].includes((process.env.SELF_LEARNING_ENABLED || 'true').toLowerCase());
-const SELF_HEALING_ENABLED = !['0', 'false', 'no', 'off'].includes((process.env.SELF_HEALING_ENABLED || 'true').toLowerCase());
+const SELF_CONTAINED_MODE = envFlag(process.env.SELF_CONTAINED_MODE, true);
+const REQUIRE_SELF_CONTAINED_MODE = envFlag(process.env.REQUIRE_SELF_CONTAINED_MODE, true);
+const SELF_LEARNING_ENABLED = envFlag(process.env.SELF_LEARNING_ENABLED, true);
+const SELF_HEALING_ENABLED = envFlag(process.env.SELF_HEALING_ENABLED, true);
 const INTEL_STATE_PATH = process.env.INTEL_STATE_PATH || path.join(__dirname, 'data', 'intel-state.json');
 const INTEL_HMAC_KEY = process.env.INTEL_HMAC_KEY || '';
 const SELF_LEARNING_STATE_PATH = process.env.SELF_LEARNING_STATE_PATH || path.join(__dirname, 'data', 'self-learning-state.json');
@@ -223,7 +227,7 @@ function isLocalUrl(value) {
   }
 }
 
-const SELF_CONTAINED_STRICT_EGRESS = SELF_CONTAINED_MODE && !['0', 'false', 'no', 'off'].includes((process.env.SELF_CONTAINED_STRICT_EGRESS || 'true').toLowerCase());
+const SELF_CONTAINED_STRICT_EGRESS = SELF_CONTAINED_MODE && envFlag(process.env.SELF_CONTAINED_STRICT_EGRESS, true);
 
 function assertEgressAllowed(url, providerLabel = 'unknown') {
   if (!SELF_CONTAINED_STRICT_EGRESS) return;
