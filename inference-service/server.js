@@ -4294,8 +4294,9 @@ loadModels().then(() => {
       console.warn('   SELF_CONTAINED_MODE will keep Ollama disabled unless the URL is local/internal; chat and tabular NLP will fall back safely.');
       recordEgressEvent('ollama', 'blocked', 'self-contained startup with non-local/non-required OLLAMA_BASE_URL');
     } else {
-      console.error(`❌ OLLAMA_BASE_URL must be exactly ${REQUIRED_OLLAMA_BASE_URL} in production. Current value: ${OLLAMA_BASE_URL}`);
-      process.exit(1);
+      console.warn(`⚠️  OLLAMA_BASE_URL is not the Railway internal URL (${REQUIRED_OLLAMA_BASE_URL}). Current value: ${OLLAMA_BASE_URL}`);
+      console.warn('   SELF_CONTAINED_MODE is disabled, so external Ollama URLs are allowed for bring-up/training mode.');
+      recordEgressEvent('ollama', 'allow', 'startup with external OLLAMA_BASE_URL while SELF_CONTAINED_MODE=false');
     }
   }
   app.listen(PORT, '0.0.0.0', () => {
