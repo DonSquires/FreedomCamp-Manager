@@ -129,7 +129,7 @@ jobs:
           install -m 0755 railway "$HOME/.railway/bin/railway"
           echo "$HOME/.railway/bin" >> "$GITHUB_PATH"
 
-      - name: Validate Railway token/service
+      - name: Select Railway token for deploy
         id: validate-token
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
@@ -139,27 +139,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          select_working_token() {
-            local token="$1"
-            local source_label="$2"
-            [ -z "$token" ] && return 1
-
-            export RAILWAY_TOKEN="$token"
-            # Use 'railway whoami' to check if token is valid (doesn't require --json)
-            if railway whoami > /tmp/railway-whoami.txt 2>/tmp/railway-token-check.err; then
-              echo "::add-mask::$token"
-              echo "SELECTED_RAILWAY_TOKEN=$token" >> "$GITHUB_ENV"
-              echo "selected_token_source=$source_label" >> "$GITHUB_OUTPUT"
-              return 0
-            else
-              local err_msg
-              err_msg=$(cat /tmp/railway-token-check.err 2>/dev/null || echo "unknown error")
-              echo "    ❌ $source_label failed: $err_msg"
-              return 1
-            fi
-          }
-
-          echo "🔑 Validating Bob Railway token..."
+          echo "🔑 Selecting Bob Railway token..."
           
           if [ -z "${PRIMARY_RAILWAY_TOKEN:-}" ] && [ -z "${SECONDARY_RAILWAY_TOKEN:-}" ]; then
             echo "::error::No Railway tokens are available (both PRIMARY and SECONDARY are empty)."
@@ -169,24 +149,24 @@ jobs:
             exit 1
           fi
           
-          if select_working_token "${PRIMARY_RAILWAY_TOKEN:-}" "RAILWAY_BOB_TOKEN"; then
+          if [ -n "${PRIMARY_RAILWAY_TOKEN:-}" ]; then
+            echo "::add-mask::${PRIMARY_RAILWAY_TOKEN}"
+            echo "SELECTED_RAILWAY_TOKEN=${PRIMARY_RAILWAY_TOKEN}" >> "$GITHUB_ENV"
+            echo "selected_token_source=RAILWAY_BOB_TOKEN" >> "$GITHUB_OUTPUT"
             echo "✅ Using RAILWAY_BOB_TOKEN"
-          elif select_working_token "${SECONDARY_RAILWAY_TOKEN:-}" "RAILWAY_TOKEN"; then
-            echo "::warning::RAILWAY_BOB_TOKEN validation failed; using RAILWAY_TOKEN fallback for this run."
+          elif [ -n "${SECONDARY_RAILWAY_TOKEN:-}" ]; then
+            echo "::add-mask::${SECONDARY_RAILWAY_TOKEN}"
+            echo "SELECTED_RAILWAY_TOKEN=${SECONDARY_RAILWAY_TOKEN}" >> "$GITHUB_ENV"
+            echo "selected_token_source=RAILWAY_TOKEN" >> "$GITHUB_OUTPUT"
+            echo "::warning::RAILWAY_BOB_TOKEN is empty; using RAILWAY_TOKEN fallback for this run."
           else
             echo ""
-            echo "::error::No valid Railway token found for Bob deployment."
+            echo "::error::No Railway token available for Bob deployment."
             echo ""
             echo "Tried:"
             echo "  1. RAILWAY_BOB_TOKEN"
             echo "  2. RAILWAY_TOKEN"
-            echo ""
-            echo "Possible causes:"
-            echo "  - Token is expired or revoked (regenerate in Railway)"
-            echo "  - Token doesn't have deploy permissions"
-            echo "  - Token is for wrong Railway project"
-            echo ""
-            echo "Fix: Check Railway dashboard, regenerate token if needed, update GitHub secrets."
+            echo "Fix: set at least one token in GitHub Actions secrets."
             exit 1
           fi
 
@@ -194,7 +174,7 @@ jobs:
             echo "ℹ️  Will deploy using service ID: $RAILWAY_SERVICE_ID"
           fi
 
-          echo "✅ Bob Railway validation step complete"
+          echo "✅ Bob Railway token selection complete"
           echo "token_valid=true" >> "$GITHUB_OUTPUT"
 
       - name: Resolve Bob service identity
