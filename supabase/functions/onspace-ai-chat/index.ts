@@ -499,16 +499,11 @@ Deno.serve(async (req: Request) => {
           const responseText = normalizeProviderText(inferText, inferData)
           if (!responseText) throw new Error(`Inference chat returned an empty response (${candidateUrl})`)
 
-          // If the inference service fell back to heuristic mode (Ollama not available),
-          // treat it as a failure so the edge function can use its own clearer failsafe message.
-          if (inferData?.fallback === true) {
-            throw new Error(`Inference is in degraded heuristic mode — no LLM available (${candidateUrl})`)
-          }
-
           return {
             responseText,
             provider: `inference-${inferData?.provider ?? 'heuristic'}`,
             model: 'inference-chat',
+            degraded: inferData?.fallback === true,
           }
         } catch (err: any) {
           lastError = err instanceof Error ? err : new Error(String(err?.message ?? err))
@@ -579,7 +574,7 @@ Deno.serve(async (req: Request) => {
       return ['inference', 'ollama']
     })()
 
-    let providerResult: { responseText: string; provider: string; model: string } | null = null
+    let providerResult: { responseText: string; provider: string; model: string; degraded?: boolean } | null = null
     const providerErrors: string[] = []
 
     for (const providerName of providerOrder) {
@@ -618,9 +613,15 @@ Deno.serve(async (req: Request) => {
       )
     }
 
+    const degradedPrefix = providerResult.degraded
+      ? 'Note: Bob is currently running in degraded mode while the primary LLM provider is busy. Responses remain operational but may be less detailed.\n\n'
+      : ''
+
+    const baseResponse = `${degradedPrefix}${responseText}`
+
     const finalResponse = shouldEscalate
-      ? `Compliance Notice: This request may indicate a potential policy or legal breach. Grand Master has been advised.\n\n${responseText}`
-      : responseText
+      ? `Compliance Notice: This request may indicate a potential policy or legal breach. Grand Master has been advised.\n\n${baseResponse}`
+      : baseResponse
 
     return new Response(
       JSON.stringify({
