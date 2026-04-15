@@ -377,19 +377,53 @@ jobs:
               fi
 
               echo "::warning::Attempting Bob deployment by common service names as final fallback."
-              FALLBACK_NAMES="${RAILWAY_BOB_SERVICE_NAME:-} ${RAILWAY_ORC_SERVICE_NAME:-} bob bob-inference bob-inference-service orc-ai-inference orc-ai-inference-service"
+              # Expanded name list covers user-set names, standard Bob aliases, and
+              # Railway defaults ("web", "inference") that may have been used at creation.
+              FALLBACK_NAMES="${RAILWAY_BOB_SERVICE_NAME:-} ${RAILWAY_ORC_SERVICE_NAME:-} bob bob-inference bob-inference-service orc-ai-inference orc-ai-inference-service inference orc-inference orc web bob-service"
               for NAME in $FALLBACK_NAMES; do
                 if [ -z "$NAME" ]; then
                   continue
                 fi
                 echo "ℹ️ Trying Railway service selector: $NAME"
+                # Try with explicit project context first.
                 if deploy_selector "$NAME" "$PROJECT_TO_QUERY"; then
                   echo "✅ Bob deploy succeeded using service selector: $NAME"
                   exit 0
                 fi
+                # Also try WITHOUT --project so the token's native project scope is used.
+                # This recovers when PROJECT_TO_QUERY is stale/wrong but the token is
+                # correctly scoped to the Bob project.
+                if [ -n "$PROJECT_TO_QUERY" ] && deploy_selector "$NAME" ""; then
+                  echo "✅ Bob deploy succeeded using service selector: $NAME (token scope)"
+                  exit 0
+                fi
               done
 
+              # Last resort: deploy with only project context and no --service flag.
+              # Works when the Railway project has exactly one non-Ollama service and
+              # the token (project token or PAT) has deploy access to the project.
+              if [ -n "$PROJECT_TO_QUERY" ]; then
+                echo "ℹ️ Last resort: deploy from inference-service/ with project context, no --service flag"
+                if railway up inference-service/ --project "$PROJECT_TO_QUERY" --environment "${RAILWAY_BOB_ENVIRONMENT:-production}" --detach 2>&1; then
+                  echo "✅ Bob deploy succeeded via project-scoped deploy (no --service)"
+                  exit 0
+                fi
+              fi
+              # Last resort without project context: relies entirely on token scope.
+              echo "ℹ️ Last resort: deploy from inference-service/ using token scope only"
+              if railway up inference-service/ --detach 2>&1; then
+                echo "✅ Bob deploy succeeded via token-scope directory deploy"
+                exit 0
+              fi
+
               echo "::error::Could not resolve a deployable Bob service ID from Railway token scope."
+              echo "::error::ACTION REQUIRED: Update the RAILWAY_BOB_SERVICE_ID GitHub Actions secret."
+              echo "  1. Open Railway Dashboard → Bob project → Services"
+              echo "  2. Click the inference service → Settings → copy Service ID"
+              echo "  3. Go to GitHub → FreedomCamp-Manager → Settings → Secrets → Actions"
+              echo "  4. Update RAILWAY_BOB_SERVICE_ID with the correct UUID"
+              echo "  - Optionally also set RAILWAY_BOB_SERVICE_NAME to the service display name"
+              echo "  See docs/BOB_PRODUCTION_RAILWAY_SETUP.md for full setup instructions."
               exit 1
             }
 
