@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -194,6 +195,7 @@ export default function DispatchConsole() {
   const qc = useQueryClient()
   const navigate = useNavigate()
   const orgId = filterOrgId || user?.organization_id
+  const { orgIds: clientOrgIds, isLoading: clientOrgIdsLoading } = useClientOrgIds()
 
   const [statusFilter, setStatusFilter] = useState<'active' | 'completed' | 'all'>('active')
   const [selectedJob, setSelectedJob] = useState<DispatchJob | null>(null)
@@ -283,13 +285,16 @@ export default function DispatchConsole() {
 
   // ── Client sites for create form ────────────────────────────────────────────
   const { data: clientSites = [] } = useQuery({
-    queryKey: ['client-sites-lookup', orgId],
+    queryKey: ['client-sites-lookup', orgId, clientOrgIds],
     queryFn: async () => {
-      const { data } = await (supabase as any)
-        .from('client_sites').select('id, name, address').eq('organization_id', orgId ?? '').eq('is_active', true)
+      let q = (supabase as any)
+        .from('client_sites').select('id, name, address').eq('is_active', true)
+      // clientOrgIds === null means master (unrestricted)
+      if (clientOrgIds !== null) q = q.in('organization_id', clientOrgIds)
+      const { data } = await q
       return data ?? []
     },
-    enabled: !!orgId,
+    enabled: !!orgId && !clientOrgIdsLoading,
   })
 
   // ── Zones for create form ───────────────────────────────────────────────────

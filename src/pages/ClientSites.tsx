@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useZones } from '@/hooks/useZones'
+import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -148,23 +149,25 @@ export default function ClientSites() {
   const [viewSite, setViewSite]       = useState<ClientSite | null>(null)
 
   const { data: zones = [] } = useZones({ organizationId: orgId })
+  const { orgIds, isLoading: orgIdsLoading } = useClientOrgIds()
 
   // ── Fetch sites ─────────────────────────────────────────────────────────────
   const { data: sites = [], isLoading } = useQuery<ClientSite[]>({
-    queryKey: ['client-sites', orgId, showInactive, typeFilter],
+    queryKey: ['client-sites', orgId, orgIds, showInactive, typeFilter],
     queryFn: async () => {
       let q = (supabase as any)
         .from('client_sites')
         .select('*, zone:zones!zone_id(name)')
-        .eq('organization_id', orgId ?? '')
         .order('name')
+      // orgIds === null means master (unrestricted); otherwise filter to org hierarchy
+      if (orgIds !== null) q = q.in('organization_id', orgIds)
       if (!showInactive) q = q.eq('is_active', true)
       if (typeFilter !== 'all') q = q.eq('site_type', typeFilter)
       const { data, error } = await q
       if (error) throw error
       return (data ?? []) as unknown as ClientSite[]
     },
-    enabled: !!orgId,
+    enabled: !!orgId && !orgIdsLoading,
   })
 
   const filtered = sites.filter(s => {
