@@ -165,8 +165,10 @@ export default function OfficerHomePage() {
         </Button>
       </header>
 
-      {/* PTT bar — available regardless of shift/geofence state */}
-      <PTTBar compact className="border-b" />
+      {/* PTT radio — navigate to /radio page from the sidebar nav */}
+      <div className="border-b px-4 py-2">
+        <PTTBar />
+      </div>
 
       <main className="flex-1 flex flex-col items-center justify-center px-4 py-8 gap-6 max-w-md mx-auto w-full">
 

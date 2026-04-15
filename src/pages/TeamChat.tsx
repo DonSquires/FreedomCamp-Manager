@@ -4,11 +4,9 @@ import { RealtimeChannel } from '@supabase/supabase-js'
 import { useNavigate } from 'react-router-dom'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
-import { PTTBar } from '@/components/features/PTTBar'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
-import { useChatTargetStore, ChatTarget } from '@/stores/chatTargetStore'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -37,8 +35,6 @@ interface Participant {
   role: string
   organization_id: string | null
 }
-
-type ConversationTarget = ChatTarget
 
 interface ChatMessage {
   id: string
@@ -314,12 +310,14 @@ export default function TeamChat() {
   const { user } = useAuthStore()
   const navigate = useNavigate()
   const { organizationId } = useGlobalFiltersStore()
-  const { target, setTarget } = useChatTargetStore()
+  // Chat target is managed locally — PTT radio is a completely separate system
+  type LocalTarget = { type: 'admin' } | { type: 'user'; user: Participant }
+  const [target, setTarget] = useState<LocalTarget>({ type: 'admin' })
   const [message, setMessage] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inspectUserId, setInspectUserId] = useState<string | null>(null)
   const [channel, setChannel] = useState<RealtimeChannel | null>(null)
-  const targetUserRef = useRef<Participant | null>(target.type === 'user' ? target.user : null)
+  const targetUserRef = useRef<Participant | null>(null)
 
   const effectiveOrgId = useMemo(
     () =>
@@ -450,7 +448,7 @@ export default function TeamChat() {
     return Array.from(byId.values()).sort((a, b) => a.createdAt.localeCompare(b.createdAt))
   }, [messages, systemMessages])
 
-  // Keep persisted target in sync with available members (for push-to-talk + chat)
+  // Keep local target in sync with available members
   useEffect(() => {
     targetUserRef.current = target.type === 'user' ? target.user : null
     setInspectUserId(target.type === 'user' ? target.user.id : null)
@@ -671,8 +669,7 @@ export default function TeamChat() {
 
           <Separator />
 
-          {/* Push-to-Talk Bar */}
-          <PTTBar className="mx-4 my-2" />
+          {/* Push-to-Talk lives on the /radio page — click Radio in nav */}
 
           <div className="p-4 space-y-2">
             <div className="rounded-md border bg-muted/40 p-3">
