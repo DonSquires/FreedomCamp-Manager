@@ -740,6 +740,7 @@ BEGIN
 
     ) AS t(loc_name, site_type, lat, lng, dlat, dlng, address, city, areas_note)
   LOOP
+    BEGIN
 
     -- ── 1. Create client organisation ──────────────────────────────────────────
     IF NOT EXISTS (
@@ -773,6 +774,11 @@ BEGIN
     WHERE  name                  = rec.loc_name
       AND  parent_organization_id = v_nelson_id
     LIMIT  1;
+
+    IF v_org_id IS NULL THEN
+      RAISE NOTICE '⚠️  Skipping location "%": could not resolve client organization id.', rec.loc_name;
+      CONTINUE;
+    END IF;
 
     -- ── 2. Create zone with GeoJSON polygon geofence ───────────────────────────
     IF NOT EXISTS (
@@ -818,6 +824,11 @@ BEGIN
       AND  name            = rec.loc_name
     LIMIT  1;
 
+    IF v_zone_id IS NULL THEN
+      RAISE NOTICE '⚠️  Skipping location "%": could not resolve zone id.', rec.loc_name;
+      CONTINUE;
+    END IF;
+
     -- ── 3. Create client site ──────────────────────────────────────────────────
     IF NOT EXISTS (
       SELECT 1
@@ -850,6 +861,11 @@ BEGIN
         true
       );
     END IF;
+
+    EXCEPTION WHEN others THEN
+      RAISE NOTICE '⚠️  Skipping location "%" due to seed error: %', rec.loc_name, SQLERRM;
+      CONTINUE;
+    END;
 
   END LOOP;
 
