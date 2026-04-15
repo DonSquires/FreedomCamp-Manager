@@ -305,11 +305,11 @@ jobs:
           if grep -q "Service not found" "$DEPLOY_LOG"; then
             echo "::warning::Configured RAILWAY_BOB_SERVICE_ID was not found. Attempting project-based service auto-resolution."
 
-            if [ -z "$PROJECT_TO_QUERY" ]; then
-              echo "::warning::RAILWAY_BOB_PROJECT_ID not set. Attempting global service auto-resolution from token scope."
+            attempt_global_resolution() {
+              echo "::warning::Attempting global service auto-resolution from token scope."
 
               GLOBAL_GRAPHQL='{"query":"query { me { projects { edges { node { id name services { edges { node { id name } } } } } } } }"}'
-              GLOBAL_RESPONSE=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
+              GLOBAL_RESPONSE=$(curl -sS https://backboard.railway.app/graphql/v2 \
                 -H "Authorization: Bearer $RAILWAY_TOKEN" \
                 -H "Content-Type: application/json" \
                 --data "$GLOBAL_GRAPHQL" || true)
@@ -319,10 +319,12 @@ jobs:
                 const projects = data?.data?.me?.projects?.edges?.map((edge) => edge?.node).filter(Boolean) || [];
                 const candidates = [];
                 for (const p of projects) {
+                  const projectName = String(p?.name || "").toLowerCase();
+                  const projectScore = projectName.includes("bob") ? 5 : 0;
                   const services = p?.services?.edges?.map((edge) => edge?.node).filter(Boolean) || [];
                   for (const s of services) {
                     const name = String(s?.name || "").toLowerCase();
-                    const score = (
+                    const score = projectScore + (
                       (name.includes("bob") ? 10 : 0) +
                       (name.includes("inference") ? 6 : 0) +
                       (name.includes("orc") ? 4 : 0) -
@@ -357,13 +359,41 @@ jobs:
 
               echo "::error::Could not resolve a deployable Bob service ID from Railway token scope."
               exit 1
+            }
+
+            if [ -n "$PROJECT_TO_QUERY" ] && ! printf '%s' "$PROJECT_TO_QUERY" | grep -Eq '^[0-9a-fA-F-]{36}$'; then
+              echo "::warning::RAILWAY_BOB_PROJECT_ID is not a UUID: '$PROJECT_TO_QUERY'. Falling back to global resolution."
+              PROJECT_TO_QUERY=""
+            fi
+
+            if [ -z "$PROJECT_TO_QUERY" ]; then
+              attempt_global_resolution
             fi
 
             GRAPHQL_PAYLOAD=$(printf '{"query":"query { project(id:\"%s\") { services { edges { node { id name } } } } }"}' "$PROJECT_TO_QUERY")
-            GRAPHQL_RESPONSE=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
+            GRAPHQL_HTTP_STATUS=$(curl -sS -o /tmp/railway-project-lookup.json -w "%{http_code}" https://backboard.railway.app/graphql/v2 \
               -H "Authorization: Bearer $RAILWAY_TOKEN" \
               -H "Content-Type: application/json" \
               --data "$GRAPHQL_PAYLOAD" || true)
+
+            if [ "$GRAPHQL_HTTP_STATUS" != "200" ]; then
+              echo "::warning::Project-based Railway GraphQL lookup failed (HTTP $GRAPHQL_HTTP_STATUS). Falling back to global resolution."
+              sed -n '1,3p' /tmp/railway-project-lookup.json || true
+              attempt_global_resolution
+            fi
+
+            GRAPHQL_RESPONSE=$(cat /tmp/railway-project-lookup.json)
+            PROJECT_ERRORS=$(node -e '
+              const data = JSON.parse(process.argv[1] || "{}");
+              const errors = Array.isArray(data?.errors) ? data.errors : [];
+              process.stdout.write(String(errors.length));
+            ' "$GRAPHQL_RESPONSE")
+
+            if [ "$PROJECT_ERRORS" != "0" ]; then
+              echo "::warning::Project-based Railway GraphQL returned errors. Falling back to global resolution."
+              sed -n '1,3p' /tmp/railway-project-lookup.json || true
+              attempt_global_resolution
+            fi
 
             RESOLVED_SERVICE_ID=$(node -e '
               const data = JSON.parse(process.argv[1] || "{}");
@@ -382,18 +412,8 @@ jobs:
               fi
             fi
 
-            echo "::warning::Project-based resolution did not deploy. Attempting Bob deployment by common service names."
-            FALLBACK_NAMES="${RAILWAY_BOB_SERVICE_NAME:-} bob bob-inference bob-inference-service inference-service orc-ai-inference-service"
-            for NAME in $FALLBACK_NAMES; do
-              if [ -z "$NAME" ]; then
-                continue
-              fi
-              echo "ℹ️ Trying Railway service selector: $NAME"
-              if railway up --service "$NAME" --detach; then
-                echo "✅ Bob deploy succeeded using service selector: $NAME"
-                exit 0
-              fi
-            done
+            echo "::warning::Project-based resolution did not deploy. Falling back to global resolution."
+            attempt_global_resolution
           fi
 
           echo "::error::Railway deploy command failed for RAILWAY_BOB_SERVICE_ID=$RAILWAY_SERVICE_ID"
