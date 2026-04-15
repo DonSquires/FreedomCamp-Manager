@@ -296,6 +296,7 @@ jobs:
           RAILWAY_SERVICE_ID: ${{ steps.resolve-service.outputs.service_id }}
           RAILWAY_BOB_PROJECT_ID: ${{ steps.resolve-service.outputs.project_id }}
           RAILWAY_BOB_SERVICE_NAME: ${{ secrets.RAILWAY_BOB_SERVICE_NAME }}
+          RAILWAY_ORC_SERVICE_NAME: ${{ secrets.RAILWAY_ORC_SERVICE_NAME }}
           RAILWAY_BOB_ENVIRONMENT: ${{ secrets.RAILWAY_BOB_ENVIRONMENT }}
         run: |
           set -euo pipefail
@@ -376,7 +377,7 @@ jobs:
               fi
 
               echo "::warning::Attempting Bob deployment by common service names as final fallback."
-              FALLBACK_NAMES="${RAILWAY_BOB_SERVICE_NAME:-} bob bob-inference bob-inference-service"
+              FALLBACK_NAMES="${RAILWAY_BOB_SERVICE_NAME:-} ${RAILWAY_ORC_SERVICE_NAME:-} bob bob-inference bob-inference-service orc-ai-inference orc-ai-inference-service"
               for NAME in $FALLBACK_NAMES; do
                 if [ -z "$NAME" ]; then
                   continue
