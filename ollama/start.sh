@@ -23,7 +23,7 @@ OLLAMA_PID=$!
 # ── 2. Poll /api/tags until the daemon responds ───────────────────────────────
 echo "⏳ Waiting for Ollama daemon (up to ${MAX_WAIT}s)..."
 elapsed=0
-until curl -s -o /dev/null -f "http://localhost:11434/api/tags"; do
+until ollama list >/dev/null 2>&1; do
   if [ $elapsed -ge $MAX_WAIT ]; then
     echo "❌ Ollama daemon did not start within ${MAX_WAIT}s"
     echo "  Possible causes:"
@@ -39,7 +39,7 @@ echo "✅ Ollama daemon is ready (${elapsed}s elapsed)"
 
 # ── 3. Check whether the model is already present ─────────────────────────────
 MODEL_BASE="${MODEL%%:*}"   # strip tag for partial-name matching
-if curl -s "http://localhost:11434/api/tags" | grep -q "\"${MODEL_BASE}"; then
+if ollama list 2>/dev/null | grep -q "${MODEL_BASE}"; then
   echo "✅ Model '${MODEL}' is already available — skipping pull"
 else
   echo "📦 Pulling model '${MODEL}' (this may take several minutes)..."
