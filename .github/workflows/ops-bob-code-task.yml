@@ -57,8 +57,6 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  # Model to use for code generation (gpt-4o produces best code; gpt-4o-mini as fallback)
-  CODE_MODEL: ${{ vars.BOB_CODE_TASK_MODEL || 'gpt-4o' }}
 
 jobs:
   execute-code-tasks:
@@ -105,14 +103,21 @@ jobs:
       # 2. Optional: queue a manually supplied task
       # -----------------------------------------------------------------------
       - name: Queue manual task (if provided)
-        if: steps.validate.outputs.can_run == 'true' && github.event_name == 'workflow_dispatch' && github.event.inputs.task != ''
+        if: steps.validate.outputs.can_run == 'true' && github.event_name == 'workflow_dispatch'
         env:
           BOB_SERVICE_URL: ${{ env.BOB_SERVICE_URL }}
           BOB_INFERENCE_API_KEY: ${{ env.BOB_INFERENCE_API_KEY }}
+          INPUT_TASK: ${{ github.event.inputs.task }}
+          INPUT_PRIORITY: ${{ github.event.inputs.priority }}
+          INPUT_TARGET_FILES: ${{ github.event.inputs.target_files }}
         run: |
-          TASK="${{ github.event.inputs.task }}"
-          PRIORITY="${{ github.event.inputs.priority || 'high' }}"
-          TARGET_FILES="${{ github.event.inputs.target_files }}"
+          TASK="${INPUT_TASK:-}"
+          PRIORITY="${INPUT_PRIORITY:-high}"
+          TARGET_FILES="${INPUT_TARGET_FILES:-}"
+          if [ -z "$TASK" ]; then
+            echo "ℹ️ No manual task provided"
+            exit 0
+          fi
 
           # Convert comma-separated target_files to JSON array
           FILES_JSON="[]"
@@ -148,8 +153,10 @@ jobs:
         env:
           BOB_SERVICE_URL: ${{ env.BOB_SERVICE_URL }}
           BOB_INFERENCE_API_KEY: ${{ env.BOB_INFERENCE_API_KEY }}
+          INPUT_LIMIT: ${{ github.event.inputs.limit }}
+          DEFAULT_LIMIT: ${{ vars.BOB_CODE_TASK_LIMIT }}
         run: |
-          LIMIT="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.limit || vars.BOB_CODE_TASK_LIMIT || '3' }}"
+          LIMIT="${INPUT_LIMIT:-${DEFAULT_LIMIT:-3}}"
           echo "🔍 Fetching up to $LIMIT pending code tasks from Bob..."
 
           HTTP_STATUS=$(curl -s -o /tmp/pending.json -w "%{http_code}" \
@@ -211,8 +218,10 @@ jobs:
           BOB_INFERENCE_API_KEY: ${{ env.BOB_INFERENCE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CODE_MODEL: ${{ vars.BOB_CODE_TASK_MODEL }}
         run: |
           set -e
+          CODE_MODEL="${CODE_MODEL:-gpt-4o}"
 
           # ----------------------------------------------------------------
           # FieldOps system prompt for the code-generation LLM
