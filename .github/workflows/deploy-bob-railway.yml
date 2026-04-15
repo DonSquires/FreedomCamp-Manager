@@ -48,9 +48,11 @@ jobs:
           RAILWAY_BOB_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_TOKEN_BOB: ${{ secrets.RAILWAY_TOKEN_BOB }}
+          RAILWAY_ORC_TOKEN: ${{ secrets.RAILWAY_ORC_TOKEN }}
           RAILWAY_BOB_SERVICE_ID: ${{ secrets.RAILWAY_BOB_SERVICE_ID }}
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
           RAILWAY_BOB_PROJECT_ID: ${{ secrets.RAILWAY_BOB_PROJECT_ID }}
+          RAILWAY_ORC_PROJECT_ID: ${{ secrets.RAILWAY_ORC_PROJECT_ID }}
           RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
           BOB_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
           INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL }}
@@ -208,8 +210,12 @@ jobs:
               const data = JSON.parse(process.argv[1] || "{}");
               const services = data?.data?.project?.services?.edges?.map((edge) => edge?.node).filter(Boolean) || [];
               const candidates = [];
+              const fallbackServices = [];
               for (const s of services) {
                 const name = String(s?.name || "").toLowerCase();
+                if (name !== "ollama") {
+                  fallbackServices.push({ projectId: process.argv[2], serviceId: s.id, serviceName: s.name, score: 0 });
+                }
                 const score = (
                   (name.includes("bob") ? 10 : 0) +
                   (name.includes("inference") ? 6 : 0) +
@@ -219,7 +225,7 @@ jobs:
                 if (score > 0) candidates.push({ projectId: process.argv[2], serviceId: s.id, serviceName: s.name, score });
               }
               candidates.sort((a, b) => b.score - a.score);
-              const top = candidates[0];
+              const top = candidates[0] || fallbackServices[0];
               if (!top) process.exit(2);
               process.stdout.write(JSON.stringify(top));
             ' "$GRAPHQL_RESPONSE" "$EXPLICIT_PROJECT_ID") || true
