@@ -29,7 +29,7 @@ NC='\033[0m' # No Color
 
 # Project configuration
 PROJECT_REF="kxwjcupuxnnbnzcgmkoi"
-RAILWAY_INFERENCE_URL_DEFAULT="https://orc-ai-inference-service-production.up.railway.app"
+RAILWAY_INFERENCE_URL_DEFAULT="https://focused-courage-production-ccee.up.railway.app"
 
 echo -e "${BLUE}╔════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║     FreedomCamp Manager - AI Service Configuration        ║${NC}"

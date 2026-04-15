@@ -301,7 +301,7 @@ ALPR_API_URL=https://app.parkpow.com/api/v1
 
 # AI policy: inference-service only (no direct external AI provider secrets in Supabase)
 # Keep INFERENCE_SERVICE_URL as a full HTTPS URL with scheme, for example:
-#   https://orc-ai-inference-service-production.up.railway.app
+#   https://focused-courage-production-ccee.up.railway.app
 
 # Edge Function SMTP email (report emails, infringement notices, notices to vacate)
 # User invitation emails are sent by Supabase Auth invite flow, configured under

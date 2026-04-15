@@ -9,7 +9,7 @@ set -eu
 
 if [ "${INFERENCE_URL:-}" = "" ]; then
   echo "ERROR: INFERENCE_URL is required"
-  echo "Example: INFERENCE_URL=https://orc-ai-inference-service-production.up.railway.app ./scripts/verify-remote-inference.sh"
+  echo "Example: INFERENCE_URL=https://focused-courage-production-ccee.up.railway.app ./scripts/verify-remote-inference.sh"
   exit 1
 fi
 

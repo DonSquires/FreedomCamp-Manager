@@ -4,6 +4,8 @@ set -euo pipefail
 # One-off secret/bootstrap helper for GitHub Actions, Supabase Edge Function secrets,
 # and Railway service variables. Values are sourced from existing environment
 # variables where available, with secure random defaults generated for internal keys.
+# Example:
+#   export INFERENCE_SERVICE_URL="https://focused-courage-production-ccee.up.railway.app"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
