@@ -208,7 +208,7 @@ export default function ClientAccountPage() {
         site:    Array.isArray(s.site)    ? (s.site[0]    ?? null) : s.site,
       })) as RecentShift[]
     },
-    enabled: !!orgId && !secShifts === false, // load when section is open
+    enabled: !!orgId && secShifts,
   })
 
   // ── Save contact mutation ─────────────────────────────────────────────────
