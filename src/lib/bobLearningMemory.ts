@@ -165,6 +165,17 @@ interface PersistRemoteLearningInput {
   assistantReply: string
 }
 
+interface PersistConversationTurnRemoteInput {
+  userId: string
+  organizationId?: string | null
+  route?: string
+  source?: string
+  userMessage: string
+  assistantReply: string
+  currentRoute?: string
+  destinationHint?: string
+}
+
 export async function persistBobLearningRemote(input: PersistRemoteLearningInput) {
   try {
     const localEntry = learnFromBobExchange({
@@ -231,6 +242,82 @@ export async function buildBobLearningContextRemote(userId: string, maxEntries =
       ...data.map((row: any, index: number) =>
         `${index + 1}. Topic: ${row.topic} | Tags: ${(row.tags ?? []).join(', ')} | Prior user intent: ${row.user_intent} | Prior Bob outcome: ${row.assistant_outcome}`,
       ),
+    ].join('\n')
+  } catch {
+    return ''
+  }
+}
+
+export async function persistConversationTurnRemote(input: PersistConversationTurnRemoteInput) {
+  try {
+    const now = new Date().toISOString()
+    const route = input.route ?? '/bob-assistant'
+    const source = input.source ?? 'bob-studio'
+    const context = {
+      app_route: input.currentRoute ?? route,
+      destination_hint: input.destinationHint ?? null,
+    }
+
+    const rows = [
+      {
+        user_id: input.userId,
+        organization_id: input.organizationId ?? null,
+        role: 'user',
+        message: truncate(input.userMessage.replace(/\s+/g, ' ').trim(), 1200),
+        route,
+        source,
+        context,
+        created_at: now,
+      },
+      {
+        user_id: input.userId,
+        organization_id: input.organizationId ?? null,
+        role: 'assistant',
+        message: truncate(input.assistantReply.replace(/\s+/g, ' ').trim(), 1400),
+        route,
+        source,
+        context,
+        created_at: now,
+      },
+    ]
+
+    await (((supabase as any).from('bob_conversation_memory') as any).insert(rows))
+  } catch {
+    // Keep assistant functional if migration is not applied yet.
+  }
+}
+
+export async function buildConversationContinuationContextRemote(userId: string, maxMessages = 16) {
+  try {
+    const { data, error } = await ((supabase as any).from('bob_conversation_memory') as any)
+      .select('role, message, route, source, context, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(maxMessages)
+
+    if (error || !Array.isArray(data) || data.length === 0) return ''
+
+    const ordered = [...data].reverse()
+    const turns = ordered
+      .map((row: any, idx: number) => {
+        const role = row?.role === 'assistant' ? 'Bob' : 'User'
+        const message = String(row?.message ?? '').trim()
+        if (!message) return ''
+        return `${idx + 1}. ${role}: ${message}`
+      })
+      .filter(Boolean)
+
+    if (!turns.length) return ''
+
+    const latest = ordered[ordered.length - 1] as any
+    const lastRoute = latest?.context?.app_route || latest?.route || '/bob-assistant'
+    const destinationHint = latest?.context?.destination_hint ? String(latest.context.destination_hint) : ''
+
+    return [
+      'Conversation continuity memory from previous sessions. Continue naturally from this context:',
+      `Last known app route: ${lastRoute}`,
+      ...(destinationHint ? [`Last known destination context: ${destinationHint}`] : []),
+      ...turns,
     ].join('\n')
   } catch {
     return ''

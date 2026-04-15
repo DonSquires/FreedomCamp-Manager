@@ -18,7 +18,13 @@ import { toast } from 'sonner'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { consumeLatestBobCollaborationPacket, publishBobResponse, type BobCollaborationPacket } from '@/lib/bobCollaboration'
 import { BOB_PROJECT_KNOWLEDGE } from '@/lib/bobKnowledgeBase'
-import { buildBobLearningContext, buildBobLearningContextRemote, persistBobLearningRemote } from '@/lib/bobLearningMemory'
+import {
+  buildBobLearningContext,
+  buildBobLearningContextRemote,
+  buildConversationContinuationContextRemote,
+  persistBobLearningRemote,
+  persistConversationTurnRemote,
+} from '@/lib/bobLearningMemory'
 
 type ChatMessage = {
   id: string
@@ -476,6 +482,7 @@ export default function BobAssistantStudio() {
   const [codeTaskLoading, setCodeTaskLoading] = useState(false)
   const [codeTaskResult, setCodeTaskResult] = useState('')
   const [remoteLearningContext, setRemoteLearningContext] = useState('')
+  const [conversationContinuationContext, setConversationContinuationContext] = useState('')
   const [codeChangeRequest, setCodeChangeRequest] = useState<CodeChangeRequest>({
     summary: '',
     details: '',
@@ -505,11 +512,19 @@ export default function BobAssistantStudio() {
     const loadRemoteLearning = async () => {
       if (!user?.id) {
         setRemoteLearningContext('')
+        setConversationContinuationContext('')
         return
       }
 
-      const context = await buildBobLearningContextRemote(user.id, 20)
-      if (!cancelled) setRemoteLearningContext(context)
+      const [learningContext, continuationContext] = await Promise.all([
+        buildBobLearningContextRemote(user.id, 20),
+        buildConversationContinuationContextRemote(user.id, 16),
+      ])
+
+      if (!cancelled) {
+        setRemoteLearningContext(learningContext)
+        setConversationContinuationContext(continuationContext)
+      }
     }
 
     loadRemoteLearning()
@@ -852,11 +867,13 @@ export default function BobAssistantStudio() {
       const compactKnowledge = BOB_PROJECT_KNOWLEDGE.slice(0, 9_000)
       const compactLongTermMemory = longTermMemory.slice(0, 5_000)
       const compactRemoteMemory = remoteLearningContext.slice(0, 5_000)
+      const compactContinuationMemory = conversationContinuationContext.slice(0, 6_000)
 
       const rawMessages = [
         { role: 'assistant', content: compactKnowledge },
         ...(compactLongTermMemory ? [{ role: 'assistant', content: compactLongTermMemory }] : []),
         ...(compactRemoteMemory ? [{ role: 'assistant', content: compactRemoteMemory }] : []),
+        ...(compactContinuationMemory ? [{ role: 'assistant', content: compactContinuationMemory }] : []),
         ...historyMessages,
         { role: 'user', content: message },
       ]
@@ -959,10 +976,25 @@ export default function BobAssistantStudio() {
         assistantReply: replyText,
       })
 
+      await persistConversationTurnRemote({
+        userId: learningUserId,
+        organizationId: user?.organization_id ?? null,
+        route: '/bob-assistant',
+        source: collaborationPacket?.source ?? 'bob-studio',
+        userMessage: message,
+        assistantReply: replyText,
+        currentRoute: window.location.pathname,
+        destinationHint: destination || null,
+      })
+
       // Refresh remote context opportunistically after successful persistence.
       if (learningUserId !== 'anonymous') {
-        const refreshedRemote = await buildBobLearningContextRemote(learningUserId, 20)
+        const [refreshedRemote, refreshedContinuation] = await Promise.all([
+          buildBobLearningContextRemote(learningUserId, 20),
+          buildConversationContinuationContextRemote(learningUserId, 16),
+        ])
         setRemoteLearningContext(refreshedRemote)
+        setConversationContinuationContext(refreshedContinuation)
       }
 
       // Publish response back to the originating component (sub-agent pattern)
@@ -1000,6 +1032,22 @@ export default function BobAssistantStudio() {
         userMessage: message,
         assistantReply: replyText,
       })
+
+      await persistConversationTurnRemote({
+        userId: learningUserId,
+        organizationId: user?.organization_id ?? null,
+        route: '/bob-assistant',
+        source: collaborationPacket?.source ?? 'local-fallback',
+        userMessage: message,
+        assistantReply: replyText,
+        currentRoute: window.location.pathname,
+        destinationHint: destination || null,
+      })
+
+      if (learningUserId !== 'anonymous') {
+        const refreshedContinuation = await buildConversationContinuationContextRemote(learningUserId, 16)
+        setConversationContinuationContext(refreshedContinuation)
+      }
 
       if (autoSpeakReplies) speak(replyText)
       const shortError = String(err?.message || 'unknown_error').slice(0, 120)
