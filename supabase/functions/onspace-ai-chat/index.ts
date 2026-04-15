@@ -13,7 +13,7 @@
  *   AI_DEFAULT_MODEL        Optional UI hint only (handled by inference-service).
  *
  * Optional secrets for Ollama fallback/support:
- *   OLLAMA_BASE_URL         e.g. http://localhost:11434 or http://ollama.railway.internal:3000 (defaults to INFERENCE_SERVICE_URL)
+ *   OLLAMA_BASE_URL         e.g. http://localhost:11434 or http://ollama.railway.internal:11434 (defaults to INFERENCE_SERVICE_URL)
  *   OLLAMA_MODEL            e.g. llama3.1:8b
  *   OLLAMA_API_KEY          Optional bearer key (defaults to INFERENCE_API_KEY)
  */

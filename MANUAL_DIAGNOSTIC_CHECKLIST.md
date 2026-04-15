@@ -55,7 +55,7 @@ cat wiring-audit-result.json
 |-------|----------|----------|--------------|
 | `inference.status` | `healthy` | Shows error | Restart inference service on Railway |
 | `CHAT_PROVIDER` | `ollama` | Shows different value | Update Railway env: `CHAT_PROVIDER=ollama` |
-| `chat_local_ollama_enabled` | `true` | Shows `false` | Check OLLAMA_BASE_URL on Railway (should be `http://ollama.railway.internal:3000`) |
+| `chat_local_ollama_enabled` | `true` | Shows `false` | Check OLLAMA_BASE_URL on Railway (should be `http://ollama.railway.internal:11434`) |
 | `circuit_breaker.state` | `closed` | Shows `open` | Ollama service is down; restart it |
 
 **Status file**: Save output to `diagnose-step1-wiring-audit.json`
@@ -84,7 +84,7 @@ cat smoke-preflight-health.json
   "config": {
     "CHAT_PROVIDER": "ollama",
     "TABULAR_NLP_PROVIDER": "ollama",
-    "OLLAMA_BASE_URL": "http://ollama.railway.internal:3000"
+    "OLLAMA_BASE_URL": "http://ollama.railway.internal:11434"
   },
   "capabilities": {
     "chat_local_ollama_enabled": true,
@@ -161,7 +161,7 @@ IF state == "half-open":
 IF lastError contains "ECONNREFUSED" or "ETIMEDOUT":
   → Ollama is unreachable at OLLAMA_BASE_URL
   → Action: Check Railway internal DNS resolution
-  → Action: Verify OLLAMA_BASE_URL is http://ollama.railway.internal:3000
+  → Action: Verify OLLAMA_BASE_URL is http://ollama.railway.internal:11434
 ```
 
 **Status file**: Save output to `diagnose-step3-circuit-breaker.json`
@@ -183,7 +183,7 @@ EVIDENCE:
   - Step 1 (Wiring): circuit_breaker.state="open"
   - Step 2 (Preflight): circuit_breaker.state="open"
   - Step 3 (CB): state="open", lastError="ECONNREFUSED"
-INTERPRETATION: Ollama service is not responding at http://ollama.railway.internal:3000
+INTERPRETATION: Ollama service is not responding at http://ollama.railway.internal:11434
 ROOT CAUSE: Ollama pod crashed or is unreachable due to network isolation
 RECOMMENDED FIX:
   1. SSH into Railway Ollama pod

@@ -179,7 +179,7 @@ SIMILARITY_THRESHOLD_MAX=0.95
 SELF_LEARNING_ENABLED=true
 SELF_HEALING_ENABLED=true
 
-# --- Internal Ollama URL (port 3000 matches OLLAMA_HOST on Railway) ---
+# --- Internal Ollama URL (Ollama listens on port 11434 on Railway private networking) ---
 OLLAMA_BASE_URL=http://ollama.railway.internal:11434
 OLLAMA_MODEL=llama3.1:8b
 ```
