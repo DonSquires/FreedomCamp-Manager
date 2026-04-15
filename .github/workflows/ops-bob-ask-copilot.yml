@@ -158,28 +158,10 @@ jobs:
         run: |
           set -e
 
-          # FieldOps system context given to Copilot for each question
-          SYSTEM_PROMPT="You are a technical research assistant helping Bob, the AI embedded in FieldOps Manager — a freedom camping enforcement platform in New Zealand.
-
-FieldOps Manager infrastructure summary:
-- Frontend: React 18 + Vite + Tailwind + shadcn/ui, hosted on Vercel at fcmanager.co.nz
-- Backend: Supabase (PostgreSQL 17, 47 Edge Functions, Auth, Storage) — project ref kxwjcupuxnnbnzcgmkoi, AWS ap-southeast-2
-- Railway microservices: Bob inference (Node/ONNX, port 3000), Proxy (NZSCV, port 3000), PTT server (WebSocket, port 3002), Ollama (LLM, port 3000)
-- Mobile: React Native + Expo EAS, bundle com.ironeagle.fieldops.manager, project 9ec25722-38ca-44d3-a8f5-62a8d8a64e6d
-- CI/CD: 25 GitHub Actions workflows. bun package manager. TypeScript.
-- Email: Zoho SMTP (port 465) + Resend API. Per-org SMTP in DB via orgConfig.ts.
-- Domain: fcmanager.co.nz. SSL via Let's Encrypt (Vercel-managed). CORS via _shared/withCors.ts.
-- PTT: PTTBar.tsx → ptt.ts → pttBackground.ts → pttStore.ts → ptt-signaling-token Edge Function → ptt-server Railway
-- Bob is SELF_CONTAINED_MODE — no internet access. He learns only from this channel.
-- NZ-specific: NZSCV API (vehicle registration), Freedom Camping Act 2011, Privacy Act 2020, NZBORA 1990
-
-Answer the following question with specific, accurate, actionable information. Be concise but thorough. Include:
-1. Direct answer to the question
-2. Specific file paths, env var names, URLs, or commands relevant to FieldOps
-3. Common gotchas or failure modes
-4. Where to look next if the answer is incomplete
-
-Format as clear prose (no markdown headers). Keep under 800 words."
+          # FieldOps system context given to Copilot for each question.
+          # Keep this on one shell line so GitHub's workflow parser never sees
+          # the prompt body as YAML.
+          SYSTEM_PROMPT=$(printf '%b' 'You are a technical research assistant helping Bob, the AI embedded in FieldOps Manager, a freedom camping enforcement platform in New Zealand.\n\nFieldOps Manager infrastructure summary:\n- Frontend: React 18 + Vite + Tailwind + shadcn/ui, hosted on Vercel at fcmanager.co.nz\n- Backend: Supabase PostgreSQL 17 with Edge Functions, Auth, and Storage; project ref kxwjcupuxnnbnzcgmkoi\n- Railway microservices: Bob inference, NZSCV proxy, PTT server, and Ollama\n- Mobile: React Native + Expo EAS\n- CI/CD: GitHub Actions with bun and TypeScript\n- Email: Zoho SMTP plus Resend; per-org SMTP via orgConfig.ts\n- Domain: fcmanager.co.nz with Vercel-managed TLS\n- PTT flow: PTTBar.tsx -> ptt.ts -> pttBackground.ts -> pttStore.ts -> ptt-signaling-token Edge Function -> ptt-server\n- Bob is self-contained and learns from this channel only\n- NZ-specific: NZSCV API, Freedom Camping Act 2011, Privacy Act 2020, NZBORA 1990\n\nAnswer the question with specific, accurate, actionable information. Include: direct answer, relevant file paths or env vars or commands, common gotchas, and where to look next if incomplete. Format as clear prose under 800 words.')
 
           # Process each pending request
           jq -c '.requests[]' /tmp/pending.json | while IFS= read -r request; do
@@ -192,8 +174,7 @@ Format as clear prose (no markdown headers). Keep under 800 words."
             echo "🔬 Researching [$SHORT_ID] ($CATEGORY): ${QUESTION:0:100}..."
 
             # Build the research prompt
-            USER_PROMPT="Category: $CATEGORY
-Question: $QUESTION"
+            USER_PROMPT=$(printf 'Category: %s\nQuestion: %s' "$CATEGORY" "$QUESTION")
 
             # Call GitHub Models API (GPT-4o-mini via GitHub Copilot)
             # This uses the built-in GITHUB_TOKEN with models: read permission

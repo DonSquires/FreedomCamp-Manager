@@ -224,63 +224,11 @@ jobs:
           set -e
 
           # ----------------------------------------------------------------
-          # FieldOps system prompt for the code-generation LLM
-          # This mirrors the context that the Copilot coding agent has.
+          # FieldOps system prompt for the code-generation LLM.
+          # Keep this on one shell line so GitHub's workflow parser never sees
+          # prompt content as YAML.
           # ----------------------------------------------------------------
-          CODE_SYSTEM_PROMPT='You are an expert FieldOps Manager developer. FieldOps Manager is a TypeScript/React SPA for freedom camping enforcement in New Zealand.
-
-TECH STACK:
-- Frontend: React 18 + TypeScript + Vite + Tailwind CSS v3 + shadcn/ui (Radix UI)
-- State: Zustand (src/stores/) + TanStack Query v5
-- Forms: react-hook-form + zod
-- Routing: react-router-dom v6
-- Backend: Supabase (PostgreSQL 17, Edge Functions, RLS, Auth, Storage)
-- Edge Functions: Deno TypeScript in supabase/functions/<name>/index.ts
-- Package manager: bun (bun.lock must be committed)
-- Services on Railway: inference-service/ (Bob AI), proxy-server/ (NZSCV), ptt-server/ (WebSocket)
-
-KEY CONVENTIONS:
-- Supabase client: import { supabase } from "@/lib/supabase" (typed with Database from @/types/database)
-- DB row types: Database["public"]["Tables"]["table"]["Row"]
-- Path alias: @/* → ./src/*
-- Pages: src/pages/MyPage.tsx (default export React component)
-- Hooks: src/hooks/useMyData.ts (useQuery + useMutation pattern)
-- Stores: src/stores/myStore.ts (Zustand with persist to sessionStorage)
-- shadcn/ui: import from @/components/ui/<component>. NEVER re-implement them.
-- Feature components: src/components/features/
-- Edge Functions: always withCors from ../_shared/withCors.ts, handle OPTIONS preflight
-- Migrations: supabase/migrations/YYYYMMDD_HHMMSS_description.sql, RLS on every table
-- TypeScript: noImplicitAny=false, strictNullChecks=false, skipLibCheck=true — DO NOT tighten
-- User roles: admin, master, officer, admin_officer. Routes guarded by RoleRoute in App.tsx.
-- All datetimes: Pacific/Auckland timezone
-- Toast notifications: from sonner (import { toast } from "sonner")
-- Build: bun run build. Lint: bun run lint.
-
-OUTPUT FORMAT:
-Respond with ONLY a valid JSON object (no markdown, no prose, no code fences), with this exact structure:
-{
-  "summary": "One sentence describing what was implemented",
-  "pr_title": "feat: brief title for the PR",
-  "files": [
-    {
-      "operation": "create",
-      "path": "src/pages/MyPage.tsx",
-      "content": "full file content here"
-    },
-    {
-      "operation": "overwrite",
-      "path": "src/App.tsx",
-      "content": "full updated file content here"
-    }
-  ]
-}
-
-Supported operations:
-- "create": create a new file at the path with the given content
-- "overwrite": replace an existing file with the full new content
-
-Always output complete file contents — never truncate with "..." or "rest of file unchanged".
-Produce clean, working TypeScript that follows the conventions above exactly.'
+          CODE_SYSTEM_PROMPT=$(printf '%b' 'You are an expert FieldOps Manager developer. FieldOps Manager is a TypeScript and React SPA for freedom camping enforcement in New Zealand.\n\nTech stack:\n- React 18, TypeScript, Vite, Tailwind CSS v3, shadcn/ui\n- Zustand stores and TanStack Query v5\n- react-hook-form plus zod\n- react-router-dom v6\n- Supabase PostgreSQL, Edge Functions, RLS, Auth, Storage\n- Railway services for inference-service, proxy-server, and ptt-server\n- bun package manager\n\nKey conventions:\n- Supabase client from @/lib/supabase\n- DB row types from Database["public"]["Tables"]["table"]["Row"]\n- Path alias @/* maps to ./src/*\n- Pages live in src/pages and default export a React component\n- Hooks live in src/hooks and follow query and mutation patterns\n- Stores live in src/stores and commonly use persist to sessionStorage\n- Use shadcn/ui components from @/components/ui and do not re-implement them\n- Edge Functions use withCors from ../_shared/withCors.ts and handle OPTIONS\n- Migrations live in supabase/migrations and must include RLS where required\n- Keep TypeScript config lenient: noImplicitAny=false, strictNullChecks=false, skipLibCheck=true\n- User roles include admin, master, officer, and admin_officer; routes are guarded in App.tsx\n- All datetimes use Pacific/Auckland timezone\n- Toasts come from sonner\n- Validate with bun run build and bun run lint\n\nOutput only valid JSON with summary, pr_title, and files. Each file entry must use operation create or overwrite, include the repo-relative path, and include full file contents. Never truncate content and never return markdown or prose outside the JSON object.')
 
           # ----------------------------------------------------------------
           # Helper: call GitHub Models API
@@ -350,37 +298,25 @@ Produce clean, working TypeScript that follows the conventions above exactly.'
             # Build user prompt, incorporating existing file contents if requested
             USER_PROMPT="Task: $TASK_DESC"
             if [ -n "$TASK_CONTEXT" ] && [ "$TASK_CONTEXT" != "null" ]; then
-              USER_PROMPT="$USER_PROMPT
-
-Additional context: $TASK_CONTEXT"
+              USER_PROMPT=$(printf '%s\n\nAdditional context: %s' "$USER_PROMPT" "$TASK_CONTEXT")
             fi
             if [ -n "$BOB_PLAN" ] && [ "$BOB_PLAN" != "null" ]; then
-              USER_PROMPT="$USER_PROMPT
-
-Bob's initial plan:
-$BOB_PLAN"
+              USER_PROMPT=$(printf '%s\n\nBob\x27s initial plan:\n%s' "$USER_PROMPT" "$BOB_PLAN")
             fi
 
             # Include existing file contents for context
             if [ -n "$TARGET_FILES" ]; then
-              USER_PROMPT="$USER_PROMPT
-
-Existing file contents to read and update as needed:"
+              USER_PROMPT=$(printf '%s\n\nExisting file contents to read and update as needed:' "$USER_PROMPT")
               echo "$TARGET_FILES" | while IFS= read -r file_path; do
                 if [ -n "$file_path" ] && [ -f "$file_path" ]; then
                   FILE_CONTENT=$(cat "$file_path" 2>/dev/null | head -300)
-                  USER_PROMPT="$USER_PROMPT
-
---- $file_path ---
-$FILE_CONTENT"
+                  USER_PROMPT=$(printf '%s\n\n--- %s ---\n%s' "$USER_PROMPT" "$file_path" "$FILE_CONTENT")
                   echo "  📂 Included existing file: $file_path"
                 fi
               done
             fi
 
-            USER_PROMPT="$USER_PROMPT
-
-Implement this task fully. Output the complete JSON as specified."
+            USER_PROMPT=$(printf '%s\n\nImplement this task fully. Output the complete JSON as specified.' "$USER_PROMPT")
 
             # Call GitHub Models API to generate the code
             echo "🤖 Generating code with $CODE_MODEL..."
@@ -524,13 +460,7 @@ Implement this task fully. Output the complete JSON as specified."
             FILES_CHANGED="${FILES_CHANGED#,}"  # strip leading comma
             git add -A
 
-            COMMIT_MSG="feat(bob): ${SUMMARY}
-
-Task: ${TASK_DESC}
-Short ID: ${SHORT_ID}
-Generated by: ops-bob-code-task workflow
-Build: $([ "$BUILD_PASSED" = "true" ] && echo "✅ passed" || echo "❌ failed")
-Lint: $([ "$LINT_PASSED" = "true" ] && echo "✅ passed" || echo "⚠️ issues")"
+            COMMIT_MSG=$(printf 'feat(bob): %s\n\nTask: %s\nShort ID: %s\nGenerated by: ops-bob-code-task workflow\nBuild: %s\nLint: %s' "$SUMMARY" "$TASK_DESC" "$SHORT_ID" "$([ "$BUILD_PASSED" = "true" ] && echo "passed" || echo "failed")" "$([ "$LINT_PASSED" = "true" ] && echo "passed" || echo "issues")")
 
             git commit -m "$COMMIT_MSG" || { echo "No changes to commit"; }
             git push origin "$BRANCH"
@@ -538,26 +468,12 @@ Lint: $([ "$LINT_PASSED" = "true" ] && echo "✅ passed" || echo "⚠️ issues"
             # ----------------------------------------------------------------
             # Open a pull request
             # ----------------------------------------------------------------
-            PR_BODY="## Summary
-$SUMMARY
-
-## Task
-\`\`\`
-${TASK_DESC}
-\`\`\`
-$([ -n "$TASK_CONTEXT" ] && [ "$TASK_CONTEXT" != "null" ] && echo "
-## Context
-${TASK_CONTEXT}" || true)
-
-## Files Changed
-$(echo "$FILES_CHANGED" | tr ',' '\n' | sed 's/^/- /')
-
-## Validation
-- Build: $([ "$BUILD_PASSED" = "true" ] && echo "✅ passed" || echo "❌ failed — review changes before merging")
-- Lint: $([ "$LINT_PASSED" = "true" ] && echo "✅ passed" || echo "⚠️ issues — review lint output")
-
----
-*Generated by Bob (FieldOps AI) via ops-bob-code-task workflow. Task ID: ${TASK_ID}*"
+            CONTEXT_SECTION=""
+            if [ -n "$TASK_CONTEXT" ] && [ "$TASK_CONTEXT" != "null" ]; then
+              CONTEXT_SECTION=$(printf '\n## Context\n%s\n' "$TASK_CONTEXT")
+            fi
+            FILES_SECTION=$(echo "$FILES_CHANGED" | tr ',' '\n' | sed 's/^/- /')
+            PR_BODY=$(printf '## Summary\n%s\n\n## Task\n```\n%s\n```%s\n## Files Changed\n%s\n\n## Validation\n- Build: %s\n- Lint: %s\n\n---\n*Generated by Bob (FieldOps AI) via ops-bob-code-task workflow. Task ID: %s*' "$SUMMARY" "$TASK_DESC" "$CONTEXT_SECTION" "$FILES_SECTION" "$([ "$BUILD_PASSED" = "true" ] && echo "passed" || echo "failed - review changes before merging")" "$([ "$LINT_PASSED" = "true" ] && echo "passed" || echo "issues - review lint output")" "$TASK_ID")
 
             PR_URL=$(gh pr create \
               --title "$PR_TITLE" \

@@ -887,6 +887,7 @@ export default function BobAssistantStudio() {
 
       return {
         messages: rawMessages,
+        provider: 'inference',
         context: {
           tone,
           source: 'bob-studio',

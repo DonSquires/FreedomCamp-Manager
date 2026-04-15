@@ -34,6 +34,7 @@ const child = spawn('node', ['server.js'], {
     ...process.env,
     PORT: String(PORT),
     NODE_ENV: 'test',
+    BOB_OPERATING_MODE: 'self-contained',
     SELF_CONTAINED_MODE: 'true',
     REQUIRE_SELF_CONTAINED_MODE: 'true',
     OPENAI_API_KEY: 'dummy-openai-key',

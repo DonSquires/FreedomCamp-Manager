@@ -114,6 +114,20 @@ export function PTTBar({ className, compact = false }: PTTBarProps) {
   const [isRetrying, setIsRetrying] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
 
+  const backendCodeMatch = error?.match(/\bcode\s*(\d{3})\b/i)
+  const backendCode = backendCodeMatch?.[1] ?? null
+  const backendHint = backendCode === '401'
+    ? 'Auth/session issue'
+    : backendCode === '403'
+      ? 'Permission or org access issue'
+      : backendCode === '502'
+        ? 'PTT upstream service error'
+        : backendCode === '503'
+          ? 'PTT backend config missing'
+          : backendCode
+            ? 'Backend error'
+            : null
+
   const operationalOrganizationId =
     user?.role === 'master' || user?.role === 'grand_master'
       ? selectedOrganizationId || user?.organization_id || null
@@ -528,10 +542,15 @@ export function PTTBar({ className, compact = false }: PTTBarProps) {
 
       {/* Error display */}
       {error && (
-        <div className="flex items-center justify-between gap-2 text-xs text-red-500">
-          <div className="flex items-center gap-2">
-          <AlertCircle className="h-3 w-3" />
-          {error}
+        <div className="flex items-center justify-between gap-2 text-xs text-red-500 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 dark:border-red-900/50 dark:bg-red-950/30">
+          <div className="flex items-center gap-2 min-w-0">
+            <AlertCircle className="h-3 w-3 shrink-0" />
+            <span className="truncate">{error}</span>
+            {backendCode && (
+              <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-red-300 text-red-700 dark:border-red-700 dark:text-red-300">
+                {backendHint}: {backendCode}
+              </Badge>
+            )}
           </div>
           <Button
             type="button"

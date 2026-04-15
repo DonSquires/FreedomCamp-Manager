@@ -58,9 +58,26 @@ interface PTTMessage {
   message?: string
 }
 
+function extractPTTBackendCode(raw: string): string | null {
+  const patterns = [
+    /\[code:\s*(\d{3})\]/i,
+    /\bhttp\s*(\d{3})\b/i,
+    /\bstatus\s*(\d{3})\b/i,
+  ]
+
+  for (const pattern of patterns) {
+    const match = raw.match(pattern)
+    if (match?.[1]) return match[1]
+  }
+
+  return null
+}
+
 export function normalizePTTErrorMessage(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error || 'Failed to connect')
   const text = raw.toLowerCase()
+  const code = extractPTTBackendCode(raw)
+  const codeSuffix = code ? ` (Code ${code})` : ''
 
   // Most common production failure mode: token edge function unavailable.
   // Keep this non-blocking and user-friendly because text chat can still work.
@@ -70,19 +87,19 @@ export function normalizePTTErrorMessage(error: unknown): string {
     text.includes('network connectivity issue') ||
     text.includes('failed to fetch')
   ) {
-    return 'Push to Talk is currently unavailable. You can continue using text chat.'
+    return `Push to Talk is currently unavailable. You can continue using text chat.${codeSuffix}`
   }
 
   if (text.includes('unauthorized') || text.includes('[code: 401]') || text.includes('invalid user token')) {
-    return 'Push to Talk authorization failed. Please sign in again.'
+    return `Push to Talk authorization failed. Please sign in again.${codeSuffix}`
   }
 
   if (text.includes('no organization') || text.includes('profile not found')) {
-    return 'Push to Talk requires an assigned organization profile. Please contact an administrator.'
+    return `Push to Talk requires an assigned organization profile. Please contact an administrator.${codeSuffix}`
   }
 
   if (text.includes('ptt server not configured') || text.includes('ptt proxy secret not configured')) {
-    return 'Push to Talk server configuration is incomplete. Please contact an administrator.'
+    return `Push to Talk server configuration is incomplete. Please contact an administrator.${codeSuffix}`
   }
 
   return raw

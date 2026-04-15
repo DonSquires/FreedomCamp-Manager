@@ -2,6 +2,17 @@
 
 This guide explains how to configure AI services for FieldOps Manager using a self-contained inference-service-only policy.
 
+## Bob Operating Modes
+
+Bob now supports two explicit operating profiles:
+
+| Mode | Env | Purpose |
+|---|---|---|
+| `self-contained` | `BOB_OPERATING_MODE=self-contained` | Locked-down production posture. Non-local outbound egress is blocked. |
+| `build-training` | `BOB_OPERATING_MODE=build-training` | Internet-enabled mode for build, training, external research, and upstream model access. |
+
+If `BOB_OPERATING_MODE` is not set, the inference service falls back to the legacy `SELF_CONTAINED_MODE` flags.
+
 ## Quick Fix for "AI service not connecting"
 
 The most common cause of this error is missing Supabase Edge Function secrets.
@@ -28,6 +39,16 @@ Go to Supabase Dashboard → Edge Functions → Manage Secrets and add:
 | `INFERENCE_SERVICE_URL` | `https://orc-ai-inference-service-production.up.railway.app` | Yes |
 | `INFERENCE_API_KEY` | Shared secret for inference-service auth | Recommended |
 | `PROXY_SERVER_URL` | Railway proxy URL | For NZSCV lookups |
+
+For build/training mode on Railway, also set Bob service variables:
+
+| Variable | Value |
+|---|---|
+| `BOB_OPERATING_MODE` | `build-training` |
+| `CHAT_PROVIDER` | `ollama` or `openai` |
+| `TABULAR_NLP_PROVIDER` | `ollama` or `openai` |
+| `OLLAMA_BASE_URL` | External or internal Ollama URL |
+| `OPENAI_API_KEY` | Required if using `openai` providers |
 
 ## Required Secrets by Feature
 
@@ -92,6 +113,21 @@ curl https://kxwjcupuxnnbnzcgmkoi.supabase.co/functions/v1/check-railway-health
 1. Verify `INFERENCE_SERVICE_URL` is configured.
 2. Verify `INFERENCE_API_KEY` matches the inference-service deployment.
 3. Check inference-service `/health` endpoint.
+4. Confirm `config.OPERATING_MODE` in `/health` matches the intended posture.
+
+### "Unauthorized inference request" while Bob is in build/training mode
+
+**Cause**: The Bob service is still running in `self-contained` mode, so Supabase JWKS auth and external upstream access remain blocked.
+
+**Fix**:
+1. Set `BOB_OPERATING_MODE=build-training` on the Railway Bob service.
+2. Redeploy the Bob service.
+3. Re-check `/health` and confirm:
+  - `config.OPERATING_MODE = build-training`
+  - `config.SUPABASE_JWT_RUNTIME_ENABLED = true`
+  - `config.EXTERNAL_EGRESS_ALLOWED = true`
+
+See [docs/BOB_SYSTEM_REVIEW.md](BOB_SYSTEM_REVIEW.md) for the current consolidation plan.
 
 ### "INFERENCE_SERVICE_URL not configured"
 
