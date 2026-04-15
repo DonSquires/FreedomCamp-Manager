@@ -136,6 +136,7 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
     items: [
       { path: '/live-tracking', icon: Activity, label: 'Live Tracking', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/live-patrol', icon: MonitorPlay, label: 'Live Patrol Monitor', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/operations-map', icon: Layers, label: 'Operations Map', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/hotspots', icon: FlameKindling, label: 'Hotspots Map', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/dispatch', icon: Radio, label: 'Dispatch Console', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/dispatch-monitor', icon: LayoutList, label: 'Dispatch Monitor', roles: ['admin', 'admin_officer', 'master'] },

@@ -105,6 +105,7 @@ const OfficerAvailability = lazy(() => import('@/pages/OfficerAvailability'))
 const ClientOrganisationPortal = lazy(() => import('@/pages/ClientOrganisationPortal'))
 const InvoicingPage = lazy(() => import('@/pages/InvoicingPage'))
 const PricingPage = lazy(() => import('@/pages/PricingPage'))
+const OperationsMap = lazy(() => import('@/pages/OperationsMap'))
 const CRMModule = lazy(() => import('@/pages/CRMModule'))
 const ContractorAccountPage = lazy(() => import('@/pages/ContractorAccountPage'))
 const ClientAccountPage = lazy(() => import('@/pages/ClientAccountPage'))
@@ -1498,6 +1499,16 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
                   <JobMap />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/operations-map"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <OperationsMap />
                 </RoleRoute>
               </ProtectedRoute>
             }
