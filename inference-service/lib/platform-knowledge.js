@@ -2,8 +2,8 @@
  * Platform Knowledge Module
  *
  * Teaches Bob everything about the FieldOps Manager hybrid infrastructure stack.
- * Bob is self-contained and cannot access the outside world, so ALL platform
- * knowledge must be encoded here.
+ * Bob can run in either self-contained mode or build-training mode; this file
+ * captures the platform knowledge needed in both operating profiles.
  *
  * Covers:
  *   Supabase   - Auth, Database, Edge Functions, Storage, Realtime, RLS
@@ -123,7 +123,7 @@ const RAILWAY_KNOWLEDGE = {
       health_timeout: 60,
       start_command: 'node server.js',
       deploy_workflow: '.github/workflows/deploy-bob-railway.yml',
-      secrets_needed: ['INFERENCE_API_KEY', 'SUPABASE_URL', 'SUPABASE_JWKS_URL', 'SUPABASE_JWT_ISSUER', 'OLLAMA_BASE_URL', 'SELF_CONTAINED_MODE'],
+      secrets_needed: ['INFERENCE_API_KEY', 'SUPABASE_URL', 'SUPABASE_JWKS_URL', 'SUPABASE_JWT_ISSUER', 'OLLAMA_BASE_URL', 'BOB_OPERATING_MODE'],
       notes: 'Multi-stage Docker build: Python ONNX model export → Node builder → production image. Non-root nodejs user.',
     },
     proxy_server: {
@@ -152,12 +152,12 @@ const RAILWAY_KNOWLEDGE = {
       root: 'ollama/',
       dockerfile: 'ollama/Dockerfile',
       railway_json: 'ollama/railway.json',
-      port: 11434,
+      port: 'dynamic — controlled by OLLAMA_HOST Railway variable (default 11434; currently 8080 if OLLAMA_HOST=0.0.0.0:8080 is set)',
       health_path: '/api/tags',
       health_timeout: 300,
       deploy_workflow: '.github/workflows/deploy-ollama-railway.yml',
-      internal_url: 'http://ollama.railway.internal:11434',
-      notes: 'Ollama pinned at 0.20.2. Listens on port 11434 (default). OLLAMA_HOST=0.0.0.0:11434. OLLAMA_ORIGINS=*. Bob accesses via Railway private network at http://ollama.railway.internal:11434. OLLAMA_KEEP_ALIVE=24h.',
+      internal_url: 'http://ollama.railway.internal:<port> — port must match Ollama OLLAMA_HOST variable (check startup logs: 🌐 Binding Ollama to 0.0.0.0:<port>)',
+      notes: 'Ollama pinned at 0.20.2. OLLAMA_ORIGINS=*. OLLAMA_KEEP_ALIVE=24h. CRITICAL: Bob OLLAMA_BASE_URL must use the same port that Ollama is actually listening on. If OLLAMA_HOST=0.0.0.0:8080 is set on the Ollama service, set OLLAMA_BASE_URL=http://ollama.railway.internal:8080 on Bob.',
     },
   },
   deployment: {
@@ -166,7 +166,7 @@ const RAILWAY_KNOWLEDGE = {
     env_vars: 'railway variables set KEY=value. Or Railway Dashboard → Service → Variables.',
     health_check: 'Railway calls healthcheckPath after deploy. If it returns non-200 within healthcheckTimeout seconds, deploy is marked failed.',
     restart_policy: 'ON_FAILURE with 3 max retries. Service restarts automatically on crash.',
-    private_networking: 'Services in same Railway project communicate via *.railway.internal URLs (no egress to internet needed). Bob → Ollama uses http://ollama.railway.internal:11434.',
+    private_networking: 'Services in same Railway project communicate via *.railway.internal URLs (no egress to internet needed). Bob → Ollama via http://ollama.railway.internal:<port>. CRITICAL: port must match the OLLAMA_HOST setting on the Ollama service. Check /health config.OLLAMA_BASE_URL and startup logs to confirm.',
     scaling: 'numReplicas: 1 (default). In-memory state (PTT, Bob self-learning) means multi-instance requires Redis for shared state.',
     ports: 'Railway auto-assigns PORT env var. Services must listen on process.env.PORT or Railway will not route traffic.',
     domains: 'Railway auto-assigns *.railway.app domains. Custom domains can be added via dashboard.',
@@ -514,7 +514,7 @@ const HYBRID_STACK_KNOWLEDGE = {
     edge_functions: 'Service role key for DB access. PROXY_SECRET for microservice auth. JWT verification optional per function.',
     microservices: 'Bob: x-inference-api-key header. Proxy: PROXY_SECRET. PTT: PTT_JWT_SECRET + PROXY_SECRET.',
     inter_service: 'Railway private network (*.railway.internal) for Bob ↔ Ollama. No public egress required.',
-    bob: 'SELF_CONTAINED_MODE blocks all outbound cloud calls. Strict egress policy. Knowledge stored in code modules, not fetched at runtime.',
+    bob: 'Bob supports self-contained and build-training modes. Self-contained blocks outbound cloud calls; build-training enables upstream providers and JWKS auth. Knowledge remains grounded in code modules plus approved training inputs.',
   },
   similar_systems: {
     summary: 'Similar field enforcement apps for context',
@@ -528,7 +528,7 @@ const HYBRID_STACK_KNOWLEDGE = {
     ],
     differentiators: [
       'AI-first: ONNX ALPR, face recognition, and self-learning built into Bob inference service',
-      'Privacy-first: SELF_CONTAINED_MODE, NZ Privacy Act compliance, audit trails',
+      'Privacy-first: explicit operating modes, NZ Privacy Act compliance, audit trails',
       'NZ-specific: NZSCV register integration, NZ legal framework (FCA 2011, NZBORA), NZ timezone',
       'PTT built-in: walkie-talkie voice comms without third-party app (unlike Zello or Teams)',
       'Multi-org: councils and contractors on same platform, org-scoped data isolation',
@@ -539,7 +539,7 @@ const HYBRID_STACK_KNOWLEDGE = {
     frontend: 'bun run dev (dev server), bun run build (production), bun run lint (ESLint), npx vitest run (unit tests)',
     mobile: 'eas build --platform android, eas update --channel production (OTA)',
     edge_functions: 'supabase functions deploy <name> --project-ref kxwjcupuxnnbnzcgmkoi',
-    bob: 'node server.js (with env vars), SELF_CONTAINED_MODE=true CHAT_PROVIDER=heuristic node server.js (air-gapped)',
+    bob: 'node server.js (with env vars), BOB_OPERATING_MODE=self-contained CHAT_PROVIDER=heuristic node server.js, or BOB_OPERATING_MODE=build-training CHAT_PROVIDER=ollama node server.js',
     migrations: 'supabase db push --project-ref kxwjcupuxnnbnzcgmkoi',
     types: 'supabase gen types typescript --project-ref kxwjcupuxnnbnzcgmkoi > src/types/database.ts',
   },
@@ -667,17 +667,17 @@ const RAILWAY_SERVICES_AUDIT = {
     },
     {
       check_id: 'CHK-06',
-      description: 'Verify SELF_CONTAINED_MODE is true',
-      how_to_verify: 'GET <BOB_URL>/health → check config.SELF_CONTAINED_MODE === true.',
-      expected: true,
-      if_wrong: 'Set SELF_CONTAINED_MODE=true in Bob Railway service Variables. Without this Bob may make outbound internet calls.',
+      description: 'Verify Bob operating mode matches the intended deployment posture',
+      how_to_verify: 'GET <BOB_URL>/health → check config.OPERATING_MODE. Use self-contained for locked-down production or build-training for internet-enabled build/training work.',
+      expected: 'self-contained or build-training as intended',
+      if_wrong: 'Set BOB_OPERATING_MODE on the Bob Railway service and redeploy.',
     },
     {
       check_id: 'CHK-07',
-      description: 'Verify OPENAI_API_KEY is NOT set (Bob is self-contained)',
-      how_to_verify: 'GET <BOB_URL>/health → check config.OPENAI_API_KEY_SET === false.',
-      expected: false,
-      if_wrong: 'Remove OPENAI_API_KEY from Bob Railway Variables. Self-contained mode must not leak to OpenAI.',
+      description: 'Verify OPENAI_API_KEY posture matches the operating mode',
+      how_to_verify: 'GET <BOB_URL>/health → check config.OPENAI_API_KEY_SET and config.OPERATING_MODE together.',
+      expected: 'false in self-contained mode; optional in build-training mode',
+      if_wrong: 'Remove OPENAI_API_KEY in self-contained mode, or set CHAT_PROVIDER/TABULAR_NLP_PROVIDER appropriately in build-training mode.',
     },
     {
       check_id: 'CHK-08',

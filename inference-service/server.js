@@ -168,6 +168,18 @@ function envFlag(value, fallback) {
   return !['0', 'false', 'no', 'off'].includes(String(value).toLowerCase());
 }
 
+function normalizeOperatingMode(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return null;
+  if (['self-contained', 'self_contained', 'strict', 'production'].includes(raw)) {
+    return 'self-contained';
+  }
+  if (['build-training', 'build_training', 'training', 'connected', 'connected-assistant'].includes(raw)) {
+    return 'build-training';
+  }
+  return null;
+}
+
 const YOLO_INPUT_SIZE = 640;
 const VEHICLE_ATTRS_PROVIDER_RAW = (process.env.VEHICLE_ATTRS_PROVIDER || 'basic').toLowerCase();
 const VEHICLE_ATTRS_PROVIDER = normalizeProvider(VEHICLE_ATTRS_PROVIDER_RAW, 'basic');
@@ -182,12 +194,26 @@ const CHAT_PROVIDER = normalizeProvider(CHAT_PROVIDER_RAW, 'heuristic');
 const CHAT_TIMEOUT_MS = Number(process.env.CHAT_TIMEOUT_MS || 30000);
 const TABULAR_NLP_TIMEOUT_MS = Number(process.env.TABULAR_NLP_TIMEOUT_MS || 2500);
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
+const OLLAMA_BASE_URL_CONFIGURED = !!process.env.OLLAMA_BASE_URL;
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1:8b';
-const REQUIRED_OLLAMA_BASE_URL = 'http://ollama.railway.internal:11434';
+// Accept any ollama.railway.internal URL regardless of port — the actual
+// listening port on the Ollama service may differ from the default 11434
+// (e.g. if OLLAMA_HOST is set to 0.0.0.0:8080 on the Ollama Railway service).
+const REQUIRED_OLLAMA_BASE_URL = process.env.REQUIRED_OLLAMA_BASE_URL || 'http://ollama.railway.internal:11434';
+function isRailwayOllamaInternal(url) {
+  try { return new URL(url).hostname === 'ollama.railway.internal'; } catch { return false; }
+}
 const DEPLOY_SIGNATURE = 'bob-self-contained-hardlock-v1';
 const SOURCE_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.SOURCE_VERSION || process.env.GITHUB_SHA || '';
-const SELF_CONTAINED_MODE = envFlag(process.env.SELF_CONTAINED_MODE, true);
-const REQUIRE_SELF_CONTAINED_MODE = envFlag(process.env.REQUIRE_SELF_CONTAINED_MODE, true);
+const LEGACY_SELF_CONTAINED_MODE = envFlag(process.env.SELF_CONTAINED_MODE, true);
+const LEGACY_REQUIRE_SELF_CONTAINED_MODE = envFlag(process.env.REQUIRE_SELF_CONTAINED_MODE, true);
+const LEGACY_SELF_CONTAINED_STRICT_EGRESS = envFlag(process.env.SELF_CONTAINED_STRICT_EGRESS, true);
+const CONFIGURED_OPERATING_MODE = normalizeOperatingMode(process.env.BOB_OPERATING_MODE || process.env.OPERATIONAL_MODE);
+const OPERATING_MODE = CONFIGURED_OPERATING_MODE || (LEGACY_SELF_CONTAINED_MODE ? 'self-contained' : 'build-training');
+const SELF_CONTAINED_MODE = OPERATING_MODE === 'self-contained';
+const REQUIRE_SELF_CONTAINED_MODE = CONFIGURED_OPERATING_MODE
+  ? OPERATING_MODE === 'self-contained'
+  : LEGACY_REQUIRE_SELF_CONTAINED_MODE;
 const SELF_LEARNING_ENABLED = envFlag(process.env.SELF_LEARNING_ENABLED, true);
 const SELF_HEALING_ENABLED = envFlag(process.env.SELF_HEALING_ENABLED, true);
 const INTEL_STATE_PATH = process.env.INTEL_STATE_PATH || path.join(__dirname, 'data', 'intel-state.json');
@@ -227,7 +253,9 @@ function isLocalUrl(value) {
   }
 }
 
-const SELF_CONTAINED_STRICT_EGRESS = SELF_CONTAINED_MODE && envFlag(process.env.SELF_CONTAINED_STRICT_EGRESS, true);
+const SELF_CONTAINED_STRICT_EGRESS = CONFIGURED_OPERATING_MODE
+  ? OPERATING_MODE === 'self-contained'
+  : SELF_CONTAINED_MODE && LEGACY_SELF_CONTAINED_STRICT_EGRESS;
 
 function assertEgressAllowed(url, providerLabel = 'unknown') {
   if (!SELF_CONTAINED_STRICT_EGRESS) return;
@@ -4205,6 +4233,7 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
     config: {
       DEPLOY_SIGNATURE,
       SOURCE_VERSION: SOURCE_VERSION || null,
+      OPERATING_MODE,
       VEHICLE_ATTRS_PROVIDER,
       VEHICLE_ATTRS_PROVIDER_RAW,
       TABULAR_NLP_PROVIDER,
@@ -4212,17 +4241,24 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       CHAT_PROVIDER,
       CHAT_PROVIDER_RAW,
       SELF_CONTAINED_MODE,
+      REQUIRE_SELF_CONTAINED_MODE,
+      SELF_CONTAINED_STRICT_EGRESS,
       SELF_LEARNING_ENABLED,
       SELF_HEALING_ENABLED,
       INTEL_SIGNING_REQUIRED: !!INTEL_HMAC_KEY,
       SUPABASE_JWKS_CONFIGURED: !!SUPABASE_JWKS_URL,
       SUPABASE_JWT_ISSUER_CONFIGURED: !!SUPABASE_JWT_ISSUER,
       SUPABASE_JWT_AUDIENCE_CONFIGURED: !!SUPABASE_JWT_AUDIENCE,
+      SUPABASE_JWT_RUNTIME_ENABLED: !!SUPABASE_JWKS_URL && !SELF_CONTAINED_STRICT_EGRESS,
+      EXTERNAL_EGRESS_ALLOWED: !SELF_CONTAINED_STRICT_EGRESS,
       OPENAI_BASE_URL_CUSTOM: OPENAI_BASE_URL !== 'https://api.openai.com/v1',
       OPENAI_MODEL: OPENAI_MODEL || null,
       OPENAI_API_KEY_SET: OPENAI_ENABLED,
       INFERENCE_API_KEY_SET: !!INFERENCE_API_KEY,
       SUPABASE_SERVICE_ROLE_KEY_SET: !!SUPABASE_SERVICE_ROLE_KEY,
+      OLLAMA_BASE_URL: OLLAMA_BASE_URL,
+      OLLAMA_BASE_URL_CONFIGURED,
+      OLLAMA_MODEL,
     },
     capabilities: {
       plate_inference: modelsLoaded,
@@ -4288,14 +4324,18 @@ loadModels().then(() => {
     process.exit(1);
   }
 
-  if (OLLAMA_REQUESTED && OLLAMA_BASE_URL !== REQUIRED_OLLAMA_BASE_URL) {
+  if (!OLLAMA_BASE_URL_CONFIGURED) {
+    console.warn('⚠️  OLLAMA_BASE_URL is not set — defaulting to http://127.0.0.1:11434 (localhost).');
+    console.warn('   On Railway, set OLLAMA_BASE_URL=http://ollama.railway.internal:<port> where <port> matches the Ollama OLLAMA_HOST setting.');
+    console.warn('   Check the Ollama service startup logs for the line: 🌐 Binding Ollama to 0.0.0.0:<port>');
+  } else if (OLLAMA_REQUESTED && !isRailwayOllamaInternal(OLLAMA_BASE_URL)) {
     if (SELF_CONTAINED_MODE) {
-      console.warn(`⚠️  OLLAMA_BASE_URL is not the required production internal URL (${REQUIRED_OLLAMA_BASE_URL}). Current value: ${OLLAMA_BASE_URL}`);
-      console.warn('   SELF_CONTAINED_MODE will keep Ollama disabled unless the URL is local/internal; chat and tabular NLP will fall back safely.');
+      console.warn(`⚠️  OLLAMA_BASE_URL is not a Railway internal URL. Current value: ${OLLAMA_BASE_URL}`);
+      console.warn('   SELF_CONTAINED_MODE will keep Ollama disabled for non-local URLs; chat will fall back to heuristic.');
       recordEgressEvent('ollama', 'blocked', 'self-contained startup with non-local/non-required OLLAMA_BASE_URL');
     } else {
-      console.warn(`⚠️  OLLAMA_BASE_URL is not the Railway internal URL (${REQUIRED_OLLAMA_BASE_URL}). Current value: ${OLLAMA_BASE_URL}`);
-      console.warn('   SELF_CONTAINED_MODE is disabled, so external Ollama URLs are allowed for bring-up/training mode.');
+      console.warn(`⚠️  OLLAMA_BASE_URL is not a Railway internal URL. Current value: ${OLLAMA_BASE_URL}`);
+      console.warn('   build-training mode allows external Ollama URLs, but railway.internal is recommended for security.');
       recordEgressEvent('ollama', 'allow', 'startup with external OLLAMA_BASE_URL while SELF_CONTAINED_MODE=false');
     }
   }
@@ -4305,11 +4345,16 @@ loadModels().then(() => {
     const usesOllama = VEHICLE_ATTRS_PROVIDER === 'ollama' || TABULAR_NLP_PROVIDER === 'ollama';
     const usesOpenAI = (VEHICLE_ATTRS_PROVIDER === 'openai' || TABULAR_NLP_PROVIDER === 'openai') && OPENAI_ENABLED;
     console.log(`⚙️  Config:`, {
+      OPERATING_MODE,
       VEHICLE_ATTRS_PROVIDER,
       TABULAR_NLP_PROVIDER,
       TABULAR_NLP_TIMEOUT_MS,
       SELF_CONTAINED_MODE,
-      ...(usesOllama && { OLLAMA_BASE_URL, OLLAMA_MODEL }),
+      REQUIRE_SELF_CONTAINED_MODE,
+      SELF_CONTAINED_STRICT_EGRESS,
+      OLLAMA_BASE_URL,
+      OLLAMA_BASE_URL_CONFIGURED,
+      ...(usesOllama && { OLLAMA_MODEL }),
       INFERENCE_API_KEY_SET: !!INFERENCE_API_KEY,
       SUPABASE_SERVICE_ROLE_KEY_SET: !!SUPABASE_SERVICE_ROLE_KEY,
       SUPABASE_JWKS_URL: SUPABASE_JWKS_URL || '(not set)',
@@ -4341,11 +4386,13 @@ loadModels().then(() => {
       console.log(`ℹ️  UltraFace-640 not present (models/version-RFB-640.onnx). Face detection will use OpenAI vision fallback.`);
       console.log(`   Run: node scripts/download-models.js   to download all optional models.`);
     }
-    if (SELF_CONTAINED_MODE) {
+    if (OPERATING_MODE === 'self-contained') {
       console.log('🔒 SELF_CONTAINED_MODE enabled — outbound cloud AI/ALPR providers are disabled.');
       if (TABULAR_NLP_PROVIDER === 'ollama' && !OLLAMA_ENABLED) {
         console.log('ℹ️  OLLAMA_BASE_URL is non-local; tabular analysis will use heuristic mode.');
       }
+    } else {
+      console.log('🌐 Build/training mode enabled — external providers, JWKS auth, and remote Ollama URLs are allowed.');
     }
 
     // -----------------------------------------------------------------------
