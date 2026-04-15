@@ -10,10 +10,11 @@
  * Jobs overdue on SLA are highlighted automatically.
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { formatDistance } from '@/lib/geo'
 import { useAuthStore } from '@/stores/authStore'
 import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
@@ -92,23 +93,8 @@ interface OfficerStatus {
   distance_km: number | null   // populated when dispatching a job with GPS coords
 }
 
-// ── Haversine distance client-side (mirrors DB function, used for live ranking) ──
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371
-  const dLat = ((lat2 - lat1) * Math.PI) / 180
-  const dLng = ((lng2 - lng1) * Math.PI) / 180
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) *
-    Math.sin(dLng / 2) ** 2
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-}
+// ── Haversine distance helper imported from @/lib/geo
 
-function formatDistance(km: number | null): string {
-  if (km === null) return ''
-  if (km < 1) return `${Math.round(km * 1000)}m`
-  return `${km.toFixed(1)}km`
-}
 
 interface JobForm {
   job_type: string
@@ -448,6 +434,12 @@ export default function DispatchConsole() {
     createMutation.mutate(form)
   }
 
+  // Pre-compute nearest on-shift officer with GPS for the selected job
+  const nearestOfficer = useMemo(() => {
+    if (!selectedJob?.gps_lat) return null
+    return officers.find(o => o.is_on_shift && o.distance_km !== null) ?? null
+  }, [officers, selectedJob])
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <AppLayout>
@@ -745,21 +737,17 @@ export default function DispatchConsole() {
                   </Select>
 
                   {/* Nearest officer hint */}
-                  {selectedJob.gps_lat && officers.filter(o => o.is_on_shift && o.distance_km !== null).length > 0 && (() => {
-                    const nearest = officers.find(o => o.is_on_shift && o.distance_km !== null)
-                    if (!nearest) return null
-                    return (
-                      <p className="text-xs text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/20 rounded px-2 py-1.5 flex items-center gap-1.5">
-                        <Navigation className="h-3 w-3 shrink-0" />
-                        Nearest: <strong>{nearest.first_name} {nearest.last_name}</strong>
-                        <span className="ml-1 font-semibold">{formatDistance(nearest.distance_km)}</span>
-                        away
-                        {nearest.active_job_count > 0 && (
-                          <span className="ml-1 text-amber-600">· {nearest.active_job_count} active job{nearest.active_job_count !== 1 ? 's' : ''}</span>
-                        )}
-                      </p>
-                    )
-                  })()}
+                  {nearestOfficer && (
+                    <p className="text-xs text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/20 rounded px-2 py-1.5 flex items-center gap-1.5">
+                      <Navigation className="h-3 w-3 shrink-0" />
+                      Nearest: <strong>{nearestOfficer.first_name} {nearestOfficer.last_name}</strong>
+                      <span className="ml-1 font-semibold">{formatDistance(nearestOfficer.distance_km)}</span>
+                      away
+                      {nearestOfficer.active_job_count > 0 && (
+                        <span className="ml-1 text-amber-600">· {nearestOfficer.active_job_count} active job{nearestOfficer.active_job_count !== 1 ? 's' : ''}</span>
+                      )}
+                    </p>
+                  )}
                 </div>
               )}
             </div>

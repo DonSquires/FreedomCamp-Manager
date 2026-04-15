@@ -96,18 +96,7 @@ const LAYERS: LayerDef[] = [
 ]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371
-  const dLat = ((lat2 - lat1) * Math.PI) / 180
-  const dLng = ((lng2 - lng1) * Math.PI) / 180
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-    Math.cos((lat2 * Math.PI) / 180) *
-    Math.sin(dLng / 2) ** 2
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-}
+// haversineKm imported from @/lib/geo
 
 function timeSince(ts: string | null): string {
   if (!ts) return '—'
@@ -137,7 +126,7 @@ function AutoFitBounds({ points }: { points: [number, number][] }) {
       return
     }
     map.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 14, animate: true })
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [map, points]) // re-fit whenever points or map instance changes
   return null
 }
 
@@ -428,7 +417,7 @@ export default function OperationsMap() {
             </div>
             {/* Auto-refresh */}
             <div className="flex items-center gap-1.5">
-              <RefreshCw className={`h-3.5 w-3.5 ${autoRefresh ? 'text-green-500 animate-spin-slow' : 'text-gray-400'}`} />
+              <RefreshCw className={`h-3.5 w-3.5 ${autoRefresh ? 'text-green-500 animate-spin' : 'text-gray-400'}`} />
               <Label className="text-xs">Auto</Label>
               <Switch checked={autoRefresh} onCheckedChange={setAutoRefresh} />
             </div>

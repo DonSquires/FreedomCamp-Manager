@@ -108,7 +108,7 @@ function useHubMetrics(orgId: string | null) {
         // Today's dispatch jobs
         (supabase as any).from('dispatch_jobs')
           .select('id', { count: 'exact', head: true })
-          .in('status', ['pending', 'assigned', 'in_progress']),
+          .in('status', ['pending', 'dispatched', 'acknowledged', 'en_route', 'on_scene']),
 
         // Today's roster shifts
         (supabase as any).from('roster_shifts')
