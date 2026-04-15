@@ -348,6 +348,49 @@ export default function OrganizationProfile() {
             </CardContent>
           </Card>
 
+          {/* WILSAR Bureau Details */}
+          {((organization as any).bureau_id || (organization as any).bureau_debtor_no || (organization as any).original_source) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Settings className="h-5 w-5 text-blue-600" />
+                  Bureau Details
+                </CardTitle>
+                <CardDescription>WILSAR bureau identity and billing reference fields</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3 text-sm">
+                  {(organization as any).bureau_id && (
+                    <div><p className="text-xs text-muted-foreground">Bureau ID</p><p className="font-mono font-semibold">{(organization as any).bureau_id}</p></div>
+                  )}
+                  {(organization as any).bureau_debtor_no && (
+                    <div><p className="text-xs text-muted-foreground">Debtor No.</p><p className="font-mono">{(organization as any).bureau_debtor_no}</p></div>
+                  )}
+                  {(organization as any).original_source && (
+                    <div><p className="text-xs text-muted-foreground">Original Source</p><p>{(organization as any).original_source}</p></div>
+                  )}
+                  {(organization as any).original_debtor_code && (
+                    <div><p className="text-xs text-muted-foreground">Original Debtor Code</p><p className="font-mono">{(organization as any).original_debtor_code}</p></div>
+                  )}
+                  {(organization as any).original_cost_centre && (
+                    <div><p className="text-xs text-muted-foreground">Cost Centre</p><p className="font-mono">{(organization as any).original_cost_centre}</p></div>
+                  )}
+                  {(organization as any).region && (
+                    <div><p className="text-xs text-muted-foreground">Region</p><p>{(organization as any).region}</p></div>
+                  )}
+                  {(organization as any).abn && (
+                    <div><p className="text-xs text-muted-foreground">ABN</p><p className="font-mono">{(organization as any).abn}</p></div>
+                  )}
+                  {(organization as any).override_validation && (
+                    <div className="col-span-2 text-amber-600 text-xs flex items-center gap-1">
+                      <AlertTriangle className="h-3.5 w-3.5" /> Override Validation is enabled for this bureau
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Jurisdiction Zone (Parent) */}
           <Card>
             <CardHeader>

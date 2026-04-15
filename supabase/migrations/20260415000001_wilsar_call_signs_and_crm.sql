@@ -1,10 +1,37 @@
 -- =============================================================================
 -- WILSAR-STYLE CRM & DISPATCH ENHANCEMENTS
 -- =============================================================================
+-- Phase 0: WILSAR bureau fields on organizations (Bureau Maintenance)
 -- Phase 1: Call signs + branch/vehicle on patrol_routes
 -- Phase 2: WILSAR client fields on client_sites
 -- Phase 3: Full WILSAR job type library + alarm_type on dispatch_jobs
 -- =============================================================================
+
+-- ── 0. ORGANIZATIONS — WILSAR bureau identity fields ─────────────────────────
+-- The organizations table is the "Bureau" in WILSAR. Add all fields shown in
+-- the Bureau Maintenance screen so OrganizationProfile can display them.
+
+ALTER TABLE public.organizations
+  ADD COLUMN IF NOT EXISTS bureau_id            TEXT,
+  ADD COLUMN IF NOT EXISTS bureau_debtor_no     TEXT,
+  ADD COLUMN IF NOT EXISTS original_source      TEXT,
+  ADD COLUMN IF NOT EXISTS original_debtor_code TEXT,
+  ADD COLUMN IF NOT EXISTS original_cost_centre TEXT,
+  ADD COLUMN IF NOT EXISTS region               TEXT,
+  ADD COLUMN IF NOT EXISTS abn                  TEXT,
+  ADD COLUMN IF NOT EXISTS override_validation  BOOLEAN NOT NULL DEFAULT FALSE;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_organizations_bureau_id
+  ON public.organizations(bureau_id) WHERE bureau_id IS NOT NULL;
+
+COMMENT ON COLUMN public.organizations.bureau_id IS
+  'WILSAR Bureau ID (e.g. FSG-NCC). Short code used across dispatch, invoicing, and client records.';
+COMMENT ON COLUMN public.organizations.bureau_debtor_no IS
+  'Debtor number in the billing/accounting system (e.g. X421205)';
+COMMENT ON COLUMN public.organizations.original_source IS
+  'Source system name when migrated from a legacy system (e.g. First Security)';
+COMMENT ON COLUMN public.organizations.override_validation IS
+  'Allow bypassing standard data validation rules for this bureau entry';
 
 -- ── 1. PATROL ROUTES — call sign, branch, vehicle ────────────────────────────
 

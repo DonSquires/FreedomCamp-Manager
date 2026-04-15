@@ -202,6 +202,7 @@ interface CreateScheduleParams {
   patrol_date: string
   shift: string
   assigned_to: string | null
+  patrol_route_id?: string | null
   scheduled_start_time?: string | null
   scheduled_end_time?: string | null
   description?: string | null
@@ -233,6 +234,7 @@ export function useCreatePatrolSchedule() {
           priority: params.priority ?? 'normal',
           recurrence: params.recurrence ?? 'none',
           notes: params.notes ?? null,
+          patrol_route_id: params.patrol_route_id ?? null,
           status: 'scheduled',
         })
         .select('id')
