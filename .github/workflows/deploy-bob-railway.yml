@@ -5,6 +5,11 @@ name: Deploy Bob Service to Railway
 # token, service ID, and production URL.
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'inference-service/**'
+      - '.github/workflows/deploy-bob-railway.yml'
   workflow_dispatch:
     inputs:
       railway_token_override:
@@ -291,7 +296,6 @@ jobs:
           RAILWAY_SERVICE_ID: ${{ steps.resolve-service.outputs.service_id }}
           RAILWAY_BOB_PROJECT_ID: ${{ steps.resolve-service.outputs.project_id }}
           RAILWAY_BOB_SERVICE_NAME: ${{ secrets.RAILWAY_BOB_SERVICE_NAME }}
-          RAILWAY_ORC_SERVICE_NAME: ${{ secrets.RAILWAY_ORC_SERVICE_NAME }}
           RAILWAY_BOB_ENVIRONMENT: ${{ secrets.RAILWAY_BOB_ENVIRONMENT }}
         run: |
           set -euo pipefail
@@ -312,12 +316,82 @@ jobs:
             fi
           }
 
+          attempt_project_cli_resolution() {
+            local project_id="$1"
+            [ -z "$project_id" ] && return 1
+
+            echo "::warning::Attempting Railway CLI service discovery for project $project_id."
+            if ! railway link --project "$project_id" --environment "$DEPLOY_ENVIRONMENT" > /tmp/railway-link.log 2>&1; then
+              echo "::warning::Railway link failed for project-scoped discovery."
+              sed -n '1,3p' /tmp/railway-link.log || true
+              return 1
+            fi
+
+            SERVICE_STATUS_JSON=$(railway service status --all --json 2>/tmp/railway-service-status.err || true)
+            if [ -z "$SERVICE_STATUS_JSON" ]; then
+              echo "::warning::Railway service status returned no JSON output for CLI discovery."
+              sed -n '1,3p' /tmp/railway-service-status.err || true
+              return 1
+            fi
+
+            CLI_RESOLVED_SERVICE_ID=$(node -e '
+              const data = JSON.parse(process.argv[1] || "{}");
+              const nodes = [];
+              const seen = new Set();
+              const pushNode = (obj) => {
+                if (!obj || typeof obj !== "object") return;
+                const id = String(obj.id || obj.serviceId || obj.service_id || "").trim();
+                const name = String(obj.name || obj.serviceName || obj.service_name || "").trim();
+                if (!id || seen.has(id)) return;
+                seen.add(id);
+                nodes.push({ id, name });
+              };
+              const walk = (v) => {
+                if (Array.isArray(v)) {
+                  for (const item of v) walk(item);
+                  return;
+                }
+                if (!v || typeof v !== "object") return;
+                pushNode(v);
+                for (const key of Object.keys(v)) walk(v[key]);
+              };
+              walk(data);
+
+              const scored = nodes.map((n) => {
+                const name = String(n.name || "").toLowerCase();
+                const score = (
+                  (name.includes("bob") ? 10 : 0) +
+                  (name.includes("inference") ? 6 : 0) +
+                  (name.includes("orc") ? 4 : 0) -
+                  (name.includes("ollama") ? 10 : 0)
+                );
+                return { ...n, score };
+              }).sort((a, b) => b.score - a.score);
+
+              const best = scored.find((s) => s.score > 0) || scored.find((s) => !String(s.name || "").toLowerCase().includes("ollama"));
+              process.stdout.write(best?.id || "");
+            ' "$SERVICE_STATUS_JSON" || true)
+
+            if [ -n "$CLI_RESOLVED_SERVICE_ID" ] && [ "$CLI_RESOLVED_SERVICE_ID" != "$RAILWAY_SERVICE_ID" ]; then
+              echo "::warning::CLI discovery found candidate service ID; retrying deployment with project scope."
+              if deploy_selector "$CLI_RESOLVED_SERVICE_ID" "$project_id"; then
+                exit 0
+              fi
+            fi
+
+            return 1
+          }
+
           if deploy_selector "$SERVICE_TO_DEPLOY" "$PROJECT_TO_QUERY" 2>&1 | tee "$DEPLOY_LOG"; then
             exit 0
           fi
 
           if grep -Eqi "Service not found|Project not found" "$DEPLOY_LOG"; then
             echo "::warning::Configured RAILWAY_BOB_SERVICE_ID was not found. Attempting project-based service auto-resolution."
+
+            if attempt_project_cli_resolution "$PROJECT_TO_QUERY"; then
+              exit 0
+            fi
 
             attempt_global_resolution() {
               echo "::warning::Attempting global service auto-resolution from token scope."
@@ -372,53 +446,19 @@ jobs:
               fi
 
               echo "::warning::Attempting Bob deployment by common service names as final fallback."
-              # Expanded name list covers user-set names, standard Bob aliases, and
-              # Railway defaults ("web", "inference") that may have been used at creation.
-              FALLBACK_NAMES="${RAILWAY_BOB_SERVICE_NAME:-} ${RAILWAY_ORC_SERVICE_NAME:-} bob bob-inference bob-inference-service orc-ai-inference orc-ai-inference-service inference orc-inference orc web bob-service"
+              FALLBACK_NAMES="${RAILWAY_BOB_SERVICE_NAME:-} bob bob-inference bob-inference-service"
               for NAME in $FALLBACK_NAMES; do
                 if [ -z "$NAME" ]; then
                   continue
                 fi
                 echo "ℹ️ Trying Railway service selector: $NAME"
-                # Try with explicit project context first.
                 if deploy_selector "$NAME" "$PROJECT_TO_QUERY"; then
                   echo "✅ Bob deploy succeeded using service selector: $NAME"
                   exit 0
                 fi
-                # Also try WITHOUT --project so the token's native project scope is used.
-                # This recovers when PROJECT_TO_QUERY is stale/wrong but the token is
-                # correctly scoped to the Bob project.
-                if [ -n "$PROJECT_TO_QUERY" ] && deploy_selector "$NAME" ""; then
-                  echo "✅ Bob deploy succeeded using service selector: $NAME (token scope)"
-                  exit 0
-                fi
               done
 
-              # Last resort: deploy with only project context and no --service flag.
-              # Works when the Railway project has exactly one non-Ollama service and
-              # the token (project token or PAT) has deploy access to the project.
-              if [ -n "$PROJECT_TO_QUERY" ]; then
-                echo "ℹ️ Last resort: deploy from inference-service/ with project context, no --service flag"
-                if railway up inference-service/ --project "$PROJECT_TO_QUERY" --environment "${RAILWAY_BOB_ENVIRONMENT:-production}" --detach 2>&1; then
-                  echo "✅ Bob deploy succeeded via project-scoped deploy (no --service)"
-                  exit 0
-                fi
-              fi
-              # Last resort without project context: relies entirely on token scope.
-              echo "ℹ️ Last resort: deploy from inference-service/ using token scope only"
-              if railway up inference-service/ --detach 2>&1; then
-                echo "✅ Bob deploy succeeded via token-scope directory deploy"
-                exit 0
-              fi
-
               echo "::error::Could not resolve a deployable Bob service ID from Railway token scope."
-              echo "::error::ACTION REQUIRED: Update the RAILWAY_BOB_SERVICE_ID GitHub Actions secret."
-              echo "  1. Open Railway Dashboard → Bob project → Services"
-              echo "  2. Click the inference service → Settings → copy Service ID"
-              echo "  3. Go to GitHub → FreedomCamp-Manager → Settings → Secrets → Actions"
-              echo "  4. Update RAILWAY_BOB_SERVICE_ID with the correct UUID"
-              echo "  - Optionally also set RAILWAY_BOB_SERVICE_NAME to the service display name"
-              echo "  See docs/BOB_PRODUCTION_RAILWAY_SETUP.md for full setup instructions."
               exit 1
             }
 
