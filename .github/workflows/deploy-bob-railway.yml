@@ -5,6 +5,11 @@ name: Deploy Bob Service to Railway
 # token, service ID, and production URL.
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'inference-service/**'
+      - '.github/workflows/deploy-bob-railway.yml'
   workflow_dispatch:
     inputs:
       railway_token_override:
@@ -183,8 +188,12 @@ jobs:
           RAILWAY_TOKEN: ${{ env.SELECTED_RAILWAY_TOKEN }}
           EXPLICIT_SERVICE_ID: ${{ steps.check-secrets.outputs.resolved_candidate_service_id }}
           EXPLICIT_PROJECT_ID: ${{ env.RAILWAY_BOB_PROJECT_ID || env.RAILWAY_PROJECT_ID }}
+          EXPLICIT_SERVICE_NAME: ${{ secrets.RAILWAY_BOB_SERVICE_NAME }}
+          DEPLOY_ENVIRONMENT: ${{ secrets.RAILWAY_BOB_ENVIRONMENT }}
         run: |
           set -euo pipefail
+
+          DEPLOY_ENVIRONMENT="${DEPLOY_ENVIRONMENT:-production}"
 
           if [ -n "$EXPLICIT_SERVICE_ID" ]; then
             echo "service_id=$EXPLICIT_SERVICE_ID" >> "$GITHUB_OUTPUT"
@@ -194,92 +203,58 @@ jobs:
           fi
 
           if [ -n "$EXPLICIT_PROJECT_ID" ]; then
-            echo "ℹ️ Attempting Bob service auto-discovery from explicit project ID..."
-            GRAPHQL_PAYLOAD=$(jq -n --arg projectId "$EXPLICIT_PROJECT_ID" '{query: "query ($id: String!) { project(id: $id) { services { edges { node { id name } } } } }", variables: { id: $projectId }}')
-            GRAPHQL_RESPONSE=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
-              -H "Authorization: Bearer $RAILWAY_TOKEN" \
-              -H "Content-Type: application/json" \
-              --data "$GRAPHQL_PAYLOAD")
+            echo "ℹ️ Attempting Bob service auto-discovery via Railway CLI for explicit project..."
+            if railway link --project "$EXPLICIT_PROJECT_ID" --environment "$DEPLOY_ENVIRONMENT" >/tmp/railway-link-resolve.log 2>&1; then
+              SERVICE_STATUS_JSON=$(railway service status --all --json 2>/tmp/railway-service-status-resolve.err || true)
+              RESOLVED_SERVICE_ID=$(node -e '
+                const data = JSON.parse(process.argv[1] || "{}");
+                const nodes = [];
+                const seen = new Set();
+                const pushNode = (obj) => {
+                  if (!obj || typeof obj !== "object") return;
+                  const id = String(obj.id || obj.serviceId || obj.service_id || "").trim();
+                  const name = String(obj.name || obj.serviceName || obj.service_name || "").trim();
+                  if (!id || seen.has(id)) return;
+                  seen.add(id);
+                  nodes.push({ id, name });
+                };
+                const walk = (v) => {
+                  if (Array.isArray(v)) {
+                    for (const item of v) walk(item);
+                    return;
+                  }
+                  if (!v || typeof v !== "object") return;
+                  pushNode(v);
+                  for (const key of Object.keys(v)) walk(v[key]);
+                };
+                walk(data);
+                const preferred = nodes.find((n) => String(n.name || "").toLowerCase().includes("bob"));
+                const fallback = nodes.find((n) => !String(n.name || "").toLowerCase().includes("ollama"));
+                process.stdout.write((preferred || fallback || {}).id || "");
+              ' "$SERVICE_STATUS_JSON" || true)
 
-            RESOLVED=$(node -e '
-              const data = JSON.parse(process.argv[1] || "{}");
-              const services = data?.data?.project?.services?.edges?.map((edge) => edge?.node).filter(Boolean) || [];
-              const candidates = [];
-              const fallbackServices = [];
-              for (const s of services) {
-                const name = String(s?.name || "").toLowerCase();
-                if (name !== "ollama") {
-                  fallbackServices.push({ projectId: process.argv[2], serviceId: s.id, serviceName: s.name, score: 0 });
-                }
-                const score = (
-                  (name.includes("bob") ? 10 : 0) +
-                  (name.includes("inference") ? 6 : 0) +
-                  (name.includes("orc") ? 4 : 0) -
-                  (name.includes("ollama") ? 10 : 0)
-                );
-                if (score > 0) candidates.push({ projectId: process.argv[2], serviceId: s.id, serviceName: s.name, score });
-              }
-              candidates.sort((a, b) => b.score - a.score);
-              const top = candidates[0] || fallbackServices[0];
-              if (!top) process.exit(2);
-              process.stdout.write(JSON.stringify(top));
-            ' "$GRAPHQL_RESPONSE" "$EXPLICIT_PROJECT_ID") || true
-
-            if [ -n "${RESOLVED:-}" ]; then
-              RESOLVED_SERVICE_ID=$(echo "$RESOLVED" | jq -r '.serviceId')
-              RESOLVED_PROJECT_ID=$(echo "$RESOLVED" | jq -r '.projectId')
-              RESOLVED_SERVICE_NAME=$(echo "$RESOLVED" | jq -r '.serviceName')
-              echo "service_id=$RESOLVED_SERVICE_ID" >> "$GITHUB_OUTPUT"
-              echo "project_id=$RESOLVED_PROJECT_ID" >> "$GITHUB_OUTPUT"
-              echo "✅ Auto-resolved Bob service from project: $RESOLVED_SERVICE_NAME ($RESOLVED_SERVICE_ID)"
-              exit 0
+              if [ -n "$RESOLVED_SERVICE_ID" ]; then
+                echo "service_id=$RESOLVED_SERVICE_ID" >> "$GITHUB_OUTPUT"
+                echo "project_id=$EXPLICIT_PROJECT_ID" >> "$GITHUB_OUTPUT"
+                echo "✅ Auto-resolved Bob service ID via Railway CLI"
+                exit 0
+              fi
+            else
+              echo "::warning::Railway CLI project link failed during resolve-service."
+              sed -n '1,3p' /tmp/railway-link-resolve.log || true
             fi
           fi
 
-          echo "ℹ️ Attempting Bob service auto-discovery from Railway token scope..."
+          if [ -n "$EXPLICIT_SERVICE_NAME" ] && [ -n "$EXPLICIT_PROJECT_ID" ]; then
+            echo "service_id=$EXPLICIT_SERVICE_NAME" >> "$GITHUB_OUTPUT"
+            echo "project_id=$EXPLICIT_PROJECT_ID" >> "$GITHUB_OUTPUT"
+            echo "✅ Falling back to explicit RAILWAY_BOB_SERVICE_NAME for deploy selector"
+            exit 0
+          fi
 
-          GRAPHQL_PAYLOAD='{"query":"query { me { projects { edges { node { id name services { edges { node { id name } } } } } } } }"}'
-          GRAPHQL_RESPONSE=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
-            -H "Authorization: Bearer $RAILWAY_TOKEN" \
-            -H "Content-Type: application/json" \
-            --data "$GRAPHQL_PAYLOAD")
-
-          RESOLVED=$(node -e '
-            const data = JSON.parse(process.argv[1] || "{}");
-            const projects = data?.data?.me?.projects?.edges?.map((edge) => edge?.node).filter(Boolean) || [];
-            const candidates = [];
-            for (const p of projects) {
-              const services = p?.services?.edges?.map((edge) => edge?.node).filter(Boolean) || [];
-              for (const s of services) {
-                const name = String(s?.name || "").toLowerCase();
-                const score = (
-                  (name.includes("bob") ? 10 : 0) +
-                  (name.includes("inference") ? 6 : 0) +
-                  (name.includes("orc") ? 4 : 0) -
-                  (name.includes("ollama") ? 10 : 0)
-                );
-                if (score > 0) {
-                  candidates.push({ projectId: p.id, serviceId: s.id, serviceName: s.name, score });
-                }
-              }
-            }
-            candidates.sort((a, b) => b.score - a.score);
-            const top = candidates[0];
-            if (!top) process.exit(2);
-            process.stdout.write(JSON.stringify(top));
-          ' "$GRAPHQL_RESPONSE") || {
-            echo "::error::Unable to auto-resolve Bob service ID from Railway token scope."
-            echo "::error::Set RAILWAY_BOB_SERVICE_ID or RAILWAY_BOB_PROJECT_ID explicitly."
-            exit 1
-          }
-
-          RESOLVED_SERVICE_ID=$(echo "$RESOLVED" | jq -r '.serviceId')
-          RESOLVED_PROJECT_ID=$(echo "$RESOLVED" | jq -r '.projectId')
-          RESOLVED_SERVICE_NAME=$(echo "$RESOLVED" | jq -r '.serviceName')
-
-          echo "service_id=$RESOLVED_SERVICE_ID" >> "$GITHUB_OUTPUT"
-          echo "project_id=$RESOLVED_PROJECT_ID" >> "$GITHUB_OUTPUT"
-          echo "✅ Auto-resolved Bob service: $RESOLVED_SERVICE_NAME ($RESOLVED_SERVICE_ID)"
+          echo "::error::Unable to resolve Bob service identity without GraphQL discovery."
+          echo "::error::Set RAILWAY_BOB_SERVICE_ID directly, or set BOTH RAILWAY_BOB_PROJECT_ID and RAILWAY_BOB_SERVICE_NAME."
+          exit 1
 
       - name: Deploy Bob to Railway
         if: >-
@@ -291,7 +266,6 @@ jobs:
           RAILWAY_SERVICE_ID: ${{ steps.resolve-service.outputs.service_id }}
           RAILWAY_BOB_PROJECT_ID: ${{ steps.resolve-service.outputs.project_id }}
           RAILWAY_BOB_SERVICE_NAME: ${{ secrets.RAILWAY_BOB_SERVICE_NAME }}
-          RAILWAY_ORC_SERVICE_NAME: ${{ secrets.RAILWAY_ORC_SERVICE_NAME }}
           RAILWAY_BOB_ENVIRONMENT: ${{ secrets.RAILWAY_BOB_ENVIRONMENT }}
         run: |
           set -euo pipefail
@@ -312,6 +286,72 @@ jobs:
             fi
           }
 
+          attempt_project_cli_resolution() {
+            local project_id="$1"
+            [ -z "$project_id" ] && return 1
+
+            echo "::warning::Attempting Railway CLI service discovery for project $project_id."
+            if ! railway link --project "$project_id" --environment "$DEPLOY_ENVIRONMENT" > /tmp/railway-link.log 2>&1; then
+              echo "::warning::Railway link failed for project-scoped discovery."
+              sed -n '1,3p' /tmp/railway-link.log || true
+              return 1
+            fi
+
+            SERVICE_STATUS_JSON=$(railway service status --all --json 2>/tmp/railway-service-status.err || true)
+            if [ -z "$SERVICE_STATUS_JSON" ]; then
+              echo "::warning::Railway service status returned no JSON output for CLI discovery."
+              sed -n '1,3p' /tmp/railway-service-status.err || true
+              return 1
+            fi
+
+            CLI_RESOLVED_SERVICE_ID=$(node -e '
+              const data = JSON.parse(process.argv[1] || "{}");
+              const nodes = [];
+              const seen = new Set();
+              const pushNode = (obj) => {
+                if (!obj || typeof obj !== "object") return;
+                const id = String(obj.id || obj.serviceId || obj.service_id || "").trim();
+                const name = String(obj.name || obj.serviceName || obj.service_name || "").trim();
+                if (!id || seen.has(id)) return;
+                seen.add(id);
+                nodes.push({ id, name });
+              };
+              const walk = (v) => {
+                if (Array.isArray(v)) {
+                  for (const item of v) walk(item);
+                  return;
+                }
+                if (!v || typeof v !== "object") return;
+                pushNode(v);
+                for (const key of Object.keys(v)) walk(v[key]);
+              };
+              walk(data);
+
+              const scored = nodes.map((n) => {
+                const name = String(n.name || "").toLowerCase();
+                const score = (
+                  (name.includes("bob") ? 10 : 0) +
+                  (name.includes("inference") ? 6 : 0) +
+                  (name.includes("orc") ? 4 : 0) -
+                  (name.includes("ollama") ? 10 : 0)
+                );
+                return { ...n, score };
+              }).sort((a, b) => b.score - a.score);
+
+              const best = scored.find((s) => s.score > 0) || scored.find((s) => !String(s.name || "").toLowerCase().includes("ollama"));
+              process.stdout.write(best?.id || "");
+            ' "$SERVICE_STATUS_JSON" || true)
+
+            if [ -n "$CLI_RESOLVED_SERVICE_ID" ] && [ "$CLI_RESOLVED_SERVICE_ID" != "$RAILWAY_SERVICE_ID" ]; then
+              echo "::warning::CLI discovery found candidate service ID; retrying deployment with project scope."
+              if deploy_selector "$CLI_RESOLVED_SERVICE_ID" "$project_id"; then
+                exit 0
+              fi
+            fi
+
+            return 1
+          }
+
           if deploy_selector "$SERVICE_TO_DEPLOY" "$PROJECT_TO_QUERY" 2>&1 | tee "$DEPLOY_LOG"; then
             exit 0
           fi
@@ -319,162 +359,24 @@ jobs:
           if grep -Eqi "Service not found|Project not found" "$DEPLOY_LOG"; then
             echo "::warning::Configured RAILWAY_BOB_SERVICE_ID was not found. Attempting project-based service auto-resolution."
 
-            attempt_global_resolution() {
-              echo "::warning::Attempting global service auto-resolution from token scope."
+            if attempt_project_cli_resolution "$PROJECT_TO_QUERY"; then
+              exit 0
+            fi
 
-              GLOBAL_GRAPHQL='{"query":"query { me { projects { edges { node { id name services { edges { node { id name } } } } } } } }"}'
-              GLOBAL_RESPONSE=$(curl -sS https://backboard.railway.app/graphql/v2 \
-                -H "Authorization: Bearer $RAILWAY_TOKEN" \
-                -H "Content-Type: application/json" \
-                --data "$GLOBAL_GRAPHQL" || true)
-
-              GLOBAL_RESOLVED=$(node -e '
-                const data = JSON.parse(process.argv[1] || "{}");
-                const projects = data?.data?.me?.projects?.edges?.map((edge) => edge?.node).filter(Boolean) || [];
-                const candidates = [];
-                for (const p of projects) {
-                  const projectName = String(p?.name || "").toLowerCase();
-                  const projectScore = projectName.includes("bob") ? 5 : 0;
-                  const services = p?.services?.edges?.map((edge) => edge?.node).filter(Boolean) || [];
-                  for (const s of services) {
-                    const name = String(s?.name || "").toLowerCase();
-                    const score = projectScore + (
-                      (name.includes("bob") ? 10 : 0) +
-                      (name.includes("inference") ? 6 : 0) +
-                      (name.includes("orc") ? 4 : 0) -
-                      (name.includes("ollama") ? 10 : 0)
-                    );
-                    if (score > 0) candidates.push({ projectId: p.id, serviceId: s.id, serviceName: s.name, score });
-                  }
-                }
-                candidates.sort((a, b) => b.score - a.score);
-                process.stdout.write(JSON.stringify(candidates[0] || {}));
-              ' "$GLOBAL_RESPONSE" || true)
-
-              GLOBAL_ERRORS=$(node -e '
-                const data = JSON.parse(process.argv[1] || "{}");
-                const errors = Array.isArray(data?.errors) ? data.errors : [];
-                process.stdout.write(String(errors.length));
-              ' "$GLOBAL_RESPONSE" || echo "0")
-              if [ "$GLOBAL_ERRORS" != "0" ]; then
-                echo "::warning::Global Railway GraphQL lookup returned errors; continuing with service-name fallbacks."
-                sed -n '1,3p' <<<"$GLOBAL_RESPONSE" || true
-              fi
-
-              GLOBAL_RESOLVED_SERVICE_ID=$(echo "$GLOBAL_RESOLVED" | jq -r '.serviceId // empty')
-              GLOBAL_RESOLVED_PROJECT_ID=$(echo "$GLOBAL_RESOLVED" | jq -r '.projectId // empty')
-
-              if [ -n "$GLOBAL_RESOLVED_SERVICE_ID" ] && [ "$GLOBAL_RESOLVED_SERVICE_ID" != "$RAILWAY_SERVICE_ID" ]; then
-                echo "::warning::Global auto-resolution found candidate Bob service ID; retrying deployment."
-                if deploy_selector "$GLOBAL_RESOLVED_SERVICE_ID" "$GLOBAL_RESOLVED_PROJECT_ID"; then
-                  exit 0
-                fi
-              fi
-
-              echo "::warning::Attempting Bob deployment by common service names as final fallback."
-              # Expanded name list covers user-set names, standard Bob aliases, and
-              # Railway defaults ("web", "inference") that may have been used at creation.
-              FALLBACK_NAMES="${RAILWAY_BOB_SERVICE_NAME:-} ${RAILWAY_ORC_SERVICE_NAME:-} bob bob-inference bob-inference-service orc-ai-inference orc-ai-inference-service inference orc-inference orc web bob-service"
-              for NAME in $FALLBACK_NAMES; do
-                if [ -z "$NAME" ]; then
-                  continue
-                fi
-                echo "ℹ️ Trying Railway service selector: $NAME"
-                # Try with explicit project context first.
-                if deploy_selector "$NAME" "$PROJECT_TO_QUERY"; then
-                  echo "✅ Bob deploy succeeded using service selector: $NAME"
-                  exit 0
-                fi
-                # Also try WITHOUT --project so the token's native project scope is used.
-                # This recovers when PROJECT_TO_QUERY is stale/wrong but the token is
-                # correctly scoped to the Bob project.
-                if [ -n "$PROJECT_TO_QUERY" ] && deploy_selector "$NAME" ""; then
-                  echo "✅ Bob deploy succeeded using service selector: $NAME (token scope)"
-                  exit 0
-                fi
-              done
-
-              # Last resort: deploy with only project context and no --service flag.
-              # Works when the Railway project has exactly one non-Ollama service and
-              # the token (project token or PAT) has deploy access to the project.
-              if [ -n "$PROJECT_TO_QUERY" ]; then
-                echo "ℹ️ Last resort: deploy from inference-service/ with project context, no --service flag"
-                if railway up inference-service/ --project "$PROJECT_TO_QUERY" --environment "${RAILWAY_BOB_ENVIRONMENT:-production}" --detach 2>&1; then
-                  echo "✅ Bob deploy succeeded via project-scoped deploy (no --service)"
-                  exit 0
-                fi
-              fi
-              # Last resort without project context: relies entirely on token scope.
-              echo "ℹ️ Last resort: deploy from inference-service/ using token scope only"
-              if railway up inference-service/ --detach 2>&1; then
-                echo "✅ Bob deploy succeeded via token-scope directory deploy"
-                exit 0
-              fi
-
-              echo "::error::Could not resolve a deployable Bob service ID from Railway token scope."
-              echo "::error::ACTION REQUIRED: Update the RAILWAY_BOB_SERVICE_ID GitHub Actions secret."
-              echo "  1. Open Railway Dashboard → Bob project → Services"
-              echo "  2. Click the inference service → Settings → copy Service ID"
-              echo "  3. Go to GitHub → FreedomCamp-Manager → Settings → Secrets → Actions"
-              echo "  4. Update RAILWAY_BOB_SERVICE_ID with the correct UUID"
-              echo "  - Optionally also set RAILWAY_BOB_SERVICE_NAME to the service display name"
-              echo "  See docs/BOB_PRODUCTION_RAILWAY_SETUP.md for full setup instructions."
+            if [ -z "${RAILWAY_BOB_SERVICE_NAME:-}" ]; then
+              echo "::error::RAILWAY_BOB_SERVICE_ID is invalid and no deterministic fallback is configured."
+              echo "::error::Set RAILWAY_BOB_SERVICE_NAME to the exact Bob service name in the target project."
               exit 1
-            }
-
-            if [ -n "$PROJECT_TO_QUERY" ] && ! printf '%s' "$PROJECT_TO_QUERY" | grep -Eq '^[0-9a-fA-F-]{36}$'; then
-              echo "::warning::RAILWAY_BOB_PROJECT_ID is not a UUID: '$PROJECT_TO_QUERY'. Falling back to global resolution."
-              PROJECT_TO_QUERY=""
             fi
 
-            if [ -z "$PROJECT_TO_QUERY" ]; then
-              attempt_global_resolution
+            echo "::warning::Retrying deployment with explicit RAILWAY_BOB_SERVICE_NAME selector."
+            if deploy_selector "$RAILWAY_BOB_SERVICE_NAME" "$PROJECT_TO_QUERY"; then
+              echo "✅ Bob deploy succeeded using RAILWAY_BOB_SERVICE_NAME"
+              exit 0
             fi
 
-            GRAPHQL_PAYLOAD=$(jq -n --arg projectId "$PROJECT_TO_QUERY" '{query: "query ($id: String!) { project(id: $id) { services { edges { node { id name } } } } }", variables: { id: $projectId }}')
-            GRAPHQL_HTTP_STATUS=$(curl -sS -o /tmp/railway-project-lookup.json -w "%{http_code}" https://backboard.railway.app/graphql/v2 \
-              -H "Authorization: Bearer $RAILWAY_TOKEN" \
-              -H "Content-Type: application/json" \
-              --data "$GRAPHQL_PAYLOAD" || true)
-
-            if [ "$GRAPHQL_HTTP_STATUS" != "200" ]; then
-              echo "::warning::Project-based Railway GraphQL lookup failed (HTTP $GRAPHQL_HTTP_STATUS). Falling back to global resolution."
-              sed -n '1,3p' /tmp/railway-project-lookup.json || true
-              attempt_global_resolution
-            fi
-
-            GRAPHQL_RESPONSE=$(cat /tmp/railway-project-lookup.json)
-            PROJECT_ERRORS=$(node -e '
-              const data = JSON.parse(process.argv[1] || "{}");
-              const errors = Array.isArray(data?.errors) ? data.errors : [];
-              process.stdout.write(String(errors.length));
-            ' "$GRAPHQL_RESPONSE")
-
-            if [ "$PROJECT_ERRORS" != "0" ]; then
-              echo "::warning::Project-based Railway GraphQL returned errors. Falling back to global resolution."
-              sed -n '1,3p' /tmp/railway-project-lookup.json || true
-              attempt_global_resolution
-            fi
-
-            RESOLVED_SERVICE_ID=$(node -e '
-              const data = JSON.parse(process.argv[1] || "{}");
-              const edges = data?.data?.project?.services?.edges || [];
-              const services = edges.map((edge) => edge.node).filter(Boolean);
-              const preferred = services.find((service) => ["bob", "bob inference", "bob-inference", "."].includes(String(service.name || "").toLowerCase()));
-              const fallback = services.find((service) => String(service.name || "").toLowerCase() !== "ollama");
-              const selected = preferred || fallback;
-              process.stdout.write(selected?.id || "");
-            ' "$GRAPHQL_RESPONSE")
-
-            if [ -n "$RESOLVED_SERVICE_ID" ] && [ "$RESOLVED_SERVICE_ID" != "$RAILWAY_SERVICE_ID" ]; then
-              echo "::warning::Resolved Bob service ID from Railway project. Retry deployment and update RAILWAY_BOB_SERVICE_ID secret to match."
-              if deploy_selector "$RESOLVED_SERVICE_ID" "$PROJECT_TO_QUERY"; then
-                exit 0
-              fi
-            fi
-
-            echo "::warning::Project-based resolution did not deploy. Falling back to global resolution."
-            attempt_global_resolution
+            echo "::error::Unable to resolve Bob service using explicit ID, CLI project discovery, or RAILWAY_BOB_SERVICE_NAME."
+            exit 1
           fi
 
           echo "::error::Railway deploy command failed for RAILWAY_BOB_SERVICE_ID=$RAILWAY_SERVICE_ID"
