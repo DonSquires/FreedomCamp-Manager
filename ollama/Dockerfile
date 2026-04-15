@@ -3,8 +3,9 @@
 # Pin the image version to avoid surprise upgrades; bump deliberately.
 FROM ollama/ollama:0.20.2
 
-# Railway assigns $PORT; Ollama uses OLLAMA_HOST for its listen address.
-ENV OLLAMA_HOST=0.0.0.0:11434
+# Default port for local/manual runs. On Railway, start.sh maps OLLAMA_HOST
+# to 0.0.0.0:${PORT} at runtime so healthchecks hit the correct port.
+ENV PORT=11434
 
 # Allow requests from any origin (Bob connects via Railway private network).
 ENV OLLAMA_ORIGINS=*

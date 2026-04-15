@@ -16,6 +16,10 @@ set -e
 MODEL="${OLLAMA_MODEL:-llama3.1:8b}"
 MAX_WAIT=120   # seconds to wait for daemon to become ready
 PREPULL_MODE="${OLLAMA_PREPULL_MODE:-background}"
+PORT="${PORT:-11434}"
+export OLLAMA_HOST="0.0.0.0:${PORT}"
+
+echo "🌐 Binding Ollama to ${OLLAMA_HOST}"
 
 # ── 1. Start Ollama daemon in the background ──────────────────────────────────
 echo "🚀 Starting Ollama daemon..."
@@ -30,7 +34,7 @@ until ollama list >/dev/null 2>&1; do
     echo "❌ Ollama daemon did not start within ${MAX_WAIT}s"
     echo "  Possible causes:"
     echo "    - Container ran out of memory (check Railway service RAM allocation)"
-    echo "    - OLLAMA_HOST is not set to 0.0.0.0:11434 (check Railway service variables)"
+    echo "    - OLLAMA_HOST/PORT mismatch (expected ${OLLAMA_HOST})"
     echo "    - The ollama binary failed to start (check Railway build logs)"
     exit 1
   fi
