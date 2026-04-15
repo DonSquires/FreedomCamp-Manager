@@ -197,7 +197,7 @@ export default function DispatchWizard() {
           job_type:         state.job_type,
           alarm_type:       state.alarm_type || null,
           priority:         state.priority,
-          title:            state.title || `${JOB_TYPE_OPTIONS.find(t => t.value === state.job_type)?.label ?? state.job_type} – ${state.client_site_name}`,
+          title:            state.title || `${JOB_TYPE_OPTIONS.find(t => t.value === state.job_type)?.label ?? state.job_type} - ${state.client_site_name}`,
           description:      state.description || null,
           address:          state.client_site_address || null,
           caller_name:      state.caller_name || null,

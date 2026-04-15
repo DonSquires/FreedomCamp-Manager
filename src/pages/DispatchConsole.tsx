@@ -170,6 +170,10 @@ const ALARM_TYPE_LABELS: Record<string, string> = {
 
 const ACTIVE_STATUSES = ['pending', 'dispatched', 'acknowledged', 'en_route', 'on_scene']
 
+const ALARM_JOB_TYPES = new Set([
+  'alarm_response', 'first_line_one_guard', 'first_line_two_guard', 'second_line_response',
+])
+
 function minutesSince(dateStr: string | null): number {
   if (!dateStr) return 0
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / 60_000)
@@ -665,7 +669,7 @@ export default function DispatchConsole() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Job Type</Label>
-                <Select value={form.job_type} onValueChange={v => setForm(f => ({ ...f, job_type: v, alarm_type: '' }))}>
+                <Select value={form.job_type} onValueChange={v => setForm(f => ({ ...f, job_type: v, alarm_type: ALARM_JOB_TYPES.has(v) ? f.alarm_type : '' }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {Object.entries(JOB_TYPE_LABELS).map(([k, v]) => (
@@ -685,7 +689,7 @@ export default function DispatchConsole() {
               </div>
             </div>
 
-            {form.job_type === 'alarm_response' && (
+            {ALARM_JOB_TYPES.has(form.job_type) && (
               <div className="space-y-1.5">
                 <Label>Alarm Type</Label>
                 <Select value={form.alarm_type} onValueChange={v => setForm(f => ({ ...f, alarm_type: v }))}>

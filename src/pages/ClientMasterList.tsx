@@ -75,7 +75,7 @@ export default function ClientMasterList() {
   const orgId = user?.organization_id
 
   const [searchMode, setSearchMode] = useState<'client' | 'bureau'>('client')
-  const [showActiveOnly, setShowActiveOnly] = useState(true)
+  const [activeFilter, setActiveFilter] = useState<'yes' | 'no' | 'all'>('yes')
   const [search, setSearch] = useState('')
   const [suburbFilter, setSuburbFilter] = useState('')
   const [bureauFilter, setBureauFilter] = useState('')
@@ -84,7 +84,7 @@ export default function ClientMasterList() {
   // ── Data ───────────────────────────────────────────────────────────────────
 
   const { data: sites = [], isLoading, refetch } = useQuery<ClientSiteRow[]>({
-    queryKey: ['client-master-list', orgId, showActiveOnly],
+    queryKey: ['client-master-list', orgId, activeFilter],
     queryFn: async () => {
       let q = (supabase as any)
         .from('client_sites')
@@ -92,7 +92,8 @@ export default function ClientMasterList() {
         .order('name')
 
       if (user?.role !== 'master') q = q.eq('organization_id', orgId ?? '')
-      if (showActiveOnly) q = q.eq('is_active', true)
+      if (activeFilter === 'yes') q = q.eq('is_active', true)
+      if (activeFilter === 'no') q = q.eq('is_active', false)
 
       const { data, error } = await q
       if (error) throw error
@@ -146,8 +147,8 @@ export default function ClientMasterList() {
                     <input
                       type="radio"
                       name="activeOnly"
-                      checked={v === 'yes' ? showActiveOnly : v === 'no' ? !showActiveOnly : false}
-                      onChange={() => setShowActiveOnly(v === 'yes')}
+                      checked={activeFilter === v}
+                      onChange={() => setActiveFilter(v)}
                       className="accent-blue-600"
                     />
                     <span className="capitalize">{v}</span>
@@ -309,7 +310,7 @@ export default function ClientMasterList() {
             variant="outline"
             className="gap-2 text-red-600 border-red-300 hover:bg-red-50"
             disabled={!deleteTarget}
-            onClick={() => deleteTarget && setDeleteTarget(deleteTarget)}
+            onClick={() => { /* deleteTarget already set from table row — AlertDialog opens automatically */ }}
           >
             <Trash2 className="h-4 w-4" /> Delete
           </Button>
