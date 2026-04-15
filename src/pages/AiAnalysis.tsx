@@ -20,6 +20,7 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -218,10 +219,12 @@ function renderInline(text: string): React.ReactNode {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function AiAnalysis() {
+  const navigate = useNavigate()
   const { user } = useAuthStore()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [edgeOutageDetected, setEdgeOutageDetected] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [isPttSupported, setIsPttSupported] = useState(false)
   const [isPttRecording, setIsPttRecording] = useState(false)
@@ -351,6 +354,7 @@ export default function AiAnalysis() {
     setMessages(prev => [...prev, userMsg])
     setInputValue('')
     setIsLoading(true)
+    setEdgeOutageDetected(false)
 
     // Build the full conversation history for context
     const conversationHistory = [...messages, userMsg].map(m => ({
@@ -358,29 +362,92 @@ export default function AiAnalysis() {
       content: m.content,
     }))
 
-    try {
-      const result = await withTimeout(
-        edgeFunctions.aiChat({ messages: conversationHistory }),
-        25000,
-        'Bob chat request'
-      )
+    const requestBody = { messages: conversationHistory }
 
-      if (result.error) {
-        throw new Error(result.error)
+    const invokeBobWithResilience = async () => {
+      const firstAttempt = await edgeFunctions.aiChat(requestBody)
+      if (!firstAttempt.error && firstAttempt.data?.response) {
+        return firstAttempt.data
       }
+
+      const firstError = String(firstAttempt.error || '')
+      const shouldTryDirectFallback =
+        firstError.toLowerCase().includes('unable to reach the edge function') ||
+        firstError.toLowerCase().includes('network connectivity issue') ||
+        firstError.toLowerCase().includes('failed to fetch') ||
+        firstError.toLowerCase().includes('not be deployed')
+
+      if (!shouldTryDirectFallback) {
+        throw new Error(firstAttempt.error || 'Bob returned an empty response')
+      }
+
+      const { data: sessionData } = await supabase.auth.getSession()
+      const sessionJwt = sessionData?.session?.access_token
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+
+      if (!sessionJwt || !supabaseUrl || !anonKey) {
+        throw new Error(firstAttempt.error || 'No valid edge invocation path available')
+      }
+
+      const directResponse = await fetch(`${supabaseUrl}/functions/v1/onspace-ai-chat`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${sessionJwt}`,
+          apikey: anonKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      })
+
+      const directText = await directResponse.text()
+      const directJson = (() => {
+        try {
+          return JSON.parse(directText)
+        } catch {
+          return null
+        }
+      })()
+
+      if (!directResponse.ok) {
+        throw new Error(directJson?.error || `Edge function returned ${directResponse.status}`)
+      }
+
+      if (!directJson?.response) {
+        throw new Error('Bob returned an empty response')
+      }
+
+      return directJson
+    }
+
+    try {
+      const result = await withTimeout(invokeBobWithResilience(), 25000, 'Bob chat request')
 
       const assistantMsg: ChatMessage = {
         id: `a-${Date.now()}`,
         role: 'assistant',
-        content: result.data?.response ?? 'No response received.',
+        content: result?.response ?? 'No response received.',
         timestamp: new Date(),
       }
       setMessages(prev => [...prev, assistantMsg])
     } catch (err: any) {
+      const rawError = String(err?.message || '')
+      const isEdgeOutage =
+        rawError.toLowerCase().includes('unable to reach the edge function') ||
+        rawError.toLowerCase().includes('network connectivity issue') ||
+        rawError.toLowerCase().includes('failed to fetch') ||
+        rawError.toLowerCase().includes('not be deployed')
+
+      if (isEdgeOutage) {
+        setEdgeOutageDetected(true)
+      }
+
       const errorMsg: ChatMessage = {
         id: `e-${Date.now()}`,
         role: 'assistant',
-        content: `⚠️ ${err.message || 'Failed to get a response. Please try again.'}`,
+        content: isEdgeOutage
+          ? '⚠️ Bob chat is temporarily unavailable on this page due to an edge-function connectivity issue. You can continue in Bob Assistant Studio while this reconnects.'
+          : `⚠️ ${err.message || 'Failed to get a response. Please try again.'}`,
         timestamp: new Date(),
         isError: true,
       }
@@ -687,6 +754,18 @@ export default function AiAnalysis() {
                 <p className="text-[10px] text-muted-foreground mt-1 px-0.5">
                   {isPttSupported ? 'Push-to-talk: hold the mic button while speaking.' : 'Push-to-talk works in Chrome/Edge.'}
                 </p>
+                {edgeOutageDetected && (
+                  <div className="mt-2 px-0.5">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => navigate('/bob-assistant')}
+                    >
+                      Continue in Bob Assistant Studio
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
