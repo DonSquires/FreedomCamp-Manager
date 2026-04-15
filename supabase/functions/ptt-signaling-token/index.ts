@@ -121,13 +121,6 @@ Deno.serve(async (req) => {
       )
     }
 
-    if (!profile.organization_id) {
-      return new Response(
-        JSON.stringify({ error: 'No organization', message: 'User is not assigned to an organization' }),
-        { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
-      )
-    }
-
     // Parse request body
     let channelScope: string
     try {
@@ -152,17 +145,30 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Validate org-scoped access
     const [scopeType, scopeId] = channelScope.split(':')
+    const isPrivilegedRole = ['master', 'grand_master'].includes(profile.role)
+
+    // Resolve effective organization context. For master/grand_master users who
+    // may have organization_id = null, derive org context from channel scope.
+    let effectiveOrganizationId: string | null = profile.organization_id ?? null
+
+    if (!effectiveOrganizationId && !isPrivilegedRole) {
+      return new Response(
+        JSON.stringify({ error: 'No organization', message: 'User is not assigned to an organization' }),
+        { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      )
+    }
     
     if (scopeType === 'org') {
-      // Only allow access to user's own org (or master can access any)
-      if (scopeId !== profile.organization_id && !['master', 'grand_master'].includes(profile.role)) {
+      // Only allow access to user's own org unless privileged role.
+      if (!isPrivilegedRole && scopeId !== profile.organization_id) {
         return new Response(
           JSON.stringify({ error: 'Forbidden', message: 'Cannot access channels in other organizations' }),
           { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         )
       }
+
+      effectiveOrganizationId = scopeId
     } else if (scopeType === 'incident') {
       // Verify incident belongs to user's org
       const { data: incident } = await supabase
@@ -178,18 +184,30 @@ Deno.serve(async (req) => {
         )
       }
 
-      if (incident.organization_id !== profile.organization_id && !['master', 'grand_master'].includes(profile.role)) {
+      if (incident.organization_id !== profile.organization_id && !isPrivilegedRole) {
         return new Response(
           JSON.stringify({ error: 'Forbidden', message: 'Cannot access incident channels in other organizations' }),
           { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         )
       }
+
+      effectiveOrganizationId = incident.organization_id
     } else if (scopeType === 'team' || scopeType === 'deployment') {
       // Team/deployment channels - verify user is part of the deployment or has access
       // For now, allow access within same organization
       // Future: Check roster_assignments or deployment_members table
       // This allows all org members to join team channels for the MVP
       console.log(`PTT: User ${user.id} accessing ${scopeType} channel ${scopeId}`)
+
+      if (!effectiveOrganizationId) {
+        return new Response(
+          JSON.stringify({
+            error: 'Organization context required',
+            message: 'Select an organization-scoped channel first, then join team/deployment channels',
+          }),
+          { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+        )
+      }
     } else if (scopeType === 'direct') {
       // Direct channel: scopeId is target user ID
       // Verify target user exists and is in same org
@@ -206,12 +224,24 @@ Deno.serve(async (req) => {
         )
       }
 
-      if (targetProfile.organization_id !== profile.organization_id && !['master', 'grand_master'].includes(profile.role)) {
+      if (targetProfile.organization_id !== profile.organization_id && !isPrivilegedRole) {
         return new Response(
           JSON.stringify({ error: 'Forbidden', message: 'Cannot create direct channels with users in other organizations' }),
           { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         )
       }
+
+      effectiveOrganizationId = targetProfile.organization_id
+    }
+
+    if (!effectiveOrganizationId) {
+      return new Response(
+        JSON.stringify({
+          error: 'Organization context required',
+          message: 'Unable to resolve organization context for this channel scope',
+        }),
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      )
     }
 
     // Call PTT server to mint token
@@ -226,7 +256,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         userId: user.id,
         userRole: profile.role,
-        organizationId: profile.organization_id,
+        organizationId: effectiveOrganizationId,
         channelScope,
         firstName: profile.first_name,
         lastName: profile.last_name,
@@ -253,7 +283,7 @@ Deno.serve(async (req) => {
       .from('ptt_presence')
       .upsert({
         user_id: user.id,
-        organization_id: profile.organization_id,
+        organization_id: effectiveOrganizationId,
         channel: channelScope,
         status: 'online',
         last_seen_at: new Date().toISOString(),
