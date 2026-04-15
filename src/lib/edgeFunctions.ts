@@ -166,6 +166,45 @@ async function callEdgeFunction<T = any>(
 
     let error = initialError
 
+    const directEdgeInvoke = async (jwt: string): Promise<{ data: T | null; error: any | null }> => {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+
+      if (!supabaseUrl || !anonKey) {
+        return { data: null, error: new Error('Supabase URL or anon key is missing') }
+      }
+
+      try {
+        const response = await fetch(`${supabaseUrl}/functions/v1/${functionName}`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${jwt}`,
+            apikey: anonKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body || {}),
+        })
+
+        const text = await response.text()
+        const parsed = (() => {
+          try {
+            return JSON.parse(text)
+          } catch {
+            return null
+          }
+        })()
+
+        if (!response.ok) {
+          const message = parsed?.error || parsed?.message || text || `Edge function returned ${response.status}`
+          return { data: null, error: new Error(String(message)) }
+        }
+
+        return { data: (parsed as T) ?? ({} as T), error: null }
+      } catch (e) {
+        return { data: null, error: e }
+      }
+    }
+
     // Some browsers/networks intermittently fail edge invokes at the fetch/relay
     // layer. Retry once immediately on network-level failures.
     if (
@@ -182,6 +221,14 @@ async function callEdgeFunction<T = any>(
       }
 
       error = fallbackResult.error
+
+      // Final fallback: bypass SDK invoke relay and call edge function directly.
+      // This helps when browser/network policies intermittently break relay fetches.
+      const directResult = await directEdgeInvoke(accessToken)
+      if (!directResult.error) {
+        unlock()
+        return { data: directResult.data as T, error: null }
+      }
     }
 
     if (error) {
