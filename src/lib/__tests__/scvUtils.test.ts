@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import {
+  mergeScvResults,
   EMPTY_SCV_RESULT,
   SCV_BATCH_SIZE,
-  mergeScvResults,
   type ScvSyncResult,
 } from '../scvUtils'
 
-// ── constants ────────────────────────────────────────────────────────────────
+// ── SCV_BATCH_SIZE ──────────────────────────────────────────────────────────
 
 describe('SCV_BATCH_SIZE', () => {
   it('is 50', () => {
@@ -14,8 +14,10 @@ describe('SCV_BATCH_SIZE', () => {
   })
 })
 
+// ── EMPTY_SCV_RESULT ────────────────────────────────────────────────────────
+
 describe('EMPTY_SCV_RESULT', () => {
-  it('has all numeric fields set to 0', () => {
+  it('has all numeric fields initialised to 0', () => {
     expect(EMPTY_SCV_RESULT.total_in_scv_list).toBe(0)
     expect(EMPTY_SCV_RESULT.canonical_vehicles_checked).toBe(0)
     expect(EMPTY_SCV_RESULT.set_to_current).toBe(0)
@@ -32,82 +34,101 @@ describe('EMPTY_SCV_RESULT', () => {
   })
 })
 
-// ── mergeScvResults ──────────────────────────────────────────────────────────
+// ── mergeScvResults ─────────────────────────────────────────────────────────
 
 describe('mergeScvResults', () => {
   const base: ScvSyncResult = {
     total_in_scv_list: 100,
-    canonical_vehicles_checked: 10,
-    set_to_current: 3,
-    set_to_not_current: 2,
+    canonical_vehicles_checked: 50,
+    set_to_current: 10,
+    set_to_not_current: 5,
+    expiry_corrected: 3,
+    unchanged: 32,
+    observations_updated: 7,
+    breach_alerts_resolved: 2,
+    canonical_scv_enriched: 1,
+    errors: ['error-1'],
+  }
+
+  const incoming: ScvSyncResult = {
+    total_in_scv_list: 120,
+    canonical_vehicles_checked: 30,
+    set_to_current: 8,
+    set_to_not_current: 4,
     expiry_corrected: 1,
-    unchanged: 4,
+    unchanged: 17,
     observations_updated: 5,
     breach_alerts_resolved: 0,
     canonical_scv_enriched: 2,
-    errors: ['error-a'],
+    errors: ['error-2', 'error-3'],
   }
 
-  it('accumulates additive counters from both results', () => {
-    const incoming: ScvSyncResult = {
-      total_in_scv_list: 200,
-      canonical_vehicles_checked: 20,
-      set_to_current: 7,
-      set_to_not_current: 3,
-      expiry_corrected: 2,
-      unchanged: 8,
-      observations_updated: 6,
-      breach_alerts_resolved: 1,
-      canonical_scv_enriched: 4,
-      errors: ['error-b'],
-    }
-
-    const merged = mergeScvResults(base, incoming)
-
-    expect(merged.canonical_vehicles_checked).toBe(30) // 10 + 20
-    expect(merged.set_to_current).toBe(10) // 3 + 7
-    expect(merged.set_to_not_current).toBe(5) // 2 + 3
-    expect(merged.expiry_corrected).toBe(3) // 1 + 2
-    expect(merged.unchanged).toBe(12) // 4 + 8
-    expect(merged.observations_updated).toBe(11) // 5 + 6
-    expect(merged.breach_alerts_resolved).toBe(1) // 0 + 1
-    expect(merged.canonical_scv_enriched).toBe(6) // 2 + 4
+  it('uses the incoming total_in_scv_list when non-zero', () => {
+    const result = mergeScvResults(base, incoming)
+    expect(result.total_in_scv_list).toBe(120)
   })
 
-  it('uses incoming total_in_scv_list when it is non-zero', () => {
-    const incoming: ScvSyncResult = { ...EMPTY_SCV_RESULT, total_in_scv_list: 500 }
-    const merged = mergeScvResults(base, incoming)
-    expect(merged.total_in_scv_list).toBe(500)
+  it('falls back to base total_in_scv_list when incoming is 0', () => {
+    const result = mergeScvResults(base, { ...incoming, total_in_scv_list: 0 })
+    expect(result.total_in_scv_list).toBe(100)
   })
 
-  it('falls back to current total_in_scv_list when incoming value is 0', () => {
-    const incoming: ScvSyncResult = { ...EMPTY_SCV_RESULT, total_in_scv_list: 0 }
-    const merged = mergeScvResults(base, incoming)
-    // incoming is 0 (falsy) → falls back to current (100)
-    expect(merged.total_in_scv_list).toBe(100)
+  it('sums canonical_vehicles_checked', () => {
+    const result = mergeScvResults(base, incoming)
+    expect(result.canonical_vehicles_checked).toBe(80) // 50 + 30
   })
 
-  it('concatenates errors from both results', () => {
-    const incoming: ScvSyncResult = { ...EMPTY_SCV_RESULT, errors: ['error-b', 'error-c'] }
-    const merged = mergeScvResults(base, incoming)
-    expect(merged.errors).toEqual(['error-a', 'error-b', 'error-c'])
+  it('sums set_to_current', () => {
+    const result = mergeScvResults(base, incoming)
+    expect(result.set_to_current).toBe(18) // 10 + 8
   })
 
-  it('merging with EMPTY_SCV_RESULT is an identity-like operation for additive fields', () => {
-    const merged = mergeScvResults(base, EMPTY_SCV_RESULT)
-    expect(merged.canonical_vehicles_checked).toBe(base.canonical_vehicles_checked)
-    expect(merged.set_to_current).toBe(base.set_to_current)
-    expect(merged.unchanged).toBe(base.unchanged)
-    expect(merged.errors).toEqual(base.errors)
+  it('sums set_to_not_current', () => {
+    const result = mergeScvResults(base, incoming)
+    expect(result.set_to_not_current).toBe(9) // 5 + 4
   })
 
-  it('does not mutate the input objects', () => {
-    const current: ScvSyncResult = { ...EMPTY_SCV_RESULT, set_to_current: 1, errors: ['x'] }
-    const incoming: ScvSyncResult = { ...EMPTY_SCV_RESULT, set_to_current: 2, errors: ['y'] }
-    mergeScvResults(current, incoming)
-    expect(current.set_to_current).toBe(1)
-    expect(incoming.set_to_current).toBe(2)
-    expect(current.errors).toEqual(['x'])
-    expect(incoming.errors).toEqual(['y'])
+  it('sums expiry_corrected', () => {
+    const result = mergeScvResults(base, incoming)
+    expect(result.expiry_corrected).toBe(4) // 3 + 1
+  })
+
+  it('sums unchanged', () => {
+    const result = mergeScvResults(base, incoming)
+    expect(result.unchanged).toBe(49) // 32 + 17
+  })
+
+  it('sums observations_updated', () => {
+    const result = mergeScvResults(base, incoming)
+    expect(result.observations_updated).toBe(12) // 7 + 5
+  })
+
+  it('sums breach_alerts_resolved', () => {
+    const result = mergeScvResults(base, incoming)
+    expect(result.breach_alerts_resolved).toBe(2) // 2 + 0
+  })
+
+  it('sums canonical_scv_enriched', () => {
+    const result = mergeScvResults(base, incoming)
+    expect(result.canonical_scv_enriched).toBe(3) // 1 + 2
+  })
+
+  it('concatenates errors arrays', () => {
+    const result = mergeScvResults(base, incoming)
+    expect(result.errors).toEqual(['error-1', 'error-2', 'error-3'])
+  })
+
+  it('merging with EMPTY_SCV_RESULT leaves values unchanged', () => {
+    const result = mergeScvResults(EMPTY_SCV_RESULT, incoming)
+    expect(result.canonical_vehicles_checked).toBe(incoming.canonical_vehicles_checked)
+    expect(result.set_to_current).toBe(incoming.set_to_current)
+    expect(result.errors).toEqual(incoming.errors)
+  })
+
+  it('merging two EMPTY_SCV_RESULTs produces another empty result', () => {
+    const result = mergeScvResults(EMPTY_SCV_RESULT, EMPTY_SCV_RESULT)
+    expect(result.canonical_vehicles_checked).toBe(0)
+    expect(result.total_in_scv_list).toBe(0)
+    expect(result.errors).toEqual([])
   })
 })
