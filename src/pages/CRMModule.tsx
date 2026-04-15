@@ -285,7 +285,7 @@ export default function CRMModule() {
                     onClick={() =>
                       isContractor
                         ? navigate(`/crm/contractor/${account.id}`)
-                        : navigate(`/organisation/${account.id}`)
+                        : navigate(`/crm/client/${account.id}`)
                     }
                   >
                     <CardContent className="p-4">

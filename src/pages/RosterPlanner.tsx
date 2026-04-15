@@ -7,6 +7,7 @@ import { useState, useMemo, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { Button } from '@/components/ui/button'
@@ -863,6 +864,7 @@ export default function RosterPlanner() {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
   const isAdmin = user?.role === 'admin' || user?.role === 'master' || user?.role === 'admin_officer'
+  const { orgIds: clientOrgIds, isLoading: clientOrgIdsLoading } = useClientOrgIds()
 
   // ─── Week navigation ───────────────────────────────────────────────────────
   const [viewStart, setViewStart] = useState<Date>(() =>
@@ -941,16 +943,18 @@ export default function RosterPlanner() {
   })
 
   const { data: sites = [] } = useQuery<ClientSite[]>({
-    queryKey: ['roster_sites', user?.organization_id],
+    queryKey: ['roster_sites', user?.organization_id, clientOrgIds],
     queryFn: async () => {
-      const { data, error } = await ((supabase as any).from('client_sites') as any)
+      let q = (supabase as any).from('client_sites')
         .select('id, name, default_pay_rate, default_charge_rate')
-        .eq('organization_id', user!.organization_id!)
         .order('name')
+      // clientOrgIds === null means master (unrestricted)
+      if (clientOrgIds !== null) q = q.in('organization_id', clientOrgIds)
+      const { data, error } = await q
       if (error) throw error
       return (data || []) as ClientSite[]
     },
-    enabled: !!user?.organization_id,
+    enabled: !!user?.organization_id && !clientOrgIdsLoading,
   })
 
   const { data: zones = [] } = useQuery<Zone[]>({

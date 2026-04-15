@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -73,6 +74,7 @@ export default function ClientMasterList() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const orgId = user?.organization_id
+  const { orgIds, isLoading: orgIdsLoading } = useClientOrgIds()
 
   const [searchMode, setSearchMode] = useState<'client' | 'bureau'>('client')
   const [activeFilter, setActiveFilter] = useState<'yes' | 'no' | 'all'>('yes')
@@ -84,14 +86,15 @@ export default function ClientMasterList() {
   // ── Data ───────────────────────────────────────────────────────────────────
 
   const { data: sites = [], isLoading, refetch } = useQuery<ClientSiteRow[]>({
-    queryKey: ['client-master-list', orgId, activeFilter],
+    queryKey: ['client-master-list', orgId, orgIds, activeFilter],
     queryFn: async () => {
       let q = (supabase as any)
         .from('client_sites')
         .select('id, organization_id, name, client_code, bureau_id, has_keys, city, address, contact_name, contact_phone, contact_email, last_response_at, last_contact_at, is_active, site_type, zone:zones!zone_id(name)')
         .order('name')
 
-      if (user?.role !== 'master') q = q.eq('organization_id', orgId ?? '')
+      // orgIds === null means master (unrestricted); otherwise filter to org hierarchy
+      if (orgIds !== null) q = q.in('organization_id', orgIds)
       if (activeFilter === 'yes') q = q.eq('is_active', true)
       if (activeFilter === 'no') q = q.eq('is_active', false)
 
@@ -99,7 +102,7 @@ export default function ClientMasterList() {
       if (error) throw error
       return data as ClientSiteRow[]
     },
-    enabled: !!orgId,
+    enabled: !!orgId && !orgIdsLoading,
   })
 
   const deleteMutation = useMutation({
