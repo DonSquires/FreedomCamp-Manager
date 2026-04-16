@@ -58,6 +58,27 @@ interface PTTMessage {
   message?: string
 }
 
+async function requestLocalAudioStream(): Promise<MediaStream> {
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    })
+  } catch (strictError) {
+    // Some mobile browsers reject strict constraints; fallback to basic audio.
+    return await navigator.mediaDevices.getUserMedia({ audio: true })
+  }
+}
+
+export async function ensureMicrophonePermission(): Promise<boolean> {
+  const testStream = await requestLocalAudioStream()
+  testStream.getTracks().forEach((track) => track.stop())
+  return true
+}
+
 function extractPTTBackendCode(raw: string): string | null {
   const patterns = [
     /\[code:\s*(\d{3})\]/i,
@@ -540,14 +561,8 @@ export async function startSpeaking(): Promise<void> {
   }
 
   try {
-    // Request microphone
-    localStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      },
-    })
+    // Request microphone with mobile-safe fallback.
+    localStream = await requestLocalAudioStream()
 
     // Start recording for fallback clip
     recordedChunks = []
@@ -724,14 +739,8 @@ export async function startVoxMonitoring(): Promise<void> {
   }
 
   try {
-    // Get microphone for monitoring
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      },
-    })
+    // Get microphone for monitoring with mobile-safe fallback.
+    const stream = await requestLocalAudioStream()
 
     // Create audio context for level monitoring
     audioContext = new AudioContext()

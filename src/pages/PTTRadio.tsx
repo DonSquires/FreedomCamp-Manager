@@ -32,6 +32,7 @@ import {
 } from '@/stores/pttStore'
 import {
   connectToPTT,
+  ensureMicrophonePermission,
   startSpeaking,
   stopSpeaking,
   startVoxMonitoring,
@@ -285,6 +286,8 @@ export default function PTTRadio() {
   const [liveTxSeconds, setLiveTxSeconds] = useState(0)
   const [showNotificationHint, setShowNotificationHint] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [microphoneReady, setMicrophoneReady] = useState(false)
+  const [microphoneError, setMicrophoneError] = useState<string | null>(null)
 
   const pttButtonRef = useRef<HTMLButtonElement>(null)
   const scanTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -465,6 +468,20 @@ export default function PTTRadio() {
     requestNotificationPermission()
   }, [])
 
+  const requestMicrophoneAccess = useCallback(async () => {
+    try {
+      await ensureMicrophonePermission()
+      setMicrophoneReady(true)
+      setMicrophoneError(null)
+      toast.success('Microphone access enabled')
+    } catch (err: any) {
+      const msg = normalizePTTErrorMessage(err)
+      setMicrophoneReady(false)
+      setMicrophoneError(msg)
+      toast.error(msg)
+    }
+  }, [])
+
   // ── Incoming transmission detection ──────────────────────
   useEffect(() => {
     if (speakerId && !isSpeaking) {
@@ -611,6 +628,11 @@ export default function PTTRadio() {
     if (!canSpeak || !isAvailable || isTransmitting) return
 
     try {
+      if (!microphoneReady) {
+        await ensureMicrophonePermission()
+        setMicrophoneReady(true)
+        setMicrophoneError(null)
+      }
       await startSpeaking()
       setIsTransmitting(true)
       playStatusTone('tx_start')
@@ -621,9 +643,10 @@ export default function PTTRadio() {
       }
     } catch (err) {
       const msg = normalizePTTErrorMessage(err)
+      setMicrophoneError(msg)
       toast.error(msg)
     }
-  }, [canSpeak, isAvailable, isTransmitting])
+  }, [canSpeak, isAvailable, isTransmitting, microphoneReady])
 
   const handlePTTRelease = useCallback(async () => {
     if (!isTransmitting) return
@@ -932,6 +955,22 @@ export default function PTTRadio() {
             <Button variant="ghost" size="sm" className="ml-auto h-6 text-xs text-red-300 hover:text-white"
               onClick={() => { setError(null); if (activeChannel) connectToChannel(activeChannel) }}>
               <RefreshCw className="h-3 w-3 mr-1" />Retry
+            </Button>
+          </div>
+        )}
+
+        {/* ── Microphone banner ────────────────────────────── */}
+        {microphoneError && (
+          <div className="px-4 py-2 bg-amber-950 border-b border-amber-800 text-xs text-amber-300 flex items-center gap-2 shrink-0">
+            <MicOff className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+            Microphone access is required to transmit from this device.
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto h-6 text-xs text-amber-300 hover:text-white"
+              onClick={requestMicrophoneAccess}
+            >
+              Enable Microphone
             </Button>
           </div>
         )}
