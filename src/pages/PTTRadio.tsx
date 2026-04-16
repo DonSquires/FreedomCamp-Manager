@@ -135,8 +135,6 @@ const CHANNEL_TYPE_ORDER: Record<string, number> = {
   primary: 0, dispatch: 1, team: 2, incident: 3, welfare: 4, admin: 5, emergency: 99,
 }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-
 function hashScopeSeed(seed: string): string {
   // Deterministic non-crypto hash for stable channel scope IDs across clients.
   let h1 = 0x811c9dc5
@@ -155,21 +153,18 @@ function hashScopeSeed(seed: string): string {
 }
 
 function getChannelScope(channel: RadioChannel, effectiveOrgId: string): string {
-  // Primary channel must always be org-wide so all clients converge on the
+  // CH1 + emergency must always be org-wide so all clients converge on the
   // same scope even when one device falls back to default channel metadata.
   if (channel.channel_type === 'primary' || channel.channel_number === 1) {
     return `org:${effectiveOrgId}`
   }
-
-  // Persisted channel rows use UUID ids and map to unique deployment scopes.
-  // Fallback defaults are non-UUID and use org scope to stay valid.
-  if (UUID_RE.test(channel.id)) {
-    return `deployment:${channel.id}`
+  if (channel.channel_type === 'emergency') {
+    return `org:${effectiveOrgId}`
   }
 
-  // For fallback channels (non-UUID ids), use deterministic team scopes based on
-  // org + channel number so all clients land in the same room for CH2+.
-  const stableId = hashScopeSeed(`${effectiveOrgId}:${channel.channel_number}`)
+  // Use deterministic scopes based on org + channel number + type for CH2+.
+  // This guarantees DB-backed and fallback-default clients land in same room.
+  const stableId = hashScopeSeed(`${effectiveOrgId}:${channel.channel_number}:${channel.channel_type}`)
   return `team:${stableId}`
 }
 

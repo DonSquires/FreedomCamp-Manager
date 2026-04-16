@@ -701,12 +701,24 @@ function handleMessage(ws, userId, channelId, name, role, message) {
       if (message.targetUserId) {
         // Direct signal to specific peer
         const targetPresence = userPresence.get(message.targetUserId);
-        if (targetPresence && targetPresence.ws && targetPresence.ws.readyState === 1) {
+        if (
+          targetPresence &&
+          targetPresence.channelId === channelId &&
+          targetPresence.ws &&
+          targetPresence.ws.readyState === 1
+        ) {
           targetPresence.ws.send(JSON.stringify({
             type: 'signal',
             fromUserId: userId,
             fromName: name,
             signal: message.signal,
+          }));
+        } else {
+          ws.send(JSON.stringify({
+            type: 'error',
+            code: 'SIGNAL_TARGET_UNAVAILABLE',
+            message: 'Target peer is not available in this channel',
+            targetUserId: message.targetUserId,
           }));
         }
       } else {
