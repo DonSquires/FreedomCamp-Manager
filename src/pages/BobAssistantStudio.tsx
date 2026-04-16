@@ -18,6 +18,7 @@ import { toast } from 'sonner'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { consumeLatestBobCollaborationPacket, publishBobResponse, type BobCollaborationPacket } from '@/lib/bobCollaboration'
 import { BOB_PROJECT_KNOWLEDGE } from '@/lib/bobKnowledgeBase'
+import { BobOrb, type BobOrbState } from '@/components/features/BobOrb'
 import {
   buildBobLearningContext,
   buildBobLearningContextRemote,
@@ -1680,7 +1681,18 @@ export default function BobAssistantStudio() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between gap-2">
-                <span className="flex items-center gap-2"><BrainCircuit className="h-4 w-4" /> Conversation</span>
+                <span className="flex items-center gap-2">
+                  <BobOrb
+                    size="sm"
+                    state={
+                      (listening ? 'listening'
+                        : thinking ? 'thinking'
+                        : speakingRef.current ? 'speaking'
+                        : 'idle') as BobOrbState
+                    }
+                  />
+                  Conversation
+                </span>
                 <Badge variant="outline">{displayName}</Badge>
               </CardTitle>
               <CardDescription>Talk to Bob by typing or voice. Bob is your inference agent and assistant, and can coordinate build context across DB, UI, Expo, Railway, and Vercel workflows.</CardDescription>
@@ -1716,32 +1728,39 @@ export default function BobAssistantStudio() {
                 </div>
               )}
 
-              <div className="max-h-[300px] overflow-auto rounded border p-3 space-y-2 bg-muted/20">
+              <div className="h-[45vh] min-h-[200px] overflow-auto rounded border p-3 space-y-2 bg-muted/20">
                 {chat.length === 0 && !thinking ? (
                   <div className="text-sm text-muted-foreground">No messages yet. Ask Bob for import help, directions, or operational guidance.</div>
                 ) : (
                   chat.map((message) => (
-                    <div key={message.id} className={`rounded px-3 py-2 text-sm ${message.role === 'assistant' ? 'bg-primary text-primary-foreground' : 'bg-background border'}`}>
-                      <div className="text-[11px] opacity-80 mb-1">{message.role === 'assistant' ? displayName : 'You'}</div>
-                      <div>{message.text}</div>
+                    <div
+                      key={message.id}
+                      className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div className={`max-w-[85%] rounded px-3 py-2 text-sm ${message.role === 'assistant' ? 'bg-primary text-primary-foreground mr-auto' : 'bg-background border ml-auto text-right'}`}>
+                        <div className="text-[11px] opacity-80 mb-1">{message.role === 'assistant' ? displayName : 'You'}</div>
+                        <div className="text-left">{message.text}</div>
+                      </div>
                     </div>
                   ))
                 )}
                 {thinking && (
-                  <div className="rounded px-3 py-2 text-sm bg-primary/70 text-primary-foreground flex items-center gap-2">
-                    <Loader2 className="h-3 w-3 animate-spin shrink-0" />
-                    <span>{displayName} is thinking…</span>
+                  <div className="flex justify-start">
+                    <div className="max-w-[85%] rounded px-3 py-2 text-sm bg-primary/70 text-primary-foreground mr-auto flex items-center gap-2">
+                      <Loader2 className="h-3 w-3 animate-spin shrink-0" />
+                      <span>{displayName} is thinking…</span>
+                    </div>
                   </div>
                 )}
                 <div ref={chatEndRef} />
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 pb-safe">
                 <Textarea
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   placeholder="Ask Bob anything operational..."
-                  className="min-h-[80px]"
+                  className="min-h-[72px] resize-none"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault()

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
@@ -82,11 +82,15 @@ import {
   Wand2,
   ListChecks,
   LayoutList,
+  Mic,
+  MicOff,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { signalSessionActivity } from '@/hooks/useSessionInactivityLock'
+import { usePTTStore, usePTTAvailable, usePTTCanSpeak } from '@/stores/pttStore'
+import { startSpeaking, stopSpeaking } from '@/lib/ptt'
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -386,6 +390,30 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const location = useLocation()
+
+  // ── Floating PTT button state ────────────────────────────────────────────
+  const pttConnectionStatus  = usePTTStore((s) => s.connectionStatus)
+  const pttChannelName       = usePTTStore((s) => s.channelName)
+  const pttIsSpeaking        = usePTTStore((s) => s.isSpeaking)
+  const pttSpeakerName       = usePTTStore((s) => s.speakerName)
+  const pttSpeakerId         = usePTTStore((s) => s.speakerId)
+  const pttAvailable         = usePTTAvailable()
+  const pttCanSpeak          = usePTTCanSpeak()
+  const [pttHolding, setPttHolding]   = useState(false)
+  const [pttExpanded, setPttExpanded] = useState(false)
+
+  const handlePTTDown = useCallback(async () => {
+    if (!pttCanSpeak || !pttAvailable || pttHolding) return
+    try {
+      await startSpeaking()
+      setPttHolding(true)
+    } catch { /* ptt.ts already toasts */ }
+  }, [pttCanSpeak, pttAvailable, pttHolding])
+
+  const handlePTTUp = useCallback(async () => {
+    if (!pttHolding) return
+    try { await stopSpeaking() } catch { /* silent */ } finally { setPttHolding(false) }
+  }, [pttHolding])
 
   // Passive context capture for feedback reports
   useFeedbackCapture()
@@ -779,6 +807,62 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
           {user && !isLocked && (
             <>
               <div className="fixed bottom-4 right-4 z-40 flex flex-col items-end gap-2">
+
+                {/* ── Floating PTT button — hold to transmit on any page ─── */}
+                {pttAvailable && location.pathname !== '/radio' && (
+                  <div className="flex flex-col items-end gap-1">
+                    {/* Expanded status strip — shown when channel is active */}
+                    {pttExpanded && (
+                      <div className="flex items-center gap-2 rounded-full bg-slate-800 dark:bg-slate-900 text-white text-[11px] font-medium px-3 py-1 shadow-lg">
+                        <span className={cn('w-2 h-2 rounded-full shrink-0', {
+                          'bg-green-400 shadow-[0_0_5px_#4ade80]': pttConnectionStatus === 'connected',
+                          'bg-yellow-400 animate-pulse': pttConnectionStatus === 'connecting' || pttConnectionStatus === 'reconnecting',
+                          'bg-red-500': pttConnectionStatus === 'error',
+                          'bg-slate-500': pttConnectionStatus === 'disconnected',
+                        })} />
+                        <span className="truncate max-w-[120px]">{pttChannelName ?? 'Radio'}</span>
+                        {pttSpeakerId && !pttIsSpeaking && (
+                          <span className="text-green-300 truncate max-w-[80px]">📡 {pttSpeakerName ?? 'RX'}</span>
+                        )}
+                        <button
+                          onClick={() => navigate('/radio')}
+                          className="ml-1 text-slate-300 hover:text-white transition-colors"
+                          title="Open full radio console"
+                        >
+                          <Radio className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Hold-to-talk button */}
+                    <button
+                      onMouseDown={handlePTTDown}
+                      onMouseUp={handlePTTUp}
+                      onMouseLeave={handlePTTUp}
+                      onTouchStart={(e) => { e.preventDefault(); handlePTTDown() }}
+                      onTouchEnd={(e) => { e.preventDefault(); handlePTTUp() }}
+                      onContextMenu={(e) => e.preventDefault()}
+                      onClick={() => setPttExpanded(v => !v)}
+                      title={pttHolding ? 'Transmitting…' : (pttCanSpeak ? 'Hold to Talk' : 'PTT Ready (select channel on /radio)')}
+                      className={cn(
+                        'flex items-center justify-center rounded-full shadow-xl transition-all select-none',
+                        'h-14 w-14',
+                        pttHolding
+                          ? 'bg-red-600 scale-110 shadow-[0_0_24px_rgba(220,38,38,0.7)] ring-4 ring-red-400/50'
+                          : pttCanSpeak
+                            ? 'bg-blue-600 hover:bg-blue-700 active:scale-105'
+                            : 'bg-slate-600 opacity-70 cursor-not-allowed',
+                      )}
+                      aria-label={pttHolding ? 'Transmitting' : 'Push to Talk'}
+                    >
+                      {pttHolding
+                        ? <MicOff className="h-6 w-6 text-white animate-pulse" />
+                        : <Mic className="h-6 w-6 text-white" />
+                      }
+                    </button>
+                  </div>
+                )}
+
                 <button
                   onClick={() => navigate('/team-chat')}
                   title="Open Team Chat"
