@@ -1455,28 +1455,48 @@ app.post('/chat', inferenceRateLimit, requireInferenceAuth, async (req, res) => 
     const message = req.body?.message;
     const history = Array.isArray(req.body?.history) ? req.body.history : [];
     const context = req.body?.context && typeof req.body.context === 'object' ? req.body.context : {};
+    // Optional caller-supplied system prompt override (used by Edge Functions like process-tender-document)
+    const systemPromptOverride = typeof req.body?.system_prompt === 'string' && req.body.system_prompt.trim()
+      ? req.body.system_prompt.trim()
+      : null;
 
     if (typeof message !== 'string' || !message.trim()) {
       return res.status(400).json({ error: 'message must be a non-empty string' });
     }
 
-    const trainingReply = answerFromTrainingIntel(message);
-    if (trainingReply) {
-      return res.json({
-        success: true,
-        provider: 'training-intel',
-        fallback: false,
-        message: trainingReply,
-      });
+    // Skip training-intel shortcut when caller supplies a custom system prompt
+    if (!systemPromptOverride) {
+      const trainingReply = answerFromTrainingIntel(message);
+      if (trainingReply) {
+        return res.json({
+          success: true,
+          provider: 'training-intel',
+          fallback: false,
+          message: trainingReply,
+        });
+      }
     }
 
     if (CHAT_PROVIDER === 'ollama') {
-      const reply = await generateChatReplyWithOllama(message, history, context);
+      const reply = await generateChatReplyWithOllama(message, history, context, systemPromptOverride);
       return res.json({
         success: true,
         provider: reply.provider,
         fallback: reply.fallback,
         message: reply.text,
+        text: reply.text,
+      });
+    }
+
+    // OpenAI fallback when chat provider is openai and key is set
+    if (CHAT_PROVIDER === 'openai' && OPENAI_ENABLED && systemPromptOverride) {
+      const reply = await generateChatReplyWithOpenAI(systemPromptOverride, message, history);
+      return res.json({
+        success: true,
+        provider: reply.provider,
+        fallback: reply.fallback,
+        message: reply.text,
+        text: reply.text,
       });
     }
 
@@ -1485,10 +1505,323 @@ app.post('/chat', inferenceRateLimit, requireInferenceAuth, async (req, res) => 
       provider: 'heuristic',
       fallback: false,
       message: generateHeuristicChatReply(message, context),
+      text: generateHeuristicChatReply(message, context),
     });
   } catch (error) {
     console.error('Chat endpoint error:', error);
     return res.status(500).json({ error: 'Chat failed', message: error.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Tender Document Generation — POST /tender/generate
+//
+// Multi-model cascade: Ollama (primary) → OpenAI (fallback) → Heuristic template
+//
+// Body: {
+//   generation_type: 'application' | 'response',   // what to generate
+//   context: {
+//     extracted_text: string,                       // raw tender text
+//     issuing_body: string,
+//     key_services: string[],
+//     key_requirements: string[],
+//     key_dates: Array<{label, date}>,
+//     reference_number: string,
+//     due_date: string,
+//     document_type: string,
+//   },
+//   organization_context: {
+//     name: string,          // e.g. "Iron Eagle Security"
+//     psa_licence: string,   // PSA licence number
+//     nzbn: string,          // NZBN
+//   }
+// }
+//
+// Response: {
+//   success: true,
+//   provider: 'ollama' | 'openai' | 'heuristic',
+//   model_used: string,
+//   sections: {
+//     cover_letter, executive_summary, services_offered,
+//     pricing_notes, team_qualifications, health_and_safety, declaration
+//   }
+// }
+// ---------------------------------------------------------------------------
+
+const TENDER_GEN_TIMEOUT_MS = Number(process.env.TENDER_GEN_TIMEOUT_MS || 90000);
+
+function buildTenderSystemPrompt(generationType, context, orgContext) {
+  const orgName = orgContext?.name || 'Iron Eagle Security';
+  const isResponse = generationType === 'response';
+  const docLabel = isResponse ? 'TENDER RESPONSE' : 'TENDER APPLICATION';
+
+  const servicesBlock = Array.isArray(context.key_services) && context.key_services.length
+    ? context.key_services.map((s, i) => `${i + 1}. ${s}`).join('\n')
+    : 'Not yet extracted — infer from the document text.';
+
+  const requirementsBlock = Array.isArray(context.key_requirements) && context.key_requirements.length
+    ? context.key_requirements.map((r) => `- ${r}`).join('\n')
+    : 'Not yet extracted — infer from the document text.';
+
+  return `You are Bob, the AI procurement assistant for ${orgName}, a licensed security company based in New Zealand.
+Your task is to generate a professional ${docLabel} document in NZ English.
+
+ORGANISATION CONTEXT:
+- Company: ${orgName}
+- PSA Licence: ${orgContext?.psa_licence || '[PSA LICENCE NUMBER]'}
+- NZBN: ${orgContext?.nzbn || '[NZBN]'}
+- Key differentiator: FieldOps Manager — NZ-built patrol management system with GPS tracking, automated breach detection, ALPR, welfare checks, and live compliance dashboards.
+
+TENDER CONTEXT:
+- Issuing body: ${context.issuing_body || 'Unknown'}
+- Reference: ${context.reference_number || 'N/A'}
+- Due date: ${context.due_date || 'See tender document'}
+- Services being tendered:
+${servicesBlock}
+- Key requirements / evaluation criteria:
+${requirementsBlock}
+
+GENERATION INSTRUCTIONS:
+${isResponse ? `
+You are generating a TENDER RESPONSE — ${orgName} is responding to an invitation to tender.
+Frame content as fulfilling each requirement. Use the tender's own numbering/structure for services_offered.
+` : `
+You are generating a TENDER APPLICATION — ${orgName} is expressing interest and pitching to be shortlisted.
+Frame content as a compelling pitch. Emphasise unique capability (FieldOps Manager, PSA compliance, NZ experience).
+`}
+
+CRITICAL RULES:
+1. Use professional NZ English throughout. Use "organisation" not "organization". Use NZD for prices.
+2. Do NOT fabricate specific CoA numbers, registration numbers, or insurance policy numbers — use [PLACEHOLDER] instead.
+3. Do NOT fabricate specific dollar amounts — use [RATE] or [PRICE] placeholders the user will replace.
+4. For pricing_notes, generate a markdown pricing TABLE with columns: Service | Unit | Rate (excl. GST) | Notes. Use [RATE] for all amounts.
+5. The declaration section MUST include the NZ Commerce Act collusion/anti-competitive declaration.
+6. Keep each section focused: cover_letter ≤ 300 words, executive_summary ≤ 400 words, other sections as needed.
+7. Match the services_offered section sub-headings to the actual service items listed above.
+8. Highlight FieldOps Manager capabilities (GPS patrol, welfare checks, breach detection, live reports) where relevant.
+
+You MUST respond with ONLY a valid JSON object (no markdown, no code fences) with exactly these keys:
+{
+  "cover_letter": "...",
+  "executive_summary": "...",
+  "services_offered": "...",
+  "pricing_notes": "...",
+  "team_qualifications": "...",
+  "health_and_safety": "...",
+  "declaration": "..."
+}`;
+}
+
+function buildTenderUserPrompt(context) {
+  const excerpt = (context.extracted_text || '').slice(0, 8000);
+  return excerpt
+    ? `Here is the source tender document text for context:\n\n---\n${excerpt}\n---\n\nNow generate the ${context.generation_type || 'response'} document sections as a JSON object.`
+    : 'Generate the document sections as a JSON object based on the context above.';
+}
+
+function heuristicTenderSections(generationType, context, orgContext) {
+  const orgName = orgContext?.name || 'Iron Eagle Security';
+  const issuer = context.issuing_body || '[Issuing Body]';
+  const ref = context.reference_number || '[Reference]';
+  const due = context.due_date || '[Due Date]';
+  const services = Array.isArray(context.key_services) && context.key_services.length
+    ? context.key_services
+    : ['[Service 1]', '[Service 2]'];
+  const isResponse = generationType === 'response';
+
+  const servicesOffered = services.map((svc, i) =>
+    `${i + 1}. ${svc}\n\n${orgName} is fully equipped to provide this service. Our officers are PSA-licensed, trained to the required standard, and supported by the FieldOps Manager platform which provides real-time GPS tracking, welfare check monitoring, and automated compliance reporting.\n`
+  ).join('\n');
+
+  const pricingRows = services.map((svc) =>
+    `| ${svc} | Hour | [RATE] | + GST |`
+  ).join('\n');
+
+  const collusionDecl = 'We declare that this submission has been prepared without collusion or communication with any other tenderer, and that no arrangement or understanding exists between this organisation and any other party that would restrict or limit competitive tendering for this contract, as required under the New Zealand Commerce Act 1986.';
+
+  return {
+    cover_letter: `Dear ${issuer} Procurement Team,\n\nRe: ${ref} — ${isResponse ? 'Tender Response' : 'Expression of Interest'}\n\n${orgName} is pleased to ${isResponse ? 'submit this response to' : 'express our interest in'} the above tender. We are a licensed New Zealand security company with deep experience in the services described.\n\nWe believe ${orgName} is uniquely positioned to deliver exceptional outcomes through our FieldOps Manager platform — providing live GPS patrol monitoring, automated breach detection, welfare check compliance, and transparent reporting.\n\nWe look forward to the opportunity to demonstrate our capability.\n\nYours sincerely,\n[Authorised Signatory]\n[Title]\n${orgName}\nDate: ${due}`,
+
+    executive_summary: `${orgName} is a New Zealand-based, PSA-licensed security services provider. We are ${isResponse ? 'responding to' : 'applying for'} ${ref} issued by ${issuer}.\n\nWe offer the following services as required: ${services.join(', ')}.\n\nOur key competitive advantage is the FieldOps Manager system — a purpose-built NZ patrol management platform providing:\n- Real-time GPS officer tracking\n- Automated welfare checks and lone-worker protection\n- ALPR vehicle scanning and compliance breach detection\n- Instant incident reporting with photo evidence\n- Live compliance dashboards for council oversight\n\nAll officers hold current PSA Certificates of Approval. Our H&S management system complies with the Health & Safety at Work Act 2015.`,
+
+    services_offered: servicesOffered,
+
+    pricing_notes: `All prices are in New Zealand Dollars and are exclusive of GST unless otherwise stated.\n\n| Service | Unit | Rate (excl. GST) | Notes |\n|---------|------|-----------------|-------|\n${pricingRows}\n| Call-out fee | Per call | [RATE] | Weekday |\n| Call-out fee | Per call | [RATE] | Weekend / Public Holiday |\n| Management & Reporting | Hour | [RATE] | |\n\nMinimum engagement: [X] hours per call-out.\nPublic holiday loading: [X]%.\nNote: All rates include officer travel within the defined service area.`,
+
+    team_qualifications: `All ${orgName} security officers hold a current Certificate of Approval (CoA) issued by the New Zealand Police under the Private Security Personnel and Private Investigators Act 2010 (PSA). ${orgName} holds PSA Licence Number [PSA LICENCE NUMBER].\n\nTraining and qualifications:\n- PSA CoA (mandatory for all officers)\n- First Aid Certificate (current)\n- Noise control training [where applicable]\n- Freedom Camping Act 2011 enforcement training\n- FieldOps Manager platform certified\n\nSubcontracting: Any subcontractors employed will hold current PSA CoA and will be inducted into our H&S management system prior to commencement.`,
+
+    health_and_safety: `${orgName} operates a comprehensive Health & Safety management system in compliance with the Health & Safety at Work Act 2015 (HSWA).\n\nAs a PCBU (Person Conducting a Business or Undertaking), ${orgName}:\n- Maintains a signed H&S policy statement\n- Operates a documented hazard and risk register\n- Requires all officers to complete pre-shift safety checks\n- Implements a welfare check system for lone workers (automated via FieldOps Manager — officers check in at regular intervals; escalation alerts are triggered if a check-in is missed)\n- Conducts H&S inductions for all staff and subcontractors\n- Reports and investigates all incidents and near-misses\n\nH&S accreditation and safety plan documentation is available on request.`,
+
+    declaration: `${collusionDecl}\n\nAccuracy declaration: The information provided in this submission is accurate and complete to the best of our knowledge. ${orgName} accepts that any material misstatement may result in disqualification.\n\nSignatory: ___________________________\nName: [Name]\nTitle: [Title]\nDate: ${due}`,
+  };
+}
+
+async function generateTenderWithOllama(generationType, context, orgContext) {
+  if (!OLLAMA_ENABLED || !ollamaCircuitBreaker.allowRequest()) {
+    return null;
+  }
+
+  const systemPrompt = buildTenderSystemPrompt(generationType, context, orgContext);
+  const userPrompt = buildTenderUserPrompt({ ...context, generation_type: generationType });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TENDER_GEN_TIMEOUT_MS);
+
+  try {
+    recordEgressEvent('ollama', 'attempted', 'tender/generate');
+    const response = await safeFetch(`${OLLAMA_BASE_URL}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: OLLAMA_MODEL,
+        stream: false,
+        format: 'json',
+        options: { temperature: 0.4, num_predict: 4096 },
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+      }),
+    }, 'ollama');
+
+    if (!response.ok) {
+      ollamaCircuitBreaker.recordFailure(new Error(`HTTP ${response.status}`));
+      return null;
+    }
+
+    const payload = await response.json();
+    const rawContent = payload?.message?.content;
+    if (!rawContent || typeof rawContent !== 'string') return null;
+
+    let sections;
+    try {
+      const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
+      sections = JSON.parse(jsonMatch ? jsonMatch[0] : rawContent);
+    } catch {
+      ollamaCircuitBreaker.recordSuccess();
+      return null;
+    }
+
+    ollamaCircuitBreaker.recordSuccess();
+    return { sections, provider: 'ollama', model_used: OLLAMA_MODEL };
+  } catch (err) {
+    ollamaCircuitBreaker.recordFailure(err);
+    console.warn('⚠️ Tender generation via Ollama failed:', err.message);
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function generateChatReplyWithOpenAI(systemPrompt, userMessage, history = []) {
+  if (!OPENAI_ENABLED) {
+    return { provider: 'heuristic', text: 'OpenAI is not configured.', fallback: true };
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS);
+  try {
+    recordEgressEvent('openai', 'attempted', 'chat/openai');
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      ...history.slice(-12).map((m) => ({ role: m?.role === 'assistant' ? 'assistant' : 'user', content: String(m?.content || '') })),
+      { role: 'user', content: String(userMessage || '') },
+    ];
+    const response = await safeFetch(`${OPENAI_BASE_URL}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_API_KEY}` },
+      signal: controller.signal,
+      body: JSON.stringify({ model: OPENAI_MODEL, temperature: 0.4, messages }),
+    }, 'openai');
+    if (!response.ok) return { provider: 'heuristic', text: '', fallback: true };
+    const payload = await response.json();
+    const text = payload?.choices?.[0]?.message?.content || '';
+    return { provider: 'openai', text, fallback: false };
+  } catch (err) {
+    console.warn('⚠️ OpenAI chat failed:', err.message);
+    return { provider: 'heuristic', text: '', fallback: true };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function generateTenderWithOpenAI(generationType, context, orgContext) {
+  if (!OPENAI_ENABLED) return null;
+  const systemPrompt = buildTenderSystemPrompt(generationType, context, orgContext);
+  const userPrompt = buildTenderUserPrompt({ ...context, generation_type: generationType });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TENDER_GEN_TIMEOUT_MS);
+
+  try {
+    recordEgressEvent('openai', 'attempted', 'tender/generate');
+    const response = await safeFetch(`${OPENAI_BASE_URL}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_API_KEY}` },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        temperature: 0.4,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+      }),
+    }, 'openai');
+
+    if (!response.ok) {
+      console.warn(`⚠️ OpenAI tender generation returned ${response.status}`);
+      return null;
+    }
+    const payload = await response.json();
+    const rawContent = payload?.choices?.[0]?.message?.content;
+    if (!rawContent) return null;
+
+    let sections;
+    try {
+      sections = JSON.parse(rawContent);
+    } catch {
+      return null;
+    }
+    return { sections, provider: 'openai', model_used: OPENAI_MODEL };
+  } catch (err) {
+    console.warn('⚠️ Tender generation via OpenAI failed:', err.message);
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+app.post('/tender/generate', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const generationType = req.body?.generation_type === 'application' ? 'application' : 'response';
+    const context = req.body?.context && typeof req.body.context === 'object' ? req.body.context : {};
+    const organizationContext = req.body?.organization_context && typeof req.body.organization_context === 'object'
+      ? req.body.organization_context
+      : {};
+
+    // 1st: try Ollama
+    const ollamaResult = await generateTenderWithOllama(generationType, context, organizationContext);
+    if (ollamaResult) {
+      return res.json({ success: true, ...ollamaResult });
+    }
+
+    // 2nd: try OpenAI
+    const openaiResult = await generateTenderWithOpenAI(generationType, context, organizationContext);
+    if (openaiResult) {
+      return res.json({ success: true, ...openaiResult });
+    }
+
+    // 3rd: heuristic template
+    const heuristicSections = heuristicTenderSections(generationType, context, organizationContext);
+    return res.json({
+      success: true,
+      provider: 'heuristic',
+      model_used: 'template',
+      sections: heuristicSections,
+    });
+  } catch (error) {
+    console.error('Tender generate endpoint error:', error);
+    return res.status(500).json({ error: 'Tender generation failed', message: error.message });
   }
 });
 
