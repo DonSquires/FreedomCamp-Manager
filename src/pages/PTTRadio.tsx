@@ -49,6 +49,13 @@ import { Switch } from '@/components/ui/switch'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Slider } from '@/components/ui/slider'
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet'
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -74,6 +81,7 @@ import {
   Play,
   Signal,
   PhoneOff,
+  Menu,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
@@ -276,6 +284,7 @@ export default function PTTRadio() {
   const [currentTxStart, setCurrentTxStart] = useState<Date | null>(null)
   const [liveTxSeconds, setLiveTxSeconds] = useState(0)
   const [showNotificationHint, setShowNotificationHint] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const pttButtonRef = useRef<HTMLButtonElement>(null)
   const scanTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -735,6 +744,136 @@ export default function PTTRadio() {
 
         {/* ── Top status bar ──────────────────────────────── */}
         <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800 shrink-0 flex-wrap gap-2">
+          {/* Mobile hamburger */}
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className="md:hidden h-9 w-9 rounded-lg border-slate-700 bg-slate-800 text-slate-200"
+                aria-label="Open channel and settings menu"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-[92vw] max-w-sm bg-slate-950 border-slate-800 text-slate-100 p-0">
+              <SheetHeader className="px-4 py-3 border-b border-slate-800">
+                <SheetTitle className="text-slate-100 text-sm uppercase tracking-widest">Radio Menu</SheetTitle>
+              </SheetHeader>
+
+              <div className="h-full flex flex-col">
+                <div className="px-3 pt-3 pb-1.5 shrink-0">
+                  <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Channels</div>
+                </div>
+                <ScrollArea className="flex-1 px-2">
+                  <div className="space-y-1.5 pb-3">
+                    {loadingChannels ? (
+                      <div className="flex justify-center py-8">
+                        <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
+                      </div>
+                    ) : (
+                      channels.map((ch) => {
+                        const isActive = activeChannel?.id === ch.id
+                        const isEmergencyCh = ch.channel_type === 'emergency'
+                        return (
+                          <button
+                            key={`mobile-${ch.id}`}
+                            className={`w-full flex items-center gap-2.5 px-3 py-3 rounded-lg text-left transition-all ${
+                              isActive
+                                ? 'bg-slate-700 shadow-[0_0_12px_rgba(59,130,246,0.3)]'
+                                : 'bg-slate-800/60 hover:bg-slate-800'
+                            } ${isEmergencyCh ? 'border border-red-800' : 'border border-transparent'}`}
+                            style={isActive ? { borderColor: ch.color, boxShadow: `0 0 12px ${ch.color}33` } : {}}
+                            onClick={() => {
+                              handleChannelSelect(ch)
+                              setMobileMenuOpen(false)
+                            }}
+                          >
+                            <div className="flex flex-col items-center justify-center w-9 h-9 rounded bg-slate-900/80 shrink-0">
+                              <span className="text-[9px] text-slate-500 uppercase leading-tight">CH</span>
+                              <span className="text-base font-bold leading-tight" style={{ color: ch.color }}>
+                                {isEmergencyCh ? '🚨' : ch.channel_number}
+                              </span>
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-xs font-bold text-white truncate tracking-wide">{ch.name.toUpperCase()}</div>
+                              {ch.description && (
+                                <div className="text-[10px] text-slate-500 truncate">{ch.description}</div>
+                              )}
+                            </div>
+                            {isActive && (
+                              <div className="ml-auto w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: ch.color }} />
+                            )}
+                          </button>
+                        )
+                      })
+                    )}
+                  </div>
+                </ScrollArea>
+
+                <div className="border-t border-slate-800 px-3 py-2 shrink-0 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs text-slate-400">
+                    <Scan className="h-3.5 w-3.5" />
+                    Scanner
+                  </div>
+                  <Switch
+                    checked={scanMode}
+                    onCheckedChange={(v) => { setScanMode(v); if (!v && activeChannel) connectToChannel(activeChannel) }}
+                    className="data-[state=checked]:bg-yellow-500"
+                  />
+                </div>
+
+                <div className="border-t border-slate-800 p-4 space-y-4 shrink-0">
+                  <div className="text-xs text-slate-400 uppercase tracking-widest font-semibold">Settings</div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm text-slate-200">VOX Mode</div>
+                      <div className="text-xs text-slate-500">Voice-activated transmission</div>
+                    </div>
+                    <Switch
+                      checked={voxEnabled}
+                      onCheckedChange={(v) => {
+                        setVoxEnabled(v)
+                        setInputMode(v ? 'vox' : 'ptt')
+                      }}
+                      className="data-[state=checked]:bg-green-600"
+                    />
+                  </div>
+
+                  {voxEnabled && (
+                    <div>
+                      <div className="flex justify-between text-xs text-slate-400 mb-1">
+                        <span>VOX Threshold</span>
+                        <span>{voxThreshold}%</span>
+                      </div>
+                      <Slider
+                        value={[voxThreshold]}
+                        onValueChange={([v]) => setVoxThreshold(v)}
+                        min={5} max={80} step={5}
+                        className="w-full"
+                      />
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm text-slate-200">Bluetooth PTT</div>
+                      <div className="text-xs text-slate-500">Use headset PTT button</div>
+                    </div>
+                    <Switch
+                      checked={usePTTStore.getState().bluetoothEnabled}
+                      onCheckedChange={(v) => {
+                        usePTTStore.getState().setBluetoothEnabled(v)
+                        if (v) initBluetoothPTT()
+                      }}
+                      className="data-[state=checked]:bg-blue-600"
+                    />
+                  </div>
+                </div>
+              </div>
+            </SheetContent>
+          </Sheet>
+
           {/* Left: callsign + org */}
           <div className="flex items-center gap-3">
             <Radio className="h-5 w-5 text-blue-400" />
@@ -817,7 +956,7 @@ export default function PTTRadio() {
         <div className="flex-1 flex gap-0 overflow-hidden">
 
           {/* ── LEFT: Channel grid ────────────────────────── */}
-          <div className="w-64 shrink-0 flex flex-col border-r border-slate-800 bg-slate-900/50">
+          <div className="hidden md:flex w-64 shrink-0 flex-col border-r border-slate-800 bg-slate-900/50">
             <div className="px-3 pt-3 pb-1.5 shrink-0">
               <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Channels</div>
             </div>
@@ -879,7 +1018,7 @@ export default function PTTRadio() {
           </div>
 
           {/* ── CENTER: PTT controls ─────────────────────── */}
-          <div className="flex-1 flex flex-col items-center justify-center gap-6 px-6 bg-slate-950 relative overflow-auto py-4">
+          <div className="flex-1 flex flex-col items-center justify-center gap-6 px-3 md:px-6 bg-slate-950 relative overflow-auto py-4">
 
             {/* Active channel header */}
             {activeChannel && (
@@ -999,7 +1138,7 @@ export default function PTTRadio() {
                     <Button
                       variant="outline"
                       size="icon"
-                      className="h-11 w-11 rounded-xl border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300"
+                      className="hidden md:inline-flex h-11 w-11 rounded-xl border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300"
                       onClick={() => setShowSettings(!showSettings)}
                     >
                       <Settings className="h-5 w-5" />
@@ -1082,7 +1221,7 @@ export default function PTTRadio() {
           </div>
 
           {/* ── RIGHT: Presence + TX log ─────────────────── */}
-          <div className="w-72 shrink-0 flex flex-col border-l border-slate-800 bg-slate-900/50">
+          <div className="hidden lg:flex w-72 shrink-0 flex-col border-l border-slate-800 bg-slate-900/50">
 
             {/* Units online */}
             <div className="border-b border-slate-800 p-3 shrink-0">
