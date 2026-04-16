@@ -26,7 +26,7 @@ const PTT_SERVER_URL =
 const PROXY_SECRET = Deno.env.get('PTT_PROXY_SECRET') || ''
 
 function normalizeBaseUrl(value: string): string {
-  return value.replace(/\/+$/, '')
+  return value.trim().replace(/\/+$/, '')
 }
 
 function toWsUrl(baseHttpUrl: string): string {
@@ -253,22 +253,43 @@ Deno.serve(async (req) => {
 
     // Call PTT server to mint token
     const normalizedPttServerUrl = normalizeBaseUrl(PTT_SERVER_URL)
+    if (!normalizedPttServerUrl.startsWith('http://') && !normalizedPttServerUrl.startsWith('https://')) {
+      return new Response(
+        JSON.stringify({
+          error: 'PTT server URL invalid',
+          message: 'PTT_SERVER_URL must start with http:// or https://',
+        }),
+        { status: 503, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      )
+    }
 
-    const mintResponse = await fetch(`${normalizedPttServerUrl}/api/token/mint`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-proxy-secret': PROXY_SECRET,
-      },
-      body: JSON.stringify({
-        userId: user.id,
-        userRole: profile.role,
-        organizationId: effectiveOrganizationId,
-        channelScope,
-        firstName: profile.first_name,
-        lastName: profile.last_name,
-      }),
-    })
+    let mintResponse: Response
+    try {
+      mintResponse = await fetch(`${normalizedPttServerUrl}/api/token/mint`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-proxy-secret': PROXY_SECRET,
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          userRole: profile.role,
+          organizationId: effectiveOrganizationId,
+          channelScope,
+          firstName: profile.first_name,
+          lastName: profile.last_name,
+        }),
+      })
+    } catch (fetchError: any) {
+      console.error('PTT server fetch failed:', fetchError)
+      return new Response(
+        JSON.stringify({
+          error: 'PTT server unreachable',
+          message: fetchError?.message || 'Failed to reach PTT server mint endpoint',
+        }),
+        { status: 502, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      )
+    }
 
     if (!mintResponse.ok) {
       const errorText = await mintResponse.text()
@@ -283,10 +304,24 @@ Deno.serve(async (req) => {
       )
     }
 
-    const tokenData = await mintResponse.json()
+    let tokenData: any
+    try {
+      tokenData = await mintResponse.json()
+    } catch (parseError: any) {
+      const fallbackBody = await mintResponse.text().catch(() => '')
+      console.error('PTT server JSON parse failed:', parseError, fallbackBody)
+      return new Response(
+        JSON.stringify({
+          error: 'PTT server response invalid',
+          message: 'PTT server did not return valid JSON for token mint',
+          details: fallbackBody.slice(0, 200),
+        }),
+        { status: 502, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      )
+    }
 
     // Upsert presence record
-    await supabase
+    const { error: presenceError } = await supabase
       .from('ptt_presence')
       .upsert({
         user_id: user.id,
@@ -296,6 +331,11 @@ Deno.serve(async (req) => {
         last_seen_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id' })
+
+    if (presenceError) {
+      // Presence cache should never block radio token issuance.
+      console.warn('PTT presence upsert failed:', presenceError)
+    }
 
     return new Response(
       JSON.stringify({
@@ -307,7 +347,7 @@ Deno.serve(async (req) => {
   } catch (error: any) {
     console.error('PTT token error:', error)
     return new Response(
-      JSON.stringify({ error: 'Internal error', message: error.message }),
+      JSON.stringify({ error: 'Internal error', message: error?.message || 'Unexpected edge function failure' }),
       { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     )
   }
