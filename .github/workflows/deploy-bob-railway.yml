@@ -286,96 +286,41 @@ jobs:
             fi
           }
 
-          attempt_project_cli_resolution() {
-            local project_id="$1"
-            [ -z "$project_id" ] && return 1
-
-            echo "::warning::Attempting Railway CLI service discovery for project $project_id."
-            if ! railway link --project "$project_id" --environment "$DEPLOY_ENVIRONMENT" > /tmp/railway-link.log 2>&1; then
-              echo "::warning::Railway link failed for project-scoped discovery."
-              sed -n '1,3p' /tmp/railway-link.log || true
-              return 1
-            fi
-
-            SERVICE_STATUS_JSON=$(railway service status --all --json 2>/tmp/railway-service-status.err || true)
-            if [ -z "$SERVICE_STATUS_JSON" ]; then
-              echo "::warning::Railway service status returned no JSON output for CLI discovery."
-              sed -n '1,3p' /tmp/railway-service-status.err || true
-              return 1
-            fi
-
-            CLI_RESOLVED_SERVICE_ID=$(node -e '
-              const data = JSON.parse(process.argv[1] || "{}");
-              const nodes = [];
-              const seen = new Set();
-              const pushNode = (obj) => {
-                if (!obj || typeof obj !== "object") return;
-                const id = String(obj.id || obj.serviceId || obj.service_id || "").trim();
-                const name = String(obj.name || obj.serviceName || obj.service_name || "").trim();
-                if (!id || seen.has(id)) return;
-                seen.add(id);
-                nodes.push({ id, name });
-              };
-              const walk = (v) => {
-                if (Array.isArray(v)) {
-                  for (const item of v) walk(item);
-                  return;
-                }
-                if (!v || typeof v !== "object") return;
-                pushNode(v);
-                for (const key of Object.keys(v)) walk(v[key]);
-              };
-              walk(data);
-
-              const scored = nodes.map((n) => {
-                const name = String(n.name || "").toLowerCase();
-                const score = (
-                  (name.includes("bob") ? 10 : 0) +
-                  (name.includes("inference") ? 6 : 0) +
-                  (name.includes("orc") ? 4 : 0) -
-                  (name.includes("ollama") ? 10 : 0)
-                );
-                return { ...n, score };
-              }).sort((a, b) => b.score - a.score);
-
-              const best = scored.find((s) => s.score > 0) || scored.find((s) => !String(s.name || "").toLowerCase().includes("ollama"));
-              process.stdout.write(best?.id || "");
-            ' "$SERVICE_STATUS_JSON" || true)
-
-            if [ -n "$CLI_RESOLVED_SERVICE_ID" ] && [ "$CLI_RESOLVED_SERVICE_ID" != "$RAILWAY_SERVICE_ID" ]; then
-              echo "::warning::CLI discovery found candidate service ID; retrying deployment with project scope."
-              if deploy_selector "$CLI_RESOLVED_SERVICE_ID" "$project_id"; then
-                exit 0
-              fi
-            fi
-
-            return 1
-          }
+          # Default service name — used when RAILWAY_BOB_SERVICE_ID is stale/wrong.
+          # Project tokens are already scoped to the project, so --project is not
+          # required (and "railway link --project" requires an account token which
+          # would fail with "Unauthorized" for project-scoped tokens).
+          DEFAULT_BOB_SERVICE_NAME="Bob Assistant"
+          SERVICE_NAME_FALLBACK="${RAILWAY_BOB_SERVICE_NAME:-$DEFAULT_BOB_SERVICE_NAME}"
 
           if deploy_selector "$SERVICE_TO_DEPLOY" "$PROJECT_TO_QUERY" 2>&1 | tee "$DEPLOY_LOG"; then
             exit 0
           fi
 
           if grep -Eqi "Service not found|Project not found" "$DEPLOY_LOG"; then
-            echo "::warning::Configured RAILWAY_BOB_SERVICE_ID was not found. Attempting project-based service auto-resolution."
+            echo "::warning::Configured RAILWAY_BOB_SERVICE_ID was not found."
+            echo "::warning::Entering via Bob's gate — deploying by service name using project token (no --project flag)."
 
-            if attempt_project_cli_resolution "$PROJECT_TO_QUERY"; then
+            # Attempt 1: service name only — project token is already scoped to the
+            # correct project, so --project is neither needed nor supported here.
+            echo "::warning::Trying: railway up --service '$SERVICE_NAME_FALLBACK' (project-token, no --project)"
+            if railway up --service "$SERVICE_NAME_FALLBACK" --environment "$DEPLOY_ENVIRONMENT" --detach; then
+              echo "✅ Bob deploy succeeded via Bob's gate (service name, project token)"
               exit 0
             fi
 
-            if [ -z "${RAILWAY_BOB_SERVICE_NAME:-}" ]; then
-              echo "::error::RAILWAY_BOB_SERVICE_ID is invalid and no deterministic fallback is configured."
-              echo "::error::Set RAILWAY_BOB_SERVICE_NAME to the exact Bob service name in the target project."
-              exit 1
+            # Attempt 2: with explicit project ID in case an account-level token is in use.
+            if [ -n "$PROJECT_TO_QUERY" ]; then
+              echo "::warning::Trying: railway up --project \$PROJECT_TO_QUERY --service '$SERVICE_NAME_FALLBACK'"
+              if railway up --project "$PROJECT_TO_QUERY" --service "$SERVICE_NAME_FALLBACK" --environment "$DEPLOY_ENVIRONMENT" --detach; then
+                echo "✅ Bob deploy succeeded via service name with project scope"
+                exit 0
+              fi
             fi
 
-            echo "::warning::Retrying deployment with explicit RAILWAY_BOB_SERVICE_NAME selector."
-            if deploy_selector "$RAILWAY_BOB_SERVICE_NAME" "$PROJECT_TO_QUERY"; then
-              echo "✅ Bob deploy succeeded using RAILWAY_BOB_SERVICE_NAME"
-              exit 0
-            fi
-
-            echo "::error::Unable to resolve Bob service using explicit ID, CLI project discovery, or RAILWAY_BOB_SERVICE_NAME."
+            echo "::error::Unable to deploy Bob. Tried service ID and name '$SERVICE_NAME_FALLBACK'."
+            echo "::error::Verify RAILWAY_BOB_TOKEN has deploy access to the Bob Inference project."
+            echo "::error::If the service has been renamed, set RAILWAY_BOB_SERVICE_NAME to its exact Railway name."
             exit 1
           fi
 

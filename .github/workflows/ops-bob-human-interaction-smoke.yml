@@ -107,21 +107,30 @@ jobs:
             local label="$1"
             local out_file="inference-health-${label}.json"
             curl -sS -m 30 "$HEALTH_URL" > "$out_file" || true
-            echo "Health snapshot ($label):" | tee -a "$LOG_FILE"
-            cat "$out_file" | tee -a "$LOG_FILE"
+            # Redirect to stderr so this output is never captured when called
+            # inside a $() command substitution (e.g. inside retry_chat_prompt).
+            {
+              echo "Health snapshot ($label):"
+              cat "$out_file"
+            } | tee -a "$LOG_FILE" >&2
           }
 
           call_chat () {
             local prompt="$1"
+            # || true: curl exits non-zero on timeout (28) or connection error.
+            # With set -euo pipefail that would abort the whole step; we want to
+            # return an empty string instead and let retry_chat_prompt handle it.
             if [[ -n "${INFERENCE_API_KEY:-}" ]]; then
-              curl -sS -m 30 -X POST "$CHAT_URL" \
+              curl -sS -m 45 -X POST "$CHAT_URL" \
                 -H 'Content-Type: application/json' \
                 -H "x-inference-api-key: ${INFERENCE_API_KEY}" \
-                -d "{\"provider\":\"ollama\",\"message\":$(jq -Rn --arg p "$prompt" '$p')}"
+                -d "{\"provider\":\"ollama\",\"message\":$(jq -Rn --arg p "$prompt" '$p')}" \
+                || true
             else
-              curl -sS -m 30 -X POST "$CHAT_URL" \
+              curl -sS -m 45 -X POST "$CHAT_URL" \
                 -H 'Content-Type: application/json' \
-                -d "{\"provider\":\"ollama\",\"message\":$(jq -Rn --arg p "$prompt" '$p')}"
+                -d "{\"provider\":\"ollama\",\"message\":$(jq -Rn --arg p "$prompt" '$p')}" \
+                || true
             fi
           }
 
@@ -133,15 +142,31 @@ jobs:
 
             while [[ "$attempt" -le "$max_attempts" ]]; do
               resp="$(call_chat "$prompt")"
+
+              # Guard: empty response means curl timed out or returned an error.
+              if [[ -z "$resp" ]]; then
+                echo "Attempt ${attempt}/${max_attempts}: curl returned empty response (timeout or connection error)" | tee -a "$LOG_FILE" >&2
+                snapshot_health "attempt-${attempt}"
+                if [[ "$attempt" -lt "$max_attempts" ]]; then
+                  echo "Retrying..." | tee -a "$LOG_FILE" >&2
+                  sleep 5
+                fi
+                attempt=$((attempt + 1))
+                continue
+              fi
+
               local provider
               local fallback
               local message
-              provider="$(echo "$resp" | jq -r '.provider // empty')"
-              fallback="$(echo "$resp" | jq -r '.fallback // false')"
-              message="$(echo "$resp" | jq -r '.message // empty')"
+              # || echo "" prevents jq from exiting non-zero on non-JSON payloads.
+              provider="$(echo "$resp" | jq -r '.provider // empty' 2>/dev/null || echo "")"
+              fallback="$(echo "$resp" | jq -r '.fallback // false' 2>/dev/null || echo "false")"
+              message="$(echo "$resp" | jq -r '.message // empty' 2>/dev/null || echo "")"
 
-              echo "Attempt ${attempt}/${max_attempts}: provider=${provider:-<empty>} fallback=${fallback}" | tee -a "$LOG_FILE"
-              echo "Response: $resp" | tee -a "$LOG_FILE"
+              # Redirect diagnostics to stderr so they don't pollute the captured
+              # return value when retry_chat_prompt is called inside $().
+              echo "Attempt ${attempt}/${max_attempts}: provider=${provider:-<empty>} fallback=${fallback}" | tee -a "$LOG_FILE" >&2
+              echo "Response: $resp" | tee -a "$LOG_FILE" >&2
 
               if [[ -n "$message" && "$provider" == "$EXPECT_PROVIDER" && "$fallback" != "true" ]]; then
                 echo "$resp"
@@ -151,7 +176,7 @@ jobs:
               snapshot_health "attempt-${attempt}"
 
               if [[ "$attempt" -lt "$max_attempts" ]]; then
-                echo "Retrying after transient Ollama fallback..." | tee -a "$LOG_FILE"
+                echo "Retrying after transient Ollama fallback..." | tee -a "$LOG_FILE" >&2
                 sleep 5
               fi
 
