@@ -2,7 +2,6 @@ FROM alpine:3.20
 
 RUN apk add --no-cache coturn bash
 
-COPY turnserver.conf.template /etc/coturn/turnserver.conf.template
 COPY entrypoint.sh /usr/local/bin/turn-entrypoint.sh
 
 RUN chmod +x /usr/local/bin/turn-entrypoint.sh
