@@ -28,6 +28,8 @@
  * - POST /legal/check - Check a proposed action against NZ legal guardrails
  * - POST /assess/ptt - Diagnose PTT (Push-to-Talk) issues from symptom description
  * - POST /assess/platform - Diagnose infrastructure platform issues (Supabase, Railway, Vercel, etc.)
+ * - POST /infer/biosecurity - NZ biosecurity plant ID (Nassella neesiana / CNG) + density + checklist
+ * - POST /infer/smoke - NZ RMA smoke complaint assessment + prohibited materials + checklist
  * - GET  /platform/:key - Get Bob's knowledge about a specific platform
  * - GET  /platform/stack - Get full hybrid stack overview
  * - POST /ask-copilot - Queue a knowledge request for Copilot to research
@@ -74,6 +76,8 @@ const { checkLegalCompliance, getLegalFramework, getLegalDetail, AI_LEGAL_GUARDR
 const { getPlatformKnowledge, diagnosePlatformIssue, getHybridStackOverview, RAILWAY_SERVICES_AUDIT } = require('./lib/platform-knowledge');
 const { createKnowledgeRequestStore } = require('./lib/knowledge-requests');
 const { createCodeTaskStore } = require('./lib/code-tasks');
+const { identifyPlants, getWeatherForLocation: getBioWeather } = require('./lib/biosecurity-inference');
+const { assessSmoke } = require('./lib/smoke-inference');
 const {
   getTechStack, getProjectLayout, getBuildCommands, getCodePattern,
   getAllPatterns, getConventions, getCommonTask, getAllCommonTasks,
@@ -4264,6 +4268,160 @@ app.post('/infer/face', inferenceRateLimit, upload.single('photo'), requireInfer
   }
 });
 
+// ============================================================================
+// POST /infer/biosecurity — NZ Biosecurity plant identification + density
+//
+// Identifies NZ invasive plant species (primarily Nassella neesiana / Chilean
+// Needlegrass) from a photo or video. Bob uses OpenAI vision to pre-populate
+// the officer's on-scene checklist with species, density, evidence features
+// and recommended action.
+//
+// Body (multipart form OR JSON):
+//   photo (file) or image_base64 (string) — required
+//   video_frames_base64 (JSON array)       — optional: extracted video frames
+//   gps_lat, gps_lng (number)              — optional: GPS for weather + region
+//   context (JSON string)                  — optional: address, region
+//
+// Response: { success, species[], dominant_species, total_density_per_m2,
+//             checklist_prefill, recommended_action, weather, confidence, ... }
+// ============================================================================
+app.post('/infer/biosecurity', inferenceRateLimit, upload.single('photo'), requireInferenceAuth, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    // Support multipart (photo file) or JSON (image_base64)
+    let imageBase64 = null;
+    if (req.file) {
+      imageBase64 = req.file.buffer.toString('base64');
+    } else if (req.body?.image_base64) {
+      imageBase64 = String(req.body.image_base64);
+    } else {
+      return res.status(400).json({ error: 'No photo uploaded', hint: 'Send as multipart "photo" file or JSON "image_base64"' });
+    }
+
+    // Optional video frames
+    let extraFrames = [];
+    if (req.body?.video_frames_base64) {
+      try {
+        const parsed = typeof req.body.video_frames_base64 === 'string'
+          ? JSON.parse(req.body.video_frames_base64)
+          : req.body.video_frames_base64;
+        if (Array.isArray(parsed)) extraFrames = parsed;
+      } catch { /* ignore parse errors — proceed with single frame */ }
+    }
+
+    // GPS context
+    const gpsLat = req.body?.gps_lat ? parseFloat(req.body.gps_lat) : null;
+    const gpsLng = req.body?.gps_lng ? parseFloat(req.body.gps_lng) : null;
+    let contextObj = null;
+    if (req.body?.context) {
+      try { contextObj = JSON.parse(req.body.context); } catch { /* non-fatal */ }
+    }
+    const gpsContext = (gpsLat && gpsLng) ? { lat: gpsLat, lng: gpsLng, region: contextObj?.region } : null;
+
+    // Run plant identification (AI vision)
+    recordEgressEvent('openai', 'attempted', 'biosecurity plant identification');
+    const identResult = await identifyPlants(imageBase64, extraFrames, gpsContext);
+
+    // Fetch weather if GPS available
+    let weather = null;
+    if (gpsLat && gpsLng) {
+      weather = await getBioWeather(gpsLat, gpsLng).catch(() => ({ available: false, reason: 'weather fetch failed' }));
+    }
+
+    if (identResult.success) {
+      recordEgressEvent('openai', 'success', 'biosecurity plant identification');
+    } else {
+      recordEgressEvent('openai', 'unavailable', identResult.reason || 'plant identification unavailable');
+    }
+
+    return res.json({
+      success: true,
+      identification: identResult,
+      weather,
+      processing_time_ms: Date.now() - startTime,
+    });
+  } catch (error) {
+    console.error('❌ /infer/biosecurity error:', error);
+    return res.status(500).json({ error: 'Biosecurity inference failed', message: error.message });
+  }
+});
+
+// ============================================================================
+// POST /infer/smoke — NZ RMA smoke complaint assessment
+//
+// Assesses smoke opacity, colour, prohibited materials indicators, wind/drift
+// direction, and provides a preliminary "offensive or objectionable" rating
+// to help NZ compliance officers under RMA s.17A.
+//
+// Body (multipart form OR JSON):
+//   photo (file) or image_base64 (string) — required
+//   video_frames_base64 (JSON array)       — optional: extracted video frames
+//   gps_lat, gps_lng (number)              — optional: GPS for weather
+//   metadata (JSON string)                 — optional: {complaint_time, duration_reported_mins, address}
+//
+// Response: { success, smoke_opacity, smoke_color, prohibited_materials_suspected,
+//             checklist_prefill, recommended_action, weather, offensive_rating, ... }
+// ============================================================================
+app.post('/infer/smoke', inferenceRateLimit, upload.single('photo'), requireInferenceAuth, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    let imageBase64 = null;
+    if (req.file) {
+      imageBase64 = req.file.buffer.toString('base64');
+    } else if (req.body?.image_base64) {
+      imageBase64 = String(req.body.image_base64);
+    } else {
+      return res.status(400).json({ error: 'No photo uploaded', hint: 'Send as multipart "photo" file or JSON "image_base64"' });
+    }
+
+    let extraFrames = [];
+    if (req.body?.video_frames_base64) {
+      try {
+        const parsed = typeof req.body.video_frames_base64 === 'string'
+          ? JSON.parse(req.body.video_frames_base64)
+          : req.body.video_frames_base64;
+        if (Array.isArray(parsed)) extraFrames = parsed;
+      } catch { /* non-fatal */ }
+    }
+
+    const gpsLat = req.body?.gps_lat ? parseFloat(req.body.gps_lat) : null;
+    const gpsLng = req.body?.gps_lng ? parseFloat(req.body.gps_lng) : null;
+    let metaObj = {};
+    if (req.body?.metadata) {
+      try { metaObj = JSON.parse(req.body.metadata); } catch { /* non-fatal */ }
+    }
+
+    recordEgressEvent('openai', 'attempted', 'smoke complaint assessment');
+    const assessResult = await assessSmoke(imageBase64, extraFrames, metaObj);
+
+    let weather = null;
+    if (gpsLat && gpsLng) {
+      weather = await getBioWeather(gpsLat, gpsLng).catch(() => ({ available: false, reason: 'weather fetch failed' }));
+      // Merge weather into checklist_prefill if AI didn't detect wind
+      if (weather?.available && assessResult.checklist_prefill && !assessResult.checklist_prefill.wind_direction) {
+        assessResult.checklist_prefill.wind_direction = weather.wind_direction;
+        assessResult.checklist_prefill.wind_speed_kmh = weather.wind_speed_kmh;
+      }
+    }
+
+    if (assessResult.success) {
+      recordEgressEvent('openai', 'success', 'smoke complaint assessment');
+    } else {
+      recordEgressEvent('openai', 'unavailable', assessResult.reason || 'smoke assessment unavailable');
+    }
+
+    return res.json({
+      success: true,
+      assessment: assessResult,
+      weather,
+      processing_time_ms: Date.now() - startTime,
+    });
+  } catch (error) {
+    console.error('❌ /infer/smoke error:', error);
+    return res.status(500).json({ error: 'Smoke inference failed', message: error.message });
+  }
+});
+
 // Health check
 app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), (req, res) => {
   const modelsLoaded = !!(yoloSession && embeddingSession);
@@ -4335,6 +4493,9 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       // Code writing (Bob queues tasks; ops-bob-code-task workflow executes them)
       code_task_queue: true,
       code_tasks_pending: codeTaskStore.getState().counts.pending,
+      // Biosecurity + Smoke OOH enforcement AI
+      biosecurity_plant_id: OPENAI_ENABLED,
+      smoke_assessment: OPENAI_ENABLED,
     },
     ollama_circuit_breaker: OLLAMA_ENABLED ? ollamaCircuitBreaker.toJSON() : null,
     knowledge_requests: knowledgeRequestsStore.getState(),
