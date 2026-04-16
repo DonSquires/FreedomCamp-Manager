@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
-import AppLayout from "@/components/layout/AppLayout";
+import { AppLayout } from "@/components/features/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,8 +52,8 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 export default function BiosecurityControlPage() {
-  const { user, profile } = useAuthStore();
-  const orgId = profile?.organization_id;
+  const { user } = useAuthStore();
+  const orgId = user?.organization_id;
   const qc = useQueryClient();
 
   const [activeTab, setActiveTab] = useState("jobs");
@@ -76,7 +76,7 @@ export default function BiosecurityControlPage() {
   const { data: jobs = [], isLoading: jobsLoading, refetch: refetchJobs } = useQuery({
     queryKey: ["biosecurity_jobs", orgId, statusFilter],
     queryFn: async () => {
-      let q = supabase
+      let q = (supabase as any)
         .from("biosecurity_jobs")
         .select("*, assigned_officer:user_profiles!biosecurity_jobs_assigned_to_fkey(full_name)")
         .eq("organization_id", orgId)
@@ -93,7 +93,7 @@ export default function BiosecurityControlPage() {
   const { data: assessments = [], isLoading: assessmentsLoading, refetch: refetchAssessments } = useQuery({
     queryKey: ["biosecurity_assessments", orgId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("biosecurity_assessments")
         .select("*, officer:user_profiles!biosecurity_assessments_officer_id_fkey(full_name)")
         .order("created_at", { ascending: false })
@@ -108,7 +108,7 @@ export default function BiosecurityControlPage() {
   const { data: notices = [], isLoading: noticesLoading, refetch: refetchNotices } = useQuery({
     queryKey: ["biosecurity_notices", orgId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("biosecurity_notices")
         .select("*")
         .order("created_at", { ascending: false })
@@ -137,7 +137,7 @@ export default function BiosecurityControlPage() {
   // Create job mutation
   const createJobMutation = useMutation({
     mutationFn: async () => {
-      const { data: jobNumber } = await supabase.rpc("next_biosecurity_job_number", { p_org_id: orgId });
+      const { data: jobNumber } = await (supabase as any).rpc("next_biosecurity_job_number", { p_org_id: orgId });
       const payload: any = {
         organization_id: orgId,
         job_number: jobNumber,
@@ -153,7 +153,7 @@ export default function BiosecurityControlPage() {
         created_by: user?.id,
       };
       if (form.assigned_to) payload.assigned_to = form.assigned_to;
-      const { error } = await supabase.from("biosecurity_jobs").insert(payload);
+      const { error } = await (supabase as any).from("biosecurity_jobs").insert(payload);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -172,11 +172,11 @@ export default function BiosecurityControlPage() {
   const completedThisMonth = jobs.filter(j => j.status === "completed" && j.completed_at >= thisMonthStart).length;
   const statusCounts = jobs.reduce((acc: Record<string, number>, j) => { acc[j.status] = (acc[j.status] || 0) + 1; return acc; }, {});
 
-  const topSpecies = assessments.reduce((acc: Record<string, number>, a) => {
+  const topSpecies = (assessments as any[]).reduce((acc: Record<string, number>, a: any) => {
     if (a.plant_species) acc[a.plant_species] = (acc[a.plant_species] || 0) + 1;
     return acc;
   }, {});
-  const topSpeciesEntry = Object.entries(topSpecies).sort((a, b) => b[1] - a[1])[0];
+  const topSpeciesEntry = Object.entries(topSpecies).sort((a, b) => (b[1] as number) - (a[1] as number))[0];
 
   const handleRefresh = () => {
     refetchJobs();
@@ -445,7 +445,7 @@ export default function BiosecurityControlPage() {
                     <div>
                       <p className="text-sm font-bold truncate">{topSpeciesEntry ? topSpeciesEntry[0] : "—"}</p>
                       <p className="text-xs text-gray-500">Top Species Found</p>
-                      {topSpeciesEntry && <p className="text-xs text-gray-400">{topSpeciesEntry[1]} detections</p>}
+                      {topSpeciesEntry && <p className="text-xs text-gray-400">{String(topSpeciesEntry[1])} detections</p>}
                     </div>
                   </div>
                 </CardContent>

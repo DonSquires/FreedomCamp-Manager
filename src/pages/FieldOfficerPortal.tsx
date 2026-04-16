@@ -34,7 +34,7 @@ import {
   ShieldAlert, CheckCircle, Shield, Megaphone, FileWarning, XCircle,
   Clock, Home, X, Car, Zap, Search, Printer, PlusCircle, Wrench, Heart, Users,
   Moon, Sun, ParkingSquare, Volume2, Video, Eye, Tent, Timer,
-  ScanFace, CalendarPlus, Siren, Bell, PhoneCall, Lock,
+  ScanFace, CalendarPlus, Siren, Bell, PhoneCall, Lock, Leaf, Wind,
 } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Badge } from '@/components/ui/badge'
@@ -65,7 +65,7 @@ const CAPTURE_TOAST_DURATION_MS = 5000
 // ─── Service Types ────────────────────────────────────────────────────────────
 
 /** Service types an officer can select — determines which tools are shown. */
-type ServiceType = 'freedom_camping' | 'guarding' | 'parking' | 'noise'
+type ServiceType = 'freedom_camping' | 'guarding' | 'parking' | 'noise' | 'biosecurity_inspection' | 'smoke_complaint_ooh'
 type ZoneOption = { zone_id: string; name: string }
 type ZoneRow = Pick<Database['public']['Tables']['zones']['Row'], 'id' | 'name'>
 
@@ -108,6 +108,22 @@ const SERVICE_TYPE_CONFIG: Record<ServiceType, {
     color: 'text-yellow-700 dark:text-yellow-400',
     bgColor: 'bg-yellow-100 dark:bg-yellow-900',
     borderColor: 'border-yellow-400 dark:border-yellow-700',
+  },
+  biosecurity_inspection: {
+    label: 'Biosecurity Inspection',
+    description: 'CNG/plant ID, density assessment, RPMP notices',
+    Icon: Leaf,
+    color: 'text-emerald-700 dark:text-emerald-400',
+    bgColor: 'bg-emerald-100 dark:bg-emerald-900',
+    borderColor: 'border-emerald-400 dark:border-emerald-700',
+  },
+  smoke_complaint_ooh: {
+    label: 'Smoke Complaint (OOH)',
+    description: 'Smoke opacity, prohibited materials, RMA s.17A notices',
+    Icon: Wind,
+    color: 'text-amber-700 dark:text-amber-400',
+    bgColor: 'bg-amber-100 dark:bg-amber-900',
+    borderColor: 'border-amber-400 dark:border-amber-700',
   },
 }
 
@@ -251,7 +267,7 @@ export default function FieldOfficerPortal() {
   // ── Service type selection — pre-fill from URL param or roster ────────────
   const [activeService, setActiveService] = useState<ServiceType | null>(() => {
     const param = searchParams.get('service') as ServiceType | null
-    return param && ['freedom_camping','guarding','parking','noise','patrol','alarm_response'].includes(param)
+    return param && ['freedom_camping','guarding','parking','noise','patrol','alarm_response','biosecurity_inspection','smoke_complaint_ooh'].includes(param)
       ? param as ServiceType
       : null
   })
@@ -261,7 +277,7 @@ export default function FieldOfficerPortal() {
     if (activeService) return // URL param already set it
     if (!rosteredShift?.service_type) return
     const rosterService = rosteredShift.service_type as ServiceType
-    if (['freedom_camping', 'guarding', 'parking', 'noise'].includes(rosterService)) {
+    if (['freedom_camping', 'guarding', 'parking', 'noise', 'biosecurity_inspection', 'smoke_complaint_ooh'].includes(rosterService)) {
       setActiveService(rosterService)
     }
   }, [rosteredShift?.service_type]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -2153,6 +2169,66 @@ export default function FieldOfficerPortal() {
           )}
 
           {/* ═══════════════════════════════════════════════════════════
+              BIOSECURITY INSPECTION tools
+              ═══════════════════════════════════════════════════════════ */}
+          {activeService === 'biosecurity_inspection' && (
+            <>
+              <h3 className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Leaf className="h-3.5 w-3.5" />
+                Biosecurity Inspection
+              </h3>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
+                <Card className="hover:shadow-lg transition-shadow border-emerald-200 dark:border-emerald-900 border-2">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <div className="p-2 bg-emerald-100 dark:bg-emerald-900 rounded-lg">
+                        <Leaf className="h-5 w-5 text-emerald-700 dark:text-emerald-400" />
+                      </div>
+                      Biosecurity (CNG)
+                    </CardTitle>
+                    <CardDescription>Plant ID · RPMP · Notices · Bob AI</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => navigate('/biosecurity-officer')}>
+                      Open Biosecurity Portal
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
+
+          {/* ═══════════════════════════════════════════════════════════
+              SMOKE COMPLAINT OOH tools
+              ═══════════════════════════════════════════════════════════ */}
+          {activeService === 'smoke_complaint_ooh' && (
+            <>
+              <h3 className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Wind className="h-3.5 w-3.5" />
+                Smoke Complaint (OOH)
+              </h3>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
+                <Card className="hover:shadow-lg transition-shadow border-amber-200 dark:border-amber-900 border-2">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <div className="p-2 bg-amber-100 dark:bg-amber-900 rounded-lg">
+                        <Wind className="h-5 w-5 text-amber-700 dark:text-amber-400" />
+                      </div>
+                      Smoke Complaint
+                    </CardTitle>
+                    <CardDescription>OOH · Opacity · Materials · RMA s.17A</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white" onClick={() => navigate('/smoke-officer')}>
+                      Open Smoke Portal
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
+
+          {/* ═══════════════════════════════════════════════════════════
               COMMON TOOLS — always visible (shared across all services)
               ═══════════════════════════════════════════════════════════ */}
           {!activeService && (
@@ -2320,6 +2396,42 @@ export default function FieldOfficerPortal() {
                 <CardContent>
                   <Button className="w-full" variant="outline" onClick={() => navigate('/noise-officer')}>
                     Open Noise Portal
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Biosecurity Inspection */}
+              <Card className="hover:shadow-lg transition-shadow border-emerald-200 dark:border-emerald-900">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <div className="p-2 bg-emerald-100 dark:bg-emerald-900 rounded-lg">
+                      <Leaf className="h-5 w-5 text-emerald-700 dark:text-emerald-400" />
+                    </div>
+                    Biosecurity (CNG)
+                  </CardTitle>
+                  <CardDescription>Plant ID · RPMP · Bob AI</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => navigate('/biosecurity-officer')}>
+                    Open Biosecurity Portal
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Smoke Complaint OOH */}
+              <Card className="hover:shadow-lg transition-shadow border-amber-200 dark:border-amber-900">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <div className="p-2 bg-amber-100 dark:bg-amber-900 rounded-lg">
+                      <Wind className="h-5 w-5 text-amber-700 dark:text-amber-400" />
+                    </div>
+                    Smoke Complaint (OOH)
+                  </CardTitle>
+                  <CardDescription>Opacity · Materials · RMA s.17A</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white" onClick={() => navigate('/smoke-officer')}>
+                    Open Smoke Portal
                   </Button>
                 </CardContent>
               </Card>

@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { Wind, Flame, AlertTriangle, MapPin, PlusCircle, RefreshCw, BarChart3, CheckCircle, XCircle, FileText, Clock, Users, Filter, Eye, Radio } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
-import AppLayout from '@/components/layout/AppLayout';
+import { AppLayout } from '@/components/features/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -41,7 +41,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 export default function SmokeComplaintControlPage() {
-  const { user, profile } = useAuthStore();
+  const { user } = useAuthStore();
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState('jobs');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -54,12 +54,12 @@ export default function SmokeComplaintControlPage() {
     complaint_description: '', safety_notes: '', assigned_to: '',
   });
 
-  const orgId = profile?.organisation_id;
+  const orgId = user?.organization_id;
 
   const { data: jobs = [], isLoading: jobsLoading, refetch: refetchJobs } = useQuery({
     queryKey: ['smoke_jobs', orgId, statusFilter, oohFilter],
     queryFn: async () => {
-      let q = supabase.from('smoke_jobs').select('*').order('created_at', { ascending: false });
+      let q = (supabase as any).from('smoke_jobs').select('*').order('created_at', { ascending: false });
       if (statusFilter !== 'all') q = q.eq('status', statusFilter);
       if (oohFilter === 'ooh') q = q.eq('is_out_of_hours', true);
       if (oohFilter === 'in_hours') q = q.eq('is_out_of_hours', false);
@@ -73,7 +73,7 @@ export default function SmokeComplaintControlPage() {
   const { data: assessments = [], isLoading: assLoading } = useQuery({
     queryKey: ['smoke_assessments'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('smoke_assessments').select('*').order('created_at', { ascending: false });
+      const { data, error } = await (supabase as any).from('smoke_assessments').select('*').order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
     },
@@ -82,7 +82,7 @@ export default function SmokeComplaintControlPage() {
   const { data: notices = [], isLoading: noticesLoading } = useQuery({
     queryKey: ['smoke_notices'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('smoke_notices').select('*').order('created_at', { ascending: false });
+      const { data, error } = await (supabase as any).from('smoke_notices').select('*').order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
     },
@@ -91,7 +91,7 @@ export default function SmokeComplaintControlPage() {
   const { data: officers = [] } = useQuery({
     queryKey: ['user_profiles', orgId],
     queryFn: async () => {
-      const { data, error } = await supabase.from('user_profiles').select('id, full_name').eq('organisation_id', orgId);
+      const { data, error } = await supabase.from('user_profiles').select('id, full_name').eq('organization_id', orgId);
       if (error) throw error;
       return data || [];
     },
@@ -100,11 +100,11 @@ export default function SmokeComplaintControlPage() {
 
   const createJobMutation = useMutation({
     mutationFn: async () => {
-      const { data: jobNum } = await supabase.rpc('next_smoke_job_number', { p_org_id: orgId });
+      const { data: jobNum } = await (supabase as any).rpc('next_smoke_job_number', { p_org_id: orgId });
       const now = new Date();
       const h = now.getHours();
       const is_out_of_hours = h >= 23 || h < 7;
-      const { error } = await supabase.from('smoke_jobs').insert({
+      const { error } = await (supabase as any).from('smoke_jobs').insert({
         job_number: jobNum,
         title: form.title,
         address: form.address,
@@ -133,7 +133,7 @@ export default function SmokeComplaintControlPage() {
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase.from('smoke_jobs').update({ status, ...(status === 'completed' ? { completed_at: new Date().toISOString() } : {}) }).eq('id', id);
+      const { error } = await (supabase as any).from('smoke_jobs').update({ status, ...(status === 'completed' ? { completed_at: new Date().toISOString() } : {}) }).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => { toast.success('Status updated'); qc.invalidateQueries({ queryKey: ['smoke_jobs'] }); },
@@ -146,7 +146,7 @@ export default function SmokeComplaintControlPage() {
   const { data: analyticsJobs = [] } = useQuery({
     queryKey: ['smoke_analytics', orgId],
     queryFn: async () => {
-      const { data, error } = await supabase.from('smoke_jobs').select('*').gte('created_at', monthStart);
+      const { data, error } = await (supabase as any).from('smoke_jobs').select('*').gte('created_at', monthStart);
       if (error) throw error;
       return data || [];
     },
@@ -155,7 +155,7 @@ export default function SmokeComplaintControlPage() {
   const { data: analyticsAssessments = [] } = useQuery({
     queryKey: ['smoke_analytics_ass'],
     queryFn: async () => {
-      const { data } = await supabase.from('smoke_assessments').select('fire_type, ai_confidence').gte('created_at', monthStart);
+      const { data } = await (supabase as any).from('smoke_assessments').select('fire_type, ai_confidence').gte('created_at', monthStart);
       return data || [];
     },
   });
