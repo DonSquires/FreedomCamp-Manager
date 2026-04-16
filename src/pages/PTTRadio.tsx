@@ -21,6 +21,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
@@ -236,6 +237,7 @@ function AudioLevelMeter({ level, transmitting }: { level: number; transmitting:
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function PTTRadio() {
+  const navigate = useNavigate()
   const { user } = useAuthStore()
   const { organizationId } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
@@ -649,6 +651,8 @@ export default function PTTRadio() {
     error:        'bg-red-500',
   }[connectionStatus] ?? 'bg-gray-400'
 
+  const canFallbackToTextChat = Boolean(error && /text chat/i.test(error))
+
   function formatDuration(secs: number) {
     const s = Math.round(secs)
     const m = Math.floor(s / 60)
@@ -717,6 +721,16 @@ export default function PTTRadio() {
           <div className="px-4 py-2 bg-red-950 border-b border-red-800 text-xs text-red-300 flex items-center gap-2 shrink-0">
             <AlertTriangle className="h-3.5 w-3.5 text-red-400 shrink-0" />
             {error}
+            {canFallbackToTextChat && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-xs text-red-300 hover:text-white"
+                onClick={() => navigate('/team-chat')}
+              >
+                Open Team Chat
+              </Button>
+            )}
             <Button variant="ghost" size="sm" className="ml-auto h-6 text-xs text-red-300 hover:text-white"
               onClick={() => { setError(null); if (activeChannel) connectToChannel(activeChannel) }}>
               <RefreshCw className="h-3 w-3 mr-1" />Retry
