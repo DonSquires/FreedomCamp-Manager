@@ -154,6 +154,16 @@ export async function requestPTTToken(channelScope: string): Promise<PTTTokenRes
 export async function connectToPTT(channelScope: string, channelName?: string): Promise<void> {
   const store = usePTTStore.getState()
 
+  // If already connected (or connecting) to the same channel, avoid churn.
+  const sameChannel = store.channelId === channelScope
+  if (sameChannel && ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+    if (channelName) {
+      const currentType = channelScope.split(':')[0] as PTTChannelType
+      store.setChannel(channelScope, currentType, channelName)
+    }
+    return
+  }
+
   // Disconnect existing connection
   if (ws) {
     disconnectFromPTT()
@@ -171,17 +181,26 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
     store.setIceServers(tokenData.iceServers)
 
     // Connect WebSocket
-    ws = new WebSocket(`${tokenData.wsUrl}?token=${tokenData.token}`)
+    const socket = new WebSocket(`${tokenData.wsUrl}?token=${tokenData.token}`)
+    ws = socket
 
-    ws.onopen = () => {
+    socket.onopen = () => {
+      if (ws !== socket) return
       console.log('🎤 PTT: Connected to signaling server')
       store.setConnection('connected')
       startPingInterval()
     }
 
-    ws.onclose = (event) => {
+    socket.onclose = (event) => {
+      if (ws !== socket) return
       console.log('🎤 PTT: Disconnected', event.code, event.reason)
       cleanupConnection()
+
+      if (event.code === 4000) {
+        // Older socket replaced by a newer session. Do not auto-reconnect.
+        store.setConnection('disconnected')
+        return
+      }
 
       if (event.code === 4001 || event.code === 4002) {
         // Token/auth failures are terminal until backend config or auth state is corrected.
@@ -205,12 +224,14 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
       }
     }
 
-    ws.onerror = (error) => {
+    socket.onerror = (error) => {
+      if (ws !== socket) return
       console.error('🎤 PTT: WebSocket error', error)
       store.setError('Push to Talk connection issue. You can continue using text chat.')
     }
 
-    ws.onmessage = (event) => {
+    socket.onmessage = (event) => {
+      if (ws !== socket) return
       handleServerMessage(JSON.parse(event.data))
     }
   } catch (error: any) {

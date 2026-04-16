@@ -281,6 +281,7 @@ export default function PTTRadio() {
   const scanTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const liveTxTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const wakeLockRef = useRef(false)
+  const txLogUnavailableRef = useRef(false)
 
   // ── Org ID ────────────────────────────────────────────────
   const effectiveOrgId = useMemo(
@@ -343,6 +344,7 @@ export default function PTTRadio() {
     queryKey: ['ptt-tx-log', effectiveOrgId],
     queryFn: async () => {
       if (!effectiveOrgId) return []
+      if (txLogUnavailableRef.current) return []
       const { data, error } = await (supabase as any)
         .from('ptt_transmission_log')
         .select('*')
@@ -351,7 +353,10 @@ export default function PTTRadio() {
         .limit(50)
       if (error) {
         // Treat missing optional audit table as empty log for compatibility.
-        if (error.code === 'PGRST205' || error.code === '42P01') return []
+        if (error.code === 'PGRST205' || error.code === '42P01') {
+          txLogUnavailableRef.current = true
+          return []
+        }
         throw error
       }
       return ((data || []) as any[]).map((r) => ({
@@ -368,7 +373,7 @@ export default function PTTRadio() {
     },
     enabled: !!effectiveOrgId,
     staleTime: 30_000,
-    refetchInterval: 15_000,
+    refetchInterval: txLogUnavailableRef.current ? false : 15_000,
     retry: false,
   })
 
