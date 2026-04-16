@@ -20,6 +20,9 @@ import {
   Calendar,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { supabase } from '@/lib/supabase'
+import { exportMultiSheetXlsx, type XlsxColumn } from '@/lib/xlsxExport'
+import { arrayToCSV, downloadCSV } from '@/lib/csvExport'
 
 type ExportFormat = 'csv' | 'json' | 'excel'
 type ExportData = 'observations' | 'vehicles' | 'breaches' | 'enforcement' | 'zones' | 'users'
@@ -81,6 +84,135 @@ export function DataExportWizard({
   })
   const [isExporting, setIsExporting] = useState(false)
 
+  // ─── Built-in export logic ─────────────────────────────────────────────────
+
+  /**
+   * Fetch the selected data types from Supabase and export them in the chosen
+   * format. Each data type becomes one sheet in an Excel workbook, or a
+   * separate CSV / JSON file.
+   */
+  const runBuiltInExport = async (cfg: ExportConfig) => {
+    const dateFilter: Record<string, string> = {}
+    if (cfg.dateFrom) dateFilter.from = cfg.dateFrom
+    if (cfg.dateTo) dateFilter.to = cfg.dateTo
+
+    // Map each selected data type to a Supabase query
+    const TABLE_MAP: Record<ExportData, string> = {
+      observations: 'vehicle_observations',
+      vehicles:     'vehicles',
+      breaches:     'breach_alerts',
+      enforcement:  'infringement_notices',
+      zones:        'zones',
+      users:        'user_profiles',
+    }
+
+    const COLUMNS_MAP: Record<ExportData, XlsxColumn<Record<string, unknown>>[]> = {
+      observations: [
+        { key: 'id',           label: 'ID' },
+        { key: 'plate_number', label: 'Plate' },
+        { key: 'zone_id',      label: 'Zone ID' },
+        { key: 'is_compliant', label: 'Compliant', format: v => v ? 'Yes' : 'No' },
+        { key: 'recorded_at',  label: 'Recorded At', format: v => v ? new Date(v as string).toLocaleString('en-NZ') : '' },
+      ],
+      vehicles: [
+        { key: 'id',           label: 'ID' },
+        { key: 'plate_number', label: 'Plate' },
+        { key: 'make',         label: 'Make' },
+        { key: 'model',        label: 'Model' },
+        { key: 'is_self_contained', label: 'Self Contained', format: v => v ? 'Yes' : 'No' },
+      ],
+      breaches: [
+        { key: 'id',           label: 'ID' },
+        { key: 'plate_number', label: 'Plate' },
+        { key: 'breach_type',  label: 'Breach Type' },
+        { key: 'status',       label: 'Status' },
+        { key: 'detected_at',  label: 'Detected At', format: v => v ? new Date(v as string).toLocaleString('en-NZ') : '' },
+      ],
+      enforcement: [
+        { key: 'id',                 label: 'ID' },
+        { key: 'notice_number',      label: 'Notice #' },
+        { key: 'plate_number',       label: 'Plate' },
+        { key: 'offence_description',label: 'Offence' },
+        { key: 'amount_cents',       label: 'Fine (NZD)', format: v => v != null ? `$${(Number(v) / 100).toFixed(2)}` : '' },
+        { key: 'status',             label: 'Status' },
+        { key: 'issued_at',          label: 'Issued At', format: v => v ? new Date(v as string).toLocaleString('en-NZ') : '' },
+      ],
+      zones: [
+        { key: 'id',   label: 'ID' },
+        { key: 'name', label: 'Name' },
+        { key: 'max_consecutive_nights', label: 'Max Consecutive Nights' },
+        { key: 'max_nights_per_month',   label: 'Max Nights/Month' },
+        { key: 'is_active', label: 'Active', format: v => v ? 'Yes' : 'No' },
+      ],
+      users: [
+        { key: 'id',         label: 'ID' },
+        { key: 'first_name', label: 'First Name' },
+        { key: 'last_name',  label: 'Last Name' },
+        { key: 'email',      label: 'Email' },
+        { key: 'role',       label: 'Role' },
+        { key: 'is_active',  label: 'Active', format: v => v ? 'Yes' : 'No' },
+      ],
+    }
+
+    const datestamp = new Date().toISOString().slice(0, 10)
+
+    if (cfg.format === 'excel') {
+      // Build one sheet per selected data type
+      const sheets = []
+      for (const dataType of cfg.dataTypes) {
+        let query = supabase.from(TABLE_MAP[dataType] as any).select('*')
+        if (cfg.dateFrom) query = query.gte('created_at', cfg.dateFrom) as any
+        if (cfg.dateTo)   query = query.lte('created_at', cfg.dateTo) as any
+        const { data, error } = await query
+        if (error) throw new Error(`Failed to fetch ${dataType}: ${error.message}`)
+        sheets.push({
+          name: DATA_TYPES.find(t => t.id === dataType)?.label ?? dataType,
+          rows: (data ?? []) as unknown as Record<string, unknown>[],
+          columns: COLUMNS_MAP[dataType],
+        })
+      }
+      exportMultiSheetXlsx(sheets, `fieldops-export-${datestamp}`)
+      return
+    }
+
+    if (cfg.format === 'json') {
+      const result: Record<string, unknown[]> = {}
+      for (const dataType of cfg.dataTypes) {
+        let query = supabase.from(TABLE_MAP[dataType] as any).select('*')
+        if (cfg.dateFrom) query = query.gte('created_at', cfg.dateFrom) as any
+        if (cfg.dateTo)   query = query.lte('created_at', cfg.dateTo) as any
+        const { data, error } = await query
+        if (error) throw new Error(`Failed to fetch ${dataType}: ${error.message}`)
+        result[dataType] = data ?? []
+      }
+      const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `fieldops-export-${datestamp}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      return
+    }
+
+    // CSV: one file per selected data type
+    for (const dataType of cfg.dataTypes) {
+      let query = supabase.from(TABLE_MAP[dataType] as any).select('*')
+      if (cfg.dateFrom) query = query.gte('created_at', cfg.dateFrom) as any
+      if (cfg.dateTo)   query = query.lte('created_at', cfg.dateTo) as any
+      const { data, error } = await query
+      if (error) throw new Error(`Failed to fetch ${dataType}: ${error.message}`)
+      const rows = (data ?? []) as unknown as Record<string, unknown>[]
+      const csvCols = COLUMNS_MAP[dataType].map(c => ({
+        key: c.key,
+        label: c.label,
+        format: c.format ? (v: any) => String(c.format!(v, {} as any)) : undefined,
+      }))
+      const csv = arrayToCSV(rows, csvCols)
+      downloadCSV(csv, `${dataType}-${datestamp}.csv`)
+    }
+  }
+
   const handleFormatSelect = (format: ExportFormat) => {
     setConfig(prev => ({ ...prev, format }))
     setStep(2)
@@ -104,7 +236,11 @@ export function DataExportWizard({
     setIsExporting(true)
     try {
       if (onExport) {
+        // Caller-provided export handler (e.g. a parent page with pre-fetched data)
         await onExport(config)
+      } else {
+        // Built-in export: fetch data from Supabase and produce the chosen format
+        await runBuiltInExport(config)
       }
       toast.success('Export completed successfully')
       if (onClose) {

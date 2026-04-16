@@ -65,6 +65,7 @@ import {
 } from 'lucide-react'
 import { arrayToCSV, downloadCSV } from '@/lib/csvExport'
 import { generateReportHTML, exportReportPDF, type PDFReportConfig, type PDFSection } from '@/lib/pdfExport'
+import { exportToXlsx, type XlsxColumn } from '@/lib/xlsxExport'
 
 interface DataSource {
   id: string
@@ -436,6 +437,37 @@ export default function CustomReportBuilder() {
     const filename = `${selectedSource?.code || 'report'}-${dateFrom}-to-${dateTo}.csv`
     downloadCSV(csv, filename)
     toast.success('CSV exported successfully')
+  }
+
+  // Export to Excel (.xlsx)
+  const exportToExcel = () => {
+    if (previewData.length === 0) {
+      toast.error('No data to export')
+      return
+    }
+
+    const columns: XlsxColumn<Record<string, unknown>>[] = selectedFields.map(key => {
+      const field = selectedSource?.available_fields.find(f => f.key === key)
+      return {
+        key,
+        label: field?.label || key,
+        format: (value: unknown) => {
+          if (value === null || value === undefined) return ''
+          if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+          if (field?.type === 'timestamp' && value) {
+            return new Date(value as string).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland' })
+          }
+          if (field?.type === 'date' && value) {
+            return new Date(value as string).toLocaleDateString('en-NZ', { timeZone: 'Pacific/Auckland' })
+          }
+          return String(value)
+        },
+      }
+    })
+
+    const filename = `${selectedSource?.code || 'report'}-${dateFrom}-to-${dateTo}`
+    exportToXlsx(previewData as Record<string, unknown>[], columns, filename)
+    toast.success('Excel file downloaded')
   }
 
   // Export to PDF
@@ -991,7 +1023,7 @@ export default function CustomReportBuilder() {
                     <div className="flex items-center gap-4">
                       <Label>Export Format:</Label>
                       <div className="flex gap-2">
-                        {(['csv', 'pdf'] as const).map((format) => (
+                        {(['csv', 'pdf', 'excel'] as const).map((format) => (
                           <Button
                             key={format}
                             variant={exportFormat === format ? 'default' : 'outline'}
@@ -1000,6 +1032,7 @@ export default function CustomReportBuilder() {
                           >
                             {format === 'csv' && <FileSpreadsheet className="h-4 w-4 mr-2" />}
                             {format === 'pdf' && <FileText className="h-4 w-4 mr-2" />}
+                            {format === 'excel' && <FileSpreadsheet className="h-4 w-4 mr-2" />}
                             {format.toUpperCase()}
                           </Button>
                         ))}
@@ -1008,7 +1041,11 @@ export default function CustomReportBuilder() {
 
                     <div className="flex flex-wrap gap-3">
                       <Button
-                        onClick={exportFormat === 'csv' ? exportToCSV : exportToPDF}
+                        onClick={
+                          exportFormat === 'csv' ? exportToCSV :
+                          exportFormat === 'excel' ? exportToExcel :
+                          exportToPDF
+                        }
                         disabled={previewData.length === 0}
                       >
                         <Download className="h-4 w-4 mr-2" />
