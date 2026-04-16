@@ -158,6 +158,8 @@ const JOB_TYPE_LABELS: Record<string, string> = {
   lock_unlock:          'Lock/Unlock',
   property_check:       'Property Check',
   vandalism:            'Vandalism',
+  biosecurity_inspection: 'Biosecurity Inspection',
+  smoke_complaint_ooh:    'Smoke Complaint (OOH)',
   general:              'General',
   other:                'Other',
 }
@@ -660,6 +662,56 @@ export default function DispatchConsole() {
                   </div>
                 ))}
               </div>
+
+              {/* Biosecurity context panel */}
+              {selectedJob.job_type === 'biosecurity_inspection' && (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 p-3 space-y-2 text-xs">
+                  <p className="font-semibold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                    🌿 Biosecurity Context
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(selectedJob as any).context?.species_suspected && (
+                      <div className="col-span-2"><span className="text-muted-foreground">Species Suspected: </span><span className="font-medium">{(selectedJob as any).context.species_suspected}</span></div>
+                    )}
+                    {(selectedJob as any).context?.has_infestation_zone !== undefined && (
+                      <div><span className="text-muted-foreground">Known Zone: </span><span className="font-medium">{(selectedJob as any).context.has_infestation_zone ? 'Yes' : 'No'}</span></div>
+                    )}
+                    {(selectedJob as any).context?.prior_notices !== undefined && (
+                      <div><span className="text-muted-foreground">Prior Notices: </span><span className="font-medium">{(selectedJob as any).context.prior_notices}</span></div>
+                    )}
+                    {(selectedJob as any).context?.management_plan_status && (
+                      <div className="col-span-2"><span className="text-muted-foreground">Mgmt Plan: </span><span className="font-medium capitalize">{(selectedJob as any).context.management_plan_status}</span></div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Smoke Complaint OOH context panel */}
+              {selectedJob.job_type === 'smoke_complaint_ooh' && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 p-3 space-y-2 text-xs">
+                  <p className="font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                    💨 Smoke Complaint Context
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(selectedJob as any).context?.complaint_time && (
+                      <div className="col-span-2"><span className="text-muted-foreground">Complaint Received: </span><span className="font-medium">{formatDateTime((selectedJob as any).context.complaint_time)}</span></div>
+                    )}
+                    {(selectedJob as any).context?.is_out_of_hours !== undefined && (
+                      <div><span className="text-muted-foreground">OOH: </span>
+                        {(selectedJob as any).context.is_out_of_hours
+                          ? <span className="font-semibold text-amber-700 bg-amber-100 rounded px-1">YES</span>
+                          : <span className="font-medium">No</span>}
+                      </div>
+                    )}
+                    {(selectedJob as any).context?.prior_incidents !== undefined && (
+                      <div><span className="text-muted-foreground">Prior Incidents: </span><span className="font-medium">{(selectedJob as any).context.prior_incidents}</span></div>
+                    )}
+                    {(selectedJob as any).context?.complaint_description && (
+                      <div className="col-span-2"><span className="text-muted-foreground">Description: </span><span>{(selectedJob as any).context.complaint_description}</span></div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Dispatch controls */}
               {selectedJob.status === 'pending' && (

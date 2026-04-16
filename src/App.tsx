@@ -81,6 +81,10 @@ const ParkingEnforcementPortal = lazy(() => import('@/pages/ParkingEnforcementPo
 const ParkingOfficerPortal = lazy(() => import('@/pages/ParkingOfficerPortal'))
 const NoiseControlPortal = lazy(() => import('@/pages/NoiseControlPortal'))
 const NoiseOfficerPortal = lazy(() => import('@/pages/NoiseOfficerPortal'))
+const BiosecurityOfficerPortal = lazy(() => import('@/pages/BiosecurityOfficerPortal'))
+const BiosecurityControlPage = lazy(() => import('@/pages/BiosecurityControlPage'))
+const SmokeComplaintOfficerPortal = lazy(() => import('@/pages/SmokeComplaintOfficerPortal'))
+const SmokeComplaintControlPage = lazy(() => import('@/pages/SmokeComplaintControlPage'))
 const PointsOfInterest = lazy(() => import('@/pages/PointsOfInterest'))
 const SiteRiskAssessment = lazy(() => import('@/pages/SiteRiskAssessment'))
 const VehicleDiscrepancies = lazy(() => import('@/pages/VehicleDiscrepancies'))
@@ -1239,6 +1243,50 @@ export default function App() {
               <ProtectedRoute>
                 <AreaRoute allowedRoles={['officer', 'admin_officer', 'admin', 'master']} area="noise">
                   <NoiseOfficerPortal />
+                </AreaRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Biosecurity Inspection ───────────────────────────────────── */}
+          <Route
+            path="/biosecurity-control"
+            element={
+              <ProtectedRoute>
+                <AreaRoute allowedRoles={['admin', 'admin_officer', 'master']} area="biosecurity">
+                  <BiosecurityControlPage />
+                </AreaRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/biosecurity-officer"
+            element={
+              <ProtectedRoute>
+                <AreaRoute allowedRoles={['officer', 'admin_officer', 'admin', 'master']} area="biosecurity">
+                  <BiosecurityOfficerPortal />
+                </AreaRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Smoke Complaint OOH ──────────────────────────────────────── */}
+          <Route
+            path="/smoke-control"
+            element={
+              <ProtectedRoute>
+                <AreaRoute allowedRoles={['admin', 'admin_officer', 'master']} area="smoke">
+                  <SmokeComplaintControlPage />
+                </AreaRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/smoke-officer"
+            element={
+              <ProtectedRoute>
+                <AreaRoute allowedRoles={['officer', 'admin_officer', 'admin', 'master']} area="smoke">
+                  <SmokeComplaintOfficerPortal />
                 </AreaRoute>
               </ProtectedRoute>
             }

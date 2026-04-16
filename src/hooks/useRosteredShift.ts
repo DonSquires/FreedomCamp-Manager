@@ -21,6 +21,8 @@ export type RosterServiceType =
   | 'patrol'
   | 'alarm_response'
   | 'ems'
+  | 'biosecurity_inspection'
+  | 'smoke_complaint_ooh'
 
 export interface RosteredShift {
   id: string

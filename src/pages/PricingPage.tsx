@@ -43,6 +43,8 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  MapPin,
+  Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -66,6 +68,8 @@ const SERVICE_LABELS: Record<string, string> = {
   site_risk_assessment: 'Site Risk Assessment',
   escort:               'Escort',
   key_holding:          'Key Holding',
+  biosecurity_inspection: 'Biosecurity Inspection',
+  smoke_complaint_ooh:    'Smoke Complaint (OOH)',
 }
 
 const ALL_SERVICE_TYPES = Object.keys(SERVICE_LABELS)
@@ -86,10 +90,25 @@ interface PricingRow {
   travel_charge_per_km: number | null
   travel_call_out_fee: number | null
   travel_free_km: number | null
+  radius_pricing_zones: RadiusPricingZone[] | null
+  base_office_lat: number | null
+  base_office_lng: number | null
   currency: string
   notes: string | null
   is_active: boolean
 }
+
+interface RadiusPricingZone {
+  label: string
+  max_km: number
+  flat_fee: number
+  per_km_charge: number
+}
+
+const EMPTY_ZONE: RadiusPricingZone = { label: '', max_km: 50, flat_fee: 0, per_km_charge: 0 }
+
+// Services that benefit from radius-based distance pricing
+const RADIUS_PRICING_SERVICES = new Set(['biosecurity_inspection', 'smoke_complaint_ooh', 'patrol', 'alarm_response', 'escort'])
 
 interface PricingFormState {
   service_type: string
@@ -102,6 +121,10 @@ interface PricingFormState {
   travel_charge_per_km: string
   travel_call_out_fee: string
   travel_free_km: string
+  radius_pricing_enabled: boolean
+  radius_pricing_zones: RadiusPricingZone[]
+  base_office_lat: string
+  base_office_lng: string
   notes: string
 }
 
@@ -116,6 +139,10 @@ const EMPTY_FORM: PricingFormState = {
   travel_charge_per_km: '',
   travel_call_out_fee: '',
   travel_free_km: '',
+  radius_pricing_enabled: false,
+  radius_pricing_zones: [{ label: '0–50 km', max_km: 50, flat_fee: 0, per_km_charge: 0 }],
+  base_office_lat: '',
+  base_office_lng: '',
   notes: '',
 }
 
@@ -329,18 +356,25 @@ export default function PricingPage() {
   const handleOpenEdit = useCallback((row: PricingRow) => {
     setEditRow(row)
     setActiveClientId(row.client_organization_id)
+    const hasRadius = Array.isArray(row.radius_pricing_zones) && row.radius_pricing_zones.length > 0
     setForm({
-      service_type:          row.service_type,
-      hourly_charge_rate:    row.hourly_charge_rate?.toString() ?? '',
-      hourly_pay_rate:       row.hourly_pay_rate?.toString() ?? '',
-      per_service_charge:    row.per_service_charge?.toString() ?? '',
-      per_service_pay:       row.per_service_pay?.toString() ?? '',
-      minimum_hours:         row.minimum_hours?.toString() ?? '',
-      travel_charge_enabled: row.travel_charge_enabled,
-      travel_charge_per_km:  row.travel_charge_per_km?.toString() ?? '',
-      travel_call_out_fee:   row.travel_call_out_fee?.toString() ?? '',
-      travel_free_km:        row.travel_free_km?.toString() ?? '',
-      notes:                 row.notes ?? '',
+      service_type:           row.service_type,
+      hourly_charge_rate:     row.hourly_charge_rate?.toString() ?? '',
+      hourly_pay_rate:        row.hourly_pay_rate?.toString() ?? '',
+      per_service_charge:     row.per_service_charge?.toString() ?? '',
+      per_service_pay:        row.per_service_pay?.toString() ?? '',
+      minimum_hours:          row.minimum_hours?.toString() ?? '',
+      travel_charge_enabled:  row.travel_charge_enabled,
+      travel_charge_per_km:   row.travel_charge_per_km?.toString() ?? '',
+      travel_call_out_fee:    row.travel_call_out_fee?.toString() ?? '',
+      travel_free_km:         row.travel_free_km?.toString() ?? '',
+      radius_pricing_enabled: hasRadius,
+      radius_pricing_zones:   hasRadius
+        ? (row.radius_pricing_zones as RadiusPricingZone[])
+        : [{ label: '0–50 km', max_km: 50, flat_fee: 0, per_km_charge: 0 }],
+      base_office_lat:        row.base_office_lat?.toString() ?? '',
+      base_office_lng:        row.base_office_lng?.toString() ?? '',
+      notes:                  row.notes ?? '',
     })
     setShowDialog(true)
   }, [])
@@ -361,6 +395,11 @@ export default function PricingPage() {
       travel_charge_per_km:     form.travel_charge_enabled ? numOrNull(form.travel_charge_per_km) : null,
       travel_call_out_fee:      form.travel_charge_enabled ? numOrNull(form.travel_call_out_fee) : null,
       travel_free_km:           form.travel_charge_enabled ? numOrNull(form.travel_free_km) : null,
+      radius_pricing_zones:     form.radius_pricing_enabled && form.radius_pricing_zones.length > 0
+                                  ? form.radius_pricing_zones
+                                  : null,
+      base_office_lat:          form.radius_pricing_enabled ? numOrNull(form.base_office_lat) : null,
+      base_office_lng:          form.radius_pricing_enabled ? numOrNull(form.base_office_lng) : null,
       notes:                    form.notes.trim() || null,
       currency:                 'NZD',
       is_active:                true,
@@ -582,6 +621,117 @@ export default function PricingPage() {
                 </div>
               )}
             </div>
+
+            {/* Radius pricing zones (for distance-based services) */}
+            {RADIUS_PRICING_SERVICES.has(form.service_type) && (
+              <div className="space-y-3 border border-dashed rounded-lg p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-emerald-600" />
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Distance Pricing Zones</p>
+                  </div>
+                  <Switch
+                    checked={form.radius_pricing_enabled}
+                    onCheckedChange={(v) => setForm((f) => ({ ...f, radius_pricing_enabled: v }))}
+                  />
+                </div>
+                {form.radius_pricing_enabled && (
+                  <div className="space-y-3">
+                    <p className="text-xs text-muted-foreground">Set radius bands from your base office. Each band applies to jobs within that distance. Evaluated in order of max_km.</p>
+                    {/* Base office coords */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Base Office Lat</Label>
+                        <Input
+                          type="number" step="0.000001" placeholder="-41.2865"
+                          className="h-8 text-xs"
+                          value={form.base_office_lat}
+                          onChange={(e) => setForm((f) => ({ ...f, base_office_lat: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Base Office Lng</Label>
+                        <Input
+                          type="number" step="0.000001" placeholder="174.7762"
+                          className="h-8 text-xs"
+                          value={form.base_office_lng}
+                          onChange={(e) => setForm((f) => ({ ...f, base_office_lng: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                    {/* Zone bands */}
+                    <div className="space-y-2">
+                      {form.radius_pricing_zones.map((zone, idx) => (
+                        <div key={idx} className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] gap-1.5 items-end">
+                          <div className="space-y-1">
+                            {idx === 0 && <Label className="text-[10px]">Band Label</Label>}
+                            <Input
+                              className="h-8 text-xs" placeholder="e.g. 0–50 km"
+                              value={zone.label}
+                              onChange={(e) => {
+                                const zones = [...form.radius_pricing_zones]
+                                zones[idx] = { ...zones[idx], label: e.target.value }
+                                setForm((f) => ({ ...f, radius_pricing_zones: zones }))
+                              }}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            {idx === 0 && <Label className="text-[10px]">Max km</Label>}
+                            <Input
+                              type="number" min="1" step="1" className="h-8 text-xs"
+                              value={zone.max_km}
+                              onChange={(e) => {
+                                const zones = [...form.radius_pricing_zones]
+                                zones[idx] = { ...zones[idx], max_km: parseFloat(e.target.value) || 0 }
+                                setForm((f) => ({ ...f, radius_pricing_zones: zones }))
+                              }}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            {idx === 0 && <Label className="text-[10px]">Flat fee $</Label>}
+                            <Input
+                              type="number" min="0" step="0.01" className="h-8 text-xs"
+                              value={zone.flat_fee}
+                              onChange={(e) => {
+                                const zones = [...form.radius_pricing_zones]
+                                zones[idx] = { ...zones[idx], flat_fee: parseFloat(e.target.value) || 0 }
+                                setForm((f) => ({ ...f, radius_pricing_zones: zones }))
+                              }}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            {idx === 0 && <Label className="text-[10px]">$/km</Label>}
+                            <Input
+                              type="number" min="0" step="0.01" className="h-8 text-xs"
+                              value={zone.per_km_charge}
+                              onChange={(e) => {
+                                const zones = [...form.radius_pricing_zones]
+                                zones[idx] = { ...zones[idx], per_km_charge: parseFloat(e.target.value) || 0 }
+                                setForm((f) => ({ ...f, radius_pricing_zones: zones }))
+                              }}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            className="h-8 w-8 flex items-center justify-center text-red-400 hover:text-red-600"
+                            onClick={() => setForm((f) => ({ ...f, radius_pricing_zones: f.radius_pricing_zones.filter((_, i) => i !== idx) }))}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        className="text-xs text-emerald-600 hover:text-emerald-700 flex items-center gap-1 mt-1"
+                        onClick={() => setForm((f) => ({ ...f, radius_pricing_zones: [...f.radius_pricing_zones, { ...EMPTY_ZONE }] }))}
+                      >
+                        <Plus className="h-3 w-3" /> Add band
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Notes */}
             <div className="space-y-1.5">

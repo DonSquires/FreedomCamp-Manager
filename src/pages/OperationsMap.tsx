@@ -4,6 +4,8 @@
  * Layers (each independently toggleable):
  *   🔵 Freedom Camping       — breach/observation heat circles by zone
  *   🟠 Noise Control         — active noise jobs with priority colour
+ *   🌿 Biosecurity (CNG)     — biosecurity infestation jobs
+ *   💨 Smoke Complaints      — smoke OOH complaint jobs
  *   🔴 Breach Alerts         — open compliance breaches
  *   🟡 Incidents             — incident/evidence records
  *   🚨 Alarm Activations     — dispatch jobs of type alarm_response
@@ -59,6 +61,8 @@ import {
   Tent,
   User,
   Volume2,
+  Wind,
+  Leaf,
   Zap,
   X,
   ChevronLeft,
@@ -89,6 +93,8 @@ const LAYERS: LayerDef[] = [
   { id: 'camping',       label: 'Freedom Camping',     icon: Tent,        colour: '#2563eb', defaultOn: true,  description: 'Camping observation hotspots' },
   { id: 'breaches',      label: 'Breach Alerts',       icon: AlertTriangle, colour: '#dc2626', defaultOn: true, description: 'Open compliance breaches' },
   { id: 'noise',         label: 'Noise Control',       icon: Volume2,     colour: '#ea580c', defaultOn: true,  description: 'Noise jobs' },
+  { id: 'biosecurity',   label: 'Biosecurity (CNG)',    icon: Leaf,        colour: '#059669', defaultOn: false, description: 'Biosecurity infestation sites' },
+  { id: 'smoke',         label: 'Smoke Complaints',     icon: Wind,        colour: '#d97706', defaultOn: false, description: 'Smoke OOH complaint jobs' },
   { id: 'alarms',        label: 'Alarm Activations',   icon: Siren,       colour: '#b91c1c', defaultOn: true,  description: 'Alarm response jobs' },
   { id: 'incidents',     label: 'Incidents',           icon: Shield,      colour: '#4f46e5', defaultOn: false, description: 'Incident records' },
   { id: 'voi',           label: 'Vehicle of Interest', icon: Car,         colour: '#ca8a04', defaultOn: false, description: 'Flagged vehicles with last scan location' },
@@ -300,6 +306,42 @@ export default function OperationsMap() {
     staleTime: 30_000,
   })
 
+  // Biosecurity infestation jobs
+  const { data: biosecurityJobs = [] } = useQuery({
+    queryKey: ['ops-map-biosecurity', effectiveOrgId, startDate, endDate, tick],
+    queryFn: async () => {
+      let q = (supabase as any)
+        .from('biosecurity_jobs')
+        .select('id, job_number, title, address, priority, status, gps_lat, gps_lng, inspection_type, created_at, assigned_to')
+        .in('status', historyMode ? ['completed', 'cancelled', 'referred'] : ['pending', 'assigned', 'en_route', 'on_scene'])
+      if (effectiveOrgId) q = q.eq('organization_id', effectiveOrgId)
+      if (startDate) q = q.gte('created_at', startDate)
+      if (endDate)   q = q.lte('created_at', endDate)
+      const { data } = await q.order('created_at', { ascending: false }).limit(100)
+      return (data ?? []).filter((n: any) => n.gps_lat && n.gps_lng)
+    },
+    enabled: visibleLayers.biosecurity,
+    staleTime: 30_000,
+  })
+
+  // Smoke complaint OOH jobs
+  const { data: smokeJobs = [] } = useQuery({
+    queryKey: ['ops-map-smoke', effectiveOrgId, startDate, endDate, tick],
+    queryFn: async () => {
+      let q = (supabase as any)
+        .from('smoke_jobs')
+        .select('id, job_number, title, address, priority, status, gps_lat, gps_lng, is_out_of_hours, complaint_time, created_at, assigned_to')
+        .in('status', historyMode ? ['completed', 'cancelled'] : ['pending', 'assigned', 'en_route', 'on_scene'])
+      if (effectiveOrgId) q = q.eq('organization_id', effectiveOrgId)
+      if (startDate) q = q.gte('created_at', startDate)
+      if (endDate)   q = q.lte('created_at', endDate)
+      const { data } = await q.order('created_at', { ascending: false }).limit(100)
+      return (data ?? []).filter((n: any) => n.gps_lat && n.gps_lng)
+    },
+    enabled: visibleLayers.smoke,
+    staleTime: 30_000,
+  })
+
   // Alarm activations (dispatch_jobs of type alarm_response)
   const { data: alarmJobs = [] } = useQuery({
     queryKey: ['ops-map-alarms', effectiveOrgId, startDate, endDate, tick],
@@ -375,23 +417,27 @@ export default function OperationsMap() {
     if (visibleLayers.officers) officers.forEach((o: any)   => pts.push([o.last_gps_latitude, o.last_gps_longitude]))
     if (visibleLayers.camping)  campingHotspots.forEach((c: any) => pts.push([c.lat, c.lng]))
     if (visibleLayers.breaches) breachAlerts.forEach((b: any) => pts.push([b.gps_latitude, b.gps_longitude]))
-    if (visibleLayers.noise)    noiseJobs.forEach((n: any)  => pts.push([n.gps_lat, n.gps_lng]))
-    if (visibleLayers.alarms)   alarmJobs.forEach((a: any)  => pts.push([a.gps_lat, a.gps_lng]))
+    if (visibleLayers.noise)        noiseJobs.forEach((n: any)        => pts.push([n.gps_lat, n.gps_lng]))
+    if (visibleLayers.biosecurity)  biosecurityJobs.forEach((b: any)  => pts.push([b.gps_lat, b.gps_lng]))
+    if (visibleLayers.smoke)        smokeJobs.forEach((s: any)        => pts.push([s.gps_lat, s.gps_lng]))
+    if (visibleLayers.alarms)       alarmJobs.forEach((a: any)        => pts.push([a.gps_lat, a.gps_lng]))
     return pts.filter(([lat, lng]) => lat && lng && isFinite(lat) && isFinite(lng))
-  }, [zones, officers, campingHotspots, breachAlerts, noiseJobs, alarmJobs, visibleLayers])
+  }, [zones, officers, campingHotspots, breachAlerts, noiseJobs, biosecurityJobs, smokeJobs, alarmJobs, visibleLayers])
 
   // ── Total counts for legend ─────────────────────────────────────────────────
   const layerCounts: Record<string, number> = {
-    zones:    zones.length,
-    officers: officers.length,
-    welfare:  welfareAlerts.length,
-    camping:  campingHotspots.length,
-    breaches: breachAlerts.length,
-    noise:    noiseJobs.length,
-    alarms:   alarmJobs.length,
-    incidents: incidents.length,
-    voi:      voiVehicles.length,
-    poi:      poiPersons.length,
+    zones:       zones.length,
+    officers:    officers.length,
+    welfare:     welfareAlerts.length,
+    camping:     campingHotspots.length,
+    breaches:    breachAlerts.length,
+    noise:       noiseJobs.length,
+    biosecurity: biosecurityJobs.length,
+    smoke:       smokeJobs.length,
+    alarms:      alarmJobs.length,
+    incidents:   incidents.length,
+    voi:         voiVehicles.length,
+    poi:         poiPersons.length,
   }
 
   return (
@@ -636,6 +682,56 @@ export default function OperationsMap() {
                       {n.address && <p className="text-xs text-gray-500">{n.address}</p>}
                       <p className="text-xs capitalize">{n.noise_type?.replace(/_/g, ' ')}</p>
                       <p className="text-xs">{timeSince(n.created_at)}</p>
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              ))}
+
+              {/* ── Biosecurity Infestation Sites ────────────────────────── */}
+              {visibleLayers.biosecurity && biosecurityJobs.map((b: any) => (
+                <CircleMarker
+                  key={b.id}
+                  center={[b.gps_lat, b.gps_lng]}
+                  radius={9}
+                  pathOptions={{
+                    color: priorityColour(b.priority),
+                    fillColor: '#059669',
+                    fillOpacity: 0.82,
+                    weight: 2,
+                  }}
+                >
+                  <Popup>
+                    <div className="text-sm space-y-1 min-w-[180px]">
+                      <p className="font-semibold">🌿 {b.job_number}</p>
+                      <p className="text-xs font-medium">{b.title}</p>
+                      {b.address && <p className="text-xs text-gray-500">{b.address}</p>}
+                      <p className="text-xs capitalize">{b.inspection_type?.replace(/_/g, ' ')}</p>
+                      <p className="text-xs">{timeSince(b.created_at)}</p>
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              ))}
+
+              {/* ── Smoke Complaint OOH Jobs ──────────────────────────────── */}
+              {visibleLayers.smoke && smokeJobs.map((s: any) => (
+                <CircleMarker
+                  key={s.id}
+                  center={[s.gps_lat, s.gps_lng]}
+                  radius={9}
+                  pathOptions={{
+                    color: s.is_out_of_hours ? '#b45309' : '#d97706',
+                    fillColor: '#d97706',
+                    fillOpacity: 0.82,
+                    weight: s.is_out_of_hours ? 3 : 2,
+                  }}
+                >
+                  <Popup>
+                    <div className="text-sm space-y-1 min-w-[180px]">
+                      <p className="font-semibold">💨 {s.job_number}</p>
+                      <p className="text-xs font-medium">{s.title}</p>
+                      {s.address && <p className="text-xs text-gray-500">{s.address}</p>}
+                      {s.is_out_of_hours && <p className="text-xs font-semibold text-amber-700">⚠ Out of Hours</p>}
+                      <p className="text-xs">{timeSince(s.created_at)}</p>
                     </div>
                   </Popup>
                 </CircleMarker>

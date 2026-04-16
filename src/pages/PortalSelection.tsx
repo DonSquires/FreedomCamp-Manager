@@ -19,11 +19,13 @@ const SERVICE_TYPE_PORTAL: Record<RosterServiceType, { path: string; label: stri
         ? `/site-guard?site=${shift.client_site_id}${shift.id ? `&roster=${shift.id}` : ''}`
         : '/field-officer?service=guarding',
   },
-  parking:         { path: '/parking-officer',                       label: 'Parking Enforcement' },
-  noise:           { path: '/noise-officer',                         label: 'Noise Control' },
-  patrol:          { path: '/field-officer?service=patrol',          label: 'General Patrol' },
-  alarm_response:  { path: '/field-officer?service=alarm_response',  label: 'Alarm Response' },
-  ems:             { path: '/ems',                                    label: 'EMS' },
+  parking:                 { path: '/parking-officer',                             label: 'Parking Enforcement' },
+  noise:                   { path: '/noise-officer',                               label: 'Noise Control' },
+  patrol:                  { path: '/field-officer?service=patrol',                label: 'General Patrol' },
+  alarm_response:          { path: '/field-officer?service=alarm_response',        label: 'Alarm Response' },
+  ems:                     { path: '/ems',                                         label: 'EMS' },
+  biosecurity_inspection:  { path: '/biosecurity-officer',                         label: 'Biosecurity Inspection' },
+  smoke_complaint_ooh:     { path: '/smoke-officer',                               label: 'Smoke Complaint (OOH)' },
 }
 
 export default function PortalSelection() {
