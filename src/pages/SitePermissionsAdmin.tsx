@@ -95,7 +95,7 @@ export default function SitePermissionsAdmin() {
         .select('id, role, field_group, can_view, can_edit')
         .order('role')
       if (error) throw error
-      return (data ?? []) as RolePermRow[]
+      return (data ?? []) as unknown as RolePermRow[]
     },
   })
 

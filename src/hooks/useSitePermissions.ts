@@ -91,7 +91,7 @@ export function useSitePermissions(): UseSitePermissionsResult {
         .select('role, field_group, can_view, can_edit')
         .eq('role', role ?? '')
       if (error) throw error
-      return (data ?? []) as RolePermRow[]
+      return (data ?? []) as unknown as RolePermRow[]
     },
     enabled: !!role,
     staleTime: 10 * 60 * 1000,
@@ -106,7 +106,7 @@ export function useSitePermissions(): UseSitePermissionsResult {
         .select('user_id, field_group, can_view, can_edit')
         .eq('user_id', userId ?? '')
       if (error) throw error
-      return (data ?? []) as UserPermRow[]
+      return (data ?? []) as unknown as UserPermRow[]
     },
     enabled: !!userId,
     staleTime: 10 * 60 * 1000,
