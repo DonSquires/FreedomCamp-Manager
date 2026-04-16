@@ -1287,7 +1287,42 @@ export default function PTTRadio() {
                   </div>
                   <div className="text-slate-500">Peer Connections</div>
                   <div className="text-slate-200 tabular-nums">{diagnostics.activePeerConnections}</div>
+                  <div className="text-slate-500">Last Negotiation</div>
+                  <div className="text-slate-200 truncate" title={diagnostics.lastNegotiationAttempt.stage || 'none'}>
+                    {diagnostics.lastNegotiationAttempt.stage || 'none'}
+                  </div>
+                  <div className="text-slate-500">Negotiation Peer</div>
+                  <div className="text-slate-200 truncate" title={diagnostics.lastNegotiationAttempt.peerId || 'none'}>
+                    {diagnostics.lastNegotiationAttempt.peerId ? diagnostics.lastNegotiationAttempt.peerId.slice(0, 8) : 'none'}
+                  </div>
                 </div>
+
+                {diagnostics.lastNegotiationAttempt.at && (
+                  <div className="rounded bg-slate-950 border border-slate-800 px-2.5 py-2 text-[11px]">
+                    <div className="text-slate-500 uppercase tracking-wide">Last Negotiation Attempt</div>
+                    <div className="text-slate-300">
+                      {formatDateTime(diagnostics.lastNegotiationAttempt.at)}
+                    </div>
+                    {diagnostics.lastNegotiationAttempt.stage && (
+                      <div className="text-slate-400 truncate">{diagnostics.lastNegotiationAttempt.stage}</div>
+                    )}
+                  </div>
+                )}
+
+                {diagnostics.lastNegotiationError.message && (
+                  <div className="rounded bg-amber-950/30 border border-amber-900 px-2.5 py-2 text-[11px]">
+                    <div className="text-amber-300 uppercase tracking-wide">Last Negotiation Error</div>
+                    {diagnostics.lastNegotiationError.peerId && (
+                      <div className="text-amber-200 truncate" title={diagnostics.lastNegotiationError.peerId}>
+                        Peer {diagnostics.lastNegotiationError.peerId.slice(0, 8)}
+                      </div>
+                    )}
+                    {diagnostics.lastNegotiationError.at && (
+                      <div className="text-amber-200">{formatDateTime(diagnostics.lastNegotiationError.at)}</div>
+                    )}
+                    <div className="text-amber-100 break-words">{diagnostics.lastNegotiationError.message}</div>
+                  </div>
+                )}
 
                 {diagnostics.lastClose.code !== null && (
                   <div className="rounded bg-slate-950 border border-slate-800 px-2.5 py-2 text-[11px]">

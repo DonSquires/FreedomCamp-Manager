@@ -89,6 +89,16 @@ export interface PTTDiagnostics {
     code: number | null
     reason: string | null
   }
+  lastNegotiationAttempt: {
+    at: string | null
+    peerId: string | null
+    stage: string | null
+  }
+  lastNegotiationError: {
+    at: string | null
+    peerId: string | null
+    message: string | null
+  }
 }
 
 async function requestLocalAudioStream(): Promise<MediaStream> {
@@ -201,6 +211,31 @@ let turnConfigured = false
 let forceTurnRelay = false
 let lastSocketCloseCode: number | null = null
 let lastSocketCloseReason: string | null = null
+let lastNegotiationAttemptAt: string | null = null
+let lastNegotiationPeerId: string | null = null
+let lastNegotiationStage: string | null = null
+let lastNegotiationErrorAt: string | null = null
+let lastNegotiationErrorPeerId: string | null = null
+let lastNegotiationErrorMessage: string | null = null
+
+function markNegotiationAttempt(peerId: string, stage: string): void {
+  lastNegotiationAttemptAt = new Date().toISOString()
+  lastNegotiationPeerId = peerId
+  lastNegotiationStage = stage
+}
+
+function markNegotiationError(peerId: string, error: unknown, stage: string): void {
+  markNegotiationAttempt(peerId, stage)
+  lastNegotiationErrorAt = new Date().toISOString()
+  lastNegotiationErrorPeerId = peerId
+  lastNegotiationErrorMessage = error instanceof Error ? error.message : String(error)
+}
+
+function clearNegotiationError(): void {
+  lastNegotiationErrorAt = null
+  lastNegotiationErrorPeerId = null
+  lastNegotiationErrorMessage = null
+}
 
 function applyTransportDiagnostics(transport?: {
   turnConfigured?: boolean
@@ -290,6 +325,16 @@ export function getPTTDiagnostics(): PTTDiagnostics {
     lastClose: {
       code: lastSocketCloseCode,
       reason: lastSocketCloseReason,
+    },
+    lastNegotiationAttempt: {
+      at: lastNegotiationAttemptAt,
+      peerId: lastNegotiationPeerId,
+      stage: lastNegotiationStage,
+    },
+    lastNegotiationError: {
+      at: lastNegotiationErrorAt,
+      peerId: lastNegotiationErrorPeerId,
+      message: lastNegotiationErrorMessage,
     },
   }
 }
@@ -496,6 +541,10 @@ function cleanupConnection(): void {
     }
   })
   remoteAudioElements.clear()
+  clearNegotiationError()
+  lastNegotiationAttemptAt = null
+  lastNegotiationPeerId = null
+  lastNegotiationStage = null
 }
 
 /**
@@ -659,6 +708,8 @@ async function handleSignalMessage(message: SignalMessage): Promise<void> {
   const fromUserId = message.fromUserId
   const signal = message.signal
 
+  markNegotiationAttempt(fromUserId, `incoming_${signal.type}`)
+
   let pc = peerConnections.get(fromUserId)
 
   if (!pc) {
@@ -669,17 +720,25 @@ async function handleSignalMessage(message: SignalMessage): Promise<void> {
 
   try {
     if (signal.type === 'offer' && signal.sdp) {
+      clearNegotiationError()
       await pc.setRemoteDescription({ type: 'offer', sdp: signal.sdp })
+      markNegotiationAttempt(fromUserId, 'remote_offer_applied')
       const answer = await pc.createAnswer()
+      markNegotiationAttempt(fromUserId, 'answer_created')
       await pc.setLocalDescription(answer)
+      markNegotiationAttempt(fromUserId, 'answer_sent')
 
       sendSignal(fromUserId, { type: 'answer', sdp: answer.sdp })
     } else if (signal.type === 'answer' && signal.sdp) {
+      clearNegotiationError()
       await pc.setRemoteDescription({ type: 'answer', sdp: signal.sdp })
+      markNegotiationAttempt(fromUserId, 'remote_answer_applied')
     } else if (signal.type === 'candidate' && signal.candidate) {
       await pc.addIceCandidate(signal.candidate)
+      markNegotiationAttempt(fromUserId, 'candidate_applied')
     }
   } catch (error) {
+    markNegotiationError(fromUserId, error, `incoming_${signal.type}_failed`)
     console.error('🎤 PTT: Signal handling error', error)
   }
 }
@@ -774,10 +833,13 @@ function sendSignal(targetUserId: string, signal: SignalMessage['signal']): void
 async function negotiatePeerAudio(peerId: string): Promise<void> {
   if (!localStream) return
 
+  markNegotiationAttempt(peerId, 'begin_offer')
+
   let pc = peerConnections.get(peerId)
   if (!pc) {
     pc = createPeerConnection(peerId)
     peerConnections.set(peerId, pc)
+    markNegotiationAttempt(peerId, 'peer_created')
   }
 
   for (const track of localStream.getTracks()) {
@@ -798,6 +860,7 @@ async function negotiatePeerAudio(peerId: string): Promise<void> {
     peerConnections.delete(peerId)
     pc = createPeerConnection(peerId)
     peerConnections.set(peerId, pc)
+    markNegotiationAttempt(peerId, 'peer_rebuilt')
 
     for (const track of localStream.getTracks()) {
       const alreadySending = pc.getSenders().some((s) => s.track?.id === track.id)
@@ -807,9 +870,18 @@ async function negotiatePeerAudio(peerId: string): Promise<void> {
     }
   }
 
-  const offer = await pc.createOffer()
-  await pc.setLocalDescription(offer)
-  sendSignal(peerId, { type: 'offer', sdp: offer.sdp })
+  try {
+    const offer = await pc.createOffer()
+    markNegotiationAttempt(peerId, 'offer_created')
+    await pc.setLocalDescription(offer)
+    markNegotiationAttempt(peerId, 'offer_local_set')
+    sendSignal(peerId, { type: 'offer', sdp: offer.sdp })
+    markNegotiationAttempt(peerId, 'offer_sent')
+    clearNegotiationError()
+  } catch (error) {
+    markNegotiationError(peerId, error, 'offer_failed')
+    throw error
+  }
 }
 
 // ---------------------------------------------------------------------------
