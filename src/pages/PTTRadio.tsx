@@ -1286,6 +1286,16 @@ export default function PTTRadio() {
                   </div>
                   <div className="text-slate-500">Peer Connections</div>
                   <div className="text-slate-200 tabular-nums">{diagnostics.activePeerConnections}</div>
+                  <div className="text-slate-500">ICE Cand Sent</div>
+                  <div className="text-slate-200 tabular-nums">{diagnostics.iceCandidates.sent}</div>
+                  <div className="text-slate-500">ICE Cand Recv</div>
+                  <div className="text-slate-200 tabular-nums">{diagnostics.iceCandidates.received}</div>
+                  <div className="text-slate-500">Gather Complete</div>
+                  <div className="text-slate-200 tabular-nums">{diagnostics.iceCandidates.gatherComplete}</div>
+                  <div className="text-slate-500">ICE Errors</div>
+                  <div className={diagnostics.iceCandidates.errors > 0 ? 'text-amber-300 tabular-nums' : 'text-slate-200 tabular-nums'}>
+                    {diagnostics.iceCandidates.errors}
+                  </div>
                   <div className="text-slate-500">Last Negotiation</div>
                   <div className="text-slate-200 truncate" title={diagnostics.lastNegotiationAttempt.stage || 'none'}>
                     {diagnostics.lastNegotiationAttempt.stage || 'none'}
@@ -1337,6 +1347,13 @@ export default function PTTRadio() {
                   </div>
                 )}
 
+                {diagnostics.iceCandidates.lastError && (
+                  <div className="rounded bg-amber-950/30 border border-amber-900 px-2.5 py-2 text-[11px]">
+                    <div className="text-amber-300 uppercase tracking-wide">Last ICE Error</div>
+                    <div className="text-amber-100 break-words">{diagnostics.iceCandidates.lastError}</div>
+                  </div>
+                )}
+
                 {diagnostics.lastClose.code !== null && (
                   <div className="rounded bg-slate-950 border border-slate-800 px-2.5 py-2 text-[11px]">
                     <div className="text-slate-500 uppercase tracking-wide">Last Socket Close</div>
@@ -1352,7 +1369,7 @@ export default function PTTRadio() {
                       <div key={peer.peerId} className="text-[11px] text-slate-300 grid grid-cols-3 gap-2">
                         <span className="truncate" title={peer.peerId}>{peer.peerId.slice(0, 8)}</span>
                         <span className="text-slate-400 truncate">{peer.connectionState}</span>
-                        <span className="text-slate-400 truncate">{peer.iceConnectionState}</span>
+                        <span className="text-slate-400 truncate">{peer.iceConnectionState}/{peer.iceGatheringState}</span>
                       </div>
                     ))}
                   </div>

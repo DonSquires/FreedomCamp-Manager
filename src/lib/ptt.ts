@@ -80,6 +80,7 @@ export interface PTTDiagnostics {
     connectionState: RTCPeerConnectionState
     iceConnectionState: RTCIceConnectionState
     signalingState: RTCSignalingState
+    iceGatheringState: RTCIceGatheringState
   }>
   transport: {
     turnConfigured: boolean
@@ -105,6 +106,13 @@ export interface PTTDiagnostics {
     presenceCount: number
     microphoneReady: boolean
     channelScope: string | null
+  }
+  iceCandidates: {
+    sent: number
+    received: number
+    gatherComplete: number
+    errors: number
+    lastError: string | null
   }
 }
 
@@ -214,6 +222,7 @@ const peerConnectionStates: Map<string, {
   connectionState: RTCPeerConnectionState
   iceConnectionState: RTCIceConnectionState
   signalingState: RTCSignalingState
+  iceGatheringState: RTCIceGatheringState
 }> = new Map()
 let turnConfigured = false
 let forceTurnRelay = false
@@ -229,6 +238,11 @@ let lastTransmitAttemptAt: string | null = null
 let lastTransmitPresenceCount = 0
 let lastTransmitMicrophoneReady = false
 let lastTransmitChannelScope: string | null = null
+let iceCandidatesSent = 0
+let iceCandidatesReceived = 0
+let iceGatherCompleteCount = 0
+let iceCandidateErrors = 0
+let lastIceCandidateError: string | null = null
 
 function markNegotiationAttempt(peerId: string, stage: string): void {
   lastNegotiationAttemptAt = new Date().toISOString()
@@ -337,6 +351,7 @@ export function getPTTDiagnostics(): PTTDiagnostics {
       connectionState: state.connectionState,
       iceConnectionState: state.iceConnectionState,
       signalingState: state.signalingState,
+      iceGatheringState: state.iceGatheringState,
     })),
     transport: {
       turnConfigured,
@@ -362,6 +377,13 @@ export function getPTTDiagnostics(): PTTDiagnostics {
       presenceCount: lastTransmitPresenceCount,
       microphoneReady: lastTransmitMicrophoneReady,
       channelScope: lastTransmitChannelScope,
+    },
+    iceCandidates: {
+      sent: iceCandidatesSent,
+      received: iceCandidatesReceived,
+      gatherComplete: iceGatherCompleteCount,
+      errors: iceCandidateErrors,
+      lastError: lastIceCandidateError,
     },
   }
 }
@@ -577,6 +599,11 @@ function cleanupConnection(): void {
   lastTransmitPresenceCount = 0
   lastTransmitMicrophoneReady = false
   lastTransmitChannelScope = null
+  iceCandidatesSent = 0
+  iceCandidatesReceived = 0
+  iceGatherCompleteCount = 0
+  iceCandidateErrors = 0
+  lastIceCandidateError = null
 }
 
 /**
@@ -767,6 +794,7 @@ async function handleSignalMessage(message: SignalMessage): Promise<void> {
       markNegotiationAttempt(fromUserId, 'remote_answer_applied')
     } else if (signal.type === 'candidate' && signal.candidate) {
       await pc.addIceCandidate(signal.candidate)
+      iceCandidatesReceived++
       markNegotiationAttempt(fromUserId, 'candidate_applied')
     }
   } catch (error) {
@@ -791,11 +819,15 @@ function createPeerConnection(peerId: string): RTCPeerConnection {
     connectionState: pc.connectionState,
     iceConnectionState: pc.iceConnectionState,
     signalingState: pc.signalingState,
+    iceGatheringState: pc.iceGatheringState,
   })
 
   pc.onicecandidate = (event) => {
     if (event.candidate) {
+      iceCandidatesSent++
       sendSignal(peerId, { type: 'candidate', candidate: event.candidate.toJSON() })
+    } else {
+      iceGatherCompleteCount++
     }
   }
 
@@ -816,6 +848,7 @@ function createPeerConnection(peerId: string): RTCPeerConnection {
       connectionState: current?.connectionState || pc.connectionState,
       iceConnectionState: pc.iceConnectionState,
       signalingState: pc.signalingState,
+      iceGatheringState: current?.iceGatheringState || pc.iceGatheringState,
     })
     if (pc.iceConnectionState === 'failed') {
       const store = usePTTStore.getState()
@@ -824,6 +857,8 @@ function createPeerConnection(peerId: string): RTCPeerConnection {
   }
 
   pc.onicecandidateerror = (event) => {
+    iceCandidateErrors++
+    lastIceCandidateError = `${event.errorCode}: ${event.errorText || 'unknown'}`
     console.warn('🎤 PTT: ICE candidate error', peerId, event.errorCode, event.errorText)
   }
 
@@ -833,6 +868,7 @@ function createPeerConnection(peerId: string): RTCPeerConnection {
       connectionState: pc.connectionState,
       iceConnectionState: current?.iceConnectionState || pc.iceConnectionState,
       signalingState: pc.signalingState,
+      iceGatheringState: current?.iceGatheringState || pc.iceGatheringState,
     })
     if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
       peerConnections.delete(peerId)
@@ -847,6 +883,17 @@ function createPeerConnection(peerId: string): RTCPeerConnection {
       connectionState: current?.connectionState || pc.connectionState,
       iceConnectionState: current?.iceConnectionState || pc.iceConnectionState,
       signalingState: pc.signalingState,
+      iceGatheringState: current?.iceGatheringState || pc.iceGatheringState,
+    })
+  }
+
+  pc.onicegatheringstatechange = () => {
+    const current = peerConnectionStates.get(peerId)
+    peerConnectionStates.set(peerId, {
+      connectionState: current?.connectionState || pc.connectionState,
+      iceConnectionState: current?.iceConnectionState || pc.iceConnectionState,
+      signalingState: current?.signalingState || pc.signalingState,
+      iceGatheringState: pc.iceGatheringState,
     })
   }
 
