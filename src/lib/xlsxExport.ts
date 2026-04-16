@@ -62,8 +62,8 @@ function buildWorksheet<T extends Record<string, unknown>>(
   // Auto-width: measure the widest value in each column
   const colWidths = columns.map((col, idx) => {
     const headerLen = col.label.length
-    const maxDataLen = rows.reduce((max, row) => {
-      const cell = wsData[rows.indexOf(row) + 1]?.[idx]
+    const maxDataLen = data.slice(1).reduce((max, rowArr) => {
+      const cell = rowArr[idx]
       const len = cell != null ? String(cell).length : 0
       return Math.max(max, len)
     }, 0)
