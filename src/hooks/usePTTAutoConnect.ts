@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useRef } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { usePTTStore } from '@/stores/pttStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
@@ -25,11 +26,14 @@ export function usePTTAutoConnect(): void {
   const selectedOrganizationId = useGlobalFiltersStore((s) => s.organizationId)
   const connectionStatus = usePTTStore((s) => s.connectionStatus)
   const hasStarted = useRef(false)
+  const location = useLocation()
 
   const operationalOrganizationId =
     user?.role === 'master' || user?.role === 'grand_master'
       ? selectedOrganizationId || user?.organization_id || null
       : user?.organization_id || null
+
+  const isRadioRoute = location.pathname === '/radio'
 
   useEffect(() => {
     // Wait until the auth check has fully resolved before starting PTT.
@@ -37,6 +41,16 @@ export function usePTTAutoConnect(): void {
     // token (persisted from a previous session) before the Supabase session
     // has been verified, which causes 401 errors from ptt-signaling-token.
     if (loading) return
+
+    // The radio screen manages its own channel-specific connection. Stop the
+    // background org-channel service there so it does not override CH2/CH3/etc.
+    if (isRadioRoute) {
+      if (hasStarted.current) {
+        hasStarted.current = false
+        stopPTTBackgroundService()
+      }
+      return
+    }
 
     // Start PTT service when user is authenticated
     if (isAuthenticated && operationalOrganizationId && !hasStarted.current) {
@@ -60,7 +74,7 @@ export function usePTTAutoConnect(): void {
       // Don't stop on unmount - service should persist
       // Only stop on explicit logout (handled above)
     }
-  }, [loading, isAuthenticated, operationalOrganizationId])
+  }, [loading, isAuthenticated, operationalOrganizationId, isRadioRoute])
 
   // Log connection status changes
   useEffect(() => {

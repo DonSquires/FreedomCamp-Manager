@@ -80,14 +80,29 @@ function parseTurnUrls(value) {
   if (Array.isArray(value)) return value.filter(Boolean);
   return String(value)
     .split(',')
-    .map((url) => url.trim())
+    .map((url) => normalizeTurnUrl(url))
     .filter(Boolean);
+}
+
+function normalizeTurnUrl(rawUrl) {
+  if (typeof rawUrl !== 'string') return null;
+
+  const url = rawUrl.trim();
+  if (!url) return null;
+
+  if (url.startsWith('turn:') || url.startsWith('turns:') || url.startsWith('stun:') || url.startsWith('stuns:')) {
+    return url;
+  }
+
+  // Railway often exposes the TURN relay as bare host:port. Browsers require
+  // an explicit turn: URL scheme for RTCPeerConnection iceServers.
+  return `turn:${url}?transport=tcp`;
 }
 
 function toStunUrl(url) {
   if (typeof url !== 'string') return null;
-  if (url.startsWith('turns:')) return url.replace(/^turns:/, 'stuns:');
-  if (url.startsWith('turn:')) return url.replace(/^turn:/, 'stun:');
+  if (url.startsWith('turns:')) return url.replace(/^turns:/, 'stuns:').replace(/\?.*$/, '');
+  if (url.startsWith('turn:')) return url.replace(/^turn:/, 'stun:').replace(/\?.*$/, '');
   return null;
 }
 
