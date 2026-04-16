@@ -863,10 +863,10 @@ export default function DispatchConsole() {
             {ALARM_JOB_TYPES.has(form.job_type) && (
               <div className="space-y-1.5">
                 <Label>Alarm Type</Label>
-                <Select value={form.alarm_type} onValueChange={v => setForm(f => ({ ...f, alarm_type: v }))}>
+                <Select value={form.alarm_type || '__none__'} onValueChange={v => setForm(f => ({ ...f, alarm_type: v === '__none__' ? '' : v }))}>
                   <SelectTrigger><SelectValue placeholder="Select alarm type…" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">— Not specified —</SelectItem>
+                    <SelectItem value="__none__">— Not specified —</SelectItem>
                     {Object.entries(ALARM_TYPE_LABELS).map(([k, v]) => (
                       <SelectItem key={k} value={k}>{v}</SelectItem>
                     ))}
@@ -887,20 +887,20 @@ export default function DispatchConsole() {
               </div>
               <div className="space-y-1.5">
                 <Label>Zone</Label>
-                <Select value={form.zone_id} onValueChange={v => setForm(f => ({ ...f, zone_id: v }))}>
+                <Select value={form.zone_id || '__none__'} onValueChange={v => setForm(f => ({ ...f, zone_id: v === '__none__' ? '' : v }))}>
                   <SelectTrigger><SelectValue placeholder="Select zone…" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No zone</SelectItem>
+                    <SelectItem value="__none__">No zone</SelectItem>
                     {(dispatchZones as any[]).map((z: any) => <SelectItem key={z.id} value={z.id}>{z.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>Client Site</Label>
-                <Select value={form.client_site_id} onValueChange={v => setForm(f => ({ ...f, client_site_id: v }))}>
+                <Select value={form.client_site_id || '__none__'} onValueChange={v => setForm(f => ({ ...f, client_site_id: v === '__none__' ? '' : v }))}>
                   <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="__none__">None</SelectItem>
                     {(clientSites as any[]).map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                   </SelectContent>
                 </Select>

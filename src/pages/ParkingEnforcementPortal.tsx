@@ -978,10 +978,10 @@ function NewPermitDialog({ open, organizationId, zones, onClose, onSaved }: {
             </div>
           </div>
           <div className="space-y-1"><Label>Zone (optional — blank = any zone)</Label>
-            <Select value={form.parking_zone_id} onValueChange={v => setForm(f => ({ ...f, parking_zone_id: v }))}>
+            <Select value={form.parking_zone_id || '__none__'} onValueChange={v => setForm(f => ({ ...f, parking_zone_id: v === '__none__' ? '' : v }))}>
               <SelectTrigger><SelectValue placeholder="Any zone" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Any zone</SelectItem>
+                <SelectItem value="__none__">Any zone</SelectItem>
                 {zones.map((z: any) => <SelectItem key={z.id} value={z.id}>{z.name}</SelectItem>)}
               </SelectContent>
             </Select>

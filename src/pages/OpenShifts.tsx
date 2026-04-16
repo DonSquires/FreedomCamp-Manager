@@ -408,10 +408,10 @@ export default function OpenShifts() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Zone</Label>
-                <Select value={form.zone_id} onValueChange={v => setForm(f => ({ ...f, zone_id: v }))}>
+                <Select value={form.zone_id || '__none__'} onValueChange={v => setForm(f => ({ ...f, zone_id: v === '__none__' ? '' : v }))}>
                   <SelectTrigger><SelectValue placeholder="Any zone" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Any zone</SelectItem>
+                    <SelectItem value="__none__">Any zone</SelectItem>
                     {zones.map(z => (
                       <SelectItem key={z.id} value={z.id}>{z.name}</SelectItem>
                     ))}

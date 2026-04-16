@@ -214,20 +214,20 @@ export default function DispatchedJobsList() {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Job Type</Label>
-                    <Select value={jobType} onValueChange={setJobType}>
+                    <Select value={jobType || '__all__'} onValueChange={v => setJobType(v === '__all__' ? '' : v)}>
                       <SelectTrigger><SelectValue placeholder="All" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">All</SelectItem>
+                        <SelectItem value="__all__">All</SelectItem>
                         {Object.entries(JOB_TYPE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Alarm Type</Label>
-                    <Select value={alarmType} onValueChange={setAlarmType}>
+                    <Select value={alarmType || '__all__'} onValueChange={v => setAlarmType(v === '__all__' ? '' : v)}>
                       <SelectTrigger><SelectValue placeholder="All" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">All</SelectItem>
+                        <SelectItem value="__all__">All</SelectItem>
                         {Object.entries(ALARM_TYPE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
                       </SelectContent>
                     </Select>

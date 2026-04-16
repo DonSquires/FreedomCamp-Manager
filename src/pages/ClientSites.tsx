@@ -91,6 +91,7 @@ interface SiteForm {
 const SITE_TYPE_LABELS: Record<string, string> = {
   general: 'General', freedom_camping: 'Freedom Camping', guarding: 'Guarding Post',
   parking: 'Parking', noise_control: 'Noise Control', event: 'Event Site', infrastructure: 'Infrastructure',
+  research: 'Research', bus_hub: 'Bus Hub', government: 'Government', commercial: 'Commercial',
 }
 
 function emptyForm(): SiteForm {
@@ -488,10 +489,10 @@ export default function ClientSites() {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Zone</Label>
-                  <Select disabled={!canEdit('identity')} value={form.zone_id} onValueChange={v => setForm(f => ({ ...f, zone_id: v }))}>
+                  <Select disabled={!canEdit('identity')} value={form.zone_id || '__none__'} onValueChange={v => setForm(f => ({ ...f, zone_id: v === '__none__' ? '' : v }))}>
                     <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">None</SelectItem>
+                      <SelectItem value="__none__">None</SelectItem>
                       {zones.map(z => <SelectItem key={z.id} value={z.id}>{z.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -566,10 +567,10 @@ export default function ClientSites() {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Priority Override</Label>
-                  <Select disabled={!canEdit('sla')} value={form.priority_override} onValueChange={v => setForm(f => ({ ...f, priority_override: v }))}>
+                  <Select disabled={!canEdit('sla')} value={form.priority_override || '__none__'} onValueChange={v => setForm(f => ({ ...f, priority_override: v === '__none__' ? '' : v }))}>
                     <SelectTrigger><SelectValue placeholder="Use job priority" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Use job priority</SelectItem>
+                      <SelectItem value="__none__">Use job priority</SelectItem>
                       {['low','normal','high','urgent'].map(p => <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>)}
                     </SelectContent>
                   </Select>
