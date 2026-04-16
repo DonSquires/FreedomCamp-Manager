@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -105,6 +106,7 @@ function ComplianceBadge({ status }: { status: string | null }) {
 export default function CRMModule() {
   const { user } = useAuthStore()
   const navigate = useNavigate()
+  const { orgIds, isLoading: orgIdsLoading } = useClientOrgIds()
 
   const [accountSearch, setAccountSearch]   = useState('')
   const [typeFilter, setTypeFilter]         = useState('all')
@@ -114,9 +116,11 @@ export default function CRMModule() {
   // ── Accounts query ────────────────────────────────────────────────────────
 
   const { data: accounts = [], isLoading: accountsLoading } = useQuery<CRMAccount[]>({
-    queryKey: ['crm_accounts', user?.organization_id],
+    queryKey: ['crm_accounts', user?.organization_id, orgIds],
     queryFn: async () => {
-      const { data, error } = await (supabase.from('organizations') as any)
+      if (orgIds !== null && orgIds.length === 0) return []
+
+      let q = (supabase.from('organizations') as any)
         .select(`
           id, name, organization_type, organization_level, is_active,
           contact_email, contact_phone,
@@ -129,6 +133,12 @@ export default function CRMModule() {
           )
         `)
         .in('organization_type', ['client', 'contractor'])
+
+      if (orgIds !== null) {
+        q = q.in('id', orgIds)
+      }
+
+      const { data, error } = await q
         .order('organization_type')
         .order('name')
       if (error) throw error
@@ -140,26 +150,34 @@ export default function CRMModule() {
           : a.contractor_profile,
       })) as CRMAccount[]
     },
-    enabled: !!user?.organization_id,
+    enabled: !orgIdsLoading && (orgIds === null || !!user?.organization_id),
   })
 
   // ── Contacts query ────────────────────────────────────────────────────────
 
   const { data: contacts = [], isLoading: contactsLoading } = useQuery<CRMContact[]>({
-    queryKey: ['crm_contacts', user?.organization_id],
+    queryKey: ['crm_contacts', user?.organization_id, orgIds],
     queryFn: async () => {
-      const { data, error } = await (supabase.from('user_profiles') as any)
+      if (orgIds !== null && orgIds.length === 0) return []
+
+      let q = (supabase.from('user_profiles') as any)
         .select(`
           id, first_name, last_name, email, phone, job_title, role, is_active,
           organization:organizations!organization_id(id, name),
           employer_org:organizations!employer_organization_id(id, name)
         `)
         .eq('is_active', true)
-        .order('first_name')
+      
+      if (orgIds !== null) {
+        const orgList = orgIds.join(',')
+        q = q.or(`organization_id.in.(${orgList}),employer_organization_id.in.(${orgList})`)
+      }
+
+      const { data, error } = await q.order('first_name')
       if (error) throw error
       return (data || []) as CRMContact[]
     },
-    enabled: !!user?.organization_id,
+    enabled: !orgIdsLoading && (orgIds === null || !!user?.organization_id),
   })
 
   // ── Filtered lists ────────────────────────────────────────────────────────

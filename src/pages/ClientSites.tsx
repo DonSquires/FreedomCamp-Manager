@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useZones } from '@/hooks/useZones'
 import { useClientOrgIds } from '@/hooks/useClientOrgIds'
+import { useOrganizations } from '@/hooks/useOrganizations'
 import { useSitePermissions } from '@/hooks/useSitePermissions'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Button } from '@/components/ui/button'
@@ -140,29 +141,44 @@ export default function ClientSites() {
   const { user } = useAuthStore()
   const qc = useQueryClient()
   const orgId = user?.organization_id
+  const isSuperUser = user?.role === 'master' || user?.role === 'grand_master'
 
   const [search, setSearch]           = useState('')
   const [showInactive, setShowInactive] = useState(false)
   const [typeFilter, setTypeFilter]   = useState('all')
+  const [selectedOrgId, setSelectedOrgId] = useState('')
   const [dialogMode, setDialogMode]   = useState<'create' | 'edit' | null>(null)
   const [editTarget, setEditTarget]   = useState<ClientSite | null>(null)
   const [form, setForm]               = useState<SiteForm>(emptyForm())
   const [viewSite, setViewSite]       = useState<ClientSite | null>(null)
 
-  const { data: zones = [] } = useZones({ organizationId: orgId })
   const { orgIds, isLoading: orgIdsLoading } = useClientOrgIds()
+  const { data: organizations = [] } = useOrganizations()
+  const zoneOrganizationId = dialogMode === 'edit'
+    ? (editTarget?.organization_id || selectedOrgId || orgId)
+    : (selectedOrgId || orgId)
+  const { data: zones = [] } = useZones({ organizationId: zoneOrganizationId })
   const { canView, canEdit } = useSitePermissions()
+
+  const availableOrganizations = organizations.filter((org) => {
+    if (orgIds === null) return true
+    return orgIds.includes(org.id)
+  })
 
   // ── Fetch sites ─────────────────────────────────────────────────────────────
   const { data: sites = [], isLoading } = useQuery<ClientSite[]>({
-    queryKey: ['client-sites', orgId, orgIds, showInactive, typeFilter],
+    queryKey: ['client-sites', orgId, orgIds, selectedOrgId, showInactive, typeFilter],
     queryFn: async () => {
       let q = (supabase as any)
         .from('client_sites')
         .select('*, zone:zones!zone_id(name)')
         .order('name')
-      // orgIds === null means master (unrestricted); otherwise filter to org hierarchy
-      if (orgIds !== null) q = q.in('organization_id', orgIds)
+      if (selectedOrgId) {
+        q = q.eq('organization_id', selectedOrgId)
+      } else if (orgIds !== null) {
+        // orgIds === null means master/grand_master (unrestricted)
+        q = q.in('organization_id', orgIds)
+      }
       if (!showInactive) q = q.eq('is_active', true)
       if (typeFilter !== 'all') q = q.eq('site_type', typeFilter)
       const { data, error } = await q
@@ -189,7 +205,7 @@ export default function ClientSites() {
       // Build full payload, then strip field groups the user cannot edit.
       // This prevents bypassing UI restrictions through dev-tool tricks.
       const full: any = {
-        organization_id:        orgId,
+        organization_id:        selectedOrgId || orgId,
         created_by:             user?.id,
         name:                   f.name,
         site_code:              f.site_code || null,
@@ -236,7 +252,7 @@ export default function ClientSites() {
 
       const payload: any = id
         ? {} // on edit: only include fields the user can change
-        : { organization_id: orgId, created_by: user?.id } // on create: always include org fields
+        : { organization_id: selectedOrgId || orgId, created_by: user?.id } // on create: always include org fields
 
       for (const [group, fields] of Object.entries(groupFields)) {
         if (canEdit(group as any)) {
@@ -248,6 +264,9 @@ export default function ClientSites() {
         const { error } = await (supabase as any).from('client_sites').update(payload).eq('id', id)
         if (error) throw error
       } else {
+        if (!payload.organization_id) {
+          throw new Error('Please select an organisation before creating a site')
+        }
         const { error } = await (supabase as any).from('client_sites').insert(payload)
         if (error) throw error
       }
@@ -270,7 +289,12 @@ export default function ClientSites() {
   })
 
   function openCreate() { setForm(emptyForm()); setEditTarget(null); setDialogMode('create') }
-  function openEdit(s: ClientSite) { setForm(siteFormFromRecord(s)); setEditTarget(s); setDialogMode('edit') }
+  function openEdit(s: ClientSite) {
+    setForm(siteFormFromRecord(s))
+    setEditTarget(s)
+    setSelectedOrgId(s.organization_id)
+    setDialogMode('edit')
+  }
   function handleSave(e: React.FormEvent) {
     e.preventDefault()
     if (!form.name.trim()) { toast.error('Site name is required'); return }
@@ -316,6 +340,19 @@ export default function ClientSites() {
 
         {/* Filters */}
         <div className="flex flex-wrap gap-3 items-center">
+          {(isSuperUser || availableOrganizations.length > 1) && (
+            <Select value={selectedOrgId || 'all'} onValueChange={(v) => setSelectedOrgId(v === 'all' ? '' : v)}>
+              <SelectTrigger className="h-9 w-64">
+                <SelectValue placeholder="All organisations" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All organisations</SelectItem>
+                {availableOrganizations.map(org => (
+                  <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <div className="relative flex-1 min-w-[200px] max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input className="pl-9 h-9" placeholder="Search sites…" value={search} onChange={e => setSearch(e.target.value)} />
