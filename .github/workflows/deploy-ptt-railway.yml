@@ -234,7 +234,6 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF:  ${{ secrets.SUPABASE_PROJECT_REF }}
           PTT_SERVER_URL:        ${{ secrets.PTT_SERVER_URL }}
-          PROXY_SECRET:          ${{ secrets.PROXY_SECRET }}
           PTT_PROXY_SECRET:      ${{ secrets.PTT_PROXY_SECRET }}
         run: |
           if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$SUPABASE_PROJECT_REF" ] || [ -z "$PTT_SERVER_URL" ]; then
@@ -245,16 +244,15 @@ jobs:
           echo "🔐 Syncing PTT secrets to Supabase project ${SUPABASE_PROJECT_REF}..."
 
           SECRETS_ARGS="PTT_SERVER_URL=${PTT_SERVER_URL}"
-          EFFECTIVE_PROXY_SECRET="${PTT_PROXY_SECRET:-${PROXY_SECRET:-}}"
-          if [ -n "$EFFECTIVE_PROXY_SECRET" ]; then
-            SECRETS_ARGS="${SECRETS_ARGS} PROXY_SECRET=${EFFECTIVE_PROXY_SECRET} PTT_PROXY_SECRET=${EFFECTIVE_PROXY_SECRET}"
+          if [ -n "${PTT_PROXY_SECRET:-}" ]; then
+            SECRETS_ARGS="${SECRETS_ARGS} PTT_PROXY_SECRET=${PTT_PROXY_SECRET}"
           fi
 
           if "$HOME/.local/bin/supabase" secrets set $SECRETS_ARGS \
               --project-ref "$SUPABASE_PROJECT_REF"; then
             echo "✅ Supabase secrets updated:"
             echo "   • PTT_SERVER_URL = ${PTT_SERVER_URL}"
-            [ -n "$EFFECTIVE_PROXY_SECRET" ] && echo "   • PROXY_SECRET / PTT_PROXY_SECRET = (set)"
+            [ -n "${PTT_PROXY_SECRET:-}" ] && echo "   • PTT_PROXY_SECRET = (set)"
             echo ""
             echo "The ptt-signaling-token edge function will pick up these values on next invocation."
           else

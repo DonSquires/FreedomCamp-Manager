@@ -23,12 +23,7 @@ const PTT_SERVER_URL =
   Deno.env.get('PPT_SERVER_URL') ||
   Deno.env.get('PPT_SURVER_URL') ||
   ''
-const PROXY_SECRET =
-  Deno.env.get('PTT_PROXY_SECRET') ||
-  Deno.env.get('PROXY_SECRET') ||
-  Deno.env.get('PROXY_SERVER_SECRET') ||
-  Deno.env.get('NZSCV_PROXY_SECRET') ||
-  ''
+const PROXY_SECRET = Deno.env.get('PTT_PROXY_SECRET') || ''
 
 function normalizeBaseUrl(value: string): string {
   return value.replace(/\/+$/, '')
@@ -67,7 +62,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({
           error: 'PTT proxy secret not configured',
-          message: 'Set one of: PTT_PROXY_SECRET, PROXY_SECRET, PROXY_SERVER_SECRET, or NZSCV_PROXY_SECRET',
+          message: 'Set PTT_PROXY_SECRET on the Supabase project secrets.',
         }),
         { status: 503, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )

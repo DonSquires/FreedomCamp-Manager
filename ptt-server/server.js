@@ -65,11 +65,7 @@ app.use(helmet({
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
-const PROXY_SECRET =
-  process.env.PTT_PROXY_SECRET ||
-  process.env.PROXY_SECRET ||
-  process.env.PROXY_SERVER_SECRET ||
-  process.env.NZSCV_PROXY_SECRET;
+const PROXY_SECRET = process.env.PTT_PROXY_SECRET;
 const PTT_JWT_SECRET = process.env.PTT_JWT_SECRET;
 const MAX_PARTICIPANTS = parseInt(process.env.MAX_PARTICIPANTS_PER_CHANNEL || '50', 10);
 const MAX_CLIP_DURATION = parseInt(process.env.MAX_CLIP_DURATION_SECONDS || '30', 10);
