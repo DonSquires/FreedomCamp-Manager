@@ -39,6 +39,7 @@ import {
   ShieldCheck,
   Globe,
   Lock,
+  Radio,
 } from 'lucide-react'
 import { formatDateTime, formatDate } from '@/lib/utils'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -56,6 +57,7 @@ interface UserProfile {
   id: string
   first_name: string
   last_name: string
+  callsign: string | null
   email: string
   role: string
   organization_id: string | null
@@ -111,10 +113,13 @@ export default function UserManagement() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showSetPasswordDialog, setShowSetPasswordDialog] = useState(false)
+  const [showBulkCallsignDialog, setShowBulkCallsignDialog] = useState(false)
   const [setPasswordUserId, setSetPasswordUserId] = useState<string | null>(null)
   const [setPasswordUserName, setSetPasswordUserName] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmNewPassword, setConfirmNewPassword] = useState('')
+  const [bulkCallsignOrgId, setBulkCallsignOrgId] = useState<string>('')
+  const [bulkCallsignMode, setBulkCallsignMode] = useState<'missing' | 'all'>('missing')
 
   // Credentials form state
   const [coaNumber, setCoaNumber] = useState('')
@@ -507,6 +512,27 @@ export default function UserManagement() {
     },
   })
 
+  const bulkAssignCallsignsMutation = useMutation({
+    mutationFn: async () => {
+      if (!bulkCallsignOrgId) throw new Error('Select an organisation first')
+      const { data, error } = await (supabase as any).rpc('admin_bulk_assign_callsigns', {
+        p_organization_id: bulkCallsignOrgId,
+        p_force: bulkCallsignMode === 'all',
+      })
+      if (error) throw error
+      return Array.isArray(data) ? data[0] : data
+    },
+    onSuccess: (result: any) => {
+      const updated = result?.updated_count ?? 0
+      toast.success(`Callsigns updated: ${updated}`)
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      setShowBulkCallsignDialog(false)
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to bulk assign callsigns')
+    },
+  })
+
   // Check if credentials are expired
   const isCredentialExpired = (expiryDate: string | null) => {
     if (!expiryDate) return false
@@ -640,7 +666,15 @@ export default function UserManagement() {
         </div>
       )}
 
-      <div className="flex justify-end mb-6">
+      <div className="flex justify-end gap-2 mb-6">
+        <Button variant="outline" onClick={() => {
+          setBulkCallsignOrgId(filterOrg !== 'all' ? filterOrg : '')
+          setBulkCallsignMode('missing')
+          setShowBulkCallsignDialog(true)
+        }}>
+          <Radio className="h-4 w-4 mr-2" />
+          Bulk Assign Callsigns
+        </Button>
         <Button onClick={() => setShowCreateDialog(true)}>
           <UserPlus className="h-4 w-4 mr-2" />
           Create User
@@ -754,6 +788,12 @@ export default function UserManagement() {
                       <Mail className="h-3 w-3 inline mr-1" />
                       {userProfile.email}
                     </div>
+                    {userProfile.callsign && (
+                      <div className="text-sm text-gray-600 mt-1">
+                        <Radio className="h-3 w-3 inline mr-1" />
+                        Callsign: <span className="font-mono font-semibold">{userProfile.callsign}</span>
+                      </div>
+                    )}
                     {userProfile.organization && (
                       <div className="text-sm text-gray-500 mt-1">
                         <Building2 className="h-3 w-3 inline mr-1" />
@@ -1112,6 +1152,60 @@ export default function UserManagement() {
               disabled={!email || !firstName || !lastName || !password || !confirmPassword || createUserMutation.isPending}
             >
               {createUserMutation.isPending ? 'Creating...' : 'Create User'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Callsign Assignment Dialog */}
+      <Dialog open={showBulkCallsignDialog} onOpenChange={setShowBulkCallsignDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Bulk Assign Callsigns</DialogTitle>
+            <DialogDescription>
+              Assign radio callsigns by organisation initials (for example FSN23, NCC10).
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="bulkCallsignOrg">Organisation</Label>
+              <Select value={bulkCallsignOrgId || 'none'} onValueChange={(v) => setBulkCallsignOrgId(v === 'none' ? '' : v)}>
+                <SelectTrigger id="bulkCallsignOrg">
+                  <SelectValue placeholder="Select organisation" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Select Organisation</SelectItem>
+                  {availableOrgs.map((org) => (
+                    <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="bulkCallsignMode">Mode</Label>
+              <Select value={bulkCallsignMode} onValueChange={(v: 'missing' | 'all') => setBulkCallsignMode(v)}>
+                <SelectTrigger id="bulkCallsignMode">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="missing">Only users missing callsign</SelectItem>
+                  <SelectItem value="all">Regenerate all callsigns in org</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBulkCallsignDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => bulkAssignCallsignsMutation.mutate()}
+              disabled={!bulkCallsignOrgId || bulkAssignCallsignsMutation.isPending}
+            >
+              {bulkAssignCallsignsMutation.isPending ? 'Assigning…' : 'Run Bulk Assignment'}
             </Button>
           </DialogFooter>
         </DialogContent>

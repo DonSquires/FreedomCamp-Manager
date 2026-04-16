@@ -375,6 +375,28 @@ function broadcastToChannel(channelId, message, excludeWs = null) {
 }
 
 /**
+ * Remove non-open sockets from a channel set and clean empty channel metadata.
+ */
+function pruneChannelClients(channelId) {
+  const clients = channels.get(channelId);
+  if (!clients) return 0;
+
+  for (const client of clients) {
+    if (!client || client.readyState !== 1) {
+      clients.delete(client);
+    }
+  }
+
+  if (clients.size === 0) {
+    channels.delete(channelId);
+    channelMeta.delete(channelId);
+    return 0;
+  }
+
+  return clients.size;
+}
+
+/**
  * WebSocket connection handler
  */
 wss.on('connection', (ws, req) => {
@@ -394,6 +416,39 @@ wss.on('connection', (ws, req) => {
   }
 
   const { sub: userId, role, org: organizationId, channel: channelId, name } = verification.payload;
+
+  // Remove dead sockets before checking channel capacity.
+  pruneChannelClients(channelId);
+
+  // If this user reconnects before the old socket closes, replace stale session.
+  const existingPresence = userPresence.get(userId);
+  if (existingPresence && existingPresence.ws && existingPresence.ws !== ws) {
+    const previousChannelId = existingPresence.channelId;
+    const previousClients = channels.get(previousChannelId);
+    if (previousClients) {
+      previousClients.delete(existingPresence.ws);
+      if (previousClients.size === 0) {
+        channels.delete(previousChannelId);
+        channelMeta.delete(previousChannelId);
+      }
+    }
+
+    try {
+      existingPresence.ws.close(4000, 'Replaced by a newer session');
+    } catch (_err) {
+      // Ignore close errors for already-closing sockets.
+    }
+
+    if (previousChannelId === channelId) {
+      broadcastToChannel(channelId, {
+        type: 'presence',
+        event: 'leave',
+        userId,
+        name: existingPresence.name || name,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
 
   // Check channel participant limit
   const existingClients = channels.get(channelId);
@@ -481,8 +536,11 @@ wss.on('connection', (ws, req) => {
       meta.speakerId = null;
     }
 
-    // Update presence
-    userPresence.delete(userId);
+    // Update presence only if this socket is still the active one for the user.
+    const currentPresence = userPresence.get(userId);
+    if (currentPresence?.ws === ws) {
+      userPresence.delete(userId);
+    }
 
     // Notify others
     broadcastToChannel(channelId, {
