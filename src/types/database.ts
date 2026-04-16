@@ -6954,6 +6954,13 @@ export type Database = {
             referencedRelation: "zones"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "patrols_patrol_route_id_fkey"
+            columns: ["patrol_route_id"]
+            isOneToOne: false
+            referencedRelation: "patrol_routes"
+            referencedColumns: ["id"]
+          },
         ]
       }
       person_interactions: {
@@ -7948,6 +7955,89 @@ export type Database = {
             columns: ["zone_id"]
             isOneToOne: false
             referencedRelation: "zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      site_role_permissions: {
+        Row: {
+          can_edit: boolean
+          can_view: boolean
+          field_group: string
+          id: string
+          role: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          can_edit?: boolean
+          can_view?: boolean
+          field_group: string
+          id?: string
+          role: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          can_edit?: boolean
+          can_view?: boolean
+          field_group?: string
+          id?: string
+          role?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_role_permissions_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      site_user_permissions: {
+        Row: {
+          can_edit: boolean | null
+          can_view: boolean | null
+          field_group: string
+          id: string
+          updated_at: string
+          updated_by: string | null
+          user_id: string
+        }
+        Insert: {
+          can_edit?: boolean | null
+          can_view?: boolean | null
+          field_group: string
+          id?: string
+          updated_at?: string
+          updated_by?: string | null
+          user_id: string
+        }
+        Update: {
+          can_edit?: boolean | null
+          can_view?: boolean | null
+          field_group?: string
+          id?: string
+          updated_at?: string
+          updated_by?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_user_permissions_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_user_permissions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
         ]

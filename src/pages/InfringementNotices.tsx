@@ -100,6 +100,7 @@ export default function InfringementNotices() {
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [showHelp, setShowHelp] = useState(false)
   const [showIssueDialog, setShowIssueDialog] = useState(false)
   const [previewHtml, setPreviewHtml] = useState<string | null>(null)
   const [issuing, setIssuing] = useState(false)
@@ -535,6 +536,31 @@ export default function InfringementNotices() {
       </div>
 
       {/* Toolbar */}
+      {/* When to use this — contextual help panel */}
+      <div className="mb-3">
+        <button
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          onClick={() => setShowHelp(h => !h)}
+          aria-expanded={showHelp}
+        >
+          <Scale className="h-3.5 w-3.5" />
+          {showHelp ? 'Hide guidance' : 'When to issue an Infringement Notice'}
+        </button>
+        {showHelp && (
+          <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm space-y-2">
+            <p className="font-semibold text-blue-800">Infringement Notice — when and how</p>
+            <ul className="space-y-1.5 text-blue-900 list-disc list-inside">
+              <li>Confirmed Freedom Camping Act breach (vehicle exceeded zone's stay limit or lacks self-contained certification).</li>
+              <li>Issue after a Warning Notice has been ignored, or for serious first breaches at your discretion.</li>
+              <li>Default fine: <span className="font-semibold">NZD $200</span> (FCA 2011 s.20). Amounts must match the bylaw schedule for your zone.</li>
+              <li>Service methods: <span className="font-medium">Hand</span> (immediate), <span className="font-medium">Post</span> (allow 7 working days for service), <span className="font-medium">Email</span> (requires recipient consent).</li>
+              <li>The notice is legally enforceable from the date of service. Always print and retain a copy.</li>
+              <li>If not paid within 28 days, remind the system status should progress to <code>reminder_sent</code>, then <code>court_referred</code>.</li>
+            </ul>
+            <p className="text-blue-700 text-xs mt-1">Full guide: <code>docs/OFFICER_FIELD_GUIDE_ENFORCEMENT.md</code> · Legal reference: <code>docs/LEGAL_BASIS_REFERENCE.md</code></p>
+          </div>
+        )}
+      </div>
       <div className="flex flex-wrap gap-2 mb-4">
         <div className="relative flex-1 min-w-[180px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

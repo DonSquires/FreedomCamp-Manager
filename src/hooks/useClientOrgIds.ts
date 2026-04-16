@@ -4,14 +4,19 @@
  * Returns the set of organization IDs that should be used when querying
  * client_sites (and related tables) for the current user.
  *
- * Logic:
- *  • master / grand_master  → no ID filter (return null = unrestricted)
- *  • admin / admin_officer  → user's own org + all direct client-child orgs
- *  • officer / others       → user's own org only
+ * Logic mirrors the server-side `get_user_organization_ids()` SQL function:
+ *  • grand_master           → no ID filter (return null = unrestricted)
+ *  • master / admin / admin_officer / officer
+ *                           → recursive descendant tree rooted at the user's
+ *                             own org (via `get_descendant_organizations` RPC)
+ *
+ * This means a branch-level user automatically sees all client orgs that are
+ * children (or deeper descendants) of their branch — no per-user grants needed.
+ * A provider-level master sees every branch and every client under them.
  *
  * The returned `orgIds` array can be passed directly to a Supabase
  * `.in('organization_id', orgIds)` call.  When `orgIds` is null, the
- * caller should omit the organization_id filter entirely (master sees all).
+ * caller should omit the organization_id filter entirely (grand_master sees all).
  */
 
 import { useQuery } from '@tanstack/react-query'
@@ -19,47 +24,38 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 
 interface UseClientOrgIdsResult {
-  /** null = unrestricted (master role). Otherwise the list of org IDs to filter by. */
+  /** null = unrestricted (grand_master role). Otherwise the list of org IDs to filter by. */
   orgIds: string[] | null
   isLoading: boolean
 }
 
 export function useClientOrgIds(): UseClientOrgIdsResult {
   const { user } = useAuthStore()
-  const role   = user?.role
-  const orgId  = user?.organization_id
+  const role  = user?.role
+  const orgId = user?.organization_id
 
-  // Masters see everything – no ID restriction needed
-  const isMaster = role === 'master' || role === 'grand_master'
+  // Grand-masters see everything — no ID restriction needed
+  const isGrandMaster = role === 'grand_master'
 
-  // Admins also see their direct client-child organisations
-  const isAdmin = role === 'admin' || role === 'admin_officer'
-
-  const { data: childIds = [], isLoading } = useQuery<string[]>({
-    queryKey: ['client-child-org-ids', orgId],
+  const { data: descendantIds = [], isLoading } = useQuery<string[]>({
+    queryKey: ['org-descendant-ids', orgId],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from('organizations')
-        .select('id')
-        .eq('parent_organization_id', orgId ?? '')
-        .eq('organization_type', 'client')
-        .eq('is_active', true)
+      const { data, error } = await supabase
+        .rpc('get_descendant_organizations', { org_id: orgId })
       if (error) throw error
-      return (data ?? []).map((r: { id: string }) => r.id) as string[]
+      return (data ?? []) as string[]
     },
-    enabled: !!orgId && isAdmin && !isMaster,
-    staleTime: 5 * 60 * 1000, // child orgs rarely change
+    enabled: !!orgId && !isGrandMaster,
+    staleTime: 5 * 60 * 1000, // org tree rarely changes
   })
 
-  if (isMaster) return { orgIds: null, isLoading: false }
-  if (!orgId)   return { orgIds: [], isLoading: false }
+  if (isGrandMaster) return { orgIds: null, isLoading: false }
+  if (!orgId)        return { orgIds: [], isLoading: false }
 
-  // For admins: own org + all direct client-child orgs
-  if (isAdmin) {
-    const all = isLoading ? [orgId] : [orgId, ...childIds]
-    return { orgIds: all, isLoading }
-  }
-
-  // Officers and other roles: own org only
-  return { orgIds: [orgId], isLoading: false }
+  // get_descendant_organizations() always includes the root org itself (the SQL CTE
+  // seeds with WHERE id = org_id), so descendantIds will contain orgId plus all
+  // children/grandchildren.  The fallback to [orgId] is only a safety net for the
+  // rare edge case where the RPC returns empty (e.g. org not yet in DB).
+  const all = isLoading ? [orgId] : descendantIds
+  return { orgIds: all.length > 0 ? all : [orgId], isLoading }
 }
