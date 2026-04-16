@@ -983,7 +983,7 @@ export default function BreachAlerts() {
       query.set('recipient_address', detailVehicle.owner_address)
     }
 
-    navigate(`/infringement-notices?${query.toString()}`)
+    navigate(`/infringements?${query.toString()}`)
   }, [activeBreach, detailVehicle, navigate, user?.role])
 
   // ── Multi-select helpers ──────────────────────────────────────────────────

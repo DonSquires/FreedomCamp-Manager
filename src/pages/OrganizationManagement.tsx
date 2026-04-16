@@ -412,7 +412,15 @@ export default function OrganizationManagement() {
                         size="sm"
                         variant="outline"
                         className="gap-1.5"
-                        onClick={() => navigate(`/documents?organization_id=${org.id}`)}
+                        onClick={() => {
+                          if (org.organization_type === 'contractor') {
+                            navigate(`/crm/contractor/${org.id}`)
+                          } else if (org.organization_type === 'client') {
+                            navigate(`/crm/client/${org.id}`)
+                          } else {
+                            navigate(`/tender-workspace`)
+                          }
+                        }}
                       >
                         <FileText className="h-3.5 w-3.5" />
                         Documents

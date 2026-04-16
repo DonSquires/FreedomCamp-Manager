@@ -17,6 +17,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -296,16 +297,14 @@ export default function BiosecurityOfficerPortal() {
     }
     set({ ai_running: true, ai_error: null, ai_result: null })
     try {
-      const { data, error } = await supabase.functions.invoke('biosecurity-assess', {
-        body: {
-          job_id: state.job_id,
-          image_base64: state.image_base64,
-          gps_lat: state.gps_lat,
-          gps_lng: state.gps_lng,
-          address: state.address,
-        },
+      const { data, error } = await edgeFunctions.biosecurityAssess({
+        job_id: state.job_id,
+        image_base64: state.image_base64,
+        gps_lat: state.gps_lat,
+        gps_lng: state.gps_lng,
+        address: state.address,
       })
-      if (error) throw new Error(error.message)
+      if (error) throw new Error((error as any).message ?? String(error))
       const prefill = data?.checklist_prefill ?? {}
       const identification = data?.identification ?? {}
       set({
@@ -334,24 +333,48 @@ export default function BiosecurityOfficerPortal() {
     if (!orgId || !user?.id) return
     setPrintingId('notice')
     try {
-      const { data, error } = await supabase.functions.invoke('biosecurity-notice', {
-        body: {
+      // 1. Allocate a notice number and INSERT the record so the edge function
+      //    can look it up by ID (the function only accepts a notice UUID).
+      const { data: noticeNumber, error: numErr } = await (supabase.rpc as any)(
+        'next_biosecurity_notice_number',
+        { p_org_id: orgId },
+      )
+      if (numErr) throw new Error(numErr.message)
+
+      const { data: inserted, error: insertErr } = await (supabase as any)
+        .from('biosecurity_notices')
+        .insert({
           organization_id: orgId,
-          officer_id: user.id,
-          address: state.address,
+          notice_number: noticeNumber,
+          biosecurity_job_id: state.job_id ?? null,
+          notice_type: state.recommended_action === 'infringement_notice'
+            ? 'infringement_notice'
+            : state.recommended_action === 'notice_of_direction'
+              ? 'notice_of_direction'
+              : 'formal_warning',
           recipient_name: state.recipient_name,
           recipient_address: state.recipient_address,
-          comply_by: state.comply_by,
-          required_actions: state.required_actions,
-          act_section: state.act_section,
-          penalty_amount: state.penalty_amount || null,
-          plant_species: state.plant_species,
-          recommended_action: state.recommended_action,
-          job_id: state.job_id,
-        },
+          offence_description: `${state.plant_species || 'Invasive species'} infestation detected. ${state.officer_notes || ''}`.trim(),
+          biosecurity_act_section: state.act_section,
+          species_identified: state.plant_species || null,
+          infestation_location: state.address || null,
+          comply_by: state.comply_by || null,
+          required_actions: state.required_actions || null,
+          penalty_amount_nzd: state.penalty_amount ? parseFloat(state.penalty_amount) : null,
+          issuing_officer_id: user.id,
+          status: 'issued',
+        })
+        .select('id')
+        .single()
+      if (insertErr) throw new Error(insertErr.message)
+
+      // 2. Render the notice HTML via the edge function.
+      const { data, error } = await edgeFunctions.biosecurityNotice({
+        biosecurity_notice_id: inserted.id,
+        issued_by: user.id,
       })
-      if (error) throw new Error(error.message)
-      set({ notice_html: data?.html ?? null, notice_number: data?.notice_number ?? null })
+      if (error) throw new Error((error as any).message ?? String(error))
+      set({ notice_html: data?.html ?? null, notice_number: noticeNumber })
       if (data?.html) setPrintHtml(data.html)
     } catch (err: any) {
       toast.error(err.message ?? 'Failed to generate notice')

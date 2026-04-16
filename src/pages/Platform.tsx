@@ -127,7 +127,7 @@ const FEATURE_GROUPS = [
       { path: '/admin/canonical-records', label: 'Canonical Records', icon: Database },
       { path: '/zones', label: 'Zones', icon: MapPin },
       { path: '/spatial-compliance', label: 'Spatial Compliance', icon: Map },
-      { path: '/hotspots', label: 'Hotspots', icon: FlameKindling },
+      { path: '/spatial-compliance', label: 'Spatial Compliance', icon: Map },
       { path: '/points-of-interest', label: 'Points of Interest', icon: MapPin },
     ],
   },
@@ -135,7 +135,7 @@ const FEATURE_GROUPS = [
     label: 'People & Records',
     icon: Users,
     items: [
-      { path: '/persons', label: 'Person Records', icon: Users },
+      { path: '/person-records', label: 'Person Records', icon: Users },
       { path: '/users', label: 'User Management', icon: Users },
       { path: '/organizations', label: 'Organisations', icon: Building2 },
       { path: '/organization-profile', label: 'Org Profile', icon: Building2 },

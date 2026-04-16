@@ -8,7 +8,6 @@ import {
   FileText, 
   Download, 
   Clock, 
-  TrendingUp,
   BarChart3,
   MapPin,
   Shield,
@@ -46,7 +45,7 @@ export default function ReportsHub() {
       icon: <CheckCircle className="h-6 w-6" />,
       badge: 'PDF / CSV',
       badgeColor: 'bg-green-100 text-green-800',
-      route: '/reports',
+      route: '/compliance-dashboard',
     },
     {
       id: 'breach-analysis',
@@ -55,7 +54,7 @@ export default function ReportsHub() {
       icon: <AlertTriangle className="h-6 w-6" />,
       badge: 'PDF / CSV',
       badgeColor: 'bg-red-100 text-red-800',
-      route: '/reports',
+      route: '/breaches',
     },
     {
       id: 'compliance-analytics',
@@ -81,11 +80,11 @@ export default function ReportsHub() {
     {
       id: 'officer-performance',
       title: 'Officer Performance',
-      description: 'Individual officer metrics and activity statistics',
+      description: 'Individual officer metrics, patrol KPIs and activity statistics',
       icon: <Users className="h-6 w-6" />,
       badge: 'PDF / CSV',
       badgeColor: 'bg-indigo-100 text-indigo-800',
-      route: '/reports',
+      route: '/patrol-kpis',
     },
     {
       id: 'incident-reports',
@@ -102,20 +101,11 @@ export default function ReportsHub() {
     {
       id: 'hotspots-map',
       title: 'Hotspots Heatmap',
-      description: 'GPS heatmap showing high-activity zones',
+      description: 'GPS heatmap showing high-activity zones and historical trends',
       icon: <MapPin className="h-6 w-6" />,
       badge: 'Map',
       badgeColor: 'bg-yellow-100 text-yellow-800',
       route: '/hotspots',
-    },
-    {
-      id: 'trend-analysis',
-      title: 'Trend Analysis',
-      description: 'Historical trends and seasonal patterns',
-      icon: <TrendingUp className="h-6 w-6" />,
-      badge: 'Charts',
-      badgeColor: 'bg-teal-100 text-teal-800',
-      route: '/compliance-analytics',
     },
     {
       id: 'leadership-pack',

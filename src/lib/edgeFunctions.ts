@@ -1572,4 +1572,101 @@ export const edgeFunctions = {
   }) => {
     return callEdgeFunction('ptt-signaling-token', params, { showToast: false })
   },
+
+  // ============================================================================
+  // BIOSECURITY (2 functions)
+  // ============================================================================
+
+  /**
+   * Run Bob AI image analysis on a biosecurity site photo.
+   * Returns species identification, density category, infestation stage,
+   * checklist prefill, and weather summary.
+   */
+  biosecurityAssess: async (params: {
+    job_id?: string | null
+    image_base64: string
+    gps_lat?: number | null
+    gps_lng?: number | null
+    address?: string
+  }) => {
+    return callEdgeFunction('biosecurity-assess', params, { showToast: false })
+  },
+
+  /**
+   * Render a statutory Biosecurity notice to printable HTML.
+   * The notice record must already exist in `biosecurity_notices`.
+   *
+   * @param biosecurity_notice_id  UUID of the `biosecurity_notices` row.
+   * @param issued_by              UUID of the issuing officer.
+   */
+  biosecurityNotice: async (params: {
+    biosecurity_notice_id: string
+    issued_by: string
+  }) => {
+    return callEdgeFunction('biosecurity-notice', params)
+  },
+
+  // ============================================================================
+  // SMOKE COMPLAINT OOH (2 functions)
+  // ============================================================================
+
+  /**
+   * Run Bob AI image analysis on a smoke complaint photo.
+   * Returns smoke opacity, colour, prohibited materials, offensive rating,
+   * checklist prefill, and weather summary.
+   */
+  smokeAssess: async (params: {
+    job_id?: string | null
+    image_base64: string
+    gps_lat?: number | null
+    gps_lng?: number | null
+    address?: string
+    complaint_time?: string
+    duration_reported?: number
+  }) => {
+    return callEdgeFunction('smoke-assess', params, { showToast: false })
+  },
+
+  /**
+   * Render an RMA smoke/fire nuisance notice to printable HTML.
+   * The notice record must already exist in `smoke_notices`.
+   *
+   * @param smoke_notice_id  UUID of the `smoke_notices` row.
+   * @param issued_by        UUID of the issuing officer.
+   */
+  smokeNotice: async (params: {
+    smoke_notice_id: string
+    issued_by: string
+  }) => {
+    return callEdgeFunction('smoke-notice', params)
+  },
+
+  // ============================================================================
+  // UTILITIES (2 functions)
+  // ============================================================================
+
+  /**
+   * Translate a text string to a target language via the Bob inference service.
+   * Used by Team Chat for multilingual message support.
+   */
+  translateMessage: async (params: {
+    text: string
+    target_language: string
+    source_language?: string
+  }) => {
+    return callEdgeFunction('translate-message', params, { showToast: false })
+  },
+
+  /**
+   * Bulk-export observations, breaches, or notices to JSON or CSV.
+   */
+  exportData: async (params: {
+    type: 'observations' | 'breaches' | 'notices'
+    format?: 'json' | 'csv'
+    organizationId: string
+    from?: string
+    to?: string
+  }) => {
+    return callEdgeFunction('export-data', params)
+  },
 }
