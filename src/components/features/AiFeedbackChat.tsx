@@ -298,19 +298,20 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
             ...history,
           ],
           temperature: 0.5,
+          provider: 'ollama',
         }),
         25000,
         'Bob chat request'
       )
 
-      if (result.error) {
-        // Detect configuration issues vs. transient failures
-        const isConfigError = result.error.includes('not configured') || result.error.includes('Bob service')
-        const msg = isConfigError 
-          ? `Bob service not configured. A system administrator needs to set GITHUB_TOKEN or OPENAI_API_KEY in Supabase Edge Function secrets: ${result.error}`
-          : result.error
-        throw new Error(msg)
-      }
+        if (result.error) {
+          // Detect configuration issues vs. transient failures
+          const isConfigError = result.error.includes('not configured') || result.error.includes('Bob service')
+          const msg = isConfigError 
+            ? `Bob service not configured. A system administrator needs to set INFERENCE_SERVICE_URL (and optionally OLLAMA_BASE_URL) in Supabase Edge Function secrets: ${result.error}`
+            : result.error
+          throw new Error(msg)
+        }
 
       const responseText = result.data?.response ?? "I'm having trouble connecting right now."
 
@@ -598,4 +599,3 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
     </div>
   )
 }
-

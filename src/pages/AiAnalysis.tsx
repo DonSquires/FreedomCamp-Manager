@@ -3,12 +3,7 @@
  *
  * Bob Analysis — Bob-powered analysis and chat for admins and master users.
  *
- * Uses the onspace-ai-chat edge function which connects to any
- * Bob-compatible inference backend. Supported providers (in priority order):
- *   1. GitHub Copilot  — set GITHUB_TOKEN secret in Supabase Edge Functions.
- *                        Recommended for code-level fix analysis.
- *   2. Custom inference backend — set OPENAI_API_KEY (and optionally OPENAI_BASE_URL)
- *                        to point at Azure, Ollama, vLLM, or compatible providers.
+ * Uses the onspace-ai-chat edge function with Bob/Ollama provider routing.
  *
  * Features:
  *   - Multi-turn conversation with full message history
@@ -362,71 +357,18 @@ export default function AiAnalysis() {
       content: m.content,
     }))
 
-    const requestBody = { messages: conversationHistory }
-
-    const invokeBobWithResilience = async () => {
-      const firstAttempt = await edgeFunctions.aiChat(requestBody)
-      if (!firstAttempt.error && firstAttempt.data?.response) {
-        return firstAttempt.data
-      }
-
-      const firstError = String(firstAttempt.error || '')
-      const shouldTryDirectFallback =
-        firstError.toLowerCase().includes('unable to reach the edge function') ||
-        firstError.toLowerCase().includes('network connectivity issue') ||
-        firstError.toLowerCase().includes('failed to fetch') ||
-        firstError.toLowerCase().includes('not be deployed')
-
-      if (!shouldTryDirectFallback) {
-        throw new Error(firstAttempt.error || 'Bob returned an empty response')
-      }
-
-      const { data: sessionData } = await supabase.auth.getSession()
-      const sessionJwt = sessionData?.session?.access_token
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
-
-      if (!sessionJwt || !supabaseUrl || !anonKey) {
-        throw new Error(firstAttempt.error || 'No valid edge invocation path available')
-      }
-
-      const directResponse = await fetch(`${supabaseUrl}/functions/v1/onspace-ai-chat`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${sessionJwt}`,
-          apikey: anonKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      })
-
-      const directText = await directResponse.text()
-      const directJson = (() => {
-        try {
-          return JSON.parse(directText)
-        } catch {
-          return null
-        }
-      })()
-
-      if (!directResponse.ok) {
-        throw new Error(directJson?.error || `Edge function returned ${directResponse.status}`)
-      }
-
-      if (!directJson?.response) {
-        throw new Error('Bob returned an empty response')
-      }
-
-      return directJson
-    }
+    const requestBody = { messages: conversationHistory, provider: 'ollama' as const }
 
     try {
-      const result = await withTimeout(invokeBobWithResilience(), 25000, 'Bob chat request')
+      const result = await withTimeout(edgeFunctions.aiChat(requestBody), 25000, 'Bob chat request')
+      if (result.error || !result.data?.response) {
+        throw new Error(result.error || 'Bob returned an empty response')
+      }
 
       const assistantMsg: ChatMessage = {
         id: `a-${Date.now()}`,
         role: 'assistant',
-        content: result?.response ?? 'No response received.',
+        content: result.data.response,
         timestamp: new Date(),
       }
       setMessages(prev => [...prev, assistantMsg])
