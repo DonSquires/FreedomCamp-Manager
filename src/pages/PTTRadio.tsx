@@ -1271,6 +1271,10 @@ export default function PTTRadio() {
                   <div className="text-slate-200 truncate" title={diagnostics.channelScope || 'none'}>
                     {diagnostics.channelScope || 'none'}
                   </div>
+                  <div className="text-slate-500">Requested Scope</div>
+                  <div className="text-slate-200 truncate" title={diagnostics.requestedChannelScope || 'none'}>
+                    {diagnostics.requestedChannelScope || 'none'}
+                  </div>
                   <div className="text-slate-500">WebSocket</div>
                   <div className="text-slate-200 uppercase">{diagnostics.websocketReadyState}</div>
                   <div className="text-slate-500">Reconnects</div>
@@ -1306,6 +1310,20 @@ export default function PTTRadio() {
                     {diagnostics.lastNegotiationAttempt.stage && (
                       <div className="text-slate-400 truncate">{diagnostics.lastNegotiationAttempt.stage}</div>
                     )}
+                  </div>
+                )}
+
+                {diagnostics.lastTransmitAttempt.at && (
+                  <div className="rounded bg-slate-950 border border-slate-800 px-2.5 py-2 text-[11px]">
+                    <div className="text-slate-500 uppercase tracking-wide">Last Transmit Attempt</div>
+                    <div className="text-slate-300">{formatDateTime(diagnostics.lastTransmitAttempt.at)}</div>
+                    <div className="text-slate-400">Presence count: {diagnostics.lastTransmitAttempt.presenceCount}</div>
+                    <div className={diagnostics.lastTransmitAttempt.microphoneReady ? 'text-green-300' : 'text-amber-300'}>
+                      Mic ready: {diagnostics.lastTransmitAttempt.microphoneReady ? 'YES' : 'NO'}
+                    </div>
+                    <div className="text-slate-400 truncate" title={diagnostics.lastTransmitAttempt.channelScope || 'none'}>
+                      Scope: {diagnostics.lastTransmitAttempt.channelScope || 'none'}
+                    </div>
                   </div>
                 )}
 

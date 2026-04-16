@@ -71,6 +71,7 @@ interface PTTMessage {
 export interface PTTDiagnostics {
   connectionStatus: string
   channelScope: string | null
+  requestedChannelScope: string | null
   websocketReadyState: string
   reconnectAttempts: number
   activePeerConnections: number
@@ -98,6 +99,12 @@ export interface PTTDiagnostics {
     at: string | null
     peerId: string | null
     message: string | null
+  }
+  lastTransmitAttempt: {
+    at: string | null
+    presenceCount: number
+    microphoneReady: boolean
+    channelScope: string | null
   }
 }
 
@@ -179,6 +186,7 @@ let reconnectAttempts = 0
 const MAX_RECONNECT_ATTEMPTS = 8
 let pingInterval: ReturnType<typeof setInterval> | null = null
 let activeChannelScope: string | null = null  // Tracks the last requested scope for visibility-triggered reconnects
+let lastRequestedChannelScope: string | null = null
 
 // Reconnect when the page/tab becomes visible again (handles mobile browser backgrounding).
 if (typeof document !== 'undefined') {
@@ -217,6 +225,10 @@ let lastNegotiationStage: string | null = null
 let lastNegotiationErrorAt: string | null = null
 let lastNegotiationErrorPeerId: string | null = null
 let lastNegotiationErrorMessage: string | null = null
+let lastTransmitAttemptAt: string | null = null
+let lastTransmitPresenceCount = 0
+let lastTransmitMicrophoneReady = false
+let lastTransmitChannelScope: string | null = null
 
 function markNegotiationAttempt(peerId: string, stage: string): void {
   lastNegotiationAttemptAt = new Date().toISOString()
@@ -235,6 +247,14 @@ function clearNegotiationError(): void {
   lastNegotiationErrorAt = null
   lastNegotiationErrorPeerId = null
   lastNegotiationErrorMessage = null
+}
+
+function markTransmitAttempt(presenceCount: number, microphoneReady: boolean): void {
+  const store = usePTTStore.getState()
+  lastTransmitAttemptAt = new Date().toISOString()
+  lastTransmitPresenceCount = presenceCount
+  lastTransmitMicrophoneReady = microphoneReady
+  lastTransmitChannelScope = store.channelId || activeChannelScope || null
 }
 
 function applyTransportDiagnostics(transport?: {
@@ -308,6 +328,7 @@ export function getPTTDiagnostics(): PTTDiagnostics {
   return {
     connectionStatus: store.connectionStatus,
     channelScope: store.channelId || null,
+    requestedChannelScope: lastRequestedChannelScope,
     websocketReadyState: getWebSocketReadyStateLabel(ws),
     reconnectAttempts,
     activePeerConnections: peerConnections.size,
@@ -335,6 +356,12 @@ export function getPTTDiagnostics(): PTTDiagnostics {
       at: lastNegotiationErrorAt,
       peerId: lastNegotiationErrorPeerId,
       message: lastNegotiationErrorMessage,
+    },
+    lastTransmitAttempt: {
+      at: lastTransmitAttemptAt,
+      presenceCount: lastTransmitPresenceCount,
+      microphoneReady: lastTransmitMicrophoneReady,
+      channelScope: lastTransmitChannelScope,
     },
   }
 }
@@ -374,6 +401,7 @@ export async function requestPTTToken(channelScope: string): Promise<PTTTokenRes
  */
 export async function connectToPTT(channelScope: string, channelName?: string): Promise<void> {
   const store = usePTTStore.getState()
+  lastRequestedChannelScope = channelScope
 
   // If already connected (or connecting) to the same channel, avoid churn.
   const sameChannel = store.channelId === channelScope
@@ -545,6 +573,10 @@ function cleanupConnection(): void {
   lastNegotiationAttemptAt = null
   lastNegotiationPeerId = null
   lastNegotiationStage = null
+  lastTransmitAttemptAt = null
+  lastTransmitPresenceCount = 0
+  lastTransmitMicrophoneReady = false
+  lastTransmitChannelScope = null
 }
 
 /**
@@ -833,34 +865,16 @@ function sendSignal(targetUserId: string, signal: SignalMessage['signal']): void
 async function negotiatePeerAudio(peerId: string): Promise<void> {
   if (!localStream) return
 
-  markNegotiationAttempt(peerId, 'begin_offer')
+  try {
+    markNegotiationAttempt(peerId, 'begin_offer')
 
-  let pc = peerConnections.get(peerId)
-  if (!pc) {
-    pc = createPeerConnection(peerId)
-    peerConnections.set(peerId, pc)
-    markNegotiationAttempt(peerId, 'peer_created')
-  }
-
-  for (const track of localStream.getTracks()) {
-    const alreadySending = pc.getSenders().some((s) => s.track?.id === track.id)
-    if (!alreadySending) {
-      pc.addTrack(track, localStream)
+    let pc = peerConnections.get(peerId)
+    if (!pc) {
+      markNegotiationAttempt(peerId, 'creating_peer')
+      pc = createPeerConnection(peerId)
+      peerConnections.set(peerId, pc)
+      markNegotiationAttempt(peerId, 'peer_created')
     }
-  }
-
-  if (pc.signalingState !== 'stable') {
-    // If signaling got stuck (e.g. interrupted prior negotiation), rebuild the peer
-    // so the next offer can proceed cleanly.
-    try {
-      pc.close()
-    } catch {
-      // Ignore close errors.
-    }
-    peerConnections.delete(peerId)
-    pc = createPeerConnection(peerId)
-    peerConnections.set(peerId, pc)
-    markNegotiationAttempt(peerId, 'peer_rebuilt')
 
     for (const track of localStream.getTracks()) {
       const alreadySending = pc.getSenders().some((s) => s.track?.id === track.id)
@@ -868,9 +882,29 @@ async function negotiatePeerAudio(peerId: string): Promise<void> {
         pc.addTrack(track, localStream)
       }
     }
-  }
 
-  try {
+    if (pc.signalingState !== 'stable') {
+      // If signaling got stuck (e.g. interrupted prior negotiation), rebuild the peer
+      // so the next offer can proceed cleanly.
+      try {
+        pc.close()
+      } catch {
+        // Ignore close errors.
+      }
+      peerConnections.delete(peerId)
+      markNegotiationAttempt(peerId, 'recreating_peer')
+      pc = createPeerConnection(peerId)
+      peerConnections.set(peerId, pc)
+      markNegotiationAttempt(peerId, 'peer_rebuilt')
+
+      for (const track of localStream.getTracks()) {
+        const alreadySending = pc.getSenders().some((s) => s.track?.id === track.id)
+        if (!alreadySending) {
+          pc.addTrack(track, localStream)
+        }
+      }
+    }
+
     const offer = await pc.createOffer()
     markNegotiationAttempt(peerId, 'offer_created')
     await pc.setLocalDescription(offer)
@@ -879,7 +913,7 @@ async function negotiatePeerAudio(peerId: string): Promise<void> {
     markNegotiationAttempt(peerId, 'offer_sent')
     clearNegotiationError()
   } catch (error) {
-    markNegotiationError(peerId, error, 'offer_failed')
+    markNegotiationError(peerId, error, 'negotiate_failed')
     throw error
   }
 }
@@ -893,6 +927,7 @@ async function negotiatePeerAudio(peerId: string): Promise<void> {
  */
 export async function startSpeaking(): Promise<void> {
   const store = usePTTStore.getState()
+  markTransmitAttempt(store.presence.length, false)
 
   if (store.isMuted || !store.audioEnabled) {
     throw new Error('Audio is muted or disabled')
@@ -905,6 +940,7 @@ export async function startSpeaking(): Promise<void> {
   try {
     // Request microphone with mobile-safe fallback.
     localStream = await requestLocalAudioStream()
+    markTransmitAttempt(store.presence.length, true)
 
     // Start recording for fallback clip
     recordedChunks = []
