@@ -282,6 +282,7 @@ export default function PTTRadio() {
   const liveTxTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const wakeLockRef = useRef(false)
   const txLogUnavailableRef = useRef(false)
+  const seedRpcUnavailableRef = useRef(false)
 
   // ── Org ID ────────────────────────────────────────────────
   const effectiveOrgId = useMemo(
@@ -310,9 +311,15 @@ export default function PTTRadio() {
       }
       if (!data?.length) {
         // Seed defaults for this org
-        const { error: seedError } = await (supabase as any).rpc('seed_default_ptt_channels', { p_organization_id: effectiveOrgId })
-        if (seedError && seedError.code !== 'PGRST202' && seedError.code !== 'PGRST205' && seedError.code !== '42883') {
-          throw seedError
+        if (!seedRpcUnavailableRef.current) {
+          const { error: seedError } = await (supabase as any).rpc('seed_default_ptt_channels', { p_organization_id: effectiveOrgId })
+          if (seedError) {
+            if (seedError.code === 'PGRST202' || seedError.code === 'PGRST205' || seedError.code === '42883') {
+              seedRpcUnavailableRef.current = true
+            } else {
+              throw seedError
+            }
+          }
         }
         // Retry fetch
         const { data: seeded } = await (supabase as any)
@@ -634,7 +641,7 @@ export default function PTTRadio() {
     setTxLog((prev) => [entry, ...prev].slice(0, 60))
 
     // Persist to DB (best-effort)
-    if (effectiveOrgId && user?.id) {
+    if (effectiveOrgId && user?.id && !txLogUnavailableRef.current) {
       ;(supabase as any)
         .from('ptt_transmission_log')
         .insert({
@@ -648,7 +655,13 @@ export default function PTTRadio() {
           is_emergency: emergencyMode,
         })
         .then(({ error: e }: any) => {
-          if (e) console.error('PTT TX log persist error:', e)
+          if (e) {
+            if (e.code === 'PGRST205' || e.code === '42P01') {
+              txLogUnavailableRef.current = true
+              return
+            }
+            console.error('PTT TX log persist error:', e)
+          }
           else queryClient.invalidateQueries({ queryKey: ['ptt-tx-log', effectiveOrgId] })
         })
     }
