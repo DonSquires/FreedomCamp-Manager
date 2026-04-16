@@ -605,6 +605,8 @@ function ShiftDialog({
                     ['patrol',          'General Patrol'],
                     ['alarm_response',  'Alarm Response'],
                     ['ems',             'EMS (Electronic Monitoring)'],
+                    ['biosecurity_inspection', 'Biosecurity Inspection'],
+                    ['smoke_complaint_ooh',    'Smoke Complaint (OOH)'],
                   ] as const).map(([v, l]) => (
                     <SelectItem key={v} value={v}>{l}</SelectItem>
                   ))}

@@ -58,6 +58,8 @@ import {
   PieChart,
   ClipboardList,
   PersonStanding,
+  Leaf,
+  Wind,
   BrainCircuit,
   Map,
   HeartPulse,
@@ -186,6 +188,8 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
     icon: Layers,
     items: [
       { path: '/noise-control', icon: Volume2, label: 'Noise Control', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/biosecurity-control', icon: Leaf, label: 'Biosecurity (CNG)', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/smoke-control', icon: Wind, label: 'Smoke Complaints (OOH)', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/parking', icon: ParkingSquare, label: 'Parking Enforcement', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/officer-welfare', icon: HeartPulse, label: 'Officer Welfare', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/identity-verification', icon: ShieldCheck, label: 'ID Verification', roles: ['admin', 'admin_officer', 'master'] },

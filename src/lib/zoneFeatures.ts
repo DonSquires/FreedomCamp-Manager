@@ -16,6 +16,8 @@ export const ZONE_FEATURE_KEYS = [
   'noise',
   'ems',
   'access_control',
+  'biosecurity_inspection',
+  'smoke_complaint_ooh',
 ] as const
 
 export type ZoneFeatureKey = (typeof ZONE_FEATURE_KEYS)[number]
@@ -56,6 +58,16 @@ export const ZONE_FEATURES: ZoneFeatureMeta[] = [
     key: 'access_control',
     label: 'Access Control',
     description: 'User portal access and permission management',
+  },
+  {
+    key: 'biosecurity_inspection',
+    label: 'Biosecurity Inspection',
+    description: 'Invasive plant ID (CNG/Nassella), density assessment, RPMP compliance, Notice of Direction',
+  },
+  {
+    key: 'smoke_complaint_ooh',
+    label: 'Smoke Complaint (OOH)',
+    description: 'RMA s.17A smoke nuisance assessment, prohibited materials, abatement & infringement notices',
   },
 ]
 

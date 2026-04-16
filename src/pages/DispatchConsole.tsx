@@ -158,6 +158,8 @@ const JOB_TYPE_LABELS: Record<string, string> = {
   lock_unlock:          'Lock/Unlock',
   property_check:       'Property Check',
   vandalism:            'Vandalism',
+  biosecurity_inspection: 'Biosecurity Inspection',
+  smoke_complaint_ooh:    'Smoke Complaint (OOH)',
   general:              'General',
   other:                'Other',
 }

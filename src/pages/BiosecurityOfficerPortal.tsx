@@ -231,7 +231,7 @@ export default function BiosecurityOfficerPortal() {
         .insert({
           organization_id: orgId,
           officer_id: user.id,
-          job_id: state.job_id,
+          biosecurity_job_id: state.job_id,
           address: state.address,
           gps_lat: state.gps_lat,
           gps_lng: state.gps_lng,
@@ -251,10 +251,10 @@ export default function BiosecurityOfficerPortal() {
           management_plan_current: state.management_plan_current,
           pathway_evidence: state.pathway_evidence || null,
           sample_taken: state.sample_taken,
-          weather_summary: state.weather_summary || null,
+          weather_conditions: state.weather_summary ? { summary: state.weather_summary } : null,
           officer_notes: state.officer_notes || null,
           recommended_action: state.recommended_action,
-          ai_result: state.ai_result,
+          ai_species_identification: state.ai_result,
         })
       if (error) throw error
       if (state.job_id) {
@@ -311,7 +311,7 @@ export default function BiosecurityOfficerPortal() {
       set({
         ai_running: false,
         ai_result: data,
-        plant_species: identification.species ?? prefill.plant_species ?? '',
+        plant_species: identification.dominant_species ?? identification.species ?? prefill.plant_species ?? '',
         density_estimate: prefill.density_estimate != null ? String(prefill.density_estimate) : '',
         density_category: prefill.density_category ?? '',
         seed_heads_present: prefill.seed_heads_present ?? false,
