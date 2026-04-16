@@ -125,6 +125,9 @@ const BobAssistantStudio = lazy(() => import('@/pages/BobAssistantStudio'))
 const GrandmasterCodingStudio = lazy(() => import('@/pages/GrandmasterCodingStudio'))
 const OpsLivePlanReviewQueue = lazy(() => import('@/pages/OpsLivePlanReviewQueue'))
 const OfficerHomePage = lazy(() => import('@/pages/OfficerHomePage'))
+const TenderWorkspace = lazy(() => import('@/pages/TenderWorkspace'))
+const TenderWorkspaceDetail = lazy(() => import('@/pages/TenderWorkspaceDetail'))
+
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
 const GlobalOperationsBar = lazy(() => import('@/components/features/GlobalOperationsBar').then((m) => ({ default: m.GlobalOperationsBar })))
@@ -1658,6 +1661,28 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
                   <ClientAccountPage />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Tender Workspace */}
+          <Route
+            path="/tender-workspace"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'master', 'grand_master']}>
+                  <TenderWorkspace />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tender-workspace/:id"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'master', 'grand_master']}>
+                  <TenderWorkspaceDetail />
                 </RoleRoute>
               </ProtectedRoute>
             }

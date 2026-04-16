@@ -80,14 +80,43 @@ function parseTurnUrls(value) {
   if (Array.isArray(value)) return value.filter(Boolean);
   return String(value)
     .split(',')
-    .map((url) => url.trim())
+    .map((url) => normalizeTurnUrl(url))
     .filter(Boolean);
+}
+
+function normalizeTurnUrl(rawUrl) {
+  if (typeof rawUrl !== 'string') return null;
+
+  const url = rawUrl.trim();
+  if (!url) return null;
+
+  if (url.startsWith('turn:') || url.startsWith('turns:') || url.startsWith('stun:') || url.startsWith('stuns:')) {
+    return withPreferredTurnTransport(url);
+  }
+
+  // Railway often exposes the TURN relay as bare host:port. Browsers require
+  // an explicit turn: URL scheme for RTCPeerConnection iceServers.
+  return withPreferredTurnTransport(`turn:${url}`);
+}
+
+function withPreferredTurnTransport(url) {
+  if (typeof url !== 'string') return url;
+  if (!url.startsWith('turn:')) return url;
+  if (url.includes('transport=')) return url;
+
+  // Railway proxy endpoints are TCP fronted; force TCP allocations so TURN
+  // doesn't try UDP by default (which fails behind the proxy).
+  if (url.includes('.proxy.rlwy.net')) {
+    return `${url}${url.includes('?') ? '&' : '?'}transport=tcp`;
+  }
+
+  return url;
 }
 
 function toStunUrl(url) {
   if (typeof url !== 'string') return null;
-  if (url.startsWith('turns:')) return url.replace(/^turns:/, 'stuns:');
-  if (url.startsWith('turn:')) return url.replace(/^turn:/, 'stun:');
+  if (url.startsWith('turns:')) return url.replace(/^turns:/, 'stuns:').replace(/\?.*$/, '');
+  if (url.startsWith('turn:')) return url.replace(/^turn:/, 'stun:').replace(/\?.*$/, '');
   return null;
 }
 
@@ -686,12 +715,24 @@ function handleMessage(ws, userId, channelId, name, role, message) {
       if (message.targetUserId) {
         // Direct signal to specific peer
         const targetPresence = userPresence.get(message.targetUserId);
-        if (targetPresence && targetPresence.ws && targetPresence.ws.readyState === 1) {
+        if (
+          targetPresence &&
+          targetPresence.channelId === channelId &&
+          targetPresence.ws &&
+          targetPresence.ws.readyState === 1
+        ) {
           targetPresence.ws.send(JSON.stringify({
             type: 'signal',
             fromUserId: userId,
             fromName: name,
             signal: message.signal,
+          }));
+        } else {
+          ws.send(JSON.stringify({
+            type: 'error',
+            code: 'SIGNAL_TARGET_UNAVAILABLE',
+            message: 'Target peer is not available in this channel',
+            targetUserId: message.targetUserId,
           }));
         }
       } else {

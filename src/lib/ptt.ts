@@ -71,6 +71,7 @@ interface PTTMessage {
 export interface PTTDiagnostics {
   connectionStatus: string
   channelScope: string | null
+  requestedChannelScope: string | null
   websocketReadyState: string
   reconnectAttempts: number
   activePeerConnections: number
@@ -79,6 +80,7 @@ export interface PTTDiagnostics {
     connectionState: RTCPeerConnectionState
     iceConnectionState: RTCIceConnectionState
     signalingState: RTCSignalingState
+    iceGatheringState: RTCIceGatheringState
   }>
   transport: {
     turnConfigured: boolean
@@ -88,6 +90,29 @@ export interface PTTDiagnostics {
   lastClose: {
     code: number | null
     reason: string | null
+  }
+  lastNegotiationAttempt: {
+    at: string | null
+    peerId: string | null
+    stage: string | null
+  }
+  lastNegotiationError: {
+    at: string | null
+    peerId: string | null
+    message: string | null
+  }
+  lastTransmitAttempt: {
+    at: string | null
+    presenceCount: number
+    microphoneReady: boolean
+    channelScope: string | null
+  }
+  iceCandidates: {
+    sent: number
+    received: number
+    gatherComplete: number
+    errors: number
+    lastError: string | null
   }
 }
 
@@ -169,6 +194,7 @@ let reconnectAttempts = 0
 const MAX_RECONNECT_ATTEMPTS = 8
 let pingInterval: ReturnType<typeof setInterval> | null = null
 let activeChannelScope: string | null = null  // Tracks the last requested scope for visibility-triggered reconnects
+let lastRequestedChannelScope: string | null = null
 
 // Reconnect when the page/tab becomes visible again (handles mobile browser backgrounding).
 if (typeof document !== 'undefined') {
@@ -196,11 +222,73 @@ const peerConnectionStates: Map<string, {
   connectionState: RTCPeerConnectionState
   iceConnectionState: RTCIceConnectionState
   signalingState: RTCSignalingState
+  iceGatheringState: RTCIceGatheringState
 }> = new Map()
+const pendingIceCandidates: Map<string, RTCIceCandidateInit[]> = new Map()
 let turnConfigured = false
 let forceTurnRelay = false
 let lastSocketCloseCode: number | null = null
 let lastSocketCloseReason: string | null = null
+let lastNegotiationAttemptAt: string | null = null
+let lastNegotiationPeerId: string | null = null
+let lastNegotiationStage: string | null = null
+let lastNegotiationErrorAt: string | null = null
+let lastNegotiationErrorPeerId: string | null = null
+let lastNegotiationErrorMessage: string | null = null
+let lastTransmitAttemptAt: string | null = null
+let lastTransmitPresenceCount = 0
+let lastTransmitMicrophoneReady = false
+let lastTransmitChannelScope: string | null = null
+let iceCandidatesSent = 0
+let iceCandidatesReceived = 0
+let iceGatherCompleteCount = 0
+let iceCandidateErrors = 0
+let lastIceCandidateError: string | null = null
+
+function markNegotiationAttempt(peerId: string, stage: string): void {
+  lastNegotiationAttemptAt = new Date().toISOString()
+  lastNegotiationPeerId = peerId
+  lastNegotiationStage = stage
+}
+
+function markNegotiationError(peerId: string, error: unknown, stage: string): void {
+  markNegotiationAttempt(peerId, stage)
+  lastNegotiationErrorAt = new Date().toISOString()
+  lastNegotiationErrorPeerId = peerId
+  lastNegotiationErrorMessage = error instanceof Error ? error.message : String(error)
+}
+
+function clearNegotiationError(): void {
+  lastNegotiationErrorAt = null
+  lastNegotiationErrorPeerId = null
+  lastNegotiationErrorMessage = null
+}
+
+async function flushPendingIceCandidates(peerId: string, pc: RTCPeerConnection): Promise<void> {
+  const pending = pendingIceCandidates.get(peerId)
+  if (!pending || pending.length === 0) return
+
+  for (const candidate of pending) {
+    try {
+      await pc.addIceCandidate(candidate)
+      iceCandidatesReceived++
+      markNegotiationAttempt(peerId, 'queued_candidate_applied')
+    } catch (error) {
+      markNegotiationError(peerId, error, 'queued_candidate_apply_failed')
+      console.warn('🎤 PTT: Failed queued ICE candidate apply', peerId, error)
+    }
+  }
+
+  pendingIceCandidates.delete(peerId)
+}
+
+function markTransmitAttempt(presenceCount: number, microphoneReady: boolean): void {
+  const store = usePTTStore.getState()
+  lastTransmitAttemptAt = new Date().toISOString()
+  lastTransmitPresenceCount = presenceCount
+  lastTransmitMicrophoneReady = microphoneReady
+  lastTransmitChannelScope = store.channelId || activeChannelScope || null
+}
 
 function applyTransportDiagnostics(transport?: {
   turnConfigured?: boolean
@@ -273,6 +361,7 @@ export function getPTTDiagnostics(): PTTDiagnostics {
   return {
     connectionStatus: store.connectionStatus,
     channelScope: store.channelId || null,
+    requestedChannelScope: lastRequestedChannelScope,
     websocketReadyState: getWebSocketReadyStateLabel(ws),
     reconnectAttempts,
     activePeerConnections: peerConnections.size,
@@ -281,6 +370,7 @@ export function getPTTDiagnostics(): PTTDiagnostics {
       connectionState: state.connectionState,
       iceConnectionState: state.iceConnectionState,
       signalingState: state.signalingState,
+      iceGatheringState: state.iceGatheringState,
     })),
     transport: {
       turnConfigured,
@@ -290,6 +380,29 @@ export function getPTTDiagnostics(): PTTDiagnostics {
     lastClose: {
       code: lastSocketCloseCode,
       reason: lastSocketCloseReason,
+    },
+    lastNegotiationAttempt: {
+      at: lastNegotiationAttemptAt,
+      peerId: lastNegotiationPeerId,
+      stage: lastNegotiationStage,
+    },
+    lastNegotiationError: {
+      at: lastNegotiationErrorAt,
+      peerId: lastNegotiationErrorPeerId,
+      message: lastNegotiationErrorMessage,
+    },
+    lastTransmitAttempt: {
+      at: lastTransmitAttemptAt,
+      presenceCount: lastTransmitPresenceCount,
+      microphoneReady: lastTransmitMicrophoneReady,
+      channelScope: lastTransmitChannelScope,
+    },
+    iceCandidates: {
+      sent: iceCandidatesSent,
+      received: iceCandidatesReceived,
+      gatherComplete: iceGatherCompleteCount,
+      errors: iceCandidateErrors,
+      lastError: lastIceCandidateError,
     },
   }
 }
@@ -329,6 +442,7 @@ export async function requestPTTToken(channelScope: string): Promise<PTTTokenRes
  */
 export async function connectToPTT(channelScope: string, channelName?: string): Promise<void> {
   const store = usePTTStore.getState()
+  lastRequestedChannelScope = channelScope
 
   // If already connected (or connecting) to the same channel, avoid churn.
   const sameChannel = store.channelId === channelScope
@@ -473,6 +587,7 @@ function cleanupConnection(): void {
   peerConnections.forEach((pc) => pc.close())
   peerConnections.clear()
   peerConnectionStates.clear()
+  pendingIceCandidates.clear()
 
   if (localStream) {
     localStream.getTracks().forEach((track) => track.stop())
@@ -496,6 +611,19 @@ function cleanupConnection(): void {
     }
   })
   remoteAudioElements.clear()
+  clearNegotiationError()
+  lastNegotiationAttemptAt = null
+  lastNegotiationPeerId = null
+  lastNegotiationStage = null
+  lastTransmitAttemptAt = null
+  lastTransmitPresenceCount = 0
+  lastTransmitMicrophoneReady = false
+  lastTransmitChannelScope = null
+  iceCandidatesSent = 0
+  iceCandidatesReceived = 0
+  iceGatherCompleteCount = 0
+  iceCandidateErrors = 0
+  lastIceCandidateError = null
 }
 
 /**
@@ -551,6 +679,15 @@ function handleServerMessage(message: PTTMessage): void {
       // Initial sync on connect
       if (message.presence) {
         store.setPresence(message.presence)
+
+        // If user starts speaking before sync arrives, negotiate as soon as
+        // peers become visible to avoid missing the first live transmission.
+        if (store.isSpeaking && localStream) {
+          for (const peer of message.presence) {
+            if (!peer.userId) continue
+            void negotiatePeerAudio(peer.userId)
+          }
+        }
       }
       if (message.speakerId) {
         store.setSpeaker(message.speakerId)
@@ -650,6 +787,8 @@ async function handleSignalMessage(message: SignalMessage): Promise<void> {
   const fromUserId = message.fromUserId
   const signal = message.signal
 
+  markNegotiationAttempt(fromUserId, `incoming_${signal.type}`)
+
   let pc = peerConnections.get(fromUserId)
 
   if (!pc) {
@@ -660,17 +799,35 @@ async function handleSignalMessage(message: SignalMessage): Promise<void> {
 
   try {
     if (signal.type === 'offer' && signal.sdp) {
+      clearNegotiationError()
       await pc.setRemoteDescription({ type: 'offer', sdp: signal.sdp })
+      markNegotiationAttempt(fromUserId, 'remote_offer_applied')
+      await flushPendingIceCandidates(fromUserId, pc)
       const answer = await pc.createAnswer()
+      markNegotiationAttempt(fromUserId, 'answer_created')
       await pc.setLocalDescription(answer)
+      markNegotiationAttempt(fromUserId, 'answer_sent')
 
       sendSignal(fromUserId, { type: 'answer', sdp: answer.sdp })
     } else if (signal.type === 'answer' && signal.sdp) {
+      clearNegotiationError()
       await pc.setRemoteDescription({ type: 'answer', sdp: signal.sdp })
+      markNegotiationAttempt(fromUserId, 'remote_answer_applied')
+      await flushPendingIceCandidates(fromUserId, pc)
     } else if (signal.type === 'candidate' && signal.candidate) {
-      await pc.addIceCandidate(signal.candidate)
+      if (!pc.remoteDescription) {
+        const queue = pendingIceCandidates.get(fromUserId) || []
+        queue.push(signal.candidate)
+        pendingIceCandidates.set(fromUserId, queue)
+        markNegotiationAttempt(fromUserId, 'candidate_queued')
+      } else {
+        await pc.addIceCandidate(signal.candidate)
+        iceCandidatesReceived++
+        markNegotiationAttempt(fromUserId, 'candidate_applied')
+      }
     }
   } catch (error) {
+    markNegotiationError(fromUserId, error, `incoming_${signal.type}_failed`)
     console.error('🎤 PTT: Signal handling error', error)
   }
 }
@@ -691,11 +848,15 @@ function createPeerConnection(peerId: string): RTCPeerConnection {
     connectionState: pc.connectionState,
     iceConnectionState: pc.iceConnectionState,
     signalingState: pc.signalingState,
+    iceGatheringState: pc.iceGatheringState,
   })
 
   pc.onicecandidate = (event) => {
     if (event.candidate) {
+      iceCandidatesSent++
       sendSignal(peerId, { type: 'candidate', candidate: event.candidate.toJSON() })
+    } else {
+      iceGatherCompleteCount++
     }
   }
 
@@ -716,6 +877,7 @@ function createPeerConnection(peerId: string): RTCPeerConnection {
       connectionState: current?.connectionState || pc.connectionState,
       iceConnectionState: pc.iceConnectionState,
       signalingState: pc.signalingState,
+      iceGatheringState: current?.iceGatheringState || pc.iceGatheringState,
     })
     if (pc.iceConnectionState === 'failed') {
       const store = usePTTStore.getState()
@@ -724,6 +886,8 @@ function createPeerConnection(peerId: string): RTCPeerConnection {
   }
 
   pc.onicecandidateerror = (event) => {
+    iceCandidateErrors++
+    lastIceCandidateError = `${event.errorCode}: ${event.errorText || 'unknown'}`
     console.warn('🎤 PTT: ICE candidate error', peerId, event.errorCode, event.errorText)
   }
 
@@ -733,6 +897,7 @@ function createPeerConnection(peerId: string): RTCPeerConnection {
       connectionState: pc.connectionState,
       iceConnectionState: current?.iceConnectionState || pc.iceConnectionState,
       signalingState: pc.signalingState,
+      iceGatheringState: current?.iceGatheringState || pc.iceGatheringState,
     })
     if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
       peerConnections.delete(peerId)
@@ -747,6 +912,17 @@ function createPeerConnection(peerId: string): RTCPeerConnection {
       connectionState: current?.connectionState || pc.connectionState,
       iceConnectionState: current?.iceConnectionState || pc.iceConnectionState,
       signalingState: pc.signalingState,
+      iceGatheringState: current?.iceGatheringState || pc.iceGatheringState,
+    })
+  }
+
+  pc.onicegatheringstatechange = () => {
+    const current = peerConnectionStates.get(peerId)
+    peerConnectionStates.set(peerId, {
+      connectionState: current?.connectionState || pc.connectionState,
+      iceConnectionState: current?.iceConnectionState || pc.iceConnectionState,
+      signalingState: current?.signalingState || pc.signalingState,
+      iceGatheringState: pc.iceGatheringState,
     })
   }
 
@@ -765,30 +941,16 @@ function sendSignal(targetUserId: string, signal: SignalMessage['signal']): void
 async function negotiatePeerAudio(peerId: string): Promise<void> {
   if (!localStream) return
 
-  let pc = peerConnections.get(peerId)
-  if (!pc) {
-    pc = createPeerConnection(peerId)
-    peerConnections.set(peerId, pc)
-  }
+  try {
+    markNegotiationAttempt(peerId, 'begin_offer')
 
-  for (const track of localStream.getTracks()) {
-    const alreadySending = pc.getSenders().some((s) => s.track?.id === track.id)
-    if (!alreadySending) {
-      pc.addTrack(track, localStream)
+    let pc = peerConnections.get(peerId)
+    if (!pc) {
+      markNegotiationAttempt(peerId, 'creating_peer')
+      pc = createPeerConnection(peerId)
+      peerConnections.set(peerId, pc)
+      markNegotiationAttempt(peerId, 'peer_created')
     }
-  }
-
-  if (pc.signalingState !== 'stable') {
-    // If signaling got stuck (e.g. interrupted prior negotiation), rebuild the peer
-    // so the next offer can proceed cleanly.
-    try {
-      pc.close()
-    } catch {
-      // Ignore close errors.
-    }
-    peerConnections.delete(peerId)
-    pc = createPeerConnection(peerId)
-    peerConnections.set(peerId, pc)
 
     for (const track of localStream.getTracks()) {
       const alreadySending = pc.getSenders().some((s) => s.track?.id === track.id)
@@ -796,11 +958,40 @@ async function negotiatePeerAudio(peerId: string): Promise<void> {
         pc.addTrack(track, localStream)
       }
     }
-  }
 
-  const offer = await pc.createOffer()
-  await pc.setLocalDescription(offer)
-  sendSignal(peerId, { type: 'offer', sdp: offer.sdp })
+    if (pc.signalingState !== 'stable') {
+      // If signaling got stuck (e.g. interrupted prior negotiation), rebuild the peer
+      // so the next offer can proceed cleanly.
+      try {
+        pc.close()
+      } catch {
+        // Ignore close errors.
+      }
+      peerConnections.delete(peerId)
+      markNegotiationAttempt(peerId, 'recreating_peer')
+      pc = createPeerConnection(peerId)
+      peerConnections.set(peerId, pc)
+      markNegotiationAttempt(peerId, 'peer_rebuilt')
+
+      for (const track of localStream.getTracks()) {
+        const alreadySending = pc.getSenders().some((s) => s.track?.id === track.id)
+        if (!alreadySending) {
+          pc.addTrack(track, localStream)
+        }
+      }
+    }
+
+    const offer = await pc.createOffer()
+    markNegotiationAttempt(peerId, 'offer_created')
+    await pc.setLocalDescription(offer)
+    markNegotiationAttempt(peerId, 'offer_local_set')
+    sendSignal(peerId, { type: 'offer', sdp: offer.sdp })
+    markNegotiationAttempt(peerId, 'offer_sent')
+    clearNegotiationError()
+  } catch (error) {
+    markNegotiationError(peerId, error, 'negotiate_failed')
+    throw error
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -812,6 +1003,7 @@ async function negotiatePeerAudio(peerId: string): Promise<void> {
  */
 export async function startSpeaking(): Promise<void> {
   const store = usePTTStore.getState()
+  markTransmitAttempt(store.presence.length, false)
 
   if (store.isMuted || !store.audioEnabled) {
     throw new Error('Audio is muted or disabled')
@@ -824,6 +1016,7 @@ export async function startSpeaking(): Promise<void> {
   try {
     // Request microphone with mobile-safe fallback.
     localStream = await requestLocalAudioStream()
+    markTransmitAttempt(store.presence.length, true)
 
     // Start recording for fallback clip
     recordedChunks = []
@@ -848,15 +1041,34 @@ export async function startSpeaking(): Promise<void> {
     store.setSpeaking(true)
     console.log('🎤 PTT: Started speaking')
 
+    const negotiatedPeerIds = new Set<string>()
+
     // Negotiate WebRTC with all currently present peers.
     for (const peer of store.presence) {
       if (!peer.userId) continue
       try {
         await negotiatePeerAudio(peer.userId)
+        negotiatedPeerIds.add(peer.userId)
       } catch (peerErr) {
         console.error('🎤 PTT: Failed to negotiate peer audio', peer.userId, peerErr)
       }
     }
+
+    // Presence can lag just behind push-to-talk on reconnect/join. Retry once
+    // with fresh presence so late join/sync peers still get the live stream.
+    setTimeout(() => {
+      if (!usePTTStore.getState().isSpeaking || !localStream) return
+
+      const latestPeers = usePTTStore.getState().presence
+      for (const peer of latestPeers) {
+        if (!peer.userId || negotiatedPeerIds.has(peer.userId)) continue
+        void negotiatePeerAudio(peer.userId).then(() => {
+          negotiatedPeerIds.add(peer.userId)
+        }).catch((peerErr) => {
+          console.error('🎤 PTT: Delayed peer negotiation failed', peer.userId, peerErr)
+        })
+      }
+    }, 700)
   } catch (error: any) {
     console.error('🎤 PTT: Failed to start speaking', error)
     store.setError(error.message || 'Failed to access microphone')
