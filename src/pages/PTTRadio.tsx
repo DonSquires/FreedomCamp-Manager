@@ -137,6 +137,23 @@ const CHANNEL_TYPE_ORDER: Record<string, number> = {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
+function hashScopeSeed(seed: string): string {
+  // Deterministic non-crypto hash for stable channel scope IDs across clients.
+  let h1 = 0x811c9dc5
+  let h2 = 0x811c9dc5
+  for (let i = 0; i < seed.length; i++) {
+    const c = seed.charCodeAt(i)
+    h1 ^= c
+    h1 = Math.imul(h1, 0x01000193)
+    h2 ^= c
+    h2 = Math.imul(h2, 0x27d4eb2d)
+  }
+  const p1 = (h1 >>> 0).toString(16).padStart(8, '0')
+  const p2 = (h2 >>> 0).toString(16).padStart(8, '0')
+  const merged = `${p1}${p2}${p1}${p2}`
+  return `${merged.slice(0, 8)}-${merged.slice(8, 12)}-${merged.slice(12, 16)}-${merged.slice(16, 20)}-${merged.slice(20, 32)}`
+}
+
 function getChannelScope(channel: RadioChannel, effectiveOrgId: string): string {
   // Primary channel must always be org-wide so all clients converge on the
   // same scope even when one device falls back to default channel metadata.
@@ -149,7 +166,11 @@ function getChannelScope(channel: RadioChannel, effectiveOrgId: string): string 
   if (UUID_RE.test(channel.id)) {
     return `deployment:${channel.id}`
   }
-  return `org:${effectiveOrgId}`
+
+  // For fallback channels (non-UUID ids), use deterministic team scopes based on
+  // org + channel number so all clients land in the same room for CH2+.
+  const stableId = hashScopeSeed(`${effectiveOrgId}:${channel.channel_number}`)
+  return `team:${stableId}`
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -507,10 +528,10 @@ export default function PTTRadio() {
                      channels[0]
     
     if (channel1) {
-      setActiveChannel(channel1)
       initialConnectRef.current = true
+      void connectToChannel(channel1)
     }
-  }, [effectiveOrgId, channels])
+  }, [effectiveOrgId, channels, connectToChannel])
 
   // ── Notification permission prompt ───────────────────────
   useEffect(() => {
@@ -624,7 +645,7 @@ export default function PTTRadio() {
     }, 2500)
 
     return () => { if (scanTimerRef.current) clearInterval(scanTimerRef.current) }
-  }, [scanMode, channels, speakerId])
+  }, [scanMode, channels, speakerId, connectToChannel])
 
   // ── Cleanup on unmount ────────────────────────────────────
   useEffect(() => {

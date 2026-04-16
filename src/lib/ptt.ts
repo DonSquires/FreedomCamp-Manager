@@ -551,6 +551,15 @@ function handleServerMessage(message: PTTMessage): void {
       // Initial sync on connect
       if (message.presence) {
         store.setPresence(message.presence)
+
+        // If user starts speaking before sync arrives, negotiate as soon as
+        // peers become visible to avoid missing the first live transmission.
+        if (store.isSpeaking && localStream) {
+          for (const peer of message.presence) {
+            if (!peer.userId) continue
+            void negotiatePeerAudio(peer.userId)
+          }
+        }
       }
       if (message.speakerId) {
         store.setSpeaker(message.speakerId)
@@ -848,15 +857,34 @@ export async function startSpeaking(): Promise<void> {
     store.setSpeaking(true)
     console.log('🎤 PTT: Started speaking')
 
+    const negotiatedPeerIds = new Set<string>()
+
     // Negotiate WebRTC with all currently present peers.
     for (const peer of store.presence) {
       if (!peer.userId) continue
       try {
         await negotiatePeerAudio(peer.userId)
+        negotiatedPeerIds.add(peer.userId)
       } catch (peerErr) {
         console.error('🎤 PTT: Failed to negotiate peer audio', peer.userId, peerErr)
       }
     }
+
+    // Presence can lag just behind push-to-talk on reconnect/join. Retry once
+    // with fresh presence so late join/sync peers still get the live stream.
+    setTimeout(() => {
+      if (!usePTTStore.getState().isSpeaking || !localStream) return
+
+      const latestPeers = usePTTStore.getState().presence
+      for (const peer of latestPeers) {
+        if (!peer.userId || negotiatedPeerIds.has(peer.userId)) continue
+        void negotiatePeerAudio(peer.userId).then(() => {
+          negotiatedPeerIds.add(peer.userId)
+        }).catch((peerErr) => {
+          console.error('🎤 PTT: Delayed peer negotiation failed', peer.userId, peerErr)
+        })
+      }
+    }, 700)
   } catch (error: any) {
     console.error('🎤 PTT: Failed to start speaking', error)
     store.setError(error.message || 'Failed to access microphone')
