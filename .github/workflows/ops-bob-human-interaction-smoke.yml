@@ -120,6 +120,9 @@ jobs:
             # || true: curl exits non-zero on timeout (28) or connection error.
             # With set -euo pipefail that would abort the whole step; we want to
             # return an empty string instead and let retry_chat_prompt handle it.
+            # 45 s: Ollama cold-start or first-token latency on Railway free tier
+            # typically reaches 30-40 s; 45 s gives a small safety margin while
+            # still well within the step's 10-minute job timeout.
             if [[ -n "${INFERENCE_API_KEY:-}" ]]; then
               curl -sS -m 45 -X POST "$CHAT_URL" \
                 -H 'Content-Type: application/json' \
