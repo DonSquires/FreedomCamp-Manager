@@ -138,6 +138,7 @@ const peerConnections: Map<string, RTCPeerConnection> = new Map()
 let mediaRecorder: MediaRecorder | null = null
 let recordedChunks: Blob[] = []
 let recordingStartTime: number | null = null
+const remoteAudioElements: Map<string, HTMLAudioElement> = new Map()
 
 // VOX state
 let audioContext: AudioContext | null = null
@@ -305,6 +306,18 @@ function cleanupConnection(): void {
     mediaRecorder = null
   }
   recordedChunks = []
+
+  // Clean up any active remote audio playback elements.
+  remoteAudioElements.forEach((audio) => {
+    try {
+      audio.pause()
+      audio.srcObject = null
+      audio.remove()
+    } catch {
+      // Ignore cleanup failures.
+    }
+  })
+  remoteAudioElements.clear()
 }
 
 /**
@@ -490,10 +503,19 @@ function createPeerConnection(peerId: string): RTCPeerConnection {
   }
 
   pc.ontrack = (event) => {
-    // Play incoming audio
-    const audio = new Audio()
+    // Keep a persistent audio element per peer for stable playback on mobile/desktop.
+    let audio = remoteAudioElements.get(peerId)
+    if (!audio) {
+      audio = new Audio()
+      audio.autoplay = true
+      audio.playsInline = true
+      remoteAudioElements.set(peerId, audio)
+    }
+
     audio.srcObject = event.streams[0]
-    audio.play().catch(console.error)
+    audio.play().catch((playErr) => {
+      console.error('🎤 PTT: Remote audio autoplay blocked', playErr)
+    })
   }
 
   pc.onconnectionstatechange = () => {
@@ -524,18 +546,14 @@ async function negotiatePeerAudio(peerId: string): Promise<void> {
     peerConnections.set(peerId, pc)
   }
 
-  // Remove stale senders from prior transmissions before adding current tracks.
-  for (const sender of pc.getSenders()) {
-    try {
-      pc.removeTrack(sender)
-    } catch {
-      // Ignore if sender is already detached.
+  for (const track of localStream.getTracks()) {
+    const alreadySending = pc.getSenders().some((s) => s.track?.id === track.id)
+    if (!alreadySending) {
+      pc.addTrack(track, localStream)
     }
   }
 
-  for (const track of localStream.getTracks()) {
-    pc.addTrack(track, localStream)
-  }
+  if (pc.signalingState !== 'stable') return
 
   const offer = await pc.createOffer()
   await pc.setLocalDescription(offer)
