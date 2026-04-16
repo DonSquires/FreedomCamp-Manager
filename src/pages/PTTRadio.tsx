@@ -549,42 +549,6 @@ export default function PTTRadio() {
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
   }, [isAvailable, canSpeak, isMuted])
 
-  // ── Scanner mode ─────────────────────────────────────────
-  useEffect(() => {
-    if (!scanMode) {
-      if (scanTimerRef.current) { clearInterval(scanTimerRef.current); scanTimerRef.current = null }
-      return
-    }
-    const nonEmergency = channels.filter((c) => c.channel_type !== 'emergency')
-    if (!nonEmergency.length) return
-
-    scanTimerRef.current = setInterval(async () => {
-      // Pause scan if someone is transmitting
-      if (speakerId) return
-      setScanIndex((prev) => {
-        const next = (prev + 1) % nonEmergency.length
-        const ch = nonEmergency[next]
-        if (ch) {
-          setActiveChannel(ch)
-          connectToChannel(ch)
-        }
-        return next
-      })
-    }, 2500)
-
-    return () => { if (scanTimerRef.current) clearInterval(scanTimerRef.current) }
-  }, [scanMode, channels, speakerId])
-
-  // ── Cleanup on unmount ────────────────────────────────────
-  useEffect(() => {
-    return () => {
-      stopVoxMonitoring()
-      if (liveTxTimerRef.current) clearInterval(liveTxTimerRef.current)
-      if (scanTimerRef.current) clearInterval(scanTimerRef.current)
-      if (wakeLockRef.current) releaseWakeLock()
-    }
-  }, [])
-
   // ─────────────────────────────────────────────────────────
   // Channel connection
   // ─────────────────────────────────────────────────────────
@@ -610,6 +574,42 @@ export default function PTTRadio() {
     },
     [effectiveOrgId, setError],
   )
+
+  // ── Scanner mode ─────────────────────────────────────────
+  useEffect(() => {
+    if (!scanMode) {
+      if (scanTimerRef.current) { clearInterval(scanTimerRef.current); scanTimerRef.current = null }
+      return
+    }
+    const nonEmergency = channels.filter((c) => c.channel_type !== 'emergency')
+    if (!nonEmergency.length) return
+
+    scanTimerRef.current = setInterval(async () => {
+      // Pause scan if someone is transmitting
+      if (speakerId) return
+      setScanIndex((prev) => {
+        const next = (prev + 1) % nonEmergency.length
+        const ch = nonEmergency[next]
+        if (ch) {
+          setActiveChannel(ch)
+          connectToChannel(ch)
+        }
+        return next
+      })
+    }, 2500)
+
+    return () => { if (scanTimerRef.current) clearInterval(scanTimerRef.current) }
+  }, [scanMode, channels, speakerId, connectToChannel])
+
+  // ── Cleanup on unmount ────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      stopVoxMonitoring()
+      if (liveTxTimerRef.current) clearInterval(liveTxTimerRef.current)
+      if (scanTimerRef.current) clearInterval(scanTimerRef.current)
+      if (wakeLockRef.current) releaseWakeLock()
+    }
+  }, [])
 
   const handleChannelSelect = useCallback(
     (channel: RadioChannel) => {
