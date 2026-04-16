@@ -20,6 +20,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
 const PTT_SERVER_URL =
   Deno.env.get('PTT_SERVER_URL') ||
   Deno.env.get('PTT_SERVICE_URL') ||
+  Deno.env.get('PPT_SERVER_URL') ||
+  Deno.env.get('PPT_SURVER_URL') ||
   ''
 const PROXY_SECRET =
   Deno.env.get('PTT_PROXY_SECRET') ||
@@ -193,17 +195,27 @@ Deno.serve(async (req) => {
 
       effectiveOrganizationId = incident.organization_id
     } else if (scopeType === 'team' || scopeType === 'deployment') {
-      // Team/deployment channels - verify user is part of the deployment or has access
-      // For now, allow access within same organization
-      // Future: Check roster_assignments or deployment_members table
-      // This allows all org members to join team channels for the MVP
-      console.log(`PTT: User ${user.id} accessing ${scopeType} channel ${scopeId}`)
+      // Team/deployment scopes are used for independent PTT channel UUIDs.
+      // Resolve organization from ptt_channels first when possible.
+      const { data: pttChannel } = await supabase
+        .from('ptt_channels')
+        .select('organization_id')
+        .eq('id', scopeId)
+        .single()
 
-      if (!effectiveOrganizationId) {
+      if (pttChannel?.organization_id) {
+        if (!isPrivilegedRole && pttChannel.organization_id !== profile.organization_id) {
+          return new Response(
+            JSON.stringify({ error: 'Forbidden', message: 'Cannot access team/deployment channels in other organizations' }),
+            { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+          )
+        }
+        effectiveOrganizationId = pttChannel.organization_id
+      } else if (!effectiveOrganizationId) {
         return new Response(
           JSON.stringify({
             error: 'Organization context required',
-            message: 'Select an organization-scoped channel first, then join team/deployment channels',
+            message: 'Unable to resolve organization context for team/deployment channel scope',
           }),
           { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         )

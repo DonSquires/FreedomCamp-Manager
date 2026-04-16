@@ -30,7 +30,7 @@ import {
   usePTTCanSpeak,
 } from '@/stores/pttStore'
 import {
-  connectToOrgChannel,
+  connectToPTT,
   startSpeaking,
   stopSpeaking,
   startVoxMonitoring,
@@ -121,6 +121,17 @@ const DEFAULT_CHANNELS: RadioChannel[] = [
 
 const CHANNEL_TYPE_ORDER: Record<string, number> = {
   primary: 0, dispatch: 1, team: 2, incident: 3, welfare: 4, admin: 5, emergency: 99,
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function getChannelScope(channel: RadioChannel, effectiveOrgId: string): string {
+  // Persisted channel rows use UUID ids and map to unique deployment scopes.
+  // Fallback defaults are non-UUID and use org scope to stay valid.
+  if (UUID_RE.test(channel.id)) {
+    return `deployment:${channel.id}`
+  }
+  return `org:${effectiveOrgId}`
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -503,11 +514,10 @@ export default function PTTRadio() {
       setIsConnecting(true)
       setError(null)
 
-      // Derive a unique channel scope string: orgId:channelNumber
-      const channelScope = `${effectiveOrgId}:ch${channel.channel_number}`
+      const channelScope = getChannelScope(channel, effectiveOrgId)
 
       try {
-        await connectToOrgChannel(channelScope, channel.name)
+        await connectToPTT(channelScope, channel.name)
         setActiveChannel(channel)
       } catch (err) {
         const msg = normalizePTTErrorMessage(err)

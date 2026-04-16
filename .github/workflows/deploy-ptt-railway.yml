@@ -8,7 +8,7 @@ name: Deploy PTT Server to Railway
 # Can also be triggered manually via workflow_dispatch.
 #
 # Required GitHub secrets:
-#   RAILWAY_PTT_TOKEN      — Railway project token for the PTT server project
+#   RAILWAY_PTT_TOKEN or RAILWAY_TOKEN — Railway project token for the PTT server project
 #   RAILWAY_PTT_SERVICE_ID — Railway project → Service → Settings → Service ID
 #
 # Optional GitHub secrets (enable the extra steps below):
@@ -47,7 +47,7 @@ jobs:
         id: check-secrets
         run: |
           missing=""
-          [ -z "$RAILWAY_PTT_TOKEN" ]      && missing="$missing RAILWAY_PTT_TOKEN"
+          [ -z "${RAILWAY_PTT_TOKEN:-${RAILWAY_TOKEN:-}}" ] && missing="$missing RAILWAY_PTT_TOKEN-or-RAILWAY_TOKEN"
           [ -z "$RAILWAY_PTT_SERVICE_ID" ] && missing="$missing RAILWAY_PTT_SERVICE_ID"
 
           if [ -n "$missing" ]; then
@@ -57,6 +57,7 @@ jobs:
             echo "  https://github.com/${{ github.repository }}/settings/secrets/actions"
             echo ""
             echo "  RAILWAY_PTT_TOKEN:      Railway project token (Project → Settings → Tokens)"
+            echo "  RAILWAY_TOKEN:          Fallback Railway token if PTT-specific token is not set"
             echo "  RAILWAY_PTT_SERVICE_ID: Railway service ID (Service → Settings → Service ID)"
             echo ""
             echo "Optional secrets that enable health-check and Supabase sync:"
@@ -71,6 +72,7 @@ jobs:
           fi
         env:
           RAILWAY_PTT_TOKEN:      ${{ secrets.RAILWAY_PTT_TOKEN }}
+          RAILWAY_TOKEN:          ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_PTT_SERVICE_ID: ${{ secrets.RAILWAY_PTT_SERVICE_ID }}
 
       - name: Checkout repository
@@ -91,19 +93,29 @@ jobs:
           install -m 0755 railway "$HOME/.railway/bin/railway"
           echo "$HOME/.railway/bin" >> "$GITHUB_PATH"
 
-      - name: Validate Railway token
+      - name: Select Railway token
         id: validate-token
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_PTT_TOKEN }}
+          PRIMARY_RAILWAY_TOKEN: ${{ secrets.RAILWAY_PTT_TOKEN }}
+          SECONDARY_RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
-          echo "🔑 Validating Railway PTT token..."
-          if ! railway service list --json > /dev/null 2>&1; then
-            echo "::warning::Could not confirm RAILWAY_PTT_TOKEN via 'railway service list'."
-            echo "Project-scoped tokens can fail this check; deployment will still be attempted."
+          set -euo pipefail
+          echo "🔑 Selecting Railway PTT token..."
+
+          if [ -n "${PRIMARY_RAILWAY_TOKEN:-}" ]; then
+            echo "::add-mask::${PRIMARY_RAILWAY_TOKEN}"
+            echo "SELECTED_RAILWAY_TOKEN=${PRIMARY_RAILWAY_TOKEN}" >> "$GITHUB_ENV"
+            echo "✅ Using RAILWAY_PTT_TOKEN"
+          elif [ -n "${SECONDARY_RAILWAY_TOKEN:-}" ]; then
+            echo "::add-mask::${SECONDARY_RAILWAY_TOKEN}"
+            echo "SELECTED_RAILWAY_TOKEN=${SECONDARY_RAILWAY_TOKEN}" >> "$GITHUB_ENV"
+            echo "::warning::RAILWAY_PTT_TOKEN is empty; using RAILWAY_TOKEN fallback."
           else
-            echo "✅ Railway PTT token is valid"
+            echo "::error::No Railway token available for PTT deployment."
+            exit 1
           fi
+
           echo "token_valid=true" >> "$GITHUB_OUTPUT"
 
       - name: Deploy PTT server to Railway
@@ -111,7 +123,7 @@ jobs:
           steps.check-secrets.outputs.secrets_present == 'true' &&
           steps.validate-token.outputs.token_valid == 'true'
         env:
-          RAILWAY_TOKEN:          ${{ secrets.RAILWAY_PTT_TOKEN }}
+          RAILWAY_TOKEN:          ${{ env.SELECTED_RAILWAY_TOKEN }}
           RAILWAY_PTT_SERVICE_ID: ${{ secrets.RAILWAY_PTT_SERVICE_ID }}
         run: |
           cd ptt-server
@@ -202,6 +214,7 @@ jobs:
           SUPABASE_PROJECT_REF:  ${{ secrets.SUPABASE_PROJECT_REF }}
           PTT_SERVER_URL:        ${{ secrets.PTT_SERVER_URL }}
           PROXY_SECRET:          ${{ secrets.PROXY_SECRET }}
+          PTT_PROXY_SECRET:      ${{ secrets.PTT_PROXY_SECRET }}
         run: |
           if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$SUPABASE_PROJECT_REF" ] || [ -z "$PTT_SERVER_URL" ]; then
             echo "ℹ️  Supabase sync skipped (missing SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF, or PTT_SERVER_URL)."
@@ -211,15 +224,16 @@ jobs:
           echo "🔐 Syncing PTT secrets to Supabase project ${SUPABASE_PROJECT_REF}..."
 
           SECRETS_ARGS="PTT_SERVER_URL=${PTT_SERVER_URL}"
-          if [ -n "$PROXY_SECRET" ]; then
-            SECRETS_ARGS="${SECRETS_ARGS} PROXY_SECRET=${PROXY_SECRET}"
+          EFFECTIVE_PROXY_SECRET="${PTT_PROXY_SECRET:-${PROXY_SECRET:-}}"
+          if [ -n "$EFFECTIVE_PROXY_SECRET" ]; then
+            SECRETS_ARGS="${SECRETS_ARGS} PROXY_SECRET=${EFFECTIVE_PROXY_SECRET} PTT_PROXY_SECRET=${EFFECTIVE_PROXY_SECRET}"
           fi
 
           if "$HOME/.local/bin/supabase" secrets set $SECRETS_ARGS \
               --project-ref "$SUPABASE_PROJECT_REF"; then
             echo "✅ Supabase secrets updated:"
             echo "   • PTT_SERVER_URL = ${PTT_SERVER_URL}"
-            [ -n "$PROXY_SECRET" ] && echo "   • PROXY_SECRET   = (set)"
+            [ -n "$EFFECTIVE_PROXY_SECRET" ] && echo "   • PROXY_SECRET / PTT_PROXY_SECRET = (set)"
             echo ""
             echo "The ptt-signaling-token edge function will pick up these values on next invocation."
           else
