@@ -391,6 +391,18 @@ export default function PTTRadio() {
       .slice(0, 60)
   }, [txLog, dbTxLog])
 
+  const rosterWithSelf = useMemo(() => {
+    const base = [...presence]
+    if (!user?.id) return base
+
+    const selfName = `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim() || user.email || 'You'
+    const selfRole = user.role || 'officer'
+    const selfStatus = isSpeaking ? 'busy' : 'online'
+
+    const withoutSelf = base.filter((p) => p.userId !== user.id)
+    return [{ userId: user.id, name: selfName, role: selfRole, status: selfStatus }, ...withoutSelf]
+  }, [presence, user?.id, user?.first_name, user?.last_name, user?.email, user?.role, isSpeaking])
+
   // ── Load user callsign ────────────────────────────────────
   useEffect(() => {
     if (!user?.id) return
@@ -1076,13 +1088,13 @@ export default function PTTRadio() {
             <div className="border-b border-slate-800 p-3 shrink-0">
               <div className="flex items-center gap-1.5 text-[10px] text-slate-500 uppercase tracking-widest mb-2">
                 <Users className="h-3 w-3" />
-                Units Online ({presence.length})
+                Units Online ({rosterWithSelf.length})
               </div>
-              {presence.length === 0 ? (
+              {rosterWithSelf.length === 0 ? (
                 <p className="text-xs text-slate-600">No presence data — connect to a channel</p>
               ) : (
                 <div className="space-y-1 max-h-32 overflow-y-auto">
-                  {presence.map((p) => (
+                  {rosterWithSelf.map((p) => (
                     <div key={p.userId} className="flex items-center gap-2 text-xs">
                       <span className={`w-2 h-2 rounded-full shrink-0 ${
                         p.status === 'online' ? 'bg-green-400' : p.status === 'busy' ? 'bg-yellow-400' : 'bg-slate-600'
