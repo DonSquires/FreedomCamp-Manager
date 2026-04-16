@@ -1233,6 +1233,18 @@ export const edgeFunctions = {
     return callEdgeFunction('process-investigation-document', params)
   },
 
+  /**
+   * Analyse a tender/RFP/RFIP document with Bob, extract structured data,
+   * auto-create a CRM client organisation if needed, and persist the assessment.
+   */
+  processTenderDocument: async (params: {
+    document_id: string
+    extracted_text?: string
+    force_enrich?: boolean
+  }) => {
+    return callEdgeFunction('process-tender-document', params, { showToast: false })
+  },
+
   // ============================================================================
   // UTILITIES (2 functions)
   // ============================================================================
