@@ -6823,6 +6823,7 @@ export type Database = {
           officer_declined: boolean | null
           organization_id: string
           patrol_date: string | null
+          patrol_route_id: string | null
           priority: string | null
           recurrence: string | null
           scheduled_end_time: string | null
@@ -6856,6 +6857,7 @@ export type Database = {
           officer_declined?: boolean | null
           organization_id: string
           patrol_date?: string | null
+          patrol_route_id?: string | null
           priority?: string | null
           recurrence?: string | null
           scheduled_end_time?: string | null
@@ -6889,6 +6891,7 @@ export type Database = {
           officer_declined?: boolean | null
           organization_id?: string
           patrol_date?: string | null
+          patrol_route_id?: string | null
           priority?: string | null
           recurrence?: string | null
           scheduled_end_time?: string | null

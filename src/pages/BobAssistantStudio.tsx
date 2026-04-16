@@ -361,51 +361,6 @@ function BobSketchPad() {
   )
 }
 
-function buildBobReply(message: string, tone: string): string {
-  const text = normalize(message)
-
-  if (
-    text.includes('unable to reach the edge function') ||
-    text.includes('edge function') ||
-    text.includes('network connectivity issue') ||
-    text.includes('could not reach')
-  ) {
-    return [
-      'I can triage this now. The failure appears to be an edge-function connectivity path issue.',
-      'Please confirm: 1) exact page and time of failure, 2) whether other Bob-assisted actions failed too, 3) whether the error is constant or intermittent.',
-      'Immediate checks: verify Supabase function status, confirm auth session is valid, then retry with a short prompt to isolate payload-size or timeout issues.',
-      'If you want, I will walk you through a step-by-step incident flow and produce a copy-ready support handoff summary.',
-    ].join(' ')
-  }
-
-  if (text.includes('directions') || text.includes('route') || text.includes('map')) {
-    return 'I can help with routing. Enter origin and destination in the directions panel, then I will open turn-by-turn navigation in Google Maps.'
-  }
-  if (text.includes('upload') || text.includes('import')) {
-    return 'For imports: choose purpose, organisation, and expected fields first. For large files I recommend staging mode to avoid CPU spikes and timeout risk.'
-  }
-  if (text.includes('poi') || text.includes('person of interest')) {
-    return 'For POI intake, capture full name or alias, reason, and any supporting photo. I can route this to the POI workflow and queue review notes.'
-  }
-  if (text.includes('voi') || text.includes('vehicle of interest') || text.includes('plate')) {
-    return 'For VOI intake, include plate number, reason, and source context. I can map fields to vehicles_of_interest and create an action-ready record.'
-  }
-  if (text.includes('identity')) {
-    return 'For identity references, specify document type and required fields such as name, number, and expiry date. I will keep extraction bounded for performance.'
-  }
-  if (text.includes('sop') || text.includes('risk') || text.includes('evac') || text.includes('health') || text.includes('active offender') || text.includes('crowded')) {
-    return 'Use the Operations Planning workspace below. I can ask for site context, weather/extreme-condition controls, environmental and biological hazards, assignment target (client/zone/office), then generate and save a live plan with recommendations.'
-  }
-
-  if (tone === 'professional') {
-    return 'I have logged your request. Please provide the intended outcome and I will propose the safest next action with a structured checklist.'
-  }
-  if (tone === 'coach') {
-    return 'Great direction. Give me your target outcome and I will break it into clear steps with checks so you can execute confidently.'
-  }
-  return 'I am ready to help. Tell me what you want to achieve, and I will suggest the next best step with minimal friction.'
-}
-
 export default function BobAssistantStudio() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
@@ -869,25 +824,26 @@ export default function BobAssistantStudio() {
     const learningUserId = user?.id ?? 'anonymous'
 
     const buildRequestBody = () => {
-      const historyMessages = chat.slice(-16).map((m) => ({ role: m.role, content: m.text }))
+      const historyMessages = chat
+        .slice(-16)
+        .filter((m): m is ChatMessage & { role: 'user' | 'assistant' } => m.role === 'user' || m.role === 'assistant')
+        .map((m): { role: 'user' | 'assistant'; content: string } => ({ role: m.role, content: m.text }))
       const longTermMemory = buildBobLearningContext(learningUserId, 20)
       const compactKnowledge = BOB_PROJECT_KNOWLEDGE.slice(0, 9_000)
       const compactLongTermMemory = longTermMemory.slice(0, 5_000)
       const compactRemoteMemory = remoteLearningContext.slice(0, 5_000)
       const compactContinuationMemory = conversationContinuationContext.slice(0, 6_000)
 
-      const rawMessages = [
-        { role: 'assistant', content: compactKnowledge },
-        ...(compactLongTermMemory ? [{ role: 'assistant', content: compactLongTermMemory }] : []),
-        ...(compactRemoteMemory ? [{ role: 'assistant', content: compactRemoteMemory }] : []),
-        ...(compactContinuationMemory ? [{ role: 'assistant', content: compactContinuationMemory }] : []),
-        ...historyMessages,
-        { role: 'user', content: message },
-      ]
+      const rawMessages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = []
+      rawMessages.push({ role: 'assistant', content: compactKnowledge })
+      if (compactLongTermMemory) rawMessages.push({ role: 'assistant', content: compactLongTermMemory })
+      if (compactRemoteMemory) rawMessages.push({ role: 'assistant', content: compactRemoteMemory })
+      if (compactContinuationMemory) rawMessages.push({ role: 'assistant', content: compactContinuationMemory })
+      rawMessages.push(...historyMessages, { role: 'user', content: message })
 
       return {
         messages: rawMessages,
-        provider: 'inference',
+        provider: 'ollama' as const,
         context: {
           tone,
           source: 'bob-studio',
@@ -904,63 +860,11 @@ export default function BobAssistantStudio() {
       }
     }
 
-    const invokeBobWithResilience = async () => {
-      const requestBody = buildRequestBody()
-      let lastError: any = null
-
-      for (let attempt = 1; attempt <= 2; attempt += 1) {
-        const { data, error } = await supabase.functions.invoke('onspace-ai-chat', {
-          body: requestBody,
-        })
-
-        if (!error && data?.response) {
-          return data
-        }
-
-        lastError = error ?? new Error('Bob returned an empty response')
-      }
-
-      const { data: sessionData } = await supabase.auth.getSession()
-      const sessionJwt = sessionData?.session?.access_token
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
-
-      if (!sessionJwt || !supabaseUrl || !anonKey) {
-        throw lastError ?? new Error('No valid edge invocation path available')
-      }
-
-      const directResponse = await fetch(`${supabaseUrl}/functions/v1/onspace-ai-chat`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${sessionJwt}`,
-          apikey: anonKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      })
-
-      const directText = await directResponse.text()
-      const directJson = (() => {
-        try {
-          return JSON.parse(directText)
-        } catch {
-          return null
-        }
-      })()
-
-      if (!directResponse.ok) {
-        throw new Error(directJson?.error || `Edge function returned ${directResponse.status}`)
-      }
-
-      if (!directJson?.response) {
-        throw new Error('Bob returned an empty response')
-      }
-
-      return directJson
-    }
-
     try {
-      const data = await invokeBobWithResilience()
+      const { data, error } = await edgeFunctions.aiChat(buildRequestBody())
+      if (error || !data?.response) {
+        throw new Error(error || 'Bob returned an empty response')
+      }
 
       const replyText: string = data?.response || 'I could not generate a response. Please try again.'
 
@@ -1021,8 +925,8 @@ export default function BobAssistantStudio() {
         speak(replyText)
       }
     } catch (err: any) {
-      console.error('Bob assistant invoke failed; switching to local fallback:', err)
-      const replyText = buildBobReply(message, tone)
+      console.error('Bob assistant invoke failed:', err)
+      const replyText = 'Bob/Ollama is temporarily unavailable right now. Please retry in a moment.'
       const bobMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',
@@ -1036,7 +940,7 @@ export default function BobAssistantStudio() {
         userId: learningUserId,
         organizationId: user?.organization_id ?? null,
         route: '/bob-assistant',
-        source: collaborationPacket?.source ?? 'local-fallback',
+        source: collaborationPacket?.source ?? 'bob-ollama-unavailable',
         userMessage: message,
         assistantReply: replyText,
       })
@@ -1045,7 +949,7 @@ export default function BobAssistantStudio() {
         userId: learningUserId,
         organizationId: user?.organization_id ?? null,
         route: '/bob-assistant',
-        source: collaborationPacket?.source ?? 'local-fallback',
+        source: collaborationPacket?.source ?? 'bob-ollama-unavailable',
         userMessage: message,
         assistantReply: replyText,
         currentRoute: window.location.pathname,
@@ -1057,9 +961,17 @@ export default function BobAssistantStudio() {
         setConversationContinuationContext(refreshedContinuation)
       }
 
+      if (collaborationPacket && !hasPublishedResponseRef.current) {
+        hasPublishedResponseRef.current = true
+        publishBobResponse(collaborationPacket.id, replyText)
+        if (collaborationPacket.autoSubmit && collaborationPacket.returnRoute) {
+          setTimeout(() => navigate(collaborationPacket.returnRoute!), 1800)
+        }
+      }
+
       if (autoSpeakReplies) speak(replyText)
       const shortError = String(err?.message || 'unknown_error').slice(0, 120)
-      toast.error(`Bob inference service unavailable — using local fallback (${shortError})`)
+      toast.error(`Bob/Ollama service unavailable (${shortError})`)
     } finally {
       setThinking(false)
     }
