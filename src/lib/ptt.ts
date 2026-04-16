@@ -372,6 +372,11 @@ function handlePresenceMessage(message: PTTMessage): void {
           role: message.role,
           status: 'online',
         })
+
+        // If we are already speaking, immediately negotiate audio with the new peer.
+        if (store.isSpeaking && localStream) {
+          void negotiatePeerAudio(message.userId)
+        }
       }
       break
 
@@ -486,6 +491,36 @@ function sendSignal(targetUserId: string, signal: SignalMessage['signal']): void
   }
 }
 
+/**
+ * Ensure a peer connection exists and send an offer using the current local stream.
+ */
+async function negotiatePeerAudio(peerId: string): Promise<void> {
+  if (!localStream) return
+
+  let pc = peerConnections.get(peerId)
+  if (!pc) {
+    pc = createPeerConnection(peerId)
+    peerConnections.set(peerId, pc)
+  }
+
+  // Remove stale senders from prior transmissions before adding current tracks.
+  for (const sender of pc.getSenders()) {
+    try {
+      pc.removeTrack(sender)
+    } catch {
+      // Ignore if sender is already detached.
+    }
+  }
+
+  for (const track of localStream.getTracks()) {
+    pc.addTrack(track, localStream)
+  }
+
+  const offer = await pc.createOffer()
+  await pc.setLocalDescription(offer)
+  sendSignal(peerId, { type: 'offer', sdp: offer.sdp })
+}
+
 // ---------------------------------------------------------------------------
 // Audio Capture
 // ---------------------------------------------------------------------------
@@ -537,16 +572,14 @@ export async function startSpeaking(): Promise<void> {
     store.setSpeaking(true)
     console.log('🎤 PTT: Started speaking')
 
-    // Broadcast to peers via WebRTC
-    for (const [peerId, pc] of peerConnections) {
-      localStream.getTracks().forEach((track) => {
-        pc.addTrack(track, localStream!)
-      })
-
-      // Create offer for peers
-      const offer = await pc.createOffer()
-      await pc.setLocalDescription(offer)
-      sendSignal(peerId, { type: 'offer', sdp: offer.sdp })
+    // Negotiate WebRTC with all currently present peers.
+    for (const peer of store.presence) {
+      if (!peer.userId) continue
+      try {
+        await negotiatePeerAudio(peer.userId)
+      } catch (peerErr) {
+        console.error('🎤 PTT: Failed to negotiate peer audio', peer.userId, peerErr)
+      }
     }
   } catch (error: any) {
     console.error('🎤 PTT: Failed to start speaking', error)

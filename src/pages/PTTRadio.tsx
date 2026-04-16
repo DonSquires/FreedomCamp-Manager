@@ -314,11 +314,8 @@ export default function PTTRadio() {
         if (!seedRpcUnavailableRef.current) {
           const { error: seedError } = await (supabase as any).rpc('seed_default_ptt_channels', { p_organization_id: effectiveOrgId })
           if (seedError) {
-            if (seedError.code === 'PGRST202' || seedError.code === 'PGRST205' || seedError.code === '42883') {
-              seedRpcUnavailableRef.current = true
-            } else {
-              throw seedError
-            }
+            // Seeding is best-effort only; do not block radio if rpc is unavailable or rejected.
+            seedRpcUnavailableRef.current = true
           }
         }
         // Retry fetch
