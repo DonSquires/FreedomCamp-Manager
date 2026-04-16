@@ -426,6 +426,41 @@ export default function PTTRadio() {
     return [{ userId: user.id, name: selfName, role: selfRole, status: selfStatus }, ...withoutSelf]
   }, [presence, user?.id, user?.first_name, user?.last_name, user?.email, user?.role, isSpeaking])
 
+  // ─────────────────────────────────────────────────────────
+  // Channel connection callbacks (before effects that use them)
+  // ─────────────────────────────────────────────────────────
+
+  const connectToChannel = useCallback(
+    async (channel: RadioChannel) => {
+      if (!effectiveOrgId) return
+      setIsConnecting(true)
+      setError(null)
+
+      const channelScope = getChannelScope(channel, effectiveOrgId)
+
+      try {
+        await connectToPTT(channelScope, channel.name)
+        setActiveChannel(channel)
+      } catch (err) {
+        const msg = normalizePTTErrorMessage(err)
+        setError(msg)
+        toast.error(msg)
+      } finally {
+        setIsConnecting(false)
+      }
+    },
+    [effectiveOrgId, setError],
+  )
+
+  const handleChannelSelect = useCallback(
+    (channel: RadioChannel) => {
+      if (isTransmitting) return // don't switch while transmitting
+      setScanMode(false)
+      connectToChannel(channel)
+    },
+    [isTransmitting, connectToChannel],
+  )
+
   // ── Load user callsign ────────────────────────────────────
   useEffect(() => {
     if (!user?.id) return
@@ -465,19 +500,17 @@ export default function PTTRadio() {
     if (!effectiveOrgId || channels.length === 0) return
     if (initialConnectRef.current) return // Already attempted initial connect
 
-    // Mark that we're attempting initial connect
-    initialConnectRef.current = true
-
     // Prioritize Channel 1 (primary or channel_number === 1) so users aren't
     // "ghost online" without being in an actual channel.
     const channel1 = channels.find((c) => c.channel_number === 1) ?? 
                      channels.find((c) => c.channel_type === 'primary') ?? 
                      channels[0]
+    
     if (channel1) {
       setActiveChannel(channel1)
-      connectToChannel(channel1)
+      initialConnectRef.current = true
     }
-  }, [effectiveOrgId, channels, connectToChannel])
+  }, [effectiveOrgId, channels])
 
   // ── Notification permission prompt ───────────────────────
   useEffect(() => {
@@ -612,41 +645,6 @@ export default function PTTRadio() {
 
     return () => clearInterval(iv)
   }, [])
-
-  // ─────────────────────────────────────────────────────────
-  // Channel connection
-  // ─────────────────────────────────────────────────────────
-
-  const connectToChannel = useCallback(
-    async (channel: RadioChannel) => {
-      if (!effectiveOrgId) return
-      setIsConnecting(true)
-      setError(null)
-
-      const channelScope = getChannelScope(channel, effectiveOrgId)
-
-      try {
-        await connectToPTT(channelScope, channel.name)
-        setActiveChannel(channel)
-      } catch (err) {
-        const msg = normalizePTTErrorMessage(err)
-        setError(msg)
-        toast.error(msg)
-      } finally {
-        setIsConnecting(false)
-      }
-    },
-    [effectiveOrgId, setError],
-  )
-
-  const handleChannelSelect = useCallback(
-    (channel: RadioChannel) => {
-      if (isTransmitting) return // don't switch while transmitting
-      setScanMode(false)
-      connectToChannel(channel)
-    },
-    [isTransmitting, connectToChannel],
-  )
 
   // ─────────────────────────────────────────────────────────
   // PTT transmit
