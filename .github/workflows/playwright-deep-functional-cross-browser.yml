@@ -1,0 +1,84 @@
+name: Playwright Deep Functional Cross-Browser
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Optional base URL override"
+        required: false
+        type: string
+
+concurrency:
+  group: deep-functional-cross-browser-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deep-functional:
+    name: Deep Functional (${{ matrix.project }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - webkit
+          - Mobile Safari
+
+    env:
+      CI: true
+      PLAYWRIGHT_ADMIN_EMAIL: ${{ secrets.PLAYWRIGHT_ADMIN_EMAIL }}
+      PLAYWRIGHT_ADMIN_PASSWORD: ${{ secrets.PLAYWRIGHT_ADMIN_PASSWORD }}
+      PLAYWRIGHT_MASTER_EMAIL: ${{ secrets.PLAYWRIGHT_MASTER_EMAIL }}
+      PLAYWRIGHT_MASTER_PASSWORD: ${{ secrets.PLAYWRIGHT_MASTER_PASSWORD }}
+      PLAYWRIGHT_OFFICER_EMAIL: ${{ secrets.PLAYWRIGHT_OFFICER_EMAIL }}
+      PLAYWRIGHT_OFFICER_PASSWORD: ${{ secrets.PLAYWRIGHT_OFFICER_PASSWORD }}
+      API_TEST_EMAIL: ${{ secrets.API_TEST_EMAIL }}
+      API_TEST_PASSWORD: ${{ secrets.API_TEST_PASSWORD }}
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      DEFAULT_PLAYWRIGHT_BASE_URL: ${{ secrets.FRONTEND_URL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser and deps
+        run: npx playwright install --with-deps webkit
+
+      - name: Resolve base URL
+        run: |
+          if [ -n "${{ github.event.inputs.base_url }}" ]; then
+            echo "PLAYWRIGHT_BASE_URL=${{ github.event.inputs.base_url }}" >> "$GITHUB_ENV"
+          elif [ -n "$DEFAULT_PLAYWRIGHT_BASE_URL" ]; then
+            echo "PLAYWRIGHT_BASE_URL=$DEFAULT_PLAYWRIGHT_BASE_URL" >> "$GITHUB_ENV"
+          else
+            echo "PLAYWRIGHT_BASE_URL=https://fcmanager.co.nz" >> "$GITHUB_ENV"
+          fi
+
+      - name: Run deep functional suite
+        run: |
+          npx playwright test tests/e2e/deep-functional.spec.ts \
+            --project="${{ matrix.project }}" \
+            --reporter=list \
+            --timeout=90000
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deep-functional-${{ matrix.project }}-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
