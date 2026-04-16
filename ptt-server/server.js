@@ -91,12 +91,26 @@ function normalizeTurnUrl(rawUrl) {
   if (!url) return null;
 
   if (url.startsWith('turn:') || url.startsWith('turns:') || url.startsWith('stun:') || url.startsWith('stuns:')) {
-    return url;
+    return withPreferredTurnTransport(url);
   }
 
   // Railway often exposes the TURN relay as bare host:port. Browsers require
   // an explicit turn: URL scheme for RTCPeerConnection iceServers.
-  return `turn:${url}?transport=tcp`;
+  return withPreferredTurnTransport(`turn:${url}`);
+}
+
+function withPreferredTurnTransport(url) {
+  if (typeof url !== 'string') return url;
+  if (!url.startsWith('turn:')) return url;
+  if (url.includes('transport=')) return url;
+
+  // Railway proxy endpoints are TCP fronted; force TCP allocations so TURN
+  // doesn't try UDP by default (which fails behind the proxy).
+  if (url.includes('.proxy.rlwy.net')) {
+    return `${url}${url.includes('?') ? '&' : '?'}transport=tcp`;
+  }
+
+  return url;
 }
 
 function toStunUrl(url) {
