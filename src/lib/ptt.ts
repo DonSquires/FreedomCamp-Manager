@@ -168,6 +168,23 @@ let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
 let reconnectAttempts = 0
 const MAX_RECONNECT_ATTEMPTS = 8
 let pingInterval: ReturnType<typeof setInterval> | null = null
+let activeChannelScope: string | null = null  // Tracks the last requested scope for visibility-triggered reconnects
+
+// Reconnect when the page/tab becomes visible again (handles mobile browser backgrounding).
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return
+    if (!activeChannelScope) return
+    // If the WS is gone or closing, reconnect immediately without waiting for backoff.
+    if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+      console.log('🎤 PTT: Page visible – reconnecting dropped WS', activeChannelScope)
+      reconnectAttempts = 0
+      connectToPTT(activeChannelScope).catch((err) => {
+        console.error('🎤 PTT: Visibility reconnect failed', err)
+      })
+    }
+  })
+}
 let localStream: MediaStream | null = null
 const peerConnections: Map<string, RTCPeerConnection> = new Map()
 let mediaRecorder: MediaRecorder | null = null
@@ -331,6 +348,7 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
   store.setConnection('connecting')
   const channelType = channelScope.split(':')[0] as PTTChannelType
   store.setChannel(channelScope, channelType, channelName || null)
+  activeChannelScope = channelScope  // Remember for visibility-triggered reconnects
 
   try {
     // Get token from Edge Function
@@ -426,6 +444,7 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
  * Disconnect from the PTT signaling server
  */
 export function disconnectFromPTT(): void {
+  activeChannelScope = null  // Stop visibility-triggered reconnects after an intentional disconnect
   cleanupConnection()
   usePTTStore.getState().reset()
 }
@@ -504,11 +523,17 @@ function scheduleReconnect(channelScope: string): void {
 function startPingInterval(): void {
   if (pingInterval) clearInterval(pingInterval)
 
+  // 10 second interval keeps mobile browser WebSockets alive before iOS/Android kills idle connections.
   pingInterval = setInterval(() => {
     if (ws?.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'ping' }))
+    } else if (ws && ws.readyState !== WebSocket.CONNECTING) {
+      // WS died silently (common on mobile). scheduleReconnect will be triggered by onclose.
+      // If somehow onclose never fired, force a cleanup so the next visibility event recovers.
+      console.warn('🎤 PTT: Ping found dead socket, clearing')
+      ws = null
     }
-  }, 30000)
+  }, 10000)
 }
 
 // ---------------------------------------------------------------------------
