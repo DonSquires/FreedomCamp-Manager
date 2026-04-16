@@ -826,6 +826,7 @@ export default function BobAssistantStudio() {
     const buildRequestBody = () => {
       const historyMessages = chat
         .slice(-16)
+        .filter((m): m is ChatMessage & { role: 'user' | 'assistant' } => m.role === 'user' || m.role === 'assistant')
         .map((m): { role: 'user' | 'assistant'; content: string } => ({ role: m.role, content: m.text }))
       const longTermMemory = buildBobLearningContext(learningUserId, 20)
       const compactKnowledge = BOB_PROJECT_KNOWLEDGE.slice(0, 9_000)
