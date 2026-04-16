@@ -511,7 +511,7 @@ npm install
 
 # Copy environment file
 cp .env.example .env
-# Edit .env and set PROXY_SECRET and PTT_JWT_SECRET
+# Edit .env and set PTT_PROXY_SECRET and PTT_JWT_SECRET
 
 # Start local server
 npm run dev
@@ -536,7 +536,7 @@ railway link
 railway init
 
 # Set environment variables
-railway variables set PROXY_SECRET=your-actual-secret
+railway variables set PTT_PROXY_SECRET=your-actual-secret
 railway variables set PTT_JWT_SECRET=your-jwt-secret
 railway variables set PORT=3002
 
@@ -554,7 +554,7 @@ railway status
 2. Railway dashboard → **"New Project"** → **"Deploy from GitHub"**
 3. Select repository and set **Root Directory**: `ptt-server/`
 4. Add environment variables:
-   - `PROXY_SECRET`: Shared secret with Edge Functions
+  - `PTT_PROXY_SECRET`: Shared secret with Edge Functions
    - `PTT_JWT_SECRET`: JWT signing secret
    - `PORT`: 3002 (Railway auto-assigns)
 5. Deploy and copy URL
@@ -564,7 +564,7 @@ railway status
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `PORT` | Auto | Server port (Railway sets this) |
-| `PROXY_SECRET` | Yes | Authenticates requests from Edge Functions |
+| `PTT_PROXY_SECRET` | Yes | Authenticates requests from Edge Functions |
 | `PTT_JWT_SECRET` | Yes | Signs/verifies channel access tokens |
 | `MAX_PARTICIPANTS_PER_CHANNEL` | No | Limit per channel (default: 50) |
 | `MAX_CLIP_DURATION_SECONDS` | No | Max recording length (default: 30) |
@@ -579,7 +579,7 @@ After deploying the PTT server, configure the Edge Function secret:
 ```bash
 # Set PTT server URL in Supabase secrets
 supabase secrets set PTT_SERVER_URL=https://your-ptt.railway.app
-supabase secrets set PTT_JWT_SECRET=your-jwt-secret
+supabase secrets set PTT_PROXY_SECRET=your-actual-secret
 
 # Deploy the Edge Function
 supabase functions deploy ptt-signaling-token

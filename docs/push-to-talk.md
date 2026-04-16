@@ -1,156 +1,95 @@
-# Push-to-Talk (PTT) Blueprint
+# Push-to-Talk (PTT) Self-Hosted Blueprint
 
-Status: **In Progress** — Railway signaling server, database schema, and frontend foundation implemented. WebRTC integration and UI pending.
+Status: Production baseline active.
 
-## Channel Types (Required)
+This document is the source of truth for the PTT communications stack. The platform is designed to be self-hosted for signaling and application control. The only intentional non-self-hosted dependencies are external data intake systems such as NZSCV and other third-party feeds.
 
-1. **Ad-hoc (Direct)** - 1:1 PTT calls to individual users (`direct:<user_id>`)
-2. **Global (Organization)** - Broadcast to all users in the organization (`org:<org_id>`)
-3. **Team (Deployment)** - Team/deployment-scoped channels (`team:<team_id>` or `deployment:<deployment_id>`)
-4. **Incident** - Incident-specific channels (`incident:<incident_id>`)
+Operational runbook: see docs/PTT_SELF_HOSTED_OPERATIONS_STANDARD.md.
 
-## Input Modes
+## Scope and Operating Model
 
-1. **Push-to-Talk (PTT)** - Hold button to talk, release to stop (default)
-2. **Voice Activated (VOX)** - Automatic transmission when voice detected above threshold
-3. **Toggle** - Click to start talking, click again to stop
+1. PTT signaling is self-hosted on Railway via the ptt-server service.
+2. Authorization and policy enforcement are self-hosted in Supabase Edge Functions.
+3. Client control plane and media negotiation are implemented in the application codebase.
+4. NAT traversal is supported with STUN by default and TURN when configured.
+5. Third-party communication platforms are not used for core PTT operations.
 
-## Hardware Support
+## Channel Model
 
-1. **Bluetooth Headsets** - Full support for Bluetooth audio devices
-2. **Bluetooth PTT Button** - Map answer/hangup button as PTT trigger:
-   - Press button → Start transmitting (microphone open)
-   - Release button → Stop transmitting (microphone closed)
-3. **Hardware PTT Buttons** - Support dedicated PTT hardware on mobile
+1. Direct: direct:user_id
+2. Organization: org:organization_id
+3. Team: team:team_id
+4. Deployment: deployment:deployment_id
+5. Incident: incident:incident_id
 
-## Implementation Progress
+## Input and Interaction Modes
 
-### ✅ Completed (Phase 1: Railway Foundation)
+1. Hold-to-talk (default)
+2. Toggle talk
+3. VOX mode
+4. Bluetooth headset support
+5. Mobile hardware button integration path
 
-1. **PTT Signaling Server** (`ptt-server/`)
-   - WebSocket-based signaling for WebRTC peer connections
-   - Half-duplex voice (one speaker at a time per channel)
-   - Channel management (org-wide, incident-specific, direct 1:1, team)
-   - Presence tracking (online, busy, off-shift)
-   - JWT token-based authentication
-   - ICE server configuration (STUN + optional TURN)
-   - Railway deployment ready with Dockerfile
+## Implemented Components
 
-2. **Database Schema** (`supabase/migrations/20260329000001_ptt_tables.sql`)
-   - `ptt_messages`: Audio clip metadata for replay/audit
-   - `ptt_presence`: User presence state
-   - `ptt_channels`: Channel configuration
-   - RLS policies for org-scoped access
-   - Cleanup function for old clips
+1. PTT signaling server: ptt-server
+2. Token broker and policy checks: supabase/functions/ptt-signaling-token
+3. Frontend runtime: src/lib/ptt.ts and src/stores/pttStore.ts
+4. Background auto-connect: src/lib/pttBackground.ts and src/hooks/usePTTAutoConnect.ts
+5. UI controls and channel operations: src/components/features/PTTBar.tsx and radio route UI
+6. Replay and audit support: ptt_messages, ptt_presence, ptt_channels schema
 
-3. **Edge Function** (`supabase/functions/ptt-signaling-token/`)
-   - Mints short-lived JWT tokens for channel access
-   - Validates user auth and org membership
-   - Returns ICE server configuration
+## Authoritative Secret Model
 
-4. **Frontend Foundation**
-   - `src/stores/pttStore.ts`: Zustand store for PTT state
-   - `src/lib/ptt.ts`: WebRTC & WebSocket utilities
-   - `src/lib/edgeFunctions.ts`: PTT token function
+Use these canonical names only for PTT.
 
-5. **Background Service & Auto-Connect**
-   - `src/lib/pttBackground.ts`: Always-on PTT service
-   - `src/hooks/usePTTAutoConnect.ts`: Auto-connect hook
-   - Auto-connects to org channel on login
-   - Runs in background while using other parts of app
-   - Web Notifications for incoming calls when page hidden
-   - Wake Lock API support for keeping screen on during calls
-   - Automatic reconnection with exponential backoff
+1. PTT_SERVER_URL: public URL of the ptt-server service
+2. PTT_PROXY_SECRET: shared secret between ptt-signaling-token and ptt-server
+3. PTT_JWT_SECRET: token signing key used by ptt-server mint endpoint
 
-6. **PTT Bar UI Component**
-   - `src/components/features/PTTBar.tsx`: Full PTT control bar
-   - Integrated into TeamChat page
-   - Hold-to-talk, toggle, and VOX modes
-   - Channel switching (org/direct based on chat target)
-   - Presence indicators and speaker status
-   - Last clip replay
-   - Bluetooth PTT settings
-   - VOX threshold slider with level indicator
+Notes:
 
-### 🔲 Pending (Phase 3: Mobile & Advanced Features)
+1. PTT does not rely on NZSCV proxy secret aliases.
+2. The ptt-server reads PTT_PROXY_SECRET.
+3. The ptt-signaling-token function reads PTT_PROXY_SECRET.
 
-1. **Team/Deployment Channels**
-   - Link channels to roster deployments
-   - Auto-join based on active shift
+## Runtime Security Controls
 
-2. **Mobile Integration** (Expo app)
-   - Foreground service for background audio
-   - Hardware PTT button support
-   - Bluetooth headset integration
-   - Native push notifications
+1. Organization-scoped channel authorization in ptt-signaling-token
+2. Short-lived channel token minting
+3. Private storage pattern for clip replay metadata
+4. Production HTTPS enforcement in ptt-server when NODE_ENV=production
+5. CI deploy health checks include token mint probe to detect secret drift
 
-## Goals (lifted from proven PTT apps)
-- **Low-latency voice hold-to-talk** (tap/hold, auto-stop on release)
-- **Public channels + direct 1:1** (channels scoped by organization)
-- **Replay last messages** (short-lived buffer, optional retention)
-- **Presence/availability** (online, busy, on-shift)
-- **Cross-platform** (web + mobile app shell)
+## Network and TURN Model
 
-## Proposed v1 architecture
-- **Transport:** WebRTC per-session, with **Supabase Realtime** for signaling (presence + SDP/ICE exchange).
-- **Fallback / replay:** On talk end, upload a short Opus/WEBM clip to Supabase Storage and emit its URL to the channel for late listeners.
-- **Permissions:** Re-use `get_user_role(auth.uid())` and organization scoping. Only on-shift officers can publish; admins/master can monitor all.
-- **Channels:** `org:<org_id>` (default) plus ad-hoc incident channels `incident:<id>`. Directs target a user_id.
-- **UI:** Add a **PTT bar** to TeamChat: big “Hold to talk” button, channel selector, presence pill, last-clip replay.
+1. Baseline: STUN is always available for simple network paths.
+2. Reliability mode: configure TURN_URL, TURN_USERNAME, TURN_CREDENTIAL for restrictive NAT and enterprise networks.
+3. TURN is not optional for mission-critical field operation quality across mixed carrier networks.
 
-## Edge functions / backend
-- **signaling-token**: Mint short-lived access token for Realtime channel join (role + org scoped).
-- **store-clip (optional)**: Validate clip size/duration, write to Storage bucket `ptt-clips`, emit metadata row in `ptt_messages`.
-- **cleanup cron**: Delete clips >30 days unless flagged for evidence.
+## Current Limitations and Planned Hardening
 
-## Database sketch (public schema)
-```sql
--- Audio clip metadata (replay / audit)
-create table if not exists ptt_messages (
-  id uuid primary key default gen_random_uuid(),
-  organization_id uuid references organizations(id),
-  channel text not null,                 -- org:123, incident:abc, direct:<user_id>
-  sender_id uuid references auth.users,
-  sender_role text,
-  clip_url text,                         -- Supabase Storage signed URL
-  duration_seconds integer,
-  created_at timestamptz default now()
-);
+1. Current signaling state is in-memory and tuned for single replica operation.
+2. Multi-replica scale requires shared state and pub/sub, typically Redis.
+3. Mobile hard background behavior remains a controlled roadmap item.
 
--- Presence cache (optional; Realtime presence is primary)
-create table if not exists ptt_presence (
-  user_id uuid primary key,
-  organization_id uuid,
-  status text check (status in ('online','busy','offshift')),
-  updated_at timestamptz default now()
-);
-```
+## Professional Self-Hosted Target State
 
-## Frontend integration plan
-1) **Add PTT store** (`src/stores/pttStore.ts`): chosen channel/target, mute state, last clip metadata.
-2) **PTT bar component** in `TeamChat`: hold-to-talk (mousedown/touchstart → start stream; mouseup/touchend → stop + upload).
-3) **WebRTC helpers** (`src/lib/ptt.ts`): request mic, create peer connection, negotiate via Realtime channel, handle fallback upload.
-4) **Presence**: reuse Realtime presence channel per org; show who is listening/talking.
-5) **Audit / replay**: list last N clips with play button; auto-expire via signed URLs.
+1. Dedicated PTT Railway service with one canonical secret model.
+2. Mandatory TURN configuration in production.
+3. Single authoritative runbook for deploy, incident response, and rollback.
+4. Optional Redis-backed signaling state for horizontal scaling.
+5. Synthetic smoke tests for officer, admin, and master role access on every release.
 
-## Security / privacy
-- Enforce **org scoping** on signaling + storage.
-- Limit clip duration (e.g., 30s) and file size (e.g., 1.5 MB).
-- Set Storage bucket to **private**; serve via signed URLs.
-- Respect notification preferences; do not auto-play when muted.
+## Acceptance Criteria
 
-## Railway self-hosted services to support PTT
-- **Realtime / Supabase**: existing project (no change).
-- **Optional media relay**: For poor P2P environments, deploy a lightweight **mediasoup/ion-sfu** instance on Railway; configure TURN (e.g., Twilio/Nimble/Wiretrustee) for NAT traversal.
-- **Clip scanning** (future): add a small Deno/Node function to virus-scan / content-check clips before making them playable.
+1. Role smoke tests pass for officer, admin, and master on the radio route.
+2. PTT mint probe returns expected auth behavior in CI.
+3. No PTT docs instruct deprecated proxy secret aliases.
+4. PTT deploy docs reference only canonical PTT secret names.
+5. TURN variables are present in production when reliability mode is required.
 
-## Incremental rollout
-1) Ship UI + signaling with small “PTT Beta” toggle (behind feature flag).
-2) Add clip replay + audit trail.
-3) Add media relay/TURN for reliability.
-4) Mobile app shell: map hold-to-talk to hardware PTT button if available.
+## Non-Goals
 
-## Open items / decisions needed
-- TURN provider choice & budget.
-- Retention period for audio clips (default 30 days?).
-- Whether to block recording when off-shift / welfare alert active.
+1. Replacing third-party data intake sources such as NZSCV.
+2. Outsourcing PTT control plane to hosted communication vendors.

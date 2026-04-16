@@ -63,7 +63,7 @@ The absolute minimum to get the system running. Every item must be set before an
 | `INFERENCE_API_KEY` | Same value as the GitHub Actions secret `INFERENCE_API_KEY` |
 | `PROXY_SERVER_URL` | Same as GitHub Actions `PROXY_SERVER_URL` |
 | `PTT_SERVER_URL` | Same as GitHub Actions `PTT_SERVER_URL` |
-| `PTT_PROXY_SECRET` | Generate: `openssl rand -hex 32` — also set as `PROXY_SECRET` on the PTT Railway service |
+| `PTT_PROXY_SECRET` | Generate: `openssl rand -hex 32` — set this exact value on the PTT Railway service and in Supabase vault |
 
 ### Step 3 — Railway: Bob service
 
@@ -239,9 +239,9 @@ These are available as `Deno.env.get('SECRET_NAME')` inside all Edge Functions. 
 | `INFERENCE_API_KEY` | ✅ | — | Recommended | Auth header sent to Bob; must match Bob Railway service var |
 | `PROXY_SERVER_URL` | ✅ | `NZSCV_PROXY_URL`, `RAILWAY_PROXY_URL`, `PROXY_BASE_URL` (deprecated) | For vehicle lookup | Proxy public Railway URL |
 | `PTT_SERVER_URL` | ✅ | — | For PTT | PTT server public Railway URL |
-| `PTT_PROXY_SECRET` | ✅ | `PROXY_SECRET`, `PROXY_SERVER_SECRET`, `NZSCV_PROXY_SECRET` | For PTT | Shared secret for ptt-signaling-token Edge Function; must match PTT server `PROXY_SECRET` |
+| `PTT_PROXY_SECRET` | ✅ | — | For PTT | Shared secret for ptt-signaling-token Edge Function; must match PTT server `PTT_PROXY_SECRET` |
 
-> **PTT secret resolution order:** `ptt-signaling-token` checks `PTT_PROXY_SECRET` → `PROXY_SECRET` → `PROXY_SERVER_SECRET` → `NZSCV_PROXY_SECRET`. Set `PTT_PROXY_SECRET` in Supabase vault and `PROXY_SECRET` on the PTT Railway service.
+> **PTT secret rule:** Set only `PTT_PROXY_SECRET` for PTT in both Supabase vault and the Railway PTT service.
 
 ### Bob Feedback Sync
 
@@ -367,7 +367,7 @@ Railway project: **Core** | Internal URL: `http://proxy.railway.internal:3000`
 | Variable | Required | Value / Notes |
 |---|---|---|
 | `PORT` | Auto-set by Railway | |
-| `PROXY_SECRET` | ✅ Required | Shared secret — must match Supabase vault `NZSCV_PROXY_SECRET` / `PROXY_SECRET` / `PTT_PROXY_SECRET` |
+| `PROXY_SECRET` | ✅ Required | Shared secret — must match Supabase vault `NZSCV_PROXY_SECRET` |
 | `NZSCV_API_KEY` | ✅ Required | PGDB-Authorization header value for NZSCV API |
 | `NZSCV_ID_KEY` | ✅ Required | PGDB-Identifier header value for NZSCV API |
 | `NZSCV_ENDPOINT_URL` | ✅ Required | `https://www.nzscv.co.nz/api/rest/scv/v1/vehicleregistrationinfo` (production) |
@@ -390,10 +390,8 @@ Railway project: **Core** | Internal URL: `http://ptt.railway.internal:3002`
 | Variable | Required | Value / Notes |
 |---|---|---|
 | `PORT` | Auto-set by Railway | |
-| `PROXY_SECRET` | ✅ Required | Shared secret — must match Supabase vault `PTT_PROXY_SECRET` |
+| `PTT_PROXY_SECRET` | ✅ Required | Shared secret — must match Supabase vault `PTT_PROXY_SECRET` |
 | `PTT_JWT_SECRET` | ✅ Required | JWT signing secret for PTT channel tokens — generate with `openssl rand -hex 32` |
-| `SUPABASE_URL` | ✅ Required | Supabase project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | ✅ Required | For channel auth verification |
 | `NODE_ENV` | Recommended | `production` |
 | `MAX_PARTICIPANTS_PER_CHANNEL` | Optional | Default: `50` |
 | `MAX_CLIP_DURATION_SECONDS` | Optional | Default: `30` |
@@ -420,7 +418,7 @@ This table documents every alias accepted by `scripts/load-railway-secrets-from-
 | `INFERENCE_API_KEY` | `BOB_INFERENCE_API_KEY` | load-railway-secrets-from-github-env.sh (bidirectional) |
 | `VITE_SUPABASE_URL` | `SUPABASE_URL` | load-railway-secrets-from-github-env.sh |
 | `PROXY_SERVER_URL` (Supabase) | `NZSCV_PROXY_URL`, `RAILWAY_PROXY_URL`, `PROXY_BASE_URL` | Edge Function source code |
-| `PTT_PROXY_SECRET` (Supabase) | `PROXY_SECRET`, `PROXY_SERVER_SECRET`, `NZSCV_PROXY_SECRET` | `ptt-signaling-token` Edge Function |
+| `PTT_PROXY_SECRET` (Supabase) | — | `ptt-signaling-token` Edge Function |
 | `PLATERECOGNIZER_TOKEN` (Supabase) | `PLATE_RECOGNIZER_TOKEN` | ALPR Edge Functions |
 
 ---
@@ -528,10 +526,12 @@ Use this checklist when setting up a new environment or after team changes.
 
 ### Railway: PTT service
 
-- [ ] `PROXY_SECRET` (matches Supabase vault `PTT_PROXY_SECRET`)
+- [ ] `PTT_PROXY_SECRET` (matches Supabase vault `PTT_PROXY_SECRET`)
 - [ ] `PTT_JWT_SECRET`
-- [ ] `SUPABASE_URL`
-- [ ] `SUPABASE_SERVICE_ROLE_KEY`
+- [ ] `NODE_ENV` = `production`
+- [ ] `TURN_URL` (recommended for production reliability)
+- [ ] `TURN_USERNAME` (recommended for production reliability)
+- [ ] `TURN_CREDENTIAL` (recommended for production reliability)
 
 ---
 

@@ -35,7 +35,7 @@ This doc defines:
 | `BOB_SERVICE_URL` | ✅ | | | | |
 | `PROXY_SERVER_URL` | ✅ | ✅ | | | |
 | `PTT_SERVER_URL` | ✅ | ✅ | | | |
-| `PTT_PROXY_SECRET` | ✅ | ✅ | | | ✅ (`PROXY_SECRET`) |
+| `PTT_PROXY_SECRET` | ✅ | ✅ | | | ✅ |
 | `INTEL_HMAC_KEY` | ✅ | | ✅ | | |
 | `OLLAMA_BASE_URL` | | | ✅ | | |
 | `NZSCV_API_KEY` | | | | ✅ | |
@@ -173,7 +173,8 @@ See [SECRETS_REGISTRY.md](SECRETS_REGISTRY.md) for full details, aliases, and th
 **Required GitHub Actions Secrets (FreedomCamp-Manager):**
 - `RAILWAY_TOKEN` — Railway project token (required)
 - `RAILWAY_PTT_SERVICE_ID` — Service ID for PTT server (required)
-- `PTT_SERVICE_URL` — Public PTT URL for post-deploy health check (optional)
+- `PTT_SERVER_URL` — Public PTT URL for post-deploy health check (optional)
+- `PTT_PROXY_SECRET` — Shared PTT auth secret for Supabase sync (optional but strongly recommended)
 
 **Required Supabase Edge Function Secrets:**
 - `PTT_SERVER_URL` — Public PTT server URL
@@ -200,7 +201,7 @@ Use these for deploys originating from FreedomCamp-Manager:
 | `OLLAMA_SERVICE_URL` | Ollama | Optional; rarely exposed | HTTPS URL |
 | `PROXY_SERVICE_URL` | Proxy | Manual from Railway after deploy | HTTPS URL |
 | `INFERENCE_SERVICE_URL` | Inference | Manual from Railway after deploy | HTTPS URL |
-| `PTT_SERVICE_URL` | PTT | Manual from Railway after deploy | HTTPS URL |
+| `PTT_SERVER_URL` | PTT | Manual from Railway after deploy | HTTPS URL |
 
 ### DonSquires/Bob GitHub Actions Secrets
 

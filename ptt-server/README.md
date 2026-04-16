@@ -42,7 +42,7 @@ railway login
 railway init
 
 # Set environment variables
-railway variables set PROXY_SECRET=your-secret
+railway variables set PTT_PROXY_SECRET=your-secret
 railway variables set PTT_JWT_SECRET=your-jwt-secret
 
 # Deploy
@@ -58,7 +58,7 @@ railway status
 2. Click **"New Project"** → **"Deploy from GitHub"**
 3. Select repository, set **Root Directory**: `ptt-server/`
 4. Add environment variables:
-   - `PROXY_SECRET`: Shared secret with Edge Functions
+  - `PTT_PROXY_SECRET`: Shared secret with Edge Functions
    - `PTT_JWT_SECRET`: JWT signing secret (must match Edge Function)
    - `PORT`: Auto-set by Railway
 5. Deploy and copy the URL
@@ -68,7 +68,7 @@ railway status
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `PORT` | Auto | Server port (Railway sets this) |
-| `PROXY_SECRET` | Yes | Authenticates requests from Edge Functions |
+| `PTT_PROXY_SECRET` | Yes | Authenticates requests from Edge Functions |
 | `PTT_JWT_SECRET` | Yes | Signs/verifies channel access tokens |
 | `MAX_PARTICIPANTS_PER_CHANNEL` | No | Limit per channel (default: 50) |
 | `MAX_CLIP_DURATION_SECONDS` | No | Max recording length (default: 30) |
@@ -76,9 +76,9 @@ railway status
 | `TURN_USERNAME` | No | TURN server username |
 | `TURN_CREDENTIAL` | No | TURN server password |
 
-Proxy secret compatibility:
-- The server accepts any of these env names for the same shared secret:
-- `PTT_PROXY_SECRET` (preferred), `PROXY_SECRET`, `PROXY_SERVER_SECRET`, `NZSCV_PROXY_SECRET`
+Canonical secret model:
+- This service reads only `PTT_PROXY_SECRET` for proxy authentication.
+- The Supabase Edge Function `ptt-signaling-token` must use the same `PTT_PROXY_SECRET` value.
 
 ## API Endpoints
 
@@ -144,6 +144,17 @@ Connect to `/ws?token=<jwt>` for real-time signaling.
 3. **Audio** is captured via Web Audio API and streamed via WebRTC
 4. **Fallback clips** are uploaded to Supabase Storage on talk end
 
+## Professional Self-Hosted Baseline
+
+1. Keep PTT signaling in this service and avoid external hosted voice providers for core communications.
+2. Keep all authorization decisions in the Supabase edge function before minting channel tokens.
+3. Set `NODE_ENV=production` in production deployments.
+4. Configure TURN for mission-critical operation across restrictive NAT and carrier networks:
+  - `TURN_URL`
+  - `TURN_USERNAME`
+  - `TURN_CREDENTIAL`
+5. Treat single-instance in-memory state as an explicit scaling constraint until shared state is added.
+
 ## Architecture
 
 ```
@@ -179,12 +190,13 @@ railway logs
 curl https://your-service.railway.app/health
 
 # List active channels
-curl -H "x-proxy-secret: your-secret" \
+curl -H "x-proxy-secret: your-ptt-proxy-secret" \
   https://your-service.railway.app/api/channels
 ```
 
 ## Related Documentation
 
 - [Push-to-Talk Blueprint](../docs/push-to-talk.md)
+- [PTT Self-Hosted Operations Standard](../docs/PTT_SELF_HOSTED_OPERATIONS_STANDARD.md)
 - [Push-to-Talk Options](../docs/push-to-talk-options.md)
 - [Railway Deployment Guide](../docs/RAILWAY_DEPLOYMENT_GUIDE.md)

@@ -1,78 +1,61 @@
-# Push-to-Talk (PTT) options — research and integration sketch
+# Push-to-Talk (PTT) Architecture Decision Record
 
-This note summarizes off‑the‑shelf PTT apps and SDKs, and how we could add PTT to FreedomCamp Manager with minimal risk.
+Decision: Communications are self-hosted.
 
-## Quick landscape (what exists)
+This document captures the strategic decision for PTT architecture and explains what we keep, what we reject, and why.
 
-**Dedicated PTT apps**
-- **Zello** – “gold standard” latency; public/private channels, replay; pricing ~$6.8–8/user/mo (Zello Work).
-- **Voxer** – PTT + recorded history, E2EE, media sharing; free tier, Pro ~$3.99/mo.
-- **NuovoTeam** – PTT plus workforce features (attendance, device mgmt), 128‑bit encryption.
-- **Two Way** – ultra‑simple channel number model, no accounts.
-- Carrier PTT (e.g., Verizon PTT Plus) – hardware/plan tied, ~$30/line.
+## Final Decision
 
-**Platforms with PTT**
-- Microsoft Teams Walkie Talkie (needs admin enablement; mobile focused).
-- Discord/Telegram/Google Meet: have push‑to‑talk toggles for voice channels (not tailored to field ops).
+1. Keep the existing self-hosted PTT signaling stack.
+2. Keep role and organization authorization in Supabase Edge Functions.
+3. Keep application-owned channel and presence behavior.
+4. Do not use hosted voice providers for core PTT communications.
 
-## What “good” looks like for us
-- **Low latency (<300 ms) half‑duplex** with a “hold to talk” control.
-- **Org + channel scoping** (org-wide, zone/team channels, 1:1).
-- **Works on web + mobile app** (we have Expo/React Native and web).
-- **Auth + permissions** tied to existing Supabase roles/orgs.
-- **Background friendly on mobile**; graceful fallback on poor connections.
-- **Recording optional** (likely off by default for privacy; toggle per channel).
+## Why This Decision Was Made
 
-## Integration paths (ranked)
+1. Operational control: deployment, incident handling, and rollback remain in our platform.
+2. Security posture: one authorization model across officer, admin, and master roles.
+3. Data governance: communications flow is controlled by our own runtime and policies.
+4. Product fit: channel model and half-duplex behavior map directly to field operations.
 
-### 1) Use a hosted WebRTC voice service (fastest to pilot)
-- Candidates: **Daily**, **LiveKit Cloud**, **Agora**, **Twilio Programmable Voice**, **Vonage RTC**.
-- Fit: Gives sub‑second latency and SDKs for web + React Native; we layer a PTT UI (mute/unmute gate) and map “rooms” to org/channels.
-- Effort: 3–5 days for a pilot room (web) + token issuance via a small Supabase Edge Function; mobile adds a few more days.
-- Notes: Avoid recordings initially; enforce org/role in token claims; throttle concurrent speakers if we want strict half‑duplex.
+## Inspiration from Mature PTT Systems
 
-### 2) Self-host LiveKit (more control, more ops)
-- Fit: Same client API, can enforce half‑duplex server-side with track state; deploy via Docker (k8s/VM).
-- Effort: +1–2 days infra + monitoring; ongoing ops cost.
+The system design intentionally follows proven patterns from professional PTT products:
 
-### 3) Piggyback on existing voice PTT apps (Zello/Voxer)
-- Fit: fastest if users adopt a separate app, but breaks our unified UX and RLS; no tight linkage to incidents/rosters.
-- Effort: minimal engineering, but poor integration and dual identity management.
+1. Low-latency half-duplex talk flow with explicit speaker ownership.
+2. Clear channel taxonomy: organization, incident, team/deployment, direct.
+3. Presence and availability indicators for operational awareness.
+4. Push-to-talk ergonomics with hold, toggle, and VOX modes.
+5. Reliability mode using TURN for difficult network conditions.
 
-## Recommended approach (practical)
-- **Pilot with a hosted WebRTC provider (Daily or LiveKit Cloud).**
-  - Add a **“Push to Talk” control** to our Team Chat UI as a gated audio track:
-    - Hold (or tap-to-lock) toggles local audio track mute.
-    - Show “who’s talking” via active speaker events.
-  - **Edge Function** to mint short‑lived access tokens:
-    - Input: `channel_id`, `org_id`, `user_id`, `role`.
-    - Validate org/role (reuse existing RLS helpers) and emit provider token with those claims.
-  - **Channel model**:
-    - Org-wide channel.
-    - Zone/shift channels (reuse `zone_id` / roster shift).
-    - 1:1 channel by user pair (optional).
-  - **Privacy defaults**: recording OFF; no transcription; keep audio in RAM only.
-  - **Network fallback**: auto-drop to text if RTT > threshold; surface reconnect toast.
+## Explicitly Rejected Paths
 
-## Rough implementation steps
-1) Choose provider (recommend **Daily** for speed / **LiveKit** if we want future self-host).
-2) Create a Supabase **Edge Function** `create-ptt-token`:
-   - Auth: user JWT; check org/role; accept `channel_scope`.
-   - Returns provider token + room name (org + channel).
-3) Web client (React):
-   - Add “Hold to talk” button to Team Chat; on press, unmute track; on release, mute.
-   - Show active speaker indicator; small “connected” badge; error toasts.
-4) Mobile (Expo):
-   - Mirror control with press-and-hold; ensure background audio permission handling.
-5) Ops/limits:
-   - Hard-cap participants per channel (e.g., 50) to avoid runaway cost.
-   - Token TTL short (e.g., 10 minutes) and auto-refresh.
+1. Hosted PTT platforms as the primary communication plane.
+2. Outsourced voice SDKs for core production traffic.
+3. Split authorization between external communication providers and internal policy checks.
 
-## Risks / open questions
-- Recording/compliance requirements (most councils will prefer no recording).
-- Background mode on iOS requires entitlements; confirm acceptable UX.
-- Data costs for officers on cellular; consider “audio low bitrate” option.
-- Accessibility: provide tap-to-toggle in addition to hold-to-talk.
+## Current Architecture Baseline
 
-## If we must avoid third-party RTC
-- We could hack a **Supabase Realtime + Opus-in-UDP-like** approach, but browser WebRTC is the only practical low-latency path. Rolling our own media server is high risk. Hosted RTC is the pragmatic route.
+1. Signaling service: ptt-server on Railway.
+2. Token broker and authorization: ptt-signaling-token Edge Function.
+3. Client runtime: ptt store, websocket lifecycle, WebRTC negotiation, and reconnection logic.
+4. Persistence: metadata and audit support through Supabase schema.
+
+## Self-Hosted Reliability Standard
+
+1. Mandatory production secrets: PTT_SERVER_URL, PTT_PROXY_SECRET, PTT_JWT_SECRET.
+2. Mandatory production runtime: NODE_ENV=production.
+3. Mandatory CI controls: health check plus token mint auth probe.
+4. Recommended for mission-critical operations: TURN_URL, TURN_USERNAME, TURN_CREDENTIAL.
+
+## Hardening Roadmap
+
+1. Keep single-replica signaling as an explicit operational constraint until shared state is added.
+2. Add Redis-backed presence/channel state for safe horizontal scaling.
+3. Add synthetic PTT smoke in release gates.
+4. Publish incident runbooks for degraded mode and fallback to text chat.
+
+## Boundaries
+
+1. This decision applies to communications infrastructure.
+2. It does not apply to external data sources such as NZSCV and other third-party intake services.

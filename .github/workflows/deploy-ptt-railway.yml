@@ -1,7 +1,7 @@
 name: Deploy PTT Server to Railway
 
 # Deploys the Push-to-Talk signaling server (ptt-server/) to Railway and
-# syncs PTT_SERVER_URL + PROXY_SECRET into Supabase secrets so the
+# syncs PTT_SERVER_URL + PTT_PROXY_SECRET into Supabase secrets so the
 # ptt-signaling-token edge function can reach the server.
 #
 # Auto-triggers on any push to main that touches ptt-server/ files.
@@ -14,7 +14,7 @@ name: Deploy PTT Server to Railway
 # Optional GitHub secrets (enable the extra steps below):
 #   PTT_SERVER_URL         — Deployed Railway URL (e.g. https://ptt.railway.app)
 #                            If set: health-checked after deploy AND synced to Supabase
-#   PROXY_SECRET           — Shared secret between Edge Function and PTT server
+#   PTT_PROXY_SECRET       — Shared secret between Edge Function and PTT server
 #                            If set: synced to Supabase alongside PTT_SERVER_URL
 #   SUPABASE_ACCESS_TOKEN  — Supabase personal access token (supabase.com → Account → Access Tokens)
 #   SUPABASE_PROJECT_REF   — Supabase project reference ID (Settings → General)
@@ -62,7 +62,7 @@ jobs:
             echo ""
             echo "Optional secrets that enable health-check and Supabase sync:"
             echo "  PTT_SERVER_URL:         Public URL after first deploy (e.g. https://ptt.railway.app)"
-            echo "  PROXY_SECRET:           Shared secret between Edge Function and PTT server"
+            echo "  PTT_PROXY_SECRET:       Shared secret between Edge Function and PTT server"
             echo "  SUPABASE_ACCESS_TOKEN:  Supabase personal access token"
             echo "  SUPABASE_PROJECT_REF:   Supabase project reference ID"
             echo "secrets_present=false" >> "$GITHUB_OUTPUT"
@@ -170,7 +170,7 @@ jobs:
           fi
 
           echo ""
-          echo "🔐 Probing /api/token/mint (confirms PTT_JWT_SECRET + PROXY_SECRET are wired)..."
+          echo "🔐 Probing /api/token/mint (confirms PTT_JWT_SECRET + PTT_PROXY_SECRET are wired)..."
           MINT_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 \
             -X POST "${PTT_SERVER_URL}/api/token/mint" \
             -H "Content-Type: application/json" \
@@ -180,7 +180,7 @@ jobs:
           if [ "$MINT_STATUS" = "401" ]; then
             echo "✅ /api/token/mint probe passed (401 = proxy + JWT secrets confirmed wired)"
           elif [ "$MINT_STATUS" = "503" ]; then
-            echo "::error::PTT /api/token/mint returned 503 — PTT_JWT_SECRET or PROXY_SECRET is not set on the Railway service"
+            echo "::error::PTT /api/token/mint returned 503 — PTT_JWT_SECRET or PTT_PROXY_SECRET is not set on the Railway service"
             exit 1
           elif [ "$MINT_STATUS" = "000" ]; then
             echo "::error::PTT /api/token/mint — connection failed (server unreachable)"
