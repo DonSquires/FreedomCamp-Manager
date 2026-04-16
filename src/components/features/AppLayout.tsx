@@ -157,6 +157,7 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
       { path: '/zones', icon: MapPin, label: 'Zones', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/client-master-list', icon: ListChecks, label: 'Client Master List', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/client-sites', icon: Building2, label: 'Client Sites', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/admin/site-permissions', icon: ShieldCheck, label: 'Site Permissions', roles: ['admin', 'master'] },
       { path: '/crm', icon: Building2, label: 'CRM / Accounts', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/pricing', icon: DollarSign, label: 'Service Pricing', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/invoicing', icon: Receipt, label: 'Invoicing', roles: ['admin', 'admin_officer', 'master'] },
