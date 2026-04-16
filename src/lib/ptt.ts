@@ -132,6 +132,8 @@ export function normalizePTTErrorMessage(error: unknown): string {
 
 let ws: WebSocket | null = null
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
+let reconnectAttempts = 0
+const MAX_RECONNECT_ATTEMPTS = 8
 let pingInterval: ReturnType<typeof setInterval> | null = null
 let localStream: MediaStream | null = null
 const peerConnections: Map<string, RTCPeerConnection> = new Map()
@@ -209,6 +211,7 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
     socket.onopen = () => {
       if (ws !== socket) return
       console.log('🎤 PTT: Connected to signaling server')
+      reconnectAttempts = 0
       store.setConnection('connected')
       startPingInterval()
     }
@@ -239,17 +242,24 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
 
       if (event.code !== 1000) {
         // Attempt reconnect for unexpected disconnects
+        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+          store.setConnection('error')
+          store.setError('Push to Talk connection lost. Please refresh the page to reconnect.')
+          return
+        }
         store.setConnection('reconnecting')
         scheduleReconnect(channelScope)
       } else {
+        reconnectAttempts = 0
         store.setConnection('disconnected')
       }
     }
 
-    socket.onerror = (error) => {
+    socket.onerror = (_error) => {
       if (ws !== socket) return
-      console.error('🎤 PTT: WebSocket error', error)
-      store.setError('Push to Talk connection issue. You can continue using text chat.')
+      // onerror always fires before onclose and carries no useful message (isTrusted:true only).
+      // Let onclose drive state and reconnect logic.
+      console.warn('🎤 PTT: WebSocket transport error — waiting for close event')
     }
 
     socket.onmessage = (event) => {
@@ -277,6 +287,7 @@ export function disconnectFromPTT(): void {
  * Clean up connection resources
  */
 function cleanupConnection(): void {
+  reconnectAttempts = 0
   if (reconnectTimeout) {
     clearTimeout(reconnectTimeout)
     reconnectTimeout = null
@@ -326,12 +337,17 @@ function cleanupConnection(): void {
 function scheduleReconnect(channelScope: string): void {
   if (reconnectTimeout) return
 
+  reconnectAttempts++
+  // Exponential backoff: 2s, 4s, 8s, 16s … capped at 30s
+  const delay = Math.min(2000 * Math.pow(2, reconnectAttempts - 1), 30000)
+  console.log(`🎤 PTT: Reconnect attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms`)
+
   reconnectTimeout = setTimeout(() => {
     reconnectTimeout = null
     connectToPTT(channelScope).catch((err) => {
       console.error('🎤 PTT: Reconnect failed', err)
     })
-  }, 3000)
+  }, delay)
 }
 
 /**
@@ -508,7 +524,8 @@ function createPeerConnection(peerId: string): RTCPeerConnection {
     if (!audio) {
       audio = new Audio()
       audio.autoplay = true
-      audio.playsInline = true
+      audio.setAttribute('playsinline', 'true')
+      audio.setAttribute('webkit-playsinline', 'true')
       remoteAudioElements.set(peerId, audio)
     }
 
