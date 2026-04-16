@@ -25,6 +25,11 @@ interface PTTTokenResponse {
   expiresIn: number
   iceServers: RTCIceServer[]
   wsUrl: string
+  iceTransportPolicy?: RTCIceTransportPolicy
+  transport?: {
+    turnConfigured?: boolean
+    forceTurnRelay?: boolean
+  }
 }
 
 interface SignalMessage {
@@ -56,6 +61,11 @@ interface PTTMessage {
   fromName?: string
   code?: string
   message?: string
+  transport?: {
+    turnConfigured?: boolean
+    forceTurnRelay?: boolean
+    iceTransportPolicy?: RTCIceTransportPolicy
+  }
 }
 
 async function requestLocalAudioStream(): Promise<MediaStream> {
@@ -141,6 +151,30 @@ let mediaRecorder: MediaRecorder | null = null
 let recordedChunks: Blob[] = []
 let recordingStartTime: number | null = null
 const remoteAudioElements: Map<string, HTMLAudioElement> = new Map()
+let currentIceTransportPolicy: RTCIceTransportPolicy = 'all'
+
+function applyTransportDiagnostics(transport?: {
+  turnConfigured?: boolean
+  forceTurnRelay?: boolean
+  iceTransportPolicy?: RTCIceTransportPolicy
+}): void {
+  if (!transport) return
+
+  if (transport.iceTransportPolicy === 'relay') {
+    currentIceTransportPolicy = 'relay'
+  } else {
+    currentIceTransportPolicy = 'all'
+  }
+
+  if (transport.forceTurnRelay && !transport.turnConfigured) {
+    const store = usePTTStore.getState()
+    store.setError('Push to Talk relay is required but TURN is not configured on the signaling server.')
+  }
+
+  if (!transport.turnConfigured) {
+    console.warn('🎤 PTT: TURN is not configured; live audio may fail across NAT/carrier networks')
+  }
+}
 
 function getOrCreateRemoteAudio(peerId: string): HTMLAudioElement {
   let audio = remoteAudioElements.get(peerId)
@@ -227,6 +261,14 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
 
     store.setConnection('connecting', tokenData.wsUrl, tokenData.token)
     store.setIceServers(tokenData.iceServers)
+    applyTransportDiagnostics(tokenData.transport || {
+      turnConfigured: tokenData.iceServers.some((server) => {
+        const urls = Array.isArray(server.urls) ? server.urls : [server.urls]
+        return urls.some((url) => typeof url === 'string' && (url.startsWith('turn:') || url.startsWith('turns:')))
+      }),
+      forceTurnRelay: tokenData.iceTransportPolicy === 'relay',
+      iceTransportPolicy: tokenData.iceTransportPolicy,
+    })
 
     // Connect WebSocket
     const socket = new WebSocket(`${tokenData.wsUrl}?token=${tokenData.token}`)
@@ -406,6 +448,7 @@ function handleServerMessage(message: PTTMessage): void {
       if (message.speakerId) {
         store.setSpeaker(message.speakerId)
       }
+      applyTransportDiagnostics(message.transport)
       break
 
     case 'presence':
@@ -534,6 +577,7 @@ function createPeerConnection(peerId: string): RTCPeerConnection {
 
   const pc = new RTCPeerConnection({
     iceServers: store.iceServers,
+    iceTransportPolicy: currentIceTransportPolicy,
   })
 
   pc.onicecandidate = (event) => {
