@@ -68,6 +68,28 @@ interface PTTMessage {
   }
 }
 
+export interface PTTDiagnostics {
+  connectionStatus: string
+  websocketReadyState: string
+  reconnectAttempts: number
+  activePeerConnections: number
+  peerStates: Array<{
+    peerId: string
+    connectionState: RTCPeerConnectionState
+    iceConnectionState: RTCIceConnectionState
+    signalingState: RTCSignalingState
+  }>
+  transport: {
+    turnConfigured: boolean
+    forceTurnRelay: boolean
+    iceTransportPolicy: RTCIceTransportPolicy
+  }
+  lastClose: {
+    code: number | null
+    reason: string | null
+  }
+}
+
 async function requestLocalAudioStream(): Promise<MediaStream> {
   try {
     return await navigator.mediaDevices.getUserMedia({
@@ -152,6 +174,15 @@ let recordedChunks: Blob[] = []
 let recordingStartTime: number | null = null
 const remoteAudioElements: Map<string, HTMLAudioElement> = new Map()
 let currentIceTransportPolicy: RTCIceTransportPolicy = 'all'
+const peerConnectionStates: Map<string, {
+  connectionState: RTCPeerConnectionState
+  iceConnectionState: RTCIceConnectionState
+  signalingState: RTCSignalingState
+}> = new Map()
+let turnConfigured = false
+let forceTurnRelay = false
+let lastSocketCloseCode: number | null = null
+let lastSocketCloseReason: string | null = null
 
 function applyTransportDiagnostics(transport?: {
   turnConfigured?: boolean
@@ -159,6 +190,9 @@ function applyTransportDiagnostics(transport?: {
   iceTransportPolicy?: RTCIceTransportPolicy
 }): void {
   if (!transport) return
+
+  turnConfigured = !!transport.turnConfigured
+  forceTurnRelay = !!transport.forceTurnRelay
 
   if (transport.iceTransportPolicy === 'relay') {
     currentIceTransportPolicy = 'relay'
@@ -198,6 +232,47 @@ function getOrCreateRemoteAudio(peerId: string): HTMLAudioElement {
 
   remoteAudioElements.set(peerId, audio)
   return audio
+}
+
+function getWebSocketReadyStateLabel(socket: WebSocket | null): string {
+  if (!socket) return 'none'
+  switch (socket.readyState) {
+    case WebSocket.CONNECTING:
+      return 'connecting'
+    case WebSocket.OPEN:
+      return 'open'
+    case WebSocket.CLOSING:
+      return 'closing'
+    case WebSocket.CLOSED:
+      return 'closed'
+    default:
+      return 'unknown'
+  }
+}
+
+export function getPTTDiagnostics(): PTTDiagnostics {
+  const store = usePTTStore.getState()
+  return {
+    connectionStatus: store.connectionStatus,
+    websocketReadyState: getWebSocketReadyStateLabel(ws),
+    reconnectAttempts,
+    activePeerConnections: peerConnections.size,
+    peerStates: Array.from(peerConnectionStates.entries()).map(([peerId, state]) => ({
+      peerId,
+      connectionState: state.connectionState,
+      iceConnectionState: state.iceConnectionState,
+      signalingState: state.signalingState,
+    })),
+    transport: {
+      turnConfigured,
+      forceTurnRelay,
+      iceTransportPolicy: currentIceTransportPolicy,
+    },
+    lastClose: {
+      code: lastSocketCloseCode,
+      reason: lastSocketCloseReason,
+    },
+  }
 }
 
 // VOX state
@@ -278,6 +353,8 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
       if (ws !== socket) return
       console.log('🎤 PTT: Connected to signaling server')
       reconnectAttempts = 0
+      lastSocketCloseCode = null
+      lastSocketCloseReason = null
       store.setConnection('connected')
       startPingInterval()
     }
@@ -285,6 +362,8 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
     socket.onclose = (event) => {
       if (ws !== socket) return
       console.log('🎤 PTT: Disconnected', event.code, event.reason)
+      lastSocketCloseCode = event.code
+      lastSocketCloseReason = event.reason || null
       cleanupConnection()
 
       if (event.code === 4000) {
@@ -372,6 +451,7 @@ function cleanupConnection(): void {
   // Clean up WebRTC
   peerConnections.forEach((pc) => pc.close())
   peerConnections.clear()
+  peerConnectionStates.clear()
 
   if (localStream) {
     localStream.getTracks().forEach((track) => track.stop())
@@ -580,6 +660,12 @@ function createPeerConnection(peerId: string): RTCPeerConnection {
     iceTransportPolicy: currentIceTransportPolicy,
   })
 
+  peerConnectionStates.set(peerId, {
+    connectionState: pc.connectionState,
+    iceConnectionState: pc.iceConnectionState,
+    signalingState: pc.signalingState,
+  })
+
   pc.onicecandidate = (event) => {
     if (event.candidate) {
       sendSignal(peerId, { type: 'candidate', candidate: event.candidate.toJSON() })
@@ -598,6 +684,12 @@ function createPeerConnection(peerId: string): RTCPeerConnection {
 
   pc.oniceconnectionstatechange = () => {
     console.log('🎤 PTT: ICE state', peerId, pc.iceConnectionState)
+    const current = peerConnectionStates.get(peerId)
+    peerConnectionStates.set(peerId, {
+      connectionState: current?.connectionState || pc.connectionState,
+      iceConnectionState: pc.iceConnectionState,
+      signalingState: pc.signalingState,
+    })
     if (pc.iceConnectionState === 'failed') {
       const store = usePTTStore.getState()
       store.setError('Live PTT audio path failed (ICE). TURN relay may be required for cross-network audio.')
@@ -609,10 +701,26 @@ function createPeerConnection(peerId: string): RTCPeerConnection {
   }
 
   pc.onconnectionstatechange = () => {
+    const current = peerConnectionStates.get(peerId)
+    peerConnectionStates.set(peerId, {
+      connectionState: pc.connectionState,
+      iceConnectionState: current?.iceConnectionState || pc.iceConnectionState,
+      signalingState: pc.signalingState,
+    })
     if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
       peerConnections.delete(peerId)
+      peerConnectionStates.delete(peerId)
       pc.close()
     }
+  }
+
+  pc.onsignalingstatechange = () => {
+    const current = peerConnectionStates.get(peerId)
+    peerConnectionStates.set(peerId, {
+      connectionState: current?.connectionState || pc.connectionState,
+      iceConnectionState: current?.iceConnectionState || pc.iceConnectionState,
+      signalingState: pc.signalingState,
+    })
   }
 
   return pc
