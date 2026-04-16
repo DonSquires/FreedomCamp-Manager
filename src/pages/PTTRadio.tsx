@@ -138,6 +138,12 @@ const CHANNEL_TYPE_ORDER: Record<string, number> = {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 function getChannelScope(channel: RadioChannel, effectiveOrgId: string): string {
+  // Primary channel must always be org-wide so all clients converge on the
+  // same scope even when one device falls back to default channel metadata.
+  if (channel.channel_type === 'primary' || channel.channel_number === 1) {
+    return `org:${effectiveOrgId}`
+  }
+
   // Persisted channel rows use UUID ids and map to unique deployment scopes.
   // Fallback defaults are non-UUID and use org scope to stay valid.
   if (UUID_RE.test(channel.id)) {
@@ -310,7 +316,7 @@ export default function PTTRadio() {
   )
 
   // ── Load channels from DB ─────────────────────────────────
-  const { data: dbChannels, isLoading: loadingChannels } = useQuery<RadioChannel[]>({
+  const { data: dbChannels, isLoading: loadingChannels, error: channelsError } = useQuery<RadioChannel[]>({
     queryKey: ['ptt-channels', effectiveOrgId],
     queryFn: async () => {
       if (!effectiveOrgId) return []
@@ -1234,6 +1240,10 @@ export default function PTTRadio() {
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div className="text-slate-500">Connection</div>
                   <div className="text-slate-200 uppercase">{diagnostics.connectionStatus}</div>
+                  <div className="text-slate-500">Channel Scope</div>
+                  <div className="text-slate-200 truncate" title={diagnostics.channelScope || 'none'}>
+                    {diagnostics.channelScope || 'none'}
+                  </div>
                   <div className="text-slate-500">WebSocket</div>
                   <div className="text-slate-200 uppercase">{diagnostics.websocketReadyState}</div>
                   <div className="text-slate-500">Reconnects</div>
@@ -1270,6 +1280,12 @@ export default function PTTRadio() {
                         <span className="text-slate-400 truncate">{peer.iceConnectionState}</span>
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {channelsError && (
+                  <div className="rounded bg-amber-950/30 border border-amber-900 px-2.5 py-2 text-[11px] text-amber-300">
+                    Channel metadata unavailable on this device. Some channels may not align with other users.
                   </div>
                 )}
               </div>

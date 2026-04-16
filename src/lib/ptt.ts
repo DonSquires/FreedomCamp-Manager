@@ -70,6 +70,7 @@ interface PTTMessage {
 
 export interface PTTDiagnostics {
   connectionStatus: string
+  channelScope: string | null
   websocketReadyState: string
   reconnectAttempts: number
   activePeerConnections: number
@@ -254,6 +255,7 @@ export function getPTTDiagnostics(): PTTDiagnostics {
   const store = usePTTStore.getState()
   return {
     connectionStatus: store.connectionStatus,
+    channelScope: store.channelId || null,
     websocketReadyState: getWebSocketReadyStateLabel(ws),
     reconnectAttempts,
     activePeerConnections: peerConnections.size,
