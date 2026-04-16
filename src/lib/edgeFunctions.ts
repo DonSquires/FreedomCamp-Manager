@@ -1313,7 +1313,7 @@ export const edgeFunctions = {
     messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
     model?: string
     temperature?: number
-    provider?: 'auto' | 'ollama'
+    provider?: 'auto' | 'ollama' | 'inference'
   }) => {
     // AiAnalysis.tsx renders errors in the chat and shows its own toast, so
     // suppress the automatic toast here to avoid duplicate error notifications.
