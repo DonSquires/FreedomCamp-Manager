@@ -142,6 +142,30 @@ let recordedChunks: Blob[] = []
 let recordingStartTime: number | null = null
 const remoteAudioElements: Map<string, HTMLAudioElement> = new Map()
 
+function getOrCreateRemoteAudio(peerId: string): HTMLAudioElement {
+  let audio = remoteAudioElements.get(peerId)
+  if (audio) return audio
+
+  audio = new Audio()
+  audio.autoplay = true
+  audio.controls = false
+  audio.muted = false
+  audio.volume = 1
+  audio.setAttribute('playsinline', 'true')
+  audio.setAttribute('webkit-playsinline', 'true')
+  audio.style.position = 'fixed'
+  audio.style.width = '1px'
+  audio.style.height = '1px'
+  audio.style.opacity = '0'
+  audio.style.pointerEvents = 'none'
+  audio.style.bottom = '0'
+  audio.style.left = '0'
+  document.body.appendChild(audio)
+
+  remoteAudioElements.set(peerId, audio)
+  return audio
+}
+
 // VOX state
 let audioContext: AudioContext | null = null
 let analyserNode: AnalyserNode | null = null
@@ -520,19 +544,24 @@ function createPeerConnection(peerId: string): RTCPeerConnection {
 
   pc.ontrack = (event) => {
     // Keep a persistent audio element per peer for stable playback on mobile/desktop.
-    let audio = remoteAudioElements.get(peerId)
-    if (!audio) {
-      audio = new Audio()
-      audio.autoplay = true
-      audio.setAttribute('playsinline', 'true')
-      audio.setAttribute('webkit-playsinline', 'true')
-      remoteAudioElements.set(peerId, audio)
-    }
+    const audio = getOrCreateRemoteAudio(peerId)
 
     audio.srcObject = event.streams[0]
     audio.play().catch((playErr) => {
       console.error('🎤 PTT: Remote audio autoplay blocked', playErr)
     })
+  }
+
+  pc.oniceconnectionstatechange = () => {
+    console.log('🎤 PTT: ICE state', peerId, pc.iceConnectionState)
+    if (pc.iceConnectionState === 'failed') {
+      const store = usePTTStore.getState()
+      store.setError('Live PTT audio path failed (ICE). TURN relay may be required for cross-network audio.')
+    }
+  }
+
+  pc.onicecandidateerror = (event) => {
+    console.warn('🎤 PTT: ICE candidate error', peerId, event.errorCode, event.errorText)
   }
 
   pc.onconnectionstatechange = () => {
@@ -570,7 +599,25 @@ async function negotiatePeerAudio(peerId: string): Promise<void> {
     }
   }
 
-  if (pc.signalingState !== 'stable') return
+  if (pc.signalingState !== 'stable') {
+    // If signaling got stuck (e.g. interrupted prior negotiation), rebuild the peer
+    // so the next offer can proceed cleanly.
+    try {
+      pc.close()
+    } catch {
+      // Ignore close errors.
+    }
+    peerConnections.delete(peerId)
+    pc = createPeerConnection(peerId)
+    peerConnections.set(peerId, pc)
+
+    for (const track of localStream.getTracks()) {
+      const alreadySending = pc.getSenders().some((s) => s.track?.id === track.id)
+      if (!alreadySending) {
+        pc.addTrack(track, localStream)
+      }
+    }
+  }
 
   const offer = await pc.createOffer()
   await pc.setLocalDescription(offer)
