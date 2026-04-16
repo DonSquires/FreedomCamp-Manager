@@ -73,19 +73,47 @@ const TURN_URL = process.env.TURN_URL;
 const TURN_USERNAME = process.env.TURN_USERNAME;
 const TURN_CREDENTIAL = process.env.TURN_CREDENTIAL;
 const FORCE_TURN_RELAY = String(process.env.FORCE_TURN_RELAY || '').toLowerCase() === 'true';
+const PTT_DISABLE_PUBLIC_STUN = String(process.env.PTT_DISABLE_PUBLIC_STUN || '').toLowerCase() === 'true';
+
+function parseTurnUrls(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter(Boolean);
+  return String(value)
+    .split(',')
+    .map((url) => url.trim())
+    .filter(Boolean);
+}
+
+function toStunUrl(url) {
+  if (typeof url !== 'string') return null;
+  if (url.startsWith('turns:')) return url.replace(/^turns:/, 'stuns:');
+  if (url.startsWith('turn:')) return url.replace(/^turn:/, 'stun:');
+  return null;
+}
 
 function isTurnConfigured() {
   return !!(TURN_URL && TURN_USERNAME && TURN_CREDENTIAL);
 }
 
 function buildIceServers() {
-  const iceServers = [
-    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
-  ];
+  const iceServers = [];
+
+  const turnUrls = parseTurnUrls(TURN_URL);
+  const derivedStunUrls = turnUrls
+    .map((url) => toStunUrl(url))
+    .filter(Boolean);
+
+  if (!FORCE_TURN_RELAY) {
+    if (!PTT_DISABLE_PUBLIC_STUN) {
+      iceServers.push({ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] });
+    } else if (derivedStunUrls.length > 0) {
+      iceServers.push({ urls: derivedStunUrls });
+    }
+  }
 
   if (isTurnConfigured()) {
     iceServers.push({
-      urls: TURN_URL,
+      urls: turnUrls,
       username: TURN_USERNAME,
       credential: TURN_CREDENTIAL,
     });
