@@ -145,7 +145,7 @@ async function getErrorMessage(error: any): Promise<string> {
 async function callEdgeFunction<T = any>(
   functionName: string,
   body?: any,
-  options: { showToast?: boolean } = { showToast: true }
+  options: { showToast?: boolean; useDirectFetch?: boolean } = { showToast: true }
 ): Promise<{ data: T | null; error: string | null }> {
   const { lock, unlock } = useSessionLockStore.getState()
 
@@ -159,12 +159,6 @@ async function callEdgeFunction<T = any>(
       }
       return { data: null, error: errorMessage }
     }
-
-    const { data, error: initialError } = await supabase.functions.invoke(functionName, {
-      body: body || {},
-    })
-
-    let error = initialError
 
     const directEdgeInvoke = async (jwt: string): Promise<{ data: T | null; error: any | null }> => {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
@@ -204,6 +198,26 @@ async function callEdgeFunction<T = any>(
         return { data: null, error: e }
       }
     }
+
+    // When useDirectFetch is set, bypass supabase.functions.invoke entirely.
+    // This avoids sending global client headers (e.g. x-client-timezone) that
+    // may be blocked by CORS preflight on functions that don't allow them.
+    if (options.useDirectFetch) {
+      const directResult = await directEdgeInvoke(accessToken)
+      if (!directResult.error) {
+        unlock()
+        return { data: directResult.data as T, error: null }
+      }
+      const errorMessage = directResult.error?.message || 'Edge function call failed'
+      if (options.showToast) toast.error(errorMessage)
+      return { data: null, error: errorMessage }
+    }
+
+    const { data, error: initialError } = await supabase.functions.invoke(functionName, {
+      body: body || {},
+    })
+
+    let error = initialError
 
     // Some browsers/networks intermittently fail edge invokes at the fetch/relay
     // layer. Retry once immediately on network-level failures.
@@ -1303,7 +1317,7 @@ export const edgeFunctions = {
   }) => {
     // AiAnalysis.tsx renders errors in the chat and shows its own toast, so
     // suppress the automatic toast here to avoid duplicate error notifications.
-    return callEdgeFunction('onspace-ai-chat', params, { showToast: false })
+    return callEdgeFunction('onspace-ai-chat', params, { showToast: false, useDirectFetch: true })
   },
 
   /**

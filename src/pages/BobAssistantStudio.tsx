@@ -843,7 +843,7 @@ export default function BobAssistantStudio() {
 
       return {
         messages: rawMessages,
-        provider: 'ollama' as const,
+        provider: 'inference' as const,
         context: {
           tone,
           source: 'bob-studio',
