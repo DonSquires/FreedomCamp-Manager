@@ -22,7 +22,7 @@ Out of scope:
 1. Client (web/mobile): captures microphone, handles PTT UI interactions
 2. Supabase Edge Function (ptt-signaling-token): validates user and channel scope, brokers mint request
 3. PTT signaling server (ptt-server): issues short-lived channel tokens and manages websocket signaling
-4. Optional TURN relay: supports restrictive NAT/firewall environments
+4. Self-hosted TURN relay (turn-server): supports restrictive NAT/firewall environments
 5. Supabase tables: ptt_messages, ptt_presence, ptt_channels metadata
 
 ## 3. Canonical Configuration
@@ -41,6 +41,8 @@ Reliability mode (recommended for live operations):
 1. TURN_URL
 2. TURN_USERNAME
 3. TURN_CREDENTIAL
+4. FORCE_TURN_RELAY=true
+5. PTT_DISABLE_PUBLIC_STUN=true
 
 ## 4. Security Model
 
@@ -53,10 +55,13 @@ Reliability mode (recommended for live operations):
 ## 5. Deployment Standard
 
 1. Deploy ptt-server with deploy-ptt-railway workflow.
-2. Run health probe on /health.
-3. Run auth probe on /api/token/mint expecting 401 with invalid probe secret.
-4. Sync PTT_SERVER_URL and PTT_PROXY_SECRET to Supabase vault.
-5. Verify smoke test pass for officer/admin/master on the radio route.
+2. Deploy turn-server (Coturn) from /turn-server.
+3. Wire ptt-server TURN_URL, TURN_USERNAME, TURN_CREDENTIAL from turn-server runtime config.
+4. Set FORCE_TURN_RELAY=true and PTT_DISABLE_PUBLIC_STUN=true for strict self-hosted transport.
+5. Run health probe on /health.
+6. Run auth probe on /api/token/mint expecting 401 with invalid probe secret.
+7. Sync PTT_SERVER_URL and PTT_PROXY_SECRET to Supabase vault.
+8. Verify smoke test pass for officer/admin/master on the radio route.
 
 Release gate checklist:
 1. Railway deployment status is healthy

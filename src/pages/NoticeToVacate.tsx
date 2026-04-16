@@ -29,6 +29,7 @@ import {
   Calendar,
   AlertTriangle,
   Eye,
+  Info,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
@@ -91,6 +92,7 @@ export default function NoticeToVacate() {
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [showHelp, setShowHelp] = useState(false)
   const [isIssueOpen, setIsIssueOpen] = useState(false)
   const [previewHtml, setPreviewHtml] = useState<string | null>(null)
 
@@ -363,6 +365,31 @@ export default function NoticeToVacate() {
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      {/* When to use this — contextual help panel */}
+      <div className="mb-3">
+        <button
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          onClick={() => setShowHelp(h => !h)}
+          aria-expanded={showHelp}
+        >
+          <Info className="h-3.5 w-3.5" />
+          {showHelp ? 'Hide guidance' : 'When to issue a Notice to Vacate'}
+        </button>
+        {showHelp && (
+          <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm space-y-2">
+            <p className="font-semibold text-amber-800">Notice to Vacate — when and how</p>
+            <ul className="space-y-1.5 text-amber-900 list-disc list-inside">
+              <li>The vehicle has exceeded the zone's maximum consecutive nights or total monthly nights — a confirmed breach.</li>
+              <li>Issued to formally require the vehicle to leave the zone by a specified deadline (typically <span className="font-semibold">24–48 hours</span> from issue).</li>
+              <li>Delivery methods: <span className="font-medium">Printed on-site</span> (place on vehicle), <span className="font-medium">Email</span>, or <span className="font-medium">Hand-delivered</span>. Always record the method used.</li>
+              <li>If the vehicle has not moved by the deadline, escalate: update status to <code>escalated</code> and proceed to Infringement Notice or tow request as directed by your supervisor.</li>
+              <li>A homeless-flagged vehicle requires supervisor approval before escalation — do not tow without explicit authorisation.</li>
+            </ul>
+            <p className="text-amber-700 text-xs mt-1">Full guide: <code>docs/OFFICER_FIELD_GUIDE_ENFORCEMENT.md</code> · Escalation flowchart: <code>docs/ENFORCEMENT_ESCALATION_DECISION_TREE.md</code></p>
+          </div>
+        )}
       </div>
 
       {/* Toolbar */}

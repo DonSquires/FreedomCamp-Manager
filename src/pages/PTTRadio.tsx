@@ -33,6 +33,8 @@ import {
 import {
   connectToPTT,
   ensureMicrophonePermission,
+  getPTTDiagnostics,
+  type PTTDiagnostics,
   startSpeaking,
   stopSpeaking,
   startVoxMonitoring,
@@ -136,6 +138,12 @@ const CHANNEL_TYPE_ORDER: Record<string, number> = {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 function getChannelScope(channel: RadioChannel, effectiveOrgId: string): string {
+  // Primary channel must always be org-wide so all clients converge on the
+  // same scope even when one device falls back to default channel metadata.
+  if (channel.channel_type === 'primary' || channel.channel_number === 1) {
+    return `org:${effectiveOrgId}`
+  }
+
   // Persisted channel rows use UUID ids and map to unique deployment scopes.
   // Fallback defaults are non-UUID and use org scope to stay valid.
   if (UUID_RE.test(channel.id)) {
@@ -288,6 +296,8 @@ export default function PTTRadio() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [microphoneReady, setMicrophoneReady] = useState(false)
   const [microphoneError, setMicrophoneError] = useState<string | null>(null)
+  const [showDiagnostics, setShowDiagnostics] = useState(false)
+  const [diagnostics, setDiagnostics] = useState<PTTDiagnostics>(() => getPTTDiagnostics())
 
   const pttButtonRef = useRef<HTMLButtonElement>(null)
   const scanTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -295,6 +305,7 @@ export default function PTTRadio() {
   const wakeLockRef = useRef(false)
   const txLogUnavailableRef = useRef(false)
   const seedRpcUnavailableRef = useRef(false)
+  const initialConnectRef = useRef(false)
 
   // ── Org ID ────────────────────────────────────────────────
   const effectiveOrgId = useMemo(
@@ -306,7 +317,7 @@ export default function PTTRadio() {
   )
 
   // ── Load channels from DB ─────────────────────────────────
-  const { data: dbChannels, isLoading: loadingChannels } = useQuery<RadioChannel[]>({
+  const { data: dbChannels, isLoading: loadingChannels, error: channelsError } = useQuery<RadioChannel[]>({
     queryKey: ['ptt-channels', effectiveOrgId],
     queryFn: async () => {
       if (!effectiveOrgId) return []
@@ -415,6 +426,41 @@ export default function PTTRadio() {
     return [{ userId: user.id, name: selfName, role: selfRole, status: selfStatus }, ...withoutSelf]
   }, [presence, user?.id, user?.first_name, user?.last_name, user?.email, user?.role, isSpeaking])
 
+  // ─────────────────────────────────────────────────────────
+  // Channel connection callbacks (before effects that use them)
+  // ─────────────────────────────────────────────────────────
+
+  const connectToChannel = useCallback(
+    async (channel: RadioChannel) => {
+      if (!effectiveOrgId) return
+      setIsConnecting(true)
+      setError(null)
+
+      const channelScope = getChannelScope(channel, effectiveOrgId)
+
+      try {
+        await connectToPTT(channelScope, channel.name)
+        setActiveChannel(channel)
+      } catch (err) {
+        const msg = normalizePTTErrorMessage(err)
+        setError(msg)
+        toast.error(msg)
+      } finally {
+        setIsConnecting(false)
+      }
+    },
+    [effectiveOrgId, setError],
+  )
+
+  const handleChannelSelect = useCallback(
+    (channel: RadioChannel) => {
+      if (isTransmitting) return // don't switch while transmitting
+      setScanMode(false)
+      connectToChannel(channel)
+    },
+    [isTransmitting, connectToChannel],
+  )
+
   // ── Load user callsign ────────────────────────────────────
   useEffect(() => {
     if (!user?.id) return
@@ -449,17 +495,22 @@ export default function PTTRadio() {
     })()
   }, [user?.id])
 
-  // ── Connect to default channel on mount ───────────────────
+  // ── Auto-connect to Channel 1 on initial load ────────────
   useEffect(() => {
     if (!effectiveOrgId || channels.length === 0) return
-    if (connectionStatus === 'connected' && channelId) return // already connected
+    if (initialConnectRef.current) return // Already attempted initial connect
 
-    const primary = channels.find((c) => c.channel_type === 'primary') ?? channels[0]
-    if (primary) {
-      setActiveChannel(primary)
-      connectToChannel(primary)
+    // Prioritize Channel 1 (primary or channel_number === 1) so users aren't
+    // "ghost online" without being in an actual channel.
+    const channel1 = channels.find((c) => c.channel_number === 1) ?? 
+                     channels.find((c) => c.channel_type === 'primary') ?? 
+                     channels[0]
+    
+    if (channel1) {
+      setActiveChannel(channel1)
+      initialConnectRef.current = true
     }
-  }, [effectiveOrgId, channels.length, connectionStatus])
+  }, [effectiveOrgId, channels])
 
   // ── Notification permission prompt ───────────────────────
   useEffect(() => {
@@ -549,32 +600,6 @@ export default function PTTRadio() {
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
   }, [isAvailable, canSpeak, isMuted])
 
-  // ─────────────────────────────────────────────────────────
-  // Channel connection
-  // ─────────────────────────────────────────────────────────
-
-  const connectToChannel = useCallback(
-    async (channel: RadioChannel) => {
-      if (!effectiveOrgId) return
-      setIsConnecting(true)
-      setError(null)
-
-      const channelScope = getChannelScope(channel, effectiveOrgId)
-
-      try {
-        await connectToPTT(channelScope, channel.name)
-        setActiveChannel(channel)
-      } catch (err) {
-        const msg = normalizePTTErrorMessage(err)
-        setError(msg)
-        toast.error(msg)
-      } finally {
-        setIsConnecting(false)
-      }
-    },
-    [effectiveOrgId, setError],
-  )
-
   // ── Scanner mode ─────────────────────────────────────────
   useEffect(() => {
     if (!scanMode) {
@@ -599,7 +624,7 @@ export default function PTTRadio() {
     }, 2500)
 
     return () => { if (scanTimerRef.current) clearInterval(scanTimerRef.current) }
-  }, [scanMode, channels, speakerId, connectToChannel])
+  }, [scanMode, channels, speakerId])
 
   // ── Cleanup on unmount ────────────────────────────────────
   useEffect(() => {
@@ -611,14 +636,15 @@ export default function PTTRadio() {
     }
   }, [])
 
-  const handleChannelSelect = useCallback(
-    (channel: RadioChannel) => {
-      if (isTransmitting) return // don't switch while transmitting
-      setScanMode(false)
-      connectToChannel(channel)
-    },
-    [isTransmitting, connectToChannel],
-  )
+  // ── PTT diagnostics polling ───────────────────────────────
+  useEffect(() => {
+    setDiagnostics(getPTTDiagnostics())
+    const iv = setInterval(() => {
+      setDiagnostics(getPTTDiagnostics())
+    }, 1200)
+
+    return () => clearInterval(iv)
+  }, [])
 
   // ─────────────────────────────────────────────────────────
   // PTT transmit
@@ -1185,8 +1211,91 @@ export default function PTTRadio() {
                   </TooltipTrigger>
                   <TooltipContent>Settings</TooltipContent>
                 </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className={`h-11 w-11 rounded-xl border-slate-700 bg-slate-800 hover:bg-slate-700 ${showDiagnostics ? 'text-cyan-300 border-cyan-700' : 'text-slate-300'}`}
+                      onClick={() => setShowDiagnostics(!showDiagnostics)}
+                    >
+                      <Signal className="h-5 w-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>PTT Diagnostics</TooltipContent>
+                </Tooltip>
               </TooltipProvider>
             </div>
+
+            {/* Diagnostics panel */}
+            {showDiagnostics && (
+              <div className="w-full max-w-sm bg-slate-900 border border-cyan-900 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs text-cyan-300 uppercase tracking-widest font-semibold">PTT Diagnostics</div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-[10px] text-slate-400"
+                    onClick={() => setDiagnostics(getPTTDiagnostics())}
+                  >
+                    Refresh
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="text-slate-500">Connection</div>
+                  <div className="text-slate-200 uppercase">{diagnostics.connectionStatus}</div>
+                  <div className="text-slate-500">Channel Scope</div>
+                  <div className="text-slate-200 truncate" title={diagnostics.channelScope || 'none'}>
+                    {diagnostics.channelScope || 'none'}
+                  </div>
+                  <div className="text-slate-500">WebSocket</div>
+                  <div className="text-slate-200 uppercase">{diagnostics.websocketReadyState}</div>
+                  <div className="text-slate-500">Reconnects</div>
+                  <div className="text-slate-200 tabular-nums">{diagnostics.reconnectAttempts}</div>
+                  <div className="text-slate-500">ICE Policy</div>
+                  <div className="text-slate-200 uppercase">{diagnostics.transport.iceTransportPolicy}</div>
+                  <div className="text-slate-500">TURN Configured</div>
+                  <div className={diagnostics.transport.turnConfigured ? 'text-green-300' : 'text-amber-300'}>
+                    {diagnostics.transport.turnConfigured ? 'YES' : 'NO'}
+                  </div>
+                  <div className="text-slate-500">Force Relay</div>
+                  <div className={diagnostics.transport.forceTurnRelay ? 'text-cyan-300' : 'text-slate-300'}>
+                    {diagnostics.transport.forceTurnRelay ? 'ENABLED' : 'DISABLED'}
+                  </div>
+                  <div className="text-slate-500">Peer Connections</div>
+                  <div className="text-slate-200 tabular-nums">{diagnostics.activePeerConnections}</div>
+                </div>
+
+                {diagnostics.lastClose.code !== null && (
+                  <div className="rounded bg-slate-950 border border-slate-800 px-2.5 py-2 text-[11px]">
+                    <div className="text-slate-500 uppercase tracking-wide">Last Socket Close</div>
+                    <div className="text-slate-300">Code {diagnostics.lastClose.code}</div>
+                    {diagnostics.lastClose.reason && <div className="text-slate-500 truncate">{diagnostics.lastClose.reason}</div>}
+                  </div>
+                )}
+
+                {diagnostics.peerStates.length > 0 && (
+                  <div className="rounded bg-slate-950 border border-slate-800 px-2.5 py-2 space-y-1">
+                    <div className="text-[10px] text-slate-500 uppercase tracking-widest">Peer States</div>
+                    {diagnostics.peerStates.slice(0, 4).map((peer) => (
+                      <div key={peer.peerId} className="text-[11px] text-slate-300 grid grid-cols-3 gap-2">
+                        <span className="truncate" title={peer.peerId}>{peer.peerId.slice(0, 8)}</span>
+                        <span className="text-slate-400 truncate">{peer.connectionState}</span>
+                        <span className="text-slate-400 truncate">{peer.iceConnectionState}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {channelsError && (
+                  <div className="rounded bg-amber-950/30 border border-amber-900 px-2.5 py-2 text-[11px] text-amber-300">
+                    Channel metadata unavailable on this device. Some channels may not align with other users.
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Settings panel */}
             {showSettings && (

@@ -25,6 +25,11 @@ interface PTTTokenResponse {
   expiresIn: number
   iceServers: RTCIceServer[]
   wsUrl: string
+  iceTransportPolicy?: RTCIceTransportPolicy
+  transport?: {
+    turnConfigured?: boolean
+    forceTurnRelay?: boolean
+  }
 }
 
 interface SignalMessage {
@@ -56,6 +61,34 @@ interface PTTMessage {
   fromName?: string
   code?: string
   message?: string
+  transport?: {
+    turnConfigured?: boolean
+    forceTurnRelay?: boolean
+    iceTransportPolicy?: RTCIceTransportPolicy
+  }
+}
+
+export interface PTTDiagnostics {
+  connectionStatus: string
+  channelScope: string | null
+  websocketReadyState: string
+  reconnectAttempts: number
+  activePeerConnections: number
+  peerStates: Array<{
+    peerId: string
+    connectionState: RTCPeerConnectionState
+    iceConnectionState: RTCIceConnectionState
+    signalingState: RTCSignalingState
+  }>
+  transport: {
+    turnConfigured: boolean
+    forceTurnRelay: boolean
+    iceTransportPolicy: RTCIceTransportPolicy
+  }
+  lastClose: {
+    code: number | null
+    reason: string | null
+  }
 }
 
 async function requestLocalAudioStream(): Promise<MediaStream> {
@@ -135,12 +168,131 @@ let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
 let reconnectAttempts = 0
 const MAX_RECONNECT_ATTEMPTS = 8
 let pingInterval: ReturnType<typeof setInterval> | null = null
+let activeChannelScope: string | null = null  // Tracks the last requested scope for visibility-triggered reconnects
+
+// Reconnect when the page/tab becomes visible again (handles mobile browser backgrounding).
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return
+    if (!activeChannelScope) return
+    // If the WS is gone or closing, reconnect immediately without waiting for backoff.
+    if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+      console.log('🎤 PTT: Page visible – reconnecting dropped WS', activeChannelScope)
+      reconnectAttempts = 0
+      connectToPTT(activeChannelScope).catch((err) => {
+        console.error('🎤 PTT: Visibility reconnect failed', err)
+      })
+    }
+  })
+}
 let localStream: MediaStream | null = null
 const peerConnections: Map<string, RTCPeerConnection> = new Map()
 let mediaRecorder: MediaRecorder | null = null
 let recordedChunks: Blob[] = []
 let recordingStartTime: number | null = null
 const remoteAudioElements: Map<string, HTMLAudioElement> = new Map()
+let currentIceTransportPolicy: RTCIceTransportPolicy = 'all'
+const peerConnectionStates: Map<string, {
+  connectionState: RTCPeerConnectionState
+  iceConnectionState: RTCIceConnectionState
+  signalingState: RTCSignalingState
+}> = new Map()
+let turnConfigured = false
+let forceTurnRelay = false
+let lastSocketCloseCode: number | null = null
+let lastSocketCloseReason: string | null = null
+
+function applyTransportDiagnostics(transport?: {
+  turnConfigured?: boolean
+  forceTurnRelay?: boolean
+  iceTransportPolicy?: RTCIceTransportPolicy
+}): void {
+  if (!transport) return
+
+  turnConfigured = !!transport.turnConfigured
+  forceTurnRelay = !!transport.forceTurnRelay
+
+  if (transport.iceTransportPolicy === 'relay') {
+    currentIceTransportPolicy = 'relay'
+  } else {
+    currentIceTransportPolicy = 'all'
+  }
+
+  if (transport.forceTurnRelay && !transport.turnConfigured) {
+    const store = usePTTStore.getState()
+    store.setError('Push to Talk relay is required but TURN is not configured on the signaling server.')
+  }
+
+  if (!transport.turnConfigured) {
+    console.warn('🎤 PTT: TURN is not configured; live audio may fail across NAT/carrier networks')
+  }
+}
+
+function getOrCreateRemoteAudio(peerId: string): HTMLAudioElement {
+  let audio = remoteAudioElements.get(peerId)
+  if (audio) return audio
+
+  audio = new Audio()
+  audio.autoplay = true
+  audio.controls = false
+  audio.muted = false
+  audio.volume = 1
+  audio.setAttribute('playsinline', 'true')
+  audio.setAttribute('webkit-playsinline', 'true')
+  audio.style.position = 'fixed'
+  audio.style.width = '1px'
+  audio.style.height = '1px'
+  audio.style.opacity = '0'
+  audio.style.pointerEvents = 'none'
+  audio.style.bottom = '0'
+  audio.style.left = '0'
+  document.body.appendChild(audio)
+
+  remoteAudioElements.set(peerId, audio)
+  return audio
+}
+
+function getWebSocketReadyStateLabel(socket: WebSocket | null): string {
+  if (!socket) return 'none'
+  switch (socket.readyState) {
+    case WebSocket.CONNECTING:
+      return 'connecting'
+    case WebSocket.OPEN:
+      return 'open'
+    case WebSocket.CLOSING:
+      return 'closing'
+    case WebSocket.CLOSED:
+      return 'closed'
+    default:
+      return 'unknown'
+  }
+}
+
+export function getPTTDiagnostics(): PTTDiagnostics {
+  const store = usePTTStore.getState()
+  return {
+    connectionStatus: store.connectionStatus,
+    channelScope: store.channelId || null,
+    websocketReadyState: getWebSocketReadyStateLabel(ws),
+    reconnectAttempts,
+    activePeerConnections: peerConnections.size,
+    peerStates: Array.from(peerConnectionStates.entries()).map(([peerId, state]) => ({
+      peerId,
+      connectionState: state.connectionState,
+      iceConnectionState: state.iceConnectionState,
+      signalingState: state.signalingState,
+    })),
+    transport: {
+      turnConfigured,
+      forceTurnRelay,
+      iceTransportPolicy: currentIceTransportPolicy,
+    },
+    lastClose: {
+      code: lastSocketCloseCode,
+      reason: lastSocketCloseReason,
+    },
+  }
+}
 
 // VOX state
 let audioContext: AudioContext | null = null
@@ -196,6 +348,7 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
   store.setConnection('connecting')
   const channelType = channelScope.split(':')[0] as PTTChannelType
   store.setChannel(channelScope, channelType, channelName || null)
+  activeChannelScope = channelScope  // Remember for visibility-triggered reconnects
 
   try {
     // Get token from Edge Function
@@ -203,6 +356,14 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
 
     store.setConnection('connecting', tokenData.wsUrl, tokenData.token)
     store.setIceServers(tokenData.iceServers)
+    applyTransportDiagnostics(tokenData.transport || {
+      turnConfigured: tokenData.iceServers.some((server) => {
+        const urls = Array.isArray(server.urls) ? server.urls : [server.urls]
+        return urls.some((url) => typeof url === 'string' && (url.startsWith('turn:') || url.startsWith('turns:')))
+      }),
+      forceTurnRelay: tokenData.iceTransportPolicy === 'relay',
+      iceTransportPolicy: tokenData.iceTransportPolicy,
+    })
 
     // Connect WebSocket
     const socket = new WebSocket(`${tokenData.wsUrl}?token=${tokenData.token}`)
@@ -212,6 +373,8 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
       if (ws !== socket) return
       console.log('🎤 PTT: Connected to signaling server')
       reconnectAttempts = 0
+      lastSocketCloseCode = null
+      lastSocketCloseReason = null
       store.setConnection('connected')
       startPingInterval()
     }
@@ -219,6 +382,8 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
     socket.onclose = (event) => {
       if (ws !== socket) return
       console.log('🎤 PTT: Disconnected', event.code, event.reason)
+      lastSocketCloseCode = event.code
+      lastSocketCloseReason = event.reason || null
       cleanupConnection()
 
       if (event.code === 4000) {
@@ -279,6 +444,7 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
  * Disconnect from the PTT signaling server
  */
 export function disconnectFromPTT(): void {
+  activeChannelScope = null  // Stop visibility-triggered reconnects after an intentional disconnect
   cleanupConnection()
   usePTTStore.getState().reset()
 }
@@ -306,6 +472,7 @@ function cleanupConnection(): void {
   // Clean up WebRTC
   peerConnections.forEach((pc) => pc.close())
   peerConnections.clear()
+  peerConnectionStates.clear()
 
   if (localStream) {
     localStream.getTracks().forEach((track) => track.stop())
@@ -356,11 +523,17 @@ function scheduleReconnect(channelScope: string): void {
 function startPingInterval(): void {
   if (pingInterval) clearInterval(pingInterval)
 
+  // 10 second interval keeps mobile browser WebSockets alive before iOS/Android kills idle connections.
   pingInterval = setInterval(() => {
     if (ws?.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'ping' }))
+    } else if (ws && ws.readyState !== WebSocket.CONNECTING) {
+      // WS died silently (common on mobile). scheduleReconnect will be triggered by onclose.
+      // If somehow onclose never fired, force a cleanup so the next visibility event recovers.
+      console.warn('🎤 PTT: Ping found dead socket, clearing')
+      ws = null
     }
-  }, 30000)
+  }, 10000)
 }
 
 // ---------------------------------------------------------------------------
@@ -382,6 +555,7 @@ function handleServerMessage(message: PTTMessage): void {
       if (message.speakerId) {
         store.setSpeaker(message.speakerId)
       }
+      applyTransportDiagnostics(message.transport)
       break
 
     case 'presence':
@@ -510,6 +684,13 @@ function createPeerConnection(peerId: string): RTCPeerConnection {
 
   const pc = new RTCPeerConnection({
     iceServers: store.iceServers,
+    iceTransportPolicy: currentIceTransportPolicy,
+  })
+
+  peerConnectionStates.set(peerId, {
+    connectionState: pc.connectionState,
+    iceConnectionState: pc.iceConnectionState,
+    signalingState: pc.signalingState,
   })
 
   pc.onicecandidate = (event) => {
@@ -520,14 +701,7 @@ function createPeerConnection(peerId: string): RTCPeerConnection {
 
   pc.ontrack = (event) => {
     // Keep a persistent audio element per peer for stable playback on mobile/desktop.
-    let audio = remoteAudioElements.get(peerId)
-    if (!audio) {
-      audio = new Audio()
-      audio.autoplay = true
-      audio.setAttribute('playsinline', 'true')
-      audio.setAttribute('webkit-playsinline', 'true')
-      remoteAudioElements.set(peerId, audio)
-    }
+    const audio = getOrCreateRemoteAudio(peerId)
 
     audio.srcObject = event.streams[0]
     audio.play().catch((playErr) => {
@@ -535,11 +709,45 @@ function createPeerConnection(peerId: string): RTCPeerConnection {
     })
   }
 
+  pc.oniceconnectionstatechange = () => {
+    console.log('🎤 PTT: ICE state', peerId, pc.iceConnectionState)
+    const current = peerConnectionStates.get(peerId)
+    peerConnectionStates.set(peerId, {
+      connectionState: current?.connectionState || pc.connectionState,
+      iceConnectionState: pc.iceConnectionState,
+      signalingState: pc.signalingState,
+    })
+    if (pc.iceConnectionState === 'failed') {
+      const store = usePTTStore.getState()
+      store.setError('Live PTT audio path failed (ICE). TURN relay may be required for cross-network audio.')
+    }
+  }
+
+  pc.onicecandidateerror = (event) => {
+    console.warn('🎤 PTT: ICE candidate error', peerId, event.errorCode, event.errorText)
+  }
+
   pc.onconnectionstatechange = () => {
+    const current = peerConnectionStates.get(peerId)
+    peerConnectionStates.set(peerId, {
+      connectionState: pc.connectionState,
+      iceConnectionState: current?.iceConnectionState || pc.iceConnectionState,
+      signalingState: pc.signalingState,
+    })
     if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
       peerConnections.delete(peerId)
+      peerConnectionStates.delete(peerId)
       pc.close()
     }
+  }
+
+  pc.onsignalingstatechange = () => {
+    const current = peerConnectionStates.get(peerId)
+    peerConnectionStates.set(peerId, {
+      connectionState: current?.connectionState || pc.connectionState,
+      iceConnectionState: current?.iceConnectionState || pc.iceConnectionState,
+      signalingState: pc.signalingState,
+    })
   }
 
   return pc
@@ -570,7 +778,25 @@ async function negotiatePeerAudio(peerId: string): Promise<void> {
     }
   }
 
-  if (pc.signalingState !== 'stable') return
+  if (pc.signalingState !== 'stable') {
+    // If signaling got stuck (e.g. interrupted prior negotiation), rebuild the peer
+    // so the next offer can proceed cleanly.
+    try {
+      pc.close()
+    } catch {
+      // Ignore close errors.
+    }
+    peerConnections.delete(peerId)
+    pc = createPeerConnection(peerId)
+    peerConnections.set(peerId, pc)
+
+    for (const track of localStream.getTracks()) {
+      const alreadySending = pc.getSenders().some((s) => s.track?.id === track.id)
+      if (!alreadySending) {
+        pc.addTrack(track, localStream)
+      }
+    }
+  }
 
   const offer = await pc.createOffer()
   await pc.setLocalDescription(offer)

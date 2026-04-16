@@ -72,6 +72,55 @@ const MAX_CLIP_DURATION = parseInt(process.env.MAX_CLIP_DURATION_SECONDS || '30'
 const TURN_URL = process.env.TURN_URL;
 const TURN_USERNAME = process.env.TURN_USERNAME;
 const TURN_CREDENTIAL = process.env.TURN_CREDENTIAL;
+const FORCE_TURN_RELAY = String(process.env.FORCE_TURN_RELAY || '').toLowerCase() === 'true';
+const PTT_DISABLE_PUBLIC_STUN = String(process.env.PTT_DISABLE_PUBLIC_STUN || '').toLowerCase() === 'true';
+
+function parseTurnUrls(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter(Boolean);
+  return String(value)
+    .split(',')
+    .map((url) => url.trim())
+    .filter(Boolean);
+}
+
+function toStunUrl(url) {
+  if (typeof url !== 'string') return null;
+  if (url.startsWith('turns:')) return url.replace(/^turns:/, 'stuns:');
+  if (url.startsWith('turn:')) return url.replace(/^turn:/, 'stun:');
+  return null;
+}
+
+function isTurnConfigured() {
+  return !!(TURN_URL && TURN_USERNAME && TURN_CREDENTIAL);
+}
+
+function buildIceServers() {
+  const iceServers = [];
+
+  const turnUrls = parseTurnUrls(TURN_URL);
+  const derivedStunUrls = turnUrls
+    .map((url) => toStunUrl(url))
+    .filter(Boolean);
+
+  if (!FORCE_TURN_RELAY) {
+    if (!PTT_DISABLE_PUBLIC_STUN) {
+      iceServers.push({ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] });
+    } else if (derivedStunUrls.length > 0) {
+      iceServers.push({ urls: derivedStunUrls });
+    }
+  }
+
+  if (isTurnConfigured()) {
+    iceServers.push({
+      urls: turnUrls,
+      username: TURN_USERNAME,
+      credential: TURN_CREDENTIAL,
+    });
+  }
+
+  return iceServers;
+}
 
 // ---------------------------------------------------------------------------
 // In-memory state (production would use Redis for multi-instance)
@@ -197,6 +246,8 @@ app.get('/health', (req, res) => {
     service: 'PTT Signaling Server',
     channels: channels.size,
     connectedUsers: userPresence.size,
+    turnConfigured: isTurnConfigured(),
+    forceTurnRelay: FORCE_TURN_RELAY,
   });
 });
 
@@ -222,7 +273,26 @@ app.get('/api/info', (req, res) => {
       maxParticipantsPerChannel: MAX_PARTICIPANTS,
       maxClipDurationSeconds: MAX_CLIP_DURATION,
     },
-    turnConfigured: !!(TURN_URL && TURN_USERNAME && TURN_CREDENTIAL),
+    turnConfigured: isTurnConfigured(),
+    forceTurnRelay: FORCE_TURN_RELAY,
+  });
+});
+
+/**
+ * Runtime diagnostics for deployment verification.
+ */
+app.get('/api/diagnostics', (req, res) => {
+  res.json({
+    service: 'PTT Signaling Server',
+    timestamp: new Date().toISOString(),
+    channels: channels.size,
+    connectedUsers: userPresence.size,
+    transport: {
+      turnConfigured: isTurnConfigured(),
+      forceTurnRelay: FORCE_TURN_RELAY,
+      iceTransportPolicy: FORCE_TURN_RELAY ? 'relay' : 'all',
+      hasTurnCredentials: !!(TURN_USERNAME && TURN_CREDENTIAL),
+    },
   });
 });
 
@@ -278,23 +348,25 @@ app.post('/api/token/mint', rateLimitMiddleware, (req, res) => {
     { expiresIn: TOKEN_EXPIRY }
   );
 
-  // Include ICE servers if TURN is configured
-  const iceServers = [
-    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
-  ];
-  if (TURN_URL && TURN_USERNAME && TURN_CREDENTIAL) {
-    iceServers.push({
-      urls: TURN_URL,
-      username: TURN_USERNAME,
-      credential: TURN_CREDENTIAL,
+  if (FORCE_TURN_RELAY && !isTurnConfigured()) {
+    return res.status(503).json({
+      error: 'TURN relay required',
+      message: 'FORCE_TURN_RELAY is enabled but TURN_URL/TURN_USERNAME/TURN_CREDENTIAL are missing',
     });
   }
+
+  const iceServers = buildIceServers();
 
   res.json({
     token,
     channelScope,
     expiresIn: 600,
     iceServers,
+    iceTransportPolicy: FORCE_TURN_RELAY ? 'relay' : 'all',
+    transport: {
+      turnConfigured: isTurnConfigured(),
+      forceTurnRelay: FORCE_TURN_RELAY,
+    },
   });
 });
 
@@ -504,6 +576,11 @@ wss.on('connection', (ws, req) => {
     channelId,
     presence: currentPresence,
     speakerId: channelMeta.get(channelId)?.speakerId || null,
+    transport: {
+      turnConfigured: isTurnConfigured(),
+      forceTurnRelay: FORCE_TURN_RELAY,
+      iceTransportPolicy: FORCE_TURN_RELAY ? 'relay' : 'all',
+    },
   }));
 
   console.log(`📡 User ${name} (${userId}) joined channel ${channelId}`);
@@ -667,7 +744,8 @@ server.listen(PORT, '0.0.0.0', () => {
   ║   Port: ${PORT.toString().padEnd(29)}║
   ║   Environment: ${(process.env.NODE_ENV || 'development').padEnd(22)}║
   ║   JWT Secret: ${(PTT_JWT_SECRET ? '✓ Configured' : '✗ Not configured').padEnd(23)}║
-  ║   TURN Server: ${(TURN_URL ? '✓ Configured' : '✗ Not configured').padEnd(22)}║
+  ║   TURN Server: ${(isTurnConfigured() ? '✓ Configured' : '✗ Not configured').padEnd(22)}║
+  ║   Force TURN Relay: ${(FORCE_TURN_RELAY ? '✓ Enabled' : '○ Disabled').padEnd(17)}║
   ╚═══════════════════════════════════════╝
   `);
 });

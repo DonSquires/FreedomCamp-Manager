@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useZones } from '@/hooks/useZones'
 import { useClientOrgIds } from '@/hooks/useClientOrgIds'
+import { useSitePermissions } from '@/hooks/useSitePermissions'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -29,7 +30,7 @@ import {
 } from '@/components/ui/table'
 import {
   Building2, Plus, MapPin, Phone, Mail, Clock, Search,
-  Edit, ToggleLeft, ToggleRight, ChevronRight,
+  Edit, ToggleLeft, ToggleRight,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -150,6 +151,7 @@ export default function ClientSites() {
 
   const { data: zones = [] } = useZones({ organizationId: orgId })
   const { orgIds, isLoading: orgIdsLoading } = useClientOrgIds()
+  const { canView, canEdit } = useSitePermissions()
 
   // ── Fetch sites ─────────────────────────────────────────────────────────────
   const { data: sites = [], isLoading } = useQuery<ClientSite[]>({
@@ -184,17 +186,19 @@ export default function ClientSites() {
   // ── Save mutation (create + edit) ────────────────────────────────────────
   const saveMutation = useMutation({
     mutationFn: async ({ f, id }: { f: SiteForm; id?: string }) => {
-      const payload: any = {
+      // Build full payload, then strip field groups the user cannot edit.
+      // This prevents bypassing UI restrictions through dev-tool tricks.
+      const full: any = {
         organization_id:        orgId,
         created_by:             user?.id,
         name:                   f.name,
         site_code:              f.site_code || null,
         site_type:              f.site_type,
+        zone_id:                f.zone_id || null,
         address:                f.address || null,
         city:                   f.city || null,
         gps_lat:                f.gps_lat ? parseFloat(f.gps_lat) : null,
         gps_lng:                f.gps_lng ? parseFloat(f.gps_lng) : null,
-        zone_id:                f.zone_id || null,
         access_instructions:    f.access_instructions || null,
         hazards:                f.hazards || null,
         special_instructions:   f.special_instructions || null,
@@ -217,6 +221,29 @@ export default function ClientSites() {
         invoice_frequency:      f.invoice_frequency || 'monthly',
         purchase_order_number:  f.purchase_order_number || null,
       }
+
+      // Map each field group to its payload keys and remove groups the user can't edit
+      const groupFields: Record<string, string[]> = {
+        identity:    ['name', 'site_code', 'site_type', 'zone_id'],
+        location:    ['address', 'city', 'gps_lat', 'gps_lng'],
+        operational: ['access_instructions', 'hazards', 'special_instructions'],
+        contacts:    ['contact_name', 'contact_phone', 'contact_email', 'emergency_contact_name', 'emergency_contact_phone'],
+        sla:         ['default_response_minutes', 'priority_override'],
+        notes:       ['notes'],
+        financial:   ['default_pay_rate', 'default_charge_rate', 'overtime_pay_multiplier', 'contract_start_date', 'contract_end_date', 'invoice_frequency', 'purchase_order_number'],
+        accounting:  ['m365_customer_id', 'm365_contract_ref', 'm365_cost_centre'],
+      }
+
+      const payload: any = id
+        ? {} // on edit: only include fields the user can change
+        : { organization_id: orgId, created_by: user?.id } // on create: always include org fields
+
+      for (const [group, fields] of Object.entries(groupFields)) {
+        if (canEdit(group as any)) {
+          for (const k of fields) { payload[k] = full[k] }
+        }
+      }
+
       if (id) {
         const { error } = await (supabase as any).from('client_sites').update(payload).eq('id', id)
         if (error) throw error
@@ -266,7 +293,9 @@ export default function ClientSites() {
               Service location registry — link sites to dispatch jobs, zones and patrols
             </p>
           </div>
-          <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" /> Add Site</Button>
+          {canEdit('identity') && (
+            <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" /> Add Site</Button>
+          )}
         </div>
 
         {/* Summary */}
@@ -312,13 +341,13 @@ export default function ClientSites() {
                 <TableRow>
                   <TableHead>Site</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead><MapPin className="inline h-3.5 w-3.5 mr-1" />Address</TableHead>
-                  <TableHead><Phone className="inline h-3.5 w-3.5 mr-1" />Contact</TableHead>
-                  <TableHead><Clock className="inline h-3.5 w-3.5 mr-1" />SLA</TableHead>
-                  <TableHead>Pay / Charge</TableHead>
-                  <TableHead>M365</TableHead>
+                  {canView('location') && <TableHead><MapPin className="inline h-3.5 w-3.5 mr-1" />Address</TableHead>}
+                  {canView('contacts') && <TableHead><Phone className="inline h-3.5 w-3.5 mr-1" />Contact</TableHead>}
+                  {canView('sla') && <TableHead><Clock className="inline h-3.5 w-3.5 mr-1" />SLA</TableHead>}
+                  {canView('financial') && <TableHead>Pay / Charge</TableHead>}
+                  {canView('accounting') && <TableHead>M365</TableHead>}
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  {canEdit('identity') && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -335,44 +364,56 @@ export default function ClientSites() {
                       {s.site_code && <div className="text-xs text-muted-foreground font-mono">{s.site_code}</div>}
                     </TableCell>
                     <TableCell><Badge variant="outline" className="text-xs">{SITE_TYPE_LABELS[s.site_type] ?? s.site_type}</Badge></TableCell>
-                    <TableCell className="text-sm">{s.address ? `${s.address}${s.city ? ', ' + s.city : ''}` : <span className="text-muted-foreground">—</span>}</TableCell>
-                    <TableCell className="text-sm">
-                      {s.contact_name ? (
-                        <div>
-                          <div>{s.contact_name}</div>
-                          {s.contact_phone && <div className="text-xs text-muted-foreground">{s.contact_phone}</div>}
-                        </div>
-                      ) : <span className="text-muted-foreground">—</span>}
-                    </TableCell>
-                    <TableCell className="text-sm">{s.default_response_minutes}m</TableCell>
-                    <TableCell className="text-xs">
-                      {s.default_pay_rate != null || s.default_charge_rate != null ? (
-                        <div className="space-y-0.5">
-                          {s.default_pay_rate != null && <div className="text-muted-foreground">Pay: <span className="text-foreground font-medium">${s.default_pay_rate}/hr</span></div>}
-                          {s.default_charge_rate != null && <div className="text-muted-foreground">Charge: <span className="text-foreground font-medium">${s.default_charge_rate}/hr</span></div>}
-                        </div>
-                      ) : <span className="text-muted-foreground">—</span>}
-                    </TableCell>
-                    <TableCell className="text-xs">
-                      {s.m365_customer_id ? (
-                        <div className="font-mono text-muted-foreground">{s.m365_customer_id}</div>
-                      ) : <span className="text-muted-foreground">—</span>}
-                    </TableCell>
+                    {canView('location') && (
+                      <TableCell className="text-sm">{s.address ? `${s.address}${s.city ? ', ' + s.city : ''}` : <span className="text-muted-foreground">—</span>}</TableCell>
+                    )}
+                    {canView('contacts') && (
+                      <TableCell className="text-sm">
+                        {s.contact_name ? (
+                          <div>
+                            <div>{s.contact_name}</div>
+                            {s.contact_phone && <div className="text-xs text-muted-foreground">{s.contact_phone}</div>}
+                          </div>
+                        ) : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                    )}
+                    {canView('sla') && (
+                      <TableCell className="text-sm">{s.default_response_minutes}m</TableCell>
+                    )}
+                    {canView('financial') && (
+                      <TableCell className="text-xs">
+                        {s.default_pay_rate != null || s.default_charge_rate != null ? (
+                          <div className="space-y-0.5">
+                            {s.default_pay_rate != null && <div className="text-muted-foreground">Pay: <span className="text-foreground font-medium">${s.default_pay_rate}/hr</span></div>}
+                            {s.default_charge_rate != null && <div className="text-muted-foreground">Charge: <span className="text-foreground font-medium">${s.default_charge_rate}/hr</span></div>}
+                          </div>
+                        ) : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                    )}
+                    {canView('accounting') && (
+                      <TableCell className="text-xs">
+                        {s.m365_customer_id ? (
+                          <div className="font-mono text-muted-foreground">{s.m365_customer_id}</div>
+                        ) : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                    )}
                     <TableCell>
                       <Badge variant="outline" className={s.is_active ? 'border-green-300 text-green-700' : 'border-gray-300 text-gray-400'}>
                         {s.is_active ? 'Active' : 'Inactive'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right" onClick={e => e.stopPropagation()}>
-                      <div className="flex justify-end gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => openEdit(s)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => toggleActive.mutate({ id: s.id, active: !s.is_active })}>
-                          {s.is_active ? <ToggleLeft className="h-4 w-4 text-muted-foreground" /> : <ToggleRight className="h-4 w-4 text-green-600" />}
-                        </Button>
-                      </div>
-                    </TableCell>
+                    {canEdit('identity') && (
+                      <TableCell className="text-right" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-end gap-1">
+                          <Button size="sm" variant="ghost" onClick={() => openEdit(s)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => toggleActive.mutate({ id: s.id, active: !s.is_active })}>
+                            {s.is_active ? <ToggleLeft className="h-4 w-4 text-muted-foreground" /> : <ToggleRight className="h-4 w-4 text-green-600" />}
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
@@ -390,162 +431,182 @@ export default function ClientSites() {
           </DialogHeader>
           <form onSubmit={handleSave} className="space-y-5">
 
-            {/* Identity */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5 col-span-2 md:col-span-1">
-                <Label>Site Name <span className="text-destructive">*</span></Label>
-                <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Kairākau Beach Reserve" />
+            {/* Identity — always visible in the dialog if the user got here */}
+            {canView('identity') && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5 col-span-2 md:col-span-1">
+                  <Label>Site Name <span className="text-destructive">*</span></Label>
+                  <Input disabled={!canEdit('identity')} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Kairākau Beach Reserve" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Site Code</Label>
+                  <Input disabled={!canEdit('identity')} value={form.site_code} onChange={e => setForm(f => ({ ...f, site_code: e.target.value }))} placeholder="Optional ref code" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Site Type</Label>
+                  <Select disabled={!canEdit('identity')} value={form.site_type} onValueChange={v => setForm(f => ({ ...f, site_type: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{Object.entries(SITE_TYPE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Zone</Label>
+                  <Select disabled={!canEdit('identity')} value={form.zone_id} onValueChange={v => setForm(f => ({ ...f, zone_id: v }))}>
+                    <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">None</SelectItem>
+                      {zones.map(z => <SelectItem key={z.id} value={z.id}>{z.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label>Site Code</Label>
-                <Input value={form.site_code} onChange={e => setForm(f => ({ ...f, site_code: e.target.value }))} placeholder="Optional ref code" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Site Type</Label>
-                <Select value={form.site_type} onValueChange={v => setForm(f => ({ ...f, site_type: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{Object.entries(SITE_TYPE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Zone</Label>
-                <Select value={form.zone_id} onValueChange={v => setForm(f => ({ ...f, zone_id: v }))}>
-                  <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">None</SelectItem>
-                    {zones.map(z => <SelectItem key={z.id} value={z.id}>{z.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            )}
 
             {/* Location */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5 col-span-2">
-                <Label>Street Address</Label>
-                <Input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} placeholder="Street address" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>City / Town</Label>
-                <Input value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>GPS Lat / Lng</Label>
-                <div className="flex gap-2">
-                  <Input placeholder="-39.123" value={form.gps_lat} onChange={e => setForm(f => ({ ...f, gps_lat: e.target.value }))} />
-                  <Input placeholder="176.456" value={form.gps_lng} onChange={e => setForm(f => ({ ...f, gps_lng: e.target.value }))} />
+            {canView('location') && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5 col-span-2">
+                  <Label>Street Address</Label>
+                  <Input disabled={!canEdit('location')} value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} placeholder="Street address" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>City / Town</Label>
+                  <Input disabled={!canEdit('location')} value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>GPS Lat / Lng</Label>
+                  <div className="flex gap-2">
+                    <Input disabled={!canEdit('location')} placeholder="-39.123" value={form.gps_lat} onChange={e => setForm(f => ({ ...f, gps_lat: e.target.value }))} />
+                    <Input disabled={!canEdit('location')} placeholder="176.456" value={form.gps_lng} onChange={e => setForm(f => ({ ...f, gps_lng: e.target.value }))} />
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Operational notes */}
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <Label>Access Instructions</Label>
-                <Textarea rows={2} value={form.access_instructions} onChange={e => setForm(f => ({ ...f, access_instructions: e.target.value }))} placeholder="Gate code, access roads, parking…" />
+            {canView('operational') && (
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label>Access Instructions</Label>
+                  <Textarea disabled={!canEdit('operational')} rows={2} value={form.access_instructions} onChange={e => setForm(f => ({ ...f, access_instructions: e.target.value }))} placeholder="Gate code, access roads, parking…" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Known Hazards</Label>
+                  <Textarea disabled={!canEdit('operational')} rows={2} value={form.hazards} onChange={e => setForm(f => ({ ...f, hazards: e.target.value }))} placeholder="WHS hazards officers should be aware of…" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Special Instructions</Label>
+                  <Textarea disabled={!canEdit('operational')} rows={2} value={form.special_instructions} onChange={e => setForm(f => ({ ...f, special_instructions: e.target.value }))} />
+                </div>
               </div>
+            )}
+
+            {/* Notes — officers can edit this group */}
+            {canView('notes') && (
               <div className="space-y-1.5">
-                <Label>Known Hazards</Label>
-                <Textarea rows={2} value={form.hazards} onChange={e => setForm(f => ({ ...f, hazards: e.target.value }))} placeholder="WHS hazards officers should be aware of…" />
+                <Label>Notes</Label>
+                <Textarea disabled={!canEdit('notes')} rows={3} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="General site notes…" />
               </div>
-              <div className="space-y-1.5">
-                <Label>Special Instructions</Label>
-                <Textarea rows={2} value={form.special_instructions} onChange={e => setForm(f => ({ ...f, special_instructions: e.target.value }))} />
-              </div>
-            </div>
+            )}
 
             {/* Contacts */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5"><Label>Primary Contact</Label><Input placeholder="Full name" value={form.contact_name} onChange={e => setForm(f => ({ ...f, contact_name: e.target.value }))} /></div>
-              <div className="space-y-1.5"><Label>Contact Phone</Label><Input type="tel" value={form.contact_phone} onChange={e => setForm(f => ({ ...f, contact_phone: e.target.value }))} /></div>
-              <div className="space-y-1.5 col-span-2 md:col-span-1"><Label>Contact Email</Label><Input type="email" value={form.contact_email} onChange={e => setForm(f => ({ ...f, contact_email: e.target.value }))} /></div>
-              <div className="space-y-1.5"><Label>Emergency Contact</Label><Input placeholder="After-hours name" value={form.emergency_contact_name} onChange={e => setForm(f => ({ ...f, emergency_contact_name: e.target.value }))} /></div>
-              <div className="space-y-1.5"><Label>Emergency Phone</Label><Input type="tel" value={form.emergency_contact_phone} onChange={e => setForm(f => ({ ...f, emergency_contact_phone: e.target.value }))} /></div>
-            </div>
+            {canView('contacts') && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5"><Label>Primary Contact</Label><Input disabled={!canEdit('contacts')} placeholder="Full name" value={form.contact_name} onChange={e => setForm(f => ({ ...f, contact_name: e.target.value }))} /></div>
+                <div className="space-y-1.5"><Label>Contact Phone</Label><Input disabled={!canEdit('contacts')} type="tel" value={form.contact_phone} onChange={e => setForm(f => ({ ...f, contact_phone: e.target.value }))} /></div>
+                <div className="space-y-1.5 col-span-2 md:col-span-1"><Label>Contact Email</Label><Input disabled={!canEdit('contacts')} type="email" value={form.contact_email} onChange={e => setForm(f => ({ ...f, contact_email: e.target.value }))} /></div>
+                <div className="space-y-1.5"><Label>Emergency Contact</Label><Input disabled={!canEdit('contacts')} placeholder="After-hours name" value={form.emergency_contact_name} onChange={e => setForm(f => ({ ...f, emergency_contact_name: e.target.value }))} /></div>
+                <div className="space-y-1.5"><Label>Emergency Phone</Label><Input disabled={!canEdit('contacts')} type="tel" value={form.emergency_contact_phone} onChange={e => setForm(f => ({ ...f, emergency_contact_phone: e.target.value }))} /></div>
+              </div>
+            )}
 
             {/* SLA */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Default Response SLA (mins)</Label>
-                <Input type="number" min="5" value={form.default_response_minutes} onChange={e => setForm(f => ({ ...f, default_response_minutes: parseInt(e.target.value) || 60 }))} />
+            {canView('sla') && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Default Response SLA (mins)</Label>
+                  <Input disabled={!canEdit('sla')} type="number" min="5" value={form.default_response_minutes} onChange={e => setForm(f => ({ ...f, default_response_minutes: parseInt(e.target.value) || 60 }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Priority Override</Label>
+                  <Select disabled={!canEdit('sla')} value={form.priority_override} onValueChange={v => setForm(f => ({ ...f, priority_override: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Use job priority" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Use job priority</SelectItem>
+                      {['low','normal','high','urgent'].map(p => <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label>Priority Override</Label>
-                <Select value={form.priority_override} onValueChange={v => setForm(f => ({ ...f, priority_override: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Use job priority" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">Use job priority</SelectItem>
-                    {['low','normal','high','urgent'].map(p => <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            )}
 
             {/* Pay rates / charge rates */}
-            <div className="border-t pt-4">
-              <p className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Pay &amp; Charge Rates (NZD/hr)</p>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1.5">
-                  <Label>Officer Pay Rate</Label>
-                  <Input type="number" min="0" step="0.01" placeholder="e.g. 28.50" value={form.default_pay_rate} onChange={e => setForm(f => ({ ...f, default_pay_rate: e.target.value }))} />
+            {canView('financial') && (
+              <div className="border-t pt-4">
+                <p className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Pay &amp; Charge Rates (NZD/hr)</p>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Officer Pay Rate</Label>
+                    <Input disabled={!canEdit('financial')} type="number" min="0" step="0.01" placeholder="e.g. 28.50" value={form.default_pay_rate} onChange={e => setForm(f => ({ ...f, default_pay_rate: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Client Charge Rate</Label>
+                    <Input disabled={!canEdit('financial')} type="number" min="0" step="0.01" placeholder="e.g. 45.00" value={form.default_charge_rate} onChange={e => setForm(f => ({ ...f, default_charge_rate: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>OT Multiplier</Label>
+                    <Input disabled={!canEdit('financial')} type="number" min="1" step="0.25" placeholder="1.5" value={form.overtime_pay_multiplier} onChange={e => setForm(f => ({ ...f, overtime_pay_multiplier: e.target.value }))} />
+                  </div>
                 </div>
-                <div className="space-y-1.5">
-                  <Label>Client Charge Rate</Label>
-                  <Input type="number" min="0" step="0.01" placeholder="e.g. 45.00" value={form.default_charge_rate} onChange={e => setForm(f => ({ ...f, default_charge_rate: e.target.value }))} />
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div className="space-y-1.5">
+                    <Label>Contract Start</Label>
+                    <Input disabled={!canEdit('financial')} type="date" value={form.contract_start_date} onChange={e => setForm(f => ({ ...f, contract_start_date: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Contract End</Label>
+                    <Input disabled={!canEdit('financial')} type="date" value={form.contract_end_date} onChange={e => setForm(f => ({ ...f, contract_end_date: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Invoice Frequency</Label>
+                    <Select disabled={!canEdit('financial')} value={form.invoice_frequency} onValueChange={v => setForm(f => ({ ...f, invoice_frequency: v }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="weekly">Weekly</SelectItem>
+                        <SelectItem value="fortnightly">Fortnightly</SelectItem>
+                        <SelectItem value="monthly">Monthly</SelectItem>
+                        <SelectItem value="on_completion">On Completion</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Purchase Order No.</Label>
+                    <Input disabled={!canEdit('financial')} placeholder="Client PO number" value={form.purchase_order_number} onChange={e => setForm(f => ({ ...f, purchase_order_number: e.target.value }))} />
+                  </div>
                 </div>
-                <div className="space-y-1.5">
-                  <Label>OT Multiplier</Label>
-                  <Input type="number" min="1" step="0.25" placeholder="1.5" value={form.overtime_pay_multiplier} onChange={e => setForm(f => ({ ...f, overtime_pay_multiplier: e.target.value }))} />
-                </div>
               </div>
-            </div>
-
-            {/* Contract details */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Contract Start</Label>
-                <Input type="date" value={form.contract_start_date} onChange={e => setForm(f => ({ ...f, contract_start_date: e.target.value }))} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Contract End</Label>
-                <Input type="date" value={form.contract_end_date} onChange={e => setForm(f => ({ ...f, contract_end_date: e.target.value }))} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Invoice Frequency</Label>
-                <Select value={form.invoice_frequency} onValueChange={v => setForm(f => ({ ...f, invoice_frequency: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="weekly">Weekly</SelectItem>
-                    <SelectItem value="fortnightly">Fortnightly</SelectItem>
-                    <SelectItem value="monthly">Monthly</SelectItem>
-                    <SelectItem value="on_completion">On Completion</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Purchase Order No.</Label>
-                <Input placeholder="Client PO number" value={form.purchase_order_number} onChange={e => setForm(f => ({ ...f, purchase_order_number: e.target.value }))} />
-              </div>
-            </div>
+            )}
 
             {/* Microsoft 365 / Business Central accounting link */}
-            <div className="border-t pt-4">
-              <p className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Microsoft 365 Accounting Link</p>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1.5">
-                  <Label>M365 Customer ID</Label>
-                  <Input placeholder="e.g. C00042" value={form.m365_customer_id} onChange={e => setForm(f => ({ ...f, m365_customer_id: e.target.value }))} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Contract / Project Ref</Label>
-                  <Input placeholder="M365 project code" value={form.m365_contract_ref} onChange={e => setForm(f => ({ ...f, m365_contract_ref: e.target.value }))} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Cost Centre</Label>
-                  <Input placeholder="Cost centre code" value={form.m365_cost_centre} onChange={e => setForm(f => ({ ...f, m365_cost_centre: e.target.value }))} />
+            {canView('accounting') && (
+              <div className="border-t pt-4">
+                <p className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Microsoft 365 Accounting Link</p>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>M365 Customer ID</Label>
+                    <Input disabled={!canEdit('accounting')} placeholder="e.g. C00042" value={form.m365_customer_id} onChange={e => setForm(f => ({ ...f, m365_customer_id: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Contract / Project Ref</Label>
+                    <Input disabled={!canEdit('accounting')} placeholder="M365 project code" value={form.m365_contract_ref} onChange={e => setForm(f => ({ ...f, m365_contract_ref: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Cost Centre</Label>
+                    <Input disabled={!canEdit('accounting')} placeholder="Cost centre code" value={form.m365_cost_centre} onChange={e => setForm(f => ({ ...f, m365_cost_centre: e.target.value }))} />
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogMode(null)}>Cancel</Button>
@@ -569,10 +630,10 @@ export default function ClientSites() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3 text-sm">
-              {viewSite.address && (
+              {canView('location') && viewSite.address && (
                 <div className="flex gap-2"><MapPin className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" /><span>{viewSite.address}{viewSite.city ? ', ' + viewSite.city : ''}</span></div>
               )}
-              {viewSite.contact_name && (
+              {canView('contacts') && viewSite.contact_name && (
                 <div className="space-y-0.5">
                   <p className="text-xs text-muted-foreground font-medium">Primary Contact</p>
                   <p>{viewSite.contact_name}</p>
@@ -580,18 +641,19 @@ export default function ClientSites() {
                   {viewSite.contact_email && <p className="text-muted-foreground">{viewSite.contact_email}</p>}
                 </div>
               )}
-              {viewSite.emergency_contact_name && (
+              {canView('contacts') && viewSite.emergency_contact_name && (
                 <div className="space-y-0.5">
                   <p className="text-xs text-muted-foreground font-medium">Emergency Contact</p>
                   <p>{viewSite.emergency_contact_name}</p>
                   {viewSite.emergency_contact_phone && <p className="text-muted-foreground">{viewSite.emergency_contact_phone}</p>}
                 </div>
               )}
-              {viewSite.access_instructions && <div><p className="text-xs text-muted-foreground mb-0.5">Access</p><p>{viewSite.access_instructions}</p></div>}
-              {viewSite.hazards && <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 rounded p-2"><p className="text-xs font-medium text-yellow-800 dark:text-yellow-300 mb-0.5">⚠ Hazards</p><p className="text-yellow-900 dark:text-yellow-200">{viewSite.hazards}</p></div>}
-              {viewSite.special_instructions && <div><p className="text-xs text-muted-foreground mb-0.5">Special Instructions</p><p>{viewSite.special_instructions}</p></div>}
+              {canView('operational') && viewSite.access_instructions && <div><p className="text-xs text-muted-foreground mb-0.5">Access</p><p>{viewSite.access_instructions}</p></div>}
+              {canView('operational') && viewSite.hazards && <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 rounded p-2"><p className="text-xs font-medium text-yellow-800 dark:text-yellow-300 mb-0.5">⚠ Hazards</p><p className="text-yellow-900 dark:text-yellow-200">{viewSite.hazards}</p></div>}
+              {canView('operational') && viewSite.special_instructions && <div><p className="text-xs text-muted-foreground mb-0.5">Special Instructions</p><p>{viewSite.special_instructions}</p></div>}
+              {canView('notes') && viewSite.notes && <div><p className="text-xs text-muted-foreground mb-0.5">Notes</p><p>{viewSite.notes}</p></div>}
               {/* Rates */}
-              {(viewSite.default_pay_rate != null || viewSite.default_charge_rate != null) && (
+              {canView('financial') && (viewSite.default_pay_rate != null || viewSite.default_charge_rate != null) && (
                 <div className="bg-muted/40 rounded-lg p-3 space-y-1 text-xs">
                   <p className="font-medium text-muted-foreground uppercase tracking-wide mb-1">Rates (NZD/hr)</p>
                   {viewSite.default_pay_rate != null && <div className="flex justify-between"><span className="text-muted-foreground">Officer pay</span><span className="font-semibold">${viewSite.default_pay_rate}/hr</span></div>}
@@ -601,7 +663,7 @@ export default function ClientSites() {
                 </div>
               )}
               {/* M365 */}
-              {(viewSite.m365_customer_id || viewSite.m365_contract_ref) && (
+              {canView('accounting') && (viewSite.m365_customer_id || viewSite.m365_contract_ref) && (
                 <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 rounded p-3 space-y-1 text-xs">
                   <p className="font-medium text-blue-800 dark:text-blue-300 uppercase tracking-wide mb-1">Microsoft 365</p>
                   {viewSite.m365_customer_id && <div className="flex justify-between"><span className="text-muted-foreground">Customer ID</span><span className="font-mono">{viewSite.m365_customer_id}</span></div>}
@@ -609,15 +671,19 @@ export default function ClientSites() {
                   {viewSite.m365_cost_centre && <div className="flex justify-between"><span className="text-muted-foreground">Cost Centre</span><span className="font-mono">{viewSite.m365_cost_centre}</span></div>}
                 </div>
               )}
-              <div className="flex justify-between text-xs text-muted-foreground border-t pt-2">
-                <span>SLA: {viewSite.default_response_minutes}m response</span>
-                {viewSite.zone && <span>Zone: {viewSite.zone.name}</span>}
-              </div>
+              {canView('sla') && (
+                <div className="flex justify-between text-xs text-muted-foreground border-t pt-2">
+                  <span>SLA: {viewSite.default_response_minutes}m response</span>
+                  {viewSite.zone && <span>Zone: {viewSite.zone.name}</span>}
+                </div>
+              )}
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => { setViewSite(null); openEdit(viewSite) }}>
-                <Edit className="h-4 w-4 mr-1.5" /> Edit
-              </Button>
+              {canEdit('identity') && (
+                <Button variant="outline" onClick={() => { setViewSite(null); openEdit(viewSite) }}>
+                  <Edit className="h-4 w-4 mr-1.5" /> Edit
+                </Button>
+              )}
               <Button onClick={() => setViewSite(null)}>Close</Button>
             </DialogFooter>
           </DialogContent>

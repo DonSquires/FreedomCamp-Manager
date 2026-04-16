@@ -53,7 +53,9 @@ jobs:
         run: bun install
 
       - name: Install Playwright browser and deps
-        run: bunx playwright install --with-deps webkit
+        # On Linux the config falls back from WebKit to Chromium (WebKit runtime
+        # deps are unavailable on ubuntu-latest runners), so we must install both.
+        run: bunx playwright install --with-deps webkit chromium
 
       - name: Check credentials availability
         id: creds-check

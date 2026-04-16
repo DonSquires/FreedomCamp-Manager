@@ -75,6 +75,8 @@ railway status
 | `TURN_URL` | No | TURN server URL for NAT traversal |
 | `TURN_USERNAME` | No | TURN server username |
 | `TURN_CREDENTIAL` | No | TURN server password |
+| `FORCE_TURN_RELAY` | No | Set `true` to force relay-only ICE and fail token mint if TURN is missing |
+| `PTT_DISABLE_PUBLIC_STUN` | No | Set `true` to avoid Google STUN and use only self-hosted TURN-derived STUN when relay is not forced |
 
 Canonical secret model:
 - This service reads only `PTT_PROXY_SECRET` for proxy authentication.
@@ -88,6 +90,7 @@ Canonical secret model:
 |--------|----------|-------------|
 | GET | `/health` | Health check |
 | GET | `/api/info` | Service info |
+| GET | `/api/diagnostics` | Runtime transport diagnostics (TURN + relay policy) |
 | POST | `/api/token/mint` | Mint channel access token |
 | GET | `/api/channels` | List active channels |
 | GET | `/api/presence/:channelId` | Get channel presence |
@@ -119,7 +122,7 @@ Connect to `/ws?token=<jwt>` for real-time signaling.
 
 ```typescript
 // Initial sync on connect
-{ type: 'sync', channelId: string, presence: User[], speakerId?: string }
+{ type: 'sync', channelId: string, presence: User[], speakerId?: string, transport?: { turnConfigured: boolean, forceTurnRelay: boolean, iceTransportPolicy: 'all' | 'relay' } }
 
 // Presence updates
 { type: 'presence', event: 'join' | 'leave' | 'status', userId, name, role }
@@ -153,7 +156,10 @@ Connect to `/ws?token=<jwt>` for real-time signaling.
   - `TURN_URL`
   - `TURN_USERNAME`
   - `TURN_CREDENTIAL`
-5. Treat single-instance in-memory state as an explicit scaling constraint until shared state is added.
+5. For guaranteed cross-network behavior, set `FORCE_TURN_RELAY=true` only after TURN is confirmed healthy.
+6. Verify runtime posture before go-live using `/api/diagnostics`.
+7. For strict self-hosted transport, set `PTT_DISABLE_PUBLIC_STUN=true`.
+8. Treat single-instance in-memory state as an explicit scaling constraint until shared state is added.
 
 ## Architecture
 
@@ -188,6 +194,9 @@ railway logs
 
 # Health check
 curl https://your-service.railway.app/health
+
+# Transport diagnostics (TURN + relay policy)
+curl https://your-service.railway.app/api/diagnostics
 
 # List active channels
 curl -H "x-proxy-secret: your-ptt-proxy-secret" \

@@ -157,6 +157,7 @@ export default function NoiseOfficerPortal() {
   const speechRecognitionRef = useRef<any>(null)
   const pttBaseNotesRef = useRef('')
 
+  const [showHelp, setShowHelp] = useState(false)
   const [selectedJob, setSelectedJob] = useState<NoiseJob | null>(null)
   const [tab, setTab] = useState('jobs')
 
@@ -624,10 +625,29 @@ export default function NoiseOfficerPortal() {
             <h1 className="text-xl font-bold text-gray-900">Noise Control Officer</h1>
             <p className="text-sm text-gray-500">Assessment · Notices · Seizures</p>
           </div>
-          <Button variant="outline" size="sm" className="ml-auto" onClick={() => refetch()}>
-            <RefreshCw className="h-4 w-4" />
-          </Button>
+          <div className="ml-auto flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowHelp(h => !h)} aria-expanded={showHelp}>
+              <Info className="h-4 w-4 mr-1" /> Guide
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
+
+        {/* When to use this — contextual help panel */}
+        {showHelp && (
+          <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 text-sm space-y-3">
+            <p className="font-semibold text-orange-800">When to use each noise notice</p>
+            <ul className="space-y-2 text-orange-900">
+              <li><span className="font-medium">Verbal Warning</span> — First contact, noise is currently happening, resident is cooperative. Record in the system. No printed document issued.</li>
+              <li><span className="font-medium">Abatement Notice (AN) — RMA s.326</span> — First offence, or verbal warning was ignored. Gives the occupant <span className="font-semibold">24 hours</span> to reduce the noise. Fill in all fields, print, and hand to occupant.</li>
+              <li><span className="font-medium">Direction Notice (DN)</span> — Prior AN exists and noise has recurred. Stronger direction requiring immediate compliance.</li>
+              <li><span className="font-medium">Enforcement Notice (END) — RMA s.327</span> — Serious, persistent, or uncooperative occupant. Gives <span className="font-semibold">72 hours</span> to comply and grants authority to seize equipment if noise continues after the notice period. Record all equipment seizure details and take photos.</li>
+            </ul>
+            <p className="text-orange-700 text-xs">Full guide: <code>docs/OFFICER_FIELD_GUIDE_ENFORCEMENT.md</code> · Legal reference: <code>docs/LEGAL_BASIS_REFERENCE.md</code></p>
+          </div>
+        )}
 
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="w-full">

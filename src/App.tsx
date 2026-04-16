@@ -95,6 +95,7 @@ const OpenShifts = lazy(() => import('@/pages/OpenShifts'))
 const DispatchConsole = lazy(() => import('@/pages/DispatchConsole'))
 const JobMap = lazy(() => import('@/pages/JobMap'))
 const ClientSites = lazy(() => import('@/pages/ClientSites'))
+const SitePermissionsAdmin = lazy(() => import('@/pages/SitePermissionsAdmin'))
 const ClientMasterList = lazy(() => import('@/pages/ClientMasterList'))
 const DispatchMonitor = lazy(() => import('@/pages/DispatchMonitor'))
 const DispatchWizard = lazy(() => import('@/pages/DispatchWizard'))
@@ -1532,6 +1533,16 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <ClientSites />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/site-permissions"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'master', 'grand_master']}>
+                  <SitePermissionsAdmin />
                 </RoleRoute>
               </ProtectedRoute>
             }
