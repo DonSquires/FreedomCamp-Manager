@@ -302,10 +302,17 @@ export default function PTTRadio() {
         .eq('organization_id', effectiveOrgId)
         .eq('is_active', true)
         .order('channel_number', { ascending: true })
-      if (error) throw error
+      if (error) {
+        // Graceful fallback when PTT schema is not yet present in an environment.
+        if (error.code === 'PGRST205' || error.code === '42P01') return []
+        throw error
+      }
       if (!data?.length) {
         // Seed defaults for this org
-        await (supabase as any).rpc('seed_default_ptt_channels', { p_organization_id: effectiveOrgId })
+        const { error: seedError } = await (supabase as any).rpc('seed_default_ptt_channels', { p_organization_id: effectiveOrgId })
+        if (seedError && seedError.code !== 'PGRST202' && seedError.code !== 'PGRST205' && seedError.code !== '42883') {
+          throw seedError
+        }
         // Retry fetch
         const { data: seeded } = await (supabase as any)
           .from('ptt_channels')
@@ -319,6 +326,7 @@ export default function PTTRadio() {
     },
     enabled: !!effectiveOrgId,
     staleTime: 60_000,
+    retry: false,
   })
 
   const channels = useMemo(() => {
@@ -341,7 +349,11 @@ export default function PTTRadio() {
         .eq('organization_id', effectiveOrgId)
         .order('created_at', { ascending: false })
         .limit(50)
-      if (error) throw error
+      if (error) {
+        // Treat missing optional audit table as empty log for compatibility.
+        if (error.code === 'PGRST205' || error.code === '42P01') return []
+        throw error
+      }
       return ((data || []) as any[]).map((r) => ({
         id: r.id,
         callsign: r.speaker_callsign || r.speaker_name || 'Unknown',
@@ -357,6 +369,7 @@ export default function PTTRadio() {
     enabled: !!effectiveOrgId,
     staleTime: 30_000,
     refetchInterval: 15_000,
+    retry: false,
   })
 
   // Merge DB log with in-memory log (local transmissions appear immediately)
@@ -372,16 +385,35 @@ export default function PTTRadio() {
   // ── Load user callsign ────────────────────────────────────
   useEffect(() => {
     if (!user?.id) return
-    ;(supabase as any)
-      .from('user_profiles')
-      .select('callsign, first_name, last_name')
-      .eq('id', user.id)
-      .single()
-      .then(({ data }: any) => {
-        if (data) {
-          setCallsign(data.callsign || `${data.first_name?.[0] ?? ''}${data.last_name?.toUpperCase().slice(0, 4) ?? 'UNIT'}`)
-        }
-      })
+
+    const fallbackCallsign = (firstName?: string | null, lastName?: string | null) =>
+      `${firstName?.[0] ?? ''}${lastName?.toUpperCase().slice(0, 4) ?? 'UNIT'}`
+
+    ;(async () => {
+      const withCallsign = await (supabase as any)
+        .from('user_profiles')
+        .select('callsign, first_name, last_name')
+        .eq('id', user.id)
+        .single()
+
+      if (!withCallsign.error && withCallsign.data) {
+        const data = withCallsign.data as any
+        setCallsign(data.callsign || fallbackCallsign(data.first_name, data.last_name))
+        return
+      }
+
+      // Compatibility path for environments where callsign column has not been applied yet.
+      const noCallsign = await (supabase as any)
+        .from('user_profiles')
+        .select('first_name, last_name')
+        .eq('id', user.id)
+        .single()
+
+      if (!noCallsign.error && noCallsign.data) {
+        const data = noCallsign.data as any
+        setCallsign(fallbackCallsign(data.first_name, data.last_name))
+      }
+    })()
   }, [user?.id])
 
   // ── Connect to default channel on mount ───────────────────
