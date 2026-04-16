@@ -183,6 +183,9 @@ function normalizeOperatingMode(value) {
 const YOLO_INPUT_SIZE = 640;
 const VEHICLE_ATTRS_PROVIDER_RAW = (process.env.VEHICLE_ATTRS_PROVIDER || 'basic').toLowerCase();
 const VEHICLE_ATTRS_PROVIDER = normalizeProvider(VEHICLE_ATTRS_PROVIDER_RAW, 'basic');
+// OpenAI — kept ONLY for the opt-in VEHICLE_ATTRS_PROVIDER=openai feature.
+// It is intentionally NOT used for chat, tender generation, or any document
+// writing tasks. Bob and Ollama handle all document/AI tasks in-house.
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
@@ -197,6 +200,19 @@ const TABULAR_NLP_TIMEOUT_MS = Number(process.env.TABULAR_NLP_TIMEOUT_MS || 2500
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
 const OLLAMA_BASE_URL_CONFIGURED = !!process.env.OLLAMA_BASE_URL;
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1:8b';
+// OLLAMA_MODEL_WRITING — specialist model for tender/document generation.
+// Can be a larger or writing-focused model pulled into the same Ollama instance
+// (e.g. qwen2.5:14b, mistral:7b, llama3.3:70b). Falls back to OLLAMA_MODEL
+// if not set or not available. Run: ollama pull <model> on the Ollama service.
+const OLLAMA_MODEL_WRITING = process.env.OLLAMA_MODEL_WRITING || OLLAMA_MODEL;
+// SECONDARY_ASSISTANT_URL — optional second Railway-hosted AI service for
+// document generation when the primary Ollama model isn't sufficient.
+// Can be another Bob instance running a larger Ollama model, or a dedicated
+// Railway writing-model service. Must expose POST /tender/generate.
+// Example: https://bob-writer-production-xxxx.up.railway.app
+const SECONDARY_ASSISTANT_URL = (process.env.SECONDARY_ASSISTANT_URL || '').replace(/\/+$/, '');
+const SECONDARY_ASSISTANT_API_KEY = process.env.SECONDARY_ASSISTANT_API_KEY || '';
+const SECONDARY_ASSISTANT_TIMEOUT_MS = Number(process.env.SECONDARY_ASSISTANT_TIMEOUT_MS || 90000);
 // Accept any ollama.railway.internal URL regardless of port — the actual
 // listening port on the Ollama service may differ from the default 11434
 // (e.g. if OLLAMA_HOST is set to 0.0.0.0:8080 on the Ollama Railway service).
@@ -281,6 +297,10 @@ const OPENAI_ENABLED = !SELF_CONTAINED_MODE && !!OPENAI_API_KEY;
 const CLOUD_ALPR_ENABLED = !SELF_CONTAINED_MODE && !!process.env.PLATERECOGNIZER_TOKEN;
 const OLLAMA_REQUESTED = TABULAR_NLP_PROVIDER === 'ollama' || CHAT_PROVIDER === 'ollama';
 const OLLAMA_ENABLED = OLLAMA_REQUESTED && (!SELF_CONTAINED_MODE || isLocalUrl(OLLAMA_BASE_URL));
+// Secondary Railway assistant — allowed as long as we have a URL+key and it's
+// reachable (either via Railway internal network or in non-strict mode)
+const SECONDARY_ASSISTANT_ENABLED = !!SECONDARY_ASSISTANT_URL && !!SECONDARY_ASSISTANT_API_KEY;
+
 
 // ---------------------------------------------------------------------------
 // Ollama circuit breaker – avoids log spam when Ollama is unreachable.
@@ -1456,9 +1476,8 @@ app.post('/chat', inferenceRateLimit, requireInferenceAuth, async (req, res) => 
     const history = Array.isArray(req.body?.history) ? req.body.history : [];
     const context = req.body?.context && typeof req.body.context === 'object' ? req.body.context : {};
     // Optional caller-supplied system prompt override (used by Edge Functions like process-tender-document)
-    const systemPromptOverride = typeof req.body?.system_prompt === 'string' && req.body.system_prompt.trim()
-      ? req.body.system_prompt.trim()
-      : null;
+    const rawSystemPrompt = typeof req.body?.system_prompt === 'string' ? req.body.system_prompt.trim() : '';
+    const systemPromptOverride = rawSystemPrompt || null;
 
     if (typeof message !== 'string' || !message.trim()) {
       return res.status(400).json({ error: 'message must be a non-empty string' });
@@ -1479,18 +1498,6 @@ app.post('/chat', inferenceRateLimit, requireInferenceAuth, async (req, res) => 
 
     if (CHAT_PROVIDER === 'ollama') {
       const reply = await generateChatReplyWithOllama(message, history, context, systemPromptOverride);
-      return res.json({
-        success: true,
-        provider: reply.provider,
-        fallback: reply.fallback,
-        message: reply.text,
-        text: reply.text,
-      });
-    }
-
-    // OpenAI fallback when chat provider is openai and key is set
-    if (CHAT_PROVIDER === 'openai' && OPENAI_ENABLED && systemPromptOverride) {
-      const reply = await generateChatReplyWithOpenAI(systemPromptOverride, message, history);
       return res.json({
         success: true,
         provider: reply.provider,
@@ -1549,6 +1556,9 @@ app.post('/chat', inferenceRateLimit, requireInferenceAuth, async (req, res) => 
 // ---------------------------------------------------------------------------
 
 const TENDER_GEN_TIMEOUT_MS = Number(process.env.TENDER_GEN_TIMEOUT_MS || 90000);
+// Max characters of extracted tender text to include in the generation context.
+// Keeps the Ollama prompt within context window limits for most models.
+const MAX_TENDER_CONTEXT_CHARS = Number(process.env.MAX_TENDER_CONTEXT_CHARS || 8000);
 
 function buildTenderSystemPrompt(generationType, context, orgContext) {
   const orgName = orgContext?.name || 'Iron Eagle Security';
@@ -1613,7 +1623,7 @@ You MUST respond with ONLY a valid JSON object (no markdown, no code fences) wit
 }
 
 function buildTenderUserPrompt(context) {
-  const excerpt = (context.extracted_text || '').slice(0, 8000);
+  const excerpt = (context.extracted_text || '').slice(0, MAX_TENDER_CONTEXT_CHARS);
   return excerpt
     ? `Here is the source tender document text for context:\n\n---\n${excerpt}\n---\n\nNow generate the ${context.generation_type || 'response'} document sections as a JSON object.`
     : 'Generate the document sections as a JSON object based on the context above.';
@@ -1713,82 +1723,149 @@ async function generateTenderWithOllama(generationType, context, orgContext) {
   }
 }
 
-async function generateChatReplyWithOpenAI(systemPrompt, userMessage, history = []) {
-  if (!OPENAI_ENABLED) {
-    return { provider: 'heuristic', text: 'OpenAI is not configured.', fallback: true };
-  }
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS);
-  try {
-    recordEgressEvent('openai', 'attempted', 'chat/openai');
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      ...history.slice(-12).map((m) => ({ role: m?.role === 'assistant' ? 'assistant' : 'user', content: String(m?.content || '') })),
-      { role: 'user', content: String(userMessage || '') },
-    ];
-    const response = await safeFetch(`${OPENAI_BASE_URL}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_API_KEY}` },
-      signal: controller.signal,
-      body: JSON.stringify({ model: OPENAI_MODEL, temperature: 0.4, messages }),
-    }, 'openai');
-    if (!response.ok) return { provider: 'heuristic', text: '', fallback: true };
-    const payload = await response.json();
-    const text = payload?.choices?.[0]?.message?.content || '';
-    return { provider: 'openai', text, fallback: false };
-  } catch (err) {
-    console.warn('⚠️ OpenAI chat failed:', err.message);
-    return { provider: 'heuristic', text: '', fallback: true };
-  } finally {
-    clearTimeout(timeout);
-  }
-}
+/**
+ * Generate tender sections using the WRITING model on the same Ollama instance.
+ * OLLAMA_MODEL_WRITING may be the same as OLLAMA_MODEL, or a larger/specialist
+ * model the operator has pulled (e.g. qwen2.5:14b, mistral:7b, llama3.3:70b).
+ */
+async function generateTenderWithOllamaWriting(generationType, context, orgContext) {
+  // If the writing model is the same as the main model, skip — already tried above
+  if (OLLAMA_MODEL_WRITING === OLLAMA_MODEL) return null;
+  if (!OLLAMA_ENABLED || !ollamaCircuitBreaker.allowRequest()) return null;
 
-async function generateTenderWithOpenAI(generationType, context, orgContext) {
-  if (!OPENAI_ENABLED) return null;
   const systemPrompt = buildTenderSystemPrompt(generationType, context, orgContext);
   const userPrompt = buildTenderUserPrompt({ ...context, generation_type: generationType });
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TENDER_GEN_TIMEOUT_MS);
 
   try {
-    recordEgressEvent('openai', 'attempted', 'tender/generate');
-    const response = await safeFetch(`${OPENAI_BASE_URL}/chat/completions`, {
+    recordEgressEvent('ollama', 'attempted', `tender/generate writing-model:${OLLAMA_MODEL_WRITING}`);
+    const response = await safeFetch(`${OLLAMA_BASE_URL}/api/chat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_API_KEY}` },
+      headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
       body: JSON.stringify({
-        model: OPENAI_MODEL,
-        temperature: 0.4,
-        response_format: { type: 'json_object' },
+        model: OLLAMA_MODEL_WRITING,
+        stream: false,
+        format: 'json',
+        options: { temperature: 0.4, num_predict: 4096 },
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
       }),
-    }, 'openai');
+    }, 'ollama');
 
     if (!response.ok) {
-      console.warn(`⚠️ OpenAI tender generation returned ${response.status}`);
+      ollamaCircuitBreaker.recordFailure(new Error(`HTTP ${response.status}`));
       return null;
     }
+
     const payload = await response.json();
-    const rawContent = payload?.choices?.[0]?.message?.content;
-    if (!rawContent) return null;
+    const rawContent = payload?.message?.content;
+    if (!rawContent || typeof rawContent !== 'string') return null;
 
     let sections;
     try {
-      sections = JSON.parse(rawContent);
+      const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
+      sections = JSON.parse(jsonMatch ? jsonMatch[0] : rawContent);
     } catch {
+      ollamaCircuitBreaker.recordSuccess();
       return null;
     }
-    return { sections, provider: 'openai', model_used: OPENAI_MODEL };
+
+    ollamaCircuitBreaker.recordSuccess();
+    return { sections, provider: 'ollama-writing', model_used: OLLAMA_MODEL_WRITING };
   } catch (err) {
-    console.warn('⚠️ Tender generation via OpenAI failed:', err.message);
+    ollamaCircuitBreaker.recordFailure(err);
+    console.warn(`⚠️ Tender generation via writing model (${OLLAMA_MODEL_WRITING}) failed:`, err.message);
     return null;
   } finally {
     clearTimeout(timeout);
   }
+}
+
+/**
+ * Forward a tender generation request to the secondary Railway-hosted assistant.
+ * The secondary assistant must expose POST /tender/generate with the same API shape.
+ * Authenticate with SECONDARY_ASSISTANT_API_KEY in the Authorization header.
+ * Use this for a dedicated writing-specialist Railway service (another Bob instance
+ * with a larger Ollama model, or a custom document-generation service).
+ */
+async function generateTenderWithSecondaryAssistant(generationType, context, orgContext) {
+  if (!SECONDARY_ASSISTANT_ENABLED) return null;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), SECONDARY_ASSISTANT_TIMEOUT_MS);
+
+  try {
+    console.log(`🔄 Forwarding tender generation to secondary assistant: ${SECONDARY_ASSISTANT_URL}`);
+    const response = await fetch(`${SECONDARY_ASSISTANT_URL}/tender/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${SECONDARY_ASSISTANT_API_KEY}`,
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        generation_type: generationType,
+        context,
+        organization_context: orgContext,
+      }),
+    });
+
+    if (!response.ok) {
+      console.warn(`⚠️ Secondary assistant tender generation returned ${response.status}`);
+      return null;
+    }
+
+    const payload = await response.json();
+    if (!payload?.success || !payload?.sections) return null;
+
+    return {
+      sections: payload.sections,
+      provider: 'secondary-assistant',
+      model_used: payload.model_used || 'secondary',
+    };
+  } catch (err) {
+    console.warn('⚠️ Secondary assistant tender generation failed:', err.message);
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tender self-learning store — persists condensed knowledge from approved tenders
+// ---------------------------------------------------------------------------
+const TENDER_LEARNING_PATH = process.env.TENDER_LEARNING_PATH || path.join(__dirname, 'data', 'tender-learning.json');
+
+function readTenderLearning() {
+  try {
+    if (!fs.existsSync(TENDER_LEARNING_PATH)) return { version: 1, entries: [] };
+    const parsed = JSON.parse(fs.readFileSync(TENDER_LEARNING_PATH, 'utf8'));
+    if (!parsed || !Array.isArray(parsed.entries)) return { version: 1, entries: [] };
+    return parsed;
+  } catch {
+    return { version: 1, entries: [] };
+  }
+}
+
+function writeTenderLearning(state) {
+  const dir = path.dirname(TENDER_LEARNING_PATH);
+  fs.mkdirSync(dir, { recursive: true });
+  const tmp = `${TENDER_LEARNING_PATH}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
+  fs.renameSync(tmp, TENDER_LEARNING_PATH);
+}
+
+function buildTenderLearningContext() {
+  const state = readTenderLearning();
+  const recent = state.entries.slice(-20);
+  if (!recent.length) return '';
+  return recent.map((e) =>
+    `[${e.generation_type?.toUpperCase() || 'TENDER'} | ${e.issuing_body || 'Unknown'}]: ${e.outcome_summary || ''}`
+  ).join('\n');
 }
 
 app.post('/tender/generate', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
@@ -1799,19 +1876,31 @@ app.post('/tender/generate', inferenceRateLimit, requireInferenceAuth, async (re
       ? req.body.organization_context
       : {};
 
-    // 1st: try Ollama
+    // Enrich context with any past tender learning
+    const learningContext = buildTenderLearningContext();
+    if (learningContext) {
+      context._past_learning = learningContext;
+    }
+
+    // Cascade 1: primary Ollama model
     const ollamaResult = await generateTenderWithOllama(generationType, context, organizationContext);
     if (ollamaResult) {
       return res.json({ success: true, ...ollamaResult });
     }
 
-    // 2nd: try OpenAI
-    const openaiResult = await generateTenderWithOpenAI(generationType, context, organizationContext);
-    if (openaiResult) {
-      return res.json({ success: true, ...openaiResult });
+    // Cascade 2: specialist writing model on same Ollama instance (if different model configured)
+    const writingResult = await generateTenderWithOllamaWriting(generationType, context, organizationContext);
+    if (writingResult) {
+      return res.json({ success: true, ...writingResult });
     }
 
-    // 3rd: heuristic template
+    // Cascade 3: secondary Railway-hosted assistant
+    const secondaryResult = await generateTenderWithSecondaryAssistant(generationType, context, organizationContext);
+    if (secondaryResult) {
+      return res.json({ success: true, ...secondaryResult });
+    }
+
+    // Cascade 4: enriched heuristic template (always available, no network required)
     const heuristicSections = heuristicTenderSections(generationType, context, organizationContext);
     return res.json({
       success: true,
@@ -1822,6 +1911,68 @@ app.post('/tender/generate', inferenceRateLimit, requireInferenceAuth, async (re
   } catch (error) {
     console.error('Tender generate endpoint error:', error);
     return res.status(500).json({ error: 'Tender generation failed', message: error.message });
+  }
+});
+
+/**
+ * POST /tender/train
+ * Ingest an approved tender's outcome into Bob's self-learning feed so future
+ * generation improves. Called automatically when a tender reaches 'approved'
+ * status in the frontend (via the generate-tender-sections edge function).
+ *
+ * Body: {
+ *   generation_type: 'application' | 'response',
+ *   issuing_body: string,
+ *   key_services: string[],
+ *   outcome: 'approved' | 'rejected' | 'shortlisted',
+ *   outcome_notes: string,   // what worked / what to improve
+ *   sections: object,        // the approved sections for pattern extraction
+ * }
+ */
+app.post('/tender/train', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    if (!SELF_LEARNING_ENABLED) {
+      return res.json({ success: true, learned: false, reason: 'self-learning disabled' });
+    }
+
+    const {
+      generation_type, issuing_body, key_services, outcome, outcome_notes, sections,
+    } = req.body || {};
+
+    const entry = {
+      id: `tl_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      generation_type: generation_type === 'application' ? 'application' : 'response',
+      issuing_body: String(issuing_body || '').trim().slice(0, 200),
+      key_services: Array.isArray(key_services) ? key_services.slice(0, 20) : [],
+      outcome: ['approved', 'rejected', 'shortlisted'].includes(outcome) ? outcome : 'unknown',
+      outcome_summary: String(outcome_notes || '').trim().slice(0, 600),
+      section_lengths: sections && typeof sections === 'object'
+        ? Object.fromEntries(Object.entries(sections).map(([k, v]) => [k, String(v || '').length]))
+        : {},
+      trained_at: new Date().toISOString(),
+    };
+
+    const state = readTenderLearning();
+    state.entries.push(entry);
+    // Keep max 200 entries — prune oldest
+    if (state.entries.length > 200) state.entries = state.entries.slice(-200);
+    state.updated_at = new Date().toISOString();
+    writeTenderLearning(state);
+
+    // Also push a condensed intel bulletin into Bob's main intel feed so the
+    // chat assistant benefits from this knowledge immediately
+    const bulletin = `Tender ${entry.outcome?.toUpperCase()}: ${entry.generation_type} for ${entry.issuing_body || 'unknown issuing body'}. Services: ${entry.key_services.join(', ')}. ${entry.outcome_summary}`;
+    try {
+      intelStore.ingestBulletin({ summary: bulletin, category: 'tender-learning', source: 'tender-workspace' });
+    } catch (e) {
+      console.warn('⚠️ Could not push tender learning to intel feed:', e.message);
+    }
+
+    console.log(`🎓 Tender learning ingested: [${entry.outcome}] ${entry.issuing_body}`);
+    return res.json({ success: true, learned: true, entry_id: entry.id });
+  } catch (error) {
+    console.error('Tender train endpoint error:', error);
+    return res.status(500).json({ error: 'Tender training failed', message: error.message });
   }
 });
 
@@ -4653,6 +4804,14 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       tabular_nlp_auth_service_role: !!SUPABASE_SERVICE_ROLE_KEY,
       self_learning: selfLearningService.enabled,
       compare_threshold: Math.round(selfLearningService.getThreshold() * 10000) / 10000,
+      // Tender generation — fully self-hosted, no cloud AI
+      tender_generation: true,
+      tender_primary_model: OLLAMA_MODEL,
+      tender_writing_model: OLLAMA_MODEL_WRITING,
+      tender_writing_model_distinct: OLLAMA_MODEL_WRITING !== OLLAMA_MODEL,
+      tender_secondary_assistant_enabled: SECONDARY_ASSISTANT_ENABLED,
+      tender_secondary_assistant_url: SECONDARY_ASSISTANT_ENABLED ? SECONDARY_ASSISTANT_URL : null,
+      tender_training_enabled: SELF_LEARNING_ENABLED,
       // Self-hosted ALPR
       local_alpr: true,                          // always available (tesseract.js)
       local_alpr_plate_model: fs.existsSync(PLATE_DETECT_MODEL_PATH),

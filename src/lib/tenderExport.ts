@@ -3,7 +3,7 @@
  *
  * generateTenderHtml    — builds a printable HTML document from sections
  * exportTenderPdf       — opens the HTML in a new tab / triggers browser print dialog
- * downloadTenderDocx    — downloads an HTML-based .doc file that Word can open
+ * downloadTenderDoc     — downloads an HTML-based .doc file that Word can open
  */
 
 export interface TenderSections {
@@ -162,7 +162,7 @@ export function exportTenderPdf(html: string): void {
  * Download the HTML document as a .doc file.
  * Word (and LibreOffice Writer) can open HTML files with the .doc extension.
  */
-export function downloadTenderDocx(html: string, fileName: string): void {
+export function downloadTenderDoc(html: string, fileName: string): void {
   const blob = new Blob([html], { type: 'application/msword;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')

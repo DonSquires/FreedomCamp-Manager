@@ -1245,6 +1245,34 @@ export const edgeFunctions = {
     return callEdgeFunction('process-tender-document', params, { showToast: false })
   },
 
+  /**
+   * Generate tender application or response sections using Bob + Ollama.
+   * Fully self-hosted — no cloud AI. Cascade:
+   *   1. Ollama primary model (OLLAMA_MODEL)
+   *   2. Ollama writing specialist (OLLAMA_MODEL_WRITING if different)
+   *   3. Secondary Railway-hosted assistant (SECONDARY_ASSISTANT_URL if configured)
+   *   4. Enriched heuristic template (always available)
+   *
+   * Returns: { sections, provider, model_used }
+   *
+   * When trigger_training=true (on approval), sends outcome to Bob for
+   * self-learning instead of generating new sections.
+   */
+  generateTenderSections: async (params: {
+    document_id: string
+    generation_type: 'application' | 'response'
+    organization_context?: {
+      name?: string
+      psa_licence?: string
+      nzbn?: string
+    }
+    trigger_training?: boolean
+    outcome?: 'approved' | 'rejected' | 'shortlisted'
+    outcome_notes?: string
+  }) => {
+    return callEdgeFunction('generate-tender-sections', params, { showToast: false })
+  },
+
   // ============================================================================
   // UTILITIES (2 functions)
   // ============================================================================
