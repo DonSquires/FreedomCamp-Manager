@@ -160,7 +160,7 @@ export default function CRMModule() {
     queryFn: async () => {
       if (orgIds !== null && orgIds.length === 0) return []
 
-      let q = (supabase.from('user_profiles') as any)
+      const baseQuery = (supabase.from('user_profiles') as any)
         .select(`
           id, first_name, last_name, email, phone, job_title, role, is_active,
           organization:organizations!organization_id(id, name),
@@ -168,14 +168,25 @@ export default function CRMModule() {
         `)
         .eq('is_active', true)
       
-      if (orgIds !== null) {
-        const orgList = orgIds.join(',')
-        q = q.or(`organization_id.in.(${orgList}),employer_organization_id.in.(${orgList})`)
+      if (orgIds === null) {
+        const { data, error } = await baseQuery.order('first_name')
+        if (error) throw error
+        return (data || []) as CRMContact[]
       }
 
-      const { data, error } = await q.order('first_name')
-      if (error) throw error
-      return (data || []) as CRMContact[]
+      const [{ data: orgContacts, error: orgError }, { data: employerContacts, error: employerError }] = await Promise.all([
+        baseQuery.in('organization_id', orgIds),
+        baseQuery.in('employer_organization_id', orgIds),
+      ])
+      if (orgError) throw orgError
+      if (employerError) throw employerError
+
+      const merged = new Map<string, CRMContact>()
+      for (const row of (orgContacts || []) as CRMContact[]) merged.set(row.id, row)
+      for (const row of (employerContacts || []) as CRMContact[]) merged.set(row.id, row)
+      return Array.from(merged.values()).sort((a, b) =>
+        `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`)
+      )
     },
     enabled: !orgIdsLoading && (orgIds === null || !!user?.organization_id),
   })
