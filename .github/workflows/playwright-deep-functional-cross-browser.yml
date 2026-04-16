@@ -55,7 +55,18 @@ jobs:
       - name: Install Playwright browser and deps
         run: bunx playwright install --with-deps webkit
 
+      - name: Check credentials availability
+        id: creds-check
+        run: |
+          if [ -n "$PLAYWRIGHT_ADMIN_EMAIL" ] && [ -n "$PLAYWRIGHT_ADMIN_PASSWORD" ]; then
+            echo "creds_available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Playwright credentials (PLAYWRIGHT_ADMIN_EMAIL / PLAYWRIGHT_ADMIN_PASSWORD) are not set; skipping deep-functional tests for this run."
+            echo "creds_available=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Resolve base URL
+        if: steps.creds-check.outputs.creds_available == 'true'
         run: |
           if [ -n "${{ github.event.inputs.base_url }}" ]; then
             echo "PLAYWRIGHT_BASE_URL=${{ github.event.inputs.base_url }}" >> "$GITHUB_ENV"
@@ -66,6 +77,7 @@ jobs:
           fi
 
       - name: Run deep functional suite
+        if: steps.creds-check.outputs.creds_available == 'true'
         run: |
           bunx playwright test tests/e2e/deep-functional.spec.ts \
             --project="${{ matrix.project }}" \
