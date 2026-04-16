@@ -10,7 +10,7 @@ set -eu
 #   TIMEOUT
 #
 # Example:
-#   INFERENCE_URL="https://orc-ai-inference-service-production.up.railway.app" \
+#   INFERENCE_URL="https://focused-courage-production-ccee.up.railway.app" \
 #   SUPABASE_URL="https://xbfnlzmpumthnjmtqufp.supabase.co" \
 #   ./scripts/verify-all.sh
 

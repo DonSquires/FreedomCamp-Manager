@@ -38,7 +38,7 @@
 
 5. **Generate Domain**
    - Settings → Networking → Generate Domain
-   - Copy URL: `https://orc-ai-inference-production.up.railway.app`
+   - Copy URL: `https://focused-courage-production-ccee.up.railway.app`
 
 **✅ Done!**
 
@@ -69,7 +69,7 @@ railway domain
 
 ```bash
 # Replace with YOUR Railway URL
-RAILWAY_URL="https://orc-ai-inference-production.up.railway.app"
+RAILWAY_URL="https://focused-courage-production-ccee.up.railway.app"
 
 # Test health
 curl "$RAILWAY_URL/health" | jq .
@@ -87,7 +87,7 @@ curl "$RAILWAY_URL/health" | jq .
 
 ```bash
 # Set inference URL in Supabase
-supabase secrets set INFERENCE_SERVICE_URL="https://orc-ai-inference-production.up.railway.app"
+supabase secrets set INFERENCE_SERVICE_URL="https://focused-courage-production-ccee.up.railway.app"
 
 # Verify
 supabase secrets list
@@ -110,7 +110,7 @@ supabase secrets list
 Reply with:
 ```
 ✅ Railway deployed
-URL: https://orc-ai-inference-production.up.railway.app
+URL: https://focused-courage-production-ccee.up.railway.app
 ```
 
 Then I'll proceed with:

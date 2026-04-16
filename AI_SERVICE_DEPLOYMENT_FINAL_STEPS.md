@@ -46,7 +46,7 @@ Functions updated:
 
 | Secret | Default Value | Required | Notes |
 |--------|---------------|----------|-------|
-| **INFERENCE_SERVICE_URL** | `https://orc-ai-inference-service-production.up.railway.app` | YES | AI inference service URL |
+| **INFERENCE_SERVICE_URL** | `https://focused-courage-production-ccee.up.railway.app` | YES | AI inference service URL |
 | **PROXY_SERVER_URL** | *(from ops)* | YES | NZSCV/MotorWeb proxy URL |
 | **NZSCV_PROXY_URL** | *(same as above)* | YES | Backward compatibility alias |
 | **PROXY_SERVER_SECRET** | *(from ops)* | IF REQUIRED | Proxy authentication token |
@@ -58,7 +58,7 @@ Functions updated:
 ```bash
 # Set inference service
 supabase secrets set \
-  INFERENCE_SERVICE_URL=https://orc-ai-inference-service-production.up.railway.app \
+  INFERENCE_SERVICE_URL=https://focused-courage-production-ccee.up.railway.app \
   --project-ref kxwjcupuxnnbnzcgmkoi
 
 # Set proxy server (replace <YOUR_PROXY_URL> with actual URL)

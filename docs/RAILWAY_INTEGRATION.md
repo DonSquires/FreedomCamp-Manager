@@ -64,7 +64,7 @@ If the inference service requires API key authentication:
 
 ```bash
 PROXY_SERVER_URL=https://your-proxy-server.railway.app
-INFERENCE_SERVICE_URL=https://your-inference-service.railway.app
+INFERENCE_SERVICE_URL=https://focused-courage-production-ccee.up.railway.app
 # Optional: API key for inference service authentication (if required)
 INFERENCE_API_KEY=your-api-key-here
 ```
@@ -73,7 +73,7 @@ INFERENCE_API_KEY=your-api-key-here
 
 ```bash
 VITE_PROXY_SERVER_URL=https://your-proxy-server.railway.app
-VITE_INFERENCE_SERVICE_URL=https://your-inference-service.railway.app
+VITE_INFERENCE_SERVICE_URL=https://focused-courage-production-ccee.up.railway.app
 ```
 
 **Note:** Frontend should NEVER call Railway services directly. All calls must go through Supabase Edge Functions for proper authentication and rate limiting.

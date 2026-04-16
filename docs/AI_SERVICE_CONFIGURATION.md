@@ -36,7 +36,7 @@ Go to Supabase Dashboard → Edge Functions → Manage Secrets and add:
 
 | Secret | Value | Required |
 |--------|-------|----------|
-| `INFERENCE_SERVICE_URL` | `https://orc-ai-inference-service-production.up.railway.app` | Yes |
+| `INFERENCE_SERVICE_URL` | `https://focused-courage-production-ccee.up.railway.app` | Yes |
 | `INFERENCE_API_KEY` | Shared secret for inference-service auth | Recommended |
 | `PROXY_SERVER_URL` | Railway proxy URL | For NZSCV lookups |
 
@@ -97,7 +97,7 @@ curl https://kxwjcupuxnnbnzcgmkoi.supabase.co/functions/v1/check-railway-health
   "proxy": { "status": "online" },
   "proxy_url": "https://...",
   "inference": { "status": "online" },
-  "inference_url": "https://orc-ai-inference-service-production.up.railway.app",
+  "inference_url": "https://focused-courage-production-ccee.up.railway.app",
   "inference_api_key_configured": true,
   "checked_at": "2026-03-31T..."
 }
@@ -140,7 +140,7 @@ See [docs/BOB_SYSTEM_REVIEW.md](BOB_SYSTEM_REVIEW.md) for the current consolidat
 **Cause**: `INFERENCE_SERVICE_URL` is missing the protocol (for example `https://`).
 
 **Fix**:
-1. Set a full URL value such as `https://orc-ai-inference-service-production.up.railway.app`.
+1. Set a full URL value such as `https://focused-courage-production-ccee.up.railway.app`.
 2. Redeploy affected edge functions after secret changes.
 
 ### Auto bug analysis returns 401 Invalid JWT

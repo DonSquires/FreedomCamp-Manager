@@ -107,7 +107,7 @@ Then click the **Settings** tab and set **Health Check Path** to `/health`.
 
 1. Go to **Settings** → **Networking**
 2. Click **Generate Domain**
-3. Copy your Railway URL (e.g. `https://orc-ai-inference-service-production.up.railway.app`)
+3. Copy your Railway URL (e.g. `https://focused-courage-production-ccee.up.railway.app`)
 
 ---
 
@@ -115,7 +115,7 @@ Then click the **Settings** tab and set **Health Check Path** to `/health`.
 
 ```bash
 # Replace with YOUR Railway URL
-RAILWAY_URL="https://orc-ai-inference-service-production.up.railway.app"
+RAILWAY_URL="https://focused-courage-production-ccee.up.railway.app"
 
 # Test health
 curl "$RAILWAY_URL/health" | jq .
@@ -146,7 +146,7 @@ curl -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" "$RAILWAY_URL/audit/e
 
 ```bash
 # Set your Railway URL in Supabase so Edge Functions can find the service
-supabase secrets set INFERENCE_SERVICE_URL="https://orc-ai-inference-service-production.up.railway.app"
+supabase secrets set INFERENCE_SERVICE_URL="https://focused-courage-production-ccee.up.railway.app"
 
 # Verify
 supabase secrets list

@@ -125,6 +125,7 @@ jobs:
           CHAT_PROVIDER="$(jq -r '.inference.config.CHAT_PROVIDER // ""' /tmp/railway-health.json)"
           TABULAR_PROVIDER="$(jq -r '.inference.config.TABULAR_NLP_PROVIDER // ""' /tmp/railway-health.json)"
           DEPLOY_SIGNATURE="$(jq -r '.inference.config.DEPLOY_SIGNATURE // ""' /tmp/railway-health.json)"
+          OPERATING_MODE="$(jq -r '.inference.config.OPERATING_MODE // ""' /tmp/railway-health.json)"
           SELF_CONTAINED_MODE="$(jq -r '.inference.config.SELF_CONTAINED_MODE // false' /tmp/railway-health.json)"
           REQUIRE_SELF_CONTAINED_MODE="$(jq -r '.inference.config.REQUIRE_SELF_CONTAINED_MODE // false' /tmp/railway-health.json)"
           SELF_CONTAINED_STRICT_EGRESS="$(jq -r '.inference.config.SELF_CONTAINED_STRICT_EGRESS // false' /tmp/railway-health.json)"
@@ -141,11 +142,22 @@ jobs:
           [ "$CHAT_PROVIDER" = "ollama" ] || { echo "::error::Expected CHAT_PROVIDER=ollama but got $CHAT_PROVIDER"; exit 1; }
           [ "$TABULAR_PROVIDER" = "ollama" ] || { echo "::error::Expected TABULAR_NLP_PROVIDER=ollama but got $TABULAR_PROVIDER"; exit 1; }
           [ "$DEPLOY_SIGNATURE" = "bob-self-contained-hardlock-v1" ] || { echo "::error::Expected DEPLOY_SIGNATURE=bob-self-contained-hardlock-v1 but got $DEPLOY_SIGNATURE"; exit 1; }
-          [ "$SELF_CONTAINED_MODE" = "true" ] || { echo "::error::Expected SELF_CONTAINED_MODE=true but got $SELF_CONTAINED_MODE"; exit 1; }
-          [ "$REQUIRE_SELF_CONTAINED_MODE" = "true" ] || echo "::warning::REQUIRE_SELF_CONTAINED_MODE is $REQUIRE_SELF_CONTAINED_MODE (expected true); enforcing via deploy signature + self-contained mode."
-          [ "$SELF_CONTAINED_STRICT_EGRESS" = "true" ] || echo "::warning::SELF_CONTAINED_STRICT_EGRESS is $SELF_CONTAINED_STRICT_EGRESS (expected true); enforcing via deploy signature + self-contained mode."
-          [ "$OPENAI_API_KEY_SET" = "false" ] || { echo "::error::Expected OPENAI_API_KEY_SET=false in self-contained mode but got $OPENAI_API_KEY_SET"; exit 1; }
           [ "$INFERENCE_KEY_CONFIGURED" = "true" ] || { echo "::error::Inference API key is not configured from edge perspective"; exit 1; }
+
+          # Mode-conditional checks: self-contained locks down external egress;
+          # build-training mode allows external calls (Ollama still required).
+          if [ "$OPERATING_MODE" = "self-contained" ]; then
+            [ "$SELF_CONTAINED_MODE" = "true" ] || { echo "::error::Expected SELF_CONTAINED_MODE=true in self-contained mode but got $SELF_CONTAINED_MODE"; exit 1; }
+            [ "$REQUIRE_SELF_CONTAINED_MODE" = "true" ] || echo "::warning::REQUIRE_SELF_CONTAINED_MODE is $REQUIRE_SELF_CONTAINED_MODE (expected true)."
+            [ "$SELF_CONTAINED_STRICT_EGRESS" = "true" ] || echo "::warning::SELF_CONTAINED_STRICT_EGRESS is $SELF_CONTAINED_STRICT_EGRESS (expected true)."
+            [ "$OPENAI_API_KEY_SET" = "false" ] || { echo "::error::Expected OPENAI_API_KEY_SET=false in self-contained mode but got $OPENAI_API_KEY_SET"; exit 1; }
+          elif [ "$OPERATING_MODE" = "build-training" ]; then
+            echo "ℹ️  OPERATING_MODE=build-training — skipping self-contained-mode checks."
+            [ "$SELF_CONTAINED_MODE" = "false" ] || echo "::warning::Expected SELF_CONTAINED_MODE=false in build-training mode; got $SELF_CONTAINED_MODE"
+            [ "$OPENAI_API_KEY_SET" = "false" ] || echo "::warning::OPENAI_API_KEY_SET=$OPENAI_API_KEY_SET (expected false for Ollama-only runtime)."
+          else
+            echo "::warning::Unrecognised OPERATING_MODE='$OPERATING_MODE'; skipping mode-specific checks."
+          fi
 
           # Ollama private networking check — warning only (Ollama may be warming up).
           if [ "$CHAT_LOCAL_OLLAMA_ENABLED" = "true" ]; then

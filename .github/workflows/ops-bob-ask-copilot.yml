@@ -132,6 +132,16 @@ jobs:
             "${BOB_SERVICE_URL}/ask-copilot/pending?limit=${LIMIT}" \
             -H "x-inference-api-key: ${BOB_INFERENCE_API_KEY}")
 
+          if [ "$HTTP_STATUS" = "401" ]; then
+            echo "::warning::Bob /ask-copilot/pending returned HTTP 401 (Unauthorized)"
+            echo "::warning::The API key used does not match Bob's Railway INFERENCE_API_KEY."
+            echo "::warning::Fix: set GitHub secret BOB_INFERENCE_API_KEY to the value of the"
+            echo "::warning::INFERENCE_API_KEY environment variable on the Bob Railway service."
+            echo "::warning::(Do NOT reuse the Supabase ANON/service-role key — that is unrelated.)"
+            echo "pending_count=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           if [ "$HTTP_STATUS" != "200" ]; then
             echo "::error::Bob /ask-copilot/pending returned HTTP $HTTP_STATUS"
             cat /tmp/pending.json

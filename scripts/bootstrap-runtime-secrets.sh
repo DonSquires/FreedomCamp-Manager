@@ -12,7 +12,7 @@ set -euo pipefail
 #   export RAILWAY_INFERENCE_SERVICE_ID="..."
 #   export RAILWAY_PROXY_SERVICE_ID="..."         # optional but recommended
 #   export RAILWAY_PTT_SERVICE_ID="..."           # optional but recommended
-#   export INFERENCE_SERVICE_URL="https://..."
+#   export INFERENCE_SERVICE_URL="https://focused-courage-production-ccee.up.railway.app"
 #   export PROXY_SERVER_URL="https://..."         # optional but recommended
 #   export PTT_SERVER_URL="https://..."           # optional but recommended
 #   export INFERENCE_API_KEY="..."                # optional but recommended

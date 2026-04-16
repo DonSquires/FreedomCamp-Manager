@@ -75,7 +75,7 @@ VITE_GOOGLE_MAPS_API_KEY=AIza...
 
 # Optional - Railway Services (if using local or custom inference)
 VITE_PROXY_SERVER_URL=https://proxy-server-production.railway.app
-VITE_INFERENCE_SERVICE_URL=https://inference-service-production.railway.app
+VITE_INFERENCE_SERVICE_URL=https://focused-courage-production-ccee.up.railway.app
 
 # Environment
 VITE_ENVIRONMENT=development
