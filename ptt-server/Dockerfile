@@ -3,6 +3,9 @@ FROM node:20-slim
 
 WORKDIR /app
 
+# Default to production — Railway can override via environment variables if needed
+ENV NODE_ENV=production
+
 # Copy package files
 COPY package*.json ./
 

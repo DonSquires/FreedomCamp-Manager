@@ -169,6 +169,27 @@ jobs:
             echo "✅ PTT server health check passed"
           fi
 
+          echo ""
+          echo "🔐 Probing /api/token/mint (confirms PTT_JWT_SECRET + PROXY_SECRET are wired)..."
+          MINT_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 \
+            -X POST "${PTT_SERVER_URL}/api/token/mint" \
+            -H "Content-Type: application/json" \
+            -H "x-proxy-secret: probe-invalid-$(date +%s)" \
+            -d '{"userId":"probe","orgId":"probe","channelId":"probe","role":"officer"}' || echo "000")
+
+          if [ "$MINT_STATUS" = "401" ]; then
+            echo "✅ /api/token/mint probe passed (401 = proxy + JWT secrets confirmed wired)"
+          elif [ "$MINT_STATUS" = "503" ]; then
+            echo "::error::PTT /api/token/mint returned 503 — PTT_JWT_SECRET or PROXY_SECRET is not set on the Railway service"
+            exit 1
+          elif [ "$MINT_STATUS" = "000" ]; then
+            echo "::error::PTT /api/token/mint — connection failed (server unreachable)"
+            exit 1
+          else
+            echo "::error::PTT /api/token/mint returned unexpected status $MINT_STATUS — investigate Railway logs"
+            exit 1
+          fi
+
       - name: Install Supabase CLI
         if: >-
           steps.check-secrets.outputs.secrets_present == 'true' &&
