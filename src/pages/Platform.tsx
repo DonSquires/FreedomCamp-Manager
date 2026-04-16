@@ -127,7 +127,6 @@ const FEATURE_GROUPS = [
       { path: '/admin/canonical-records', label: 'Canonical Records', icon: Database },
       { path: '/zones', label: 'Zones', icon: MapPin },
       { path: '/spatial-compliance', label: 'Spatial Compliance', icon: Map },
-      { path: '/spatial-compliance', label: 'Spatial Compliance', icon: Map },
       { path: '/points-of-interest', label: 'Points of Interest', icon: MapPin },
     ],
   },
