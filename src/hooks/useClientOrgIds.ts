@@ -52,7 +52,10 @@ export function useClientOrgIds(): UseClientOrgIdsResult {
   if (isGrandMaster) return { orgIds: null, isLoading: false }
   if (!orgId)        return { orgIds: [], isLoading: false }
 
-  // All other roles: own org + all descendants (includes child clients, sub-branches, etc.)
+  // get_descendant_organizations() always includes the root org itself (the SQL CTE
+  // seeds with WHERE id = org_id), so descendantIds will contain orgId plus all
+  // children/grandchildren.  The fallback to [orgId] is only a safety net for the
+  // rare edge case where the RPC returns empty (e.g. org not yet in DB).
   const all = isLoading ? [orgId] : descendantIds
   return { orgIds: all.length > 0 ? all : [orgId], isLoading }
 }
