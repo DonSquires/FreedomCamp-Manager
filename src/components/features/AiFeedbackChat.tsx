@@ -39,6 +39,7 @@ interface ChatMsg {
   timestamp: Date
 }
 
+
 interface ExtractedReport {
   title: string
   description: string

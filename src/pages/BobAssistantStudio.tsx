@@ -824,25 +824,25 @@ export default function BobAssistantStudio() {
     const learningUserId = user?.id ?? 'anonymous'
 
     const buildRequestBody = () => {
-      const historyMessages = chat.slice(-16).map((m) => ({ role: m.role, content: m.text }))
+      const historyMessages = chat
+        .slice(-16)
+        .map((m): { role: 'user' | 'assistant'; content: string } => ({ role: m.role, content: m.text }))
       const longTermMemory = buildBobLearningContext(learningUserId, 20)
       const compactKnowledge = BOB_PROJECT_KNOWLEDGE.slice(0, 9_000)
       const compactLongTermMemory = longTermMemory.slice(0, 5_000)
       const compactRemoteMemory = remoteLearningContext.slice(0, 5_000)
       const compactContinuationMemory = conversationContinuationContext.slice(0, 6_000)
 
-      const rawMessages = [
-        { role: 'assistant', content: compactKnowledge },
-        ...(compactLongTermMemory ? [{ role: 'assistant', content: compactLongTermMemory }] : []),
-        ...(compactRemoteMemory ? [{ role: 'assistant', content: compactRemoteMemory }] : []),
-        ...(compactContinuationMemory ? [{ role: 'assistant', content: compactContinuationMemory }] : []),
-        ...historyMessages,
-        { role: 'user', content: message },
-      ]
+      const rawMessages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = []
+      rawMessages.push({ role: 'assistant', content: compactKnowledge })
+      if (compactLongTermMemory) rawMessages.push({ role: 'assistant', content: compactLongTermMemory })
+      if (compactRemoteMemory) rawMessages.push({ role: 'assistant', content: compactRemoteMemory })
+      if (compactContinuationMemory) rawMessages.push({ role: 'assistant', content: compactContinuationMemory })
+      rawMessages.push(...historyMessages, { role: 'user', content: message })
 
       return {
         messages: rawMessages,
-        provider: 'ollama',
+        provider: 'ollama' as const,
         context: {
           tone,
           source: 'bob-studio',
