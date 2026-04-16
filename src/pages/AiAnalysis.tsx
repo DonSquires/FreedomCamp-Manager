@@ -357,10 +357,10 @@ export default function AiAnalysis() {
       content: m.content,
     }))
 
-    const requestBody = { messages: conversationHistory, provider: 'ollama' as const }
+    const requestBody = { messages: conversationHistory, provider: 'inference' as const }
 
     try {
-      const result = await withTimeout(edgeFunctions.aiChat(requestBody), 25000, 'Bob chat request')
+      const result = await withTimeout(edgeFunctions.aiChat(requestBody), 60000, 'Bob chat request')
       if (result.error || !result.data?.response) {
         throw new Error(result.error || 'Bob returned an empty response')
       }
