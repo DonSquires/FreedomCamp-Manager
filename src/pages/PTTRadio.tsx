@@ -305,6 +305,7 @@ export default function PTTRadio() {
   const wakeLockRef = useRef(false)
   const txLogUnavailableRef = useRef(false)
   const seedRpcUnavailableRef = useRef(false)
+  const initialConnectRef = useRef(false)
 
   // ── Org ID ────────────────────────────────────────────────
   const effectiveOrgId = useMemo(
@@ -459,17 +460,24 @@ export default function PTTRadio() {
     })()
   }, [user?.id])
 
-  // ── Connect to default channel on mount ───────────────────
+  // ── Auto-connect to Channel 1 on initial load ────────────
   useEffect(() => {
     if (!effectiveOrgId || channels.length === 0) return
-    if (connectionStatus === 'connected' && channelId) return // already connected
+    if (initialConnectRef.current) return // Already attempted initial connect
 
-    const primary = channels.find((c) => c.channel_type === 'primary') ?? channels[0]
-    if (primary) {
-      setActiveChannel(primary)
-      connectToChannel(primary)
+    // Mark that we're attempting initial connect
+    initialConnectRef.current = true
+
+    // Prioritize Channel 1 (primary or channel_number === 1) so users aren't
+    // "ghost online" without being in an actual channel.
+    const channel1 = channels.find((c) => c.channel_number === 1) ?? 
+                     channels.find((c) => c.channel_type === 'primary') ?? 
+                     channels[0]
+    if (channel1) {
+      setActiveChannel(channel1)
+      connectToChannel(channel1)
     }
-  }, [effectiveOrgId, channels.length, connectionStatus])
+  }, [effectiveOrgId, channels, connectToChannel])
 
   // ── Notification permission prompt ───────────────────────
   useEffect(() => {
