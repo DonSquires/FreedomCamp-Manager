@@ -224,6 +224,7 @@ const peerConnectionStates: Map<string, {
   signalingState: RTCSignalingState
   iceGatheringState: RTCIceGatheringState
 }> = new Map()
+const pendingIceCandidates: Map<string, RTCIceCandidateInit[]> = new Map()
 let turnConfigured = false
 let forceTurnRelay = false
 let lastSocketCloseCode: number | null = null
@@ -261,6 +262,24 @@ function clearNegotiationError(): void {
   lastNegotiationErrorAt = null
   lastNegotiationErrorPeerId = null
   lastNegotiationErrorMessage = null
+}
+
+async function flushPendingIceCandidates(peerId: string, pc: RTCPeerConnection): Promise<void> {
+  const pending = pendingIceCandidates.get(peerId)
+  if (!pending || pending.length === 0) return
+
+  for (const candidate of pending) {
+    try {
+      await pc.addIceCandidate(candidate)
+      iceCandidatesReceived++
+      markNegotiationAttempt(peerId, 'queued_candidate_applied')
+    } catch (error) {
+      markNegotiationError(peerId, error, 'queued_candidate_apply_failed')
+      console.warn('🎤 PTT: Failed queued ICE candidate apply', peerId, error)
+    }
+  }
+
+  pendingIceCandidates.delete(peerId)
 }
 
 function markTransmitAttempt(presenceCount: number, microphoneReady: boolean): void {
@@ -568,6 +587,7 @@ function cleanupConnection(): void {
   peerConnections.forEach((pc) => pc.close())
   peerConnections.clear()
   peerConnectionStates.clear()
+  pendingIceCandidates.clear()
 
   if (localStream) {
     localStream.getTracks().forEach((track) => track.stop())
@@ -782,6 +802,7 @@ async function handleSignalMessage(message: SignalMessage): Promise<void> {
       clearNegotiationError()
       await pc.setRemoteDescription({ type: 'offer', sdp: signal.sdp })
       markNegotiationAttempt(fromUserId, 'remote_offer_applied')
+      await flushPendingIceCandidates(fromUserId, pc)
       const answer = await pc.createAnswer()
       markNegotiationAttempt(fromUserId, 'answer_created')
       await pc.setLocalDescription(answer)
@@ -792,10 +813,18 @@ async function handleSignalMessage(message: SignalMessage): Promise<void> {
       clearNegotiationError()
       await pc.setRemoteDescription({ type: 'answer', sdp: signal.sdp })
       markNegotiationAttempt(fromUserId, 'remote_answer_applied')
+      await flushPendingIceCandidates(fromUserId, pc)
     } else if (signal.type === 'candidate' && signal.candidate) {
-      await pc.addIceCandidate(signal.candidate)
-      iceCandidatesReceived++
-      markNegotiationAttempt(fromUserId, 'candidate_applied')
+      if (!pc.remoteDescription) {
+        const queue = pendingIceCandidates.get(fromUserId) || []
+        queue.push(signal.candidate)
+        pendingIceCandidates.set(fromUserId, queue)
+        markNegotiationAttempt(fromUserId, 'candidate_queued')
+      } else {
+        await pc.addIceCandidate(signal.candidate)
+        iceCandidatesReceived++
+        markNegotiationAttempt(fromUserId, 'candidate_applied')
+      }
     }
   } catch (error) {
     markNegotiationError(fromUserId, error, `incoming_${signal.type}_failed`)
