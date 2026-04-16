@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useState, useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
@@ -95,7 +95,31 @@ interface ActiveOfficer {
 export default function LivePatrolMonitor() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
+  const queryClient = useQueryClient()
   const [selectedPatrol, setSelectedPatrol] = useState<string | null>(null)
+
+  // ── Supabase Realtime: instant invalidation when patrol rows change ─────────
+  useEffect(() => {
+    const channel = supabase
+      .channel('live-patrol-monitor')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'patrols' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['live-patrols'] })
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'officer_welfare_alerts' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['active-officers-welfare'] })
+        },
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [queryClient])
 
   // Fetch active patrols with enriched data
   const { data: patrols, isLoading: patrolsLoading, error: patrolsError } = useQuery({
