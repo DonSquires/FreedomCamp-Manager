@@ -210,6 +210,8 @@ const TABULAR_NLP_TIMEOUT_MS = Number(process.env.TABULAR_NLP_TIMEOUT_MS || 2500
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
 const OLLAMA_BASE_URL_CONFIGURED = !!process.env.OLLAMA_BASE_URL;
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1:8b';
+const TRANSLATION_MODEL = process.env.TRANSLATION_MODEL || OLLAMA_MODEL;
+const TRANSLATION_TIMEOUT_MS = Number(process.env.TRANSLATION_TIMEOUT_MS || 20000);
 // OLLAMA_MODEL_WRITING — specialist model for tender/document generation.
 // Can be a larger or writing-focused model pulled into the same Ollama instance
 // (e.g. qwen2.5:14b, mistral:7b, llama3.3:70b). Falls back to OLLAMA_MODEL
@@ -1529,6 +1531,120 @@ async function generateChatReplyWithOllama(message, history = [], context = {}) 
   }
 }
 
+async function generateTranslationWithOllama({ text, targetLanguage, sourceLanguage = null }) {
+  if (!OLLAMA_ENABLED) {
+    return {
+      provider: 'heuristic',
+      model_used: null,
+      translated_text: String(text || '').trim(),
+      detected_source: sourceLanguage,
+      fallback: true,
+    };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TRANSLATION_TIMEOUT_MS);
+
+  try {
+    recordEgressEvent('ollama', 'attempted', 'translation endpoint');
+
+    const prompt = [
+      `Target language code: ${targetLanguage}`,
+      sourceLanguage ? `Source language code: ${sourceLanguage}` : 'Source language code: auto-detect',
+      'Translate the following text for NZ field operations context.',
+      text,
+    ].join('\n\n');
+
+    const response = await safeFetch(`${OLLAMA_BASE_URL}/api/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: TRANSLATION_MODEL,
+        stream: false,
+        format: 'json',
+        messages: [
+          {
+            role: 'system',
+            content: [
+              'You are a professional real-time translator for field operations in New Zealand.',
+              'Return strict JSON only with keys: translated_text, detected_source.',
+              'translated_text must contain only the translation text with no labels or commentary.',
+              'If the text is already in the target language, return it unchanged.',
+            ].join(' '),
+          },
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+      }),
+    }, 'ollama');
+
+    if (!response.ok) {
+      return {
+        provider: 'heuristic',
+        model_used: TRANSLATION_MODEL,
+        translated_text: String(text || '').trim(),
+        detected_source: sourceLanguage,
+        fallback: true,
+      };
+    }
+
+    const payload = await response.json().catch(() => ({}));
+    const content = String(payload?.message?.content || '').trim();
+    if (!content) {
+      return {
+        provider: 'heuristic',
+        model_used: TRANSLATION_MODEL,
+        translated_text: String(text || '').trim(),
+        detected_source: sourceLanguage,
+        fallback: true,
+      };
+    }
+
+    let parsed;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      parsed = { translated_text: content, detected_source: sourceLanguage };
+    }
+
+    const translated = String(parsed?.translated_text || '').trim();
+    if (!translated) {
+      return {
+        provider: 'heuristic',
+        model_used: TRANSLATION_MODEL,
+        translated_text: String(text || '').trim(),
+        detected_source: sourceLanguage,
+        fallback: true,
+      };
+    }
+
+    return {
+      provider: 'ollama',
+      model_used: TRANSLATION_MODEL,
+      translated_text: translated,
+      detected_source: typeof parsed?.detected_source === 'string' && parsed.detected_source.trim()
+        ? parsed.detected_source.trim()
+        : sourceLanguage,
+      fallback: false,
+    };
+  } catch (error) {
+    return {
+      provider: 'heuristic',
+      model_used: TRANSLATION_MODEL,
+      translated_text: String(text || '').trim(),
+      detected_source: sourceLanguage,
+      fallback: true,
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 app.post('/nlp/tabular/analyze', tabularRateLimit, requireInferenceAuth, async (req, res) => {
   try {
     const sampleRows = req.body?.sampleRows;
@@ -1601,6 +1717,42 @@ app.post('/chat', inferenceRateLimit, requireInferenceAuth, async (req, res) => 
   } catch (error) {
     console.error('Chat endpoint error:', error);
     return res.status(500).json({ error: 'Chat failed', message: error.message });
+  }
+});
+
+app.post('/translate', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const text = req.body?.text;
+    const targetLanguage = String(req.body?.target_language || '').trim();
+    const sourceLanguageRaw = String(req.body?.source_language || '').trim();
+    const sourceLanguage = sourceLanguageRaw || null;
+
+    if (typeof text !== 'string' || !text.trim()) {
+      return res.status(400).json({ error: 'text must be a non-empty string' });
+    }
+
+    if (!targetLanguage) {
+      return res.status(400).json({ error: 'target_language must be provided (example: en-NZ)' });
+    }
+
+    const result = await generateTranslationWithOllama({
+      text,
+      targetLanguage,
+      sourceLanguage,
+    });
+
+    return res.json({
+      success: true,
+      provider: result.provider,
+      fallback: result.fallback,
+      model_used: result.model_used,
+      translated_text: result.translated_text,
+      target_language: targetLanguage,
+      detected_source: result.detected_source,
+    });
+  } catch (error) {
+    console.error('Translate endpoint error:', error);
+    return res.status(500).json({ error: 'Translation failed', message: error.message });
   }
 });
 
@@ -5456,6 +5608,8 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       OLLAMA_BASE_URL: OLLAMA_BASE_URL,
       OLLAMA_BASE_URL_CONFIGURED,
       OLLAMA_MODEL,
+      TRANSLATION_MODEL,
+      TRANSLATION_TIMEOUT_MS,
       WHISPER_CLI_PATH: WHISPER_CLI_PATH || null,
       WHISPER_MODEL_PATH: WHISPER_MODEL_PATH || null,
     },
@@ -5467,6 +5621,9 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       chat: true,
       chat_local_ollama_enabled: CHAT_PROVIDER === 'ollama' && OLLAMA_ENABLED,
       chat_heuristic_enabled: CHAT_PROVIDER === 'heuristic',
+      translation: true,
+      translation_local_ollama_enabled: OLLAMA_ENABLED,
+      translation_model: TRANSLATION_MODEL,
       self_healing_bug_assistant: SELF_HEALING_ENABLED,
       local_intel_updates: true,
       tabular_nlp_auth_api_key: !!INFERENCE_API_KEY,
@@ -5671,7 +5828,12 @@ async function runDoctorPlaybook(playbook, options = {}) {
       ollamaCircuitBreaker.recordSuccess();
       steps.push({ step: 'breaker_reset', result: ollamaCircuitBreaker.toJSON() });
 
-      const requiredModels = [OLLAMA_MODEL, OLLAMA_MODEL_WRITING, OLLAMA_VISION_ACTIVE ? OLLAMA_VISION_MODEL : null].filter(Boolean);
+      const requiredModels = [
+        OLLAMA_MODEL,
+        OLLAMA_MODEL_WRITING,
+        TRANSLATION_MODEL,
+        OLLAMA_VISION_ACTIVE ? OLLAMA_VISION_MODEL : null,
+      ].filter(Boolean);
       const missing = requiredModels.filter((m) => !modelLooksPresent(preProbe.models || [], m));
       if (missing.length && OLLAMA_AUTO_PULL_MODELS) {
         const pullResults = [];

@@ -285,6 +285,8 @@ jobs:
             "SELF_CONTAINED_STRICT_EGRESS=true" \
             "OLLAMA_BASE_URL=http://ollama.railway.internal:11434" \
             "OLLAMA_MODEL=llama3.1:8b" \
+            "TRANSLATION_MODEL=llama3.1:8b" \
+            "TRANSLATION_TIMEOUT_MS=20000" \
             "OLLAMA_MODEL_WRITING=llama3.1:8b" \
             "OLLAMA_VISION_MODEL=llama3.2-vision:11b" \
             "VEHICLE_ATTRS_PROVIDER=ollama" \

@@ -16,6 +16,7 @@
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { fetchWithRetry } from '../_shared/fetchWithRetry.ts'
 import { withCors, jsonResponse, errorResponse } from '../_shared/withCors.ts'
 
 const LANGUAGE_NAMES: Record<string, string> = {
@@ -94,29 +95,62 @@ serve(withCors(async (req: Request) => {
 
   let response: Response
   try {
-    response = await fetch(`${inferenceUrl}/chat`, {
+    response = await fetchWithRetry(`${inferenceUrl}/translate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(inferenceKey ? { Authorization: `Bearer ${inferenceKey}` } : {}),
       },
       body: JSON.stringify({
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
+        text,
+        target_language,
+        source_language: source_language ?? null,
       }),
-      signal: AbortSignal.timeout(15_000),
+    }, {
+      retries: 2,
+      timeoutMs: 15_000,
+      backoffMs: 500,
     })
   } catch (fetchErr: any) {
     console.error('translate-message: inference fetch failed', fetchErr)
     return errorResponse('Translation service unreachable', req, 502)
   }
 
-  if (!response.ok) {
+  if (!response.ok && response.status !== 404) {
     const errText = await response.text().catch(() => '')
     console.error('translate-message: inference service error', response.status, errText)
     return errorResponse(`Translation service returned ${response.status}`, req, 502)
+  }
+
+  if (response.status === 404) {
+    try {
+      response = await fetchWithRetry(`${inferenceUrl}/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(inferenceKey ? { Authorization: `Bearer ${inferenceKey}` } : {}),
+        },
+        body: JSON.stringify({
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+        }),
+      }, {
+        retries: 1,
+        timeoutMs: 15_000,
+        backoffMs: 500,
+      })
+    } catch (fallbackErr: any) {
+      console.error('translate-message: fallback chat fetch failed', fallbackErr)
+      return errorResponse('Translation service unreachable', req, 502)
+    }
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '')
+      console.error('translate-message: fallback chat error', response.status, errText)
+      return errorResponse(`Translation service returned ${response.status}`, req, 502)
+    }
   }
 
   let data: any
@@ -128,6 +162,7 @@ serve(withCors(async (req: Request) => {
 
   // Normalise response from multiple inference backends
   const translated: string =
+    data?.translated_text ||
     data?.response ||
     data?.message?.content ||
     data?.choices?.[0]?.message?.content ||
