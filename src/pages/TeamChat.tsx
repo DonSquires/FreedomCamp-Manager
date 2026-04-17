@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { useNavigate } from 'react-router-dom'
@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
@@ -68,6 +69,8 @@ const TRANSLATION_LANGUAGE_OPTIONS = [
   { value: 'fr-FR', label: 'French' },
   { value: 'ar-SA', label: 'Arabic' },
 ] as const
+
+const TEAM_CHAT_TRANSLATION_PREF_KEY = 'team-chat-translation-pref-v1'
 
 function OfficerContextPanel({ userId, title = 'Officer context', organizationId }: OfficerContextProps) {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' })
@@ -333,6 +336,7 @@ export default function TeamChat() {
   const [inspectUserId, setInspectUserId] = useState<string | null>(null)
   const [channel, setChannel] = useState<RealtimeChannel | null>(null)
   const [translationTarget, setTranslationTarget] = useState<string>('en-NZ')
+  const [autoTranslateIncoming, setAutoTranslateIncoming] = useState<boolean>(true)
   const [translatedById, setTranslatedById] = useState<Record<string, string>>({})
   const [isTranslatingDraft, setIsTranslatingDraft] = useState(false)
   const [translatingMessageIds, setTranslatingMessageIds] = useState<Record<string, boolean>>({})
@@ -549,7 +553,37 @@ export default function TeamChat() {
     )
   }, [combinedMessages, target, user?.id, user?.role])
 
-  const translateText = async (text: string, targetLanguage: string): Promise<string> => {
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(TEAM_CHAT_TRANSLATION_PREF_KEY)
+      if (!raw) return
+      const parsed = JSON.parse(raw)
+      if (typeof parsed?.targetLanguage === 'string') {
+        setTranslationTarget(parsed.targetLanguage)
+      }
+      if (typeof parsed?.autoTranslateIncoming === 'boolean') {
+        setAutoTranslateIncoming(parsed.autoTranslateIncoming)
+      }
+    } catch {
+      // Ignore malformed local preference payloads.
+    }
+  }, [])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        TEAM_CHAT_TRANSLATION_PREF_KEY,
+        JSON.stringify({
+          targetLanguage: translationTarget,
+          autoTranslateIncoming,
+        }),
+      )
+    } catch {
+      // Ignore storage write errors.
+    }
+  }, [translationTarget, autoTranslateIncoming])
+
+  const translateText = useCallback(async (text: string, targetLanguage: string): Promise<string> => {
     const { data, error } = await edgeFunctions.translateMessage({
       text,
       target_language: targetLanguage,
@@ -565,7 +599,7 @@ export default function TeamChat() {
     }
 
     return translated
-  }
+  }, [])
 
   const translateDraft = async () => {
     const draft = message.trim()
@@ -581,7 +615,7 @@ export default function TeamChat() {
     }
   }
 
-  const translateIncomingMessage = async (msg: ChatMessage) => {
+  const translateIncomingMessage = useCallback(async (msg: ChatMessage) => {
     if (!msg.body?.trim()) return
     if (translatedById[msg.id]) return
 
@@ -598,7 +632,29 @@ export default function TeamChat() {
         return next
       })
     }
-  }
+  }, [translateText, translatedById, translationTarget])
+
+  useEffect(() => {
+    if (!autoTranslateIncoming) return
+    const next = filteredMessages.find(
+      (msg) =>
+        msg.senderId !== user?.id &&
+        msg.senderRole !== 'system' &&
+        !!msg.body?.trim() &&
+        !translatedById[msg.id] &&
+        !translatingMessageIds[msg.id],
+    )
+
+    if (!next) return
+    void translateIncomingMessage(next)
+  }, [
+    autoTranslateIncoming,
+    filteredMessages,
+    translatedById,
+    translatingMessageIds,
+    translateIncomingMessage,
+    user?.id,
+  ])
 
   const sendMessage = async () => {
     if (!message.trim() || !user) return
@@ -778,6 +834,10 @@ export default function TeamChat() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+              <div className="flex items-center justify-between rounded border bg-background/70 px-2 py-1.5">
+                <div className="text-xs text-muted-foreground">Auto-translate incoming</div>
+                <Switch checked={autoTranslateIncoming} onCheckedChange={setAutoTranslateIncoming} />
               </div>
               <div className="text-xs text-muted-foreground">
                 Translate draft text before sending or translate incoming messages inline.
