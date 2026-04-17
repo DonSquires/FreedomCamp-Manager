@@ -22,6 +22,12 @@ const OPENAI_API_KEY  = process.env.OPENAI_API_KEY || '';
 const OPENAI_MODEL    = process.env.OPENAI_MODEL || 'gpt-4o';
 const OPENAI_ENABLED  = !!OPENAI_API_KEY;
 
+// Ollama vision — used when OPENAI_API_KEY is not set but a vision-capable
+// model (e.g. llama3.2-vision:11b) is available on the local Ollama instance.
+const OLLAMA_BASE_URL     = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
+const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || '';
+const OLLAMA_VISION_ENABLED = !!OLLAMA_VISION_MODEL;
+
 const INFERENCE_TIMEOUT_MS = parseInt(process.env.ATTR_TIMEOUT_MS || '25000', 10);
 
 // ── NZ Weed Identification Knowledge Base ─────────────────────────────────────
@@ -138,85 +144,91 @@ IMPORTANT RULES:
  * @returns {Promise<object>} Identification result with checklist prefill
  */
 async function identifyPlants(imageBase64, extraFrames = [], gpsContext = null) {
-  if (!OPENAI_ENABLED) {
+  if (!OPENAI_ENABLED && !OLLAMA_VISION_ENABLED) {
     return {
       success: false,
       requires_manual_identification: true,
-      reason: 'Vision AI not configured (OPENAI_API_KEY missing)',
+      reason: 'Vision AI not configured (set OLLAMA_VISION_MODEL or OPENAI_API_KEY)',
       checklist_prefill: null,
     };
   }
 
-  const mimeType = imageBase64.startsWith('/9j/') ? 'image/jpeg' : 'image/png';
+  const promptText = gpsContext
+    ? `Please identify any invasive plant species in this image. Location context: region=${gpsContext.region || 'unknown'}, coordinates approximately (${gpsContext.lat?.toFixed(4)}, ${gpsContext.lng?.toFixed(4)}). Focus on Chilean Needlegrass (CNG/Nassella neesiana) and other NZ controlled species.`
+    : 'Please identify any invasive plant species in this image. Focus on Chilean Needlegrass (CNG/Nassella neesiana) and other NZ controlled species.';
 
-  // Build user content — primary image + up to 7 extra frames
-  const userContent = [
-    {
-      type: 'text',
-      text: gpsContext
-        ? `Please identify any invasive plant species in this image. Location context: region=${gpsContext.region || 'unknown'}, coordinates approximately (${gpsContext.lat?.toFixed(4)}, ${gpsContext.lng?.toFixed(4)}). Focus on Chilean Needlegrass (CNG/Nassella neesiana) and other NZ controlled species.`
-        : 'Please identify any invasive plant species in this image. Focus on Chilean Needlegrass (CNG/Nassella neesiana) and other NZ controlled species.',
-    },
-    {
-      type: 'image_url',
-      image_url: { url: `data:${mimeType};base64,${imageBase64}` },
-    },
-  ];
-
-  // Add extra frames (video keyframes) — cap at 7 additional to stay within context limits
   const framesToAdd = extraFrames.slice(0, 7);
-  for (const frame of framesToAdd) {
-    const frameMime = frame.startsWith('/9j/') ? 'image/jpeg' : 'image/png';
-    userContent.push({
-      type: 'image_url',
-      image_url: { url: `data:${frameMime};base64,${frame}` },
-    });
-  }
-
-  if (framesToAdd.length > 0) {
-    userContent[0].text += ` (${framesToAdd.length + 1} frames from video provided for density assessment)`;
-  }
+  const frameCount  = framesToAdd.length + 1;
+  const promptWithFrames = frameCount > 1
+    ? `${promptText} (${frameCount} frames from video provided for density assessment)`
+    : promptText;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), INFERENCE_TIMEOUT_MS);
 
   try {
-    const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-      },
-      signal: controller.signal,
-      body: JSON.stringify({
-        model: OPENAI_MODEL,
-        temperature: 0,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: BIOSECURITY_SYSTEM_PROMPT },
-          { role: 'user', content: userContent },
-        ],
-      }),
-    });
+    let raw;
 
-    clearTimeout(timeout);
-
-    if (!response.ok) {
-      const errText = await response.text().catch(() => '');
-      throw new Error(`OpenAI API error ${response.status}: ${errText.slice(0, 200)}`);
+    if (OLLAMA_VISION_ENABLED) {
+      // Ollama multimodal API — images passed as base64 array alongside text
+      const images = [imageBase64, ...framesToAdd];
+      const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          model: OLLAMA_VISION_MODEL,
+          stream: false,
+          format: 'json',
+          messages: [
+            { role: 'system', content: BIOSECURITY_SYSTEM_PROMPT },
+            { role: 'user', content: promptWithFrames, images },
+          ],
+        }),
+      });
+      if (!response.ok) {
+        const errText = await response.text().catch(() => '');
+        throw new Error(`Ollama vision error ${response.status}: ${errText.slice(0, 200)}`);
+      }
+      const payload = await response.json();
+      raw = payload?.message?.content;
+    } else {
+      // OpenAI-compatible vision path
+      const mimeType = imageBase64.startsWith('/9j/') ? 'image/jpeg' : 'image/png';
+      const userContent = [
+        { type: 'text', text: promptWithFrames },
+        { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
+      ];
+      for (const frame of framesToAdd) {
+        const frameMime = frame.startsWith('/9j/') ? 'image/jpeg' : 'image/png';
+        userContent.push({ type: 'image_url', image_url: { url: `data:${frameMime};base64,${frame}` } });
+      }
+      const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` },
+        signal: controller.signal,
+        body: JSON.stringify({
+          model: OPENAI_MODEL,
+          temperature: 0,
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: BIOSECURITY_SYSTEM_PROMPT },
+            { role: 'user', content: userContent },
+          ],
+        }),
+      });
+      if (!response.ok) {
+        const errText = await response.text().catch(() => '');
+        throw new Error(`OpenAI API error ${response.status}: ${errText.slice(0, 200)}`);
+      }
+      const payload = await response.json();
+      raw = payload?.choices?.[0]?.message?.content;
     }
 
-    const payload = await response.json();
-    const raw = payload?.choices?.[0]?.message?.content;
+    clearTimeout(timeout);
     if (!raw) throw new Error('Empty response from vision API');
-
     const parsed = JSON.parse(raw);
-
-    return {
-      success: true,
-      ...parsed,
-      frames_analysed: framesToAdd.length + 1,
-    };
+    return { success: true, ...parsed, frames_analysed: frameCount };
   } catch (err) {
     clearTimeout(timeout);
     if (err.name === 'AbortError') {

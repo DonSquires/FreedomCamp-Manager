@@ -209,6 +209,12 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1:8b';
 // (e.g. qwen2.5:14b, mistral:7b, llama3.3:70b). Falls back to OLLAMA_MODEL
 // if not set or not available. Run: ollama pull <model> on the Ollama service.
 const OLLAMA_MODEL_WRITING = process.env.OLLAMA_MODEL_WRITING || OLLAMA_MODEL;
+// OLLAMA_VISION_MODEL — multimodal model for photo analysis (vehicle attrs,
+// biosecurity plant ID, smoke assessment). Must support the Ollama /api/chat
+// images[] field (e.g. llama3.2-vision:11b, llava:13b).
+// Leave unset to disable Ollama-based vision (features fall back to OpenAI or manual).
+const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || '';
+const OLLAMA_VISION_ENABLED = !!OLLAMA_VISION_MODEL;
 const OLLAMA_AUTO_PULL_MODELS = envFlag(process.env.OLLAMA_AUTO_PULL_MODELS, true);
 const OLLAMA_PULL_TIMEOUT_MS = Number(process.env.OLLAMA_PULL_TIMEOUT_MS || 120000);
 // SECONDARY_ASSISTANT_URL — optional second Railway-hosted AI service for
@@ -344,6 +350,8 @@ async function safeFetch(url, options, providerLabel = 'unknown') {
 }
 
 const OPENAI_ENABLED = !SELF_CONTAINED_MODE && !!OPENAI_API_KEY;
+// Ollama vision is allowed in self-contained mode as long as the URL is local/internal
+const OLLAMA_VISION_ACTIVE = OLLAMA_VISION_ENABLED && (!SELF_CONTAINED_MODE || isLocalUrl(OLLAMA_BASE_URL));
 const CLOUD_ALPR_ENABLED = !SELF_CONTAINED_MODE && !!process.env.PLATERECOGNIZER_TOKEN;
 const OLLAMA_REQUESTED = TABULAR_NLP_PROVIDER === 'ollama' || CHAT_PROVIDER === 'ollama';
 const OLLAMA_ENABLED = OLLAMA_REQUESTED && (!SELF_CONTAINED_MODE || isLocalUrl(OLLAMA_BASE_URL));
@@ -3245,6 +3253,69 @@ async function generateEmbedding(imageTensor) {
   return { embedding, quality, norm };
 }
 
+async function inferVehicleAttributesWithOllama(vehicleCropBuffer) {
+  if (!OLLAMA_VISION_ACTIVE) return null;
+
+  const imageBase64 = vehicleCropBuffer.toString('base64');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), ATTR_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: OLLAMA_VISION_MODEL,
+        stream: false,
+        format: 'json',
+        messages: [
+          { role: 'system', content: 'You are a vehicle vision assistant for NZ enforcement software. Return strict JSON only.' },
+          {
+            role: 'user',
+            content: 'From this vehicle photo crop, infer vehicle attributes for New Zealand roads. Return JSON with keys: vehicle_make, vehicle_model, vehicle_year, vehicle_colour, vehicle_make_confidence, vehicle_model_confidence, vehicle_year_confidence, vehicle_colour_confidence, sticker (object with presence, color, detection_confidence, color_confidence). Use best-effort estimates for make/model/year when plausible; do not leave null unless truly indeterminate. Keep confidences realistic in 0..1 and lower confidence when uncertain. vehicle_year must be an integer (e.g. 2016) or null.',
+            images: [imageBase64],
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      console.warn(`⚠️ Ollama vision attrs returned ${response.status}`);
+      return null;
+    }
+
+    const payload = await response.json();
+    const content = payload?.message?.content;
+    if (!content || typeof content !== 'string') return null;
+
+    const parsed = JSON.parse(content);
+    return {
+      vehicle_make: cleanText(parsed.vehicle_make),
+      vehicle_model: cleanText(parsed.vehicle_model),
+      vehicle_year: parseYear(parsed.vehicle_year),
+      vehicle_colour: cleanText(parsed.vehicle_colour),
+      vehicle_make_confidence: clamp01(parsed.vehicle_make_confidence),
+      vehicle_model_confidence: clamp01(parsed.vehicle_model_confidence),
+      vehicle_year_confidence: clamp01(parsed.vehicle_year_confidence),
+      vehicle_colour_confidence: clamp01(parsed.vehicle_colour_confidence),
+      sticker: {
+        presence: parsed?.sticker?.presence === null || parsed?.sticker?.presence === undefined
+          ? null
+          : Boolean(parsed.sticker.presence),
+        color: cleanText(parsed?.sticker?.color),
+        detection_confidence: clamp01(parsed?.sticker?.detection_confidence),
+        color_confidence: clamp01(parsed?.sticker?.color_confidence),
+      },
+    };
+  } catch (error) {
+    console.warn('⚠️ Ollama vision attrs failed:', error.message);
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function inferVehicleAttributesWithOpenAI(vehicleCropBuffer) {
   if (!OPENAI_ENABLED) {
     recordEgressEvent('openai', 'blocked', 'SELF_CONTAINED_MODE or OPENAI_API_KEY missing');
@@ -3346,6 +3417,12 @@ async function inferVehicleAttributes(fullImageBuffer, vehicleCropBuffer) {
       color_confidence: null,
     },
   };
+
+  if (VEHICLE_ATTRS_PROVIDER === 'ollama') {
+    const ai = await inferVehicleAttributesWithOllama(vehicleCropBuffer || fullImageBuffer);
+    if (ai) return { ...fallback, ...ai, vehicle_colour: ai.vehicle_colour || fallback.vehicle_colour, vehicle_colour_confidence: ai.vehicle_colour_confidence ?? fallback.vehicle_colour_confidence };
+    return fallback;
+  }
 
   if (VEHICLE_ATTRS_PROVIDER !== 'openai') {
     return fallback;
@@ -5015,7 +5092,7 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
     },
     capabilities: {
       plate_inference: modelsLoaded,
-      ai_attributes: VEHICLE_ATTRS_PROVIDER === 'openai' && OPENAI_ENABLED,
+      ai_attributes: (VEHICLE_ATTRS_PROVIDER === 'openai' && OPENAI_ENABLED) || (VEHICLE_ATTRS_PROVIDER === 'ollama' && OLLAMA_VISION_ACTIVE),
       tabular_nlp: true,
       tabular_nlp_ollama_enabled: OLLAMA_ENABLED,
       chat: true,
@@ -5052,8 +5129,8 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       code_task_queue: true,
       code_tasks_pending: codeTaskStore.getState().counts.pending,
       // Biosecurity + Smoke OOH enforcement AI
-      biosecurity_plant_id: OPENAI_ENABLED,
-      smoke_assessment: OPENAI_ENABLED,
+      biosecurity_plant_id: OPENAI_ENABLED || OLLAMA_VISION_ACTIVE,
+      smoke_assessment: OPENAI_ENABLED || OLLAMA_VISION_ACTIVE,
     },
     ollama_circuit_breaker: OLLAMA_ENABLED ? ollamaCircuitBreaker.toJSON() : null,
     knowledge_requests: knowledgeRequestsStore.getState(),

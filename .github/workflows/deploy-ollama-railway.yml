@@ -274,6 +274,7 @@ jobs:
             --skip-deploys \
             "PORT=11434" \
             "OLLAMA_MODEL=llama3.1:8b" \
+            "OLLAMA_VISION_MODEL=llama3.2-vision:11b" \
             "OLLAMA_PREPULL_MODE=off" \
             "OLLAMA_PULL_DELAY_SECONDS=20"
 

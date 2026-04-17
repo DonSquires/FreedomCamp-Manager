@@ -16,6 +16,10 @@ const OPENAI_API_KEY  = process.env.OPENAI_API_KEY || '';
 const OPENAI_MODEL    = process.env.OPENAI_MODEL || 'gpt-4o';
 const OPENAI_ENABLED  = !!OPENAI_API_KEY;
 
+const OLLAMA_BASE_URL     = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
+const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || '';
+const OLLAMA_VISION_ENABLED = !!OLLAMA_VISION_MODEL;
+
 const INFERENCE_TIMEOUT_MS = parseInt(process.env.ATTR_TIMEOUT_MS || '25000', 10);
 
 // Re-use weather helper from biosecurity module
@@ -122,16 +126,14 @@ IMPORTANT RULES:
  * @returns {Promise<object>} Assessment result with checklist prefill
  */
 async function assessSmoke(imageBase64, extraFrames = [], metadata = {}) {
-  if (!OPENAI_ENABLED) {
+  if (!OPENAI_ENABLED && !OLLAMA_VISION_ENABLED) {
     return {
       success: false,
       requires_manual_assessment: true,
-      reason: 'Vision AI not configured (OPENAI_API_KEY missing)',
+      reason: 'Vision AI not configured (set OLLAMA_VISION_MODEL or OPENAI_API_KEY)',
       checklist_prefill: null,
     };
   }
-
-  const mimeType = imageBase64.startsWith('/9j/') ? 'image/jpeg' : 'image/png';
 
   // Build context text
   let contextText = 'Please assess this smoke complaint image for NZ RMA compliance purposes.';
@@ -148,62 +150,80 @@ async function assessSmoke(imageBase64, extraFrames = [], metadata = {}) {
     contextText += ` Location: ${metadata.address}.`;
   }
 
-  const userContent = [
-    { type: 'text', text: contextText },
-    { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
-  ];
-
   const framesToAdd = extraFrames.slice(0, 7);
-  for (const frame of framesToAdd) {
-    const frameMime = frame.startsWith('/9j/') ? 'image/jpeg' : 'image/png';
-    userContent.push({
-      type: 'image_url',
-      image_url: { url: `data:${frameMime};base64,${frame}` },
-    });
-  }
-  if (framesToAdd.length > 0) {
-    userContent[0].text += ` (${framesToAdd.length + 1} video frames provided — assess smoke continuity and opacity trend across frames)`;
-  }
+  const frameCount  = framesToAdd.length + 1;
+  const promptText  = frameCount > 1
+    ? `${contextText} (${frameCount} video frames provided — assess smoke continuity and opacity trend across frames)`
+    : contextText;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), INFERENCE_TIMEOUT_MS);
 
   try {
-    const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-      },
-      signal: controller.signal,
-      body: JSON.stringify({
-        model: OPENAI_MODEL,
-        temperature: 0,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: SMOKE_SYSTEM_PROMPT },
-          { role: 'user', content: userContent },
-        ],
-      }),
-    });
+    let raw;
 
-    clearTimeout(timeout);
-
-    if (!response.ok) {
-      const errText = await response.text().catch(() => '');
-      throw new Error(`OpenAI API error ${response.status}: ${errText.slice(0, 200)}`);
+    if (OLLAMA_VISION_ENABLED) {
+      const images = [imageBase64, ...framesToAdd];
+      const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          model: OLLAMA_VISION_MODEL,
+          stream: false,
+          format: 'json',
+          messages: [
+            { role: 'system', content: SMOKE_SYSTEM_PROMPT },
+            { role: 'user', content: promptText, images },
+          ],
+        }),
+      });
+      if (!response.ok) {
+        const errText = await response.text().catch(() => '');
+        throw new Error(`Ollama vision error ${response.status}: ${errText.slice(0, 200)}`);
+      }
+      const payload = await response.json();
+      raw = payload?.message?.content;
+    } else {
+      const mimeType = imageBase64.startsWith('/9j/') ? 'image/jpeg' : 'image/png';
+      const userContent = [
+        { type: 'text', text: promptText },
+        { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
+      ];
+      for (const frame of framesToAdd) {
+        const frameMime = frame.startsWith('/9j/') ? 'image/jpeg' : 'image/png';
+        userContent.push({ type: 'image_url', image_url: { url: `data:${frameMime};base64,${frame}` } });
+      }
+      const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` },
+        signal: controller.signal,
+        body: JSON.stringify({
+          model: OPENAI_MODEL,
+          temperature: 0,
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: SMOKE_SYSTEM_PROMPT },
+            { role: 'user', content: userContent },
+          ],
+        }),
+      });
+      if (!response.ok) {
+        const errText = await response.text().catch(() => '');
+        throw new Error(`OpenAI API error ${response.status}: ${errText.slice(0, 200)}`);
+      }
+      const payload = await response.json();
+      raw = payload?.choices?.[0]?.message?.content;
     }
 
-    const payload = await response.json();
-    const raw = payload?.choices?.[0]?.message?.content;
+    clearTimeout(timeout);
     if (!raw) throw new Error('Empty response from vision API');
-
     const parsed = JSON.parse(raw);
 
     return {
       success: true,
       ...parsed,
-      frames_analysed: framesToAdd.length + 1,
+      frames_analysed: frameCount,
     };
   } catch (err) {
     clearTimeout(timeout);
