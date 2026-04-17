@@ -4335,77 +4335,92 @@ app.post('/infer/chalk', inferenceRateLimit, upload.single('photo'), requireInfe
       recordEgressEvent('cloud_alpr', 'blocked', 'SELF_CONTAINED_MODE or PLATERECOGNIZER_TOKEN missing');
     }
 
-    // ── 2. Tyre valve position via OpenAI vision ──────────────────────
+    // ── 2. Tyre valve position via Ollama vision or OpenAI ───────────
     let valvePosition = 'unknown';
     let valveConfidence = 0;
     let valveDescription = 'Valve position could not be determined';
 
-    if (OPENAI_ENABLED) {
+    if (OLLAMA_VISION_ACTIVE || OPENAI_ENABLED) {
       try {
-        recordEgressEvent('openai', 'attempted', 'chalk valve detection');
         const imageBase64 = imageBuffer.toString('base64');
         const mimeType = req.file.mimetype || 'image/jpeg';
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), ATTR_TIMEOUT_MS);
 
-        const valveResp = await safeFetch(`${OPENAI_BASE_URL}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${OPENAI_API_KEY}`,
-          },
-          signal: controller.signal,
-          body: JSON.stringify({
-            model: OPENAI_MODEL,
-            temperature: 0,
-            response_format: { type: 'json_object' },
-            messages: [
-              {
-                role: 'system',
-                content:
-                  'You are a parking enforcement assistant. Analyse the tyre in this photo and determine ' +
-                  'the clock position of the valve stem on the front-left tyre (or the most visible tyre). ' +
-                  'This is used for electronic chalking — NZ council parking enforcement. ' +
-                  'Return strict JSON only with keys: ' +
-                  'valve_position (one of: "north","east","south","west","unknown"), ' +
-                  'valve_confidence (0.0–1.0), ' +
-                  'valve_description (short natural-language description of position, e.g. "Valve stem pointing approximately to 12 o\'clock (north)"). ' +
-                  'If no tyre/wheel is clearly visible, return valve_position: "unknown" and valve_confidence: 0.',
-              },
-              {
-                role: 'user',
-                content: [
+        const VALVE_SYSTEM_PROMPT =
+          'You are a parking enforcement assistant. Analyse the tyre in this photo and determine ' +
+          'the clock position of the valve stem on the front-left tyre (or the most visible tyre). ' +
+          'This is used for electronic chalking — NZ council parking enforcement. ' +
+          'Return strict JSON only with keys: ' +
+          'valve_position (one of: "north","east","south","west","unknown"), ' +
+          'valve_confidence (0.0–1.0), ' +
+          'valve_description (short natural-language description of position, e.g. "Valve stem pointing approximately to 12 o\'clock (north)"). ' +
+          'If no tyre/wheel is clearly visible, return valve_position: "unknown" and valve_confidence: 0.';
+
+        let valveResp;
+        let valvePayloadContent;
+
+        if (OLLAMA_VISION_ACTIVE) {
+          recordEgressEvent('ollama', 'attempted', 'chalk valve detection');
+          valveResp = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
+            body: JSON.stringify({
+              model: OLLAMA_VISION_MODEL,
+              stream: false,
+              format: 'json',
+              messages: [
+                { role: 'system', content: VALVE_SYSTEM_PROMPT },
+                { role: 'user', content: 'What is the tyre valve stem position in this image?', images: [imageBase64] },
+              ],
+            }),
+          });
+          if (valveResp.ok) {
+            const payload = await valveResp.json();
+            valvePayloadContent = payload?.message?.content;
+          }
+        } else {
+          recordEgressEvent('openai', 'attempted', 'chalk valve detection');
+          valveResp = await safeFetch(`${OPENAI_BASE_URL}/chat/completions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_API_KEY}` },
+            signal: controller.signal,
+            body: JSON.stringify({
+              model: OPENAI_MODEL,
+              temperature: 0,
+              response_format: { type: 'json_object' },
+              messages: [
+                { role: 'system', content: VALVE_SYSTEM_PROMPT },
+                { role: 'user', content: [
                   { type: 'text', text: 'What is the tyre valve stem position in this image?' },
-                  {
-                    type: 'image_url',
-                    image_url: { url: `data:${mimeType};base64,${imageBase64}` },
-                  },
-                ],
-              },
-            ],
-          }),
-        }, 'openai');
+                  { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
+                ]},
+              ],
+            }),
+          }, 'openai');
+          if (valveResp.ok) {
+            const payload = await valveResp.json();
+            valvePayloadContent = payload?.choices?.[0]?.message?.content;
+          }
+        }
 
         clearTimeout(timeout);
 
-        if (valveResp.ok) {
-          const valvePayload = await valveResp.json();
-          const content = valvePayload?.choices?.[0]?.message?.content;
-          if (content) {
-            const parsed = JSON.parse(content);
-            const pos = parsed.valve_position?.toLowerCase();
-            if (['north', 'east', 'south', 'west', 'unknown'].includes(pos)) {
-              valvePosition    = pos;
-              valveConfidence  = clamp01(parsed.valve_confidence ?? 0);
-              valveDescription = parsed.valve_description ?? valveDescription;
-            }
+        if (valvePayloadContent) {
+          const parsed = JSON.parse(valvePayloadContent);
+          const pos = parsed.valve_position?.toLowerCase();
+          if (['north', 'east', 'south', 'west', 'unknown'].includes(pos)) {
+            valvePosition    = pos;
+            valveConfidence  = clamp01(parsed.valve_confidence ?? 0);
+            valveDescription = parsed.valve_description ?? valveDescription;
           }
         }
       } catch (valveErr) {
         console.warn('⚠️  /infer/chalk valve detection failed (non-fatal):', valveErr.message);
       }
     } else {
-      recordEgressEvent('openai', 'blocked', 'SELF_CONTAINED_MODE or OPENAI_API_KEY missing');
+      recordEgressEvent('openai', 'blocked', 'No vision provider configured (set OLLAMA_VISION_MODEL or OPENAI_API_KEY)');
     }
 
     // ── 3. Vehicle detection + embedding + attributes ────────────────
@@ -4438,8 +4453,8 @@ app.post('/infer/chalk', inferenceRateLimit, upload.single('photo'), requireInfe
       } catch (inferErr) {
         console.warn('⚠️  /infer/chalk ONNX inference failed (non-fatal):', inferErr.message);
       }
-    } else if (VEHICLE_ATTRS_PROVIDER === 'openai') {
-      // Degraded: no ONNX but can still get attributes
+    } else if (VEHICLE_ATTRS_PROVIDER === 'ollama' || VEHICLE_ATTRS_PROVIDER === 'openai') {
+      // Degraded: no ONNX but can still get attributes via vision provider
       try {
         vehicleAttrs = await inferVehicleAttributes(imageBuffer, imageBuffer) || vehicleAttrs;
       } catch { /* non-fatal */ }
@@ -5117,7 +5132,7 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       local_alpr: true,                          // always available (tesseract.js)
       local_alpr_plate_model: fs.existsSync(PLATE_DETECT_MODEL_PATH),
       cloud_alpr_enabled: CLOUD_ALPR_ENABLED,
-      chalk_valve_ai: VEHICLE_ATTRS_PROVIDER === 'openai' && OPENAI_ENABLED,
+      chalk_valve_ai: OPENAI_ENABLED || OLLAMA_VISION_ACTIVE,
       // Face recognition
       face_detection: OPENAI_ENABLED || fs.existsSync(FACE_DETECT_MODEL_PATH),
       face_detection_onnx: fs.existsSync(FACE_DETECT_MODEL_PATH), // UltraFace-640
