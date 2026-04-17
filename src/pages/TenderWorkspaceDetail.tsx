@@ -450,7 +450,14 @@ export default function TenderWorkspaceDetail() {
           completed = true
           cleanup()
           queryClient.invalidateQueries({ queryKey: ['tender-document', id] })
-          toast.error('Bob analysis is taking too long. Please retry once or check Bob service health.')
+          try {
+            const { data: health } = await edgeFunctions.checkRailwayHealth()
+            const inferenceStatus = (health as any)?.services?.inference?.status || 'unknown'
+            const ollamaStatus = (health as any)?.services?.ollama?.status || 'unknown'
+            toast.error(`Bob analysis timed out (${Math.round(ANALYSIS_MAX_WAIT_MS / 1000)}s). Inference: ${inferenceStatus}, Ollama: ${ollamaStatus}. Retry once.`)
+          } catch {
+            toast.error('Bob analysis is taking too long. Please retry once or check Bob service health.')
+          }
           return
         }
 
@@ -486,14 +493,43 @@ export default function TenderWorkspaceDetail() {
     }, 5000)
 
     try {
+      const startAnalysisAttempt = async () => {
+        return edgeFunctions.processTenderDocument({
+          document_id: doc.id,
+          extracted_text: doc.extracted_text,
+          force_enrich: true,
+          reference_ids: includedRefIds,
+        })
+      }
+
+      const isTransientStartError = (msg: string) => {
+        const m = String(msg || '').toLowerCase()
+        return (
+          m.includes('timed out') ||
+          m.includes('unable to reach') ||
+          m.includes('network') ||
+          m.includes('relay')
+        )
+      }
+
       // Fire-and-forget: edge function returns 202 immediately and processes in background.
       // The 5s refetchInterval on the document query will detect the status change to 'assessed'.
-      await edgeFunctions.processTenderDocument({
-        document_id: doc.id,
-        extracted_text: doc.extracted_text,
-        force_enrich: true,
-        reference_ids: includedRefIds,
-      })
+      let firstErr: any = null
+      try {
+        await startAnalysisAttempt()
+      } catch (err: any) {
+        firstErr = err
+      }
+
+      if (firstErr) {
+        const message = firstErr?.message || String(firstErr)
+        if (!isTransientStartError(message)) {
+          throw firstErr
+        }
+        toast.message('First Bob start attempt timed out; retrying once...')
+        await startAnalysisAttempt()
+      }
+
       // 202 accepted — don't wait for AI to finish. Keep spinner running until
       // the polling detects status change from 'staged' to 'assessed'.
       toast.info('Bob is analysing in the background — the assessment tab will update automatically')

@@ -47,7 +47,7 @@ import {
   Volume2, ShieldAlert, AlertTriangle, FileText, Package,
   CheckCircle, Radio, MapPin, Clock, Camera, Gavel,
   ChevronRight, Info, ArrowRight, RefreshCw, Mic2, Eye,
-  XCircle, List, Dog, Users, UserX, Printer,
+  XCircle, List, Dog, Users, UserX, Printer, BrainCircuit,
 } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -546,6 +546,46 @@ export default function NoiseOfficerPortal() {
     onError: (e: Error) => toast.error(e.message),
   })
 
+  const aiNoiseAudioAssessMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedJob) throw new Error('No job selected')
+      const observedDb = assessment.noise_level_db ? Number(assessment.noise_level_db) : null
+      const { data, error } = await edgeFunctions.noiseAudioAssess({
+        transcript: assessment.action_notes || selectedJob.complaint_description || '',
+        observed_db: Number.isFinite(observedDb as number) ? (observedDb as number) : null,
+        time_category: assessment.time_category as 'day' | 'evening' | 'night',
+        location_context: assessment.measurement_location || 'boundary of property',
+        complaint_address: selectedJob.address,
+        matrix: {
+          volume_score: assessment.volume_score,
+          time_score: assessment.time_score,
+          tone_score: assessment.tone_score,
+        },
+      })
+      if (error) throw new Error(String(error))
+      return data as any
+    },
+    onSuccess: (result) => {
+      const prefill = result?.matrix_prefill || {}
+      setAssessment((prev) => ({
+        ...prev,
+        volume_score: typeof prefill.volume_score === 'number' ? prefill.volume_score : prev.volume_score,
+        time_score: typeof prefill.time_score === 'number' ? prefill.time_score : prev.time_score,
+        tone_score: typeof prefill.tone_score === 'number' ? prefill.tone_score : prev.tone_score,
+        recommended_action: result?.recommended_action || prev.recommended_action,
+        exceeds_district_plan: typeof result?.exceeds_district_plan === 'boolean' ? result.exceeds_district_plan : prev.exceeds_district_plan,
+        noise_type: result?.noise_type || prev.noise_type,
+        noise_source: result?.noise_source || prev.noise_source,
+        action_notes: [
+          prev.action_notes,
+          result?.rationale ? `AI audio assessment: ${result.rationale}` : '',
+        ].filter(Boolean).join('\n').trim(),
+      }))
+      toast.success('Audio assessment applied to matrix and recommendation')
+    },
+    onError: (e: Error) => toast.error(e.message || 'Audio assessment failed'),
+  })
+
   const completeJobMutation = useMutation({
     mutationFn: async (jobId: string) => {
       const { error } = await supabase
@@ -901,6 +941,22 @@ export default function NoiseOfficerPortal() {
                               <p><strong>Seize equipment</strong> — if END issued within last 72hrs, or permanent Abatement Notice in place</p>
                             </div>
                           )}
+
+                          <div className="pt-1">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => aiNoiseAudioAssessMutation.mutate()}
+                              disabled={aiNoiseAudioAssessMutation.isPending}
+                            >
+                              <BrainCircuit className="h-4 w-4 mr-1.5" />
+                              {aiNoiseAudioAssessMutation.isPending ? 'Assessing street audio…' : 'Auto-fill from street audio'}
+                            </Button>
+                            <p className="text-[11px] text-gray-500 mt-1">
+                              Uses officer transcript/notes + optional dB estimate to prefill the matrix and recommended action.
+                            </p>
+                          </div>
                         </div>
                       )
                     })()}

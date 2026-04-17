@@ -1691,6 +1691,25 @@ export const edgeFunctions = {
     return callEdgeFunction('smoke-notice', params)
   },
 
+  /**
+   * Run Bob field-audio noise assessment to prefill matrix/action values.
+   * Uses transcript + optional dB observation from street-side assessment.
+   */
+  noiseAudioAssess: async (params: {
+    transcript?: string
+    observed_db?: number | null
+    time_category?: 'day' | 'evening' | 'night'
+    location_context?: string
+    complaint_address?: string
+    matrix?: {
+      volume_score?: number
+      time_score?: number
+      tone_score?: number
+    }
+  }) => {
+    return callEdgeFunction('noise-audio-assess', params, { showToast: false })
+  },
+
   // ============================================================================
   // UTILITIES (2 functions)
   // ============================================================================

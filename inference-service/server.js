@@ -30,6 +30,7 @@
  * - POST /assess/platform - Diagnose infrastructure platform issues (Supabase, Railway, Vercel, etc.)
  * - POST /infer/biosecurity - NZ biosecurity plant ID (Nassella neesiana / CNG) + density + checklist
  * - POST /infer/smoke - NZ RMA smoke complaint assessment + prohibited materials + checklist
+ * - POST /infer/noise-audio - NZ noise complaint street-level audio assessment + matrix prefill
  * - GET  /platform/:key - Get Bob's knowledge about a specific platform
  * - GET  /platform/stack - Get full hybrid stack overview
  * - POST /ask-copilot - Queue a knowledge request for Copilot to research
@@ -5070,6 +5071,159 @@ app.post('/infer/smoke', inferenceRateLimit, upload.single('photo'), requireInfe
   }
 });
 
+// ============================================================================
+// POST /infer/noise-audio — NZ noise complaint field-audio assessment
+//
+// Supports street-side officer assessments where the officer records quick
+// observations and optional transcript from PTT/voice notes. This endpoint
+// returns matrix-prefill values and an enforcement recommendation compatible
+// with the Noise Officer assessment form.
+//
+// Body (JSON):
+// {
+//   transcript?: string,
+//   observed_db?: number,
+//   time_category?: 'day'|'evening'|'night',
+//   location_context?: string,
+//   complaint_address?: string,
+//   matrix?: { volume_score?: number, time_score?: number, tone_score?: number }
+// }
+// ============================================================================
+app.post('/infer/noise-audio', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const transcript = String(req.body?.transcript || '').trim();
+    const observedDb = req.body?.observed_db != null ? Number(req.body.observed_db) : null;
+    const timeCategoryRaw = String(req.body?.time_category || 'night').toLowerCase();
+    const timeCategory = ['day', 'evening', 'night'].includes(timeCategoryRaw) ? timeCategoryRaw : 'night';
+    const locationContext = String(req.body?.location_context || '').trim();
+    const complaintAddress = String(req.body?.complaint_address || '').trim();
+    const matrix = req.body?.matrix && typeof req.body.matrix === 'object' ? req.body.matrix : {};
+
+    const toNum = (v, fallback = null) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : fallback;
+    };
+
+    // Heuristic prefill fallback (always available)
+    let volumeScore = toNum(matrix.volume_score, -1);
+    if (volumeScore < 0) {
+      if (observedDb == null) volumeScore = transcript ? 2 : -1;
+      else if (observedDb < 40) volumeScore = 0;
+      else if (observedDb < 50) volumeScore = 1;
+      else if (observedDb < 65) volumeScore = 2;
+      else if (observedDb < 75) volumeScore = 3;
+      else volumeScore = 4;
+    }
+
+    let timeScore = toNum(matrix.time_score, -1);
+    if (timeScore < 1) {
+      timeScore = timeCategory === 'day' ? 1 : timeCategory === 'evening' ? 2 : 4;
+    }
+
+    const lower = transcript.toLowerCase();
+    let toneScore = toNum(matrix.tone_score, -1);
+    if (toneScore < 0) {
+      if (!transcript) toneScore = 1;
+      else if (/(bass|thump|vibration|rattle|subwoofer|window shaking)/.test(lower)) toneScore = 2;
+      else if (/(music|party|speaker|tv|shouting|engine|machinery|generator|dog)/.test(lower)) toneScore = 1;
+      else toneScore = 1;
+    }
+
+    const matrixTotal = volumeScore === 0 ? 0 : (volumeScore + timeScore + toneScore);
+    const exceedsDistrictPlan = matrixTotal >= 5;
+    const recommendedAction = matrixTotal >= 7
+      ? 'enforcement_notice'
+      : matrixTotal >= 5
+        ? 'abatement_notice'
+        : 'verbal_warning';
+
+    const summary = {
+      success: true,
+      matrix_prefill: {
+        volume_score: volumeScore,
+        time_score: timeScore,
+        tone_score: toneScore,
+        matrix_total_score: matrixTotal,
+      },
+      recommended_action: recommendedAction,
+      exceeds_district_plan: exceedsDistrictPlan,
+      noise_type: /(dog|bark)/.test(lower)
+        ? 'animal_noise'
+        : /(engine|motorbike|car|revving)/.test(lower)
+          ? 'vehicle_noise'
+          : /(music|party|speaker|stereo)/.test(lower)
+            ? 'music'
+            : /(construction|machinery|generator)/.test(lower)
+              ? 'machinery'
+              : 'general_noise',
+      noise_source: /(party|music|speaker|stereo)/.test(lower)
+        ? 'residential party/music'
+        : /(engine|motorbike|car|revving)/.test(lower)
+          ? 'vehicle activity'
+          : /(construction|machinery|generator)/.test(lower)
+            ? 'equipment/machinery'
+            : null,
+      confidence: transcript || observedDb != null ? 0.78 : 0.45,
+      rationale:
+        `Estimated from field audio observations${observedDb != null ? ` (${observedDb} dB)` : ''}` +
+        `${locationContext ? ` at ${locationContext}` : ''}${complaintAddress ? ` for ${complaintAddress}` : ''}.`,
+      ai_caution:
+        'Audio assessment is a screening aid. Officer judgment and council matrix policy govern final enforcement action.',
+    };
+
+    // Optional Ollama refinement when available
+    if (OLLAMA_ENABLED && OLLAMA_MODEL) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 6000);
+        const prompt = [
+          'You are an NZ council noise control assistant. Return strict JSON only.',
+          `Transcript: ${transcript || '(none)'}`,
+          `Observed dB: ${observedDb == null ? '(none)' : observedDb}`,
+          `Time category: ${timeCategory}`,
+          `Initial matrix scores: volume=${volumeScore}, time=${timeScore}, tone=${toneScore}`,
+          'Return keys: noise_type, noise_source, confidence (0..1), rationale (<=180 chars).',
+        ].join('\n');
+
+        const refineResp = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            model: OLLAMA_MODEL,
+            stream: false,
+            format: 'json',
+            messages: [{ role: 'user', content: prompt }],
+          }),
+        });
+        clearTimeout(timeout);
+
+        if (refineResp.ok) {
+          const payload = await refineResp.json().catch(() => null);
+          const content = payload?.message?.content;
+          if (typeof content === 'string' && content.trim().startsWith('{')) {
+            const parsed = JSON.parse(content);
+            if (parsed?.noise_type) summary.noise_type = String(parsed.noise_type);
+            if (parsed?.noise_source) summary.noise_source = String(parsed.noise_source);
+            if (parsed?.rationale) summary.rationale = String(parsed.rationale).slice(0, 200);
+            if (parsed?.confidence != null) {
+              const c = Number(parsed.confidence);
+              if (Number.isFinite(c)) summary.confidence = Math.max(0, Math.min(1, c));
+            }
+          }
+        }
+      } catch {
+        // Non-fatal: keep heuristic result
+      }
+    }
+
+    return res.json(summary);
+  } catch (error) {
+    console.error('❌ /infer/noise-audio error:', error);
+    return res.status(500).json({ error: 'Noise audio assessment failed', message: error.message });
+  }
+});
+
 // Health check
 app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), (req, res) => {
   const modelsLoaded = !!(yoloSession && embeddingSession);
@@ -5152,6 +5306,7 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       // Biosecurity + Smoke OOH enforcement AI
       biosecurity_plant_id: OPENAI_ENABLED || OLLAMA_VISION_ACTIVE,
       smoke_assessment: OPENAI_ENABLED || OLLAMA_VISION_ACTIVE,
+      noise_audio_assessment: true,
     },
     ollama_circuit_breaker: OLLAMA_ENABLED ? ollamaCircuitBreaker.toJSON() : null,
     knowledge_requests: knowledgeRequestsStore.getState(),
