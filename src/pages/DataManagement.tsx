@@ -169,13 +169,13 @@ export default function DataManagement() {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                <Link to="/data-export?format=csv">
+                <Link to="/reports-hub">
                   <Button className="w-full" variant="outline">
                     Export as CSV
                     <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
                 </Link>
-                <Link to="/data-export?format=json">
+                <Link to="/reports-hub">
                   <Button className="w-full" variant="outline">
                     Export as JSON
                     <ArrowRight className="h-4 w-4 ml-2" />
@@ -249,7 +249,7 @@ export default function DataManagement() {
                 <Shield className="h-4 w-4 mr-2" />
                 Run Integrity Check
               </Button>
-              <Button variant="outline" className="justify-start" onClick={() => navigate('/data-export')}>
+              <Button variant="outline" className="justify-start" onClick={() => navigate('/reports-hub')}>
                 <Download className="h-4 w-4 mr-2" />
                 Export All Data
               </Button>
