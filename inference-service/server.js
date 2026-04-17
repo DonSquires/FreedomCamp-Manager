@@ -381,7 +381,8 @@ const ollamaCircuitBreaker = {
   /** Record a failed Ollama call – may trip the breaker. */
   recordFailure(error) {
     this.failures += 1;
-    this.lastError = error?.message || String(error);
+    const code = error?.cause?.code || error?.code || '';
+    this.lastError = code ? `${error?.message || String(error)} [${code}]` : (error?.message || String(error));
     if (this.state === 'half-open') {
       // Probe failed — re-open the circuit for another cooldown period
       this.state    = 'open';
@@ -5059,6 +5060,43 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
     code_tasks: codeTaskStore.getState(),
     uptime: process.uptime(),
     memory: process.memoryUsage()
+  });
+});
+
+// Ollama circuit breaker reset + live probe (protected — requires inference auth).
+app.post('/ops/circuit-reset', rateLimit({ windowMs: 60_000, max: 10, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, async (req, res) => {
+  const prevState = ollamaCircuitBreaker.toJSON();
+  // Reset to closed so the probe below is allowed through
+  ollamaCircuitBreaker.recordSuccess();
+  console.log('🔄 /ops/circuit-reset invoked — breaker reset, running live probe...');
+
+  let probeStatus = null;
+  let probeError  = null;
+  let probeMs     = null;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
+    const t0 = Date.now();
+    const resp = await fetch(`${OLLAMA_BASE_URL}/api/tags`, { signal: controller.signal });
+    clearTimeout(timer);
+    probeMs     = Date.now() - t0;
+    probeStatus = resp.status;
+    if (resp.ok) {
+      ollamaCircuitBreaker.recordSuccess();
+    } else {
+      ollamaCircuitBreaker.recordFailure(new Error(`HTTP ${resp.status}`));
+    }
+  } catch (err) {
+    const code = err?.cause?.code || err?.code || '';
+    probeError = code ? `${err.message} [${code}]` : err.message;
+    ollamaCircuitBreaker.recordFailure(err);
+  }
+
+  res.json({
+    success: true,
+    previous: prevState,
+    current:  ollamaCircuitBreaker.toJSON(),
+    probe: { url: `${OLLAMA_BASE_URL}/api/tags`, status: probeStatus, error: probeError, ms: probeMs },
   });
 });
 
