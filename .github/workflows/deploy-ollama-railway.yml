@@ -286,6 +286,14 @@ jobs:
               exit 0
             fi
 
+            echo "::warning::Trying fallback Ollama service names with token scope..."
+            for CANDIDATE in ollama ollama-production web; do
+              if railway up --service "$CANDIDATE" --detach > /tmp/ollama-fallback.log 2>&1; then
+                echo "✅ Ollama deploy triggered with fallback service: $CANDIDATE"
+                exit 0
+              fi
+            done
+
             echo "::error::Service not found and auto-retry could not resolve a different Ollama service ID."
             echo "::error::Set RAILWAY_OLLAMA_SERVICE_ID and/or RAILWAY_BOB_PROJECT_ID explicitly."
             exit 1
