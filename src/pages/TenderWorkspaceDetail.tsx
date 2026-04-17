@@ -156,6 +156,8 @@ export default function TenderWorkspaceDetail() {
   const [activeTab, setActiveTab] = useState('intake')
   const [extracting, setExtracting] = useState(false)
   const [analysing, setAnalysing] = useState(false)
+  const [analysingElapsed, setAnalysingElapsed] = useState(0)
+  const analysingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -317,6 +319,8 @@ export default function TenderWorkspaceDetail() {
       return
     }
     setAnalysing(true)
+    setAnalysingElapsed(0)
+    analysingTimerRef.current = setInterval(() => setAnalysingElapsed(s => s + 1), 1000)
     try {
       const { error } = await edgeFunctions.processTenderDocument({
         document_id: doc.id,
@@ -330,7 +334,9 @@ export default function TenderWorkspaceDetail() {
     } catch (err: any) {
       toast.error(err?.message || 'Analysis failed')
     } finally {
+      if (analysingTimerRef.current) { clearInterval(analysingTimerRef.current); analysingTimerRef.current = null }
       setAnalysing(false)
+      setAnalysingElapsed(0)
     }
   }, [doc, canEdit, id, queryClient])
 
@@ -735,17 +741,35 @@ export default function TenderWorkspaceDetail() {
                 )}
 
                 {canEdit && (
-                  <Button
-                    className="w-full"
-                    onClick={runAnalysis}
-                    disabled={analysing || !doc.extracted_text?.trim()}
-                  >
-                    {analysing ? (
-                      <><Loader2 className="h-4 w-4 animate-spin mr-2" />Bob is analysing…</>
-                    ) : (
-                      <><BrainCircuit className="h-4 w-4 mr-2" />Run Bob Analysis</>
+                  <div className="space-y-2">
+                    <Button
+                      className="w-full"
+                      onClick={runAnalysis}
+                      disabled={analysing || !doc.extracted_text?.trim()}
+                    >
+                      {analysing ? (
+                        <><Loader2 className="h-4 w-4 animate-spin mr-2" />Bob is analysing… ({analysingElapsed}s)</>
+                      ) : (
+                        <><BrainCircuit className="h-4 w-4 mr-2" />Run Bob Analysis</>
+                      )}
+                    </Button>
+                    {analysing && (
+                      <div className="space-y-1">
+                        <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                          <div
+                            className="h-2 rounded-full bg-primary transition-all duration-1000"
+                            style={{ width: `${Math.min(95, (analysingElapsed / 110) * 100)}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground text-center">
+                          {analysingElapsed < 15 ? 'Sending to Bob…' :
+                           analysingElapsed < 40 ? 'Bob is reading the document…' :
+                           analysingElapsed < 80 ? 'Bob is extracting key information…' :
+                           'Almost done, finalising assessment…'}
+                        </p>
+                      </div>
                     )}
-                  </Button>
+                  </div>
                 )}
               </CardContent>
             </Card>

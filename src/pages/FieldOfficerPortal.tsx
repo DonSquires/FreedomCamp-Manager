@@ -42,6 +42,7 @@ import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { formatDateTime } from '@/lib/utils'
+import { publishEmergencyAssistRequest } from '@/lib/emergencyAssistBridge'
 import { useOfflineQueue, useOfflineQueueStats } from '@/hooks/useOfflineQueue'
 import type { Database } from '@/types/database'
 
@@ -352,16 +353,33 @@ export default function FieldOfficerPortal() {
   async function triggerSOS() {
     if (!user?.id || !user?.organization_id) return
     try {
+      const officerName = `${user?.first_name ?? ''} ${user?.last_name ?? ''}`.trim()
+      const locationLabel = currentLocation
+        ? `${currentLocation.latitude.toFixed(5)}, ${currentLocation.longitude.toFixed(5)}`
+        : null
+
       await supabase.from('officer_welfare_alerts').insert({
         officer_id:       user.id,
         organization_id:  user.organization_id,
         alert_type:       'sos',
-        officer_name:     `${user?.first_name ?? ''} ${user?.last_name ?? ''}`.trim(),
+        officer_name:     officerName,
         gps_latitude:     currentLocation?.latitude  ?? null,
         gps_longitude:    currentLocation?.longitude ?? null,
         last_activity_at: new Date().toISOString(),
         escalation_level: 2, // SOS always escalates immediately
       })
+
+      publishEmergencyAssistRequest({
+        source: 'welfare_panic_button',
+        organizationId: user.organization_id,
+        officerId: user.id,
+        officerName: officerName || null,
+        locationLabel,
+        latitude: currentLocation?.latitude ?? null,
+        longitude: currentLocation?.longitude ?? null,
+        reason: 'Welfare panic button activated',
+      })
+
       toast.error('🚨 SOS ALERT SENT – Help is on the way', { duration: 0, id: 'sos-alert' })
     } catch (err: any) {
       toast.error(err?.message ?? 'SOS failed – call emergency services directly')
