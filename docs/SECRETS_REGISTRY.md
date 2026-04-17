@@ -303,6 +303,13 @@ These are available as `Deno.env.get('SECRET_NAME')` inside all Edge Functions. 
 | `DEV_CORS` | Optional | `true` enables wildcard CORS — automatically disabled when `ENVIRONMENT=production` |
 | `ENVIRONMENT` | Optional | `development`, `staging`, or `production` |
 
+### GitHub Integration (AI report analysis)
+
+| Secret | Required | Notes |
+|---|---|---|
+| `GITHUB_TOKEN` | Optional | GitHub PAT with `repo` read access (or fine-grained `Actions:Read`). Enables CI run status enrichment in `auto-analyse-report`. |
+| `GITHUB_REPO` | Optional | Repository slug, e.g. `DonSquires/FreedomCamp-Manager`. Defaults to that value if not set. |
+
 ### Monitoring (internal)
 
 | Secret | Required | Notes |
@@ -421,6 +428,8 @@ This table documents every alias accepted by `scripts/load-railway-secrets-from-
 | `PTT_PROXY_SECRET` (Supabase) | — | `ptt-signaling-token` Edge Function |
 | `PLATERECOGNIZER_TOKEN` (Supabase) | `PLATE_RECOGNIZER_TOKEN` | ALPR Edge Functions |
 
+> **Common mistake:** `ALPR_API_TOKEN` is **not** a valid secret name in edge functions. The correct name is `PLATERECOGNIZER_TOKEN` (or its alias `PLATE_RECOGNIZER_TOKEN`). Using `ALPR_API_TOKEN` will result in ALPR silently failing to authenticate.
+
 ---
 
 ## Secrets Checklist
@@ -498,6 +507,8 @@ Use this checklist when setting up a new environment or after team changes.
 - [ ] `SMTP_HOST`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`
 - [ ] `PARKPOW_API_TOKEN` (if using ParkPow ALPR)
 - [ ] `PLATERECOGNIZER_TOKEN` (if using Plate Recognizer)
+- [ ] `GITHUB_TOKEN` (optional — enables CI context in auto-analyse-report)
+- [ ] `GITHUB_REPO` (optional — defaults to `DonSquires/FreedomCamp-Manager`)
 
 ### Railway: Bob service
 
