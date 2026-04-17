@@ -16,6 +16,7 @@
 
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
+import { fetchWithRetry } from '../_shared/fetchWithRetry.ts'
 
 const PTT_SERVER_URL =
   Deno.env.get('PTT_SERVER_URL') ||
@@ -263,7 +264,7 @@ Deno.serve(async (req) => {
 
     let mintResponse: Response
     try {
-      mintResponse = await fetch(`${normalizedPttServerUrl}/api/token/mint`, {
+      mintResponse = await fetchWithRetry(`${normalizedPttServerUrl}/api/token/mint`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -277,6 +278,10 @@ Deno.serve(async (req) => {
           firstName: profile.first_name,
           lastName: profile.last_name,
         }),
+      }, {
+        retries: 2,
+        timeoutMs: 8_000,
+        backoffMs: 500,
       })
     } catch (fetchError: any) {
       console.error('PTT server fetch failed:', fetchError)

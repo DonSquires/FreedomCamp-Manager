@@ -12,6 +12,7 @@
 // are unaffected.
 // ============================================================================
 
+import { fetchWithRetry } from './fetchWithRetry.ts';
 import { normalizeServiceUrl, truncateForDisplay } from './urlUtils.ts';
 
 export interface ALPRResult {
@@ -50,17 +51,15 @@ async function alprLocal(
     const blob = new Blob([imageBytes], { type: "image/jpeg" });
     formData.append("photo", blob, "photo.jpg");
 
-    const controller = new AbortController();
-    const timeoutId  = setTimeout(() => controller.abort(), timeout);
-
-    const response = await fetch(`${inferenceUrl}/infer/alpr`, {
+    const response = await fetchWithRetry(`${inferenceUrl}/infer/alpr`, {
       method: "POST",
       headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
       body: formData,
-      signal: controller.signal,
+    }, {
+      retries: 2,
+      timeoutMs: timeout,
+      backoffMs: 500,
     });
-
-    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const text = await response.text();

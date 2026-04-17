@@ -171,11 +171,17 @@ const userPresence = new Map();
  */
 const channelMeta = new Map();
 
+/**
+ * Token mint throttle: Map<userId, lastMintTimestampMs>
+ */
+const tokenMintTracker = new Map();
+
 // ---------------------------------------------------------------------------
 // Rate limiting
 // ---------------------------------------------------------------------------
 // PTT_RATE_LIMIT_PER_MIN controls requests per minute (default 120)
 const RATE_LIMIT_MAX = parseInt(process.env.PTT_RATE_LIMIT_PER_MIN || '120', 10);
+const TOKEN_MINT_COOLDOWN_MS = parseInt(process.env.PTT_TOKEN_MINT_COOLDOWN_MS || '15000', 10);
 const rateLimitMiddleware = rateLimit({
   windowMs: 60 * 1000,
   max: RATE_LIMIT_MAX,
@@ -351,6 +357,17 @@ app.post('/api/token/mint', rateLimitMiddleware, (req, res) => {
     });
   }
 
+  const now = Date.now();
+  const lastMintAt = tokenMintTracker.get(userId) ?? 0;
+  if (lastMintAt && now - lastMintAt < TOKEN_MINT_COOLDOWN_MS) {
+    const retryAfterSeconds = Math.max(1, Math.ceil((TOKEN_MINT_COOLDOWN_MS - (now - lastMintAt)) / 1000));
+    return res.status(429).json({
+      error: 'Token mint rate limited',
+      message: 'A recent Push to Talk token was already issued for this user. Retry shortly.',
+      retryAfter: retryAfterSeconds,
+    });
+  }
+
   // Validate channel scope format - supports org, incident, direct, team, deployment
   const validScopePattern = /^(org|incident|direct|team|deployment):[a-f0-9-]+$/;
   if (!validScopePattern.test(channelScope)) {
@@ -376,6 +393,7 @@ app.post('/api/token/mint', rateLimitMiddleware, (req, res) => {
     PTT_JWT_SECRET,
     { expiresIn: TOKEN_EXPIRY }
   );
+  tokenMintTracker.set(userId, now);
 
   if (FORCE_TURN_RELAY && !isTurnConfigured()) {
     return res.status(503).json({

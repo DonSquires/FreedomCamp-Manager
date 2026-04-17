@@ -768,6 +768,15 @@ async function loadModels() {
   }
 }
 
+function getWhisperAvailability() {
+  return {
+    cli_configured: !!WHISPER_CLI_PATH,
+    cli_present: !!WHISPER_CLI_PATH && fs.existsSync(WHISPER_CLI_PATH),
+    model_configured: !!WHISPER_MODEL_PATH,
+    model_present: !!WHISPER_MODEL_PATH && fs.existsSync(WHISPER_MODEL_PATH),
+  };
+}
+
 // Preprocess image for YOLO (640x640)
 async function preprocessForYOLO(imageBuffer) {
   const { data, info } = await sharp(imageBuffer)
@@ -5407,12 +5416,15 @@ app.post('/infer/noise-audio', inferenceRateLimit, requireInferenceAuth, async (
 // Health check
 app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), (req, res) => {
   const modelsLoaded = !!(yoloSession && embeddingSession);
+  const whisper = getWhisperAvailability();
   res.json({
     status: 'healthy',
     models: {
       yolo: yoloSession ? 'loaded' : 'not loaded',
       embedding: embeddingSession ? 'loaded' : 'not loaded',
       face_detect: faceDetectSession ? 'loaded' : (fs.existsSync(FACE_DETECT_MODEL_PATH) ? 'not loaded' : 'not present'),
+      whisper_cli: whisper.cli_present ? 'present' : (whisper.cli_configured ? 'missing' : 'not configured'),
+      whisper_model: whisper.model_present ? 'present' : (whisper.model_configured ? 'missing' : 'not configured'),
     },
     config: {
       DEPLOY_SIGNATURE,
@@ -5444,6 +5456,8 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       OLLAMA_BASE_URL: OLLAMA_BASE_URL,
       OLLAMA_BASE_URL_CONFIGURED,
       OLLAMA_MODEL,
+      WHISPER_CLI_PATH: WHISPER_CLI_PATH || null,
+      WHISPER_MODEL_PATH: WHISPER_MODEL_PATH || null,
     },
     capabilities: {
       plate_inference: modelsLoaded,
@@ -5487,6 +5501,7 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       biosecurity_plant_id: OPENAI_ENABLED || OLLAMA_VISION_ACTIVE,
       smoke_assessment: OPENAI_ENABLED || OLLAMA_VISION_ACTIVE,
       noise_audio_assessment: true,
+      noise_audio_local_whisper: whisper.cli_present && whisper.model_present,
     },
     ollama_circuit_breaker: OLLAMA_ENABLED ? ollamaCircuitBreaker.toJSON() : null,
     knowledge_requests: knowledgeRequestsStore.getState(),
