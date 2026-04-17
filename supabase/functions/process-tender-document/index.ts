@@ -124,6 +124,7 @@ async function runAnalysis(
   doc: any,
   textToAnalyse: string,
   force_enrich: boolean,
+  reference_ids: string[] = [],
 ) {
   const document_id = doc.id
 
@@ -141,7 +142,72 @@ async function runAnalysis(
 
     const userMessage =
       `Analyse this procurement document and return the JSON assessment:\n\n---\n` +
-      `${textToAnalyse.slice(0, 6000)}\n---`
+      `${textToAnalyse.slice(0, 5000)}\n---${referenceContextBlock.slice(0, 3000)}`
+
+    // --- Reference material context (optional) --------------------------
+    // Priority order for reference injection: compliance/legal > policy > pricing > template > past_tender > nz_reference > other
+    const REFERENCE_TYPE_ORDER = ['compliance', 'legal', 'policy', 'pricing', 'template', 'past_tender', 'nz_reference', 'other']
+    let referenceContextBlock = ''
+    let referenceContextSnapshot: Array<{ id: string; title: string; material_type: string; chars_used: number }> = []
+
+    const incomingRefIds: string[] = Array.isArray(reference_ids) ? reference_ids : []
+
+    if (incomingRefIds.length > 0) {
+      const { data: refs } = await (supabase as any)
+        .from('tender_reference_materials')
+        .select('id, title, material_type, extracted_text')
+        .in('id', incomingRefIds)
+        .eq('organization_id', doc.organization_id)
+        .eq('is_active', true)
+        .eq('extraction_status', 'extracted')
+
+      if (refs && refs.length > 0) {
+        // Sort by priority
+        const sorted = [...refs].sort((a, b) => {
+          const ai = REFERENCE_TYPE_ORDER.indexOf(a.material_type)
+          const bi = REFERENCE_TYPE_ORDER.indexOf(b.material_type)
+          return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
+        })
+
+        const parts: string[] = []
+        for (const r of sorted) {
+          const snippet = (r.extracted_text || '').slice(0, 2000)
+          if (!snippet) continue
+          parts.push(`[${r.material_type.toUpperCase()}] ${r.title}:\n${snippet}`)
+          referenceContextSnapshot.push({ id: r.id, title: r.title, material_type: r.material_type, chars_used: snippet.length })
+        }
+
+        if (parts.length > 0) {
+          referenceContextBlock = `\n\n--- ORGANISATION REFERENCE MATERIAL ---\nThe following reference documents from your organisation are provided for context. Use them to calibrate your assessment:\n\n${parts.join('\n\n---\n')}\n--- END REFERENCE MATERIAL ---`
+        }
+
+        // Upsert tender_document_references rows — mark used_in_analysis
+        const now = new Date().toISOString()
+        for (const r of sorted) {
+          await (supabase as any)
+            .from('tender_document_references')
+            .upsert({
+              document_id,
+              reference_material_id: r.id,
+              included: true,
+              used_in_analysis: true,
+              analysis_run_at: now,
+            }, { onConflict: 'document_id,reference_material_id' })
+        }
+      }
+    }
+
+    // --- Bob Assessment -------------------------------------------------
+    const systemPrompt =
+      `You are Bob, an expert analyst for Iron Eagle Security's FieldOps Manager system in New Zealand. ` +
+      `Return ONLY a valid JSON object with these exact keys: ` +
+      `document_type (rfp/rfi/rfq/rfip/tender_application/tender_response/proposal/other), ` +
+      `issuing_body, reference_number, due_date (YYYY-MM-DD or null), ` +
+      `key_services (array of strings), key_requirements (array of strings), ` +
+      `key_dates (array of {label,date}), assessment_summary (2-4 sentences), ` +
+      `enrichment_queries (array of strings), ` +
+      `response_outline ({cover_letter,executive_summary,services_offered,pricing_notes,team_qualifications,health_and_safety,declaration}). ` +
+      `No text outside the JSON.`
 
     let assessment: AssessmentResult
     try {
@@ -217,6 +283,9 @@ async function runAnalysis(
       status: 'assessed',
       response_sections: defaultResponseSections,
     }
+    if (referenceContextSnapshot.length > 0) {
+      updates.reference_context_snapshot = referenceContextSnapshot
+    }
     if (assessment.issuing_body) updates.issuing_body = assessment.issuing_body
     if (assessment.reference_number) updates.reference_number = assessment.reference_number
     if (assessment.due_date) updates.due_date = assessment.due_date
@@ -287,7 +356,7 @@ Deno.serve(withCors(async (req: Request) => {
     })
   }
 
-  const { document_id, extracted_text: bodyText, force_enrich = false } = body
+  const { document_id, extracted_text: bodyText, force_enrich = false, reference_ids = [] } = body
 
   if (!document_id) {
     return new Response(JSON.stringify({ error: 'document_id is required' }), {
@@ -326,7 +395,7 @@ Deno.serve(withCors(async (req: Request) => {
   // Queue AI work as background task — runs after HTTP response is returned.
   // EdgeRuntime.waitUntil keeps the isolate alive until the promise settles.
   ;(globalThis as any).EdgeRuntime?.waitUntil(
-    runAnalysis(supabase, doc, textToAnalyse, force_enrich)
+    runAnalysis(supabase, doc, textToAnalyse, force_enrich, reference_ids)
   )
 
   // Return immediately — supabase.functions.invoke() resolves right away
