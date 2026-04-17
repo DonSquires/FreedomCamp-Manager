@@ -24,6 +24,9 @@ ENV OLLAMA_MODEL=llama3.1:8b
 # Default is empty so the baseline deployment stays within Railway memory limits.
 ENV OLLAMA_EXTRA_MODELS=
 
+# Production baseline avoids deploy-time pulls so the service can bind quickly.
+ENV OLLAMA_PREPULL_MODE=off
+
 # Pause between sequential model pulls to reduce startup load spikes.
 ENV OLLAMA_PULL_DELAY_SECONDS=20
 

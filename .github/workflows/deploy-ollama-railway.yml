@@ -273,7 +273,7 @@ jobs:
             --environment "$DEPLOY_ENVIRONMENT" \
             --skip-deploys \
             "OLLAMA_MODEL=llama3.1:8b" \
-            "OLLAMA_PREPULL_MODE=background" \
+            "OLLAMA_PREPULL_MODE=off" \
             "OLLAMA_PULL_DELAY_SECONDS=20"
 
           railway variable delete OLLAMA_EXTRA_MODELS \
@@ -392,11 +392,12 @@ jobs:
               HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${BOB_URL}/health" || echo "000")
               if [ "$HEALTH_STATUS" = "200" ]; then
                 OLLAMA_OK=$(printf '%s' "$HEALTH_JSON" | jq -r '.capabilities.chat_local_ollama_enabled // "unknown"')
+                BREAKER_STATE=$(printf '%s' "$HEALTH_JSON" | jq -r '.ollama_circuit_breaker.state // "unknown"')
                 PRIMARY_MODEL=$(printf '%s' "$HEALTH_JSON" | jq -r '.capabilities.tender_primary_model // .config.OLLAMA_MODEL // "unknown"')
                 WRITING_MODEL=$(printf '%s' "$HEALTH_JSON" | jq -r '.capabilities.tender_writing_model // "unknown"')
                 DISTINCT=$(printf '%s' "$HEALTH_JSON" | jq -r '.capabilities.tender_writing_model_distinct // "unknown"')
 
-                if [ "$OLLAMA_OK" = "true" ]; then
+                if [ "$OLLAMA_OK" = "true" ] && [ "$BREAKER_STATE" = "closed" ]; then
                   echo "✅ Bob confirms Ollama private networking is healthy."
                   echo "ℹ️  Bob models: primary=$PRIMARY_MODEL writing=$WRITING_MODEL distinct=$DISTINCT"
                   exit 0

@@ -11,7 +11,7 @@
 # Set it on the Railway service to switch models without rebuilding the image.
 # OLLAMA_EXTRA_MODELS is optional and defaults to empty to keep the baseline
 # memory footprint low enough for a single 24 GB Railway replica.
-# OLLAMA_PREPULL_MODE controls pull behavior: background (default), blocking, off.
+# OLLAMA_PREPULL_MODE controls pull behavior: off (default), background, blocking.
 # OLLAMA_PULL_DELAY_SECONDS inserts a pause between model pulls so download and
 # load activity ramps up more gradually on constrained Railway instances.
 # Note: This script also acts as a push-trigger anchor for Railway deploy workflow runs.
@@ -21,7 +21,7 @@ set -e
 MODEL="${OLLAMA_MODEL:-llama3.1:8b}"
 EXTRA_MODELS="${OLLAMA_EXTRA_MODELS:-}"
 MAX_WAIT=120   # seconds to wait for daemon to become ready
-PREPULL_MODE="${OLLAMA_PREPULL_MODE:-background}"
+PREPULL_MODE="${OLLAMA_PREPULL_MODE:-off}"
 PULL_DELAY_SECONDS="${OLLAMA_PULL_DELAY_SECONDS:-20}"
 PORT="${PORT:-11434}"
 export OLLAMA_HOST="0.0.0.0:${PORT}"
