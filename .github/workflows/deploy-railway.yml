@@ -6,7 +6,7 @@ name: Deploy Inference Service to Railway
 # Can also be triggered manually via workflow_dispatch.
 #
 # Required secrets:
-#   RAILWAY_TOKEN                — Railway project token for the inference service project
+#   RAILWAY_TOKEN or RAILWAY_BOB_TOKEN — Railway project token for the inference service project
 #   RAILWAY_INFERENCE_SERVICE_ID — Railway project → Service → Settings → Service ID
 #
 # Optional secrets:
@@ -81,13 +81,13 @@ jobs:
         id: check-secrets
         run: |
           missing=""
-          [ -z "${RAILWAY_TOKEN:-}" ]               && missing="$missing RAILWAY_TOKEN"
+          [ -z "${RAILWAY_TOKEN:-${RAILWAY_BOB_TOKEN:-}}" ] && missing="$missing RAILWAY_TOKEN-or-RAILWAY_BOB_TOKEN"
           [ -z "${RAILWAY_INFERENCE_SERVICE_ID:-}" ] && missing="$missing RAILWAY_INFERENCE_SERVICE_ID"
           if [ -n "$missing" ]; then
             echo "::error::Required secrets not configured ($missing) — deployment skipped."
             echo ""
             echo "Add these GitHub Actions secrets to this repository:"
-            echo "  RAILWAY_TOKEN:                Railway project token (required)"
+            echo "  RAILWAY_TOKEN or RAILWAY_BOB_TOKEN: Railway project token (required)"
             echo "  RAILWAY_INFERENCE_SERVICE_ID: Railway service ID for inference service (required)"
             echo ""
             echo "See docs/RAILWAY_SERVICES_AUTHORITY.md for setup instructions."
@@ -113,9 +113,30 @@ jobs:
           install -m 0755 railway "$HOME/.railway/bin/railway"
           echo "$HOME/.railway/bin" >> "$GITHUB_PATH"
 
+      - name: Select Railway token for deploy
+        id: select-token
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        run: |
+          set -euo pipefail
+          if [ -n "${RAILWAY_BOB_TOKEN:-}" ]; then
+            echo "::add-mask::${RAILWAY_BOB_TOKEN}"
+            echo "SELECTED_RAILWAY_TOKEN=${RAILWAY_BOB_TOKEN}" >> "$GITHUB_ENV"
+            echo "selected_token_source=RAILWAY_BOB_TOKEN" >> "$GITHUB_OUTPUT"
+          elif [ -n "${RAILWAY_TOKEN:-}" ]; then
+            echo "::add-mask::${RAILWAY_TOKEN}"
+            echo "SELECTED_RAILWAY_TOKEN=${RAILWAY_TOKEN}" >> "$GITHUB_ENV"
+            echo "selected_token_source=RAILWAY_TOKEN" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::No Railway token available."
+            exit 1
+          fi
+          echo "✅ Railway token selected for deploy"
+
       - name: Validate Railway token
         id: validate-token
         if: steps.check-secrets.outputs.secrets_present == 'true'
+        env:
+          RAILWAY_TOKEN: ${{ env.SELECTED_RAILWAY_TOKEN }}
         run: |
           set -euo pipefail
           echo "🔑 Validating Railway token..."
@@ -139,6 +160,8 @@ jobs:
         if: >-
           steps.check-secrets.outputs.secrets_present == 'true' &&
           steps.validate-token.outputs.token_valid == 'true'
+        env:
+          RAILWAY_TOKEN: ${{ env.SELECTED_RAILWAY_TOKEN }}
         run: |
           cd inference-service
           echo "🚂 Deploying inference-service to Railway..."

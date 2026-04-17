@@ -21,10 +21,12 @@ jobs:
         run: |
           set -euo pipefail
           BASE_URL="${INFERENCE_SERVICE_URL:-${BOB_SERVICE_URL:-}}"
-          API_KEY="${INFERENCE_API_KEY:-${BOB_INFERENCE_API_KEY:-}}"
+          API_KEY_PRIMARY="${INFERENCE_API_KEY:-}"
+          API_KEY_SECONDARY="${BOB_INFERENCE_API_KEY:-}"
 
           echo "INFERENCE_SERVICE_URL=$BASE_URL" >> "$GITHUB_ENV"
-          echo "INFERENCE_API_KEY=$API_KEY" >> "$GITHUB_ENV"
+          echo "INFERENCE_API_KEY_PRIMARY=$API_KEY_PRIMARY" >> "$GITHUB_ENV"
+          echo "INFERENCE_API_KEY_SECONDARY=$API_KEY_SECONDARY" >> "$GITHUB_ENV"
         env:
           INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL }}
           BOB_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
@@ -117,24 +119,49 @@ jobs:
 
           call_chat () {
             local prompt="$1"
+            local payload
+            payload="{\"provider\":\"ollama\",\"message\":$(jq -Rn --arg p "$prompt" '$p')}"
+
+            local keys=("${INFERENCE_API_KEY_PRIMARY:-}" "${INFERENCE_API_KEY_SECONDARY:-}")
+            local attempts=0
+
+            for key in "${keys[@]}"; do
+              [[ -z "$key" ]] && continue
+              attempts=$((attempts + 1))
+
+              # Try x-inference-api-key first
+              local resp
+              resp=$(curl -sS -m 45 -X POST "$CHAT_URL" \
+                -H 'Content-Type: application/json' \
+                -H "x-inference-api-key: ${key}" \
+                -d "$payload" || true)
+              if [[ -n "$resp" ]] && ! echo "$resp" | grep -qi 'unauthorized inference request'; then
+                echo "$resp"
+                return 0
+              fi
+
+              # Then try Bearer form with the same key
+              resp=$(curl -sS -m 45 -X POST "$CHAT_URL" \
+                -H 'Content-Type: application/json' \
+                -H "Authorization: Bearer ${key}" \
+                -d "$payload" || true)
+              if [[ -n "$resp" ]] && ! echo "$resp" | grep -qi 'unauthorized inference request'; then
+                echo "$resp"
+                return 0
+              fi
+            done
+
+            # Final fallback: unauthenticated (covers permissive environments)
             # || true: curl exits non-zero on timeout (28) or connection error.
             # With set -euo pipefail that would abort the whole step; we want to
             # return an empty string instead and let retry_chat_prompt handle it.
             # 45 s: Ollama cold-start or first-token latency on Railway free tier
             # typically reaches 30-40 s; 45 s gives a small safety margin while
             # still well within the step's 10-minute job timeout.
-            if [[ -n "${INFERENCE_API_KEY:-}" ]]; then
-              curl -sS -m 45 -X POST "$CHAT_URL" \
-                -H 'Content-Type: application/json' \
-                -H "x-inference-api-key: ${INFERENCE_API_KEY}" \
-                -d "{\"provider\":\"ollama\",\"message\":$(jq -Rn --arg p "$prompt" '$p')}" \
-                || true
-            else
-              curl -sS -m 45 -X POST "$CHAT_URL" \
-                -H 'Content-Type: application/json' \
-                -d "{\"provider\":\"ollama\",\"message\":$(jq -Rn --arg p "$prompt" '$p')}" \
-                || true
-            fi
+            curl -sS -m 45 -X POST "$CHAT_URL" \
+              -H 'Content-Type: application/json' \
+              -d "$payload" \
+              || true
           }
 
           retry_chat_prompt () {
@@ -221,7 +248,8 @@ jobs:
             fi
           done
         env:
-          INFERENCE_API_KEY: ${{ env.INFERENCE_API_KEY }}
+          INFERENCE_API_KEY_PRIMARY: ${{ env.INFERENCE_API_KEY_PRIMARY }}
+          INFERENCE_API_KEY_SECONDARY: ${{ env.INFERENCE_API_KEY_SECONDARY }}
           EXPECT_PROVIDER: ${{ env.EXPECT_PROVIDER }}
 
       - name: Upload smoke transcript
