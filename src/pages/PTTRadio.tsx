@@ -403,6 +403,7 @@ export default function PTTRadio() {
   const [interpreterInput, setInterpreterInput] = useState('')
   const [interpreterOutput, setInterpreterOutput] = useState('')
   const [interpreterTargetLanguage, setInterpreterTargetLanguage] = useState('en-NZ')
+  const [interpreterPrefsHydrated, setInterpreterPrefsHydrated] = useState(false)
   const [isInterpreterListening, setIsInterpreterListening] = useState(false)
   const [isInterpreterTranslating, setIsInterpreterTranslating] = useState(false)
 
@@ -736,19 +737,57 @@ export default function PTTRadio() {
 
   // ── Cleanup on unmount ────────────────────────────────────
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(TEAM_CHAT_TRANSLATION_PREF_KEY)
-      if (!raw) return
-      const parsed = JSON.parse(raw)
-      if (typeof parsed?.targetLanguage === 'string') {
-        setInterpreterTargetLanguage(parsed.targetLanguage)
+    let cancelled = false
+    setInterpreterPrefsHydrated(false)
+
+    const hydrateInterpreterPrefs = async () => {
+      let nextTargetLanguage = 'en-NZ'
+
+      try {
+        const raw = localStorage.getItem(TEAM_CHAT_TRANSLATION_PREF_KEY)
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          if (typeof parsed?.targetLanguage === 'string' && parsed.targetLanguage.trim()) {
+            nextTargetLanguage = parsed.targetLanguage.trim()
+          }
+        }
+      } catch {
+        // Ignore malformed preference payloads.
       }
-    } catch {
-      // Ignore malformed preference payloads.
+
+      if (!cancelled) setInterpreterTargetLanguage(nextTargetLanguage)
+
+      if (!user?.id) {
+        if (!cancelled) setInterpreterPrefsHydrated(true)
+        return
+      }
+
+      const { data, error } = await (supabase.from('user_profiles') as any)
+        .select('notification_preferences')
+        .eq('id', user.id)
+        .single()
+
+      if (!cancelled && !error) {
+        const prefs = (data?.notification_preferences as Record<string, any> | null) ?? {}
+        const translation = (prefs.translation as Record<string, any> | undefined) ?? {}
+        const dbTargetLanguage = typeof translation.target_language === 'string' ? translation.target_language.trim() : ''
+        if (dbTargetLanguage) {
+          setInterpreterTargetLanguage(dbTargetLanguage)
+        }
+      }
+
+      if (!cancelled) setInterpreterPrefsHydrated(true)
     }
-  }, [])
+
+    void hydrateInterpreterPrefs()
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id])
 
   useEffect(() => {
+    if (!interpreterPrefsHydrated) return
+
     try {
       const raw = localStorage.getItem(TEAM_CHAT_TRANSLATION_PREF_KEY)
       const parsed = raw ? JSON.parse(raw) : {}
@@ -762,7 +801,33 @@ export default function PTTRadio() {
     } catch {
       // Ignore storage errors.
     }
-  }, [interpreterTargetLanguage])
+
+    if (!user?.id) return
+
+    const timer = setTimeout(async () => {
+      const { data } = await (supabase.from('user_profiles') as any)
+        .select('notification_preferences')
+        .eq('id', user.id)
+        .single()
+
+      const currentPrefs = (data?.notification_preferences as Record<string, any> | null) ?? {}
+      const nextPrefs = {
+        ...currentPrefs,
+        translation: {
+          ...(currentPrefs.translation || {}),
+          target_language: interpreterTargetLanguage,
+          primary_language: 'en-NZ',
+          region: 'NZ',
+        },
+      }
+
+      await (supabase.from('user_profiles') as any)
+        .update({ notification_preferences: nextPrefs } as never)
+        .eq('id', user.id)
+    }, 350)
+
+    return () => clearTimeout(timer)
+  }, [user?.id, interpreterTargetLanguage, interpreterPrefsHydrated])
 
   useEffect(() => {
     return () => {

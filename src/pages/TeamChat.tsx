@@ -336,7 +336,8 @@ export default function TeamChat() {
   const [inspectUserId, setInspectUserId] = useState<string | null>(null)
   const [channel, setChannel] = useState<RealtimeChannel | null>(null)
   const [translationTarget, setTranslationTarget] = useState<string>('en-NZ')
-  const [autoTranslateIncoming, setAutoTranslateIncoming] = useState<boolean>(true)
+  const [autoTranslateIncoming, setAutoTranslateIncoming] = useState<boolean>(false)
+  const [translationPrefsHydrated, setTranslationPrefsHydrated] = useState(false)
   const [translatedById, setTranslatedById] = useState<Record<string, string>>({})
   const [isTranslatingDraft, setIsTranslatingDraft] = useState(false)
   const [translatingMessageIds, setTranslatingMessageIds] = useState<Record<string, boolean>>({})
@@ -554,22 +555,75 @@ export default function TeamChat() {
   }, [combinedMessages, target, user?.id, user?.role])
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(TEAM_CHAT_TRANSLATION_PREF_KEY)
-      if (!raw) return
-      const parsed = JSON.parse(raw)
-      if (typeof parsed?.targetLanguage === 'string') {
-        setTranslationTarget(parsed.targetLanguage)
+    let cancelled = false
+    setTranslationPrefsHydrated(false)
+
+    const hydratePrefs = async () => {
+      // App default for NZ-only rollout.
+      let nextTargetLanguage = 'en-NZ'
+      let nextAutoTranslateIncoming = false
+
+      // Device-local fallback for first paint/offline.
+      try {
+        const raw = localStorage.getItem(TEAM_CHAT_TRANSLATION_PREF_KEY)
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          if (typeof parsed?.targetLanguage === 'string' && parsed.targetLanguage.trim()) {
+            nextTargetLanguage = parsed.targetLanguage.trim()
+          }
+          if (typeof parsed?.autoTranslateIncoming === 'boolean') {
+            nextAutoTranslateIncoming = parsed.autoTranslateIncoming
+          }
+        }
+      } catch {
+        // Ignore malformed local preference payloads.
       }
-      if (typeof parsed?.autoTranslateIncoming === 'boolean') {
-        setAutoTranslateIncoming(parsed.autoTranslateIncoming)
+
+      if (!cancelled) {
+        setTranslationTarget(nextTargetLanguage)
+        setAutoTranslateIncoming(nextAutoTranslateIncoming)
       }
-    } catch {
-      // Ignore malformed local preference payloads.
+
+      if (!user?.id) {
+        if (!cancelled) setTranslationPrefsHydrated(true)
+        return
+      }
+
+      // User-scoped preference (not organization-scoped).
+      const { data, error } = await (supabase.from('user_profiles') as any)
+        .select('notification_preferences')
+        .eq('id', user.id)
+        .single()
+
+      if (!cancelled && !error) {
+        const prefs = (data?.notification_preferences as Record<string, any> | null) ?? {}
+        const translation = (prefs.translation as Record<string, any> | undefined) ?? {}
+
+        const dbTargetLanguage = typeof translation.target_language === 'string' ? translation.target_language.trim() : ''
+        const dbAutoTranslate = typeof translation.auto_translate_incoming === 'boolean'
+          ? translation.auto_translate_incoming
+          : null
+
+        if (dbTargetLanguage) {
+          setTranslationTarget(dbTargetLanguage)
+        }
+        if (dbAutoTranslate !== null) {
+          setAutoTranslateIncoming(dbAutoTranslate)
+        }
+      }
+
+      if (!cancelled) setTranslationPrefsHydrated(true)
     }
-  }, [])
+
+    void hydratePrefs()
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id])
 
   useEffect(() => {
+    if (!translationPrefsHydrated) return
+
     try {
       localStorage.setItem(
         TEAM_CHAT_TRANSLATION_PREF_KEY,
@@ -581,7 +635,34 @@ export default function TeamChat() {
     } catch {
       // Ignore storage write errors.
     }
-  }, [translationTarget, autoTranslateIncoming])
+
+    if (!user?.id) return
+
+    const timer = setTimeout(async () => {
+      const { data } = await (supabase.from('user_profiles') as any)
+        .select('notification_preferences')
+        .eq('id', user.id)
+        .single()
+
+      const currentPrefs = (data?.notification_preferences as Record<string, any> | null) ?? {}
+      const nextPrefs = {
+        ...currentPrefs,
+        translation: {
+          ...(currentPrefs.translation || {}),
+          target_language: translationTarget,
+          auto_translate_incoming: autoTranslateIncoming,
+          primary_language: 'en-NZ',
+          region: 'NZ',
+        },
+      }
+
+      await (supabase.from('user_profiles') as any)
+        .update({ notification_preferences: nextPrefs } as never)
+        .eq('id', user.id)
+    }, 350)
+
+    return () => clearTimeout(timer)
+  }, [user?.id, translationTarget, autoTranslateIncoming, translationPrefsHydrated])
 
   const translateText = useCallback(async (text: string, targetLanguage: string): Promise<string> => {
     const { data, error } = await edgeFunctions.translateMessage({
