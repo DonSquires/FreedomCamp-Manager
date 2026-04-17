@@ -22,6 +22,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
@@ -49,9 +50,11 @@ import { requestWakeLock, releaseWakeLock, requestNotificationPermission } from 
 import { AppLayout } from '@/components/features/AppLayout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Slider } from '@/components/ui/slider'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Sheet,
   SheetContent,
@@ -87,6 +90,7 @@ import {
   PhoneOff,
   Menu,
   BrainCircuit,
+  Languages,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
@@ -136,6 +140,17 @@ const DEFAULT_CHANNELS: RadioChannel[] = [
 const CHANNEL_TYPE_ORDER: Record<string, number> = {
   primary: 0, dispatch: 1, team: 2, incident: 3, welfare: 4, admin: 5, emergency: 99,
 }
+
+const TRANSLATION_LANGUAGE_OPTIONS = [
+  { value: 'en-NZ', label: 'English (NZ)' },
+  { value: 'mi-NZ', label: 'Te Reo Maori' },
+  { value: 'zh-CN', label: 'Chinese (Mandarin)' },
+  { value: 'hi-IN', label: 'Hindi' },
+  { value: 'tl-PH', label: 'Filipino (Tagalog)' },
+  { value: 'es-ES', label: 'Spanish' },
+  { value: 'fr-FR', label: 'French' },
+  { value: 'ar-SA', label: 'Arabic' },
+] as const
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -383,8 +398,14 @@ export default function PTTRadio() {
   const [microphoneError, setMicrophoneError] = useState<string | null>(null)
   const [showDiagnostics, setShowDiagnostics] = useState(false)
   const [diagnostics, setDiagnostics] = useState<PTTDiagnostics>(() => getPTTDiagnostics())
+  const [interpreterInput, setInterpreterInput] = useState('')
+  const [interpreterOutput, setInterpreterOutput] = useState('')
+  const [interpreterTargetLanguage, setInterpreterTargetLanguage] = useState('en-NZ')
+  const [isInterpreterListening, setIsInterpreterListening] = useState(false)
+  const [isInterpreterTranslating, setIsInterpreterTranslating] = useState(false)
 
   const pttButtonRef = useRef<HTMLButtonElement>(null)
+  const speechRecognitionRef = useRef<any>(null)
   const scanTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const liveTxTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const wakeLockRef = useRef(false)
@@ -714,6 +735,13 @@ export default function PTTRadio() {
   // ── Cleanup on unmount ────────────────────────────────────
   useEffect(() => {
     return () => {
+      if (speechRecognitionRef.current) {
+        try {
+          speechRecognitionRef.current.stop()
+        } catch {
+          // best-effort cleanup for browser recognizer
+        }
+      }
       stopVoxMonitoring()
       if (liveTxTimerRef.current) clearInterval(liveTxTimerRef.current)
       if (scanTimerRef.current) clearInterval(scanTimerRef.current)
@@ -944,6 +972,78 @@ export default function PTTRadio() {
     toast.warning('EMERGENCY MODE — transmitting on all channels', { duration: 5000 })
     await handlePTTPress()
   }, [effectiveOrgId, channels, connectToChannel, handlePTTPress])
+
+  const translateInterpreterInput = useCallback(async () => {
+    const text = interpreterInput.trim()
+    if (!text) return
+
+    setIsInterpreterTranslating(true)
+    try {
+      const { data, error } = await edgeFunctions.translateMessage({
+        text,
+        target_language: interpreterTargetLanguage,
+      })
+
+      if (error || !data) {
+        throw new Error('Translation unavailable right now')
+      }
+
+      const translated = String((data as any)?.translated_text || '').trim()
+      if (!translated) {
+        throw new Error('Translation returned an empty response')
+      }
+
+      setInterpreterOutput(translated)
+    } catch (err: any) {
+      console.error('PTT interpreter translation failed:', err)
+      toast.error('PTT interpreter could not translate right now.')
+    } finally {
+      setIsInterpreterTranslating(false)
+    }
+  }, [interpreterInput, interpreterTargetLanguage])
+
+  const captureSpeechForInterpreter = useCallback(() => {
+    const Ctor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!Ctor) {
+      toast.error('Browser speech recognition is not available on this device.')
+      return
+    }
+
+    if (speechRecognitionRef.current) {
+      try {
+        speechRecognitionRef.current.stop()
+      } catch {
+        // no-op
+      }
+      speechRecognitionRef.current = null
+    }
+
+    const recognition = new Ctor()
+    speechRecognitionRef.current = recognition
+    recognition.lang = 'en-NZ'
+    recognition.interimResults = false
+    recognition.continuous = false
+    recognition.maxAlternatives = 1
+
+    recognition.onresult = (event: any) => {
+      const transcript = String(event?.results?.[0]?.[0]?.transcript || '').trim()
+      if (transcript) {
+        setInterpreterInput(transcript)
+      }
+    }
+
+    recognition.onerror = () => {
+      toast.error('Speech capture failed. Try text input instead.')
+    }
+
+    recognition.onend = () => {
+      setIsInterpreterListening(false)
+      speechRecognitionRef.current = null
+    }
+
+    setIsInterpreterListening(true)
+    recognition.start()
+  }, [])
 
   // ─────────────────────────────────────────────────────────
   // Render helpers
@@ -1418,6 +1518,61 @@ export default function PTTRadio() {
             <div className="flex flex-col items-center gap-1.5 w-full max-w-xs">
               <div className="text-[10px] text-slate-500 uppercase tracking-widest">Audio Level</div>
               <AudioLevelMeter level={audioLevel} transmitting={isTransmitting} />
+            </div>
+
+            <div className="w-full max-w-sm rounded-xl border border-slate-800 bg-slate-900/80 p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs text-slate-400 uppercase tracking-widest">PTT Interpreter</div>
+                <div className="flex items-center gap-2">
+                  <Languages className="h-3.5 w-3.5 text-slate-400" />
+                  <Select value={interpreterTargetLanguage} onValueChange={setInterpreterTargetLanguage}>
+                    <SelectTrigger className="h-8 w-[170px] border-slate-700 bg-slate-950 text-slate-200">
+                      <SelectValue placeholder="Target language" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TRANSLATION_LANGUAGE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Textarea
+                value={interpreterInput}
+                onChange={(e) => setInterpreterInput(e.target.value)}
+                placeholder="Enter message or capture speech, then translate for radio relay"
+                className="min-h-[76px] border-slate-700 bg-slate-950 text-slate-200 placeholder:text-slate-500"
+              />
+
+              {interpreterOutput && (
+                <div className="rounded-md border border-emerald-700/40 bg-emerald-950/30 p-2 text-sm text-emerald-200 whitespace-pre-wrap">
+                  {interpreterOutput}
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={captureSpeechForInterpreter}
+                  disabled={isInterpreterListening}
+                  className="border-slate-700 bg-slate-800 text-slate-200"
+                >
+                  {isInterpreterListening ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Mic className="h-3.5 w-3.5 mr-1" />}
+                  {isInterpreterListening ? 'Listening...' : 'Capture Speech'}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={translateInterpreterInput}
+                  disabled={!interpreterInput.trim() || isInterpreterTranslating}
+                  className="border-slate-700 bg-slate-800 text-slate-200"
+                >
+                  {isInterpreterTranslating ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Languages className="h-3.5 w-3.5 mr-1" />}
+                  Translate
+                </Button>
+              </div>
             </div>
 
             {/* Quick controls row */}

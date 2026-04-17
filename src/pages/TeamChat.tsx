@@ -4,6 +4,7 @@ import { RealtimeChannel } from '@supabase/supabase-js'
 import { useNavigate } from 'react-router-dom'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
@@ -11,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
@@ -24,6 +26,8 @@ import {
   Shield,
   Upload,
   Users,
+  Languages,
+  Loader2,
 } from 'lucide-react'
 import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { formatDateTime } from '@/lib/utils'
@@ -53,6 +57,17 @@ interface OfficerContextProps {
   title?: string
   organizationId: string | null
 }
+
+const TRANSLATION_LANGUAGE_OPTIONS = [
+  { value: 'en-NZ', label: 'English (NZ)' },
+  { value: 'mi-NZ', label: 'Te Reo Maori' },
+  { value: 'zh-CN', label: 'Chinese (Mandarin)' },
+  { value: 'hi-IN', label: 'Hindi' },
+  { value: 'tl-PH', label: 'Filipino (Tagalog)' },
+  { value: 'es-ES', label: 'Spanish' },
+  { value: 'fr-FR', label: 'French' },
+  { value: 'ar-SA', label: 'Arabic' },
+] as const
 
 function OfficerContextPanel({ userId, title = 'Officer context', organizationId }: OfficerContextProps) {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' })
@@ -317,6 +332,10 @@ export default function TeamChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inspectUserId, setInspectUserId] = useState<string | null>(null)
   const [channel, setChannel] = useState<RealtimeChannel | null>(null)
+  const [translationTarget, setTranslationTarget] = useState<string>('en-NZ')
+  const [translatedById, setTranslatedById] = useState<Record<string, string>>({})
+  const [isTranslatingDraft, setIsTranslatingDraft] = useState(false)
+  const [translatingMessageIds, setTranslatingMessageIds] = useState<Record<string, boolean>>({})
   const targetUserRef = useRef<Participant | null>(null)
 
   const effectiveOrgId = useMemo(
@@ -530,6 +549,57 @@ export default function TeamChat() {
     )
   }, [combinedMessages, target, user?.id, user?.role])
 
+  const translateText = async (text: string, targetLanguage: string): Promise<string> => {
+    const { data, error } = await edgeFunctions.translateMessage({
+      text,
+      target_language: targetLanguage,
+    })
+
+    if (error || !data) {
+      throw new Error('Translation unavailable right now')
+    }
+
+    const translated = String((data as any)?.translated_text || '').trim()
+    if (!translated) {
+      throw new Error('Translation returned an empty response')
+    }
+
+    return translated
+  }
+
+  const translateDraft = async () => {
+    const draft = message.trim()
+    if (!draft) return
+    setIsTranslatingDraft(true)
+    try {
+      const translated = await translateText(draft, translationTarget)
+      setMessage(translated)
+    } catch (err: any) {
+      console.error('Draft translation failed:', err)
+    } finally {
+      setIsTranslatingDraft(false)
+    }
+  }
+
+  const translateIncomingMessage = async (msg: ChatMessage) => {
+    if (!msg.body?.trim()) return
+    if (translatedById[msg.id]) return
+
+    setTranslatingMessageIds((prev) => ({ ...prev, [msg.id]: true }))
+    try {
+      const translated = await translateText(msg.body, translationTarget)
+      setTranslatedById((prev) => ({ ...prev, [msg.id]: translated }))
+    } catch (err: any) {
+      console.error('Incoming message translation failed:', err)
+    } finally {
+      setTranslatingMessageIds((prev) => {
+        const next = { ...prev }
+        delete next[msg.id]
+        return next
+      })
+    }
+  }
+
   const sendMessage = async () => {
     if (!message.trim() || !user) return
     const msg: ChatMessage = {
@@ -640,6 +710,8 @@ export default function TeamChat() {
               {filteredMessages.map((msg) => {
                 const isMine = msg.senderId === user?.id
                 const isSystem = msg.senderRole === 'system'
+                const translatedBody = translatedById[msg.id]
+                const isTranslatingMessage = !!translatingMessageIds[msg.id]
                 return (
                   <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
                     <div
@@ -652,6 +724,24 @@ export default function TeamChat() {
                         <span>{formatDateTime(msg.createdAt)}</span>
                       </div>
                       <div className="text-sm whitespace-pre-wrap">{msg.body}</div>
+                      {translatedBody && (
+                        <div className="mt-2 rounded-md border border-emerald-300/40 bg-emerald-50/80 text-emerald-950 p-2 text-xs whitespace-pre-wrap">
+                          {translatedBody}
+                        </div>
+                      )}
+                      {!isMine && !isSystem && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => translateIncomingMessage(msg)}
+                            disabled={isTranslatingMessage}
+                          >
+                            {isTranslatingMessage ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Languages className="h-3.5 w-3.5 mr-1" />}
+                            {translatedBody ? 'Refresh translation' : 'Translate'}
+                          </Button>
+                        </div>
+                      )}
                       {!isMine && target.type === 'admin' && (user?.role === 'admin' || user?.role === 'master' || user?.role === 'admin_officer') && (
                         <div className="mt-2">
                           <Button size="sm" variant="secondary" onClick={() => setInspectUserId(msg.senderId)}>
@@ -672,6 +762,28 @@ export default function TeamChat() {
           {/* Push-to-Talk lives on the /radio page — click Radio in nav */}
 
           <div className="p-4 space-y-2">
+            <div className="rounded-md border bg-muted/40 p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs font-medium text-muted-foreground">Translator</div>
+                <div className="flex items-center gap-2">
+                  <Languages className="h-3.5 w-3.5 text-muted-foreground" />
+                  <Select value={translationTarget} onValueChange={setTranslationTarget}>
+                    <SelectTrigger className="h-8 w-[170px]">
+                      <SelectValue placeholder="Target language" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TRANSLATION_LANGUAGE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Translate draft text before sending or translate incoming messages inline.
+              </div>
+            </div>
+
             <div className="rounded-md border bg-muted/40 p-3">
               <div className="text-xs font-medium text-muted-foreground mb-2">AI document helper</div>
               <div className="flex flex-wrap gap-2">
@@ -728,6 +840,10 @@ export default function TeamChat() {
                 Realtime chat is scoped to your organisation. Messages are broadcast and not persisted.
               </div>
               <div className="flex items-center gap-2">
+                <Button onClick={translateDraft} disabled={!message.trim() || isTranslatingDraft} variant="outline">
+                  {isTranslatingDraft ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Languages className="h-4 w-4 mr-1" />}
+                  Translate Draft
+                </Button>
                 <Button onClick={sendMessage} disabled={!message.trim()}>
                   Send
                 </Button>
