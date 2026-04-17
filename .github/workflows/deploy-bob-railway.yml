@@ -251,6 +251,35 @@ jobs:
           echo "::error::Set RAILWAY_BOB_SERVICE_ID directly, or set BOTH RAILWAY_BOB_PROJECT_ID and RAILWAY_BOB_SERVICE_NAME."
           exit 1
 
+      - name: Apply Bob Railway variable baseline
+        if: >-
+          steps.check-secrets.outputs.secrets_present == 'true' &&
+          steps.validate-token.outputs.token_valid == 'true' &&
+          steps.resolve-service.outputs.service_id != ''
+        env:
+          RAILWAY_TOKEN: ${{ env.SELECTED_RAILWAY_TOKEN }}
+          RAILWAY_SERVICE_ID: ${{ steps.resolve-service.outputs.service_id }}
+          RAILWAY_BOB_ENVIRONMENT: ${{ secrets.RAILWAY_BOB_ENVIRONMENT }}
+        run: |
+          set -euo pipefail
+
+          DEPLOY_ENVIRONMENT="${RAILWAY_BOB_ENVIRONMENT:-production}"
+
+          echo "🔧 Applying Bob Railway variable baseline..."
+          railway variable set \
+            --service "$RAILWAY_SERVICE_ID" \
+            --environment "$DEPLOY_ENVIRONMENT" \
+            --skip-deploys \
+            "CHAT_PROVIDER=ollama" \
+            "TABULAR_NLP_PROVIDER=ollama" \
+            "SELF_CONTAINED_MODE=true" \
+            "REQUIRE_SELF_CONTAINED_MODE=true" \
+            "OLLAMA_BASE_URL=http://ollama.railway.internal:11434" \
+            "OLLAMA_MODEL=llama3.1:8b" \
+            "OLLAMA_MODEL_WRITING=qwen2.5:14b"
+
+          echo "✅ Bob Railway variables updated"
+
       - name: Deploy Bob to Railway
         if: >-
           steps.check-secrets.outputs.secrets_present == 'true' &&
