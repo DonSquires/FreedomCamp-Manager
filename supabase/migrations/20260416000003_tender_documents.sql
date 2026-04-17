@@ -208,18 +208,17 @@ END $$;
 
 -- ── tender_collaborators ──────────────────────────────────────────────────────
 DO $$ BEGIN
+  -- NOTE: policies here must NOT query tender_documents to avoid infinite
+  -- recursion (tender_documents SELECT policy queries tender_collaborators).
   DROP POLICY IF EXISTS "tender_collabs_select" ON public.tender_collaborators;
   CREATE POLICY "tender_collabs_select"
     ON public.tender_collaborators FOR SELECT TO authenticated
     USING (
       user_id = auth.uid()
-      OR EXISTS (
-        SELECT 1 FROM public.tender_documents td
-        WHERE td.id = document_id AND td.owner_id = auth.uid()
-      )
+      OR invited_by = auth.uid()
       OR EXISTS (
         SELECT 1 FROM public.user_profiles up
-        WHERE up.id = auth.uid() AND up.role IN ('master', 'grand_master')
+        WHERE up.id = auth.uid() AND up.role IN ('admin', 'master', 'grand_master')
       )
     );
 
@@ -228,19 +227,16 @@ DO $$ BEGIN
     ON public.tender_collaborators FOR INSERT TO authenticated
     WITH CHECK (
       invited_by = auth.uid()
-      AND EXISTS (
-        SELECT 1 FROM public.tender_documents td
-        WHERE td.id = document_id AND td.owner_id = auth.uid()
-      )
     );
 
   DROP POLICY IF EXISTS "tender_collabs_update" ON public.tender_collaborators;
   CREATE POLICY "tender_collabs_update"
     ON public.tender_collaborators FOR UPDATE TO authenticated
     USING (
-      EXISTS (
-        SELECT 1 FROM public.tender_documents td
-        WHERE td.id = document_id AND td.owner_id = auth.uid()
+      invited_by = auth.uid()
+      OR EXISTS (
+        SELECT 1 FROM public.user_profiles up
+        WHERE up.id = auth.uid() AND up.role IN ('admin', 'master', 'grand_master')
       )
     );
 
@@ -251,8 +247,8 @@ DO $$ BEGIN
       user_id = auth.uid()
       OR invited_by = auth.uid()
       OR EXISTS (
-        SELECT 1 FROM public.tender_documents td
-        WHERE td.id = document_id AND td.owner_id = auth.uid()
+        SELECT 1 FROM public.user_profiles up
+        WHERE up.id = auth.uid() AND up.role IN ('admin', 'master', 'grand_master')
       )
     );
 
