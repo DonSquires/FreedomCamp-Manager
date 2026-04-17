@@ -396,6 +396,7 @@ export default function BobAssistantStudio() {
   const [chat, setChat] = useState<ChatMessage[]>([])
   const [listening, setListening] = useState(false)
   const [thinking, setThinking] = useState(false)
+  const [isBobSpeaking, setIsBobSpeaking] = useState(false)
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([])
   const [origin, setOrigin] = useState('')
   const [destination, setDestination] = useState('')
@@ -655,6 +656,7 @@ export default function BobAssistantStudio() {
     }
 
     speakingRef.current = true
+    setIsBobSpeaking(true)
     const utterance = new SpeechSynthesisUtterance(text)
     if (selectedVoice) utterance.voice = selectedVoice
     utterance.lang = accent
@@ -662,12 +664,14 @@ export default function BobAssistantStudio() {
     utterance.pitch = voiceGender === 'male' ? 0.9 : voiceGender === 'female' ? 1.08 : 1
     utterance.onend = () => {
       speakingRef.current = false
+      setIsBobSpeaking(false)
       if (voiceConversationActiveRef.current) {
         startVoiceConversation()
       }
     }
     utterance.onerror = () => {
       speakingRef.current = false
+      setIsBobSpeaking(false)
       if (voiceConversationActiveRef.current) {
         startVoiceConversation()
       }
@@ -1687,7 +1691,7 @@ export default function BobAssistantStudio() {
                     state={
                       (listening ? 'listening'
                         : thinking ? 'thinking'
-                        : speakingRef.current ? 'speaking'
+                        : isBobSpeaking ? 'speaking'
                         : 'idle') as BobOrbState
                     }
                   />
