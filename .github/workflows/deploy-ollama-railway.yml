@@ -273,9 +273,13 @@ jobs:
             --environment "$DEPLOY_ENVIRONMENT" \
             --skip-deploys \
             "OLLAMA_MODEL=llama3.1:8b" \
-            "OLLAMA_EXTRA_MODELS=" \
             "OLLAMA_PREPULL_MODE=background" \
             "OLLAMA_PULL_DELAY_SECONDS=20"
+
+          railway variable delete OLLAMA_EXTRA_MODELS \
+            --service "$RAILWAY_OLLAMA_SERVICE_ID" \
+            --environment "$DEPLOY_ENVIRONMENT" \
+            || true
 
           echo "✅ Ollama Railway variables updated"
 
