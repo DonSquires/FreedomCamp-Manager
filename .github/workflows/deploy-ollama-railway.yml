@@ -159,7 +159,7 @@ jobs:
         env:
           RAILWAY_TOKEN: ${{ env.RAILWAY_BOB_TOKEN || env.RAILWAY_TOKEN }}
           EXPLICIT_SERVICE_ID: ${{ steps.check-secrets.outputs.resolved_candidate_service_id }}
-          EXPLICIT_PROJECT_ID: ${{ env.RAILWAY_BOB_PROJECT_ID || env.RAILWAY_PROJECT_ID }}
+          EXPLICIT_PROJECT_ID: ${{ env.RAILWAY_BOB_PROJECT_ID || env.RAILWAY_PROJECT_ID || '151bb5d5-a999-4eff-8be5-cfe8fe93484f' }}
         run: |
           set -euo pipefail
 
