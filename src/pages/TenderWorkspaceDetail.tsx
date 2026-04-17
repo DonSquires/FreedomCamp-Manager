@@ -5,6 +5,7 @@ import { AppLayout } from '@/components/features/AppLayout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
@@ -24,6 +25,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { formatDateTime } from '@/lib/utils'
 import {
   AlertCircle,
+  BookOpen,
   BrainCircuit,
   Building2,
   Calendar,
@@ -40,18 +42,20 @@ import {
   Printer,
   Send,
   Shield,
+  Star,
   Trash2,
   Upload,
   User2,
   UserPlus,
   Users,
   X,
+  XCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
 type TenderStatus =
   | 'draft' | 'staged' | 'assessed' | 'drafting'
-  | 'review_pending' | 'approved' | 'submitted' | 'archived'
+  | 'review_pending' | 'shortlisted' | 'approved' | 'submitted' | 'archived'
 
 type CollaboratorRole = 'editor' | 'viewer' | 'approver'
 
@@ -120,6 +124,7 @@ const STATUS_CONFIG: Record<TenderStatus, { label: string; color: string }> = {
   assessed:       { label: 'Assessed',       color: 'bg-purple-100 text-purple-700 border-purple-300' },
   drafting:       { label: 'Drafting',       color: 'bg-amber-100 text-amber-700 border-amber-300' },
   review_pending: { label: 'Pending Review', color: 'bg-orange-100 text-orange-700 border-orange-300' },
+  shortlisted:    { label: 'Shortlisted',    color: 'bg-sky-100 text-sky-700 border-sky-300' },
   approved:       { label: 'Approved',       color: 'bg-green-100 text-green-700 border-green-300' },
   submitted:      { label: 'Submitted',      color: 'bg-teal-100 text-teal-700 border-teal-300' },
   archived:       { label: 'Archived',       color: 'bg-slate-100 text-slate-500 border-slate-200' },
@@ -179,10 +184,28 @@ export default function TenderWorkspaceDetail() {
   const [generating, setGenerating] = useState(false)
   const [lastGenerationMeta, setLastGenerationMeta] = useState<{ provider: string; model_used: string } | null>(null)
 
-  // Fetch document
+  // Reference materials state
+  // Map of reference_material_id -> included (true=included, false=excluded)
+  const [refInclusions, setRefInclusions] = useState<Record<string, boolean>>({})
+  const [savingRefInclusion, setSavingRefInclusion] = useState(false)
+  const [lastAnalysisRefCount, setLastAnalysisRefCount] = useState<{ used: number; total: number; at: string | null } | null>(null)
+
+  // Rejection dialog state
+  const [showRejectDialog, setShowRejectDialog] = useState(false)
+  const [rejectReason, setRejectReason] = useState('')
+  const [rejectCategory, setRejectCategory] = useState<'pricing' | 'scope' | 'qualifications' | 'compliance' | 'formatting' | 'other'>('other')
+  const [rejecting, setRejecting] = useState(false)
+
+  // Shortlist feedback state
+  const [showShortlistDialog, setShowShortlistDialog] = useState(false)
+  const [shortlistFeedback, setShortlistFeedback] = useState('')
+  const [shortlisting, setShortlisting] = useState(false)
+
+  // Fetch document — polls every 5s to detect background AI task completion
   const { data: doc, isLoading } = useQuery<TenderDocument>({
     queryKey: ['tender-document', id],
     enabled: !!id,
+    refetchInterval: 5000,
     queryFn: async () => {
       const { data, error } = await ((supabase as any).from('tender_documents') as any)
         .select('*')
@@ -256,12 +279,84 @@ export default function TenderWorkspaceDetail() {
     if (s) setSections(s)
   }, [doc])
 
+  // Fetch org-wide reference materials
+  const { data: orgRefs = [] } = useQuery({
+    queryKey: ['tender-ref-materials', doc?.organization_id],
+    enabled: !!doc?.organization_id,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('tender_reference_materials')
+        .select('id, title, material_type, extraction_status, extraction_notes, version, is_active, updated_at')
+        .eq('organization_id', doc!.organization_id)
+        .eq('is_active', true)
+        .order('material_type')
+        .order('title')
+      if (error) throw error
+      return (data || []) as Array<{
+        id: string; title: string; material_type: string; extraction_status: string
+        extraction_notes: string | null; version: number; is_active: boolean; updated_at: string
+      }>
+    },
+  })
+
+  // Fetch saved inclusion state for this document
+  const { data: savedDocRefs = [] } = useQuery({
+    queryKey: ['tender-doc-references', id],
+    enabled: !!id,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('tender_document_references')
+        .select('reference_material_id, included, used_in_analysis, analysis_run_at')
+        .eq('document_id', id!)
+      if (error) throw error
+      return (data || []) as Array<{ reference_material_id: string; included: boolean; used_in_analysis: boolean; analysis_run_at: string | null }>
+    },
+  })
+
+  // Sync refInclusions from DB on load (default: all active refs included)
+  useEffect(() => {
+    if (!orgRefs.length) return
+    const newInclusions: Record<string, boolean> = {}
+    for (const ref of orgRefs) {
+      const saved = savedDocRefs.find(s => s.reference_material_id === ref.id)
+      newInclusions[ref.id] = saved ? saved.included : true
+    }
+    setRefInclusions(newInclusions)
+    // Compute last analysis stats
+    const usedRefs = savedDocRefs.filter(r => r.used_in_analysis)
+    if (usedRefs.length > 0) {
+      const latestAt = usedRefs.reduce((acc, r) => (!acc || (r.analysis_run_at && r.analysis_run_at > acc)) ? r.analysis_run_at : acc, null as string | null)
+      setLastAnalysisRefCount({ used: usedRefs.length, total: orgRefs.length, at: latestAt })
+    }
+  }, [orgRefs, savedDocRefs])
+
   const isOwner = doc?.owner_id === user?.id
   const isAdminOrAbove = ['admin', 'master', 'grand_master'].includes(user?.role ?? '')
   const canEdit = isOwner || isAdminOrAbove ||
     collaborators.some((c) => c.user_id === user?.id && c.role === 'editor')
   const canApprove = isOwner || isAdminOrAbove ||
     collaborators.some((c) => c.user_id === user?.id && c.role === 'approver')
+
+  // IDs of currently included references (extracted=ok only)
+  const includedRefIds = orgRefs
+    .filter(r => refInclusions[r.id] !== false && r.extraction_status === 'extracted')
+    .map(r => r.id)
+
+  // ── Toggle reference inclusion ─────────────────────────────────────────────
+  const toggleRefInclusion = useCallback(async (refId: string, included: boolean) => {
+    setRefInclusions(prev => ({ ...prev, [refId]: included }))
+    setSavingRefInclusion(true)
+    try {
+      await (supabase as any)
+        .from('tender_document_references')
+        .upsert({ document_id: id!, reference_material_id: refId, included }, { onConflict: 'document_id,reference_material_id' })
+      queryClient.invalidateQueries({ queryKey: ['tender-doc-references', id] })
+    } catch {
+      // Non-fatal — local state stays updated
+    } finally {
+      setSavingRefInclusion(false)
+    }
+  }, [id, queryClient])
 
   // ── File intake handlers ────────────────────────────────────────────────────
   const handleFileIntake = useCallback(async (file: File) => {
@@ -311,7 +406,7 @@ export default function TenderWorkspaceDetail() {
     if (f) handleFileIntake(f)
   }, [handleFileIntake])
 
-  // ── Run Bob Analysis ────────────────────────────────────────────────────────
+  // ── Run Bob Analysis (fire-and-forget) ─────────────────────────────────────
   const runAnalysis = useCallback(async () => {
     if (!doc || !canEdit) return
     if (!doc.extracted_text?.trim()) {
@@ -358,21 +453,37 @@ export default function TenderWorkspaceDetail() {
     }, 5000)
 
     try {
-      const { error } = await edgeFunctions.processTenderDocument({
+      // Fire-and-forget: edge function returns 202 immediately and processes in background.
+      // The 5s refetchInterval on the document query will detect the status change to 'assessed'.
+      await edgeFunctions.processTenderDocument({
         document_id: doc.id,
         extracted_text: doc.extracted_text,
         force_enrich: true,
+        reference_ids: includedRefIds,
       })
-      // 202 queued response — background task is running, polling will detect completion
-      if (!completed && error) {
-        cleanup()
-        toast.error(error)
-      }
-      // If success (queued), do nothing — poll handles completion
+      // 202 accepted — don't wait for AI to finish. Keep spinner running until
+      // the polling detects status change from 'staged' to 'assessed'.
+      toast.info('Bob is analysing in the background — the assessment tab will update automatically')
+      setActiveTab('assessment')
     } catch (err: any) {
-      if (!completed) { cleanup(); toast.error(err?.message || 'Analysis failed') }
+      toast.error(err?.message || 'Analysis failed to start')
+      setAnalysing(false)
+      if (analysingTimerRef.current) { clearInterval(analysingTimerRef.current); analysingTimerRef.current = null }
+      setAnalysingElapsed(0)
     }
-  }, [doc, canEdit, id, queryClient])
+    // Note: spinner cleared by useEffect below when doc.status changes to 'assessed'
+  }, [doc, canEdit, id, queryClient, includedRefIds])
+
+  // Clear analysing spinner when status transitions to 'assessed'
+  useEffect(() => {
+    if (!analysing) return
+    if (doc?.status === 'assessed') {
+      if (analysingTimerRef.current) { clearInterval(analysingTimerRef.current); analysingTimerRef.current = null }
+      setAnalysing(false)
+      setAnalysingElapsed(0)
+      queryClient.invalidateQueries({ queryKey: ['tender-doc-references', id] })
+    }
+  }, [doc?.status, analysing, id, queryClient])
 
   // ── Update status ───────────────────────────────────────────────────────────
   const updateStatus = useMutation({
@@ -404,7 +515,7 @@ export default function TenderWorkspaceDetail() {
     }
   }, [doc, canEdit, sections, id, queryClient])
 
-  // ── Generate with Bob ────────────────────────────────────────────────────────
+  // ── Generate with Bob (fire-and-forget) ────────────────────────────────────
   const generateWithBob = useCallback(async () => {
     if (!doc || !canEdit) return
     if (!doc.extracted_text?.trim() && !doc.bob_assessment) {
@@ -413,26 +524,37 @@ export default function TenderWorkspaceDetail() {
     }
     setGenerating(true)
     try {
-      const result = await edgeFunctions.generateTenderSections({
+      // Fire-and-forget: edge function returns 202 immediately.
+      // The 5s refetchInterval will detect the new draft_sections.
+      await edgeFunctions.generateTenderSections({
         document_id: doc.id,
         generation_type: generationType,
         organization_context: {},
+        reference_ids: includedRefIds,
       })
-      if (result?.error) throw new Error(result.error)
-      const data = result?.data as any
-      if (data?.sections) {
-        setSections(data.sections)
-        setLastGenerationMeta({ provider: data.provider || 'heuristic', model_used: data.model_used || 'template' })
-        queryClient.invalidateQueries({ queryKey: ['tender-document', id] })
-        toast.success(`Draft generated by Bob (${data.provider === 'heuristic' ? 'template' : data.model_used || data.provider})`)
-        setActiveTab('draft')
-      }
+      toast.info('Bob is drafting in the background — the Draft Response tab will update automatically')
+      setActiveTab('draft')
     } catch (err: any) {
-      toast.error(err?.message || 'Bob generation failed')
-    } finally {
+      toast.error(err?.message || 'Bob generation failed to start')
       setGenerating(false)
     }
-  }, [doc, canEdit, generationType, id, queryClient])
+    // Note: generating cleared by useEffect below when draft_sections updates
+  }, [doc, canEdit, generationType, id, includedRefIds])
+
+  // Detect when Bob finishes generating (last_generated_at timestamp changes)
+  const prevGeneratedAt = useRef<string | null>(null)
+  useEffect(() => {
+    if (!generating) return
+    if (doc?.last_generated_at && doc.last_generated_at !== prevGeneratedAt.current) {
+      prevGeneratedAt.current = doc.last_generated_at
+      const s = doc.draft_sections || doc.response_sections
+      if (s) setSections(s)
+      setLastGenerationMeta({ provider: doc.generation_provider || 'heuristic', model_used: doc.generation_model || 'template' })
+      setGenerating(false)
+      queryClient.invalidateQueries({ queryKey: ['tender-doc-references', id] })
+      toast.success('Draft generated by Bob')
+    }
+  }, [doc?.last_generated_at, generating, doc, id, queryClient])
 
   // ── Submit for approval ─────────────────────────────────────────────────────
   const submitForApproval = useCallback(async () => {
@@ -472,6 +594,7 @@ export default function TenderWorkspaceDetail() {
         trigger_training: true,
         outcome: 'approved',
         outcome_notes: approvalNote.trim() || 'Approved by owner/approver',
+        reference_ids: includedRefIds,
       }).catch(() => { /* non-fatal */ })
 
       queryClient.invalidateQueries({ queryKey: ['tender-document', id] })
@@ -483,7 +606,97 @@ export default function TenderWorkspaceDetail() {
     } finally {
       setApprovingDoc(false)
     }
-  }, [doc, canApprove, approvalNote, user, generationType, id, queryClient])
+  }, [doc, canApprove, approvalNote, user, generationType, id, queryClient, includedRefIds])
+
+  // ── Reject document (Return to Draft with feedback) ─────────────────────────
+  const rejectDocument = useCallback(async () => {
+    if (!doc || !canApprove) return
+    if (!rejectReason.trim()) { toast.error('Please enter a rejection reason'); return }
+    setRejecting(true)
+    try {
+      const { error } = await (supabase as any)
+        .from('tender_documents')
+        .update({
+          status: 'drafting',
+          training_outcome_reason: rejectReason.trim(),
+          rejection_category: rejectCategory,
+        })
+        .eq('id', doc.id)
+      if (error) throw error
+
+      // Add approval comment (rejection note)
+      await (supabase as any).from('tender_comments').insert({
+        document_id: doc.id,
+        user_id: user!.id,
+        content: `[REJECTED — ${rejectCategory}] ${rejectReason.trim()}`,
+        is_approval_note: true,
+      })
+
+      // Trigger Bob self-learning with rejection signal
+      edgeFunctions.generateTenderSections({
+        document_id: doc.id,
+        generation_type: doc.generation_type || generationType,
+        trigger_training: true,
+        outcome: 'rejected',
+        outcome_notes: rejectReason.trim(),
+        rejection_reason: rejectReason.trim(),
+        rejection_category: rejectCategory,
+        reference_ids: includedRefIds,
+      }).catch(() => { /* non-fatal */ })
+
+      queryClient.invalidateQueries({ queryKey: ['tender-document', id] })
+      queryClient.invalidateQueries({ queryKey: ['tender-comments', id] })
+      setShowRejectDialog(false)
+      setRejectReason('')
+      setRejectCategory('other')
+      toast.success('Returned to drafting — Bob is learning from this rejection')
+    } catch (err: any) {
+      toast.error(err?.message || 'Rejection failed')
+    } finally {
+      setRejecting(false)
+    }
+  }, [doc, canApprove, rejectReason, rejectCategory, user, generationType, id, queryClient, includedRefIds])
+
+  // ── Mark as shortlisted ─────────────────────────────────────────────────────
+  const markShortlisted = useCallback(async () => {
+    if (!doc || !canApprove) return
+    setShortlisting(true)
+    try {
+      const { error } = await (supabase as any)
+        .from('tender_documents')
+        .update({ status: 'shortlisted' })
+        .eq('id', doc.id)
+      if (error) throw error
+
+      if (shortlistFeedback.trim()) {
+        await (supabase as any).from('tender_comments').insert({
+          document_id: doc.id,
+          user_id: user!.id,
+          content: `[SHORTLISTED] ${shortlistFeedback.trim()}`,
+          is_approval_note: true,
+        })
+        // Train Bob on shortlist
+        edgeFunctions.generateTenderSections({
+          document_id: doc.id,
+          generation_type: doc.generation_type || generationType,
+          trigger_training: true,
+          outcome: 'shortlisted',
+          outcome_notes: shortlistFeedback.trim(),
+          reference_ids: includedRefIds,
+        }).catch(() => { /* non-fatal */ })
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['tender-document', id] })
+      queryClient.invalidateQueries({ queryKey: ['tender-comments', id] })
+      setShowShortlistDialog(false)
+      setShortlistFeedback('')
+      toast.success('Marked as Shortlisted')
+    } catch (err: any) {
+      toast.error(err?.message || 'Shortlist update failed')
+    } finally {
+      setShortlisting(false)
+    }
+  }, [doc, canApprove, shortlistFeedback, user, generationType, id, queryClient, includedRefIds])
 
   // ── Invite collaborator ─────────────────────────────────────────────────────
   const inviteCollaborator = useCallback(async () => {
@@ -651,6 +864,13 @@ export default function TenderWorkspaceDetail() {
             <Upload className="h-3.5 w-3.5 mr-1.5" />
             Intake
           </TabsTrigger>
+          <TabsTrigger value="references">
+            <BookOpen className="h-3.5 w-3.5 mr-1.5" />
+            References
+            {orgRefs.length > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center h-4 w-4 rounded-full bg-primary/20 text-[9px] font-medium">{includedRefIds.length}</span>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="assessment">
             <BrainCircuit className="h-3.5 w-3.5 mr-1.5" />
             Bob Assessment
@@ -803,6 +1023,127 @@ export default function TenderWorkspaceDetail() {
                         </p>
                       </div>
                     )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* ── REFERENCES TAB ─────────────────────────────────────────────── */}
+        <TabsContent value="references">
+          <div className="space-y-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <BookOpen className="h-4 w-4 text-primary" />
+                  Reference materials available for this tender
+                  <Button
+                    size="sm"
+                    variant="link"
+                    className="ml-auto text-xs h-auto py-0"
+                    onClick={() => navigate('/tender-reference-library')}
+                  >
+                    Manage library →
+                  </Button>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {lastAnalysisRefCount && (
+                  <div className="mb-3 rounded border bg-green-50 dark:bg-green-950 px-3 py-2 text-xs text-green-700 dark:text-green-300 flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                    Used {lastAnalysisRefCount.used} of {lastAnalysisRefCount.total} references in last analysis
+                    {lastAnalysisRefCount.at && <span className="text-green-600/70 ml-1">· {formatDateTime(lastAnalysisRefCount.at)}</span>}
+                  </div>
+                )}
+
+                {orgRefs.length === 0 ? (
+                  <div className="py-6 text-center text-sm text-muted-foreground space-y-2">
+                    <BookOpen className="h-8 w-8 mx-auto text-muted-foreground/30" />
+                    <p>No reference materials in your org's library yet.</p>
+                    {isAdminOrAbove && (
+                      <Button size="sm" variant="outline" onClick={() => navigate('/tender-reference-library')}>
+                        Go to Reference Library
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="divide-y">
+                    {orgRefs.map((ref) => {
+                      const isExtracted = ref.extraction_status === 'extracted'
+                      const isIncluded = refInclusions[ref.id] !== false
+                      return (
+                        <div key={ref.id} className="flex items-start gap-3 py-3">
+                          <Checkbox
+                            id={`ref-${ref.id}`}
+                            checked={isIncluded && isExtracted}
+                            disabled={!isExtracted || !canEdit}
+                            onCheckedChange={(v) => toggleRefInclusion(ref.id, !!v)}
+                            className="mt-0.5"
+                          />
+                          <div className="flex-1 min-w-0 space-y-0.5">
+                            <label htmlFor={`ref-${ref.id}`} className={`text-sm font-medium cursor-pointer ${!isExtracted ? 'text-muted-foreground' : ''}`}>
+                              {ref.title}
+                            </label>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[10px] text-muted-foreground border rounded px-1.5 py-0.5 capitalize">{ref.material_type.replace('_', ' ')}</span>
+                              <span className="text-[10px] text-muted-foreground border rounded px-1.5 py-0.5">v{ref.version}</span>
+                              <span className={`text-[10px] inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border font-medium ${
+                                ref.extraction_status === 'extracted' ? 'bg-green-50 text-green-700 border-green-200' :
+                                ref.extraction_status === 'failed' ? 'bg-red-50 text-red-700 border-red-200' :
+                                ref.extraction_status === 'needs_review' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                'bg-gray-50 text-gray-600 border-gray-200'
+                              }`}>
+                                {ref.extraction_status === 'extracting' && <Loader2 className="h-2.5 w-2.5 animate-spin" />}
+                                {ref.extraction_status}
+                              </span>
+                            </div>
+                            {!isExtracted && (
+                              <p className="text-[10px] text-amber-600 flex items-center gap-1">
+                                <AlertCircle className="h-3 w-3 shrink-0" />
+                                {ref.extraction_status === 'failed' ? 'Extraction failed — go to Reference Library to re-try' :
+                                 ref.extraction_status === 'needs_review' ? 'Needs review — excluded until text is confirmed' :
+                                 'Text not yet extracted — excluded from Bob context'}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {orgRefs.length > 0 && canEdit && (
+                  <div className="mt-4 pt-3 border-t space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      Ticked references will be included as context when you run Bob Analysis or Generate Draft.
+                      {savingRefInclusion && <span className="ml-1 text-primary">Saving…</span>}
+                    </p>
+                    <div className="flex gap-2 flex-wrap">
+                      <Button
+                        size="sm"
+                        onClick={runAnalysis}
+                        disabled={analysing || !doc.extracted_text?.trim()}
+                      >
+                        {analysing ? (
+                          <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Analysing…</>
+                        ) : (
+                          <><BrainCircuit className="h-3.5 w-3.5 mr-1.5" />Run Bob Analysis ({includedRefIds.length} refs)</>
+                        )}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={generateWithBob}
+                        disabled={generating || !doc.bob_assessment}
+                      >
+                        {generating ? (
+                          <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Generating…</>
+                        ) : (
+                          <><Pencil className="h-3.5 w-3.5 mr-1.5" />Generate Draft ({includedRefIds.length} refs)</>
+                        )}
+                      </Button>
+                    </div>
                   </div>
                 )}
               </CardContent>
@@ -1235,12 +1576,12 @@ export default function TenderWorkspaceDetail() {
                   <div className="space-y-2">
                     <Label>Approval note (required)</Label>
                     <Textarea
-                      placeholder="Add your approval notes or conditions…"
+                      placeholder="Add your approval notes — what worked well? (Bob will learn from this)"
                       value={approvalNote}
                       onChange={(e) => setApprovalNote(e.target.value)}
                       className="min-h-[80px] text-sm"
                     />
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
                       <Button
                         className="flex-1"
                         onClick={approveDocument}
@@ -1250,14 +1591,51 @@ export default function TenderWorkspaceDetail() {
                         Approve Document
                       </Button>
                       <Button
-                        variant="destructive"
-                        onClick={async () => {
-                          await updateStatus.mutateAsync('drafting')
-                          toast.success('Returned to drafting')
-                        }}
+                        variant="outline"
+                        onClick={() => setShowShortlistDialog(true)}
                       >
+                        <Star className="h-4 w-4 mr-2" />
+                        Mark Shortlisted
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        onClick={() => setShowRejectDialog(true)}
+                      >
+                        <XCircle className="h-4 w-4 mr-2" />
                         Return to Draft
                       </Button>
+                    </div>
+                  </div>
+                )}
+
+                {doc.status === 'shortlisted' && canApprove && (
+                  <div className="rounded border bg-sky-50 dark:bg-sky-950 p-3 text-sm space-y-2">
+                    <p className="font-medium text-sky-700 dark:text-sky-300 flex items-center gap-1.5">
+                      <Star className="h-4 w-4" />
+                      Shortlisted — finalise for approval or return to drafting
+                    </p>
+                    <div className="space-y-2">
+                      <Label>Final approval note</Label>
+                      <Textarea
+                        placeholder="Final notes before approval…"
+                        value={approvalNote}
+                        onChange={(e) => setApprovalNote(e.target.value)}
+                        className="min-h-[60px] text-sm"
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          className="flex-1"
+                          onClick={approveDocument}
+                          disabled={!approvalNote.trim() || approvingDoc}
+                        >
+                          {approvingDoc ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
+                          Approve Document
+                        </Button>
+                        <Button variant="destructive" onClick={() => setShowRejectDialog(true)}>
+                          <XCircle className="h-4 w-4 mr-2" />
+                          Return to Draft
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1357,6 +1735,86 @@ export default function TenderWorkspaceDetail() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* ── Rejection dialog ─────────────────────────────────────────────── */}
+      <Dialog open={showRejectDialog} onOpenChange={(o) => { if (!rejecting) setShowRejectDialog(o) }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <XCircle className="h-4 w-4 text-destructive" />
+              Return to Draft — Rejection Feedback
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-muted-foreground">
+              This feedback trains Bob so future tenders avoid the same issues.
+            </p>
+            <div className="space-y-1.5">
+              <Label>Category</Label>
+              <Select value={rejectCategory} onValueChange={(v) => setRejectCategory(v as typeof rejectCategory)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pricing">Pricing</SelectItem>
+                  <SelectItem value="scope">Scope / services</SelectItem>
+                  <SelectItem value="qualifications">Qualifications / CoA</SelectItem>
+                  <SelectItem value="compliance">Compliance / H&S</SelectItem>
+                  <SelectItem value="formatting">Formatting / structure</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Rejection reason <span className="text-destructive">*</span></Label>
+              <Textarea
+                placeholder="e.g. Pricing exceeded council budget by 20%, Missing H&S accreditation, Scope didn't address night patrols…"
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                className="min-h-[100px] text-sm"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRejectDialog(false)} disabled={rejecting}>Cancel</Button>
+            <Button variant="destructive" onClick={rejectDocument} disabled={rejecting || !rejectReason.trim()}>
+              {rejecting ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Rejecting…</> : 'Return to Draft'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Shortlist dialog ─────────────────────────────────────────────── */}
+      <Dialog open={showShortlistDialog} onOpenChange={(o) => { if (!shortlisting) setShowShortlistDialog(o) }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Star className="h-4 w-4 text-sky-600" />
+              Mark as Shortlisted
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-muted-foreground">
+              The tender has been shortlisted. Capture what to improve for the final submission stage.
+            </p>
+            <div className="space-y-1.5">
+              <Label>Shortlist stage feedback (optional)</Label>
+              <Textarea
+                placeholder="e.g. Strong methodology, but pricing needs to be sharper for final submission. Add more detail on lone-worker welfare monitoring."
+                value={shortlistFeedback}
+                onChange={(e) => setShortlistFeedback(e.target.value)}
+                className="min-h-[100px] text-sm"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowShortlistDialog(false)} disabled={shortlisting}>Cancel</Button>
+            <Button onClick={markShortlisted} disabled={shortlisting}>
+              {shortlisting ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Saving…</> : <><Star className="h-4 w-4 mr-2" />Mark Shortlisted</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   )
 }

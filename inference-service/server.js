@@ -1563,6 +1563,8 @@ const TENDER_GEN_TIMEOUT_MS = Number(process.env.TENDER_GEN_TIMEOUT_MS || 90000)
 // Max characters of extracted tender text to include in the generation context.
 // Keeps the Ollama prompt within context window limits for most models.
 const MAX_TENDER_CONTEXT_CHARS = Number(process.env.MAX_TENDER_CONTEXT_CHARS || 8000);
+// Max characters of reference material context to inject into the generation prompt.
+const MAX_REFERENCE_CONTEXT_CHARS = Number(process.env.MAX_REFERENCE_CONTEXT_CHARS || 6000);
 
 function buildTenderSystemPrompt(generationType, context, orgContext) {
   const orgName = orgContext?.name || 'Iron Eagle Security';
@@ -1628,9 +1630,12 @@ You MUST respond with ONLY a valid JSON object (no markdown, no code fences) wit
 
 function buildTenderUserPrompt(context) {
   const excerpt = (context.extracted_text || '').slice(0, MAX_TENDER_CONTEXT_CHARS);
+  const refBlock = context.reference_context
+    ? `\n\n--- ORGANISATION REFERENCE MATERIAL ---\nThe following reference documents are provided to inform the tender response. Use them to calibrate pricing, compliance, and NZ-specific requirements:\n\n${String(context.reference_context).slice(0, MAX_REFERENCE_CONTEXT_CHARS)}\n--- END REFERENCE MATERIAL ---`
+    : '';
   return excerpt
-    ? `Here is the source tender document text for context:\n\n---\n${excerpt}\n---\n\nNow generate the ${context.generation_type || 'response'} document sections as a JSON object.`
-    : 'Generate the document sections as a JSON object based on the context above.';
+    ? `Here is the source tender document text for context:\n\n---\n${excerpt}\n---${refBlock}\n\nNow generate the ${context.generation_type || 'response'} document sections as a JSON object.`
+    : `${refBlock}\n\nGenerate the document sections as a JSON object based on the context above.`.trim();
 }
 
 function heuristicTenderSections(generationType, context, orgContext) {
@@ -1886,22 +1891,24 @@ app.post('/tender/generate', inferenceRateLimit, requireInferenceAuth, async (re
       context._past_learning = learningContext;
     }
 
+    const hasReferenceContext = typeof context.reference_context === 'string' && context.reference_context.length > 0;
+
     // Cascade 1: primary Ollama model
     const ollamaResult = await generateTenderWithOllama(generationType, context, organizationContext);
     if (ollamaResult) {
-      return res.json({ success: true, ...ollamaResult });
+      return res.json({ success: true, ...ollamaResult, references_used: hasReferenceContext });
     }
 
     // Cascade 2: specialist writing model on same Ollama instance (if different model configured)
     const writingResult = await generateTenderWithOllamaWriting(generationType, context, organizationContext);
     if (writingResult) {
-      return res.json({ success: true, ...writingResult });
+      return res.json({ success: true, ...writingResult, references_used: hasReferenceContext });
     }
 
     // Cascade 3: secondary Railway-hosted assistant
     const secondaryResult = await generateTenderWithSecondaryAssistant(generationType, context, organizationContext);
     if (secondaryResult) {
-      return res.json({ success: true, ...secondaryResult });
+      return res.json({ success: true, ...secondaryResult, references_used: hasReferenceContext });
     }
 
     // Cascade 4: enriched heuristic template (always available, no network required)
@@ -1911,6 +1918,7 @@ app.post('/tender/generate', inferenceRateLimit, requireInferenceAuth, async (re
       provider: 'heuristic',
       model_used: 'template',
       sections: heuristicSections,
+      references_used: hasReferenceContext,
     });
   } catch (error) {
     console.error('Tender generate endpoint error:', error);
@@ -1941,6 +1949,7 @@ app.post('/tender/train', inferenceRateLimit, requireInferenceAuth, async (req, 
 
     const {
       generation_type, issuing_body, key_services, outcome, outcome_notes, sections,
+      rejection_reason, rejection_category, reference_ids_used, reference_titles_used,
     } = req.body || {};
 
     const entry = {
@@ -1950,6 +1959,10 @@ app.post('/tender/train', inferenceRateLimit, requireInferenceAuth, async (req, 
       key_services: Array.isArray(key_services) ? key_services.slice(0, 20) : [],
       outcome: ['approved', 'rejected', 'shortlisted'].includes(outcome) ? outcome : 'unknown',
       outcome_summary: String(outcome_notes || '').trim().slice(0, 600),
+      rejection_reason: rejection_reason ? String(rejection_reason).trim().slice(0, 400) : null,
+      rejection_category: rejection_category || null,
+      reference_ids_used: Array.isArray(reference_ids_used) ? reference_ids_used.slice(0, 20) : [],
+      reference_titles_used: Array.isArray(reference_titles_used) ? reference_titles_used.slice(0, 20) : [],
       section_lengths: sections && typeof sections === 'object'
         ? Object.fromEntries(Object.entries(sections).map(([k, v]) => [k, String(v || '').length]))
         : {},
@@ -1965,14 +1978,20 @@ app.post('/tender/train', inferenceRateLimit, requireInferenceAuth, async (req, 
 
     // Also push a condensed intel bulletin into Bob's main intel feed so the
     // chat assistant benefits from this knowledge immediately
-    const bulletin = `Tender ${entry.outcome?.toUpperCase()}: ${entry.generation_type} for ${entry.issuing_body || 'unknown issuing body'}. Services: ${entry.key_services.join(', ')}. ${entry.outcome_summary}`;
+    const rejectionSuffix = entry.rejection_reason
+      ? ` Rejection reason: ${entry.rejection_reason}${entry.rejection_category ? ` (category: ${entry.rejection_category})` : ''}.`
+      : '';
+    const refSuffix = entry.reference_titles_used.length > 0
+      ? ` References used: ${entry.reference_titles_used.join(', ')}.`
+      : '';
+    const bulletin = `Tender ${entry.outcome?.toUpperCase()}: ${entry.generation_type} for ${entry.issuing_body || 'unknown issuing body'}. Services: ${entry.key_services.join(', ')}.${rejectionSuffix} ${entry.outcome_summary}${refSuffix}`;
     try {
       intelStore.ingestBulletin({ summary: bulletin, category: 'tender-learning', source: 'tender-workspace' });
     } catch (e) {
       console.warn('⚠️ Could not push tender learning to intel feed:', e.message);
     }
 
-    console.log(`🎓 Tender learning ingested: [${entry.outcome}] ${entry.issuing_body}`);
+    console.log(`🎓 Tender learning ingested: [${entry.outcome}] ${entry.issuing_body}${entry.rejection_reason ? ` — Rejection: ${entry.rejection_reason}` : ''}`);
     return res.json({ success: true, learned: true, entry_id: entry.id });
   } catch (error) {
     console.error('Tender train endpoint error:', error);

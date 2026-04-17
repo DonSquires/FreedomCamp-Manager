@@ -1250,11 +1250,14 @@ export const edgeFunctions = {
   /**
    * Analyse a tender/RFP/RFIP document with Bob, extract structured data,
    * auto-create a CRM client organisation if needed, and persist the assessment.
+   * Pass reference_ids (from the References tab checkbox panel) to include
+   * org-wide reference materials as context for Bob's analysis.
    */
   processTenderDocument: async (params: {
     document_id: string
     extracted_text?: string
     force_enrich?: boolean
+    reference_ids?: string[]
   }) => {
     return callEdgeFunction('process-tender-document', params, { showToast: false })
   },
@@ -1267,10 +1270,11 @@ export const edgeFunctions = {
    *   3. Secondary Railway-hosted assistant (SECONDARY_ASSISTANT_URL if configured)
    *   4. Enriched heuristic template (always available)
    *
-   * Returns: { sections, provider, model_used }
+   * Returns: { sections, provider, model_used, references_used }
    *
-   * When trigger_training=true (on approval), sends outcome to Bob for
+   * When trigger_training=true (on approval/rejection), sends outcome to Bob for
    * self-learning instead of generating new sections.
+   * For rejections: pass rejection_reason (required) and rejection_category.
    */
   generateTenderSections: async (params: {
     document_id: string
@@ -1280,11 +1284,25 @@ export const edgeFunctions = {
       psa_licence?: string
       nzbn?: string
     }
+    reference_ids?: string[]
     trigger_training?: boolean
     outcome?: 'approved' | 'rejected' | 'shortlisted'
     outcome_notes?: string
+    rejection_reason?: string
+    rejection_category?: 'pricing' | 'scope' | 'qualifications' | 'compliance' | 'formatting' | 'other'
   }) => {
     return callEdgeFunction('generate-tender-sections', params, { showToast: false })
+  },
+
+  /**
+   * Trigger server-side text extraction for a tender reference material file.
+   * Call after uploading the file to Supabase Storage and inserting the
+   * tender_reference_materials row. Updates extraction_status on completion.
+   */
+  processReferenceMaterial: async (params: {
+    reference_material_id: string
+  }) => {
+    return callEdgeFunction('process-reference-material', params, { showToast: false })
   },
 
   // ============================================================================

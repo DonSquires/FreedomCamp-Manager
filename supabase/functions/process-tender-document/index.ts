@@ -116,33 +116,110 @@ async function callBobChat(systemPrompt: string, userMessage: string): Promise<s
   )
 }
 
-// ---------------------------------------------------------------------------
-// Background task — all AI work runs here after HTTP response is sent
-// ---------------------------------------------------------------------------
-async function runAnalysis(
-  supabase: any,
-  doc: any,
+// ─────────────────────────────────────────────────────────────────────────────
+// doAnalysis — runs as a background task after 202 response is sent
+// ─────────────────────────────────────────────────────────────────────────────
+
+const REFERENCE_TYPE_ORDER = ['compliance', 'legal', 'policy', 'pricing', 'template', 'past_tender', 'nz_reference', 'other']
+
+async function doAnalysis(
+  supabase: ReturnType<typeof createClient>,
+  doc: Record<string, any>,
+  document_id: string,
   textToAnalyse: string,
-  force_enrich: boolean,
-) {
-  const document_id = doc.id
-
+  incomingRefIds: string[],
+): Promise<void> {
   try {
-    const systemPrompt =
-      `You are Bob, a procurement analyst for Iron Eagle Security NZ. ` +
-      `Return ONLY a valid JSON object with these exact keys: ` +
-      `document_type (rfp/rfi/rfq/rfip/tender_application/tender_response/proposal/other), ` +
-      `issuing_body, reference_number, due_date (YYYY-MM-DD or null), ` +
-      `key_services (array of strings), key_requirements (array of strings), ` +
-      `key_dates (array of {label,date}), assessment_summary (2-4 sentences), ` +
-      `enrichment_queries (array of strings), ` +
-      `response_outline ({cover_letter,executive_summary,services_offered,pricing_notes,team_qualifications,health_and_safety,declaration}). ` +
-      `No text outside the JSON.`
+    // --- Reference material context ---
+    let referenceContextBlock = ''
+    const referenceContextSnapshot: Array<{ id: string; title: string; material_type: string; chars_used: number }> = []
 
-    const userMessage =
-      `Analyse this procurement document and return the JSON assessment:\n\n---\n` +
-      `${textToAnalyse.slice(0, 6000)}\n---`
+    if (incomingRefIds.length > 0) {
+      const { data: refs } = await (supabase as any)
+        .from('tender_reference_materials')
+        .select('id, title, material_type, extracted_text')
+        .in('id', incomingRefIds)
+        .eq('organization_id', doc.organization_id)
+        .eq('is_active', true)
+        .eq('extraction_status', 'extracted')
 
+      if (refs && refs.length > 0) {
+        const sorted = [...refs].sort((a: any, b: any) => {
+          const ai = REFERENCE_TYPE_ORDER.indexOf(a.material_type)
+          const bi = REFERENCE_TYPE_ORDER.indexOf(b.material_type)
+          return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
+        })
+
+        const parts: string[] = []
+        for (const r of sorted) {
+          const snippet = (r.extracted_text || '').slice(0, 2000)
+          if (!snippet) continue
+          parts.push(`[${r.material_type.toUpperCase()}] ${r.title}:\n${snippet}`)
+          referenceContextSnapshot.push({ id: r.id, title: r.title, material_type: r.material_type, chars_used: snippet.length })
+        }
+
+        if (parts.length > 0) {
+          referenceContextBlock = `\n\n--- ORGANISATION REFERENCE MATERIAL ---\nThe following reference documents from your organisation are provided for context. Use them to calibrate your assessment:\n\n${parts.join('\n\n---\n')}\n--- END REFERENCE MATERIAL ---`
+        }
+
+        // Upsert tender_document_references rows
+        const now = new Date().toISOString()
+        for (const r of sorted) {
+          await (supabase as any)
+            .from('tender_document_references')
+            .upsert({
+              document_id,
+              reference_material_id: r.id,
+              included: true,
+              used_in_analysis: true,
+              analysis_run_at: now,
+            }, { onConflict: 'document_id,reference_material_id' })
+        }
+      }
+    }
+
+    // --- Bob Assessment ---
+    const systemPrompt = `You are Bob, an expert analyst for Iron Eagle Security's FieldOps Manager system in New Zealand.
+Your job is to analyse tender, RFP, RFIP, and procurement documents and extract structured information
+to help the team prepare competitive responses.
+
+You must return a single valid JSON object with EXACTLY these fields:
+{
+  "document_type": "rfp|rfi|rfq|rfip|tender_application|tender_response|proposal|other",
+  "issuing_body": "name of the organisation issuing this document",
+  "reference_number": "the document or tender reference number if present, else empty string",
+  "due_date": "ISO date string YYYY-MM-DD if a deadline is mentioned, else null",
+  "key_services": ["service 1", "service 2"],
+  "key_requirements": ["requirement 1", "requirement 2"],
+  "key_dates": [{"label": "Submissions close", "date": "YYYY-MM-DD"}],
+  "assessment_summary": "2-4 sentence plain-English overview of this document and what Iron Eagle needs to do",
+  "enrichment_queries": ["web search query 1", "web search query 2"],
+  "response_outline": {
+    "cover_letter": "brief suggested content",
+    "executive_summary": "suggested content",
+    "services_offered": "suggested approach",
+    "pricing_notes": "any pricing guidance noted in the document",
+    "team_qualifications": "what credentials/experience to highlight",
+    "health_and_safety": "H&S requirements mentioned",
+    "declaration": "any declaration or certification requirements"
+  }
+}
+Do not include any text outside the JSON object.`
+
+    const userMessage = `Please analyse this tender/procurement document and return the structured JSON assessment:\n\n---\n${textToAnalyse.slice(0, 5000)}\n---${referenceContextBlock.slice(0, 3000)}`
+
+    let rawResponse: string
+    try {
+      rawResponse = await callBobChat(systemPrompt, userMessage)
+    } catch (inferenceErr: any) {
+      console.error('Inference service error during background analysis:', inferenceErr)
+      await (supabase as any).from('tender_documents')
+        .update({ status: 'staged', bob_assessment_summary: `⚠️ Analysis failed: ${inferenceErr.message?.slice(0, 200)}` })
+        .eq('id', document_id)
+      return
+    }
+
+    // Parse JSON from Bob's response
     let assessment: AssessmentResult
     try {
       const rawResponse = await callBobChat(systemPrompt, userMessage)
@@ -162,7 +239,7 @@ async function runAnalysis(
       )
     }
 
-    // --- CRM: auto-create client organisation if not found ----------------
+    // --- CRM: auto-create client organisation if not found ---
     let crmClientOrgId: string | null = doc.crm_client_organization_id || null
     const issuingBodyName = (assessment.issuing_body || doc.issuing_body || '').trim()
 
@@ -196,7 +273,7 @@ async function runAnalysis(
       }
     }
 
-    // --- Default response sections ----------------------------------------
+    // --- Build default response sections ---
     const defaultResponseSections = doc.response_sections || {
       cover_letter: assessment.response_outline?.cover_letter || '',
       executive_summary: assessment.response_outline?.executive_summary || '',
@@ -207,7 +284,7 @@ async function runAnalysis(
       declaration: assessment.response_outline?.declaration || '',
     }
 
-    // --- Persist results ---------------------------------------------------
+    // --- Persist to tender_documents ---
     const updates: Record<string, any> = {
       bob_assessment: assessment,
       bob_assessment_summary: assessment.assessment_summary,
@@ -217,37 +294,25 @@ async function runAnalysis(
       status: 'assessed',
       response_sections: defaultResponseSections,
     }
+    if (referenceContextSnapshot.length > 0) {
+      updates.reference_context_snapshot = referenceContextSnapshot
+    }
     if (assessment.issuing_body) updates.issuing_body = assessment.issuing_body
     if (assessment.reference_number) updates.reference_number = assessment.reference_number
     if (assessment.due_date) updates.due_date = assessment.due_date
     if (assessment.document_type) updates.document_type = assessment.document_type
     if (crmClientOrgId) updates.crm_client_organization_id = crmClientOrgId
 
-    if (assessment.enrichment_queries?.length || force_enrich) {
-      updates.enrichment_requested_at = new Date().toISOString()
-      updates.enrichment_data = {
-        queries: assessment.enrichment_queries || [],
-        status: 'queued',
-        requested_at: new Date().toISOString(),
-      }
-    }
-
-    await supabase.from('tender_documents').update(updates).eq('id', document_id)
-    console.log('process-tender-document: analysis complete for', document_id)
+    await (supabase as any).from('tender_documents').update(updates).eq('id', document_id)
+    console.log(`✅ Background analysis complete for tender_document ${document_id}`)
   } catch (err: any) {
-    console.error('process-tender-document background task failed:', err.message)
-    try {
-      await supabase.from('tender_documents').update({
-        status: 'staged',
-        bob_assessment_summary: `❌ Analysis failed: ${err.message}. Please try again.`,
-      }).eq('id', document_id)
-    } catch { /* ignore */ }
+    console.error('Background doAnalysis error:', err)
+    await (supabase as any).from('tender_documents')
+      .update({ status: 'staged', bob_assessment_summary: `⚠️ Analysis error: ${err.message?.slice(0, 200)}` })
+      .eq('id', document_id)
   }
 }
 
-// ---------------------------------------------------------------------------
-// HTTP handler — validates, queues background task, returns 202 immediately
-// ---------------------------------------------------------------------------
 Deno.serve(withCors(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: getCorsHeaders(req) })
@@ -255,6 +320,7 @@ Deno.serve(withCors(async (req: Request) => {
 
   const corsHeaders = getCorsHeaders(req)
 
+  // ── Auth ──────────────────────────────────────────────────────────────────
   const authHeader = req.headers.get('Authorization') || ''
   const token = authHeader.replace('Bearer ', '').trim()
   if (!token) {
@@ -277,7 +343,7 @@ Deno.serve(withCors(async (req: Request) => {
     })
   }
 
-  let body: any
+  let body: Record<string, unknown>
   try {
     body = await req.json()
   } catch {
@@ -287,7 +353,7 @@ Deno.serve(withCors(async (req: Request) => {
     })
   }
 
-  const { document_id, extracted_text: bodyText, force_enrich = false } = body
+  const { document_id, extracted_text: bodyText, force_enrich, reference_ids } = body as any
 
   if (!document_id) {
     return new Response(JSON.stringify({ error: 'document_id is required' }), {
@@ -296,6 +362,7 @@ Deno.serve(withCors(async (req: Request) => {
     })
   }
 
+  // ── Fetch document (fast — no AI yet) ─────────────────────────────────────
   const { data: doc, error: docError } = await (supabase as any)
     .from('tender_documents')
     .select('*')
@@ -317,21 +384,24 @@ Deno.serve(withCors(async (req: Request) => {
     })
   }
 
-  // Mark as processing — frontend poll detects this immediately
-  await (supabase as any)
-    .from('tender_documents')
-    .update({ status: 'processing', bob_assessment_summary: '⏳ Bob is analysing…' })
-    .eq('id', document_id)
+  // Mark as processing immediately — UI polling detects this
+  await (supabase as any).from('tender_documents').update({ status: 'staged', bob_assessment_summary: '⏳ Bob is analysing…' }).eq('id', document_id)
 
-  // Queue AI work as background task — runs after HTTP response is returned.
-  // EdgeRuntime.waitUntil keeps the isolate alive until the promise settles.
-  ;(globalThis as any).EdgeRuntime?.waitUntil(
-    runAnalysis(supabase, doc, textToAnalyse, force_enrich)
-  )
+  // ── Fire-and-forget: respond 202 immediately, run AI in background ─────────
+  // EdgeRuntime.waitUntil keeps the Deno isolate alive after the response is sent.
+  const backgroundWork = doAnalysis(supabase, doc, document_id, textToAnalyse, Array.isArray(reference_ids) ? reference_ids : [])
 
-  // Return immediately — supabase.functions.invoke() resolves right away
+  // @ts-ignore EdgeRuntime is available in Supabase Deno runtime
+  if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
+    // @ts-ignore
+    EdgeRuntime.waitUntil(backgroundWork)
+  } else {
+    // Fallback for local dev: await directly (will block)
+    await backgroundWork
+  }
+
   return new Response(
-    JSON.stringify({ success: true, queued: true, document_id }),
+    JSON.stringify({ accepted: true, document_id, message: 'Analysis started — poll document status for completion' }),
     {
       status: 202,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
