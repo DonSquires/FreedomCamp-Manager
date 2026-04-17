@@ -272,6 +272,7 @@ jobs:
             --service "$RAILWAY_OLLAMA_SERVICE_ID" \
             --environment "$DEPLOY_ENVIRONMENT" \
             --skip-deploys \
+            "PORT=11434" \
             "OLLAMA_MODEL=llama3.1:8b" \
             "OLLAMA_PREPULL_MODE=off" \
             "OLLAMA_PULL_DELAY_SECONDS=20"
