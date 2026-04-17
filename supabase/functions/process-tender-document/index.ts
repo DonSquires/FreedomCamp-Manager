@@ -42,16 +42,25 @@ async function callBobChat(systemPrompt: string, userMessage: string): Promise<s
   if (INFERENCE_API_KEY) {
     headers['Authorization'] = `Bearer ${INFERENCE_API_KEY}`
   }
-  const resp = await fetch(`${INFERENCE_SERVICE_URL}/chat`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      message: userMessage,
-      system_prompt: systemPrompt,
-      provider_preference: 'auto',
-      response_format: 'json',
-    }),
-  })
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 110_000) // 110s — leave headroom before 150s edge fn limit
+  let resp: Response
+  try {
+    resp = await fetch(`${INFERENCE_SERVICE_URL}/chat`, {
+      method: 'POST',
+      headers,
+      signal: controller.signal,
+      body: JSON.stringify({
+        message: userMessage,
+        system_prompt: systemPrompt,
+        provider_preference: 'auto',
+        response_format: 'json',
+        timeout: 100,
+      }),
+    })
+  } finally {
+    clearTimeout(timeoutId)
+  }
   if (!resp.ok) {
     const errText = await resp.text()
     throw new Error(`Inference service error ${resp.status}: ${errText.slice(0, 200)}`)
@@ -157,7 +166,8 @@ You must return a single valid JSON object with EXACTLY these fields:
 }
 Do not include any text outside the JSON object.`
 
-    const userMessage = `Please analyse this tender/procurement document and return the structured JSON assessment:\n\n---\n${textToAnalyse.slice(0, 12000)}\n---`
+    // Keep prompt short — llama3.1:8b on Railway needs <5000 chars to respond within edge fn timeout
+    const userMessage = `Please analyse this tender/procurement document and return the structured JSON assessment:\n\n---\n${textToAnalyse.slice(0, 5000)}\n---`
 
     let rawResponse: string
     try {
