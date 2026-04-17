@@ -3,6 +3,7 @@ import { getCorsHeaders } from '../_shared/withCors.ts'
 
 type Severity = 'low' | 'medium' | 'high' | 'critical'
 type Complexity = 'simple' | 'moderate' | 'complex'
+const BOB_REQUEST_TIMEOUT_MS = 60_000
 
 function extractBearerToken(req: Request): string | null {
   const authHeader = req.headers.get('Authorization') || req.headers.get('authorization')
@@ -82,11 +83,28 @@ Deno.serve(async (req: Request) => {
       execution_mode_hint: preferGithubAssist ? 'github_assist' : 'self_heal_worker',
     }
 
-    const response = await fetch(`${inferenceUrl}/self-heal/patch-task`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ report: reportPayload }),
-    })
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), BOB_REQUEST_TIMEOUT_MS)
+
+    let response: Response
+    try {
+      response = await fetch(`${inferenceUrl}/self-heal/patch-task`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ report: reportPayload }),
+        signal: controller.signal,
+      })
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        return new Response(
+          JSON.stringify({ error: `Bob patch-task request timed out after ${Math.floor(BOB_REQUEST_TIMEOUT_MS / 1000)}s` }),
+          { status: 504, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
+        )
+      }
+      throw err
+    } finally {
+      clearTimeout(timeoutId)
+    }
 
     const text = await response.text()
     const payload = (() => {

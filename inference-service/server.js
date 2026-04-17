@@ -209,6 +209,8 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1:8b';
 // (e.g. qwen2.5:14b, mistral:7b, llama3.3:70b). Falls back to OLLAMA_MODEL
 // if not set or not available. Run: ollama pull <model> on the Ollama service.
 const OLLAMA_MODEL_WRITING = process.env.OLLAMA_MODEL_WRITING || OLLAMA_MODEL;
+const OLLAMA_AUTO_PULL_MODELS = envFlag(process.env.OLLAMA_AUTO_PULL_MODELS, true);
+const OLLAMA_PULL_TIMEOUT_MS = Number(process.env.OLLAMA_PULL_TIMEOUT_MS || 120000);
 // SECONDARY_ASSISTANT_URL — optional second Railway-hosted AI service for
 // document generation when the primary Ollama model isn't sufficient.
 // Can be another Bob instance running a larger Ollama model, or a dedicated
@@ -223,6 +225,50 @@ const SECONDARY_ASSISTANT_TIMEOUT_MS = Number(process.env.SECONDARY_ASSISTANT_TI
 const REQUIRED_OLLAMA_BASE_URL = process.env.REQUIRED_OLLAMA_BASE_URL || 'http://ollama.railway.internal:11434';
 function isRailwayOllamaInternal(url) {
   try { return new URL(url).hostname === 'ollama.railway.internal'; } catch { return false; }
+}
+
+function modelLooksPresent(availableModels, expectedModel) {
+  if (!Array.isArray(availableModels) || !expectedModel) return false;
+  const expected = String(expectedModel).trim().toLowerCase();
+  if (!expected) return false;
+  const expectedBase = expected.split(':')[0];
+  return availableModels.some((name) => {
+    const n = String(name || '').toLowerCase();
+    return n === expected || n.startsWith(`${expectedBase}:`) || n === expectedBase;
+  });
+}
+
+async function ensureOllamaModelPulled(modelName) {
+  const model = String(modelName || '').trim();
+  if (!model) return false;
+
+  const pullController = new AbortController();
+  const pullTimeout = setTimeout(() => pullController.abort(), OLLAMA_PULL_TIMEOUT_MS);
+  try {
+    const resp = await fetch(`${OLLAMA_BASE_URL}/api/pull`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, stream: false }),
+      signal: pullController.signal,
+    });
+
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '');
+      console.warn(`⚠️  Auto-pull failed for model "${model}": HTTP ${resp.status} ${text.slice(0, 200)}`);
+      return false;
+    }
+
+    console.log(`✅ Auto-pulled missing Ollama model: ${model}`);
+    return true;
+  } catch (err) {
+    const msg = err?.name === 'AbortError'
+      ? `timed out after ${Math.round(OLLAMA_PULL_TIMEOUT_MS / 1000)}s`
+      : (err?.message || String(err));
+    console.warn(`⚠️  Auto-pull failed for model "${model}": ${msg}`);
+    return false;
+  } finally {
+    clearTimeout(pullTimeout);
+  }
 }
 const DEPLOY_SIGNATURE = 'bob-self-contained-hardlock-v1';
 const SOURCE_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.SOURCE_VERSION || process.env.GITHUB_SHA || '';
@@ -5128,10 +5174,23 @@ loadModels().then(() => {
             const body = await resp.json().catch(() => null);
             const models = body?.models?.map((m) => m.name) || [];
             console.log(`✅ Ollama reachable — ${models.length} model(s) available${models.length ? ': ' + models.join(', ') : ''}`);
-            const wantedModel = OLLAMA_MODEL.split(':')[0];
-            if (models.length > 0 && !models.some((n) => n.startsWith(wantedModel))) {
-              console.warn(`⚠️  Configured model "${OLLAMA_MODEL}" not found on Ollama. Available: ${models.join(', ')}`);
-              console.warn(`   Requests will block while Ollama pulls the model on first use.`);
+            const requiredModels = Array.from(new Set([
+              OLLAMA_MODEL,
+              OLLAMA_MODEL_WRITING,
+            ].filter(Boolean)));
+            const missing = requiredModels.filter((m) => !modelLooksPresent(models, m));
+
+            if (missing.length > 0) {
+              console.warn(`⚠️  Missing Ollama model(s): ${missing.join(', ')}`);
+              if (OLLAMA_AUTO_PULL_MODELS) {
+                console.log(`🛠️  OLLAMA_AUTO_PULL_MODELS enabled — attempting to pull missing models...`);
+                for (const modelName of missing) {
+                  // eslint-disable-next-line no-await-in-loop
+                  await ensureOllamaModelPulled(modelName);
+                }
+              } else {
+                console.warn('ℹ️  Auto-pull disabled. Set OLLAMA_AUTO_PULL_MODELS=true to pull missing models automatically.');
+              }
             }
           } else {
             console.warn(`⚠️  Ollama probe returned HTTP ${resp.status} (${OLLAMA_BASE_URL})`);

@@ -54,13 +54,6 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 const REFERENCE_LIST_TIMEOUT_MS = 12_000
 const REFERENCE_DETAIL_TIMEOUT_MS = 12_000
 
-let extractionModulePromise: Promise<typeof import('@/lib/documentExtraction')> | null = null
-async function extractDocumentDataLazy(file: File, opts?: { enableImageOcr?: boolean }) {
-  if (!extractionModulePromise) extractionModulePromise = import('@/lib/documentExtraction')
-  const mod = await extractionModulePromise
-  return mod.extractDocumentData(file, opts)
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -252,10 +245,70 @@ export default function TenderReferenceLibrary() {
     if (f) handleFileSelect(f)
   }, [handleFileSelect])
 
+  const createReferenceServerIngest = useCallback(async (file: File) => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+    if (!supabaseUrl || !anonKey) {
+      throw new Error('Supabase URL or anon key is missing')
+    }
+
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) {
+      throw new Error('No active session found. Please sign in again and retry.')
+    }
+
+    const formData = new FormData()
+    formData.append('title', newTitle.trim())
+    formData.append('description', newDescription.trim())
+    formData.append('material_type', newType)
+    formData.append('manual_text', newManualText)
+    formData.append('file', file)
+
+    const response = await withTimeout(
+      fetch(`${supabaseUrl}/functions/v1/ingest-reference-material`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          apikey: anonKey,
+        },
+        body: formData,
+      }),
+      35_000,
+      'Starting server-side reference ingest',
+    )
+
+    const text = await response.text()
+    let payload: any = null
+    try {
+      payload = text ? JSON.parse(text) : null
+    } catch {
+      payload = null
+    }
+
+    if (!response.ok) {
+      const msg = payload?.error || payload?.message || text || `Server ingest failed (${response.status})`
+      throw new Error(String(msg))
+    }
+  }, [newTitle, newDescription, newType, newManualText])
+
   const createReference = useCallback(async () => {
     if (!newTitle.trim() || !user) return
     setUploading(true)
     try {
+      if (newFile && backgroundLearnOnly) {
+        await createReferenceServerIngest(newFile)
+        queryClient.invalidateQueries({ queryKey: ['tender-reference-library'] })
+        toast.success('Reference material added — Bob is learning this file server-side in the background.')
+        setShowCreateDialog(false)
+        setNewTitle('')
+        setNewDescription('')
+        setNewType('policy')
+        setNewFile(null)
+        setNewManualText('')
+        setBackgroundLearnOnly(true)
+        return
+      }
+
       let filePath: string | null = null
       let filePublicUrl: string | null = null
       let fileName: string | null = null
@@ -281,11 +334,6 @@ export default function TenderReferenceLibrary() {
         filePublicUrl = urlData?.publicUrl || null
       }
 
-      if (newFile && backgroundLearnOnly) {
-        fileName = newFile.name
-        fileKind = classifyFile(newFile)
-      }
-
       // Insert DB row
       const { data: inserted, error: insertError } = await withTimeout(
         (supabase as any)
@@ -300,10 +348,8 @@ export default function TenderReferenceLibrary() {
             file_public_url: filePublicUrl,
             file_kind: fileKind,
             extracted_text: newManualText.trim() || null,
-            extraction_status: newManualText.trim() ? 'extracted' : (newFile ? (backgroundLearnOnly ? 'extracting' : 'pending') : 'needs_review'),
-            extraction_notes: newFile && backgroundLearnOnly
-              ? 'Background text-only ingest started (file is not uploaded to storage).'
-              : null,
+            extraction_status: newManualText.trim() ? 'extracted' : (newFile ? 'pending' : 'needs_review'),
+            extraction_notes: null,
             is_active: true,
             version: 1,
             uploaded_by: user.id,
@@ -322,47 +368,11 @@ export default function TenderReferenceLibrary() {
           .catch(() => { /* non-fatal — user can re-trigger */ })
       }
 
-      // No-upload mode: extract in browser and store text in background.
-      if (newFile && inserted?.id && backgroundLearnOnly && !newManualText.trim()) {
-        const insertedId = inserted.id as string
-        const fileForExtraction = newFile
-        void (async () => {
-          try {
-            const extracted = await extractDocumentDataLazy(fileForExtraction, { enableImageOcr: true })
-            const extractedText = (extracted.text || '').trim()
-            const extractionStatus = extractedText.length > 30 ? 'extracted' : 'needs_review'
-            const extractionNotes = extracted.rationale || (extractionStatus === 'needs_review'
-              ? 'Limited text extracted. Please review and edit manually.'
-              : null)
-
-            await (supabase as any)
-              .from('tender_reference_materials')
-              .update({
-                extracted_text: extractedText || null,
-                extraction_status: extractionStatus,
-                extraction_notes: extractionNotes,
-              })
-              .eq('id', insertedId)
-
-            queryClient.invalidateQueries({ queryKey: ['tender-reference-library'] })
-          } catch (bgErr: any) {
-            await (supabase as any)
-              .from('tender_reference_materials')
-              .update({
-                extraction_status: 'failed',
-                extraction_notes: `Background ingest failed: ${String(bgErr?.message || bgErr).slice(0, 200)}`,
-              })
-              .eq('id', insertedId)
-            queryClient.invalidateQueries({ queryKey: ['tender-reference-library'] })
-          }
-        })()
-      }
-
       queryClient.invalidateQueries({ queryKey: ['tender-reference-library'] })
       toast.success(
         'Reference material added' +
         (newFile && !newManualText.trim()
-          ? (backgroundLearnOnly ? ' — Bob is learning this file in the background (no upload).' : ' — extraction started')
+          ? ' — extraction started'
           : '')
       )
       setShowCreateDialog(false)
@@ -377,7 +387,7 @@ export default function TenderReferenceLibrary() {
     } finally {
       setUploading(false)
     }
-  }, [newTitle, newDescription, newType, newFile, newManualText, backgroundLearnOnly, user, queryClient])
+  }, [newTitle, newDescription, newType, newFile, newManualText, backgroundLearnOnly, user, queryClient, createReferenceServerIngest])
 
   // ── Toggle active ─────────────────────────────────────────────────────────
   const toggleActive = useMutation({
@@ -749,8 +759,8 @@ export default function TenderReferenceLibrary() {
               {newFile && (
                 <div className="flex items-center justify-between rounded border p-2 text-xs">
                   <div>
-                    <p className="font-medium">Learn in background (no upload)</p>
-                    <p className="text-muted-foreground">Use browser extraction and store text only for Bob context.</p>
+                    <p className="font-medium">Learn in background (server-side)</p>
+                    <p className="text-muted-foreground">Uploads and extraction run asynchronously on the server.</p>
                   </div>
                   <Switch checked={backgroundLearnOnly} onCheckedChange={setBackgroundLearnOnly} />
                 </div>

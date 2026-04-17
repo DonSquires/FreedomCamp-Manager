@@ -26,6 +26,7 @@ import { withCors, getCorsHeaders } from '../_shared/withCors.ts'
 
 const INFERENCE_SERVICE_URL = (Deno.env.get('INFERENCE_SERVICE_URL') || '').replace(/\/$/, '')
 const INFERENCE_API_KEY = Deno.env.get('INFERENCE_API_KEY') || ''
+const INFERENCE_REQUEST_TIMEOUT_MS = 90_000
 
 function inferenceHeaders(): Record<string, string> {
   const h: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -50,15 +51,29 @@ async function callTenderGenerate(
 }> {
   if (!INFERENCE_SERVICE_URL) throw new Error('INFERENCE_SERVICE_URL is not configured')
 
-  const resp = await fetch(`${INFERENCE_SERVICE_URL}/tender/generate`, {
-    method: 'POST',
-    headers: inferenceHeaders(),
-    body: JSON.stringify({
-      generation_type: generationType,
-      context,
-      organization_context: orgContext,
-    }),
-  })
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), INFERENCE_REQUEST_TIMEOUT_MS)
+
+  let resp: Response
+  try {
+    resp = await fetch(`${INFERENCE_SERVICE_URL}/tender/generate`, {
+      method: 'POST',
+      headers: inferenceHeaders(),
+      body: JSON.stringify({
+        generation_type: generationType,
+        context,
+        organization_context: orgContext,
+      }),
+      signal: controller.signal,
+    })
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      throw new Error(`Bob /tender/generate timed out after ${Math.floor(INFERENCE_REQUEST_TIMEOUT_MS / 1000)}s`)
+    }
+    throw err
+  } finally {
+    clearTimeout(timeoutId)
+  }
 
   if (!resp.ok) {
     const errText = await resp.text()
@@ -78,14 +93,19 @@ async function callTenderGenerate(
 
 async function callTenderTrain(payload: Record<string, unknown>): Promise<void> {
   if (!INFERENCE_SERVICE_URL) return
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), INFERENCE_REQUEST_TIMEOUT_MS)
   try {
     await fetch(`${INFERENCE_SERVICE_URL}/tender/train`, {
       method: 'POST',
       headers: inferenceHeaders(),
       body: JSON.stringify(payload),
+      signal: controller.signal,
     })
   } catch {
     // Training is best-effort — don't block the response
+  } finally {
+    clearTimeout(timeoutId)
   }
 }
 
