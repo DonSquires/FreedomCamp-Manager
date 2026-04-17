@@ -31,6 +31,27 @@ COPY lib ./lib
 COPY scripts/pretrain-self-learning.js ./scripts/pretrain-self-learning.js
 RUN node scripts/pretrain-self-learning.js
 
+# Stage 1b: Build whisper.cpp CLI + download base English model
+FROM debian:bookworm-slim AS whisper-builder
+WORKDIR /tmp
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    git \
+    build-essential \
+    cmake \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN git clone --depth 1 https://github.com/ggerganov/whisper.cpp.git
+WORKDIR /tmp/whisper.cpp
+RUN cmake -B build -DWHISPER_BUILD_EXAMPLES=ON && cmake --build build -j2
+
+RUN mkdir -p /out/models && \
+    cp build/bin/whisper-cli /out/whisper-cli && \
+    curl -L --retry 3 --retry-delay 2 \
+      "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin?download=true" \
+      -o /out/models/ggml-base.en.bin
+
 # Stage 2: Final Production Image
 FROM node:22-slim
 WORKDIR /app
@@ -39,6 +60,11 @@ COPY server.js ./
 COPY lib ./lib
 COPY --from=builder /app/data ./data
 COPY --from=model-exporter /export/models ./models
+COPY --from=whisper-builder /out /app/whisper
+
+ENV WHISPER_CLI_PATH=/app/whisper/whisper-cli
+ENV WHISPER_MODEL_PATH=/app/whisper/models/ggml-base.en.bin
+ENV AUDIO_TRANSCRIBE_TIMEOUT_MS=20000
 
 RUN groupadd -g 1001 nodejs && \
     useradd -u 1001 -g nodejs -s /bin/sh -m nodejs && \

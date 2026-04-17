@@ -287,7 +287,10 @@ jobs:
             "OLLAMA_MODEL=llama3.1:8b" \
             "OLLAMA_MODEL_WRITING=llama3.1:8b" \
             "OLLAMA_VISION_MODEL=llama3.2-vision:11b" \
-            "VEHICLE_ATTRS_PROVIDER=ollama"
+            "VEHICLE_ATTRS_PROVIDER=ollama" \
+            "WHISPER_CLI_PATH=/app/whisper/whisper-cli" \
+            "WHISPER_MODEL_PATH=/app/whisper/models/ggml-base.en.bin" \
+            "AUDIO_TRANSCRIBE_TIMEOUT_MS=20000"
 
           echo "✅ Bob Railway variables updated"
 

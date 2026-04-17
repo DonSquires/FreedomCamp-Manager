@@ -970,7 +970,7 @@ export default function NoiseOfficerPortal() {
                               <input
                                 ref={noiseAudioFileInputRef}
                                 type="file"
-                                accept="audio/*"
+                                accept="audio/wav,.wav"
                                 className="hidden"
                                 onChange={(e) => void handleAttachNoiseAudio(e.target.files?.[0] || null)}
                               />
@@ -998,7 +998,7 @@ export default function NoiseOfficerPortal() {
                               <p className="text-[11px] text-gray-500 mt-1">Attached: {attachedNoiseAudio.name}</p>
                             )}
                             <p className="text-[11px] text-gray-500 mt-1">
-                              Uses officer transcript/notes + optional dB estimate to prefill the matrix and recommended action.
+                              Uses officer transcript/notes + optional dB estimate to prefill the matrix and recommended action. For best results, attach WAV audio.
                             </p>
                           </div>
                         </div>
