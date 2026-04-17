@@ -10,7 +10,7 @@
 # OLLAMA_MODEL env var controls which model is pulled (default: llama3.1:8b).
 # Set it on the Railway service to switch models without rebuilding the image.
 # OLLAMA_PREPULL_MODE controls pull behavior: background (default), blocking, off.
-# Note: This script is also used as the push-trigger anchor for Railway deploy workflow runs.
+# Note: This script also acts as a push-trigger anchor for Railway deploy workflow runs.
 
 set -e
 
