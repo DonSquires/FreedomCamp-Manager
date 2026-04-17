@@ -1,15 +1,18 @@
 /**
  * process-tender-document
  *
- * Analyses a tender/RFP document with Bob (Railway inference-service /chat),
- * extracts structured information, optionally auto-creates a CRM client organisation,
- * updates the tender_document record, and returns the assessment.
+ * Fire-and-forget architecture:
+ *   1. Auth + validation synchronous.
+ *   2. DB marked status = 'processing' immediately.
+ *   3. HTTP 202 returned right away — no hanging SDK invocation.
+ *   4. Actual AI analysis runs inside EdgeRuntime.waitUntil() background task.
+ *   5. Frontend polls DB every 5s and detects status = 'assessed'.
  *
  * Required body fields:
  *   document_id   UUID of the tender_documents row
  *
  * Optional body fields:
- *   extracted_text  Pre-extracted text (if not present, uses tender_documents.extracted_text)
+ *   extracted_text  Pre-extracted text (overrides tender_documents.extracted_text)
  *   force_enrich    boolean — request web enrichment even if already done
  */
 
@@ -32,163 +35,131 @@ interface AssessmentResult {
   response_outline: Record<string, string>
 }
 
-async function callBobChat(systemPrompt: string, userMessage: string): Promise<string> {
-  if (!INFERENCE_SERVICE_URL) {
-    throw new Error('INFERENCE_SERVICE_URL is not configured')
-  }
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  }
-  if (INFERENCE_API_KEY) {
-    headers['Authorization'] = `Bearer ${INFERENCE_API_KEY}`
-  }
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 85_000)
+// ---------------------------------------------------------------------------
+// Heuristic fallback — called when Ollama fails or is unavailable
+// ---------------------------------------------------------------------------
+function buildHeuristicAssessment(doc: any, text: string, reason: string): AssessmentResult {
+  const refMatch = text.match(/\b([A-Z]{0,4}-?\d{2}-\d{3,})\b/i)
+  const issuingMatch =
+    text.match(/issued by\s+([^\n.]+)/i) ||
+    text.match(/([A-Z][A-Za-z ]+(?:Council|Authority|Government|Ministry|Department|Board))/m)
+  const dueDateMatch =
+    text.match(/clos(?:ing|e)[^\n]*?(\d{1,2}\s+\w+\s+20\d{2})/i) ||
+    text.match(/due[^\n]*?(\d{1,2}\s+\w+\s+20\d{2})/i) ||
+    text.match(/submission[^\n]*?(\d{1,2}\s+\w+\s+20\d{2})/i)
 
-  const timeoutPromise = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error('Bob analysis timed out after 85s')), 85_000)
+  const serviceKeywords = [
+    'security', 'patrol', 'noise control', 'cash collection',
+    'biosecurity', 'surveillance', 'CCTV', 'access control',
+  ]
+  const foundServices = serviceKeywords.filter(kw =>
+    text.toLowerCase().includes(kw.toLowerCase())
   )
 
-  const fetchPromise = fetch(`${INFERENCE_SERVICE_URL}/chat`, {
+  return {
+    document_type: doc.document_type || 'rfip',
+    issuing_body: (issuingMatch ? issuingMatch[1].trim() : doc.issuing_body) || '',
+    reference_number: refMatch ? refMatch[1] : (doc.reference_number || ''),
+    due_date: null,
+    key_services: foundServices,
+    key_requirements: [],
+    key_dates: dueDateMatch ? [{ label: 'Closing date', date: dueDateMatch[1] }] : [],
+    assessment_summary:
+      `⚠️ ${reason} Basic information has been extracted from the document text. ` +
+      `Key services identified: ${foundServices.join(', ') || 'none detected'}. ` +
+      `Please review the Intake tab and try Bob Analysis again, or proceed to Draft Response manually.`,
+    enrichment_queries: [],
+    response_outline: {
+      cover_letter: '',
+      executive_summary: '',
+      services_offered: '',
+      pricing_notes: '',
+      team_qualifications: '',
+      health_and_safety: '',
+      declaration: '',
+    },
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Call Bob via Railway inference service
+// ---------------------------------------------------------------------------
+async function callBobChat(systemPrompt: string, userMessage: string): Promise<string> {
+  if (!INFERENCE_SERVICE_URL) throw new Error('INFERENCE_SERVICE_URL not configured')
+
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (INFERENCE_API_KEY) headers['Authorization'] = `Bearer ${INFERENCE_API_KEY}`
+
+  const resp = await fetch(`${INFERENCE_SERVICE_URL}/chat`, {
     method: 'POST',
     headers,
-    signal: controller.signal,
     body: JSON.stringify({
       message: userMessage,
       system_prompt: systemPrompt,
       provider_preference: 'auto',
       response_format: 'json',
-      timeout: 80,
     }),
-  }).then(async (resp) => {
-    if (!resp.ok) {
-      const errText = await resp.text()
-      throw new Error(`Inference service error ${resp.status}: ${errText.slice(0, 200)}`)
-    }
-    const json = await resp.json()
-    return (
-      json?.text ||
-      json?.message?.content ||
-      json?.message ||
-      json?.response ||
-      JSON.stringify(json)
-    ) as string
   })
 
-  try {
-    return await Promise.race([fetchPromise, timeoutPromise])
-  } finally {
-    clearTimeout(timeoutId)
+  if (!resp.ok) {
+    const errText = await resp.text()
+    throw new Error(`Inference service error ${resp.status}: ${errText.slice(0, 200)}`)
   }
+
+  const json = await resp.json()
+  return (
+    json?.text ||
+    json?.message?.content ||
+    json?.message ||
+    json?.response ||
+    JSON.stringify(json)
+  )
 }
 
-Deno.serve(withCors(async (req: Request) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: getCorsHeaders(req) })
-  }
-
-  const corsHeaders = getCorsHeaders(req)
+// ---------------------------------------------------------------------------
+// Background task — all AI work runs here after HTTP response is sent
+// ---------------------------------------------------------------------------
+async function runAnalysis(
+  supabase: any,
+  doc: any,
+  textToAnalyse: string,
+  force_enrich: boolean,
+) {
+  const document_id = doc.id
 
   try {
-    // Auth
-    const authHeader = req.headers.get('Authorization') || ''
-    const token = authHeader.replace('Bearer ', '').trim()
-    if (!token) {
-      return new Response(JSON.stringify({ error: 'Authentication required' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
+    const systemPrompt =
+      `You are Bob, a procurement analyst for Iron Eagle Security NZ. ` +
+      `Return ONLY a valid JSON object with these exact keys: ` +
+      `document_type (rfp/rfi/rfq/rfip/tender_application/tender_response/proposal/other), ` +
+      `issuing_body, reference_number, due_date (YYYY-MM-DD or null), ` +
+      `key_services (array of strings), key_requirements (array of strings), ` +
+      `key_dates (array of {label,date}), assessment_summary (2-4 sentences), ` +
+      `enrichment_queries (array of strings), ` +
+      `response_outline ({cover_letter,executive_summary,services_offered,pricing_notes,team_qualifications,health_and_safety,declaration}). ` +
+      `No text outside the JSON.`
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-    )
+    const userMessage =
+      `Analyse this procurement document and return the JSON assessment:\n\n---\n` +
+      `${textToAnalyse.slice(0, 6000)}\n---`
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Invalid or expired session' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    const body = await req.json()
-    const { document_id, extracted_text: bodyText, force_enrich } = body
-
-    if (!document_id) {
-      return new Response(JSON.stringify({ error: 'document_id is required' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    // Fetch existing document record
-    const { data: doc, error: docError } = await (supabase as any)
-      .from('tender_documents')
-      .select('*')
-      .eq('id', document_id)
-      .single()
-
-    if (docError || !doc) {
-      return new Response(JSON.stringify({ error: 'Document not found' }), {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    const textToAnalyse = (bodyText || doc.extracted_text || '').trim()
-    if (!textToAnalyse) {
-      return new Response(JSON.stringify({ error: 'No extracted text available for analysis' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    // Mark as processing immediately so the UI can detect the function was invoked
-    await (supabase as any).from('tender_documents').update({ status: 'staged', bob_assessment_summary: '⏳ Bob is analysing…' }).eq('id', document_id)
-
-    // --- Bob Assessment -------------------------------------------------
-    const systemPrompt = `You are Bob, a procurement analyst for Iron Eagle Security NZ. Return ONLY a valid JSON object with these exact keys: document_type (rfp/rfi/rfq/rfip/tender_application/tender_response/proposal/other), issuing_body, reference_number, due_date (YYYY-MM-DD or null), key_services (array), key_requirements (array), key_dates (array of {label,date}), assessment_summary (2-4 sentences), enrichment_queries (array), response_outline ({cover_letter,executive_summary,services_offered,pricing_notes,team_qualifications,health_and_safety,declaration}). No text outside the JSON.`
-
-    // Keep prompt short — llama3.1:8b on Railway needs <4000 chars to respond within edge fn timeout
-    const userMessage = `Analyse this procurement document and return the JSON assessment:\n\n---\n${textToAnalyse.slice(0, 4000)}\n---`
-
-    let rawResponse: string
-    let usedFallback = false
-    try {
-      rawResponse = await callBobChat(systemPrompt, userMessage)
-    } catch (inferenceErr: any) {
-      console.error('Inference service error (using heuristic fallback):', inferenceErr.message)
-      // Heuristic fallback — extract what we can from the text directly
-      usedFallback = true
-      rawResponse = ''
-    }
-
-    // Parse JSON from Bob's response (may be wrapped in markdown code fences)
     let assessment: AssessmentResult
     try {
-      const jsonMatch = rawResponse.match(/\{[\s\S]*\}/)
-      const jsonStr = jsonMatch ? jsonMatch[0] : rawResponse
-      assessment = JSON.parse(jsonStr)
-    } catch {
-      // Heuristic fallback — extract basic info directly from text
-      const refMatch = textToAnalyse.match(/\b(\d{2}-\d{3,})\b/)
-      const dueDateMatch = textToAnalyse.match(/(\d{1,2}\s+\w+\s+20\d{2})/i)
-      assessment = {
-        document_type: doc.document_type || 'rfip',
-        issuing_body: doc.issuing_body || '',
-        reference_number: refMatch ? refMatch[1] : (doc.reference_number || ''),
-        due_date: null,
-        key_services: [],
-        key_requirements: [],
-        key_dates: dueDateMatch ? [{ label: 'Mentioned date', date: dueDateMatch[1] }] : [],
-        assessment_summary: usedFallback
-          ? 'Bob could not complete AI analysis within the time limit. Basic document details have been extracted. Please review the extracted text and try again, or proceed to Draft Response manually.'
-          : rawResponse.slice(0, 800),
-        enrichment_queries: [],
-        response_outline: {},
+      const rawResponse = await callBobChat(systemPrompt, userMessage)
+      try {
+        const jsonMatch = rawResponse.match(/\{[\s\S]*\}/)
+        const jsonStr = jsonMatch ? jsonMatch[0] : rawResponse
+        assessment = JSON.parse(jsonStr)
+      } catch {
+        assessment = buildHeuristicAssessment(
+          doc, textToAnalyse, 'Bob returned an unexpected response format.'
+        )
       }
+    } catch (inferenceErr: any) {
+      console.error('Bob inference failed:', inferenceErr.message)
+      assessment = buildHeuristicAssessment(
+        doc, textToAnalyse, 'Bob AI service was unavailable or took too long.'
+      )
     }
 
     // --- CRM: auto-create client organisation if not found ----------------
@@ -220,12 +191,12 @@ Deno.serve(withCors(async (req: Request) => {
         if (!createOrgError && newOrg) {
           crmClientOrgId = newOrg.id
         } else {
-          console.warn('Could not auto-create CRM organisation:', createOrgError?.message)
+          console.warn('Could not auto-create CRM org:', createOrgError?.message)
         }
       }
     }
 
-    // --- Build default response sections ----------------------------------
+    // --- Default response sections ----------------------------------------
     const defaultResponseSections = doc.response_sections || {
       cover_letter: assessment.response_outline?.cover_letter || '',
       executive_summary: assessment.response_outline?.executive_summary || '',
@@ -236,7 +207,7 @@ Deno.serve(withCors(async (req: Request) => {
       declaration: assessment.response_outline?.declaration || '',
     }
 
-    // --- Persist to tender_documents -------------------------------------
+    // --- Persist results ---------------------------------------------------
     const updates: Record<string, any> = {
       bob_assessment: assessment,
       bob_assessment_summary: assessment.assessment_summary,
@@ -261,25 +232,109 @@ Deno.serve(withCors(async (req: Request) => {
       }
     }
 
-    await (supabase as any)
-      .from('tender_documents')
-      .update(updates)
-      .eq('id', document_id)
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        assessment,
-        crm_client_organization_id: crmClientOrgId,
-        document_id,
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    )
+    await supabase.from('tender_documents').update(updates).eq('id', document_id)
+    console.log('process-tender-document: analysis complete for', document_id)
   } catch (err: any) {
-    console.error('process-tender-document error:', err)
-    return new Response(JSON.stringify({ error: err.message || 'Unexpected error' }), {
-      status: 500,
+    console.error('process-tender-document background task failed:', err.message)
+    try {
+      await supabase.from('tender_documents').update({
+        status: 'staged',
+        bob_assessment_summary: `❌ Analysis failed: ${err.message}. Please try again.`,
+      }).eq('id', document_id)
+    } catch { /* ignore */ }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// HTTP handler — validates, queues background task, returns 202 immediately
+// ---------------------------------------------------------------------------
+Deno.serve(withCors(async (req: Request) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: getCorsHeaders(req) })
+  }
+
+  const corsHeaders = getCorsHeaders(req)
+
+  const authHeader = req.headers.get('Authorization') || ''
+  const token = authHeader.replace('Bearer ', '').trim()
+  if (!token) {
+    return new Response(JSON.stringify({ error: 'Authentication required' }), {
+      status: 401,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   }
+
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+  )
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+  if (authError || !user) {
+    return new Response(JSON.stringify({ error: 'Invalid or expired session' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+
+  let body: any
+  try {
+    body = await req.json()
+  } catch {
+    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+
+  const { document_id, extracted_text: bodyText, force_enrich = false } = body
+
+  if (!document_id) {
+    return new Response(JSON.stringify({ error: 'document_id is required' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+
+  const { data: doc, error: docError } = await (supabase as any)
+    .from('tender_documents')
+    .select('*')
+    .eq('id', document_id)
+    .single()
+
+  if (docError || !doc) {
+    return new Response(JSON.stringify({ error: 'Document not found' }), {
+      status: 404,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+
+  const textToAnalyse = (bodyText || doc.extracted_text || '').trim()
+  if (!textToAnalyse) {
+    return new Response(JSON.stringify({ error: 'No extracted text available for analysis' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+
+  // Mark as processing — frontend poll detects this immediately
+  await (supabase as any)
+    .from('tender_documents')
+    .update({ status: 'processing', bob_assessment_summary: '⏳ Bob is analysing…' })
+    .eq('id', document_id)
+
+  // Queue AI work as background task — runs after HTTP response is returned.
+  // EdgeRuntime.waitUntil keeps the isolate alive until the promise settles.
+  ;(globalThis as any).EdgeRuntime?.waitUntil(
+    runAnalysis(supabase, doc, textToAnalyse, force_enrich)
+  )
+
+  // Return immediately — supabase.functions.invoke() resolves right away
+  return new Response(
+    JSON.stringify({ success: true, queued: true, document_id }),
+    {
+      status: 202,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    },
+  )
 }))

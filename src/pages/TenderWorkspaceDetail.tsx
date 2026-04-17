@@ -333,6 +333,12 @@ export default function TenderWorkspaceDetail() {
           queryClient.invalidateQueries({ queryKey: ['tender-document', id] })
           toast.success('Bob has completed the analysis')
           setActiveTab('assessment')
+        } else if (data?.status === 'staged' && data?.bob_assessment_summary?.startsWith('❌')) {
+          // Edge function wrote an error back to DB
+          completed = true
+          cleanup()
+          queryClient.invalidateQueries({ queryKey: ['tender-document', id] })
+          toast.error(data.bob_assessment_summary)
         }
       } catch { /* ignore poll errors */ }
     }, 5000)
@@ -343,16 +349,12 @@ export default function TenderWorkspaceDetail() {
         extracted_text: doc.extracted_text,
         force_enrich: true,
       })
-      if (!completed) {
-        if (error) { cleanup(); toast.error(error) }
-        else {
-          completed = true
-          cleanup()
-          queryClient.invalidateQueries({ queryKey: ['tender-document', id] })
-          toast.success('Bob has completed the analysis')
-          setActiveTab('assessment')
-        }
+      // 202 queued response — background task is running, polling will detect completion
+      if (!completed && error) {
+        cleanup()
+        toast.error(error)
       }
+      // If success (queued), do nothing — poll handles completion
     } catch (err: any) {
       if (!completed) { cleanup(); toast.error(err?.message || 'Analysis failed') }
     }
