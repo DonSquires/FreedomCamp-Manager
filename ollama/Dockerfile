@@ -21,8 +21,8 @@ ENV OLLAMA_NO_CLOUD=true
 ENV OLLAMA_MODEL=llama3.1:8b
 
 # Optional additional models to pre-pull (comma-separated).
-# Default includes a stronger writing model used by Bob for long-form generation.
-ENV OLLAMA_EXTRA_MODELS=qwen2.5:14b
+# Default is empty so the baseline deployment stays within Railway memory limits.
+ENV OLLAMA_EXTRA_MODELS=
 
 EXPOSE 11434
 

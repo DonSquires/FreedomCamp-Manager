@@ -285,7 +285,7 @@ jobs:
             "SELF_CONTAINED_STRICT_EGRESS=true" \
             "OLLAMA_BASE_URL=http://ollama.railway.internal:11434" \
             "OLLAMA_MODEL=llama3.1:8b" \
-            "OLLAMA_MODEL_WRITING=qwen2.5:14b"
+            "OLLAMA_MODEL_WRITING=llama3.1:8b"
 
           echo "✅ Bob Railway variables updated"
 
