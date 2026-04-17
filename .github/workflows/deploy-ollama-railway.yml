@@ -297,7 +297,7 @@ jobs:
       - name: Verify Ollama health
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
-          OLLAMA_SERVICE_URL: ${{ secrets.OLLAMA_SERVICE_URL }}
+          OLLAMA_SERVICE_URL: ${{ env.OLLAMA_SERVICE_URL || secrets.OLLAMA_SERVICE_URL }}
         run: |
           BASE_URL="${OLLAMA_SERVICE_URL%/}"
           if [ -z "$BASE_URL" ]; then
@@ -327,7 +327,7 @@ jobs:
           steps.check-secrets.outputs.secrets_present == 'true' &&
           github.event.inputs.pull_model != ''
         env:
-          OLLAMA_SERVICE_URL: ${{ secrets.OLLAMA_SERVICE_URL }}
+          OLLAMA_SERVICE_URL: ${{ env.OLLAMA_SERVICE_URL || secrets.OLLAMA_SERVICE_URL }}
           MODEL_NAME: ${{ github.event.inputs.pull_model }}
         run: |
           if [ -z "$OLLAMA_SERVICE_URL" ]; then
