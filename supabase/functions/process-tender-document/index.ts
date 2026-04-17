@@ -21,6 +21,7 @@ import { withCors, getCorsHeaders } from '../_shared/withCors.ts'
 
 const INFERENCE_SERVICE_URL = (Deno.env.get('INFERENCE_SERVICE_URL') || '').replace(/\/$/, '')
 const INFERENCE_API_KEY = Deno.env.get('INFERENCE_API_KEY') || ''
+const BOB_CHAT_TIMEOUT_MS = 90_000
 
 interface AssessmentResult {
   document_type: string
@@ -94,16 +95,30 @@ async function callBobChat(systemPrompt: string, userMessage: string): Promise<s
     headers['x-inference-api-key'] = INFERENCE_API_KEY
   }
 
-  const resp = await fetch(`${INFERENCE_SERVICE_URL}/chat`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      message: userMessage,
-      system_prompt: systemPrompt,
-      provider_preference: 'auto',
-      response_format: 'json',
-    }),
-  })
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), BOB_CHAT_TIMEOUT_MS)
+
+  let resp: Response
+  try {
+    resp = await fetch(`${INFERENCE_SERVICE_URL}/chat`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        message: userMessage,
+        system_prompt: systemPrompt,
+        provider_preference: 'auto',
+        response_format: 'json',
+      }),
+      signal: controller.signal,
+    })
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      throw new Error(`Inference service timeout after ${Math.floor(BOB_CHAT_TIMEOUT_MS / 1000)}s`)
+    }
+    throw err
+  } finally {
+    clearTimeout(timeoutId)
+  }
 
   if (!resp.ok) {
     const errText = await resp.text()
@@ -226,7 +241,6 @@ Do not include any text outside the JSON object.`
     // Parse JSON from Bob's response
     let assessment: AssessmentResult
     try {
-      const rawResponse = await callBobChat(systemPrompt, userMessage)
       try {
         const jsonMatch = rawResponse.match(/\{[\s\S]*\}/)
         const jsonStr = jsonMatch ? jsonMatch[0] : rawResponse

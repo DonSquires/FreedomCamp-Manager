@@ -60,6 +60,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   ])
 }
 
+const ANALYSIS_MAX_WAIT_MS = 240_000
+
 type TenderStatus =
   | 'draft' | 'staged' | 'assessed' | 'drafting'
   | 'review_pending' | 'shortlisted' | 'approved' | 'submitted' | 'archived'
@@ -440,25 +442,45 @@ export default function TenderWorkspaceDetail() {
       setAnalysingElapsed(0)
     }
 
+    const startedAt = Date.now()
+
     pollInterval = setInterval(async () => {
       try {
-        const { data } = await (supabase as any)
-          .from('tender_documents')
-          .select('status, bob_assessment_summary')
-          .eq('id', doc.id)
-          .single()
-        if (data?.status === 'assessed') {
+        if (Date.now() - startedAt > ANALYSIS_MAX_WAIT_MS) {
           completed = true
           cleanup()
           queryClient.invalidateQueries({ queryKey: ['tender-document', id] })
-          toast.success('Bob has completed the analysis')
-          setActiveTab('assessment')
-        } else if (data?.status === 'staged' && data?.bob_assessment_summary?.startsWith('❌')) {
+          toast.error('Bob analysis is taking too long. Please retry once or check Bob service health.')
+          return
+        }
+
+        const { data } = await (supabase as any)
+          .from('tender_documents')
+          .select('status, bob_assessment_summary, bob_assessment')
+          .eq('id', doc.id)
+          .single()
+
+        const summary = (data?.bob_assessment_summary || '').trim()
+        const hasErrorSummary = summary.startsWith('❌') || summary.startsWith('⚠️')
+        const hasAssessmentPayload = !!data?.bob_assessment
+        const hasNonPlaceholderSummary = summary.length > 0 && !summary.startsWith('⏳')
+
+        if (data?.status === 'assessed' || hasAssessmentPayload || hasNonPlaceholderSummary) {
+          completed = true
+          cleanup()
+          queryClient.invalidateQueries({ queryKey: ['tender-document', id] })
+          if (hasErrorSummary) {
+            toast.error(summary)
+          } else {
+            toast.success('Bob has completed the analysis')
+            setActiveTab('assessment')
+          }
+        } else if (data?.status === 'staged' && hasErrorSummary) {
           // Edge function wrote an error back to DB
           completed = true
           cleanup()
           queryClient.invalidateQueries({ queryKey: ['tender-document', id] })
-          toast.error(data.bob_assessment_summary)
+          toast.error(summary)
         }
       } catch { /* ignore poll errors */ }
     }, 5000)
@@ -478,9 +500,7 @@ export default function TenderWorkspaceDetail() {
       setActiveTab('assessment')
     } catch (err: any) {
       toast.error(err?.message || 'Analysis failed to start')
-      setAnalysing(false)
-      if (analysingTimerRef.current) { clearInterval(analysingTimerRef.current); analysingTimerRef.current = null }
-      setAnalysingElapsed(0)
+      cleanup()
     }
     // Note: spinner cleared by useEffect below when doc.status changes to 'assessed'
   }, [doc, canEdit, id, queryClient, includedRefIds])
