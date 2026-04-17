@@ -216,7 +216,7 @@ export default function TenderWorkspaceDetail() {
     enabled: !!id,
     refetchInterval: 5000,
     queryFn: async () => {
-      const { data, error } = await withTimeout(
+      const { data, error } = await withTimeout<{ data: any; error: any }>(
         ((supabase as any).from('tender_documents') as any)
           .select('*')
           .eq('id', id!)

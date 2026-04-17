@@ -175,7 +175,7 @@ export default function TenderReferenceLibrary() {
   const { data: refs = [], isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['tender-reference-library', user?.organization_id],
     queryFn: async () => {
-      const { data, error } = await withTimeout(
+      const { data, error } = await withTimeout<{ data: any; error: any }>(
         (supabase as any)
           .from('tender_reference_materials')
           .select('id, organization_id, title, description, material_type, file_name, file_path, file_public_url, file_kind, extraction_status, extraction_notes, is_active, version, previous_version_id, uploaded_by, created_at, updated_at')
@@ -202,7 +202,7 @@ export default function TenderReferenceLibrary() {
     queryKey: ['tender-reference-material', selectedRef?.id],
     enabled: !!selectedRef?.id,
     queryFn: async () => {
-      const { data, error } = await withTimeout(
+      const { data, error } = await withTimeout<{ data: any; error: any }>(
         (supabase as any)
           .from('tender_reference_materials')
           .select('*')
@@ -335,7 +335,7 @@ export default function TenderReferenceLibrary() {
       }
 
       // Insert DB row
-      const { data: inserted, error: insertError } = await withTimeout(
+      const { data: inserted, error: insertError } = await withTimeout<{ data: any; error: any }>(
         (supabase as any)
           .from('tender_reference_materials')
           .insert({
