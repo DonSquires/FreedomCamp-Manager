@@ -29,7 +29,12 @@ const INFERENCE_API_KEY = Deno.env.get('INFERENCE_API_KEY') || ''
 
 function inferenceHeaders(): Record<string, string> {
   const h: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (INFERENCE_API_KEY) h['Authorization'] = `Bearer ${INFERENCE_API_KEY}`
+  if (INFERENCE_API_KEY) {
+    // Send both for compatibility with existing Bob auth middleware and proxies
+    // that may strip Authorization in some environments.
+    h['Authorization'] = `Bearer ${INFERENCE_API_KEY}`
+    h['x-inference-api-key'] = INFERENCE_API_KEY
+  }
   return h
 }
 
@@ -312,4 +317,3 @@ async function doGeneration(
       .eq('id', documentId)
   }
 }
-

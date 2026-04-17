@@ -85,11 +85,17 @@ function buildHeuristicAssessment(doc: any, text: string, reason: string): Asses
 // Call Bob via Railway inference service
 // ---------------------------------------------------------------------------
 async function callBobChat(systemPrompt: string, userMessage: string): Promise<string> {
-  if (!INFERENCE_SERVICE_URL) throw new Error('INFERENCE_SERVICE_URL not configured')
-
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (INFERENCE_API_KEY) headers['Authorization'] = `Bearer ${INFERENCE_API_KEY}`
-
+  if (!INFERENCE_SERVICE_URL) {
+    throw new Error('INFERENCE_SERVICE_URL is not configured')
+  }
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (INFERENCE_API_KEY) {
+    // Include both auth forms to align with Bob middleware and strict mode docs.
+    headers['Authorization'] = `Bearer ${INFERENCE_API_KEY}`
+    headers['x-inference-api-key'] = INFERENCE_API_KEY
+  }
   const resp = await fetch(`${INFERENCE_SERVICE_URL}/chat`, {
     method: 'POST',
     headers,
