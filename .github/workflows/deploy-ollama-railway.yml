@@ -330,6 +330,12 @@ jobs:
               fi
             done
 
+            echo "::warning::Trying fallback deploy without explicit service ID..."
+            if railway up --detach > /tmp/ollama-no-service.log 2>&1; then
+              echo "✅ Ollama deploy triggered without explicit service ID"
+              exit 0
+            fi
+
             echo "::error::Service not found and auto-retry could not resolve a different Ollama service ID."
             echo "::error::Set RAILWAY_OLLAMA_SERVICE_ID and/or RAILWAY_BOB_PROJECT_ID explicitly."
             exit 1
