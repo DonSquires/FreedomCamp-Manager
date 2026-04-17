@@ -98,6 +98,40 @@ jobs:
 
           cp /tmp/inference-health.json inference-health-preflight.json
 
+      - name: Diagnose Ollama connectivity (circuit-reset probe)
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          BASE_URL="${INFERENCE_SERVICE_URL%/}"
+
+          echo "=== Calling /ops/circuit-reset to get live Ollama probe error code ==="
+          RESET_RESP=""
+          for KEY in "${INFERENCE_API_KEY_PRIMARY:-}" "${INFERENCE_API_KEY_SECONDARY:-}"; do
+            [[ -z "$KEY" ]] && continue
+            RESET_RESP=$(curl -sS -m 20 -X POST "${BASE_URL}/ops/circuit-reset" \
+              -H "x-inference-api-key: ${KEY}" || true)
+            [[ -n "$RESET_RESP" ]] && break
+          done
+          echo "circuit-reset response: $RESET_RESP"
+
+          echo "=== Direct Ollama public URL probe ==="
+          OLLAMA_PUBLIC_URL="${OLLAMA_SERVICE_URL:-}"
+          if [[ -n "$OLLAMA_PUBLIC_URL" ]]; then
+            if [[ "$OLLAMA_PUBLIC_URL" != http://* && "$OLLAMA_PUBLIC_URL" != https://* ]]; then
+              OLLAMA_PUBLIC_URL="https://$OLLAMA_PUBLIC_URL"
+            fi
+            HTTP=$(curl -sS -m 20 -o /tmp/ollama-tags.json -w "%{http_code}" "${OLLAMA_PUBLIC_URL}/api/tags" || echo "000")
+            echo "Ollama /api/tags HTTP $HTTP"
+            cat /tmp/ollama-tags.json 2>/dev/null || true
+          else
+            echo "OLLAMA_SERVICE_URL not set — skipping direct probe"
+          fi
+        env:
+          INFERENCE_SERVICE_URL: ${{ env.INFERENCE_SERVICE_URL }}
+          INFERENCE_API_KEY_PRIMARY: ${{ env.INFERENCE_API_KEY_PRIMARY }}
+          INFERENCE_API_KEY_SECONDARY: ${{ env.INFERENCE_API_KEY_SECONDARY }}
+          OLLAMA_SERVICE_URL: ${{ secrets.OLLAMA_SERVICE_URL }}
+
       - name: Human interaction smoke prompts
         run: |
           set -euo pipefail
