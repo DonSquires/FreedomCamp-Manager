@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -300,22 +301,46 @@ export default function SmokeComplaintOfficerPortal() {
   const generateNoticeMutation = useMutation({
     mutationFn: async () => {
       if (!orgId || !user?.id || !selectedJob || !state) throw new Error('Missing data')
-      const { data, error } = await supabase.functions.invoke('smoke-notice', {
-        body: {
+
+      // 1. Allocate a notice number and INSERT the record so the edge function
+      //    can look it up by ID (the function only accepts a notice UUID).
+      const { data: noticeNumber, error: numErr } = await (supabase.rpc as any)(
+        'next_smoke_notice_number',
+        { p_org_id: orgId },
+      )
+      if (numErr) throw new Error(numErr.message)
+
+      const { data: inserted, error: insertErr } = await (supabase as any)
+        .from('smoke_notices')
+        .insert({
           organization_id: orgId,
+          notice_number: noticeNumber,
           smoke_job_id: selectedJob.id,
-          officer_id: user.id,
-          notice_type: state.action,
+          notice_type: state.action === 'abatement_notice'
+            ? 'abatement_notice'
+            : state.action === 'prosecution_referral'
+              ? 'prosecution_referral'
+              : 'infringement_notice',
           recipient_name: state.recipient_name,
           recipient_address: state.recipient_address || state.address,
-          comply_by: state.comply_by || null,
           offence_description: state.offence_description,
           rma_section: state.rma_section,
+          comply_by: state.comply_by || null,
           penalty_amount_nzd: state.penalty_amount_nzd ? parseFloat(state.penalty_amount_nzd) : null,
-        },
+          issuing_officer_id: user.id,
+          status: 'issued',
+        })
+        .select('id')
+        .single()
+      if (insertErr) throw new Error(insertErr.message)
+
+      // 2. Render the notice HTML via the edge function.
+      const { data, error } = await edgeFunctions.smokeNotice({
+        smoke_notice_id: inserted.id,
+        issued_by: user.id,
       })
       if (error) throw error
-      return data
+      return { ...data, notice_number: noticeNumber }
     },
     onSuccess: (data) => {
       toast.success('Notice generated')
@@ -365,15 +390,13 @@ export default function SmokeComplaintOfficerPortal() {
     if (!state) return
     setAiLoading(true)
     try {
-      const { data, error } = await supabase.functions.invoke('smoke-assess', {
-        body: {
-          job_id: state.job_id,
-          image_base64: state.image_base64,
-          gps_lat: state.gps_lat,
-          gps_lng: state.gps_lng,
-          address: state.address,
-          complaint_time: state.complaint_time,
-        },
+      const { data, error } = await edgeFunctions.smokeAssess({
+        job_id: state.job_id,
+        image_base64: state.image_base64,
+        gps_lat: state.gps_lat,
+        gps_lng: state.gps_lng,
+        address: state.address,
+        complaint_time: state.complaint_time,
       })
       if (error) throw error
       const result: AiResult = {

@@ -43,11 +43,11 @@ export function OrganizationSelector({
   const isLoading = orgQuery.isLoading
 
   const selectedOrg = organizations?.find((org: any) => org.id === value)
-  const isMaster = user?.role === 'master'
+  const isSuperUser = user?.role === 'master' || user?.role === 'grand_master'
 
   // Filter organizations based on user permissions
   const accessibleOrgs = organizations?.filter((org: any) => {
-    if (isMaster) return true // Masters see all
+    if (isSuperUser) return true // Master / Grand Master see all
     
     // Check if user has access to this org
     return (
@@ -113,8 +113,8 @@ export function OrganizationSelector({
             <Building2 className="h-5 w-5" />
             Select Organisation
           </SheetTitle>
-          <SheetDescription>
-            {isMaster 
+            <SheetDescription>
+            {isSuperUser 
               ? 'Choose an organisation to filter data' 
               : 'Select from your accessible organisations'
             }
@@ -123,7 +123,7 @@ export function OrganizationSelector({
 
         <div className="mt-6 space-y-2">
           {/* All organizations option */}
-          {allowAll && isMaster && (
+          {allowAll && isSuperUser && (
             <Button
               variant={!value ? 'default' : 'ghost'}
               className="w-full justify-between"
@@ -173,7 +173,7 @@ export function OrganizationSelector({
         </div>
 
         {/* Info for non-masters */}
-        {!isMaster && (
+        {!isSuperUser && (
           <div className="mt-6 p-3 bg-muted rounded-lg text-sm text-muted-foreground">
             You have access to {accessibleOrgs?.length || 0} organisation
             {accessibleOrgs?.length !== 1 ? 's' : ''}. Contact your administrator 

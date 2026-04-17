@@ -314,18 +314,6 @@ export default function ImportHistoricalData() {
         {/* Upload tab */}
         <TabsContent value="upload" className="mt-6">
           <div className="max-w-xl space-y-5">
-            <Card className="border-dashed">
-              <CardContent className="p-4 space-y-1">
-                <p className="text-xs font-semibold text-muted-foreground uppercase">Runtime Function Wiring</p>
-                <p className="text-xs text-muted-foreground break-all">
-                  Project Ref: {runtimeProjectRef || 'unknown'}
-                </p>
-                <p className="text-xs text-muted-foreground break-all">
-                  Endpoint: {runtimeFunctionEndpoint}
-                </p>
-              </CardContent>
-            </Card>
-
             {activeBatch && ['pending', 'parsing', 'zone_matching', 'importing'].includes(activeBatch.status) && (
               <Card className="border-blue-400 bg-blue-50/40">
                 <CardContent className="p-4">

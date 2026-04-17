@@ -15,11 +15,13 @@ import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { usePTTStore } from '@/stores/pttStore'
 import { supabase } from '@/lib/supabase'
-import { BrainCircuit, ClipboardList, Loader2, MapPinned, Mic, MicOff, Paintbrush2, Radio, Route, Send, Volume2, VolumeX, Wrench, Github, ShieldAlert, PhoneOff, SignalHigh } from 'lucide-react'
+import { BrainCircuit, CheckCircle2, ClipboardList, FlaskConical, Loader2, MapPinned, Mic, MicOff, Paintbrush2, Play, Radio, Route, Send, Volume2, VolumeX, Wrench, Github, ShieldAlert, PhoneOff, SignalHigh, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { edgeFunctions } from '@/lib/edgeFunctions'
+import { smokeTests, dataVerification, performanceTests, runBugFixDeepDive } from '@/lib/testUtils'
 import { consumeLatestBobCollaborationPacket, publishBobResponse, type BobCollaborationPacket } from '@/lib/bobCollaboration'
 import { BOB_PROJECT_KNOWLEDGE } from '@/lib/bobKnowledgeBase'
+import { BobOrb, type BobOrbState } from '@/components/features/BobOrb'
 import {
   clearPTTCustomAudioSourceFactory,
   connectToPTT,
@@ -494,6 +496,7 @@ export default function BobAssistantStudio() {
   const [chat, setChat] = useState<ChatMessage[]>([])
   const [listening, setListening] = useState(false)
   const [thinking, setThinking] = useState(false)
+  const [isBobSpeaking, setIsBobSpeaking] = useState(false)
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([])
   const [origin, setOrigin] = useState('')
   const [destination, setDestination] = useState('')
@@ -576,6 +579,12 @@ export default function BobAssistantStudio() {
     targetPaths: '',
     confirmed: false,
   })
+
+  // ── Bob Automation & Testing panel ──────────────────────────────────────
+  type TestLine = { ok: boolean | null; text: string }
+  const [testLines, setTestLines] = useState<TestLine[]>([])
+  const [testRunning, setTestRunning] = useState(false)
+  const [testSuiteLabel, setTestSuiteLabel] = useState('')
 
   const recognitionRef = useRef<any>(null)
   const chatEndRef = useRef<HTMLDivElement | null>(null)
@@ -875,6 +884,7 @@ export default function BobAssistantStudio() {
     }
 
     speakingRef.current = true
+    setIsBobSpeaking(true)
     const utterance = new SpeechSynthesisUtterance(text)
     if (selectedVoice) utterance.voice = selectedVoice
     utterance.lang = accent
@@ -882,12 +892,14 @@ export default function BobAssistantStudio() {
     utterance.pitch = voiceGender === 'male' ? 0.9 : voiceGender === 'female' ? 1.08 : 1
     utterance.onend = () => {
       speakingRef.current = false
+      setIsBobSpeaking(false)
       if (voiceConversationActiveRef.current) {
         restartVoiceConversationRef.current?.()
       }
     }
     utterance.onerror = () => {
       speakingRef.current = false
+      setIsBobSpeaking(false)
       if (voiceConversationActiveRef.current) {
         restartVoiceConversationRef.current?.()
       }
@@ -2249,6 +2261,92 @@ export default function BobAssistantStudio() {
     }
   }
 
+  // Runs one of the four test suites, captures console output into testLines,
+  // then offers results to Bob via sendMessage().
+  const runAutomationSuite = async (suite: 'smoke' | 'data' | 'performance' | 'bugfix') => {
+    if (testRunning) return
+    setTestRunning(true)
+    setTestLines([])
+
+    const label: Record<typeof suite, string> = {
+      smoke: 'Smoke Tests',
+      data: 'Data Verification',
+      performance: 'Performance Benchmark',
+      bugfix: 'Bug Fix Audit',
+    }
+    setTestSuiteLabel(label[suite])
+
+    const lines: TestLine[] = []
+    const emit = (ok: boolean | null, text: string) => {
+      lines.push({ ok, text })
+      setTestLines([...lines])
+    }
+
+    try {
+      if (suite === 'smoke') {
+        emit(null, 'Running smoke tests…')
+        const result = await smokeTests.runAll() as any
+        const testResults = result?.results ?? result ?? {}
+        Object.entries(testResults).forEach(([name, res]: [string, any]) => {
+          emit(res?.success ?? null, `${name}: ${res?.success ? 'PASS' : 'FAIL'}${res?.error ? ` — ${res.error}` : ''}`)
+        })
+        const all = result?.summary?.allPassed ?? Object.values(testResults).every((r: any) => r?.success)
+        emit(all, all ? '✓ All smoke tests passed' : '✗ Some smoke tests failed')
+      } else if (suite === 'data') {
+        emit(null, 'Running data verification…')
+        const dup = await dataVerification.checkDuplicateObservations()
+        emit(dup !== null, `Duplicate observations check: ${dup !== null ? 'complete' : 'unavailable'}`)
+        const comp = await dataVerification.verifyComplianceResults()
+        if (comp) {
+          const ok = comp.missing === 0
+          emit(ok, `Compliance state: ${comp.withCompliance}/${comp.total} observations populated${ok ? '' : ` (${comp.missing} missing)`}`)
+        }
+        const stays = await dataVerification.verifyMonthlyStays()
+        if (stays) {
+          emit(true, `Monthly stay snapshots (${stays.month}): ${stays.vehicleCount} vehicles, ${stays.totalNights} nights total`)
+        }
+        emit(true, '✓ Data verification complete')
+      } else if (suite === 'performance') {
+        emit(null, 'Running performance benchmark…')
+        const bench = await performanceTests.runBenchmark() as any
+        Object.entries(bench ?? {}).forEach(([name, res]: [string, any]) => {
+          const ok = res?.success ?? false
+          emit(ok, `${name}: ${res?.duration?.toFixed(1) ?? '?'}ms — ${ok ? 'OK' : res?.error ?? 'FAILED'}`)
+        })
+        const all = Object.values(bench ?? {}).every((r: any) => r?.success)
+        emit(all, all ? '✓ All benchmarks passed' : '⚠ Some benchmarks had issues')
+      } else if (suite === 'bugfix') {
+        emit(null, 'Running bug fix system audit…')
+        const audit = await runBugFixDeepDive(30) as any
+        if (audit?.success === false && audit.error) {
+          emit(false, `Audit error: ${audit.error}`)
+        } else if (audit) {
+          const s = audit.summary ?? {}
+          emit(true, `Reports: ${s.total ?? 0} total | ${s.aiAnalyzed ?? 0} AI-analyzed | ${s.autoReported ?? 0} auto-reported | ${s.terminal ?? 0} terminal | ${s.withHumanReview ?? 0} needs human review`)
+          if ((audit.anomalies ?? []).length === 0) {
+            emit(true, '✓ No anomalies detected in recent bug reports')
+          } else {
+            ;(audit.anomalies ?? []).forEach((a: string) => emit(false, `⚠ ${a}`))
+          }
+        }
+      }
+    } catch (err: any) {
+      emit(false, `Suite error: ${err?.message ?? 'unknown'}`)
+    } finally {
+      setTestRunning(false)
+    }
+  }
+
+  const sendTestResultsToBob = () => {
+    if (!testLines.length) return
+    const MAX_LINES = 50
+    const lines = testLines.length > MAX_LINES ? testLines.slice(-MAX_LINES) : testLines
+    const truncated = testLines.length > MAX_LINES ? `\n(Showing last ${MAX_LINES} of ${testLines.length} lines)\n` : ''
+    const summary = lines.map((l) => `${l.ok === true ? '✓' : l.ok === false ? '✗' : '→'} ${l.text}`).join('\n')
+    const prompt = `Here are the latest ${testSuiteLabel} results from inside the FieldOps Manager app. Please analyse them and highlight any issues, failures, or recommendations:${truncated}\n\n${summary}`
+    sendMessage(prompt)
+  }
+
   return (
     <AppLayout title="Bob Assistant Studio" description="Personality, voice, mapping, and drawing controls for Bob.">
       <GlobalFilterRibbon />
@@ -2815,7 +2913,18 @@ export default function BobAssistantStudio() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between gap-2">
-                <span className="flex items-center gap-2"><BrainCircuit className="h-4 w-4" /> Conversation</span>
+                <span className="flex items-center gap-2">
+                  <BobOrb
+                    size="sm"
+                    state={
+                      (listening ? 'listening'
+                        : thinking ? 'thinking'
+                        : isBobSpeaking ? 'speaking'
+                        : 'idle') as BobOrbState
+                    }
+                  />
+                  Conversation
+                </span>
                 <Badge variant="outline">{displayName}</Badge>
               </CardTitle>
               <CardDescription>Talk to Bob by typing or voice. Bob is your inference agent and assistant, and can coordinate build context across DB, UI, Expo, Railway, and Vercel workflows.</CardDescription>
@@ -2851,32 +2960,39 @@ export default function BobAssistantStudio() {
                 </div>
               )}
 
-              <div className="max-h-[300px] overflow-auto rounded border p-3 space-y-2 bg-muted/20">
+              <div className="h-[45vh] min-h-[200px] overflow-auto rounded border p-3 space-y-2 bg-muted/20">
                 {chat.length === 0 && !thinking ? (
                   <div className="text-sm text-muted-foreground">No messages yet. Ask Bob for import help, directions, or operational guidance.</div>
                 ) : (
                   chat.map((message) => (
-                    <div key={message.id} className={`rounded px-3 py-2 text-sm ${message.role === 'assistant' ? 'bg-primary text-primary-foreground' : 'bg-background border'}`}>
-                      <div className="text-[11px] opacity-80 mb-1">{message.role === 'assistant' ? displayName : 'You'}</div>
-                      <div>{message.text}</div>
+                    <div
+                      key={message.id}
+                      className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div className={`max-w-[85%] rounded px-3 py-2 text-sm ${message.role === 'assistant' ? 'bg-primary text-primary-foreground mr-auto' : 'bg-background border ml-auto text-right'}`}>
+                        <div className="text-[11px] opacity-80 mb-1">{message.role === 'assistant' ? displayName : 'You'}</div>
+                        <div className="text-left">{message.text}</div>
+                      </div>
                     </div>
                   ))
                 )}
                 {thinking && (
-                  <div className="rounded px-3 py-2 text-sm bg-primary/70 text-primary-foreground flex items-center gap-2">
-                    <Loader2 className="h-3 w-3 animate-spin shrink-0" />
-                    <span>{displayName} is thinking…</span>
+                  <div className="flex justify-start">
+                    <div className="max-w-[85%] rounded px-3 py-2 text-sm bg-primary/70 text-primary-foreground mr-auto flex items-center gap-2">
+                      <Loader2 className="h-3 w-3 animate-spin shrink-0" />
+                      <span>{displayName} is thinking…</span>
+                    </div>
                   </div>
                 )}
                 <div ref={chatEndRef} />
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 pb-safe">
                 <Textarea
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   placeholder="Ask Bob anything operational..."
-                  className="min-h-[80px]"
+                  className="min-h-[72px] resize-none"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault()
@@ -3059,6 +3175,84 @@ export default function BobAssistantStudio() {
           </Card>
 
           <BobSketchPad />
+
+          {/* ── Bob Automation & Testing ─────────────────────────────── */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FlaskConical className="h-4 w-4" /> Automation &amp; Testing
+              </CardTitle>
+              <CardDescription>
+                Run live smoke tests, data verification, performance benchmarks, or a bug-fix audit directly inside the app.
+                Bob can analyse the results and suggest remediation steps.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Suite buttons */}
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {([
+                  { suite: 'smoke', label: 'Smoke Tests', desc: 'Auth, DB, edge functions, NZSCV, welfare' },
+                  { suite: 'data', label: 'Data Check', desc: 'Compliance state, monthly stays, duplicates' },
+                  { suite: 'performance', label: 'Benchmark', desc: 'Query timing across key tables' },
+                  { suite: 'bugfix', label: 'Bug Audit', desc: 'AI analysis status, anomalies in recent reports' },
+                ] as const).map(({ suite, label, desc }) => (
+                  <button
+                    key={suite}
+                    disabled={testRunning}
+                    onClick={() => runAutomationSuite(suite)}
+                    title={desc}
+                    className="flex flex-col items-center gap-1 rounded-lg border p-3 text-xs font-medium transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {testRunning && testSuiteLabel === ({ smoke: 'Smoke Tests', data: 'Data Verification', performance: 'Performance Benchmark', bugfix: 'Bug Fix Audit' })[suite]
+                      ? <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      : <Play className="h-5 w-5 text-primary" />
+                    }
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Results area */}
+              {testLines.length > 0 && (
+                <div className="rounded-lg border bg-muted/30 p-3 space-y-1 max-h-64 overflow-auto font-mono text-xs">
+                  <div className="flex items-center gap-2 mb-2 text-[11px] font-sans text-muted-foreground font-semibold">
+                    {testSuiteLabel} — {testRunning ? 'Running…' : 'Complete'}
+                    {!testRunning && (
+                      testLines.some((l) => l.ok === false)
+                        ? <span className="ml-auto text-red-500 font-medium flex items-center gap-1"><XCircle className="h-3 w-3" /> Issues detected</span>
+                        : <span className="ml-auto text-green-600 font-medium flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> All clear</span>
+                    )}
+                  </div>
+                  {testLines.map((line, idx) => (
+                    <div
+                      key={idx}
+                      className={
+                        line.ok === true ? 'text-green-700 dark:text-green-400'
+                        : line.ok === false ? 'text-red-600 dark:text-red-400'
+                        : 'text-muted-foreground'
+                      }
+                    >
+                      {line.ok === true ? '✓ ' : line.ok === false ? '✗ ' : '→ '}{line.text}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Ask Bob to analyse */}
+              {testLines.length > 0 && !testRunning && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={sendTestResultsToBob}
+                  disabled={thinking}
+                  className="w-full"
+                >
+                  <BrainCircuit className="h-4 w-4 mr-1" />
+                  Ask Bob to analyse these results
+                </Button>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </AppLayout>

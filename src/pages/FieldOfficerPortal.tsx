@@ -818,11 +818,8 @@ export default function FieldOfficerPortal() {
 
       toast.success('Shift started — welfare monitoring active')
 
-      // Refresh the page to reflect the current state (as per user requirement)
       await refetchShift()
       queryClient.invalidateQueries({ queryKey: ['officer-active-shift'] })
-      // Brief delay to allow the toast to show before reload
-      setTimeout(() => window.location.reload(), 500)
     } catch (err: any) {
       toast.error(err?.message ?? 'Failed to start shift')
     } finally {
@@ -868,11 +865,8 @@ export default function FieldOfficerPortal() {
 
       toast.success('Shift ended — welfare monitoring stopped')
 
-      // Refresh the page to reflect the current state (as per user requirement)
       await refetchShift()
       queryClient.invalidateQueries({ queryKey: ['officer-active-shift'] })
-      // Brief delay to allow the toast to show before reload
-      setTimeout(() => window.location.reload(), 500)
     } catch (err: any) {
       toast.error(err?.message ?? 'Failed to end shift')
     } finally {
@@ -2945,8 +2939,8 @@ export default function FieldOfficerPortal() {
               <div className="space-y-1">
                 <Label className="text-xs">Incident Type</Label>
                 <Select value={qrIncidentType} onValueChange={setQRIncidentType}>
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue />
+                  <SelectTrigger className="h-10 text-sm">
+                    <SelectValue placeholder="Select incident type" />
                   </SelectTrigger>
                   <SelectContent>
                     {qrReportType === 'hs' ? (
@@ -2977,8 +2971,8 @@ export default function FieldOfficerPortal() {
             <div className="space-y-1">
               <Label className="text-xs">Severity</Label>
               <Select value={qrSeverity} onValueChange={v => setQRSeverity(v as 'low'|'medium'|'high'|'critical')}>
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue />
+                <SelectTrigger className="h-10 text-sm">
+                  <SelectValue placeholder="Select severity" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="low">Low</SelectItem>

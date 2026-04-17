@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
@@ -89,6 +90,7 @@ export default function NoticeToVacate() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -108,6 +110,27 @@ export default function NoticeToVacate() {
   })
   const [issuing, setIssuing] = useState(false)
   const [issueFeedback, setIssueFeedback] = useState<null | { type: 'loading' | 'success' | 'error'; message: string }>(null)
+
+  // Auto-fill form and open issue dialog when arriving from BreachAlerts page via
+  // /notice-to-vacate?breach_alert_id=X&plate_number=Y&zone_id=Z
+  useEffect(() => {
+    const breachAlertId = searchParams.get('breach_alert_id')
+    const plateNumber = searchParams.get('plate_number')
+    const paramZoneId = searchParams.get('zone_id')
+
+    if (breachAlertId || plateNumber || paramZoneId) {
+      setForm(prev => ({
+        ...prev,
+        breachAlertId: breachAlertId ?? prev.breachAlertId,
+        plateNumber: plateNumber ?? prev.plateNumber,
+        zoneId: paramZoneId ?? prev.zoneId,
+      }))
+      setIsIssueOpen(true)
+      // Clean up URL params so a refresh doesn't re-open the dialog
+      setSearchParams(new URLSearchParams(), { replace: true })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const openPreviewWindow = (mode: 'open' | 'print') => {
     if (!previewHtml) {

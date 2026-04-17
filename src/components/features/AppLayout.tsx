@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
@@ -29,6 +29,7 @@ import {
   LogOut,
   ChevronLeft,
   ChevronDown,
+  ChevronUp,
   Search,
   Activity,
   Gavel,
@@ -82,11 +83,14 @@ import {
   Wand2,
   ListChecks,
   LayoutList,
+  Mic,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { signalSessionActivity } from '@/hooks/useSessionInactivityLock'
+import { usePTTStore, usePTTAvailable, usePTTCanSpeak } from '@/stores/pttStore'
+import { startSpeaking, stopSpeaking } from '@/lib/ptt'
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -115,7 +119,7 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
     label: 'Operations',
     icon: BarChart3,
     items: [
-      { path: '/compliance-unified', icon: ShieldCheck, label: 'Compliance Hub', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/compliance', icon: ShieldCheck, label: 'Compliance Hub', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/observation-records', icon: ImageIcon, label: 'Observations', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/observations-report', icon: FileBarChart, label: 'Observations Report', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/breaches', icon: AlertTriangle, label: 'Breaches & Alerts', roles: ['admin', 'admin_officer', 'master', 'officer'] },
@@ -386,6 +390,34 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const location = useLocation()
+
+  // ── Floating PTT button state ────────────────────────────────────────────
+  const pttConnectionStatus   = usePTTStore((s) => s.connectionStatus)
+  const pttChannelName        = usePTTStore((s) => s.channelName)
+  const pttIsSpeaking         = usePTTStore((s) => s.isSpeaking)
+  const pttSpeakerName        = usePTTStore((s) => s.speakerName)
+  const pttSpeakerId          = usePTTStore((s) => s.speakerId)
+  const pttAvailable          = usePTTAvailable()
+  const pttCanSpeak           = usePTTCanSpeak()
+  // True when the WebRTC socket is connected but no channel has been joined yet
+  const pttConnectedNoChannel = usePTTStore((s) => s.connectionStatus === 'connected' && s.channelId === null)
+  const [pttHolding, setPttHolding]   = useState(false)
+  const [pttExpanded, setPttExpanded] = useState(false)
+
+  const handlePTTDown = useCallback(async () => {
+    // Prevent re-entry via both local guard and the authoritative store flag
+    if (!pttCanSpeak || !pttAvailable || pttHolding || pttIsSpeaking) return
+    try {
+      await startSpeaking()
+      setPttHolding(true)
+    } catch { /* ptt.ts already toasts */ }
+  }, [pttCanSpeak, pttAvailable, pttHolding, pttIsSpeaking])
+
+  const handlePTTUp = useCallback(async () => {
+    // Release if either the local guard or the store thinks we're still transmitting
+    if (!pttHolding && !pttIsSpeaking) return
+    try { await stopSpeaking() } catch { /* silent */ } finally { setPttHolding(false) }
+  }, [pttHolding, pttIsSpeaking])
 
   // Passive context capture for feedback reports
   useFeedbackCapture()
@@ -779,6 +811,98 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
           {user && !isLocked && (
             <>
               <div className="fixed bottom-4 right-4 z-40 flex flex-col items-end gap-2">
+
+                {/* ── Floating PTT button — hold to transmit on any page ─── */}
+                {(pttAvailable || pttConnectedNoChannel) && location.pathname !== '/radio' && (
+                  <div className="flex flex-col items-end gap-1">
+                    {/* Expanded status strip — shown when pttExpanded */}
+                    {pttExpanded && (
+                      <div className="flex items-center gap-2 rounded-full bg-slate-800 dark:bg-slate-900 text-white text-[11px] font-medium px-3 py-1 shadow-lg">
+                        <span className={cn('w-2 h-2 rounded-full shrink-0', {
+                          'bg-green-400 shadow-[0_0_5px_#4ade80]': pttConnectionStatus === 'connected',
+                          'bg-yellow-400 animate-pulse': pttConnectionStatus === 'connecting' || pttConnectionStatus === 'reconnecting',
+                          'bg-red-500': pttConnectionStatus === 'error',
+                          'bg-slate-500': pttConnectionStatus === 'disconnected',
+                        })} />
+                        <span className="truncate max-w-[120px]">{pttChannelName ?? 'No channel'}</span>
+                        {pttSpeakerId && !pttIsSpeaking && (
+                          <span className="text-green-300 truncate max-w-[80px]">📡 {pttSpeakerName ?? 'RX'}</span>
+                        )}
+                        <button
+                          onClick={() => navigate('/radio')}
+                          className="ml-1 text-slate-300 hover:text-white transition-colors"
+                          title="Open full radio console"
+                        >
+                          <Radio className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Separate expand/collapse toggle — keeps PTT button free of click handlers */}
+                    <button
+                      onClick={() => setPttExpanded(v => !v)}
+                      className="flex items-center gap-1 rounded-full bg-slate-700/80 dark:bg-slate-800/80 text-slate-200 text-[10px] px-2 py-0.5 shadow hover:bg-slate-600/90 transition-colors"
+                      title={pttExpanded ? 'Hide channel info' : 'Show channel info'}
+                      aria-label={pttExpanded ? 'Collapse PTT status' : 'Expand PTT status'}
+                    >
+                      {pttExpanded
+                        ? <ChevronDown className="h-3 w-3" />
+                        : <ChevronUp className="h-3 w-3" />
+                      }
+                      <span className="truncate max-w-[80px]">{pttChannelName ?? (pttConnectedNoChannel ? 'No channel' : 'Radio')}</span>
+                    </button>
+
+                    {/* Hold-to-talk button — only pointer/touch handlers, no onClick */}
+                    {pttConnectedNoChannel ? (
+                      <button
+                        onClick={() => navigate('/radio')}
+                        title="No channel selected — tap to open radio and join a channel"
+                        className="flex items-center justify-center rounded-full shadow-xl h-14 w-14 bg-slate-600 opacity-70 cursor-pointer hover:opacity-90 transition-opacity"
+                        aria-label="Select a channel to enable PTT"
+                      >
+                        <Radio className="h-6 w-6 text-white" />
+                      </button>
+                    ) : (
+                      <button
+                        onMouseDown={handlePTTDown}
+                        onMouseUp={handlePTTUp}
+                        onMouseLeave={handlePTTUp}
+                        onTouchStart={(e) => { e.preventDefault(); handlePTTDown() }}
+                        onTouchEnd={(e) => { e.preventDefault(); handlePTTUp() }}
+                        onContextMenu={(e) => e.preventDefault()}
+                        title={pttIsSpeaking ? 'Transmitting…' : (pttCanSpeak ? 'Hold to Talk' : 'PTT Ready')}
+                        className={cn(
+                          'flex items-center justify-center rounded-full shadow-xl transition-all select-none',
+                          'h-14 w-14',
+                          pttIsSpeaking
+                            ? 'bg-red-600 scale-110 shadow-[0_0_24px_rgba(220,38,38,0.7)] ring-4 ring-red-400/50'
+                            : pttCanSpeak
+                              ? 'bg-blue-600 hover:bg-blue-700 active:scale-105'
+                              : 'bg-slate-600 opacity-70 cursor-not-allowed',
+                        )}
+                        aria-label={pttIsSpeaking ? 'Transmitting' : 'Push to Talk'}
+                      >
+                        <Mic className={cn('h-6 w-6 text-white', pttIsSpeaking && 'animate-pulse')} />
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                <button
+                  onClick={() => navigate('/bob-assistant')}
+                  title="Ask Bob — AI operational assistant"
+                  className={cn(
+                    'flex items-center gap-2 rounded-full shadow-lg px-3 py-2 text-xs font-medium transition-all hover:shadow-xl',
+                    location.pathname === '/bob-assistant'
+                      ? 'bg-violet-600 text-white opacity-60 cursor-default'
+                      : 'bg-violet-600 hover:bg-violet-700 text-white',
+                  )}
+                  aria-label="Open Bob assistant"
+                >
+                  <BrainCircuit className="h-4 w-4" />
+                  <span className="hidden sm:inline">Ask Bob</span>
+                </button>
+
                 <button
                   onClick={() => navigate('/team-chat')}
                   title="Open Team Chat"

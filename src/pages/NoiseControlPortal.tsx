@@ -833,10 +833,10 @@ export default function NoiseControlPortal() {
             </div>
             <div className="space-y-1">
               <Label>Assign to Officer</Label>
-              <Select value={newJob.assigned_to} onValueChange={v => setNewJob(p => ({ ...p, assigned_to: v }))}>
+              <Select value={newJob.assigned_to || '__none__'} onValueChange={v => setNewJob(p => ({ ...p, assigned_to: v === '__none__' ? '' : v }))}>
                 <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Unassigned</SelectItem>
+                  <SelectItem value="__none__">Unassigned</SelectItem>
                   {officers.map(o => <SelectItem key={o.id} value={o.id}>{[o.first_name, o.last_name].filter(Boolean).join(' ') || o.email}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -907,10 +907,10 @@ export default function NoiseControlPortal() {
             </div>
             <div className="space-y-1">
               <Label>Link to Job (optional)</Label>
-              <Select value={newNotice.noise_job_id} onValueChange={v => setNewNotice(p => ({ ...p, noise_job_id: v }))}>
+              <Select value={newNotice.noise_job_id || '__none__'} onValueChange={v => setNewNotice(p => ({ ...p, noise_job_id: v === '__none__' ? '' : v }))}>
                 <SelectTrigger><SelectValue placeholder="No job link" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No job link</SelectItem>
+                  <SelectItem value="__none__">No job link</SelectItem>
                   {jobs.filter(j => j.status !== 'cancelled').map(j => (
                     <SelectItem key={j.id} value={j.id}>{j.job_number} — {j.address}</SelectItem>
                   ))}

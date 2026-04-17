@@ -442,12 +442,12 @@ export default function PatrolScheduleManagement() {
             {/* Patrol Route / Call Sign */}
             <div className="grid gap-2">
               <Label className="flex items-center gap-1.5"><Radio className="h-3.5 w-3.5 text-blue-600" />Patrol Route / Call Sign</Label>
-              <Select value={form.patrol_route_id} onValueChange={v => setForm(f => ({ ...f, patrol_route_id: v }))}>
+              <Select value={form.patrol_route_id || '__none__'} onValueChange={v => setForm(f => ({ ...f, patrol_route_id: v === '__none__' ? '' : v }))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select patrol route (optional)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No route</SelectItem>
+                  <SelectItem value="__none__">No route</SelectItem>
                   {patrolRoutes.map(r => (
                     <SelectItem key={r.id} value={r.id}>
                       {r.call_sign ? `${r.call_sign} – ${r.route_name}` : r.route_name}

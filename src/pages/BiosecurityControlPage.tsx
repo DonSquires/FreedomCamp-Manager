@@ -560,10 +560,10 @@ export default function BiosecurityControlPage() {
               </div>
               <div>
                 <Label>Assign to Officer</Label>
-                <Select value={form.assigned_to} onValueChange={v => setForm(f => ({ ...f, assigned_to: v }))}>
+                <Select value={form.assigned_to || '__none__'} onValueChange={v => setForm(f => ({ ...f, assigned_to: v === '__none__' ? '' : v }))}>
                   <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Unassigned</SelectItem>
+                    <SelectItem value="__none__">Unassigned</SelectItem>
                     {officers.map((o: any) => (
                       <SelectItem key={o.id} value={o.id}>{o.full_name}</SelectItem>
                     ))}

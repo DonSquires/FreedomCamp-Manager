@@ -38,6 +38,7 @@ import {
   Keyboard,
   Info,
   ExternalLink,
+  FileWarning,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
@@ -983,8 +984,27 @@ export default function BreachAlerts() {
       query.set('recipient_address', detailVehicle.owner_address)
     }
 
-    navigate(`/infringement-notices?${query.toString()}`)
+    navigate(`/infringements?${query.toString()}`)
   }, [activeBreach, detailVehicle, navigate, user?.role])
+
+  // Navigate to Notice to Vacate page with pre-filled params for this breach
+  const handleIssueNTV = useCallback(() => {
+    if (!activeBreach) return
+    if (!['admin', 'master'].includes(user?.role ?? '')) {
+      toast.warning('Only admin and master users can issue a Notice to Vacate')
+      return
+    }
+    if (['resolved', 'dismissed'].includes(activeBreach.status)) {
+      toast.warning('Cannot issue a Notice to Vacate for a closed breach')
+      return
+    }
+
+    const query = new URLSearchParams({ breach_alert_id: activeBreach.id })
+    if (activeBreach.plate_number) query.set('plate_number', activeBreach.plate_number)
+    if (activeBreach.zone_id) query.set('zone_id', activeBreach.zone_id)
+
+    navigate(`/notice-to-vacate?${query.toString()}`)
+  }, [activeBreach, navigate, user?.role])
 
   // ── Multi-select helpers ──────────────────────────────────────────────────
 
@@ -1806,6 +1826,17 @@ export default function BreachAlerts() {
                         ISSUE NOTICE (POST)
                       </span>
                     </Button>
+
+                    <Button
+                      className="w-full bg-teal-600 hover:bg-teal-700 text-white justify-between"
+                      onClick={handleIssueNTV}
+                      disabled={['resolved', 'dismissed'].includes(activeBreach.status)}
+                    >
+                      <span className="flex items-center gap-2">
+                        <FileWarning className="h-4 w-4" />
+                        NOTICE TO VACATE
+                      </span>
+                    </Button>
                   </>
                 )}
 
@@ -2058,6 +2089,16 @@ export default function BreachAlerts() {
                   disabled={['resolved', 'dismissed'].includes(activeBreach.status)}
                 >
                   <div className="text-center">ISSUE NOTICE (POST)</div>
+                </Button>
+                <Button
+                  className="col-span-2 bg-teal-600 hover:bg-teal-700 text-white text-xs h-12"
+                  onClick={handleIssueNTV}
+                  disabled={['resolved', 'dismissed'].includes(activeBreach.status)}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <FileWarning className="h-4 w-4" />
+                    NOTICE TO VACATE
+                  </div>
                 </Button>
               </div>
             )}

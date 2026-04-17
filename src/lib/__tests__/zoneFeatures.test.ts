@@ -9,8 +9,8 @@ import {
 // ── ZONE_FEATURE_KEYS ────────────────────────────────────────────────────────
 
 describe('ZONE_FEATURE_KEYS', () => {
-  it('contains exactly 6 feature keys', () => {
-    expect(ZONE_FEATURE_KEYS).toHaveLength(6)
+  it('contains exactly 8 feature keys', () => {
+    expect(ZONE_FEATURE_KEYS).toHaveLength(8)
   })
 
   it('contains all expected feature keys', () => {
@@ -20,6 +20,8 @@ describe('ZONE_FEATURE_KEYS', () => {
     expect(ZONE_FEATURE_KEYS).toContain('noise')
     expect(ZONE_FEATURE_KEYS).toContain('ems')
     expect(ZONE_FEATURE_KEYS).toContain('access_control')
+    expect(ZONE_FEATURE_KEYS).toContain('biosecurity_inspection')
+    expect(ZONE_FEATURE_KEYS).toContain('smoke_complaint_ooh')
   })
 })
 

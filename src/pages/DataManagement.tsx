@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -15,6 +15,23 @@ import {
 } from 'lucide-react'
 
 export default function DataManagement() {
+  const navigate = useNavigate()
+
+  const downloadTemplate = (type: 'observations' | 'zones') => {
+    const rows: string[][] =
+      type === 'observations'
+        ? [['plate_number', 'zone_name', 'recorded_at', 'is_compliant', 'breach_type', 'notes']]
+        : [['name', 'description', 'max_consecutive_nights', 'max_nights_per_month', 'latitude', 'longitude']]
+    const csv = rows.map(r => r.join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${type}-template.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -152,12 +169,18 @@ export default function DataManagement() {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                <Button className="w-full" variant="outline">
-                  Export as CSV
-                </Button>
-                <Button className="w-full" variant="outline">
-                  Export as JSON
-                </Button>
+                <Link to="/reports-hub">
+                  <Button className="w-full" variant="outline">
+                    Export as CSV
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </Button>
+                </Link>
+                <Link to="/reports-hub">
+                  <Button className="w-full" variant="outline">
+                    Export as JSON
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </Button>
+                </Link>
               </div>
             </CardContent>
           </Card>
@@ -196,10 +219,10 @@ export default function DataManagement() {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                <Button className="w-full" variant="outline">
+                <Button className="w-full" variant="outline" onClick={() => downloadTemplate('observations')}>
                   Observations Template
                 </Button>
-                <Button className="w-full" variant="outline">
+                <Button className="w-full" variant="outline" onClick={() => downloadTemplate('zones')}>
                   Zones Template
                 </Button>
               </div>
@@ -214,19 +237,19 @@ export default function DataManagement() {
           </CardHeader>
           <CardContent>
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-              <Button variant="outline" className="justify-start">
+              <Button variant="outline" className="justify-start" onClick={() => navigate('/admin/data-hub')}>
                 <Database className="h-4 w-4 mr-2" />
                 View Database Stats
               </Button>
-              <Button variant="outline" className="justify-start">
+              <Button variant="outline" className="justify-start" onClick={() => navigate('/admin/data-cleanup')}>
                 <Trash2 className="h-4 w-4 mr-2" />
                 Run Quick Cleanup
               </Button>
-              <Button variant="outline" className="justify-start">
+              <Button variant="outline" className="justify-start" onClick={() => navigate('/admin/data-integrity')}>
                 <Shield className="h-4 w-4 mr-2" />
                 Run Integrity Check
               </Button>
-              <Button variant="outline" className="justify-start">
+              <Button variant="outline" className="justify-start" onClick={() => navigate('/reports-hub')}>
                 <Download className="h-4 w-4 mr-2" />
                 Export All Data
               </Button>

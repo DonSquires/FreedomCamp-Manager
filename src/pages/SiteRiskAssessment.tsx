@@ -189,20 +189,20 @@ export default function SiteRiskAssessmentPage() {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Search sites…" value={search} onChange={e => setSearch(e.target.value)} className="pl-9 w-48" />
           </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <Select value={statusFilter || '__all__'} onValueChange={v => setStatusFilter(v === '__all__' ? '' : v)}>
             <SelectTrigger className="w-32"><SelectValue placeholder="All status" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All</SelectItem>
+              <SelectItem value="__all__">All</SelectItem>
               <SelectItem value="draft">Draft</SelectItem>
               <SelectItem value="submitted">Submitted</SelectItem>
               <SelectItem value="reviewed">Reviewed</SelectItem>
               <SelectItem value="archived">Archived</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={riskFilter} onValueChange={setRiskFilter}>
+          <Select value={riskFilter || '__all__'} onValueChange={v => setRiskFilter(v === '__all__' ? '' : v)}>
             <SelectTrigger className="w-32"><SelectValue placeholder="All risk" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All</SelectItem>
+              <SelectItem value="__all__">All</SelectItem>
               <SelectItem value="low">Low</SelectItem>
               <SelectItem value="medium">Medium</SelectItem>
               <SelectItem value="high">High</SelectItem>

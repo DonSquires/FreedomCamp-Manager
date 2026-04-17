@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -105,6 +106,7 @@ function ComplianceBadge({ status }: { status: string | null }) {
 export default function CRMModule() {
   const { user } = useAuthStore()
   const navigate = useNavigate()
+  const { orgIds, isLoading: orgIdsLoading } = useClientOrgIds()
 
   const [accountSearch, setAccountSearch]   = useState('')
   const [typeFilter, setTypeFilter]         = useState('all')
@@ -114,9 +116,11 @@ export default function CRMModule() {
   // ── Accounts query ────────────────────────────────────────────────────────
 
   const { data: accounts = [], isLoading: accountsLoading } = useQuery<CRMAccount[]>({
-    queryKey: ['crm_accounts', user?.organization_id],
+    queryKey: ['crm_accounts', user?.organization_id, orgIds],
     queryFn: async () => {
-      const { data, error } = await (supabase.from('organizations') as any)
+      if (orgIds !== null && orgIds.length === 0) return []
+
+      let q = (supabase.from('organizations') as any)
         .select(`
           id, name, organization_type, organization_level, is_active,
           contact_email, contact_phone,
@@ -129,6 +133,12 @@ export default function CRMModule() {
           )
         `)
         .in('organization_type', ['client', 'contractor'])
+
+      if (orgIds !== null) {
+        q = q.in('id', orgIds)
+      }
+
+      const { data, error } = await q
         .order('organization_type')
         .order('name')
       if (error) throw error
@@ -140,26 +150,45 @@ export default function CRMModule() {
           : a.contractor_profile,
       })) as CRMAccount[]
     },
-    enabled: !!user?.organization_id,
+    enabled: !orgIdsLoading && (orgIds === null || !!user?.organization_id),
   })
 
   // ── Contacts query ────────────────────────────────────────────────────────
 
   const { data: contacts = [], isLoading: contactsLoading } = useQuery<CRMContact[]>({
-    queryKey: ['crm_contacts', user?.organization_id],
+    queryKey: ['crm_contacts', user?.organization_id, orgIds],
     queryFn: async () => {
-      const { data, error } = await (supabase.from('user_profiles') as any)
+      if (orgIds !== null && orgIds.length === 0) return []
+
+      const baseQuery = (supabase.from('user_profiles') as any)
         .select(`
           id, first_name, last_name, email, phone, job_title, role, is_active,
           organization:organizations!organization_id(id, name),
           employer_org:organizations!employer_organization_id(id, name)
         `)
         .eq('is_active', true)
-        .order('first_name')
-      if (error) throw error
-      return (data || []) as CRMContact[]
+      
+      if (orgIds === null) {
+        const { data, error } = await baseQuery.order('first_name')
+        if (error) throw error
+        return (data || []) as CRMContact[]
+      }
+
+      const [{ data: orgContacts, error: orgError }, { data: employerContacts, error: employerError }] = await Promise.all([
+        baseQuery.in('organization_id', orgIds),
+        baseQuery.in('employer_organization_id', orgIds),
+      ])
+      if (orgError) throw orgError
+      if (employerError) throw employerError
+
+      const merged = new Map<string, CRMContact>()
+      for (const row of (orgContacts || []) as CRMContact[]) merged.set(row.id, row)
+      for (const row of (employerContacts || []) as CRMContact[]) merged.set(row.id, row)
+      return Array.from(merged.values()).sort((a, b) =>
+        `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`)
+      )
     },
-    enabled: !!user?.organization_id,
+    enabled: !orgIdsLoading && (orgIds === null || !!user?.organization_id),
   })
 
   // ── Filtered lists ────────────────────────────────────────────────────────

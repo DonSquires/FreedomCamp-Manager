@@ -191,7 +191,7 @@ function ModuleCard({ card }: { card: HubCard }) {
 
       <CardContent className="pt-0 space-y-3">
         {/* Quick link grid */}
-        <div className="grid grid-cols-3 gap-1.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
           {card.quickLinks.map(({ path, label, Icon }) => (
             <button
               key={path}

@@ -608,16 +608,10 @@ export default function App() {
             }
           />
 
-          {/* Unified Compliance page (consolidates Dashboard, Analytics, and Observations) */}
+          {/* /compliance-unified is a legacy alias — redirect to the canonical /compliance */}
           <Route
             path="/compliance-unified"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <Compliance />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
+            element={<Navigate to="/compliance" replace />}
           />
 
           <Route

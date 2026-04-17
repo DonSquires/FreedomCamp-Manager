@@ -203,8 +203,8 @@ export function exportToCSV(result: ExportResult): Record<string, Blob> {
       ...records.map(record =>
         headers.map(header => {
           const value = record[header]
-          // Escape commas and quotes
-          if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+          // Escape commas, double-quotes, and newlines per RFC 4180
+          if (typeof value === 'string' && (value.includes(',') || value.includes('"') || value.includes('\n') || value.includes('\r'))) {
             return `"${value.replace(/"/g, '""')}"`
           }
           return value === null || value === undefined ? '' : value
