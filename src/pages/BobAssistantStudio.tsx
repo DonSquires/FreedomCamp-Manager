@@ -1382,10 +1382,11 @@ export default function BobAssistantStudio() {
       if (suite === 'smoke') {
         emit(null, 'Running smoke tests…')
         const result = await smokeTests.runAll() as any
-        Object.entries(result ?? {}).forEach(([name, res]: [string, any]) => {
+        const testResults = result?.results ?? result ?? {}
+        Object.entries(testResults).forEach(([name, res]: [string, any]) => {
           emit(res?.success ?? null, `${name}: ${res?.success ? 'PASS' : 'FAIL'}${res?.error ? ` — ${res.error}` : ''}`)
         })
-        const all = Object.values(result ?? {}).every((r: any) => r?.success)
+        const all = result?.summary?.allPassed ?? Object.values(testResults).every((r: any) => r?.success)
         emit(all, all ? '✓ All smoke tests passed' : '✗ Some smoke tests failed')
       } else if (suite === 'data') {
         emit(null, 'Running data verification…')
@@ -1434,8 +1435,11 @@ export default function BobAssistantStudio() {
 
   const sendTestResultsToBob = () => {
     if (!testLines.length) return
-    const summary = testLines.map((l) => `${l.ok === true ? '✓' : l.ok === false ? '✗' : '→'} ${l.text}`).join('\n')
-    const prompt = `Here are the latest ${testSuiteLabel} results from inside the FieldOps Manager app. Please analyse them and highlight any issues, failures, or recommendations:\n\n${summary}`
+    const MAX_LINES = 50
+    const lines = testLines.length > MAX_LINES ? testLines.slice(-MAX_LINES) : testLines
+    const truncated = testLines.length > MAX_LINES ? `\n(Showing last ${MAX_LINES} of ${testLines.length} lines)\n` : ''
+    const summary = lines.map((l) => `${l.ok === true ? '✓' : l.ok === false ? '✗' : '→'} ${l.text}`).join('\n')
+    const prompt = `Here are the latest ${testSuiteLabel} results from inside the FieldOps Manager app. Please analyse them and highlight any issues, failures, or recommendations:${truncated}\n\n${summary}`
     sendMessage(prompt)
   }
 

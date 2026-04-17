@@ -233,6 +233,20 @@ export default function TenderWorkspaceDetail() {
     },
   })
 
+  // Fetch the organization name for export metadata
+  const { data: orgData } = useQuery({
+    queryKey: ['tender-org-name', doc?.organization_id],
+    enabled: !!doc?.organization_id,
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from('organizations')
+        .select('name')
+        .eq('id', doc!.organization_id)
+        .single()
+      return data as { name: string } | null
+    },
+  })
+
   // Sync sections state from doc — prefer draft_sections (Bob-generated) over response_sections
   useEffect(() => {
     if (!doc) return
@@ -514,18 +528,21 @@ export default function TenderWorkspaceDetail() {
         issuing_body: doc.issuing_body ?? undefined,
         reference_number: doc.reference_number ?? undefined,
         due_date: doc.due_date ?? undefined,
-        organization_name: 'Iron Eagle Security',
+        organization_name: orgData?.name ?? 'FieldOps Manager',
         owner_name: userName(ownerProfile),
         export_date: new Date().toLocaleDateString('en-NZ'),
       },
       sections,
     )
 
-    // Save generated HTML
+    // Save generated HTML (best-effort; non-blocking)
     ;((supabase as any).from('tender_documents') as any)
       .update({ generated_html: html })
       .eq('id', doc.id)
-      .then(() => queryClient.invalidateQueries({ queryKey: ['tender-document', id] }))
+      .then(({ error }: { error: any }) => {
+        if (error) console.error('Failed to save tender HTML:', error.message)
+        else queryClient.invalidateQueries({ queryKey: ['tender-document', id] })
+      })
 
     if (format === 'pdf') {
       exportTenderPdf(html)
@@ -533,7 +550,7 @@ export default function TenderWorkspaceDetail() {
       const slug = doc.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)
       downloadTenderDoc(html, `${slug}-response.doc`)
     }
-  }, [doc, sections, ownerProfile, id, queryClient])
+  }, [doc, sections, ownerProfile, orgData, id, queryClient])
 
   if (isLoading) {
     return (

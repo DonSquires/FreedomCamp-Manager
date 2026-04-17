@@ -412,6 +412,7 @@ let audioContext: AudioContext | null = null
 let analyserNode: AnalyserNode | null = null
 let voxCheckInterval: ReturnType<typeof setInterval> | null = null
 let voxSilenceTimeout: ReturnType<typeof setTimeout> | null = null
+let voxMicStream: MediaStream | null = null
 const VOX_SILENCE_DELAY_MS = 500 // Stop transmitting after 500ms of silence
 
 // Bluetooth state
@@ -1214,6 +1215,7 @@ export async function startVoxMonitoring(): Promise<void> {
   try {
     // Get microphone for monitoring with mobile-safe fallback.
     const stream = await requestLocalAudioStream()
+    voxMicStream = stream
 
     // Create audio context for level monitoring
     audioContext = new AudioContext()
@@ -1289,6 +1291,11 @@ export function stopVoxMonitoring(): void {
   if (audioContext) {
     audioContext.close().catch(console.error)
     audioContext = null
+  }
+
+  if (voxMicStream) {
+    voxMicStream.getTracks().forEach((track) => track.stop())
+    voxMicStream = null
   }
 
   analyserNode = null

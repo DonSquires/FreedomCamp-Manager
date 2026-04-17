@@ -178,7 +178,8 @@ export default function OfficerWelfareSettings() {
   // Save settings
   const saveSettings = useMutation({
     mutationFn: async (settings: Partial<WelfareSettings> & { id: string }) => {
-      const { id, ...rest } = settings
+      // Destructure out joined/computed fields that are not DB columns
+      const { id, user_profile: _userProfile, ...rest } = settings as any
       const { error } = await (supabase.from('officer_welfare_settings') as any)
         .update({ ...rest, updated_at: new Date().toISOString() })
         .eq('id', id)

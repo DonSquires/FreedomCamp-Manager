@@ -800,11 +800,8 @@ export default function FieldOfficerPortal() {
 
       toast.success('Shift started — welfare monitoring active')
 
-      // Refresh the page to reflect the current state (as per user requirement)
       await refetchShift()
       queryClient.invalidateQueries({ queryKey: ['officer-active-shift'] })
-      // Brief delay to allow the toast to show before reload
-      setTimeout(() => window.location.reload(), 500)
     } catch (err: any) {
       toast.error(err?.message ?? 'Failed to start shift')
     } finally {
@@ -850,11 +847,8 @@ export default function FieldOfficerPortal() {
 
       toast.success('Shift ended — welfare monitoring stopped')
 
-      // Refresh the page to reflect the current state (as per user requirement)
       await refetchShift()
       queryClient.invalidateQueries({ queryKey: ['officer-active-shift'] })
-      // Brief delay to allow the toast to show before reload
-      setTimeout(() => window.location.reload(), 500)
     } catch (err: any) {
       toast.error(err?.message ?? 'Failed to end shift')
     } finally {

@@ -119,7 +119,7 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
     label: 'Operations',
     icon: BarChart3,
     items: [
-      { path: '/compliance-unified', icon: ShieldCheck, label: 'Compliance Hub', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/compliance', icon: ShieldCheck, label: 'Compliance Hub', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/observation-records', icon: ImageIcon, label: 'Observations', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/observations-report', icon: FileBarChart, label: 'Observations Report', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/breaches', icon: AlertTriangle, label: 'Breaches & Alerts', roles: ['admin', 'admin_officer', 'master', 'officer'] },
