@@ -25,6 +25,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
+import { useBobCollaboration } from '@/hooks/useBobCollaboration'
 import {
   usePTTStore,
   usePTTAvailable,
@@ -85,6 +86,7 @@ import {
   Signal,
   PhoneOff,
   Menu,
+  BrainCircuit,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
@@ -166,6 +168,88 @@ function getChannelScope(channel: RadioChannel, effectiveOrgId: string): string 
   // This guarantees DB-backed and fallback-default clients land in same room.
   const stableId = hashScopeSeed(`${effectiveOrgId}:${channel.channel_number}:${channel.channel_type}`)
   return `team:${stableId}`
+}
+
+function buildPTTAssessmentPrompt(params: {
+  diagnostics: PTTDiagnostics
+  activeChannel: RadioChannel | null
+  effectiveOrgId: string | null
+  callsign: string
+  connectionStatus: string
+  isAvailable: boolean
+  canSpeak: boolean
+  isMuted: boolean
+  isTransmitting: boolean
+  someoneSpeaking: boolean
+  speakerName: string | null
+  microphoneReady: boolean
+  microphoneError: string | null
+  rosterCount: number
+  liveClipsCount: number
+  channelsError: unknown
+}) {
+  const {
+    diagnostics,
+    activeChannel,
+    effectiveOrgId,
+    callsign,
+    connectionStatus,
+    isAvailable,
+    canSpeak,
+    isMuted,
+    isTransmitting,
+    someoneSpeaking,
+    speakerName,
+    microphoneReady,
+    microphoneError,
+    rosterCount,
+    liveClipsCount,
+    channelsError,
+  } = params
+
+  const snapshot = {
+    capturedAt: new Date().toISOString(),
+    activeChannel: activeChannel
+      ? {
+          id: activeChannel.id,
+          number: activeChannel.channel_number,
+          name: activeChannel.name,
+          type: activeChannel.channel_type,
+        }
+      : null,
+    organizationId: effectiveOrgId,
+    operator: {
+      callsign: callsign || 'unknown',
+      microphoneReady,
+      microphoneError,
+      canSpeak,
+      isAvailable,
+      isMuted,
+      isTransmitting,
+    },
+    session: {
+      connectionStatus,
+      someoneSpeaking,
+      speakerName,
+      rosterCount,
+      liveClipsCount,
+      channelsMetadataUnavailable: Boolean(channelsError),
+    },
+    diagnostics,
+  }
+
+  return [
+    'PTT radio assessment request from the live Radio screen.',
+    'Your job is to assess whether audio transmission is actually happening, likely blocked, or still unproven from this diagnostic snapshot.',
+    'Do not answer generically. Use the exact values below.',
+    'Return four sections only:',
+    '1. Verdict: PROVEN / LIKELY / BLOCKED / INCONCLUSIVE.',
+    '2. Failure layer: microphone, websocket/signaling, channel scope, SDP negotiation, ICE/TURN, remote playback, or other.',
+    '3. Evidence: cite the exact fields that support the verdict.',
+    '4. Next actions: the next 3 concrete checks or fixes, ordered.',
+    'If TURN or ICE relay auth is the most likely blocker, say that explicitly.',
+    `Diagnostic snapshot: ${JSON.stringify(snapshot)}`,
+  ].join(' ')
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -274,6 +358,7 @@ export default function PTTRadio() {
   const { user } = useAuthStore()
   const { organizationId } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
+  const { askBob, bobResponse, isWaiting, clearResponse, pendingPacket } = useBobCollaboration()
 
   // PTT store state
   const connectionStatus = usePTTStore((s) => s.connectionStatus)
@@ -549,119 +634,6 @@ export default function PTTRadio() {
     }
   }, [])
 
-  // ── Incoming transmission detection ──────────────────────
-  useEffect(() => {
-    if (speakerId && !isSpeaking) {
-      // Someone else is transmitting
-      const name = speakerName || 'Unknown'
-      const ch = activeChannel?.name ?? 'Channel'
-      // Log it locally
-      const entry: TransmissionEntry = {
-        id: `live-${Date.now()}`,
-        callsign: name,
-        name,
-        channelName: ch,
-        channelNumber: activeChannel?.channel_number ?? 0,
-        durationSeconds: 0,
-        createdAt: new Date().toISOString(),
-        isEmergency: emergencyMode,
-        isLive: true,
-      }
-      setTxLog((prev) => [entry, ...prev].slice(0, 60))
-    }
-  }, [speakerId, isSpeaking])
-
-  // ── Live TX timer ─────────────────────────────────────────
-  useEffect(() => {
-    if (isTransmitting) {
-      setCurrentTxStart(new Date())
-      setLiveTxSeconds(0)
-      liveTxTimerRef.current = setInterval(() => {
-        setLiveTxSeconds((s) => s + 1)
-      }, 1000)
-    } else {
-      if (liveTxTimerRef.current) { clearInterval(liveTxTimerRef.current); liveTxTimerRef.current = null }
-      setCurrentTxStart(null)
-      setLiveTxSeconds(0)
-    }
-    return () => { if (liveTxTimerRef.current) clearInterval(liveTxTimerRef.current) }
-  }, [isTransmitting])
-
-  // ── VOX monitoring ────────────────────────────────────────
-  useEffect(() => {
-    if (voxEnabled && isAvailable) {
-      startVoxMonitoring()
-    } else {
-      stopVoxMonitoring()
-    }
-    return () => stopVoxMonitoring()
-  }, [voxEnabled, isAvailable])
-
-  // ── Spacebar PTT shortcut ─────────────────────────────────
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && !e.repeat && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
-        e.preventDefault()
-        handlePTTPress()
-      }
-    }
-    const up = (e: KeyboardEvent) => {
-      if (e.code === 'Space') {
-        e.preventDefault()
-        handlePTTRelease()
-      }
-    }
-    window.addEventListener('keydown', down)
-    window.addEventListener('keyup', up)
-    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
-  }, [isAvailable, canSpeak, isMuted])
-
-  // ── Scanner mode ─────────────────────────────────────────
-  useEffect(() => {
-    if (!scanMode) {
-      if (scanTimerRef.current) { clearInterval(scanTimerRef.current); scanTimerRef.current = null }
-      return
-    }
-    const nonEmergency = channels.filter((c) => c.channel_type !== 'emergency')
-    if (!nonEmergency.length) return
-
-    scanTimerRef.current = setInterval(async () => {
-      // Pause scan if someone is transmitting
-      if (speakerId) return
-      setScanIndex((prev) => {
-        const next = (prev + 1) % nonEmergency.length
-        const ch = nonEmergency[next]
-        if (ch) {
-          setActiveChannel(ch)
-          connectToChannel(ch)
-        }
-        return next
-      })
-    }, 2500)
-
-    return () => { if (scanTimerRef.current) clearInterval(scanTimerRef.current) }
-  }, [scanMode, channels, speakerId, connectToChannel])
-
-  // ── Cleanup on unmount ────────────────────────────────────
-  useEffect(() => {
-    return () => {
-      stopVoxMonitoring()
-      if (liveTxTimerRef.current) clearInterval(liveTxTimerRef.current)
-      if (scanTimerRef.current) clearInterval(scanTimerRef.current)
-      if (wakeLockRef.current) releaseWakeLock()
-    }
-  }, [])
-
-  // ── PTT diagnostics polling ───────────────────────────────
-  useEffect(() => {
-    setDiagnostics(getPTTDiagnostics())
-    const iv = setInterval(() => {
-      setDiagnostics(getPTTDiagnostics())
-    }, 1200)
-
-    return () => clearInterval(iv)
-  }, [])
-
   // ─────────────────────────────────────────────────────────
   // PTT transmit
   // ─────────────────────────────────────────────────────────
@@ -752,6 +724,119 @@ export default function PTTRadio() {
     setEmergencyMode(false)
   }, [isTransmitting, currentTxStart, callsign, user, activeChannel, emergencyMode, effectiveOrgId, queryClient])
 
+  // ── Incoming transmission detection ──────────────────────
+  useEffect(() => {
+    if (speakerId && !isSpeaking) {
+      // Someone else is transmitting
+      const name = speakerName || 'Unknown'
+      const ch = activeChannel?.name ?? 'Channel'
+      // Log it locally
+      const entry: TransmissionEntry = {
+        id: `live-${Date.now()}`,
+        callsign: name,
+        name,
+        channelName: ch,
+        channelNumber: activeChannel?.channel_number ?? 0,
+        durationSeconds: 0,
+        createdAt: new Date().toISOString(),
+        isEmergency: emergencyMode,
+        isLive: true,
+      }
+      setTxLog((prev) => [entry, ...prev].slice(0, 60))
+    }
+  }, [speakerId, isSpeaking, speakerName, activeChannel?.name, activeChannel?.channel_number, emergencyMode])
+
+  // ── Live TX timer ─────────────────────────────────────────
+  useEffect(() => {
+    if (isTransmitting) {
+      setCurrentTxStart(new Date())
+      setLiveTxSeconds(0)
+      liveTxTimerRef.current = setInterval(() => {
+        setLiveTxSeconds((s) => s + 1)
+      }, 1000)
+    } else {
+      if (liveTxTimerRef.current) { clearInterval(liveTxTimerRef.current); liveTxTimerRef.current = null }
+      setCurrentTxStart(null)
+      setLiveTxSeconds(0)
+    }
+    return () => { if (liveTxTimerRef.current) clearInterval(liveTxTimerRef.current) }
+  }, [isTransmitting])
+
+  // ── VOX monitoring ────────────────────────────────────────
+  useEffect(() => {
+    if (voxEnabled && isAvailable) {
+      startVoxMonitoring()
+    } else {
+      stopVoxMonitoring()
+    }
+    return () => stopVoxMonitoring()
+  }, [voxEnabled, isAvailable])
+
+  // ── Spacebar PTT shortcut ─────────────────────────────────
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !e.repeat && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
+        e.preventDefault()
+        handlePTTPress()
+      }
+    }
+    const up = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        e.preventDefault()
+        handlePTTRelease()
+      }
+    }
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
+  }, [handlePTTPress, handlePTTRelease])
+
+  // ── Scanner mode ─────────────────────────────────────────
+  useEffect(() => {
+    if (!scanMode) {
+      if (scanTimerRef.current) { clearInterval(scanTimerRef.current); scanTimerRef.current = null }
+      return
+    }
+    const nonEmergency = channels.filter((c) => c.channel_type !== 'emergency')
+    if (!nonEmergency.length) return
+
+    scanTimerRef.current = setInterval(async () => {
+      // Pause scan if someone is transmitting
+      if (speakerId) return
+      setScanIndex((prev) => {
+        const next = (prev + 1) % nonEmergency.length
+        const ch = nonEmergency[next]
+        if (ch) {
+          setActiveChannel(ch)
+          connectToChannel(ch)
+        }
+        return next
+      })
+    }, 2500)
+
+    return () => { if (scanTimerRef.current) clearInterval(scanTimerRef.current) }
+  }, [scanMode, channels, speakerId, connectToChannel])
+
+  // ── Cleanup on unmount ────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      stopVoxMonitoring()
+      if (liveTxTimerRef.current) clearInterval(liveTxTimerRef.current)
+      if (scanTimerRef.current) clearInterval(scanTimerRef.current)
+      if (wakeLockRef.current) releaseWakeLock()
+    }
+  }, [])
+
+  // ── PTT diagnostics polling ───────────────────────────────
+  useEffect(() => {
+    setDiagnostics(getPTTDiagnostics())
+    const iv = setInterval(() => {
+      setDiagnostics(getPTTDiagnostics())
+    }, 1200)
+
+    return () => clearInterval(iv)
+  }, [])
+
   const handleEmergencyBroadcast = useCallback(async () => {
     if (!effectiveOrgId) return
     const emergencyChannel = channels.find((c) => c.channel_type === 'emergency')
@@ -794,6 +879,62 @@ export default function PTTRadio() {
   }
 
   const someoneSpeaking = !!speakerId && !isSpeaking
+
+  const handleAskBobAssessment = useCallback(() => {
+    const snapshot = getPTTDiagnostics()
+    setDiagnostics(snapshot)
+
+    askBob({
+      title: `PTT assessment: ${activeChannel?.name ?? 'No channel selected'}`,
+      prompt: buildPTTAssessmentPrompt({
+        diagnostics: snapshot,
+        activeChannel,
+        effectiveOrgId,
+        callsign,
+        connectionStatus,
+        isAvailable,
+        canSpeak,
+        isMuted,
+        isTransmitting,
+        someoneSpeaking,
+        speakerName: speakerName || null,
+        microphoneReady,
+        microphoneError,
+        rosterCount: rosterWithSelf.length,
+        liveClipsCount: lastClips.length,
+        channelsError,
+      }),
+      source: 'dispatch',
+      summary: `Assess live PTT diagnostics for ${callsign || 'current operator'}`,
+      autoSubmit: true,
+      returnRoute: '/radio',
+      metadata: {
+        feature: 'ptt-radio',
+        channel_number: activeChannel?.channel_number ?? null,
+        channel_scope: snapshot.channelScope,
+        requested_scope: snapshot.requestedChannelScope,
+        ice_errors: snapshot.iceCandidates.errors,
+        last_ice_error: snapshot.iceCandidates.lastError,
+      },
+    })
+  }, [
+    activeChannel,
+    askBob,
+    callsign,
+    canSpeak,
+    channelsError,
+    connectionStatus,
+    effectiveOrgId,
+    isAvailable,
+    isMuted,
+    isTransmitting,
+    lastClips.length,
+    microphoneError,
+    microphoneReady,
+    rosterWithSelf.length,
+    someoneSpeaking,
+    speakerName,
+  ])
 
   // ─────────────────────────────────────────────────────────
   // Render
@@ -1249,15 +1390,69 @@ export default function PTTRadio() {
               <div className="w-full max-w-sm bg-slate-900 border border-cyan-900 rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="text-xs text-cyan-300 uppercase tracking-widest font-semibold">PTT Diagnostics</div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-[10px] text-slate-400"
-                    onClick={() => setDiagnostics(getPTTDiagnostics())}
-                  >
-                    Refresh
-                  </Button>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-[10px] text-cyan-300"
+                      onClick={handleAskBobAssessment}
+                      disabled={isWaiting}
+                    >
+                      {isWaiting ? (
+                        <>
+                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                          Bob Assessing
+                        </>
+                      ) : (
+                        <>
+                          <BrainCircuit className="mr-1 h-3 w-3" />
+                          Ask Bob
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-[10px] text-slate-400"
+                      onClick={() => setDiagnostics(getPTTDiagnostics())}
+                    >
+                      Refresh
+                    </Button>
+                  </div>
                 </div>
+
+                {(isWaiting || bobResponse) && (
+                  <div className="rounded border border-cyan-900 bg-slate-950 px-2.5 py-2 text-[11px] space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-cyan-300 uppercase tracking-wide">
+                        {isWaiting ? 'Bob Assessment Pending' : 'Bob Assessment'}
+                      </div>
+                      {bobResponse && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-[10px] text-slate-400"
+                          onClick={clearResponse}
+                        >
+                          Clear
+                        </Button>
+                      )}
+                    </div>
+
+                    {isWaiting && (
+                      <div className="text-slate-400">
+                        Bob Assistant Studio is processing the latest radio snapshot{pendingPacket ? ` for request ${pendingPacket.id.slice(0, 8)}` : ''}.
+                      </div>
+                    )}
+
+                    {bobResponse && (
+                      <div className="space-y-1">
+                        <div className="text-slate-500">Returned {formatDateTime(bobResponse.createdAt)}</div>
+                        <div className="whitespace-pre-wrap text-slate-200">{bobResponse.responseText}</div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div className="text-slate-500">Connection</div>

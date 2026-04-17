@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
@@ -12,12 +12,36 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useBobAssistantStore } from '@/stores/bobAssistantStore'
 import { useAuthStore } from '@/stores/authStore'
+import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
+import { usePTTStore } from '@/stores/pttStore'
 import { supabase } from '@/lib/supabase'
-import { BrainCircuit, ClipboardList, Loader2, MapPinned, Mic, MicOff, Paintbrush2, Route, Send, Volume2, VolumeX, Wrench, Github, ShieldAlert } from 'lucide-react'
+import { BrainCircuit, ClipboardList, Loader2, MapPinned, Mic, MicOff, Paintbrush2, Radio, Route, Send, Volume2, VolumeX, Wrench, Github, ShieldAlert, PhoneOff, SignalHigh } from 'lucide-react'
 import { toast } from 'sonner'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { consumeLatestBobCollaborationPacket, publishBobResponse, type BobCollaborationPacket } from '@/lib/bobCollaboration'
 import { BOB_PROJECT_KNOWLEDGE } from '@/lib/bobKnowledgeBase'
+import {
+  clearPTTCustomAudioSourceFactory,
+  connectToPTT,
+  disconnectFromPTT,
+  getPTTDiagnostics,
+  setPTTCustomAudioSourceFactory,
+  startSpeaking,
+  stopSpeaking,
+} from '@/lib/ptt'
+import {
+  createBobRadioAudioSource,
+  estimateBobRadioSignalDurationMs,
+  type BobRadioSignalProfile,
+} from '@/lib/bobRtcAgent'
+import {
+  captureVoiceprintSignature,
+  compareVoiceprintSignatures,
+} from '@/lib/voiceprintAssist'
+import {
+  consumeLatestEmergencyAssistRequest,
+  EMERGENCY_ASSIST_REQUEST_EVENT,
+} from '@/lib/emergencyAssistBridge'
 import {
   buildBobLearningContext,
   buildBobLearningContextRemote,
@@ -91,6 +115,77 @@ interface CodeChangeRequest {
   complexity: 'simple' | 'moderate' | 'complex'
   targetPaths: string
   confirmed: boolean
+}
+
+type EmergencyCancelVerificationMode = 'platform_biometric' | 'voiceprint'
+
+interface BobRadioChannel {
+  id: string
+  channel_number: number
+  name: string
+  channel_type: string
+  is_active: boolean
+}
+
+const DEFAULT_BOB_RADIO_CHANNELS: BobRadioChannel[] = [
+  { id: 'bob-default-1', channel_number: 1, name: 'All Units', channel_type: 'primary', is_active: true },
+  { id: 'bob-default-2', channel_number: 2, name: 'Dispatch', channel_type: 'dispatch', is_active: true },
+  { id: 'bob-default-3', channel_number: 3, name: 'Operations', channel_type: 'team', is_active: true },
+  { id: 'bob-default-9', channel_number: 9, name: 'EMERGENCY', channel_type: 'emergency', is_active: true },
+]
+
+function hashScopeSeed(seed: string): string {
+  let h1 = 0x811c9dc5
+  let h2 = 0x811c9dc5
+  for (let i = 0; i < seed.length; i++) {
+    const c = seed.charCodeAt(i)
+    h1 ^= c
+    h1 = Math.imul(h1, 0x01000193)
+    h2 ^= c
+    h2 = Math.imul(h2, 0x27d4eb2d)
+  }
+  const p1 = (h1 >>> 0).toString(16).padStart(8, '0')
+  const p2 = (h2 >>> 0).toString(16).padStart(8, '0')
+  const merged = `${p1}${p2}${p1}${p2}`
+  return `${merged.slice(0, 8)}-${merged.slice(8, 12)}-${merged.slice(12, 16)}-${merged.slice(16, 20)}-${merged.slice(20, 32)}`
+}
+
+function getBobRadioChannelScope(channel: BobRadioChannel, effectiveOrgId: string): string {
+  if (channel.channel_type === 'primary' || channel.channel_type === 'emergency' || channel.channel_number === 1) {
+    return `org:${effectiveOrgId}`
+  }
+
+  const stableId = hashScopeSeed(`${effectiveOrgId}:${channel.channel_number}:${channel.channel_type}`)
+  return `team:${stableId}`
+}
+
+function resolveEmergencyChannel(channels: BobRadioChannel[], fallback: BobRadioChannel | null): BobRadioChannel | null {
+  return channels.find((channel) => channel.channel_type === 'emergency')
+    || channels.find((channel) => channel.channel_number === 9)
+    || fallback
+}
+
+function buildEmergencyAssistPhrase(params: {
+  firstName: string
+  locationLabel: string
+  reasonText: string
+  channelName: string
+}): string {
+  const safeReason = params.reasonText
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 90)
+
+  const safeLocation = params.locationLabel === 'Location unavailable'
+    ? 'location unavailable'
+    : params.locationLabel
+
+  return [
+    `Emergency assist request for ${params.firstName}.`,
+    `Location: ${safeLocation}.`,
+    `Situation: ${safeReason || 'critical escalation detected'}.`,
+    `Respond on ${params.channelName}.`,
+  ].join(' ')
 }
 
 function isHazardReviewRequiredPlan(planType: PlanType): boolean {
@@ -364,7 +459,11 @@ function BobSketchPad() {
 export default function BobAssistantStudio() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
+  const { organizationId } = useGlobalFiltersStore()
   const isGrandMaster = user?.role === 'grand_master'
+  const pttConnectionStatus = usePTTStore((state) => state.connectionStatus)
+  const pttChannelId = usePTTStore((state) => state.channelId)
+  const pttIsSpeaking = usePTTStore((state) => state.isSpeaking)
 
   const {
     displayName,
@@ -445,6 +544,29 @@ export default function BobAssistantStudio() {
   const [memorySnapshot, setMemorySnapshot] = useState<BobMemorySnapshot | null>(null)
   const [memoryLoading, setMemoryLoading] = useState(false)
   const [memoryPanelOpen, setMemoryPanelOpen] = useState(false)
+  const [radioChannels, setRadioChannels] = useState<BobRadioChannel[]>(DEFAULT_BOB_RADIO_CHANNELS)
+  const [radioChannelsLoading, setRadioChannelsLoading] = useState(false)
+  const [selectedRadioChannelId, setSelectedRadioChannelId] = useState(DEFAULT_BOB_RADIO_CHANNELS[0].id)
+  const [radioSignalProfile, setRadioSignalProfile] = useState<BobRadioSignalProfile>('link-test')
+  const [radioSignalText, setRadioSignalText] = useState('BOB LINK TEST')
+  const [radioConnecting, setRadioConnecting] = useState(false)
+  const [radioTransmitting, setRadioTransmitting] = useState(false)
+  const [dangerAutoAssistArmed, setDangerAutoAssistArmed] = useState(false)
+  const [dangerKeywords, setDangerKeywords] = useState('help, danger, emergency, attack, assaulted, unsafe, call assistance')
+  const [dangerCooldownUntil, setDangerCooldownUntil] = useState<number>(0)
+  const [requireDualSignal, setRequireDualSignal] = useState(true)
+  const [dualSignalWindowSeconds, setDualSignalWindowSeconds] = useState(12)
+  const [secureCancelVerificationEnabled, setSecureCancelVerificationEnabled] = useState(true)
+  const [cancelVerificationMode, setCancelVerificationMode] = useState<EmergencyCancelVerificationMode>('platform_biometric')
+  const [cancelVerificationInProgress, setCancelVerificationInProgress] = useState(false)
+  const [enrolledVoiceprint, setEnrolledVoiceprint] = useState<number[] | null>(null)
+  const [lastVoiceprintScore, setLastVoiceprintScore] = useState<number | null>(null)
+  const [ambientRiskMonitoring, setAmbientRiskMonitoring] = useState(false)
+  const [ambientSensitivity, setAmbientSensitivity] = useState(65)
+  const [emergencyLocationLabel, setEmergencyLocationLabel] = useState('Location unavailable')
+  const [pendingEmergencyReason, setPendingEmergencyReason] = useState<string | null>(null)
+  const [emergencyCountdownSeconds, setEmergencyCountdownSeconds] = useState<number | null>(null)
+  const [lastEmergencyPhrase, setLastEmergencyPhrase] = useState<string | null>(null)
   const [codeChangeRequest, setCodeChangeRequest] = useState<CodeChangeRequest>({
     summary: '',
     details: '',
@@ -461,6 +583,43 @@ export default function BobAssistantStudio() {
   const speakingRef = useRef(false)
   const wakeUnlockedRef = useRef(false)
   const inactivityTimerRef = useRef<number | null>(null)
+  const radioStopTimerRef = useRef<number | null>(null)
+  const restartVoiceConversationRef = useRef<(() => void) | null>(null)
+  const ambientAudioContextRef = useRef<AudioContext | null>(null)
+  const ambientMonitorIntervalRef = useRef<number | null>(null)
+  const ambientStreamRef = useRef<MediaStream | null>(null)
+  const ambientRiskScoreRef = useRef(0)
+  const previousAmbientRmsRef = useRef(0)
+  const emergencyRecognitionRef = useRef<any>(null)
+  const emergencyCountdownTimerRef = useRef<number | null>(null)
+  const emergencyTranscriptEvidenceRef = useRef(false)
+  const emergencyAmbientEvidenceRef = useRef(false)
+  const emergencyTranscriptEvidenceAtRef = useRef<number | null>(null)
+  const emergencyAmbientEvidenceAtRef = useRef<number | null>(null)
+  const lastEmergencyPhraseRef = useRef<string | null>(null)
+
+  const effectiveOrgId = useMemo(
+    () =>
+      user?.role === 'master' || user?.role === 'grand_master'
+        ? organizationId || user?.organization_id || null
+        : user?.organization_id || null,
+    [organizationId, user?.organization_id, user?.role],
+  )
+
+  const selectedRadioChannel = useMemo(
+    () => radioChannels.find((channel) => channel.id === selectedRadioChannelId) || radioChannels[0] || null,
+    [radioChannels, selectedRadioChannelId],
+  )
+
+  const selectedRadioScope = useMemo(
+    () => (selectedRadioChannel && effectiveOrgId ? getBobRadioChannelScope(selectedRadioChannel, effectiveOrgId) : null),
+    [selectedRadioChannel, effectiveOrgId],
+  )
+
+  const voiceprintStorageKey = useMemo(
+    () => (user?.id ? `bob-emergency-voiceprint:${user.id}` : null),
+    [user?.id],
+  )
 
   const planRecommendations = useMemo(() => buildPlanRecommendations(planForm), [planForm])
 
@@ -549,6 +708,68 @@ export default function BobAssistantStudio() {
 
   useEffect(() => {
     setVoiceSupported(!!getSpeechRecognitionCtor())
+  }, [])
+
+  useEffect(() => {
+    if (!effectiveOrgId) {
+      setRadioChannels(DEFAULT_BOB_RADIO_CHANNELS)
+      setSelectedRadioChannelId(DEFAULT_BOB_RADIO_CHANNELS[0].id)
+      return
+    }
+
+    let cancelled = false
+
+    const loadRadioChannels = async () => {
+      setRadioChannelsLoading(true)
+      const { data, error } = await (supabase as any)
+        .from('ptt_channels')
+        .select('id, channel_number, name, channel_type, is_active')
+        .eq('organization_id', effectiveOrgId)
+        .eq('is_active', true)
+        .order('channel_number', { ascending: true })
+
+      if (cancelled) return
+
+      if (error && error.code !== 'PGRST205' && error.code !== '42P01') {
+        toast.error(`Could not load Bob radio channels: ${error.message}`)
+      }
+
+      const nextChannels = (data as BobRadioChannel[] | null)?.length ? (data as BobRadioChannel[]) : DEFAULT_BOB_RADIO_CHANNELS
+      setRadioChannels(nextChannels)
+      setSelectedRadioChannelId((current) => nextChannels.some((channel) => channel.id === current) ? current : nextChannels[0].id)
+      setRadioChannelsLoading(false)
+    }
+
+    void loadRadioChannels()
+
+    return () => {
+      cancelled = true
+    }
+  }, [effectiveOrgId])
+
+  useEffect(() => {
+    return () => {
+      if (radioStopTimerRef.current !== null) {
+        window.clearTimeout(radioStopTimerRef.current)
+      }
+      if (emergencyCountdownTimerRef.current !== null) {
+        window.clearInterval(emergencyCountdownTimerRef.current)
+      }
+      if (emergencyRecognitionRef.current) {
+        emergencyRecognitionRef.current.stop()
+        emergencyRecognitionRef.current = null
+      }
+      if (ambientMonitorIntervalRef.current !== null) {
+        window.clearInterval(ambientMonitorIntervalRef.current)
+      }
+      if (ambientStreamRef.current) {
+        ambientStreamRef.current.getTracks().forEach((track) => track.stop())
+      }
+      if (ambientAudioContextRef.current) {
+        void ambientAudioContextRef.current.close()
+      }
+      clearPTTCustomAudioSourceFactory()
+    }
   }, [])
 
   useEffect(() => {
@@ -646,7 +867,7 @@ export default function BobAssistantStudio() {
     return englishPool[0]
   }, [availableVoices, accent, voiceGender])
 
-  const speak = (text: string) => {
+  const speak = useCallback((text: string) => {
     if (!speechEnabled || typeof window === 'undefined') return
     if (voiceConversationActiveRef.current && recognitionRef.current) {
       recognitionRef.current.stop()
@@ -662,18 +883,18 @@ export default function BobAssistantStudio() {
     utterance.onend = () => {
       speakingRef.current = false
       if (voiceConversationActiveRef.current) {
-        startVoiceConversation()
+        restartVoiceConversationRef.current?.()
       }
     }
     utterance.onerror = () => {
       speakingRef.current = false
       if (voiceConversationActiveRef.current) {
-        startVoiceConversation()
+        restartVoiceConversationRef.current?.()
       }
     }
     window.speechSynthesis.cancel()
     window.speechSynthesis.speak(utterance)
-  }
+  }, [speechEnabled, selectedVoice, accent, tone, voiceGender])
 
   const clearVoiceInactivityTimer = () => {
     if (inactivityTimerRef.current !== null) {
@@ -806,6 +1027,7 @@ export default function BobAssistantStudio() {
       }
     }
   }
+  restartVoiceConversationRef.current = startVoiceConversation
 
   const sendMessage = async (override?: string) => {
     const message = (override ?? chatInput).trim()
@@ -924,6 +1146,15 @@ export default function BobAssistantStudio() {
       if (autoSpeakReplies) {
         speak(replyText)
       }
+
+      const mergedText = `${message}\n${replyText}`
+      if (isEmergencyCancelCommand(mergedText) && emergencyCountdownSeconds !== null) {
+        void cancelPendingEmergencyCall()
+      } else if (isEmergencyCallNowCommand(mergedText) && emergencyCountdownSeconds !== null) {
+        void triggerEmergencyCallNow(message)
+      } else if (shouldTriggerDangerAssist(mergedText)) {
+        registerEmergencySignal('transcript', `TRANSCRIPT RISK: ${message}`)
+      }
     } catch (err: any) {
       console.error('Bob assistant invoke failed:', err)
       const replyText = 'Bob/Ollama is temporarily unavailable right now. Please retry in a moment.'
@@ -970,12 +1201,685 @@ export default function BobAssistantStudio() {
       }
 
       if (autoSpeakReplies) speak(replyText)
+
+      const mergedText = `${message}\n${replyText}`
+      if (isEmergencyCancelCommand(mergedText) && emergencyCountdownSeconds !== null) {
+        void cancelPendingEmergencyCall()
+      } else if (isEmergencyCallNowCommand(mergedText) && emergencyCountdownSeconds !== null) {
+        void triggerEmergencyCallNow(message)
+      } else if (shouldTriggerDangerAssist(mergedText)) {
+        registerEmergencySignal('transcript', `TRANSCRIPT RISK: ${message}`)
+      }
+
       const shortError = String(err?.message || 'unknown_error').slice(0, 120)
       toast.error(`Bob/Ollama service unavailable (${shortError})`)
     } finally {
       setThinking(false)
     }
   }
+
+  const connectBobRadioChannel = async () => {
+    if (!selectedRadioChannel || !selectedRadioScope) {
+      toast.error('Select a valid Bob radio channel first')
+      return
+    }
+
+    setRadioConnecting(true)
+    try {
+      await connectToPTT(selectedRadioScope, selectedRadioChannel.name)
+      toast.success(`Bob radio agent connected to ${selectedRadioChannel.name}`)
+    } catch (error: any) {
+      toast.error(error?.message || 'Could not connect Bob radio agent')
+    } finally {
+      setRadioConnecting(false)
+    }
+  }
+
+  const disconnectBobRadioChannel = async () => {
+    if (radioStopTimerRef.current !== null) {
+      window.clearTimeout(radioStopTimerRef.current)
+      radioStopTimerRef.current = null
+    }
+
+    if (pttIsSpeaking) {
+      try {
+        await stopSpeaking()
+      } catch {
+        // Ignore stop errors during manual disconnect.
+      }
+    }
+
+    clearPTTCustomAudioSourceFactory()
+    disconnectFromPTT()
+    setRadioTransmitting(false)
+  }
+
+  const transmitBobRadioSignal = async () => {
+    if (!selectedRadioChannel || !selectedRadioScope) {
+      toast.error('Select a valid Bob radio channel first')
+      return
+    }
+
+    if (radioTransmitting || pttIsSpeaking) return
+
+    const fallbackText = chat.slice().reverse().find((message) => message.role === 'assistant')?.text || 'BOB LINK TEST'
+    const signalText = (radioSignalText.trim() || fallbackText).slice(0, 24)
+    const durationMs = estimateBobRadioSignalDurationMs({ profile: radioSignalProfile, signalText })
+
+    try {
+      if (pttChannelId !== selectedRadioScope || pttConnectionStatus !== 'connected') {
+        await connectToPTT(selectedRadioScope, selectedRadioChannel.name)
+      }
+
+      setPTTCustomAudioSourceFactory(async () => createBobRadioAudioSource({
+        profile: radioSignalProfile,
+        signalText,
+      }))
+
+      await startSpeaking()
+      setRadioTransmitting(true)
+      toast.success(`Bob sent a real browser WebRTC test transmission on ${selectedRadioChannel.name}`)
+
+      radioStopTimerRef.current = window.setTimeout(() => {
+        void stopSpeaking()
+          .catch(() => undefined)
+          .finally(() => {
+            clearPTTCustomAudioSourceFactory()
+            setRadioTransmitting(false)
+            radioStopTimerRef.current = null
+          })
+      }, durationMs + 260)
+    } catch (error: any) {
+      clearPTTCustomAudioSourceFactory()
+      setRadioTransmitting(false)
+      toast.error(error?.message || 'Bob radio transmission failed')
+    }
+  }
+
+  const shouldTriggerDangerAssist = useCallback((text: string): boolean => {
+    if (!dangerAutoAssistArmed) return false
+    if (Date.now() < dangerCooldownUntil) return false
+
+    const normalized = text.toLowerCase()
+    const keys = dangerKeywords
+      .split(',')
+      .map((key) => key.trim().toLowerCase())
+      .filter(Boolean)
+
+    return keys.some((key) => normalized.includes(key))
+  }, [dangerAutoAssistArmed, dangerCooldownUntil, dangerKeywords])
+
+  const isEmergencyCancelCommand = useCallback((text: string): boolean => {
+    const normalized = text.toLowerCase()
+    return (
+      normalized.includes('cancel emergency') ||
+      normalized.includes('cancel call') ||
+      normalized.includes('stand down') ||
+      normalized.includes('false alarm') ||
+      normalized.includes('no emergency')
+    )
+  }, [])
+
+  const isEmergencyCallNowCommand = useCallback((text: string): boolean => {
+    const normalized = text.toLowerCase()
+    return (
+      normalized.includes('make the call') ||
+      normalized.includes('call now') ||
+      normalized.includes('send assistance') ||
+      normalized.includes('request backup now')
+    )
+  }, [])
+
+  const refreshEmergencyLocationLabel = useCallback(async (): Promise<string> => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      const fallback = 'Location unavailable'
+      setEmergencyLocationLabel(fallback)
+      return fallback
+    }
+
+    return await new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const lat = position.coords.latitude.toFixed(5)
+          const lon = position.coords.longitude.toFixed(5)
+          const next = `${lat}, ${lon}`
+          setEmergencyLocationLabel(next)
+          resolve(next)
+        },
+        () => {
+          const fallback = 'Location unavailable'
+          setEmergencyLocationLabel(fallback)
+          resolve(fallback)
+        },
+        { enableHighAccuracy: true, maximumAge: 30_000, timeout: 6_000 },
+      )
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!voiceprintStorageKey || typeof window === 'undefined') {
+      setEnrolledVoiceprint(null)
+      return
+    }
+
+    try {
+      const raw = window.localStorage.getItem(voiceprintStorageKey)
+      if (!raw) {
+        setEnrolledVoiceprint(null)
+        return
+      }
+
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed) && parsed.every((value) => typeof value === 'number')) {
+        setEnrolledVoiceprint(parsed as number[])
+      } else {
+        setEnrolledVoiceprint(null)
+      }
+    } catch {
+      setEnrolledVoiceprint(null)
+    }
+  }, [voiceprintStorageKey])
+
+  const enrollCurrentVoiceprint = useCallback(async () => {
+    if (!voiceprintStorageKey || typeof window === 'undefined') {
+      toast.error('Sign in first to enroll a voiceprint')
+      return
+    }
+
+    setCancelVerificationInProgress(true)
+    try {
+      toast.message('Speak naturally for two seconds to enroll emergency cancel voiceprint')
+      const signature = await captureVoiceprintSignature({ sampleDurationMs: 2000, bucketCount: 64 })
+      window.localStorage.setItem(voiceprintStorageKey, JSON.stringify(signature))
+      setEnrolledVoiceprint(signature)
+      setLastVoiceprintScore(null)
+      toast.success('Voiceprint enrolled for emergency cancel verification')
+    } catch (error: any) {
+      toast.error(error?.message || 'Voiceprint enrollment failed')
+    } finally {
+      setCancelVerificationInProgress(false)
+    }
+  }, [voiceprintStorageKey])
+
+  const clearEnrolledVoiceprint = useCallback(() => {
+    if (!voiceprintStorageKey || typeof window === 'undefined') return
+    window.localStorage.removeItem(voiceprintStorageKey)
+    setEnrolledVoiceprint(null)
+    setLastVoiceprintScore(null)
+    toast.message('Voiceprint enrollment removed')
+  }, [voiceprintStorageKey])
+
+  const verifyPlatformBiometricCancel = useCallback(async (): Promise<boolean> => {
+    if (typeof window === 'undefined' || typeof navigator === 'undefined' || !navigator.credentials || typeof PublicKeyCredential === 'undefined') {
+      toast.error('Platform biometric verification is not available on this device')
+      return false
+    }
+
+    try {
+      const challenge = crypto.getRandomValues(new Uint8Array(32))
+      await navigator.credentials.get({
+        publicKey: {
+          challenge,
+          timeout: 12000,
+          userVerification: 'required',
+          rpId: window.location.hostname,
+        },
+      })
+      return true
+    } catch {
+      toast.error('Biometric verification failed or was cancelled. Emergency countdown continues.')
+      return false
+    }
+  }, [])
+
+  const verifyVoiceprintCancel = useCallback(async (): Promise<boolean> => {
+    if (!enrolledVoiceprint?.length) {
+      toast.error('No voiceprint enrolled. Enroll first or use platform biometric verification.')
+      return false
+    }
+
+    try {
+      toast.message('Speak for two seconds to verify emergency cancel identity')
+      const sample = await captureVoiceprintSignature({ sampleDurationMs: 2000, bucketCount: 64 })
+      const score = compareVoiceprintSignatures(enrolledVoiceprint, sample)
+      setLastVoiceprintScore(score)
+      return score >= 0.84
+    } catch {
+      toast.error('Voiceprint verification failed. Emergency countdown continues.')
+      return false
+    }
+  }, [enrolledVoiceprint])
+
+  const broadcastAutomatedAssistanceCall = useCallback(async (reasonText: string): Promise<boolean> => {
+    if (!effectiveOrgId) return false
+    if (radioTransmitting || pttIsSpeaking) return false
+
+    const emergencyChannel = resolveEmergencyChannel(radioChannels, selectedRadioChannel)
+    if (!emergencyChannel) return false
+
+    const emergencyScope = getBobRadioChannelScope(emergencyChannel, effectiveOrgId)
+    const locationLabel = await refreshEmergencyLocationLabel()
+    const firstName = (user?.first_name || 'OFFICER').trim().toUpperCase().slice(0, 10)
+    const emergencyPhrase = buildEmergencyAssistPhrase({
+      firstName,
+      locationLabel,
+      reasonText,
+      channelName: emergencyChannel.name,
+    })
+    const compactLocation = locationLabel === 'Location unavailable'
+      ? 'LOC UNK'
+      : locationLabel.replace(/\s+/g, '').slice(0, 11)
+
+    const condensedReason = reasonText
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 18)
+      .toUpperCase()
+
+    const signalText = `SOS ${firstName} ${compactLocation}`.slice(0, 24)
+    const durationMs = estimateBobRadioSignalDurationMs({ profile: 'attention', signalText })
+
+    try {
+      if (pttChannelId !== emergencyScope || pttConnectionStatus !== 'connected') {
+        await connectToPTT(emergencyScope, emergencyChannel.name)
+      }
+
+      setPTTCustomAudioSourceFactory(async () => createBobRadioAudioSource({
+        profile: 'attention',
+        signalText,
+      }))
+
+      await startSpeaking()
+      setRadioTransmitting(true)
+      setDangerCooldownUntil(Date.now() + 90_000)
+      setLastEmergencyPhrase(emergencyPhrase)
+      lastEmergencyPhraseRef.current = emergencyPhrase
+
+      radioStopTimerRef.current = window.setTimeout(() => {
+        void stopSpeaking()
+          .catch(() => undefined)
+          .finally(() => {
+            clearPTTCustomAudioSourceFactory()
+            setRadioTransmitting(false)
+            radioStopTimerRef.current = null
+          })
+      }, durationMs + 260)
+
+      toast.warning(`Bob auto-assist sent on ${emergencyChannel.name}: ${firstName} @ ${locationLabel}. ${condensedReason || 'UNSPECIFIED'}`)
+      return true
+    } catch (error) {
+      clearPTTCustomAudioSourceFactory()
+      setRadioTransmitting(false)
+      console.error('Bob auto-assist broadcast failed', error)
+      return false
+    }
+  }, [
+    effectiveOrgId,
+    pttIsSpeaking,
+    radioTransmitting,
+    radioChannels,
+    selectedRadioChannel,
+    user?.first_name,
+    pttChannelId,
+    pttConnectionStatus,
+    refreshEmergencyLocationLabel,
+  ])
+
+  const clearEmergencyCountdown = useCallback(() => {
+    if (emergencyCountdownTimerRef.current !== null) {
+      window.clearInterval(emergencyCountdownTimerRef.current)
+      emergencyCountdownTimerRef.current = null
+    }
+    setEmergencyCountdownSeconds(null)
+    setPendingEmergencyReason(null)
+  }, [])
+
+  const resetEmergencyEvidence = useCallback(() => {
+    emergencyTranscriptEvidenceRef.current = false
+    emergencyAmbientEvidenceRef.current = false
+    emergencyTranscriptEvidenceAtRef.current = null
+    emergencyAmbientEvidenceAtRef.current = null
+  }, [])
+
+  const cancelPendingEmergencyCall = useCallback(async (spoken = true, requireVerification = true) => {
+    if (secureCancelVerificationEnabled && requireVerification) {
+      setCancelVerificationInProgress(true)
+      try {
+        const verified = cancelVerificationMode === 'voiceprint'
+          ? await verifyVoiceprintCancel()
+          : await verifyPlatformBiometricCancel()
+
+        if (!verified) {
+          return false
+        }
+      } finally {
+        setCancelVerificationInProgress(false)
+      }
+    }
+
+    clearEmergencyCountdown()
+    resetEmergencyEvidence()
+    if (spoken) {
+      speak('Emergency assist cancelled. I will keep monitoring while armed.')
+      toast.message('Emergency assist countdown cancelled')
+    }
+    return true
+  }, [
+    secureCancelVerificationEnabled,
+    cancelVerificationMode,
+    verifyVoiceprintCancel,
+    verifyPlatformBiometricCancel,
+    clearEmergencyCountdown,
+    resetEmergencyEvidence,
+    speak,
+  ])
+
+  const triggerEmergencyCallNow = useCallback(async (reasonOverride?: string) => {
+    const reason = reasonOverride || pendingEmergencyReason || 'USER CONFIRMED EMERGENCY CALL'
+    clearEmergencyCountdown()
+    const sent = await broadcastAutomatedAssistanceCall(reason)
+    resetEmergencyEvidence()
+    if (sent) {
+      const phrase = lastEmergencyPhraseRef.current
+        ? `Emergency assistance request sent. ${lastEmergencyPhraseRef.current}`
+        : 'Emergency assistance request sent on the emergency channel.'
+      speak(phrase)
+    }
+  }, [pendingEmergencyReason, clearEmergencyCountdown, broadcastAutomatedAssistanceCall, resetEmergencyEvidence, speak])
+
+  const startEmergencyCountdown = useCallback((reasonText: string) => {
+    if (emergencyCountdownSeconds !== null || Date.now() < dangerCooldownUntil) return
+
+    const COUNTDOWN_START = 7
+    setPendingEmergencyReason(reasonText)
+    setEmergencyCountdownSeconds(COUNTDOWN_START)
+
+    const firstName = user?.first_name?.trim() || 'Officer'
+    toast.warning(`Potential emergency detected. Calling for assistance in ${COUNTDOWN_START} seconds unless cancelled.`)
+    speak(`${firstName}, potential emergency detected. Assistance call will be sent in ${COUNTDOWN_START} seconds. Say cancel emergency to stop, or say call now.`)
+
+    emergencyCountdownTimerRef.current = window.setInterval(() => {
+      setEmergencyCountdownSeconds((current) => {
+        if (current === null) return null
+
+        const next = current - 1
+        if (next <= 0) {
+          if (emergencyCountdownTimerRef.current !== null) {
+            window.clearInterval(emergencyCountdownTimerRef.current)
+            emergencyCountdownTimerRef.current = null
+          }
+          void triggerEmergencyCallNow(reasonText)
+          return null
+        }
+
+        if (next <= 3) {
+          speak(`${next}`)
+        }
+
+        return next
+      })
+    }, 1000)
+  }, [dangerCooldownUntil, emergencyCountdownSeconds, triggerEmergencyCallNow, user?.first_name, speak])
+
+  const registerEmergencySignal = useCallback((kind: 'ambient' | 'transcript', reasonText: string) => {
+    if (!dangerAutoAssistArmed) return
+    if (Date.now() < dangerCooldownUntil) return
+    if (emergencyCountdownSeconds !== null) return
+
+    const now = Date.now()
+    if (kind === 'ambient') {
+      emergencyAmbientEvidenceRef.current = true
+      emergencyAmbientEvidenceAtRef.current = now
+    }
+    if (kind === 'transcript') {
+      emergencyTranscriptEvidenceRef.current = true
+      emergencyTranscriptEvidenceAtRef.current = now
+    }
+
+    const hasAmbient = emergencyAmbientEvidenceRef.current
+    const hasTranscript = emergencyTranscriptEvidenceRef.current
+    const dualWindowMs = Math.max(3, Math.min(60, dualSignalWindowSeconds)) * 1000
+    const transcriptAt = emergencyTranscriptEvidenceAtRef.current
+    const ambientAt = emergencyAmbientEvidenceAtRef.current
+    const withinWindow = !!(transcriptAt && ambientAt && Math.abs(transcriptAt - ambientAt) <= dualWindowMs)
+
+    const thresholdReached = requireDualSignal
+      ? (hasAmbient && hasTranscript && withinWindow)
+      : (hasAmbient || hasTranscript)
+
+    if (requireDualSignal && hasAmbient && hasTranscript && !withinWindow) {
+      // Keep only the newest signal when evidence is too far apart.
+      if ((transcriptAt || 0) > (ambientAt || 0)) {
+        emergencyAmbientEvidenceRef.current = false
+        emergencyAmbientEvidenceAtRef.current = null
+      } else {
+        emergencyTranscriptEvidenceRef.current = false
+        emergencyTranscriptEvidenceAtRef.current = null
+      }
+    }
+
+    if (thresholdReached) {
+      startEmergencyCountdown(reasonText)
+    }
+  }, [dangerAutoAssistArmed, dangerCooldownUntil, emergencyCountdownSeconds, requireDualSignal, dualSignalWindowSeconds, startEmergencyCountdown])
+
+  useEffect(() => {
+    const consumeQueuedPanicRequests = () => {
+      const packet = consumeLatestEmergencyAssistRequest()
+      if (!packet) return
+
+      if (packet.organizationId && effectiveOrgId && packet.organizationId !== effectiveOrgId) {
+        return
+      }
+
+      const officerLabel = packet.officerName?.trim() || 'Officer'
+      const reason = packet.reason?.trim() || 'Welfare panic button activated'
+      const locationText = packet.locationLabel?.trim() || 'Location unavailable'
+
+      setEmergencyLocationLabel(locationText)
+      startEmergencyCountdown(`WELFARE PANIC: ${officerLabel}. ${reason}.`)
+      toast.warning(`Welfare panic assist queued for ${officerLabel}. Emergency countdown started.`)
+    }
+
+    consumeQueuedPanicRequests()
+
+    if (typeof window === 'undefined') return
+    const handler = () => {
+      consumeQueuedPanicRequests()
+    }
+    window.addEventListener(EMERGENCY_ASSIST_REQUEST_EVENT, handler)
+    return () => {
+      window.removeEventListener(EMERGENCY_ASSIST_REQUEST_EVENT, handler)
+    }
+  }, [effectiveOrgId, startEmergencyCountdown])
+
+  const pttDiagnostics = getPTTDiagnostics()
+
+  useEffect(() => {
+    if (dangerAutoAssistArmed) return
+    void cancelPendingEmergencyCall(false, false)
+    resetEmergencyEvidence()
+  }, [dangerAutoAssistArmed, cancelPendingEmergencyCall, resetEmergencyEvidence])
+
+  useEffect(() => {
+    if (!dangerAutoAssistArmed || !ambientRiskMonitoring) {
+      if (ambientMonitorIntervalRef.current !== null) {
+        window.clearInterval(ambientMonitorIntervalRef.current)
+        ambientMonitorIntervalRef.current = null
+      }
+      if (ambientStreamRef.current) {
+        ambientStreamRef.current.getTracks().forEach((track) => track.stop())
+        ambientStreamRef.current = null
+      }
+      if (ambientAudioContextRef.current) {
+        void ambientAudioContextRef.current.close()
+        ambientAudioContextRef.current = null
+      }
+      ambientRiskScoreRef.current = 0
+      previousAmbientRmsRef.current = 0
+      return
+    }
+
+    let cancelled = false
+
+    const startAmbientMonitor = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        if (cancelled) {
+          stream.getTracks().forEach((track) => track.stop())
+          return
+        }
+
+        const ctx = new AudioContext()
+        const source = ctx.createMediaStreamSource(stream)
+        const analyser = ctx.createAnalyser()
+        analyser.fftSize = 512
+        source.connect(analyser)
+
+        ambientStreamRef.current = stream
+        ambientAudioContextRef.current = ctx
+
+        const samples = new Uint8Array(analyser.fftSize)
+        ambientMonitorIntervalRef.current = window.setInterval(() => {
+          analyser.getByteTimeDomainData(samples)
+
+          let sum = 0
+          let peak = 0
+          for (let i = 0; i < samples.length; i++) {
+            const centered = (samples[i] - 128) / 128
+            const abs = Math.abs(centered)
+            sum += centered * centered
+            if (abs > peak) peak = abs
+          }
+
+          const rms = Math.sqrt(sum / samples.length)
+          const rmsPercent = rms * 100
+          const peakPercent = peak * 100
+          const previous = previousAmbientRmsRef.current
+          const jump = rmsPercent - previous
+          previousAmbientRmsRef.current = rmsPercent
+
+          const highNoise = rmsPercent >= ambientSensitivity * 0.28
+          const sharpImpulse = peakPercent >= ambientSensitivity && jump >= 18
+          if (highNoise || sharpImpulse) {
+            ambientRiskScoreRef.current += sharpImpulse ? 3 : 1
+          } else {
+            ambientRiskScoreRef.current = Math.max(0, ambientRiskScoreRef.current - 1)
+          }
+
+          if (ambientRiskScoreRef.current >= 7 && Date.now() >= dangerCooldownUntil) {
+            ambientRiskScoreRef.current = 0
+            registerEmergencySignal(
+              'ambient',
+              sharpImpulse
+                ? 'POSSIBLE GUNSHOT OR IMPACT-LIKE IMPULSE'
+                : 'SUSTAINED HIGH-RISK AMBIENT ESCALATION',
+            )
+          }
+        }, 250)
+      } catch {
+        toast.error('Could not start ambient risk monitoring (microphone access denied)')
+      }
+    }
+
+    void startAmbientMonitor()
+
+    return () => {
+      cancelled = true
+      if (ambientMonitorIntervalRef.current !== null) {
+        window.clearInterval(ambientMonitorIntervalRef.current)
+        ambientMonitorIntervalRef.current = null
+      }
+      if (ambientStreamRef.current) {
+        ambientStreamRef.current.getTracks().forEach((track) => track.stop())
+        ambientStreamRef.current = null
+      }
+      if (ambientAudioContextRef.current) {
+        void ambientAudioContextRef.current.close()
+        ambientAudioContextRef.current = null
+      }
+      ambientRiskScoreRef.current = 0
+      previousAmbientRmsRef.current = 0
+    }
+  }, [ambientRiskMonitoring, ambientSensitivity, dangerAutoAssistArmed, dangerCooldownUntil, registerEmergencySignal])
+
+  useEffect(() => {
+    if (!dangerAutoAssistArmed || !ambientRiskMonitoring) {
+      if (emergencyRecognitionRef.current) {
+        emergencyRecognitionRef.current.stop()
+        emergencyRecognitionRef.current = null
+      }
+      return
+    }
+
+    const Ctor = getSpeechRecognitionCtor()
+    if (!Ctor || voiceActivatedConversation || listening || thinking) return
+
+    const recognition = new Ctor()
+    recognition.lang = accent
+    recognition.interimResults = false
+    recognition.continuous = true
+    recognition.maxAlternatives = 1
+
+    recognition.onresult = (event: any) => {
+      const transcript = Array.from(event?.results ?? [])
+        .filter((result: any) => result?.isFinal)
+        .map((result: any) => result?.[0]?.transcript ?? '')
+        .join(' ')
+        .trim()
+
+      if (!transcript) return
+      if (isEmergencyCancelCommand(transcript) && emergencyCountdownSeconds !== null) {
+        void cancelPendingEmergencyCall()
+        return
+      }
+
+      if (isEmergencyCallNowCommand(transcript) && emergencyCountdownSeconds !== null) {
+        void triggerEmergencyCallNow(`VOICE CONFIRMED: ${transcript}`)
+        return
+      }
+
+      if (shouldTriggerDangerAssist(transcript)) {
+        registerEmergencySignal('transcript', `TRANSCRIPT RISK: ${transcript}`)
+      }
+    }
+
+    recognition.onend = () => {
+      emergencyRecognitionRef.current = null
+      if (dangerAutoAssistArmed && ambientRiskMonitoring && !voiceActivatedConversation && !listening && !thinking) {
+        setTimeout(() => {
+          if (emergencyRecognitionRef.current) return
+          try {
+            const next = new Ctor()
+            next.lang = accent
+            next.interimResults = false
+            next.continuous = true
+            next.maxAlternatives = 1
+            next.onresult = recognition.onresult
+            next.onend = recognition.onend
+            emergencyRecognitionRef.current = next
+            next.start()
+          } catch {
+            // Swallow restart failures.
+          }
+        }, 400)
+      }
+    }
+
+    emergencyRecognitionRef.current = recognition
+    try {
+      recognition.start()
+    } catch {
+      emergencyRecognitionRef.current = null
+    }
+
+    return () => {
+      if (emergencyRecognitionRef.current) {
+        emergencyRecognitionRef.current.stop()
+        emergencyRecognitionRef.current = null
+      }
+    }
+  }, [accent, ambientRiskMonitoring, dangerAutoAssistArmed, listening, thinking, voiceActivatedConversation, shouldTriggerDangerAssist, emergencyCountdownSeconds, isEmergencyCancelCommand, isEmergencyCallNowCommand, cancelPendingEmergencyCall, triggerEmergencyCallNow, registerEmergencySignal])
 
   const handleViewMyMemory = async () => {
     if (!user?.id) {
@@ -1677,6 +2581,237 @@ export default function BobAssistantStudio() {
         </div>
 
         <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Radio className="h-4 w-4" /> Bob Radio Agent</CardTitle>
+              <CardDescription>
+                Bob can originate real browser WebRTC audio onto PTT channels using a generated signal source. This enables active link checks and guarded emergency assist calls.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label>Radio Channel</Label>
+                  <Select value={selectedRadioChannelId} onValueChange={setSelectedRadioChannelId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={radioChannelsLoading ? 'Loading channels…' : 'Select channel'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {radioChannels.map((channel) => (
+                        <SelectItem key={channel.id} value={channel.id}>
+                          CH {channel.channel_number} · {channel.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Signal Profile</Label>
+                  <Select value={radioSignalProfile} onValueChange={(value) => setRadioSignalProfile(value as BobRadioSignalProfile)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="link-test">Link Test</SelectItem>
+                      <SelectItem value="attention">Attention Tone</SelectItem>
+                      <SelectItem value="warble">Warble Sweep</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Signal Text</Label>
+                <Input
+                  value={radioSignalText}
+                  onChange={(e) => setRadioSignalText(e.target.value.toUpperCase())}
+                  placeholder="BOB LINK TEST"
+                  maxLength={24}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Generated signal mode: deterministic browser audio that travels through the same WebRTC/TURN path as live speech.
+                </p>
+              </div>
+
+              <div className="grid gap-2 text-sm md:grid-cols-3">
+                <div className="rounded border p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Connection</div>
+                  <div className="mt-1 font-medium">{pttConnectionStatus}</div>
+                </div>
+                <div className="rounded border p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Scope</div>
+                  <div className="mt-1 font-medium break-all">{selectedRadioScope || 'none'}</div>
+                </div>
+                <div className="rounded border p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Outbound Source</div>
+                  <div className="mt-1 font-medium">{pttDiagnostics.outboundAudioSource}</div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={() => void connectBobRadioChannel()} disabled={!effectiveOrgId || radioConnecting}>
+                  {radioConnecting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <SignalHigh className="mr-1 h-4 w-4" />}
+                  Join Channel
+                </Button>
+                <Button variant="outline" onClick={() => void transmitBobRadioSignal()} disabled={!effectiveOrgId || radioTransmitting || radioConnecting}>
+                  {radioTransmitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Radio className="mr-1 h-4 w-4" />}
+                  Transmit Test Signal
+                </Button>
+                <Button variant="outline" onClick={() => void disconnectBobRadioChannel()} disabled={pttConnectionStatus === 'disconnected' && !radioTransmitting}>
+                  <PhoneOff className="mr-1 h-4 w-4" /> Disconnect
+                </Button>
+              </div>
+
+              <div className="rounded border p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="bob-danger-auto-assist">Armed danger auto-assist</Label>
+                  <Switch
+                    id="bob-danger-auto-assist"
+                    checked={dangerAutoAssistArmed}
+                    onCheckedChange={setDangerAutoAssistArmed}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="bob-ambient-monitor">Monitor ambient risk audio</Label>
+                  <Switch
+                    id="bob-ambient-monitor"
+                    checked={ambientRiskMonitoring}
+                    onCheckedChange={setAmbientRiskMonitoring}
+                    disabled={!dangerAutoAssistArmed}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="bob-dual-signal">Require dual-signal confirmation</Label>
+                  <Switch
+                    id="bob-dual-signal"
+                    checked={requireDualSignal}
+                    onCheckedChange={setRequireDualSignal}
+                    disabled={!dangerAutoAssistArmed}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Dual-signal window seconds</Label>
+                  <Input
+                    type="number"
+                    min={3}
+                    max={60}
+                    step={1}
+                    value={dualSignalWindowSeconds}
+                    onChange={(e) => setDualSignalWindowSeconds(Math.max(3, Math.min(60, Number(e.target.value) || 12)))}
+                    disabled={!dangerAutoAssistArmed || !requireDualSignal}
+                  />
+                </div>
+                <Input
+                  value={dangerKeywords}
+                  onChange={(e) => setDangerKeywords(e.target.value)}
+                  placeholder="Comma-separated danger phrases"
+                />
+                <div className="space-y-1.5">
+                  <Label>Ambient Sensitivity ({ambientSensitivity})</Label>
+                  <Input
+                    type="number"
+                    min={35}
+                    max={95}
+                    step={1}
+                    value={ambientSensitivity}
+                    onChange={(e) => setAmbientSensitivity(Math.max(35, Math.min(95, Number(e.target.value) || 65)))}
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded border bg-muted/20 px-3 py-2">
+                  <div>
+                    <Label className="text-sm">Secure cancel verification</Label>
+                    <p className="text-xs text-muted-foreground">Require identity check before emergency cancel is accepted.</p>
+                  </div>
+                  <Switch checked={secureCancelVerificationEnabled} onCheckedChange={setSecureCancelVerificationEnabled} />
+                </div>
+                {secureCancelVerificationEnabled && (
+                  <div className="space-y-2 rounded border bg-muted/20 p-3">
+                    <div className="space-y-1.5">
+                      <Label>Cancel Verification Mode</Label>
+                      <Select value={cancelVerificationMode} onValueChange={(value: EmergencyCancelVerificationMode) => setCancelVerificationMode(value)}>
+                        <SelectTrigger className="h-8">
+                          <SelectValue placeholder="Select verification mode" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="platform_biometric">Fingerprint / Face (platform)</SelectItem>
+                          <SelectItem value="voiceprint">Voiceprint match</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {cancelVerificationMode === 'voiceprint' && (
+                      <>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void enrollCurrentVoiceprint()}
+                            disabled={cancelVerificationInProgress}
+                          >
+                            {enrolledVoiceprint?.length ? 'Re-enroll Voiceprint' : 'Enroll Voiceprint'}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={clearEnrolledVoiceprint}
+                            disabled={!enrolledVoiceprint?.length || cancelVerificationInProgress}
+                          >
+                            Clear Enrollment
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Enrollment status: {enrolledVoiceprint?.length ? 'Enrolled' : 'Not enrolled'}
+                          {typeof lastVoiceprintScore === 'number' ? ` • Last similarity ${Math.round(lastVoiceprintScore * 100)}%` : ''}
+                        </p>
+                      </>
+                    )}
+                    {cancelVerificationInProgress && (
+                      <p className="text-xs text-amber-700">Verification in progress...</p>
+                    )}
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">Emergency location context: {emergencyLocationLabel}</p>
+                  <Button variant="outline" size="sm" onClick={() => void refreshEmergencyLocationLabel()}>
+                    Refresh Location
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  When armed, Bob can trigger from transcript danger phrases and ambient escalation patterns. With dual-signal on, both transcript and ambient evidence are required before the countdown starts. Emergency broadcast forces the emergency channel and includes first name plus location context.
+                </p>
+                <p className="text-xs text-amber-700">
+                  Assistive only: ambient and transcript detection are heuristic indicators, not forensic proof.
+                </p>
+                {emergencyCountdownSeconds !== null && (
+                  <div className="rounded border border-red-300 bg-red-50 p-3 space-y-2">
+                    <div className="text-sm font-semibold text-red-700">
+                      Emergency assist pending: calling in {emergencyCountdownSeconds}s
+                    </div>
+                    <p className="text-xs text-red-700">Reason: {pendingEmergencyReason || 'Potential critical escalation detected'}</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="destructive" size="sm" onClick={() => void triggerEmergencyCallNow(pendingEmergencyReason || undefined)}>
+                        Make Call Now
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => void cancelPendingEmergencyCall()} disabled={cancelVerificationInProgress}>
+                        {cancelVerificationInProgress ? 'Verifying...' : 'Cancel Call'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {dangerCooldownUntil > Date.now() && (
+                  <p className="text-xs text-amber-600">
+                    Auto-assist cooldown active until {new Date(dangerCooldownUntil).toLocaleTimeString('en-NZ')}
+                  </p>
+                )}
+                {lastEmergencyPhrase && (
+                  <div className="rounded border bg-muted/30 p-2 text-xs text-muted-foreground">
+                    Emergency phrase template: {lastEmergencyPhrase}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between gap-2">

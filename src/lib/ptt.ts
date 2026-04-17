@@ -43,6 +43,12 @@ interface SignalMessage {
   }
 }
 
+export interface PTTCustomAudioSource {
+  stream: MediaStream
+  label: string
+  cleanup?: () => void | Promise<void>
+}
+
 interface PTTMessage {
   type: string
   event?: string
@@ -72,6 +78,7 @@ export interface PTTDiagnostics {
   connectionStatus: string
   channelScope: string | null
   requestedChannelScope: string | null
+  outboundAudioSource: string
   websocketReadyState: string
   reconnectAttempts: number
   activePeerConnections: number
@@ -244,6 +251,39 @@ let iceCandidatesReceived = 0
 let iceGatherCompleteCount = 0
 let iceCandidateErrors = 0
 let lastIceCandidateError: string | null = null
+let customAudioSourceFactory: (() => Promise<PTTCustomAudioSource>) | null = null
+let activeCustomAudioSourceCleanup: (() => void | Promise<void>) | null = null
+let activeOutboundAudioSourceLabel = 'microphone'
+
+async function cleanupActiveLocalStream(): Promise<void> {
+  if (localStream) {
+    localStream.getTracks().forEach((track) => track.stop())
+    localStream = null
+  }
+
+  if (activeCustomAudioSourceCleanup) {
+    try {
+      await activeCustomAudioSourceCleanup()
+    } catch (error) {
+      console.warn('🎤 PTT: Failed to clean up custom audio source', error)
+    }
+    activeCustomAudioSourceCleanup = null
+  }
+
+  activeOutboundAudioSourceLabel = customAudioSourceFactory ? 'custom' : 'microphone'
+}
+
+export function setPTTCustomAudioSourceFactory(factory: (() => Promise<PTTCustomAudioSource>) | null): void {
+  customAudioSourceFactory = factory
+  if (!factory) {
+    activeOutboundAudioSourceLabel = 'microphone'
+  }
+}
+
+export function clearPTTCustomAudioSourceFactory(): void {
+  customAudioSourceFactory = null
+  activeOutboundAudioSourceLabel = 'microphone'
+}
 
 function markNegotiationAttempt(peerId: string, stage: string): void {
   lastNegotiationAttemptAt = new Date().toISOString()
@@ -362,6 +402,7 @@ export function getPTTDiagnostics(): PTTDiagnostics {
     connectionStatus: store.connectionStatus,
     channelScope: store.channelId || null,
     requestedChannelScope: lastRequestedChannelScope,
+    outboundAudioSource: activeOutboundAudioSourceLabel,
     websocketReadyState: getWebSocketReadyStateLabel(ws),
     reconnectAttempts,
     activePeerConnections: peerConnections.size,
@@ -590,8 +631,7 @@ function cleanupConnection(): void {
   pendingIceCandidates.clear()
 
   if (localStream) {
-    localStream.getTracks().forEach((track) => track.stop())
-    localStream = null
+    void cleanupActiveLocalStream()
   }
 
   if (mediaRecorder) {
@@ -1014,8 +1054,17 @@ export async function startSpeaking(): Promise<void> {
   }
 
   try {
-    // Request microphone with mobile-safe fallback.
-    localStream = await requestLocalAudioStream()
+    if (customAudioSourceFactory) {
+      const customSource = await customAudioSourceFactory()
+      localStream = customSource.stream
+      activeCustomAudioSourceCleanup = customSource.cleanup || null
+      activeOutboundAudioSourceLabel = customSource.label || 'custom'
+    } else {
+      // Request microphone with mobile-safe fallback.
+      localStream = await requestLocalAudioStream()
+      activeCustomAudioSourceCleanup = null
+      activeOutboundAudioSourceLabel = 'microphone'
+    }
     markTransmitAttempt(store.presence.length, true)
 
     // Start recording for fallback clip
@@ -1120,10 +1169,7 @@ export async function stopSpeaking(): Promise<void> {
   }
 
   // Stop local stream
-  if (localStream) {
-    localStream.getTracks().forEach((track) => track.stop())
-    localStream = null
-  }
+  await cleanupActiveLocalStream()
 
   // Notify server
   if (ws?.readyState === WebSocket.OPEN) {
