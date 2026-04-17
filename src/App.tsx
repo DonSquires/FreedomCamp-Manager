@@ -127,6 +127,7 @@ const OpsLivePlanReviewQueue = lazy(() => import('@/pages/OpsLivePlanReviewQueue
 const OfficerHomePage = lazy(() => import('@/pages/OfficerHomePage'))
 const TenderWorkspace = lazy(() => import('@/pages/TenderWorkspace'))
 const TenderWorkspaceDetail = lazy(() => import('@/pages/TenderWorkspaceDetail'))
+const TenderReferenceLibrary = lazy(() => import('@/pages/TenderReferenceLibrary'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -1677,6 +1678,16 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'master', 'grand_master']}>
                   <TenderWorkspaceDetail />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tender-reference-library"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'master', 'grand_master']}>
+                  <TenderReferenceLibrary />
                 </RoleRoute>
               </ProtectedRoute>
             }

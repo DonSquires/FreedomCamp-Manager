@@ -193,7 +193,7 @@ Deno.serve(withCors(async (req: Request) => {
     }
   }
 
-  // --- Training path: trigger Bob self-learning from an outcome --------------
+  // --- Training path: synchronous (fast — no AI generation call) ---------------
   if (triggerTraining && outcome) {
     // Fetch current draft sections to include in the training payload
     const { data: currentDraft } = await supabase
@@ -229,7 +229,10 @@ Deno.serve(withCors(async (req: Request) => {
     return json({ success: true, trained: true })
   }
 
-  // --- Generation path ------------------------------------------------------
+  // --- Generation path — fire-and-forget ------------------------------------
+  // Mark as generating so the UI can show a spinner while polling
+  await supabase.from('tender_documents').update({ status: 'drafting', draft_sections: null }).eq('id', documentId)
+
   const assessment = doc.assessment || {}
   const context: Record<string, unknown> = {
     extracted_text: (doc.extracted_text || '').slice(0, 12000),
@@ -243,49 +246,70 @@ Deno.serve(withCors(async (req: Request) => {
     reference_context: referenceContext,
   }
 
-  let result: { sections: Record<string, string>; provider: string; model_used: string; references_used?: boolean }
-  try {
-    result = await callTenderGenerate(generationType, context, orgContext)
-  } catch (err: unknown) {
-    return json({ error: 'Generation failed', message: (err as Error).message }, 502)
-  }
+  const backgroundWork = doGeneration(supabase, documentId, user.id, generationType, orgContext, context, usedRefs)
 
-  // Persist generated sections to the document
-  await supabase
-    .from('tender_documents')
-    .update({
-      draft_sections: result.sections,
-      generation_provider: result.provider,
-      generation_model: result.model_used,
-      last_generated_at: new Date().toISOString(),
-      last_generated_by: user.id,
-      generation_type: generationType,
-      status: 'drafting',
-    })
-    .eq('id', documentId)
-
-  // Mark references as used_in_generation
-  if (usedRefs.length > 0) {
-    const now = new Date().toISOString()
-    for (const r of usedRefs) {
-      await (supabase as any)
-        .from('tender_document_references')
-        .upsert({
-          document_id: documentId,
-          reference_material_id: r.id,
-          included: true,
-          used_in_generation: true,
-          generation_run_at: now,
-        }, { onConflict: 'document_id,reference_material_id' })
-    }
+  // @ts-ignore EdgeRuntime is available in Supabase Deno runtime
+  if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
+    // @ts-ignore
+    EdgeRuntime.waitUntil(backgroundWork)
+  } else {
+    await backgroundWork
   }
 
   return json({
-    success: true,
-    sections: result.sections,
-    provider: result.provider,
-    model_used: result.model_used,
-    references_used: usedRefs.map(r => ({ id: r.id, title: r.title, material_type: r.material_type })),
-  })
+    accepted: true,
+    document_id: documentId,
+    message: 'Generation started — poll document last_generated_at for completion',
+  }, 202)
 }))
+
+async function doGeneration(
+  supabase: ReturnType<typeof import('https://esm.sh/@supabase/supabase-js@2.45.3').createClient>,
+  documentId: string,
+  userId: string,
+  generationType: string,
+  orgContext: Record<string, string>,
+  context: Record<string, unknown>,
+  usedRefs: Array<{ id: string; title: string; material_type: string }>,
+): Promise<void> {
+  try {
+    const result = await callTenderGenerate(generationType, context, orgContext)
+
+    await (supabase as any)
+      .from('tender_documents')
+      .update({
+        draft_sections: result.sections,
+        generation_provider: result.provider,
+        generation_model: result.model_used,
+        last_generated_at: new Date().toISOString(),
+        last_generated_by: userId,
+        generation_type: generationType,
+        status: 'drafting',
+      })
+      .eq('id', documentId)
+
+    if (usedRefs.length > 0) {
+      const now = new Date().toISOString()
+      for (const r of usedRefs) {
+        await (supabase as any)
+          .from('tender_document_references')
+          .upsert({
+            document_id: documentId,
+            reference_material_id: r.id,
+            included: true,
+            used_in_generation: true,
+            generation_run_at: now,
+          }, { onConflict: 'document_id,reference_material_id' })
+      }
+    }
+    console.log(`✅ Background generation complete for tender_document ${documentId} (${result.provider})`)
+  } catch (err: unknown) {
+    console.error('Background doGeneration error:', err)
+    // Reset draft_sections to null so the UI knows generation failed
+    await (supabase as any)
+      .from('tender_documents')
+      .update({ last_generated_at: new Date().toISOString(), generation_provider: 'failed' })
+      .eq('id', documentId)
+  }
+}
 
