@@ -15,9 +15,17 @@ type Action =
   | 'ask_copilot_list'
   | 'health_check'
   | 'doctor_health'
+  | 'doctor_timeline'
   | 'doctor_playbook_run'
   | 'intel_bulletin_submit'
   | 'intel_state'
+
+const MASTER_ALLOWED_ACTIONS = new Set<Action>([
+  'health_check',
+  'doctor_health',
+  'doctor_timeline',
+  'doctor_playbook_run',
+])
 
 function extractBearerToken(req: Request): string | null {
   const authHeader = req.headers.get('Authorization') || req.headers.get('authorization')
@@ -76,15 +84,19 @@ Deno.serve(async (req: Request) => {
       .eq('id', user.id)
       .maybeSingle()
 
-    if (profile?.role !== 'grand_master') {
+    const body = await req.json()
+    const action = String(body?.action ?? '').trim() as Action
+
+    const role = String(profile?.role || '')
+    const isGrandMaster = role === 'grand_master'
+    const isMaster = role === 'master'
+    const actionAllowedForMaster = MASTER_ALLOWED_ACTIONS.has(action)
+    if (!isGrandMaster && !(isMaster && actionAllowedForMaster)) {
       return new Response(
-        JSON.stringify({ error: 'Forbidden: Grand Master access required' }),
+        JSON.stringify({ error: 'Forbidden: insufficient role for this action' }),
         { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
       )
     }
-
-    const body = await req.json()
-    const action = String(body?.action ?? '').trim() as Action
 
     const inferenceUrl = (Deno.env.get('INFERENCE_SERVICE_URL') ?? '').replace(/\/$/, '')
     const inferenceApiKey = Deno.env.get('INFERENCE_API_KEY') ?? ''
@@ -216,6 +228,13 @@ Deno.serve(async (req: Request) => {
       return proxyResponse(result, req)
     }
 
+    if (action === 'doctor_timeline') {
+      const limit = Number(body?.limit || 30)
+      const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(100, Math.floor(limit))) : 30
+      const result = await bobGet(`/doctor/timeline?limit=${safeLimit}`)
+      return proxyResponse(result, req)
+    }
+
     if (action === 'doctor_playbook_run') {
       const playbook = String(body?.playbook || '').trim()
       const dryRun = body?.dry_run !== false
@@ -276,7 +295,7 @@ Deno.serve(async (req: Request) => {
           'code_task_skip', 'code_task_delete',
           'code_patterns', 'code_conventions', 'code_tech_stack', 'code_assist',
           'ask_copilot_submit', 'ask_copilot_list', 'health_check',
-          'doctor_health', 'doctor_playbook_run',
+          'doctor_health', 'doctor_timeline', 'doctor_playbook_run',
           'intel_bulletin_submit', 'intel_state',
         ],
       }),

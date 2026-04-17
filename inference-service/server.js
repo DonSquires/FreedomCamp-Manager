@@ -293,6 +293,11 @@ const SELF_HEALING_ENABLED = envFlag(process.env.SELF_HEALING_ENABLED, true);
 const INTEL_STATE_PATH = process.env.INTEL_STATE_PATH || path.join(__dirname, 'data', 'intel-state.json');
 const INTEL_HMAC_KEY = process.env.INTEL_HMAC_KEY || '';
 const SELF_LEARNING_STATE_PATH = process.env.SELF_LEARNING_STATE_PATH || path.join(__dirname, 'data', 'self-learning-state.json');
+const DOCTOR_AUDIT_PATH = process.env.DOCTOR_AUDIT_PATH || path.join(__dirname, 'data', 'doctor-audit-log.json');
+const DOCTOR_AUDIT_MAX_ENTRIES = Number(process.env.DOCTOR_AUDIT_MAX_ENTRIES || 500);
+const DOCTOR_AUTO_HEAL_ENABLED = envFlag(process.env.DOCTOR_AUTO_HEAL_ENABLED, true);
+const DOCTOR_AUTO_HEAL_INTERVAL_MS = Math.max(30_000, Number(process.env.DOCTOR_AUTO_HEAL_INTERVAL_MS || 120_000));
+const DOCTOR_AUTO_HEAL_COOLDOWN_MS = Math.max(60_000, Number(process.env.DOCTOR_AUTO_HEAL_COOLDOWN_MS || 300_000));
 const SIMILARITY_THRESHOLD = Number(process.env.SIMILARITY_THRESHOLD || 0.85);
 const SIMILARITY_THRESHOLD_MIN = Number(process.env.SIMILARITY_THRESHOLD_MIN || 0.65);
 const SIMILARITY_THRESHOLD_MAX = Number(process.env.SIMILARITY_THRESHOLD_MAX || 0.95);
@@ -5225,11 +5230,251 @@ async function probePttHealth(timeoutMs = 5000) {
   }
 }
 
+const DOCTOR_PLAYBOOK_IDS = ['ollama_recovery', 'ptt_token_path_repair', 'edge_auth_alignment'];
+let doctorAutoHealInFlight = false;
+const doctorAutoHealState = {
+  timer: null,
+  lastRunByPlaybook: {},
+};
+
+function readDoctorAuditLog() {
+  try {
+    if (!fs.existsSync(DOCTOR_AUDIT_PATH)) return { version: 1, entries: [] };
+    const parsed = JSON.parse(fs.readFileSync(DOCTOR_AUDIT_PATH, 'utf8'));
+    if (!parsed || !Array.isArray(parsed.entries)) return { version: 1, entries: [] };
+    return parsed;
+  } catch {
+    return { version: 1, entries: [] };
+  }
+}
+
+function writeDoctorAuditLog(state) {
+  const dir = path.dirname(DOCTOR_AUDIT_PATH);
+  fs.mkdirSync(dir, { recursive: true });
+  const nextState = {
+    version: 1,
+    entries: Array.isArray(state?.entries)
+      ? state.entries.slice(-DOCTOR_AUDIT_MAX_ENTRIES)
+      : [],
+  };
+  const tmp = `${DOCTOR_AUDIT_PATH}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(nextState, null, 2));
+  fs.renameSync(tmp, DOCTOR_AUDIT_PATH);
+}
+
+function appendDoctorAuditEntry(entry) {
+  const state = readDoctorAuditLog();
+  const next = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    at: new Date().toISOString(),
+    ...entry,
+  };
+  state.entries.push(next);
+  writeDoctorAuditLog(state);
+  return next;
+}
+
+function getDoctorTimeline(limit = 30) {
+  const parsedLimit = Number(limit);
+  const clamped = Number.isFinite(parsedLimit)
+    ? Math.max(1, Math.min(100, Math.floor(parsedLimit)))
+    : 30;
+  const state = readDoctorAuditLog();
+  return state.entries.slice(-clamped).reverse();
+}
+
+function doctorCanAutoRun(playbook) {
+  const last = Number(doctorAutoHealState.lastRunByPlaybook[playbook] || 0);
+  return Date.now() - last >= DOCTOR_AUTO_HEAL_COOLDOWN_MS;
+}
+
+function markDoctorAutoRun(playbook) {
+  doctorAutoHealState.lastRunByPlaybook[playbook] = Date.now();
+}
+
+async function runDoctorPlaybook(playbook, options = {}) {
+  const dryRun = options?.dryRun !== false;
+  const trigger = options?.trigger || 'manual';
+  const actor = options?.actor || 'system';
+  const executedAt = new Date().toISOString();
+  const steps = [];
+
+  if (!DOCTOR_PLAYBOOK_IDS.includes(playbook)) {
+    return {
+      success: false,
+      error: 'Unknown playbook',
+      available_playbooks: DOCTOR_PLAYBOOK_IDS,
+      playbook,
+      dry_run: dryRun,
+      executed_at: executedAt,
+    };
+  }
+
+  let response;
+
+  if (playbook === 'ollama_recovery') {
+    const before = OLLAMA_ENABLED ? ollamaCircuitBreaker.toJSON() : null;
+    const preProbe = OLLAMA_ENABLED ? await probeOllamaTags(7000) : { ok: false, error: 'OLLAMA disabled by config' };
+    steps.push({ step: 'pre_probe', result: preProbe });
+
+    if (!dryRun && OLLAMA_ENABLED) {
+      ollamaCircuitBreaker.recordSuccess();
+      steps.push({ step: 'breaker_reset', result: ollamaCircuitBreaker.toJSON() });
+
+      const requiredModels = [OLLAMA_MODEL, OLLAMA_MODEL_WRITING, OLLAMA_VISION_ACTIVE ? OLLAMA_VISION_MODEL : null].filter(Boolean);
+      const missing = requiredModels.filter((m) => !modelLooksPresent(preProbe.models || [], m));
+      if (missing.length && OLLAMA_AUTO_PULL_MODELS) {
+        const pullResults = [];
+        for (const model of missing) {
+          const pulled = await ensureOllamaModelPulled(model);
+          pullResults.push({ model, pulled });
+        }
+        steps.push({ step: 'model_autopull', result: pullResults });
+      }
+    }
+
+    const postProbe = OLLAMA_ENABLED ? await probeOllamaTags(7000) : { ok: false, error: 'OLLAMA disabled by config' };
+    if (postProbe.ok) ollamaCircuitBreaker.recordSuccess();
+    else if (OLLAMA_ENABLED) ollamaCircuitBreaker.recordFailure(new Error(postProbe.error || 'post-repair probe failed'));
+
+    const after = OLLAMA_ENABLED ? ollamaCircuitBreaker.toJSON() : null;
+    response = {
+      success: true,
+      playbook,
+      dry_run: dryRun,
+      executed_at: executedAt,
+      before,
+      after,
+      steps,
+      verification: postProbe,
+    };
+  }
+
+  if (playbook === 'ptt_token_path_repair') {
+    const before = await probePttHealth(5000);
+    steps.push({ step: 'pre_probe', result: before });
+
+    const remediation = [];
+    if (!PTT_SERVER_URL) remediation.push('Set PTT_SERVER_URL on the Bob inference service and Supabase edge environment.');
+    if (!SUPABASE_SERVICE_ROLE_KEY) remediation.push('Set SUPABASE_SERVICE_ROLE_KEY so trusted service-to-service auth is available.');
+    if (!INFERENCE_API_KEY && !SUPABASE_SERVICE_ROLE_KEY && !SUPABASE_JWKS_URL) {
+      remediation.push('Set INFERENCE_API_KEY (or SUPABASE_SERVICE_ROLE_KEY/JWKS) so secure token mint path can authenticate.');
+    }
+    steps.push({ step: 'remediation_plan', result: remediation });
+
+    const after = await probePttHealth(5000);
+    response = { success: true, playbook, dry_run: dryRun, executed_at: executedAt, before, after, steps };
+  }
+
+  if (playbook === 'edge_auth_alignment') {
+    const checks = {
+      inference_api_key_set: !!INFERENCE_API_KEY,
+      service_role_set: !!SUPABASE_SERVICE_ROLE_KEY,
+      jwks_url_set: !!SUPABASE_JWKS_URL,
+      jwt_issuer_set: !!SUPABASE_JWT_ISSUER,
+      jwt_audience_set: !!SUPABASE_JWT_AUDIENCE,
+      runtime_jwt_enabled: !!SUPABASE_JWKS_URL && !SELF_CONTAINED_STRICT_EGRESS,
+      strict_egress: SELF_CONTAINED_STRICT_EGRESS,
+    };
+    const remediation = [];
+    if (!checks.inference_api_key_set && !checks.service_role_set && !checks.jwks_url_set) {
+      remediation.push('Configure one auth path: INFERENCE_API_KEY (recommended), SUPABASE_SERVICE_ROLE_KEY, or SUPABASE_JWKS_URL.');
+    }
+    if (checks.jwks_url_set && !checks.jwt_issuer_set) remediation.push('Set SUPABASE_JWT_ISSUER for strict JWT issuer validation.');
+    if (checks.jwks_url_set && !checks.jwt_audience_set) remediation.push('Set SUPABASE_JWT_AUDIENCE for strict JWT audience validation.');
+    if (checks.strict_egress && checks.jwks_url_set) {
+      remediation.push('JWKS runtime verification is blocked by strict egress in self-contained mode; use INFERENCE_API_KEY or service role path for edge-to-Bob calls.');
+    }
+    response = { success: true, playbook, dry_run: dryRun, executed_at: executedAt, checks, remediation };
+  }
+
+  appendDoctorAuditEntry({
+    playbook,
+    trigger,
+    actor,
+    dry_run: dryRun,
+    success: !!response?.success,
+    summary: response?.success
+      ? `${playbook} completed`
+      : response?.error || `${playbook} failed`,
+    result: response,
+  });
+
+  return response;
+}
+
+async function runDoctorAutoHealCycle() {
+  if (!DOCTOR_AUTO_HEAL_ENABLED || doctorAutoHealInFlight) return;
+  doctorAutoHealInFlight = true;
+  try {
+    const snapshot = await buildDoctorHealthSnapshot();
+    const riskIds = new Set((snapshot?.active_risks || []).map((r) => r.id));
+    const candidates = [];
+
+    if (riskIds.has('ollama_connectivity_unstable') || riskIds.has('vision_model_missing')) {
+      candidates.push('ollama_recovery');
+    }
+    if (riskIds.has('ptt_token_path_unhealthy')) {
+      candidates.push('ptt_token_path_repair');
+    }
+    if (riskIds.has('edge_auth_unconfigured')) {
+      candidates.push('edge_auth_alignment');
+    }
+
+    for (const playbook of candidates) {
+      if (!doctorCanAutoRun(playbook)) continue;
+      markDoctorAutoRun(playbook);
+      await runDoctorPlaybook(playbook, {
+        dryRun: false,
+        trigger: 'auto-heal',
+        actor: 'doctor-loop',
+      });
+      break;
+    }
+  } catch (err) {
+    appendDoctorAuditEntry({
+      playbook: 'auto_heal_cycle',
+      trigger: 'auto-heal',
+      actor: 'doctor-loop',
+      dry_run: false,
+      success: false,
+      summary: err?.message || String(err),
+      result: { error: err?.message || String(err) },
+    });
+  } finally {
+    doctorAutoHealInFlight = false;
+  }
+}
+
 async function buildDoctorHealthSnapshot() {
   const modelsLoaded = !!(yoloSession && embeddingSession);
   const ollamaProbe = OLLAMA_ENABLED ? await probeOllamaTags(7000) : null;
   const pttProbe = await probePttHealth(5000);
   const breaker = OLLAMA_ENABLED ? ollamaCircuitBreaker.toJSON() : null;
+  const crossArea = {
+    supabase: {
+      configured: !!SUPABASE_URL,
+      service_auth_ready: !!SUPABASE_SERVICE_ROLE_KEY,
+      jwt_runtime_ready: !!SUPABASE_JWKS_URL && !!SUPABASE_JWT_ISSUER && !!SUPABASE_JWT_AUDIENCE,
+      mode: !!SUPABASE_SERVICE_ROLE_KEY || !!SUPABASE_JWKS_URL ? 'connected' : 'limited',
+    },
+    railway: {
+      configured: true,
+      inferred_environment: !!process.env.RAILWAY_ENVIRONMENT,
+      service_audit_known: Array.isArray(RAILWAY_SERVICES_AUDIT?.services),
+      mode: 'knowledge+runtime',
+    },
+    vercel: {
+      configured: !!process.env.VERCEL_URL || !!process.env.VERCEL_PROJECT_ID,
+      mode: 'knowledge',
+      note: 'Bob can diagnose Vercel patterns from project knowledge; direct control depends on external workflow connectors.',
+    },
+    github: {
+      configured: !!process.env.GITHUB_TOKEN || !!process.env.GH_TOKEN,
+      mode: 'knowledge+workflow',
+      note: 'Bob can queue code/intel tasks and collaborate with GitHub workflows; full GitHub API control depends on token wiring.',
+    },
+  };
 
   const risks = [];
   if (!modelsLoaded) {
@@ -5277,6 +5522,15 @@ async function buildDoctorHealthSnapshot() {
       runbook: 'Run playbook: edge_auth_alignment for exact remediation steps.',
     });
   }
+  if (!crossArea.supabase.configured) {
+    risks.push({
+      id: 'supabase_unconfigured',
+      severity: 'high',
+      component: 'supabase',
+      message: 'SUPABASE_URL is not configured on Bob.',
+      runbook: 'Configure SUPABASE_URL and auth path (service role or JWT runtime) for cross-area diagnostics.',
+    });
+  }
 
   let score = 100;
   for (const risk of risks) {
@@ -5320,8 +5574,16 @@ async function buildDoctorHealthSnapshot() {
         knowledge_requests: knowledgeRequestsStore.getState().counts,
         code_tasks: codeTaskStore.getState().counts,
       },
+      cross_area: crossArea,
     },
     active_risks: risks,
+    recent_runs: getDoctorTimeline(5),
+    auto_heal: {
+      enabled: DOCTOR_AUTO_HEAL_ENABLED,
+      interval_ms: DOCTOR_AUTO_HEAL_INTERVAL_MS,
+      cooldown_ms: DOCTOR_AUTO_HEAL_COOLDOWN_MS,
+      in_flight: doctorAutoHealInFlight,
+    },
     playbooks: [
       { id: 'ollama_recovery', title: 'Ollama Recovery', description: 'Resets breaker, probes tags, and optionally pulls missing Ollama models.' },
       { id: 'ptt_token_path_repair', title: 'PTT Token Path Repair', description: 'Validates PTT server reachability and token path preconditions.' },
@@ -5337,98 +5599,32 @@ app.get('/doctor/health', rateLimit({ windowMs: 60_000, max: 30, standardHeaders
   res.json(snapshot);
 });
 
+// Doctor execution timeline endpoint (protected).
+app.get('/doctor/timeline', rateLimit({ windowMs: 60_000, max: 30, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  const limit = Number(req.query?.limit || 30);
+  res.json({
+    success: true,
+    entries: getDoctorTimeline(limit),
+  });
+});
+
 // Doctor playbook runner (protected, supports dry-run mode).
 app.post('/doctor/playbook/run', rateLimit({ windowMs: 60_000, max: 12, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, async (req, res) => {
   const playbook = String(req.body?.playbook || '').trim();
   const dryRun = req.body?.dry_run !== false;
 
   if (!playbook) {
-    return res.status(400).json({ error: 'playbook is required', available_playbooks: ['ollama_recovery', 'ptt_token_path_repair', 'edge_auth_alignment'] });
+    return res.status(400).json({ error: 'playbook is required', available_playbooks: DOCTOR_PLAYBOOK_IDS });
   }
-
-  const executedAt = new Date().toISOString();
-  const steps = [];
-
-  if (playbook === 'ollama_recovery') {
-    const before = OLLAMA_ENABLED ? ollamaCircuitBreaker.toJSON() : null;
-    const preProbe = OLLAMA_ENABLED ? await probeOllamaTags(7000) : { ok: false, error: 'OLLAMA disabled by config' };
-    steps.push({ step: 'pre_probe', result: preProbe });
-
-    if (!dryRun && OLLAMA_ENABLED) {
-      ollamaCircuitBreaker.recordSuccess();
-      steps.push({ step: 'breaker_reset', result: ollamaCircuitBreaker.toJSON() });
-
-      const requiredModels = [OLLAMA_MODEL, OLLAMA_MODEL_WRITING, OLLAMA_VISION_ACTIVE ? OLLAMA_VISION_MODEL : null].filter(Boolean);
-      const missing = requiredModels.filter((m) => !modelLooksPresent(preProbe.models || [], m));
-      if (missing.length && OLLAMA_AUTO_PULL_MODELS) {
-        const pullResults = [];
-        for (const model of missing) {
-          const pulled = await ensureOllamaModelPulled(model);
-          pullResults.push({ model, pulled });
-        }
-        steps.push({ step: 'model_autopull', result: pullResults });
-      }
-    }
-
-    const postProbe = OLLAMA_ENABLED ? await probeOllamaTags(7000) : { ok: false, error: 'OLLAMA disabled by config' };
-    if (postProbe.ok) ollamaCircuitBreaker.recordSuccess();
-    else if (OLLAMA_ENABLED) ollamaCircuitBreaker.recordFailure(new Error(postProbe.error || 'post-repair probe failed'));
-
-    const after = OLLAMA_ENABLED ? ollamaCircuitBreaker.toJSON() : null;
-    return res.json({
-      success: true,
-      playbook,
-      dry_run: dryRun,
-      executed_at: executedAt,
-      before,
-      after,
-      steps,
-      verification: postProbe,
-    });
-  }
-
-  if (playbook === 'ptt_token_path_repair') {
-    const before = await probePttHealth(5000);
-    steps.push({ step: 'pre_probe', result: before });
-
-    const remediation = [];
-    if (!PTT_SERVER_URL) remediation.push('Set PTT_SERVER_URL on the Bob inference service and Supabase edge environment.');
-    if (!SUPABASE_SERVICE_ROLE_KEY) remediation.push('Set SUPABASE_SERVICE_ROLE_KEY so trusted service-to-service auth is available.');
-    if (!INFERENCE_API_KEY && !SUPABASE_SERVICE_ROLE_KEY && !SUPABASE_JWKS_URL) {
-      remediation.push('Set INFERENCE_API_KEY (or SUPABASE_SERVICE_ROLE_KEY/JWKS) so secure token mint path can authenticate.');
-    }
-    steps.push({ step: 'remediation_plan', result: remediation });
-
-    const after = await probePttHealth(5000);
-    return res.json({ success: true, playbook, dry_run: dryRun, executed_at: executedAt, before, after, steps });
-  }
-
-  if (playbook === 'edge_auth_alignment') {
-    const checks = {
-      inference_api_key_set: !!INFERENCE_API_KEY,
-      service_role_set: !!SUPABASE_SERVICE_ROLE_KEY,
-      jwks_url_set: !!SUPABASE_JWKS_URL,
-      jwt_issuer_set: !!SUPABASE_JWT_ISSUER,
-      jwt_audience_set: !!SUPABASE_JWT_AUDIENCE,
-      runtime_jwt_enabled: !!SUPABASE_JWKS_URL && !SELF_CONTAINED_STRICT_EGRESS,
-      strict_egress: SELF_CONTAINED_STRICT_EGRESS,
-    };
-    const remediation = [];
-    if (!checks.inference_api_key_set && !checks.service_role_set && !checks.jwks_url_set) {
-      remediation.push('Configure one auth path: INFERENCE_API_KEY (recommended), SUPABASE_SERVICE_ROLE_KEY, or SUPABASE_JWKS_URL.');
-    }
-    if (checks.jwks_url_set && !checks.jwt_issuer_set) remediation.push('Set SUPABASE_JWT_ISSUER for strict JWT issuer validation.');
-    if (checks.jwks_url_set && !checks.jwt_audience_set) remediation.push('Set SUPABASE_JWT_AUDIENCE for strict JWT audience validation.');
-    if (checks.strict_egress && checks.jwks_url_set) {
-      remediation.push('JWKS runtime verification is blocked by strict egress in self-contained mode; use INFERENCE_API_KEY or service role path for edge-to-Bob calls.');
-    }
-    return res.json({ success: true, playbook, dry_run: dryRun, executed_at: executedAt, checks, remediation });
-  }
-
-  return res.status(400).json({
-    error: 'Unknown playbook',
-    available_playbooks: ['ollama_recovery', 'ptt_token_path_repair', 'edge_auth_alignment'],
+  const result = await runDoctorPlaybook(playbook, {
+    dryRun,
+    trigger: 'manual',
+    actor: req?.user?.email || req?.user?.id || 'api-client',
   });
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+  return res.json(result);
 });
 
 // Ollama circuit breaker reset + live probe (protected — requires inference auth).
@@ -5583,6 +5779,7 @@ loadModels().then(() => {
             const requiredModels = Array.from(new Set([
               OLLAMA_MODEL,
               OLLAMA_MODEL_WRITING,
+              OLLAMA_VISION_ACTIVE ? OLLAMA_VISION_MODEL : null,
             ].filter(Boolean)));
             const missing = requiredModels.filter((m) => !modelLooksPresent(models, m));
 
@@ -5610,6 +5807,16 @@ loadModels().then(() => {
           // Pre-trip the circuit breaker so real requests don't spam logs
           ollamaCircuitBreaker.trip(err);
         });
+    }
+
+    if (DOCTOR_AUTO_HEAL_ENABLED) {
+      console.log(`🩺 Doctor auto-heal loop enabled (${Math.round(DOCTOR_AUTO_HEAL_INTERVAL_MS / 1000)}s interval, ${Math.round(DOCTOR_AUTO_HEAL_COOLDOWN_MS / 1000)}s cooldown)`);
+      runDoctorAutoHealCycle().catch(() => {});
+      doctorAutoHealState.timer = setInterval(() => {
+        runDoctorAutoHealCycle().catch(() => {});
+      }, DOCTOR_AUTO_HEAL_INTERVAL_MS);
+    } else {
+      console.log('🩺 Doctor auto-heal loop disabled (DOCTOR_AUTO_HEAL_ENABLED=false)');
     }
   });
 });

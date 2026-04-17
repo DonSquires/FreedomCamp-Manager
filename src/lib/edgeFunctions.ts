@@ -1418,6 +1418,7 @@ export const edgeFunctions = {
       | 'ask_copilot_list'
       | 'health_check'
       | 'doctor_health'
+      | 'doctor_timeline'
       | 'doctor_playbook_run'
       | 'intel_bulletin_submit'
       | 'intel_state'
@@ -1437,6 +1438,8 @@ export const edgeFunctions = {
     // doctor_playbook_run
     playbook?: 'ollama_recovery' | 'ptt_token_path_repair' | 'edge_auth_alignment'
     dry_run?: boolean
+    // doctor_timeline
+    limit?: number
     // intel_bulletin_submit
     title?: string
     summary?: string
