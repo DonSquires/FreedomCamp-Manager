@@ -11,6 +11,7 @@ import { FunctionsHttpError, FunctionsRelayError, FunctionsFetchError } from '@s
 import { useSessionLockStore } from '@/stores/sessionLockStore'
 
 const ACCESS_TOKEN_REFRESH_BUFFER_MS = 60_000
+const EDGE_FUNCTION_TIMEOUT_MS = 35_000
 
 /** Retrieve the current session's access token, or null if not signed in. */
 async function getValidAccessToken(): Promise<string | null> {
@@ -148,6 +149,24 @@ async function callEdgeFunction<T = any>(
   options: { showToast?: boolean; useDirectFetch?: boolean } = { showToast: true }
 ): Promise<{ data: T | null; error: string | null }> {
   const { lock, unlock } = useSessionLockStore.getState()
+  const invokeTimeoutMs = EDGE_FUNCTION_TIMEOUT_MS
+
+  const invokeWithTimeout = async (
+    fn: string,
+    payload: any
+  ): Promise<{ data: any; error: any }> => {
+    return await Promise.race([
+      supabase.functions.invoke(fn, { body: payload || {} }),
+      new Promise<{ data: null; error: Error }>((resolve) => {
+        setTimeout(() => {
+          resolve({
+            data: null,
+            error: new Error(`Edge function request timed out after ${invokeTimeoutMs / 1000}s`),
+          })
+        }, invokeTimeoutMs)
+      }),
+    ])
+  }
 
   try {
     const accessToken = await getValidAccessToken()
@@ -169,6 +188,9 @@ async function callEdgeFunction<T = any>(
       }
 
       try {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), invokeTimeoutMs)
+
         const response = await fetch(`${supabaseUrl}/functions/v1/${functionName}`, {
           method: 'POST',
           headers: {
@@ -177,7 +199,9 @@ async function callEdgeFunction<T = any>(
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(body || {}),
+          signal: controller.signal,
         })
+        clearTimeout(timeoutId)
 
         const text = await response.text()
         const parsed = (() => {
@@ -195,6 +219,12 @@ async function callEdgeFunction<T = any>(
 
         return { data: (parsed as T) ?? ({} as T), error: null }
       } catch (e) {
+        if (e instanceof DOMException && e.name === 'AbortError') {
+          return {
+            data: null,
+            error: new Error(`Edge function request timed out after ${invokeTimeoutMs / 1000}s`),
+          }
+        }
         return { data: null, error: e }
       }
     }
@@ -213,9 +243,7 @@ async function callEdgeFunction<T = any>(
       return { data: null, error: errorMessage }
     }
 
-    const { data, error: initialError } = await supabase.functions.invoke(functionName, {
-      body: body || {},
-    })
+    const { data, error: initialError } = await invokeWithTimeout(functionName, body)
 
     let error = initialError
 
@@ -225,9 +253,7 @@ async function callEdgeFunction<T = any>(
       error &&
       (error instanceof FunctionsFetchError || error instanceof FunctionsRelayError)
     ) {
-      const fallbackResult = await supabase.functions.invoke(functionName, {
-        body: body || {},
-      })
+      const fallbackResult = await invokeWithTimeout(functionName, body)
 
       if (!fallbackResult.error) {
         unlock()
@@ -250,9 +276,7 @@ async function callEdgeFunction<T = any>(
       if (await isJwtAuthError(error)) {
         const refreshedAccessToken = await tryRefreshAccessToken()
         if (refreshedAccessToken) {
-          const retryResult = await supabase.functions.invoke(functionName, {
-            body: body || {},
-          })
+          const retryResult = await invokeWithTimeout(functionName, body)
 
           if (!retryResult.error) {
             unlock()
