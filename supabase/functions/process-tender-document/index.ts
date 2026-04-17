@@ -43,36 +43,43 @@ async function callBobChat(systemPrompt: string, userMessage: string): Promise<s
     headers['Authorization'] = `Bearer ${INFERENCE_API_KEY}`
   }
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 110_000) // 110s — leave headroom before 150s edge fn limit
-  let resp: Response
+  const timeoutId = setTimeout(() => controller.abort(), 85_000)
+
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('Bob analysis timed out after 85s')), 85_000)
+  )
+
+  const fetchPromise = fetch(`${INFERENCE_SERVICE_URL}/chat`, {
+    method: 'POST',
+    headers,
+    signal: controller.signal,
+    body: JSON.stringify({
+      message: userMessage,
+      system_prompt: systemPrompt,
+      provider_preference: 'auto',
+      response_format: 'json',
+      timeout: 80,
+    }),
+  }).then(async (resp) => {
+    if (!resp.ok) {
+      const errText = await resp.text()
+      throw new Error(`Inference service error ${resp.status}: ${errText.slice(0, 200)}`)
+    }
+    const json = await resp.json()
+    return (
+      json?.text ||
+      json?.message?.content ||
+      json?.message ||
+      json?.response ||
+      JSON.stringify(json)
+    ) as string
+  })
+
   try {
-    resp = await fetch(`${INFERENCE_SERVICE_URL}/chat`, {
-      method: 'POST',
-      headers,
-      signal: controller.signal,
-      body: JSON.stringify({
-        message: userMessage,
-        system_prompt: systemPrompt,
-        provider_preference: 'auto',
-        response_format: 'json',
-        timeout: 100,
-      }),
-    })
+    return await Promise.race([fetchPromise, timeoutPromise])
   } finally {
     clearTimeout(timeoutId)
   }
-  if (!resp.ok) {
-    const errText = await resp.text()
-    throw new Error(`Inference service error ${resp.status}: ${errText.slice(0, 200)}`)
-  }
-  const json = await resp.json()
-  return (
-    json?.text ||
-    json?.message?.content ||
-    json?.message ||
-    json?.response ||
-    JSON.stringify(json)
-  )
 }
 
 Deno.serve(withCors(async (req: Request) => {
