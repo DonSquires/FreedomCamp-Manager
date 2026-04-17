@@ -36,6 +36,8 @@ Deno.serve(withCors(async (req: Request) => {
     time_category: body?.time_category ?? 'night',
     location_context: body?.location_context ?? '',
     complaint_address: body?.complaint_address ?? '',
+    audio_base64: body?.audio_base64 ?? '',
+    audio_mime_type: body?.audio_mime_type ?? 'audio/wav',
     matrix: body?.matrix && typeof body.matrix === 'object' ? body.matrix : {},
   }
 

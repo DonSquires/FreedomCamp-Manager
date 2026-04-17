@@ -156,10 +156,12 @@ export default function NoiseOfficerPortal() {
 
   const speechRecognitionRef = useRef<any>(null)
   const pttBaseNotesRef = useRef('')
+  const noiseAudioFileInputRef = useRef<HTMLInputElement | null>(null)
 
   const [showHelp, setShowHelp] = useState(false)
   const [selectedJob, setSelectedJob] = useState<NoiseJob | null>(null)
   const [tab, setTab] = useState('jobs')
+  const [attachedNoiseAudio, setAttachedNoiseAudio] = useState<{ base64: string; mime: string; name: string } | null>(null)
 
   // Assessment form state
   const [assessment, setAssessment] = useState({
@@ -556,6 +558,8 @@ export default function NoiseOfficerPortal() {
         time_category: assessment.time_category as 'day' | 'evening' | 'night',
         location_context: assessment.measurement_location || 'boundary of property',
         complaint_address: selectedJob.address,
+        audio_base64: attachedNoiseAudio?.base64 || undefined,
+        audio_mime_type: attachedNoiseAudio?.mime || undefined,
         matrix: {
           volume_score: assessment.volume_score,
           time_score: assessment.time_score,
@@ -585,6 +589,25 @@ export default function NoiseOfficerPortal() {
     },
     onError: (e: Error) => toast.error(e.message || 'Audio assessment failed'),
   })
+
+  const handleAttachNoiseAudio = async (file: File | null) => {
+    if (!file) return
+    try {
+      const buffer = await file.arrayBuffer()
+      const bytes = new Uint8Array(buffer)
+      let binary = ''
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+      const base64 = btoa(binary)
+      setAttachedNoiseAudio({
+        base64,
+        mime: file.type || 'audio/wav',
+        name: file.name,
+      })
+      toast.success('Audio sample attached')
+    } catch {
+      toast.error('Could not read audio file')
+    }
+  }
 
   const completeJobMutation = useMutation({
     mutationFn: async (jobId: string) => {
@@ -943,16 +966,37 @@ export default function NoiseOfficerPortal() {
                           )}
 
                           <div className="pt-1">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => aiNoiseAudioAssessMutation.mutate()}
-                              disabled={aiNoiseAudioAssessMutation.isPending}
-                            >
-                              <BrainCircuit className="h-4 w-4 mr-1.5" />
-                              {aiNoiseAudioAssessMutation.isPending ? 'Assessing street audio…' : 'Auto-fill from street audio'}
-                            </Button>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <input
+                                ref={noiseAudioFileInputRef}
+                                type="file"
+                                accept="audio/*"
+                                className="hidden"
+                                onChange={(e) => void handleAttachNoiseAudio(e.target.files?.[0] || null)}
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => noiseAudioFileInputRef.current?.click()}
+                              >
+                                <Mic2 className="h-4 w-4 mr-1.5" />
+                                Attach Audio Sample
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => aiNoiseAudioAssessMutation.mutate()}
+                                disabled={aiNoiseAudioAssessMutation.isPending}
+                              >
+                                <BrainCircuit className="h-4 w-4 mr-1.5" />
+                                {aiNoiseAudioAssessMutation.isPending ? 'Assessing street audio…' : 'Auto-fill from street audio'}
+                              </Button>
+                            </div>
+                            {attachedNoiseAudio && (
+                              <p className="text-[11px] text-gray-500 mt-1">Attached: {attachedNoiseAudio.name}</p>
+                            )}
                             <p className="text-[11px] text-gray-500 mt-1">
                               Uses officer transcript/notes + optional dB estimate to prefill the matrix and recommended action.
                             </p>

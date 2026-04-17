@@ -67,6 +67,9 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
 const { createSelfLearningService } = require('./lib/self-learning');
 const { profileExamples } = require('./lib/pretrain-profiles');
 const { buildSelfHealingPlan, buildPatchTask, getKnowledgePacks } = require('./lib/assistant-knowledge');
@@ -85,6 +88,8 @@ const {
   getFileGuide, answerCodingQuestion,
   TECH_STACK, CODE_PATTERNS, CONVENTIONS, COMMON_TASKS,
 } = require('./lib/coding-knowledge');
+
+const execFileAsync = promisify(execFile);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -216,6 +221,10 @@ const OLLAMA_MODEL_WRITING = process.env.OLLAMA_MODEL_WRITING || OLLAMA_MODEL;
 // Leave unset to disable Ollama-based vision (features fall back to OpenAI or manual).
 const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || '';
 const OLLAMA_VISION_ENABLED = !!OLLAMA_VISION_MODEL;
+const WHISPER_SERVICE_URL = (process.env.WHISPER_SERVICE_URL || '').replace(/\/+$/, '');
+const WHISPER_CLI_PATH = process.env.WHISPER_CLI_PATH || '';
+const WHISPER_MODEL_PATH = process.env.WHISPER_MODEL_PATH || '';
+const AUDIO_TRANSCRIBE_TIMEOUT_MS = Number(process.env.AUDIO_TRANSCRIBE_TIMEOUT_MS || 15000);
 const PTT_SERVER_URL = (process.env.PTT_SERVER_URL || '').replace(/\/+$/, '');
 const OLLAMA_AUTO_PULL_MODELS = envFlag(process.env.OLLAMA_AUTO_PULL_MODELS, true);
 const OLLAMA_PULL_TIMEOUT_MS = Number(process.env.OLLAMA_PULL_TIMEOUT_MS || 120000);
@@ -5071,6 +5080,148 @@ app.post('/infer/smoke', inferenceRateLimit, upload.single('photo'), requireInfe
   }
 });
 
+function extractWavSamples(audioBuffer) {
+  if (!audioBuffer || audioBuffer.length < 44) return null;
+  if (audioBuffer.toString('ascii', 0, 4) !== 'RIFF' || audioBuffer.toString('ascii', 8, 12) !== 'WAVE') {
+    return null;
+  }
+
+  let offset = 12;
+  let channels = 1;
+  let sampleRate = 16000;
+  let bitsPerSample = 16;
+  let pcmData = null;
+
+  while (offset + 8 <= audioBuffer.length) {
+    const chunkId = audioBuffer.toString('ascii', offset, offset + 4);
+    const chunkSize = audioBuffer.readUInt32LE(offset + 4);
+    const chunkStart = offset + 8;
+
+    if (chunkId === 'fmt ' && chunkStart + 16 <= audioBuffer.length) {
+      channels = audioBuffer.readUInt16LE(chunkStart + 2);
+      sampleRate = audioBuffer.readUInt32LE(chunkStart + 4);
+      bitsPerSample = audioBuffer.readUInt16LE(chunkStart + 14);
+    } else if (chunkId === 'data') {
+      pcmData = audioBuffer.slice(chunkStart, chunkStart + chunkSize);
+      break;
+    }
+
+    offset = chunkStart + chunkSize + (chunkSize % 2);
+  }
+
+  if (!pcmData || bitsPerSample !== 16) return null;
+
+  const frameCount = Math.floor(pcmData.length / (2 * channels));
+  if (frameCount <= 0) return null;
+
+  const samples = new Float32Array(frameCount);
+  for (let i = 0; i < frameCount; i++) {
+    let sum = 0;
+    for (let ch = 0; ch < channels; ch++) {
+      const idx = (i * channels + ch) * 2;
+      const s = pcmData.readInt16LE(idx) / 32768;
+      sum += s;
+    }
+    samples[i] = sum / channels;
+  }
+
+  return { samples, sampleRate };
+}
+
+function computeAudioFeatures(samples, sampleRate) {
+  if (!samples?.length || !sampleRate) return null;
+  const n = samples.length;
+  let sumSq = 0;
+  let peak = 0;
+  let zc = 0;
+  for (let i = 0; i < n; i++) {
+    const s = samples[i];
+    sumSq += s * s;
+    peak = Math.max(peak, Math.abs(s));
+    if (i > 0 && ((samples[i - 1] <= 0 && s > 0) || (samples[i - 1] >= 0 && s < 0))) zc += 1;
+  }
+
+  const rms = Math.sqrt(sumSq / n);
+  const dbfs = 20 * Math.log10(Math.max(rms, 1e-6));
+  const approxDbA = Math.max(30, Math.min(110, 94 + dbfs));
+
+  const windowSize = Math.min(4096, n);
+  const start = Math.max(0, Math.floor((n - windowSize) / 2));
+  let lowEnergy = 0;
+  let totalEnergy = 0;
+  const nyquist = sampleRate / 2;
+  for (let k = 0; k < Math.floor(windowSize / 2); k++) {
+    let re = 0;
+    let im = 0;
+    for (let t = 0; t < windowSize; t++) {
+      const angle = (2 * Math.PI * k * t) / windowSize;
+      const s = samples[start + t] || 0;
+      re += s * Math.cos(angle);
+      im -= s * Math.sin(angle);
+    }
+    const mag2 = re * re + im * im;
+    const freq = (k / windowSize) * sampleRate;
+    totalEnergy += mag2;
+    if (freq <= 250) lowEnergy += mag2;
+  }
+
+  const lowFreqRatio = totalEnergy > 0 ? lowEnergy / totalEnergy : 0;
+  const zcr = zc / n;
+
+  return {
+    rms,
+    peak,
+    zcr,
+    lowFreqRatio,
+    approxDbA,
+    durationSec: n / sampleRate,
+    sampleRate,
+  };
+}
+
+async function transcribeAudioWithWhisperService(audioBuffer, mimeType = 'audio/wav') {
+  if (!WHISPER_SERVICE_URL) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), AUDIO_TRANSCRIBE_TIMEOUT_MS);
+  try {
+    const audioBase64 = audioBuffer.toString('base64');
+    const resp = await fetch(`${WHISPER_SERVICE_URL}/transcribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({ audio_base64: audioBase64, mime_type: mimeType, language: 'en' }),
+    });
+    if (!resp.ok) return null;
+    const payload = await resp.json().catch(() => ({}));
+    return typeof payload?.text === 'string' ? payload.text.trim() : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function transcribeAudioWithWhisperCli(audioBuffer) {
+  if (!WHISPER_CLI_PATH || !WHISPER_MODEL_PATH) return null;
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'noise-audio-'));
+  const wavPath = path.join(tempDir, 'input.wav');
+  const outPrefix = path.join(tempDir, 'out');
+  try {
+    fs.writeFileSync(wavPath, audioBuffer);
+    await execFileAsync(WHISPER_CLI_PATH, ['-m', WHISPER_MODEL_PATH, '-f', wavPath, '-otxt', '-of', outPrefix, '-l', 'en'], {
+      timeout: AUDIO_TRANSCRIBE_TIMEOUT_MS,
+      maxBuffer: 1024 * 1024,
+    });
+    const txtPath = `${outPrefix}.txt`;
+    if (!fs.existsSync(txtPath)) return null;
+    return fs.readFileSync(txtPath, 'utf8').trim();
+  } catch {
+    return null;
+  } finally {
+    try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch {}
+  }
+}
+
 // ============================================================================
 // POST /infer/noise-audio — NZ noise complaint field-audio assessment
 //
@@ -5091,18 +5242,43 @@ app.post('/infer/smoke', inferenceRateLimit, upload.single('photo'), requireInfe
 // ============================================================================
 app.post('/infer/noise-audio', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
   try {
-    const transcript = String(req.body?.transcript || '').trim();
-    const observedDb = req.body?.observed_db != null ? Number(req.body.observed_db) : null;
+    let transcript = String(req.body?.transcript || '').trim();
+    let observedDb = req.body?.observed_db != null ? Number(req.body.observed_db) : null;
     const timeCategoryRaw = String(req.body?.time_category || 'night').toLowerCase();
     const timeCategory = ['day', 'evening', 'night'].includes(timeCategoryRaw) ? timeCategoryRaw : 'night';
     const locationContext = String(req.body?.location_context || '').trim();
     const complaintAddress = String(req.body?.complaint_address || '').trim();
     const matrix = req.body?.matrix && typeof req.body.matrix === 'object' ? req.body.matrix : {};
+    const audioBase64 = String(req.body?.audio_base64 || '').trim();
+    const audioMimeType = String(req.body?.audio_mime_type || 'audio/wav').trim();
 
     const toNum = (v, fallback = null) => {
       const n = Number(v);
       return Number.isFinite(n) ? n : fallback;
     };
+
+    let audioFeatures = null;
+    if (audioBase64) {
+      try {
+        const audioBuffer = Buffer.from(audioBase64, 'base64');
+        const wav = extractWavSamples(audioBuffer);
+        if (wav) {
+          audioFeatures = computeAudioFeatures(wav.samples, wav.sampleRate);
+          if (observedDb == null && Number.isFinite(audioFeatures?.approxDbA)) {
+            observedDb = Math.round(audioFeatures.approxDbA);
+          }
+        }
+
+        if (!transcript) {
+          transcript =
+            (await transcribeAudioWithWhisperService(audioBuffer, audioMimeType)) ||
+            (await transcribeAudioWithWhisperCli(audioBuffer)) ||
+            '';
+        }
+      } catch {
+        // Non-fatal: continue with transcript/heuristic fallback
+      }
+    }
 
     // Heuristic prefill fallback (always available)
     let volumeScore = toNum(matrix.volume_score, -1);
@@ -5124,6 +5300,7 @@ app.post('/infer/noise-audio', inferenceRateLimit, requireInferenceAuth, async (
     let toneScore = toNum(matrix.tone_score, -1);
     if (toneScore < 0) {
       if (!transcript) toneScore = 1;
+      else if (audioFeatures?.lowFreqRatio >= 0.55) toneScore = 2;
       else if (/(bass|thump|vibration|rattle|subwoofer|window shaking)/.test(lower)) toneScore = 2;
       else if (/(music|party|speaker|tv|shouting|engine|machinery|generator|dog)/.test(lower)) toneScore = 1;
       else toneScore = 1;
@@ -5145,6 +5322,9 @@ app.post('/infer/noise-audio', inferenceRateLimit, requireInferenceAuth, async (
         tone_score: toneScore,
         matrix_total_score: matrixTotal,
       },
+      observed_db_a: observedDb,
+      audio_features: audioFeatures,
+      transcript,
       recommended_action: recommendedAction,
       exceeds_district_plan: exceedsDistrictPlan,
       noise_type: /(dog|bark)/.test(lower)
@@ -5163,7 +5343,7 @@ app.post('/infer/noise-audio', inferenceRateLimit, requireInferenceAuth, async (
           : /(construction|machinery|generator)/.test(lower)
             ? 'equipment/machinery'
             : null,
-      confidence: transcript || observedDb != null ? 0.78 : 0.45,
+      confidence: transcript || observedDb != null || audioFeatures ? 0.82 : 0.45,
       rationale:
         `Estimated from field audio observations${observedDb != null ? ` (${observedDb} dB)` : ''}` +
         `${locationContext ? ` at ${locationContext}` : ''}${complaintAddress ? ` for ${complaintAddress}` : ''}.`,

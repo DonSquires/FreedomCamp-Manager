@@ -1701,6 +1701,8 @@ export const edgeFunctions = {
     time_category?: 'day' | 'evening' | 'night'
     location_context?: string
     complaint_address?: string
+    audio_base64?: string
+    audio_mime_type?: string
     matrix?: {
       volume_score?: number
       time_score?: number
