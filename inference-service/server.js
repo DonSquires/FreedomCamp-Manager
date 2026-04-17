@@ -1538,6 +1538,8 @@ async function generateTranslationWithOllama({ text, targetLanguage, sourceLangu
       model_used: null,
       translated_text: String(text || '').trim(),
       detected_source: sourceLanguage,
+      translation_confidence: 0.35,
+      confidence_reason: 'Translation model unavailable; returned original text.',
       fallback: true,
     };
   }
@@ -1589,6 +1591,8 @@ async function generateTranslationWithOllama({ text, targetLanguage, sourceLangu
         model_used: TRANSLATION_MODEL,
         translated_text: String(text || '').trim(),
         detected_source: sourceLanguage,
+        translation_confidence: 0.4,
+        confidence_reason: `Model request failed with HTTP ${response.status}; returned original text.`,
         fallback: true,
       };
     }
@@ -1601,6 +1605,8 @@ async function generateTranslationWithOllama({ text, targetLanguage, sourceLangu
         model_used: TRANSLATION_MODEL,
         translated_text: String(text || '').trim(),
         detected_source: sourceLanguage,
+        translation_confidence: 0.4,
+        confidence_reason: 'Translation model returned an empty response; returned original text.',
         fallback: true,
       };
     }
@@ -1619,9 +1625,14 @@ async function generateTranslationWithOllama({ text, targetLanguage, sourceLangu
         model_used: TRANSLATION_MODEL,
         translated_text: String(text || '').trim(),
         detected_source: sourceLanguage,
+        translation_confidence: 0.4,
+        confidence_reason: 'Translation payload did not include translated text; returned original text.',
         fallback: true,
       };
     }
+
+    const normalizedInput = String(text || '').trim();
+    const unchanged = normalizedInput.localeCompare(translated, undefined, { sensitivity: 'accent' }) === 0;
 
     return {
       provider: 'ollama',
@@ -1630,6 +1641,10 @@ async function generateTranslationWithOllama({ text, targetLanguage, sourceLangu
       detected_source: typeof parsed?.detected_source === 'string' && parsed.detected_source.trim()
         ? parsed.detected_source.trim()
         : sourceLanguage,
+      translation_confidence: unchanged ? 0.72 : 0.9,
+      confidence_reason: unchanged
+        ? 'Model returned the same text; source may already match the target language.'
+        : 'Dedicated translation model completed successfully.',
       fallback: false,
     };
   } catch (error) {
@@ -1638,6 +1653,8 @@ async function generateTranslationWithOllama({ text, targetLanguage, sourceLangu
       model_used: TRANSLATION_MODEL,
       translated_text: String(text || '').trim(),
       detected_source: sourceLanguage,
+      translation_confidence: 0.35,
+      confidence_reason: error?.message || 'Translation model failed; returned original text.',
       fallback: true,
     };
   } finally {
@@ -1749,6 +1766,8 @@ app.post('/translate', inferenceRateLimit, requireInferenceAuth, async (req, res
       translated_text: result.translated_text,
       target_language: targetLanguage,
       detected_source: result.detected_source,
+      translation_confidence: result.translation_confidence,
+      confidence_reason: result.confidence_reason,
     });
   } catch (error) {
     console.error('Translate endpoint error:', error);

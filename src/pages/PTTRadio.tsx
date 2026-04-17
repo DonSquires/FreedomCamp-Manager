@@ -1,3 +1,12 @@
+interface TranslationResult {
+  translated_text: string;
+  target_language: string;
+  detected_source?: string | null;
+  translation_confidence?: number;
+  confidence_reason?: string;
+  provider?: string;
+  fallback?: boolean;
+}
 /**
  * PTTRadio — Independent 2-way radio system
  *
@@ -402,6 +411,7 @@ export default function PTTRadio() {
   const [diagnostics, setDiagnostics] = useState<PTTDiagnostics>(() => getPTTDiagnostics())
   const [interpreterInput, setInterpreterInput] = useState('')
   const [interpreterOutput, setInterpreterOutput] = useState('')
+  const [interpreterTranslationMeta, setInterpreterTranslationMeta] = useState<TranslationResult | null>(null)
   const [interpreterTargetLanguage, setInterpreterTargetLanguage] = useState('en-NZ')
   const [interpreterPrefsHydrated, setInterpreterPrefsHydrated] = useState(false)
   const [isInterpreterListening, setIsInterpreterListening] = useState(false)
@@ -1084,12 +1094,21 @@ export default function PTTRadio() {
         throw new Error('Translation unavailable right now')
       }
 
-      const translated = String((data as any)?.translated_text || '').trim()
-      if (!translated) {
+      const translatedText = String((data as any)?.translated_text || '').trim()
+      if (!translatedText) {
         throw new Error('Translation returned an empty response')
       }
 
-      setInterpreterOutput(translated)
+      setInterpreterOutput(translatedText)
+      setInterpreterTranslationMeta({
+        translated_text: translatedText,
+        target_language: String((data as any)?.target_language || interpreterTargetLanguage),
+        detected_source: typeof (data as any)?.detected_source === 'string' ? (data as any).detected_source : null,
+        translation_confidence: typeof (data as any)?.translation_confidence === 'number' ? (data as any).translation_confidence : undefined,
+        confidence_reason: typeof (data as any)?.confidence_reason === 'string' ? (data as any).confidence_reason : undefined,
+        provider: typeof (data as any)?.provider === 'string' ? (data as any).provider : undefined,
+        fallback: (data as any)?.fallback === true,
+      })
     } catch (err: any) {
       console.error('PTT interpreter translation failed:', err)
       toast.error('PTT interpreter could not translate right now.')
@@ -1636,14 +1655,25 @@ export default function PTTRadio() {
 
               <Textarea
                 value={interpreterInput}
-                onChange={(e) => setInterpreterInput(e.target.value)}
+                onChange={(e) => {
+                  setInterpreterInput(e.target.value)
+                  setInterpreterTranslationMeta(null)
+                }}
                 placeholder="Enter message or capture speech, then translate for radio relay"
                 className="min-h-[76px] border-slate-700 bg-slate-950 text-slate-200 placeholder:text-slate-500"
               />
 
               {interpreterOutput && (
-                <div className="rounded-md border border-emerald-700/40 bg-emerald-950/30 p-2 text-sm text-emerald-200 whitespace-pre-wrap">
-                  {interpreterOutput}
+                <div className={`rounded-md border p-3 text-sm whitespace-pre-wrap ${(interpreterTranslationMeta?.translation_confidence ?? 1) < 0.7 || interpreterTranslationMeta?.fallback ? 'border-amber-700/40 bg-amber-950/30 text-amber-100' : 'border-emerald-700/40 bg-emerald-950/30 text-emerald-200'}`}>
+                  <div>{interpreterOutput}</div>
+                  {(interpreterTranslationMeta?.translation_confidence != null || interpreterTranslationMeta?.detected_source || interpreterTranslationMeta?.confidence_reason || interpreterTranslationMeta?.provider) && (
+                    <div className="mt-2 text-xs opacity-80">
+                      {interpreterTranslationMeta?.translation_confidence != null ? `Confidence ${(interpreterTranslationMeta.translation_confidence * 100).toFixed(0)}%` : 'Confidence unknown'}
+                      {interpreterTranslationMeta?.detected_source ? ` · Source ${interpreterTranslationMeta.detected_source}` : ''}
+                      {interpreterTranslationMeta?.provider ? ` · ${interpreterTranslationMeta.provider}` : ''}
+                      {interpreterTranslationMeta?.confidence_reason ? ` · ${interpreterTranslationMeta.confidence_reason}` : ''}
+                    </div>
+                  )}
                 </div>
               )}
 

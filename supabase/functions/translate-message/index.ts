@@ -177,6 +177,14 @@ serve(withCors(async (req: Request) => {
       translated_text: translated.trim(),
       target_language,
       detected_source: source_language ?? null,
+      translation_confidence: typeof data?.translation_confidence === 'number' ? data.translation_confidence : 0.65,
+      confidence_reason: typeof data?.confidence_reason === 'string'
+        ? data.confidence_reason
+        : response.url.endsWith('/chat')
+          ? 'Legacy chat translation path used.'
+          : 'Translation metadata unavailable.',
+      provider: data?.provider || (response.url.endsWith('/chat') ? 'chat-fallback' : 'unknown'),
+      fallback: data?.fallback === true || response.url.endsWith('/chat'),
     },
     req,
   )

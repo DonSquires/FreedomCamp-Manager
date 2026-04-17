@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import { Activity, Database, Server, Shield, RefreshCw, CheckCircle, XCircle, AlertTriangle, Stethoscope, Wrench, Loader2, Clock3 } from 'lucide-react'
+import { Activity, Database, Server, Shield, RefreshCw, CheckCircle, XCircle, AlertTriangle, Stethoscope, Wrench, Loader2, Clock3, Languages } from 'lucide-react'
 import { AppLayout } from '@/components/features/AppLayout'
 import { checkProxyHealth, checkInferenceHealth } from '@/lib/railwayServices'
 
@@ -135,6 +135,14 @@ export default function SystemDiagnostics() {
     },
     refetchInterval: 45_000,
   })
+
+  const inferenceConfig = ((inferenceHealth as any)?.config ?? {}) as Record<string, any>
+  const inferenceCapabilities = ((inferenceHealth as any)?.capabilities ?? {}) as Record<string, any>
+  const translationEnabled = inferenceCapabilities.translation === true
+  const translationModel = String(inferenceCapabilities.translation_model || inferenceConfig.TRANSLATION_MODEL || 'unknown')
+  const translationLocal = inferenceCapabilities.translation_local_ollama_enabled === true
+  const whisperCliStatus = String((inferenceHealth as any)?.models?.whisper_cli || 'unknown')
+  const whisperModelStatus = String((inferenceHealth as any)?.models?.whisper_model || 'unknown')
 
   const runDoctorPlaybook = async (playbook: 'ollama_recovery' | 'ptt_token_path_repair' | 'edge_auth_alignment', dryRun = false) => {
     setDoctorPlaybookRunning(playbook)
@@ -313,6 +321,14 @@ export default function SystemDiagnostics() {
                     Latency: {inferenceHealth.latency_ms}ms
                   </div>
                 )}
+                <div className="mt-2 space-y-1 text-xs text-gray-600">
+                  <div className="flex items-center gap-1">
+                    <Languages className="h-3 w-3" />
+                    Translation: {translationEnabled ? (translationLocal ? 'local model ready' : 'enabled with fallback path') : 'not advertised'}
+                  </div>
+                  <div>Translation model: {translationModel}</div>
+                  <div>Whisper: CLI {whisperCliStatus} · model {whisperModelStatus}</div>
+                </div>
               </>
             ) : inferenceHealth?.status === 'degraded' ? (
               <>
@@ -322,6 +338,10 @@ export default function SystemDiagnostics() {
                 </Badge>
                 <div className="text-xs text-red-600 mt-1">
                   {inferenceHealth.error}
+                </div>
+                <div className="mt-2 space-y-1 text-xs text-gray-600">
+                  <div>Translation model: {translationModel}</div>
+                  <div>Whisper: CLI {whisperCliStatus} · model {whisperModelStatus}</div>
                 </div>
               </>
             ) : (
@@ -335,10 +355,14 @@ export default function SystemDiagnostics() {
                     {inferenceHealth.error}
                   </div>
                 )}
+                <div className="mt-2 space-y-1 text-xs text-gray-600">
+                  <div>Translation model: {translationModel}</div>
+                  <div>Whisper: CLI {whisperCliStatus} · model {whisperModelStatus}</div>
+                </div>
               </>
             )}
             <div className="text-xs text-gray-600 mt-2">
-              YOLOv8 Vehicle Detection
+              YOLOv8 Vehicle Detection, translation, and speech readiness
             </div>
           </CardContent>
         </Card>

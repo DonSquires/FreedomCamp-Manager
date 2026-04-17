@@ -53,6 +53,16 @@ interface ChatMessage {
   createdAt: string
 }
 
+interface TranslationResult {
+  translated_text: string
+  target_language: string
+  detected_source?: string | null
+  translation_confidence?: number
+  confidence_reason?: string
+  provider?: string
+  fallback?: boolean
+}
+
 interface OfficerContextProps {
   userId: string | null
   title?: string
@@ -338,7 +348,8 @@ export default function TeamChat() {
   const [translationTarget, setTranslationTarget] = useState<string>('en-NZ')
   const [autoTranslateIncoming, setAutoTranslateIncoming] = useState<boolean>(false)
   const [translationPrefsHydrated, setTranslationPrefsHydrated] = useState(false)
-  const [translatedById, setTranslatedById] = useState<Record<string, string>>({})
+  const [translatedById, setTranslatedById] = useState<Record<string, TranslationResult>>({})
+  const [draftTranslationMeta, setDraftTranslationMeta] = useState<TranslationResult | null>(null)
   const [isTranslatingDraft, setIsTranslatingDraft] = useState(false)
   const [translatingMessageIds, setTranslatingMessageIds] = useState<Record<string, boolean>>({})
   const targetUserRef = useRef<Participant | null>(null)
@@ -664,7 +675,7 @@ export default function TeamChat() {
     return () => clearTimeout(timer)
   }, [user?.id, translationTarget, autoTranslateIncoming, translationPrefsHydrated])
 
-  const translateText = useCallback(async (text: string, targetLanguage: string): Promise<string> => {
+  const translateText = useCallback(async (text: string, targetLanguage: string): Promise<TranslationResult> => {
     const { data, error } = await edgeFunctions.translateMessage({
       text,
       target_language: targetLanguage,
@@ -679,7 +690,15 @@ export default function TeamChat() {
       throw new Error('Translation returned an empty response')
     }
 
-    return translated
+    return {
+      translated_text: translated,
+      target_language: String((data as any)?.target_language || targetLanguage),
+      detected_source: typeof (data as any)?.detected_source === 'string' ? (data as any).detected_source : null,
+      translation_confidence: typeof (data as any)?.translation_confidence === 'number' ? (data as any).translation_confidence : undefined,
+      confidence_reason: typeof (data as any)?.confidence_reason === 'string' ? (data as any).confidence_reason : undefined,
+      provider: typeof (data as any)?.provider === 'string' ? (data as any).provider : undefined,
+      fallback: (data as any)?.fallback === true,
+    }
   }, [])
 
   const translateDraft = async () => {
@@ -688,7 +707,8 @@ export default function TeamChat() {
     setIsTranslatingDraft(true)
     try {
       const translated = await translateText(draft, translationTarget)
-      setMessage(translated)
+      setMessage(translated.translated_text)
+      setDraftTranslationMeta(translated)
     } catch (err: any) {
       console.error('Draft translation failed:', err)
     } finally {
@@ -847,8 +867,10 @@ export default function TeamChat() {
               {filteredMessages.map((msg) => {
                 const isMine = msg.senderId === user?.id
                 const isSystem = msg.senderRole === 'system'
-                const translatedBody = translatedById[msg.id]
+                const translatedMeta = translatedById[msg.id]
+                const translatedBody = translatedMeta?.translated_text
                 const isTranslatingMessage = !!translatingMessageIds[msg.id]
+                const translationLowConfidence = (translatedMeta?.translation_confidence ?? 1) < 0.7 || translatedMeta?.fallback === true
                 return (
                   <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
                     <div
@@ -862,8 +884,15 @@ export default function TeamChat() {
                       </div>
                       <div className="text-sm whitespace-pre-wrap">{msg.body}</div>
                       {translatedBody && (
-                        <div className="mt-2 rounded-md border border-emerald-300/40 bg-emerald-50/80 text-emerald-950 p-2 text-xs whitespace-pre-wrap">
-                          {translatedBody}
+                        <div className={`mt-2 rounded-md border p-2 text-xs whitespace-pre-wrap ${translationLowConfidence ? 'border-amber-300/50 bg-amber-50 text-amber-950' : 'border-emerald-300/40 bg-emerald-50/80 text-emerald-950'}`}>
+                          <div>{translatedBody}</div>
+                          {(translatedMeta?.confidence_reason || translatedMeta?.detected_source || translatedMeta?.translation_confidence != null) && (
+                            <div className="mt-1 text-[10px] opacity-80">
+                              {translatedMeta?.translation_confidence != null ? `Confidence ${(translatedMeta.translation_confidence * 100).toFixed(0)}%` : 'Confidence unknown'}
+                              {translatedMeta?.detected_source ? ` · Source ${translatedMeta.detected_source}` : ''}
+                              {translatedMeta?.confidence_reason ? ` · ${translatedMeta.confidence_reason}` : ''}
+                            </div>
+                          )}
                         </div>
                       )}
                       {!isMine && !isSystem && (
@@ -963,7 +992,10 @@ export default function TeamChat() {
 
             <Textarea
               value={message}
-              onChange={(e) => setMessage(e.target.value)}
+              onChange={(e) => {
+                setMessage(e.target.value)
+                setDraftTranslationMeta(null)
+              }}
               placeholder={
                 target.type === 'admin'
                   ? 'Message the admin team…'
@@ -979,6 +1011,9 @@ export default function TeamChat() {
             <div className="flex justify-between items-center">
               <div className="text-xs text-muted-foreground">
                 Realtime chat is scoped to your organisation. Messages are broadcast and not persisted.
+                {draftTranslationMeta && ((draftTranslationMeta.translation_confidence ?? 1) < 0.7 || draftTranslationMeta.fallback) && (
+                  <span className="ml-2 text-amber-700">Draft translation may need human review.</span>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <Button onClick={translateDraft} disabled={!message.trim() || isTranslatingDraft} variant="outline">
