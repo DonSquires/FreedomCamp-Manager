@@ -13,7 +13,8 @@ name: Deploy Ollama to Railway
 #   RAILWAY_OLLAMA_SERVICE_ID  — Railway service ID for the Ollama service
 #
 # Optional secrets:
-#   OLLAMA_SERVICE_URL — public Railway URL for post-deploy health check
+#   BOB_SERVICE_URL    — Bob public URL for Bob-first post-deploy verification
+#   OLLAMA_SERVICE_URL — public Ollama URL (legacy fallback verification)
 
 on:
   push:
@@ -66,6 +67,7 @@ jobs:
           RAILWAY_OLLAMA_SERVICE_ID: ${{ secrets.RAILWAY_OLLAMA_SERVICE_ID }}
           RAILWAY_BOB_PROJECT_ID: ${{ secrets.RAILWAY_BOB_PROJECT_ID }}
           RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+          BOB_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
           OLLAMA_SERVICE_URL: ${{ secrets.OLLAMA_SERVICE_URL }}
         run: |
           source ./scripts/load-railway-secrets-from-github-env.sh --quiet
@@ -345,14 +347,49 @@ jobs:
           echo "::error::Railway deploy command failed for Ollama service ID=$RAILWAY_OLLAMA_SERVICE_ID"
           exit 1
 
-      - name: Verify Ollama health
+      - name: Verify Ollama via Bob health (preferred)
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
+          BOB_SERVICE_URL: ${{ env.BOB_SERVICE_URL || secrets.BOB_SERVICE_URL }}
           OLLAMA_SERVICE_URL: ${{ env.OLLAMA_SERVICE_URL || secrets.OLLAMA_SERVICE_URL }}
         run: |
+          BOB_URL="${BOB_SERVICE_URL%/}"
+          if [ -n "$BOB_URL" ]; then
+            if [[ "$BOB_URL" != http://* && "$BOB_URL" != https://* ]]; then
+              BOB_URL="https://$BOB_URL"
+            fi
+
+            echo "⏳ Waiting for Bob to report Ollama is ready..."
+            for attempt in $(seq 1 12); do
+              HEALTH_JSON=$(curl -s --max-time 30 "${BOB_URL}/health" || true)
+              HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${BOB_URL}/health" || echo "000")
+              if [ "$HEALTH_STATUS" = "200" ]; then
+                OLLAMA_OK=$(printf '%s' "$HEALTH_JSON" | jq -r '.capabilities.chat_local_ollama_enabled // "unknown"')
+                PRIMARY_MODEL=$(printf '%s' "$HEALTH_JSON" | jq -r '.capabilities.tender_primary_model // .config.OLLAMA_MODEL // "unknown"')
+                WRITING_MODEL=$(printf '%s' "$HEALTH_JSON" | jq -r '.capabilities.tender_writing_model // "unknown"')
+                DISTINCT=$(printf '%s' "$HEALTH_JSON" | jq -r '.capabilities.tender_writing_model_distinct // "unknown"')
+
+                if [ "$OLLAMA_OK" = "true" ]; then
+                  echo "✅ Bob confirms Ollama private networking is healthy."
+                  echo "ℹ️  Bob models: primary=$PRIMARY_MODEL writing=$WRITING_MODEL distinct=$DISTINCT"
+                  exit 0
+                fi
+              fi
+
+              if [ "$attempt" -lt 12 ]; then
+                echo "⏳ Bob not ready yet (attempt $attempt/12). Retrying in 10s..."
+                sleep 10
+              fi
+            done
+
+            echo "::warning::Bob health check did not confirm Ollama readiness yet."
+            echo "::warning::Check Bob /health and Ollama deployment logs in Railway."
+            exit 0
+          fi
+
           BASE_URL="${OLLAMA_SERVICE_URL%/}"
           if [ -z "$BASE_URL" ]; then
-            echo "ℹ️  OLLAMA_SERVICE_URL not set — skipping HTTP health check."
+            echo "ℹ️  BOB_SERVICE_URL and OLLAMA_SERVICE_URL are both unset — skipping HTTP health check."
             echo "   Railway built-in health check will use /api/tags."
             exit 0
           fi
@@ -361,6 +398,7 @@ jobs:
             BASE_URL="https://$BASE_URL"
           fi
 
+          echo "⏳ BOB_SERVICE_URL not set — falling back to direct Ollama URL check..."
           echo "⏳ Waiting 45s for Ollama deployment to become ready..."
           sleep 45
 
