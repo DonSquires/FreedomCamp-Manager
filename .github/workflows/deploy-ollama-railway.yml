@@ -256,6 +256,29 @@ jobs:
           echo "project_id=$RESOLVED_PROJECT_ID" >> "$GITHUB_OUTPUT"
           echo "✅ Auto-resolved Ollama service: $RESOLVED_SERVICE_NAME ($RESOLVED_SERVICE_ID)"
 
+      - name: Apply Ollama Railway variable baseline
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        env:
+          RAILWAY_TOKEN: ${{ env.RAILWAY_BOB_TOKEN || env.RAILWAY_TOKEN }}
+          RAILWAY_OLLAMA_SERVICE_ID: ${{ steps.resolve-service.outputs.service_id }}
+          RAILWAY_BOB_ENVIRONMENT: ${{ secrets.RAILWAY_BOB_ENVIRONMENT }}
+        run: |
+          set -euo pipefail
+
+          DEPLOY_ENVIRONMENT="${RAILWAY_BOB_ENVIRONMENT:-production}"
+
+          echo "🔧 Applying Ollama Railway variable baseline..."
+          railway variable set \
+            --service "$RAILWAY_OLLAMA_SERVICE_ID" \
+            --environment "$DEPLOY_ENVIRONMENT" \
+            --skip-deploys \
+            "OLLAMA_MODEL=llama3.1:8b" \
+            "OLLAMA_EXTRA_MODELS=" \
+            "OLLAMA_PREPULL_MODE=background" \
+            "OLLAMA_PULL_DELAY_SECONDS=20"
+
+          echo "✅ Ollama Railway variables updated"
+
       - name: Deploy Ollama to Railway
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:

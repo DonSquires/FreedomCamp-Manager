@@ -12,6 +12,8 @@
 # OLLAMA_EXTRA_MODELS is optional and defaults to empty to keep the baseline
 # memory footprint low enough for a single 24 GB Railway replica.
 # OLLAMA_PREPULL_MODE controls pull behavior: background (default), blocking, off.
+# OLLAMA_PULL_DELAY_SECONDS inserts a pause between model pulls so download and
+# load activity ramps up more gradually on constrained Railway instances.
 # Note: This script also acts as a push-trigger anchor for Railway deploy workflow runs.
 
 set -e
@@ -20,6 +22,7 @@ MODEL="${OLLAMA_MODEL:-llama3.1:8b}"
 EXTRA_MODELS="${OLLAMA_EXTRA_MODELS:-}"
 MAX_WAIT=120   # seconds to wait for daemon to become ready
 PREPULL_MODE="${OLLAMA_PREPULL_MODE:-background}"
+PULL_DELAY_SECONDS="${OLLAMA_PULL_DELAY_SECONDS:-20}"
 PORT="${PORT:-11434}"
 export OLLAMA_HOST="0.0.0.0:${PORT}"
 
@@ -81,10 +84,31 @@ pull_model_if_needed() {
   fi
 }
 
+sleep_between_pulls() {
+  if [ "${PULL_DELAY_SECONDS}" -gt 0 ] 2>/dev/null; then
+    echo "⏳ Waiting ${PULL_DELAY_SECONDS}s before the next model pull..."
+    sleep "${PULL_DELAY_SECONDS}"
+  fi
+}
+
+pull_models_sequentially() {
+  first=1
+  for target in $(echo "${MODELS_TO_PULL}" | tr ',' '\n' | sed '/^\s*$/d' | awk '{$1=$1};1'); do
+    if [ "$first" -eq 0 ]; then
+      sleep_between_pulls
+    fi
+    pull_model_if_needed "${target}"
+    first=0
+  done
+}
+
 echo "🧠 Model preload set: ${MODELS_TO_PULL}"
-for target in $(echo "${MODELS_TO_PULL}" | tr ',' '\n' | sed '/^\s*$/d' | awk '{$1=$1};1'); do
-  pull_model_if_needed "${target}"
-done
+if [ "${PREPULL_MODE}" = "background" ]; then
+  echo "📦 Starting sequential background preload worker (delay=${PULL_DELAY_SECONDS}s)"
+  pull_models_sequentially &
+else
+  pull_models_sequentially
+fi
 
 # ── 4. Hand off to the daemon process ─────────────────────────────────────────
 echo "🎯 Ollama ready. Waiting on daemon PID ${OLLAMA_PID}..."

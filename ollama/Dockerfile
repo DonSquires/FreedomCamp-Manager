@@ -24,6 +24,9 @@ ENV OLLAMA_MODEL=llama3.1:8b
 # Default is empty so the baseline deployment stays within Railway memory limits.
 ENV OLLAMA_EXTRA_MODELS=
 
+# Pause between sequential model pulls to reduce startup load spikes.
+ENV OLLAMA_PULL_DELAY_SECONDS=20
+
 EXPOSE 11434
 
 # Copy and enable the startup script that pre-pulls the model so the first
