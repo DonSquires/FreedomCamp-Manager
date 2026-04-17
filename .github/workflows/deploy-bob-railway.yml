@@ -380,11 +380,28 @@ jobs:
             BASE_URL="https://$BASE_URL"
           fi
 
-          echo "⏳ Waiting 60s for Bob deployment to become ready..."
-          sleep 60
+          echo "⏳ Waiting for Bob deployment to become ready..."
+          HEALTH_BODY=""
+          HEALTH_STATUS="000"
 
-          HEALTH_BODY=$(curl -s --max-time 30 "${BASE_URL}/health" || true)
-          HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${BASE_URL}/health" || echo "000")
+          for attempt in $(seq 1 18); do
+            HEALTH_BODY=$(curl -s --max-time 30 "${BASE_URL}/health" || true)
+            HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${BASE_URL}/health" || echo "000")
+
+            if [ "$HEALTH_STATUS" = "200" ] && echo "$HEALTH_BODY" | grep -q '"models"'; then
+              CURRENT_MODE=$(printf '%s' "$HEALTH_BODY" | jq -r '.config.OPERATING_MODE // empty')
+              CURRENT_OLLAMA=$(printf '%s' "$HEALTH_BODY" | jq -r '.capabilities.chat_local_ollama_enabled // "unknown"')
+              if [ "$CURRENT_MODE" = "self-contained" ] && [ "$CURRENT_OLLAMA" = "true" ]; then
+                echo "✅ Bob health is reporting the expected self-contained/Ollama state."
+                break
+              fi
+            fi
+
+            if [ "$attempt" -lt 18 ]; then
+              echo "⏳ Bob not ready yet (attempt $attempt/18, HTTP $HEALTH_STATUS). Retrying in 10s..."
+              sleep 10
+            fi
+          done
 
           if [ "$HEALTH_STATUS" != "200" ]; then
             echo "::error::Bob /health returned HTTP $HEALTH_STATUS"
@@ -436,7 +453,7 @@ jobs:
           # ── Ollama connectivity check ─────────────────────────────────────────
           # Verify Bob can reach Ollama via private networking.
           # A false value means OLLAMA_BASE_URL is not set or Ollama is unreachable.
-          OLLAMA_ENABLED_FLAG=$(printf '%s' "$HEALTH_BODY" | jq -r '.chat_local_ollama_enabled // .config.OLLAMA_ENABLED // "unknown"')
+          OLLAMA_ENABLED_FLAG=$(printf '%s' "$HEALTH_BODY" | jq -r '.capabilities.chat_local_ollama_enabled // .config.OLLAMA_ENABLED // "unknown"')
           if [ "$OLLAMA_ENABLED_FLAG" = "true" ]; then
             echo "✅ Bob reports chat_local_ollama_enabled=true — Ollama private networking is working."
           elif [ "$OLLAMA_ENABLED_FLAG" = "false" ]; then
