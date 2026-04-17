@@ -51,6 +51,9 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   ])
 }
 
+const REFERENCE_LIST_TIMEOUT_MS = 12_000
+const REFERENCE_DETAIL_TIMEOUT_MS = 12_000
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -174,12 +177,12 @@ export default function TenderReferenceLibrary() {
       const { data, error } = await withTimeout(
         (supabase as any)
           .from('tender_reference_materials')
-          .select('*')
+          .select('id, organization_id, title, description, material_type, file_name, file_path, file_public_url, file_kind, extraction_status, extraction_notes, is_active, version, previous_version_id, uploaded_by, created_at, updated_at')
           .eq('organization_id', user!.organization_id)
           .order('is_active', { ascending: false })
           .order('material_type')
           .order('title'),
-        20000,
+        REFERENCE_LIST_TIMEOUT_MS,
         'Loading reference library',
       )
       if (error) throw error
@@ -187,7 +190,33 @@ export default function TenderReferenceLibrary() {
     },
     enabled: !!user?.organization_id,
     refetchInterval: 10000, // poll for extraction status updates
+    retry: (failureCount, err: any) => {
+      const message = String(err?.message || '').toLowerCase()
+      if (message.includes('timed out')) return false
+      return failureCount < 1
+    },
   })
+
+  const { data: selectedRefDetail, isFetching: isFetchingSelectedRef } = useQuery({
+    queryKey: ['tender-reference-material', selectedRef?.id],
+    enabled: !!selectedRef?.id,
+    queryFn: async () => {
+      const { data, error } = await withTimeout(
+        (supabase as any)
+          .from('tender_reference_materials')
+          .select('*')
+          .eq('id', selectedRef!.id)
+          .single(),
+        REFERENCE_DETAIL_TIMEOUT_MS,
+        'Loading reference details',
+      )
+      if (error) throw error
+      return data as ReferenceMaterial
+    },
+    retry: 0,
+  })
+
+  const activeSelectedRef = selectedRefDetail || selectedRef
 
   const { data: versions = [] } = useQuery({
     queryKey: ['tender-reference-versions', selectedRef?.id],
@@ -307,7 +336,7 @@ export default function TenderReferenceLibrary() {
 
   // ── Save extracted text edits ─────────────────────────────────────────────
   const saveTextEdit = useCallback(async () => {
-    if (!selectedRef) return
+    if (!activeSelectedRef) return
     setSavingText(true)
     try {
       const { error } = await (supabase as any)
@@ -317,10 +346,10 @@ export default function TenderReferenceLibrary() {
           extraction_status: editedText.trim() ? 'extracted' : 'needs_review',
           extraction_notes: null,
         })
-        .eq('id', selectedRef.id)
+        .eq('id', activeSelectedRef.id)
       if (error) throw error
       queryClient.invalidateQueries({ queryKey: ['tender-reference-library'] })
-      setSelectedRef({ ...selectedRef, extracted_text: editedText, extraction_status: editedText.trim() ? 'extracted' : 'needs_review', extraction_notes: null })
+      setSelectedRef({ ...activeSelectedRef, extracted_text: editedText, extraction_status: editedText.trim() ? 'extracted' : 'needs_review', extraction_notes: null })
       setEditingText(false)
       toast.success('Text saved')
     } catch (err: any) {
@@ -328,7 +357,7 @@ export default function TenderReferenceLibrary() {
     } finally {
       setSavingText(false)
     }
-  }, [selectedRef, editedText, queryClient])
+  }, [activeSelectedRef, editedText, queryClient])
 
   // ── Re-trigger extraction ─────────────────────────────────────────────────
   const reExtract = useCallback(async (ref: ReferenceMaterial) => {
@@ -685,37 +714,44 @@ export default function TenderReferenceLibrary() {
       {/* ── Reference detail drawer/dialog ───────────────────────────────────── */}
       <Dialog open={!!selectedRef} onOpenChange={(o) => { if (!o) setSelectedRef(null) }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          {selectedRef && (
+          {activeSelectedRef && (
             <>
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2 flex-wrap">
                   <BookOpen className="h-4 w-4 text-primary shrink-0" />
-                  <span className="truncate">{selectedRef.title}</span>
-                  <TypeBadge type={selectedRef.material_type} />
-                  <span className="text-[10px] text-muted-foreground border rounded px-1.5 py-0.5">v{selectedRef.version}</span>
+                  <span className="truncate">{activeSelectedRef.title}</span>
+                  <TypeBadge type={activeSelectedRef.material_type} />
+                  <span className="text-[10px] text-muted-foreground border rounded px-1.5 py-0.5">v{activeSelectedRef.version}</span>
                 </DialogTitle>
               </DialogHeader>
 
               <div className="space-y-4 py-2">
                 {/* Extraction status + notes */}
                 <div className="flex items-start gap-2 flex-wrap">
-                  <ExtractionBadge status={selectedRef.extraction_status} />
-                  {selectedRef.extraction_notes && (
+                  <ExtractionBadge status={activeSelectedRef.extraction_status} />
+                  {activeSelectedRef.extraction_notes && (
                     <span className="text-xs text-amber-600 flex items-center gap-1">
                       <AlertCircle className="h-3 w-3 shrink-0" />
-                      {selectedRef.extraction_notes}
+                      {activeSelectedRef.extraction_notes}
                     </span>
                   )}
                 </div>
 
+                {isFetchingSelectedRef && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Loading full reference details…
+                  </div>
+                )}
+
                 {/* File info */}
-                {selectedRef.file_name && (
+                {activeSelectedRef.file_name && (
                   <div className="flex items-center gap-2 text-xs text-muted-foreground rounded border bg-muted/10 p-2">
                     <FileText className="h-3.5 w-3.5 shrink-0" />
-                    <span>{selectedRef.file_name}</span>
-                    <Badge variant="outline" className="text-[10px]">{selectedRef.file_kind}</Badge>
-                    {selectedRef.file_public_url && (
-                      <a href={selectedRef.file_public_url} target="_blank" rel="noreferrer" className="ml-auto text-primary underline hover:no-underline">
+                    <span>{activeSelectedRef.file_name}</span>
+                    <Badge variant="outline" className="text-[10px]">{activeSelectedRef.file_kind}</Badge>
+                    {activeSelectedRef.file_public_url && (
+                      <a href={activeSelectedRef.file_public_url} target="_blank" rel="noreferrer" className="ml-auto text-primary underline hover:no-underline">
                         View file
                       </a>
                     )}
@@ -747,10 +783,10 @@ export default function TenderReferenceLibrary() {
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={reExtractingId === selectedRef.id}
-                        onClick={() => reExtract(selectedRef)}
+                        disabled={reExtractingId === activeSelectedRef.id}
+                        onClick={() => reExtract(activeSelectedRef)}
                       >
-                        {reExtractingId === selectedRef.id ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Re-extracting…</> : <><RefreshCw className="h-3.5 w-3.5 mr-1.5" />Re-run extraction</>}
+                        {reExtractingId === activeSelectedRef.id ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Re-extracting…</> : <><RefreshCw className="h-3.5 w-3.5 mr-1.5" />Re-run extraction</>}
                       </Button>
                     )}
                   </div>
@@ -765,7 +801,7 @@ export default function TenderReferenceLibrary() {
                         size="sm"
                         variant="ghost"
                         className="h-6 text-xs"
-                        onClick={() => { setEditingText(true); setEditedText(selectedRef.extracted_text || '') }}
+                        onClick={() => { setEditingText(true); setEditedText(activeSelectedRef.extracted_text || '') }}
                       >
                         <Pencil className="h-3 w-3 mr-1" />
                         Edit
@@ -790,8 +826,8 @@ export default function TenderReferenceLibrary() {
                     </div>
                   ) : (
                     <div className="rounded border bg-muted/10 p-3 max-h-48 overflow-auto">
-                      {selectedRef.extracted_text ? (
-                        <pre className="whitespace-pre-wrap text-xs">{selectedRef.extracted_text.slice(0, 3000)}{selectedRef.extracted_text.length > 3000 ? '\n…(truncated)' : ''}</pre>
+                      {activeSelectedRef.extracted_text ? (
+                        <pre className="whitespace-pre-wrap text-xs">{activeSelectedRef.extracted_text.slice(0, 3000)}{activeSelectedRef.extracted_text.length > 3000 ? '\n…(truncated)' : ''}</pre>
                       ) : (
                         <p className="text-xs text-muted-foreground italic">No text extracted yet.</p>
                       )}
