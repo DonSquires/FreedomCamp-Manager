@@ -54,6 +54,13 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 const REFERENCE_LIST_TIMEOUT_MS = 12_000
 const REFERENCE_DETAIL_TIMEOUT_MS = 12_000
 
+let extractionModulePromise: Promise<typeof import('@/lib/documentExtraction')> | null = null
+async function extractDocumentDataLazy(file: File, opts?: { enableImageOcr?: boolean }) {
+  if (!extractionModulePromise) extractionModulePromise = import('@/lib/documentExtraction')
+  const mod = await extractionModulePromise
+  return mod.extractDocumentData(file, opts)
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -167,6 +174,7 @@ export default function TenderReferenceLibrary() {
   const [newType, setNewType] = useState<MaterialType>('policy')
   const [newFile, setNewFile] = useState<File | null>(null)
   const [newManualText, setNewManualText] = useState('')
+  const [backgroundLearnOnly, setBackgroundLearnOnly] = useState(true)
 
   const canEdit = user?.role === 'admin' || user?.role === 'master' || user?.role === 'grand_master'
 
@@ -253,7 +261,7 @@ export default function TenderReferenceLibrary() {
       let fileName: string | null = null
       let fileKind: string | null = null
 
-      if (newFile) {
+      if (newFile && !backgroundLearnOnly) {
         fileName = newFile.name
         fileKind = classifyFile(newFile)
         const ts = Date.now()
@@ -273,6 +281,11 @@ export default function TenderReferenceLibrary() {
         filePublicUrl = urlData?.publicUrl || null
       }
 
+      if (newFile && backgroundLearnOnly) {
+        fileName = newFile.name
+        fileKind = classifyFile(newFile)
+      }
+
       // Insert DB row
       const { data: inserted, error: insertError } = await withTimeout(
         (supabase as any)
@@ -287,7 +300,10 @@ export default function TenderReferenceLibrary() {
             file_public_url: filePublicUrl,
             file_kind: fileKind,
             extracted_text: newManualText.trim() || null,
-            extraction_status: newManualText.trim() ? 'extracted' : (newFile ? 'pending' : 'needs_review'),
+            extraction_status: newManualText.trim() ? 'extracted' : (newFile ? (backgroundLearnOnly ? 'extracting' : 'pending') : 'needs_review'),
+            extraction_notes: newFile && backgroundLearnOnly
+              ? 'Background text-only ingest started (file is not uploaded to storage).'
+              : null,
             is_active: true,
             version: 1,
             uploaded_by: user.id,
@@ -300,26 +316,68 @@ export default function TenderReferenceLibrary() {
 
       if (insertError) throw new Error(insertError.message)
 
-      // Trigger async extraction if file was uploaded
-      if (newFile && inserted?.id) {
+      // Trigger async extraction if file was uploaded to storage
+      if (newFile && inserted?.id && !backgroundLearnOnly) {
         edgeFunctions.processReferenceMaterial({ reference_material_id: inserted.id })
           .catch(() => { /* non-fatal — user can re-trigger */ })
       }
 
+      // No-upload mode: extract in browser and store text in background.
+      if (newFile && inserted?.id && backgroundLearnOnly && !newManualText.trim()) {
+        const insertedId = inserted.id as string
+        const fileForExtraction = newFile
+        void (async () => {
+          try {
+            const extracted = await extractDocumentDataLazy(fileForExtraction, { enableImageOcr: true })
+            const extractedText = (extracted.text || '').trim()
+            const extractionStatus = extractedText.length > 30 ? 'extracted' : 'needs_review'
+            const extractionNotes = extracted.rationale || (extractionStatus === 'needs_review'
+              ? 'Limited text extracted. Please review and edit manually.'
+              : null)
+
+            await (supabase as any)
+              .from('tender_reference_materials')
+              .update({
+                extracted_text: extractedText || null,
+                extraction_status: extractionStatus,
+                extraction_notes: extractionNotes,
+              })
+              .eq('id', insertedId)
+
+            queryClient.invalidateQueries({ queryKey: ['tender-reference-library'] })
+          } catch (bgErr: any) {
+            await (supabase as any)
+              .from('tender_reference_materials')
+              .update({
+                extraction_status: 'failed',
+                extraction_notes: `Background ingest failed: ${String(bgErr?.message || bgErr).slice(0, 200)}`,
+              })
+              .eq('id', insertedId)
+            queryClient.invalidateQueries({ queryKey: ['tender-reference-library'] })
+          }
+        })()
+      }
+
       queryClient.invalidateQueries({ queryKey: ['tender-reference-library'] })
-      toast.success('Reference material added' + (newFile && !newManualText.trim() ? ' — extraction started' : ''))
+      toast.success(
+        'Reference material added' +
+        (newFile && !newManualText.trim()
+          ? (backgroundLearnOnly ? ' — Bob is learning this file in the background (no upload).' : ' — extraction started')
+          : '')
+      )
       setShowCreateDialog(false)
       setNewTitle('')
       setNewDescription('')
       setNewType('policy')
       setNewFile(null)
       setNewManualText('')
+      setBackgroundLearnOnly(true)
     } catch (err: any) {
       toast.error(err?.message || 'Create failed')
     } finally {
       setUploading(false)
     }
-  }, [newTitle, newDescription, newType, newFile, newManualText, user, queryClient])
+  }, [newTitle, newDescription, newType, newFile, newManualText, backgroundLearnOnly, user, queryClient])
 
   // ── Toggle active ─────────────────────────────────────────────────────────
   const toggleActive = useMutation({
@@ -688,6 +746,15 @@ export default function TenderReferenceLibrary() {
                   <p className="text-muted-foreground text-xs">Click or drag to attach a file — text will be auto-extracted</p>
                 )}
               </div>
+              {newFile && (
+                <div className="flex items-center justify-between rounded border p-2 text-xs">
+                  <div>
+                    <p className="font-medium">Learn in background (no upload)</p>
+                    <p className="text-muted-foreground">Use browser extraction and store text only for Bob context.</p>
+                  </div>
+                  <Switch checked={backgroundLearnOnly} onCheckedChange={setBackgroundLearnOnly} />
+                </div>
+              )}
             </div>
 
             <div className="space-y-1.5">
