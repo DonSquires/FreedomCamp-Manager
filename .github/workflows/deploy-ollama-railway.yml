@@ -163,6 +163,31 @@ jobs:
         run: |
           set -euo pipefail
 
+          railway_graphql() {
+            local payload="$1"
+            local response=""
+
+            # Account/workspace/OAuth tokens
+            if response=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
+              -H "Authorization: Bearer $RAILWAY_TOKEN" \
+              -H "Content-Type: application/json" \
+              --data "$payload" 2>/dev/null); then
+              echo "$response"
+              return 0
+            fi
+
+            # Project tokens require Project-Access-Token header.
+            if response=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
+              -H "Project-Access-Token: $RAILWAY_TOKEN" \
+              -H "Content-Type: application/json" \
+              --data "$payload" 2>/dev/null); then
+              echo "$response"
+              return 0
+            fi
+
+            return 1
+          }
+
           if [ -n "$EXPLICIT_SERVICE_ID" ]; then
             echo "service_id=$EXPLICIT_SERVICE_ID" >> "$GITHUB_OUTPUT"
             echo "project_id=${EXPLICIT_PROJECT_ID}" >> "$GITHUB_OUTPUT"
@@ -173,10 +198,7 @@ jobs:
           if [ -n "$EXPLICIT_PROJECT_ID" ]; then
             echo "ℹ️ Attempting Ollama service auto-discovery from explicit project ID..."
             GRAPHQL_PAYLOAD=$(printf '{"query":"query { project(id:\"%s\") { services { edges { node { id name } } } } }"}' "$EXPLICIT_PROJECT_ID")
-            GRAPHQL_RESPONSE=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
-              -H "Authorization: Bearer $RAILWAY_TOKEN" \
-              -H "Content-Type: application/json" \
-              --data "$GRAPHQL_PAYLOAD")
+            GRAPHQL_RESPONSE=$(railway_graphql "$GRAPHQL_PAYLOAD" || echo '{}')
 
             RESOLVED=$(node -e '
               const data = JSON.parse(process.argv[1] || "{}");
@@ -199,10 +221,7 @@ jobs:
 
           echo "ℹ️ Attempting Ollama service auto-discovery from token scope..."
           GRAPHQL_PAYLOAD='{"query":"query { me { projects { edges { node { id name services { edges { node { id name } } } } } } } }"}'
-          GRAPHQL_RESPONSE=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
-            -H "Authorization: Bearer $RAILWAY_TOKEN" \
-            -H "Content-Type: application/json" \
-            --data "$GRAPHQL_PAYLOAD")
+          GRAPHQL_RESPONSE=$(railway_graphql "$GRAPHQL_PAYLOAD" || echo '{}')
 
           RESOLVED=$(node -e '
             const data = JSON.parse(process.argv[1] || "{}");
@@ -243,6 +262,29 @@ jobs:
         run: |
           set -euo pipefail
 
+          railway_graphql() {
+            local payload="$1"
+            local response=""
+
+            if response=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
+              -H "Authorization: Bearer $RAILWAY_TOKEN" \
+              -H "Content-Type: application/json" \
+              --data "$payload" 2>/dev/null); then
+              echo "$response"
+              return 0
+            fi
+
+            if response=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
+              -H "Project-Access-Token: $RAILWAY_TOKEN" \
+              -H "Content-Type: application/json" \
+              --data "$payload" 2>/dev/null); then
+              echo "$response"
+              return 0
+            fi
+
+            return 1
+          }
+
           cd ollama
           echo "🚂 Deploying Ollama to Railway..."
           DEPLOY_LOG="$(mktemp)"
@@ -257,16 +299,10 @@ jobs:
 
             if [ -n "${RAILWAY_OLLAMA_PROJECT_ID:-}" ]; then
               GRAPHQL_PAYLOAD=$(printf '{"query":"query { project(id:\"%s\") { services { edges { node { id name } } } } }"}' "$RAILWAY_OLLAMA_PROJECT_ID")
-              GRAPHQL_RESPONSE=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
-                -H "Authorization: Bearer $RAILWAY_TOKEN" \
-                -H "Content-Type: application/json" \
-                --data "$GRAPHQL_PAYLOAD" || true)
+              GRAPHQL_RESPONSE=$(railway_graphql "$GRAPHQL_PAYLOAD" || echo '{}')
             else
               GRAPHQL_PAYLOAD='{"query":"query { me { projects { edges { node { id name services { edges { node { id name } } } } } } } }"}'
-              GRAPHQL_RESPONSE=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
-                -H "Authorization: Bearer $RAILWAY_TOKEN" \
-                -H "Content-Type: application/json" \
-                --data "$GRAPHQL_PAYLOAD" || true)
+              GRAPHQL_RESPONSE=$(railway_graphql "$GRAPHQL_PAYLOAD" || echo '{}')
             fi
 
             RESOLVED_SERVICE_ID=$(node -e '
