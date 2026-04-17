@@ -138,6 +138,9 @@ Deno.serve(withCors(async (req: Request) => {
       })
     }
 
+    // Mark as processing immediately so the UI can detect the function was invoked
+    await (supabase as any).from('tender_documents').update({ status: 'staged', bob_assessment_summary: '⏳ Bob is analysing…' }).eq('id', document_id)
+
     // --- Bob Assessment -------------------------------------------------
     const systemPrompt = `You are Bob, an expert analyst for Iron Eagle Security's FieldOps Manager system in New Zealand.
 Your job is to analyse tender, RFP, RFIP, and procurement documents and extract structured information
