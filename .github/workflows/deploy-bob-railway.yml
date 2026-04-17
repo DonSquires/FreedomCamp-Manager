@@ -276,10 +276,12 @@ jobs:
             --service "$RAILWAY_SERVICE_ID" \
             --environment "$DEPLOY_ENVIRONMENT" \
             --skip-deploys \
+            "BOB_OPERATING_MODE=self-contained" \
             "CHAT_PROVIDER=ollama" \
             "TABULAR_NLP_PROVIDER=ollama" \
             "SELF_CONTAINED_MODE=true" \
             "REQUIRE_SELF_CONTAINED_MODE=true" \
+            "SELF_CONTAINED_STRICT_EGRESS=true" \
             "OLLAMA_BASE_URL=http://ollama.railway.internal:11434" \
             "OLLAMA_MODEL=llama3.1:8b" \
             "OLLAMA_MODEL_WRITING=qwen2.5:14b"
