@@ -20,8 +20,6 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
 const PTT_SERVER_URL =
   Deno.env.get('PTT_SERVER_URL') ||
   Deno.env.get('PTT_SERVICE_URL') ||
-  Deno.env.get('PPT_SERVER_URL') ||
-  Deno.env.get('PPT_SURVER_URL') ||
   ''
 const PROXY_SECRET = Deno.env.get('PTT_PROXY_SECRET') || ''
 

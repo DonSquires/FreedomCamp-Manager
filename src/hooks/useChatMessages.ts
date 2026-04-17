@@ -48,6 +48,16 @@ export interface InsertMessageInput {
 
 const PAGE_SIZE = 50
 
+type ChatMessagesPage = {
+  messages: PersistedMessage[]
+  nextCursor: string | null
+}
+
+type ChatMessagesCache = {
+  pages: ChatMessagesPage[]
+  pageParams: (string | null)[]
+}
+
 export function useChatMessages(threadId: string | null) {
   const queryClient = useQueryClient()
   const channelRef = useRef<any>(null)
@@ -114,7 +124,9 @@ export function useChatMessages(threadId: string | null) {
       // Append to the last page (most recent) in the cache
       queryClient.setQueryData(['chat-messages', threadId], (old: any) => {
         if (!old) return old
-        const pages = old.pages as typeof data.pages
+        const cache = old as ChatMessagesCache
+        const pages = cache.pages
+        if (!pages.length) return old
         const lastPageIndex = pages.length - 1
         const updatedLastPage = {
           ...pages[lastPageIndex],
@@ -140,9 +152,10 @@ export function useChatMessages(threadId: string | null) {
     (messageId: string, language: string, translated: string) => {
       queryClient.setQueryData(['chat-messages', threadId], (old: any) => {
         if (!old) return old
+        const cache = old as ChatMessagesCache
         return {
           ...old,
-          pages: (old.pages as typeof data.pages).map((page) => ({
+          pages: cache.pages.map((page) => ({
             ...page,
             messages: page.messages.map((m: PersistedMessage) =>
               m.id === messageId
@@ -153,7 +166,7 @@ export function useChatMessages(threadId: string | null) {
         }
       })
     },
-    [queryClient, threadId, data],
+    [queryClient, threadId],
   )
 
   // Realtime subscription — append new rows as they arrive
@@ -176,7 +189,9 @@ export function useChatMessages(threadId: string | null) {
 
           queryClient.setQueryData(['chat-messages', threadId], (old: any) => {
             if (!old) return old
-            const pages = old.pages as typeof data.pages
+            const cache = old as ChatMessagesCache
+            const pages = cache.pages
+            if (!pages.length) return old
             // Deduplicate
             const allIds = new Set(pages.flatMap((p) => p.messages.map((m: PersistedMessage) => m.id)))
             if (allIds.has(newMsg.id)) return old
