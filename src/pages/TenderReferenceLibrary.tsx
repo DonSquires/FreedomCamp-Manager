@@ -44,6 +44,13 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms)),
+  ])
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -161,16 +168,20 @@ export default function TenderReferenceLibrary() {
   const canEdit = user?.role === 'admin' || user?.role === 'master' || user?.role === 'grand_master'
 
   // ── Queries ───────────────────────────────────────────────────────────────
-  const { data: refs = [], isLoading } = useQuery({
+  const { data: refs = [], isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['tender-reference-library', user?.organization_id],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from('tender_reference_materials')
-        .select('*')
-        .eq('organization_id', user!.organization_id)
-        .order('is_active', { ascending: false })
-        .order('material_type')
-        .order('title')
+      const { data, error } = await withTimeout(
+        (supabase as any)
+          .from('tender_reference_materials')
+          .select('*')
+          .eq('organization_id', user!.organization_id)
+          .order('is_active', { ascending: false })
+          .order('material_type')
+          .order('title'),
+        20000,
+        'Loading reference library',
+      )
       if (error) throw error
       return (data || []) as ReferenceMaterial[]
     },
@@ -219,9 +230,13 @@ export default function TenderReferenceLibrary() {
         const ts = Date.now()
         const storagePath = `tender-references/${user.organization_id}/${ts}-${newFile.name}`
 
-        const { error: uploadError } = await supabase.storage
-          .from('evidence')
-          .upload(storagePath, newFile, { upsert: false })
+        const { error: uploadError } = await withTimeout(
+          supabase.storage
+            .from('evidence')
+            .upload(storagePath, newFile, { upsert: false }),
+          45000,
+          'Uploading reference file',
+        )
         if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`)
 
         const { data: urlData } = supabase.storage.from('evidence').getPublicUrl(storagePath)
@@ -230,25 +245,29 @@ export default function TenderReferenceLibrary() {
       }
 
       // Insert DB row
-      const { data: inserted, error: insertError } = await (supabase as any)
-        .from('tender_reference_materials')
-        .insert({
-          organization_id: user.organization_id,
-          title: newTitle.trim(),
-          description: newDescription.trim() || null,
-          material_type: newType,
-          file_name: fileName,
-          file_path: filePath,
-          file_public_url: filePublicUrl,
-          file_kind: fileKind,
-          extracted_text: newManualText.trim() || null,
-          extraction_status: newManualText.trim() ? 'extracted' : (newFile ? 'pending' : 'needs_review'),
-          is_active: true,
-          version: 1,
-          uploaded_by: user.id,
-        })
-        .select('id')
-        .single()
+      const { data: inserted, error: insertError } = await withTimeout(
+        (supabase as any)
+          .from('tender_reference_materials')
+          .insert({
+            organization_id: user.organization_id,
+            title: newTitle.trim(),
+            description: newDescription.trim() || null,
+            material_type: newType,
+            file_name: fileName,
+            file_path: filePath,
+            file_public_url: filePublicUrl,
+            file_kind: fileKind,
+            extracted_text: newManualText.trim() || null,
+            extraction_status: newManualText.trim() ? 'extracted' : (newFile ? 'pending' : 'needs_review'),
+            is_active: true,
+            version: 1,
+            uploaded_by: user.id,
+          })
+          .select('id')
+          .single(),
+        20000,
+        'Saving reference record',
+      )
 
       if (insertError) throw new Error(insertError.message)
 
@@ -484,6 +503,14 @@ export default function TenderReferenceLibrary() {
               <div className="flex items-center gap-2 py-8 justify-center text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Loading reference library…
+              </div>
+            ) : isError ? (
+              <div className="py-8 text-center text-sm text-muted-foreground space-y-2">
+                <p>Could not load reference library.</p>
+                <p className="text-xs text-red-500">{(error as any)?.message || 'Unknown error'}</p>
+                <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching}>
+                  {isFetching ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Retrying…</> : <><RefreshCw className="h-3.5 w-3.5 mr-1.5" />Retry</>}
+                </Button>
               </div>
             ) : refs.length === 0 ? (
               <div className="py-8 text-center text-sm text-muted-foreground">

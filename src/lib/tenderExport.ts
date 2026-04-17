@@ -139,7 +139,11 @@ export function generateTenderHtml(meta: TenderDocMeta, sections: TenderSections
 export function exportTenderPdf(html: string): void {
   const win = window.open('', '_blank')
   if (!win) {
-    alert('Pop-up blocked. Please allow pop-ups for this site and try again.')
+    // Mobile browsers or strict popup blockers can block window.open.
+    // Fall back to opening the printable HTML blob in the current tab.
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.location.assign(url)
     return
   }
   win.document.open()
@@ -165,9 +169,19 @@ export function exportTenderPdf(html: string): void {
 export function downloadTenderDoc(html: string, fileName: string): void {
   const blob = new Blob([html], { type: 'application/msword;charset=utf-8' })
   const url = URL.createObjectURL(blob)
+  const safeName = fileName.endsWith('.doc') ? fileName : `${fileName}.doc`
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+
+  // iOS Safari often ignores the download attribute; open the blob URL directly.
+  if (isIOS) {
+    window.location.assign(url)
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+    return
+  }
+
   const a = document.createElement('a')
   a.href = url
-  a.download = fileName.endsWith('.doc') ? fileName : `${fileName}.doc`
+  a.download = safeName
   document.body.appendChild(a)
   a.click()
   setTimeout(() => {

@@ -81,7 +81,7 @@ jobs:
       - name: Run deep functional suite
         if: steps.creds-check.outputs.creds_available == 'true'
         run: |
-          bunx playwright test tests/e2e/deep-functional.spec.ts \
+          bunx playwright test tests/e2e/deep-functional.spec.ts tests/e2e/tender-workspace.spec.ts \
             --project="${{ matrix.project }}" \
             --reporter=list \
             --timeout=90000

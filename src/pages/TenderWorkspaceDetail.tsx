@@ -53,6 +53,13 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms)),
+  ])
+}
+
 type TenderStatus =
   | 'draft' | 'staged' | 'assessed' | 'drafting'
   | 'review_pending' | 'shortlisted' | 'approved' | 'submitted' | 'archived'
@@ -202,15 +209,19 @@ export default function TenderWorkspaceDetail() {
   const [shortlisting, setShortlisting] = useState(false)
 
   // Fetch document — polls every 5s to detect background AI task completion
-  const { data: doc, isLoading } = useQuery<TenderDocument>({
+  const { data: doc, isLoading, isError, error, refetch, isFetching } = useQuery<TenderDocument>({
     queryKey: ['tender-document', id],
     enabled: !!id,
     refetchInterval: 5000,
     queryFn: async () => {
-      const { data, error } = await ((supabase as any).from('tender_documents') as any)
-        .select('*')
-        .eq('id', id!)
-        .single()
+      const { data, error } = await withTimeout(
+        ((supabase as any).from('tender_documents') as any)
+          .select('*')
+          .eq('id', id!)
+          .single(),
+        20000,
+        'Loading tender document',
+      )
       if (error) throw error
       return data as TenderDocument
     },
@@ -810,6 +821,20 @@ export default function TenderWorkspaceDetail() {
       <AppLayout title="Tender Workspace" showBackButton>
         <div className="flex items-center justify-center py-20 text-muted-foreground text-sm">
           <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading document…
+        </div>
+      </AppLayout>
+    )
+  }
+
+  if (isError) {
+    return (
+      <AppLayout title="Tender Workspace" showBackButton>
+        <div className="flex flex-col items-center justify-center py-20 text-sm text-muted-foreground gap-3">
+          <p>Could not load this tender document.</p>
+          <p className="text-xs text-red-500">{(error as any)?.message || 'Unknown error'}</p>
+          <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching}>
+            {isFetching ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Retrying…</> : <><Loader2 className="h-4 w-4 mr-2" />Retry load</>}
+          </Button>
         </div>
       </AppLayout>
     )
