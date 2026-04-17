@@ -1563,6 +1563,8 @@ const TENDER_GEN_TIMEOUT_MS = Number(process.env.TENDER_GEN_TIMEOUT_MS || 90000)
 // Max characters of extracted tender text to include in the generation context.
 // Keeps the Ollama prompt within context window limits for most models.
 const MAX_TENDER_CONTEXT_CHARS = Number(process.env.MAX_TENDER_CONTEXT_CHARS || 8000);
+// Max characters of reference material context to inject into the generation prompt.
+const MAX_REFERENCE_CONTEXT_CHARS = Number(process.env.MAX_REFERENCE_CONTEXT_CHARS || 6000);
 
 function buildTenderSystemPrompt(generationType, context, orgContext) {
   const orgName = orgContext?.name || 'Iron Eagle Security';
@@ -1629,7 +1631,7 @@ You MUST respond with ONLY a valid JSON object (no markdown, no code fences) wit
 function buildTenderUserPrompt(context) {
   const excerpt = (context.extracted_text || '').slice(0, MAX_TENDER_CONTEXT_CHARS);
   const refBlock = context.reference_context
-    ? `\n\n--- ORGANISATION REFERENCE MATERIAL ---\nThe following reference documents are provided to inform the tender response. Use them to calibrate pricing, compliance, and NZ-specific requirements:\n\n${String(context.reference_context).slice(0, 6000)}\n--- END REFERENCE MATERIAL ---`
+    ? `\n\n--- ORGANISATION REFERENCE MATERIAL ---\nThe following reference documents are provided to inform the tender response. Use them to calibrate pricing, compliance, and NZ-specific requirements:\n\n${String(context.reference_context).slice(0, MAX_REFERENCE_CONTEXT_CHARS)}\n--- END REFERENCE MATERIAL ---`
     : '';
   return excerpt
     ? `Here is the source tender document text for context:\n\n---\n${excerpt}\n---${refBlock}\n\nNow generate the ${context.generation_type || 'response'} document sections as a JSON object.`

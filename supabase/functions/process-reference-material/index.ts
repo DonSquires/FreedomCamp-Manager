@@ -20,6 +20,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { withCors, getCorsHeaders } from '../_shared/withCors.ts'
 
+const MAX_EXTRACTED_TEXT_LENGTH = 50000
+const MAX_SPREADSHEET_TEXT_LENGTH = 30000
+const MAX_CSV_ROWS = 200
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function stripXml(raw: string): string {
@@ -34,9 +38,9 @@ async function extractDocxText(buffer: ArrayBuffer): Promise<string> {
   const text = new TextDecoder('utf-8', { fatal: false }).decode(buffer)
   const matches = text.match(/<w:t[^>]*>([^<]*)<\/w:t>/g) || []
   if (matches.length > 0) {
-    return matches.map(m => m.replace(/<[^>]+>/g, '')).join(' ').replace(/\s{2,}/g, ' ').trim().slice(0, 50000)
+    return matches.map(m => m.replace(/<[^>]+>/g, '')).join(' ').replace(/\s{2,}/g, ' ').trim().slice(0, MAX_EXTRACTED_TEXT_LENGTH)
   }
-  return stripXml(text).slice(0, 50000)
+  return stripXml(text).slice(0, MAX_EXTRACTED_TEXT_LENGTH)
 }
 
 function extractPdfText(buffer: ArrayBuffer): string {
@@ -59,12 +63,12 @@ function extractPdfText(buffer: ArrayBuffer): string {
     }
   }
   const joined = blocks.join(' ').replace(/\\n/g, '\n').replace(/\s{2,}/g, ' ').trim()
-  if (joined.length > 100) return joined.slice(0, 50000)
-  return raw.replace(/[^\x20-\x7E\n\r\t]/g, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, 50000)
+  if (joined.length > 100) return joined.slice(0, MAX_EXTRACTED_TEXT_LENGTH)
+  return raw.replace(/[^\x20-\x7E\n\r\t]/g, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, MAX_EXTRACTED_TEXT_LENGTH)
 }
 
 function extractCsvText(raw: string): string {
-  return raw.split(/\r?\n/).filter(l => l.trim()).slice(0, 200).join('\n').slice(0, 30000)
+  return raw.split(/\r?\n/).filter(l => l.trim()).slice(0, MAX_CSV_ROWS).join('\n').slice(0, MAX_SPREADSHEET_TEXT_LENGTH)
 }
 
 // ─── Background extraction ────────────────────────────────────────────────────
@@ -104,9 +108,9 @@ async function doExtraction(
         const sharedStrings = rawText.match(/<si>([\s\S]*?)<\/si>/g) || []
         if (sharedStrings.length > 0) {
           extractedText = sharedStrings.map(s => s.replace(/<[^>]+>/g, '').trim())
-            .filter(s => s.length > 0).slice(0, 500).join(' | ').slice(0, 30000)
+            .filter(s => s.length > 0).slice(0, 500).join(' | ').slice(0, MAX_SPREADSHEET_TEXT_LENGTH)
         } else {
-          extractedText = stripXml(rawText).slice(0, 30000)
+          extractedText = stripXml(rawText).slice(0, MAX_SPREADSHEET_TEXT_LENGTH)
         }
         if (extractedText.length < 50) {
           extractionNotes = 'Spreadsheet extraction yielded little text. Consider converting to CSV for better results.'
@@ -116,12 +120,12 @@ async function doExtraction(
         const fileName = (ref.file_name || '').toLowerCase()
         extractedText = (fileName.endsWith('.csv') || fileName.endsWith('.tsv'))
           ? extractCsvText(rawText)
-          : rawText.slice(0, 50000)
+          : rawText.slice(0, MAX_EXTRACTED_TEXT_LENGTH)
       } else if (kind === 'image') {
         extractedText = `[Image file: ${ref.file_name || 'unknown'}]\n\nAutomatic OCR is not available server-side. Please manually enter the extracted text in the text field below.`
         extractionNotes = 'OCR — image file detected. Automatic server-side OCR is not available. Human review and manual text entry required.'
       } else {
-        extractedText = (await fileData.text()).slice(0, 50000)
+        extractedText = (await fileData.text()).slice(0, MAX_EXTRACTED_TEXT_LENGTH)
         extractionNotes = 'Unknown file type — text extraction may be incomplete. Human review recommended.'
       }
     } catch (extractErr: any) {
