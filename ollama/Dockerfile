@@ -20,6 +20,10 @@ ENV OLLAMA_NO_CLOUD=true
 # models without rebuilding the image (e.g. llama3.1:8b, mistral:7b).
 ENV OLLAMA_MODEL=llama3.1:8b
 
+# Optional additional models to pre-pull (comma-separated).
+# Default includes a stronger writing model used by Bob for long-form generation.
+ENV OLLAMA_EXTRA_MODELS=qwen2.5:14b
+
 EXPOSE 11434
 
 # Copy and enable the startup script that pre-pulls the model so the first

@@ -14,6 +14,7 @@
 set -e
 
 MODEL="${OLLAMA_MODEL:-llama3.1:8b}"
+EXTRA_MODELS="${OLLAMA_EXTRA_MODELS:-qwen2.5:14b}"
 MAX_WAIT=120   # seconds to wait for daemon to become ready
 PREPULL_MODE="${OLLAMA_PREPULL_MODE:-background}"
 PORT="${PORT:-11434}"
@@ -43,27 +44,44 @@ until ollama list >/dev/null 2>&1; do
 done
 echo "✅ Ollama daemon is ready (${elapsed}s elapsed)"
 
-# ── 3. Check whether the model is already present ─────────────────────────────
-MODEL_BASE="${MODEL%%:*}"   # strip tag for partial-name matching
-if ollama list 2>/dev/null | grep -q "${MODEL_BASE}"; then
-  echo "✅ Model '${MODEL}' is already available — skipping pull"
-else
+# ── 3. Check whether the configured models are already present ────────────────
+MODELS_TO_PULL="${MODEL}"
+if [ -n "${EXTRA_MODELS}" ]; then
+  MODELS_TO_PULL="${MODELS_TO_PULL},${EXTRA_MODELS}"
+fi
+
+pull_model_if_needed() {
+  target="$1"
+  target_base="${target%%:*}"  # strip tag for partial-name matching
+  if ollama list 2>/dev/null | grep -q "${target_base}"; then
+    echo "✅ Model '${target}' is already available — skipping pull"
+    return 0
+  fi
+
   if [ "${PREPULL_MODE}" = "off" ]; then
-    echo "⏭️  Pre-pull disabled (OLLAMA_PREPULL_MODE=off)"
-  elif [ "${PREPULL_MODE}" = "blocking" ]; then
-    echo "📦 Pulling model '${MODEL}' in blocking mode (may take several minutes)..."
-    ollama pull "${MODEL}" && echo "✅ Model pull complete" || {
-      echo "⚠️  Model pull failed — service will attempt pull on first request"
+    echo "⏭️  Pre-pull disabled (OLLAMA_PREPULL_MODE=off) for '${target}'"
+    return 0
+  fi
+
+  if [ "${PREPULL_MODE}" = "blocking" ]; then
+    echo "📦 Pulling model '${target}' in blocking mode (may take several minutes)..."
+    ollama pull "${target}" && echo "✅ Model pull complete: ${target}" || {
+      echo "⚠️  Model pull failed for '${target}' — service will attempt pull on first request"
     }
   else
-    echo "📦 Starting background model pull for '${MODEL}' (non-blocking startup)..."
+    echo "📦 Starting background model pull for '${target}' (non-blocking startup)..."
     (
-      ollama pull "${MODEL}" && echo "✅ Background model pull complete" || {
-        echo "⚠️  Background model pull failed — service will attempt pull on first request"
+      ollama pull "${target}" && echo "✅ Background model pull complete: ${target}" || {
+        echo "⚠️  Background model pull failed for '${target}' — service will attempt pull on first request"
       }
     ) &
   fi
-fi
+}
+
+echo "🧠 Model preload set: ${MODELS_TO_PULL}"
+for target in $(echo "${MODELS_TO_PULL}" | tr ',' '\n' | sed '/^\s*$/d' | awk '{$1=$1};1'); do
+  pull_model_if_needed "${target}"
+done
 
 # ── 4. Hand off to the daemon process ─────────────────────────────────────────
 echo "🎯 Ollama ready. Waiting on daemon PID ${OLLAMA_PID}..."
