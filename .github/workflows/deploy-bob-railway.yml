@@ -277,6 +277,7 @@ jobs:
             --environment "$DEPLOY_ENVIRONMENT" \
             --skip-deploys \
             "BOB_OPERATING_MODE=self-contained" \
+            "OPERATIONAL_MODE=self-contained" \
             "CHAT_PROVIDER=ollama" \
             "TABULAR_NLP_PROVIDER=ollama" \
             "SELF_CONTAINED_MODE=true" \
