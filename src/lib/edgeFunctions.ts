@@ -1417,6 +1417,8 @@ export const edgeFunctions = {
       | 'ask_copilot_submit'
       | 'ask_copilot_list'
       | 'health_check'
+      | 'doctor_health'
+      | 'doctor_playbook_run'
       | 'intel_bulletin_submit'
       | 'intel_state'
     // code_task_submit
@@ -1432,6 +1434,9 @@ export const edgeFunctions = {
     question?: string
     // ask_copilot_submit
     category?: string
+    // doctor_playbook_run
+    playbook?: 'ollama_recovery' | 'ptt_token_path_repair' | 'edge_auth_alignment'
+    dry_run?: boolean
     // intel_bulletin_submit
     title?: string
     summary?: string

@@ -215,6 +215,7 @@ const OLLAMA_MODEL_WRITING = process.env.OLLAMA_MODEL_WRITING || OLLAMA_MODEL;
 // Leave unset to disable Ollama-based vision (features fall back to OpenAI or manual).
 const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || '';
 const OLLAMA_VISION_ENABLED = !!OLLAMA_VISION_MODEL;
+const PTT_SERVER_URL = (process.env.PTT_SERVER_URL || '').replace(/\/+$/, '');
 const OLLAMA_AUTO_PULL_MODELS = envFlag(process.env.OLLAMA_AUTO_PULL_MODELS, true);
 const OLLAMA_PULL_TIMEOUT_MS = Number(process.env.OLLAMA_PULL_TIMEOUT_MS || 120000);
 // SECONDARY_ASSISTANT_URL — optional second Railway-hosted AI service for
@@ -5152,6 +5153,281 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
     code_tasks: codeTaskStore.getState(),
     uptime: process.uptime(),
     memory: process.memoryUsage()
+  });
+});
+
+async function probeOllamaTags(timeoutMs = 8000) {
+  const result = {
+    ok: false,
+    status: null,
+    latency_ms: null,
+    error: null,
+    models: [],
+  };
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const startedAt = Date.now();
+    const resp = await fetch(`${OLLAMA_BASE_URL}/api/tags`, { signal: controller.signal });
+    clearTimeout(timer);
+
+    result.status = resp.status;
+    result.latency_ms = Date.now() - startedAt;
+
+    if (!resp.ok) {
+      result.error = `HTTP ${resp.status}`;
+      return result;
+    }
+
+    const payload = await resp.json().catch(() => ({}));
+    const modelNames = Array.isArray(payload?.models)
+      ? payload.models.map((m) => String(m?.name || m?.model || '')).filter(Boolean)
+      : [];
+
+    result.ok = true;
+    result.models = modelNames;
+    return result;
+  } catch (err) {
+    const code = err?.cause?.code || err?.code || '';
+    result.error = code ? `${err?.message || String(err)} [${code}]` : (err?.message || String(err));
+    return result;
+  }
+}
+
+async function probePttHealth(timeoutMs = 5000) {
+  if (!PTT_SERVER_URL) {
+    return { ok: false, configured: false, status: null, latency_ms: null, error: 'PTT_SERVER_URL not configured' };
+  }
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const startedAt = Date.now();
+    const resp = await safeFetch(`${PTT_SERVER_URL}/health`, { method: 'GET', signal: controller.signal }, 'ptt');
+    clearTimeout(timer);
+    return {
+      ok: resp.ok,
+      configured: true,
+      status: resp.status,
+      latency_ms: Date.now() - startedAt,
+      error: resp.ok ? null : `HTTP ${resp.status}`,
+    };
+  } catch (err) {
+    const code = err?.cause?.code || err?.code || '';
+    return {
+      ok: false,
+      configured: true,
+      status: null,
+      latency_ms: null,
+      error: code ? `${err?.message || String(err)} [${code}]` : (err?.message || String(err)),
+    };
+  }
+}
+
+async function buildDoctorHealthSnapshot() {
+  const modelsLoaded = !!(yoloSession && embeddingSession);
+  const ollamaProbe = OLLAMA_ENABLED ? await probeOllamaTags(7000) : null;
+  const pttProbe = await probePttHealth(5000);
+  const breaker = OLLAMA_ENABLED ? ollamaCircuitBreaker.toJSON() : null;
+
+  const risks = [];
+  if (!modelsLoaded) {
+    risks.push({
+      id: 'inference_models_not_loaded',
+      severity: 'high',
+      component: 'inference',
+      message: 'YOLO/embedding ONNX models are not fully loaded.',
+      runbook: 'Investigate model files and startup logs. Restart inference service after model restore.',
+    });
+  }
+  if (OLLAMA_ENABLED && (!ollamaProbe?.ok || breaker?.state === 'open')) {
+    risks.push({
+      id: 'ollama_connectivity_unstable',
+      severity: 'critical',
+      component: 'ollama',
+      message: ollamaProbe?.error || `Ollama breaker is ${breaker?.state || 'unknown'}`,
+      runbook: 'Run playbook: ollama_recovery.',
+    });
+  }
+  if (OLLAMA_VISION_ACTIVE && !modelLooksPresent(ollamaProbe?.models || [], OLLAMA_VISION_MODEL)) {
+    risks.push({
+      id: 'vision_model_missing',
+      severity: 'high',
+      component: 'ollama',
+      message: `Vision model missing: ${OLLAMA_VISION_MODEL}`,
+      runbook: 'Run playbook: ollama_recovery to auto-pull missing model.',
+    });
+  }
+  if (!pttProbe.ok) {
+    risks.push({
+      id: 'ptt_token_path_unhealthy',
+      severity: pttProbe.configured ? 'high' : 'medium',
+      component: 'ptt',
+      message: pttProbe.error || 'PTT health probe failed',
+      runbook: 'Run playbook: ptt_token_path_repair.',
+    });
+  }
+  if (!INFERENCE_API_KEY && !SUPABASE_SERVICE_ROLE_KEY && !SUPABASE_JWKS_URL) {
+    risks.push({
+      id: 'edge_auth_unconfigured',
+      severity: 'high',
+      component: 'auth',
+      message: 'No inference authentication method is configured.',
+      runbook: 'Run playbook: edge_auth_alignment for exact remediation steps.',
+    });
+  }
+
+  let score = 100;
+  for (const risk of risks) {
+    if (risk.severity === 'critical') score -= 30;
+    else if (risk.severity === 'high') score -= 20;
+    else if (risk.severity === 'medium') score -= 10;
+    else score -= 5;
+  }
+  score = Math.max(0, Math.min(100, score));
+
+  return {
+    status: score >= 90 ? 'excellent' : score >= 75 ? 'good' : score >= 50 ? 'degraded' : 'critical',
+    doctor_score: score,
+    components: {
+      inference: {
+        status: modelsLoaded ? 'healthy' : 'degraded',
+        models: {
+          yolo: yoloSession ? 'loaded' : 'not loaded',
+          embedding: embeddingSession ? 'loaded' : 'not loaded',
+          face_detect: faceDetectSession ? 'loaded' : (fs.existsSync(FACE_DETECT_MODEL_PATH) ? 'not loaded' : 'not present'),
+        },
+      },
+      ollama: {
+        enabled: OLLAMA_ENABLED,
+        vision_enabled: OLLAMA_VISION_ACTIVE,
+        model: OLLAMA_MODEL,
+        vision_model: OLLAMA_VISION_MODEL || null,
+        probe: ollamaProbe,
+        breaker,
+      },
+      ptt: pttProbe,
+      auth: {
+        inference_api_key_set: !!INFERENCE_API_KEY,
+        service_role_set: !!SUPABASE_SERVICE_ROLE_KEY,
+        jwks_url_set: !!SUPABASE_JWKS_URL,
+        jwt_issuer_set: !!SUPABASE_JWT_ISSUER,
+        jwt_audience_set: !!SUPABASE_JWT_AUDIENCE,
+        runtime_jwt_enabled: !!SUPABASE_JWKS_URL && !SELF_CONTAINED_STRICT_EGRESS,
+      },
+      queues: {
+        knowledge_requests: knowledgeRequestsStore.getState().counts,
+        code_tasks: codeTaskStore.getState().counts,
+      },
+    },
+    active_risks: risks,
+    playbooks: [
+      { id: 'ollama_recovery', title: 'Ollama Recovery', description: 'Resets breaker, probes tags, and optionally pulls missing Ollama models.' },
+      { id: 'ptt_token_path_repair', title: 'PTT Token Path Repair', description: 'Validates PTT server reachability and token path preconditions.' },
+      { id: 'edge_auth_alignment', title: 'Edge Auth Alignment', description: 'Checks inference auth mismatch conditions and returns remediations.' },
+    ],
+    checked_at: new Date().toISOString(),
+  };
+}
+
+// Doctor control-room health endpoint (protected).
+app.get('/doctor/health', rateLimit({ windowMs: 60_000, max: 30, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, async (req, res) => {
+  const snapshot = await buildDoctorHealthSnapshot();
+  res.json(snapshot);
+});
+
+// Doctor playbook runner (protected, supports dry-run mode).
+app.post('/doctor/playbook/run', rateLimit({ windowMs: 60_000, max: 12, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, async (req, res) => {
+  const playbook = String(req.body?.playbook || '').trim();
+  const dryRun = req.body?.dry_run !== false;
+
+  if (!playbook) {
+    return res.status(400).json({ error: 'playbook is required', available_playbooks: ['ollama_recovery', 'ptt_token_path_repair', 'edge_auth_alignment'] });
+  }
+
+  const executedAt = new Date().toISOString();
+  const steps = [];
+
+  if (playbook === 'ollama_recovery') {
+    const before = OLLAMA_ENABLED ? ollamaCircuitBreaker.toJSON() : null;
+    const preProbe = OLLAMA_ENABLED ? await probeOllamaTags(7000) : { ok: false, error: 'OLLAMA disabled by config' };
+    steps.push({ step: 'pre_probe', result: preProbe });
+
+    if (!dryRun && OLLAMA_ENABLED) {
+      ollamaCircuitBreaker.recordSuccess();
+      steps.push({ step: 'breaker_reset', result: ollamaCircuitBreaker.toJSON() });
+
+      const requiredModels = [OLLAMA_MODEL, OLLAMA_MODEL_WRITING, OLLAMA_VISION_ACTIVE ? OLLAMA_VISION_MODEL : null].filter(Boolean);
+      const missing = requiredModels.filter((m) => !modelLooksPresent(preProbe.models || [], m));
+      if (missing.length && OLLAMA_AUTO_PULL_MODELS) {
+        const pullResults = [];
+        for (const model of missing) {
+          const pulled = await ensureOllamaModelPulled(model);
+          pullResults.push({ model, pulled });
+        }
+        steps.push({ step: 'model_autopull', result: pullResults });
+      }
+    }
+
+    const postProbe = OLLAMA_ENABLED ? await probeOllamaTags(7000) : { ok: false, error: 'OLLAMA disabled by config' };
+    if (postProbe.ok) ollamaCircuitBreaker.recordSuccess();
+    else if (OLLAMA_ENABLED) ollamaCircuitBreaker.recordFailure(new Error(postProbe.error || 'post-repair probe failed'));
+
+    const after = OLLAMA_ENABLED ? ollamaCircuitBreaker.toJSON() : null;
+    return res.json({
+      success: true,
+      playbook,
+      dry_run: dryRun,
+      executed_at: executedAt,
+      before,
+      after,
+      steps,
+      verification: postProbe,
+    });
+  }
+
+  if (playbook === 'ptt_token_path_repair') {
+    const before = await probePttHealth(5000);
+    steps.push({ step: 'pre_probe', result: before });
+
+    const remediation = [];
+    if (!PTT_SERVER_URL) remediation.push('Set PTT_SERVER_URL on the Bob inference service and Supabase edge environment.');
+    if (!SUPABASE_SERVICE_ROLE_KEY) remediation.push('Set SUPABASE_SERVICE_ROLE_KEY so trusted service-to-service auth is available.');
+    if (!INFERENCE_API_KEY && !SUPABASE_SERVICE_ROLE_KEY && !SUPABASE_JWKS_URL) {
+      remediation.push('Set INFERENCE_API_KEY (or SUPABASE_SERVICE_ROLE_KEY/JWKS) so secure token mint path can authenticate.');
+    }
+    steps.push({ step: 'remediation_plan', result: remediation });
+
+    const after = await probePttHealth(5000);
+    return res.json({ success: true, playbook, dry_run: dryRun, executed_at: executedAt, before, after, steps });
+  }
+
+  if (playbook === 'edge_auth_alignment') {
+    const checks = {
+      inference_api_key_set: !!INFERENCE_API_KEY,
+      service_role_set: !!SUPABASE_SERVICE_ROLE_KEY,
+      jwks_url_set: !!SUPABASE_JWKS_URL,
+      jwt_issuer_set: !!SUPABASE_JWT_ISSUER,
+      jwt_audience_set: !!SUPABASE_JWT_AUDIENCE,
+      runtime_jwt_enabled: !!SUPABASE_JWKS_URL && !SELF_CONTAINED_STRICT_EGRESS,
+      strict_egress: SELF_CONTAINED_STRICT_EGRESS,
+    };
+    const remediation = [];
+    if (!checks.inference_api_key_set && !checks.service_role_set && !checks.jwks_url_set) {
+      remediation.push('Configure one auth path: INFERENCE_API_KEY (recommended), SUPABASE_SERVICE_ROLE_KEY, or SUPABASE_JWKS_URL.');
+    }
+    if (checks.jwks_url_set && !checks.jwt_issuer_set) remediation.push('Set SUPABASE_JWT_ISSUER for strict JWT issuer validation.');
+    if (checks.jwks_url_set && !checks.jwt_audience_set) remediation.push('Set SUPABASE_JWT_AUDIENCE for strict JWT audience validation.');
+    if (checks.strict_egress && checks.jwks_url_set) {
+      remediation.push('JWKS runtime verification is blocked by strict egress in self-contained mode; use INFERENCE_API_KEY or service role path for edge-to-Bob calls.');
+    }
+    return res.json({ success: true, playbook, dry_run: dryRun, executed_at: executedAt, checks, remediation });
+  }
+
+  return res.status(400).json({
+    error: 'Unknown playbook',
+    available_playbooks: ['ollama_recovery', 'ptt_token_path_repair', 'edge_auth_alignment'],
   });
 });
 

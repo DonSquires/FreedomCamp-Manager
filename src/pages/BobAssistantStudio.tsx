@@ -15,7 +15,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { usePTTStore } from '@/stores/pttStore'
 import { supabase } from '@/lib/supabase'
-import { BrainCircuit, CheckCircle2, ClipboardList, FlaskConical, Loader2, MapPinned, Mic, MicOff, Paintbrush2, Play, Radio, Route, Send, Volume2, VolumeX, Wrench, Github, ShieldAlert, PhoneOff, SignalHigh, XCircle } from 'lucide-react'
+import { BrainCircuit, CheckCircle2, ClipboardList, FlaskConical, Loader2, MapPinned, Mic, MicOff, Paintbrush2, Play, Radio, Route, Send, Volume2, VolumeX, Wrench, Github, ShieldAlert, PhoneOff, SignalHigh, Stethoscope, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { smokeTests, dataVerification, performanceTests, runBugFixDeepDive } from '@/lib/testUtils'
@@ -120,6 +120,7 @@ interface CodeChangeRequest {
 }
 
 type EmergencyCancelVerificationMode = 'platform_biometric' | 'voiceprint'
+type DoctorPlaybookId = 'ollama_recovery' | 'ptt_token_path_repair' | 'edge_auth_alignment'
 
 interface BobRadioChannel {
   id: string
@@ -542,6 +543,9 @@ export default function BobAssistantStudio() {
   const [voiceSupported, setVoiceSupported] = useState(false)
   const [codeTaskLoading, setCodeTaskLoading] = useState(false)
   const [codeTaskResult, setCodeTaskResult] = useState('')
+  const [doctorHealth, setDoctorHealth] = useState<any>(null)
+  const [doctorLoading, setDoctorLoading] = useState(false)
+  const [doctorPlaybookRunning, setDoctorPlaybookRunning] = useState<DoctorPlaybookId | null>(null)
   const [remoteLearningContext, setRemoteLearningContext] = useState('')
   const [conversationContinuationContext, setConversationContinuationContext] = useState('')
   const [memorySnapshot, setMemorySnapshot] = useState<BobMemorySnapshot | null>(null)
@@ -2347,6 +2351,48 @@ export default function BobAssistantStudio() {
     sendMessage(prompt)
   }
 
+  const loadDoctorHealth = async () => {
+    if (!isGrandMaster) return
+    setDoctorLoading(true)
+    try {
+      const { data, error } = await edgeFunctions.grandmasterStudio({ action: 'doctor_health' })
+      if (error) throw new Error(String(error))
+      setDoctorHealth(data)
+    } catch (err: any) {
+      toast.error(err?.message || 'Could not load Doctor health')
+    } finally {
+      setDoctorLoading(false)
+    }
+  }
+
+  const runDoctorPlaybook = async (playbook: DoctorPlaybookId, dryRun = false) => {
+    if (!isGrandMaster) return
+    setDoctorPlaybookRunning(playbook)
+    try {
+      const { data, error } = await edgeFunctions.grandmasterStudio({
+        action: 'doctor_playbook_run',
+        playbook,
+        dry_run: dryRun,
+      })
+      if (error) throw new Error(String(error))
+      toast.success(`${playbook} completed`)
+      if (data?.remediation?.length) {
+        toast.message(`Doctor found ${data.remediation.length} remediation item(s)`)
+      }
+      await loadDoctorHealth()
+    } catch (err: any) {
+      toast.error(err?.message || `Playbook ${playbook} failed`)
+    } finally {
+      setDoctorPlaybookRunning(null)
+    }
+  }
+
+  useEffect(() => {
+    if (!isGrandMaster) return
+    void loadDoctorHealth()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGrandMaster])
+
   return (
     <AppLayout title="Bob Assistant Studio" description="Personality, voice, mapping, and drawing controls for Bob.">
       <GlobalFilterRibbon />
@@ -3175,6 +3221,81 @@ export default function BobAssistantStudio() {
           </Card>
 
           <BobSketchPad />
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Stethoscope className="h-4 w-4" /> Doctor Control Room</CardTitle>
+              <CardDescription>
+                System-level self-healing controls for Bob and Ollama. Includes health scoring, active risks, and guarded playbooks.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!isGrandMaster ? (
+                <p className="text-xs text-muted-foreground">
+                  Grand Master access is required to run Doctor playbooks.
+                </p>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => void loadDoctorHealth()} disabled={doctorLoading}>
+                      {doctorLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Stethoscope className="h-4 w-4 mr-1" />}
+                      Refresh Doctor Health
+                    </Button>
+                    <Badge variant={doctorHealth?.doctor_score >= 90 ? 'default' : doctorHealth?.doctor_score >= 75 ? 'secondary' : 'destructive'}>
+                      Score: {typeof doctorHealth?.doctor_score === 'number' ? doctorHealth.doctor_score : '--'}
+                    </Badge>
+                    {doctorHealth?.status && <Badge variant="outline">{String(doctorHealth.status).toUpperCase()}</Badge>}
+                  </div>
+
+                  {Array.isArray(doctorHealth?.active_risks) && doctorHealth.active_risks.length > 0 ? (
+                    <div className="rounded border bg-muted/30 p-3 space-y-2">
+                      <div className="text-xs font-medium text-muted-foreground">Active Risks</div>
+                      {doctorHealth.active_risks.slice(0, 5).map((risk: any) => (
+                        <div key={String(risk.id)} className="text-xs">
+                          <div className="font-medium">{String(risk.id)} · {String(risk.severity)}</div>
+                          <div className="text-muted-foreground">{String(risk.message || '')}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded border bg-emerald-50 dark:bg-emerald-950/20 p-3 text-xs text-emerald-700 dark:text-emerald-300">
+                      No active Doctor risks detected.
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void runDoctorPlaybook('ollama_recovery')}
+                      disabled={doctorPlaybookRunning !== null}
+                    >
+                      {doctorPlaybookRunning === 'ollama_recovery' ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+                      Run Ollama Recovery
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void runDoctorPlaybook('ptt_token_path_repair', true)}
+                      disabled={doctorPlaybookRunning !== null}
+                    >
+                      {doctorPlaybookRunning === 'ptt_token_path_repair' ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+                      Check PTT Token Path
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void runDoctorPlaybook('edge_auth_alignment', true)}
+                      disabled={doctorPlaybookRunning !== null}
+                    >
+                      {doctorPlaybookRunning === 'edge_auth_alignment' ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+                      Check Edge Auth Alignment
+                    </Button>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
 
           {/* ── Bob Automation & Testing ─────────────────────────────── */}
           <Card>

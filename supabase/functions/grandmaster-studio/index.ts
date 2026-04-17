@@ -14,6 +14,8 @@ type Action =
   | 'ask_copilot_submit'
   | 'ask_copilot_list'
   | 'health_check'
+  | 'doctor_health'
+  | 'doctor_playbook_run'
   | 'intel_bulletin_submit'
   | 'intel_state'
 
@@ -209,6 +211,19 @@ Deno.serve(async (req: Request) => {
       return proxyResponse(result, req)
     }
 
+    if (action === 'doctor_health') {
+      const result = await bobGet('/doctor/health')
+      return proxyResponse(result, req)
+    }
+
+    if (action === 'doctor_playbook_run') {
+      const playbook = String(body?.playbook || '').trim()
+      const dryRun = body?.dry_run !== false
+      if (!playbook) return json400('playbook is required', req)
+      const result = await bobPost('/doctor/playbook/run', { playbook, dry_run: dryRun })
+      return proxyResponse(result, req)
+    }
+
     if (action === 'intel_bulletin_submit') {
       const { title, summary, type, source, metadata } = body
       if (!title || typeof title !== 'string') return json400('title is required', req)
@@ -261,6 +276,7 @@ Deno.serve(async (req: Request) => {
           'code_task_skip', 'code_task_delete',
           'code_patterns', 'code_conventions', 'code_tech_stack', 'code_assist',
           'ask_copilot_submit', 'ask_copilot_list', 'health_check',
+          'doctor_health', 'doctor_playbook_run',
           'intel_bulletin_submit', 'intel_state',
         ],
       }),
