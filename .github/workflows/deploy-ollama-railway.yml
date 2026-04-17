@@ -4,8 +4,9 @@ name: Deploy Ollama to Railway
 # Ollama runs as a separate service in the same project so Bob can reach it
 # via Railway private networking (http://ollama.railway.internal:11434).
 #
-# Trigger: manual only — Ollama image updates are deliberate, not tied to
-# source code changes.
+# Trigger: push to ollama/** or manual workflow_dispatch.
+# Note: in Railway service settings, Root Directory must be `ollama` (no
+# leading slash). `/ollama` can fail snapshot resolution on manual redeploy.
 #
 # Required secrets:
 #   RAILWAY_BOB_TOKEN          — Railway project token (shared with Bob service)

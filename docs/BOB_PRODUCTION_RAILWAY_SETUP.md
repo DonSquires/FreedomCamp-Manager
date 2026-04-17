@@ -59,7 +59,7 @@ Bob's own canonical deploy repo (`DonSquires/Bob`) should have:
 | Component | Status | Domain / Notes |
 |---|---|---|
 | Bob Inference | ✅ Deployed | `https://focused-courage-production-ccee.up.railway.app` |
-| Ollama | ✅ Deployed | `ollama-production-8631.up.railway.app` (us-west2, CPU, 22 GiB RAM, Ollama v0.20.2) |
+| Ollama | ✅ Deployed | `ollama-production-a142.up.railway.app` (us-west2, CPU, 22 GiB RAM, Ollama v0.20.2) |
 
 ## Ollama Service Details
 
@@ -74,6 +74,9 @@ Bob's own canonical deploy repo (`DonSquires/Bob`) should have:
 
 > **Note**: Railway's Ollama service listens on port **11434**.
 > Bob must use `http://ollama.railway.internal:11434` as `OLLAMA_BASE_URL`.
+>
+> For Railway dashboard source deploy settings, set Root Directory to `ollama`
+> (no leading slash). `/ollama` can break manual snapshot redeploy.
 
 ## Setup Steps
 

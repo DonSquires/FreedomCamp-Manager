@@ -89,13 +89,16 @@ See [SECRETS_REGISTRY.md](SECRETS_REGISTRY.md) for full details, aliases, and th
 | Property | Value |
 |---|---|
 | **Owns** | Large Language Model inference (llama3.1:8b, etc.) |
-| **Code Location** | `/ollama/` (Dockerfile + container config) |
+| **Code Location** | `ollama/` (Dockerfile + container config) |
 | **Deploy Authority** | FreedomCamp-Manager (push-triggered) |
 | **Railway Project** | "Bob" project (shared with Bob service) |
 | **Railway Service** | `ollama` or `ollama-production` |
 | **Deploy Workflow** | `.github/workflows/deploy-ollama-railway.yml` |
 | **Internal URL** | `http://ollama.railway.internal:11434` (Railway private networking) |
 | **Public URL** | `https://<railway-domain>.railway.app` (if exposed, not recommended) |
+
+> Railway source settings note: Root Directory must be `ollama` (no leading
+> slash). `/ollama` may fail manual snapshot redeploys.
 
 **Required GitHub Actions Secrets (FreedomCamp-Manager):**
 - `RAILWAY_BOB_TOKEN` — Railway project token (shared with Bob; required)
