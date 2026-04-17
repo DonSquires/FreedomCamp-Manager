@@ -307,22 +307,54 @@ export default function TenderWorkspaceDetail() {
     setAnalysing(true)
     setAnalysingElapsed(0)
     analysingTimerRef.current = setInterval(() => setAnalysingElapsed(s => s + 1), 1000)
+
+    // Poll DB every 5s — the edge fn takes up to 110s and the supabase SDK
+    // fetch can silently hang without resolving, so we detect completion via DB.
+    let pollInterval: ReturnType<typeof setInterval> | null = null
+    let completed = false
+
+    const cleanup = () => {
+      if (analysingTimerRef.current) { clearInterval(analysingTimerRef.current); analysingTimerRef.current = null }
+      if (pollInterval) { clearInterval(pollInterval); pollInterval = null }
+      setAnalysing(false)
+      setAnalysingElapsed(0)
+    }
+
+    pollInterval = setInterval(async () => {
+      try {
+        const { data } = await (supabase as any)
+          .from('tender_documents')
+          .select('status, bob_assessment_summary')
+          .eq('id', doc.id)
+          .single()
+        if (data?.status === 'assessed') {
+          completed = true
+          cleanup()
+          queryClient.invalidateQueries({ queryKey: ['tender-document', id] })
+          toast.success('Bob has completed the analysis')
+          setActiveTab('assessment')
+        }
+      } catch { /* ignore poll errors */ }
+    }, 5000)
+
     try {
       const { error } = await edgeFunctions.processTenderDocument({
         document_id: doc.id,
         extracted_text: doc.extracted_text,
         force_enrich: true,
       })
-      if (error) throw new Error(error)
-      queryClient.invalidateQueries({ queryKey: ['tender-document', id] })
-      toast.success('Bob has completed the analysis')
-      setActiveTab('assessment')
+      if (!completed) {
+        if (error) { cleanup(); toast.error(error) }
+        else {
+          completed = true
+          cleanup()
+          queryClient.invalidateQueries({ queryKey: ['tender-document', id] })
+          toast.success('Bob has completed the analysis')
+          setActiveTab('assessment')
+        }
+      }
     } catch (err: any) {
-      toast.error(err?.message || 'Analysis failed')
-    } finally {
-      if (analysingTimerRef.current) { clearInterval(analysingTimerRef.current); analysingTimerRef.current = null }
-      setAnalysing(false)
-      setAnalysingElapsed(0)
+      if (!completed) { cleanup(); toast.error(err?.message || 'Analysis failed') }
     }
   }, [doc, canEdit, id, queryClient])
 

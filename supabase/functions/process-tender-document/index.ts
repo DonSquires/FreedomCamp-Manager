@@ -142,45 +142,20 @@ Deno.serve(withCors(async (req: Request) => {
     await (supabase as any).from('tender_documents').update({ status: 'staged', bob_assessment_summary: '⏳ Bob is analysing…' }).eq('id', document_id)
 
     // --- Bob Assessment -------------------------------------------------
-    const systemPrompt = `You are Bob, an expert analyst for Iron Eagle Security's FieldOps Manager system in New Zealand.
-Your job is to analyse tender, RFP, RFIP, and procurement documents and extract structured information
-to help the team prepare competitive responses.
+    const systemPrompt = `You are Bob, a procurement analyst for Iron Eagle Security NZ. Return ONLY a valid JSON object with these exact keys: document_type (rfp/rfi/rfq/rfip/tender_application/tender_response/proposal/other), issuing_body, reference_number, due_date (YYYY-MM-DD or null), key_services (array), key_requirements (array), key_dates (array of {label,date}), assessment_summary (2-4 sentences), enrichment_queries (array), response_outline ({cover_letter,executive_summary,services_offered,pricing_notes,team_qualifications,health_and_safety,declaration}). No text outside the JSON.`
 
-You must return a single valid JSON object with EXACTLY these fields:
-{
-  "document_type": "rfp|rfi|rfq|rfip|tender_application|tender_response|proposal|other",
-  "issuing_body": "name of the organisation issuing this document",
-  "reference_number": "the document or tender reference number if present, else empty string",
-  "due_date": "ISO date string YYYY-MM-DD if a deadline is mentioned, else null",
-  "key_services": ["service 1", "service 2"],
-  "key_requirements": ["requirement 1", "requirement 2"],
-  "key_dates": [{"label": "Submissions close", "date": "YYYY-MM-DD"}],
-  "assessment_summary": "2-4 sentence plain-English overview of this document and what Iron Eagle needs to do",
-  "enrichment_queries": ["web search query 1", "web search query 2"],
-  "response_outline": {
-    "cover_letter": "brief suggested content",
-    "executive_summary": "suggested content",
-    "services_offered": "suggested approach",
-    "pricing_notes": "any pricing guidance noted in the document",
-    "team_qualifications": "what credentials/experience to highlight",
-    "health_and_safety": "H&S requirements mentioned",
-    "declaration": "any declaration or certification requirements"
-  }
-}
-Do not include any text outside the JSON object.`
-
-    // Keep prompt short — llama3.1:8b on Railway needs <5000 chars to respond within edge fn timeout
-    const userMessage = `Please analyse this tender/procurement document and return the structured JSON assessment:\n\n---\n${textToAnalyse.slice(0, 5000)}\n---`
+    // Keep prompt short — llama3.1:8b on Railway needs <4000 chars to respond within edge fn timeout
+    const userMessage = `Analyse this procurement document and return the JSON assessment:\n\n---\n${textToAnalyse.slice(0, 4000)}\n---`
 
     let rawResponse: string
+    let usedFallback = false
     try {
       rawResponse = await callBobChat(systemPrompt, userMessage)
     } catch (inferenceErr: any) {
-      console.error('Inference service error:', inferenceErr)
-      return new Response(JSON.stringify({ error: `AI analysis failed: ${inferenceErr.message}` }), {
-        status: 502,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      console.error('Inference service error (using heuristic fallback):', inferenceErr.message)
+      // Heuristic fallback — extract what we can from the text directly
+      usedFallback = true
+      rawResponse = ''
     }
 
     // Parse JSON from Bob's response (may be wrapped in markdown code fences)
@@ -190,15 +165,20 @@ Do not include any text outside the JSON object.`
       const jsonStr = jsonMatch ? jsonMatch[0] : rawResponse
       assessment = JSON.parse(jsonStr)
     } catch {
+      // Heuristic fallback — extract basic info directly from text
+      const refMatch = textToAnalyse.match(/\b(\d{2}-\d{3,})\b/)
+      const dueDateMatch = textToAnalyse.match(/(\d{1,2}\s+\w+\s+20\d{2})/i)
       assessment = {
-        document_type: doc.document_type || 'rfp',
+        document_type: doc.document_type || 'rfip',
         issuing_body: doc.issuing_body || '',
-        reference_number: doc.reference_number || '',
+        reference_number: refMatch ? refMatch[1] : (doc.reference_number || ''),
         due_date: null,
         key_services: [],
         key_requirements: [],
-        key_dates: [],
-        assessment_summary: rawResponse.slice(0, 800),
+        key_dates: dueDateMatch ? [{ label: 'Mentioned date', date: dueDateMatch[1] }] : [],
+        assessment_summary: usedFallback
+          ? 'Bob could not complete AI analysis within the time limit. Basic document details have been extracted. Please review the extracted text and try again, or proceed to Draft Response manually.'
+          : rawResponse.slice(0, 800),
         enrichment_queries: [],
         response_outline: {},
       }
