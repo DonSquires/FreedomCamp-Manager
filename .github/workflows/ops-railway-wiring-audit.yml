@@ -86,7 +86,7 @@ jobs:
           set -euo pipefail
           missing=""
           [ -z "${VITE_SUPABASE_URL:-}" ] && missing="$missing VITE_SUPABASE_URL"
-          [ -z "${INFERENCE_SERVICE_URL:-}" ] && missing="$missing INFERENCE_SERVICE_URL"
+          [ -z "${BOB_SERVICE_URL:-${INFERENCE_SERVICE_URL:-}}" ] && missing="$missing BOB_SERVICE_URL-or-INFERENCE_SERVICE_URL"
           [ -z "${PROXY_SERVER_URL:-}" ] && missing="$missing PROXY_SERVER_URL"
           [ -z "${PTT_SERVER_URL:-}" ] && missing="$missing PTT_SERVER_URL"
           [ -z "${INFERENCE_API_KEY:-${BOB_INFERENCE_API_KEY:-}}" ] && missing="$missing INFERENCE_API_KEY-or-BOB_INFERENCE_API_KEY"
@@ -107,7 +107,7 @@ jobs:
             printf "%s" "$value"
           }
 
-          EXPECT_INFERENCE_URL="$(normalize_url "$INFERENCE_SERVICE_URL")"
+          EXPECT_INFERENCE_URL="$(normalize_url "${BOB_SERVICE_URL:-$INFERENCE_SERVICE_URL}")"
           EXPECT_PROXY_URL="$(normalize_url "$PROXY_SERVER_URL")"
           EXPECT_PTT_URL="$(normalize_url "$PTT_SERVER_URL")"
           FN_URL="${VITE_SUPABASE_URL%/}/functions/v1/check-railway-health"

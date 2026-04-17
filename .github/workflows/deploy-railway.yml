@@ -13,10 +13,6 @@ name: Deploy Inference Service to Railway
 #   INFERENCE_SERVICE_URL — deployed Railway URL; enables health check after deploy
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'inference-service/**'
   workflow_dispatch:
     inputs:
       railway_token_override:

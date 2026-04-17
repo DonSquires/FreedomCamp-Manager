@@ -20,7 +20,7 @@ jobs:
       - name: Normalize Bob runtime endpoint and auth key
         run: |
           set -euo pipefail
-          BASE_URL="${INFERENCE_SERVICE_URL:-${BOB_SERVICE_URL:-}}"
+          BASE_URL="${BOB_SERVICE_URL:-${INFERENCE_SERVICE_URL:-}}"
           API_KEY_PRIMARY="${INFERENCE_API_KEY:-}"
           API_KEY_SECONDARY="${BOB_INFERENCE_API_KEY:-}"
 
