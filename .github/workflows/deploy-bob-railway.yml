@@ -5,6 +5,12 @@ name: Deploy Bob Service to Railway
 # token, service ID, and production URL.
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - inference-service/**
+      - .github/workflows/deploy-bob-railway.yml
   workflow_dispatch:
     inputs:
       railway_token_override:
