@@ -31,6 +31,11 @@
  * - POST /infer/biosecurity - NZ biosecurity plant ID (Nassella neesiana / CNG) + density + checklist
  * - POST /infer/smoke - NZ RMA smoke complaint assessment + prohibited materials + checklist
  * - POST /infer/noise-audio - NZ noise complaint street-level audio assessment + matrix prefill
+ * - GET  /infer/safety/capabilities - Safety/model adapter readiness and flags
+ * - POST /infer/audio/classify-nuisance - Nuisance audio classifier adapter (YAMNet/VGGish/AST)
+ * - POST /infer/video/analyze-action - Action recognition adapter (VideoMAE/TimeSformer)
+ * - POST /infer/welfare/man-down - Man-down inference adapter (MoveNet/fusion)
+ * - POST /safety/emergency/hot-mic/trigger - Emergency hot-mic escalation trigger
  * - GET  /platform/:key - Get Bob's knowledge about a specific platform
  * - GET  /platform/stack - Get full hybrid stack overview
  * - POST /ask-copilot - Queue a knowledge request for Copilot to research
@@ -173,6 +178,110 @@ function normalizeProvider(value, fallback) {
   return provider || fallback;
 }
 
+function getSafetyCapabilitySummary() {
+  return {
+    audio_classifier: {
+      enabled: SAFETY_AUDIO_CLASSIFIER_ENABLED,
+      provider: SAFETY_AUDIO_CLASSIFIER_PROVIDER,
+      model: SAFETY_AUDIO_CLASSIFIER_MODEL || null,
+      requested_families: ['yamnet', 'vggish', 'ast'],
+      implemented_runtime: false,
+    },
+    action_recognition: {
+      enabled: SAFETY_ACTION_RECOGNITION_ENABLED,
+      provider: SAFETY_ACTION_RECOGNITION_PROVIDER,
+      model: SAFETY_ACTION_RECOGNITION_MODEL || null,
+      requested_families: ['videomae', 'timesformer'],
+      implemented_runtime: false,
+    },
+    man_down: {
+      enabled: SAFETY_MAN_DOWN_MODEL_ENABLED,
+      provider: SAFETY_MAN_DOWN_MODEL_PROVIDER,
+      model: SAFETY_MAN_DOWN_MODEL || null,
+      requested_families: ['movenet', 'sensor-fusion'],
+      implemented_runtime: false,
+    },
+    emergency_hot_mic: {
+      enabled: SAFETY_EMERGENCY_HOT_MIC_ENABLED,
+      ptt_configured: !!PTT_SERVER_URL,
+      implemented_runtime: false,
+    },
+  };
+}
+
+function classifyNuisanceHeuristic(transcript, approxDbA = null) {
+  const lower = String(transcript || '').toLowerCase();
+  const loud = Number.isFinite(Number(approxDbA)) ? Number(approxDbA) : null;
+  const tags = [];
+  let label = 'general_noise';
+  let confidence = 0.45;
+
+  if (/(bark|dog)/.test(lower)) {
+    label = 'animal_noise';
+    confidence = 0.75;
+    tags.push('animal');
+  } else if (/(engine|revving|motorbike|car alarm|exhaust)/.test(lower)) {
+    label = 'vehicle_noise';
+    confidence = 0.72;
+    tags.push('vehicle');
+  } else if (/(music|party|speaker|subwoofer|bass|thump)/.test(lower)) {
+    label = 'music_noise';
+    confidence = 0.8;
+    tags.push('music');
+  } else if (/(construction|machinery|generator|drill|grinder)/.test(lower)) {
+    label = 'machinery_noise';
+    confidence = 0.74;
+    tags.push('machinery');
+  }
+
+  if (loud != null && loud >= 75) {
+    confidence = Math.min(0.95, confidence + 0.12);
+    tags.push('high_db');
+  }
+
+  return {
+    label,
+    confidence,
+    tags,
+    fallback: 'heuristic',
+  };
+}
+
+function classifyActionHeuristic(events, transcript) {
+  const text = `${Array.isArray(events) ? events.join(' ') : ''} ${String(transcript || '')}`.toLowerCase();
+  if (/(fall|collapsed|on ground|lying still|not moving)/.test(text)) {
+    return { action: 'possible_fall', risk: 'high', confidence: 0.74, fallback: 'heuristic' };
+  }
+  if (/(fight|assault|punch|kick|aggressive)/.test(text)) {
+    return { action: 'possible_assault', risk: 'high', confidence: 0.72, fallback: 'heuristic' };
+  }
+  if (/(running|fleeing|chase)/.test(text)) {
+    return { action: 'rapid_movement', risk: 'medium', confidence: 0.63, fallback: 'heuristic' };
+  }
+  return { action: 'no_specific_action_detected', risk: 'low', confidence: 0.5, fallback: 'heuristic' };
+}
+
+function detectManDownHeuristic(params) {
+  const posture = String(params?.posture || '').toLowerCase();
+  const immobileSeconds = Number(params?.immobile_seconds || 0);
+  const motionScore = Number(params?.motion_score || 1);
+  const hasFallSignal = envFlag(params?.fall_signal, false);
+
+  const proneLike = ['prone', 'supine', 'face_down', 'on_ground'].includes(posture);
+  const immobileLong = Number.isFinite(immobileSeconds) && immobileSeconds >= 30;
+  const lowMotion = Number.isFinite(motionScore) && motionScore <= 0.2;
+
+  const triggered = hasFallSignal || (proneLike && immobileLong) || (immobileLong && lowMotion);
+  return {
+    man_down: triggered,
+    confidence: triggered ? 0.76 : 0.42,
+    rationale: triggered
+      ? 'Heuristic trigger: fall signal or prolonged immobility with prone/low-motion indicators.'
+      : 'No strong man-down indicators in current heuristic checks.',
+    fallback: 'heuristic',
+  };
+}
+
 function envFlag(value, fallback) {
   if (value === undefined || value === null || value === '') return fallback;
   return !['0', 'false', 'no', 'off'].includes(String(value).toLowerCase());
@@ -249,6 +358,16 @@ const TTS_ENGINE = (process.env.TTS_ENGINE || 'espeak-ng').toLowerCase();
 const TTS_DEFAULT_VOICE = process.env.TTS_DEFAULT_VOICE || 'en-nz';
 const TTS_DEFAULT_RATE = Number(process.env.TTS_DEFAULT_RATE || 160);
 const PTT_SERVER_URL = (process.env.PTT_SERVER_URL || '').replace(/\/+$/, '');
+const SAFETY_AUDIO_CLASSIFIER_ENABLED = envFlag(process.env.SAFETY_AUDIO_CLASSIFIER_ENABLED, false);
+const SAFETY_ACTION_RECOGNITION_ENABLED = envFlag(process.env.SAFETY_ACTION_RECOGNITION_ENABLED, false);
+const SAFETY_MAN_DOWN_MODEL_ENABLED = envFlag(process.env.SAFETY_MAN_DOWN_MODEL_ENABLED, false);
+const SAFETY_EMERGENCY_HOT_MIC_ENABLED = envFlag(process.env.SAFETY_EMERGENCY_HOT_MIC_ENABLED, false);
+const SAFETY_AUDIO_CLASSIFIER_PROVIDER = (process.env.SAFETY_AUDIO_CLASSIFIER_PROVIDER || 'none').toLowerCase();
+const SAFETY_ACTION_RECOGNITION_PROVIDER = (process.env.SAFETY_ACTION_RECOGNITION_PROVIDER || 'none').toLowerCase();
+const SAFETY_MAN_DOWN_MODEL_PROVIDER = (process.env.SAFETY_MAN_DOWN_MODEL_PROVIDER || 'none').toLowerCase();
+const SAFETY_AUDIO_CLASSIFIER_MODEL = process.env.SAFETY_AUDIO_CLASSIFIER_MODEL || '';
+const SAFETY_ACTION_RECOGNITION_MODEL = process.env.SAFETY_ACTION_RECOGNITION_MODEL || '';
+const SAFETY_MAN_DOWN_MODEL = process.env.SAFETY_MAN_DOWN_MODEL || '';
 const OLLAMA_AUTO_PULL_MODELS = envFlag(process.env.OLLAMA_AUTO_PULL_MODELS, true);
 const OLLAMA_PULL_TIMEOUT_MS = Number(process.env.OLLAMA_PULL_TIMEOUT_MS || 120000);
 // SECONDARY_ASSISTANT_URL — optional second Railway-hosted AI service for
@@ -5728,6 +5847,143 @@ app.post('/infer/noise-audio', inferenceRateLimit, requireInferenceAuth, async (
   }
 });
 
+app.get('/infer/safety/capabilities', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  return res.json({
+    success: true,
+    capabilities: getSafetyCapabilitySummary(),
+    note: 'Adapters are scaffolded with feature flags. Set provider/model env vars and wire runtime sessions to enable full inference.',
+  });
+});
+
+app.post('/infer/audio/classify-nuisance', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    if (!SAFETY_AUDIO_CLASSIFIER_ENABLED) {
+      return res.status(503).json({
+        error: 'Audio nuisance classifier disabled',
+        enable_with: 'Set SAFETY_AUDIO_CLASSIFIER_ENABLED=true and configure SAFETY_AUDIO_CLASSIFIER_PROVIDER/model env vars.',
+      });
+    }
+
+    const transcript = String(req.body?.transcript || '').trim();
+    const approxDbA = req.body?.observed_db_a != null ? Number(req.body.observed_db_a) : null;
+    const result = classifyNuisanceHeuristic(transcript, approxDbA);
+
+    return res.json({
+      success: true,
+      provider: SAFETY_AUDIO_CLASSIFIER_PROVIDER,
+      model: SAFETY_AUDIO_CLASSIFIER_MODEL || null,
+      runtime: 'scaffold',
+      adapter_status: 'runtime_model_not_wired',
+      classification: result,
+    });
+  } catch (error) {
+    console.error('❌ /infer/audio/classify-nuisance error:', error);
+    return res.status(500).json({ error: 'Audio nuisance classification failed', message: error.message });
+  }
+});
+
+app.post('/infer/video/analyze-action', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    if (!SAFETY_ACTION_RECOGNITION_ENABLED) {
+      return res.status(503).json({
+        error: 'Action recognition disabled',
+        enable_with: 'Set SAFETY_ACTION_RECOGNITION_ENABLED=true and configure SAFETY_ACTION_RECOGNITION_PROVIDER/model env vars.',
+      });
+    }
+
+    const events = Array.isArray(req.body?.events) ? req.body.events.map((v) => String(v)) : [];
+    const transcript = String(req.body?.transcript || '').trim();
+    const result = classifyActionHeuristic(events, transcript);
+
+    return res.json({
+      success: true,
+      provider: SAFETY_ACTION_RECOGNITION_PROVIDER,
+      model: SAFETY_ACTION_RECOGNITION_MODEL || null,
+      runtime: 'scaffold',
+      adapter_status: 'runtime_model_not_wired',
+      analysis: result,
+    });
+  } catch (error) {
+    console.error('❌ /infer/video/analyze-action error:', error);
+    return res.status(500).json({ error: 'Action recognition failed', message: error.message });
+  }
+});
+
+app.post('/infer/welfare/man-down', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    if (!SAFETY_MAN_DOWN_MODEL_ENABLED) {
+      return res.status(503).json({
+        error: 'Man-down model disabled',
+        enable_with: 'Set SAFETY_MAN_DOWN_MODEL_ENABLED=true and configure SAFETY_MAN_DOWN_MODEL_PROVIDER/model env vars.',
+      });
+    }
+
+    const result = detectManDownHeuristic(req.body || {});
+
+    return res.json({
+      success: true,
+      provider: SAFETY_MAN_DOWN_MODEL_PROVIDER,
+      model: SAFETY_MAN_DOWN_MODEL || null,
+      runtime: 'scaffold',
+      adapter_status: 'runtime_model_not_wired',
+      detection: result,
+    });
+  } catch (error) {
+    console.error('❌ /infer/welfare/man-down error:', error);
+    return res.status(500).json({ error: 'Man-down detection failed', message: error.message });
+  }
+});
+
+app.post('/safety/emergency/hot-mic/trigger', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    if (!SAFETY_EMERGENCY_HOT_MIC_ENABLED) {
+      return res.status(503).json({
+        error: 'Emergency hot-mic trigger disabled',
+        enable_with: 'Set SAFETY_EMERGENCY_HOT_MIC_ENABLED=true.',
+      });
+    }
+
+    const officerId = String(req.body?.officer_id || '').trim();
+    const channel = String(req.body?.channel || 'emergency').trim();
+    const reason = String(req.body?.reason || 'Emergency hot-mic trigger requested').trim();
+    const escalateTo = String(req.body?.escalate_to || 'emergency_channel').trim();
+
+    if (!officerId) {
+      return res.status(400).json({ error: 'officer_id is required' });
+    }
+
+    const requestId = `hotmic_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const pttConfigured = !!PTT_SERVER_URL;
+
+    console.warn('⚠️ Emergency hot-mic trigger requested', {
+      requestId,
+      officerId,
+      channel,
+      escalateTo,
+      reason,
+      pttConfigured,
+    });
+
+    return res.json({
+      success: true,
+      request_id: requestId,
+      status: pttConfigured ? 'queued_for_ptt_bridge' : 'queued_without_ptt_bridge',
+      ptt_configured: pttConfigured,
+      runtime: 'scaffold',
+      adapter_status: 'ptt_bridge_not_wired',
+      escalation: {
+        officer_id: officerId,
+        channel,
+        escalate_to: escalateTo,
+        reason,
+      },
+    });
+  } catch (error) {
+    console.error('❌ /safety/emergency/hot-mic/trigger error:', error);
+    return res.status(500).json({ error: 'Emergency hot-mic trigger failed', message: error.message });
+  }
+});
+
 app.post('/infer/transcribe', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
   try {
     const audioBase64 = String(req.body?.audio_base64 || '').trim();
@@ -5864,6 +6120,16 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       AUDIO_SYNTH_TIMEOUT_MS,
       TTS_ENGINE,
       TTS_DEFAULT_VOICE,
+      SAFETY_AUDIO_CLASSIFIER_ENABLED,
+      SAFETY_AUDIO_CLASSIFIER_PROVIDER,
+      SAFETY_AUDIO_CLASSIFIER_MODEL: SAFETY_AUDIO_CLASSIFIER_MODEL || null,
+      SAFETY_ACTION_RECOGNITION_ENABLED,
+      SAFETY_ACTION_RECOGNITION_PROVIDER,
+      SAFETY_ACTION_RECOGNITION_MODEL: SAFETY_ACTION_RECOGNITION_MODEL || null,
+      SAFETY_MAN_DOWN_MODEL_ENABLED,
+      SAFETY_MAN_DOWN_MODEL_PROVIDER,
+      SAFETY_MAN_DOWN_MODEL: SAFETY_MAN_DOWN_MODEL || null,
+      SAFETY_EMERGENCY_HOT_MIC_ENABLED,
     },
     capabilities: {
       plate_inference: modelsLoaded,
@@ -5913,6 +6179,8 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       smoke_assessment: OPENAI_ENABLED || OLLAMA_VISION_ACTIVE,
       noise_audio_assessment: true,
       noise_audio_local_whisper: whisper.cli_present && whisper.model_present,
+      safety_adapter_endpoints: true,
+      safety_adapter_summary: getSafetyCapabilitySummary(),
     },
     ollama_circuit_breaker: OLLAMA_ENABLED ? ollamaCircuitBreaker.toJSON() : null,
     knowledge_requests: knowledgeRequestsStore.getState(),
