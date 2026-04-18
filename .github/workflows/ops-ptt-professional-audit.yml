@@ -29,8 +29,8 @@ jobs:
           PTT_SERVER_URL: ${{ secrets.PTT_SERVER_URL }}
         run: |
           set -euo pipefail
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 "${PTT_SERVER_URL}/health" || echo "000")
-          BODY=$(curl -s --max-time 20 "${PTT_SERVER_URL}/health" || true)
+          STATUS=$(curl -sSL -o /dev/null -w "%{http_code}" --max-time 20 "${PTT_SERVER_URL}/health" || echo "000")
+          BODY=$(curl -sSL --max-time 20 "${PTT_SERVER_URL}/health" || true)
           if [ "$STATUS" != "200" ]; then
             echo "::error::Health endpoint failed with HTTP ${STATUS}"
             echo "Body: ${BODY:0:300}"
@@ -43,7 +43,7 @@ jobs:
           PTT_SERVER_URL: ${{ secrets.PTT_SERVER_URL }}
         run: |
           set -euo pipefail
-          CAP=$(curl -sS --max-time 20 "${PTT_SERVER_URL}/api/capabilities")
+          CAP=$(curl -sSL --max-time 20 "${PTT_SERVER_URL}/api/capabilities")
           echo "$CAP" | python3 - <<'PY'
           import json, sys
           raw = sys.stdin.read().strip()
@@ -64,7 +64,7 @@ jobs:
           PTT_SERVER_URL: ${{ secrets.PTT_SERVER_URL }}
         run: |
           set -euo pipefail
-          DIAG=$(curl -sS --max-time 20 "${PTT_SERVER_URL}/api/diagnostics")
+          DIAG=$(curl -sSL --max-time 20 "${PTT_SERVER_URL}/api/diagnostics")
           echo "$DIAG" | python3 - <<'PY'
           import json, sys
           data = json.loads(sys.stdin.read().strip())
@@ -84,7 +84,7 @@ jobs:
           PTT_SERVER_URL: ${{ secrets.PTT_SERVER_URL }}
         run: |
           set -euo pipefail
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 \
+          STATUS=$(curl -sSL -o /dev/null -w "%{http_code}" --max-time 15 \
             -X POST "${PTT_SERVER_URL}/api/token/mint" \
             -H "Content-Type: application/json" \
             -H "x-proxy-secret: ptt-audit-invalid" \
