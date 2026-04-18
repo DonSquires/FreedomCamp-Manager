@@ -215,6 +215,28 @@ const bulletins = [
       ],
     },
   },
+  {
+    type: 'system',
+    title: 'Copilot-inspired restrictions and research method',
+    summary: clip(`
+      Adopt these operating restrictions as inspiration:
+      never fabricate facts or sources, never claim execution not performed,
+      state uncertainty explicitly, and always provide verifiable next steps.
+      Research method standard:
+      define objective -> generate focused queries -> prioritize authoritative sources ->
+      verify recency/date -> reconcile conflicts -> map findings to target files/tests.
+      Require confidence ratings and minimum multi-source corroboration.
+      For NZ tender workflows, prioritize procurement.govt.nz, gets.govt.nz,
+      legislation.govt.nz, and relevant official agency guidance before secondary commentary.
+    `),
+    source: 'copilot-specialized-training',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'copilot-inspired-policy',
+      restrictions: ['no-fabrication', 'explicit-uncertainty', 'verifiable-sourcing', 'execution-honesty'],
+      research_steps: ['objective', 'queries', 'authorities', 'recency', 'conflict-resolution', 'implementation-map'],
+    },
+  },
 ]
 
 console.log('\nAdvanced Bob training feed')

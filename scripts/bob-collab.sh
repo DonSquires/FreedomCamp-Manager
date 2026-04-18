@@ -94,6 +94,17 @@ call_chat() {
     | jq -r '.text // .message // .error // "(no response text)"'
 }
 
+copilot_restrictions() {
+  cat <<'RULES'
+Operating restrictions (Copilot-inspired):
+- Never fabricate facts, URLs, legal references, or implementation status.
+- If uncertain, state unknown clearly and provide the next best verification step.
+- Do not claim actions were executed unless they were actually executed.
+- Keep recommendations safe, testable, and scoped to the objective.
+- For research outputs, prefer authoritative primary sources and include confidence.
+RULES
+}
+
 validate_research_output() {
   local text="$1"
   local lowered
@@ -119,9 +130,25 @@ validate_research_output() {
     return 1
   fi
 
-  # Require at least one known authority marker for verifiability
-  if ! grep -Eqi 'procurement\.govt\.nz|gets\.govt\.nz|legislation\.govt\.nz|mbie|react\.dev|typescriptlang\.org|w3\.org|developer\.mozilla\.org' <<<"$lowered"; then
-    echo "no recognizable authoritative source markers"
+  # Require explicit confidence marker
+  if ! grep -Eqi 'confidence|[0-9]+/[0-9]+|[0-9]{1,3}%' <<<"$text"; then
+    echo "missing confidence rating"
+    return 1
+  fi
+
+  # If legal statutes are mentioned, require explicit verification marker.
+  if grep -Eqi '\b[A-Z][A-Za-z ]+ Act 20[0-9]{2}\b' <<<"$text"; then
+    if ! grep -Eqi 'verified statute source\s*:\s*legislation\.govt\.nz|verified on legislation\.govt\.nz' <<<"$lowered"; then
+      echo "statute mentioned without legislation.govt.nz verification marker"
+      return 1
+    fi
+  fi
+
+  # Require at least 3 authoritative domain markers
+  local authority_count
+  authority_count=$(grep -Eo 'procurement\.govt\.nz|gets\.govt\.nz|legislation\.govt\.nz|mbie\.govt\.nz|react\.dev|typescriptlang\.org|w3\.org|developer\.mozilla\.org|onnx\.ai|docs\.opencv\.org|tesseract-ocr\.github\.io|nngroup\.com|interaction-design\.org' <<<"$lowered" | sort -u | wc -l | tr -d ' ')
+  if [[ "${authority_count:-0}" -lt 3 ]]; then
+    echo "insufficient authoritative source coverage (<3 domains)"
     return 1
   fi
 
@@ -131,7 +158,7 @@ validate_research_output() {
 run_research_with_guard() {
   local objective="$1"
   local first
-  first=$(call_chat "You are Doctor Bob working with external Copilot. Build a web research brief for this objective. Return: 1) objective clarification 2) 8-12 high-value search queries 3) authoritative source targets in priority order 4) currentness checks (date/version) 5) conflict-resolution rules when sources disagree 6) evidence table format Bob/Copilot should fill 7) implementation mapping to repo files/tests. IMPORTANT: do not invent URLs, laws, or documents; if uncertain, say unknown and provide a search query instead. Use only verifiable source names and include a confidence rating per source. Objective: $objective")
+  first=$(call_chat "You are Doctor Bob working with external Copilot. $(copilot_restrictions) Build a web research brief for this objective. Return: 1) objective clarification 2) 8-12 high-value search queries 3) authoritative source targets in priority order 4) currentness checks (date/version) 5) conflict-resolution rules when sources disagree 6) evidence table format Bob/Copilot should fill 7) implementation mapping to repo files/tests. IMPORTANT: do not invent URLs, laws, or documents; if uncertain, say unknown and provide a search query instead. Use only verifiable source names and include a confidence rating per source. Include at least 3 authoritative source domains from this set when relevant: procurement.govt.nz, gets.govt.nz, legislation.govt.nz, mbie.govt.nz, react.dev, typescriptlang.org, developer.mozilla.org, w3.org, onnx.ai, docs.opencv.org, tesseract-ocr.github.io, nngroup.com, interaction-design.org. If you mention any statute name, add: Verified statute source: legislation.govt.nz. Objective: $objective")
 
   local reason=""
   if validate_research_output "$first"; then
@@ -143,7 +170,20 @@ run_research_with_guard() {
 
   echo "⚠️  Research quality gate failed on first pass: ${reason:-invalid format}. Requesting corrected second pass..." >&2
 
-  call_chat "You are Doctor Bob. Your previous research brief failed validation because: ${reason:-invalid format}. Regenerate the full brief with strict verifiable sourcing. Rules: (a) no placeholder text, (b) no invented organizations or documents, (c) include at least 3 concrete authoritative source domains, (d) include confidence per source, (e) if unknown, explicitly state unknown and provide a search query. Objective: $objective. Previous output to correct: $first"
+  local second
+  second=$(call_chat "You are Doctor Bob. $(copilot_restrictions) Your previous research brief failed validation because: ${reason:-invalid format}. Regenerate the full brief with strict verifiable sourcing. Rules: (a) no placeholder text, (b) no invented organizations or documents, (c) include at least 3 concrete authoritative source domains, (d) include confidence per source, (e) if unknown, explicitly state unknown and provide a search query, (f) any statute mention must include: Verified statute source: legislation.govt.nz. Objective: $objective. Previous output to correct: $first")
+
+  local reason2=""
+  if validate_research_output "$second"; then
+    echo "$second"
+    return 0
+  else
+    reason2=$(validate_research_output "$second" 2>/dev/null || true)
+  fi
+
+  echo "❌ Research quality gate failed after second pass: ${reason2:-invalid format}." >&2
+  echo "Please refine objective scope and rerun research mode." >&2
+  return 2
 }
 
 queue_code_task() {
@@ -210,11 +250,11 @@ feed_context_if_available() {
 
 case "$MODE" in
   ask)
-    call_chat "$INPUT"
+    call_chat "$(copilot_restrictions) User request: $INPUT"
     ;;
 
   plan)
-    call_chat "You are Doctor Bob working with external Copilot. Analyze this task and return: 1) risks 2) root cause hypotheses 3) recommended split (Bob-do vs Copilot-do) 4) staged plan 5) verification checklist. Task: $INPUT"
+    call_chat "You are Doctor Bob working with external Copilot. $(copilot_restrictions) Analyze this task and return: 1) risks 2) root cause hypotheses 3) recommended split (Bob-do vs Copilot-do) 4) staged plan 5) verification checklist. Task: $INPUT"
     ;;
 
   research)
@@ -234,7 +274,7 @@ case "$MODE" in
 
   hybrid)
     echo "=== Doctor Bob analysis ==="
-    call_chat "You are Doctor Bob working with external Copilot. Provide a concise engineering plan for this task, then include a one-line suggested code-task objective suitable for /code/task queueing. Task: $INPUT"
+    call_chat "You are Doctor Bob working with external Copilot. $(copilot_restrictions) Provide a concise engineering plan for this task, then include a one-line suggested code-task objective suitable for /code/task queueing. Task: $INPUT"
     echo
     echo "=== Queueing Bob code task ==="
     queue_code_task "$INPUT" "$TARGET_FILES_RAW" "$PRIORITY"
@@ -243,7 +283,7 @@ case "$MODE" in
   hybrid-run)
     feed_context_if_available
     echo "=== Doctor Bob analysis ==="
-    call_chat "You are Doctor Bob working with external Copilot. Provide a concise engineering plan for this task, then include a one-line suggested code-task objective suitable for /code/task queueing. Task: $INPUT"
+    call_chat "You are Doctor Bob working with external Copilot. $(copilot_restrictions) Provide a concise engineering plan for this task, then include a one-line suggested code-task objective suitable for /code/task queueing. Task: $INPUT"
     echo
     echo "=== Queueing Bob code task ==="
     queue_code_task "$INPUT" "$TARGET_FILES_RAW" "$PRIORITY"
