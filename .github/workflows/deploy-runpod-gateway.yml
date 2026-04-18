@@ -1,16 +1,17 @@
 name: Upload RunPod Gateway to Pod
 
-# Uploads runpod-gateway/ to the RunPod bob_brain pod whenever the source changes.
-# It connects via SSH using the RunPod pod's public SFTP/SSH endpoint, installs
-# npm dependencies, and restarts the gateway process.
+# Deploys runpod-gateway/ to the RunPod bob_brain pod whenever source changes.
+# RunPod pod SSH does not support SCP/SFTP in this mode, so deployment is done
+# fully over SSH by running remote git pull + npm install + process restart.
 #
 # Required secrets:
 #   RUNPOD_POD_SSH_HOST   – e.g. ssh.runpod.io
-#   RUNPOD_POD_SSH_PORT   – e.g. 22204 (pod-specific)
+#   RUNPOD_POD_SSH_USER   – pod SSH username (e.g. eipnu6bq181q20-64411b6a)
 #   RUNPOD_POD_SSH_KEY    – private key (RSA/ED25519, no passphrase)
 #   BOB_GATEWAY_KEY       – shared secret for gateway auth
 #
 # Optional secrets:
+#   RUNPOD_POD_SSH_PORT   – defaults to 22
 #   BOB_GATEWAY_ADMIN_KEY – elevated key for model management operations
 
 on:
@@ -42,8 +43,8 @@ jobs:
             echo "::error::RUNPOD_POD_SSH_HOST secret is not set"
             exit 1
           fi
-          if [[ -z "${{ secrets.RUNPOD_POD_SSH_PORT }}" ]]; then
-            echo "::error::RUNPOD_POD_SSH_PORT secret is not set"
+          if [[ -z "${{ secrets.RUNPOD_POD_SSH_USER }}" ]]; then
+            echo "::error::RUNPOD_POD_SSH_USER secret is not set"
             exit 1
           fi
           if [[ -z "${{ secrets.RUNPOD_POD_SSH_KEY }}" ]]; then
@@ -61,27 +62,40 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.RUNPOD_POD_SSH_KEY }}" > ~/.ssh/runpod_key
           chmod 600 ~/.ssh/runpod_key
-          ssh-keyscan -p "${{ secrets.RUNPOD_POD_SSH_PORT }}" "${{ secrets.RUNPOD_POD_SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
-
-      - name: Upload gateway source to pod
-        run: |
-          SSH_OPTS="-i ~/.ssh/runpod_key -p ${{ secrets.RUNPOD_POD_SSH_PORT }} -o StrictHostKeyChecking=no"
-          rsync -avz --exclude=node_modules --exclude=.env \
-            -e "ssh $SSH_OPTS" \
-            runpod-gateway/ \
-            root@${{ secrets.RUNPOD_POD_SSH_HOST }}:/workspace/runpod-gateway/
+          SSH_PORT="${{ secrets.RUNPOD_POD_SSH_PORT }}"
+          if [[ -z "$SSH_PORT" ]]; then SSH_PORT="22"; fi
+          ssh-keyscan -p "$SSH_PORT" "${{ secrets.RUNPOD_POD_SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Install dependencies and restart gateway
         env:
           BOB_GATEWAY_KEY: ${{ secrets.BOB_GATEWAY_KEY }}
           BOB_GATEWAY_ADMIN_KEY: ${{ secrets.BOB_GATEWAY_ADMIN_KEY }}
         run: |
+          SSH_PORT="${{ secrets.RUNPOD_POD_SSH_PORT }}"
+          if [[ -z "$SSH_PORT" ]]; then SSH_PORT="22"; fi
           ssh -i ~/.ssh/runpod_key \
-              -p "${{ secrets.RUNPOD_POD_SSH_PORT }}" \
+              -p "$SSH_PORT" \
               -o StrictHostKeyChecking=no \
-              root@"${{ secrets.RUNPOD_POD_SSH_HOST }}" << 'ENDSSH'
+              "${{ secrets.RUNPOD_POD_SSH_USER }}"@"${{ secrets.RUNPOD_POD_SSH_HOST }}" << 'ENDSSH'
           set -e
-          cd /workspace/runpod-gateway
+
+          if [[ -d /workspace ]]; then
+            BASE_DIR=/workspace
+          else
+            BASE_DIR=$HOME
+          fi
+
+          cd "$BASE_DIR"
+          if [[ -d repo/.git ]]; then
+            git -C repo fetch origin main
+            git -C repo reset --hard origin/main
+          else
+            git clone https://github.com/DonSquires/FreedomCamp-Manager.git repo
+          fi
+
+          mkdir -p "$BASE_DIR/runpod-gateway"
+          cp -r "$BASE_DIR/repo/runpod-gateway/." "$BASE_DIR/runpod-gateway/"
+          cd "$BASE_DIR/runpod-gateway"
 
           # Install dependencies
           npm install --production
@@ -103,7 +117,7 @@ jobs:
             pm2 save
           else
             pkill -f "node server.js" 2>/dev/null || true
-            nohup node server.js > /workspace/gateway.log 2>&1 &
+            nohup node server.js > "$BASE_DIR/gateway.log" 2>&1 &
             echo "Gateway started with PID $!"
           fi
 
