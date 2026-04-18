@@ -1,6 +1,13 @@
 name: Ops - Bob Assisted Review
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/ops-bob-assisted-review.yml
+      - .github/workflows/deploy-bob-railway.yml
+      - inference-service/server.js
   workflow_dispatch:
     inputs:
       prompt:
