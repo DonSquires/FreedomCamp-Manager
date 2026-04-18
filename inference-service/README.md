@@ -49,7 +49,7 @@ npm install
 mkdir -p models
 
 # Download YOLOv8n (vehicle detection)
-curl -L https://github.com/ultralytics/assets/releases/download/v0.0.0/yolov8n.onnx \
+curl -L https://raw.githubusercontent.com/Hyuto/yolov8-onnxruntime-web/master/public/model/yolov8n.onnx \
   -o models/yolov8n.onnx
 
 # Download MobileNetV3 (embeddings)

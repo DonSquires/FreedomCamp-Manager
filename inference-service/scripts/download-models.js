@@ -26,10 +26,12 @@ if (!fs.existsSync(MODELS_DIR)) {
 const MODELS = [
   {
     name: 'YOLOv8n',
-    url: 'https://github.com/ultralytics/assets/releases/download/v0.0.0/yolov8n.onnx',
+    // Use a repo-hosted raw binary URL because the old Ultralytics release asset
+    // URL now returns 404 and breaks Docker builds.
+    url: 'https://raw.githubusercontent.com/Hyuto/yolov8-onnxruntime-web/master/public/model/yolov8n.onnx',
     filename: 'yolov8n.onnx',
-    size: '6.2 MB',
-    minSize: 5 * 1024 * 1024  // 5 MB minimum (real model is ~6.2 MB)
+    size: '12.2 MB',
+    minSize: 5 * 1024 * 1024  // 5 MB minimum guard against HTML/error payloads
   },
   {
     name: 'MobileNetV3',
