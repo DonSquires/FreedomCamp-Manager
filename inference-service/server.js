@@ -66,7 +66,15 @@
 const express = require('express');
 const multer = require('multer');
 const sharp = require('sharp');
-const ort = require('onnxruntime-node');
+let ort = null;
+let ORT_RUNTIME_AVAILABLE = false;
+try {
+  ort = require('onnxruntime-node');
+  ORT_RUNTIME_AVAILABLE = true;
+} catch (error) {
+  console.warn('⚠️  onnxruntime-node failed to load. Bob will run in degraded mode for ONNX-dependent endpoints.');
+  console.warn(`   Runtime load error: ${error.message}`);
+}
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -1195,6 +1203,11 @@ let embeddingSession = null;
 
 async function loadModels() {
   console.log('Loading ONNX models...');
+
+  if (!ORT_RUNTIME_AVAILABLE || !ort) {
+    console.warn('🧠 ONNX runtime unavailable — skipping local model load (degraded mode).');
+    return;
+  }
   
   try {
     // YOLOv8n for vehicle detection
@@ -4230,6 +4243,7 @@ let faceDetectSession = null;  // loaded on-demand, null = model not available
 
 // Lazy-load UltraFace-640 (optional — falls back to OpenAI vision)
 async function loadFaceDetectModel() {
+  if (!ORT_RUNTIME_AVAILABLE || !ort) return null;
   if (faceDetectSession !== null) return faceDetectSession;
   if (!fs.existsSync(FACE_DETECT_MODEL_PATH)) return null;
   try {
@@ -4598,6 +4612,7 @@ let plateDetectSession = null;  // loaded on-demand, null = not available
 
 // Lazy-load the plate detection model (optional — service works without it)
 async function loadPlateDetectModel() {
+  if (!ORT_RUNTIME_AVAILABLE || !ort) return null;
   if (plateDetectSession !== null) return plateDetectSession;
   if (!fs.existsSync(PLATE_DETECT_MODEL_PATH)) return null;
   try {
@@ -6438,6 +6453,7 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
   res.json({
     status: 'healthy',
     models: {
+      onnx_runtime: ORT_RUNTIME_AVAILABLE ? 'loaded' : 'unavailable',
       yolo: yoloSession ? 'loaded' : 'not loaded',
       embedding: embeddingSession ? 'loaded' : 'not loaded',
       face_detect: faceDetectSession ? 'loaded' : (fs.existsSync(FACE_DETECT_MODEL_PATH) ? 'not loaded' : 'not present'),
@@ -6481,6 +6497,7 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       OLLAMA_PTT_BASE_URL,
       OLLAMA_PTT_BASE_URL_CONFIGURED,
       OLLAMA_MODEL,
+      ORT_RUNTIME_AVAILABLE,
       RUNPOD_ENDPOINT_ID_SET: !!RUNPOD_ENDPOINT_ID,
       RUNPOD_ENDPOINT_URL_SET: !!RUNPOD_ENDPOINT_URL,
       RUNPOD_ENDPOINT_API_KEY_SET: !!RUNPOD_ENDPOINT_API_KEY,
