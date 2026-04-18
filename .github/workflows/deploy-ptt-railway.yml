@@ -123,12 +123,15 @@ jobs:
           steps.check-secrets.outputs.secrets_present == 'true' &&
           steps.validate-token.outputs.token_valid == 'true'
         env:
-          RAILWAY_TOKEN:          ${{ env.SELECTED_RAILWAY_TOKEN }}
-          RAILWAY_PTT_SERVICE_ID: ${{ secrets.RAILWAY_PTT_SERVICE_ID }}
+          RAILWAY_TOKEN:           ${{ env.SELECTED_RAILWAY_TOKEN }}
+          RAILWAY_PTT_SERVICE_ID:  ${{ secrets.RAILWAY_PTT_SERVICE_ID }}
+          RAILWAY_PTT_PROJECT_ID:  ${{ secrets.RAILWAY_PTT_PROJECT_ID }}
         run: |
           cd ptt-server
           echo "🚂 Deploying ptt-server to Railway..."
-          railway up --service "$RAILWAY_PTT_SERVICE_ID" --detach
+          PROJECT_FLAG=""
+          [ -n "${RAILWAY_PTT_PROJECT_ID:-}" ] && PROJECT_FLAG="--project-id ${RAILWAY_PTT_PROJECT_ID}"
+          railway up --service "$RAILWAY_PTT_SERVICE_ID" $PROJECT_FLAG --detach
           echo "✅ Deploy triggered. Check Railway dashboard for status."
           echo ""
           echo "Railway Dashboard: https://railway.app/dashboard"
