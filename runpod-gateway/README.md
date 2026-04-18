@@ -34,6 +34,22 @@ cd /workspace/runpod-gateway && npm install && node server.js &
 ollama serve
 ```
 
+### One-command bootstrap (private repo friendly)
+
+If your repository is private, use the included bootstrap script and pass your GitHub token via environment variable (do not hardcode it in files):
+
+```bash
+cd /tmp
+curl -fsSL https://raw.githubusercontent.com/DonSquires/FreedomCamp-Manager/main/runpod-gateway/setup-on-runpod.sh -o setup-on-runpod.sh
+chmod +x setup-on-runpod.sh
+
+export GITHUB_TOKEN="<your-github-token>"
+export BOB_GATEWAY_KEY="<your-gateway-key>"
+./setup-on-runpod.sh
+```
+
+If `raw.githubusercontent.com` is not accessible from your pod, copy `runpod-gateway/setup-on-runpod.sh` into the pod and run it with the same environment variables.
+
 Alternatively, build the gateway into a custom Docker image based on `madiator2011/better-ollama:cuda12.4`:
 
 ```dockerfile
