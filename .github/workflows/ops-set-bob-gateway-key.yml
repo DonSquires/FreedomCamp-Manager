@@ -92,19 +92,9 @@ jobs:
 
           echo "🔧 Setting OLLAMA_GATEWAY_KEY on Bob service..."
 
-          VAR_PAIR="OLLAMA_GATEWAY_KEY=$BOB_GATEWAY_KEY"
-
-          if [ -n "$EFFECTIVE_SERVICE" ] && [ -n "$EFFECTIVE_PROJECT" ]; then
-            railway variables set "$VAR_PAIR" \
-              --service "$EFFECTIVE_SERVICE" \
-              --project "$EFFECTIVE_PROJECT"
-          elif [ -n "$EFFECTIVE_SERVICE" ]; then
-            railway variables set "$VAR_PAIR" \
-              --service "$EFFECTIVE_SERVICE"
-          else
-            railway variables set "$VAR_PAIR" \
-              --project "$EFFECTIVE_PROJECT"
-          fi
+          # railway variables set only accepts --service (not --project)
+          [ -n "$EFFECTIVE_SERVICE" ] || { echo "::error::RAILWAY_BOB_SERVICE_ID or RAILWAY_SERVICE_ID must be set"; exit 1; }
+          railway variables set "OLLAMA_GATEWAY_KEY=$BOB_GATEWAY_KEY" --service "$EFFECTIVE_SERVICE"
 
           echo "✅ OLLAMA_GATEWAY_KEY set. Bob will use the RunPod gateway for Ollama calls."
           echo ""
