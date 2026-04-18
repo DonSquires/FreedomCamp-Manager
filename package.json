@@ -15,6 +15,7 @@
     "bob:feed-web-research": "node scripts/bob-feed-web-research.mjs",
     "bob:feed-specialized": "node scripts/bob-feed-specialized-training.mjs",
     "bob:feed-all": "node scripts/bob-feed-build-context.mjs && node scripts/bob-feed-railway-training.mjs && node scripts/bob-feed-web-research.mjs && node scripts/bob-feed-specialized-training.mjs",
+    "agentic:ui": "bun scripts/agentic-ui-shadow-user.mjs",
     "preview": "vite preview",
     "start": "sh -c 'vite preview --host 0.0.0.0 --port ${PORT:-4173}'",
     "test": "playwright test",
