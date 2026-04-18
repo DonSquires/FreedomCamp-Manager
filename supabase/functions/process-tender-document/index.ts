@@ -36,6 +36,60 @@ interface AssessmentResult {
   response_outline: Record<string, string>
 }
 
+const KNOWN_NZ_LOCATIONS = [
+  'Nelson',
+  'Blenheim',
+  'Marlborough',
+  'Tasman',
+  'Picton',
+  'Motueka',
+  'Richmond',
+  'Kaikoura',
+]
+
+function extractLocationHints(text: string, issuingBody: string | null | undefined): string[] {
+  const source = `${issuingBody || ''}\n${text || ''}`
+  const found = new Set<string>()
+
+  for (const name of KNOWN_NZ_LOCATIONS) {
+    const re = new RegExp(`\\b${name}\\b`, 'i')
+    if (re.test(source)) found.add(name)
+  }
+
+  const councilMatches = source.match(/\b([A-Z][A-Za-z ]+(?:District|City|Regional) Council)\b/g) || []
+  for (const m of councilMatches) found.add(m.trim())
+
+  return Array.from(found).slice(0, 4)
+}
+
+function buildLocationEnrichmentQueries(
+  issuingBody: string | null | undefined,
+  keyServices: string[] | null | undefined,
+  text: string,
+): string[] {
+  const services = (keyServices || []).filter(Boolean)
+  const fallbackServices = ['noise control', 'security patrols', 'compliance monitoring']
+  const targetServices = services.length > 0 ? services.slice(0, 3) : fallbackServices
+  const locations = extractLocationHints(text, issuingBody)
+
+  const baseTargets = locations.length > 0 ? locations : [issuingBody || 'issuing council area']
+  const queries: string[] = []
+
+  for (const place of baseTargets) {
+    for (const svc of targetServices) {
+      queries.push(`${place} ${svc} current issues 2025 2026`) 
+      queries.push(`${place} ${svc} council bylaw enforcement`) 
+      queries.push(`${place} ${svc} complaints incidents trends`) 
+      queries.push(`${place} ${svc} local news updates`) 
+    }
+    queries.push(`${place} council annual plan long term plan community safety`) 
+    queries.push(`${place} environmental health noise control policy`) 
+  }
+
+  // Keep unique queries and cap size for UI readability.
+  return Array.from(new Set(queries)).slice(0, 10)
+}
+
 // ---------------------------------------------------------------------------
 // Heuristic fallback — called when Ollama fails or is unavailable
 // ---------------------------------------------------------------------------
@@ -57,9 +111,12 @@ function buildHeuristicAssessment(doc: any, text: string, reason: string): Asses
     text.toLowerCase().includes(kw.toLowerCase())
   )
 
+  const inferredIssuingBody = (issuingMatch ? issuingMatch[1].trim() : doc.issuing_body) || ''
+  const enrichmentQueries = buildLocationEnrichmentQueries(inferredIssuingBody, foundServices, text)
+
   return {
     document_type: doc.document_type || 'rfip',
-    issuing_body: (issuingMatch ? issuingMatch[1].trim() : doc.issuing_body) || '',
+    issuing_body: inferredIssuingBody,
     reference_number: refMatch ? refMatch[1] : (doc.reference_number || ''),
     due_date: null,
     key_services: foundServices,
@@ -69,7 +126,7 @@ function buildHeuristicAssessment(doc: any, text: string, reason: string): Asses
       `⚠️ ${reason} Basic information has been extracted from the document text. ` +
       `Key services identified: ${foundServices.join(', ') || 'none detected'}. ` +
       `Please review the Intake tab and try Bob Analysis again, or proceed to Draft Response manually.`,
-    enrichment_queries: [],
+    enrichment_queries: enrichmentQueries,
     response_outline: {
       cover_letter: '',
       executive_summary: '',
@@ -202,6 +259,12 @@ async function doAnalysis(
 Your job is to analyse tender, RFP, RFIP, and procurement documents and extract structured information
 to help the team prepare competitive responses.
 
+Location intelligence requirement:
+- Detect the likely operating area from the document (e.g. Nelson, Blenheim, Marlborough, Tasman, or issuing council area).
+- Generate enrichment_queries that are location-specific and service-specific (especially for noise control where relevant).
+- Prioritise official/local authority sources in the query wording (council bylaws, annual plans, policy pages), then local news/current context.
+- Include at least 6 concrete enrichment queries when possible.
+
 You must return a single valid JSON object with EXACTLY these fields:
 {
   "document_type": "rfp|rfi|rfq|rfip|tender_application|tender_response|proposal|other",
@@ -254,6 +317,15 @@ Do not include any text outside the JSON object.`
       console.error('Bob inference failed:', inferenceErr.message)
       assessment = buildHeuristicAssessment(
         doc, textToAnalyse, 'Bob AI service was unavailable or took too long.'
+      )
+    }
+
+    // Ensure location-aware enrichment queries are always present.
+    if (!Array.isArray(assessment.enrichment_queries) || assessment.enrichment_queries.length === 0) {
+      assessment.enrichment_queries = buildLocationEnrichmentQueries(
+        assessment.issuing_body || doc.issuing_body,
+        assessment.key_services,
+        textToAnalyse,
       )
     }
 

@@ -237,6 +237,27 @@ const bulletins = [
       research_steps: ['objective', 'queries', 'authorities', 'recency', 'conflict-resolution', 'implementation-map'],
     },
   },
+  {
+    type: 'system',
+    title: 'Tender location intelligence: Nelson, Blenheim, and issuing-area context',
+    summary: clip(`
+      For tender analysis and response drafting, always derive the operating location
+      from issuing_body and document text, then run location-specific research queries.
+      Example areas: Nelson, Blenheim, Marlborough, Tasman, and issuing council districts.
+      For services like noise control, include local-context evidence in research:
+      council bylaws, environmental health/noise policy pages, annual plans,
+      complaint trends, enforcement notices, and recent local updates.
+      Output requirement: include a location-context research query set that can be
+      validated against authoritative local/government sources before final response writing.
+    `),
+    source: 'copilot-specialized-training',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'tender-location-intelligence',
+      regions: ['Nelson', 'Blenheim', 'Marlborough', 'Tasman'],
+      focus: ['noise_control', 'community_safety', 'local_enforcement_context'],
+    },
+  },
 ]
 
 console.log('\nAdvanced Bob training feed')
