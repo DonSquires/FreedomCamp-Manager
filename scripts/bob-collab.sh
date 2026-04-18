@@ -133,6 +133,26 @@ trigger_bob_code_task_workflow() {
   gh run list --workflow ops-bob-code-task.yml --limit 1 --json databaseId,status,conclusion,createdAt | jq
 }
 
+feed_context_if_available() {
+  if [[ "${BOB_SKIP_FEED_CONTEXT:-false}" == "true" ]]; then
+    return 0
+  fi
+
+  if [[ ! -f "scripts/bob-feed-build-context.mjs" ]]; then
+    return 0
+  fi
+
+  local focus="general"
+  if echo "$INPUT" | grep -qi 'tender'; then
+    focus="tender-e2e"
+  fi
+
+  echo "=== Feeding Bob build context ==="
+  if ! node scripts/bob-feed-build-context.mjs --focus "$focus" --note "$INPUT"; then
+    echo "⚠️  Bob context feed failed; continuing with requested action." >&2
+  fi
+}
+
 case "$MODE" in
   ask)
     call_chat "$INPUT"
@@ -147,6 +167,7 @@ case "$MODE" in
     ;;
 
   queue-run)
+    feed_context_if_available
     queue_code_task "$INPUT" "$TARGET_FILES_RAW" "$PRIORITY"
     echo
     trigger_bob_code_task_workflow 1
@@ -161,6 +182,7 @@ case "$MODE" in
     ;;
 
   hybrid-run)
+    feed_context_if_available
     echo "=== Doctor Bob analysis ==="
     call_chat "You are Doctor Bob working with external Copilot. Provide a concise engineering plan for this task, then include a one-line suggested code-task objective suitable for /code/task queueing. Task: $INPUT"
     echo
