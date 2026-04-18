@@ -7,9 +7,18 @@ Use this when you want stateless HTTPS inference calls instead of managing GPU p
 
 In repository settings, add these Codespaces secrets:
 
-- RUNPOD_ENDPOINT_URL
 - RUNPOD_ENDPOINT_API_KEY
-- RUNPOD_ENDPOINT_ID (recommended, optional if URL is standard)
+- RUNPOD_ENDPOINT_ID
+
+Alternative if you prefer storing the full invoke URL instead of the endpoint id:
+
+- RUNPOD_ENDPOINT_URL
+
+The client supports either of these configurations:
+
+- RUNPOD_ENDPOINT_ID + RUNPOD_ENDPOINT_API_KEY
+- RUNPOD_ENDPOINT_URL + RUNPOD_ENDPOINT_API_KEY
+- RUNPOD_ENDPOINT_ID + RUNPOD_ENDPOINT_URL + RUNPOD_ENDPOINT_API_KEY
 
 Optional for management automation (not required for endpoint invocation):
 
@@ -33,6 +42,12 @@ done
 
 ```bash
 npm run runpod:endpoint:invoke
+```
+
+If only `RUNPOD_ENDPOINT_ID` is set, the script will invoke:
+
+```text
+https://api.runpod.ai/v2/<endpointId>/run
 ```
 
 Default payload:

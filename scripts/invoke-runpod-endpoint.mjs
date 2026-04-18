@@ -4,14 +4,17 @@
  * Invoke a RunPod Serverless endpoint from local/Codespaces and optionally poll for completion.
  *
  * Required env:
- *   RUNPOD_ENDPOINT_URL
  *   RUNPOD_ENDPOINT_API_KEY
+ *
+ * Required env, one of:
+ *   RUNPOD_ENDPOINT_URL
+ *   RUNPOD_ENDPOINT_ID
  *
  * Optional env:
  *   RUNPOD_ENDPOINT_ID
  *
  * Example:
- *   RUNPOD_ENDPOINT_URL="https://api.runpod.ai/v2/<endpointId>/run" \
+ *   RUNPOD_ENDPOINT_ID="<endpointId>" \
  *   RUNPOD_ENDPOINT_API_KEY="..." \
  *   node scripts/invoke-runpod-endpoint.mjs \
  *     --input '{"prompt":"Hello from Codespaces"}'
@@ -68,6 +71,20 @@ function normalizePayload(payloadRaw, inputObject) {
     return { input: inputObject };
   }
   return safeJsonParse(payloadRaw, 'payload');
+}
+
+function deriveInvokeUrl(endpointUrl, endpointId) {
+  const explicitUrl = String(endpointUrl || '').trim();
+  if (explicitUrl) {
+    return explicitUrl;
+  }
+
+  const id = String(endpointId || '').trim();
+  if (id) {
+    return `https://api.runpod.ai/v2/${id}/run`;
+  }
+
+  throw new Error('RUNPOD_ENDPOINT_URL or RUNPOD_ENDPOINT_ID is required');
 }
 
 function deriveStatusUrl({ endpointUrl, endpointId, statusJobId, explicitStatusUrl = '' }) {
@@ -145,9 +162,9 @@ async function pollStatus({ endpointUrl, endpointId, apiKey, statusJobId, status
 }
 
 async function main() {
-  const endpointUrl = requiredEnv('RUNPOD_ENDPOINT_URL');
   const apiKey = requiredEnv('RUNPOD_ENDPOINT_API_KEY');
   const endpointId = String(process.env.RUNPOD_ENDPOINT_ID || '').trim();
+  const endpointUrl = deriveInvokeUrl(process.env.RUNPOD_ENDPOINT_URL, endpointId);
 
   const inputRaw = getArg('input', '');
   const promptRaw = getArg('prompt', '');

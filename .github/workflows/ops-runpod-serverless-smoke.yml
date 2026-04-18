@@ -43,8 +43,8 @@ jobs:
           RUNPOD_ENDPOINT_ID: ${{ secrets.RUNPOD_ENDPOINT_ID }}
         run: |
           set -e
-          if [ -z "$RUNPOD_ENDPOINT_URL" ]; then
-            echo "::error::Missing secret: RUNPOD_ENDPOINT_URL"
+          if [ -z "$RUNPOD_ENDPOINT_URL" ] && [ -z "$RUNPOD_ENDPOINT_ID" ]; then
+            echo "::error::Missing secret: set RUNPOD_ENDPOINT_URL or RUNPOD_ENDPOINT_ID"
             exit 1
           fi
           if [ -z "$RUNPOD_ENDPOINT_API_KEY" ]; then
@@ -54,7 +54,12 @@ jobs:
           if [ -n "$RUNPOD_ENDPOINT_ID" ]; then
             echo "RUNPOD_ENDPOINT_ID present"
           else
-            echo "RUNPOD_ENDPOINT_ID not set; status URL will be derived from RUNPOD_ENDPOINT_URL"
+            echo "RUNPOD_ENDPOINT_ID not set; invoke/status URLs will use RUNPOD_ENDPOINT_URL"
+          fi
+          if [ -n "$RUNPOD_ENDPOINT_URL" ]; then
+            echo "RUNPOD_ENDPOINT_URL present"
+          else
+            echo "RUNPOD_ENDPOINT_URL not set; invoke URL will be derived from RUNPOD_ENDPOINT_ID"
           fi
 
       - name: Invoke endpoint and poll result
