@@ -38,30 +38,35 @@ jobs:
 
       - name: Deploy and start gateway via SSH
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          GH_TOKEN: ${{ secrets.DEPLOY_GITHUB_TOKEN }}
+          BOB_GATEWAY_KEY: ${{ secrets.BOB_GATEWAY_KEY }}
         with:
           host: ${{ secrets.RUNPOD_POD_SSH_HOST }}
           username: ${{ secrets.RUNPOD_POD_SSH_USER }}
           key: ${{ secrets.RUNPOD_POD_SSH_KEY }}
           port: ${{ secrets.RUNPOD_POD_SSH_PORT || 22 }}
           request_pty: true
-          command_timeout: 5m
+          command_timeout: 10m
+          envs: GH_TOKEN,BOB_GATEWAY_KEY
           script: |
             set -e
             BASE_DIR=/workspace
             [ -d /workspace ] || BASE_DIR=$HOME
             cd "$BASE_DIR"
             if [ -d repo/.git ]; then
-              git -C repo fetch origin main
-              git -C repo reset --hard origin/main
+              git -C repo fetch "https://${GH_TOKEN}@github.com/DonSquires/FreedomCamp-Manager.git" main
+              git -C repo reset --hard FETCH_HEAD
             else
-              git clone https://github.com/DonSquires/FreedomCamp-Manager.git repo
+              git clone "https://${GH_TOKEN}@github.com/DonSquires/FreedomCamp-Manager.git" repo
             fi
             mkdir -p "$BASE_DIR/runpod-gateway"
             cp -r "$BASE_DIR/repo/runpod-gateway/." "$BASE_DIR/runpod-gateway/"
             cd "$BASE_DIR/runpod-gateway"
             npm install --production
-            printf 'OLLAMA_HOST=http://127.0.0.1:11434\nPORT=8080\nNODE_ENV=production\nBOB_GATEWAY_KEY=${{ secrets.BOB_GATEWAY_KEY }}\n' > .env
+            printf "OLLAMA_HOST=http://127.0.0.1:11434\nPORT=8080\nNODE_ENV=production\nBOB_GATEWAY_KEY=${BOB_GATEWAY_KEY}\n" > .env
             pkill -f "node server.js" 2>/dev/null || true
             nohup node server.js > "$BASE_DIR/gateway.log" 2>&1 &
             echo "Gateway started with PID $!"
-            echo "Gateway deployed successfully."
+            sleep 3
+            curl -sf http://127.0.0.1:8080/gateway/health && echo "Gateway health check PASSED" || echo "Gateway health check failed - check $BASE_DIR/gateway.log"
