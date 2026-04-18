@@ -64,6 +64,10 @@ playwright-report/
 test-results/
 node_modules/
 
+# Local Bob runtime artifacts (generated credentials/state)
+.runtime/
+__pycache__/
+
 # Temporary data exports and analysis output files
 tmp/
 *.xlsx
