@@ -247,6 +247,12 @@ const bulletins = [
       For services like noise control, include local-context evidence in research:
       council bylaws, environmental health/noise policy pages, annual plans,
       complaint trends, enforcement notices, and recent local updates.
+      Official-source-first rule:
+      prioritize issuing council and government domains (for example ncc.govt.nz,
+      marlborough.govt.nz, tasman.govt.nz, legislation.govt.nz, procurement.govt.nz,
+      gets.govt.nz). Treat public chatter/news as secondary context only and corroborate
+      against official sources before using it in recommendations.
+      Include most recent law/bylaw verification, pricing context, risks, and prior history.
       Output requirement: include a location-context research query set that can be
       validated against authoritative local/government sources before final response writing.
     `),

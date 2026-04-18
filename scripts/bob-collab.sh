@@ -133,7 +133,7 @@ allowed_domains_for_profile() {
   local profile="$1"
   case "$profile" in
     tender_legal)
-      echo "procurement.govt.nz gets.govt.nz legislation.govt.nz mbie.govt.nz data.govt.nz"
+      echo "procurement.govt.nz gets.govt.nz legislation.govt.nz mbie.govt.nz data.govt.nz govt.nz"
       ;;
     vision)
       echo "onnx.ai docs.opencv.org tesseract-ocr.github.io developer.mozilla.org w3.org"
@@ -161,7 +161,7 @@ is_domain_allowed() {
   shift
   local allowed=("$@")
   for candidate in "${allowed[@]}"; do
-    if [[ "$domain" == "$candidate" ]]; then
+    if [[ "$domain" == "$candidate" || "$domain" == *".${candidate}" ]]; then
       return 0
     fi
   done
@@ -212,23 +212,35 @@ validate_research_output() {
     fi
   fi
 
-  # Require at least 3 authoritative domain markers
-  local authority_count
-  authority_count=$(grep -Eo 'procurement\.govt\.nz|gets\.govt\.nz|legislation\.govt\.nz|mbie\.govt\.nz|react\.dev|typescriptlang\.org|w3\.org|developer\.mozilla\.org|onnx\.ai|docs\.opencv\.org|tesseract-ocr\.github\.io|nngroup\.com|interaction-design\.org' <<<"$lowered" | sort -u | wc -l | tr -d ' ')
-  if [[ "${authority_count:-0}" -lt 3 ]]; then
+  local domains
+  domains=$(extract_domains "$text" || true)
+  if [[ -z "$domains" ]]; then
+    echo "no cited domains found"
+    return 1
+  fi
+
+  # Require at least 3 authoritative domains (official + technical standards set).
+  local authority_refs=(
+    "procurement.govt.nz" "gets.govt.nz" "legislation.govt.nz" "mbie.govt.nz"
+    "react.dev" "typescriptlang.org" "w3.org" "developer.mozilla.org"
+    "onnx.ai" "docs.opencv.org" "tesseract-ocr.github.io"
+    "nngroup.com" "interaction-design.org" "govt.nz"
+  )
+  local authority_count=0
+  while IFS= read -r d; do
+    [[ -z "$d" ]] && continue
+    if is_domain_allowed "$d" "${authority_refs[@]}"; then
+      authority_count=$((authority_count + 1))
+    fi
+  done <<<"$domains"
+
+  if [[ "$authority_count" -lt 3 ]]; then
     echo "insufficient authoritative source coverage (<3 domains)"
     return 1
   fi
 
   # Strict allowlist mode: all cited domains must be in the profile allowlist.
   if [[ "$strict_allowlist" == "true" ]]; then
-    local domains
-    domains=$(extract_domains "$text" || true)
-    if [[ -z "$domains" ]]; then
-      echo "no cited domains found for strict allowlist mode"
-      return 1
-    fi
-
     local allowed_hits=0
     while IFS= read -r d; do
       [[ -z "$d" ]] && continue

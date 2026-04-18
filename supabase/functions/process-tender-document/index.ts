@@ -47,6 +47,12 @@ const KNOWN_NZ_LOCATIONS = [
   'Kaikoura',
 ]
 
+const OFFICIAL_LOCATION_DOMAINS: Array<{ names: string[]; domain: string }> = [
+  { names: ['Nelson', 'Nelson City Council'], domain: 'ncc.govt.nz' },
+  { names: ['Blenheim', 'Marlborough', 'Marlborough District Council', 'Picton'], domain: 'marlborough.govt.nz' },
+  { names: ['Tasman', 'Tasman District Council', 'Motueka', 'Richmond'], domain: 'tasman.govt.nz' },
+]
+
 function extractLocationHints(text: string, issuingBody: string | null | undefined): string[] {
   const source = `${issuingBody || ''}\n${text || ''}`
   const found = new Set<string>()
@@ -75,15 +81,38 @@ function buildLocationEnrichmentQueries(
   const baseTargets = locations.length > 0 ? locations : [issuingBody || 'issuing council area']
   const queries: string[] = []
 
+  const officialDomains = new Set<string>()
+  const lookupSource = `${issuingBody || ''}\n${text}`
+  for (const row of OFFICIAL_LOCATION_DOMAINS) {
+    if (row.names.some((n) => new RegExp(`\\b${n}\\b`, 'i').test(lookupSource))) {
+      officialDomains.add(row.domain)
+    }
+  }
+
+  // If no direct mapping detected, still target official NZ government sources.
+  if (officialDomains.size === 0) {
+    officialDomains.add('govt.nz')
+  }
+
   for (const place of baseTargets) {
     for (const svc of targetServices) {
       queries.push(`${place} ${svc} current issues 2025 2026`) 
       queries.push(`${place} ${svc} council bylaw enforcement`) 
       queries.push(`${place} ${svc} complaints incidents trends`) 
       queries.push(`${place} ${svc} local news updates`) 
+
+      for (const domain of officialDomains) {
+        queries.push(`site:${domain} ${place} ${svc} policy bylaw enforcement`) 
+        queries.push(`site:${domain} ${place} ${svc} annual plan risk issues`) 
+      }
+
+      queries.push(`site:gets.govt.nz ${place} ${svc} tender contract history`) 
+      queries.push(`site:procurement.govt.nz ${svc} pricing guidance New Zealand`) 
+      queries.push(`site:legislation.govt.nz ${svc} law bylaw New Zealand`) 
     }
     queries.push(`${place} council annual plan long term plan community safety`) 
     queries.push(`${place} environmental health noise control policy`) 
+    queries.push(`site:legislation.govt.nz ${place} bylaw local government act`) 
   }
 
   // Keep unique queries and cap size for UI readability.
@@ -262,7 +291,13 @@ to help the team prepare competitive responses.
 Location intelligence requirement:
 - Detect the likely operating area from the document (e.g. Nelson, Blenheim, Marlborough, Tasman, or issuing council area).
 - Generate enrichment_queries that are location-specific and service-specific (especially for noise control where relevant).
-- Prioritise official/local authority sources in the query wording (council bylaws, annual plans, policy pages), then local news/current context.
+- Prioritise official/local authority and government sources first in the query wording
+  (council bylaws, annual plans, policy pages, legislation.govt.nz, procurement.govt.nz, gets.govt.nz),
+  then local public chatter/current context as secondary corroboration only.
+- Include queries to verify the most recent applicable laws and bylaws for the service area.
+- Include queries to surface pricing context, operational risks, historical complaints/incidents,
+  and prior tender/contract history where possible.
+- Use organisation reference material context for capabilities, previous tenders, and service proofs.
 - Include at least 6 concrete enrichment queries when possible.
 
 You must return a single valid JSON object with EXACTLY these fields:
