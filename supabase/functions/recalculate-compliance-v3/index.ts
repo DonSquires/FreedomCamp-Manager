@@ -1,5 +1,4 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
-import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 import { nzHour, toValidBreachType } from '../_shared/compliance.ts';
 
@@ -367,7 +366,7 @@ async function detectObservationColumn(
   return !probe.error;
 }
 
-serve(async (req: Request) => {
+Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: getCorsHeaders(req) });
   }

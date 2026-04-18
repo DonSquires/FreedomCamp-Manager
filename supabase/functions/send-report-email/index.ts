@@ -1,4 +1,3 @@
-import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { SMTPClient } from 'https://deno.land/x/denomailer@1.0.0/mod.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
@@ -40,7 +39,7 @@ interface SendReportEmailRequest {
 /** Number of days to look back when no date_from is provided. */
 const DEFAULT_LOOKBACK_DAYS = 30;
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: getCorsHeaders(req) });
   }

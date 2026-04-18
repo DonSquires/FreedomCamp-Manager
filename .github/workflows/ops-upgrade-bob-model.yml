@@ -175,7 +175,7 @@ jobs:
           # the pod again via the public Ollama gateway to find what largest
           # quantized model is available.
 
-          GATEWAY_URL="https://eipnu6bq181q20-8080.proxy.runpod.net"
+          GATEWAY_URL="${RUNPOD_GATEWAY_URL:-https://eipnu6bq181q20-8080.proxy.runpod.net}"
           GATEWAY_KEY="${OLLAMA_GATEWAY_KEY}"
 
           echo "Querying available models from gateway..."

@@ -15,7 +15,6 @@
  *   INFERENCE_API_KEY       Optional bearer key
  */
 
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { fetchWithRetry } from '../_shared/fetchWithRetry.ts'
 import { withCors, jsonResponse, errorResponse } from '../_shared/withCors.ts'
 
@@ -53,7 +52,7 @@ function resolveLangName(code: string): string {
   return LANGUAGE_NAMES[code] ?? code
 }
 
-serve(withCors(async (req: Request) => {
+Deno.serve(withCors(async (req: Request) => {
   const body = await req.json().catch(() => null)
   if (!body) {
     return errorResponse('Request body must be valid JSON', req, 400)

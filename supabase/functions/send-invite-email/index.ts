@@ -1,4 +1,3 @@
-import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { SMTPClient } from 'https://deno.land/x/denomailer@1.0.0/mod.ts';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 
@@ -101,7 +100,7 @@ async function sendInviteDirectSmtp(params: { email: string; firstName?: string;
   }
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: getCorsHeaders(req) });
   }

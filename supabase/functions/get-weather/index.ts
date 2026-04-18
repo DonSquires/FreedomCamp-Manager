@@ -11,7 +11,6 @@
 // server-side or admin-panel callers.
 // ============================================================================
 
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 
 // WMO Weather Interpretation Code → human-readable label
@@ -47,7 +46,7 @@ const WMO_CODES: Record<number, string> = {
   99: 'Thunderstorm w/ heavy hail',
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: getCorsHeaders(req) });

@@ -20,7 +20,6 @@
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 
 interface NZSCVRequest {
@@ -58,7 +57,7 @@ interface NZSCVResponse {
   LogoURL?: string;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: getCorsHeaders(req) });

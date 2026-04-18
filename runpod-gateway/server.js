@@ -34,7 +34,6 @@
 const express = require('express');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const fetch = require('node-fetch');
 
 const app = express();
 const PORT = parseInt(process.env.PORT ?? '8080', 10);

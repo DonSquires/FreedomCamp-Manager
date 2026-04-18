@@ -4,11 +4,10 @@
  * Includes canonical vehicle details and selected observations
  */
 
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 import { requireAuth } from '../_shared/requireAuth.ts';
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: getCorsHeaders(req) });

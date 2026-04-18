@@ -20,7 +20,6 @@
  * }
  */
 
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { withCors, jsonResponse, errorResponse } from '../_shared/withCors.ts';
 
@@ -62,7 +61,7 @@ function getFileExtension(filename: string): string {
   return parts.length > 1 ? parts[parts.length - 1] : '';
 }
 
-serve(withCors(async (req) => {
+Deno.serve(withCors(async (req) => {
   // Extract bucket from URL path: /upload-file/{bucket}
   const url = new URL(req.url);
   const pathParts = url.pathname.split('/').filter(Boolean);

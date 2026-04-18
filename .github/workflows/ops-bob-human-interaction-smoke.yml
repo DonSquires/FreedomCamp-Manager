@@ -10,6 +10,9 @@ on:
   schedule:
     - cron: '17 * * * *'
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   smoke-chat:
     runs-on: ubuntu-latest

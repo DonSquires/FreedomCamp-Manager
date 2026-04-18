@@ -9,6 +9,9 @@ permissions:
   contents: read
   issues: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   monitor:
     name: Monitor upstream updates and privacy posture

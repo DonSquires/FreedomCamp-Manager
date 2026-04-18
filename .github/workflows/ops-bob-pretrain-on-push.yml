@@ -8,6 +8,9 @@ on:
       - '.github/workflows/ops-bob-pretrain-on-push.yml'
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   pretrain:
     name: Trigger Bob Runtime Pretrain
