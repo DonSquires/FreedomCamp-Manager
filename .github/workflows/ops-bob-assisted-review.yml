@@ -13,7 +13,7 @@ on:
       prompt:
         description: Review prompt to send to Bob
         required: true
-        default: "Review recent RunPod and Ollama workflow changes for security and regression risks."
+        default: "Give 3 highest risks in recent RunPod/Ollama workflow changes."
 
 permissions:
   contents: read
@@ -55,7 +55,7 @@ jobs:
         run: |
           set -euo pipefail
           URL_RAW="${INFERENCE_SERVICE_URL:-https://focused-courage-production-ccee.up.railway.app}"
-          REVIEW_PROMPT_EFFECTIVE="${REVIEW_PROMPT:-Review recent RunPod and Ollama workflow changes for security and regression risks.}"
+          REVIEW_PROMPT_EFFECTIVE="${REVIEW_PROMPT:-Give 3 highest risks in recent RunPod/Ollama workflow changes.}"
           echo "Using inference URL (raw): $URL_RAW"
           AUTH_KEY="${INFERENCE_API_KEY:-${BOB_INFERENCE_API_KEY:-}}"
 
@@ -90,7 +90,7 @@ jobs:
             port: endpoint.port || 443,
             path: '/chat',
             method: 'POST',
-            timeout: 30000,
+            timeout: 120000,
             headers: {
               'Content-Type': 'application/json',
               'Content-Length': Buffer.byteLength(body),
