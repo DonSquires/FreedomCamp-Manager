@@ -1,8 +1,7 @@
 name: Upload RunPod Gateway to Pod
 
 # Deploys runpod-gateway/ to the RunPod bob_brain pod whenever source changes.
-# RunPod pod SSH does not support SCP/SFTP in this mode, so deployment is done
-# fully over SSH by running remote git pull + npm install + process restart.
+# Uses appleboy/ssh-action which properly allocates a PTY (required by RunPod SSH proxy).
 #
 # Required secrets:
 #   RUNPOD_POD_SSH_HOST   – e.g. ssh.runpod.io
@@ -37,89 +36,32 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Validate required secrets
-        run: |
-          if [[ -z "${{ secrets.RUNPOD_POD_SSH_HOST }}" ]]; then
-            echo "::error::RUNPOD_POD_SSH_HOST secret is not set"
-            exit 1
-          fi
-          if [[ -z "${{ secrets.RUNPOD_POD_SSH_USER }}" ]]; then
-            echo "::error::RUNPOD_POD_SSH_USER secret is not set"
-            exit 1
-          fi
-          if [[ -z "${{ secrets.RUNPOD_POD_SSH_KEY }}" ]]; then
-            echo "::error::RUNPOD_POD_SSH_KEY secret is not set"
-            exit 1
-          fi
-          if [[ -z "${{ secrets.BOB_GATEWAY_KEY }}" ]]; then
-            echo "::error::BOB_GATEWAY_KEY secret is not set"
-            exit 1
-          fi
-          echo "All required secrets present."
-
-      - name: Setup SSH key
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.RUNPOD_POD_SSH_KEY }}" > ~/.ssh/runpod_key
-          chmod 600 ~/.ssh/runpod_key
-          SSH_PORT="${{ secrets.RUNPOD_POD_SSH_PORT }}"
-          if [[ -z "$SSH_PORT" ]]; then SSH_PORT="22"; fi
-          ssh-keyscan -p "$SSH_PORT" "${{ secrets.RUNPOD_POD_SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
-
-      - name: Install dependencies and restart gateway
-        env:
-          BOB_GATEWAY_KEY: ${{ secrets.BOB_GATEWAY_KEY }}
-          BOB_GATEWAY_ADMIN_KEY: ${{ secrets.BOB_GATEWAY_ADMIN_KEY }}
-        run: |
-          SSH_PORT="${{ secrets.RUNPOD_POD_SSH_PORT }}"
-          if [[ -z "$SSH_PORT" ]]; then SSH_PORT="22"; fi
-          ssh -i ~/.ssh/runpod_key \
-              -p "$SSH_PORT" \
-              -o StrictHostKeyChecking=no \
-              "${{ secrets.RUNPOD_POD_SSH_USER }}"@"${{ secrets.RUNPOD_POD_SSH_HOST }}" << 'ENDSSH'
-          set -e
-
-          if [[ -d /workspace ]]; then
+      - name: Deploy and start gateway via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.RUNPOD_POD_SSH_HOST }}
+          username: ${{ secrets.RUNPOD_POD_SSH_USER }}
+          key: ${{ secrets.RUNPOD_POD_SSH_KEY }}
+          port: ${{ secrets.RUNPOD_POD_SSH_PORT || 22 }}
+          request_pty: true
+          command_timeout: 5m
+          script: |
+            set -e
             BASE_DIR=/workspace
-          else
-            BASE_DIR=$HOME
-          fi
-
-          cd "$BASE_DIR"
-          if [[ -d repo/.git ]]; then
-            git -C repo fetch origin main
-            git -C repo reset --hard origin/main
-          else
-            git clone https://github.com/DonSquires/FreedomCamp-Manager.git repo
-          fi
-
-          mkdir -p "$BASE_DIR/runpod-gateway"
-          cp -r "$BASE_DIR/repo/runpod-gateway/." "$BASE_DIR/runpod-gateway/"
-          cd "$BASE_DIR/runpod-gateway"
-
-          # Install dependencies
-          npm install --production
-
-          # Write .env from secrets
-          cat > .env << EOF
-          BOB_GATEWAY_KEY=${BOB_GATEWAY_KEY}
-          BOB_GATEWAY_ADMIN_KEY=${BOB_GATEWAY_ADMIN_KEY}
-          OLLAMA_HOST=http://127.0.0.1:11434
-          PORT=8080
-          NODE_ENV=production
-          EOF
-
-          # Restart gateway using pm2 (pre-installed in better-ollama image)
-          # or fall back to nohup
-          if command -v pm2 >/dev/null 2>&1; then
-            pm2 delete runpod-gateway 2>/dev/null || true
-            pm2 start server.js --name runpod-gateway --env production
-            pm2 save
-          else
+            [ -d /workspace ] || BASE_DIR=$HOME
+            cd "$BASE_DIR"
+            if [ -d repo/.git ]; then
+              git -C repo fetch origin main
+              git -C repo reset --hard origin/main
+            else
+              git clone https://github.com/DonSquires/FreedomCamp-Manager.git repo
+            fi
+            mkdir -p "$BASE_DIR/runpod-gateway"
+            cp -r "$BASE_DIR/repo/runpod-gateway/." "$BASE_DIR/runpod-gateway/"
+            cd "$BASE_DIR/runpod-gateway"
+            npm install --production
+            printf 'OLLAMA_HOST=http://127.0.0.1:11434\nPORT=8080\nNODE_ENV=production\nBOB_GATEWAY_KEY=${{ secrets.BOB_GATEWAY_KEY }}\n' > .env
             pkill -f "node server.js" 2>/dev/null || true
             nohup node server.js > "$BASE_DIR/gateway.log" 2>&1 &
             echo "Gateway started with PID $!"
-          fi
-
-          echo "Gateway deployed successfully."
-          ENDSSH
+            echo "Gateway deployed successfully."
