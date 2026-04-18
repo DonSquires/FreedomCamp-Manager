@@ -269,6 +269,7 @@ jobs:
           RUNPOD_GATEWAY_URL: ${{ secrets.RUNPOD_GATEWAY_URL }}
           RUNPOD_GATEWAY_URL_CHAT: ${{ secrets.RUNPOD_GATEWAY_URL_CHAT }}
           RUNPOD_GATEWAY_URL_PTT: ${{ secrets.RUNPOD_GATEWAY_URL_PTT }}
+          RUNPOD_GATEWAY_URL_TABULAR: ${{ secrets.RUNPOD_GATEWAY_URL_TABULAR }}
           BOB_GATEWAY_KEY: ${{ secrets.BOB_GATEWAY_KEY }}
           DESIRED_OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL || 'llama3.1:8b' }}
           DESIRED_OLLAMA_VISION_MODEL: ${{ vars.OLLAMA_VISION_MODEL || 'llama3.2-vision:11b' }}
@@ -296,9 +297,11 @@ jobs:
           RUNPOD_GATEWAY_URL="${RUNPOD_GATEWAY_URL:-}"
           RUNPOD_GATEWAY_URL_CHAT="${RUNPOD_GATEWAY_URL_CHAT:-}"
           RUNPOD_GATEWAY_URL_PTT="${RUNPOD_GATEWAY_URL_PTT:-}"
+          RUNPOD_GATEWAY_URL_TABULAR="${RUNPOD_GATEWAY_URL_TABULAR:-}"
           USE_RUNPOD_GATEWAY="false"
           CHAT_USE_RUNPOD_GATEWAY="false"
           PTT_USE_RUNPOD_GATEWAY="false"
+          TABULAR_USE_RUNPOD_GATEWAY="false"
           if [[ -n "$RUNPOD_GATEWAY_URL" ]]; then
             echo "🔎 Checking shared RunPod upstream before selecting upstream..."
             if SHARED_MODE="$(check_upstream_mode "$RUNPOD_GATEWAY_URL")"; then
@@ -349,9 +352,27 @@ jobs:
             fi
           fi
 
+          # Tabular defaults to chat upstream, with optional dedicated override.
+          TABULAR_OLLAMA_URL="$CHAT_OLLAMA_URL"
+          if [[ -n "$RUNPOD_GATEWAY_URL_TABULAR" ]]; then
+            if TABULAR_MODE="$(check_upstream_mode "$RUNPOD_GATEWAY_URL_TABULAR")"; then
+              TABULAR_OLLAMA_URL="$RUNPOD_GATEWAY_URL_TABULAR"
+              if [[ "$TABULAR_MODE" == "gateway" ]]; then
+                TABULAR_USE_RUNPOD_GATEWAY="true"
+                echo "✅ Using dedicated tabular RunPod gateway upstream: $TABULAR_OLLAMA_URL"
+              else
+                echo "✅ Using dedicated tabular direct Ollama upstream: $TABULAR_OLLAMA_URL"
+              fi
+            else
+              echo "⚠️  Dedicated tabular RunPod upstream is unhealthy — falling back to chat upstream"
+            fi
+          else
+            echo "ℹ️  No dedicated tabular upstream configured — using chat upstream: $TABULAR_OLLAMA_URL"
+          fi
+
           # When RunPod models are pre-loaded on the network volume, skip in-container downloads
           SKIP_DOWNLOADS="false"
-          if [[ "$OLLAMA_URL" != "http://ollama.railway.internal:11434" || "$CHAT_OLLAMA_URL" != "$OLLAMA_URL" || "$PTT_OLLAMA_URL" != "$OLLAMA_URL" ]]; then
+          if [[ "$OLLAMA_URL" != "http://ollama.railway.internal:11434" || "$CHAT_OLLAMA_URL" != "$OLLAMA_URL" || "$PTT_OLLAMA_URL" != "$OLLAMA_URL" || "$TABULAR_OLLAMA_URL" != "$OLLAMA_URL" ]]; then
             SKIP_DOWNLOADS="true"
             echo "✅ SKIP_MODEL_DOWNLOADS=true (models served from RunPod volume)"
           fi
@@ -372,7 +393,7 @@ jobs:
             "OLLAMA_BASE_URL=${OLLAMA_URL}" \
             "OLLAMA_CHAT_BASE_URL=${CHAT_OLLAMA_URL}" \
             "OLLAMA_PTT_BASE_URL=${PTT_OLLAMA_URL}" \
-            "OLLAMA_TABULAR_BASE_URL=${CHAT_OLLAMA_URL}" \
+            "OLLAMA_TABULAR_BASE_URL=${TABULAR_OLLAMA_URL}" \
             "OLLAMA_MODEL=${DESIRED_OLLAMA_MODEL}" \
             "TRANSLATION_MODEL=${DESIRED_OLLAMA_MODEL}" \
             "TRANSLATION_TIMEOUT_MS=20000" \
@@ -390,7 +411,7 @@ jobs:
             "SKIP_MODEL_DOWNLOADS=${SKIP_DOWNLOADS}"
 
           # Set gateway auth key only when a RunPod gateway endpoint is selected.
-          if [[ -n "$BOB_GATEWAY_KEY" && ( "$USE_RUNPOD_GATEWAY" == "true" || "$CHAT_USE_RUNPOD_GATEWAY" == "true" || "$PTT_USE_RUNPOD_GATEWAY" == "true" ) ]]; then
+          if [[ -n "$BOB_GATEWAY_KEY" && ( "$USE_RUNPOD_GATEWAY" == "true" || "$CHAT_USE_RUNPOD_GATEWAY" == "true" || "$PTT_USE_RUNPOD_GATEWAY" == "true" || "$TABULAR_USE_RUNPOD_GATEWAY" == "true" ) ]]; then
             railway variable set \
               --service "$RAILWAY_SERVICE_ID" \
               --environment "$DEPLOY_ENVIRONMENT" \
