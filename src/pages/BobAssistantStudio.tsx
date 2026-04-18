@@ -33,6 +33,7 @@ import {
 } from '@/lib/ptt'
 import {
   createBobRadioAudioSource,
+  createBobSpeechAudioSourceFromBase64,
   estimateBobRadioSignalDurationMs,
   type BobRadioSignalProfile,
 } from '@/lib/bobRtcAgent'
@@ -597,6 +598,7 @@ export default function BobAssistantStudio() {
   const wakeUnlockedRef = useRef(false)
   const inactivityTimerRef = useRef<number | null>(null)
   const radioStopTimerRef = useRef<number | null>(null)
+  const bobPlaybackAudioRef = useRef<HTMLAudioElement | null>(null)
   const restartVoiceConversationRef = useRef<(() => void) | null>(null)
   const ambientAudioContextRef = useRef<AudioContext | null>(null)
   const ambientMonitorIntervalRef = useRef<number | null>(null)
@@ -880,6 +882,60 @@ export default function BobAssistantStudio() {
     return englishPool[0]
   }, [availableVoices, accent, voiceGender])
 
+  const synthesizeBobSpeech = useCallback(async (text: string) => {
+    const voice = accent === 'en-NZ' ? 'en-nz' : accent === 'en-AU' ? 'en-au' : 'en'
+    const rate = tone === 'professional' ? 150 : tone === 'coach' ? 170 : 160
+
+    const { data, error } = await edgeFunctions.synthesizeSpeech({
+      text,
+      voice,
+      rate,
+      format: 'wav',
+    })
+
+    if (error || !data) {
+      throw new Error(error || 'Speech synthesis unavailable')
+    }
+
+    const audioBase64 = String((data as any)?.audio_base64 || '').trim()
+    if (!audioBase64) {
+      throw new Error('Speech synthesis returned empty audio payload')
+    }
+
+    return {
+      audioBase64,
+      audioMimeType: String((data as any)?.audio_mime_type || 'audio/wav'),
+    }
+  }, [accent, tone])
+
+  const playSynthesizedSpeech = useCallback(async (audioBase64: string, audioMimeType = 'audio/wav') => {
+    const binary = atob(audioBase64)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i)
+    }
+
+    const blob = new Blob([bytes], { type: audioMimeType })
+    const objectUrl = URL.createObjectURL(blob)
+    try {
+      if (bobPlaybackAudioRef.current) {
+        bobPlaybackAudioRef.current.pause()
+        bobPlaybackAudioRef.current = null
+      }
+
+      const audio = new Audio(objectUrl)
+      bobPlaybackAudioRef.current = audio
+      await audio.play()
+      await new Promise<void>((resolve) => {
+        audio.onended = () => resolve()
+        audio.onerror = () => resolve()
+      })
+    } finally {
+      URL.revokeObjectURL(objectUrl)
+      bobPlaybackAudioRef.current = null
+    }
+  }, [])
+
   const speak = useCallback((text: string) => {
     if (!speechEnabled || typeof window === 'undefined') return
     if (voiceConversationActiveRef.current && recognitionRef.current) {
@@ -889,28 +945,36 @@ export default function BobAssistantStudio() {
 
     speakingRef.current = true
     setIsBobSpeaking(true)
-    const utterance = new SpeechSynthesisUtterance(text)
-    if (selectedVoice) utterance.voice = selectedVoice
-    utterance.lang = accent
-    utterance.rate = tone === 'professional' ? 0.95 : tone === 'coach' ? 1.03 : 1
-    utterance.pitch = voiceGender === 'male' ? 0.9 : voiceGender === 'female' ? 1.08 : 1
-    utterance.onend = () => {
+
+    const finishSpeaking = () => {
       speakingRef.current = false
       setIsBobSpeaking(false)
       if (voiceConversationActiveRef.current) {
         restartVoiceConversationRef.current?.()
       }
     }
-    utterance.onerror = () => {
-      speakingRef.current = false
-      setIsBobSpeaking(false)
-      if (voiceConversationActiveRef.current) {
-        restartVoiceConversationRef.current?.()
+
+    void (async () => {
+      try {
+        const synthesized = await synthesizeBobSpeech(text)
+        await playSynthesizedSpeech(synthesized.audioBase64, synthesized.audioMimeType)
+        finishSpeaking()
+        return
+      } catch {
+        // Fall back to browser-native speech synthesis when Bob TTS is unavailable.
       }
-    }
-    window.speechSynthesis.cancel()
-    window.speechSynthesis.speak(utterance)
-  }, [speechEnabled, selectedVoice, accent, tone, voiceGender])
+
+      const utterance = new SpeechSynthesisUtterance(text)
+      if (selectedVoice) utterance.voice = selectedVoice
+      utterance.lang = accent
+      utterance.rate = tone === 'professional' ? 0.95 : tone === 'coach' ? 1.03 : 1
+      utterance.pitch = voiceGender === 'male' ? 0.9 : voiceGender === 'female' ? 1.08 : 1
+      utterance.onend = finishSpeaking
+      utterance.onerror = finishSpeaking
+      window.speechSynthesis.cancel()
+      window.speechSynthesis.speak(utterance)
+    })()
+  }, [speechEnabled, selectedVoice, accent, tone, voiceGender, synthesizeBobSpeech, playSynthesizedSpeech])
 
   const clearVoiceInactivityTimer = () => {
     if (inactivityTimerRef.current !== null) {

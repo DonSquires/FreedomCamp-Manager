@@ -287,12 +287,17 @@ jobs:
             "OLLAMA_MODEL=llama3.1:8b" \
             "TRANSLATION_MODEL=llama3.1:8b" \
             "TRANSLATION_TIMEOUT_MS=20000" \
+            "CHAT_TIMEOUT_MS=60000" \
             "OLLAMA_MODEL_WRITING=llama3.1:8b" \
             "OLLAMA_VISION_MODEL=llama3.2-vision:11b" \
             "VEHICLE_ATTRS_PROVIDER=ollama" \
             "WHISPER_CLI_PATH=/app/whisper/whisper-cli" \
             "WHISPER_MODEL_PATH=/app/whisper/models/ggml-base.en.bin" \
-            "AUDIO_TRANSCRIBE_TIMEOUT_MS=20000"
+            "AUDIO_TRANSCRIBE_TIMEOUT_MS=20000" \
+            "AUDIO_SYNTH_TIMEOUT_MS=15000" \
+            "TTS_ENGINE=espeak-ng" \
+            "TTS_DEFAULT_VOICE=en-nz" \
+            "TTS_DEFAULT_RATE=160"
 
           echo "✅ Bob Railway variables updated"
 

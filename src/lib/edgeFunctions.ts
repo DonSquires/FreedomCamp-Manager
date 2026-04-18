@@ -1712,6 +1712,31 @@ export const edgeFunctions = {
     return callEdgeFunction('noise-audio-assess', params, { showToast: false })
   },
 
+  /**
+   * Transcribe an uploaded audio clip via Bob's local Whisper pipeline.
+   */
+  transcribeAudio: async (params: {
+    clip_url?: string
+    audio_base64?: string
+    audio_mime_type?: string
+    language?: string
+  }) => {
+    return callEdgeFunction('transcribe-audio', params, { showToast: false })
+  },
+
+  /**
+   * Synthesize speech audio for Bob voice output and radio relays.
+   */
+  synthesizeSpeech: async (params: {
+    text: string
+    voice?: string
+    rate?: number
+    pitch?: number
+    format?: 'wav'
+  }) => {
+    return callEdgeFunction('synthesize-speech', params, { showToast: false })
+  },
+
   // ============================================================================
   // UTILITIES (2 functions)
   // ============================================================================

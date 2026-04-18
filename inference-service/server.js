@@ -205,7 +205,7 @@ const TABULAR_NLP_PROVIDER = normalizeProvider(TABULAR_NLP_PROVIDER_RAW, 'heuris
 const CHAT_PROVIDER_RAW = (process.env.CHAT_PROVIDER || 'ollama').toLowerCase();
 const CHAT_PROVIDER = normalizeProvider(CHAT_PROVIDER_RAW, 'heuristic');
 const HEURISTIC_PLAYBOOK_MODE = (process.env.HEURISTIC_PLAYBOOK_MODE || 'compact').toLowerCase();
-const CHAT_TIMEOUT_MS = Number(process.env.CHAT_TIMEOUT_MS || 30000);
+const CHAT_TIMEOUT_MS = Number(process.env.CHAT_TIMEOUT_MS || 60000);
 const TABULAR_NLP_TIMEOUT_MS = Number(process.env.TABULAR_NLP_TIMEOUT_MS || 2500);
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
 const OLLAMA_BASE_URL_CONFIGURED = !!process.env.OLLAMA_BASE_URL;
@@ -227,6 +227,10 @@ const WHISPER_SERVICE_URL = (process.env.WHISPER_SERVICE_URL || '').replace(/\/+
 const WHISPER_CLI_PATH = process.env.WHISPER_CLI_PATH || '';
 const WHISPER_MODEL_PATH = process.env.WHISPER_MODEL_PATH || '';
 const AUDIO_TRANSCRIBE_TIMEOUT_MS = Number(process.env.AUDIO_TRANSCRIBE_TIMEOUT_MS || 15000);
+const AUDIO_SYNTH_TIMEOUT_MS = Number(process.env.AUDIO_SYNTH_TIMEOUT_MS || 15000);
+const TTS_ENGINE = (process.env.TTS_ENGINE || 'espeak-ng').toLowerCase();
+const TTS_DEFAULT_VOICE = process.env.TTS_DEFAULT_VOICE || 'en-nz';
+const TTS_DEFAULT_RATE = Number(process.env.TTS_DEFAULT_RATE || 160);
 const PTT_SERVER_URL = (process.env.PTT_SERVER_URL || '').replace(/\/+$/, '');
 const OLLAMA_AUTO_PULL_MODELS = envFlag(process.env.OLLAMA_AUTO_PULL_MODELS, true);
 const OLLAMA_PULL_TIMEOUT_MS = Number(process.env.OLLAMA_PULL_TIMEOUT_MS || 120000);
@@ -777,6 +781,40 @@ function getWhisperAvailability() {
     model_configured: !!WHISPER_MODEL_PATH,
     model_present: !!WHISPER_MODEL_PATH && fs.existsSync(WHISPER_MODEL_PATH),
   };
+}
+
+function getTtsAvailability() {
+  const espeakPath = '/usr/bin/espeak-ng';
+  return {
+    engine: TTS_ENGINE,
+    available: TTS_ENGINE === 'espeak-ng' && fs.existsSync(espeakPath),
+    voice: TTS_DEFAULT_VOICE,
+  };
+}
+
+async function convertAudioToWav(audioBuffer, extension = 'bin') {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'audio-convert-'));
+  const inputPath = path.join(tempDir, `input.${extension || 'bin'}`);
+  const outputPath = path.join(tempDir, 'output.wav');
+  try {
+    fs.writeFileSync(inputPath, audioBuffer);
+    await execFileAsync('ffmpeg', ['-y', '-i', inputPath, '-ac', '1', '-ar', '16000', outputPath], {
+      timeout: AUDIO_TRANSCRIBE_TIMEOUT_MS,
+    });
+    return fs.readFileSync(outputPath);
+  } finally {
+    try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch {}
+  }
+}
+
+function resolveAudioExtension(mimeType = '') {
+  const normalized = String(mimeType || '').toLowerCase();
+  if (normalized.includes('wav')) return 'wav';
+  if (normalized.includes('webm')) return 'webm';
+  if (normalized.includes('ogg')) return 'ogg';
+  if (normalized.includes('mpeg') || normalized.includes('mp3')) return 'mp3';
+  if (normalized.includes('mp4') || normalized.includes('m4a')) return 'm4a';
+  return 'bin';
 }
 
 // Preprocess image for YOLO (640x640)
@@ -5381,14 +5419,14 @@ async function transcribeAudioWithWhisperService(audioBuffer, mimeType = 'audio/
   }
 }
 
-async function transcribeAudioWithWhisperCli(audioBuffer) {
+async function transcribeAudioWithWhisperCli(audioBuffer, language = 'en') {
   if (!WHISPER_CLI_PATH || !WHISPER_MODEL_PATH) return null;
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'noise-audio-'));
   const wavPath = path.join(tempDir, 'input.wav');
   const outPrefix = path.join(tempDir, 'out');
   try {
     fs.writeFileSync(wavPath, audioBuffer);
-    await execFileAsync(WHISPER_CLI_PATH, ['-m', WHISPER_MODEL_PATH, '-f', wavPath, '-otxt', '-of', outPrefix, '-l', 'en'], {
+    await execFileAsync(WHISPER_CLI_PATH, ['-m', WHISPER_MODEL_PATH, '-f', wavPath, '-otxt', '-of', outPrefix, '-l', String(language || 'en').slice(0, 8)], {
       timeout: AUDIO_TRANSCRIBE_TIMEOUT_MS,
       maxBuffer: 1024 * 1024,
     });
@@ -5584,10 +5622,94 @@ app.post('/infer/noise-audio', inferenceRateLimit, requireInferenceAuth, async (
   }
 });
 
+app.post('/infer/transcribe', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const audioBase64 = String(req.body?.audio_base64 || '').trim();
+    const audioMimeType = String(req.body?.audio_mime_type || 'audio/webm').trim();
+    const language = String(req.body?.language || 'en').trim().slice(0, 8);
+
+    if (!audioBase64) {
+      return res.status(400).json({ error: 'audio_base64 is required' });
+    }
+
+    const sourceBuffer = Buffer.from(audioBase64, 'base64');
+    if (!sourceBuffer.length) {
+      return res.status(400).json({ error: 'audio_base64 decode failed' });
+    }
+
+    const extension = resolveAudioExtension(audioMimeType);
+    const wavBuffer = extension === 'wav'
+      ? sourceBuffer
+      : await convertAudioToWav(sourceBuffer, extension);
+
+    const transcript =
+      (await transcribeAudioWithWhisperService(wavBuffer, 'audio/wav')) ||
+      (await transcribeAudioWithWhisperCli(wavBuffer, language)) ||
+      '';
+
+    if (!transcript.trim()) {
+      return res.status(502).json({
+        error: 'Transcription unavailable',
+        detail: 'Whisper service and CLI did not produce text.',
+      });
+    }
+
+    return res.json({
+      transcript: transcript.trim(),
+      language,
+      provider: 'whisper',
+      source_mime_type: audioMimeType,
+    });
+  } catch (error) {
+    console.error('❌ /infer/transcribe error:', error);
+    return res.status(500).json({ error: 'Audio transcription failed', message: error.message });
+  }
+});
+
+app.post('/infer/speak', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const text = String(req.body?.text || '').trim();
+    const voice = String(req.body?.voice || TTS_DEFAULT_VOICE).trim();
+    const rate = Number.isFinite(Number(req.body?.rate)) ? Math.max(90, Math.min(260, Number(req.body?.rate))) : TTS_DEFAULT_RATE;
+    const format = String(req.body?.format || 'wav').toLowerCase() === 'wav' ? 'wav' : 'wav';
+
+    if (!text) {
+      return res.status(400).json({ error: 'text is required' });
+    }
+
+    if (TTS_ENGINE !== 'espeak-ng') {
+      return res.status(503).json({ error: `Unsupported TTS engine: ${TTS_ENGINE}` });
+    }
+
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tts-'));
+    const outputPath = path.join(tempDir, `speech.${format}`);
+    try {
+      await execFileAsync('/usr/bin/espeak-ng', ['-v', voice, '-s', String(rate), '-w', outputPath, text], {
+        timeout: AUDIO_SYNTH_TIMEOUT_MS,
+      });
+
+      const wav = fs.readFileSync(outputPath);
+      return res.json({
+        audio_base64: wav.toString('base64'),
+        audio_mime_type: 'audio/wav',
+        provider: 'espeak-ng',
+        voice,
+        rate,
+      });
+    } finally {
+      try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch {}
+    }
+  } catch (error) {
+    console.error('❌ /infer/speak error:', error);
+    return res.status(500).json({ error: 'Speech synthesis failed', message: error.message });
+  }
+});
+
 // Health check
 app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), (req, res) => {
   const modelsLoaded = !!(yoloSession && embeddingSession);
   const whisper = getWhisperAvailability();
+  const tts = getTtsAvailability();
   res.json({
     status: 'healthy',
     models: {
@@ -5596,6 +5718,7 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       face_detect: faceDetectSession ? 'loaded' : (fs.existsSync(FACE_DETECT_MODEL_PATH) ? 'not loaded' : 'not present'),
       whisper_cli: whisper.cli_present ? 'present' : (whisper.cli_configured ? 'missing' : 'not configured'),
       whisper_model: whisper.model_present ? 'present' : (whisper.model_configured ? 'missing' : 'not configured'),
+      tts_engine: tts.available ? tts.engine : `${tts.engine}:unavailable`,
     },
     config: {
       DEPLOY_SIGNATURE,
@@ -5631,6 +5754,10 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       TRANSLATION_TIMEOUT_MS,
       WHISPER_CLI_PATH: WHISPER_CLI_PATH || null,
       WHISPER_MODEL_PATH: WHISPER_MODEL_PATH || null,
+      CHAT_TIMEOUT_MS,
+      AUDIO_SYNTH_TIMEOUT_MS,
+      TTS_ENGINE,
+      TTS_DEFAULT_VOICE,
     },
     capabilities: {
       plate_inference: modelsLoaded,
@@ -5643,6 +5770,8 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       translation: true,
       translation_local_ollama_enabled: OLLAMA_ENABLED,
       translation_model: TRANSLATION_MODEL,
+      speech_synthesis: tts.available,
+      speech_synthesis_engine: tts.engine,
       self_healing_bug_assistant: SELF_HEALING_ENABLED,
       local_intel_updates: true,
       tabular_nlp_auth_api_key: !!INFERENCE_API_KEY,

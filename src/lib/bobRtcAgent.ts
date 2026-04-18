@@ -1,6 +1,6 @@
 import type { PTTCustomAudioSource } from './ptt'
 
-export type BobRadioSignalProfile = 'link-test' | 'attention' | 'warble'
+export type BobRadioSignalProfile = 'link-test' | 'attention' | 'warble' | 'spoken'
 
 export interface BobRadioSignalOptions {
   profile: BobRadioSignalProfile
@@ -108,6 +108,55 @@ export async function createBobRadioAudioSource(options: BobRadioSignalOptions):
     stream: destination.stream,
     label: `bob-radio:${options.profile}`,
     cleanup: async () => {
+      destination.stream.getTracks().forEach((audioTrack) => audioTrack.stop())
+      await context.close()
+    },
+  }
+}
+
+function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return bytes.buffer
+}
+
+export async function createBobSpeechAudioSourceFromBase64(params: {
+  audioBase64: string
+  mimeType?: string
+  level?: number
+}): Promise<PTTCustomAudioSource> {
+  const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+  if (!AudioCtx) {
+    throw new Error('Web Audio API is not supported in this browser')
+  }
+
+  const context = new AudioCtx()
+  const destination = context.createMediaStreamDestination()
+  const masterGain = context.createGain()
+  masterGain.gain.value = clampLevel(params.level)
+  masterGain.connect(destination)
+
+  const audioData = base64ToArrayBuffer(params.audioBase64)
+  const audioBuffer = await context.decodeAudioData(audioData.slice(0))
+  const source = context.createBufferSource()
+  source.buffer = audioBuffer
+  source.connect(masterGain)
+  source.start(context.currentTime + 0.03)
+
+  const [track] = destination.stream.getAudioTracks()
+  if (!track) {
+    await context.close()
+    throw new Error('Could not create Bob speech audio track')
+  }
+
+  return {
+    stream: destination.stream,
+    label: `bob-speech:${params.mimeType || 'audio/wav'}`,
+    cleanup: async () => {
+      source.stop(0)
       destination.stream.getTracks().forEach((audioTrack) => audioTrack.stop())
       await context.close()
     },

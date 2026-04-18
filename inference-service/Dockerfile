@@ -35,6 +35,10 @@ RUN mkdir -p /out/models && \
 # Stage 2: Final Production Image
 FROM node:22-slim
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  ffmpeg \
+  espeak-ng \
+  && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/node_modules ./node_modules
 COPY server.js ./
 COPY lib ./lib
@@ -45,6 +49,10 @@ COPY --from=whisper-builder /out /app/whisper
 ENV WHISPER_CLI_PATH=/app/whisper/whisper-cli
 ENV WHISPER_MODEL_PATH=/app/whisper/models/ggml-base.en.bin
 ENV AUDIO_TRANSCRIBE_TIMEOUT_MS=20000
+ENV AUDIO_SYNTH_TIMEOUT_MS=15000
+ENV TTS_ENGINE=espeak-ng
+ENV TTS_DEFAULT_VOICE=en-nz
+ENV TTS_DEFAULT_RATE=160
 
 RUN groupadd -g 1001 nodejs && \
     useradd -u 1001 -g nodejs -s /bin/sh -m nodejs && \

@@ -275,13 +275,9 @@ jobs:
             "PORT=11434" \
             "OLLAMA_MODEL=llama3.1:8b" \
             "OLLAMA_VISION_MODEL=llama3.2-vision:11b" \
-            "OLLAMA_PREPULL_MODE=off" \
+            "OLLAMA_PREPULL_MODE=background" \
+            "OLLAMA_EXTRA_MODELS=llama3.2-vision:11b" \
             "OLLAMA_PULL_DELAY_SECONDS=20"
-
-          railway variable delete OLLAMA_EXTRA_MODELS \
-            --service "$RAILWAY_OLLAMA_SERVICE_ID" \
-            --environment "$DEPLOY_ENVIRONMENT" \
-            || true
 
           echo "✅ Ollama Railway variables updated"
 
