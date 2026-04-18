@@ -92,12 +92,17 @@ jobs:
 
           echo "🔧 Setting OLLAMA_GATEWAY_KEY on Bob service..."
 
-          if [ -n "$EFFECTIVE_SERVICE" ]; then
-            railway variables set OLLAMA_GATEWAY_KEY="$BOB_GATEWAY_KEY" \
+          VAR_PAIR="OLLAMA_GATEWAY_KEY=$BOB_GATEWAY_KEY"
+
+          if [ -n "$EFFECTIVE_SERVICE" ] && [ -n "$EFFECTIVE_PROJECT" ]; then
+            railway variables set "$VAR_PAIR" \
               --service "$EFFECTIVE_SERVICE" \
-              ${EFFECTIVE_PROJECT:+--project "$EFFECTIVE_PROJECT"}
+              --project "$EFFECTIVE_PROJECT"
+          elif [ -n "$EFFECTIVE_SERVICE" ]; then
+            railway variables set "$VAR_PAIR" \
+              --service "$EFFECTIVE_SERVICE"
           else
-            railway variables set OLLAMA_GATEWAY_KEY="$BOB_GATEWAY_KEY" \
+            railway variables set "$VAR_PAIR" \
               --project "$EFFECTIVE_PROJECT"
           fi
 
@@ -124,10 +129,14 @@ jobs:
           export RAILWAY_TOKEN="$EFFECTIVE_TOKEN"
 
           pushd inference-service
-          if [ -n "$EFFECTIVE_SERVICE" ]; then
+          if [ -n "$EFFECTIVE_SERVICE" ] && [ -n "$EFFECTIVE_PROJECT" ]; then
             railway up \
               --service "$EFFECTIVE_SERVICE" \
-              ${EFFECTIVE_PROJECT:+--project "$EFFECTIVE_PROJECT"} \
+              --project "$EFFECTIVE_PROJECT" \
+              --detach
+          elif [ -n "$EFFECTIVE_SERVICE" ]; then
+            railway up \
+              --service "$EFFECTIVE_SERVICE" \
               --detach
           else
             railway up --project "$EFFECTIVE_PROJECT" --detach
