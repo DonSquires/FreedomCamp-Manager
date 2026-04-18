@@ -93,6 +93,7 @@ Canonical secret model:
 | GET | `/health` | Health check |
 | GET | `/api/info` | Service info |
 | GET | `/api/diagnostics` | Runtime transport diagnostics (TURN + relay policy) |
+| GET | `/api/capabilities` | Interop capabilities and signaling profile |
 | POST | `/api/token/mint` | Mint channel access token |
 | GET | `/api/channels` | List active channels |
 | GET | `/api/presence/:channelId` | Get channel presence |
@@ -100,10 +101,15 @@ Canonical secret model:
 ### WebSocket
 
 Preferred auth mode:
-- Connect using WebSocket subprotocols: `ptt.v1` and `auth.<jwt>`
+- Connect using WebSocket subprotocols: `ptt.v2` (or `ptt.v1`) and `auth.<jwt>`
 
 Backward-compatible mode:
 - `ws(s)://.../ws?token=<jwt>` is still accepted for older clients.
+
+Professional compatibility mode:
+- Server emits `server_hello` on connect with protocol and capability metadata.
+- Clients should send `hello` and wait for `hello_ack` to finalize negotiated profile.
+- Capability details are also available at `GET /api/capabilities` for integration adapters.
 
 #### Client → Server Messages
 

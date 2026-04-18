@@ -30,6 +30,23 @@ interface PTTTokenResponse {
     turnConfigured?: boolean
     forceTurnRelay?: boolean
   }
+  signaling?: {
+    protocolVersion?: string
+    interopProfile?: string
+    wsProtocols?: string[]
+  }
+}
+
+interface PTTHelloMessage {
+  type: 'hello'
+  protocolVersion: string
+  interopProfile: string
+  client: {
+    name: string
+    version: string
+    platform: string
+    codecs: string[]
+  }
 }
 
 interface SignalMessage {
@@ -68,6 +85,11 @@ interface PTTMessage {
   fromName?: string
   code?: string
   message?: string
+  protocolVersion?: string
+  interopProfile?: string
+  selectedProtocol?: string
+  supportedProtocols?: string[]
+  accepted?: boolean
   transport?: {
     turnConfigured?: boolean
     forceTurnRelay?: boolean
@@ -94,6 +116,11 @@ export interface PTTDiagnostics {
     turnConfigured: boolean
     forceTurnRelay: boolean
     iceTransportPolicy: RTCIceTransportPolicy
+  }
+  protocol: {
+    negotiatedProtocol: string
+    protocolVersion: string | null
+    interopProfile: string | null
   }
   lastClose: {
     code: number | null
@@ -123,6 +150,10 @@ export interface PTTDiagnostics {
     lastError: string | null
   }
 }
+
+const PTT_WS_PROTOCOLS = ['ptt.v2', 'ptt.v1']
+const PTT_CLIENT_PROTOCOL_VERSION = '2.0.0'
+const PTT_INTEROP_PROFILE = 'fieldops-ptt-interop-v1'
 
 async function requestLocalAudioStream(): Promise<MediaStream> {
   try {
@@ -235,6 +266,9 @@ const peerConnectionStates: Map<string, {
 const pendingIceCandidates: Map<string, RTCIceCandidateInit[]> = new Map()
 let turnConfigured = false
 let forceTurnRelay = false
+let negotiatedWsProtocol = 'ptt.v1'
+let negotiatedProtocolVersion: string | null = null
+let negotiatedInteropProfile: string | null = null
 let lastSocketCloseCode: number | null = null
 let lastSocketCloseReason: string | null = null
 let lastNegotiationAttemptAt: string | null = null
@@ -419,6 +453,11 @@ export function getPTTDiagnostics(): PTTDiagnostics {
       forceTurnRelay,
       iceTransportPolicy: currentIceTransportPolicy,
     },
+    protocol: {
+      negotiatedProtocol: negotiatedWsProtocol,
+      protocolVersion: negotiatedProtocolVersion,
+      interopProfile: negotiatedInteropProfile,
+    },
     lastClose: {
       code: lastSocketCloseCode,
       reason: lastSocketCloseReason,
@@ -447,6 +486,24 @@ export function getPTTDiagnostics(): PTTDiagnostics {
       lastError: lastIceCandidateError,
     },
   }
+}
+
+function sendClientHello(): void {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return
+
+  const message: PTTHelloMessage = {
+    type: 'hello',
+    protocolVersion: PTT_CLIENT_PROTOCOL_VERSION,
+    interopProfile: PTT_INTEROP_PROFILE,
+    client: {
+      name: 'fieldops-web-client',
+      version: PTT_CLIENT_PROTOCOL_VERSION,
+      platform: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+      codecs: ['audio/opus'],
+    },
+  }
+
+  ws.send(JSON.stringify(message))
 }
 
 // VOX state
@@ -526,7 +583,7 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
     // token leakage in URL logs/proxies; keep query fallback for compatibility.
     let socket: WebSocket
     try {
-      socket = new WebSocket(tokenData.wsUrl, ['ptt.v1', `auth.${tokenData.token}`])
+      socket = new WebSocket(tokenData.wsUrl, [...PTT_WS_PROTOCOLS, `auth.${tokenData.token}`])
     } catch {
       socket = new WebSocket(`${tokenData.wsUrl}?token=${encodeURIComponent(tokenData.token)}`)
     }
@@ -538,8 +595,12 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
       reconnectAttempts = 0
       lastSocketCloseCode = null
       lastSocketCloseReason = null
+      negotiatedWsProtocol = socket.protocol || 'ptt.v1'
+      negotiatedProtocolVersion = tokenData.signaling?.protocolVersion || null
+      negotiatedInteropProfile = tokenData.signaling?.interopProfile || null
       store.setConnection('connected')
       startPingInterval()
+      sendClientHello()
     }
 
     socket.onclose = (event) => {
@@ -672,6 +733,9 @@ function cleanupConnection(): void {
   iceGatherCompleteCount = 0
   iceCandidateErrors = 0
   lastIceCandidateError = null
+  negotiatedWsProtocol = 'ptt.v1'
+  negotiatedProtocolVersion = null
+  negotiatedInteropProfile = null
 }
 
 /**
@@ -723,6 +787,22 @@ function handleServerMessage(message: PTTMessage): void {
   const store = usePTTStore.getState()
 
   switch (message.type) {
+    case 'server_hello':
+      negotiatedProtocolVersion = message.protocolVersion || negotiatedProtocolVersion
+      negotiatedInteropProfile = message.interopProfile || negotiatedInteropProfile
+      if (typeof message.selectedProtocol === 'string' && message.selectedProtocol.length > 0) {
+        negotiatedWsProtocol = message.selectedProtocol
+      }
+      break
+
+    case 'hello_ack':
+      negotiatedProtocolVersion = message.protocolVersion || negotiatedProtocolVersion
+      negotiatedInteropProfile = message.interopProfile || negotiatedInteropProfile
+      if (typeof message.selectedProtocol === 'string' && message.selectedProtocol.length > 0) {
+        negotiatedWsProtocol = message.selectedProtocol
+      }
+      break
+
     case 'sync':
       // Initial sync on connect
       if (message.presence) {

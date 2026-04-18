@@ -78,6 +78,12 @@ const TOKEN_TRACKER_RETENTION_MS = parseInt(process.env.PTT_TOKEN_TRACKER_RETENT
 const PREVIEW_HOST_REGEX =
   process.env.PTT_ALLOWED_PREVIEW_ORIGIN_REGEX ||
   '^preview-[a-z0-9-]+\\.onspace\\.build$';
+const PTT_PROTOCOL_VERSION = '2.0.0';
+const INTEROP_PROFILE = 'fieldops-ptt-interop-v1';
+const SUPPORTED_WS_PROTOCOLS = ['ptt.v2', 'ptt.v1'];
+const SUPPORTED_SIGNAL_TYPES = ['offer', 'answer', 'candidate'];
+const SUPPORTED_CHANNEL_TYPES = ['org', 'incident', 'direct', 'team', 'deployment'];
+const SUPPORTED_AUDIO_CODECS = ['audio/opus'];
 
 function parseTurnUrls(value) {
   if (!value) return [];
@@ -277,7 +283,7 @@ const corsOptions = {
     callback(new Error('Not allowed by CORS'));
   },
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-proxy-secret', 'x-client-info', 'apikey'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-proxy-secret', 'x-client-info', 'x-ptt-protocol', 'apikey'],
   maxAge: 86400, // 24 hours
 };
 
@@ -323,6 +329,10 @@ app.get('/api/info', (req, res) => {
     websocket: {
       path: '/ws',
       protocol: 'wss://',
+      auth: {
+        preferred: 'sec-websocket-protocol auth.<jwt>',
+        fallback: 'query token',
+      },
     },
     limits: {
       maxParticipantsPerChannel: MAX_PARTICIPANTS,
@@ -330,6 +340,41 @@ app.get('/api/info', (req, res) => {
     },
     turnConfigured: isTurnConfigured(),
     forceTurnRelay: FORCE_TURN_RELAY,
+    protocol: {
+      version: PTT_PROTOCOL_VERSION,
+      interopProfile: INTEROP_PROFILE,
+      wsProtocols: SUPPORTED_WS_PROTOCOLS,
+      signalTypes: SUPPORTED_SIGNAL_TYPES,
+      channelTypes: SUPPORTED_CHANNEL_TYPES,
+      audioCodecs: SUPPORTED_AUDIO_CODECS,
+    },
+  });
+});
+
+/**
+ * Interoperability capabilities for external/professional integrations.
+ */
+app.get('/api/capabilities', (req, res) => {
+  res.json({
+    service: 'PTT Signaling Server',
+    timestamp: new Date().toISOString(),
+    protocolVersion: PTT_PROTOCOL_VERSION,
+    interopProfile: INTEROP_PROFILE,
+    websocket: {
+      path: '/ws',
+      supportedProtocols: SUPPORTED_WS_PROTOCOLS,
+      authModes: ['sec-websocket-protocol auth.<jwt>', 'query token'],
+      messageTypes: ['server_hello', 'hello', 'hello_ack', 'sync', 'presence', 'speaking', 'signal', 'ping', 'pong', 'error'],
+      signalTypes: SUPPORTED_SIGNAL_TYPES,
+    },
+    media: {
+      codecs: SUPPORTED_AUDIO_CODECS,
+      halfDuplex: true,
+      maxClipDurationSeconds: MAX_CLIP_DURATION,
+      turnConfigured: isTurnConfigured(),
+      forceTurnRelay: FORCE_TURN_RELAY,
+    },
+    channels: SUPPORTED_CHANNEL_TYPES,
   });
 });
 
@@ -433,6 +478,11 @@ app.post('/api/token/mint', rateLimitMiddleware, (req, res) => {
     transport: {
       turnConfigured: isTurnConfigured(),
       forceTurnRelay: FORCE_TURN_RELAY,
+    },
+    signaling: {
+      protocolVersion: PTT_PROTOCOL_VERSION,
+      interopProfile: INTEROP_PROFILE,
+      wsProtocols: SUPPORTED_WS_PROTOCOLS,
     },
   });
 });
@@ -538,13 +588,11 @@ function pruneChannelClients(channelId) {
 function extractTokenFromWebSocketRequest(req) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const queryToken = url.searchParams.get('token');
-  if (queryToken) {
-    return queryToken;
-  }
-
   const protocolHeader = req.headers['sec-websocket-protocol'];
+  let selectedProtocol = 'ptt.v1';
+
   if (typeof protocolHeader !== 'string' || protocolHeader.trim().length === 0) {
-    return null;
+    return { token: queryToken, requestedProtocol: selectedProtocol };
   }
 
   const protocols = protocolHeader
@@ -552,12 +600,17 @@ function extractTokenFromWebSocketRequest(req) {
     .map((value) => value.trim())
     .filter(Boolean);
 
-  const authProtocol = protocols.find((value) => value.startsWith('auth.'));
-  if (!authProtocol) {
-    return null;
+  const supported = protocols.find((value) => SUPPORTED_WS_PROTOCOLS.includes(value));
+  if (supported) {
+    selectedProtocol = supported;
   }
 
-  return authProtocol.slice('auth.'.length);
+  const authProtocol = protocols.find((value) => value.startsWith('auth.'));
+  if (!authProtocol) {
+    return { token: queryToken, requestedProtocol: selectedProtocol };
+  }
+
+  return { token: authProtocol.slice('auth.'.length), requestedProtocol: selectedProtocol };
 }
 
 function startTokenTrackerSweep() {
@@ -578,7 +631,8 @@ function startTokenTrackerSweep() {
  */
 wss.on('connection', (ws, req) => {
   // Prefer subprotocol auth.<jwt>, fallback to query token for backward compatibility.
-  const token = extractTokenFromWebSocketRequest(req);
+  const wsAuth = extractTokenFromWebSocketRequest(req);
+  const token = wsAuth?.token;
 
   if (!token) {
     ws.close(4001, 'Missing token');
@@ -592,6 +646,22 @@ wss.on('connection', (ws, req) => {
   }
 
   const { sub: userId, role, org: organizationId, channel: channelId, name } = verification.payload;
+  ws.pttProtocol = wsAuth.requestedProtocol || 'ptt.v1';
+
+  ws.send(JSON.stringify({
+    type: 'server_hello',
+    protocolVersion: PTT_PROTOCOL_VERSION,
+    interopProfile: INTEROP_PROFILE,
+    selectedProtocol: ws.pttProtocol,
+    supportedProtocols: SUPPORTED_WS_PROTOCOLS,
+    capabilities: {
+      signalTypes: SUPPORTED_SIGNAL_TYPES,
+      channelTypes: SUPPORTED_CHANNEL_TYPES,
+      codecs: SUPPORTED_AUDIO_CODECS,
+      halfDuplex: true,
+    },
+    timestamp: new Date().toISOString(),
+  }));
 
   // Remove dead sockets before checking channel capacity.
   pruneChannelClients(channelId);
@@ -747,6 +817,17 @@ function handleMessage(ws, userId, channelId, name, role, message) {
   const meta = channelMeta.get(channelId);
 
   switch (message.type) {
+    case 'hello':
+      ws.send(JSON.stringify({
+        type: 'hello_ack',
+        protocolVersion: PTT_PROTOCOL_VERSION,
+        interopProfile: INTEROP_PROFILE,
+        selectedProtocol: ws.pttProtocol || 'ptt.v1',
+        accepted: true,
+        timestamp: new Date().toISOString(),
+      }));
+      break;
+
     case 'start_speaking':
       // Half-duplex: only one speaker at a time
       if (meta && meta.speakerId && meta.speakerId !== userId) {

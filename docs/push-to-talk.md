@@ -5,6 +5,7 @@ Status: Production baseline active.
 This document is the source of truth for the PTT communications stack. The platform is designed to be self-hosted for signaling and application control. The only intentional non-self-hosted dependencies are external data intake systems such as NZSCV and other third-party feeds.
 
 Operational runbook: see docs/PTT_SELF_HOSTED_OPERATIONS_STANDARD.md.
+Interoperability profile: see docs/PTT_INTEROPERABILITY_PROFILE.md.
 
 ## Scope and Operating Model
 

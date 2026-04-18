@@ -1,0 +1,98 @@
+name: Ops PTT Professional Audit
+
+on:
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  ptt-audit:
+    name: PTT Interop + Transport Audit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Validate required secret
+        env:
+          PTT_SERVER_URL: ${{ secrets.PTT_SERVER_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PTT_SERVER_URL:-}" ]; then
+            echo "::error::PTT_SERVER_URL secret is required"
+            exit 1
+          fi
+
+      - name: Health check
+        env:
+          PTT_SERVER_URL: ${{ secrets.PTT_SERVER_URL }}
+        run: |
+          set -euo pipefail
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 "${PTT_SERVER_URL}/health" || echo "000")
+          BODY=$(curl -s --max-time 20 "${PTT_SERVER_URL}/health" || true)
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::Health endpoint failed with HTTP ${STATUS}"
+            echo "Body: ${BODY:0:300}"
+            exit 1
+          fi
+          echo "✅ Health endpoint is reachable"
+
+      - name: Validate interoperability capabilities
+        env:
+          PTT_SERVER_URL: ${{ secrets.PTT_SERVER_URL }}
+        run: |
+          set -euo pipefail
+          CAP=$(curl -sS --max-time 20 "${PTT_SERVER_URL}/api/capabilities")
+          echo "$CAP" | python3 - <<'PY'
+          import json, sys
+          raw = sys.stdin.read().strip()
+          data = json.loads(raw)
+          ws = data.get('websocket', {})
+          protocols = ws.get('supportedProtocols', [])
+          msg_types = ws.get('messageTypes', [])
+          if 'ptt.v2' not in protocols:
+              raise SystemExit('Missing ptt.v2 support in capabilities')
+          required_msgs = {'server_hello', 'hello', 'hello_ack', 'signal'}
+          if not required_msgs.issubset(set(msg_types)):
+              raise SystemExit(f'Missing required message types: {required_msgs - set(msg_types)}')
+          print('✅ Capabilities endpoint reports professional interop profile')
+          PY
+
+      - name: Validate transport posture
+        env:
+          PTT_SERVER_URL: ${{ secrets.PTT_SERVER_URL }}
+        run: |
+          set -euo pipefail
+          DIAG=$(curl -sS --max-time 20 "${PTT_SERVER_URL}/api/diagnostics")
+          echo "$DIAG" | python3 - <<'PY'
+          import json, sys
+          data = json.loads(sys.stdin.read().strip())
+          t = data.get('transport', {})
+          turn = bool(t.get('turnConfigured'))
+          relay = bool(t.get('forceTurnRelay'))
+          policy = t.get('iceTransportPolicy')
+          print(f"TURN configured: {turn}")
+          print(f"Force relay: {relay}")
+          print(f"ICE policy: {policy}")
+          if relay and not turn:
+              raise SystemExit('FORCE_TURN_RELAY=true but TURN is not configured')
+          PY
+
+      - name: Validate mint endpoint wiring (auth expected)
+        env:
+          PTT_SERVER_URL: ${{ secrets.PTT_SERVER_URL }}
+        run: |
+          set -euo pipefail
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 \
+            -X POST "${PTT_SERVER_URL}/api/token/mint" \
+            -H "Content-Type: application/json" \
+            -H "x-proxy-secret: ptt-audit-invalid" \
+            -d '{"userId":"probe","organizationId":"probe","channelScope":"org:00000000-0000-0000-0000-000000000000"}' || echo "000")
+
+          if [ "$STATUS" != "401" ]; then
+            echo "::error::Expected 401 from mint endpoint probe; got ${STATUS}"
+            exit 1
+          fi
+
+          echo "✅ Mint endpoint authentication path is enforced"
