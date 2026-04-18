@@ -181,6 +181,14 @@ cd runpod-gateway     && npm install && npm start
       - `POST /infer/welfare/man-down`
       - `POST /safety/emergency/hot-mic/trigger`
 
+- **Bob-assisted testing (enforced)**:
+      - Root and inference-service `test*` scripts now route through `scripts/run-test-with-bob-assist.mjs`.
+      - The wrapper calls Bob `/chat` before and after each test run for context + triage.
+      - Required env vars for strict mode:
+            - `BOB_SERVICE_URL` or `INFERENCE_SERVICE_URL`
+            - `BOB_INFERENCE_API_KEY` or `INFERENCE_API_KEY` (service-role fallback also accepted)
+      - Default policy: tests fail if Bob assist is unavailable (`REQUIRE_BOB_TEST_ASSIST=true`).
+
 ---
 
 ## 5. Deploying Changes

@@ -10,8 +10,8 @@
     "pretrain:self-learning": "node scripts/pretrain-self-learning.js",
     "intel:push-bulletin": "node scripts/push-intel-bulletin.mjs",
     "intel:harvest-feeds": "node scripts/harvest-intel-feeds.mjs",
-    "test": "./test-local.sh",
-    "test:self-contained": "node scripts/test-self-contained-mode.mjs"
+    "test": "node ../scripts/run-test-with-bob-assist.mjs -- ./test-local.sh",
+    "test:self-contained": "node ../scripts/run-test-with-bob-assist.mjs -- node scripts/test-self-contained-mode.mjs"
   },
   "keywords": [
     "vehicle-detection",
