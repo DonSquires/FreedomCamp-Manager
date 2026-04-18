@@ -1,0 +1,137 @@
+name: Set Bob Ollama Gateway Key
+
+# One-shot workflow: sets OLLAMA_GATEWAY_KEY on Bob's Railway service so that
+# Bob can reach the RunPod Ollama gateway in self-contained mode.
+# The OLLAMA_GATEWAY_KEY makes the URL "trusted" (isLocalUrl || !!OLLAMA_GATEWAY_KEY)
+# allowing outbound calls to the RunPod gateway even with SELF_CONTAINED_STRICT_EGRESS=true.
+#
+# Required secrets:
+#   RAILWAY_BOB_TOKEN        — Railway token for the Bob project
+#   RAILWAY_BOB_SERVICE_ID   — Bob Railway service ID
+#   RAILWAY_BOB_PROJECT_ID   — Bob Railway project ID (fallback)
+#   BOB_GATEWAY_KEY          — Bearer key for the RunPod Ollama gateway
+
+on:
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  set-gateway-key:
+    name: Set OLLAMA_GATEWAY_KEY on Bob Railway service
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Load normalized Railway credential env
+        env:
+          RAILWAY_BOB_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_BOB_SERVICE_ID: ${{ secrets.RAILWAY_BOB_SERVICE_ID }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
+          RAILWAY_BOB_PROJECT_ID: ${{ secrets.RAILWAY_BOB_PROJECT_ID }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+        run: |
+          source ./scripts/load-railway-secrets-from-github-env.sh --quiet
+
+      - name: Check required secrets
+        env:
+          RAILWAY_BOB_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_BOB_SERVICE_ID:  ${{ secrets.RAILWAY_BOB_SERVICE_ID }}
+          RAILWAY_SERVICE_ID:      ${{ secrets.RAILWAY_SERVICE_ID }}
+          RAILWAY_BOB_PROJECT_ID:  ${{ secrets.RAILWAY_BOB_PROJECT_ID }}
+          RAILWAY_PROJECT_ID:      ${{ secrets.RAILWAY_PROJECT_ID }}
+          BOB_GATEWAY_KEY: ${{ secrets.BOB_GATEWAY_KEY }}
+        run: |
+          source ./scripts/load-railway-secrets-from-github-env.sh --quiet
+          EFFECTIVE_TOKEN="${RAILWAY_BOB_TOKEN:-$RAILWAY_TOKEN}"
+          EFFECTIVE_SERVICE="${RAILWAY_BOB_SERVICE_ID:-$RAILWAY_SERVICE_ID}"
+          EFFECTIVE_PROJECT="${RAILWAY_BOB_PROJECT_ID:-$RAILWAY_PROJECT_ID}"
+          [ -n "$EFFECTIVE_TOKEN" ]   || { echo "::error::No RAILWAY_BOB_TOKEN or RAILWAY_TOKEN set"; exit 1; }
+          [ -n "$EFFECTIVE_SERVICE" -o -n "$EFFECTIVE_PROJECT" ] || { echo "::error::No RAILWAY_BOB_SERVICE_ID/RAILWAY_SERVICE_ID or project ID set"; exit 1; }
+          [ -n "$BOB_GATEWAY_KEY" ]  || { echo "::error::BOB_GATEWAY_KEY secret is not set"; exit 1; }
+          echo "✅ All required secrets present"
+
+      - name: Install Railway CLI
+        run: |
+          RAILWAY_CLI_VERSION="4.31.0"
+          TARGET="x86_64-unknown-linux-gnu"
+          URL="https://github.com/railwayapp/cli/releases/download/v${RAILWAY_CLI_VERSION}/railway-v${RAILWAY_CLI_VERSION}-${TARGET}.tar.gz"
+          TMP_DIR=$(mktemp -d)
+          cd "$TMP_DIR"
+          curl -fsSL -o railway.tar.gz "$URL"
+          tar -xzf railway.tar.gz
+          mkdir -p "$HOME/.railway/bin"
+          install -m 0755 railway "$HOME/.railway/bin/railway"
+          echo "$HOME/.railway/bin" >> "$GITHUB_PATH"
+
+      - name: Set OLLAMA_GATEWAY_KEY on Bob Railway service
+        env:
+          RAILWAY_BOB_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_BOB_SERVICE_ID: ${{ secrets.RAILWAY_BOB_SERVICE_ID }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
+          RAILWAY_BOB_PROJECT_ID: ${{ secrets.RAILWAY_BOB_PROJECT_ID }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+          BOB_GATEWAY_KEY: ${{ secrets.BOB_GATEWAY_KEY }}
+        run: |
+          set -euo pipefail
+          source ./scripts/load-railway-secrets-from-github-env.sh --quiet
+
+          EFFECTIVE_TOKEN="${RAILWAY_BOB_TOKEN:-$RAILWAY_TOKEN}"
+          EFFECTIVE_SERVICE="${RAILWAY_BOB_SERVICE_ID:-$RAILWAY_SERVICE_ID}"
+          EFFECTIVE_PROJECT="${RAILWAY_BOB_PROJECT_ID:-$RAILWAY_PROJECT_ID}"
+
+          export RAILWAY_TOKEN="$EFFECTIVE_TOKEN"
+
+          echo "🔧 Setting OLLAMA_GATEWAY_KEY on Bob service..."
+
+          if [ -n "$EFFECTIVE_SERVICE" ]; then
+            railway variables set OLLAMA_GATEWAY_KEY="$BOB_GATEWAY_KEY" \
+              --service "$EFFECTIVE_SERVICE" \
+              ${EFFECTIVE_PROJECT:+--project "$EFFECTIVE_PROJECT"}
+          else
+            railway variables set OLLAMA_GATEWAY_KEY="$BOB_GATEWAY_KEY" \
+              --project "$EFFECTIVE_PROJECT"
+          fi
+
+          echo "✅ OLLAMA_GATEWAY_KEY set. Bob will use the RunPod gateway for Ollama calls."
+          echo ""
+          echo "Bob must redeploy to pick up the new variable."
+          echo "Triggering redeploy..."
+
+      - name: Redeploy Bob to pick up new env var
+        env:
+          RAILWAY_BOB_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_BOB_SERVICE_ID: ${{ secrets.RAILWAY_BOB_SERVICE_ID }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
+          RAILWAY_BOB_PROJECT_ID: ${{ secrets.RAILWAY_BOB_PROJECT_ID }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          source ./scripts/load-railway-secrets-from-github-env.sh --quiet
+
+          EFFECTIVE_TOKEN="${RAILWAY_BOB_TOKEN:-$RAILWAY_TOKEN}"
+          EFFECTIVE_SERVICE="${RAILWAY_BOB_SERVICE_ID:-$RAILWAY_SERVICE_ID}"
+          EFFECTIVE_PROJECT="${RAILWAY_BOB_PROJECT_ID:-$RAILWAY_PROJECT_ID}"
+          export RAILWAY_TOKEN="$EFFECTIVE_TOKEN"
+
+          pushd inference-service
+          if [ -n "$EFFECTIVE_SERVICE" ]; then
+            railway up \
+              --service "$EFFECTIVE_SERVICE" \
+              ${EFFECTIVE_PROJECT:+--project "$EFFECTIVE_PROJECT"} \
+              --detach
+          else
+            railway up --project "$EFFECTIVE_PROJECT" --detach
+          fi
+          popd
+
+          echo "✅ Bob redeploy triggered. Wait ~60s then run the human interaction smoke test."
