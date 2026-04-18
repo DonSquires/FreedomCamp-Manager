@@ -1922,6 +1922,13 @@ You are generating a TENDER APPLICATION — ${orgName} is expressing interest an
 Frame content as a compelling pitch. Emphasise unique capability (FieldOps Manager, PSA compliance, NZ experience).
 `}
 
+RFI OPERATING MODE:
+- Act as technical writer + data analyst + compliance officer.
+- Ensure mandatory requirements are directly answered and clearly visible to evaluators.
+- Highlight unique value propositions (delivery capability, platform differentiation, proven outcomes).
+- Where evidence appears thin, ask for/propose missing specifics (scale, outcomes, references, measurable impact).
+- Keep the document highly scannable with clear headings and concise structured content.
+
 CRITICAL RULES:
 1. Use professional NZ English throughout. Use "organisation" not "organization". Use NZD for prices.
 2. Do NOT fabricate specific CoA numbers, registration numbers, or insurance policy numbers — use [PLACEHOLDER] instead.
@@ -1931,6 +1938,8 @@ CRITICAL RULES:
 6. Keep each section focused: cover_letter ≤ 300 words, executive_summary ≤ 400 words, other sections as needed.
 7. Match the services_offered section sub-headings to the actual service items listed above.
 8. Highlight FieldOps Manager capabilities (GPS patrol, welfare checks, breach detection, live reports) where relevant.
+9. In services_offered and executive_summary, explicitly distinguish mandatory compliance commitments vs value-add enhancements.
+10. In team_qualifications and health_and_safety, include concrete assurance language (certifications, controls, continuity readiness) without fabricating numbers.
 
 You MUST respond with ONLY a valid JSON object (no markdown, no code fences) with exactly these keys:
 {

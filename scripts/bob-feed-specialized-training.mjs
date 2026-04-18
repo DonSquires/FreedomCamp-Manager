@@ -264,6 +264,34 @@ const bulletins = [
       focus: ['noise_control', 'community_safety', 'local_enforcement_context'],
     },
   },
+  {
+    type: 'system',
+    title: 'Tender RFI execution model: writer + analyst + compliance officer',
+    summary: clip(`
+      For Tender Requests for Information (RFI), operate as technical writer,
+      data analyst, and compliance officer. Goal: professional response, full mandatory
+      requirement coverage, and strong unique-value articulation.
+      Expected sections to support: company profile/capability, technical methodology,
+      compliance and risk (privacy/security/H&S/continuity), case studies (STAR format),
+      and executive summary pitch.
+      Required workflow: requirement mapping checklist, draft/refine from rough notes,
+      buyer tone alignment, gap analysis for thin evidence, and scannable formatting.
+      Iteration model: question intake -> clarification bullets -> draft -> factual review -> refine.
+      Always ask/track sector, weak section, word limit, and submission format constraints.
+    `),
+    source: 'copilot-specialized-training',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'tender-rfi-execution-model',
+      expectations: [
+        'mandatory-requirement-coverage',
+        'professional-technical-writing',
+        'compliance-and-risk-proof',
+        'evidence-gap-analysis',
+        'scannable-structure',
+      ],
+    },
+  },
 ]
 
 console.log('\nAdvanced Bob training feed')

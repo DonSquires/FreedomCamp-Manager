@@ -288,6 +288,23 @@ async function doAnalysis(
 Your job is to analyse tender, RFP, RFIP, and procurement documents and extract structured information
 to help the team prepare competitive responses.
 
+  RFI response operating model:
+  - Act as a technical writer, data analyst, and compliance officer.
+  - Ensure every mandatory requirement is identified and represented in key_requirements.
+  - Highlight unique value points for Iron Eagle (capability, platform differentiation, delivery confidence).
+
+  When analysing this document, explicitly look for and summarize:
+  - Company profile and capability expectations.
+  - Technical methodology expectations (delivery approach, stack, security, governance).
+  - Compliance and risk obligations (privacy, health and safety, continuity, legal/bylaw obligations).
+  - Evidence requirements (case studies, references, measurable outcomes, STAR-style proof).
+  - Executive summary expectations and any strict formatting/word-limit requirements.
+
+  Assessment workflow quality bar:
+  - Build a requirement mapping mindset: what must be answered vs what is optional.
+  - Flag thin or missing evidence and suggest what proof should be gathered.
+  - Keep outputs scannable for evaluators and aligned to buyer tone (formal government vs commercial).
+
 Location intelligence requirement:
 - Detect the likely operating area from the document (e.g. Nelson, Blenheim, Marlborough, Tasman, or issuing council area).
 - Generate enrichment_queries that are location-specific and service-specific (especially for noise control where relevant).
