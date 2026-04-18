@@ -84,6 +84,25 @@ const SUPPORTED_WS_PROTOCOLS = ['ptt.v2', 'ptt.v1'];
 const SUPPORTED_SIGNAL_TYPES = ['offer', 'answer', 'candidate'];
 const SUPPORTED_CHANNEL_TYPES = ['org', 'incident', 'direct', 'team', 'deployment'];
 const SUPPORTED_AUDIO_CODECS = ['audio/opus'];
+const PTT_MEDIA_MODE_RAW = String(process.env.PTT_MEDIA_MODE || 'peer').toLowerCase();
+const PTT_MEDIA_MODE = PTT_MEDIA_MODE_RAW === 'sfu' ? 'sfu' : 'peer';
+const PTT_SFU_PROVIDER = String(process.env.PTT_SFU_PROVIDER || '').trim();
+const PTT_SFU_URL = String(process.env.PTT_SFU_URL || '').trim();
+
+function getMediaPathConfig() {
+  return {
+    mode: PTT_MEDIA_MODE,
+    signaling_path: 'app->railway->app',
+    media_path: PTT_MEDIA_MODE === 'sfu' ? 'app->sfu->app' : 'webrtc-peer-or-turn-relay',
+    sfu: PTT_MEDIA_MODE === 'sfu'
+      ? {
+          provider: PTT_SFU_PROVIDER || 'custom',
+          url_configured: !!PTT_SFU_URL,
+          url: PTT_SFU_URL || null,
+        }
+      : null,
+  };
+}
 
 function parseTurnUrls(value) {
   if (!value) return [];
@@ -309,6 +328,7 @@ app.get('/health', (req, res) => {
     connectedUsers: userPresence.size,
     turnConfigured: isTurnConfigured(),
     forceTurnRelay: FORCE_TURN_RELAY,
+    mediaPath: getMediaPathConfig(),
   });
 });
 
@@ -348,6 +368,7 @@ app.get('/api/info', (req, res) => {
       channelTypes: SUPPORTED_CHANNEL_TYPES,
       audioCodecs: SUPPORTED_AUDIO_CODECS,
     },
+    mediaPath: getMediaPathConfig(),
   });
 });
 
@@ -373,6 +394,7 @@ app.get('/api/capabilities', (req, res) => {
       maxClipDurationSeconds: MAX_CLIP_DURATION,
       turnConfigured: isTurnConfigured(),
       forceTurnRelay: FORCE_TURN_RELAY,
+      path: getMediaPathConfig(),
     },
     channels: SUPPORTED_CHANNEL_TYPES,
   });
@@ -393,6 +415,7 @@ app.get('/api/diagnostics', (req, res) => {
       iceTransportPolicy: FORCE_TURN_RELAY ? 'relay' : 'all',
       hasTurnCredentials: !!(TURN_USERNAME && TURN_CREDENTIAL),
     },
+    mediaPath: getMediaPathConfig(),
   });
 });
 
@@ -484,6 +507,7 @@ app.post('/api/token/mint', rateLimitMiddleware, (req, res) => {
       interopProfile: INTEROP_PROFILE,
       wsProtocols: SUPPORTED_WS_PROTOCOLS,
     },
+    mediaPath: getMediaPathConfig(),
   });
 });
 

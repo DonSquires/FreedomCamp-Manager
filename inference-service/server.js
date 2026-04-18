@@ -377,6 +377,119 @@ const COMPLEX_CHAT_MIN_LEN = Number(process.env.COMPLEX_CHAT_MIN_LEN ?? 300);
 const RUNPOD_POD_ID = process.env.RUNPOD_POD_ID || '';
 const RUNPOD_API_KEY_LIFECYCLE = process.env.RUNPOD_API_KEY || process.env.RUNPOD_ENDPOINT_API_KEY || '';
 const RUNPOD_IDLE_TIMEOUT_MS = Number(process.env.RUNPOD_IDLE_TIMEOUT_MS ?? 15 * 60_000);
+const RUNPOD_ENDPOINT_ID = String(process.env.RUNPOD_ENDPOINT_ID || '').trim();
+const RUNPOD_ENDPOINT_URL = String(process.env.RUNPOD_ENDPOINT_URL || '').trim();
+const RUNPOD_ENDPOINT_API_KEY = String(process.env.RUNPOD_ENDPOINT_API_KEY || '').trim();
+const RUNPOD_ENDPOINT_TIMEOUT_MS = Number(process.env.RUNPOD_ENDPOINT_TIMEOUT_MS || 120_000);
+const RUNPOD_ENDPOINT_POLL_INTERVAL_MS = Number(process.env.RUNPOD_ENDPOINT_POLL_INTERVAL_MS || 3_000);
+
+function deriveRunpodInvokeUrl() {
+  if (RUNPOD_ENDPOINT_URL) return RUNPOD_ENDPOINT_URL;
+  if (RUNPOD_ENDPOINT_ID) return `https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}/run`;
+  return '';
+}
+
+function deriveRunpodStatusUrl(jobId, explicitStatusUrl = '') {
+  const statusJobId = encodeURIComponent(String(jobId || '').trim());
+  if (!statusJobId) throw new Error('RunPod status job id is required');
+
+  const template = String(explicitStatusUrl || '').trim();
+  if (template) {
+    return template.includes('{id}')
+      ? template.replace('{id}', statusJobId)
+      : template;
+  }
+
+  if (RUNPOD_ENDPOINT_ID) {
+    return `https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}/status/${statusJobId}`;
+  }
+
+  const invokeUrl = deriveRunpodInvokeUrl();
+  if (invokeUrl.includes('/run')) {
+    return invokeUrl.replace(/\/runs?$/i, `/status/${statusJobId}`);
+  }
+
+  throw new Error('Unable to derive RunPod status URL. Set RUNPOD_ENDPOINT_ID or pass status_url in request body');
+}
+
+async function runpodEndpointRequest(url, method = 'GET', body = undefined) {
+  if (!RUNPOD_ENDPOINT_API_KEY) {
+    throw new Error('RUNPOD_ENDPOINT_API_KEY is not configured');
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), RUNPOD_ENDPOINT_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      method,
+      headers: {
+        Authorization: `Bearer ${RUNPOD_ENDPOINT_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+
+    const text = await response.text();
+    let json = {};
+    try {
+      json = text ? JSON.parse(text) : {};
+    } catch {
+      throw new Error(`RunPod returned non-JSON response (${response.status})`);
+    }
+
+    if (!response.ok) {
+      throw new Error(`RunPod endpoint HTTP ${response.status}: ${JSON.stringify(json).slice(0, 300)}`);
+    }
+
+    return json;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function isRunpodTerminalStatus(status) {
+  const value = String(status || '').toUpperCase();
+  return value === 'COMPLETED' || value === 'FAILED' || value === 'CANCELLED' || value === 'TIMED_OUT';
+}
+
+async function invokeRunpodServerless({ input, payload, poll = true, timeoutMs = RUNPOD_ENDPOINT_TIMEOUT_MS, intervalMs = RUNPOD_ENDPOINT_POLL_INTERVAL_MS, statusUrl = '' }) {
+  const invokeUrl = deriveRunpodInvokeUrl();
+  if (!invokeUrl) {
+    throw new Error('RUNPOD_ENDPOINT_URL or RUNPOD_ENDPOINT_ID must be configured');
+  }
+
+  const invokePayload = payload && typeof payload === 'object'
+    ? payload
+    : { input: input && typeof input === 'object' ? input : { prompt: 'Hello from Bob' } };
+
+  const invokeData = await runpodEndpointRequest(invokeUrl, 'POST', invokePayload);
+  const jobId = invokeData?.id || invokeData?.jobId;
+  const initialStatus = String(invokeData?.status || '').toUpperCase();
+  if (!poll || !jobId || isRunpodTerminalStatus(initialStatus)) {
+    return {
+      invoke: invokeData,
+      final: invokeData,
+      polled: false,
+    };
+  }
+
+  const startedAt = Date.now();
+  while (Date.now() - startedAt <= timeoutMs) {
+    const statusPath = deriveRunpodStatusUrl(jobId, statusUrl);
+    const statusData = await runpodEndpointRequest(statusPath, 'GET');
+    if (isRunpodTerminalStatus(statusData?.status)) {
+      return {
+        invoke: invokeData,
+        final: statusData,
+        polled: true,
+      };
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+
+  throw new Error(`RunPod status polling timed out after ${timeoutMs}ms`);
+}
 
 /**
  * Returns true if this message/history qualifies as a complex task that
@@ -6368,6 +6481,11 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       OLLAMA_PTT_BASE_URL,
       OLLAMA_PTT_BASE_URL_CONFIGURED,
       OLLAMA_MODEL,
+      RUNPOD_ENDPOINT_ID_SET: !!RUNPOD_ENDPOINT_ID,
+      RUNPOD_ENDPOINT_URL_SET: !!RUNPOD_ENDPOINT_URL,
+      RUNPOD_ENDPOINT_API_KEY_SET: !!RUNPOD_ENDPOINT_API_KEY,
+      RUNPOD_ENDPOINT_TIMEOUT_MS,
+      RUNPOD_ENDPOINT_POLL_INTERVAL_MS,
       TRANSLATION_MODEL,
       TRANSLATION_TIMEOUT_MS,
       WHISPER_CLI_PATH: WHISPER_CLI_PATH || null,
@@ -6438,6 +6556,7 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       noise_audio_local_whisper: whisper.cli_present && whisper.model_present,
       safety_adapter_endpoints: true,
       safety_adapter_summary: getSafetyCapabilitySummary(),
+      runpod_serverless_enabled: !!(RUNPOD_ENDPOINT_API_KEY && (RUNPOD_ENDPOINT_ID || RUNPOD_ENDPOINT_URL)),
     },
     ollama_circuit_breaker: OLLAMA_ENABLED ? ollamaCircuitBreaker.toJSON() : null,
     runpod_pod_manager: runpodPodManager.toJSON(),
@@ -7023,6 +7142,35 @@ app.post('/runpod/pod/stop', runpodPodRateLimit, requireInferenceAuth, async (re
   try {
     const result = await runpodPodManager.stopPod();
     res.json({ success: true, result });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/runpod/serverless/status/:jobId', runpodPodRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const statusUrl = deriveRunpodStatusUrl(req.params.jobId, req.query?.status_url || '');
+    const data = await runpodEndpointRequest(statusUrl, 'GET');
+    res.json({ success: true, status: data });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/runpod/serverless/invoke', runpodPodRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const poll = req.body?.poll !== false;
+    const timeoutMs = Number(req.body?.timeout_ms || RUNPOD_ENDPOINT_TIMEOUT_MS);
+    const intervalMs = Number(req.body?.interval_ms || RUNPOD_ENDPOINT_POLL_INTERVAL_MS);
+    const result = await invokeRunpodServerless({
+      input: req.body?.input,
+      payload: req.body?.payload,
+      poll,
+      timeoutMs,
+      intervalMs,
+      statusUrl: req.body?.status_url || '',
+    });
+    res.json({ success: true, ...result });
   } catch (err) {
     res.status(400).json({ success: false, error: err.message });
   }

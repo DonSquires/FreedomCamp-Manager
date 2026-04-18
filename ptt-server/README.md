@@ -79,6 +79,9 @@ railway status
 | `TURN_CREDENTIAL` | No | TURN server password |
 | `FORCE_TURN_RELAY` | No | Set `true` to force relay-only ICE and fail token mint if TURN is missing |
 | `PTT_DISABLE_PUBLIC_STUN` | No | Set `true` to avoid Google STUN and use only self-hosted TURN-derived STUN when relay is not forced |
+| `PTT_MEDIA_MODE` | No | `peer` (default) or `sfu` to publish Audio Hot Lane configuration |
+| `PTT_SFU_PROVIDER` | No | SFU vendor label when `PTT_MEDIA_MODE=sfu` (for example `livekit` or `mediasoup`) |
+| `PTT_SFU_URL` | No | SFU URL when `PTT_MEDIA_MODE=sfu` |
 
 Canonical secret model:
 - This service reads only `PTT_PROXY_SECRET` for proxy authentication.
@@ -110,6 +113,7 @@ Professional compatibility mode:
 - Server emits `server_hello` on connect with protocol and capability metadata.
 - Clients should send `hello` and wait for `hello_ack` to finalize negotiated profile.
 - Capability details are also available at `GET /api/capabilities` for integration adapters.
+- When `PTT_MEDIA_MODE=sfu`, media path metadata is exposed in `/health`, `/api/info`, `/api/capabilities`, and `/api/diagnostics`.
 
 #### Client → Server Messages
 

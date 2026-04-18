@@ -169,6 +169,14 @@ VITE_TURNSTILE_SITE_KEY=0x4AAAAA...  # Cloudflare Turnstile site key
 | `TABULAR_NLP_PROVIDER` | Tabular NLP provider mode | Recommended | `ollama` |
 | `OLLAMA_BASE_URL` | Ollama endpoint for chat/NLP | Recommended | `http://127.0.0.1:11434` |
 | `OLLAMA_MODEL` | Ollama model name | Recommended | `llama3.1:8b` |
+| `RUNPOD_POD_ID` | RunPod pod id for lifecycle start/stop | Optional | None |
+| `RUNPOD_API_KEY` | RunPod API key for pod lifecycle GraphQL | Optional | None |
+| `RUNPOD_IDLE_TIMEOUT_MS` | Idle timeout before auto-stop of pod | Optional | `900000` |
+| `RUNPOD_ENDPOINT_ID` | RunPod serverless endpoint id | Optional | None |
+| `RUNPOD_ENDPOINT_URL` | Explicit RunPod serverless invoke URL | Optional | None |
+| `RUNPOD_ENDPOINT_API_KEY` | RunPod serverless endpoint API key | Optional | None |
+| `RUNPOD_ENDPOINT_TIMEOUT_MS` | Serverless invoke/poll timeout in ms | Optional | `120000` |
+| `RUNPOD_ENDPOINT_POLL_INTERVAL_MS` | Serverless polling interval in ms | Optional | `3000` |
 
 ### Proxy Server (`/proxy-server/`)
 
@@ -187,6 +195,9 @@ VITE_TURNSTILE_SITE_KEY=0x4AAAAA...  # Cloudflare Turnstile site key
 | `PORT` | WebSocket port | No | `8080` |
 | `SUPABASE_URL` | Supabase project URL | Yes | - |
 | `SUPABASE_SERVICE_ROLE_KEY` | For channel auth | Yes | - |
+| `PTT_MEDIA_MODE` | Media topology metadata mode (`peer` or `sfu`) | No | `peer` |
+| `PTT_SFU_PROVIDER` | SFU provider label when in `sfu` mode | No | - |
+| `PTT_SFU_URL` | SFU URL when in `sfu` mode | No | - |
 
 ### Bob Edge Chat Routing (`supabase/functions/onspace-ai-chat`)
 
