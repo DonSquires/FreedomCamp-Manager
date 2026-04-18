@@ -372,8 +372,11 @@ const SELF_CONTAINED_STRICT_EGRESS = CONFIGURED_OPERATING_MODE
 function assertEgressAllowed(url, providerLabel = 'unknown') {
   if (!SELF_CONTAINED_STRICT_EGRESS) return;
   // In strict self-contained mode, Ollama is only allowed on local/private hosts.
+  // Exception: if OLLAMA_GATEWAY_KEY is set, the RunPod gateway URL is trusted
+  // (same logic as OLLAMA_URL_TRUSTED — key-authenticated, not open internet).
   if (providerLabel === 'ollama') {
     if (isLocalUrl(url)) return;
+    if (OLLAMA_GATEWAY_KEY) return;
     recordEgressEvent(providerLabel, 'blocked', `Strict self-contained egress policy blocked non-local Ollama URL: ${url}`);
     throw new Error(`Outbound network blocked in SELF_CONTAINED_MODE: ${url}`);
   }
