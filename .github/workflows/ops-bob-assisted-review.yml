@@ -58,10 +58,11 @@ jobs:
           URL_RAW="${INFERENCE_SERVICE_URL:-https://focused-courage-production-ccee.up.railway.app}"
           BOB_URL_RAW="${BOB_SERVICE_URL:-}"
           REVIEW_PROMPT_EFFECTIVE="${REVIEW_PROMPT:-Review .github/workflows/deploy-bob-railway.yml changes for direct RunPod 11434 routing and fallback logic. Return exactly 3 concrete regression/security risks and one test per risk.}"
+          REVIEW_CONTEXT="$(sed -n '270,390p' .github/workflows/deploy-bob-railway.yml | tr '\n' ' ' | cut -c1-6000)"
           echo "Using inference URL (raw): $URL_RAW"
           AUTH_KEY="${INFERENCE_API_KEY:-${BOB_INFERENCE_API_KEY:-}}"
 
-          URL_RAW="$URL_RAW" BOB_URL_RAW="$BOB_URL_RAW" AUTH_KEY="$AUTH_KEY" REVIEW_PROMPT="$REVIEW_PROMPT_EFFECTIVE" node - <<'NODE' | tee bob-assisted-review.log
+          URL_RAW="$URL_RAW" BOB_URL_RAW="$BOB_URL_RAW" AUTH_KEY="$AUTH_KEY" REVIEW_PROMPT="$REVIEW_PROMPT_EFFECTIVE" REVIEW_CONTEXT="$REVIEW_CONTEXT" node - <<'NODE' | tee bob-assisted-review.log
           const https = require('https');
 
           const defaultUrl = 'https://focused-courage-production-ccee.up.railway.app';
@@ -69,6 +70,7 @@ jobs:
           const bobRawUrl = String(process.env.BOB_URL_RAW || '').trim();
           const apiKey = process.env.AUTH_KEY;
           const prompt = process.env.REVIEW_PROMPT;
+          const context = String(process.env.REVIEW_CONTEXT || '').trim();
 
           function normalizeUrl(input) {
             const value = String(input || '').trim();
@@ -84,7 +86,8 @@ jobs:
           function callBob(endpointBase) {
             return new Promise((resolve, reject) => {
               const endpoint = new URL(endpointBase);
-              const body = JSON.stringify({ message: prompt });
+              const message = context ? `${prompt}\n\nRelevant snippet from deploy-bob-railway.yml:\n${context}` : prompt;
+              const body = JSON.stringify({ message });
               const options = {
                 hostname: endpoint.hostname,
                 port: endpoint.port || 443,
