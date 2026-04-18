@@ -105,10 +105,78 @@ Operating restrictions (Copilot-inspired):
 RULES
 }
 
+detect_research_profile() {
+  local objective_lower
+  objective_lower=$(tr '[:upper:]' '[:lower:]' <<<"$1")
+
+  if grep -Eqi 'tender|procurement|rfp|rfq|legal|law|act|regulation|compliance' <<<"$objective_lower"; then
+    echo "tender_legal"
+    return 0
+  fi
+  if grep -Eqi 'vision|ocr|image|photo|cv|opencv|onnx|inspection' <<<"$objective_lower"; then
+    echo "vision"
+    return 0
+  fi
+  if grep -Eqi 'ux|ui|accessibility|human interaction|hci|wcag' <<<"$objective_lower"; then
+    echo "ux"
+    return 0
+  fi
+  if grep -Eqi 'coding|typescript|react|frontend|backend|api|architecture|engineering' <<<"$objective_lower"; then
+    echo "coding"
+    return 0
+  fi
+
+  echo "general"
+}
+
+allowed_domains_for_profile() {
+  local profile="$1"
+  case "$profile" in
+    tender_legal)
+      echo "procurement.govt.nz gets.govt.nz legislation.govt.nz mbie.govt.nz data.govt.nz"
+      ;;
+    vision)
+      echo "onnx.ai docs.opencv.org tesseract-ocr.github.io developer.mozilla.org w3.org"
+      ;;
+    ux)
+      echo "nngroup.com interaction-design.org w3.org developer.mozilla.org"
+      ;;
+    coding)
+      echo "react.dev typescriptlang.org developer.mozilla.org w3.org nodejs.org"
+      ;;
+    *)
+      echo "procurement.govt.nz gets.govt.nz legislation.govt.nz mbie.govt.nz react.dev typescriptlang.org developer.mozilla.org w3.org onnx.ai docs.opencv.org tesseract-ocr.github.io nngroup.com interaction-design.org"
+      ;;
+  esac
+}
+
+extract_domains() {
+  tr '[:upper:]' '[:lower:]' <<<"$1" \
+    | grep -Eo '\b([a-z0-9-]+\.)+[a-z]{2,}\b' \
+    | sort -u
+}
+
+is_domain_allowed() {
+  local domain="$1"
+  shift
+  local allowed=("$@")
+  for candidate in "${allowed[@]}"; do
+    if [[ "$domain" == "$candidate" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 validate_research_output() {
   local text="$1"
+  local profile="$2"
+  local strict_allowlist="${3:-true}"
   local lowered
   lowered=$(tr '[:upper:]' '[:lower:]' <<<"$text")
+  local allowed_list
+  allowed_list="$(allowed_domains_for_profile "$profile")"
+  read -r -a allowed_arr <<<"$allowed_list"
 
   # Basic structure checks
   if ! grep -qi 'objective' <<<"$text"; then
@@ -152,33 +220,64 @@ validate_research_output() {
     return 1
   fi
 
+  # Strict allowlist mode: all cited domains must be in the profile allowlist.
+  if [[ "$strict_allowlist" == "true" ]]; then
+    local domains
+    domains=$(extract_domains "$text" || true)
+    if [[ -z "$domains" ]]; then
+      echo "no cited domains found for strict allowlist mode"
+      return 1
+    fi
+
+    local allowed_hits=0
+    while IFS= read -r d; do
+      [[ -z "$d" ]] && continue
+      if is_domain_allowed "$d" "${allowed_arr[@]}"; then
+        allowed_hits=$((allowed_hits + 1))
+      else
+        echo "domain not allowed for profile ${profile}: ${d}"
+        return 1
+      fi
+    done <<<"$domains"
+
+    if [[ "$allowed_hits" -lt 3 ]]; then
+      echo "strict allowlist requires at least 3 allowed domains"
+      return 1
+    fi
+  fi
+
   return 0
 }
 
 run_research_with_guard() {
   local objective="$1"
+  local profile
+  profile="$(detect_research_profile "$objective")"
+  local strict_allowlist="${BOB_STRICT_DOMAIN_ALLOWLIST:-true}"
+  local allowed_list
+  allowed_list="$(allowed_domains_for_profile "$profile")"
   local first
-  first=$(call_chat "You are Doctor Bob working with external Copilot. $(copilot_restrictions) Build a web research brief for this objective. Return: 1) objective clarification 2) 8-12 high-value search queries 3) authoritative source targets in priority order 4) currentness checks (date/version) 5) conflict-resolution rules when sources disagree 6) evidence table format Bob/Copilot should fill 7) implementation mapping to repo files/tests. IMPORTANT: do not invent URLs, laws, or documents; if uncertain, say unknown and provide a search query instead. Use only verifiable source names and include a confidence rating per source. Include at least 3 authoritative source domains from this set when relevant: procurement.govt.nz, gets.govt.nz, legislation.govt.nz, mbie.govt.nz, react.dev, typescriptlang.org, developer.mozilla.org, w3.org, onnx.ai, docs.opencv.org, tesseract-ocr.github.io, nngroup.com, interaction-design.org. If you mention any statute name, add: Verified statute source: legislation.govt.nz. Objective: $objective")
+  first=$(call_chat "You are Doctor Bob working with external Copilot. $(copilot_restrictions) Build a web research brief for this objective. Research profile: ${profile}. Return: 1) objective clarification 2) 8-12 high-value search queries 3) authoritative source targets in priority order 4) currentness checks (date/version) 5) conflict-resolution rules when sources disagree 6) evidence table format Bob/Copilot should fill 7) implementation mapping to repo files/tests. IMPORTANT: do not invent URLs, laws, or documents; if uncertain, say unknown and provide a search query instead. Use only verifiable source names and include a confidence rating per source. Use ONLY these allowed source domains for this profile: ${allowed_list}. Include at least 3 allowed domains. If you mention any statute name, add: Verified statute source: legislation.govt.nz. Objective: $objective")
 
   local reason=""
-  if validate_research_output "$first"; then
+  if validate_research_output "$first" "$profile" "$strict_allowlist"; then
     echo "$first"
     return 0
   else
-    reason=$(validate_research_output "$first" 2>/dev/null || true)
+    reason=$(validate_research_output "$first" "$profile" "$strict_allowlist" 2>/dev/null || true)
   fi
 
   echo "⚠️  Research quality gate failed on first pass: ${reason:-invalid format}. Requesting corrected second pass..." >&2
 
   local second
-  second=$(call_chat "You are Doctor Bob. $(copilot_restrictions) Your previous research brief failed validation because: ${reason:-invalid format}. Regenerate the full brief with strict verifiable sourcing. Rules: (a) no placeholder text, (b) no invented organizations or documents, (c) include at least 3 concrete authoritative source domains, (d) include confidence per source, (e) if unknown, explicitly state unknown and provide a search query, (f) any statute mention must include: Verified statute source: legislation.govt.nz. Objective: $objective. Previous output to correct: $first")
+  second=$(call_chat "You are Doctor Bob. $(copilot_restrictions) Your previous research brief failed validation because: ${reason:-invalid format}. Regenerate the full brief with strict verifiable sourcing. Rules: (a) no placeholder text, (b) no invented organizations or documents, (c) include at least 3 concrete authoritative source domains, (d) include confidence per source, (e) if unknown, explicitly state unknown and provide a search query, (f) any statute mention must include: Verified statute source: legislation.govt.nz, (g) all cited domains must be from this allowlist: ${allowed_list}. Objective: $objective. Previous output to correct: $first")
 
   local reason2=""
-  if validate_research_output "$second"; then
+  if validate_research_output "$second" "$profile" "$strict_allowlist"; then
     echo "$second"
     return 0
   else
-    reason2=$(validate_research_output "$second" 2>/dev/null || true)
+    reason2=$(validate_research_output "$second" "$profile" "$strict_allowlist" 2>/dev/null || true)
   fi
 
   echo "❌ Research quality gate failed after second pass: ${reason2:-invalid format}." >&2
