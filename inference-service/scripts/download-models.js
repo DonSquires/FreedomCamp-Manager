@@ -22,22 +22,32 @@ if (!fs.existsSync(MODELS_DIR)) {
   fs.mkdirSync(MODELS_DIR, { recursive: true });
 }
 
+function getCandidateUrls(envVarName, urls) {
+  const override = String(process.env[envVarName] || '').trim();
+  return override ? [override, ...urls] : urls;
+}
+
 // Model download URLs
 const MODELS = [
   {
     name: 'YOLOv8n',
-    // Use a repo-hosted raw binary URL because the old Ultralytics release asset
-    // URL now returns 404 and breaks Docker builds.
-    url: 'https://raw.githubusercontent.com/Hyuto/yolov8-onnxruntime-web/master/public/model/yolov8n.onnx',
+    urls: getCandidateUrls('YOLO_MODEL_URL', [
+      // Use a repo-hosted raw binary URL because the old Ultralytics release asset
+      // URL now returns 404 and breaks Docker builds.
+      'https://raw.githubusercontent.com/Hyuto/yolov8-onnxruntime-web/master/public/model/yolov8n.onnx',
+    ]),
     filename: 'yolov8n.onnx',
     size: '12.2 MB',
     minSize: 5 * 1024 * 1024  // 5 MB minimum guard against HTML/error payloads
   },
   {
     name: 'MobileNetV3',
-    // Use media.githubusercontent.com so Git LFS files are served as real binaries
-    // (raw.githubusercontent.com returns only the LFS pointer text for LFS-tracked files)
-    url: 'https://media.githubusercontent.com/media/onnx/models/main/validated/vision/classification/mobilenet/model/mobilenetv3-large-1.0.onnx',
+    urls: getCandidateUrls('EMBEDDING_MODEL_URL', [
+      // Updated ONNX Model Zoo path after repository reorganization.
+      'https://media.githubusercontent.com/media/onnx/models/main/Computer_Vision/mobilenetv3_large_100_Opset17_timm/mobilenetv3_large_100_Opset17.onnx',
+      // Last-resort compatible embedding fallback if the MobileNetV3 asset moves again.
+      'https://media.githubusercontent.com/media/onnx/models/main/validated/vision/classification/mobilenet/model/mobilenetv2-12.onnx',
+    ]),
     filename: 'mobilenet_v3.onnx',
     size: '21 MB',
     minSize: 15 * 1024 * 1024  // 15 MB minimum (real model is ~21 MB)
@@ -143,6 +153,23 @@ function downloadFile(url, dest, name, size) {
   });
 }
 
+async function downloadModelFromCandidates(model, filepath) {
+  const attemptedUrls = Array.isArray(model.urls) ? model.urls : [model.url];
+  let lastError = null;
+
+  for (const url of attemptedUrls) {
+    try {
+      await downloadFile(url, filepath, model.name, model.size);
+      return url;
+    } catch (error) {
+      lastError = error;
+      console.warn(`⚠️  ${model.name} failed from ${url}: ${error.message}`);
+    }
+  }
+
+  throw lastError || new Error(`No download candidates succeeded for ${model.name}`);
+}
+
 // Main download function
 async function downloadModels() {
   console.log('🚀 ORC/AI Model Downloader\n');
@@ -162,7 +189,7 @@ async function downloadModels() {
     }
     
     try {
-      await downloadFile(model.url, filepath, model.name, model.size);
+      const sourceUrl = await downloadModelFromCandidates(model, filepath);
 
       // Validate the downloaded file is large enough to be a real model
       const { size: downloadedSize } = fs.statSync(filepath);
@@ -173,6 +200,7 @@ async function downloadModels() {
           `Likely an HTML error page or Git LFS pointer. Check the download URL.`
         );
       }
+      console.log(`🔗 ${model.name} source: ${sourceUrl}`);
       console.log(`✅ ${model.name} validated (${(downloadedSize / 1024 / 1024).toFixed(1)} MB)`);
     } catch (error) {
       if (model.optional) {

@@ -53,7 +53,7 @@ curl -L https://raw.githubusercontent.com/Hyuto/yolov8-onnxruntime-web/master/pu
   -o models/yolov8n.onnx
 
 # Download MobileNetV3 (embeddings)
-curl -L https://github.com/onnx/models/raw/main/vision/classification/mobilenet/model/mobilenetv3-large-1.0.onnx \
+curl -L https://media.githubusercontent.com/media/onnx/models/main/Computer_Vision/mobilenetv3_large_100_Opset17_timm/mobilenetv3_large_100_Opset17.onnx \
   -o models/mobilenet_v3.onnx
 ```
 
