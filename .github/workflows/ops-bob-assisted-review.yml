@@ -13,7 +13,7 @@ on:
       prompt:
         description: Review prompt to send to Bob
         required: true
-        default: "Give 3 highest risks in recent RunPod/Ollama workflow changes."
+        default: "Review .github/workflows/deploy-bob-railway.yml changes for direct RunPod 11434 routing and fallback logic. Return exactly 3 concrete regression/security risks and one test per risk."
 
 permissions:
   contents: read
@@ -57,7 +57,7 @@ jobs:
           set -euo pipefail
           URL_RAW="${INFERENCE_SERVICE_URL:-https://focused-courage-production-ccee.up.railway.app}"
           BOB_URL_RAW="${BOB_SERVICE_URL:-}"
-          REVIEW_PROMPT_EFFECTIVE="${REVIEW_PROMPT:-Give 3 highest risks in recent RunPod/Ollama workflow changes.}"
+          REVIEW_PROMPT_EFFECTIVE="${REVIEW_PROMPT:-Review .github/workflows/deploy-bob-railway.yml changes for direct RunPod 11434 routing and fallback logic. Return exactly 3 concrete regression/security risks and one test per risk.}"
           echo "Using inference URL (raw): $URL_RAW"
           AUTH_KEY="${INFERENCE_API_KEY:-${BOB_INFERENCE_API_KEY:-}}"
 
