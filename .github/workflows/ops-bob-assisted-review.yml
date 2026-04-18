@@ -44,11 +44,73 @@ jobs:
           INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL }}
           INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
           BOB_INFERENCE_API_KEY: ${{ secrets.BOB_INFERENCE_API_KEY }}
+          REVIEW_PROMPT: ${{ inputs.prompt }}
         run: |
-          set -e
+          set -euo pipefail
           URL="${INFERENCE_SERVICE_URL:-https://focused-courage-production-ccee.up.railway.app}"
           echo "Using inference URL: $URL"
-          INFERENCE_SERVICE_URL="$URL" node scripts/ask-bob.mjs "${{ inputs.prompt }}" | tee bob-assisted-review.log
+          AUTH_KEY="${INFERENCE_API_KEY:-${BOB_INFERENCE_API_KEY:-}}"
+
+          URL="$URL" AUTH_KEY="$AUTH_KEY" REVIEW_PROMPT="$REVIEW_PROMPT" node - <<'NODE' | tee bob-assisted-review.log
+const https = require('https');
+
+const url = process.env.URL;
+const apiKey = process.env.AUTH_KEY;
+const prompt = process.env.REVIEW_PROMPT;
+
+const body = JSON.stringify({ message: prompt });
+const endpoint = new URL(url);
+
+const options = {
+  hostname: endpoint.hostname,
+  port: endpoint.port || 443,
+  path: '/chat',
+  method: 'POST',
+  timeout: 30000,
+  headers: {
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(body),
+    'x-inference-api-key': apiKey,
+    Authorization: `Bearer ${apiKey}`,
+  },
+};
+
+const req = https.request(options, (res) => {
+  let data = '';
+  res.on('data', (chunk) => {
+    data += chunk;
+  });
+  res.on('end', () => {
+    let parsed = null;
+    try {
+      parsed = JSON.parse(data || '{}');
+    } catch {
+      parsed = null;
+    }
+
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      const detail = parsed ? JSON.stringify(parsed) : data;
+      console.error(`[Error] HTTP ${res.statusCode}: ${detail.slice(0, 1000)}`);
+      process.exit(1);
+    }
+
+    const message = parsed?.message || parsed?.response || parsed?.data?.message || data;
+    console.log(`[Bob] ${String(message || '').trim()}`);
+  });
+});
+
+req.on('timeout', () => {
+  req.destroy(new Error('Request timeout'));
+});
+
+req.on('error', (err) => {
+  console.error(`[Error] ${err.message}`);
+  process.exit(1);
+});
+
+req.write(body);
+req.end();
+NODE
 
       - name: Publish summary
         run: |
