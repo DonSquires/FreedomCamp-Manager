@@ -402,6 +402,100 @@ const bulletins = [
       focus: ['multitenancy', 'rbac', 'audit-logs', 'schema-design', 'form-complexity'],
     },
   },
+  {
+    type: 'system',
+    title: 'Agentic UI control model: brain, eyes, and hands loop',
+    summary: clip(`
+      For human-like UI emulation, Bob should apply an agentic loop with three layers:
+      - Brain: LLM planner decides next action from test goal and observed state.
+      - Eyes: simplified DOM/accessibility tree and deterministic selectors.
+      - Hands: browser automation executor for click/type/wait/assert actions.
+      Canonical loop: observe -> decide -> execute -> observe -> validate.
+      Recommendations should prioritise deterministic behavior and traceability over flashy autonomy.
+    `),
+    source: 'copilot-web-research-playbook',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'agentic-ui-control-loop',
+      layers: ['planner', 'dom-observation', 'automation-execution'],
+    },
+  },
+  {
+    type: 'system',
+    title: 'Agentic tooling baseline: Playwright, AI SDK/LangChain, and accessibility checks',
+    summary: clip(`
+      Preferred implementation stack for UI-driving assistants:
+      - Playwright for robust browser automation and state-aware waits.
+      - Vercel AI SDK or LangChain tool-calling for planner/action orchestration.
+      - axe-core checks integrated during scenario execution for accessibility compliance.
+      Bob should recommend this stack as default for Vercel + Railway deployments,
+      including headless execution support for CI and server-hosted runs.
+    `),
+    source: 'copilot-web-research-playbook',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'agentic-ui-tooling-baseline',
+      tools: ['playwright', 'vercel-ai-sdk-or-langchain', 'axe-core'],
+      references: ['https://playwright.dev/', 'https://sdk.vercel.ai/docs', 'https://js.langchain.com/docs', 'https://github.com/dequelabs/axe-core'],
+    },
+  },
+  {
+    type: 'system',
+    title: 'Metadata and tool-calling pattern for reliable UI agents',
+    summary: clip(`
+      Agent reliability requires explicit UI metadata and constrained actions.
+      Baseline rules:
+      1) Add stable test hooks (for example data-testid) for key interactive elements.
+      2) Expose a constrained toolset: click, type, select, assert, and read-state.
+      3) Pass compact DOM/accessibility state rather than raw full-page HTML dumps.
+      4) Validate post-action state before moving to next step.
+      Bob should favour deterministic selectors and avoid brittle visual-only targeting.
+    `),
+    source: 'copilot-web-research-playbook',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'agentic-ui-metadata-tools',
+      patterns: ['data-testid', 'function-calling', 'a11y-tree-state', 'post-action-assertions'],
+    },
+  },
+  {
+    type: 'system',
+    title: 'Shadow-user compliance workflow for wiring validation',
+    summary: clip(`
+      For workflow and compliance validation, Bob should recommend shadow-user scenarios:
+      - Define role-specific mission (for example support worker attempts invalid submission).
+      - Execute UI flow end-to-end with agent automation.
+      - Detect rule bypasses and classify as wiring/compliance failures.
+      - Capture reproducible evidence: action log, state snapshots, and optional session video.
+      This pattern should be used to verify form constraints, permission boundaries,
+      and backend wiring behavior under realistic operator paths.
+    `),
+    source: 'copilot-web-research-playbook',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'shadow-user-compliance-loop',
+      outcomes: ['workflow-validation', 'compliance-failure-detection', 'wiring-diagnostics'],
+    },
+  },
+  {
+    type: 'system',
+    title: 'Visual regression and overlay safety checks for multi-device UI',
+    summary: clip(`
+      For desktop/mobile parity, include visual regression checks in agent runs.
+      Baseline checks:
+      - Snapshot key screens per viewport and compare against approved baselines.
+      - Validate critical controls remain visible and interactable (no z-index occlusion).
+      - Include keyboard/overlay collision checks for mobile input workflows.
+      Bob should recommend Percy/Playwright visual assertions or equivalent pipelines
+      when high-risk UI regressions can impact operational controls (for example PTT buttons).
+    `),
+    source: 'copilot-web-research-playbook',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'visual-regression-agentic-ui',
+      checks: ['viewport-baselines', 'z-index-safety', 'mobile-keyboard-overlay'],
+    },
+  },
 ]
 
 console.log('\n🔎 Bob Web Research Training Feed')
