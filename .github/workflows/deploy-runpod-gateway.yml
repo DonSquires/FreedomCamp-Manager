@@ -22,6 +22,10 @@ on:
       - .github/workflows/deploy-runpod-gateway.yml
   workflow_dispatch:
 
+concurrency:
+  group: runpod-gateway-deploy-main
+  cancel-in-progress: true
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -29,6 +33,7 @@ jobs:
   deploy-gateway:
     name: Deploy gateway to RunPod pod
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
 
@@ -51,7 +56,6 @@ jobs:
           envs: GH_TOKEN,BOB_GATEWAY_KEY
           script: |
             set -e
-            set -x
             BASE_DIR=/workspace
             [ -d /workspace ] || BASE_DIR=$HOME
             cd "$BASE_DIR"
@@ -77,8 +81,16 @@ jobs:
             echo "Installing gateway dependencies..."
             npm install --production
             printf "OLLAMA_HOST=http://127.0.0.1:11434\nPORT=8080\nNODE_ENV=production\nBOB_GATEWAY_KEY=${BOB_GATEWAY_KEY}\n" > .env
+            NODE_BIN="$(command -v node || true)"
+            if [ -z "$NODE_BIN" ]; then
+              echo "node is not installed on pod; aborting deploy."
+              exit 1
+            fi
             pkill -f "node server.js" 2>/dev/null || true
-            nohup node server.js > "$BASE_DIR/gateway.log" 2>&1 &
+            set -a
+            . ./.env
+            set +a
+            nohup "$NODE_BIN" server.js > "$BASE_DIR/gateway.log" 2>&1 &
             echo "Gateway started with PID $!"
             sleep 3
             curl -sf http://127.0.0.1:8080/gateway/health && echo "Gateway health check PASSED" || echo "Gateway health check failed - check $BASE_DIR/gateway.log"
