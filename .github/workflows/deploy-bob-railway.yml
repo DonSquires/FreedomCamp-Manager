@@ -454,12 +454,19 @@ jobs:
               "OLLAMA_GATEWAY_KEY=${BOB_GATEWAY_KEY}"
             echo "✅ OLLAMA_GATEWAY_KEY applied (RunPod gateway auth)"
           else
-            railway variable set \
+            # Railway rejects empty KEY= assignments; remove the variable instead.
+            if railway variable list \
               --service "$RAILWAY_SERVICE_ID" \
               --environment "$DEPLOY_ENVIRONMENT" \
-              --skip-deploys \
-              "OLLAMA_GATEWAY_KEY="
-            echo "ℹ️  OLLAMA_GATEWAY_KEY cleared because RunPod gateway is not selected"
+              --kv | grep -q '^OLLAMA_GATEWAY_KEY='; then
+              railway variable delete \
+                --service "$RAILWAY_SERVICE_ID" \
+                --environment "$DEPLOY_ENVIRONMENT" \
+                "OLLAMA_GATEWAY_KEY"
+              echo "ℹ️  OLLAMA_GATEWAY_KEY removed because RunPod gateway is not selected"
+            else
+              echo "ℹ️  OLLAMA_GATEWAY_KEY already absent because RunPod gateway is not selected"
+            fi
           fi
 
           echo "✅ Bob Railway variables updated"
