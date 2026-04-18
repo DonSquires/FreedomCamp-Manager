@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { corsHeaders } from '../_shared/cors.ts'
+import { getCorsHeaders } from '../_shared/withCors.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 
 interface PhotoMaintenanceRequest {
@@ -10,6 +10,7 @@ interface PhotoMaintenanceRequest {
 }
 
 Deno.serve(async (req: Request) => {
+  const corsHeaders = getCorsHeaders(req)
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }

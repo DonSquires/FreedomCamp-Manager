@@ -42,6 +42,28 @@ Deno.serve(async (req) => {
     return new Response('ok', { headers: getCorsHeaders(req) });
   }
 
+  // Require authenticated callers — this endpoint returns sensitive compliance data
+  const authHeader = req.headers.get('Authorization') ?? req.headers.get('authorization');
+  if (!authHeader) {
+    return new Response(JSON.stringify({ error: 'Missing Authorization header' }), {
+      status: 401,
+      headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
+    });
+  }
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+  const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+  const userClient = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: authHeader } },
+  });
+  const { data: { user }, error: authError } = await userClient.auth.getUser();
+  if (authError || !user) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
+    });
+  }
+
   try {
     // Parse request body (if present) — GET requests may not have a body
     let organizationId = 'all';

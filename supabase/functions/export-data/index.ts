@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
-import { corsHeaders } from '../_shared/cors.ts'
+import { getCorsHeaders } from '../_shared/withCors.ts'
 
 interface ExportRequest {
   type: 'observations' | 'breaches' | 'notices'
@@ -30,6 +30,7 @@ function getTimeRange(from?: string, to?: string) {
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req)
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
