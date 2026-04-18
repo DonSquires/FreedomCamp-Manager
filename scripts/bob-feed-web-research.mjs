@@ -274,6 +274,35 @@ const bulletins = [
       ],
     },
   },
+  {
+    type: 'system',
+    title: 'Tender response template generator: technical stack narrative',
+    summary: clip(`
+      When asked for a technical stack write-up in tenders, Bob should default to this output shape:
+      1) Architecture summary: service boundaries and why each platform is selected.
+      2) Security and trust controls: auth model, RLS posture, secret handling, CORS and API boundaries.
+      3) Delivery workflow: async compute orchestration, monitoring, and operational resilience controls.
+      4) Mobile/accessibility profile: mobile-first behaviors, touch target baseline, responsive data presentation.
+      5) Compliance traceability: map requirements to controls and evidence references.
+      6) Risks and mitigations: data sovereignty, integration failure modes, and continuity measures.
+      Writing standard: NZ English, clear headings, scannable bullets, no fabricated certifications,
+      and explicit distinction between mandatory compliance commitments and value-add enhancements.
+    `),
+    source: 'copilot-web-research-playbook',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'tender-response-template-generator',
+      sections: [
+        'architecture-summary',
+        'security-controls',
+        'delivery-workflow',
+        'mobile-accessibility',
+        'compliance-traceability',
+        'risk-mitigations',
+      ],
+      style: ['nz-english', 'scannable', 'evidence-linked', 'no-fabrication'],
+    },
+  },
 ]
 
 console.log('\n🔎 Bob Web Research Training Feed')
