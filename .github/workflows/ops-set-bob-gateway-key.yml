@@ -118,19 +118,9 @@ jobs:
           EFFECTIVE_PROJECT="${RAILWAY_BOB_PROJECT_ID:-$RAILWAY_PROJECT_ID}"
           export RAILWAY_TOKEN="$EFFECTIVE_TOKEN"
 
+          [ -n "$EFFECTIVE_SERVICE" ] || { echo "::error::RAILWAY_BOB_SERVICE_ID or RAILWAY_SERVICE_ID must be set for redeploy"; exit 1; }
           pushd inference-service
-          if [ -n "$EFFECTIVE_SERVICE" ] && [ -n "$EFFECTIVE_PROJECT" ]; then
-            railway up \
-              --service "$EFFECTIVE_SERVICE" \
-              --project "$EFFECTIVE_PROJECT" \
-              --detach
-          elif [ -n "$EFFECTIVE_SERVICE" ]; then
-            railway up \
-              --service "$EFFECTIVE_SERVICE" \
-              --detach
-          else
-            railway up --project "$EFFECTIVE_PROJECT" --detach
-          fi
+          railway up --service "$EFFECTIVE_SERVICE" --detach
           popd
 
           echo "✅ Bob redeploy triggered. Wait ~60s then run the human interaction smoke test."
