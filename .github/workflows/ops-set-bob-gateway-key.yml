@@ -94,7 +94,11 @@ jobs:
 
           # railway variables set only accepts --service (not --project)
           [ -n "$EFFECTIVE_SERVICE" ] || { echo "::error::RAILWAY_BOB_SERVICE_ID or RAILWAY_SERVICE_ID must be set"; exit 1; }
-          railway variables set "OLLAMA_GATEWAY_KEY=$BOB_GATEWAY_KEY" --service "$EFFECTIVE_SERVICE"
+          # Explicitly target the production environment so the variable is set in the right env
+          export RAILWAY_ENVIRONMENT=production
+          railway variables set "OLLAMA_GATEWAY_KEY=$BOB_GATEWAY_KEY" \
+            --service "$EFFECTIVE_SERVICE" \
+            --environment production
 
           echo "✅ OLLAMA_GATEWAY_KEY set. Bob will use the RunPod gateway for Ollama calls."
           echo ""
@@ -119,8 +123,9 @@ jobs:
           export RAILWAY_TOKEN="$EFFECTIVE_TOKEN"
 
           [ -n "$EFFECTIVE_SERVICE" ] || { echo "::error::RAILWAY_BOB_SERVICE_ID or RAILWAY_SERVICE_ID must be set for redeploy"; exit 1; }
+          export RAILWAY_ENVIRONMENT=production
           pushd inference-service
-          railway up --service "$EFFECTIVE_SERVICE" --detach
+          railway up --service "$EFFECTIVE_SERVICE" --environment production --detach
           popd
 
           echo "✅ Bob redeploy triggered. Wait ~60s then run the human interaction smoke test."
