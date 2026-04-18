@@ -57,7 +57,10 @@ jobs:
           set -euo pipefail
           URL_RAW="${INFERENCE_SERVICE_URL:-https://focused-courage-production-ccee.up.railway.app}"
           BOB_URL_RAW="${BOB_SERVICE_URL:-}"
-          REVIEW_PROMPT_EFFECTIVE="${REVIEW_PROMPT:-Review .github/workflows/deploy-bob-railway.yml changes for direct RunPod 11434 routing and fallback logic. Return exactly 3 concrete regression/security risks and one test per risk.}"
+          REVIEW_PROMPT_EFFECTIVE="${REVIEW_PROMPT:-}"
+          if [[ -z "${REVIEW_PROMPT_EFFECTIVE// }" ]]; then
+            REVIEW_PROMPT_EFFECTIVE="Review .github/workflows/deploy-bob-railway.yml changes for direct RunPod 11434 routing and fallback logic. Return exactly 3 concrete regression/security risks and one test per risk."
+          fi
           REVIEW_CONTEXT="$(sed -n '270,390p' .github/workflows/deploy-bob-railway.yml | tr '\n' ' ' | cut -c1-6000)"
           echo "Using inference URL (raw): $URL_RAW"
           AUTH_KEY="${INFERENCE_API_KEY:-${BOB_INFERENCE_API_KEY:-}}"
@@ -83,10 +86,11 @@ jobs:
             }
           }
 
-          function callBob(endpointBase) {
+          function callBob(endpointBase, promptMessage) {
             return new Promise((resolve, reject) => {
               const endpoint = new URL(endpointBase);
-              const message = context ? `${prompt}\n\nRelevant snippet from deploy-bob-railway.yml:\n${context}` : prompt;
+              const basePrompt = String(promptMessage || '').trim();
+              const message = context ? `${basePrompt}\n\nRelevant snippet from deploy-bob-railway.yml:\n${context}` : basePrompt;
               const body = JSON.stringify({ message });
               const options = {
                 hostname: endpoint.hostname,
@@ -138,6 +142,23 @@ jobs:
             });
           }
 
+          function isGenericResponse(text) {
+            const value = String(text || '').toLowerCase();
+            if (!value) return true;
+            return (
+              value.includes('i can help with this') ||
+              value.includes('share the exact symptom') ||
+              value.includes('queued this question') ||
+              value.includes('service is running in build-training mode')
+            );
+          }
+
+          const prompts = [
+            prompt,
+            `${prompt}\nReturn strict JSON with keys: risks (array of 3 items), tests (array of 3 items). No preamble.`,
+            `Code review task: identify exactly 3 concrete regressions or security risks introduced by recent edits in deploy-bob-railway.yml direct RunPod routing logic. For each, provide one deterministic validation test. Output as bullet list only.`,
+          ];
+
           const candidates = [normalizeUrl(rawUrl), normalizeUrl(bobRawUrl), defaultUrl]
             .filter(Boolean)
             .filter((value, index, arr) => arr.indexOf(value) === index);
@@ -145,15 +166,22 @@ jobs:
           let lastError = null;
           (async () => {
             for (const endpointBase of candidates) {
-              for (let attempt = 1; attempt <= 3; attempt += 1) {
-                try {
-                  console.log(`[Agent] Calling Bob at ${endpointBase} (attempt ${attempt}/3)`);
-                  const result = await callBob(endpointBase);
-                  console.log(`[Bob] ${result}`);
-                  process.exit(0);
-                } catch (error) {
-                  lastError = error;
-                  console.error(`[Warn] Bob call failed at ${endpointBase} (attempt ${attempt}/3): ${error.message}`);
+              for (const promptVariant of prompts) {
+                for (let attempt = 1; attempt <= 3; attempt += 1) {
+                  try {
+                    console.log(`[Agent] Calling Bob at ${endpointBase} (attempt ${attempt}/3)`);
+                    const result = await callBob(endpointBase, promptVariant || prompt);
+                    if (isGenericResponse(result)) {
+                      lastError = new Error('Generic/non-actionable response');
+                      console.error(`[Warn] Bob returned generic response at ${endpointBase} (attempt ${attempt}/3); retrying with stricter prompt`);
+                      continue;
+                    }
+                    console.log(`[Bob] ${result}`);
+                    process.exit(0);
+                  } catch (error) {
+                    lastError = error;
+                    console.error(`[Warn] Bob call failed at ${endpointBase} (attempt ${attempt}/3): ${error.message}`);
+                  }
                 }
               }
             }
