@@ -94,6 +94,58 @@ call_chat() {
     | jq -r '.text // .message // .error // "(no response text)"'
 }
 
+validate_research_output() {
+  local text="$1"
+  local lowered
+  lowered=$(tr '[:upper:]' '[:lower:]' <<<"$text")
+
+  # Basic structure checks
+  if ! grep -qi 'objective' <<<"$text"; then
+    echo "missing objective section"
+    return 1
+  fi
+  if ! grep -qi 'query\|queries' <<<"$text"; then
+    echo "missing search queries"
+    return 1
+  fi
+  if ! grep -qi 'source' <<<"$text"; then
+    echo "missing source section"
+    return 1
+  fi
+
+  # Placeholder / fabricated-pattern checks
+  if grep -Eqi '\[insert|\[your|tbd|example\.com|<[^>]+>|lawa \[' <<<"$text"; then
+    echo "contains placeholder or fabricated pattern"
+    return 1
+  fi
+
+  # Require at least one known authority marker for verifiability
+  if ! grep -Eqi 'procurement\.govt\.nz|gets\.govt\.nz|legislation\.govt\.nz|mbie|react\.dev|typescriptlang\.org|w3\.org|developer\.mozilla\.org' <<<"$lowered"; then
+    echo "no recognizable authoritative source markers"
+    return 1
+  fi
+
+  return 0
+}
+
+run_research_with_guard() {
+  local objective="$1"
+  local first
+  first=$(call_chat "You are Doctor Bob working with external Copilot. Build a web research brief for this objective. Return: 1) objective clarification 2) 8-12 high-value search queries 3) authoritative source targets in priority order 4) currentness checks (date/version) 5) conflict-resolution rules when sources disagree 6) evidence table format Bob/Copilot should fill 7) implementation mapping to repo files/tests. IMPORTANT: do not invent URLs, laws, or documents; if uncertain, say unknown and provide a search query instead. Use only verifiable source names and include a confidence rating per source. Objective: $objective")
+
+  local reason=""
+  if validate_research_output "$first"; then
+    echo "$first"
+    return 0
+  else
+    reason=$(validate_research_output "$first" 2>/dev/null || true)
+  fi
+
+  echo "⚠️  Research quality gate failed on first pass: ${reason:-invalid format}. Requesting corrected second pass..." >&2
+
+  call_chat "You are Doctor Bob. Your previous research brief failed validation because: ${reason:-invalid format}. Regenerate the full brief with strict verifiable sourcing. Rules: (a) no placeholder text, (b) no invented organizations or documents, (c) include at least 3 concrete authoritative source domains, (d) include confidence per source, (e) if unknown, explicitly state unknown and provide a search query. Objective: $objective. Previous output to correct: $first"
+}
+
 queue_code_task() {
   local task="$1"
   local files_csv="$2"
@@ -166,7 +218,7 @@ case "$MODE" in
     ;;
 
   research)
-    call_chat "You are Doctor Bob working with external Copilot. Build a web research brief for this objective. Return: 1) objective clarification 2) 8-12 high-value search queries 3) authoritative source targets in priority order 4) currentness checks (date/version) 5) conflict-resolution rules when sources disagree 6) evidence table format Bob/Copilot should fill 7) implementation mapping to repo files/tests. IMPORTANT: do not invent URLs, laws, or documents; if uncertain, say unknown and provide a search query instead. Use only verifiable source names and include a confidence rating per source. Objective: $INPUT"
+    run_research_with_guard "$INPUT"
     ;;
 
   queue)
