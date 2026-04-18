@@ -1,7 +1,7 @@
 # FieldOps Manager — System Guide
 
 > **Audience**: Developers, DevOps engineers, and operators maintaining this platform.  
-> **Last updated**: 2025
+> **Last updated**: 2026-04-18
 
 ---
 
@@ -162,7 +162,24 @@ cd ptt-server         && npm install && npm run dev
 cd runpod-gateway     && npm install && npm start
 ```
 
-**Required Node.js**: `>=20.0.0` (all sub-services and bun/vite require this or better)
+**Required Node.js**: `>=24.0.0` for GitHub Actions JS actions/workflows and `runpod-gateway`; local dev remains compatible with current project constraints.
+
+---
+
+## 4.1 2026-04 Operational Hardening Updates
+
+- **Workflow runtime baseline**: all Node-based workflows now use `actions/setup-node@v5` with Node 24.
+- **Bob model upgrade verification**: `ops-upgrade-bob-model.yml` now normalizes gateway/Bob URLs and fails if deployed `OLLAMA_MODEL` / `OLLAMA_VISION_MODEL` do not match selected targets.
+- **RunPod gateway runtime**: `runpod-gateway/package.json` now declares `"engines": { "node": ">=24" }`.
+- **Edge AI egress policy guard**: selected Supabase edge functions now block direct `api.openai.com` calls by default.
+      - To permit direct OpenAI calls temporarily, set `ALLOW_EDGE_OPENAI_DIRECT=true`.
+      - Recommended production posture is to keep this unset/false and route AI through approved internal services.
+- **Safety adapters in Bob**: inference service now exposes feature-flagged safety endpoints:
+      - `GET /infer/safety/capabilities`
+      - `POST /infer/audio/classify-nuisance`
+      - `POST /infer/video/analyze-action`
+      - `POST /infer/welfare/man-down`
+      - `POST /safety/emergency/hot-mic/trigger`
 
 ---
 

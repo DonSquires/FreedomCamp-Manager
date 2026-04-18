@@ -9,6 +9,16 @@ interface ImportRequest {
   organizationId?: string;
 }
 
+const ALLOW_EDGE_OPENAI_DIRECT = (Deno.env.get('ALLOW_EDGE_OPENAI_DIRECT') || 'false').toLowerCase() === 'true';
+
+function isDirectOpenAIBaseUrl(url: string): boolean {
+  try {
+    return new URL(url).hostname.toLowerCase() === 'api.openai.com';
+  } catch {
+    return false;
+  }
+}
+
 function normalizeTimestamp(input: unknown): string | null {
   if (!input) return null;
   const raw = String(input).trim();
@@ -49,12 +59,21 @@ Deno.serve(withCors(async (req) => {
     console.log('Processing import:', { fileName, contentLength: fileContent.length });
 
     // Use AI to analyze and extract data
-    const aiBaseUrl = Deno.env.get('OPENAI_BASE_URL') || 'https://api.openai.com/v1';
+    const aiBaseUrl = (Deno.env.get('OPENAI_BASE_URL') || '').replace(/\/+$/, '');
     const aiApiKey = Deno.env.get('OPENAI_API_KEY');
 
     if (!aiBaseUrl || !aiApiKey) {
       return new Response(JSON.stringify({ error: 'AI service not configured' }), {
         status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (isDirectOpenAIBaseUrl(aiBaseUrl) && !ALLOW_EDGE_OPENAI_DIRECT) {
+      return new Response(JSON.stringify({
+        error: 'Direct api.openai.com access is blocked for edge functions. Set ALLOW_EDGE_OPENAI_DIRECT=true to override.',
+      }), {
+        status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }

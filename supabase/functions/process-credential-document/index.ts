@@ -5,6 +5,16 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { withCors, getCorsHeaders } from '../_shared/withCors.ts';
 
+const ALLOW_EDGE_OPENAI_DIRECT = (Deno.env.get('ALLOW_EDGE_OPENAI_DIRECT') || 'false').toLowerCase() === 'true';
+
+function isDirectOpenAIBaseUrl(url: string): boolean {
+  try {
+    return new URL(url).hostname.toLowerCase() === 'api.openai.com';
+  } catch {
+    return false;
+  }
+}
+
 Deno.serve(withCors(async (req) => {
   const corsHeaders = getCorsHeaders(req);
   
@@ -34,11 +44,15 @@ Deno.serve(withCors(async (req) => {
     // In production, you might use pdf2image converter
     
     // Step 2: Call AI with vision model to extract text
-    const aiUrl = Deno.env.get('OPENAI_BASE_URL') || 'https://api.openai.com/v1';
+    const aiUrl = (Deno.env.get('OPENAI_BASE_URL') || '').replace(/\/+$/, '');
     const aiKey = Deno.env.get('OPENAI_API_KEY');
 
-    if (!aiKey) {
+    if (!aiKey || !aiUrl) {
       throw new Error('AI API key not configured');
+    }
+
+    if (isDirectOpenAIBaseUrl(aiUrl) && !ALLOW_EDGE_OPENAI_DIRECT) {
+      throw new Error('Direct api.openai.com access is blocked for edge functions. Set ALLOW_EDGE_OPENAI_DIRECT=true to override.');
     }
 
     // Build extraction prompt based on document type

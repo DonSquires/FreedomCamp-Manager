@@ -1,6 +1,16 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 
+const ALLOW_EDGE_OPENAI_DIRECT = (Deno.env.get('ALLOW_EDGE_OPENAI_DIRECT') || 'false').toLowerCase() === 'true';
+
+function isDirectOpenAIBaseUrl(url: string): boolean {
+  try {
+    return new URL(url).hostname.toLowerCase() === 'api.openai.com';
+  } catch {
+    return false;
+  }
+}
+
 interface DocumentProcessRequest {
   fileUrl: string;
   fileName: string;
@@ -99,10 +109,14 @@ Deno.serve(async (req: Request) => {
 
     // Call AI to extract job information
     const aiApiKey = Deno.env.get('OPENAI_API_KEY');
-    const aiBaseUrl = Deno.env.get('OPENAI_BASE_URL') || 'https://api.openai.com/v1';
+    const aiBaseUrl = (Deno.env.get('OPENAI_BASE_URL') || '').replace(/\/+$/, '');
 
     if (!aiApiKey || !aiBaseUrl) {
       throw new Error('AI credentials not configured');
+    }
+
+    if (isDirectOpenAIBaseUrl(aiBaseUrl) && !ALLOW_EDGE_OPENAI_DIRECT) {
+      throw new Error('Direct api.openai.com access is blocked for edge functions. Set ALLOW_EDGE_OPENAI_DIRECT=true to override.');
     }
 
     console.log('Calling AI for document extraction...');

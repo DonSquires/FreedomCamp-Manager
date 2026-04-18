@@ -13,6 +13,16 @@ interface HomelessRecord {
   safety_description: string;
 }
 
+const ALLOW_EDGE_OPENAI_DIRECT = (Deno.env.get('ALLOW_EDGE_OPENAI_DIRECT') || 'false').toLowerCase() === 'true';
+
+function isDirectOpenAIBaseUrl(url: string): boolean {
+  try {
+    return new URL(url).hostname.toLowerCase() === 'api.openai.com';
+  } catch {
+    return false;
+  }
+}
+
 Deno.serve(async (req) => {
   // Handle CORS
   if (req.method === 'OPTIONS') {
@@ -36,10 +46,14 @@ Deno.serve(async (req) => {
 
     // Use AI to intelligently parse and normalize the data
     const aiApiKey = Deno.env.get('OPENAI_API_KEY');
-    const aiBaseUrl = Deno.env.get('OPENAI_BASE_URL') || 'https://api.openai.com/v1';
+    const aiBaseUrl = (Deno.env.get('OPENAI_BASE_URL') || '').replace(/\/+$/, '');
 
     if (!aiApiKey || !aiBaseUrl) {
       throw new Error('AI service not configured');
+    }
+
+    if (isDirectOpenAIBaseUrl(aiBaseUrl) && !ALLOW_EDGE_OPENAI_DIRECT) {
+      throw new Error('Direct api.openai.com access is blocked for edge functions. Set ALLOW_EDGE_OPENAI_DIRECT=true to override.');
     }
 
     console.log('🤖 Using AI to parse and normalize data...');

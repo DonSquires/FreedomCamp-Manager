@@ -268,6 +268,9 @@ jobs:
           RAILWAY_BOB_ENVIRONMENT: ${{ secrets.RAILWAY_BOB_ENVIRONMENT }}
           RUNPOD_GATEWAY_URL: ${{ secrets.RUNPOD_GATEWAY_URL }}
           BOB_GATEWAY_KEY: ${{ secrets.BOB_GATEWAY_KEY }}
+          DESIRED_OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL || 'llama3.1:8b' }}
+          DESIRED_OLLAMA_VISION_MODEL: ${{ vars.OLLAMA_VISION_MODEL || 'llama3.2-vision:11b' }}
+          DESIRED_OLLAMA_MODEL_WRITING: ${{ vars.OLLAMA_MODEL_WRITING || vars.OLLAMA_MODEL || 'llama3.1:8b' }}
         run: |
           set -euo pipefail
 
@@ -303,12 +306,12 @@ jobs:
             "REQUIRE_SELF_CONTAINED_MODE=true" \
             "SELF_CONTAINED_STRICT_EGRESS=true" \
             "OLLAMA_BASE_URL=${OLLAMA_URL}" \
-            "OLLAMA_MODEL=llama3.1:8b" \
-            "TRANSLATION_MODEL=llama3.1:8b" \
+            "OLLAMA_MODEL=${DESIRED_OLLAMA_MODEL}" \
+            "TRANSLATION_MODEL=${DESIRED_OLLAMA_MODEL}" \
             "TRANSLATION_TIMEOUT_MS=20000" \
             "CHAT_TIMEOUT_MS=60000" \
-            "OLLAMA_MODEL_WRITING=llama3.1:8b" \
-            "OLLAMA_VISION_MODEL=llama3.2-vision:11b" \
+            "OLLAMA_MODEL_WRITING=${DESIRED_OLLAMA_MODEL_WRITING}" \
+            "OLLAMA_VISION_MODEL=${DESIRED_OLLAMA_VISION_MODEL}" \
             "VEHICLE_ATTRS_PROVIDER=ollama" \
             "WHISPER_CLI_PATH=/app/whisper/whisper-cli" \
             "WHISPER_MODEL_PATH=/app/whisper/models/ggml-base.en.bin" \

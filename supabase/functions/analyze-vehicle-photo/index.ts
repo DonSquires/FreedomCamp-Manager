@@ -20,9 +20,18 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 
-const OPENAI_BASE_URL = Deno.env.get('OPENAI_BASE_URL') || 'https://api.openai.com/v1';
+const OPENAI_BASE_URL = (Deno.env.get('OPENAI_BASE_URL') || '').replace(/\/+$/, '');
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 const OPENAI_MODEL = Deno.env.get('OPENAI_MODEL') || 'gpt-4o';
+const ALLOW_EDGE_OPENAI_DIRECT = (Deno.env.get('ALLOW_EDGE_OPENAI_DIRECT') || 'false').toLowerCase() === 'true';
+
+function isDirectOpenAIBaseUrl(url: string): boolean {
+  try {
+    return new URL(url).hostname.toLowerCase() === 'api.openai.com';
+  } catch {
+    return false;
+  }
+}
 
 interface AIAnalysisResult {
   make: string | null;
@@ -112,6 +121,13 @@ Respond ONLY with valid JSON (no markdown, no explanations):
     };
 
     try {
+      if (!OPENAI_API_KEY || !OPENAI_BASE_URL) {
+        throw new Error('AI vision not configured');
+      }
+      if (isDirectOpenAIBaseUrl(OPENAI_BASE_URL) && !ALLOW_EDGE_OPENAI_DIRECT) {
+        throw new Error('Direct api.openai.com access is blocked for edge functions. Set ALLOW_EDGE_OPENAI_DIRECT=true to override.');
+      }
+
       const aiResponse = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
         method: 'POST',
         headers: {

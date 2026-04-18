@@ -31,13 +31,13 @@ jobs:
             exit 1
           }
 
-          grep -q "const SELF_CONTAINED_MODE = true;" inference-service/server.js || {
-            echo "::error::Missing hard lock SELF_CONTAINED_MODE=true in inference-service/server.js"
+          grep -q "envFlag(process.env.SELF_CONTAINED_MODE, true)" inference-service/server.js || {
+            echo "::error::Missing default SELF_CONTAINED_MODE=true guard in inference-service/server.js"
             exit 1
           }
 
-          grep -q "const SELF_CONTAINED_STRICT_EGRESS = true;" inference-service/server.js || {
-            echo "::error::Missing hard lock SELF_CONTAINED_STRICT_EGRESS=true in inference-service/server.js"
+          grep -q "envFlag(process.env.SELF_CONTAINED_STRICT_EGRESS, true)" inference-service/server.js || {
+            echo "::error::Missing default SELF_CONTAINED_STRICT_EGRESS=true guard in inference-service/server.js"
             exit 1
           }
 

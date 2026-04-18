@@ -7,12 +7,22 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 
-const OPENAI_BASE_URL = Deno.env.get('OPENAI_BASE_URL') || 'https://api.openai.com/v1';
+const OPENAI_BASE_URL = (Deno.env.get('OPENAI_BASE_URL') || '').replace(/\/+$/, '');
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 const OPENAI_MODEL = Deno.env.get('OPENAI_MODEL') || 'gpt-4o';
+const ALLOW_EDGE_OPENAI_DIRECT = (Deno.env.get('ALLOW_EDGE_OPENAI_DIRECT') || 'false').toLowerCase() === 'true';
 const MIN_WEIGHTED_SCORE = Number(Deno.env.get('MIN_PROFILE_PHOTO_SCORE') ?? '70');
 const MIN_CLARITY_SCORE = Number(Deno.env.get('MIN_PROFILE_PHOTO_CLARITY') ?? '60');
 const REQUIRE_FULL_VEHICLE = (Deno.env.get('REQUIRE_FULL_VEHICLE_IN_FRAME') ?? '1') !== '0';
+
+function isDirectOpenAIBaseUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host === 'api.openai.com';
+  } catch {
+    return false;
+  }
+}
 
 interface PhotoAnalysis {
   url: string;
@@ -209,10 +219,32 @@ Deno.serve(async (req) => {
     // - Clear/sharp image
     // - Distinct, unobstructed view
     const analyses: PhotoAnalysis[] = [];
+    const aiConfigured = !!OPENAI_API_KEY && !!OPENAI_BASE_URL;
+    const aiDirectBlocked = !!OPENAI_BASE_URL && isDirectOpenAIBaseUrl(OPENAI_BASE_URL) && !ALLOW_EDGE_OPENAI_DIRECT;
 
     for (const url of photoUrls) {
       try {
         console.log(`🔍 Analyzing photo: ${url}`);
+
+        if (!aiConfigured || aiDirectBlocked) {
+          analyses.push({
+            url,
+            score: 50,
+            weightedScore: 50,
+            fullVehicleInFrame: false,
+            clarityScore: 50,
+            distinctnessScore: 50,
+            obstructionScore: 50,
+            angle: 'unclear',
+            confidence: 0.2,
+            reasons: [
+              aiDirectBlocked
+                ? 'AI vision blocked by policy (set ALLOW_EDGE_OPENAI_DIRECT=true to permit api.openai.com)'
+                : 'AI vision not configured',
+            ],
+          });
+          continue;
+        }
         
         const analysisPrompt = `You are selecting the BEST canonical vehicle profile photo.
 Primary objective: choose a full, clear, distinct vehicle image.

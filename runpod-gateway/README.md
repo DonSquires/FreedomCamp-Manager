@@ -2,6 +2,10 @@
 
 Lightweight authenticated reverse proxy that sits in front of Ollama on the RunPod pod.
 
+Runtime notes:
+- Node.js 24+ is required.
+- Gateway uses native `fetch` (no legacy `node-fetch` dependency).
+
 ## Purpose
 
 RunPod exposes containers to the internet.  We can't leave port 11434 open without auth.  

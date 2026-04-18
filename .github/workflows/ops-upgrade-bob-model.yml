@@ -160,6 +160,7 @@ jobs:
           RAILWAY_BOB_PROJECT_ID: ${{ secrets.RAILWAY_BOB_PROJECT_ID }}
           RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
           OLLAMA_GATEWAY_KEY: ${{ secrets.BOB_GATEWAY_KEY }}
+          RUNPOD_GATEWAY_URL: ${{ secrets.RUNPOD_GATEWAY_URL }}
         run: |
           set -euo pipefail
           source ./scripts/load-railway-secrets-from-github-env.sh --quiet
@@ -176,6 +177,10 @@ jobs:
           # quantized model is available.
 
           GATEWAY_URL="${RUNPOD_GATEWAY_URL:-https://eipnu6bq181q20-8080.proxy.runpod.net}"
+          GATEWAY_URL="${GATEWAY_URL%/}"
+          if [[ "$GATEWAY_URL" != http://* && "$GATEWAY_URL" != https://* ]]; then
+            GATEWAY_URL="https://$GATEWAY_URL"
+          fi
           GATEWAY_KEY="${OLLAMA_GATEWAY_KEY}"
 
           echo "Querying available models from gateway..."
@@ -212,6 +217,8 @@ jobs:
           " > /tmp/model_selection.sh
 
           source /tmp/model_selection.sh
+          echo "SELECTED_CHAT_MODEL=${SELECTED_CHAT}" >> "$GITHUB_ENV"
+          echo "SELECTED_VISION_MODEL=${SELECTED_VISION}" >> "$GITHUB_ENV"
           echo "Chat model → ${SELECTED_CHAT}"
           echo "Vision model → ${SELECTED_VISION}"
 
@@ -272,6 +279,10 @@ jobs:
           sleep 90
 
           BOB_URL="${BOB_SERVICE_URL:-https://focused-courage-production-ccee.up.railway.app}"
+          BOB_URL="${BOB_URL%/}"
+          if [[ "$BOB_URL" != http://* && "$BOB_URL" != https://* ]]; then
+            BOB_URL="https://$BOB_URL"
+          fi
           API_KEY="${INFERENCE_API_KEY:-${BOB_INFERENCE_API_KEY:-}}"
 
           echo "Health check..."
@@ -286,6 +297,16 @@ jobs:
           echo "  OLLAMA_VISION_MODEL= ${VISION_MODEL}"
           echo "  SOURCE_VERSION     = ${SOURCE}"
           echo "  Circuit breaker    = ${CB_STATE}"
+
+          if [ -n "${SELECTED_CHAT_MODEL:-}" ] && [ "$CHAT_MODEL" != "$SELECTED_CHAT_MODEL" ]; then
+            echo "::error::OLLAMA_MODEL mismatch. Expected ${SELECTED_CHAT_MODEL}, got ${CHAT_MODEL}."
+            exit 1
+          fi
+
+          if [ -n "${SELECTED_VISION_MODEL:-}" ] && [ "$VISION_MODEL" != "$SELECTED_VISION_MODEL" ]; then
+            echo "::error::OLLAMA_VISION_MODEL mismatch. Expected ${SELECTED_VISION_MODEL}, got ${VISION_MODEL}."
+            exit 1
+          fi
 
           # Quick chat probe
           if [ -n "$API_KEY" ]; then

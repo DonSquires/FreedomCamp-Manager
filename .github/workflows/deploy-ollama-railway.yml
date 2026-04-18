@@ -262,6 +262,8 @@ jobs:
           RAILWAY_TOKEN: ${{ env.RAILWAY_BOB_TOKEN || env.RAILWAY_TOKEN }}
           RAILWAY_OLLAMA_SERVICE_ID: ${{ steps.resolve-service.outputs.service_id }}
           RAILWAY_BOB_ENVIRONMENT: ${{ secrets.RAILWAY_BOB_ENVIRONMENT }}
+          DESIRED_OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL || 'llama3.1:8b' }}
+          DESIRED_OLLAMA_VISION_MODEL: ${{ vars.OLLAMA_VISION_MODEL || 'llama3.2-vision:11b' }}
         run: |
           set -euo pipefail
 
@@ -273,10 +275,10 @@ jobs:
             --environment "$DEPLOY_ENVIRONMENT" \
             --skip-deploys \
             "PORT=11434" \
-            "OLLAMA_MODEL=llama3.1:8b" \
-            "OLLAMA_VISION_MODEL=llama3.2-vision:11b" \
+            "OLLAMA_MODEL=${DESIRED_OLLAMA_MODEL}" \
+            "OLLAMA_VISION_MODEL=${DESIRED_OLLAMA_VISION_MODEL}" \
             "OLLAMA_PREPULL_MODE=background" \
-            "OLLAMA_EXTRA_MODELS=llama3.2-vision:11b" \
+            "OLLAMA_EXTRA_MODELS=${DESIRED_OLLAMA_VISION_MODEL}" \
             "OLLAMA_PULL_DELAY_SECONDS=20"
 
           echo "✅ Ollama Railway variables updated"
