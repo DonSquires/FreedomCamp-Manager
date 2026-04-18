@@ -5,6 +5,7 @@ set -euo pipefail
 # Modes:
 #   ask      - Ask Bob a direct question via /chat
 #   plan     - Ask Bob for analysis + implementation plan
+#   research - Ask Bob for a web-research brief + implementation mapping
 #   queue    - Queue a coding task for Bob via /code/task
 #   hybrid   - Ask Bob for plan, then queue task in one command
 #   queue-run  - Queue a coding task, then trigger ops-bob-code-task workflow
@@ -36,6 +37,7 @@ if [[ -z "$MODE" || -z "$INPUT" ]]; then
 Usage:
   bun run bob:collab -- ask "question"
   bun run bob:collab -- plan "task or problem statement"
+  bun run bob:collab -- research "topic or task statement"
   bun run bob:collab -- queue "build task" "file1,file2" [priority]
   bun run bob:collab -- hybrid "task" "file1,file2" [priority]
   bun run bob:collab -- queue-run "build task" "file1,file2" [priority]
@@ -44,6 +46,7 @@ Usage:
 Examples:
   bun run bob:collab -- ask "What are top risks in AdminPortal state flow?"
   bun run bob:collab -- plan "Design a staged fix plan for PTT auth drift"
+  bun run bob:collab -- research "Find current NZ procurement guidance for council tenders and map to tender response sections"
   bun run bob:collab -- queue "Fix accessibility issues in AdminHub" "src/pages/AdminHub.tsx" high
   bun run bob:collab -- hybrid "Review and improve officer assignment UX" "src/pages/AdminPortal.tsx,src/pages/AdminHub.tsx" high
   bun run bob:collab -- queue-run "Fix tender e2e validation flow" "src/pages/TenderWorkspaceDetail.tsx" high
@@ -160,6 +163,10 @@ case "$MODE" in
 
   plan)
     call_chat "You are Doctor Bob working with external Copilot. Analyze this task and return: 1) risks 2) root cause hypotheses 3) recommended split (Bob-do vs Copilot-do) 4) staged plan 5) verification checklist. Task: $INPUT"
+    ;;
+
+  research)
+    call_chat "You are Doctor Bob working with external Copilot. Build a web research brief for this objective. Return: 1) objective clarification 2) 8-12 high-value search queries 3) authoritative source targets in priority order 4) currentness checks (date/version) 5) conflict-resolution rules when sources disagree 6) evidence table format Bob/Copilot should fill 7) implementation mapping to repo files/tests. IMPORTANT: do not invent URLs, laws, or documents; if uncertain, say unknown and provide a search query instead. Use only verifiable source names and include a confidence rating per source. Objective: $INPUT"
     ;;
 
   queue)
