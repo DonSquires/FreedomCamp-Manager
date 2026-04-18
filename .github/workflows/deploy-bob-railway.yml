@@ -278,21 +278,40 @@ jobs:
 
           DEPLOY_ENVIRONMENT="${RAILWAY_BOB_ENVIRONMENT:-production}"
 
+          check_upstream_mode() {
+            local upstream_url="${1%/}"
+            if curl -fsS --max-time 8 "${upstream_url}/gateway/health" >/dev/null; then
+              echo "gateway"
+              return 0
+            fi
+            if curl -fsS --max-time 8 "${upstream_url}/api/tags" >/dev/null; then
+              echo "direct"
+              return 0
+            fi
+            return 1
+          }
+
           # Determine OLLAMA_BASE_URL: prefer RunPod gateway when healthy,
           # otherwise fail over to Railway-internal Ollama.
           RUNPOD_GATEWAY_URL="${RUNPOD_GATEWAY_URL:-}"
           RUNPOD_GATEWAY_URL_CHAT="${RUNPOD_GATEWAY_URL_CHAT:-}"
           RUNPOD_GATEWAY_URL_PTT="${RUNPOD_GATEWAY_URL_PTT:-}"
           USE_RUNPOD_GATEWAY="false"
+          CHAT_USE_RUNPOD_GATEWAY="false"
+          PTT_USE_RUNPOD_GATEWAY="false"
           if [[ -n "$RUNPOD_GATEWAY_URL" ]]; then
-            echo "🔎 Checking RunPod gateway health before selecting upstream..."
-            if curl -fsS --max-time 8 "${RUNPOD_GATEWAY_URL%/}/gateway/health" >/dev/null; then
+            echo "🔎 Checking shared RunPod upstream before selecting upstream..."
+            if SHARED_MODE="$(check_upstream_mode "$RUNPOD_GATEWAY_URL")"; then
               OLLAMA_URL="$RUNPOD_GATEWAY_URL"
-              USE_RUNPOD_GATEWAY="true"
-              echo "✅ Using RunPod gateway as Ollama upstream: $OLLAMA_URL"
+              if [[ "$SHARED_MODE" == "gateway" ]]; then
+                USE_RUNPOD_GATEWAY="true"
+                echo "✅ Using RunPod gateway as shared Ollama upstream: $OLLAMA_URL"
+              else
+                echo "✅ Using direct RunPod Ollama as shared upstream: $OLLAMA_URL"
+              fi
             else
               OLLAMA_URL="http://ollama.railway.internal:11434"
-              echo "⚠️  RunPod gateway is configured but unhealthy — falling back to Railway-internal Ollama: $OLLAMA_URL"
+              echo "⚠️  Shared RunPod upstream is configured but unhealthy — falling back to Railway-internal Ollama: $OLLAMA_URL"
             fi
           else
             OLLAMA_URL="http://ollama.railway.internal:11434"
@@ -302,27 +321,37 @@ jobs:
           # Optional split routing for dedicated Ollama pods.
           CHAT_OLLAMA_URL="$OLLAMA_URL"
           if [[ -n "$RUNPOD_GATEWAY_URL_CHAT" ]]; then
-            if curl -fsS --max-time 8 "${RUNPOD_GATEWAY_URL_CHAT%/}/gateway/health" >/dev/null; then
+            if CHAT_MODE="$(check_upstream_mode "$RUNPOD_GATEWAY_URL_CHAT")"; then
               CHAT_OLLAMA_URL="$RUNPOD_GATEWAY_URL_CHAT"
-              echo "✅ Using dedicated chat Ollama upstream: $CHAT_OLLAMA_URL"
+              if [[ "$CHAT_MODE" == "gateway" ]]; then
+                CHAT_USE_RUNPOD_GATEWAY="true"
+                echo "✅ Using dedicated chat RunPod gateway upstream: $CHAT_OLLAMA_URL"
+              else
+                echo "✅ Using dedicated chat direct Ollama upstream: $CHAT_OLLAMA_URL"
+              fi
             else
-              echo "⚠️  Dedicated chat Ollama gateway is unhealthy — falling back to shared upstream"
+              echo "⚠️  Dedicated chat RunPod upstream is unhealthy — falling back to shared upstream"
             fi
           fi
 
           PTT_OLLAMA_URL="$OLLAMA_URL"
           if [[ -n "$RUNPOD_GATEWAY_URL_PTT" ]]; then
-            if curl -fsS --max-time 8 "${RUNPOD_GATEWAY_URL_PTT%/}/gateway/health" >/dev/null; then
+            if PTT_MODE="$(check_upstream_mode "$RUNPOD_GATEWAY_URL_PTT")"; then
               PTT_OLLAMA_URL="$RUNPOD_GATEWAY_URL_PTT"
-              echo "✅ Using dedicated PTT Ollama upstream: $PTT_OLLAMA_URL"
+              if [[ "$PTT_MODE" == "gateway" ]]; then
+                PTT_USE_RUNPOD_GATEWAY="true"
+                echo "✅ Using dedicated PTT RunPod gateway upstream: $PTT_OLLAMA_URL"
+              else
+                echo "✅ Using dedicated PTT direct Ollama upstream: $PTT_OLLAMA_URL"
+              fi
             else
-              echo "⚠️  Dedicated PTT Ollama gateway is unhealthy — falling back to shared upstream"
+              echo "⚠️  Dedicated PTT RunPod upstream is unhealthy — falling back to shared upstream"
             fi
           fi
 
           # When RunPod models are pre-loaded on the network volume, skip in-container downloads
           SKIP_DOWNLOADS="false"
-          if [[ "$USE_RUNPOD_GATEWAY" == "true" || -n "$RUNPOD_GATEWAY_URL_CHAT" || -n "$RUNPOD_GATEWAY_URL_PTT" ]]; then
+          if [[ "$OLLAMA_URL" != "http://ollama.railway.internal:11434" || "$CHAT_OLLAMA_URL" != "$OLLAMA_URL" || "$PTT_OLLAMA_URL" != "$OLLAMA_URL" ]]; then
             SKIP_DOWNLOADS="true"
             echo "✅ SKIP_MODEL_DOWNLOADS=true (models served from RunPod volume)"
           fi
@@ -360,8 +389,8 @@ jobs:
             "TTS_DEFAULT_RATE=160" \
             "SKIP_MODEL_DOWNLOADS=${SKIP_DOWNLOADS}"
 
-          # Set gateway auth key when any RunPod gateway is selected.
-          if [[ -n "$BOB_GATEWAY_KEY" && ( "$USE_RUNPOD_GATEWAY" == "true" || "$CHAT_OLLAMA_URL" == https://* || "$PTT_OLLAMA_URL" == https://* ) ]]; then
+          # Set gateway auth key only when a RunPod gateway endpoint is selected.
+          if [[ -n "$BOB_GATEWAY_KEY" && ( "$USE_RUNPOD_GATEWAY" == "true" || "$CHAT_USE_RUNPOD_GATEWAY" == "true" || "$PTT_USE_RUNPOD_GATEWAY" == "true" ) ]]; then
             railway variable set \
               --service "$RAILWAY_SERVICE_ID" \
               --environment "$DEPLOY_ENVIRONMENT" \
