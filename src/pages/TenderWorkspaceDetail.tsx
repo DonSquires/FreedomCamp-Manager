@@ -161,6 +161,134 @@ function userName(u?: { first_name: string | null; last_name: string | null } | 
   return [u.first_name, u.last_name].filter(Boolean).join(' ') || 'Unknown'
 }
 
+interface RequirementCoverageRow {
+  requirement: string
+  mandatory: boolean
+  covered: boolean
+  matchedTokens: number
+  totalTokens: number
+  weightPercent: number | null
+}
+
+const REQUIREMENT_STOP_WORDS = new Set([
+  'the', 'and', 'for', 'with', 'that', 'this', 'from', 'must', 'shall', 'should', 'will',
+  'your', 'their', 'have', 'has', 'into', 'onto', 'about', 'were', 'been', 'being', 'also',
+  'provide', 'provided', 'including', 'requirement', 'requirements', 'service', 'services',
+  'tender', 'response', 'application', 'submission', 'document', 'organisation', 'organization',
+])
+
+function isMandatoryRequirement(requirement: string): boolean {
+  return /\b(must|mandatory|required|shall|non-negotiable|compliance required|compulsory)\b/i.test(requirement)
+}
+
+function requirementTokens(requirement: string): string[] {
+  const tokens = (requirement.toLowerCase().match(/[a-z][a-z0-9-]{2,}/g) || [])
+    .filter((token) => !REQUIREMENT_STOP_WORDS.has(token))
+  return Array.from(new Set(tokens)).slice(0, 8)
+}
+
+function requirementWeightPercent(requirement: string): number | null {
+  const match = requirement.match(/(?:\[WEIGHT\s*)?(\d{1,2})\s*%\]?/i)
+  if (!match) return null
+  const value = Number(match[1])
+  return Number.isFinite(value) ? value : null
+}
+
+function normalizeCoverageText(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+function evaluateRequirementCoverage(
+  requirements: string[] | null | undefined,
+  sections: Record<string, string> | null | undefined,
+): { missingMandatory: string[]; uncovered: string[]; rows: RequirementCoverageRow[] } {
+  const reqs = (requirements || []).filter((r) => typeof r === 'string' && r.trim().length > 0)
+  if (reqs.length === 0) return { missingMandatory: [], uncovered: [], rows: [] }
+
+  const corpus = Object.values(sections || {})
+    .filter((v) => typeof v === 'string')
+    .join('\n')
+  const normalizedCorpus = normalizeCoverageText(corpus)
+
+  if (!normalizedCorpus.trim()) {
+    const mandatoryOnly = reqs.filter((r) => isMandatoryRequirement(r))
+    const rows = reqs.map((r) => ({
+      requirement: r,
+      mandatory: isMandatoryRequirement(r),
+      covered: false,
+      matchedTokens: 0,
+      totalTokens: requirementTokens(r).length,
+      weightPercent: requirementWeightPercent(r),
+    }))
+    return {
+      missingMandatory: mandatoryOnly,
+      uncovered: reqs,
+      rows,
+    }
+  }
+
+  const uncovered: string[] = []
+  const missingMandatory: string[] = []
+  const rows: RequirementCoverageRow[] = []
+
+  for (const req of reqs) {
+    const tokens = requirementTokens(req)
+    const normalizedRequirement = normalizeCoverageText(req)
+
+    if (tokens.length === 0) {
+      const covered = normalizedRequirement.length >= 8 && normalizedCorpus.includes(normalizedRequirement)
+      if (!covered) {
+        uncovered.push(req)
+        if (isMandatoryRequirement(req)) missingMandatory.push(req)
+      }
+      rows.push({
+        requirement: req,
+        mandatory: isMandatoryRequirement(req),
+        covered,
+        matchedTokens: covered ? 1 : 0,
+        totalTokens: 1,
+        weightPercent: requirementWeightPercent(req),
+      })
+      continue
+    }
+
+    const matched = tokens.filter((token) => normalizedCorpus.includes(token)).length
+    const tokenRatio = matched / tokens.length
+    const minHits = tokens.length <= 3 ? 1 : Math.min(3, Math.ceil(tokens.length * 0.45))
+    const phraseHit = normalizedRequirement.length >= 12 && normalizedCorpus.includes(normalizedRequirement)
+    const covered = phraseHit || matched >= minHits || tokenRatio >= 0.65
+
+    if (!covered) {
+      uncovered.push(req)
+      if (isMandatoryRequirement(req)) {
+        missingMandatory.push(req)
+      }
+    }
+
+    rows.push({
+      requirement: req,
+      mandatory: isMandatoryRequirement(req),
+      covered,
+      matchedTokens: matched,
+      totalTokens: tokens.length,
+      weightPercent: requirementWeightPercent(req),
+    })
+  }
+
+  return {
+    missingMandatory,
+    uncovered,
+    rows: rows.sort((a, b) => {
+      const am = a.mandatory ? 1 : 0
+      const bm = b.mandatory ? 1 : 0
+      if (bm !== am) return bm - am
+      const aw = a.weightPercent || 0
+      const bw = b.weightPercent || 0
+      return bw - aw
+    }),
+  }
+}
+
 export default function TenderWorkspaceDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -626,9 +754,22 @@ export default function TenderWorkspaceDetail() {
   // ── Submit for approval ─────────────────────────────────────────────────────
   const submitForApproval = useCallback(async () => {
     if (!doc || !canEdit) return
+
+    const coverage = evaluateRequirementCoverage(doc.key_requirements, sections)
+    if (coverage.missingMandatory.length > 0) {
+      const sample = coverage.missingMandatory.slice(0, 2).join(' | ')
+      toast.error(`Cannot submit: ${coverage.missingMandatory.length} mandatory requirement(s) are not evidenced in the draft. ${sample}`)
+      setActiveTab('draft')
+      return
+    }
+
+    if (coverage.uncovered.length > 0) {
+      toast.info(`Draft submitted with ${coverage.uncovered.length} uncovered non-mandatory requirement(s). Review recommended.`)
+    }
+
     await updateStatus.mutateAsync('review_pending')
     toast.success('Submitted for approval')
-  }, [doc, canEdit, updateStatus])
+  }, [doc, canEdit, sections, updateStatus])
 
   // ── Approve document ────────────────────────────────────────────────────────
   const approveDocument = useCallback(async () => {
@@ -905,6 +1046,7 @@ export default function TenderWorkspaceDetail() {
   }
 
   const st = STATUS_CONFIG[doc.status] ?? { label: doc.status, color: 'bg-gray-100 text-gray-600 border-gray-300' }
+  const requirementCoverage = evaluateRequirementCoverage(doc.key_requirements, sections)
 
   const SECTION_LABELS: Array<{ key: string; label: string; hint?: string }> = [
     { key: 'cover_letter', label: 'Cover Letter', hint: 'Introduce your organisation and summarise your interest.' },
@@ -1623,6 +1765,57 @@ export default function TenderWorkspaceDetail() {
         {/* ── APPROVAL TAB ───────────────────────────────────────────────── */}
         <TabsContent value="approval">
           <div className="space-y-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <ClipboardList className="h-4 w-4 text-primary" />
+                  Requirement Coverage Report
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {!doc.key_requirements?.length ? (
+                  <p className="text-sm text-muted-foreground">No extracted requirements are available yet. Re-run Bob Analysis to build a requirement map before approval.</p>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <Badge variant="outline">Total: {requirementCoverage.rows.length}</Badge>
+                      <Badge variant="outline" className="border-green-300 text-green-700">Covered: {requirementCoverage.rows.filter((r) => r.covered).length}</Badge>
+                      <Badge variant="outline" className="border-amber-300 text-amber-700">Uncovered: {requirementCoverage.uncovered.length}</Badge>
+                      <Badge variant="outline" className="border-red-300 text-red-700">Mandatory missing: {requirementCoverage.missingMandatory.length}</Badge>
+                    </div>
+
+                    <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                      {requirementCoverage.rows.map((row, idx) => (
+                        <div key={`${row.requirement}-${idx}`} className="rounded border px-2.5 py-2 text-xs">
+                          <div className="flex items-start gap-2">
+                            {row.covered ? (
+                              <CheckCircle2 className="h-3.5 w-3.5 text-green-600 mt-0.5 shrink-0" />
+                            ) : (
+                              <AlertCircle className="h-3.5 w-3.5 text-amber-600 mt-0.5 shrink-0" />
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <p className="whitespace-pre-wrap">{row.requirement}</p>
+                              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                {row.mandatory && <Badge variant="outline" className="text-[10px] border-red-300 text-red-700">Mandatory</Badge>}
+                                {typeof row.weightPercent === 'number' && <Badge variant="outline" className="text-[10px]">Weight {row.weightPercent}%</Badge>}
+                                <span className="text-[10px] text-muted-foreground">Coverage tokens: {row.matchedTokens}/{row.totalTokens}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {requirementCoverage.missingMandatory.length > 0 && (
+                      <p className="text-xs text-red-600">
+                        Submission is blocked while mandatory requirements remain uncovered in the draft.
+                      </p>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">

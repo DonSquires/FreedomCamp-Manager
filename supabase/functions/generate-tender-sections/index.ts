@@ -156,7 +156,7 @@ Deno.serve(withCors(async (req: Request) => {
   // Fetch the tender document
   const { data: doc, error: docErr } = await supabase
     .from('tender_documents')
-    .select('id, extracted_text, assessment, issuing_body, reference_number, due_date, key_services, key_requirements, key_dates, organization_id')
+    .select('id, extracted_text, assessment, issuing_body, reference_number, due_date, key_services, key_requirements, key_dates, organization_id, bob_assessment')
     .eq('id', documentId)
     .single()
 
@@ -258,7 +258,7 @@ Deno.serve(withCors(async (req: Request) => {
   // Mark as generating so the UI can show a spinner while polling
   await supabase.from('tender_documents').update({ status: 'drafting', draft_sections: null }).eq('id', documentId)
 
-  const assessment = doc.assessment || {}
+  const assessment = (doc as any).bob_assessment || doc.assessment || {}
   const context: Record<string, unknown> = {
     extracted_text: (doc.extracted_text || '').slice(0, 12000),
     issuing_body: doc.issuing_body || assessment.issuing_body || '',
@@ -266,6 +266,7 @@ Deno.serve(withCors(async (req: Request) => {
     due_date: doc.due_date || assessment.due_date || '',
     key_services: doc.key_services || assessment.key_services || [],
     key_requirements: doc.key_requirements || assessment.key_requirements || [],
+    weighted_criteria: assessment.weighted_criteria || [],
     key_dates: doc.key_dates || assessment.key_dates || [],
     document_type: assessment.document_type || 'rfp',
     reference_context: referenceContext,

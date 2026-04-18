@@ -1882,10 +1882,51 @@ const MAX_TENDER_CONTEXT_CHARS = Number(process.env.MAX_TENDER_CONTEXT_CHARS || 
 // Max characters of reference material context to inject into the generation prompt.
 const MAX_REFERENCE_CONTEXT_CHARS = Number(process.env.MAX_REFERENCE_CONTEXT_CHARS || 6000);
 
+function parseWeightedCriteria(keyRequirements) {
+  if (!Array.isArray(keyRequirements)) return [];
+  const parsed = [];
+  for (const req of keyRequirements) {
+    const text = String(req || '').trim();
+    if (!text) continue;
+    const match = text.match(/(?:\[WEIGHT\s*)?(\d{1,2})\s*%\]?/i);
+    if (!match) continue;
+    const weight = Number(match[1]);
+    if (!Number.isFinite(weight)) continue;
+    parsed.push({ weight, text });
+  }
+  return parsed
+    .sort((a, b) => b.weight - a.weight)
+    .slice(0, 5);
+}
+
+function normalizeWeightedCriteria(weightedCriteria, keyRequirements) {
+  const direct = [];
+  if (Array.isArray(weightedCriteria)) {
+    for (const item of weightedCriteria) {
+      const criterion = String(item?.criterion || '').trim();
+      const weight = Number(item?.weight_percent);
+      if (!criterion || !Number.isFinite(weight)) continue;
+      direct.push({ weight, text: criterion, mandatory: Boolean(item?.mandatory) });
+    }
+  }
+
+  if (direct.length > 0) {
+    return direct
+      .sort((a, b) => b.weight - a.weight)
+      .slice(0, 5);
+  }
+
+  return parseWeightedCriteria(keyRequirements).map((r) => ({
+    ...r,
+    mandatory: /\b(mandatory|required|must|shall|compulsory)\b/i.test(r.text),
+  }));
+}
+
 function buildTenderSystemPrompt(generationType, context, orgContext) {
   const orgName = orgContext?.name || 'Iron Eagle Security';
   const isResponse = generationType === 'response';
   const docLabel = isResponse ? 'TENDER RESPONSE' : 'TENDER APPLICATION';
+  const weightedCriteria = normalizeWeightedCriteria(context.weighted_criteria, context.key_requirements);
 
   const servicesBlock = Array.isArray(context.key_services) && context.key_services.length
     ? context.key_services.map((s, i) => `${i + 1}. ${s}`).join('\n')
@@ -1894,6 +1935,10 @@ function buildTenderSystemPrompt(generationType, context, orgContext) {
   const requirementsBlock = Array.isArray(context.key_requirements) && context.key_requirements.length
     ? context.key_requirements.map((r) => `- ${r}`).join('\n')
     : 'Not yet extracted — infer from the document text.';
+
+  const weightedCriteriaBlock = weightedCriteria.length
+    ? weightedCriteria.map((c, i) => `${i + 1}. ${c.weight}% - ${c.text}${c.mandatory ? ' [MANDATORY]' : ''}`).join('\n')
+    : 'No explicit weighted criteria detected in the extracted requirements.';
 
   return `You are Bob, the AI procurement assistant for ${orgName}, a licensed security company based in New Zealand.
 Your task is to generate a professional ${docLabel} document in NZ English.
@@ -1912,6 +1957,8 @@ TENDER CONTEXT:
 ${servicesBlock}
 - Key requirements / evaluation criteria:
 ${requirementsBlock}
+- Highest-weight evaluation criteria (if provided):
+${weightedCriteriaBlock}
 
 GENERATION INSTRUCTIONS:
 ${isResponse ? `
@@ -1940,6 +1987,8 @@ CRITICAL RULES:
 8. Highlight FieldOps Manager capabilities (GPS patrol, welfare checks, breach detection, live reports) where relevant.
 9. In services_offered and executive_summary, explicitly distinguish mandatory compliance commitments vs value-add enhancements.
 10. In team_qualifications and health_and_safety, include concrete assurance language (certifications, controls, continuity readiness) without fabricating numbers.
+11. If weighted criteria are provided, allocate more depth and concrete evidence language to the highest weighted criteria first.
+12. Where a requirement is marked [MANDATORY], include explicit compliance wording ("We will" / "We comply") in the relevant section.
 
 You MUST respond with ONLY a valid JSON object (no markdown, no code fences) with exactly these keys:
 {

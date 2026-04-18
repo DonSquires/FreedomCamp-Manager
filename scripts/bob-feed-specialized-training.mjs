@@ -292,6 +292,30 @@ const bulletins = [
       ],
     },
   },
+  {
+    type: 'system',
+    title: 'Tender architecture completion: retrieval, critic, scoring, and learning loop',
+    summary: clip(`
+      Missing-capability operating standard for high-win tender responses:
+      1) Retrieval grounding: prefer organisation reference materials ranked by relevance to
+         issuing body, service scope, and requirement language before drafting.
+      2) Mandatory critic gate: before submission, verify every [MANDATORY]/required item is
+         explicitly evidenced in draft sections and flag uncovered items.
+      3) Score-weight alignment: when evaluation weights are present, allocate depth and evidence
+         proportionally to highest-weight criteria.
+      4) Loss-learning loop: capture rejection/shortlist reasons, map recurring weak sections,
+         and convert findings into concrete drafting improvements.
+      Quality target: no fabricated claims, explicit compliance language, scannable structure,
+      and source-aware recommendations tied to NZ procurement/legal context.
+    `),
+    source: 'copilot-specialized-training',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'tender-architecture-completion',
+      capabilities: ['retrieval-grounding', 'mandatory-critic-gate', 'score-weight-alignment', 'loss-learning-loop'],
+      priority: 'high',
+    },
+  },
 ]
 
 console.log('\nAdvanced Bob training feed')

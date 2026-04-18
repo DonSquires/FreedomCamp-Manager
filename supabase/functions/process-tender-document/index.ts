@@ -30,6 +30,7 @@ interface AssessmentResult {
   due_date: string | null
   key_services: string[]
   key_requirements: string[]
+  weighted_criteria: Array<{ criterion: string; weight_percent: number; mandatory: boolean }>
   key_dates: Array<{ label: string; date: string }>
   assessment_summary: string
   enrichment_queries: string[]
@@ -119,6 +120,55 @@ function buildLocationEnrichmentQueries(
   return Array.from(new Set(queries)).slice(0, 10)
 }
 
+function parseWeightPercent(text: string): number | null {
+  const match = text.match(/(?:\[WEIGHT\s*)?(\d{1,2})\s*%\]?/i)
+  if (!match) return null
+  const value = Number(match[1])
+  return Number.isFinite(value) ? value : null
+}
+
+function deriveWeightedCriteria(
+  keyRequirements: string[] | null | undefined,
+  existing: Array<{ criterion: string; weight_percent: number; mandatory: boolean }> | null | undefined,
+): Array<{ criterion: string; weight_percent: number; mandatory: boolean }> {
+  const out: Array<{ criterion: string; weight_percent: number; mandatory: boolean }> = []
+
+  if (Array.isArray(existing)) {
+    for (const row of existing) {
+      const criterion = String((row as any)?.criterion || '').trim()
+      const weight = Number((row as any)?.weight_percent)
+      if (!criterion || !Number.isFinite(weight)) continue
+      out.push({
+        criterion,
+        weight_percent: weight,
+        mandatory: Boolean((row as any)?.mandatory),
+      })
+    }
+  }
+
+  if (out.length === 0 && Array.isArray(keyRequirements)) {
+    for (const req of keyRequirements) {
+      const criterion = String(req || '').trim()
+      if (!criterion) continue
+      const weight = parseWeightPercent(criterion)
+      if (weight == null) continue
+      out.push({
+        criterion,
+        weight_percent: weight,
+        mandatory: /\b(mandatory|required|must|shall|compulsory)\b/i.test(criterion),
+      })
+    }
+  }
+
+  const unique = new Map<string, { criterion: string; weight_percent: number; mandatory: boolean }>()
+  for (const row of out) {
+    const key = row.criterion.toLowerCase()
+    if (!unique.has(key)) unique.set(key, row)
+  }
+
+  return Array.from(unique.values()).sort((a, b) => b.weight_percent - a.weight_percent).slice(0, 12)
+}
+
 // ---------------------------------------------------------------------------
 // Heuristic fallback — called when Ollama fails or is unavailable
 // ---------------------------------------------------------------------------
@@ -150,6 +200,7 @@ function buildHeuristicAssessment(doc: any, text: string, reason: string): Asses
     due_date: null,
     key_services: foundServices,
     key_requirements: [],
+    weighted_criteria: [],
     key_dates: dueDateMatch ? [{ label: 'Closing date', date: dueDateMatch[1] }] : [],
     assessment_summary:
       `⚠️ ${reason} Basic information has been extracted from the document text. ` +
@@ -227,6 +278,27 @@ async function callBobChat(systemPrompt: string, userMessage: string): Promise<s
 
 const REFERENCE_TYPE_ORDER = ['compliance', 'legal', 'policy', 'pricing', 'template', 'past_tender', 'nz_reference', 'other']
 
+const RELEVANCE_STOP_WORDS = new Set([
+  'the', 'and', 'for', 'with', 'from', 'this', 'that', 'have', 'has', 'will', 'shall', 'must',
+  'service', 'services', 'tender', 'response', 'application', 'document', 'request', 'proposal',
+])
+
+function tokenizeForRelevance(text: string): string[] {
+  return Array.from(new Set((text.toLowerCase().match(/[a-z][a-z0-9-]{2,}/g) || [])
+    .filter((t) => !RELEVANCE_STOP_WORDS.has(t))))
+}
+
+function scoreReferenceRelevance(seedTokens: Set<string>, text: string): number {
+  if (seedTokens.size === 0 || !text) return 0
+  const tokens = tokenizeForRelevance(text)
+  if (tokens.length === 0) return 0
+  let hits = 0
+  for (const t of tokens) {
+    if (seedTokens.has(t)) hits += 1
+  }
+  return hits
+}
+
 async function doAnalysis(
   supabase: ReturnType<typeof createClient>,
   doc: Record<string, any>,
@@ -249,7 +321,22 @@ async function doAnalysis(
         .eq('extraction_status', 'extracted')
 
       if (refs && refs.length > 0) {
+        const seedSource = [
+          doc?.issuing_body,
+          doc?.reference_number,
+          textToAnalyse.slice(0, 2500),
+        ].filter(Boolean).join('\n')
+        const seedTokens = new Set(tokenizeForRelevance(seedSource).slice(0, 100))
+        const relevanceById = new Map<string, number>()
+        for (const r of refs as Array<{ id: string; extracted_text: string | null }>) {
+          relevanceById.set(r.id, scoreReferenceRelevance(seedTokens, r.extracted_text || ''))
+        }
+
         const sorted = [...refs].sort((a: any, b: any) => {
+          const ra = relevanceById.get(a.id) || 0
+          const rb = relevanceById.get(b.id) || 0
+          if (rb !== ra) return rb - ra
+
           const ai = REFERENCE_TYPE_ORDER.indexOf(a.material_type)
           const bi = REFERENCE_TYPE_ORDER.indexOf(b.material_type)
           return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
@@ -291,6 +378,8 @@ to help the team prepare competitive responses.
   RFI response operating model:
   - Act as a technical writer, data analyst, and compliance officer.
   - Ensure every mandatory requirement is identified and represented in key_requirements.
+  - Prefix mandatory requirements with [MANDATORY] in key_requirements when explicit in the source.
+  - Preserve stated scoring weights inside key_requirements using [WEIGHT nn%] when present.
   - Highlight unique value points for Iron Eagle (capability, platform differentiation, delivery confidence).
 
   When analysing this document, explicitly look for and summarize:
@@ -303,6 +392,7 @@ to help the team prepare competitive responses.
   Assessment workflow quality bar:
   - Build a requirement mapping mindset: what must be answered vs what is optional.
   - Flag thin or missing evidence and suggest what proof should be gathered.
+  - If an evaluation scorecard/weighting exists, surface it as explicit weighted requirement entries.
   - Keep outputs scannable for evaluators and aligned to buyer tone (formal government vs commercial).
 
 Location intelligence requirement:
@@ -325,6 +415,7 @@ You must return a single valid JSON object with EXACTLY these fields:
   "due_date": "ISO date string YYYY-MM-DD if a deadline is mentioned, else null",
   "key_services": ["service 1", "service 2"],
   "key_requirements": ["requirement 1", "requirement 2"],
+  "weighted_criteria": [{"criterion": "criterion text", "weight_percent": 30, "mandatory": true}],
   "key_dates": [{"label": "Submissions close", "date": "YYYY-MM-DD"}],
   "assessment_summary": "2-4 sentence plain-English overview of this document and what Iron Eagle needs to do",
   "enrichment_queries": ["web search query 1", "web search query 2"],
@@ -380,6 +471,19 @@ Do not include any text outside the JSON object.`
         textToAnalyse,
       )
     }
+    if (!Array.isArray(assessment.key_requirements)) {
+      assessment.key_requirements = []
+    }
+    if (!Array.isArray(assessment.key_services)) {
+      assessment.key_services = []
+    }
+    if (!Array.isArray(assessment.key_dates)) {
+      assessment.key_dates = []
+    }
+    assessment.weighted_criteria = deriveWeightedCriteria(
+      assessment.key_requirements,
+      (assessment as any).weighted_criteria,
+    )
 
     // --- CRM: auto-create client organisation if not found ---
     let crmClientOrgId: string | null = doc.crm_client_organization_id || null

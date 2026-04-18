@@ -97,6 +97,71 @@ const bulletins = [
     effective_date: new Date().toISOString().slice(0, 10),
     metadata: { module: 'collaboration-research-loop', role_split: 'bob+copilot' },
   },
+  {
+    type: 'system',
+    title: 'NZ procurement essentials: core public-sector tender sources',
+    summary: clip(`
+      New Zealand tender research priority stack:
+      1) GETS (https://www.gets.govt.nz/) for active/closed opportunities, addenda, and buyer Q&A style.
+      2) NZ Government Procurement / MBIE (https://www.procurement.govt.nz/) for Procurement Rules,
+         supplier guidance, and Rule 18 measures supporting NZ businesses.
+      3) Digital.govt.nz (https://www.digital.govt.nz/) for cloud, digital assurance, and policy framing
+         relevant to software/service delivery responses.
+      4) Business.govt.nz tendering guidance (https://www.business.govt.nz/) for NZ SME response practice.
+      Research expectation: use official sources first, capture publication/update date, and map findings
+      to mandatory criteria, weighted criteria, and submission form requirements.
+    `),
+    source: 'copilot-web-research-playbook',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'nz-procurement-essentials',
+      official_sources: [
+        'https://www.gets.govt.nz/',
+        'https://www.procurement.govt.nz/',
+        'https://www.digital.govt.nz/',
+        'https://www.business.govt.nz/',
+      ],
+    },
+  },
+  {
+    type: 'system',
+    title: 'NZ tender broader outcomes and social value requirements',
+    summary: clip(`
+      NZ tender value-for-money includes broader outcomes, not price alone.
+      Bob must surface and respond to social value requirements such as local economic impact,
+      engagement with Maori and Pasifika businesses/workforce pathways, and environmental outcomes.
+      Where weighting exists (for example social value percentage criteria), allocate response depth
+      proportionally and provide concrete delivery evidence.
+      Response standard: separate mandatory compliance statements from value-add outcomes,
+      and provide evaluator-friendly proof points (who, what, where, measurable outcome).
+    `),
+    source: 'copilot-web-research-playbook',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'nz-broader-outcomes',
+      focus: ['social-value', 'maori-engagement', 'pasifika-engagement', 'regional-impact', 'environmental-sustainability'],
+    },
+  },
+  {
+    type: 'system',
+    title: 'NZ privacy and data sovereignty framing for cloud-hosted services',
+    summary: clip(`
+      For NZ public-sector digital tenders, explicitly address Privacy Act 2020 obligations,
+      information handling controls, and offshore hosting/data sovereignty risks.
+      When infrastructure is hosted outside NZ regions, Bob should require a clear control narrative:
+      data classification, minimisation, encryption in transit/at rest, access controls, logging,
+      breach response, contractual protections, and continuity assurances for NZ agencies/users.
+      Translate technical claims into policy outcomes (for example service continuity,
+      assurance, and accountability for New Zealanders).
+    `),
+    source: 'copilot-web-research-playbook',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'nz-privacy-cloud-assurance',
+      legal_refs: ['Privacy Act 2020'],
+      policy_refs: ['cloud-assurance', 'data-sovereignty'],
+    },
+  },
 ]
 
 console.log('\n🔎 Bob Web Research Training Feed')
