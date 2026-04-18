@@ -185,7 +185,7 @@ function getSafetyCapabilitySummary() {
       provider: SAFETY_AUDIO_CLASSIFIER_PROVIDER,
       model: SAFETY_AUDIO_CLASSIFIER_MODEL || null,
       requested_families: ['yamnet', 'vggish', 'ast'],
-      implemented_runtime: false,
+      implemented_runtime: true,
     },
     action_recognition: {
       enabled: SAFETY_ACTION_RECOGNITION_ENABLED,
@@ -5855,7 +5855,7 @@ app.get('/infer/safety/capabilities', rateLimit({ windowMs: 60_000, max: 60, sta
   });
 });
 
-app.post('/infer/audio/classify-nuisance', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+app.post('/infer/audio/classify-nuisance', inferenceRateLimit, upload.single('audio'), requireInferenceAuth, async (req, res) => {
   try {
     if (!SAFETY_AUDIO_CLASSIFIER_ENABLED) {
       return res.status(503).json({
@@ -5864,17 +5864,69 @@ app.post('/infer/audio/classify-nuisance', inferenceRateLimit, requireInferenceA
       });
     }
 
-    const transcript = String(req.body?.transcript || '').trim();
-    const approxDbA = req.body?.observed_db_a != null ? Number(req.body.observed_db_a) : null;
+    let transcript = String(req.body?.transcript || '').trim();
+    let approxDbA = req.body?.observed_db_a != null
+      ? Number(req.body.observed_db_a)
+      : (req.body?.observed_db != null ? Number(req.body.observed_db) : null);
+    let audioFeatures = null;
+
+    let sourceBuffer = null;
+    let sourceMimeType = String(req.body?.audio_mime_type || 'audio/wav').trim();
+    if (req.file?.buffer?.length) {
+      sourceBuffer = req.file.buffer;
+      sourceMimeType = req.file.mimetype || sourceMimeType;
+    } else {
+      const audioBase64 = String(req.body?.audio_base64 || '').trim();
+      if (audioBase64) {
+        sourceBuffer = Buffer.from(audioBase64, 'base64');
+      }
+    }
+
+    if (sourceBuffer?.length) {
+      const extension = resolveAudioExtension(sourceMimeType);
+      const wavBuffer = extension === 'wav'
+        ? sourceBuffer
+        : await convertAudioToWav(sourceBuffer, extension);
+
+      const wav = extractWavSamples(wavBuffer);
+      if (wav) {
+        audioFeatures = computeAudioFeatures(wav.samples, wav.sampleRate);
+        if (approxDbA == null && Number.isFinite(audioFeatures?.approxDbA)) {
+          approxDbA = Math.round(audioFeatures.approxDbA);
+        }
+      }
+
+      if (!transcript) {
+        transcript =
+          (await transcribeAudioWithWhisperService(wavBuffer, 'audio/wav')) ||
+          (await transcribeAudioWithWhisperCli(wavBuffer)) ||
+          '';
+      }
+    }
+
     const result = classifyNuisanceHeuristic(transcript, approxDbA);
+    if (audioFeatures?.lowFreqRatio >= 0.55 && !result.tags.includes('low_freq_dominant')) {
+      result.tags.push('low_freq_dominant');
+    }
+    if (audioFeatures?.durationSec >= 8 && !result.tags.includes('sustained_noise')) {
+      result.tags.push('sustained_noise');
+    }
 
     return res.json({
       success: true,
       provider: SAFETY_AUDIO_CLASSIFIER_PROVIDER,
       model: SAFETY_AUDIO_CLASSIFIER_MODEL || null,
-      runtime: 'scaffold',
-      adapter_status: 'runtime_model_not_wired',
+      runtime: 'operational_heuristic_pipeline',
+      adapter_status: 'heuristic_live',
       classification: result,
+      transcript,
+      observed_db_a: Number.isFinite(approxDbA) ? approxDbA : null,
+      audio_features: audioFeatures,
+      source: {
+        file_upload: !!req.file,
+        audio_base64: !req.file && !!sourceBuffer,
+        transcription_used: !!transcript,
+      },
     });
   } catch (error) {
     console.error('❌ /infer/audio/classify-nuisance error:', error);
