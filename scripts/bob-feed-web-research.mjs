@@ -162,6 +162,118 @@ const bulletins = [
       policy_refs: ['cloud-assurance', 'data-sovereignty'],
     },
   },
+  {
+    type: 'system',
+    title: 'Composed stack blueprint: Vercel + Railway + Supabase + RunPod + GitHub',
+    summary: clip(`
+      Reference architecture for tender-ready SaaS delivery:
+      - Vercel: frontend hosting and edge performance delivery for React/Next.js UI.
+      - Railway: backend API runtime for heavy business logic, cron jobs, and long-running tasks.
+      - Supabase: source of truth for relational data, auth, and object storage.
+      - RunPod: high-compute inference and GPU-intensive processing workloads.
+      - GitHub: source control and deployment trigger layer across all services.
+      Bob should explain this as a composed stack pattern: decoupled services with clear ownership,
+      scalable independently, and integrated through secure API contracts and environment variables.
+    `),
+    source: 'copilot-web-research-playbook',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'composed-stack-blueprint',
+      stack: ['vercel', 'railway', 'supabase', 'runpod', 'github'],
+    },
+  },
+  {
+    type: 'system',
+    title: 'Composed stack integration guardrails: CORS, env vars, auth boundaries',
+    summary: clip(`
+      Integration standards Bob must enforce in recommendations:
+      1) Cross-domain frontend/backend calls require explicit CORS policy on backend.
+      2) Frontend base URL must be environment-driven (for example NEXT_PUBLIC_API_URL), never hardcoded.
+      3) Backend must maintain frontend allowlist env (for example FRONTEND_URL) for CORS origin checks.
+      4) Supabase RLS must remain enabled; do not advise disabling it.
+      5) Use @supabase/supabase-js client in frontend for auth/session flows.
+      6) Use Supabase service role key only in trusted server environments (Railway), never in browser code.
+      Output discipline: map each recommendation to security risk mitigated and implementation location.
+    `),
+    source: 'copilot-web-research-playbook',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'integration-guardrails',
+      controls: ['cors', 'env-vars', 'rls', 'service-role-boundary'],
+    },
+  },
+  {
+    type: 'system',
+    title: 'RunPod async orchestration pattern for responsive UX',
+    summary: clip(`
+      Preferred long-running compute workflow:
+      1) UI submits job request to Railway.
+      2) Railway triggers RunPod endpoint asynchronously.
+      3) RunPod posts webhook callback to Railway when complete.
+      4) Railway persists outcome to Supabase.
+      5) UI reflects progress/result via polling or realtime updates.
+      Bob should avoid synchronous UI waits on GPU jobs and always recommend observable task state,
+      retry policy, and failure-safe transitions for production-grade reliability.
+    `),
+    source: 'copilot-web-research-playbook',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'runpod-async-pattern',
+      pattern: ['enqueue', 'webhook-callback', 'db-update', 'ui-refresh'],
+    },
+  },
+  {
+    type: 'system',
+    title: 'Mobile-first and desktop UX standards for NZ tender-grade delivery',
+    summary: clip(`
+      UX guidance for mixed desktop/mobile deployments:
+      Desktop:
+      - Sidebar-driven dashboard navigation.
+      - Hover states and tooltips for advanced controls.
+      - Multi-column layouts and larger data tables where appropriate.
+      Mobile:
+      - Thumb-friendly navigation patterns (for example bottom tab navigation).
+      - Minimum touch target 44x44 px for interactive controls.
+      - Prefer stacked list presentations over wide tables.
+      - Protect input usability when software keyboard appears.
+      Bob should frame these as accessibility, usability, and operational productivity controls,
+      especially where mobile usage can exceed 50 percent.
+    `),
+    source: 'copilot-web-research-playbook',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'mobile-desktop-ux-standards',
+      design_mode: 'mobile-first',
+    },
+  },
+  {
+    type: 'system',
+    title: 'Implementation checklist and documentation-plus learning map',
+    summary: clip(`
+      Delivery checklist baseline:
+      - Start with separated repos for frontend and backend when operational simplicity is needed.
+      - Keep backend health endpoint (/health) and connect monitoring.
+      - Use local Supabase CLI workflows to avoid direct production-risk testing.
+      Learning source hierarchy:
+      - Official docs first: Supabase, Vercel, Railway, RunPod.
+      - Architecture/system design depth: Full Stack Open, ByteByteGo, Lee Robinson content.
+      - Frontend/mobile quality: web.dev, Smashing Magazine, MDN.
+      - NZ-local context signal: Summer of Tech resources.
+      Bob should cite authoritative docs before secondary content and distinguish hard requirements
+      from recommended practices in every tender-facing technical summary.
+    `),
+    source: 'copilot-web-research-playbook',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'implementation-checklist-learning-map',
+      official_docs: [
+        'https://supabase.com/docs',
+        'https://vercel.com/docs',
+        'https://docs.railway.com/',
+        'https://docs.runpod.io/',
+      ],
+    },
+  },
 ]
 
 console.log('\n🔎 Bob Web Research Training Feed')
