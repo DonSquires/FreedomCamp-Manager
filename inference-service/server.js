@@ -1870,7 +1870,9 @@ app.post('/translate', inferenceRateLimit, requireInferenceAuth, async (req, res
 //   model_used: string,
 //   sections: {
 //     cover_letter, executive_summary, services_offered,
-//     pricing_notes, team_qualifications, health_and_safety, declaration
+//     pricing_notes, team_qualifications, health_and_safety, declaration,
+//     architecture_summary, security_trust_controls, delivery_workflow,
+//     mobile_accessibility_profile, compliance_traceability, risks_mitigations
 //   }
 // }
 // ---------------------------------------------------------------------------
@@ -1989,6 +1991,7 @@ CRITICAL RULES:
 10. In team_qualifications and health_and_safety, include concrete assurance language (certifications, controls, continuity readiness) without fabricating numbers.
 11. If weighted criteria are provided, allocate more depth and concrete evidence language to the highest weighted criteria first.
 12. Where a requirement is marked [MANDATORY], include explicit compliance wording ("We will" / "We comply") in the relevant section.
+13. Use the technical-stack template fields to produce evaluator-ready architecture and compliance content.
 
 You MUST respond with ONLY a valid JSON object (no markdown, no code fences) with exactly these keys:
 {
@@ -1998,7 +2001,13 @@ You MUST respond with ONLY a valid JSON object (no markdown, no code fences) wit
   "pricing_notes": "...",
   "team_qualifications": "...",
   "health_and_safety": "...",
-  "declaration": "..."
+  "declaration": "...",
+  "architecture_summary": "...",
+  "security_trust_controls": "...",
+  "delivery_workflow": "...",
+  "mobile_accessibility_profile": "...",
+  "compliance_traceability": "...",
+  "risks_mitigations": "..."
 }`;
 }
 
@@ -2046,6 +2055,18 @@ function heuristicTenderSections(generationType, context, orgContext) {
     health_and_safety: `${orgName} operates a comprehensive Health & Safety management system in compliance with the Health & Safety at Work Act 2015 (HSWA).\n\nAs a PCBU (Person Conducting a Business or Undertaking), ${orgName}:\n- Maintains a signed H&S policy statement\n- Operates a documented hazard and risk register\n- Requires all officers to complete pre-shift safety checks\n- Implements a welfare check system for lone workers (automated via FieldOps Manager — officers check in at regular intervals; escalation alerts are triggered if a check-in is missed)\n- Conducts H&S inductions for all staff and subcontractors\n- Reports and investigates all incidents and near-misses\n\nH&S accreditation and safety plan documentation is available on request.`,
 
     declaration: `${collusionDecl}\n\nAccuracy declaration: The information provided in this submission is accurate and complete to the best of our knowledge. ${orgName} accepts that any material misstatement may result in disqualification.\n\nSignatory: ___________________________\nName: [Name]\nTitle: [Title]\nDate: ${due}`,
+
+    architecture_summary: `Our delivery uses a composed architecture: Vercel hosts the frontend experience, Railway runs backend APIs and operational workflows, Supabase provides data/auth/storage as the source of truth, and RunPod handles high-compute model workloads. Each service is independently scalable and integrated through secure API contracts and environment-managed configuration.`,
+
+    security_trust_controls: `Security controls are enforced by design: Supabase Row Level Security policies separate tenant data, authentication and session handling are managed via trusted client libraries, and privileged service role operations are restricted to backend runtime only. Cross-origin access is restricted via explicit CORS allowlists, and all secrets are managed via environment variables rather than source code.`,
+
+    delivery_workflow: `Long-running or GPU-intensive tasks follow an asynchronous workflow: UI requests are accepted by backend APIs, compute jobs are dispatched to high-compute endpoints, completion callbacks update persisted job state, and user interfaces reflect status through polling or realtime updates. This reduces user wait time while preserving operational traceability and retry-safe recovery paths.`,
+
+    mobile_accessibility_profile: `The interface is mobile-first while preserving desktop productivity. Mobile views prioritise thumb-friendly navigation, 44x44 minimum touch targets, and stacked data layouts. Desktop views provide dense information patterns such as side navigation and multi-column layouts. Accessibility and readability are maintained through clear hierarchy, concise labels, and predictable interaction states.`,
+
+    compliance_traceability: `Compliance obligations are mapped directly to delivery controls and evidence. Mandatory criteria are explicitly addressed in response sections, privacy and data handling commitments are tied to implemented safeguards, and operational policies (health and safety, continuity, incident response) are linked to execution practices and reporting outputs.`,
+
+    risks_mitigations: `Key delivery risks include data sovereignty concerns, cross-service integration failures, and high-load performance variability. Mitigations include documented data handling boundaries, defensive API contracts with observability, asynchronous processing with retry paths, and monitored health endpoints for rapid operational response.`,
   };
 }
 

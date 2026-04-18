@@ -14,6 +14,12 @@ export interface TenderSections {
   team_qualifications?: string
   health_and_safety?: string
   declaration?: string
+  architecture_summary?: string
+  security_trust_controls?: string
+  delivery_workflow?: string
+  mobile_accessibility_profile?: string
+  compliance_traceability?: string
+  risks_mitigations?: string
 }
 
 export interface TenderDocMeta {
@@ -126,6 +132,12 @@ export function generateTenderHtml(meta: TenderDocMeta, sections: TenderSections
   ${sectionHtml('Team Qualifications', sections.team_qualifications)}
   ${sectionHtml('Health & Safety', sections.health_and_safety)}
   ${sectionHtml('Declaration', sections.declaration)}
+  ${sectionHtml('Architecture Summary', sections.architecture_summary)}
+  ${sectionHtml('Security & Trust Controls', sections.security_trust_controls)}
+  ${sectionHtml('Delivery Workflow', sections.delivery_workflow)}
+  ${sectionHtml('Mobile & Accessibility Profile', sections.mobile_accessibility_profile)}
+  ${sectionHtml('Compliance Traceability', sections.compliance_traceability)}
+  ${sectionHtml('Risks & Mitigations', sections.risks_mitigations)}
 
   <div class="footer">
     Confidential — prepared by ${escapeHtml(meta.organization_name || 'Iron Eagle Security')} on ${escapeHtml(meta.export_date || new Date().toLocaleDateString('en-NZ'))}

@@ -426,7 +426,13 @@ You must return a single valid JSON object with EXACTLY these fields:
     "pricing_notes": "any pricing guidance noted in the document",
     "team_qualifications": "what credentials/experience to highlight",
     "health_and_safety": "H&S requirements mentioned",
-    "declaration": "any declaration or certification requirements"
+    "declaration": "any declaration or certification requirements",
+    "architecture_summary": "composed stack summary",
+    "security_trust_controls": "security controls and trust boundaries",
+    "delivery_workflow": "delivery and async operations model",
+    "mobile_accessibility_profile": "mobile-first and accessibility expectations",
+    "compliance_traceability": "mandatory requirement traceability approach",
+    "risks_mitigations": "primary risks and mitigation expectations"
   }
 }
 Do not include any text outside the JSON object.`
@@ -528,6 +534,12 @@ Do not include any text outside the JSON object.`
       team_qualifications: assessment.response_outline?.team_qualifications || '',
       health_and_safety: assessment.response_outline?.health_and_safety || '',
       declaration: assessment.response_outline?.declaration || '',
+      architecture_summary: assessment.response_outline?.architecture_summary || '',
+      security_trust_controls: assessment.response_outline?.security_trust_controls || '',
+      delivery_workflow: assessment.response_outline?.delivery_workflow || '',
+      mobile_accessibility_profile: assessment.response_outline?.mobile_accessibility_profile || '',
+      compliance_traceability: assessment.response_outline?.compliance_traceability || '',
+      risks_mitigations: assessment.response_outline?.risks_mitigations || '',
     }
 
     // --- Persist to tender_documents ---

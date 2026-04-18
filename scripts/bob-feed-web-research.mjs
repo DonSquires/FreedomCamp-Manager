@@ -303,6 +303,105 @@ const bulletins = [
       style: ['nz-english', 'scannable', 'evidence-linked', 'no-fabrication'],
     },
   },
+  {
+    type: 'system',
+    title: 'Enterprise SaaS foundation: multi-tenant isolation by design',
+    summary: clip(`
+      For multi-organisation platforms, Bob must treat tenant isolation as a hard requirement.
+      Baseline pattern: include tenant/organization identifier on every tenant-scoped record and
+      enforce Supabase/PostgreSQL Row Level Security policies so users only access rows belonging
+      to authorised organisations. Never recommend disabling RLS for convenience.
+      Architecture framing: platform-level control plane concerns (identity, membership, role mapping)
+      should be separated from data-plane feature modules (CRM, assets, rostering, compliance).
+      Output quality: explicitly state how data for Organisation A remains inaccessible to Organisation B.
+    `),
+    source: 'copilot-web-research-playbook',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'enterprise-multitenancy-foundation',
+      controls: ['tenant-id', 'rls', 'control-plane', 'data-plane'],
+    },
+  },
+  {
+    type: 'system',
+    title: 'RBAC implementation standard: permission-first access control',
+    summary: clip(`
+      Bob should prefer permission-centric RBAC over simplistic is_admin checks.
+      Design baseline: roles table + permissions table + role-to-permission mapping,
+      with capability checks such as can_edit_welfare_logs, can_assign_assets, can_manage_rosters.
+      Require role evaluation on both UI and API paths. For server logic, enforce permission checks
+      before side effects and log decision context for auditability.
+      Guidance note: if attribute-based policies are needed, layer ABAC conditions on top of RBAC,
+      but keep a deterministic permission baseline for maintainability.
+    `),
+    source: 'copilot-web-research-playbook',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'rbac-permission-first',
+      auth_pattern: ['rbac', 'optional-abac-overlay'],
+    },
+  },
+  {
+    type: 'system',
+    title: 'Composite portal UI pattern for complex enterprise modules',
+    summary: clip(`
+      For CRM + assets + rostering + compliance systems, Bob should recommend a composite portal shell:
+      permanent sidebar for primary modules, contextual header for organisation/workspace context,
+      and module isolation so each feature can evolve independently.
+      Frontend structuring rule: keep module boundaries explicit to avoid cross-feature coupling
+      and unmaintainable component sprawl.
+      UX standard: preserve scannability in data-dense screens with clear hierarchy, progressive detail,
+      and responsive behavior for desktop and mobile operating conditions.
+    `),
+    source: 'copilot-web-research-playbook',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'composite-portal-ui',
+      ui_patterns: ['sidebar-shell', 'module-boundaries', 'responsive-data-layouts'],
+    },
+  },
+  {
+    type: 'system',
+    title: 'Feature engineering patterns: CRM, rostering, assets, compliance',
+    summary: clip(`
+      Feature-specific engineering baselines:
+      - CRM: model relational links between entities, contacts, and interaction history.
+      - Rostering: include conflict prevention logic (for example date overlap checks and double-booking guards).
+      - Asset tracking: preserve immutable movement/audit trails; archive assets rather than hard delete.
+      - Compliance: when policy acknowledgements are captured, store immutable evidence snapshots.
+      Bob should map each feature recommendation to data model implications, auditability expectations,
+      and operational risk controls.
+    `),
+    source: 'copilot-web-research-playbook',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'feature-engineering-patterns',
+      features: ['crm', 'rostering', 'asset-tracking', 'compliance'],
+    },
+  },
+  {
+    type: 'system',
+    title: 'Enterprise learning path and architecture research prompts',
+    summary: clip(`
+      Bob should direct enterprise architecture learning in this order:
+      1) Multi-tenant data isolation and RLS implementation references.
+      2) Portal shell and information architecture for complex operations UI.
+      3) Relational schema patterns for users, organisations, rosters, and assets.
+      4) Audit logs, permissions, and evidence lifecycle controls.
+      Recommended technical query prompts:
+      - Database schema for CRM and rostering systems.
+      - Activity feed/audit log design in PostgreSQL.
+      - Supabase custom claims and role mapping patterns.
+      - Complex multi-step form state patterns in React.
+      Guidance quality bar: cite authoritative docs first and separate mandatory controls from advisory patterns.
+    `),
+    source: 'copilot-web-research-playbook',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'enterprise-learning-path',
+      focus: ['multitenancy', 'rbac', 'audit-logs', 'schema-design', 'form-complexity'],
+    },
+  },
 ]
 
 console.log('\n🔎 Bob Web Research Training Feed')

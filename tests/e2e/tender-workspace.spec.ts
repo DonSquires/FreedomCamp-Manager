@@ -61,14 +61,25 @@ test.describe('Tender Workspace Detail — tab structure', () => {
     await loginAs(page, 'adminOrg1')
     await page.goto('/tender-workspace', { waitUntil: 'networkidle' })
 
-    const cards = page.locator('button, [role="button"], a').filter({ hasText: /Tender|RFP|RFI|RFIP|proposal/i })
+    // Prefer explicit detail links to avoid matching sidebar/navigation items.
+    const detailLinks = page.locator('main a[href^="/tender-workspace/"]:not([href="/tender-workspace"])')
+    const linkCount = await detailLinks.count()
+    if (linkCount > 0) {
+      await detailLinks.first().click({ force: true })
+      await page.waitForLoadState('networkidle').catch(() => undefined)
+      await page.waitForURL(/\/tender-workspace\/.+/, { timeout: 10000 }).catch(() => undefined)
+      return true
+    }
+
+    // Fallback for card/button UIs where rows are not anchor links.
+    const cards = page.locator('main button, main [role="button"], main a').filter({ hasText: /Tender|RFP|RFI|RFIP|proposal/i })
     const count = await cards.count()
     if (count === 0) return false
 
     await cards.first().click({ force: true })
     await page.waitForLoadState('networkidle').catch(() => undefined)
     await page.waitForURL(/\/tender-workspace\/.+/, { timeout: 10000 }).catch(() => undefined)
-    return true
+    return /\/tender-workspace\/.+/.test(page.url())
   }
 
   test('Intake tab shows file upload zone and extracted text area', async ({ page }) => {

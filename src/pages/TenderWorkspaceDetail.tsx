@@ -1056,6 +1056,12 @@ export default function TenderWorkspaceDetail() {
     { key: 'team_qualifications', label: 'Team & Qualifications', hint: 'Credentials, licences, experience, and subcontractors.' },
     { key: 'health_and_safety', label: 'Health & Safety', hint: 'H&S policy reference, accreditations, and safety plans.' },
     { key: 'declaration', label: 'Declaration', hint: 'Collusion, anti-competitive conduct, and certification declarations.' },
+    { key: 'architecture_summary', label: 'Architecture Summary', hint: 'Summarise the composed stack and service boundaries.' },
+    { key: 'security_trust_controls', label: 'Security & Trust Controls', hint: 'Auth model, RLS boundaries, CORS, secrets, and assurance controls.' },
+    { key: 'delivery_workflow', label: 'Delivery Workflow', hint: 'Operational flow including async processing, callbacks, and monitoring.' },
+    { key: 'mobile_accessibility_profile', label: 'Mobile & Accessibility Profile', hint: 'Mobile-first behavior, accessibility baseline, and desktop/mobile transition.' },
+    { key: 'compliance_traceability', label: 'Compliance Traceability', hint: 'Map mandatory requirements to implemented controls and evidence.' },
+    { key: 'risks_mitigations', label: 'Risks & Mitigations', hint: 'List principal delivery risks and the mitigation plan for each.' },
   ]
 
   return (
