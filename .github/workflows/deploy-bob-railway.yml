@@ -420,7 +420,23 @@ jobs:
           # RAILWAY_SIMPLE_OLLAMA_URL is always the Railway-internal Ollama regardless
           # of what OLLAMA_CHAT_BASE_URL resolves to. Short/low-complexity chat stays here.
           RAILWAY_SIMPLE_OLLAMA_URL="http://ollama.railway.internal:11434"
-          railway variable set \
+
+          # railway variable set calls can intermittently time-out when the Railway
+          # GraphQL API is under load. Wrap in a simple retry helper.
+          railway_var_set_retry() {
+            local attempt=1
+            until railway variable set "$@"; do
+              attempt=$(( attempt + 1 ))
+              if [ "$attempt" -gt 4 ]; then
+                echo "::error::railway variable set failed after 4 attempts"
+                return 1
+              fi
+              echo "⚠️  railway variable set timed out (attempt $attempt/4) — retrying in 15s..."
+              sleep 15
+            done
+          }
+
+          railway_var_set_retry \
             --service "$RAILWAY_SERVICE_ID" \
             --environment "$DEPLOY_ENVIRONMENT" \
             --skip-deploys \
@@ -455,7 +471,7 @@ jobs:
 
           # RunPod pod lifecycle — set only if the secrets are present.
           if [ -n "${RUNPOD_POD_ID:-}" ] && [ -n "${RUNPOD_API_KEY:-}" ]; then
-            railway variable set \
+            railway_var_set_retry \
               --service "$RAILWAY_SERVICE_ID" \
               --environment "$DEPLOY_ENVIRONMENT" \
               --skip-deploys \
@@ -468,14 +484,14 @@ jobs:
 
           # Optional tuning knobs — only set when explicitly provided.
           if [ -n "${RUNPOD_IDLE_TIMEOUT_MS:-}" ]; then
-            railway variable set \
+            railway_var_set_retry \
               --service "$RAILWAY_SERVICE_ID" \
               --environment "$DEPLOY_ENVIRONMENT" \
               --skip-deploys \
               "RUNPOD_IDLE_TIMEOUT_MS=${RUNPOD_IDLE_TIMEOUT_MS}"
           fi
           if [ -n "${COMPLEX_CHAT_MIN_LEN:-}" ]; then
-            railway variable set \
+            railway_var_set_retry \
               --service "$RAILWAY_SERVICE_ID" \
               --environment "$DEPLOY_ENVIRONMENT" \
               --skip-deploys \
@@ -484,7 +500,7 @@ jobs:
 
           # Set gateway auth key only when a RunPod gateway endpoint is selected.
           if [[ -n "$BOB_GATEWAY_KEY" && ( "$USE_RUNPOD_GATEWAY" == "true" || "$CHAT_USE_RUNPOD_GATEWAY" == "true" || "$PTT_USE_RUNPOD_GATEWAY" == "true" || "$TABULAR_USE_RUNPOD_GATEWAY" == "true" ) ]]; then
-            railway variable set \
+            railway_var_set_retry \
               --service "$RAILWAY_SERVICE_ID" \
               --environment "$DEPLOY_ENVIRONMENT" \
               --skip-deploys \

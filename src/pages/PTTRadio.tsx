@@ -705,25 +705,6 @@ export default function PTTRadio() {
     return () => stopVoxMonitoring()
   }, [voxEnabled, isAvailable])
 
-  // ── Spacebar PTT shortcut ─────────────────────────────────
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && !e.repeat && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
-        e.preventDefault()
-        handlePTTPress()
-      }
-    }
-    const up = (e: KeyboardEvent) => {
-      if (e.code === 'Space') {
-        e.preventDefault()
-        handlePTTRelease()
-      }
-    }
-    window.addEventListener('keydown', down)
-    window.addEventListener('keyup', up)
-    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
-  }, [handlePTTPress, handlePTTRelease])
-
   // ── Scanner mode ─────────────────────────────────────────
   useEffect(() => {
     if (!scanMode) {
