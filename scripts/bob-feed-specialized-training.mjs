@@ -316,6 +316,112 @@ const bulletins = [
       priority: 'high',
     },
   },
+  {
+    type: 'system',
+    title: 'PTT architecture baseline: LMR, PoC, and gateway bridge model',
+    summary: clip(`
+      For push-to-talk platform design, distinguish three architecture modes:
+      1) LMR (land mobile radio) for conventional radio domains and repeater constraints.
+      2) PoC / PTT over LTE/Wi-Fi for wide-area app-based communications.
+      3) Gateway bridge pattern linking legacy radios with IP-based dispatch/mobile clients.
+      Bob should classify each deployment by coverage, latency expectations, interoperability needs,
+      and transition strategy from radio-first to IP-first operations.
+      In mixed estates, require explicit gateway behavior and role expectations across old/new endpoints.
+    `),
+    source: 'copilot-specialized-training',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'ptt-architecture-baseline',
+      modes: ['lmr', 'poc-lte', 'gateway-bridge'],
+    },
+  },
+  {
+    type: 'system',
+    title: 'PTT real-time media controls: floor control, low latency, and codec policy',
+    summary: clip(`
+      Professional PTT requires deterministic floor control and low-latency media handling.
+      Core logic standard:
+      - Request/Grant floor workflow (press, arbitrate, grant, transmit, release).
+      - Busy state and optional emergency pre-emption policy.
+      - Explicit user state model (talking, muted, priority speaker, unavailable).
+      Media guidance:
+      - Use Opus for speech resilience and variable network conditions.
+      - Prefer real-time media transports (WebRTC/RTP path) over HTTP request/response semantics.
+      - Track latency and jitter budget as first-class operational metrics.
+    `),
+    source: 'copilot-specialized-training',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'ptt-floor-control-and-media',
+      controls: ['request-grant', 'busy', 'pre-emption', 'opus', 'latency-jitter-slo'],
+      references: ['https://webrtc.org/', 'https://www.rfc-editor.org/rfc/rfc3550', 'https://opus-codec.org/'],
+    },
+  },
+  {
+    type: 'system',
+    title: 'PTT reliability in weak-signal environments: resilience playbook',
+    summary: clip(`
+      For variable NZ connectivity and dead zones, Bob should include reliability controls:
+      - Jitter buffering and packet-loss concealment strategy.
+      - Store-and-forward path for off-network push events and deferred upload.
+      - Pre-emptive local buffering to prevent clipped first words.
+      - Late-join stream behavior for in-progress transmissions.
+      - Talker identity propagation across clients and dispatch views.
+      Operational requirement: recommendations must include observability, retries, and failure modes
+      rather than assuming stable network quality.
+    `),
+    source: 'copilot-specialized-training',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'ptt-reliability-playbook',
+      capabilities: ['jitter-buffer', 'plc', 'store-forward', 'pre-buffer', 'late-join', 'talker-id'],
+    },
+  },
+  {
+    type: 'system',
+    title: 'PTT integration with welfare, rosters, and compliance evidence',
+    summary: clip(`
+      Integrate PTT as an operational safety layer within workforce systems:
+      - Roster-aware talk group assignment from active shifts/teams.
+      - Lone-worker escalation patterns (missed check-ins, emergency channel workflows).
+      - Transmission audit events (who talked, when, channel, duration, incident linkage).
+      - Optional transcription/AI enrichment pipelines with clear privacy controls.
+      Data governance: preserve tenant boundaries and role-based access for recordings,
+      transcripts, and incident evidence in compliance workflows.
+    `),
+    source: 'copilot-specialized-training',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'ptt-welfare-roster-compliance-integration',
+      integration_points: ['rosters', 'welfare-checks', 'audit-logs', 'transcription', 'incident-reporting'],
+    },
+  },
+  {
+    type: 'system',
+    title: 'PTT engineering reference set and implementation guardrails',
+    summary: clip(`
+      Preferred technical references for deep PTT implementation:
+      - WebRTC foundations and ICE/STUN/TURN behavior (including coturn operations).
+      - RTP fundamentals (RFC 3550) and VoIP signaling concepts where applicable.
+      - Open-source operational patterns from Mumble/Murmur and modern realtime platforms.
+      - Opus codec behavior and tuning expectations for speech-first traffic.
+      Bob must prioritize official standards/vendor docs over low-authority commentary,
+      and always separate protocol facts from architecture recommendations.
+    `),
+    source: 'copilot-specialized-training',
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: {
+      module: 'ptt-reference-guardrails',
+      references: [
+        'https://webrtc.org/',
+        'https://www.rfc-editor.org/rfc/rfc3550',
+        'https://opus-codec.org/',
+        'https://www.asterisk.org/',
+        'https://wiki.mumble.info/wiki/Main_Page',
+      ],
+      policy: ['authoritative-sources-first', 'explicit-assumptions', 'no-fabrication'],
+    },
+  },
 ]
 
 console.log('\nAdvanced Bob training feed')
