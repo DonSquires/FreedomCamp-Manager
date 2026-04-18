@@ -272,6 +272,10 @@ jobs:
           RUNPOD_GATEWAY_URL_TABULAR: ${{ secrets.RUNPOD_GATEWAY_URL_TABULAR }}
           RUNPOD_ALLOW_DIRECT_OLLAMA: ${{ secrets.RUNPOD_ALLOW_DIRECT_OLLAMA }}
           BOB_GATEWAY_KEY: ${{ secrets.BOB_GATEWAY_KEY }}
+          RUNPOD_POD_ID: ${{ secrets.RUNPOD_POD_ID }}
+          RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+          RUNPOD_IDLE_TIMEOUT_MS: ${{ vars.RUNPOD_IDLE_TIMEOUT_MS || '' }}
+          COMPLEX_CHAT_MIN_LEN: ${{ vars.COMPLEX_CHAT_MIN_LEN || '' }}
           DESIRED_OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL || 'llama3.1:8b' }}
           DESIRED_OLLAMA_VISION_MODEL: ${{ vars.OLLAMA_VISION_MODEL || 'llama3.2-vision:11b' }}
           DESIRED_OLLAMA_MODEL_WRITING: ${{ vars.OLLAMA_MODEL_WRITING || vars.OLLAMA_MODEL || 'llama3.1:8b' }}
@@ -413,6 +417,9 @@ jobs:
           fi
 
           echo "🔧 Applying Bob Railway variable baseline..."
+          # RAILWAY_SIMPLE_OLLAMA_URL is always the Railway-internal Ollama regardless
+          # of what OLLAMA_CHAT_BASE_URL resolves to. Short/low-complexity chat stays here.
+          RAILWAY_SIMPLE_OLLAMA_URL="http://ollama.railway.internal:11434"
           railway variable set \
             --service "$RAILWAY_SERVICE_ID" \
             --environment "$DEPLOY_ENVIRONMENT" \
@@ -429,6 +436,7 @@ jobs:
             "OLLAMA_CHAT_BASE_URL=${CHAT_OLLAMA_URL}" \
             "OLLAMA_PTT_BASE_URL=${PTT_OLLAMA_URL}" \
             "OLLAMA_TABULAR_BASE_URL=${TABULAR_OLLAMA_URL}" \
+            "RAILWAY_SIMPLE_OLLAMA_URL=${RAILWAY_SIMPLE_OLLAMA_URL}" \
             "OLLAMA_MODEL=${DESIRED_OLLAMA_MODEL}" \
             "TRANSLATION_MODEL=${DESIRED_OLLAMA_MODEL}" \
             "TRANSLATION_TIMEOUT_MS=20000" \
@@ -444,6 +452,35 @@ jobs:
             "TTS_DEFAULT_VOICE=en-nz" \
             "TTS_DEFAULT_RATE=160" \
             "SKIP_MODEL_DOWNLOADS=${SKIP_DOWNLOADS}"
+
+          # RunPod pod lifecycle — set only if the secrets are present.
+          if [ -n "${RUNPOD_POD_ID:-}" ] && [ -n "${RUNPOD_API_KEY:-}" ]; then
+            railway variable set \
+              --service "$RAILWAY_SERVICE_ID" \
+              --environment "$DEPLOY_ENVIRONMENT" \
+              --skip-deploys \
+              "RUNPOD_POD_ID=${RUNPOD_POD_ID}" \
+              "RUNPOD_API_KEY=${RUNPOD_API_KEY}"
+            echo "✅ RunPod pod lifecycle vars set (RUNPOD_POD_ID + RUNPOD_API_KEY)"
+          else
+            echo "ℹ️  RUNPOD_POD_ID or RUNPOD_API_KEY not configured — pod auto-stop disabled"
+          fi
+
+          # Optional tuning knobs — only set when explicitly provided.
+          if [ -n "${RUNPOD_IDLE_TIMEOUT_MS:-}" ]; then
+            railway variable set \
+              --service "$RAILWAY_SERVICE_ID" \
+              --environment "$DEPLOY_ENVIRONMENT" \
+              --skip-deploys \
+              "RUNPOD_IDLE_TIMEOUT_MS=${RUNPOD_IDLE_TIMEOUT_MS}"
+          fi
+          if [ -n "${COMPLEX_CHAT_MIN_LEN:-}" ]; then
+            railway variable set \
+              --service "$RAILWAY_SERVICE_ID" \
+              --environment "$DEPLOY_ENVIRONMENT" \
+              --skip-deploys \
+              "COMPLEX_CHAT_MIN_LEN=${COMPLEX_CHAT_MIN_LEN}"
+          fi
 
           # Set gateway auth key only when a RunPod gateway endpoint is selected.
           if [[ -n "$BOB_GATEWAY_KEY" && ( "$USE_RUNPOD_GATEWAY" == "true" || "$CHAT_USE_RUNPOD_GATEWAY" == "true" || "$PTT_USE_RUNPOD_GATEWAY" == "true" || "$TABULAR_USE_RUNPOD_GATEWAY" == "true" ) ]]; then

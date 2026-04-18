@@ -357,8 +357,59 @@ function ollamaFetch(url, options = {}) {
   return fetch(url, { ...options, headers });
 }
 
-function getOllamaBaseUrlForWorkload(workload = 'default') {
-  if (workload === 'chat') return OLLAMA_CHAT_BASE_URL;
+// ---------------------------------------------------------------------------
+// Simple-vs-complex task routing
+// ---------------------------------------------------------------------------
+// RAILWAY_SIMPLE_OLLAMA_URL — always-on Railway Ollama for lightweight tasks
+//   (PTT translation, short chat, tabular). Defaults to OLLAMA_BASE_URL so
+//   the split is opt-in: set this to http://ollama.railway.internal:11434
+//   and set OLLAMA_CHAT_BASE_URL to your RunPod gateway URL.
+// COMPLEX_CHAT_MIN_LEN — message character threshold above which chat routes
+//   to the full (RunPod) model. Messages shorter than this stay on Railway.
+//   Default: 300 chars. Set to 0 to always use the RunPod model for chat.
+// RUNPOD_POD_ID  — pod to auto-stop when Bob has been idle (GPU cost saver).
+// RUNPOD_API_KEY — RunPod API key used for pod start/stop GraphQL calls.
+//   Falls back to RUNPOD_ENDPOINT_API_KEY if set (serverless reuse).
+// RUNPOD_IDLE_TIMEOUT_MS — inactivity window before auto-stop (default 15 min).
+//   Set to 0 to disable auto-stop entirely.
+const RAILWAY_SIMPLE_OLLAMA_URL = (process.env.RAILWAY_SIMPLE_OLLAMA_URL || OLLAMA_BASE_URL).replace(/\/+$/, '');
+const COMPLEX_CHAT_MIN_LEN = Number(process.env.COMPLEX_CHAT_MIN_LEN ?? 300);
+const RUNPOD_POD_ID = process.env.RUNPOD_POD_ID || '';
+const RUNPOD_API_KEY_LIFECYCLE = process.env.RUNPOD_API_KEY || process.env.RUNPOD_ENDPOINT_API_KEY || '';
+const RUNPOD_IDLE_TIMEOUT_MS = Number(process.env.RUNPOD_IDLE_TIMEOUT_MS ?? 15 * 60_000);
+
+/**
+ * Returns true if this message/history qualifies as a complex task that
+ * warrants sending to the RunPod (GPU) Ollama rather than Railway Ollama.
+ */
+function isComplexChatTask(message, history = []) {
+  if (String(message || '').length >= COMPLEX_CHAT_MIN_LEN) return true;
+  if (Array.isArray(history) && history.length > 4) return true;
+  return false;
+}
+
+/**
+ * Returns the Ollama base URL for a given workload type, taking Railway-vs-RunPod
+ * complexity cost routing into account.
+ *
+ * workload:  'chat' | 'writing' | 'tabular' | 'ptt' | 'default'
+ * complex:   true when the caller has determined this is a heavy task
+ *            that justifies RunPod GPU compute.
+ */
+function getOllamaBaseUrlForWorkload(workload = 'default', complex = false) {
+  // Writing / tender generation always wants the most capable model available.
+  // Never downsize writing to the simple Railway Ollama.
+  if (workload === 'writing') return OLLAMA_CHAT_BASE_URL || OLLAMA_BASE_URL;
+
+  if (workload === 'chat') {
+    // Short/simple chat stays on always-on Railway Ollama when a separate
+    // simple URL is configured and RunPod isn't needed.
+    const hasRunPodChatUrl = OLLAMA_CHAT_BASE_URL !== RAILWAY_SIMPLE_OLLAMA_URL;
+    if (!complex && hasRunPodChatUrl) return RAILWAY_SIMPLE_OLLAMA_URL;
+    return OLLAMA_CHAT_BASE_URL;
+  }
+
+  // Tabular and PTT are always lightweight — anchor to Railway Ollama.
   if (workload === 'tabular') return OLLAMA_TABULAR_BASE_URL;
   if (workload === 'ptt') return OLLAMA_PTT_BASE_URL;
   return OLLAMA_BASE_URL;
@@ -628,6 +679,99 @@ const ollamaCircuitBreaker = {
     this.lastError = error?.message || String(error);
     this.state     = 'open';
     this.openedAt  = Date.now();
+  },
+};
+
+// ---------------------------------------------------------------------------
+// RunPod pod lifecycle manager — auto-stops the GPU pod after idle period.
+// Saves ~$0.99/hr (RTX 5090) when Bob has no active workloads.
+// ---------------------------------------------------------------------------
+const RUNPOD_GRAPHQL_URL = 'https://api.runpod.io/graphql';
+
+const runpodPodManager = {
+  lastCallAt:   0,
+  stopTimer:    null,
+  podId:        RUNPOD_POD_ID,
+  apiKey:       RUNPOD_API_KEY_LIFECYCLE,
+  idleTimeoutMs: RUNPOD_IDLE_TIMEOUT_MS,
+
+  /** Call this whenever a request is dispatched to RunPod Ollama. */
+  recordActivity() {
+    this.lastCallAt = Date.now();
+    if (this.stopTimer) {
+      clearTimeout(this.stopTimer);
+      this.stopTimer = null;
+    }
+    if (this.idleTimeoutMs > 0 && this.podId && this.apiKey) {
+      this.stopTimer = setTimeout(() => this._autoStop(), this.idleTimeoutMs);
+    }
+  },
+
+  /** Internal: called by the idle timer to stop the RunPod pod. */
+  async _autoStop() {
+    if (!this.podId || !this.apiKey) return;
+    const idleSec = Math.round((Date.now() - this.lastCallAt) / 1000);
+    console.log(`⏸  RunPod auto-stop: pod ${this.podId} idle for ${idleSec}s — stopping to save GPU cost`);
+    try {
+      const result = await this._graphql(
+        `mutation { stopPod(input: { podId: "${this.podId}" }) { id desiredStatus } }`,
+      );
+      const status = result?.data?.stopPod?.desiredStatus;
+      if (status) {
+        console.log(`✅ RunPod pod ${this.podId} stop requested — desiredStatus: ${status}`);
+      } else {
+        console.warn(`⚠️  RunPod stopPod returned unexpected:`, JSON.stringify(result).slice(0, 200));
+      }
+    } catch (err) {
+      console.warn(`⚠️  RunPod auto-stop failed: ${err.message}`);
+    }
+  },
+
+  async startPod() {
+    if (!this.podId || !this.apiKey) throw new Error('RUNPOD_POD_ID and RUNPOD_API_KEY are required to start a pod');
+    const result = await this._graphql(
+      `mutation { podResume(input: { podId: "${this.podId}", gpuCount: 1 }) { id desiredStatus costPerHr } }`,
+    );
+    const pod = result?.data?.podResume;
+    if (pod) this.recordActivity();
+    return pod || result;
+  },
+
+  async stopPod() {
+    if (!this.podId || !this.apiKey) throw new Error('RUNPOD_POD_ID and RUNPOD_API_KEY are required to stop a pod');
+    if (this.stopTimer) { clearTimeout(this.stopTimer); this.stopTimer = null; }
+    return this._graphql(
+      `mutation { stopPod(input: { podId: "${this.podId}" }) { id desiredStatus } }`,
+    );
+  },
+
+  async podStatus() {
+    if (!this.podId || !this.apiKey) return { enabled: false };
+    const result = await this._graphql(
+      `query { pod(input: { podId: "${this.podId}" }) { id name desiredStatus runtime { uptimeInSeconds gpus { id gpuUtilPercent } } } }`,
+    );
+    return result?.data?.pod || { error: 'not found' };
+  },
+
+  async _graphql(query) {
+    const resp = await fetch(RUNPOD_GRAPHQL_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
+      body: JSON.stringify({ query }),
+    });
+    return resp.json();
+  },
+
+  /** Returns a snapshot for /health and diagnostics. */
+  toJSON() {
+    return {
+      enabled:       !!(this.podId && this.apiKey),
+      pod_id:        this.podId || null,
+      last_call_at:  this.lastCallAt ? new Date(this.lastCallAt).toISOString() : null,
+      idle_timeout_ms: this.idleTimeoutMs,
+      idle_s:        this.lastCallAt > 0 ? Math.round((Date.now() - this.lastCallAt) / 1000) : null,
+      auto_stop_armed: !!this.stopTimer,
+    };
   },
 };
 
@@ -1678,7 +1822,10 @@ function generateHeuristicChatReply(message, context = {}) {
 }
 
 async function generateChatReplyWithOllama(message, history = [], context = {}) {
-  const ollamaBaseUrl = getOllamaBaseUrlForWorkload('chat');
+  const complex = isComplexChatTask(message, history);
+  const ollamaBaseUrl = getOllamaBaseUrlForWorkload('chat', complex);
+  // Track RunPod activity so the idle-stop timer fires correctly.
+  if (ollamaBaseUrl !== RAILWAY_SIMPLE_OLLAMA_URL) runpodPodManager.recordActivity();
   if (!OLLAMA_ENABLED) {
     recordEgressEvent('ollama', 'blocked', 'Chat requested ollama but local ollama is unavailable');
     return buildChatHeuristicFallback(message, context);
@@ -2241,6 +2388,10 @@ async function generateTenderWithOllama(generationType, context, orgContext) {
     return null;
   }
 
+  // Tender generation is always a complex/heavy task — record RunPod activity.
+  const writingBaseUrl = getOllamaBaseUrlForWorkload('writing');
+  runpodPodManager.recordActivity();
+
   const systemPrompt = buildTenderSystemPrompt(generationType, context, orgContext);
   const userPrompt = buildTenderUserPrompt({ ...context, generation_type: generationType });
   const controller = new AbortController();
@@ -2248,7 +2399,7 @@ async function generateTenderWithOllama(generationType, context, orgContext) {
 
   try {
     recordEgressEvent('ollama', 'attempted', 'tender/generate');
-    const response = await safeFetch(`${OLLAMA_BASE_URL}/api/chat`, {
+    const response = await safeFetch(`${writingBaseUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
@@ -6289,6 +6440,7 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       safety_adapter_summary: getSafetyCapabilitySummary(),
     },
     ollama_circuit_breaker: OLLAMA_ENABLED ? ollamaCircuitBreaker.toJSON() : null,
+    runpod_pod_manager: runpodPodManager.toJSON(),
     knowledge_requests: knowledgeRequestsStore.getState(),
     code_tasks: codeTaskStore.getState(),
     uptime: process.uptime(),
@@ -6296,9 +6448,14 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
   });
 });
 
-async function probeOllamaTags(timeoutMs = 8000) {
+async function probeOllamaTags(timeoutMs = 8000, options = {}) {
+  const workload = String(options?.workload || 'default');
+  const baseUrlRaw = options?.baseUrl || getOllamaBaseUrlForWorkload(workload);
+  const baseUrl = String(baseUrlRaw || OLLAMA_BASE_URL).replace(/\/$/, '');
   const result = {
     ok: false,
+    workload,
+    base_url: baseUrl,
     status: null,
     latency_ms: null,
     error: null,
@@ -6309,7 +6466,7 @@ async function probeOllamaTags(timeoutMs = 8000) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     const startedAt = Date.now();
-    const resp = await ollamaFetch(`${OLLAMA_BASE_URL}/api/tags`, { signal: controller.signal });
+    const resp = await ollamaFetch(`${baseUrl}/api/tags`, { signal: controller.signal });
     clearTimeout(timer);
 
     result.status = resp.status;
@@ -6589,6 +6746,14 @@ async function runDoctorAutoHealCycle() {
 async function buildDoctorHealthSnapshot() {
   const modelsLoaded = !!(yoloSession && embeddingSession);
   const ollamaProbe = OLLAMA_ENABLED ? await probeOllamaTags(7000) : null;
+  const ollamaProbes = OLLAMA_ENABLED
+    ? {
+      default: await probeOllamaTags(7000, { workload: 'default', baseUrl: OLLAMA_BASE_URL }),
+      chat: await probeOllamaTags(7000, { workload: 'chat', baseUrl: OLLAMA_CHAT_BASE_URL }),
+      tabular: await probeOllamaTags(7000, { workload: 'tabular', baseUrl: OLLAMA_TABULAR_BASE_URL }),
+      ptt: await probeOllamaTags(7000, { workload: 'ptt', baseUrl: OLLAMA_PTT_BASE_URL }),
+    }
+    : null;
   const pttProbe = await probePttHealth(5000);
   const breaker = OLLAMA_ENABLED ? ollamaCircuitBreaker.toJSON() : null;
   const crossArea = {
@@ -6699,6 +6864,7 @@ async function buildDoctorHealthSnapshot() {
         model: OLLAMA_MODEL,
         vision_model: OLLAMA_VISION_MODEL || null,
         probe: ollamaProbe,
+        probes_by_workload: ollamaProbes,
         breaker,
       },
       ptt: pttProbe,
@@ -6777,18 +6943,21 @@ app.post('/ops/circuit-reset', rateLimit({ windowMs: 60_000, max: 10, standardHe
   let probeStatus = null;
   let probeError  = null;
   let probeMs     = null;
+  let probeTargetUrl = `${OLLAMA_BASE_URL}/api/tags`;
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 10_000);
     const t0 = Date.now();
-    const resp = await ollamaFetch(`${OLLAMA_BASE_URL}/api/tags`, { signal: controller.signal });
+    const defaultProbe = await probeOllamaTags(10_000, { workload: 'default', baseUrl: OLLAMA_BASE_URL });
     clearTimeout(timer);
-    probeMs     = Date.now() - t0;
-    probeStatus = resp.status;
-    if (resp.ok) {
+    probeMs     = defaultProbe.latency_ms ?? (Date.now() - t0);
+    probeStatus = defaultProbe.status;
+    probeError = defaultProbe.error;
+    probeTargetUrl = `${defaultProbe.base_url}/api/tags`;
+    if (defaultProbe.ok) {
       ollamaCircuitBreaker.recordSuccess();
     } else {
-      ollamaCircuitBreaker.recordFailure(new Error(`HTTP ${resp.status}`));
+      ollamaCircuitBreaker.recordFailure(new Error(defaultProbe.error || `HTTP ${defaultProbe.status || 'unknown'}`));
     }
   } catch (err) {
     const code = err?.cause?.code || err?.code || '';
@@ -6796,11 +6965,21 @@ app.post('/ops/circuit-reset', rateLimit({ windowMs: 60_000, max: 10, standardHe
     ollamaCircuitBreaker.recordFailure(err);
   }
 
+  const probesByWorkload = OLLAMA_ENABLED
+    ? {
+      default: await probeOllamaTags(7000, { workload: 'default', baseUrl: OLLAMA_BASE_URL }),
+      chat: await probeOllamaTags(7000, { workload: 'chat', baseUrl: OLLAMA_CHAT_BASE_URL }),
+      tabular: await probeOllamaTags(7000, { workload: 'tabular', baseUrl: OLLAMA_TABULAR_BASE_URL }),
+      ptt: await probeOllamaTags(7000, { workload: 'ptt', baseUrl: OLLAMA_PTT_BASE_URL }),
+    }
+    : null;
+
   res.json({
     success: true,
     previous: prevState,
     current:  ollamaCircuitBreaker.toJSON(),
-    probe: { url: `${OLLAMA_BASE_URL}/api/tags`, status: probeStatus, error: probeError, ms: probeMs },
+    probe: { url: probeTargetUrl, status: probeStatus, error: probeError, ms: probeMs },
+    probes_by_workload: probesByWorkload,
   });
 });
 
@@ -6810,6 +6989,43 @@ app.get('/audit/egress', rateLimit({ windowMs: 60_000, max: 60, standardHeaders:
     success: true,
     audit: egressAudit,
   });
+});
+
+// ---------------------------------------------------------------------------
+// RunPod pod lifecycle control — start, stop, status.
+// All actions require the standard inference auth so they can only be called
+// by trusted services or operators with the INFERENCE_API_KEY.
+// ---------------------------------------------------------------------------
+const runpodPodRateLimit = rateLimit({ windowMs: 60_000, max: 20, standardHeaders: true, legacyHeaders: false });
+
+app.get('/runpod/pod', runpodPodRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const [lifecycle, status] = await Promise.all([
+      Promise.resolve(runpodPodManager.toJSON()),
+      runpodPodManager.podStatus().catch((err) => ({ error: err.message })),
+    ]);
+    res.json({ success: true, lifecycle, pod: status });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/runpod/pod/start', runpodPodRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const result = await runpodPodManager.startPod();
+    res.json({ success: true, result });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/runpod/pod/stop', runpodPodRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const result = await runpodPodManager.stopPod();
+    res.json({ success: true, result });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
 });
 
 // Error handler
