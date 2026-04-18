@@ -54,19 +54,36 @@ jobs:
           REVIEW_PROMPT: ${{ inputs.prompt }}
         run: |
           set -euo pipefail
-          URL="${INFERENCE_SERVICE_URL:-https://focused-courage-production-ccee.up.railway.app}"
-          echo "Using inference URL: $URL"
+          URL_RAW="${INFERENCE_SERVICE_URL:-https://focused-courage-production-ccee.up.railway.app}"
+          REVIEW_PROMPT_EFFECTIVE="${REVIEW_PROMPT:-Review recent RunPod and Ollama workflow changes for security and regression risks.}"
+          echo "Using inference URL (raw): $URL_RAW"
           AUTH_KEY="${INFERENCE_API_KEY:-${BOB_INFERENCE_API_KEY:-}}"
 
-          URL="$URL" AUTH_KEY="$AUTH_KEY" REVIEW_PROMPT="$REVIEW_PROMPT" node - <<'NODE' | tee bob-assisted-review.log
+          URL_RAW="$URL_RAW" AUTH_KEY="$AUTH_KEY" REVIEW_PROMPT="$REVIEW_PROMPT_EFFECTIVE" node - <<'NODE' | tee bob-assisted-review.log
           const https = require('https');
 
-          const url = process.env.URL;
+          const defaultUrl = 'https://focused-courage-production-ccee.up.railway.app';
+          const rawUrl = String(process.env.URL_RAW || '').trim();
           const apiKey = process.env.AUTH_KEY;
           const prompt = process.env.REVIEW_PROMPT;
 
+          let normalizedUrl = rawUrl || defaultUrl;
+          if (!/^https?:\/\//i.test(normalizedUrl)) {
+            normalizedUrl = `https://${normalizedUrl}`;
+          }
+
+          let endpoint;
+          try {
+            endpoint = new URL(normalizedUrl);
+          } catch {
+            console.warn(`[Warn] Invalid INFERENCE_SERVICE_URL, falling back to default: ${defaultUrl}`);
+            normalizedUrl = defaultUrl;
+            endpoint = new URL(normalizedUrl);
+          }
+
+          console.log(`[Agent] Calling Bob at ${normalizedUrl}`);
+
           const body = JSON.stringify({ message: prompt });
-          const endpoint = new URL(url);
 
           const options = {
             hostname: endpoint.hostname,
