@@ -51,7 +51,12 @@ function safeJsonParse(raw, fieldName) {
   }
 }
 
-function normalizeInput(inputRaw) {
+function normalizeInput(inputRaw, promptTextRaw) {
+  const promptText = String(promptTextRaw || '').trim();
+  if (promptText) {
+    return { prompt: promptText };
+  }
+
   if (!String(inputRaw || '').trim()) {
     return { prompt: 'Hello from Codespaces' };
   }
@@ -145,6 +150,7 @@ async function main() {
   const endpointId = String(process.env.RUNPOD_ENDPOINT_ID || '').trim();
 
   const inputRaw = getArg('input', '');
+  const promptRaw = getArg('prompt', '');
   const payloadRaw = getArg('payload', '');
   const statusJobId = getArg('statusJobId', '');
   const statusUrlTemplate = getArg('statusUrl', '');
@@ -173,7 +179,7 @@ async function main() {
     process.exit(failed ? 1 : 0);
   }
 
-  const inputObject = normalizeInput(inputRaw);
+  const inputObject = normalizeInput(inputRaw, promptRaw);
   const payload = normalizePayload(payloadRaw, inputObject);
 
   const invokeData = await httpJson(endpointUrl, apiKey, payload);

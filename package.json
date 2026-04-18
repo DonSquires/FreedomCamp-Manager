@@ -18,6 +18,7 @@
     "runpod:create-pods": "node scripts/create-runpod-pods.mjs",
     "runpod:endpoint:invoke": "node scripts/invoke-runpod-endpoint.mjs",
     "runpod:endpoint:status": "node scripts/invoke-runpod-endpoint.mjs --statusJobId",
+    "runpod:endpoint:smoke": "node scripts/invoke-runpod-endpoint.mjs --prompt \"Smoke test from local\" --poll true --timeoutMs 180000 --intervalMs 3000",
     "agentic:ui": "bun scripts/agentic-ui-shadow-user.mjs",
     "agentic:ui:all3": "sh -c 'set +e; bun scripts/agentic-ui-shadow-user.mjs --pack=login-health --no-planner --evidence-dir=tools/agentic-ui-reports/login-health; bun scripts/agentic-ui-shadow-user.mjs --pack=tender-shadow --no-planner --evidence-dir=tools/agentic-ui-reports/tender-shadow; bun scripts/agentic-ui-shadow-user.mjs --pack=ptt-zindex --no-planner --evidence-dir=tools/agentic-ui-reports/ptt-zindex; true'",
     "preview": "vite preview",
