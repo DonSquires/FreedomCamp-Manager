@@ -135,7 +135,8 @@ jobs:
           cd ptt-server
           echo "🚂 Deploying ptt-server to Railway..."
           if [ -n "${RAILWAY_PROJECT_ID:-}" ]; then
-            railway up --project "$RAILWAY_PROJECT_ID" --service "$RAILWAY_SERVICE_ID" --detach \
+            railway link --project "$RAILWAY_PROJECT_ID" --environment production \
+              && railway up --service "$RAILWAY_SERVICE_ID" --detach \
               || railway up --service "$RAILWAY_SERVICE_ID" --detach
           else
             railway up --service "$RAILWAY_SERVICE_ID" --detach
