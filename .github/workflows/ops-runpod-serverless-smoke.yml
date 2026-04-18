@@ -19,6 +19,9 @@ on:
 permissions:
   contents: read
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   smoke:
     name: RunPod Serverless Smoke
@@ -37,15 +40,21 @@ jobs:
         env:
           RUNPOD_ENDPOINT_URL: ${{ secrets.RUNPOD_ENDPOINT_URL }}
           RUNPOD_ENDPOINT_API_KEY: ${{ secrets.RUNPOD_ENDPOINT_API_KEY }}
+          RUNPOD_ENDPOINT_ID: ${{ secrets.RUNPOD_ENDPOINT_ID }}
         run: |
           set -e
           if [ -z "$RUNPOD_ENDPOINT_URL" ]; then
-            echo "Missing secret: RUNPOD_ENDPOINT_URL"
+            echo "::error::Missing secret: RUNPOD_ENDPOINT_URL"
             exit 1
           fi
           if [ -z "$RUNPOD_ENDPOINT_API_KEY" ]; then
-            echo "Missing secret: RUNPOD_ENDPOINT_API_KEY"
+            echo "::error::Missing secret: RUNPOD_ENDPOINT_API_KEY"
             exit 1
+          fi
+          if [ -n "$RUNPOD_ENDPOINT_ID" ]; then
+            echo "RUNPOD_ENDPOINT_ID present"
+          else
+            echo "RUNPOD_ENDPOINT_ID not set; status URL will be derived from RUNPOD_ENDPOINT_URL"
           fi
 
       - name: Invoke endpoint and poll result
@@ -61,7 +70,7 @@ jobs:
           started_at=$(date +%s)
 
           node scripts/invoke-runpod-endpoint.mjs \
-            --prompt "$SMOKE_PROMPT" \
+            --input "{\"prompt\":\"$SMOKE_PROMPT\"}" \
             --poll true \
             --timeoutMs "$SMOKE_TIMEOUT_MS" \
             --intervalMs "$SMOKE_INTERVAL_MS" | tee runpod-smoke.log
