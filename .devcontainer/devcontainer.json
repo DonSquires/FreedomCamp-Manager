@@ -1,5 +1,5 @@
 {
-  "name": "FieldOps Manager",
+  "name": "Bob-Development-Env",
   "image": "mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm",
 
   // -----------------------------------------------------------------------
@@ -9,6 +9,8 @@
   // -----------------------------------------------------------------------
   "features": {
     "ghcr.io/devcontainers/features/node:1": { "version": "22" },
+    "ghcr.io/devcontainers/features/python:1": { "version": "3.11" },
+    "ghcr.io/devcontainers/features/docker-in-docker:1": {},
     "ghcr.io/devcontainers-contrib/features/bun:1": {},
     "ghcr.io/devcontainers/features/github-cli:1": {},
     "ghcr.io/devcontainers-contrib/features/supabase-cli:1": { "version": "2.78.1" },
@@ -25,6 +27,8 @@
         "esbenp.prettier-vscode",
         "bradlc.vscode-tailwindcss",
         "ms-vscode.vscode-typescript-next",
+        "ms-python.python",
+        "ms-azuretools.vscode-docker",
         "mtxr.sqltools",
         "mtxr.sqltools-driver-pg",
         "denoland.vscode-deno",
@@ -41,13 +45,14 @@
 
   // -----------------------------------------------------------------------
   // Run once after the container is created.
-  // 1. Copy .env.example → .env so the app has a base configuration.
-  //    Developers should update VITE_SUPABASE_ANON_KEY (and any other
-  //    secrets) via GitHub Codespace Secrets or by editing .env directly.
-  // 2. Install project dependencies.
+  // This script bootstraps the full Bob environment:
+  // - local app dependencies
+  // - Ollama runtime
+  // - ONNX Runtime + RunPod Python SDK
+  // - optional model pulls if URLs are provided via secrets/env vars
   // -----------------------------------------------------------------------
   "onCreateCommand": "cp -n .env.example .env 2>/dev/null || true",
-  "postCreateCommand": "bun install 2>/dev/null || npm install",
+  "postCreateCommand": "bash .devcontainer/postCreate.sh",
 
   // -----------------------------------------------------------------------
   // Run every time the Codespace starts (after create).
@@ -60,13 +65,21 @@
 
   // Forward the Vite dev server port so you can preview the app in your
   // browser tab directly from Codespaces.
-  "forwardPorts": [5173, 3000, 3002, 8080],
+  "forwardPorts": [5173, 3000, 3002, 8080, 11434],
 
   "portsAttributes": {
     "5173": { "label": "Vite Dev Server", "onAutoForward": "openPreview" },
     "3000": { "label": "Proxy Server" },
     "3002": { "label": "PTT Signaling Server" },
     "8080": { "label": "Inference Service" }
+  },
+
+  "remoteEnv": {
+    "RUNPOD_API_KEY": "${localEnv:RUNPOD_API_KEY}",
+    "RUNPOD_POD_ID": "${localEnv:RUNPOD_POD_ID}",
+    "BOB_VEHICLE_MODEL_URL": "${localEnv:BOB_VEHICLE_MODEL_URL}",
+    "BOB_FACE_MODEL_URL": "${localEnv:BOB_FACE_MODEL_URL}",
+    "BOB_SMOKE_MODEL_URL": "${localEnv:BOB_SMOKE_MODEL_URL}"
   },
 
   "remoteUser": "vscode"
