@@ -70,9 +70,10 @@ function nEnv(name, fallback) {
 
 const config = {
   goal: getArg('goal', '').trim(),
+  pack: getArg('pack', '').trim(),
   baseUrl: (getArg('base-url') || process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173').replace(/\/$/, ''),
-  email: getArg('email') || process.env.PLAYWRIGHT_ADMIN_EMAIL || process.env.E2E_ADMIN_EMAIL || process.env.PLAYWRIGHT_LIVE_EMAIL || '',
-  password: getArg('password') || process.env.PLAYWRIGHT_ADMIN_PASSWORD || process.env.E2E_ADMIN_PASSWORD || process.env.PLAYWRIGHT_LIVE_PASSWORD || process.env.PLAYWRIGHT_TEST_PASSWORD || '',
+  email: getArg('email') || process.env.PLAYWRIGHT_ADMIN_EMAIL || process.env.E2E_ADMIN_EMAIL || process.env.PLAYWRIGHT_LIVE_EMAIL || 'admin@org1.com',
+  password: getArg('password') || process.env.PLAYWRIGHT_ADMIN_PASSWORD || process.env.E2E_ADMIN_PASSWORD || process.env.PLAYWRIGHT_LIVE_PASSWORD || process.env.PLAYWRIGHT_TEST_PASSWORD || 'Test123!',
   headless: hasFlag('headed') ? false : boolEnv('AGENTIC_HEADLESS', true),
   maxSteps: Number(getArg('max-steps', '')) || nEnv('AGENTIC_MAX_STEPS', 12),
   evidenceDir: path.resolve(getArg('evidence-dir', defaultEvidenceDir)),
@@ -86,9 +87,11 @@ Agentic UI Shadow User (starter)
 
 Usage:
   node scripts/agentic-ui-shadow-user.mjs --goal "log in and open tender workspace"
+  node scripts/agentic-ui-shadow-user.mjs --pack login-health
 
 Options:
   --goal <text>              Human test objective (required)
+  --pack <name>              Built-in pack: login-health | tender-shadow | ptt-zindex
   --base-url <url>           App base URL (default: PLAYWRIGHT_BASE_URL or http://localhost:5173)
   --email <email>            Login email (fallback from Playwright env vars)
   --password <password>      Login password (fallback from Playwright env vars)
@@ -106,9 +109,18 @@ Planner env (optional):
   process.exit(0)
 }
 
-if (!config.goal) {
+if (!config.goal && !config.pack) {
   console.error('Missing --goal. Example: --goal "log in and open tender workspace"')
   process.exit(1)
+}
+
+if (!config.goal && config.pack) {
+  const map = {
+    'login-health': 'shadow run: login health check',
+    'tender-shadow': 'shadow run: tender compliance submission block check',
+    'ptt-zindex': 'shadow run: verify ptt control visibility and z-index safety',
+  }
+  config.goal = map[config.pack] || `shadow run pack: ${config.pack}`
 }
 
 /** @typedef {{type:string, selector?:string, value?:string, url?:string, text?:string, key?:string, note?:string}} AgentAction */
@@ -140,6 +152,52 @@ function buildHeuristicPlan(goal) {
   steps.push({ type: 'axeCheck', note: 'Run accessibility scan (best effort)' })
   steps.push({ type: 'done', note: 'End of heuristic plan' })
   return steps
+}
+
+function buildPackPlan(pack) {
+  if (!pack) return null
+
+  const baseLogin = [
+    { type: 'goto', url: '/login', note: 'Navigate to login page' },
+    { type: 'fill', selector: 'input[type="email"]', value: '__EMAIL__', note: 'Enter email' },
+    { type: 'fill', selector: 'input[type="password"]', value: '__PASSWORD__', note: 'Enter password' },
+    { type: 'click', selector: 'button[type="submit"]', note: 'Submit login form' },
+    { type: 'waitForUrlNotContains', text: '/login', note: 'Confirm login success' },
+  ]
+
+  if (pack === 'login-health') {
+    return [
+      ...baseLogin,
+      { type: 'expectVisibleAny', value: 'text=/Admin Hub|FieldOps|Portal|Dashboard/i', note: 'Confirm authenticated landing state' },
+      { type: 'axeCheck', note: 'Quick a11y scan after login' },
+      { type: 'done', note: 'Login health pack complete' },
+    ]
+  }
+
+  if (pack === 'tender-shadow') {
+    return [
+      ...baseLogin,
+      { type: 'goto', url: '/tender-workspace', note: 'Open tender workspace list' },
+      { type: 'clickIfVisible', selector: 'main a[href^="/tender-workspace/"]:not([href="/tender-workspace"])', note: 'Open first tender detail if available' },
+      { type: 'clickIfVisible', selector: '[role="tab"]:has-text("Draft Response")', note: 'Open draft tab' },
+      { type: 'clickIfVisible', selector: 'button:has-text("Submit for Approval")', note: 'Attempt submit (shadow check)' },
+      { type: 'expectVisibleAny', value: 'text=/Cannot submit|mandatory requirement|Submitted for approval|Submitted for Approval|Pending Review/i', note: 'Verify validation or status transition outcome is visible' },
+      { type: 'axeCheck', note: 'Quick a11y scan' },
+      { type: 'done', note: 'Tender shadow pack complete' },
+    ]
+  }
+
+  if (pack === 'ptt-zindex') {
+    return [
+      ...baseLogin,
+      { type: 'goto', url: '/team-chat', note: 'Open team chat where PTT bar is commonly rendered' },
+      { type: 'pttZIndexCheck', note: 'Verify a PTT-like control is visible and not occluded' },
+      { type: 'axeCheck', note: 'Quick a11y scan' },
+      { type: 'done', note: 'PTT z-index pack complete' },
+    ]
+  }
+
+  return null
 }
 
 function normalizeAction(raw) {
@@ -265,6 +323,15 @@ async function executeAction(page, action) {
     return { ok: true }
   }
 
+  if (t === 'clickIfVisible') {
+    const loc = page.locator(action.selector || '').first()
+    if (await loc.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await loc.click({ timeout: config.timeoutMs })
+      return { ok: true, clicked: true }
+    }
+    return { ok: true, clicked: false }
+  }
+
   if (t === 'fill') {
     const value = action.value === '__EMAIL__' ? config.email : action.value === '__PASSWORD__' ? config.password : (action.value || '')
     await page.locator(action.selector || '').first().fill(value, { timeout: config.timeoutMs })
@@ -281,6 +348,25 @@ async function executeAction(page, action) {
     return { ok: true }
   }
 
+  if (t === 'expectVisibleAny') {
+    const rawValue = String(action.value || '').trim()
+    const candidates = rawValue.startsWith('text=/')
+      ? [rawValue]
+      : rawValue.split('|').map((s) => s.trim()).filter(Boolean)
+
+    // Also support a single Playwright text regex expression in action.value
+    if (candidates.length === 1) {
+      await page.locator(candidates[0]).first().waitFor({ state: 'visible', timeout: config.timeoutMs })
+      return { ok: true, matched: candidates[0] }
+    }
+
+    for (const sel of candidates) {
+      const visible = await page.locator(sel).first().isVisible({ timeout: 1000 }).catch(() => false)
+      if (visible) return { ok: true, matched: sel }
+    }
+    return { ok: false, error: `None of expected selectors are visible: ${candidates.join(', ')}` }
+  }
+
   if (t === 'waitForUrlContains') {
     await page.waitForURL((u) => u.toString().includes(action.text || ''), { timeout: config.timeoutMs })
     return { ok: true }
@@ -294,6 +380,46 @@ async function executeAction(page, action) {
   if (t === 'axeCheck') {
     const axe = await runAxe(page)
     return { ok: true, axe }
+  }
+
+  if (t === 'pttZIndexCheck') {
+    const out = await page.evaluate(() => {
+      const selectors = [
+        '[data-testid="ptt-trigger-btn"]',
+        '[data-testid*="ptt" i]',
+        'button:has-text("Push to Talk")',
+        'button:has-text("PTT")',
+        '[aria-label*="push to talk" i]',
+      ]
+
+      const find = () => {
+        for (const s of selectors) {
+          const el = document.querySelector(s)
+          if (el) return { el, selector: s }
+        }
+        return null
+      }
+
+      const found = find()
+      if (!found) return { ok: false, reason: 'PTT control not found', selector: null }
+
+      const rect = found.el.getBoundingClientRect()
+      if (rect.width < 2 || rect.height < 2) return { ok: false, reason: 'PTT control has invalid size', selector: found.selector }
+
+      const cx = rect.left + rect.width / 2
+      const cy = rect.top + rect.height / 2
+      const topEl = document.elementFromPoint(cx, cy)
+      const occluded = topEl ? !(found.el === topEl || found.el.contains(topEl)) : true
+
+      return {
+        ok: !occluded,
+        selector: found.selector,
+        occluded,
+        topTag: topEl ? topEl.tagName : null,
+      }
+    })
+
+    return out.ok ? { ok: true, ptt: out } : { ok: false, error: out.reason || 'PTT z-index/visibility check failed', ptt: out }
   }
 
   return { ok: false, error: `Unknown action type: ${t}` }
@@ -320,6 +446,8 @@ async function main() {
     config: redactConfigForReport(),
     actions: [],
     result: 'unknown',
+    pack: config.pack || null,
+    compliance_findings: [],
   }
 
   const browserLaunchCandidates = [
@@ -351,7 +479,8 @@ async function main() {
     process.exit(1)
   }
 
-  const heuristicPlan = buildHeuristicPlan(config.goal)
+  const packPlan = buildPackPlan(config.pack)
+  const heuristicPlan = packPlan || buildHeuristicPlan(config.goal)
   let heuristicIdx = 0
 
   try {
@@ -392,6 +521,15 @@ async function main() {
       }
 
       if (!execution?.ok) {
+        if (action.type === 'waitForUrlNotContains' && action.text === '/login' && page.url().includes('/login')) {
+          report.result = 'blocked_auth'
+          report.compliance_findings.push({
+            level: 'info',
+            code: 'LOGIN_BLOCKED',
+            detail: 'Authentication did not complete. Provide valid --email/--password or environment credentials for full pack execution.',
+          })
+          break
+        }
         report.result = 'failed'
         break
       }
