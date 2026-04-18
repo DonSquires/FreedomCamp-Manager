@@ -122,7 +122,7 @@ const KNOWLEDGE_PACKS = {
       'Four Railway services: Bob (inference-service/), Proxy (proxy-server/), PTT (ptt-server/), Ollama (ollama/). Bob and Ollama share one Railway project for private networking. Proxy and PTT are in a separate core project.',
       'CRITICAL: Bob production should expose an explicit operating mode in /health. Use BOB_OPERATING_MODE=self-contained for locked-down production and BOB_OPERATING_MODE=build-training for internet-enabled build/training work.',
       'CRITICAL: Bob OLLAMA_BASE_URL must be http://ollama.railway.internal:<port> where <port> matches the Ollama OLLAMA_HOST setting. Check Ollama startup logs for: 🌐 Binding Ollama to 0.0.0.0:<port>. If port is 8080 use http://ollama.railway.internal:8080. If OLLAMA_BASE_URL is not set on Bob it defaults to localhost which is always unreachable.',
-      'CRITICAL: DEPLOY_SIGNATURE=bob-self-contained-hardlock-v1 is hardcoded in server.js. If /health shows a different value, the running image is outdated — redeploy from DonSquires/Bob main.',
+      'CRITICAL: DEPLOY_SIGNATURE=bob-build-training-open-v1 is hardcoded in server.js. If /health shows a different value, the running image is outdated — redeploy from DonSquires/Bob main.',
       'CRITICAL: OPENAI_API_KEY must NOT be set in self-contained mode. In build-training mode it is allowed when CHAT_PROVIDER or TABULAR_NLP_PROVIDER uses openai.',
       'PTT deploy workflow: deploy-ptt-railway.yml (not deploy-railway.yml). deploy-railway.yml is the legacy ONNX/core inference service workflow and should not be used for PTT.',
       'Bob Dockerfile HEALTHCHECK uses process.env.PORT (not hardcoded 3000). ptt-server/.env.example includes NODE_ENV=production to activate HTTPS enforcement middleware.',

@@ -28,21 +28,24 @@ In Railway dashboard, click the **Variables** tab and add:
 | `NODE_ENV` | `production` | Enables production optimisations |
 | `SUPABASE_URL` | `https://<project>.supabase.co` | Your Supabase project URL (auto-derives JWKS/issuer) |
 | `SUPABASE_SERVICE_ROLE_KEY` | `<service-role-key>` | Allows Supabase Edge Functions to call authenticated endpoints |
-| `SELF_CONTAINED_MODE` | `true` | Forces local-only AI execution mode |
-| `REQUIRE_SELF_CONTAINED_MODE` | `true` | Refuses startup if self-contained mode is not enabled |
-| `SELF_CONTAINED_STRICT_EGRESS` | `true` | Blocks all non-local outbound HTTP at runtime |
+| `SELF_CONTAINED_MODE` | `false` | Enables build-training mode with broader outbound access |
+| `REQUIRE_SELF_CONTAINED_MODE` | `false` | Allows startup outside locked-down self-contained mode |
+| `SELF_CONTAINED_STRICT_EGRESS` | `false` | Allows Bob to reach approved external services |
 
-#### Bob Self-Contained Mode (required for production)
+#### Bob Build-Training Mode (current production baseline)
 
 | Variable | Example Value | Description |
 |---|---|---|
-| `SELF_CONTAINED_MODE` | `true` | Forces local-only execution mode |
-| `REQUIRE_SELF_CONTAINED_MODE` | `true` | Refuses startup if self-contained mode is not enabled |
-| `SELF_CONTAINED_STRICT_EGRESS` | `true` | Blocks non-local outbound HTTP at runtime |
+| `BOB_OPERATING_MODE` | `build-training` | Internet-enabled Bob runtime profile |
+| `SELF_CONTAINED_MODE` | `false` | Allows non-local execution paths |
+| `REQUIRE_SELF_CONTAINED_MODE` | `false` | Does not force self-contained startup |
+| `SELF_CONTAINED_STRICT_EGRESS` | `false` | Permits outbound HTTP to approved services |
 | `VEHICLE_ATTRS_PROVIDER` | `basic` | Keeps attribute extraction local-only |
 | `TABULAR_NLP_PROVIDER` | `ollama` | Local LLM tabular analysis via Ollama (self-contained; falls back to heuristic if Ollama unreachable) |
-| `CHAT_PROVIDER` | `ollama` | Local LLM chat via Ollama (self-contained; falls back to heuristic if Ollama unreachable) |
-| `OLLAMA_BASE_URL` | `http://ollama.railway.internal:11434` | Ollama internal Railway URL (Bob and Ollama must be in the same Railway project) |
+| `CHAT_PROVIDER` | `ollama` | Local LLM chat via Ollama with heuristic fallback enabled |
+| `CHAT_HEURISTIC_ENABLED` | `true` | Falls back to trained heuristic replies when Ollama is slow or unavailable |
+| `CHAT_TIMEOUT_MS` | `120000` | Gives RunPod-backed Ollama time to warm and answer |
+| `OLLAMA_BASE_URL` | `https://<runpod-gateway>.proxy.runpod.net` | RunPod gateway URL, or Railway internal Ollama URL if using the internal service |
 | `OLLAMA_MODEL` | `llama3.1:8b` | LLM model served by Ollama |
 | `SELF_HEALING_ENABLED` | `true` | Enables self-heal endpoints through Bob |
 
@@ -198,6 +201,6 @@ Uses your existing Railway account - no additional service!
 - Only set `INFERENCE_API_KEY` if you need an additional static key for direct API calls
 
 **"Service unexpectedly calls cloud provider"**
-- Confirm `SELF_CONTAINED_MODE=true` and `SELF_CONTAINED_STRICT_EGRESS=true`
-- Confirm `VEHICLE_ATTRS_PROVIDER=basic`, `TABULAR_NLP_PROVIDER=heuristic`, and `CHAT_PROVIDER=heuristic`
-- Remove `OPENAI_*` variables from production unless explicitly approved for non-production experiments
+- Confirm whether the service is intentionally running in `build-training` mode
+- If cloud access is not intended, switch to `SELF_CONTAINED_MODE=true` and `SELF_CONTAINED_STRICT_EGRESS=true`
+- Keep `OPENAI_*` variables unset unless explicitly approved for external-provider experiments

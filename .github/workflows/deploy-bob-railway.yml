@@ -298,18 +298,19 @@ jobs:
             --service "$RAILWAY_SERVICE_ID" \
             --environment "$DEPLOY_ENVIRONMENT" \
             --skip-deploys \
-            "BOB_OPERATING_MODE=self-contained" \
-            "OPERATIONAL_MODE=self-contained" \
+            "BOB_OPERATING_MODE=build-training" \
+            "OPERATIONAL_MODE=build-training" \
             "CHAT_PROVIDER=ollama" \
             "TABULAR_NLP_PROVIDER=ollama" \
-            "SELF_CONTAINED_MODE=true" \
-            "REQUIRE_SELF_CONTAINED_MODE=true" \
-            "SELF_CONTAINED_STRICT_EGRESS=true" \
+            "CHAT_HEURISTIC_ENABLED=true" \
+            "SELF_CONTAINED_MODE=false" \
+            "REQUIRE_SELF_CONTAINED_MODE=false" \
+            "SELF_CONTAINED_STRICT_EGRESS=false" \
             "OLLAMA_BASE_URL=${OLLAMA_URL}" \
             "OLLAMA_MODEL=${DESIRED_OLLAMA_MODEL}" \
             "TRANSLATION_MODEL=${DESIRED_OLLAMA_MODEL}" \
             "TRANSLATION_TIMEOUT_MS=20000" \
-            "CHAT_TIMEOUT_MS=60000" \
+            "CHAT_TIMEOUT_MS=120000" \
             "OLLAMA_MODEL_WRITING=${DESIRED_OLLAMA_MODEL_WRITING}" \
             "OLLAMA_VISION_MODEL=${DESIRED_OLLAMA_VISION_MODEL}" \
             "VEHICLE_ATTRS_PROVIDER=ollama" \
@@ -436,8 +437,8 @@ jobs:
             if [ "$HEALTH_STATUS" = "200" ] && echo "$HEALTH_BODY" | grep -q '"models"'; then
               CURRENT_MODE=$(printf '%s' "$HEALTH_BODY" | jq -r '.config.OPERATING_MODE // empty')
               CURRENT_OLLAMA=$(printf '%s' "$HEALTH_BODY" | jq -r '.capabilities.chat_local_ollama_enabled // "unknown"')
-              if [ "$CURRENT_MODE" = "self-contained" ] && [ "$CURRENT_OLLAMA" = "true" ]; then
-                echo "✅ Bob health is reporting the expected self-contained/Ollama state."
+              if [ "$CURRENT_MODE" = "build-training" ] && [ "$CURRENT_OLLAMA" = "true" ]; then
+                echo "✅ Bob health is reporting the expected build-training/Ollama state."
                 break
               fi
             fi
@@ -464,19 +465,18 @@ jobs:
           REQUIRE_SELF_CONTAINED_MODE=$(printf '%s' "$HEALTH_BODY" | jq -r '.config.REQUIRE_SELF_CONTAINED_MODE // empty')
           SELF_CONTAINED_STRICT_EGRESS=$(printf '%s' "$HEALTH_BODY" | jq -r '.config.SELF_CONTAINED_STRICT_EGRESS // empty')
 
-          # Self-contained mode checks are informational only — warnings not errors.
-          # Re-enable these exit 1 assertions once Railway env vars are confirmed stable.
-          [ "$DEPLOY_SIGNATURE" = "bob-self-contained-hardlock-v1" ] || {
-            echo "::warning::Bob deploy drift detected. Expected DEPLOY_SIGNATURE=bob-self-contained-hardlock-v1, got ${DEPLOY_SIGNATURE:-<missing>}"
+          # Mode checks are informational only — warnings not errors.
+          [ "$DEPLOY_SIGNATURE" = "bob-build-training-open-v1" ] || {
+            echo "::warning::Bob deploy drift detected. Expected DEPLOY_SIGNATURE=bob-build-training-open-v1, got ${DEPLOY_SIGNATURE:-<missing>}"
           }
-          [ "$SELF_CONTAINED_MODE" = "true" ] || {
-            echo "::warning::Bob deploy drift detected. Expected SELF_CONTAINED_MODE=true, got ${SELF_CONTAINED_MODE:-<missing>}"
+          [ "$SELF_CONTAINED_MODE" = "false" ] || {
+            echo "::warning::Bob deploy drift detected. Expected SELF_CONTAINED_MODE=false, got ${SELF_CONTAINED_MODE:-<missing>}"
           }
-          [ "$REQUIRE_SELF_CONTAINED_MODE" = "true" ] || {
-            echo "::warning::Bob deploy drift detected. Expected REQUIRE_SELF_CONTAINED_MODE=true, got ${REQUIRE_SELF_CONTAINED_MODE:-<missing>}"
+          [ "$REQUIRE_SELF_CONTAINED_MODE" = "false" ] || {
+            echo "::warning::Bob deploy drift detected. Expected REQUIRE_SELF_CONTAINED_MODE=false, got ${REQUIRE_SELF_CONTAINED_MODE:-<missing>}"
           }
-          [ "$SELF_CONTAINED_STRICT_EGRESS" = "true" ] || {
-            echo "::warning::Bob deploy drift detected. Expected SELF_CONTAINED_STRICT_EGRESS=true, got ${SELF_CONTAINED_STRICT_EGRESS:-<missing>}"
+          [ "$SELF_CONTAINED_STRICT_EGRESS" = "false" ] || {
+            echo "::warning::Bob deploy drift detected. Expected SELF_CONTAINED_STRICT_EGRESS=false, got ${SELF_CONTAINED_STRICT_EGRESS:-<missing>}"
           }
 
           CHAT_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \

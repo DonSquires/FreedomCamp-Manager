@@ -314,7 +314,8 @@ const TABULAR_NLP_PROVIDER = normalizeProvider(TABULAR_NLP_PROVIDER_RAW, 'heuris
 const CHAT_PROVIDER_RAW = (process.env.CHAT_PROVIDER || 'ollama').toLowerCase();
 const CHAT_PROVIDER = normalizeProvider(CHAT_PROVIDER_RAW, 'heuristic');
 const HEURISTIC_PLAYBOOK_MODE = (process.env.HEURISTIC_PLAYBOOK_MODE || 'compact').toLowerCase();
-const CHAT_TIMEOUT_MS = Number(process.env.CHAT_TIMEOUT_MS || 60000);
+const CHAT_HEURISTIC_ENABLED = envFlag(process.env.CHAT_HEURISTIC_ENABLED, true);
+const CHAT_TIMEOUT_MS = Number(process.env.CHAT_TIMEOUT_MS || 120000);
 const TABULAR_NLP_TIMEOUT_MS = Number(process.env.TABULAR_NLP_TIMEOUT_MS || 2500);
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
 const OLLAMA_BASE_URL_CONFIGURED = !!process.env.OLLAMA_BASE_URL;
@@ -429,11 +430,11 @@ async function ensureOllamaModelPulled(modelName) {
     clearTimeout(pullTimeout);
   }
 }
-const DEPLOY_SIGNATURE = 'bob-self-contained-hardlock-v1';
+const DEPLOY_SIGNATURE = 'bob-build-training-open-v1';
 const SOURCE_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.SOURCE_VERSION || process.env.GITHUB_SHA || '';
-const LEGACY_SELF_CONTAINED_MODE = envFlag(process.env.SELF_CONTAINED_MODE, true);
-const LEGACY_REQUIRE_SELF_CONTAINED_MODE = envFlag(process.env.REQUIRE_SELF_CONTAINED_MODE, true);
-const LEGACY_SELF_CONTAINED_STRICT_EGRESS = envFlag(process.env.SELF_CONTAINED_STRICT_EGRESS, true);
+const LEGACY_SELF_CONTAINED_MODE = envFlag(process.env.SELF_CONTAINED_MODE, false);
+const LEGACY_REQUIRE_SELF_CONTAINED_MODE = envFlag(process.env.REQUIRE_SELF_CONTAINED_MODE, false);
+const LEGACY_SELF_CONTAINED_STRICT_EGRESS = envFlag(process.env.SELF_CONTAINED_STRICT_EGRESS, false);
 const CONFIGURED_OPERATING_MODE = normalizeOperatingMode(process.env.BOB_OPERATING_MODE || process.env.OPERATIONAL_MODE);
 const OPERATING_MODE = CONFIGURED_OPERATING_MODE || (LEGACY_SELF_CONTAINED_MODE ? 'self-contained' : 'build-training');
 const SELF_CONTAINED_MODE = OPERATING_MODE === 'self-contained';
@@ -653,16 +654,27 @@ function buildRecentIntelContext(limit = 6) {
 
 function isTrainingFocusedQuery(message) {
   const lowered = String(message || '').toLowerCase();
-  return [
-    'build review',
-    'training',
-    'lint',
-    'chunk',
-    'remediation',
-    'blocker',
+  const explicitTrainingSignals = [
+    'training intel',
+    'internal training',
+    'training baseline',
     'privacy-safe review',
     'review order',
-  ].some((token) => lowered.includes(token));
+    'acceptance gate',
+    'go-live acceptance',
+  ];
+
+  if (explicitTrainingSignals.some((token) => lowered.includes(token))) {
+    return true;
+  }
+
+  return lowered.includes('build review') && (
+    lowered.includes('order') ||
+    lowered.includes('checklist') ||
+    lowered.includes('short list') ||
+    lowered.includes('acceptance') ||
+    lowered.includes('remediation plan')
+  );
 }
 
 function answerFromTrainingIntel(message) {
@@ -696,15 +708,31 @@ function answerFromTrainingIntel(message) {
 
   if (lowered.includes('policy') || lowered.includes('self-contained') || lowered.includes('privacy-safe')) {
     return [
-      'Internal training policy:',
-      '- Bob must run in self-contained mode only',
-      '- No external API calls for training or inference',
-      '- Use internal evidence only such as build logs, lint logs, and repository context',
+      'Bob operating policy:',
+      '- Use self-contained mode for locked-down deployments handling sensitive local-only workloads',
+      '- Use build-training mode when internet-enabled research, remote connectors, or broader diagnostics are explicitly allowed',
+      '- Prefer internal evidence such as build logs, lint logs, and repository context before using external sources',
       '- Strip sensitive values from prompts and logs before storage',
     ].join('\n');
   }
 
   return bulletins.map((bulletin) => `${bulletin.title}: ${bulletin.summary}`).join('\n\n');
+}
+
+function buildChatHeuristicFallback(message, context = {}) {
+  if (CHAT_HEURISTIC_ENABLED) {
+    return {
+      provider: 'heuristic',
+      text: generateHeuristicChatReply(message, context),
+      fallback: true,
+    };
+  }
+
+  return {
+    provider: 'heuristic',
+    text: 'Ollama is temporarily unavailable. Retry shortly or reduce the prompt size.',
+    fallback: true,
+  };
 }
 
 const knowledgeRequestsStore = createKnowledgeRequestStore(
@@ -1389,10 +1417,13 @@ function generateHeuristicChatReply(message, context = {}) {
     return 'I cannot click through pages directly from chat. If you share what you see on the feedback page (error text, screenshot, or steps), I can diagnose it and give the exact fix path.';
   }
   if (lowered.includes('status') || lowered.includes('health')) {
-    return 'Service is running in self-contained mode. I can help with patrol workflows, plate checks, compliance process guidance, and UI assessment.';
+    return `Service is running in ${OPERATING_MODE} mode. I can help with patrol workflows, plate checks, compliance process guidance, UI assessment, and platform diagnostics.`;
   }
   if (lowered.includes('privacy') || lowered.includes('data')) {
-    return 'This deployment is configured for local processing. External cloud calls are blocked by strict self-contained egress policy.';
+    if (SELF_CONTAINED_STRICT_EGRESS) {
+      return 'This deployment is configured for local processing. External cloud calls are blocked by strict self-contained egress policy.';
+    }
+    return 'This deployment is in build-training mode. External access is allowed, but sensitive data still needs deliberate handling, least-privilege access, and human approval before leaving platform boundaries.';
   }
   if (lowered.includes('plate') || lowered.includes('rego')) {
     return 'I can assist with plate workflow guidance. Upload evidence through the enforcement workflow and I can help summarize next steps.';
@@ -1447,7 +1478,7 @@ function generateHeuristicChatReply(message, context = {}) {
   }
   if (lowered.includes('railway') || lowered.includes('deploy') || lowered.includes('ci') || lowered.includes('github action')) {
     const auditSummary = RAILWAY_SERVICES_AUDIT.known_issues_resolved.map(i => `[${i.id}] ${i.title} — ${i.fix_applied}`).join(' | ');
-    return `FieldOps Railway services: Bob (inference-service/, deploy-bob-railway.yml), Proxy (proxy-server/, deploy-proxy-railway.yml), PTT (ptt-server/, deploy-ptt-railway.yml), Ollama (ollama/, deploy-ollama-railway.yml). Bob and Ollama share one Railway project for private networking (OLLAMA_BASE_URL=http://ollama.railway.internal:11434). Production Bob must have CHAT_PROVIDER=ollama, TABULAR_NLP_PROVIDER=ollama, SELF_CONTAINED_MODE=true. Check config via GET /health. Use GET /platform/railway-audit for full audit findings (${RAILWAY_SERVICES_AUDIT.known_issues_resolved.length} resolved issues). Quick summary: ${auditSummary}`;
+    return `FieldOps Railway services: Bob (inference-service/, deploy-bob-railway.yml), Proxy (proxy-server/, deploy-proxy-railway.yml), PTT (ptt-server/, deploy-ptt-railway.yml), Ollama (ollama/, deploy-ollama-railway.yml). Bob can reach Ollama through Railway private networking or the RunPod gateway. Production Bob should have CHAT_PROVIDER=ollama, TABULAR_NLP_PROVIDER=ollama, BOB_OPERATING_MODE=build-training, and heuristic fallback enabled. Check config via GET /health. Use GET /platform/railway-audit for full audit findings (${RAILWAY_SERVICES_AUDIT.known_issues_resolved.length} resolved issues). Quick summary: ${auditSummary}`;
   }
   if (lowered.includes('hook') || lowered.includes('query') || lowered.includes('mutation') || lowered.includes('tanstack') || lowered.includes('zustand')) {
     return 'Data flow: Components use TanStack Query hooks (src/hooks/useXxx.ts) for server state. useQuery fetches data with automatic caching. useMutation writes data and invalidates queries on success. Zustand stores (src/stores/) hold auth state (authStore.ts) and global filters (globalFiltersStore.ts). The Supabase client is typed with Database types from src/types/database.ts.';
@@ -1522,7 +1553,7 @@ function generateHeuristicChatReply(message, context = {}) {
     return 'Supabase: project ref kxwjcupuxnnbnzcgmkoi, AWS ap-southeast-2 (Sydney), PostgreSQL 17. Auth JWT 3600s expiry, token rotation on. RLS on every table — auth.uid() + organization_id. 70+ migrations in supabase/migrations/ (YYYYMMDD_* prefix). Apply: supabase db push. Types: supabase gen types typescript → src/types/database.ts. Connection pooler (Transaction mode) for Edge Functions. Anon key (RLS-enforced) for frontend; service role (bypasses RLS) for Edge Functions only. Use GET /platform/supabase for full knowledge. Use POST /assess/platform with {symptom:"..."} to diagnose.';
   }
   if ((lowered.includes('railway') && !lowered.includes('ptt server')) || lowered.includes('dockerfile') || lowered.includes('oom') || lowered.includes('health check') && lowered.includes('service')) {
-    return 'Railway services: Bob (inference-service/, port 3000, 60s health), Proxy (proxy-server/, port 3000), PTT (ptt-server/, port 3002), Ollama (ollama/, port 11434). All must listen on process.env.PORT. Bob → Ollama via http://ollama.railway.internal:11434 (private network). Ollama pinned v0.20.2 (OLLAMA_HOST=0.0.0.0:11434). Bob needs 1GB+ RAM for ONNX. Tokens: RAILWAY_BOB_TOKEN (Bob+Ollama), RAILWAY_TOKEN (Proxy+PTT). Deploy via GitHub Actions workflows. Use GET /platform/railway for full knowledge.';
+    return 'Railway services: Bob (inference-service/, port 3000, 60s health), Proxy (proxy-server/, port 3000), PTT (ptt-server/, port 3002), Ollama (ollama/, port 11434). All must listen on process.env.PORT. Bob can reach Ollama through Railway private networking or the RunPod gateway. Ollama pinned v0.20.2 (OLLAMA_HOST=0.0.0.0:11434). Bob needs 1GB+ RAM for ONNX. Tokens: RAILWAY_BOB_TOKEN (Bob+Ollama), RAILWAY_TOKEN (Proxy+PTT). Deploy via GitHub Actions workflows. Use GET /platform/railway for full knowledge.';
   }
   if (lowered.includes('github action') || lowered.includes('workflow') || lowered.includes('ci/cd') || lowered.includes('codespace')) {
     return 'GitHub: 25 Actions workflows in .github/workflows/. Deploy: frontend (Vercel), Bob/Ollama/PTT/Proxy (Railway), mobile (EAS), Edge Functions (Supabase). Database: db-push.yml (requires @DonSquires approval). Ops crons: Bob feedback 03:47 NZST, self-learning pretrain 04:21 NZST, intel every 6h. Codespaces: Node 22, Bun, Supabase CLI, Deno (ports: 5173/3000/3002/8080). bun.lock must be committed or Railway deploy fails. Bob sync: sync-bob-repo.yml → DonSquires/Bob. Use GET /platform/github for full knowledge.';
@@ -1595,7 +1626,7 @@ function generateHeuristicChatReply(message, context = {}) {
     return `FieldOps uses @/* → ./src/* path alias. Defined in tsconfig.json (paths) and vite.config.ts (resolve.alias). Examples: import { supabase } from "@/lib/supabase"; import { Button } from "@/components/ui/button"; import { useBreaches } from "@/hooks/useBreaches"; import { useAuthStore } from "@/stores/authStore"; import type { Database } from "@/types/database".`;
   }
   if (lowered.includes('env') && (lowered.includes('variable') || lowered.includes('var') || lowered.includes('secret'))) {
-    return `FieldOps env vars: Frontend (Vercel) must be prefixed VITE_ — VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are required. Edge Function secrets: supabase secrets set KEY=value --project-ref kxwjcupuxnnbnzcgmkoi. Railway service vars: set in Railway Dashboard → service → Variables. Bob service needs: INFERENCE_API_KEY, CHAT_PROVIDER=ollama, TABULAR_NLP_PROVIDER=ollama, SELF_CONTAINED_MODE=true, OLLAMA_BASE_URL=http://ollama.railway.internal:11434.`;
+    return `FieldOps env vars: Frontend (Vercel) must be prefixed VITE_ — VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are required. Edge Function secrets: supabase secrets set KEY=value --project-ref kxwjcupuxnnbnzcgmkoi. Railway service vars: set in Railway Dashboard → service → Variables. Bob service baseline: INFERENCE_API_KEY, CHAT_PROVIDER=ollama, TABULAR_NLP_PROVIDER=ollama, BOB_OPERATING_MODE=build-training, SELF_CONTAINED_MODE=false, and OLLAMA_BASE_URL pointing to Railway internal Ollama or the RunPod gateway.`;
   }
   if (lowered.includes('bun') && (lowered.includes('install') || lowered.includes('lock') || lowered.includes('frozen'))) {
     return `bun.lock must be committed alongside package.json changes. Railway runs bun install --frozen-lockfile and will fail if bun.lock is stale or missing. Fix: run bun install (no --frozen-lockfile), commit the updated bun.lock. Verify: bun install --frozen-lockfile should output "no changes". Never use npm/yarn/pnpm in the root — use bun only.`;
@@ -1635,11 +1666,11 @@ function generateHeuristicChatReply(message, context = {}) {
 async function generateChatReplyWithOllama(message, history = [], context = {}) {
   if (!OLLAMA_ENABLED) {
     recordEgressEvent('ollama', 'blocked', 'Chat requested ollama but local ollama is unavailable');
-    return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
+    return buildChatHeuristicFallback(message, context);
   }
 
   if (!ollamaCircuitBreaker.allowRequest()) {
-    return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
+    return buildChatHeuristicFallback(message, context);
   }
 
   const controller = new AbortController();
@@ -1682,18 +1713,18 @@ async function generateChatReplyWithOllama(message, history = [], context = {}) 
 
     if (!response.ok) {
       ollamaCircuitBreaker.recordFailure(new Error(`HTTP ${response.status}`));
-      return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
+      return buildChatHeuristicFallback(message, context);
     }
 
     const payload = await response.json();
     const content = payload?.message?.content;
     if (!content || typeof content !== 'string') {
-      return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
+      return buildChatHeuristicFallback(message, context);
     }
 
     const trimmed = content.trim();
     if (!trimmed) {
-      return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
+      return buildChatHeuristicFallback(message, context);
     }
 
     ollamaCircuitBreaker.recordSuccess();
@@ -1709,7 +1740,7 @@ async function generateChatReplyWithOllama(message, history = [], context = {}) 
     } else {
       console.warn(`⚠️ Local chat via Ollama failed (${OLLAMA_BASE_URL}):`, error.message);
     }
-    return { provider: 'heuristic', text: generateHeuristicChatReply(message, context), fallback: true };
+    return buildChatHeuristicFallback(message, context);
   } finally {
     clearTimeout(timeout);
   }
@@ -6169,6 +6200,7 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       WHISPER_CLI_PATH: WHISPER_CLI_PATH || null,
       WHISPER_MODEL_PATH: WHISPER_MODEL_PATH || null,
       CHAT_TIMEOUT_MS,
+      CHAT_HEURISTIC_ENABLED,
       AUDIO_SYNTH_TIMEOUT_MS,
       TTS_ENGINE,
       TTS_DEFAULT_VOICE,
@@ -6190,7 +6222,7 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       tabular_nlp_ollama_enabled: OLLAMA_ENABLED,
       chat: true,
       chat_local_ollama_enabled: CHAT_PROVIDER === 'ollama' && OLLAMA_ENABLED,
-      chat_heuristic_enabled: CHAT_PROVIDER === 'heuristic',
+      chat_heuristic_enabled: CHAT_HEURISTIC_ENABLED,
       translation: true,
       translation_local_ollama_enabled: OLLAMA_ENABLED,
       translation_model: TRANSLATION_MODEL,

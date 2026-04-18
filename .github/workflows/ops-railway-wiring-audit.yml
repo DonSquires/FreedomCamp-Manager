@@ -144,7 +144,7 @@ jobs:
           [ "$PTT_STATUS" = "ok" ] || { echo "::error::PTT status is not ok: $PTT_STATUS"; exit 1; }
           [ "$CHAT_PROVIDER" = "ollama" ] || { echo "::error::Expected CHAT_PROVIDER=ollama but got $CHAT_PROVIDER"; exit 1; }
           [ "$TABULAR_PROVIDER" = "ollama" ] || { echo "::error::Expected TABULAR_NLP_PROVIDER=ollama but got $TABULAR_PROVIDER"; exit 1; }
-          [ "$DEPLOY_SIGNATURE" = "bob-self-contained-hardlock-v1" ] || { echo "::error::Expected DEPLOY_SIGNATURE=bob-self-contained-hardlock-v1 but got $DEPLOY_SIGNATURE"; exit 1; }
+          [ "$DEPLOY_SIGNATURE" = "bob-build-training-open-v1" ] || { echo "::error::Expected DEPLOY_SIGNATURE=bob-build-training-open-v1 but got $DEPLOY_SIGNATURE"; exit 1; }
           [ "$INFERENCE_KEY_CONFIGURED" = "true" ] || { echo "::error::Inference API key is not configured from edge perspective"; exit 1; }
 
           # Mode-conditional checks: self-contained locks down external egress;

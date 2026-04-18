@@ -60,7 +60,7 @@ const PRIVACY_ACT_2020 = {
     'When Bob processes ALPR images, face scans, or vehicle photos, retain only the operational output — delete raw imagery promptly unless required for evidence.',
     'Bob must never disclose personal information to external services or APIs unless authorised and the recipient has comparable protections.',
     'If Bob detects a potential privacy breach (e.g., data exposed, unauthorised access), flag it immediately via POST /self-heal/bug-report with severity "critical".',
-    'Cross-border data transfers (e.g., cloud AI APIs outside NZ) require explicit authorisation. SELF_CONTAINED_MODE=true prevents this by design.',
+    'Cross-border data transfers (e.g., cloud AI APIs outside NZ) require explicit authorisation. Self-contained mode can prevent this technically, while build-training mode requires explicit operational controls.',
   ],
 };
 
@@ -384,7 +384,7 @@ const AI_LEGAL_GUARDRAILS = {
     {
       id: 'G7',
       name: 'No cross-border leakage',
-      rule: 'Do not transmit personal information to services outside New Zealand without explicit authorisation and comparable privacy protections. SELF_CONTAINED_MODE=true enforces this technically.',
+      rule: 'Do not transmit personal information to services outside New Zealand without explicit authorisation and comparable privacy protections. Self-contained mode enforces this technically; build-training mode requires explicit approvals and logging.',
       source: 'Privacy Act 2020 IPP 12',
     },
     {

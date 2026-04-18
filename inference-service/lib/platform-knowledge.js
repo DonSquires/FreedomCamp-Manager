@@ -660,9 +660,9 @@ const RAILWAY_SERVICES_AUDIT = {
     },
     {
       check_id: 'CHK-05',
-      description: 'Verify DEPLOY_SIGNATURE is set to bob-self-contained-hardlock-v1',
-      how_to_verify: 'GET <BOB_URL>/health → check config.DEPLOY_SIGNATURE === "bob-self-contained-hardlock-v1". This is hardcoded in server.js:158 and cannot be overridden.',
-      expected: 'bob-self-contained-hardlock-v1',
+      description: 'Verify DEPLOY_SIGNATURE is set to bob-build-training-open-v1',
+      how_to_verify: 'GET <BOB_URL>/health → check config.DEPLOY_SIGNATURE === "bob-build-training-open-v1". This is hardcoded in server.js and cannot be overridden.',
+      expected: 'bob-build-training-open-v1',
       if_wrong: 'If wrong, the image is outdated. Redeploy Bob from the latest DonSquires/Bob main branch.',
     },
     {

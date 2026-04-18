@@ -547,10 +547,10 @@ railway logs
 
 ## **Security**
 
-### **Authentication in Production (Strict Self-Contained Mode)**
+### **Authentication in Production (Build-Training Mode)**
 
 > ⚠️ **Known limitation:** When Bob is deployed on Railway with `SELF_CONTAINED_STRICT_EGRESS=true`
-> (the production default), outbound network calls are blocked — including the JWKS fetch required
+> (locked-down mode), outbound network calls are blocked — including the JWKS fetch required
 > to verify Supabase user JWTs.
 >
 > **In production, Edge Functions must authenticate to Bob using one of:**
