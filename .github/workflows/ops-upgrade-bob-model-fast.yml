@@ -1,0 +1,160 @@
+name: Upgrade Bob AI Model (Fast Track)
+
+on:
+  workflow_dispatch:
+    inputs:
+      chat_model:
+        description: Ollama chat model to pull and activate
+        required: true
+        default: qwen2.5:32b
+      vision_model:
+        description: Ollama vision model to activate
+        required: true
+        default: llava:7b
+      writing_model:
+        description: Ollama writing model to activate
+        required: true
+        default: qwen2.5:32b
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  fast-upgrade:
+    name: Fast-track Bob model upgrade
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Pull selected models on RunPod
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.RUNPOD_POD_SSH_HOST }}
+          username: ${{ secrets.RUNPOD_POD_SSH_USER }}
+          key: ${{ secrets.RUNPOD_POD_SSH_KEY }}
+          port: ${{ secrets.RUNPOD_POD_SSH_PORT || 22 }}
+          request_pty: true
+          command_timeout: 30m
+          script: |
+            set -e
+            OLLAMA_API="http://127.0.0.1:11434"
+            CHAT_MODEL='${{ github.event.inputs.chat_model }}'
+            VISION_MODEL='${{ github.event.inputs.vision_model }}'
+            WRITING_MODEL='${{ github.event.inputs.writing_model }}'
+
+            echo "Fast-track selection:"
+            echo "  chat=${CHAT_MODEL}"
+            echo "  vision=${VISION_MODEL}"
+            echo "  writing=${WRITING_MODEL}"
+
+            pull_model() {
+              local model="$1"
+              echo "==== pulling ${model} ===="
+
+              if curl -sf "$OLLAMA_API/api/tags" | grep -q "\"${model}\""; then
+                echo "${model} already present"
+                return 0
+              fi
+
+              curl -sf -X POST "$OLLAMA_API/api/pull" \
+                -H "Content-Type: application/json" \
+                -d "{\"model\":\"${model}\",\"stream\":false}" \
+                --max-time 2100 \
+                >/tmp/pull_${model//[:\/]/_}.json || true
+
+              if curl -sf "$OLLAMA_API/api/tags" | grep -q "\"${model}\""; then
+                echo "✅ ${model} ready"
+              else
+                echo "::error::Model pull failed: ${model}"
+                exit 1
+              fi
+            }
+
+            if [ "$VISION_MODEL" != "$CHAT_MODEL" ]; then
+              pull_model "$VISION_MODEL"
+            fi
+            pull_model "$CHAT_MODEL"
+
+            echo "$CHAT_MODEL" > /tmp/selected_chat_model
+            echo "$VISION_MODEL" > /tmp/selected_vision_model
+            echo "$WRITING_MODEL" > /tmp/selected_writing_model
+
+      - name: Install Railway CLI
+        run: |
+          RAILWAY_CLI_VERSION="4.35.0"
+          TMP_DIR=$(mktemp -d)
+          curl -fsSL -o "$TMP_DIR/railway.tar.gz" \
+            "https://github.com/railwayapp/cli/releases/download/v${RAILWAY_CLI_VERSION}/railway-v${RAILWAY_CLI_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+          tar -xzf "$TMP_DIR/railway.tar.gz" -C "$TMP_DIR"
+          install -m 0755 "$TMP_DIR/railway" "$HOME/.local/bin/railway"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Update Bob model env vars on Railway
+        env:
+          RAILWAY_BOB_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_BOB_SERVICE_ID: ${{ secrets.RAILWAY_BOB_SERVICE_ID }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
+        run: |
+          set -euo pipefail
+          source ./scripts/load-railway-secrets-from-github-env.sh --quiet
+
+          EFFECTIVE_TOKEN="${RAILWAY_BOB_TOKEN:-$RAILWAY_TOKEN}"
+          EFFECTIVE_SERVICE="${RAILWAY_BOB_SERVICE_ID:-$RAILWAY_SERVICE_ID}"
+          export RAILWAY_TOKEN="$EFFECTIVE_TOKEN"
+          export RAILWAY_ENVIRONMENT=production
+
+          CHAT_MODEL='${{ github.event.inputs.chat_model }}'
+          VISION_MODEL='${{ github.event.inputs.vision_model }}'
+          WRITING_MODEL='${{ github.event.inputs.writing_model }}'
+
+          railway variables set "OLLAMA_MODEL=${CHAT_MODEL}" --service "$EFFECTIVE_SERVICE" --environment production
+          railway variables set "TRANSLATION_MODEL=${CHAT_MODEL}" --service "$EFFECTIVE_SERVICE" --environment production
+          railway variables set "OLLAMA_MODEL_WRITING=${WRITING_MODEL}" --service "$EFFECTIVE_SERVICE" --environment production
+          railway variables set "OLLAMA_VISION_MODEL=${VISION_MODEL}" --service "$EFFECTIVE_SERVICE" --environment production
+
+      - name: Redeploy Bob
+        env:
+          RAILWAY_BOB_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_BOB_SERVICE_ID: ${{ secrets.RAILWAY_BOB_SERVICE_ID }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
+        run: |
+          set -euo pipefail
+          source ./scripts/load-railway-secrets-from-github-env.sh --quiet
+
+          EFFECTIVE_TOKEN="${RAILWAY_BOB_TOKEN:-$RAILWAY_TOKEN}"
+          EFFECTIVE_SERVICE="${RAILWAY_BOB_SERVICE_ID:-$RAILWAY_SERVICE_ID}"
+          export RAILWAY_TOKEN="$EFFECTIVE_TOKEN"
+          export RAILWAY_ENVIRONMENT=production
+
+          pushd inference-service
+          railway up --service "$EFFECTIVE_SERVICE" --environment production --detach
+          popd
+
+      - name: Verify health and model
+        env:
+          BOB_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
+        run: |
+          set -euo pipefail
+          BOB_URL="${BOB_SERVICE_URL:-https://focused-courage-production-ccee.up.railway.app}"
+
+          echo "Waiting 90s for rollout..."
+          sleep 90
+
+          HEALTH=$(curl -sfL --max-time 20 "$BOB_URL/health")
+          CHAT=$(echo "$HEALTH" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('config',{}).get('OLLAMA_MODEL',''))")
+          VISION=$(echo "$HEALTH" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('config',{}).get('OLLAMA_VISION_MODEL',''))")
+          CB=$(echo "$HEALTH" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('ollama_circuit_breaker',{}).get('state','unknown'))")
+
+          echo "OLLAMA_MODEL=$CHAT"
+          echo "OLLAMA_VISION_MODEL=$VISION"
+          echo "CB_STATE=$CB"
+
+          [ "$CHAT" = '${{ github.event.inputs.chat_model }}' ] || { echo "::error::Model mismatch after fast-track rollout"; exit 1; }
+          echo "✅ Fast-track model upgrade completed"
