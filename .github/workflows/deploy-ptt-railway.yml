@@ -82,7 +82,7 @@ jobs:
       - name: Install Railway CLI
         if: steps.check-secrets.outputs.secrets_present == 'true'
         run: |
-          RAILWAY_CLI_VERSION="4.31.0"
+          RAILWAY_CLI_VERSION="4.35.0"
           TARGET="x86_64-unknown-linux-gnu"
           URL="https://github.com/railwayapp/cli/releases/download/v${RAILWAY_CLI_VERSION}/railway-v${RAILWAY_CLI_VERSION}-${TARGET}.tar.gz"
           TMP_DIR=$(mktemp -d)
@@ -215,7 +215,7 @@ jobs:
           fi
 
           echo "📦 Installing Supabase CLI..."
-          SUPABASE_CLI_VERSION="2.22.6"
+          SUPABASE_CLI_VERSION="2.90.0"
           URL="https://github.com/supabase/cli/releases/download/v${SUPABASE_CLI_VERSION}/supabase_linux_amd64.tar.gz"
           TMP_DIR=$(mktemp -d)
           cd "$TMP_DIR"

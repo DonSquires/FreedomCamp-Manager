@@ -74,6 +74,10 @@ const TURN_USERNAME = process.env.TURN_USERNAME;
 const TURN_CREDENTIAL = process.env.TURN_CREDENTIAL;
 const FORCE_TURN_RELAY = String(process.env.FORCE_TURN_RELAY || '').toLowerCase() === 'true';
 const PTT_DISABLE_PUBLIC_STUN = String(process.env.PTT_DISABLE_PUBLIC_STUN || '').toLowerCase() === 'true';
+const TOKEN_TRACKER_RETENTION_MS = parseInt(process.env.PTT_TOKEN_TRACKER_RETENTION_MS || '300000', 10);
+const PREVIEW_HOST_REGEX =
+  process.env.PTT_ALLOWED_PREVIEW_ORIGIN_REGEX ||
+  '^preview-[a-z0-9-]+\\.onspace\\.build$';
 
 function parseTurnUrls(value) {
   if (!value) return [];
@@ -176,6 +180,8 @@ const channelMeta = new Map();
  */
 const tokenMintTracker = new Map();
 
+let tokenTrackerSweepInterval = null;
+
 // ---------------------------------------------------------------------------
 // Rate limiting
 // ---------------------------------------------------------------------------
@@ -236,6 +242,24 @@ if (process.env.NODE_ENV !== 'production') {
 
 const allowedOrigins = new Set([...DEFAULT_ORIGINS, ...ALLOWED_ORIGINS_ENV]);
 
+let previewHostPattern = null;
+try {
+  previewHostPattern = new RegExp(PREVIEW_HOST_REGEX, 'i');
+} catch (err) {
+  console.error('[ptt] Invalid PTT_ALLOWED_PREVIEW_ORIGIN_REGEX:', err.message);
+}
+
+function isAllowedPreviewOrigin(origin) {
+  try {
+    const url = new URL(origin);
+    if (!url.host.endsWith('.onspace.build')) return false;
+    if (!previewHostPattern) return false;
+    return previewHostPattern.test(url.host);
+  } catch {
+    return false;
+  }
+}
+
 const corsOptions = {
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps or curl)
@@ -246,13 +270,9 @@ const corsOptions = {
       return callback(null, true);
     }
     
-    // Check for preview subdomain pattern
-    try {
-      const url = new URL(origin);
-      if (url.host.endsWith('.onspace.build') && url.host.startsWith('preview-react-9b4t5o-')) {
-        return callback(null, true);
-      }
-    } catch {}
+    if (isAllowedPreviewOrigin(origin)) {
+      return callback(null, true);
+    }
     
     callback(new Error('Not allowed by CORS'));
   },
@@ -515,13 +535,50 @@ function pruneChannelClients(channelId) {
   return clients.size;
 }
 
+function extractTokenFromWebSocketRequest(req) {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const queryToken = url.searchParams.get('token');
+  if (queryToken) {
+    return queryToken;
+  }
+
+  const protocolHeader = req.headers['sec-websocket-protocol'];
+  if (typeof protocolHeader !== 'string' || protocolHeader.trim().length === 0) {
+    return null;
+  }
+
+  const protocols = protocolHeader
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  const authProtocol = protocols.find((value) => value.startsWith('auth.'));
+  if (!authProtocol) {
+    return null;
+  }
+
+  return authProtocol.slice('auth.'.length);
+}
+
+function startTokenTrackerSweep() {
+  if (tokenTrackerSweepInterval) return;
+
+  tokenTrackerSweepInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [userId, mintedAt] of tokenMintTracker.entries()) {
+      if (now - mintedAt > TOKEN_TRACKER_RETENTION_MS) {
+        tokenMintTracker.delete(userId);
+      }
+    }
+  }, 60_000);
+}
+
 /**
  * WebSocket connection handler
  */
 wss.on('connection', (ws, req) => {
-  // Extract token from query string
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  const token = url.searchParams.get('token');
+  // Prefer subprotocol auth.<jwt>, fallback to query token for backward compatibility.
+  const token = extractTokenFromWebSocketRequest(req);
 
   if (!token) {
     ws.close(4001, 'Missing token');
@@ -796,6 +853,7 @@ function handleMessage(ws, userId, channelId, name, role, message) {
 // Start server
 // ---------------------------------------------------------------------------
 server.listen(PORT, '0.0.0.0', () => {
+  startTokenTrackerSweep();
   console.log(`
   ╔═══════════════════════════════════════╗
   ║   🎤 PTT Signaling Server            ║
@@ -814,6 +872,7 @@ server.listen(PORT, '0.0.0.0', () => {
 // ---------------------------------------------------------------------------
 process.on('SIGTERM', () => {
   console.log('👋 SIGTERM received, shutting down gracefully...');
+  if (tokenTrackerSweepInterval) clearInterval(tokenTrackerSweepInterval);
   wss.close(() => {
     server.close(() => {
       process.exit(0);
@@ -823,6 +882,7 @@ process.on('SIGTERM', () => {
 
 process.on('SIGINT', () => {
   console.log('👋 SIGINT received, shutting down gracefully...');
+  if (tokenTrackerSweepInterval) clearInterval(tokenTrackerSweepInterval);
   wss.close(() => {
     server.close(() => {
       process.exit(0);

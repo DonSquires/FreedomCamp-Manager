@@ -72,6 +72,8 @@ railway status
 | `PTT_JWT_SECRET` | Yes | Signs/verifies channel access tokens |
 | `MAX_PARTICIPANTS_PER_CHANNEL` | No | Limit per channel (default: 50) |
 | `MAX_CLIP_DURATION_SECONDS` | No | Max recording length (default: 30) |
+| `PTT_TOKEN_TRACKER_RETENTION_MS` | No | Retain per-user mint throttle entries for this long (default: 300000) |
+| `PTT_ALLOWED_PREVIEW_ORIGIN_REGEX` | No | Regex used to allow preview subdomains under onspace.build |
 | `TURN_URL` | No | TURN server URL for NAT traversal |
 | `TURN_USERNAME` | No | TURN server username |
 | `TURN_CREDENTIAL` | No | TURN server password |
@@ -97,7 +99,11 @@ Canonical secret model:
 
 ### WebSocket
 
-Connect to `/ws?token=<jwt>` for real-time signaling.
+Preferred auth mode:
+- Connect using WebSocket subprotocols: `ptt.v1` and `auth.<jwt>`
+
+Backward-compatible mode:
+- `ws(s)://.../ws?token=<jwt>` is still accepted for older clients.
 
 #### Client → Server Messages
 

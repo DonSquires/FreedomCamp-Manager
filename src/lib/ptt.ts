@@ -522,8 +522,14 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
       iceTransportPolicy: tokenData.iceTransportPolicy,
     })
 
-    // Connect WebSocket
-    const socket = new WebSocket(`${tokenData.wsUrl}?token=${tokenData.token}`)
+    // Connect WebSocket. Prefer subprotocol-carried auth token to reduce
+    // token leakage in URL logs/proxies; keep query fallback for compatibility.
+    let socket: WebSocket
+    try {
+      socket = new WebSocket(tokenData.wsUrl, ['ptt.v1', `auth.${tokenData.token}`])
+    } catch {
+      socket = new WebSocket(`${tokenData.wsUrl}?token=${encodeURIComponent(tokenData.token)}`)
+    }
     ws = socket
 
     socket.onopen = () => {
