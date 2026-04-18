@@ -72,6 +72,7 @@ All CI/CD secrets live in **GitHub → Settings → Secrets and variables → Ac
 | `BOB_SERVICE_URL` | Smoke tests, ops workflows | Live URL for inference-service e.g. `https://xxx.up.railway.app` |
 | `BOB_GATEWAY_KEY` | Bob model workflows | Bearer token for RunPod Ollama gateway |
 | `RUNPOD_GATEWAY_URL` | ops-upgrade-bob-model | Public URL for RunPod gate e.g. `https://xxx-8080.proxy.runpod.net` |
+| `RUNPOD_ALLOW_DIRECT_OLLAMA` | deploy-bob-railway | Optional safety flag (`true` only during incident bypass to direct `11434` URL). Default is gateway-only. |
 | `RUNPOD_API_KEY` | RunPod SSH / API calls | RunPod API key |
 | `RUNPOD_POD_SSH_KEY` | ops-upgrade-bob-model (SSH step) | Private key for SSH into RunPod pod |
 | `RUNPOD_POD_HOST` | SSH steps | RunPod pod hostname or IP |
@@ -124,6 +125,13 @@ Set via Railway dashboard → Service → Variables, or via `ops-upgrade-bob-mod
 - Bobby bears a `BOB_GATEWAY_KEY` to authenticate to the proxy
 - Deploy gateway: `deploy-runpod-gateway.yml`
 - Upgrade model: `ops-upgrade-bob-model.yml`
+
+Stability-first posture:
+- Prefer gateway route on port `8080` as default and keep direct `11434` disabled.
+- Use `RUNPOD_ALLOW_DIRECT_OLLAMA=true` only for temporary incident bypass.
+- If host health warning appears in RunPod dashboard, back up `/workspace` and migrate to a new pod/machine.
+- Keep Ollama model storage on the network volume (`/workspace/ollama/models`).
+- For stability under CUDA pressure, set `OLLAMA_NUM_PARALLEL=1` on the pod/template and only raise after stable operation.
 
 ### 3.5 Vercel
 

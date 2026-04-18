@@ -270,6 +270,7 @@ jobs:
           RUNPOD_GATEWAY_URL_CHAT: ${{ secrets.RUNPOD_GATEWAY_URL_CHAT }}
           RUNPOD_GATEWAY_URL_PTT: ${{ secrets.RUNPOD_GATEWAY_URL_PTT }}
           RUNPOD_GATEWAY_URL_TABULAR: ${{ secrets.RUNPOD_GATEWAY_URL_TABULAR }}
+          RUNPOD_ALLOW_DIRECT_OLLAMA: ${{ secrets.RUNPOD_ALLOW_DIRECT_OLLAMA }}
           BOB_GATEWAY_KEY: ${{ secrets.BOB_GATEWAY_KEY }}
           DESIRED_OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL || 'llama3.1:8b' }}
           DESIRED_OLLAMA_VISION_MODEL: ${{ vars.OLLAMA_VISION_MODEL || 'llama3.2-vision:11b' }}
@@ -292,12 +293,26 @@ jobs:
             return 1
           }
 
+          is_true() {
+            local raw="${1:-}"
+            case "$(echo "$raw" | tr '[:upper:]' '[:lower:]')" in
+              1|true|yes|on) return 0 ;;
+              *) return 1 ;;
+            esac
+          }
+
           # Determine OLLAMA_BASE_URL: prefer RunPod gateway when healthy,
           # otherwise fail over to Railway-internal Ollama.
           RUNPOD_GATEWAY_URL="${RUNPOD_GATEWAY_URL:-}"
           RUNPOD_GATEWAY_URL_CHAT="${RUNPOD_GATEWAY_URL_CHAT:-}"
           RUNPOD_GATEWAY_URL_PTT="${RUNPOD_GATEWAY_URL_PTT:-}"
           RUNPOD_GATEWAY_URL_TABULAR="${RUNPOD_GATEWAY_URL_TABULAR:-}"
+          RUNPOD_ALLOW_DIRECT_OLLAMA="${RUNPOD_ALLOW_DIRECT_OLLAMA:-false}"
+          ALLOW_DIRECT_OLLAMA="false"
+          if is_true "$RUNPOD_ALLOW_DIRECT_OLLAMA"; then
+            ALLOW_DIRECT_OLLAMA="true"
+          fi
+          echo "ℹ️  RUNPOD_ALLOW_DIRECT_OLLAMA=${ALLOW_DIRECT_OLLAMA}"
           USE_RUNPOD_GATEWAY="false"
           CHAT_USE_RUNPOD_GATEWAY="false"
           PTT_USE_RUNPOD_GATEWAY="false"
@@ -310,7 +325,12 @@ jobs:
                 USE_RUNPOD_GATEWAY="true"
                 echo "✅ Using RunPod gateway as shared Ollama upstream: $OLLAMA_URL"
               else
-                echo "✅ Using direct RunPod Ollama as shared upstream: $OLLAMA_URL"
+                if [[ "$ALLOW_DIRECT_OLLAMA" == "true" ]]; then
+                  echo "✅ Using direct RunPod Ollama as shared upstream: $OLLAMA_URL"
+                else
+                  OLLAMA_URL="http://ollama.railway.internal:11434"
+                  echo "⚠️  Shared upstream is direct Ollama but RUNPOD_ALLOW_DIRECT_OLLAMA=false — falling back to Railway-internal Ollama: $OLLAMA_URL"
+                fi
               fi
             else
               OLLAMA_URL="http://ollama.railway.internal:11434"
@@ -325,12 +345,17 @@ jobs:
           CHAT_OLLAMA_URL="$OLLAMA_URL"
           if [[ -n "$RUNPOD_GATEWAY_URL_CHAT" ]]; then
             if CHAT_MODE="$(check_upstream_mode "$RUNPOD_GATEWAY_URL_CHAT")"; then
-              CHAT_OLLAMA_URL="$RUNPOD_GATEWAY_URL_CHAT"
               if [[ "$CHAT_MODE" == "gateway" ]]; then
+                CHAT_OLLAMA_URL="$RUNPOD_GATEWAY_URL_CHAT"
                 CHAT_USE_RUNPOD_GATEWAY="true"
                 echo "✅ Using dedicated chat RunPod gateway upstream: $CHAT_OLLAMA_URL"
               else
-                echo "✅ Using dedicated chat direct Ollama upstream: $CHAT_OLLAMA_URL"
+                if [[ "$ALLOW_DIRECT_OLLAMA" == "true" ]]; then
+                  CHAT_OLLAMA_URL="$RUNPOD_GATEWAY_URL_CHAT"
+                  echo "✅ Using dedicated chat direct Ollama upstream: $CHAT_OLLAMA_URL"
+                else
+                  echo "⚠️  Dedicated chat upstream is direct Ollama but RUNPOD_ALLOW_DIRECT_OLLAMA=false — falling back to shared upstream"
+                fi
               fi
             else
               echo "⚠️  Dedicated chat RunPod upstream is unhealthy — falling back to shared upstream"
@@ -340,12 +365,17 @@ jobs:
           PTT_OLLAMA_URL="$OLLAMA_URL"
           if [[ -n "$RUNPOD_GATEWAY_URL_PTT" ]]; then
             if PTT_MODE="$(check_upstream_mode "$RUNPOD_GATEWAY_URL_PTT")"; then
-              PTT_OLLAMA_URL="$RUNPOD_GATEWAY_URL_PTT"
               if [[ "$PTT_MODE" == "gateway" ]]; then
+                PTT_OLLAMA_URL="$RUNPOD_GATEWAY_URL_PTT"
                 PTT_USE_RUNPOD_GATEWAY="true"
                 echo "✅ Using dedicated PTT RunPod gateway upstream: $PTT_OLLAMA_URL"
               else
-                echo "✅ Using dedicated PTT direct Ollama upstream: $PTT_OLLAMA_URL"
+                if [[ "$ALLOW_DIRECT_OLLAMA" == "true" ]]; then
+                  PTT_OLLAMA_URL="$RUNPOD_GATEWAY_URL_PTT"
+                  echo "✅ Using dedicated PTT direct Ollama upstream: $PTT_OLLAMA_URL"
+                else
+                  echo "⚠️  Dedicated PTT upstream is direct Ollama but RUNPOD_ALLOW_DIRECT_OLLAMA=false — falling back to shared upstream"
+                fi
               fi
             else
               echo "⚠️  Dedicated PTT RunPod upstream is unhealthy — falling back to shared upstream"
@@ -356,12 +386,17 @@ jobs:
           TABULAR_OLLAMA_URL="$CHAT_OLLAMA_URL"
           if [[ -n "$RUNPOD_GATEWAY_URL_TABULAR" ]]; then
             if TABULAR_MODE="$(check_upstream_mode "$RUNPOD_GATEWAY_URL_TABULAR")"; then
-              TABULAR_OLLAMA_URL="$RUNPOD_GATEWAY_URL_TABULAR"
               if [[ "$TABULAR_MODE" == "gateway" ]]; then
+                TABULAR_OLLAMA_URL="$RUNPOD_GATEWAY_URL_TABULAR"
                 TABULAR_USE_RUNPOD_GATEWAY="true"
                 echo "✅ Using dedicated tabular RunPod gateway upstream: $TABULAR_OLLAMA_URL"
               else
-                echo "✅ Using dedicated tabular direct Ollama upstream: $TABULAR_OLLAMA_URL"
+                if [[ "$ALLOW_DIRECT_OLLAMA" == "true" ]]; then
+                  TABULAR_OLLAMA_URL="$RUNPOD_GATEWAY_URL_TABULAR"
+                  echo "✅ Using dedicated tabular direct Ollama upstream: $TABULAR_OLLAMA_URL"
+                else
+                  echo "⚠️  Dedicated tabular upstream is direct Ollama but RUNPOD_ALLOW_DIRECT_OLLAMA=false — falling back to chat upstream"
+                fi
               fi
             else
               echo "⚠️  Dedicated tabular RunPod upstream is unhealthy — falling back to chat upstream"
