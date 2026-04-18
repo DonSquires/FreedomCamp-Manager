@@ -142,6 +142,69 @@ jobs:
             });
           }
 
+          function callSelfHeal(endpointBase) {
+            return new Promise((resolve, reject) => {
+              const endpoint = new URL(endpointBase);
+              const payload = {
+                report: {
+                  summary: 'Review deploy-bob-railway.yml RunPod direct routing + fallback changes for regressions and security risks',
+                  severity: 'high',
+                  service: 'inference-service',
+                  stack_trace: 'Workflow-level infrastructure change; no runtime stack trace',
+                  notes: context,
+                },
+              };
+              const body = JSON.stringify(payload);
+
+              const options = {
+                hostname: endpoint.hostname,
+                port: endpoint.port || 443,
+                path: '/self-heal/bug-report',
+                method: 'POST',
+                timeout: 45000,
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Content-Length': Buffer.byteLength(body),
+                  'x-inference-api-key': apiKey,
+                  Authorization: `Bearer ${apiKey}`,
+                },
+              };
+
+              const req = https.request(options, (res) => {
+                let data = '';
+                res.on('data', (chunk) => {
+                  data += chunk;
+                });
+                res.on('end', () => {
+                  let parsed = null;
+                  try {
+                    parsed = JSON.parse(data || '{}');
+                  } catch {
+                    parsed = null;
+                  }
+
+                  if (res.statusCode < 200 || res.statusCode >= 300) {
+                    const detail = parsed ? JSON.stringify(parsed) : data;
+                    return reject(new Error(`HTTP ${res.statusCode}: ${detail.slice(0, 1000)}`));
+                  }
+
+                  return resolve(parsed || data);
+                });
+              });
+
+              req.on('timeout', () => {
+                req.destroy(new Error('Request timeout'));
+              });
+
+              req.on('error', (err) => {
+                reject(err);
+              });
+
+              req.write(body);
+              req.end();
+            });
+          }
+
           function isGenericResponse(text) {
             const value = String(text || '').toLowerCase();
             if (!value) return true;
@@ -183,6 +246,18 @@ jobs:
                     console.error(`[Warn] Bob call failed at ${endpointBase} (attempt ${attempt}/3): ${error.message}`);
                   }
                 }
+              }
+            }
+
+            for (const endpointBase of candidates) {
+              try {
+                console.log(`[Agent] Falling back to self-heal review at ${endpointBase}`);
+                const selfHeal = await callSelfHeal(endpointBase);
+                console.log(`[Bob] Self-heal review fallback: ${JSON.stringify(selfHeal).slice(0, 3000)}`);
+                process.exit(0);
+              } catch (error) {
+                lastError = error;
+                console.error(`[Warn] Self-heal fallback failed at ${endpointBase}: ${error.message}`);
               }
             }
 
