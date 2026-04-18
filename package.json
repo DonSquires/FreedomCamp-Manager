@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "review:evidence": "node scripts/generate-bob-build-review-evidence.mjs tools/bob-build-review-evidence.json",
     "bob:self-heal-bridge": "node scripts/generate-bob-self-heal-bridge.mjs",
+    "bob:collab": "bash scripts/bob-collab.sh",
     "preview": "vite preview",
     "start": "sh -c 'vite preview --host 0.0.0.0 --port ${PORT:-4173}'",
     "test": "playwright test",
