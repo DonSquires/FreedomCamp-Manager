@@ -49,91 +49,115 @@ jobs:
       - name: Run Bob review query
         env:
           INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL }}
+          BOB_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
           INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
           BOB_INFERENCE_API_KEY: ${{ secrets.BOB_INFERENCE_API_KEY }}
           REVIEW_PROMPT: ${{ inputs.prompt }}
         run: |
           set -euo pipefail
           URL_RAW="${INFERENCE_SERVICE_URL:-https://focused-courage-production-ccee.up.railway.app}"
+          BOB_URL_RAW="${BOB_SERVICE_URL:-}"
           REVIEW_PROMPT_EFFECTIVE="${REVIEW_PROMPT:-Give 3 highest risks in recent RunPod/Ollama workflow changes.}"
           echo "Using inference URL (raw): $URL_RAW"
           AUTH_KEY="${INFERENCE_API_KEY:-${BOB_INFERENCE_API_KEY:-}}"
 
-          URL_RAW="$URL_RAW" AUTH_KEY="$AUTH_KEY" REVIEW_PROMPT="$REVIEW_PROMPT_EFFECTIVE" node - <<'NODE' | tee bob-assisted-review.log
+          URL_RAW="$URL_RAW" BOB_URL_RAW="$BOB_URL_RAW" AUTH_KEY="$AUTH_KEY" REVIEW_PROMPT="$REVIEW_PROMPT_EFFECTIVE" node - <<'NODE' | tee bob-assisted-review.log
           const https = require('https');
 
           const defaultUrl = 'https://focused-courage-production-ccee.up.railway.app';
           const rawUrl = String(process.env.URL_RAW || '').trim();
+          const bobRawUrl = String(process.env.BOB_URL_RAW || '').trim();
           const apiKey = process.env.AUTH_KEY;
           const prompt = process.env.REVIEW_PROMPT;
 
-          let normalizedUrl = rawUrl || defaultUrl;
-          if (!/^https?:\/\//i.test(normalizedUrl)) {
-            normalizedUrl = `https://${normalizedUrl}`;
+          function normalizeUrl(input) {
+            const value = String(input || '').trim();
+            if (!value) return null;
+            const withScheme = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+            try {
+              return new URL(withScheme).toString().replace(/\/$/, '');
+            } catch {
+              return null;
+            }
           }
 
-          let endpoint;
-          try {
-            endpoint = new URL(normalizedUrl);
-          } catch {
-            console.warn(`[Warn] Invalid INFERENCE_SERVICE_URL, falling back to default: ${defaultUrl}`);
-            normalizedUrl = defaultUrl;
-            endpoint = new URL(normalizedUrl);
+          function callBob(endpointBase) {
+            return new Promise((resolve, reject) => {
+              const endpoint = new URL(endpointBase);
+              const body = JSON.stringify({ message: prompt });
+              const options = {
+                hostname: endpoint.hostname,
+                port: endpoint.port || 443,
+                path: '/chat',
+                method: 'POST',
+                timeout: 45000,
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Content-Length': Buffer.byteLength(body),
+                  'x-inference-api-key': apiKey,
+                  Authorization: `Bearer ${apiKey}`,
+                },
+              };
+
+              const req = https.request(options, (res) => {
+                let data = '';
+                res.on('data', (chunk) => {
+                  data += chunk;
+                });
+                res.on('end', () => {
+                  let parsed = null;
+                  try {
+                    parsed = JSON.parse(data || '{}');
+                  } catch {
+                    parsed = null;
+                  }
+
+                  if (res.statusCode < 200 || res.statusCode >= 300) {
+                    const detail = parsed ? JSON.stringify(parsed) : data;
+                    return reject(new Error(`HTTP ${res.statusCode}: ${detail.slice(0, 1000)}`));
+                  }
+
+                  const message = parsed?.message || parsed?.response || parsed?.data?.message || data;
+                  return resolve(String(message || '').trim());
+                });
+              });
+
+              req.on('timeout', () => {
+                req.destroy(new Error('Request timeout'));
+              });
+
+              req.on('error', (err) => {
+                reject(err);
+              });
+
+              req.write(body);
+              req.end();
+            });
           }
 
-          console.log(`[Agent] Calling Bob at ${normalizedUrl}`);
+          const candidates = [normalizeUrl(rawUrl), normalizeUrl(bobRawUrl), defaultUrl]
+            .filter(Boolean)
+            .filter((value, index, arr) => arr.indexOf(value) === index);
 
-          const body = JSON.stringify({ message: prompt });
-
-          const options = {
-            hostname: endpoint.hostname,
-            port: endpoint.port || 443,
-            path: '/chat',
-            method: 'POST',
-            timeout: 120000,
-            headers: {
-              'Content-Type': 'application/json',
-              'Content-Length': Buffer.byteLength(body),
-              'x-inference-api-key': apiKey,
-              Authorization: `Bearer ${apiKey}`,
-            },
-          };
-
-          const req = https.request(options, (res) => {
-            let data = '';
-            res.on('data', (chunk) => {
-              data += chunk;
-            });
-            res.on('end', () => {
-              let parsed = null;
-              try {
-                parsed = JSON.parse(data || '{}');
-              } catch {
-                parsed = null;
+          let lastError = null;
+          (async () => {
+            for (const endpointBase of candidates) {
+              for (let attempt = 1; attempt <= 3; attempt += 1) {
+                try {
+                  console.log(`[Agent] Calling Bob at ${endpointBase} (attempt ${attempt}/3)`);
+                  const result = await callBob(endpointBase);
+                  console.log(`[Bob] ${result}`);
+                  process.exit(0);
+                } catch (error) {
+                  lastError = error;
+                  console.error(`[Warn] Bob call failed at ${endpointBase} (attempt ${attempt}/3): ${error.message}`);
+                }
               }
+            }
 
-              if (res.statusCode < 200 || res.statusCode >= 300) {
-                const detail = parsed ? JSON.stringify(parsed) : data;
-                console.error(`[Error] HTTP ${res.statusCode}: ${detail.slice(0, 1000)}`);
-                process.exit(1);
-              }
-
-              const message = parsed?.message || parsed?.response || parsed?.data?.message || data;
-              console.log(`[Bob] ${String(message || '').trim()}`);
-            });
-          });
-
-          req.on('timeout', () => {
-            req.destroy(new Error('Request timeout'));
-          });
-
-          req.on('error', (err) => {
-            console.error(`[Error] ${err.message}`);
+            console.error(`[Error] All Bob endpoints failed: ${lastError ? lastError.message : 'unknown error'}`);
             process.exit(1);
-          });
-
-          req.write(body);
-          req.end();
+          })();
           NODE
 
       - name: Publish summary
