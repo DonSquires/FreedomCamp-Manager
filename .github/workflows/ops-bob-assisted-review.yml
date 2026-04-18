@@ -1,0 +1,64 @@
+name: Ops - Bob Assisted Review
+
+on:
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: Review prompt to send to Bob
+        required: true
+        default: "Review recent RunPod and Ollama workflow changes for security and regression risks."
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  bob-review:
+    name: Bob Assisted Review
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Validate auth secret
+        env:
+          INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
+          BOB_INFERENCE_API_KEY: ${{ secrets.BOB_INFERENCE_API_KEY }}
+        run: |
+          set -e
+          if [ -z "$INFERENCE_API_KEY" ] && [ -z "$BOB_INFERENCE_API_KEY" ]; then
+            echo "::error::Missing secret: set INFERENCE_API_KEY or BOB_INFERENCE_API_KEY"
+            exit 1
+          fi
+
+      - name: Run Bob review query
+        env:
+          INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL }}
+          INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
+          BOB_INFERENCE_API_KEY: ${{ secrets.BOB_INFERENCE_API_KEY }}
+        run: |
+          set -e
+          URL="${INFERENCE_SERVICE_URL:-https://focused-courage-production-ccee.up.railway.app}"
+          echo "Using inference URL: $URL"
+          INFERENCE_SERVICE_URL="$URL" node scripts/ask-bob.mjs "${{ inputs.prompt }}" | tee bob-assisted-review.log
+
+      - name: Publish summary
+        run: |
+          {
+            echo "## Bob Assisted Review"
+            echo ""
+            echo "- Prompt: ${{ inputs.prompt }}"
+            echo ""
+            echo "### Output"
+            echo '```text'
+            cat bob-assisted-review.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
