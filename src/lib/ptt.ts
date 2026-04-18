@@ -46,6 +46,7 @@ interface SignalMessage {
 export interface PTTCustomAudioSource {
   stream: MediaStream
   label: string
+  durationMs?: number
   cleanup?: () => void | Promise<void>
 }
 

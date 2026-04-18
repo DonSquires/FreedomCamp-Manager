@@ -1343,22 +1343,40 @@ export default function BobAssistantStudio() {
     if (radioTransmitting || pttIsSpeaking) return
 
     const fallbackText = chat.slice().reverse().find((message) => message.role === 'assistant')?.text || 'BOB LINK TEST'
-    const signalText = (radioSignalText.trim() || fallbackText).slice(0, 24)
-    const durationMs = estimateBobRadioSignalDurationMs({ profile: radioSignalProfile, signalText })
+    const requestedText = radioSignalText.trim() || fallbackText
+    const signalText = radioSignalProfile === 'spoken'
+      ? requestedText.slice(0, 160)
+      : requestedText.slice(0, 24)
+    let durationMs = estimateBobRadioSignalDurationMs({ profile: radioSignalProfile, signalText })
 
     try {
       if (pttChannelId !== selectedRadioScope || pttConnectionStatus !== 'connected') {
         await connectToPTT(selectedRadioScope, selectedRadioChannel.name)
       }
 
-      setPTTCustomAudioSourceFactory(async () => createBobRadioAudioSource({
-        profile: radioSignalProfile,
-        signalText,
-      }))
+      if (radioSignalProfile === 'spoken') {
+        const synthesized = await synthesizeBobSpeech(signalText)
+        const speechSource = await createBobSpeechAudioSourceFromBase64({
+          audioBase64: synthesized.audioBase64,
+          mimeType: synthesized.audioMimeType,
+          level: 0.28,
+        })
+        durationMs = speechSource.durationMs ?? Math.max(1800, signalText.split(/\s+/).filter(Boolean).length * 520)
+        setPTTCustomAudioSourceFactory(async () => speechSource)
+      } else {
+        setPTTCustomAudioSourceFactory(async () => createBobRadioAudioSource({
+          profile: radioSignalProfile,
+          signalText,
+        }))
+      }
 
       await startSpeaking()
       setRadioTransmitting(true)
-      toast.success(`Bob sent a real browser WebRTC test transmission on ${selectedRadioChannel.name}`)
+      toast.success(
+        radioSignalProfile === 'spoken'
+          ? `Bob sent a spoken WebRTC relay on ${selectedRadioChannel.name}`
+          : `Bob sent a real browser WebRTC test transmission on ${selectedRadioChannel.name}`,
+      )
 
       radioStopTimerRef.current = window.setTimeout(() => {
         void stopSpeaking()
@@ -1557,17 +1575,21 @@ export default function BobAssistantStudio() {
       .toUpperCase()
 
     const signalText = `SOS ${firstName} ${compactLocation}`.slice(0, 24)
-    const durationMs = estimateBobRadioSignalDurationMs({ profile: 'attention', signalText })
+    let durationMs = estimateBobRadioSignalDurationMs({ profile: 'attention', signalText })
 
     try {
       if (pttChannelId !== emergencyScope || pttConnectionStatus !== 'connected') {
         await connectToPTT(emergencyScope, emergencyChannel.name)
       }
 
-      setPTTCustomAudioSourceFactory(async () => createBobRadioAudioSource({
-        profile: 'attention',
-        signalText,
-      }))
+      const synthesized = await synthesizeBobSpeech(emergencyPhrase)
+      const speechSource = await createBobSpeechAudioSourceFromBase64({
+        audioBase64: synthesized.audioBase64,
+        mimeType: synthesized.audioMimeType,
+        level: 0.3,
+      })
+      durationMs = speechSource.durationMs ?? Math.max(2600, emergencyPhrase.split(/\s+/).filter(Boolean).length * 540)
+      setPTTCustomAudioSourceFactory(async () => speechSource)
 
       await startSpeaking()
       setRadioTransmitting(true)
@@ -1599,6 +1621,7 @@ export default function BobAssistantStudio() {
     radioTransmitting,
     radioChannels,
     selectedRadioChannel,
+    synthesizeBobSpeech,
     user?.first_name,
     pttChannelId,
     pttConnectionStatus,
@@ -2822,6 +2845,7 @@ export default function BobAssistantStudio() {
                       <SelectItem value="link-test">Link Test</SelectItem>
                       <SelectItem value="attention">Attention Tone</SelectItem>
                       <SelectItem value="warble">Warble Sweep</SelectItem>
+                      <SelectItem value="spoken">Spoken Relay</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -2836,7 +2860,7 @@ export default function BobAssistantStudio() {
                   maxLength={24}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Generated signal mode: deterministic browser audio that travels through the same WebRTC/TURN path as live speech.
+                  Tone profiles generate deterministic browser audio. Spoken Relay uses Bob speech synthesis and sends it through the same WebRTC/TURN path as live speech.
                 </p>
               </div>
 

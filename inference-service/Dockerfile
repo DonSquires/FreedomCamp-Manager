@@ -1,6 +1,9 @@
 # Stage 1: Build Node.js Application + download ONNX runtime assets
 FROM node:22-slim AS builder
 WORKDIR /app
+ARG SKIP_MODEL_DOWNLOADS=false
+ARG YOLO_MODEL_URL
+ARG EMBEDDING_MODEL_URL
 COPY package*.json ./
 RUN npm install --omit=dev --no-audit --prefer-offline
 COPY models ./models
@@ -8,7 +11,15 @@ COPY data ./data
 COPY lib ./lib
 COPY scripts/download-models.js ./scripts/download-models.js
 COPY scripts/pretrain-self-learning.js ./scripts/pretrain-self-learning.js
-RUN mkdir -p models && node scripts/download-models.js
+ENV SKIP_MODEL_DOWNLOADS=${SKIP_MODEL_DOWNLOADS}
+ENV YOLO_MODEL_URL=${YOLO_MODEL_URL}
+ENV EMBEDDING_MODEL_URL=${EMBEDDING_MODEL_URL}
+RUN mkdir -p models && \
+  if [ "$SKIP_MODEL_DOWNLOADS" = "true" ]; then \
+    echo "Skipping model downloads during image build"; \
+  else \
+    node scripts/download-models.js; \
+  fi
 RUN node scripts/pretrain-self-learning.js
 
 # Stage 1b: Build whisper.cpp CLI + download base English model

@@ -107,6 +107,7 @@ export async function createBobRadioAudioSource(options: BobRadioSignalOptions):
   return {
     stream: destination.stream,
     label: `bob-radio:${options.profile}`,
+    durationMs: Math.round((cursor - context.currentTime) * 1000),
     cleanup: async () => {
       destination.stream.getTracks().forEach((audioTrack) => audioTrack.stop())
       await context.close()
@@ -155,6 +156,7 @@ export async function createBobSpeechAudioSourceFromBase64(params: {
   return {
     stream: destination.stream,
     label: `bob-speech:${params.mimeType || 'audio/wav'}`,
+    durationMs: Math.ceil(audioBuffer.duration * 1000),
     cleanup: async () => {
       source.stop(0)
       destination.stream.getTracks().forEach((audioTrack) => audioTrack.stop())
