@@ -267,6 +267,8 @@ jobs:
           RAILWAY_SERVICE_ID: ${{ steps.resolve-service.outputs.service_id }}
           RAILWAY_BOB_ENVIRONMENT: ${{ secrets.RAILWAY_BOB_ENVIRONMENT }}
           RUNPOD_GATEWAY_URL: ${{ secrets.RUNPOD_GATEWAY_URL }}
+          RUNPOD_GATEWAY_URL_CHAT: ${{ secrets.RUNPOD_GATEWAY_URL_CHAT }}
+          RUNPOD_GATEWAY_URL_PTT: ${{ secrets.RUNPOD_GATEWAY_URL_PTT }}
           BOB_GATEWAY_KEY: ${{ secrets.BOB_GATEWAY_KEY }}
           DESIRED_OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL || 'llama3.1:8b' }}
           DESIRED_OLLAMA_VISION_MODEL: ${{ vars.OLLAMA_VISION_MODEL || 'llama3.2-vision:11b' }}
@@ -276,19 +278,51 @@ jobs:
 
           DEPLOY_ENVIRONMENT="${RAILWAY_BOB_ENVIRONMENT:-production}"
 
-          # Determine OLLAMA_BASE_URL: use RunPod gateway if configured, else Railway internal
+          # Determine OLLAMA_BASE_URL: prefer RunPod gateway when healthy,
+          # otherwise fail over to Railway-internal Ollama.
           RUNPOD_GATEWAY_URL="${RUNPOD_GATEWAY_URL:-}"
+          RUNPOD_GATEWAY_URL_CHAT="${RUNPOD_GATEWAY_URL_CHAT:-}"
+          RUNPOD_GATEWAY_URL_PTT="${RUNPOD_GATEWAY_URL_PTT:-}"
+          USE_RUNPOD_GATEWAY="false"
           if [[ -n "$RUNPOD_GATEWAY_URL" ]]; then
-            OLLAMA_URL="$RUNPOD_GATEWAY_URL"
-            echo "✅ Using RunPod gateway as Ollama upstream: $OLLAMA_URL"
+            echo "🔎 Checking RunPod gateway health before selecting upstream..."
+            if curl -fsS --max-time 8 "${RUNPOD_GATEWAY_URL%/}/gateway/health" >/dev/null; then
+              OLLAMA_URL="$RUNPOD_GATEWAY_URL"
+              USE_RUNPOD_GATEWAY="true"
+              echo "✅ Using RunPod gateway as Ollama upstream: $OLLAMA_URL"
+            else
+              OLLAMA_URL="http://ollama.railway.internal:11434"
+              echo "⚠️  RunPod gateway is configured but unhealthy — falling back to Railway-internal Ollama: $OLLAMA_URL"
+            fi
           else
             OLLAMA_URL="http://ollama.railway.internal:11434"
             echo "ℹ️  RunPod gateway not configured — using Railway-internal Ollama: $OLLAMA_URL"
           fi
 
+          # Optional split routing for dedicated Ollama pods.
+          CHAT_OLLAMA_URL="$OLLAMA_URL"
+          if [[ -n "$RUNPOD_GATEWAY_URL_CHAT" ]]; then
+            if curl -fsS --max-time 8 "${RUNPOD_GATEWAY_URL_CHAT%/}/gateway/health" >/dev/null; then
+              CHAT_OLLAMA_URL="$RUNPOD_GATEWAY_URL_CHAT"
+              echo "✅ Using dedicated chat Ollama upstream: $CHAT_OLLAMA_URL"
+            else
+              echo "⚠️  Dedicated chat Ollama gateway is unhealthy — falling back to shared upstream"
+            fi
+          fi
+
+          PTT_OLLAMA_URL="$OLLAMA_URL"
+          if [[ -n "$RUNPOD_GATEWAY_URL_PTT" ]]; then
+            if curl -fsS --max-time 8 "${RUNPOD_GATEWAY_URL_PTT%/}/gateway/health" >/dev/null; then
+              PTT_OLLAMA_URL="$RUNPOD_GATEWAY_URL_PTT"
+              echo "✅ Using dedicated PTT Ollama upstream: $PTT_OLLAMA_URL"
+            else
+              echo "⚠️  Dedicated PTT Ollama gateway is unhealthy — falling back to shared upstream"
+            fi
+          fi
+
           # When RunPod models are pre-loaded on the network volume, skip in-container downloads
           SKIP_DOWNLOADS="false"
-          if [[ -n "$RUNPOD_GATEWAY_URL" ]]; then
+          if [[ "$USE_RUNPOD_GATEWAY" == "true" || -n "$RUNPOD_GATEWAY_URL_CHAT" || -n "$RUNPOD_GATEWAY_URL_PTT" ]]; then
             SKIP_DOWNLOADS="true"
             echo "✅ SKIP_MODEL_DOWNLOADS=true (models served from RunPod volume)"
           fi
@@ -307,6 +341,9 @@ jobs:
             "REQUIRE_SELF_CONTAINED_MODE=false" \
             "SELF_CONTAINED_STRICT_EGRESS=false" \
             "OLLAMA_BASE_URL=${OLLAMA_URL}" \
+            "OLLAMA_CHAT_BASE_URL=${CHAT_OLLAMA_URL}" \
+            "OLLAMA_PTT_BASE_URL=${PTT_OLLAMA_URL}" \
+            "OLLAMA_TABULAR_BASE_URL=${CHAT_OLLAMA_URL}" \
             "OLLAMA_MODEL=${DESIRED_OLLAMA_MODEL}" \
             "TRANSLATION_MODEL=${DESIRED_OLLAMA_MODEL}" \
             "TRANSLATION_TIMEOUT_MS=20000" \
@@ -323,14 +360,21 @@ jobs:
             "TTS_DEFAULT_RATE=160" \
             "SKIP_MODEL_DOWNLOADS=${SKIP_DOWNLOADS}"
 
-          # Set gateway auth key if RunPod gateway is in use
-          if [[ -n "$BOB_GATEWAY_KEY" && -n "$RUNPOD_GATEWAY_URL" ]]; then
+          # Set gateway auth key when any RunPod gateway is selected.
+          if [[ -n "$BOB_GATEWAY_KEY" && ( "$USE_RUNPOD_GATEWAY" == "true" || "$CHAT_OLLAMA_URL" == https://* || "$PTT_OLLAMA_URL" == https://* ) ]]; then
             railway variable set \
               --service "$RAILWAY_SERVICE_ID" \
               --environment "$DEPLOY_ENVIRONMENT" \
               --skip-deploys \
               "OLLAMA_GATEWAY_KEY=${BOB_GATEWAY_KEY}"
             echo "✅ OLLAMA_GATEWAY_KEY applied (RunPod gateway auth)"
+          else
+            railway variable set \
+              --service "$RAILWAY_SERVICE_ID" \
+              --environment "$DEPLOY_ENVIRONMENT" \
+              --skip-deploys \
+              "OLLAMA_GATEWAY_KEY="
+            echo "ℹ️  OLLAMA_GATEWAY_KEY cleared because RunPod gateway is not selected"
           fi
 
           echo "✅ Bob Railway variables updated"

@@ -319,6 +319,12 @@ const CHAT_TIMEOUT_MS = Number(process.env.CHAT_TIMEOUT_MS || 120000);
 const TABULAR_NLP_TIMEOUT_MS = Number(process.env.TABULAR_NLP_TIMEOUT_MS || 2500);
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
 const OLLAMA_BASE_URL_CONFIGURED = !!process.env.OLLAMA_BASE_URL;
+const OLLAMA_CHAT_BASE_URL = process.env.OLLAMA_CHAT_BASE_URL || OLLAMA_BASE_URL;
+const OLLAMA_CHAT_BASE_URL_CONFIGURED = !!process.env.OLLAMA_CHAT_BASE_URL;
+const OLLAMA_TABULAR_BASE_URL = process.env.OLLAMA_TABULAR_BASE_URL || OLLAMA_BASE_URL;
+const OLLAMA_TABULAR_BASE_URL_CONFIGURED = !!process.env.OLLAMA_TABULAR_BASE_URL;
+const OLLAMA_PTT_BASE_URL = process.env.OLLAMA_PTT_BASE_URL || OLLAMA_BASE_URL;
+const OLLAMA_PTT_BASE_URL_CONFIGURED = !!process.env.OLLAMA_PTT_BASE_URL;
 // When OLLAMA_GATEWAY_KEY is set, all requests to Ollama include an Authorization header.
 // This is used when OLLAMA_BASE_URL points at the RunPod gateway (runpod-gateway/).
 const OLLAMA_GATEWAY_KEY = process.env.OLLAMA_GATEWAY_KEY || '';
@@ -349,6 +355,13 @@ const WHISPER_SERVICE_URL = (process.env.WHISPER_SERVICE_URL || '').replace(/\/+
 function ollamaFetch(url, options = {}) {
   const headers = { ...(options.headers || {}), ...OLLAMA_GATEWAY_HEADERS };
   return fetch(url, { ...options, headers });
+}
+
+function getOllamaBaseUrlForWorkload(workload = 'default') {
+  if (workload === 'chat') return OLLAMA_CHAT_BASE_URL;
+  if (workload === 'tabular') return OLLAMA_TABULAR_BASE_URL;
+  if (workload === 'ptt') return OLLAMA_PTT_BASE_URL;
+  return OLLAMA_BASE_URL;
 }
 
 const WHISPER_CLI_PATH = process.env.WHISPER_CLI_PATH || '';
@@ -1271,6 +1284,7 @@ function analyzeTabularDataHeuristic(sampleRows) {
 
 async function analyzeTabularDataWithOllama(sampleRows) {
   const heuristic = analyzeTabularDataHeuristic(sampleRows);
+  const ollamaBaseUrl = getOllamaBaseUrlForWorkload('tabular');
 
   if (!OLLAMA_ENABLED) {
     recordEgressEvent('ollama', 'blocked', 'SELF_CONTAINED_MODE with non-local OLLAMA_BASE_URL');
@@ -1285,7 +1299,7 @@ async function analyzeTabularDataWithOllama(sampleRows) {
   const timeout = setTimeout(() => controller.abort(), TABULAR_NLP_TIMEOUT_MS);
   try {
     recordEgressEvent('ollama', 'attempted', 'analyzeTabularDataWithOllama');
-    const response = await safeFetch(`${OLLAMA_BASE_URL}/api/chat`, {
+    const response = await safeFetch(`${ollamaBaseUrl}/api/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1351,7 +1365,7 @@ async function analyzeTabularDataWithOllama(sampleRows) {
     if (ollamaCircuitBreaker.state === 'open') {
       // First time tripping — the breaker itself already logged the details
     } else {
-      console.warn(`⚠️ Tabular NLP via Ollama failed (${OLLAMA_BASE_URL}):`, error.message);
+      console.warn(`⚠️ Tabular NLP via Ollama failed (${ollamaBaseUrl}):`, error.message);
     }
     return heuristic;
   } finally {
@@ -1664,6 +1678,7 @@ function generateHeuristicChatReply(message, context = {}) {
 }
 
 async function generateChatReplyWithOllama(message, history = [], context = {}) {
+  const ollamaBaseUrl = getOllamaBaseUrlForWorkload('chat');
   if (!OLLAMA_ENABLED) {
     recordEgressEvent('ollama', 'blocked', 'Chat requested ollama but local ollama is unavailable');
     return buildChatHeuristicFallback(message, context);
@@ -1679,7 +1694,7 @@ async function generateChatReplyWithOllama(message, history = [], context = {}) 
   const trainingFocusedQuery = isTrainingFocusedQuery(message);
   try {
     recordEgressEvent('ollama', 'attempted', 'chat response generation');
-    const response = await safeFetch(`${OLLAMA_BASE_URL}/api/chat`, {
+    const response = await safeFetch(`${ollamaBaseUrl}/api/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1738,7 +1753,7 @@ async function generateChatReplyWithOllama(message, history = [], context = {}) 
     if (ollamaCircuitBreaker.state === 'open') {
       // First time tripping — the breaker itself already logged the details
     } else {
-      console.warn(`⚠️ Local chat via Ollama failed (${OLLAMA_BASE_URL}):`, error.message);
+      console.warn(`⚠️ Local chat via Ollama failed (${ollamaBaseUrl}):`, error.message);
     }
     return buildChatHeuristicFallback(message, context);
   } finally {
@@ -1747,6 +1762,7 @@ async function generateChatReplyWithOllama(message, history = [], context = {}) 
 }
 
 async function generateTranslationWithOllama({ text, targetLanguage, sourceLanguage = null }) {
+  const ollamaBaseUrl = getOllamaBaseUrlForWorkload('ptt');
   if (!OLLAMA_ENABLED) {
     return {
       provider: 'heuristic',
@@ -1772,7 +1788,7 @@ async function generateTranslationWithOllama({ text, targetLanguage, sourceLangu
       text,
     ].join('\n\n');
 
-    const response = await safeFetch(`${OLLAMA_BASE_URL}/api/chat`, {
+    const response = await safeFetch(`${ollamaBaseUrl}/api/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -6194,6 +6210,12 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       SUPABASE_SERVICE_ROLE_KEY_SET: !!SUPABASE_SERVICE_ROLE_KEY,
       OLLAMA_BASE_URL: OLLAMA_BASE_URL,
       OLLAMA_BASE_URL_CONFIGURED,
+      OLLAMA_CHAT_BASE_URL,
+      OLLAMA_CHAT_BASE_URL_CONFIGURED,
+      OLLAMA_TABULAR_BASE_URL,
+      OLLAMA_TABULAR_BASE_URL_CONFIGURED,
+      OLLAMA_PTT_BASE_URL,
+      OLLAMA_PTT_BASE_URL_CONFIGURED,
       OLLAMA_MODEL,
       TRANSLATION_MODEL,
       TRANSLATION_TIMEOUT_MS,

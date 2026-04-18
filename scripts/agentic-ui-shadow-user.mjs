@@ -28,7 +28,6 @@ const defaultEvidenceDir = path.resolve('tools', 'agentic-ui-reports', nowIso)
 const cliArgv = (() => {
   // In this repository, `node` may be Bun's compatibility shim.
   // Bun exposes runtime args via Bun.argv.
-  // eslint-disable-next-line no-undef
   if (typeof Bun !== 'undefined' && Array.isArray(Bun.argv) && Bun.argv.length >= 2) {
     return Bun.argv.slice(2)
   }

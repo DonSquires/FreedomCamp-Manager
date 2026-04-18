@@ -734,7 +734,7 @@ export default function TenderWorkspaceDetail() {
       setGenerating(false)
     }
     // Note: generating cleared by useEffect below when draft_sections updates
-  }, [doc, canEdit, generationType, id, includedRefIds])
+  }, [doc, canEdit, generationType, includedRefIds])
 
   // Detect when Bob finishes generating (last_generated_at timestamp changes)
   const prevGeneratedAt = useRef<string | null>(null)

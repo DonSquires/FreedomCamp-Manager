@@ -677,7 +677,7 @@ export default function PTTRadio() {
       }
       setTxLog((prev) => [entry, ...prev].slice(0, 60))
     }
-  }, [speakerId, isSpeaking])
+  }, [speakerId, isSpeaking, speakerName, activeChannel?.name, activeChannel?.channel_number, emergencyMode])
 
   // ── Live TX timer ─────────────────────────────────────────
   useEffect(() => {
@@ -722,7 +722,7 @@ export default function PTTRadio() {
     window.addEventListener('keydown', down)
     window.addEventListener('keyup', up)
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
-  }, [isAvailable, canSpeak, isMuted])
+  }, [handlePTTPress, handlePTTRelease])
 
   // ── Scanner mode ─────────────────────────────────────────
   useEffect(() => {
@@ -748,7 +748,7 @@ export default function PTTRadio() {
     }, 2500)
 
     return () => { if (scanTimerRef.current) clearInterval(scanTimerRef.current) }
-  }, [scanMode, channels, speakerId])
+  }, [scanMode, channels, speakerId, connectToChannel])
 
   // ── Cleanup on unmount ────────────────────────────────────
   useEffect(() => {
