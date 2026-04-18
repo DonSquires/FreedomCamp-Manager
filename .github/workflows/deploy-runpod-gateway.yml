@@ -47,22 +47,34 @@ jobs:
           key: ${{ secrets.RUNPOD_POD_SSH_KEY }}
           port: ${{ secrets.RUNPOD_POD_SSH_PORT || 22 }}
           request_pty: true
-          command_timeout: 10m
+          command_timeout: 15m
           envs: GH_TOKEN,BOB_GATEWAY_KEY
           script: |
             set -e
+            set -x
             BASE_DIR=/workspace
             [ -d /workspace ] || BASE_DIR=$HOME
             cd "$BASE_DIR"
+
+            echo "Preparing sparse checkout for runpod-gateway..."
             if [ -d repo/.git ]; then
-              git -C repo fetch "https://${GH_TOKEN}@github.com/DonSquires/FreedomCamp-Manager.git" main
-              git -C repo reset --hard FETCH_HEAD
-            else
-              git clone "https://${GH_TOKEN}@github.com/DonSquires/FreedomCamp-Manager.git" repo
+              rm -rf repo
             fi
-            mkdir -p "$BASE_DIR/runpod-gateway"
+
+            git clone --depth 1 --filter=blob:none --sparse "https://${GH_TOKEN}@github.com/DonSquires/FreedomCamp-Manager.git" repo
+            git -C repo sparse-checkout set runpod-gateway
+            git -C repo checkout main
+
+            echo "Syncing runpod-gateway files..."
+            if [ -d "$BASE_DIR/runpod-gateway" ]; then
+              rm -rf "$BASE_DIR/runpod-gateway"
+            else
+              mkdir -p "$BASE_DIR/runpod-gateway"
+            fi
             cp -r "$BASE_DIR/repo/runpod-gateway/." "$BASE_DIR/runpod-gateway/"
             cd "$BASE_DIR/runpod-gateway"
+
+            echo "Installing gateway dependencies..."
             npm install --production
             printf "OLLAMA_HOST=http://127.0.0.1:11434\nPORT=8080\nNODE_ENV=production\nBOB_GATEWAY_KEY=${BOB_GATEWAY_KEY}\n" > .env
             pkill -f "node server.js" 2>/dev/null || true
