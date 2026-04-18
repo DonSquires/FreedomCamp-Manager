@@ -43,11 +43,11 @@ jobs:
           PTT_SERVER_URL: ${{ secrets.PTT_SERVER_URL }}
         run: |
           set -euo pipefail
-          CAP=$(curl -sSL --max-time 20 "${PTT_SERVER_URL}/api/capabilities")
-          echo "$CAP" | python3 - <<'PY'
+          curl -sSL --max-time 20 "${PTT_SERVER_URL}/api/capabilities" -o /tmp/ptt-cap.json
+          python3 <<'PY'
           import json, sys
-          raw = sys.stdin.read().strip()
-          data = json.loads(raw)
+          with open('/tmp/ptt-cap.json') as f:
+              data = json.load(f)
           ws = data.get('websocket', {})
           protocols = ws.get('supportedProtocols', [])
           msg_types = ws.get('messageTypes', [])
@@ -64,10 +64,11 @@ jobs:
           PTT_SERVER_URL: ${{ secrets.PTT_SERVER_URL }}
         run: |
           set -euo pipefail
-          DIAG=$(curl -sSL --max-time 20 "${PTT_SERVER_URL}/api/diagnostics")
-          echo "$DIAG" | python3 - <<'PY'
+          curl -sSL --max-time 20 "${PTT_SERVER_URL}/api/diagnostics" -o /tmp/ptt-diag.json
+          python3 <<'PY'
           import json, sys
-          data = json.loads(sys.stdin.read().strip())
+          with open('/tmp/ptt-diag.json') as f:
+              data = json.load(f)
           t = data.get('transport', {})
           turn = bool(t.get('turnConfigured'))
           relay = bool(t.get('forceTurnRelay'))
