@@ -98,7 +98,8 @@ jobs:
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
           PRIMARY_RAILWAY_TOKEN: ${{ secrets.RAILWAY_PTT_TOKEN }}
-          SECONDARY_RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          SECONDARY_RAILWAY_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
+          TERTIARY_RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
           set -euo pipefail
           echo "🔑 Selecting Railway PTT token..."
@@ -110,7 +111,11 @@ jobs:
           elif [ -n "${SECONDARY_RAILWAY_TOKEN:-}" ]; then
             echo "::add-mask::${SECONDARY_RAILWAY_TOKEN}"
             echo "SELECTED_RAILWAY_TOKEN=${SECONDARY_RAILWAY_TOKEN}" >> "$GITHUB_ENV"
-            echo "::warning::RAILWAY_PTT_TOKEN is empty; using RAILWAY_TOKEN fallback."
+            echo "::warning::RAILWAY_PTT_TOKEN is empty; using RAILWAY_BOB_TOKEN (same project)."
+          elif [ -n "${TERTIARY_RAILWAY_TOKEN:-}" ]; then
+            echo "::add-mask::${TERTIARY_RAILWAY_TOKEN}"
+            echo "SELECTED_RAILWAY_TOKEN=${TERTIARY_RAILWAY_TOKEN}" >> "$GITHUB_ENV"
+            echo "::warning::Using RAILWAY_TOKEN fallback."
           else
             echo "::error::No Railway token available for PTT deployment."
             exit 1
@@ -129,7 +134,12 @@ jobs:
         run: |
           cd ptt-server
           echo "🚂 Deploying ptt-server to Railway..."
-          railway up --service "$RAILWAY_SERVICE_ID" --detach
+          if [ -n "${RAILWAY_PROJECT_ID:-}" ]; then
+            railway up --project "$RAILWAY_PROJECT_ID" --service "$RAILWAY_SERVICE_ID" --detach \
+              || railway up --service "$RAILWAY_SERVICE_ID" --detach
+          else
+            railway up --service "$RAILWAY_SERVICE_ID" --detach
+          fi
           echo "✅ Deploy triggered. Check Railway dashboard for status."
           echo ""
           echo "Railway Dashboard: https://railway.app/dashboard"
