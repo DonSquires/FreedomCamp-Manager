@@ -417,6 +417,11 @@ export default function PTTRadio() {
   const [isInterpreterListening, setIsInterpreterListening] = useState(false)
   const [isInterpreterTranslating, setIsInterpreterTranslating] = useState(false)
 
+  // Auto-transcription state – populated after each incoming clip
+  const [lastClipTranscript, setLastClipTranscript] = useState<string | null>(null)
+  const [isTranscribing, setIsTranscribing] = useState(false)
+  const transcribedClipIdRef = useRef<string | null>(null)
+
   const pttButtonRef = useRef<HTMLButtonElement>(null)
   const speechRecognitionRef = useRef<any>(null)
   const scanTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -838,6 +843,26 @@ export default function PTTRadio() {
 
     return () => clearTimeout(timer)
   }, [user?.id, interpreterTargetLanguage, interpreterPrefsHydrated])
+
+  // Auto-transcribe the latest incoming PTT clip whenever it changes
+  useEffect(() => {
+    const clip = lastClips[0]
+    if (!clip?.clipUrl || clip.id === transcribedClipIdRef.current) return
+
+    transcribedClipIdRef.current = clip.id
+    setLastClipTranscript(null)
+    setIsTranscribing(true)
+
+    edgeFunctions.transcribeAudio({ clip_url: clip.clipUrl, language: 'en' })
+      .then((result: any) => {
+        const text = result?.transcript ?? result?.text ?? null
+        setLastClipTranscript(text)
+      })
+      .catch(() => {
+        // Transcription is best-effort — silently fail
+      })
+      .finally(() => setIsTranscribing(false))
+  }, [lastClips])
 
   useEffect(() => {
     return () => {
@@ -2046,6 +2071,14 @@ export default function PTTRadio() {
                     {lastClips[0]?.duration ? formatDuration(lastClips[0].duration) : ''}
                   </span>
                 </div>
+                {isTranscribing && (
+                  <div className="mt-1 text-[10px] text-slate-500 italic">Transcribing…</div>
+                )}
+                {!isTranscribing && lastClipTranscript && (
+                  <div className="mt-1 text-[11px] text-slate-300 italic leading-snug">
+                    "{lastClipTranscript}"
+                  </div>
+                )}
               </div>
             )}
           </div>

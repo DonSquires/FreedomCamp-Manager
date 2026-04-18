@@ -1,0 +1,19 @@
+{
+  "name": "runpod-gateway",
+  "version": "1.0.0",
+  "description": "Authenticated gateway in front of Ollama running on RunPod",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.3.1",
+    "helmet": "^7.1.0",
+    "node-fetch": "^2.7.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,111 @@
+name: Upload RunPod Gateway to Pod
+
+# Uploads runpod-gateway/ to the RunPod bob_brain pod whenever the source changes.
+# It connects via SSH using the RunPod pod's public SFTP/SSH endpoint, installs
+# npm dependencies, and restarts the gateway process.
+#
+# Required secrets:
+#   RUNPOD_POD_SSH_HOST   – e.g. ssh.runpod.io
+#   RUNPOD_POD_SSH_PORT   – e.g. 22204 (pod-specific)
+#   RUNPOD_POD_SSH_KEY    – private key (RSA/ED25519, no passphrase)
+#   BOB_GATEWAY_KEY       – shared secret for gateway auth
+#
+# Optional secrets:
+#   BOB_GATEWAY_ADMIN_KEY – elevated key for model management operations
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - runpod-gateway/**
+      - .github/workflows/deploy-runpod-gateway.yml
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  deploy-gateway:
+    name: Deploy gateway to RunPod pod
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Validate required secrets
+        run: |
+          if [[ -z "${{ secrets.RUNPOD_POD_SSH_HOST }}" ]]; then
+            echo "::error::RUNPOD_POD_SSH_HOST secret is not set"
+            exit 1
+          fi
+          if [[ -z "${{ secrets.RUNPOD_POD_SSH_PORT }}" ]]; then
+            echo "::error::RUNPOD_POD_SSH_PORT secret is not set"
+            exit 1
+          fi
+          if [[ -z "${{ secrets.RUNPOD_POD_SSH_KEY }}" ]]; then
+            echo "::error::RUNPOD_POD_SSH_KEY secret is not set"
+            exit 1
+          fi
+          if [[ -z "${{ secrets.BOB_GATEWAY_KEY }}" ]]; then
+            echo "::error::BOB_GATEWAY_KEY secret is not set"
+            exit 1
+          fi
+          echo "All required secrets present."
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.RUNPOD_POD_SSH_KEY }}" > ~/.ssh/runpod_key
+          chmod 600 ~/.ssh/runpod_key
+          ssh-keyscan -p "${{ secrets.RUNPOD_POD_SSH_PORT }}" "${{ secrets.RUNPOD_POD_SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Upload gateway source to pod
+        run: |
+          SSH_OPTS="-i ~/.ssh/runpod_key -p ${{ secrets.RUNPOD_POD_SSH_PORT }} -o StrictHostKeyChecking=no"
+          rsync -avz --exclude=node_modules --exclude=.env \
+            -e "ssh $SSH_OPTS" \
+            runpod-gateway/ \
+            root@${{ secrets.RUNPOD_POD_SSH_HOST }}:/workspace/runpod-gateway/
+
+      - name: Install dependencies and restart gateway
+        env:
+          BOB_GATEWAY_KEY: ${{ secrets.BOB_GATEWAY_KEY }}
+          BOB_GATEWAY_ADMIN_KEY: ${{ secrets.BOB_GATEWAY_ADMIN_KEY }}
+        run: |
+          ssh -i ~/.ssh/runpod_key \
+              -p "${{ secrets.RUNPOD_POD_SSH_PORT }}" \
+              -o StrictHostKeyChecking=no \
+              root@"${{ secrets.RUNPOD_POD_SSH_HOST }}" << 'ENDSSH'
+          set -e
+          cd /workspace/runpod-gateway
+
+          # Install dependencies
+          npm install --production
+
+          # Write .env from secrets
+          cat > .env << EOF
+          BOB_GATEWAY_KEY=${BOB_GATEWAY_KEY}
+          BOB_GATEWAY_ADMIN_KEY=${BOB_GATEWAY_ADMIN_KEY}
+          OLLAMA_HOST=http://127.0.0.1:11434
+          PORT=8080
+          NODE_ENV=production
+          EOF
+
+          # Restart gateway using pm2 (pre-installed in better-ollama image)
+          # or fall back to nohup
+          if command -v pm2 >/dev/null 2>&1; then
+            pm2 delete runpod-gateway 2>/dev/null || true
+            pm2 start server.js --name runpod-gateway --env production
+            pm2 save
+          else
+            pkill -f "node server.js" 2>/dev/null || true
+            nohup node server.js > /workspace/gateway.log 2>&1 &
+            echo "Gateway started with PID $!"
+          fi
+
+          echo "Gateway deployed successfully."
+          ENDSSH

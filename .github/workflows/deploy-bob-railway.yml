@@ -266,10 +266,29 @@ jobs:
           RAILWAY_TOKEN: ${{ env.SELECTED_RAILWAY_TOKEN }}
           RAILWAY_SERVICE_ID: ${{ steps.resolve-service.outputs.service_id }}
           RAILWAY_BOB_ENVIRONMENT: ${{ secrets.RAILWAY_BOB_ENVIRONMENT }}
+          RUNPOD_GATEWAY_URL: ${{ secrets.RUNPOD_GATEWAY_URL }}
+          BOB_GATEWAY_KEY: ${{ secrets.BOB_GATEWAY_KEY }}
         run: |
           set -euo pipefail
 
           DEPLOY_ENVIRONMENT="${RAILWAY_BOB_ENVIRONMENT:-production}"
+
+          # Determine OLLAMA_BASE_URL: use RunPod gateway if configured, else Railway internal
+          RUNPOD_GATEWAY_URL="${RUNPOD_GATEWAY_URL:-}"
+          if [[ -n "$RUNPOD_GATEWAY_URL" ]]; then
+            OLLAMA_URL="$RUNPOD_GATEWAY_URL"
+            echo "✅ Using RunPod gateway as Ollama upstream: $OLLAMA_URL"
+          else
+            OLLAMA_URL="http://ollama.railway.internal:11434"
+            echo "ℹ️  RunPod gateway not configured — using Railway-internal Ollama: $OLLAMA_URL"
+          fi
+
+          # When RunPod models are pre-loaded on the network volume, skip in-container downloads
+          SKIP_DOWNLOADS="false"
+          if [[ -n "$RUNPOD_GATEWAY_URL" ]]; then
+            SKIP_DOWNLOADS="true"
+            echo "✅ SKIP_MODEL_DOWNLOADS=true (models served from RunPod volume)"
+          fi
 
           echo "🔧 Applying Bob Railway variable baseline..."
           railway variable set \
@@ -283,7 +302,7 @@ jobs:
             "SELF_CONTAINED_MODE=true" \
             "REQUIRE_SELF_CONTAINED_MODE=true" \
             "SELF_CONTAINED_STRICT_EGRESS=true" \
-            "OLLAMA_BASE_URL=http://ollama.railway.internal:11434" \
+            "OLLAMA_BASE_URL=${OLLAMA_URL}" \
             "OLLAMA_MODEL=llama3.1:8b" \
             "TRANSLATION_MODEL=llama3.1:8b" \
             "TRANSLATION_TIMEOUT_MS=20000" \
@@ -297,7 +316,18 @@ jobs:
             "AUDIO_SYNTH_TIMEOUT_MS=15000" \
             "TTS_ENGINE=espeak-ng" \
             "TTS_DEFAULT_VOICE=en-nz" \
-            "TTS_DEFAULT_RATE=160"
+            "TTS_DEFAULT_RATE=160" \
+            "SKIP_MODEL_DOWNLOADS=${SKIP_DOWNLOADS}"
+
+          # Set gateway auth key if RunPod gateway is in use
+          if [[ -n "$BOB_GATEWAY_KEY" && -n "$RUNPOD_GATEWAY_URL" ]]; then
+            railway variable set \
+              --service "$RAILWAY_SERVICE_ID" \
+              --environment "$DEPLOY_ENVIRONMENT" \
+              --skip-deploys \
+              "OLLAMA_GATEWAY_KEY=${BOB_GATEWAY_KEY}"
+            echo "✅ OLLAMA_GATEWAY_KEY applied (RunPod gateway auth)"
+          fi
 
           echo "✅ Bob Railway variables updated"
 

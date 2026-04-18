@@ -209,6 +209,12 @@ const CHAT_TIMEOUT_MS = Number(process.env.CHAT_TIMEOUT_MS || 60000);
 const TABULAR_NLP_TIMEOUT_MS = Number(process.env.TABULAR_NLP_TIMEOUT_MS || 2500);
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
 const OLLAMA_BASE_URL_CONFIGURED = !!process.env.OLLAMA_BASE_URL;
+// When OLLAMA_GATEWAY_KEY is set, all requests to Ollama include an Authorization header.
+// This is used when OLLAMA_BASE_URL points at the RunPod gateway (runpod-gateway/).
+const OLLAMA_GATEWAY_KEY = process.env.OLLAMA_GATEWAY_KEY || '';
+const OLLAMA_GATEWAY_HEADERS = OLLAMA_GATEWAY_KEY
+  ? { Authorization: `Bearer ${OLLAMA_GATEWAY_KEY}` }
+  : {};
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1:8b';
 const TRANSLATION_MODEL = process.env.TRANSLATION_MODEL || OLLAMA_MODEL;
 const TRANSLATION_TIMEOUT_MS = Number(process.env.TRANSLATION_TIMEOUT_MS || 20000);
@@ -224,6 +230,17 @@ const OLLAMA_MODEL_WRITING = process.env.OLLAMA_MODEL_WRITING || OLLAMA_MODEL;
 const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || '';
 const OLLAMA_VISION_ENABLED = !!OLLAMA_VISION_MODEL;
 const WHISPER_SERVICE_URL = (process.env.WHISPER_SERVICE_URL || '').replace(/\/+$/, '');
+
+/**
+ * ollamaFetch — thin wrapper around fetch that injects OLLAMA_GATEWAY_HEADERS
+ * so every outbound call to Ollama goes through the RunPod gateway auth layer
+ * when OLLAMA_GATEWAY_KEY is configured.
+ */
+function ollamaFetch(url, options = {}) {
+  const headers = { ...(options.headers || {}), ...OLLAMA_GATEWAY_HEADERS };
+  return fetch(url, { ...options, headers });
+}
+
 const WHISPER_CLI_PATH = process.env.WHISPER_CLI_PATH || '';
 const WHISPER_MODEL_PATH = process.env.WHISPER_MODEL_PATH || '';
 const AUDIO_TRANSCRIBE_TIMEOUT_MS = Number(process.env.AUDIO_TRANSCRIBE_TIMEOUT_MS || 15000);
@@ -268,7 +285,7 @@ async function ensureOllamaModelPulled(modelName) {
   const pullController = new AbortController();
   const pullTimeout = setTimeout(() => pullController.abort(), OLLAMA_PULL_TIMEOUT_MS);
   try {
-    const resp = await fetch(`${OLLAMA_BASE_URL}/api/pull`, {
+    const resp = await ollamaFetch(`${OLLAMA_BASE_URL}/api/pull`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model, stream: false }),
@@ -368,15 +385,22 @@ function assertEgressAllowed(url, providerLabel = 'unknown') {
 
 async function safeFetch(url, options, providerLabel = 'unknown') {
   assertEgressAllowed(url, providerLabel);
+  // Inject gateway auth header for all requests to Ollama
+  if (OLLAMA_GATEWAY_KEY && String(url).startsWith(OLLAMA_BASE_URL)) {
+    const headers = { ...(options?.headers || {}), ...OLLAMA_GATEWAY_HEADERS };
+    return fetch(url, { ...(options || {}), headers });
+  }
   return fetch(url, options);
 }
 
 const OPENAI_ENABLED = !SELF_CONTAINED_MODE && !!OPENAI_API_KEY;
-// Ollama vision is allowed in self-contained mode as long as the URL is local/internal
-const OLLAMA_VISION_ACTIVE = OLLAMA_VISION_ENABLED && (!SELF_CONTAINED_MODE || isLocalUrl(OLLAMA_BASE_URL));
+// Ollama is allowed in self-contained mode when the URL is local/internal OR
+// when OLLAMA_GATEWAY_KEY is set (RunPod gateway — private key-authenticated, not open internet).
+const OLLAMA_URL_TRUSTED = isLocalUrl(OLLAMA_BASE_URL) || !!OLLAMA_GATEWAY_KEY;
+const OLLAMA_VISION_ACTIVE = OLLAMA_VISION_ENABLED && (!SELF_CONTAINED_MODE || OLLAMA_URL_TRUSTED);
 const CLOUD_ALPR_ENABLED = !SELF_CONTAINED_MODE && !!process.env.PLATERECOGNIZER_TOKEN;
 const OLLAMA_REQUESTED = TABULAR_NLP_PROVIDER === 'ollama' || CHAT_PROVIDER === 'ollama';
-const OLLAMA_ENABLED = OLLAMA_REQUESTED && (!SELF_CONTAINED_MODE || isLocalUrl(OLLAMA_BASE_URL));
+const OLLAMA_ENABLED = OLLAMA_REQUESTED && (!SELF_CONTAINED_MODE || OLLAMA_URL_TRUSTED);
 // Secondary Railway assistant — allowed as long as we have a URL+key and it's
 // reachable (either via Railway internal network or in non-strict mode)
 const SECONDARY_ASSISTANT_ENABLED = !!SECONDARY_ASSISTANT_URL && !!SECONDARY_ASSISTANT_API_KEY;
@@ -3495,7 +3519,7 @@ async function inferVehicleAttributesWithOllama(vehicleCropBuffer) {
   const timeout = setTimeout(() => controller.abort(), ATTR_TIMEOUT_MS);
 
   try {
-    const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+    const response = await ollamaFetch(`${OLLAMA_BASE_URL}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
@@ -4596,7 +4620,7 @@ app.post('/infer/chalk', inferenceRateLimit, upload.single('photo'), requireInfe
 
         if (OLLAMA_VISION_ACTIVE) {
           recordEgressEvent('ollama', 'attempted', 'chalk valve detection');
-          valveResp = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+          valveResp = await ollamaFetch(`${OLLAMA_BASE_URL}/api/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             signal: controller.signal,
@@ -5583,7 +5607,7 @@ app.post('/infer/noise-audio', inferenceRateLimit, requireInferenceAuth, async (
           'Return keys: noise_type, noise_source, confidence (0..1), rationale (<=180 chars).',
         ].join('\n');
 
-        const refineResp = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+        const refineResp = await ollamaFetch(`${OLLAMA_BASE_URL}/api/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           signal: controller.signal,
@@ -5829,7 +5853,7 @@ async function probeOllamaTags(timeoutMs = 8000) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     const startedAt = Date.now();
-    const resp = await fetch(`${OLLAMA_BASE_URL}/api/tags`, { signal: controller.signal });
+    const resp = await ollamaFetch(`${OLLAMA_BASE_URL}/api/tags`, { signal: controller.signal });
     clearTimeout(timer);
 
     result.status = resp.status;
@@ -6301,7 +6325,7 @@ app.post('/ops/circuit-reset', rateLimit({ windowMs: 60_000, max: 10, standardHe
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 10_000);
     const t0 = Date.now();
-    const resp = await fetch(`${OLLAMA_BASE_URL}/api/tags`, { signal: controller.signal });
+    const resp = await ollamaFetch(`${OLLAMA_BASE_URL}/api/tags`, { signal: controller.signal });
     clearTimeout(timer);
     probeMs     = Date.now() - t0;
     probeStatus = resp.status;
