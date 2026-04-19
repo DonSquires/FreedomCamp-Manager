@@ -205,8 +205,8 @@ Professional compatibility mode:
 ## Monitoring
 
 ```bash
-# View Railway logs
-railway logs
+# View logs on VPS (from /opt/fieldops-voice)
+docker compose logs -f ptt-server
 
 # Health check
 curl http://72.61.123.97:8080/health

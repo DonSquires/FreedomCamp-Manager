@@ -259,6 +259,8 @@ PTT routing note:
 | Vercel (frontend env) | `VITE_PTT_SERVER_URL` | `ws://72.61.123.97:8080/ws` |
 | Supabase Edge Function Secrets | `PTT_SERVER_URL` | `http://72.61.123.97:8080` |
 | PTT server runtime | `TURN_URL` | `turn:72.61.123.97:3478` |
+| PTT server runtime | `TURN_USERNAME` | `<your_turn_username>` |
+| PTT server runtime | `TURN_CREDENTIAL` | `<your_turn_credential>` |
 
 ---
 
