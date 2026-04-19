@@ -104,7 +104,7 @@ These are set in Supabase Dashboard → Project Settings → Edge Functions → 
 | `NZSCV_API_KEY` | NZ SCV API key | For SCV lookups | Ministry of Transport API |
 | `PARKPOW_API_KEY` | ParkPow API key | For ALPR integration | Third-party ALPR service |
 | `RESEND_API_KEY` | Resend email API key | For email notifications | Email service |
-| `PTT_SERVER_URL` | Railway PTT signaling service URL | For push-to-talk | Used by `ptt-signaling-token` |
+| `PTT_SERVER_URL` | PTT signaling base URL | For push-to-talk | Use `http://72.61.123.97:8080` (Edge Functions append `/ws`) |
 | `PTT_PROXY_SECRET` | Shared secret for PTT token mint calls | For push-to-talk | Preferred secret for PTT token broker |
 
 PTT proxy secret compatibility (Edge Functions):
@@ -193,6 +193,9 @@ VITE_TURNSTILE_SITE_KEY=0x4AAAAA...  # Cloudflare Turnstile site key
 | Variable | Description | Required | Default |
 |----------|-------------|----------|---------|
 | `PORT` | WebSocket port | No | `8080` |
+| `TURN_URL` | TURN server URL | Recommended | `turn:72.61.123.97:3478` |
+| `TURN_USERNAME` | TURN username | Recommended | - |
+| `TURN_CREDENTIAL` | TURN credential/password | Recommended | - |
 | `SUPABASE_URL` | Supabase project URL | Yes | - |
 | `SUPABASE_SERVICE_ROLE_KEY` | For channel auth | Yes | - |
 | `PTT_MEDIA_MODE` | Media topology metadata mode (`peer` or `sfu`) | No | `peer` |
@@ -242,6 +245,22 @@ Located in `/mobile-app/.env`
 |----------|-------------|--------|
 | `EXPO_PUBLIC_SUPABASE_URL` | Supabase project URL | URL |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key | JWT |
+
+PTT routing note:
+- Mobile PTT uses the same Supabase Edge Function (`ptt-signaling-token`) and therefore the same `PTT_SERVER_URL` secret (`http://72.61.123.97:8080`).
+- If your Expo client introduces a direct fallback URL, set it to `ws://72.61.123.97:8080/ws`.
+
+---
+
+## PTT Migration Quick Reference (Vercel / Expo / Supabase)
+
+| Platform | Variable | Value |
+|----------|----------|-------|
+| Vercel (frontend env) | `VITE_PTT_SERVER_URL` | `ws://72.61.123.97:8080/ws` |
+| Supabase Edge Function Secrets | `PTT_SERVER_URL` | `http://72.61.123.97:8080` |
+| PTT server runtime | `TURN_URL` | `turn:72.61.123.97:3478` |
+| PTT server runtime | `TURN_USERNAME` | `<your_turn_username>` |
+| PTT server runtime | `TURN_CREDENTIAL` | `<your_turn_credential>` |
 
 ---
 

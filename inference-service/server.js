@@ -3372,8 +3372,8 @@ const PTT_DIAGNOSTICS = {
     diagnosis: 'PTT connection failure',
     checks: [
       { step: 'Check ptt-signaling-token Edge Function is deployed', detail: 'Run set-ptt-secret.yml workflow or: supabase functions deploy ptt-signaling-token --project-ref $REF --no-verify-jwt' },
-      { step: 'Verify PTT_SERVER_URL in Supabase secrets', detail: 'Supabase Dashboard → Settings → Edge Functions → Secrets. Should be the Railway URL of ptt-server (e.g., https://ptt-server-production.up.railway.app)' },
-      { step: 'Check ptt-server health on Railway', detail: 'GET https://<ptt-server-url>/health — should return {status:"ok",channels:N,connectedUsers:N}' },
+      { step: 'Verify PTT_SERVER_URL in Supabase secrets', detail: 'Supabase Dashboard → Settings → Edge Functions → Secrets. Should be http://72.61.123.97:8080' },
+      { step: 'Check ptt-server health endpoint', detail: 'GET http://72.61.123.97:8080/health — should return {status:"ok",channels:N,connectedUsers:N}' },
       { step: 'Verify PTT_JWT_SECRET matches', detail: 'Same secret must be set on both Supabase Edge Function secrets AND Railway ptt-server environment variables' },
       { step: 'Verify PROXY_SECRET matches', detail: 'Edge Function uses this to authenticate with ptt-server /api/token/mint. Must match between Supabase secrets and Railway env.' },
       { step: 'Check user authentication', detail: 'User must be logged in with a valid session. PTT waits for auth loading to complete before connecting (usePTTAutoConnect).' },

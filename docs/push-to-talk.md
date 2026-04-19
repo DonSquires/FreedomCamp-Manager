@@ -9,7 +9,7 @@ Interoperability profile: see docs/PTT_INTEROPERABILITY_PROFILE.md.
 
 ## Scope and Operating Model
 
-1. PTT signaling is self-hosted on Railway via the ptt-server service.
+1. PTT signaling is self-hosted on the dedicated VPS (`72.61.123.97`) via the ptt-server service.
 2. Authorization and policy enforcement are self-hosted in Supabase Edge Functions.
 3. Client control plane and media negotiation are implemented in the application codebase.
 4. NAT traversal is supported with STUN by default and TURN when configured.
@@ -76,7 +76,7 @@ Notes:
 
 ## Professional Self-Hosted Target State
 
-1. Dedicated PTT Railway service with one canonical secret model.
+1. Dedicated PTT VPS service with one canonical secret model.
 2. Mandatory TURN configuration in production.
 3. Single authoritative runbook for deploy, incident response, and rollback.
 4. Optional Redis-backed signaling state for horizontal scaling.
