@@ -72,10 +72,8 @@ jobs:
           set -e
 
           required=(
-            "source/inference-service/Dockerfile"
-            "source/inference-service/railway.json"
             "source/inference-service/server.js"
-            "source/inference-service/.github/workflows/deploy-railway.yml"
+            "source/inference-service/package.json"
           )
 
           missing=""
@@ -116,9 +114,8 @@ jobs:
             echo "source_repo=${{ github.repository }}"
             echo "source_sha=${SOURCE_SHA}"
             echo "source_path=inference-service/"
-            echo "dockerfile=Dockerfile"
-            echo "railway_config=railway.json"
-            echo "deploy_workflow=.github/workflows/deploy-railway.yml"
+            echo "runtime=runpod-serverless-endpoint"
+            echo "railway_proxy=managed-in-freedomcamp-manager"
           } > bob/.sync-source
 
       - name: Commit and push to Bob

@@ -1,5 +1,8 @@
 # Bob Production Railway Setup
 
+> **Deprecated (2026-04-19):** Bob/Ollama inference has moved to **RunPod Serverless**.
+> This document is retained for historical migration context only and should not be used for active deployment.
+
 Bob is an independent AI inference service with his own repository: **DonSquires/Bob**.
 
 Code lives in `inference-service/` inside FreedomCamp-Manager and is automatically
