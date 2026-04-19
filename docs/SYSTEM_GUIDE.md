@@ -193,7 +193,7 @@ cd runpod-gateway     && npm install && npm start
       - Root and inference-service `test*` scripts now route through `scripts/run-test-with-bob-assist.mjs`.
       - The wrapper calls Bob `/chat` before and after each test run for context + triage.
       - Required env vars for strict mode:
-            - `BOB_SERVICE_URL` or `INFERENCE_SERVICE_URL`
+            - `BOB_SERVICE_URL` or `INFERENCE_SERVICE_URL` or `DR_BOB_URL` (HTTP endpoint only)
             - `BOB_INFERENCE_API_KEY` or `INFERENCE_API_KEY` (service-role fallback also accepted)
       - Default policy: tests fail if Bob assist is unavailable (`REQUIRE_BOB_TEST_ASSIST=true`).
 

@@ -1,12 +1,23 @@
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 let dotenv = null;
 
 try {
-  ({ default: dotenv } = await import('dotenv'));
+  const cwdRequire = createRequire(path.join(process.cwd(), 'package.json'));
+  const modulePath = cwdRequire.resolve('dotenv');
+  ({ default: dotenv } = await import(modulePath));
 } catch {
-  dotenv = null;
+  try {
+    const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+    const scriptRequire = createRequire(path.join(scriptDir, 'package.json'));
+    const modulePath = scriptRequire.resolve('dotenv');
+    ({ default: dotenv } = await import(modulePath));
+  } catch {
+    dotenv = null;
+  }
 }
 
 let loaded = false;

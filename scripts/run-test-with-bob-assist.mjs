@@ -11,13 +11,20 @@ function envFlag(value, fallback) {
   return !['0', 'false', 'no', 'off'].includes(String(value).toLowerCase());
 }
 
+function isHttpUrl(value) {
+  return /^https?:\/\//i.test(String(value || '').trim());
+}
+
 function resolveBaseUrl() {
-  const raw =
-    process.env.BOB_SERVICE_URL ||
-    process.env.INFERENCE_SERVICE_URL ||
-    process.env.RUNPOD_GATEWAY_URL ||
-    process.env.RUNPOD_SERVERLESS_URL ||
-    '';
+  const candidates = [
+    process.env.BOB_SERVICE_URL,
+    process.env.INFERENCE_SERVICE_URL,
+    process.env.RUNPOD_GATEWAY_URL,
+    process.env.RUNPOD_SERVERLESS_URL,
+    process.env.DR_BOB_URL,
+  ];
+
+  const raw = candidates.find((value) => isHttpUrl(value)) || '';
   return String(raw).trim().replace(/\/+$/, '');
 }
 
@@ -71,8 +78,12 @@ async function pingBob(stage, command, exitCode = null) {
 
   if (!baseUrl || !apiKey) {
     const missing = [
-      !baseUrl ? 'BOB_SERVICE_URL-or-INFERENCE_SERVICE_URL' : null,
-      !apiKey ? 'BOB_INFERENCE_API_KEY-or-INFERENCE_API_KEY-or-SUPABASE_SERVICE_ROLE_KEY' : null,
+      !baseUrl
+        ? 'BOB_SERVICE_URL-or-INFERENCE_SERVICE_URL-or-RUNPOD_GATEWAY_URL-or-RUNPOD_SERVERLESS_URL-or-DR_BOB_URL'
+        : null,
+      !apiKey
+        ? 'BOB_INFERENCE_API_KEY-or-INFERENCE_API_KEY-or-RUNPOD_API_KEY-or-DR_BOB_API-or-SUPABASE_SERVICE_ROLE_KEY'
+        : null,
     ].filter(Boolean).join(', ');
 
     const message = `[bob-test-assist] Missing Bob config: ${missing}`;
