@@ -206,6 +206,9 @@ jobs:
             local attempt=1
             local max_attempts=4
             local resp=""
+            local last_provider=""
+            local last_fallback="false"
+            local last_message=""
 
             while [[ "$attempt" -le "$max_attempts" ]]; do
               resp="$(call_chat "$prompt")"
@@ -229,6 +232,9 @@ jobs:
               provider="$(echo "$resp" | jq -r '.provider // empty' 2>/dev/null || echo "")"
               fallback="$(echo "$resp" | jq -r '.fallback // false' 2>/dev/null || echo "false")"
               message="$(echo "$resp" | jq -r '.message // empty' 2>/dev/null || echo "")"
+              last_provider="$provider"
+              last_fallback="$fallback"
+              last_message="$message"
 
               # Redirect diagnostics to stderr so they don't pollute the captured
               # return value when retry_chat_prompt is called inside $().
@@ -249,6 +255,12 @@ jobs:
 
               attempt=$((attempt + 1))
             done
+
+            if [[ -n "$last_message" && "$last_fallback" == "true" ]]; then
+              echo "::warning::Prompt exhausted retries and remained in fallback mode (provider=${last_provider:-unknown}); accepting degraded response" | tee -a "$LOG_FILE" >&2
+              echo "$resp"
+              return 0
+            fi
 
             echo "$resp"
             return 1
