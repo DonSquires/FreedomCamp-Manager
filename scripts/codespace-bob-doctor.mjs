@@ -16,7 +16,7 @@ const runpodUrl = String(
   .trim()
   .replace(/\/+$/, '');
 
-const runpodApiKey = String(process.env.RUNPOD_API_KEY || '').trim();
+const runpodApiKey = String(process.env.RUNPOD_API_KEY || process.env.DR_BOB_API || '').trim();
 
 const orgId = String(
   process.env.BOB_ORG_ID || process.env.ORG_ID || process.env.DEFAULT_ORG_ID || ''
@@ -95,7 +95,7 @@ async function main() {
   }
 
   console.log('\nRequired Codespaces secrets to set:');
-  console.log('- RUNPOD_API_KEY');
+  console.log('- RUNPOD_API_KEY (or DR_BOB_API)');
   console.log('- RUNPOD_GATEWAY_URL (or RUNPOD_SERVERLESS_URL, optional override for the runsync endpoint)');
   console.log('- BOB_ORG_ID (or ORG_ID) for multi-tenant context');
   console.log('- SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (for admin/ops scripts)');
