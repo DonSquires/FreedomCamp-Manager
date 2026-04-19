@@ -43,6 +43,7 @@ import {
 } from '@/stores/pttStore'
 import {
   connectToPTT,
+  extractPTTRetryAfterSeconds,
   ensureMicrophonePermission,
   getPTTDiagnostics,
   type PTTDiagnostics,
@@ -164,6 +165,8 @@ const TRANSLATION_LANGUAGE_OPTIONS = [
 const TEAM_CHAT_TRANSLATION_PREF_KEY = 'team-chat-translation-pref-v1'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const CHANNEL_SWITCH_DEBOUNCE_MS = 400
+const CONNECT_ACTION_COOLDOWN_MS = 800
 
 function getChannelScope(channel: RadioChannel, effectiveOrgId: string): string {
   // Primary channel must always be org-wide so all clients converge on the
@@ -399,6 +402,8 @@ export default function PTTRadio() {
   const [showSettings, setShowSettings] = useState(false)
   const [emergencyMode, setEmergencyMode] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
+  const [connectCooldownUntil, setConnectCooldownUntil] = useState(0)
+  const [retryCountdownSeconds, setRetryCountdownSeconds] = useState<number | null>(null)
   const [callsign, setCallsign] = useState('')
   const [txLog, setTxLog] = useState<TransmissionEntry[]>([])
   const [currentTxStart, setCurrentTxStart] = useState<Date | null>(null)
@@ -430,6 +435,9 @@ export default function PTTRadio() {
   const txLogUnavailableRef = useRef(false)
   const seedRpcUnavailableRef = useRef(false)
   const initialConnectRef = useRef(false)
+  const connectDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const connectRetryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingRetryChannelRef = useRef<RadioChannel | null>(null)
 
   // ── Org ID ────────────────────────────────────────────────
   const effectiveOrgId = useMemo(
@@ -538,6 +546,10 @@ export default function PTTRadio() {
       .slice(0, 60)
   }, [txLog, dbTxLog])
 
+  const cooldownSecondsRemaining = Math.max(0, Math.ceil((connectCooldownUntil - Date.now()) / 1000))
+  const isConnectCoolingDown = cooldownSecondsRemaining > 0
+  const connectCooldownLabel = retryCountdownSeconds ?? cooldownSecondsRemaining
+
   const rosterWithSelf = useMemo(() => {
     const base = [...presence]
     if (!user?.id) return base
@@ -555,17 +567,50 @@ export default function PTTRadio() {
   // ─────────────────────────────────────────────────────────
 
   const connectToChannel = useCallback(
-    async (channel: RadioChannel) => {
+    async (channel: RadioChannel, options?: { autoRetry?: boolean }) => {
       if (!effectiveOrgId) return
+      if (!options?.autoRetry && (isConnecting || isConnectCoolingDown || retryCountdownSeconds !== null)) {
+        return
+      }
+
       setIsConnecting(true)
       setError(null)
+      setConnectCooldownUntil(Date.now() + CONNECT_ACTION_COOLDOWN_MS)
 
       const channelScope = getChannelScope(channel, effectiveOrgId)
 
       try {
         await connectToPTT(channelScope, channel.name)
         setActiveChannel(channel)
+        setRetryCountdownSeconds(null)
+        pendingRetryChannelRef.current = null
+        if (connectRetryTimeoutRef.current) {
+          clearTimeout(connectRetryTimeoutRef.current)
+          connectRetryTimeoutRef.current = null
+        }
       } catch (err) {
+        const retryAfterSeconds = extractPTTRetryAfterSeconds(err)
+        if (retryAfterSeconds) {
+          const retryMsg = `Push to Talk is reconnecting. Retrying in ${retryAfterSeconds}s…`
+          setError(retryMsg)
+          setRetryCountdownSeconds(retryAfterSeconds)
+          pendingRetryChannelRef.current = channel
+
+          if (connectRetryTimeoutRef.current) clearTimeout(connectRetryTimeoutRef.current)
+          connectRetryTimeoutRef.current = setTimeout(() => {
+            connectRetryTimeoutRef.current = null
+            const pendingChannel = pendingRetryChannelRef.current
+            pendingRetryChannelRef.current = null
+            setRetryCountdownSeconds(null)
+            if (pendingChannel) void connectToChannel(pendingChannel, { autoRetry: true })
+          }, retryAfterSeconds * 1000)
+
+          if (!options?.autoRetry) {
+            toast.warning(`PTT rate limited. Retrying in ${retryAfterSeconds}s.`)
+          }
+          return
+        }
+
         const msg = normalizePTTErrorMessage(err)
         setError(msg)
         toast.error(msg)
@@ -573,17 +618,36 @@ export default function PTTRadio() {
         setIsConnecting(false)
       }
     },
-    [effectiveOrgId, setError],
+    [effectiveOrgId, isConnectCoolingDown, isConnecting, retryCountdownSeconds, setError],
   )
 
   const handleChannelSelect = useCallback(
     (channel: RadioChannel) => {
-      if (isTransmitting) return // don't switch while transmitting
+      if (isTransmitting || isConnecting || isConnectCoolingDown || retryCountdownSeconds !== null) return // don't switch while transmitting/cooldown
       setScanMode(false)
-      connectToChannel(channel)
+      if (connectDebounceRef.current) clearTimeout(connectDebounceRef.current)
+      connectDebounceRef.current = setTimeout(() => {
+        connectDebounceRef.current = null
+        void connectToChannel(channel)
+      }, CHANNEL_SWITCH_DEBOUNCE_MS)
     },
-    [isTransmitting, connectToChannel],
+    [isTransmitting, isConnecting, isConnectCoolingDown, retryCountdownSeconds, connectToChannel],
   )
+
+  useEffect(() => {
+    if (retryCountdownSeconds === null || retryCountdownSeconds <= 0) return
+    const timer = setTimeout(() => {
+      setRetryCountdownSeconds((prev) => (prev && prev > 1 ? prev - 1 : null))
+    }, 1000)
+    return () => clearTimeout(timer)
+  }, [retryCountdownSeconds])
+
+  useEffect(() => {
+    return () => {
+      if (connectDebounceRef.current) clearTimeout(connectDebounceRef.current)
+      if (connectRetryTimeoutRef.current) clearTimeout(connectRetryTimeoutRef.current)
+    }
+  }, [])
 
   // ── Load user callsign ────────────────────────────────────
   useEffect(() => {
@@ -1305,8 +1369,13 @@ export default function PTTRadio() {
                               isActive
                                 ? 'bg-slate-700 shadow-[0_0_12px_rgba(59,130,246,0.3)]'
                                 : 'bg-slate-800/60 hover:bg-slate-800'
-                            } ${isEmergencyCh ? 'border border-red-800' : 'border border-transparent'}`}
+                            } ${isEmergencyCh ? 'border border-red-800' : 'border border-transparent'} ${
+                              isConnecting || retryCountdownSeconds !== null || isConnectCoolingDown
+                                ? 'opacity-60 cursor-not-allowed'
+                                : ''
+                            }`}
                             style={isActive ? { borderColor: ch.color, boxShadow: `0 0 12px ${ch.color}33` } : {}}
+                            disabled={isConnecting || retryCountdownSeconds !== null || isConnectCoolingDown}
                             onClick={() => {
                               handleChannelSelect(ch)
                               setMobileMenuOpen(false)
@@ -1426,6 +1495,9 @@ export default function PTTRadio() {
               <span className={`w-2 h-2 rounded-full ${connectionDot}`} />
               <span className={`uppercase tracking-wide ${connectionColor}`}>{connectionStatus}</span>
               {isConnecting && <Loader2 className="h-3 w-3 animate-spin text-yellow-400 ml-1" />}
+              {retryCountdownSeconds !== null && (
+                <span className="ml-1 text-yellow-300 tabular-nums">retry {retryCountdownSeconds}s</span>
+              )}
             </div>
             <div className="flex items-center gap-1 text-slate-300">
               <Clock className="h-3.5 w-3.5 text-slate-500" />
@@ -1452,9 +1524,15 @@ export default function PTTRadio() {
                 Open Team Chat
               </Button>
             )}
-            <Button variant="ghost" size="sm" className="ml-auto h-6 text-xs text-red-300 hover:text-white"
-              onClick={() => { setError(null); if (activeChannel) connectToChannel(activeChannel) }}>
-              <RefreshCw className="h-3 w-3 mr-1" />Retry
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto h-6 text-xs text-red-300 hover:text-white"
+              disabled={isConnecting || retryCountdownSeconds !== null || isConnectCoolingDown}
+              onClick={() => { setError(null); if (activeChannel) connectToChannel(activeChannel) }}
+            >
+              <RefreshCw className="h-3 w-3 mr-1" />
+              {connectCooldownLabel > 0 ? `Retry in ${connectCooldownLabel}s` : 'Retry'}
             </Button>
           </div>
         )}
@@ -1516,8 +1594,13 @@ export default function PTTRadio() {
                           isActive
                             ? 'bg-slate-700 shadow-[0_0_12px_rgba(59,130,246,0.3)]'
                             : 'bg-slate-800/60 hover:bg-slate-800'
-                        } ${isEmergencyCh ? 'border border-red-800' : 'border border-transparent'}`}
+                        } ${isEmergencyCh ? 'border border-red-800' : 'border border-transparent'} ${
+                          isConnecting || retryCountdownSeconds !== null || isConnectCoolingDown
+                            ? 'opacity-60 cursor-not-allowed'
+                            : ''
+                        }`}
                         style={isActive ? { borderColor: ch.color, boxShadow: `0 0 12px ${ch.color}33` } : {}}
+                        disabled={isConnecting || retryCountdownSeconds !== null || isConnectCoolingDown}
                         onClick={() => handleChannelSelect(ch)}
                       >
                         <div className="flex flex-col items-center justify-center w-9 h-9 rounded bg-slate-900/80 shrink-0">
