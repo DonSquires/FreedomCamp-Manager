@@ -47,22 +47,22 @@ jobs:
             : "${PTT_PROXY_SECRET:?PTT_PROXY_SECRET secret is required}"
             # Always write the authoritative docker-compose.yml so env changes take effect
             cat > docker-compose.yml << EOF
-services:
-  ptt-server:
-    build: ./ptt-server
-    container_name: fieldops-ptt
-    ports:
-      - "8080:8080"
-    environment:
-      - NODE_ENV=production
-      - PORT=8080
-      - PTT_JWT_SECRET=${PTT_JWT_SECRET}
-      - PTT_PROXY_SECRET=${PTT_PROXY_SECRET}
-      - TURN_URL=turn:72.61.123.97:3478
-      - TURN_SERVER_URL=${TURN_SERVER_URL}
-      - TURN_SECRET=${TURN_SECRET}
-    restart: unless-stopped
-EOF
+            services:
+              ptt-server:
+                build: ./ptt-server
+                container_name: fieldops-ptt
+                ports:
+                  - "8080:8080"
+                environment:
+                  - NODE_ENV=production
+                  - PORT=8080
+                  - PTT_JWT_SECRET=${PTT_JWT_SECRET}
+                  - PTT_PROXY_SECRET=${PTT_PROXY_SECRET}
+                  - TURN_URL=turn:72.61.123.97:3478
+                  - TURN_SERVER_URL=${TURN_SERVER_URL}
+                  - TURN_SECRET=${TURN_SECRET}
+                restart: unless-stopped
+            EOF
 
             # Build the new image and spin up the container
             docker compose up -d --build ptt-server

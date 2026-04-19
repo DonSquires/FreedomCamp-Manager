@@ -96,9 +96,9 @@ jobs:
           WRITING_MODEL='${{ github.event.inputs.writing_model }}'
 
           MUTATION=$(cat <<GRAPHQL
-{"query": "mutation { saveTemplate(input: { id: \\"${TEMPLATE_ID}\\", containerDiskInGb: 20, env: [ {key: \\"OLLAMA_MODEL\\", value: \\"${CHAT_MODEL}\\"}, {key: \\"TRANSLATION_MODEL\\", value: \\"${CHAT_MODEL}\\"}, {key: \\"OLLAMA_MODEL_WRITING\\", value: \\"${WRITING_MODEL}\\"}, {key: \\"OLLAMA_VISION_MODEL\\", value: \\"${VISION_MODEL}\\"} ] }) { id } }"}
-GRAPHQL
-)
+          {"query": "mutation { saveTemplate(input: { id: \\"${TEMPLATE_ID}\\", containerDiskInGb: 20, env: [ {key: \\"OLLAMA_MODEL\\", value: \\"${CHAT_MODEL}\\"}, {key: \\"TRANSLATION_MODEL\\", value: \\"${CHAT_MODEL}\\"}, {key: \\"OLLAMA_MODEL_WRITING\\", value: \\"${WRITING_MODEL}\\"}, {key: \\"OLLAMA_VISION_MODEL\\", value: \\"${VISION_MODEL}\\"} ] }) { id } }"}
+          GRAPHQL
+          )
           RESP=$(curl -sfL --max-time 30 \
             "https://api.runpod.io/graphql?api_key=${RUNPOD_API_KEY}" \
             -H "Content-Type: application/json" \

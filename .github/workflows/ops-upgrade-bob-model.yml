@@ -151,24 +151,24 @@ jobs:
           fi
 
           eval $(echo "$TAGS" | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-names = [m['name'] for m in data.get('models', [])]
-PRIORITY = [
-  ('qwen2.5:72b', 'llava:13b'),
-  ('llama3.3:70b', 'llava:13b'),
-  ('qwen2.5:32b', 'llava:7b'),
-  ('mistral:22b', 'llava:7b'),
-  ('llama3.1:8b', 'llava:7b'),
-]
-chat, vision = 'llama3.1:8b', 'llava:7b'
-for m, v in PRIORITY:
-  if m in names:
-    chat, vision = m, v if v in names else 'llava:7b'
-    break
-print(f'SELECTED_CHAT={chat}')
-print(f'SELECTED_VISION={vision}')
-")
+          import sys, json
+          data = json.load(sys.stdin)
+          names = [m['name'] for m in data.get('models', [])]
+          PRIORITY = [
+            ('qwen2.5:72b', 'llava:13b'),
+            ('llama3.3:70b', 'llava:13b'),
+            ('qwen2.5:32b', 'llava:7b'),
+            ('mistral:22b', 'llava:7b'),
+            ('llama3.1:8b', 'llava:7b'),
+          ]
+          chat, vision = 'llama3.1:8b', 'llava:7b'
+          for m, v in PRIORITY:
+            if m in names:
+              chat, vision = m, v if v in names else 'llava:7b'
+              break
+          print(f'SELECTED_CHAT={chat}')
+          print(f'SELECTED_VISION={vision}')
+          ")
 
           echo "SELECTED_CHAT_MODEL=${SELECTED_CHAT}" >> "$GITHUB_ENV"
           echo "SELECTED_VISION_MODEL=${SELECTED_VISION}" >> "$GITHUB_ENV"
@@ -176,9 +176,9 @@ print(f'SELECTED_VISION={vision}')
 
           # Update RunPod template env vars via GraphQL API
           MUTATION=$(cat <<GRAPHQL
-{"query": "mutation { saveTemplate(input: { id: \\"${TEMPLATE_ID}\\", containerDiskInGb: 20, env: [ {key: \\"OLLAMA_MODEL\\", value: \\"${SELECTED_CHAT}\\"}, {key: \\"TRANSLATION_MODEL\\", value: \\"${SELECTED_CHAT}\\"}, {key: \\"OLLAMA_MODEL_WRITING\\", value: \\"${SELECTED_CHAT}\\"}, {key: \\"OLLAMA_VISION_MODEL\\", value: \\"${SELECTED_VISION}\\"} ] }) { id } }"}
-GRAPHQL
-)
+          {"query": "mutation { saveTemplate(input: { id: \\"${TEMPLATE_ID}\\", containerDiskInGb: 20, env: [ {key: \\"OLLAMA_MODEL\\", value: \\"${SELECTED_CHAT}\\"}, {key: \\"TRANSLATION_MODEL\\", value: \\"${SELECTED_CHAT}\\"}, {key: \\"OLLAMA_MODEL_WRITING\\", value: \\"${SELECTED_CHAT}\\"}, {key: \\"OLLAMA_VISION_MODEL\\", value: \\"${SELECTED_VISION}\\"} ] }) { id } }"}
+          GRAPHQL
+          )
           RESP=$(curl -sfL --max-time 30 \
             "https://api.runpod.io/graphql?api_key=${RUNPOD_API_KEY}" \
             -H "Content-Type: application/json" \
