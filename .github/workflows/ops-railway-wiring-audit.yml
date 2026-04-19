@@ -1,4 +1,4 @@
-name: Ops Railway Wiring Audit
+name: Ops Wiring Audit
 
 on:
   push:
@@ -39,7 +39,7 @@ env:
 
 jobs:
   audit:
-    name: Validate Railway Edge Wiring
+    name: Validate Service Wiring (Bob/RunPod + Proxy/Railway + PTT/VPS)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -48,7 +48,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Load normalized Railway credential env
+      - name: Load normalized service credential env
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -167,9 +167,9 @@ jobs:
             echo "✅ chat_local_ollama_enabled=true — Bob ↔ Ollama private networking is working."
           elif [ "$CHAT_LOCAL_OLLAMA_ENABLED" = "false" ]; then
             echo "::warning::chat_local_ollama_enabled=false — Bob cannot reach Ollama via private network."
-            echo "  Check: OLLAMA_BASE_URL=http://ollama.railway.internal:11434 on Bob Railway service."
-            echo "  Check: Bob and Ollama are in the SAME Railway project."
-            echo "  Check: Ollama service is running (GET <ollama-url>/api/tags)."
+          echo "  Check: OLLAMA_BASE_URL set to RunPod pod or localhost Ollama endpoint on Bob container."
+          echo "  Check: RunPod serverless endpoint n0bp1ifmq01cx2 template has correct env vars."
+          echo "  Check: Ollama service is running on the pod (GET <gateway-url>/api/tags)."
           else
             echo "ℹ️  chat_local_ollama_enabled not in health response — Bob build may be older than this check."
           fi

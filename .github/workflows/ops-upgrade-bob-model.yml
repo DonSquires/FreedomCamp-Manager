@@ -1,7 +1,7 @@
 name: Upgrade Bob AI Model
 
 # Pulls the best model that fits the RunPod GPU's VRAM and updates Bob's
-# OLLAMA_MODEL + OLLAMA_VISION_MODEL env vars on Railway, then redeploys.
+# OLLAMA_MODEL + OLLAMA_VISION_MODEL env vars via the RunPod GraphQL API.
 #
 # Strategy (auto-selected by VRAM):
 #   ≥ 80 GB  → qwen2.5:72b   (frontier class reasoning) + llava:13b  vision
@@ -10,10 +10,10 @@ name: Upgrade Bob AI Model
 #   ≥ 10 GB  → mistral:22b   (solid GPT-3.5 class)       + llava:7b  vision
 #   fallback → llama3.1:8b   (current)
 #
-# Required secrets (all already present):
+# Required secrets:
 #   RUNPOD_POD_SSH_HOST, RUNPOD_POD_SSH_USER, RUNPOD_POD_SSH_KEY, RUNPOD_POD_SSH_PORT
-#   BOB_GATEWAY_KEY
-#   RAILWAY_BOB_TOKEN, RAILWAY_BOB_SERVICE_ID (or RAILWAY_TOKEN, RAILWAY_SERVICE_ID)
+#   RUNPOD_API_KEY, RUNPOD_TEMPLATE_ID (template y53tpqxjt9)
+#   BOB_GATEWAY_KEY, BOB_SERVICE_URL, INFERENCE_API_KEY
 
 on:
   workflow_dispatch:
@@ -23,7 +23,7 @@ env:
 
 jobs:
   upgrade-model:
-    name: Upgrade Bob AI model on RunPod + Railway
+    name: Upgrade Bob AI model on RunPod
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
@@ -123,150 +123,70 @@ jobs:
             echo "====== Available models ======"
             curl -sf "$OLLAMA_API/api/tags" | python3 -c "import sys,json; [print(m['name'],m.get('size',0),'bytes') for m in json.load(sys.stdin).get('models',[])]" 2>/dev/null || curl -sf "$OLLAMA_API/api/tags"
 
-      # ── Step 2: Read selected models and update Bob on Railway ────────────
-      - name: Read selected models from pod output
-        id: models
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.RUNPOD_POD_SSH_HOST }}
-          username: ${{ secrets.RUNPOD_POD_SSH_USER }}
-          key: ${{ secrets.RUNPOD_POD_SSH_KEY }}
-          port: ${{ secrets.RUNPOD_POD_SSH_PORT || 22 }}
-          request_pty: true
-          command_timeout: 1m
-          script: |
-            cat /tmp/selected_chat_model
-            echo "---VISION---"
-            cat /tmp/selected_vision_model
-            echo "---WRITING---"
-            cat /tmp/selected_writing_model
-
-      - name: Install Railway CLI
-        run: |
-          RAILWAY_CLI_VERSION="4.31.0"
-          TMP_DIR=$(mktemp -d)
-          curl -fsSL -o "$TMP_DIR/railway.tar.gz" \
-            "https://github.com/railwayapp/cli/releases/download/v${RAILWAY_CLI_VERSION}/railway-v${RAILWAY_CLI_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
-          tar -xzf "$TMP_DIR/railway.tar.gz" -C "$TMP_DIR"
-          install -m 0755 "$TMP_DIR/railway" "$HOME/.local/bin/railway"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-      - name: Update Bob model env vars on Railway
+      # ── Step 2: Update RunPod template env vars ───────────────────────────
+      - name: Update RunPod template env vars
         env:
-          RAILWAY_BOB_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_BOB_SERVICE_ID: ${{ secrets.RAILWAY_BOB_SERVICE_ID }}
-          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
-          RAILWAY_BOB_PROJECT_ID: ${{ secrets.RAILWAY_BOB_PROJECT_ID }}
-          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+          RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+          RUNPOD_TEMPLATE_ID: ${{ secrets.RUNPOD_TEMPLATE_ID }}
           OLLAMA_GATEWAY_KEY: ${{ secrets.BOB_GATEWAY_KEY }}
           RUNPOD_GATEWAY_URL: ${{ secrets.RUNPOD_GATEWAY_URL }}
         run: |
           set -euo pipefail
-          source ./scripts/load-railway-secrets-from-github-env.sh --quiet
 
-          EFFECTIVE_TOKEN="${RAILWAY_BOB_TOKEN:-$RAILWAY_TOKEN}"
-          EFFECTIVE_SERVICE="${RAILWAY_BOB_SERVICE_ID:-$RAILWAY_SERVICE_ID}"
-          export RAILWAY_TOKEN="$EFFECTIVE_TOKEN"
-          export RAILWAY_ENVIRONMENT=production
+          TEMPLATE_ID="${RUNPOD_TEMPLATE_ID:-y53tpqxjt9}"
+          GATEWAY_URL="${RUNPOD_GATEWAY_URL:-}"
+          GATEWAY_KEY="${OLLAMA_GATEWAY_KEY:-}"
 
-          [ -n "$EFFECTIVE_SERVICE" ] || { echo "::error::No RAILWAY_BOB_SERVICE_ID set"; exit 1; }
-
-          # We can't directly read the SSH output across job steps, so we query
-          # the pod again via the public Ollama gateway to find what largest
-          # quantized model is available.
-
-          GATEWAY_URL="${RUNPOD_GATEWAY_URL:-https://eipnu6bq181q20-8080.proxy.runpod.net}"
-          GATEWAY_URL="${GATEWAY_URL%/}"
-          if [[ "$GATEWAY_URL" != http://* && "$GATEWAY_URL" != https://* ]]; then
-            GATEWAY_URL="https://$GATEWAY_URL"
+          # Determine which model is available from the RunPod Ollama gateway
+          if [[ -n "$GATEWAY_URL" && -n "$GATEWAY_KEY" ]]; then
+            GATEWAY_URL="${GATEWAY_URL%/}"
+            [[ "$GATEWAY_URL" == http://* || "$GATEWAY_URL" == https://* ]] || GATEWAY_URL="https://$GATEWAY_URL"
+            echo "Querying available models from gateway..."
+            TAGS=$(curl -sfL --max-time 30 \
+              -H "Authorization: Bearer $GATEWAY_KEY" \
+              "$GATEWAY_URL/api/tags") || TAGS='{"models":[]}'
+          else
+            echo "::warning::RUNPOD_GATEWAY_URL or BOB_GATEWAY_KEY not set — skipping model query, using SSH-selected models."
+            TAGS='{"models":[]}'
           fi
-          GATEWAY_KEY="${OLLAMA_GATEWAY_KEY}"
 
-          echo "Querying available models from gateway..."
-          TAGS=$(curl -sfL --max-time 30 \
-            -H "Authorization: Bearer $GATEWAY_KEY" \
-            "$GATEWAY_URL/api/tags") || TAGS="{\"models\":[]}"
+          eval $(echo "$TAGS" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+names = [m['name'] for m in data.get('models', [])]
+PRIORITY = [
+  ('qwen2.5:72b', 'llava:13b'),
+  ('llama3.3:70b', 'llava:13b'),
+  ('qwen2.5:32b', 'llava:7b'),
+  ('mistral:22b', 'llava:7b'),
+  ('llama3.1:8b', 'llava:7b'),
+]
+chat, vision = 'llama3.1:8b', 'llava:7b'
+for m, v in PRIORITY:
+  if m in names:
+    chat, vision = m, v if v in names else 'llava:7b'
+    break
+print(f'SELECTED_CHAT={chat}')
+print(f'SELECTED_VISION={vision}')
+")
 
-          echo "$TAGS" | python3 -c "
-          import sys, json
-
-          data = json.load(sys.stdin)
-          models = data.get('models', [])
-          names = [m['name'] for m in models]
-          sizes = {m['name']: m.get('size', 0) for m in models}
-
-          PRIORITY = [
-            ('qwen2.5:72b',  'vision', 'llava:13b'),
-            ('llama3.3:70b', 'vision', 'llava:13b'),
-            ('qwen2.5:32b',  'vision', 'llava:7b'),
-            ('mistral:22b',  'vision', 'llava:7b'),
-            ('llama3.1:8b',  'vision', 'llava:7b'),
-          ]
-
-          chat_model = 'llama3.1:8b'
-          vision_model = 'llava:7b'
-          for m, _, v in PRIORITY:
-            if m in names:
-              chat_model = m
-              vision_model = v if v in names else 'llava:7b'
-              break
-
-          print(f'SELECTED_CHAT={chat_model}')
-          print(f'SELECTED_VISION={vision_model}')
-          " > /tmp/model_selection.sh
-
-          source /tmp/model_selection.sh
           echo "SELECTED_CHAT_MODEL=${SELECTED_CHAT}" >> "$GITHUB_ENV"
           echo "SELECTED_VISION_MODEL=${SELECTED_VISION}" >> "$GITHUB_ENV"
-          echo "Chat model → ${SELECTED_CHAT}"
-          echo "Vision model → ${SELECTED_VISION}"
+          echo "Updating RunPod template ${TEMPLATE_ID}: chat=${SELECTED_CHAT} vision=${SELECTED_VISION}"
 
-          echo "Setting OLLAMA_MODEL=${SELECTED_CHAT}..."
-          railway variables set "OLLAMA_MODEL=${SELECTED_CHAT}" \
-            --service "$EFFECTIVE_SERVICE" \
-            --environment production
+          # Update RunPod template env vars via GraphQL API
+          MUTATION=$(cat <<GRAPHQL
+{"query": "mutation { saveTemplate(input: { id: \\"${TEMPLATE_ID}\\", containerDiskInGb: 20, env: [ {key: \\"OLLAMA_MODEL\\", value: \\"${SELECTED_CHAT}\\"}, {key: \\"TRANSLATION_MODEL\\", value: \\"${SELECTED_CHAT}\\"}, {key: \\"OLLAMA_MODEL_WRITING\\", value: \\"${SELECTED_CHAT}\\"}, {key: \\"OLLAMA_VISION_MODEL\\", value: \\"${SELECTED_VISION}\\"} ] }) { id } }"}
+GRAPHQL
+)
+          RESP=$(curl -sfL --max-time 30 \
+            "https://api.runpod.io/graphql?api_key=${RUNPOD_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "$MUTATION") || RESP='{}'
+          echo "RunPod API response: $RESP"
+          echo "$RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print('✅ Template updated') if d.get('data',{}).get('saveTemplate') else print('::warning::Template update may have failed — check RunPod dashboard')"
 
-          echo "Setting TRANSLATION_MODEL=${SELECTED_CHAT}..."
-          railway variables set "TRANSLATION_MODEL=${SELECTED_CHAT}" \
-            --service "$EFFECTIVE_SERVICE" \
-            --environment production
-
-          echo "Setting OLLAMA_MODEL_WRITING=${SELECTED_CHAT}..."
-          railway variables set "OLLAMA_MODEL_WRITING=${SELECTED_CHAT}" \
-            --service "$EFFECTIVE_SERVICE" \
-            --environment production
-
-          echo "Setting OLLAMA_VISION_MODEL=${SELECTED_VISION}..."
-          railway variables set "OLLAMA_VISION_MODEL=${SELECTED_VISION}" \
-            --service "$EFFECTIVE_SERVICE" \
-            --environment production
-
-          echo "✅ Bob model config updated: OLLAMA_MODEL=${SELECTED_CHAT}, OLLAMA_VISION_MODEL=${SELECTED_VISION}"
-
-      # ── Step 3: Redeploy Bob to pick up new env vars ───────────────────────
-      - name: Redeploy Bob on Railway
-        env:
-          RAILWAY_BOB_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_BOB_SERVICE_ID: ${{ secrets.RAILWAY_BOB_SERVICE_ID }}
-          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
-        run: |
-          set -euo pipefail
-          source ./scripts/load-railway-secrets-from-github-env.sh --quiet
-
-          EFFECTIVE_TOKEN="${RAILWAY_BOB_TOKEN:-$RAILWAY_TOKEN}"
-          EFFECTIVE_SERVICE="${RAILWAY_BOB_SERVICE_ID:-$RAILWAY_SERVICE_ID}"
-          export RAILWAY_TOKEN="$EFFECTIVE_TOKEN"
-          export RAILWAY_ENVIRONMENT=production
-
-          pushd inference-service
-          railway up --service "$EFFECTIVE_SERVICE" --environment production --detach
-          popd
-
-          echo "✅ Bob redeployed. Wait ~60s then smoke test."
-
-      # ── Step 4: Smoke test after deploy ────────────────────────────────────
+      # ── Step 3: Smoke test ─────────────────────────────────────────────────
       - name: Wait for Bob to restart and run chat smoke test
         env:
           INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}

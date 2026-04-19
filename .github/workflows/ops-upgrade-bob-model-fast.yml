@@ -84,58 +84,27 @@ jobs:
             echo "$VISION_MODEL" > /tmp/selected_vision_model
             echo "$WRITING_MODEL" > /tmp/selected_writing_model
 
-      - name: Install Railway CLI
-        run: |
-          RAILWAY_CLI_VERSION="4.35.0"
-          TMP_DIR=$(mktemp -d)
-          curl -fsSL -o "$TMP_DIR/railway.tar.gz" \
-            "https://github.com/railwayapp/cli/releases/download/v${RAILWAY_CLI_VERSION}/railway-v${RAILWAY_CLI_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
-          tar -xzf "$TMP_DIR/railway.tar.gz" -C "$TMP_DIR"
-          install -m 0755 "$TMP_DIR/railway" "$HOME/.local/bin/railway"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-      - name: Update Bob model env vars on Railway
+      - name: Update RunPod template env vars
         env:
-          RAILWAY_BOB_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_BOB_SERVICE_ID: ${{ secrets.RAILWAY_BOB_SERVICE_ID }}
-          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
+          RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+          RUNPOD_TEMPLATE_ID: ${{ secrets.RUNPOD_TEMPLATE_ID }}
         run: |
           set -euo pipefail
-          source ./scripts/load-railway-secrets-from-github-env.sh --quiet
-
-          EFFECTIVE_TOKEN="${RAILWAY_BOB_TOKEN:-$RAILWAY_TOKEN}"
-          EFFECTIVE_SERVICE="${RAILWAY_BOB_SERVICE_ID:-$RAILWAY_SERVICE_ID}"
-          export RAILWAY_TOKEN="$EFFECTIVE_TOKEN"
-          export RAILWAY_ENVIRONMENT=production
-
+          TEMPLATE_ID="${RUNPOD_TEMPLATE_ID:-y53tpqxjt9}"
           CHAT_MODEL='${{ github.event.inputs.chat_model }}'
           VISION_MODEL='${{ github.event.inputs.vision_model }}'
           WRITING_MODEL='${{ github.event.inputs.writing_model }}'
 
-          railway variables set "OLLAMA_MODEL=${CHAT_MODEL}" --service "$EFFECTIVE_SERVICE" --environment production
-          railway variables set "TRANSLATION_MODEL=${CHAT_MODEL}" --service "$EFFECTIVE_SERVICE" --environment production
-          railway variables set "OLLAMA_MODEL_WRITING=${WRITING_MODEL}" --service "$EFFECTIVE_SERVICE" --environment production
-          railway variables set "OLLAMA_VISION_MODEL=${VISION_MODEL}" --service "$EFFECTIVE_SERVICE" --environment production
-
-      - name: Redeploy Bob
-        env:
-          RAILWAY_BOB_TOKEN: ${{ secrets.RAILWAY_BOB_TOKEN }}
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_BOB_SERVICE_ID: ${{ secrets.RAILWAY_BOB_SERVICE_ID }}
-          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
-        run: |
-          set -euo pipefail
-          source ./scripts/load-railway-secrets-from-github-env.sh --quiet
-
-          EFFECTIVE_TOKEN="${RAILWAY_BOB_TOKEN:-$RAILWAY_TOKEN}"
-          EFFECTIVE_SERVICE="${RAILWAY_BOB_SERVICE_ID:-$RAILWAY_SERVICE_ID}"
-          export RAILWAY_TOKEN="$EFFECTIVE_TOKEN"
-          export RAILWAY_ENVIRONMENT=production
-
-          pushd inference-service
-          railway up --service "$EFFECTIVE_SERVICE" --environment production --detach
-          popd
+          MUTATION=$(cat <<GRAPHQL
+{"query": "mutation { saveTemplate(input: { id: \\"${TEMPLATE_ID}\\", containerDiskInGb: 20, env: [ {key: \\"OLLAMA_MODEL\\", value: \\"${CHAT_MODEL}\\"}, {key: \\"TRANSLATION_MODEL\\", value: \\"${CHAT_MODEL}\\"}, {key: \\"OLLAMA_MODEL_WRITING\\", value: \\"${WRITING_MODEL}\\"}, {key: \\"OLLAMA_VISION_MODEL\\", value: \\"${VISION_MODEL}\\"} ] }) { id } }"}
+GRAPHQL
+)
+          RESP=$(curl -sfL --max-time 30 \
+            "https://api.runpod.io/graphql?api_key=${RUNPOD_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "$MUTATION") || RESP='{}'
+          echo "RunPod API response: $RESP"
+          echo "$RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print('✅ Template updated: chat=${CHAT_MODEL} vision=${VISION_MODEL}') if d.get('data',{}).get('saveTemplate') else print('::warning::Template update may have failed — check RunPod dashboard')"
 
       - name: Verify health, model, and chat provider
         env:
