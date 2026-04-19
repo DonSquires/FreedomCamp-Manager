@@ -22,8 +22,8 @@ name: Synthetic UI Monitor
 
 on:
   schedule:
-    # Every 30 minutes
-    - cron: '*/30 * * * *'
+    # Hourly
+    - cron: '15 * * * *'
   workflow_run:
     # Also run after a successful frontend deployment
     workflows: ['Deploy Admin Portal to Vercel']

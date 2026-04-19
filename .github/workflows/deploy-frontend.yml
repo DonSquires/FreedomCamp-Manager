@@ -36,6 +36,10 @@ on:
   repository_dispatch:
     types: [deploy-frontend, merge-all-dispatch]
 
+concurrency:
+  group: deploy-admin-portal-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   # supabase/setup-cli@v1 still bundles Node.js 20; force the runner to use
   # Node.js 24 so the action keeps working after the June 2026 cut-over.

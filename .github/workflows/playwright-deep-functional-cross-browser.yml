@@ -2,7 +2,29 @@ name: Playwright Deep Functional Cross-Browser
 
 on:
   push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'tests/e2e/**'
+      - 'playwright.config.ts'
+      - 'playwright.api.config.ts'
+      - 'package.json'
+      - 'bun.lock'
+      - 'vite.config.ts'
+      - '.github/workflows/playwright-deep-functional-cross-browser.yml'
   pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'tests/e2e/**'
+      - 'playwright.config.ts'
+      - 'playwright.api.config.ts'
+      - 'package.json'
+      - 'bun.lock'
+      - 'vite.config.ts'
+      - '.github/workflows/playwright-deep-functional-cross-browser.yml'
   workflow_dispatch:
     inputs:
       base_url:
