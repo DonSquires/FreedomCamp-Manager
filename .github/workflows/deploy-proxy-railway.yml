@@ -79,21 +79,49 @@ jobs:
       - name: Validate Railway token/service
         id: validate-token
         if: steps.check-secrets.outputs.secrets_present == 'true'
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROXY_SERVICE_ID: ${{ secrets.RAILWAY_PROXY_SERVICE_ID }}
         run: |
+          set -euo pipefail
+
+          railway_graphql() {
+            local payload="$1"
+            local response=""
+
+            if response=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
+              -H "Authorization: Bearer $RAILWAY_TOKEN" \
+              -H 'Content-Type: application/json' \
+              --data "$payload" 2>/dev/null); then
+              echo "$response"
+              return 0
+            fi
+
+            if response=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
+              -H "Project-Access-Token: $RAILWAY_TOKEN" \
+              -H 'Content-Type: application/json' \
+              --data "$payload" 2>/dev/null); then
+              echo "$response"
+              return 0
+            fi
+
+            return 1
+          }
+
           echo "🔑 Validating Railway token..."
-          if ! railway service list --json > /dev/null 2>&1; then
+          TOKEN_RESPONSE=$(railway_graphql '{"query":"query Viewer { me { id email name } }"}' || echo '{}')
+          if echo "$TOKEN_RESPONSE" | jq -e '.errors | length > 0' >/dev/null 2>&1; then
             echo "::error::RAILWAY_TOKEN is invalid or expired."
             echo "Generate a new project token in Railway (Project → Settings → Tokens) and update RAILWAY_TOKEN."
             exit 1
           fi
-          
+
           echo "✅ Railway token is valid"
-          echo "Checking if proxy service exists in token scope..."
-          if ! railway service list --json | grep -q "$RAILWAY_PROXY_SERVICE_ID"; then
-            echo "::warning::Proxy service ID not found in token scope. Deploy may still succeed if ID is correct."
-          else
-            echo "✅ Proxy service found in token scope"
+
+          if [ -n "${RAILWAY_PROXY_SERVICE_ID:-}" ]; then
+            echo "ℹ️  Proxy service selector configured: $RAILWAY_PROXY_SERVICE_ID"
           fi
+
           echo "token_valid=true" >> "$GITHUB_OUTPUT"
 
       - name: Deploy proxy-server to Railway

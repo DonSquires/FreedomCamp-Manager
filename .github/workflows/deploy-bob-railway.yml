@@ -196,6 +196,29 @@ jobs:
 
           DEPLOY_ENVIRONMENT="${DEPLOY_ENVIRONMENT:-production}"
 
+          railway_graphql() {
+            local payload="$1"
+            local response=""
+
+            if response=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
+              -H "Authorization: Bearer $RAILWAY_TOKEN" \
+              -H 'Content-Type: application/json' \
+              --data "$payload" 2>/dev/null); then
+              echo "$response"
+              return 0
+            fi
+
+            if response=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
+              -H "Project-Access-Token: $RAILWAY_TOKEN" \
+              -H 'Content-Type: application/json' \
+              --data "$payload" 2>/dev/null); then
+              echo "$response"
+              return 0
+            fi
+
+            return 1
+          }
+
           if [ -n "$EXPLICIT_SERVICE_ID" ]; then
             echo "service_id=$EXPLICIT_SERVICE_ID" >> "$GITHUB_OUTPUT"
             echo "project_id=${EXPLICIT_PROJECT_ID}" >> "$GITHUB_OUTPUT"
@@ -204,45 +227,22 @@ jobs:
           fi
 
           if [ -n "$EXPLICIT_PROJECT_ID" ]; then
-            echo "ℹ️ Attempting Bob service auto-discovery via Railway CLI for explicit project..."
-            if railway link --project "$EXPLICIT_PROJECT_ID" --environment "$DEPLOY_ENVIRONMENT" >/tmp/railway-link-resolve.log 2>&1; then
-              SERVICE_STATUS_JSON=$(railway service status --all --json 2>/tmp/railway-service-status-resolve.err || true)
-              RESOLVED_SERVICE_ID=$(node -e '
-                const data = JSON.parse(process.argv[1] || "{}");
-                const nodes = [];
-                const seen = new Set();
-                const pushNode = (obj) => {
-                  if (!obj || typeof obj !== "object") return;
-                  const id = String(obj.id || obj.serviceId || obj.service_id || "").trim();
-                  const name = String(obj.name || obj.serviceName || obj.service_name || "").trim();
-                  if (!id || seen.has(id)) return;
-                  seen.add(id);
-                  nodes.push({ id, name });
-                };
-                const walk = (v) => {
-                  if (Array.isArray(v)) {
-                    for (const item of v) walk(item);
-                    return;
-                  }
-                  if (!v || typeof v !== "object") return;
-                  pushNode(v);
-                  for (const key of Object.keys(v)) walk(v[key]);
-                };
-                walk(data);
-                const preferred = nodes.find((n) => String(n.name || "").toLowerCase().includes("bob"));
-                const fallback = nodes.find((n) => !String(n.name || "").toLowerCase().includes("ollama"));
-                process.stdout.write((preferred || fallback || {}).id || "");
-              ' "$SERVICE_STATUS_JSON" || true)
+            echo "ℹ️ Attempting Bob service auto-discovery from explicit project ID..."
+            GRAPHQL_PAYLOAD=$(printf '{"query":"query { project(id:\"%s\") { services { edges { node { id name } } } } }"}' "$EXPLICIT_PROJECT_ID")
+            GRAPHQL_RESPONSE=$(railway_graphql "$GRAPHQL_PAYLOAD" || echo '{}')
+            RESOLVED_SERVICE_ID=$(node -e '
+              const data = JSON.parse(process.argv[1] || "{}");
+              const services = data?.data?.project?.services?.edges?.map((edge) => edge?.node).filter(Boolean) || [];
+              const preferred = services.find((s) => String(s?.name || "").toLowerCase().includes("bob"));
+              const fallback = services.find((s) => !String(s?.name || "").toLowerCase().includes("ollama"));
+              process.stdout.write((preferred || fallback || {}).id || "");
+            ' "$GRAPHQL_RESPONSE" || true)
 
-              if [ -n "$RESOLVED_SERVICE_ID" ]; then
-                echo "service_id=$RESOLVED_SERVICE_ID" >> "$GITHUB_OUTPUT"
-                echo "project_id=$EXPLICIT_PROJECT_ID" >> "$GITHUB_OUTPUT"
-                echo "✅ Auto-resolved Bob service ID via Railway CLI"
-                exit 0
-              fi
-            else
-              echo "::warning::Railway CLI project link failed during resolve-service."
-              sed -n '1,3p' /tmp/railway-link-resolve.log || true
+            if [ -n "$RESOLVED_SERVICE_ID" ]; then
+              echo "service_id=$RESOLVED_SERVICE_ID" >> "$GITHUB_OUTPUT"
+              echo "project_id=$EXPLICIT_PROJECT_ID" >> "$GITHUB_OUTPUT"
+              echo "✅ Auto-resolved Bob service ID via Railway GraphQL"
+              exit 0
             fi
           fi
 

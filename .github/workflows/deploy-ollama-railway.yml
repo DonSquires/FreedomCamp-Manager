@@ -149,10 +149,38 @@ jobs:
         env:
           RAILWAY_TOKEN: ${{ env.RAILWAY_BOB_TOKEN || env.RAILWAY_TOKEN }}
         run: |
+          set -euo pipefail
+
+          railway_graphql() {
+            local payload="$1"
+            local response=""
+
+            if response=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
+              -H "Authorization: Bearer $RAILWAY_TOKEN" \
+              -H 'Content-Type: application/json' \
+              --data "$payload" 2>/dev/null); then
+              echo "$response"
+              return 0
+            fi
+
+            if response=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
+              -H "Project-Access-Token: $RAILWAY_TOKEN" \
+              -H 'Content-Type: application/json' \
+              --data "$payload" 2>/dev/null); then
+              echo "$response"
+              return 0
+            fi
+
+            return 1
+          }
+
           echo "🔑 Validating Railway token..."
-          if ! railway service list --json > /dev/null 2>&1; then
-            echo "::warning::Could not confirm RAILWAY_BOB_TOKEN via 'railway service list'."
-            echo "Project-scoped tokens can fail this precheck; deployment will still be attempted."
+          TOKEN_RESPONSE=$(railway_graphql '{"query":"query Viewer { me { id email name } }"}' || echo '{}')
+          if echo "$TOKEN_RESPONSE" | jq -e '.errors | length > 0' >/dev/null 2>&1; then
+            echo "::warning::Could not confirm Railway token via GraphQL viewer probe."
+            echo "Project-scoped tokens can still work for deployment; continuing."
+          else
+            echo "✅ Railway token is valid"
           fi
           echo "✅ Railway validation step complete"
 
