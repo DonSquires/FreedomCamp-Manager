@@ -546,8 +546,9 @@ export default function PTTRadio() {
       .slice(0, 60)
   }, [txLog, dbTxLog])
 
-  const isConnectCoolingDown = connectCooldownUntil > Date.now()
-  const connectCooldownLabel = retryCountdownSeconds ?? (isConnectCoolingDown ? 1 : 0)
+  const cooldownSecondsRemaining = Math.max(0, Math.ceil((connectCooldownUntil - Date.now()) / 1000))
+  const isConnectCoolingDown = cooldownSecondsRemaining > 0
+  const connectCooldownLabel = retryCountdownSeconds ?? cooldownSecondsRemaining
 
   const rosterWithSelf = useMemo(() => {
     const base = [...presence]

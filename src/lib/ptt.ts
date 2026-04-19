@@ -225,9 +225,15 @@ export function extractPTTRetryAfterSeconds(error: unknown): number | null {
     return Math.ceil(retryAfterCandidate)
   }
 
-  const retryMatch = raw.match(/retryafter["'\s:=]+(\d+)/i) || raw.match(/retry in\s+(\d+)\s*s/i)
-  if (retryMatch?.[1]) {
-    const parsed = Number.parseInt(retryMatch[1], 10)
+  const retryAfterKeyMatch = raw.match(/retryAfter["']?\s*[:=]\s*(\d+)/i)
+  if (retryAfterKeyMatch?.[1]) {
+    const parsed = Number.parseInt(retryAfterKeyMatch[1], 10)
+    if (Number.isFinite(parsed) && parsed > 0) return parsed
+  }
+
+  const retryInTextMatch = raw.match(/retry in\s+(\d+)\s*s/i)
+  if (retryInTextMatch?.[1]) {
+    const parsed = Number.parseInt(retryInTextMatch[1], 10)
     if (Number.isFinite(parsed) && parsed > 0) return parsed
   }
 

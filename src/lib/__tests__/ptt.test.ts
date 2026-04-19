@@ -11,4 +11,9 @@ describe('ptt error normalization', () => {
     const error = new Error('[Code: 429] {"error":"Token mint rate limited","retryAfter":3}')
     expect(normalizePTTErrorMessage(error)).toContain('Please retry in 3s')
   })
+
+  it('extracts retry delay from plain-text fallback messages', () => {
+    const error = new Error('[Code: 429] Token mint rate limited, retry in 5s')
+    expect(extractPTTRetryAfterSeconds(error)).toBe(5)
+  })
 })
