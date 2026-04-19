@@ -24,7 +24,7 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           source: "ptt-server/*"
-          target: "/opt/fieldops-voice/"
+          target: "/opt/fieldops-voice/ptt-server/"
 
       - name: Build and Start PTT Server on VPS
         uses: appleboy/ssh-action@v1.0.3
@@ -38,11 +38,12 @@ jobs:
           envs: TURN_SERVER_URL,TURN_SECRET
           script: |
             cd /opt/fieldops-voice
+            : "${TURN_SERVER_URL:?TURN_SERVER_URL secret is required}"
+            : "${TURN_SECRET:?TURN_SECRET secret is required}"
+            [ -f docker-compose.yml ] || printf "services:\n" > docker-compose.yml
             
             # Inject the PTT server config into docker-compose if it's not there yet
             if ! grep -Eq "^[[:space:]]*ptt-server:[[:space:]]*$" docker-compose.yml; then
-            TURN_SERVER_URL="${TURN_SERVER_URL:-turn:72.61.123.97:3478}"
-            TURN_SECRET="${TURN_SECRET:-fieldops_secure_voice_key_2026}"
             cat << EOF >> docker-compose.yml
 
               ptt-server:
