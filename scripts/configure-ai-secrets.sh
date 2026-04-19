@@ -29,7 +29,6 @@ NC='\033[0m' # No Color
 
 # Project configuration
 PROJECT_REF="kxwjcupuxnnbnzcgmkoi"
-RAILWAY_INFERENCE_URL_DEFAULT="https://focused-courage-production-ccee.up.railway.app"
 
 echo -e "${BLUE}╔════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║     FreedomCamp Manager - AI Service Configuration        ║${NC}"
@@ -76,10 +75,13 @@ echo -e "${BLUE}Step 1: Configure Inference Service URL${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
 echo ""
 echo "This is the Railway-hosted AI inference service URL."
-echo "Default: $RAILWAY_INFERENCE_URL_DEFAULT"
 echo ""
-read -p "Enter INFERENCE_SERVICE_URL (press Enter for default): " INFERENCE_URL
-INFERENCE_URL=${INFERENCE_URL:-$RAILWAY_INFERENCE_URL_DEFAULT}
+read -p "Enter INFERENCE_SERVICE_URL (required): " INFERENCE_URL
+
+if [ -z "$INFERENCE_URL" ]; then
+    echo -e "${RED}Error: INFERENCE_SERVICE_URL is required.${NC}"
+    exit 1
+fi
 
 if [ -n "$INFERENCE_URL" ]; then
     set_secret "INFERENCE_SERVICE_URL" "$INFERENCE_URL"

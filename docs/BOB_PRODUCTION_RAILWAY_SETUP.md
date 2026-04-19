@@ -17,6 +17,28 @@ separate services.
 
 ## Repository Setup (one-time)
 
+## Container Bootstrap Sequence (Bob + Railway)
+
+Use this deterministic sequence inside the dev container to ensure Bob works with
+the active Railway credentials.
+
+1. Load credentials into environment (for example `.runtime/railway-secrets.env`
+  and `.runtime/bob-local-credentials.env`).
+2. Run the bootstrap script:
+
+```bash
+bash scripts/bob-container-bootstrap.sh --load-runtime --chat "status check"
+```
+
+What this script does:
+- Normalizes alias names to canonical env vars (`load-railway-secrets-from-github-env.sh`).
+- Validates Railway tokens, service IDs, and service health URLs.
+- Verifies Bob `/health` and authenticated `/chat` from inside this container.
+- Probes Railway GraphQL API token validity (when tokens are present).
+
+If the bootstrap fails, fix the missing/invalid variable and rerun the same command.
+This avoids ad-hoc ordering drift during incident response.
+
 ### 1. Enable sync from FreedomCamp-Manager -> Bob repo
 
 Add a secret to **DonSquires/FreedomCamp-Manager** -> Settings -> Secrets -> Actions:
