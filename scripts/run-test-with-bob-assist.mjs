@@ -71,17 +71,7 @@ async function pingBob(stage, command, exitCode = null) {
   const timeoutMs = Number(process.env.BOB_TEST_ASSIST_TIMEOUT_MS || 15000);
 
   if (!baseUrl || !apiKey) {
-    const missing = [
-      !baseUrl
-        ? 'BOB_SERVICE_URL-or-INFERENCE_SERVICE_URL-or-RUNPOD_GATEWAY_URL-or-RUNPOD_SERVERLESS_URL-or-DR_BOB_URL'
-        : null,
-      !apiKey
-        ? 'BOB_INFERENCE_API_KEY-or-INFERENCE_API_KEY-or-RUNPOD_API_KEY-or-DR_BOB_API-or-SUPABASE_SERVICE_ROLE_KEY'
-        : null,
-    ].filter(Boolean).join(', ');
-
     console.warn('[bob-test-assist] Credentials missing, running underlying test without AI assist');
-    console.warn(`[bob-test-assist] Missing Bob config: ${missing}`);
     return;
   }
 
