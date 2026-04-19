@@ -271,14 +271,18 @@ jobs:
         env:
           INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
           BOB_INFERENCE_API_KEY: ${{ secrets.BOB_INFERENCE_API_KEY }}
-          BOB_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL || 'https://focused-courage-production-ccee.up.railway.app' }}
+          BOB_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
           OLLAMA_GATEWAY_KEY: ${{ secrets.BOB_GATEWAY_KEY }}
         run: |
           set -euo pipefail
+          if [[ -z "${BOB_SERVICE_URL:-}" ]]; then
+            echo "::error::BOB_SERVICE_URL secret is not set — refusing to default to hardcoded production URL"
+            exit 1
+          fi
           echo "Waiting 90s for Bob to restart..."
           sleep 90
 
-          BOB_URL="${BOB_SERVICE_URL:-https://focused-courage-production-ccee.up.railway.app}"
+          BOB_URL="${BOB_SERVICE_URL}"
           BOB_URL="${BOB_URL%/}"
           if [[ "$BOB_URL" != http://* && "$BOB_URL" != https://* ]]; then
             BOB_URL="https://$BOB_URL"
@@ -326,6 +330,7 @@ jobs:
             if [ "$FALLBACK" = "False" ] && [ "$PROVIDER" = "ollama" ]; then
               echo "✅ SMOKE PASS — Bob is using Ollama for chat"
             else
-              echo "::warning::Chat returned fallback=${FALLBACK} provider=${PROVIDER} — Ollama may still be loading large model"
+              echo "::error::Chat returned fallback=${FALLBACK} provider=${PROVIDER} — refusing to mark upgrade successful"
+              exit 1
             fi
           fi

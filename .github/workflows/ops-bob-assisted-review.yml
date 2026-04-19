@@ -39,10 +39,16 @@ jobs:
         env:
           INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
           BOB_INFERENCE_API_KEY: ${{ secrets.BOB_INFERENCE_API_KEY }}
+          INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL }}
+          BOB_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
         run: |
           set -e
           if [ -z "$INFERENCE_API_KEY" ] && [ -z "$BOB_INFERENCE_API_KEY" ]; then
             echo "::error::Missing secret: set INFERENCE_API_KEY or BOB_INFERENCE_API_KEY"
+            exit 1
+          fi
+          if [ -z "$INFERENCE_SERVICE_URL" ] && [ -z "$BOB_SERVICE_URL" ]; then
+            echo "::error::Missing secret: set INFERENCE_SERVICE_URL or BOB_SERVICE_URL — refusing to default to hardcoded production URL"
             exit 1
           fi
 
@@ -55,8 +61,12 @@ jobs:
           REVIEW_PROMPT: ${{ inputs.prompt }}
         run: |
           set -euo pipefail
-          URL_RAW="${INFERENCE_SERVICE_URL:-https://focused-courage-production-ccee.up.railway.app}"
+          URL_RAW="${INFERENCE_SERVICE_URL:-${BOB_SERVICE_URL:-}}"
           BOB_URL_RAW="${BOB_SERVICE_URL:-}"
+          if [[ -z "$URL_RAW" ]]; then
+            echo "::error::INFERENCE_SERVICE_URL / BOB_SERVICE_URL not set — refusing to default to hardcoded production URL"
+            exit 1
+          fi
           REVIEW_PROMPT_EFFECTIVE="${REVIEW_PROMPT:-}"
           if [[ -z "${REVIEW_PROMPT_EFFECTIVE// }" ]]; then
             REVIEW_PROMPT_EFFECTIVE="Review .github/workflows/deploy-bob-railway.yml changes for direct RunPod 11434 routing and fallback logic. Return exactly 3 concrete regression/security risks and one test per risk."
@@ -68,12 +78,15 @@ jobs:
           URL_RAW="$URL_RAW" BOB_URL_RAW="$BOB_URL_RAW" AUTH_KEY="$AUTH_KEY" REVIEW_PROMPT="$REVIEW_PROMPT_EFFECTIVE" REVIEW_CONTEXT="$REVIEW_CONTEXT" node - <<'NODE' | tee bob-assisted-review.log
           const https = require('https');
 
-          const defaultUrl = 'https://focused-courage-production-ccee.up.railway.app';
           const rawUrl = String(process.env.URL_RAW || '').trim();
           const bobRawUrl = String(process.env.BOB_URL_RAW || '').trim();
           const apiKey = process.env.AUTH_KEY;
           const prompt = process.env.REVIEW_PROMPT;
           const context = String(process.env.REVIEW_CONTEXT || '').trim();
+          if (!rawUrl && !bobRawUrl) {
+            console.error('[Fatal] No Bob endpoint provided — INFERENCE_SERVICE_URL and BOB_SERVICE_URL are both empty');
+            process.exit(1);
+          }
 
           function normalizeUrl(input) {
             const value = String(input || '').trim();
@@ -91,7 +104,11 @@ jobs:
               const endpoint = new URL(endpointBase);
               const basePrompt = String(promptMessage || '').trim();
               const message = context ? `${basePrompt}\n\nRelevant snippet from deploy-bob-railway.yml:\n${context}` : basePrompt;
-              const body = JSON.stringify({ message });
+              const body = JSON.stringify({
+                message,
+                // Force model-generated review output instead of /chat training-intel shortcut.
+                system_prompt: 'You are a strict CI code review assistant. Return concrete, testable findings only.',
+              });
               const options = {
                 hostname: endpoint.hostname,
                 port: endpoint.port || 443,
@@ -124,8 +141,12 @@ jobs:
                     return reject(new Error(`HTTP ${res.statusCode}: ${detail.slice(0, 1000)}`));
                   }
 
-                  const message = parsed?.message || parsed?.response || parsed?.data?.message || data;
-                  return resolve(String(message || '').trim());
+                  const text = parsed?.message || parsed?.response || parsed?.data?.message || data;
+                  return resolve({
+                    message: String(text || '').trim(),
+                    provider: String(parsed?.provider || ''),
+                    fallback: parsed?.fallback === true,
+                  });
                 });
               });
 
@@ -222,7 +243,7 @@ jobs:
             `Code review task: identify exactly 3 concrete regressions or security risks introduced by recent edits in deploy-bob-railway.yml direct RunPod routing logic. For each, provide one deterministic validation test. Output as bullet list only.`,
           ];
 
-          const candidates = [normalizeUrl(rawUrl), normalizeUrl(bobRawUrl), defaultUrl]
+          const candidates = [normalizeUrl(rawUrl), normalizeUrl(bobRawUrl)]
             .filter(Boolean)
             .filter((value, index, arr) => arr.indexOf(value) === index);
 
@@ -234,12 +255,19 @@ jobs:
                   try {
                     console.log(`[Agent] Calling Bob at ${endpointBase} (attempt ${attempt}/3)`);
                     const result = await callBob(endpointBase, promptVariant || prompt);
-                    if (isGenericResponse(result)) {
+                    const provider = String(result.provider || '').toLowerCase();
+                    if (provider !== 'ollama' || result.fallback === true) {
+                      lastError = new Error(`Non-strict Bob response: provider=${provider || 'unknown'} fallback=${String(result.fallback)}`);
+                      console.error(`[Warn] Bob returned provider=${provider || 'unknown'} fallback=${String(result.fallback)} at ${endpointBase} (attempt ${attempt}/3); retrying`);
+                      continue;
+                    }
+                    if (isGenericResponse(result.message)) {
                       lastError = new Error('Generic/non-actionable response');
                       console.error(`[Warn] Bob returned generic response at ${endpointBase} (attempt ${attempt}/3); retrying with stricter prompt`);
                       continue;
                     }
-                    console.log(`[Bob] ${result}`);
+                    console.log(`[Bob] provider=${provider} fallback=${String(result.fallback)}`);
+                    console.log(`[Bob] ${result.message}`);
                     process.exit(0);
                   } catch (error) {
                     lastError = error;

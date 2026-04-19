@@ -137,12 +137,18 @@ jobs:
           railway up --service "$EFFECTIVE_SERVICE" --environment production --detach
           popd
 
-      - name: Verify health and model
+      - name: Verify health, model, and chat provider
         env:
           BOB_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
+          INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
+          BOB_INFERENCE_API_KEY: ${{ secrets.BOB_INFERENCE_API_KEY }}
         run: |
           set -euo pipefail
-          BOB_URL="${BOB_SERVICE_URL:-https://focused-courage-production-ccee.up.railway.app}"
+          if [[ -z "${BOB_SERVICE_URL:-}" ]]; then
+            echo "::error::BOB_SERVICE_URL secret is not set — refusing to default to hardcoded production URL"
+            exit 1
+          fi
+          BOB_URL="${BOB_SERVICE_URL}"
 
           echo "Waiting 90s for rollout..."
           sleep 90
@@ -157,4 +163,26 @@ jobs:
           echo "CB_STATE=$CB"
 
           [ "$CHAT" = '${{ github.event.inputs.chat_model }}' ] || { echo "::error::Model mismatch after fast-track rollout"; exit 1; }
+
+          API_KEY="${INFERENCE_API_KEY:-${BOB_INFERENCE_API_KEY:-}}"
+          if [[ -z "$API_KEY" ]]; then
+            echo "::error::Missing INFERENCE_API_KEY/BOB_INFERENCE_API_KEY for strict chat probe"
+            exit 1
+          fi
+
+          RESP=$(curl -sfL --max-time 60 \
+            -X POST "$BOB_URL/chat" \
+            -H "Content-Type: application/json" \
+            -H "x-inference-api-key: $API_KEY" \
+            -H "Authorization: Bearer $API_KEY" \
+            -d '{"message":"Respond exactly with FAST_UPGRADE_OK"}') || RESP="{}"
+          PROVIDER=$(echo "$RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('provider','?'))" 2>/dev/null || echo "?")
+          FALLBACK=$(echo "$RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('fallback',True))" 2>/dev/null || echo "True")
+          MSG=$(echo "$RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('message','')[:80])" 2>/dev/null || echo "")
+          echo "Chat provider=$PROVIDER fallback=$FALLBACK response=$MSG"
+          if [[ "$PROVIDER" != "ollama" || "$FALLBACK" != "False" ]]; then
+            echo "::error::Chat probe is not strict Ollama mode (provider=$PROVIDER fallback=$FALLBACK)"
+            exit 1
+          fi
+
           echo "✅ Fast-track model upgrade completed"
