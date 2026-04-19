@@ -15,8 +15,13 @@ import path from 'node:path';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 
-const BOB_URL = process.env.BOB_SERVICE_URL || 'https://focused-courage-production-ccee.up.railway.app';
-const API_KEY = process.env.BOB_INFERENCE_API_KEY || 'c3b8e4af-2a56-4879-beb6-21553dc36ef2';
+const BOB_URL = String(process.env.BOB_SERVICE_URL || process.env.INFERENCE_SERVICE_URL || '').trim().replace(/\/$/, '');
+const API_KEY = String(process.env.BOB_INFERENCE_API_KEY || process.env.INFERENCE_API_KEY || '').trim();
+
+if (!BOB_URL || !API_KEY) {
+  console.error('[Error] Missing required env vars: BOB_SERVICE_URL (or INFERENCE_SERVICE_URL) and BOB_INFERENCE_API_KEY (or INFERENCE_API_KEY).');
+  process.exit(2);
+}
 
 async function postBulletin(bulletin) {
   const res = await fetch(`${BOB_URL}/intel/ingest-bulletin`, {
