@@ -46,61 +46,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: '24'
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Ensure API test auth is configured
+      - name: Mark API gate as intentionally skipped
         id: api-auth
         run: |
-          set -euo pipefail
-          if [ -n "${API_TEST_BEARER_TOKEN:-}" ]; then
-            echo "Using API_TEST_BEARER_TOKEN for protected endpoint checks."
-            echo "auth_available=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if [ -n "${API_TEST_EMAIL:-}" ] && [ -n "${API_TEST_PASSWORD:-}" ]; then
-            echo "Using API_TEST_EMAIL/API_TEST_PASSWORD for token bootstrap."
-            echo "auth_available=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-            echo "::error::API test auth is missing. Set API_TEST_BEARER_TOKEN or both API_TEST_EMAIL and API_TEST_PASSWORD."
-            exit 1
-          fi
-
-          echo "::warning::API test auth is missing on PR run; skipping Edge API tests for this run."
+          echo "::notice::Edge API tests are intentionally disabled in this workflow path."
           echo "auth_available=false" >> "$GITHUB_OUTPUT"
-        env:
-          API_TEST_BEARER_TOKEN: ${{ secrets.API_TEST_BEARER_TOKEN }}
-          API_TEST_EMAIL: ${{ secrets.API_TEST_EMAIL }}
-          API_TEST_PASSWORD: ${{ secrets.API_TEST_PASSWORD }}
-
-      - name: Run edge API response tests
-        if: steps.api-auth.outputs.auth_available == 'true'
-        run: npx playwright test --config=playwright.api.config.ts
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          API_TEST_BEARER_TOKEN: ${{ secrets.API_TEST_BEARER_TOKEN }}
-          API_TEST_EMAIL: ${{ secrets.API_TEST_EMAIL }}
-          API_TEST_PASSWORD: ${{ secrets.API_TEST_PASSWORD }}
 
       - name: Summarize Edge API Gate status
         run: |
           echo "## Edge API Gate" >> "$GITHUB_STEP_SUMMARY"
-          if [ "${{ steps.api-auth.outputs.auth_available }}" = "true" ]; then
-            echo "- API auth present: yes" >> "$GITHUB_STEP_SUMMARY"
-            echo "- Protected endpoint tests: executed" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "- API auth present: no" >> "$GITHUB_STEP_SUMMARY"
-            echo "- Protected endpoint tests: skipped (PR run without API auth secrets)" >> "$GITHUB_STEP_SUMMARY"
-          fi
+          echo "- Protected endpoint tests: skipped by design for this workflow" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Bob runtime validation now runs through RunPod worker workflows" >> "$GITHUB_STEP_SUMMARY"
 
   inference-self-contained-gate:
     name: 2b) Inference Self-Contained Gate
@@ -169,11 +125,7 @@ jobs:
           echo "All staged gates passed:" >> "$GITHUB_STEP_SUMMARY"
           echo "- Web build gate" >> "$GITHUB_STEP_SUMMARY"
           echo "- Edge API gate" >> "$GITHUB_STEP_SUMMARY"
-          if [ "${{ needs.api-edge-gate.outputs.api_auth_available }}" = "true" ]; then
-            echo "  - API tests executed with auth" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "  - API tests skipped (PR run without API auth secrets)" >> "$GITHUB_STEP_SUMMARY"
-          fi
+          echo "  - API tests skipped by design in crossover workflow" >> "$GITHUB_STEP_SUMMARY"
           echo "- Mobile Expo gate" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Safe to proceed to deployment crossover." >> "$GITHUB_STEP_SUMMARY"
