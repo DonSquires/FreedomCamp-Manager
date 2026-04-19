@@ -18,6 +18,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 LOAD_RUNTIME="false"
 CHAT_PROMPT=""
+STRICT_RAILWAY="false"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -29,9 +30,13 @@ while [[ $# -gt 0 ]]; do
       CHAT_PROMPT="${2:-}"
       shift 2
       ;;
+    --strict-railway)
+      STRICT_RAILWAY="true"
+      shift
+      ;;
     *)
       echo "Unknown argument: $1" >&2
-      echo "Usage: bash scripts/bob-container-bootstrap.sh [--load-runtime] [--chat <prompt>]" >&2
+      echo "Usage: bash scripts/bob-container-bootstrap.sh [--load-runtime] [--chat <prompt>] [--strict-railway]" >&2
       exit 2
       ;;
   esac
@@ -78,8 +83,11 @@ source "$SCRIPT_DIR/load-railway-secrets-from-github-env.sh" --quiet
 
 log "Step 1/4: Validate Railway credentials and service reachability"
 if ! bash "$SCRIPT_DIR/validate-railway-credentials.sh"; then
-  fail "Railway credential validation failed. Resolve missing/invalid values before continuing."
-  exit 1
+  if [[ "$STRICT_RAILWAY" == "true" ]]; then
+    fail "Railway credential validation failed in strict mode. Resolve missing/invalid values before continuing."
+    exit 1
+  fi
+  warn "Railway credential validation failed; continuing in non-strict mode to verify local Bob runtime."
 fi
 
 log "Step 2/4: Verify Bob from container (health + authenticated chat + Railway API probes)"

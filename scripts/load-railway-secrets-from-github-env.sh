@@ -72,7 +72,8 @@ set_if_present() {
 
 # Bob + Ollama project credentials
 # Canonical: RAILWAY_BOB_TOKEN  |  @deprecated aliases: RAILWAY_TOKEN_BOB, RAILWAY_ORC_TOKEN
-set_if_present RAILWAY_BOB_TOKEN RAILWAY_BOB_TOKEN RAILWAY_TOKEN_BOB RAILWAY_ORC_TOKEN || true
+# Local fallback: RAILWAY_TOKEN when only one Railway token is available.
+set_if_present RAILWAY_BOB_TOKEN RAILWAY_BOB_TOKEN RAILWAY_TOKEN_BOB RAILWAY_ORC_TOKEN RAILWAY_TOKEN || true
 # Canonical: RAILWAY_BOB_PROJECT_ID | @deprecated alias: RAILWAY_ORC_PROJECT_ID
 set_if_present RAILWAY_BOB_PROJECT_ID RAILWAY_BOB_PROJECT_ID RAILWAY_ORC_PROJECT_ID || true
 # Canonical: RAILWAY_BOB_SERVICE_ID  |  @deprecated alias: RAILWAY_SERVICE_ID

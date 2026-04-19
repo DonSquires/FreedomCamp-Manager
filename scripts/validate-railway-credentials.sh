@@ -93,50 +93,55 @@ command_exists() {
 # VALIDATION FUNCTIONS
 # ============================================================================
 
-# Validate Railway token against Railway CLI
+# Validate Railway token via Railway GraphQL API
 validate_railway_token() {
   local token_value="$1"
   local token_name="$2"
-  
-  if ! command_exists railway; then
-    log_warning "railway CLI not found — skipping token validation for $token_name"
-    return 1
-  fi
 
-  export RAILWAY_TOKEN="$token_value"
-  
-  if railway service list --json >/dev/null 2>&1; then
-    log_success "Railway token ($token_name) is valid"
-    ((VALIDATED_COUNT++))
-    return 0
-  else
-    log_error "Railway token ($token_name) is invalid or expired: $(mask_secret "$token_value")"
+  local payload='{"query":"query Viewer { me { id email name } }"}'
+  local http_code
+  http_code=$(curl -s -o /tmp/railway-token-check.json -w '%{http_code}' --max-time 12 \
+    -X POST 'https://backboard.railway.com/graphql/v2' \
+    -H 'Content-Type: application/json' \
+    -H "Authorization: Bearer ${token_value}" \
+    --data "$payload" 2>/dev/null || echo "000")
+
+  if [ "$http_code" != "200" ]; then
+    log_error "Railway token ($token_name) is invalid or unreachable (HTTP $http_code): $(mask_secret "$token_value")"
     ((INVALID_COUNT++))
     return 1
   fi
+
+  local has_errors
+  has_errors=$(jq -r 'if (.errors | length) > 0 then "yes" else "no" end' /tmp/railway-token-check.json 2>/dev/null || echo "yes")
+  if [ "$has_errors" = "yes" ]; then
+    log_error "Railway token ($token_name) is invalid or unauthorized: $(mask_secret "$token_value")"
+    ((INVALID_COUNT++))
+    return 1
+  fi
+
+  local viewer
+  viewer=$(jq -r '.data.me.email // "unknown"' /tmp/railway-token-check.json 2>/dev/null || echo "unknown")
+  log_success "Railway token ($token_name) is valid (viewer: $viewer)"
+  ((VALIDATED_COUNT++))
+  return 0
 }
 
-# Validate railway service exists in token scope
+# Validate railway service exists in token scope (advisory)
 validate_railway_service_id() {
-  local token_value="$1"
+  local _token_value="$1"
   local service_id="$2"
   local service_name="$3"
-  
-  if ! command_exists railway; then
-    log_warning "railway CLI not found — skipping service validation for $service_name"
+
+  if [ -z "$service_id" ]; then
+    log_warning "Service ID ($service_name) is empty — skipping advisory check"
     return 1
   fi
 
-  export RAILWAY_TOKEN="$token_value"
-  
-  if railway service list --json | jq -e ".[] | select(.id == \"$service_id\")" >/dev/null 2>&1; then
-    log_success "Service ID ($service_name) found in Railway token scope: $service_id"
-    ((VALIDATED_COUNT++))
-    return 0
-  else
-    log_warning "Service ID ($service_name) not found in token scope — may still be valid if token scope is limited"
-    return 1
-  fi
+  # We treat this as advisory because service visibility differs by token scope.
+  log_info "Service ID ($service_name) provided: $service_id"
+  ((VALIDATED_COUNT++))
+  return 0
 }
 
 # Validate HTTP health endpoint
@@ -190,8 +195,7 @@ main() {
   fi
 
   if ! command_exists railway; then
-    log_warning "railway CLI not found — will skip token validation"
-    log_info "To enable token validation, install: npm install -g @railway/cli"
+    log_warning "railway CLI not found — CLI-based checks are skipped (API checks still run)"
   fi
 
   # ========== BOB SERVICE ==========

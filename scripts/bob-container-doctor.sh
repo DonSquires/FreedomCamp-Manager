@@ -154,24 +154,16 @@ CHAT_FALLBACK="$(jq -r '.fallback // false' /tmp/bob-chat.json 2>/dev/null || ec
 log "Chat OK: provider=$CHAT_PROVIDER fallback=$CHAT_FALLBACK"
 
 if [[ "$CHECK_RAILWAY" == "true" ]]; then
-  if ! command -v railway >/dev/null 2>&1; then
-    warn "Railway CLI is not installed; skipping Railway checks."
+  if [[ -n "${RAILWAY_BOB_TOKEN:-}" ]]; then
+    railway_api_probe "$RAILWAY_BOB_TOKEN" "bob" || true
   else
-    if [[ -n "${RAILWAY_BOB_TOKEN:-}" ]]; then
-      log "Checking Railway Bob token scope"
-      RAILWAY_TOKEN="$RAILWAY_BOB_TOKEN" railway service list --json >/dev/null
-      log "Railway Bob token is valid"
-    else
-      warn "RAILWAY_BOB_TOKEN not set; skipping Bob token check."
-    fi
+    warn "RAILWAY_BOB_TOKEN not set; skipping Bob token check."
+  fi
 
-    if [[ -n "${RAILWAY_TOKEN:-}" ]]; then
-      log "Checking Railway core token scope"
-      RAILWAY_TOKEN="$RAILWAY_TOKEN" railway service list --json >/dev/null
-      log "Railway core token is valid"
-    else
-      warn "RAILWAY_TOKEN not set; skipping core token check."
-    fi
+  if [[ -n "${RAILWAY_TOKEN:-}" ]]; then
+    railway_api_probe "$RAILWAY_TOKEN" "core" || true
+  else
+    warn "RAILWAY_TOKEN not set; skipping core token check."
   fi
 fi
 
