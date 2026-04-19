@@ -16,7 +16,7 @@ Core capabilities:
 - Vehicle scanning via AI inference
 - Officer welfare tracking and on-call rostering
 - Multi-organisation (multi-tenant) support
-- **Bob** — an embedded AI assistant powered by a locally-hosted Large Language Model
+- **Bob** — an embedded AI assistant powered by RunPod Serverless inference
 
 ---
 
@@ -33,11 +33,9 @@ Browser / Mobile
          │
          ├──▶  proxy-server  ──▶  NZSCV NZ plate lookup
          │
-         ├──▶  inference-service (BOB)
-         │         │
-         │         └──▶  runpod-gateway ──▶  Ollama on RunPod GPU
+         ├──▶  Bob/Ollama inference ──▶  RunPod Serverless endpoint
          │
-         └──▶  ptt-server (Push-To-Talk, WebSocket)
+         └──▶  ptt-server (Push-To-Talk, Voice VPS 72.61.123.97)
 ```
 
 ### Services at a Glance
@@ -45,12 +43,17 @@ Browser / Mobile
 | Service | Location | Platform | Purpose |
 |---------|----------|----------|---------|
 | **Frontend** | `src/` | Vercel | React SPA — all admin / officer UI pages |
-| **inference-service (Bob)** | `inference-service/` | Railway | AI assistant — chat, translation, image analysis, pre-training |
+| **Bob/Ollama inference** | RunPod endpoint config (`INFERENCE_API_URL`) | RunPod Serverless | AI assistant — chat, translation, image analysis, pre-training |
 | **proxy-server** | `proxy-server/` | Railway | Authenticated proxy for NZSCV NZ plate lookup API |
-| **ptt-server** | `ptt-server/` | Railway | WebSocket push-to-talk relay between officers |
-| **runpod-gateway** | `runpod-gateway/` | RunPod (Docker) | Authenticated gateway in front of Ollama running on RunPod GPU |
+| **ptt-server** | `ptt-server/` | Voice VPS (`72.61.123.97`) | WebSocket push-to-talk relay between officers |
+| **runpod-gateway** | `runpod-gateway/` | RunPod (Docker) | Optional authenticated gateway in front of RunPod inference |
 | **Supabase** | `supabase/` | Supabase Cloud | PostgreSQL DB, Row Level Security, 45+ Edge Functions, Auth |
-| **inference-service (Ollama)** | RunPod | RunPod | LLM inference — currently `llama3.1:8b` (or upgraded model) |
+| **inference-service (Ollama)** | RunPod | RunPod Serverless | LLM inference for Bob workloads |
+
+> **Current deployment baseline (2026-04):**
+> - Bob/Ollama inference runs on **RunPod Serverless**.
+> - PTT signaling runs on the **Voice VPS** (`72.61.123.97`).
+> - **Railway is proxy-only** (`proxy-server` for IP-address-hosted integrations).
 
 ---
 
@@ -62,17 +65,12 @@ All CI/CD secrets live in **GitHub → Settings → Secrets and variables → Ac
 
 | Secret | Used by | Notes |
 |--------|---------|-------|
-| `RAILWAY_BOB_TOKEN` | deploy-bob-railway, ops-upgrade-bob-model | Railway API token for Bob project |
 | `RAILWAY_TOKEN` | Various | Fallback Railway token |
-| `RAILWAY_BOB_SERVICE_ID` | Bob deploy workflows | Railway service ID for Bob (inference-service) |
-| `RAILWAY_BOB_PROJECT_ID` | Bob deploy workflows | Railway project ID for the Bob project |
-| `RAILWAY_OLLAMA_SERVICE_ID` | deploy-ollama-railway | Railway service ID for Ollama service |
-| `RAILWAY_PTT_SERVICE_ID` | ptt deploy | Railway service ID for ptt-server |
 | `RAILWAY_PROXY_SERVICE_ID` | proxy deploy | Railway service ID for proxy-server |
 | `BOB_SERVICE_URL` | Smoke tests, ops workflows | Live URL for inference-service e.g. `https://xxx.up.railway.app` |
 | `BOB_GATEWAY_KEY` | Bob model workflows | Bearer token for RunPod Ollama gateway |
 | `RUNPOD_GATEWAY_URL` | ops-upgrade-bob-model | Public URL for RunPod gate e.g. `https://xxx-8080.proxy.runpod.net` |
-| `RUNPOD_ALLOW_DIRECT_OLLAMA` | deploy-bob-railway | Optional safety flag (`true` only during incident bypass to direct `11434` URL). Default is gateway-only. |
+| `RUNPOD_ALLOW_DIRECT_OLLAMA` | Bob ops workflows | Optional safety flag (`true` only during incident bypass to direct `11434` URL). Default is gateway-only. |
 | `RUNPOD_API_KEY` | RunPod SSH / API calls | RunPod API key |
 | `RUNPOD_POD_SSH_KEY` | ops-upgrade-bob-model (SSH step) | Private key for SSH into RunPod pod |
 | `RUNPOD_POD_HOST` | SSH steps | RunPod pod hostname or IP |
@@ -93,14 +91,15 @@ All CI/CD secrets live in **GitHub → Settings → Secrets and variables → Ac
 
 > **Important**: Production secrets (`VITE_SUPABASE_URL_PRODUCTION`, etc.) must be stored separately if you use environment-specific builds.
 
-### 3.2 Railway Environment Variables (Bob / inference-service)
+### 3.2 RunPod Serverless Variables (Bob / Ollama)
 
-Set via Railway dashboard → Service → Variables, or via `ops-upgrade-bob-model.yml`:
+Set via Supabase/hosted runtime environment and RunPod endpoint configuration:
 
 | Variable | Purpose |
 |----------|---------|
-| `OPERATING_MODE` | `self-contained` — Bob manages its own Ollama connection |
+| `OPERATING_MODE` | `self-contained` — Bob manages its own inference connection |
 | `CHAT_PROVIDER` | `ollama` |
+| `INFERENCE_API_URL` | RunPod Serverless endpoint URL for Bob/Ollama inference |
 | `OLLAMA_HOST` | URL to the runpod-gateway, e.g. `https://xxx-8080.proxy.runpod.net` |
 | `OLLAMA_GATEWAY_KEY` | Bearer token for runpod-gateway |
 | `OLLAMA_MODEL` | Active chat model, e.g. `llama3.1:8b`, `llama3.3:70b` |
@@ -120,7 +119,7 @@ Set via Railway dashboard → Service → Variables, or via `ops-upgrade-bob-mod
 
 ### 3.4 RunPod
 
-- Runs Ollama Docker on a GPU pod
+- Runs Bob/Ollama inference in Serverless mode
 - The `runpod-gateway/` service acts as an authenticated reverse proxy in front of Ollama
 - Bobby bears a `BOB_GATEWAY_KEY` to authenticate to the proxy
 - Deploy gateway: `deploy-runpod-gateway.yml`
@@ -206,10 +205,10 @@ cd runpod-gateway     && npm install && npm start
 git push origin main   # triggers deploy-frontend.yml → Vercel
 ```
 
-### Bob (inference-service)
+### Bob (RunPod Serverless-backed)
 ```bash
-# Automatic on push to main (changes in inference-service/)
-# OR manual via GitHub Actions → deploy-bob-railway
+# Bob/Ollama inference runs on RunPod Serverless.
+# Update endpoint/config secrets and redeploy dependent services as needed.
 ```
 
 ### Edge Functions
@@ -225,7 +224,8 @@ git push origin main   # triggers deploy-frontend.yml → Vercel
 
 ### Proxy-server / PTT-server
 ```bash
-# Manual via GitHub Actions → deploy-proxy-railway / deploy-ptt-railway
+# Proxy: deploy-proxy-railway (Railway)
+# PTT: deploy-voice-server (Voice VPS)
 ```
 
 ---
@@ -238,7 +238,7 @@ User message
 Frontend (React)
       │  POST /chat
       ▼
-inference-service (Railway)
+Bob service runtime
       │
       │  OPERATING_MODE=self-contained
       │  CHAT_PROVIDER=ollama
@@ -276,18 +276,16 @@ The workflow:
 
 ---
 
-## 7. CI/CD Workflows Reference (37 total)
+## 7. CI/CD Workflows Reference
 
 ### Active Deploy Workflows
 | Workflow | Trigger | Does |
 |----------|---------|------|
 | `deploy-frontend.yml` | push to main | Builds + deploys to Vercel |
-| `deploy-bob-railway.yml` | push to main / manual | Deploys inference-service to Railway |
-| `deploy-ollama-railway.yml` | manual | Deploys/redeploys Ollama service on Railway |
 | `deploy-edge-functions.yml` | push to main | Deploys all Supabase Edge Functions |
 | `deploy-proxy-railway.yml` | push to main / manual | Deploys proxy-server to Railway |
-| `deploy-ptt-railway.yml` | push to main / manual | Deploys ptt-server to Railway |
 | `deploy-runpod-gateway.yml` | manual | Builds + pushes runpod-gateway Docker image |
+| `deploy-voice-server.yml` | manual | Deploys ptt-server to the Voice VPS (`72.61.123.97`) |
 | `deploy-mobile.yml` | manual | Builds Expo mobile app (EAS) |
 
 ### Ops / Maintenance Workflows
@@ -296,7 +294,6 @@ The workflow:
 | `ops-upgrade-bob-model.yml` | manual | Detect GPU, pull best Ollama model, redeploy Bob |
 | `ops-railway-wiring-audit.yml` | manual | Verifies all Railway env vars are correctly set |
 | `ops-bob-human-interaction-smoke.yml` | schedule / push | Chat smoke test against Bob |
-| `ops-bob-ollama-update-monitor.yml` | schedule | Checks if a newer Ollama version is available |
 | `ops-bob-pretrain-on-push.yml` | push (incident data) | Sends new incidents to Bob for pre-training |
 | `ops-nightly-self-learning-pretrain.yml` | schedule (nightly) | Nightly Bob self-improvement training |
 | `ops-migrate-db.yml` | manual | Runs pending Supabase migrations |
@@ -305,7 +302,7 @@ The workflow:
 | `ops-data-migration.yml` | manual | One-off data migration runner |
 | `ops-intel-feed-sync.yml` | schedule | Pulls intelligence feed updates |
 | `ops-generate-keystore.yml` | manual | Generates Android keystore for mobile builds |
-| `ops-set-bob-gateway-key.yml` | manual | Sets BOB_GATEWAY_KEY on Railway for Bob |
+| `ops-set-bob-gateway-key.yml` | manual | Rotates BOB gateway credentials for RunPod access |
 | `ops-bob-ask-copilot.yml` | manual | Asks Copilot to generate code / answers |
 | `ops-bob-code-task.yml` | manual | Runs a Bob-driven code task |
 | `ops-bob-assess-failed-actions.yml` | on workflow_run failure | Triage failed workflow runs |
@@ -323,7 +320,10 @@ The workflow:
 ### Dead / Removed Workflows (do not recreate)
 | Workflow | Reason removed |
 |----------|---------------|
-| `deploy-railway.yml` | Superseded by `deploy-bob-railway.yml` |
+| `deploy-railway.yml` | Legacy ONNX Railway deploy removed |
+| `deploy-bob-railway.yml` | Bob/Ollama moved to RunPod Serverless |
+| `deploy-ollama-railway.yml` | Bob/Ollama moved to RunPod Serverless |
+| `deploy-ptt-railway.yml` | PTT moved to Voice VPS (`72.61.123.97`) |
 | `ops-fix-inference-vars.yml` | One-shot purpose fulfilled |
 | `set-ptt-secret.yml` | One-shot purpose fulfilled |
 
@@ -408,28 +408,28 @@ Role logic is enforced in `src/stores/authStore.ts` and route guards in `src/App
 ### Weekly
 - [ ] Check `synthetic-monitor.yml` run results in GitHub Actions
 - [ ] Review `ops-bob-human-interaction-smoke.yml` pass/fail
-- [ ] Check RunPod pod is still running (`railway logs` or RunPod dashboard)
+- [ ] Check RunPod endpoint health in the RunPod dashboard
 
 ### Monthly
 - [ ] Run `ops-geofence-review.yml` — validate zone boundaries
-- [ ] Run `ops-bob-ollama-update-monitor.yml` output — consider model upgrade
+- [ ] Review RunPod model/version posture before upgrades
 - [ ] Check for unmaintained package updates in `package.json`
 
 ### As Needed
 - **Bob model upgrade**: GitHub Actions → `ops-upgrade-bob-model` → Run workflow
 - **DB schema change**: `supabase migration new <name>` → edit → `db-run-migrations.yml`
 - **New edge function**: Create `supabase/functions/<name>/index.ts`, follow `_shared/withCors.ts` pattern, deploy via `deploy-edge-functions.yml`
-- **Rotate gateway key**: Run `ops-set-bob-gateway-key.yml` → update `BOB_GATEWAY_KEY` secret, update Railway env var on Bob
+- **Rotate gateway key**: Run `ops-set-bob-gateway-key.yml` → update `BOB_GATEWAY_KEY` secret, update RunPod-facing runtime config
 
 ---
 
 ## 12. Troubleshooting
 
 ### Bob not responding
-1. Check Railway dashboard — is inference-service up?
+1. Check RunPod endpoint health — is Bob/Ollama inference up?
 2. `GET https://<BOB_URL>/health` — circuit breaker state should be `closed`
 3. Check RunPod pod is running — `OLLAMA_HOST` must be reachable
-4. Run `ops-railway-wiring-audit.yml` to validate all env vars
+4. Validate RunPod endpoint and gateway env vars (`INFERENCE_API_URL`, `OLLAMA_HOST`, `BOB_GATEWAY_KEY`)
 5. Run `ops-bob-human-interaction-smoke.yml` for a full chat probe
 
 ### Plate lookup not working

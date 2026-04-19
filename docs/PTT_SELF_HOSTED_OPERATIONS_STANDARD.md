@@ -54,7 +54,7 @@ Reliability mode (recommended for live operations):
 
 ## 5. Deployment Standard
 
-1. Deploy ptt-server with deploy-ptt-railway workflow.
+1. Deploy ptt-server to the Voice VPS (`72.61.123.97`) using `deploy-voice-server`.
 2. Deploy turn-server (Coturn) from /turn-server.
 3. Wire ptt-server TURN_URL, TURN_USERNAME, TURN_CREDENTIAL from turn-server runtime config.
 4. Set FORCE_TURN_RELAY=true and PTT_DISABLE_PUBLIC_STUN=true for strict self-hosted transport.
@@ -64,7 +64,7 @@ Reliability mode (recommended for live operations):
 8. Verify smoke test pass for officer/admin/master on the radio route.
 
 Release gate checklist:
-1. Railway deployment status is healthy
+1. Voice VPS deployment status is healthy
 2. Mint probe result is valid
 3. Smoke test file passes in Chromium
 4. No deprecated PTT secret names in docs or workflow comments
@@ -97,7 +97,7 @@ Phase B: enable multi-node
 Severity 1: PTT unavailable for all users
 1. Confirm /health endpoint status
 2. Confirm /api/token/mint probe behavior
-3. Check PTT_PROXY_SECRET parity between Railway and Supabase
+3. Check PTT_PROXY_SECRET parity between Voice VPS runtime and Supabase
 4. Validate PTT_SERVER_URL in Supabase vault
 5. If unresolved in 10 minutes, place system in text-chat fallback mode and notify operations
 
