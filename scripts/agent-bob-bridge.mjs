@@ -3,6 +3,9 @@
 // Then: const bobInput = await consultBob('your question or request', { context })
 
 import process from 'node:process';
+import { loadLocalEnv } from './load-local-env.mjs';
+
+loadLocalEnv();
 
 function resolveBaseUrl() {
   const raw =

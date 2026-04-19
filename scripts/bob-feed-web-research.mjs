@@ -8,6 +8,10 @@
  *   BOB_SERVICE_URL=https://... BOB_INFERENCE_API_KEY=... node scripts/bob-feed-web-research.mjs
  */
 
+import { loadLocalEnv } from './load-local-env.mjs'
+
+loadLocalEnv()
+
 const BOB_URL = String(process.env.BOB_SERVICE_URL || process.env.INFERENCE_SERVICE_URL || '').trim().replace(/\/$/, '')
 const API_KEY = String(process.env.BOB_INFERENCE_API_KEY || process.env.INFERENCE_API_KEY || '').trim()
 

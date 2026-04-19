@@ -2,6 +2,9 @@
 
 import process from 'node:process';
 import readline from 'node:readline';
+import { loadLocalEnv } from './load-local-env.mjs';
+
+loadLocalEnv();
 
 function resolveBaseUrl() {
   const raw =

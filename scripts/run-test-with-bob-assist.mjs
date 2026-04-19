@@ -2,6 +2,9 @@
 
 import { spawn } from 'node:child_process';
 import process from 'node:process';
+import { loadLocalEnv } from './load-local-env.mjs';
+
+loadLocalEnv();
 
 function envFlag(value, fallback) {
   if (value === undefined || value === null || value === '') return fallback;

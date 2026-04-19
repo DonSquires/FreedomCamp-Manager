@@ -1,5 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { loadLocalEnv } from './load-local-env.mjs';
+
+loadLocalEnv();
 
 const repoRoot = process.cwd();
 const args = process.argv.slice(2);

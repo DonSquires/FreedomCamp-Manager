@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+set -a
+[[ -f .env ]] && source .env || true
+[[ -f .env.local ]] && source .env.local || true
+[[ -f .env.playwright.local ]] && source .env.playwright.local || true
+[[ -f .runtime/bob.env ]] && source .runtime/bob.env || true
+set +a
+
 # Copilot <-> Bob collaboration helper.
 # Modes:
 #   ask      - Ask Bob a direct question via /chat

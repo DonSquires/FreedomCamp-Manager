@@ -2,6 +2,9 @@
 // Quick script to consult Bob from CLI
 
 import process from 'node:process';
+import { loadLocalEnv } from './load-local-env.mjs';
+
+loadLocalEnv();
 
 const INFERENCE_URL = String(process.env.INFERENCE_SERVICE_URL || process.env.BOB_SERVICE_URL || '').trim().replace(/\/+$/, '');
 const API_KEY = String(process.env.INFERENCE_API_KEY || process.env.BOB_INFERENCE_API_KEY || '').trim();
