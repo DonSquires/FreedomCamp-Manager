@@ -182,7 +182,7 @@ Professional compatibility mode:
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
 │  Web Frontend   │────▶│ PTT Signaling   │◀────│ Mobile App      │
-│  (TeamChat)     │     │ Server (Railway)│     │ (Expo)          │
+│  (TeamChat)     │     │ Server (VPS)    │     │ (Expo)          │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
          │                      │                       │
          │                      │                       │
@@ -209,14 +209,14 @@ Professional compatibility mode:
 railway logs
 
 # Health check
-curl https://your-service.railway.app/health
+curl http://72.61.123.97:8080/health
 
 # Transport diagnostics (TURN + relay policy)
-curl https://your-service.railway.app/api/diagnostics
+curl http://72.61.123.97:8080/api/diagnostics
 
 # List active channels
 curl -H "x-proxy-secret: your-ptt-proxy-secret" \
-  https://your-service.railway.app/api/channels
+  http://72.61.123.97:8080/api/channels
 ```
 
 ## Related Documentation

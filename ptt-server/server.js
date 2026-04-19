@@ -69,7 +69,7 @@ const PROXY_SECRET = process.env.PTT_PROXY_SECRET;
 const PTT_JWT_SECRET = process.env.PTT_JWT_SECRET;
 const MAX_PARTICIPANTS = parseInt(process.env.MAX_PARTICIPANTS_PER_CHANNEL || '50', 10);
 const MAX_CLIP_DURATION = parseInt(process.env.MAX_CLIP_DURATION_SECONDS || '30', 10);
-const TURN_URL = process.env.TURN_URL;
+const TURN_URL = process.env.TURN_URL || 'turn:72.61.123.97:3478';
 const TURN_USERNAME = process.env.TURN_USERNAME;
 const TURN_CREDENTIAL = process.env.TURN_CREDENTIAL;
 const FORCE_TURN_RELAY = String(process.env.FORCE_TURN_RELAY || '').toLowerCase() === 'true';
