@@ -46,7 +46,7 @@ jobs:
             : "${PTT_JWT_SECRET:?PTT_JWT_SECRET secret is required}"
             : "${PTT_PROXY_SECRET:?PTT_PROXY_SECRET secret is required}"
             # Always write the authoritative docker-compose.yml so env changes take effect
-            cat > docker-compose.yml << EOF
+            cat > docker-compose.yml << 'EOF'
             services:
               ptt-server:
                 build: ./ptt-server
