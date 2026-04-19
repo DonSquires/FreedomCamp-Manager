@@ -1,0 +1,57 @@
+name: Deploy Voice & PTT Server
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'ptt-server/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Copy PTT Server files to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_IP }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "ptt-server/*"
+          target: "/opt/fieldops-voice/"
+
+      - name: Build and Start PTT Server on VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_IP }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /opt/fieldops-voice
+            
+            # Inject the PTT server config into docker-compose if it's not there yet
+            if ! grep -q "ptt-server:" docker-compose.yml; then
+            cat << 'EOF' >> docker-compose.yml
+
+              ptt-server:
+                build: ./ptt-server
+                container_name: fieldops-ptt
+                ports:
+                  - "8080:8080"
+                environment:
+                  - NODE_ENV=production
+                  - TURN_SERVER_URL=turn:72.61.123.97:3478
+                  - TURN_SECRET=fieldops_secure_voice_key_2026
+                restart: unless-stopped
+            EOF
+            fi
+
+            # Build the new image and spin up the container
+            docker compose up -d --build ptt-server
+            
+            # Clean up old unused images to save disk space
+            docker image prune -f
