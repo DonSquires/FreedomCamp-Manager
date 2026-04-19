@@ -20,6 +20,11 @@ on:
       - 'inference-service/**'
       - 'mobile-app/**'
       - '**.md'
+      - 'tests/**'
+      - 'src/**/__tests__/**'
+      - 'vitest.config.ts'
+      - 'playwright.config.ts'
+      - 'playwright.api.config.ts'
   workflow_dispatch:
     inputs:
       portal_environment:
