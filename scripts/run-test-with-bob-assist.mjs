@@ -11,8 +11,20 @@ function envFlag(value, fallback) {
   return !['0', 'false', 'no', 'off'].includes(String(value).toLowerCase());
 }
 
+function isHttpUrl(value) {
+  return /^https?:\/\//i.test(String(value || '').trim());
+}
+
 function resolveBaseUrl() {
-  const raw = process.env.BOB_SERVICE_URL || process.env.INFERENCE_SERVICE_URL || '';
+  const candidates = [
+    process.env.BOB_SERVICE_URL,
+    process.env.INFERENCE_SERVICE_URL,
+    process.env.RUNPOD_GATEWAY_URL,
+    process.env.RUNPOD_SERVERLESS_URL,
+    process.env.DR_BOB_URL,
+  ];
+
+  const raw = candidates.find((value) => isHttpUrl(value)) || '';
   return String(raw).trim().replace(/\/+$/, '');
 }
 
@@ -20,6 +32,8 @@ function resolveApiKey() {
   return String(
     process.env.BOB_INFERENCE_API_KEY ||
     process.env.INFERENCE_API_KEY ||
+    process.env.RUNPOD_API_KEY ||
+    process.env.DR_BOB_API ||
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     ''
   ).trim();
@@ -59,18 +73,22 @@ async function pingBob(stage, command, exitCode = null) {
   const baseUrl = resolveBaseUrl();
   const apiKey = resolveApiKey();
   const orgId = resolveOrgId();
-  const required = envFlag(process.env.REQUIRE_BOB_TEST_ASSIST, true);
+  const required = envFlag(process.env.REQUIRE_BOB_TEST_ASSIST, false);
   const timeoutMs = Number(process.env.BOB_TEST_ASSIST_TIMEOUT_MS || 15000);
 
   if (!baseUrl || !apiKey) {
     const missing = [
-      !baseUrl ? 'BOB_SERVICE_URL-or-INFERENCE_SERVICE_URL' : null,
-      !apiKey ? 'BOB_INFERENCE_API_KEY-or-INFERENCE_API_KEY-or-SUPABASE_SERVICE_ROLE_KEY' : null,
+      !baseUrl
+        ? 'BOB_SERVICE_URL-or-INFERENCE_SERVICE_URL-or-RUNPOD_GATEWAY_URL-or-RUNPOD_SERVERLESS_URL-or-DR_BOB_URL'
+        : null,
+      !apiKey
+        ? 'BOB_INFERENCE_API_KEY-or-INFERENCE_API_KEY-or-RUNPOD_API_KEY-or-DR_BOB_API-or-SUPABASE_SERVICE_ROLE_KEY'
+        : null,
     ].filter(Boolean).join(', ');
 
     const message = `[bob-test-assist] Missing Bob config: ${missing}`;
     if (required) throw new Error(message);
-    console.warn(`${message} (continuing because REQUIRE_BOB_TEST_ASSIST=false)`);
+    console.warn(`${message} — credentials missing, running underlying test without AI assist`);
     return;
   }
 
@@ -140,8 +158,7 @@ async function main() {
   try {
     await pingBob('pre', commandLabel);
   } catch (error) {
-    console.error(String(error?.message || error));
-    process.exit(2);
+    console.warn('[bob-test-assist] Pre-assist unavailable:', String(error?.message || error));
   }
 
   const exitCode = await spawnCommand(command, args);
@@ -149,8 +166,7 @@ async function main() {
   try {
     await pingBob('post', commandLabel, exitCode);
   } catch (error) {
-    console.error(String(error?.message || error));
-    process.exit(2);
+    console.warn('[bob-test-assist] Post-assist unavailable:', String(error?.message || error));
   }
 
   process.exit(exitCode);

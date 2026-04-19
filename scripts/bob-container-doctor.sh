@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Bob + Railway container doctor
+# Bob + RunPod container doctor
 # - Loads credentials from local env files (optional)
 # - Normalizes alias env names
-# - Verifies Bob auth + health from this container
+# - Verifies RunPod auth + ping/chat from this container
 # - Optionally verifies Railway token visibility
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -110,12 +110,12 @@ fi
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/load-railway-secrets-from-github-env.sh" --quiet
 
-BASE_URL="${BOB_SERVICE_URL:-${INFERENCE_SERVICE_URL:-}}"
-API_KEY="${BOB_INFERENCE_API_KEY:-${INFERENCE_API_KEY:-}}"
+BASE_URL="${RUNPOD_GATEWAY_URL:-${RUNPOD_SERVERLESS_URL:-${RUNPOD_URL:-https://api.runpod.ai/v2/apynoxmf9eiyzd/runsync}}}"
+API_KEY="${RUNPOD_API_KEY:-${DR_BOB_API:-}}"
 BASE_URL="${BASE_URL%/}"
 
 if [[ -z "$BASE_URL" || -z "$API_KEY" ]]; then
-  fail "Missing Bob credentials. Need BOB_SERVICE_URL or INFERENCE_SERVICE_URL, and BOB_INFERENCE_API_KEY or INFERENCE_API_KEY."
+  fail "Missing RunPod credentials. Need RUNPOD_API_KEY (or DR_BOB_API) and optionally RUNPOD_GATEWAY_URL (or RUNPOD_SERVERLESS_URL)."
   exit 1
 fi
 
@@ -123,35 +123,41 @@ if [[ "$BASE_URL" != http://* && "$BASE_URL" != https://* ]]; then
   BASE_URL="http://$BASE_URL"
 fi
 
-log "Checking Bob health endpoint"
-HEALTH_HTTP="$(curl -sS -m 25 -o /tmp/bob-health.json -w '%{http_code}' "$BASE_URL/health" || true)"
-if [[ "$HEALTH_HTTP" != "200" ]]; then
-  fail "Health check failed at $BASE_URL/health (HTTP $HEALTH_HTTP)"
+log "Checking RunPod runsync ping"
+PING_PAYLOAD='{"input":{"action":"ping"}}'
+PING_HTTP="$(curl -sS -m 30 -o /tmp/bob-ping.json -w '%{http_code}' \
+  -X POST "$BASE_URL" \
+  -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $API_KEY" \
+  -d "$PING_PAYLOAD" || true)"
+
+if [[ "$PING_HTTP" != "200" ]]; then
+  fail "RunPod ping failed at $BASE_URL (HTTP $PING_HTTP)"
+  cat /tmp/bob-ping.json 2>/dev/null || true
   exit 1
 fi
 
-STATUS="$(jq -r '.status // "unknown"' /tmp/bob-health.json 2>/dev/null || echo unknown)"
-PROVIDER="$(jq -r '.config.CHAT_PROVIDER // "unknown"' /tmp/bob-health.json 2>/dev/null || echo unknown)"
-OLLAMA_BASE="$(jq -r '.config.OLLAMA_BASE_URL // "unknown"' /tmp/bob-health.json 2>/dev/null || echo unknown)"
-log "Health OK: status=$STATUS chat_provider=$PROVIDER ollama_base=$OLLAMA_BASE"
+PING_STATUS="$(jq -r '.status // "unknown"' /tmp/bob-ping.json 2>/dev/null || echo unknown)"
+PING_MESSAGE="$(jq -r '.output.message // .message // "unknown"' /tmp/bob-ping.json 2>/dev/null || echo unknown)"
+log "RunPod ping OK: status=$PING_STATUS message=$PING_MESSAGE"
 
-log "Checking Bob authenticated chat call"
-CHAT_PAYLOAD='{"provider":"ollama","message":"Container doctor ping. Reply with one short line."}'
+log "Checking RunPod chat action"
+CHAT_PAYLOAD='{"input":{"action":"chat","messages":[{"role":"user","content":"Container doctor ping. Reply with one short line."}]}}'
 CHAT_HTTP="$(curl -sS -m 45 -o /tmp/bob-chat.json -w '%{http_code}' \
-  -X POST "$BASE_URL/chat" \
+  -X POST "$BASE_URL" \
   -H 'Content-Type: application/json' \
-  -H "x-inference-api-key: $API_KEY" \
+  -H "Authorization: Bearer $API_KEY" \
   -d "$CHAT_PAYLOAD" || true)"
 
 if [[ "$CHAT_HTTP" != "200" ]]; then
-  fail "Chat auth call failed at $BASE_URL/chat (HTTP $CHAT_HTTP)"
+  fail "RunPod chat action failed at $BASE_URL (HTTP $CHAT_HTTP)"
   cat /tmp/bob-chat.json 2>/dev/null || true
   exit 1
 fi
 
-CHAT_PROVIDER="$(jq -r '.provider // "unknown"' /tmp/bob-chat.json 2>/dev/null || echo unknown)"
-CHAT_FALLBACK="$(jq -r '.fallback // false' /tmp/bob-chat.json 2>/dev/null || echo false)"
-log "Chat OK: provider=$CHAT_PROVIDER fallback=$CHAT_FALLBACK"
+CHAT_PROVIDER="$(jq -r '.output.provider // .provider // "unknown"' /tmp/bob-chat.json 2>/dev/null || echo unknown)"
+CHAT_SUCCESS="$(jq -r '.output.success // .success // "unknown"' /tmp/bob-chat.json 2>/dev/null || echo unknown)"
+log "Chat OK: provider=$CHAT_PROVIDER success=$CHAT_SUCCESS"
 
 if [[ "$CHECK_RAILWAY" == "true" ]]; then
   if [[ -n "${RAILWAY_BOB_TOKEN:-}" ]]; then
@@ -181,4 +187,4 @@ if [[ "$CHECK_RAILWAY_API" == "true" ]]; then
   fi
 fi
 
-log "Doctor checks passed. Bob is reachable from this container with current credentials."
+log "Doctor checks passed. RunPod endpoint is reachable from this container with current credentials."

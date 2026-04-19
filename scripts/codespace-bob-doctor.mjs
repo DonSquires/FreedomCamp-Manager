@@ -7,15 +7,16 @@ loadLocalEnv();
 
 const isCodespaces = String(process.env.CODESPACES || '').toLowerCase() === 'true';
 
-const bobUrl = String(
-  process.env.BOB_SERVICE_URL || process.env.INFERENCE_SERVICE_URL || ''
+const runpodUrl = String(
+  process.env.RUNPOD_GATEWAY_URL ||
+    process.env.RUNPOD_SERVERLESS_URL ||
+    process.env.RUNPOD_URL ||
+    'https://api.runpod.ai/v2/apynoxmf9eiyzd/runsync'
 )
   .trim()
   .replace(/\/+$/, '');
 
-const bobApiKey = String(
-  process.env.BOB_INFERENCE_API_KEY || process.env.INFERENCE_API_KEY || ''
-).trim();
+const runpodApiKey = String(process.env.RUNPOD_API_KEY || process.env.DR_BOB_API || '').trim();
 
 const orgId = String(
   process.env.BOB_ORG_ID || process.env.ORG_ID || process.env.DEFAULT_ORG_ID || ''
@@ -52,64 +53,50 @@ async function main() {
   console.log('---------------------');
 
   status('CODESPACES flag', isCodespaces, isCodespaces ? 'true' : 'not true');
-  status('BOB/INFERENCE URL', Boolean(bobUrl));
-  status('BOB/INFERENCE API key', Boolean(bobApiKey));
+  status('RunPod runsync URL', Boolean(runpodUrl));
+  status('RUNPOD_API_KEY', Boolean(runpodApiKey));
   status('Org context header source', Boolean(orgId), orgId ? 'x-org-id will be sent' : 'optional but recommended');
   status('SUPABASE URL', Boolean(supabaseUrl));
   status('SUPABASE SERVICE ROLE', Boolean(supabaseServiceRole));
 
-  const ollama = await probe('http://localhost:11434/api/tags');
-  status(
-    'Local Ollama localhost:11434',
-    ollama.ok,
-    ollama.ok ? `HTTP ${ollama.status}` : ollama.error || `HTTP ${ollama.status}`
-  );
+  if (runpodUrl && runpodApiKey) {
+    const headers = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${runpodApiKey}`,
+    };
+    if (orgId) headers['x-org-id'] = orgId;
 
-  if (bobUrl) {
-    const health = await probe(`${bobUrl}/health`, {
-      headers: bobApiKey
-        ? {
-            'x-inference-api-key': bobApiKey,
-            Authorization: `Bearer ${bobApiKey}`,
-          }
-        : {},
-    });
-
-    status(
-      'Bob service /health',
-      health.ok,
-      health.ok ? `HTTP ${health.status}` : health.error || `HTTP ${health.status}`
+    const ping = await probe(
+      runpodUrl,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ input: { action: 'ping' } }),
+      },
+      15000
     );
 
-    if (bobApiKey) {
-      const headers = {
-        'Content-Type': 'application/json',
-        'x-inference-api-key': bobApiKey,
-        Authorization: `Bearer ${bobApiKey}`,
-      };
-      if (orgId) headers['x-org-id'] = orgId;
-
-      const chat = await probe(
-        `${bobUrl}/chat`,
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ message: 'diagnostic ping' }),
-        },
-        12000
-      );
-
-      status(
-        'Bob service /chat auth',
-        chat.ok,
-        chat.ok ? `HTTP ${chat.status}` : chat.error || `HTTP ${chat.status}`
-      );
+    let detail = ping.ok ? `HTTP ${ping.status}` : ping.error || `HTTP ${ping.status}`;
+    if (ping.ok && ping.text) {
+      try {
+        const parsed = JSON.parse(ping.text);
+        const msg =
+          parsed?.output?.message ||
+          parsed?.message ||
+          parsed?.status ||
+          '';
+        if (msg) detail = `HTTP ${ping.status} (${String(msg).slice(0, 80)})`;
+      } catch {
+        // Keep generic HTTP detail when response is not JSON.
+      }
     }
+
+    status('RunPod runsync ping', ping.ok, detail);
   }
 
   console.log('\nRequired Codespaces secrets to set:');
-  console.log('- BOB_SERVICE_URL (or INFERENCE_SERVICE_URL)');
-  console.log('- BOB_INFERENCE_API_KEY (or INFERENCE_API_KEY)');
+  console.log('- RUNPOD_API_KEY (or DR_BOB_API)');
+  console.log('- RUNPOD_GATEWAY_URL (or RUNPOD_SERVERLESS_URL, optional override for the runsync endpoint)');
   console.log('- BOB_ORG_ID (or ORG_ID) for multi-tenant context');
   console.log('- SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (for admin/ops scripts)');
 }

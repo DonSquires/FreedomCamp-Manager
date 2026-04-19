@@ -81,6 +81,11 @@ Testing wrapper (`scripts/run-test-with-bob-assist.mjs`) already uses this patte
 - Execute test
 - Post-test: Agent→Bob (triage if needed)
 
+Supported Bob endpoint env vars for the test wrapper:
+- `BOB_SERVICE_URL`
+- `INFERENCE_SERVICE_URL`
+- `DR_BOB_URL` (accepted when it is an `http://` or `https://` endpoint)
+
 New: We can also use interactive mode during development for real-time architecture decisions.
 
 ---

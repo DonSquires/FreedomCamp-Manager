@@ -1,8 +1,59 @@
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
-import dotenv from 'dotenv';
+import { fileURLToPath } from 'node:url';
+
+let dotenv = null;
+
+try {
+  const cwdRequire = createRequire(path.join(process.cwd(), 'package.json'));
+  const modulePath = cwdRequire.resolve('dotenv');
+  ({ default: dotenv } = await import(modulePath));
+} catch {
+  try {
+    const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+    const scriptRequire = createRequire(path.join(scriptDir, 'package.json'));
+    const modulePath = scriptRequire.resolve('dotenv');
+    ({ default: dotenv } = await import(modulePath));
+  } catch {
+    dotenv = null;
+  }
+}
 
 let loaded = false;
+
+function applyEnvFile(filePath, override) {
+  if (dotenv) {
+    dotenv.config({ path: filePath, override });
+    return;
+  }
+
+  const contents = fs.readFileSync(filePath, 'utf8');
+  for (const rawLine of contents.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+
+    const separatorIndex = line.indexOf('=');
+    if (separatorIndex <= 0) continue;
+
+    const key = line.slice(0, separatorIndex).trim();
+    if (!key) continue;
+
+    let value = line.slice(separatorIndex + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+
+    if (!override && Object.prototype.hasOwnProperty.call(process.env, key)) {
+      continue;
+    }
+
+    process.env[key] = value;
+  }
+}
 
 export function loadLocalEnv() {
   if (loaded) return;
@@ -14,12 +65,12 @@ export function loadLocalEnv() {
   for (const rel of baseCandidates) {
     const filePath = path.join(root, rel);
     if (!fs.existsSync(filePath)) continue;
-    dotenv.config({ path: filePath, override: false });
+    applyEnvFile(filePath, false);
   }
 
   // Runtime-injected credentials should win over inherited empty env values.
   const runtimePath = path.join(root, '.runtime/bob.env');
   if (fs.existsSync(runtimePath)) {
-    dotenv.config({ path: runtimePath, override: true });
+    applyEnvFile(runtimePath, true);
   }
 }

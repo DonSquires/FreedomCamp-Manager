@@ -1,4 +1,4 @@
-const runpod = require('runpod-sdk');
+const runpod = require('@runpod/serverless');
 
 // This is the stub handler. We will migrate the YOLO and Ollama logic here next.
 async function handler(job) {
@@ -6,7 +6,7 @@ async function handler(job) {
     console.log("Received job:", input);
     
     try {
-        if (input.action === 'ping') {
+        if (input && input.action === 'ping') {
             return { success: true, message: "AI Engine is online and ready!" };
         }
         
@@ -16,4 +16,4 @@ async function handler(job) {
     }
 }
 
-runpod.serverless.start({ handler });
+runpod.start({ handler });
