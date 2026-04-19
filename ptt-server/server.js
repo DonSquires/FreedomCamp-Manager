@@ -201,7 +201,7 @@ const userPresence = new Map();
 const channelMeta = new Map();
 
 /**
- * Token mint throttle: Map<userId, lastMintTimestampMs>
+ * Token mint throttle: Map<userId, { mintedAt, channelScope }>
  */
 const tokenMintTracker = new Map();
 
@@ -212,7 +212,7 @@ let tokenTrackerSweepInterval = null;
 // ---------------------------------------------------------------------------
 // PTT_RATE_LIMIT_PER_MIN controls requests per minute (default 120)
 const RATE_LIMIT_MAX = parseInt(process.env.PTT_RATE_LIMIT_PER_MIN || '120', 10);
-const TOKEN_MINT_COOLDOWN_MS = parseInt(process.env.PTT_TOKEN_MINT_COOLDOWN_MS || '15000', 10);
+const TOKEN_MINT_COOLDOWN_MS = parseInt(process.env.PTT_TOKEN_MINT_COOLDOWN_MS || '3000', 10);
 const rateLimitMiddleware = rateLimit({
   windowMs: 60 * 1000,
   max: RATE_LIMIT_MAX,
@@ -446,9 +446,14 @@ app.post('/api/token/mint', rateLimitMiddleware, (req, res) => {
   }
 
   const now = Date.now();
-  const lastMintAt = tokenMintTracker.get(userId) ?? 0;
-  if (lastMintAt && now - lastMintAt < TOKEN_MINT_COOLDOWN_MS) {
-    const retryAfterSeconds = Math.max(1, Math.ceil((TOKEN_MINT_COOLDOWN_MS - (now - lastMintAt)) / 1000));
+  const lastMint = tokenMintTracker.get(userId) || null;
+  const mintedAt = typeof lastMint?.mintedAt === 'number' ? lastMint.mintedAt : 0;
+  const mintedChannelScope = typeof lastMint?.channelScope === 'string' ? lastMint.channelScope : null;
+
+  // Allow quick channel switching while still protecting repeated token mint
+  // requests for the same channel during reconnect churn.
+  if (mintedAt && mintedChannelScope === channelScope && now - mintedAt < TOKEN_MINT_COOLDOWN_MS) {
+    const retryAfterSeconds = Math.max(1, Math.ceil((TOKEN_MINT_COOLDOWN_MS - (now - mintedAt)) / 1000));
     return res.status(429).json({
       error: 'Token mint rate limited',
       message: 'A recent Push to Talk token was already issued for this user. Retry shortly.',
@@ -481,7 +486,7 @@ app.post('/api/token/mint', rateLimitMiddleware, (req, res) => {
     PTT_JWT_SECRET,
     { expiresIn: TOKEN_EXPIRY }
   );
-  tokenMintTracker.set(userId, now);
+  tokenMintTracker.set(userId, { mintedAt: now, channelScope });
 
   if (FORCE_TURN_RELAY && !isTurnConfigured()) {
     return res.status(503).json({
@@ -642,8 +647,9 @@ function startTokenTrackerSweep() {
 
   tokenTrackerSweepInterval = setInterval(() => {
     const now = Date.now();
-    for (const [userId, mintedAt] of tokenMintTracker.entries()) {
-      if (now - mintedAt > TOKEN_TRACKER_RETENTION_MS) {
+    for (const [userId, mintState] of tokenMintTracker.entries()) {
+      const mintedAt = typeof mintState?.mintedAt === 'number' ? mintState.mintedAt : 0;
+      if (!mintedAt || now - mintedAt > TOKEN_TRACKER_RETENTION_MS) {
         tokenMintTracker.delete(userId);
       }
     }

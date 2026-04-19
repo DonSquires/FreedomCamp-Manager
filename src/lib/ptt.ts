@@ -191,11 +191,55 @@ function extractPTTBackendCode(raw: string): string | null {
   return null
 }
 
+function parsePTTErrorPayload(raw: string): Record<string, any> | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+
+  const tryParse = (value: string): Record<string, any> | null => {
+    try {
+      const parsed = JSON.parse(value)
+      return parsed && typeof parsed === 'object' ? parsed as Record<string, any> : null
+    } catch {
+      return null
+    }
+  }
+
+  const direct = tryParse(trimmed)
+  if (direct) return direct
+
+  const firstBrace = trimmed.indexOf('{')
+  const lastBrace = trimmed.lastIndexOf('}')
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    return tryParse(trimmed.slice(firstBrace, lastBrace + 1))
+  }
+
+  return null
+}
+
+export function extractPTTRetryAfterSeconds(error: unknown): number | null {
+  const raw = error instanceof Error ? error.message : String(error || '')
+  const payload = parsePTTErrorPayload(raw)
+
+  const retryAfterCandidate = payload?.retryAfter
+  if (typeof retryAfterCandidate === 'number' && Number.isFinite(retryAfterCandidate) && retryAfterCandidate > 0) {
+    return Math.ceil(retryAfterCandidate)
+  }
+
+  const retryMatch = raw.match(/retryafter["'\s:=]+(\d+)/i) || raw.match(/retry in\s+(\d+)\s*s/i)
+  if (retryMatch?.[1]) {
+    const parsed = Number.parseInt(retryMatch[1], 10)
+    if (Number.isFinite(parsed) && parsed > 0) return parsed
+  }
+
+  return null
+}
+
 export function normalizePTTErrorMessage(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error || 'Failed to connect')
   const text = raw.toLowerCase()
   const code = extractPTTBackendCode(raw)
   const codeSuffix = code ? ` (Code ${code})` : ''
+  const retryAfter = extractPTTRetryAfterSeconds(raw)
 
   // Most common production failure mode: token edge function unavailable.
   // Keep this non-blocking and user-friendly because text chat can still work.
@@ -218,6 +262,17 @@ export function normalizePTTErrorMessage(error: unknown): string {
 
   if (text.includes('ptt server not configured') || text.includes('ptt proxy secret not configured')) {
     return `Push to Talk server configuration is incomplete. Please contact an administrator.${codeSuffix}`
+  }
+
+  if (
+    text.includes('token mint rate limited') ||
+    text.includes('retry shortly') ||
+    text.includes('[code: 429]')
+  ) {
+    if (retryAfter) {
+      return `Push to Talk is reconnecting too quickly. Please retry in ${retryAfter}s.${codeSuffix}`
+    }
+    return `Push to Talk is reconnecting too quickly. Please retry shortly.${codeSuffix}`
   }
 
   return raw
