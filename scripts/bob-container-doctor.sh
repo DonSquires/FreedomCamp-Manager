@@ -110,12 +110,12 @@ fi
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/load-railway-secrets-from-github-env.sh" --quiet
 
-BASE_URL="${RUNPOD_SERVERLESS_URL:-${RUNPOD_URL:-https://api.runpod.ai/v2/apynoxmf9eiyzd/runsync}}"
+BASE_URL="${RUNPOD_GATEWAY_URL:-${RUNPOD_SERVERLESS_URL:-${RUNPOD_URL:-https://api.runpod.ai/v2/apynoxmf9eiyzd/runsync}}}"
 API_KEY="${RUNPOD_API_KEY:-}"
 BASE_URL="${BASE_URL%/}"
 
 if [[ -z "$BASE_URL" || -z "$API_KEY" ]]; then
-  fail "Missing RunPod credentials. Need RUNPOD_API_KEY (and optional RUNPOD_SERVERLESS_URL override)."
+  fail "Missing RunPod credentials. Need RUNPOD_API_KEY and optionally RUNPOD_GATEWAY_URL (or RUNPOD_SERVERLESS_URL)."
   exit 1
 fi
 
