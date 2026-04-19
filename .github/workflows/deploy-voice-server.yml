@@ -24,7 +24,7 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           source: "ptt-server/*"
-          target: "/opt/fieldops-voice/ptt-server/"
+          target: "/opt/fieldops-voice/"
 
       - name: Build and Start PTT Server on VPS
         uses: appleboy/ssh-action@v1.0.3
