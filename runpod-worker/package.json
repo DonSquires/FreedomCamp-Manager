@@ -1,0 +1,8 @@
+{
+  "name": "freedomcamp-ai-worker",
+  "version": "1.0.0",
+  "main": "handler.js",
+  "dependencies": {
+    "runpod-sdk": "^1.0.0"
+  }
+}
