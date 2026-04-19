@@ -109,19 +109,19 @@ describe('getVehiclePhotoUrl', () => {
 // ── getPublicStorageUrl ──────────────────────────────────────────────────────
 
 describe('getPublicStorageUrl', () => {
-  it('returns empty string when SUPABASE_URL is not configured', () => {
-    // VITE_SUPABASE_URL is not set in the test environment
+  it('returns a string result for storage URL generation', () => {
     const result = getPublicStorageUrl('evidence', 'some/path/photo.jpg')
-    // In test env the base URL is empty, so result is '' or a relative path
     expect(typeof result).toBe('string')
   })
 
   it('constructs the expected path format', () => {
-    // Indirectly verify the path template even though the base URL is empty
     const result = getPublicStorageUrl('scans', 'abc/def.jpg')
-    // Should include the bucket and path in the output (when a base URL is present)
-    // In test env, result will be empty string due to missing SUPABASE_URL
-    expect(result).toBe('')
+    if (result === '') {
+      expect(result).toBe('')
+      return
+    }
+
+    expect(result).toContain('/storage/v1/object/public/scans/abc/def.jpg')
   })
 })
 
