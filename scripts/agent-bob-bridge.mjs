@@ -21,6 +21,15 @@ function resolveApiKey() {
   ).trim();
 }
 
+function resolveOrgId() {
+  return String(
+    process.env.BOB_ORG_ID ||
+      process.env.ORG_ID ||
+      process.env.DEFAULT_ORG_ID ||
+      ''
+  ).trim();
+}
+
 /**
  * Consult Bob with a single message.
  * @param {string} message - The question or prompt for Bob
@@ -30,6 +39,7 @@ function resolveApiKey() {
 export async function consultBob(message, options = {}) {
   const baseUrl = resolveBaseUrl();
   const apiKey = resolveApiKey();
+  const orgId = resolveOrgId();
   const timeoutMs = Number(process.env.BOB_CHAT_TIMEOUT_MS || 30000);
 
   if (!baseUrl || !apiKey) {
@@ -51,13 +61,16 @@ export async function consultBob(message, options = {}) {
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
+    const headers = {
+      'Content-Type': 'application/json',
+      'x-inference-api-key': apiKey,
+      Authorization: `Bearer ${apiKey}`,
+    };
+    if (orgId) headers['x-org-id'] = orgId;
+
     const response = await fetch(`${baseUrl}/chat`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-inference-api-key': apiKey,
-        Authorization: `Bearer ${apiKey}`,
-      },
+      headers,
       signal: controller.signal,
       body: JSON.stringify({
         message,
@@ -91,6 +104,7 @@ export class BobSession {
   constructor(options = {}) {
     this.baseUrl = resolveBaseUrl();
     this.apiKey = resolveApiKey();
+    this.orgId = resolveOrgId();
     this.timeoutMs = Number(process.env.BOB_CHAT_TIMEOUT_MS || 30000);
     this.history = [];
     this.context = options.context || {};
@@ -116,13 +130,16 @@ export class BobSession {
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
+      const headers = {
+        'Content-Type': 'application/json',
+        'x-inference-api-key': this.apiKey,
+        Authorization: `Bearer ${this.apiKey}`,
+      };
+      if (this.orgId) headers['x-org-id'] = this.orgId;
+
       const response = await fetch(`${this.baseUrl}/chat`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-inference-api-key': this.apiKey,
-          Authorization: `Bearer ${this.apiKey}`,
-        },
+        headers,
         signal: controller.signal,
         body: JSON.stringify({
           message,

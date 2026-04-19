@@ -20,10 +20,20 @@ function resolveApiKey() {
   ).trim();
 }
 
+function resolveOrgId() {
+  return String(
+    process.env.BOB_ORG_ID ||
+      process.env.ORG_ID ||
+      process.env.DEFAULT_ORG_ID ||
+      ''
+  ).trim();
+}
+
 class BobConversation {
   constructor(context = {}) {
     this.baseUrl = resolveBaseUrl();
     this.apiKey = resolveApiKey();
+    this.orgId = resolveOrgId();
     this.timeoutMs = Number(process.env.BOB_CHAT_TIMEOUT_MS || 30000);
     this.conversation = [];
     this.context = context;
@@ -60,13 +70,16 @@ class BobConversation {
     try {
       console.log(`\n[Agent] Sending to Bob...\n`);
 
+      const headers = {
+        'Content-Type': 'application/json',
+        'x-inference-api-key': this.apiKey,
+        Authorization: `Bearer ${this.apiKey}`,
+      };
+      if (this.orgId) headers['x-org-id'] = this.orgId;
+
       const response = await fetch(`${this.baseUrl}/chat`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-inference-api-key': this.apiKey,
-          Authorization: `Bearer ${this.apiKey}`,
-        },
+        headers,
         signal: controller.signal,
         body: JSON.stringify({
           message,

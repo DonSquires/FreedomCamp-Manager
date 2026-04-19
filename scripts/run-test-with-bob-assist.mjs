@@ -25,6 +25,15 @@ function resolveApiKey() {
   ).trim();
 }
 
+function resolveOrgId() {
+  return String(
+    process.env.BOB_ORG_ID ||
+    process.env.ORG_ID ||
+    process.env.DEFAULT_ORG_ID ||
+    ''
+  ).trim();
+}
+
 function buildBobMessage(stage, command, exitCode = null) {
   if (stage === 'pre') {
     return [
@@ -49,6 +58,7 @@ function buildBobMessage(stage, command, exitCode = null) {
 async function pingBob(stage, command, exitCode = null) {
   const baseUrl = resolveBaseUrl();
   const apiKey = resolveApiKey();
+  const orgId = resolveOrgId();
   const required = envFlag(process.env.REQUIRE_BOB_TEST_ASSIST, true);
   const timeoutMs = Number(process.env.BOB_TEST_ASSIST_TIMEOUT_MS || 15000);
 
@@ -67,13 +77,16 @@ async function pingBob(stage, command, exitCode = null) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
+    const headers = {
+      'Content-Type': 'application/json',
+      'x-inference-api-key': apiKey,
+      Authorization: `Bearer ${apiKey}`,
+    };
+    if (orgId) headers['x-org-id'] = orgId;
+
     const response = await fetch(`${baseUrl}/chat`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-inference-api-key': apiKey,
-        Authorization: `Bearer ${apiKey}`,
-      },
+      headers,
       signal: controller.signal,
       body: JSON.stringify({
         message: buildBobMessage(stage, command, exitCode),

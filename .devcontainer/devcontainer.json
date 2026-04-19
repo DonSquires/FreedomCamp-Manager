@@ -65,13 +65,15 @@
 
   // Forward the Vite dev server port so you can preview the app in your
   // browser tab directly from Codespaces.
-  "forwardPorts": [5173, 3000, 3002, 8080, 11434],
+  "forwardPorts": [5173, 3000, 3002, 5432, 8080, 11434],
 
   "portsAttributes": {
     "5173": { "label": "Vite Dev Server", "onAutoForward": "openPreview" },
     "3000": { "label": "Proxy Server" },
     "3002": { "label": "PTT Signaling Server" },
-    "8080": { "label": "Inference Service" }
+    "5432": { "label": "PostgreSQL" },
+    "8080": { "label": "Inference Service" },
+    "11434": { "label": "Ollama API", "onAutoForward": "silent" }
   },
 
   "remoteEnv": {

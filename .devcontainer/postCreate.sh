@@ -53,4 +53,15 @@ download_model "${BOB_VEHICLE_MODEL_URL:-}" "models/vehicle-detection.onnx"
 download_model "${BOB_FACE_MODEL_URL:-}" "models/face-detection.onnx"
 download_model "${BOB_SMOKE_MODEL_URL:-}" "models/smoke-detection.onnx"
 
+if [[ "${CODESPACES:-}" == "true" ]]; then
+  log "Running quick Codespaces Bob credential check"
+  if ! node scripts/codespace-bob-doctor.mjs >/tmp/bob-codespaces-doctor.log 2>&1; then
+    log "Bob doctor check could not complete. Run: npm run bob:codespaces:doctor"
+  else
+    if grep -q '^MISS' /tmp/bob-codespaces-doctor.log; then
+      log "Some Bob/Supabase secrets are missing in this Codespace. Run: npm run bob:codespaces:doctor"
+    fi
+  fi
+fi
+
 log "Bob Codespaces bootstrap complete"

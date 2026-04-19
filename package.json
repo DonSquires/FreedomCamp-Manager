@@ -15,6 +15,7 @@
     "bob:feed-web-research": "node scripts/bob-feed-web-research.mjs",
     "bob:feed-specialized": "node scripts/bob-feed-specialized-training.mjs",
     "bob:feed-all": "node scripts/bob-feed-build-context.mjs && node scripts/bob-feed-railway-training.mjs && node scripts/bob-feed-web-research.mjs && node scripts/bob-feed-specialized-training.mjs",
+    "bob:codespaces:doctor": "node scripts/codespace-bob-doctor.mjs",
     "runpod:create-pods": "node scripts/create-runpod-pods.mjs",
     "runpod:endpoint:invoke": "node scripts/invoke-runpod-endpoint.mjs",
     "runpod:endpoint:status": "node scripts/invoke-runpod-endpoint.mjs --statusJobId",

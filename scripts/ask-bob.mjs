@@ -8,6 +8,7 @@ loadLocalEnv();
 
 const INFERENCE_URL = String(process.env.INFERENCE_SERVICE_URL || process.env.BOB_SERVICE_URL || '').trim().replace(/\/+$/, '');
 const API_KEY = String(process.env.INFERENCE_API_KEY || process.env.BOB_INFERENCE_API_KEY || '').trim();
+const ORG_ID = String(process.env.BOB_ORG_ID || process.env.ORG_ID || process.env.DEFAULT_ORG_ID || '').trim();
 
 if (!INFERENCE_URL || !API_KEY) {
   console.error('[Error] Missing required env vars: INFERENCE_SERVICE_URL (or BOB_SERVICE_URL) and INFERENCE_API_KEY (or BOB_INFERENCE_API_KEY).');
@@ -15,16 +16,19 @@ if (!INFERENCE_URL || !API_KEY) {
 }
 
 async function askBob(question) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'x-inference-api-key': API_KEY,
+    Authorization: `Bearer ${API_KEY}`,
+  };
+  if (ORG_ID) headers['x-org-id'] = ORG_ID;
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15000);
   try {
     const response = await fetch(`${INFERENCE_URL}/chat`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-inference-api-key': API_KEY,
-        Authorization: `Bearer ${API_KEY}`,
-      },
+      headers,
       signal: controller.signal,
       body: JSON.stringify({ message: question }),
     });
