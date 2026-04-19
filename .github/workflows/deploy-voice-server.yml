@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'ptt-server/**'
+      - '.github/workflows/deploy-voice-server.yml'
   workflow_dispatch:
 
 jobs:
@@ -31,36 +32,58 @@ jobs:
         env:
           TURN_SERVER_URL: ${{ secrets.TURN_SERVER_URL }}
           TURN_SECRET: ${{ secrets.TURN_SECRET }}
+          PTT_JWT_SECRET: ${{ secrets.PTT_JWT_SECRET }}
+          PTT_PROXY_SECRET: ${{ secrets.PTT_PROXY_SECRET }}
         with:
           host: ${{ secrets.VPS_IP }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          envs: TURN_SERVER_URL,TURN_SECRET
+          envs: TURN_SERVER_URL,TURN_SECRET,PTT_JWT_SECRET,PTT_PROXY_SECRET
           script: |
             cd /opt/fieldops-voice
             : "${TURN_SERVER_URL:?TURN_SERVER_URL secret is required}"
             : "${TURN_SECRET:?TURN_SECRET secret is required}"
-            [ -f docker-compose.yml ] || printf "services:\n" > docker-compose.yml
-            
-            # Inject the PTT server config into docker-compose if it's not there yet
-            if ! grep -Eq "^[[:space:]]*ptt-server:[[:space:]]*$" docker-compose.yml; then
-            cat << EOF >> docker-compose.yml
-
-              ptt-server:
-                build: ./ptt-server
-                container_name: fieldops-ptt
-                ports:
-                  - "8080:8080"
-                environment:
-                  - NODE_ENV=production
-                  - TURN_SERVER_URL=${TURN_SERVER_URL}
-                  - TURN_SECRET=${TURN_SECRET}
-                restart: unless-stopped
-            EOF
-            fi
+            : "${PTT_JWT_SECRET:?PTT_JWT_SECRET secret is required}"
+            : "${PTT_PROXY_SECRET:?PTT_PROXY_SECRET secret is required}"
+            # Always write the authoritative docker-compose.yml so env changes take effect
+            cat > docker-compose.yml << EOF
+services:
+  ptt-server:
+    build: ./ptt-server
+    container_name: fieldops-ptt
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - PTT_JWT_SECRET=${PTT_JWT_SECRET}
+      - PTT_PROXY_SECRET=${PTT_PROXY_SECRET}
+      - TURN_URL=turn:72.61.123.97:3478
+      - TURN_SERVER_URL=${TURN_SERVER_URL}
+      - TURN_SECRET=${TURN_SECRET}
+    restart: unless-stopped
+EOF
 
             # Build the new image and spin up the container
             docker compose up -d --build ptt-server
-            
+
             # Clean up old unused images to save disk space
             docker image prune -f
+
+      - name: Post-deploy health check
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_IP }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            echo "Waiting 10s for container to be ready..."
+            sleep 10
+            STATUS=$(curl -sf --max-time 15 http://127.0.0.1:8080/health -o /tmp/ptt-health.json -w "%{http_code}" || echo "000")
+            cat /tmp/ptt-health.json 2>/dev/null || true
+            if [ "$STATUS" != "200" ]; then
+              echo "::error::PTT server health check failed (HTTP $STATUS)"
+              docker compose -f /opt/fieldops-voice/docker-compose.yml logs ptt-server --tail=50
+              exit 1
+            fi
+            echo "✅ PTT server is healthy on port 8080"
