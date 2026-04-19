@@ -12,6 +12,11 @@ truthy() {
 }
 
 start_ollama_if_needed() {
+	local remote_ollama="${OLLAMA_BASE_URL:-}"
+	if [[ -n "$remote_ollama" && "$remote_ollama" != http://127.0.0.1:11434 && "$remote_ollama" != http://localhost:11434 ]]; then
+		return 0
+	fi
+
 	if ! command -v ollama >/dev/null 2>&1; then
 		return 0
 	fi

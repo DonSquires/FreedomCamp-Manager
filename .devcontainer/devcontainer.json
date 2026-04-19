@@ -1,6 +1,9 @@
 {
   "name": "Bob-Development-Env",
-  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/FreedomCamp-Manager",
+  "shutdownAction": "stopCompose",
 
   // -----------------------------------------------------------------------
   // Extra tools installed at container build time.
@@ -33,6 +36,7 @@
         "mtxr.sqltools-driver-pg",
         "denoland.vscode-deno",
         "github.copilot",
+        "github.copilot-chat",
         "GitHub.vscode-pull-request-github"
       ],
       "settings": {
@@ -77,6 +81,8 @@
   },
 
   "remoteEnv": {
+    "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}",
+    "GH_TOKEN": "${localEnv:GITHUB_TOKEN}",
     "SUPABASE_URL": "${localEnv:SUPABASE_URL}",
     "SUPABASE_SERVICE_ROLE_KEY": "${localEnv:SUPABASE_SERVICE_ROLE_KEY}",
     "BOB_SERVICE_URL": "${localEnv:BOB_SERVICE_URL}",

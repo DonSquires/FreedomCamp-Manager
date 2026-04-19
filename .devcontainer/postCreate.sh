@@ -15,11 +15,15 @@ else
   npm install
 fi
 
-if ! command -v ollama >/dev/null 2>&1; then
-  log "Installing Ollama"
-  curl -fsSL https://ollama.com/install.sh | sh
+if [[ -n "${OLLAMA_BASE_URL:-}" && "${OLLAMA_BASE_URL}" != http://127.0.0.1:11434 && "${OLLAMA_BASE_URL}" != http://localhost:11434 ]]; then
+  log "Using external Ollama at ${OLLAMA_BASE_URL}; skipping local Ollama install"
 else
-  log "Ollama already installed"
+  if ! command -v ollama >/dev/null 2>&1; then
+    log "Installing Ollama"
+    curl -fsSL https://ollama.com/install.sh | sh
+  else
+    log "Ollama already installed"
+  fi
 fi
 
 log "Installing Python dependencies for Bob"

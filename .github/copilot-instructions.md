@@ -128,6 +128,12 @@ Lenient settings: `noImplicitAny: false`, `strictNullChecks: false`, `skipLibChe
 ### Timezone
 All datetimes are NZ timezone (`Pacific/Auckland`). The Supabase client sends `X-Client-Timezone: Pacific/Auckland`.
 
+### Bob Service Context
+- Bob is a service-provider AI assistant for compliance workflows (biosecurity, smoke/noise assessment, PTT diagnostics, and operational triage).
+- In multi-container development, prefer `OLLAMA_BASE_URL=http://ollama:11434` (service name), not unstable container IPs.
+- For Bob background/admin tasks (non-user interactive), use service-role authorization where required (`SUPABASE_SERVICE_ROLE_KEY`) and never hardcode secrets.
+- For tenant-aware Bob requests, include org context headers (`x-org-id`) using `BOB_ORG_ID` / `ORG_ID` / `DEFAULT_ORG_ID`.
+
 ---
 
 ## Validation
