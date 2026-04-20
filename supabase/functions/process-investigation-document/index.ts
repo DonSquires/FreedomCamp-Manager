@@ -1,15 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
-
-const ALLOW_EDGE_OPENAI_DIRECT = (Deno.env.get('ALLOW_EDGE_OPENAI_DIRECT') || 'false').toLowerCase() === 'true';
-
-function isDirectOpenAIBaseUrl(url: string): boolean {
-  try {
-    return new URL(url).hostname.toLowerCase() === 'api.openai.com';
-  } catch {
-    return false;
-  }
-}
+import { bobChat } from '../_shared/bobInfer.ts';
 
 interface DocumentProcessRequest {
   fileUrl: string;
@@ -114,19 +105,8 @@ Deno.serve(async (req: Request) => {
       throw new Error(`Unsupported file type: ${fileType}. Please upload PDF, Word (.doc/.docx), images (.jpg/.png), or text files.`);
     }
 
-    // Call AI to extract job information
-    const aiApiKey = Deno.env.get('OPENAI_API_KEY');
-    const aiBaseUrl = (Deno.env.get('OPENAI_BASE_URL') || '').replace(/\/+$/, '');
-
-    if (!aiApiKey || !aiBaseUrl) {
-      throw new Error('AI credentials not configured');
-    }
-
-    if (isDirectOpenAIBaseUrl(aiBaseUrl) && !ALLOW_EDGE_OPENAI_DIRECT) {
-      throw new Error('Direct api.openai.com access is blocked for edge functions. Set ALLOW_EDGE_OPENAI_DIRECT=true to override.');
-    }
-
-    console.log('Calling AI for document extraction...');
+    // Call Bob/Ollama to extract job information
+    console.log('Calling Bob for document extraction...');
 
     const systemPrompt = `You are a document processing assistant that extracts job information from investigation briefing documents, work orders, and emails.
 
@@ -145,41 +125,13 @@ Extract the following information if present in the document:
 
 Return ONLY a valid JSON object with these exact field names. Use null for missing values. Do not include any explanation text.`;
 
-    const aiMessages = [
-      {
-        role: 'system',
-        content: systemPrompt,
-      },
-      {
-        role: 'user',
-        content: aiMessageContent,
-      },
-    ];
-
-    const aiResponse = await fetch(`${aiBaseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${aiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: Deno.env.get('OPENAI_MODEL') || 'gpt-4o-mini',
-        messages: aiMessages,
-        temperature: 0.1, // Low temperature for consistent extraction
-        max_tokens: 2000,
-      }),
+    const bobResult = await bobChat({
+      message: aiMessageContent,
+      systemPrompt,
+      temperature: 0.1,
     });
 
-    if (!aiResponse.ok) {
-      const errorText = await aiResponse.text();
-      console.error('AI API error:', errorText);
-      throw new Error(`AI processing failed: ${aiResponse.status}`);
-    }
-
-    const aiResult = await aiResponse.json();
-    console.log('AI response:', JSON.stringify(aiResult));
-
-    const extractedText = aiResult.choices[0]?.message?.content || '';
+    const extractedText = bobResult.response || '';
     console.log('Extracted text:', extractedText);
 
     // Parse the JSON response from AI

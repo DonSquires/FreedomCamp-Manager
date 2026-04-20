@@ -592,7 +592,7 @@ Deno.serve(async (req) => {
     // Returns:  { success, data: { embedding[], embedding_quality, detection: { confidence },
     //             sticker: { presence, color, bbox, detection_confidence, color_confidence },
     //             movement: { moved, background_similarity, vehicle_bbox_iou, decision } } }
-    // Plate extraction available when OPENAI_API_KEY is configured on the inference service.
+    // Plate extraction available when Bob/Ollama inference service is configured.
     // ==========================================================================
     let vehicleEmbedding: number[] | null = null;
     let embeddingQuality: number | null = null;
@@ -640,7 +640,7 @@ Deno.serve(async (req) => {
               console.log('✅ Stage 2: plate from Bob inference:', plateNumber);
             }
 
-            // Vehicle make/model/colour (available when OPENAI_API_KEY is configured)
+            // Vehicle make/model/colour (available when Bob/Ollama inference is configured)
             if (inferData.vehicle_make || inferData.vehicle_model) {
               vehicle = {
                 make: inferData.vehicle_make,

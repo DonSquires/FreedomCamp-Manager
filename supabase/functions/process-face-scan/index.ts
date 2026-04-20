@@ -388,7 +388,7 @@ Deno.serve(async (req) => {
             detection_method: 'none',
             processing_time_ms: 0,
             onnx_available: false,
-            openai_available: false,
+            ai_available: false,
             embedding_available: false,
           },
         }),

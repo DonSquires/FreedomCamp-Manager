@@ -1,8 +1,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
+import { bobChat } from '../_shared/bobInfer.ts';
 
 interface HomelessRecord {
-  plate_number: string;
   last_known_site: string;
   date: string;
   vehicle_description: string;
@@ -11,16 +11,6 @@ interface HomelessRecord {
   raw_status: string;
   safety_concern: boolean;
   safety_description: string;
-}
-
-const ALLOW_EDGE_OPENAI_DIRECT = (Deno.env.get('ALLOW_EDGE_OPENAI_DIRECT') || 'false').toLowerCase() === 'true';
-
-function isDirectOpenAIBaseUrl(url: string): boolean {
-  try {
-    return new URL(url).hostname.toLowerCase() === 'api.openai.com';
-  } catch {
-    return false;
-  }
 }
 
 Deno.serve(async (req) => {
@@ -44,33 +34,10 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Use AI to intelligently parse and normalize the data
-    const aiApiKey = Deno.env.get('OPENAI_API_KEY');
-    const aiBaseUrl = (Deno.env.get('OPENAI_BASE_URL') || '').replace(/\/+$/, '');
+    console.log('🤖 Using Bob/Ollama to parse and normalize data...');
 
-    if (!aiApiKey || !aiBaseUrl) {
-      throw new Error('AI service not configured');
-    }
-
-    if (isDirectOpenAIBaseUrl(aiBaseUrl) && !ALLOW_EDGE_OPENAI_DIRECT) {
-      throw new Error('Direct api.openai.com access is blocked for edge functions. Set ALLOW_EDGE_OPENAI_DIRECT=true to override.');
-    }
-
-    console.log('🤖 Using AI to parse and normalize data...');
-
-    // Prepare AI prompt to extract structured data
-    const aiResponse = await fetch(`${aiBaseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${aiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: Deno.env.get('OPENAI_MODEL') || 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: `You are a data normalization and safety analysis expert. Extract vehicle plate numbers, homeless status, and DETECT SAFETY CONCERNS from messy data.
+    // Prepare prompt to extract structured data
+    const systemContent = `You are a data normalization and safety analysis expert. Extract vehicle plate numbers, homeless status, and DETECT SAFETY CONCERNS from messy data.
 
 Output ONLY valid JSON array with this exact structure:
 [
@@ -102,30 +69,18 @@ Rules:
 Set "safety_concern": true if text contains ANY of these indicators:
 - Abusive language/behavior: "abusive", "abuse", "verbal abuse", "verbally abusive"
 - Aggression: "aggressive", "aggression", "hostile", "confrontational"
-- Violence: "violent", "violence", "physical", "assault", "attack", "hit", "push", "shove"
-- Anger: "angry", "anger", "temper", "rage", "furious"
-- Threats: "threat", "threaten", "intimidate", "menacing"
-- Weapons: "weapon", "knife", "gun"
-- Refusal/Resistance: "refused", "uncooperative" (combined with other negative terms)
+- Violence: "violent", "violence", "physical", "assault"
+- Threats: "threat", "threaten", "intimidate"
 
-Extract and include the EXACT text describing the behavior in "safety_description"`
-          },
-          {
-            role: 'user',
-            content: `Parse this table data:\n\n${JSON.stringify(tableData, null, 2)}`
-          }
-        ],
-        temperature: 0.1,
-      }),
+Extract and include the EXACT text describing the behavior in "safety_description"`;
+
+    const bobResult = await bobChat({
+      message: `Parse this table data:\n\n${JSON.stringify(tableData, null, 2)}`,
+      systemPrompt: systemContent,
+      temperature: 0.1,
     });
 
-    if (!aiResponse.ok) {
-      const errorText = await aiResponse.text();
-      throw new Error(`AI parsing failed: ${errorText}`);
-    }
-
-    const aiResult = await aiResponse.json();
-    const aiContent = aiResult.choices[0]?.message?.content;
+    const aiContent = bobResult.response;
 
     if (!aiContent) {
       throw new Error('AI returned empty response');

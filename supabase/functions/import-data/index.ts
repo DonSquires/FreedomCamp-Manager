@@ -1,22 +1,12 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { withCors, getCorsHeaders } from '../_shared/withCors.ts';
+import { bobChat } from '../_shared/bobInfer.ts';
 
 interface ImportRequest {
-  fileContent: string;
   fileName: string;
   isImage?: boolean;
   recordDate?: string;
   organizationId?: string;
-}
-
-const ALLOW_EDGE_OPENAI_DIRECT = (Deno.env.get('ALLOW_EDGE_OPENAI_DIRECT') || 'false').toLowerCase() === 'true';
-
-function isDirectOpenAIBaseUrl(url: string): boolean {
-  try {
-    return new URL(url).hostname.toLowerCase() === 'api.openai.com';
-  } catch {
-    return false;
-  }
 }
 
 function normalizeTimestamp(input: unknown): string | null {
@@ -63,27 +53,8 @@ Deno.serve(withCors(async (req) => {
       });
     }
 
+    // Use Bob/Ollama to analyze and extract data
     console.log('Processing import:', { fileName, contentLength: fileContent.length });
-
-    // Use AI to analyze and extract data
-    const aiBaseUrl = (Deno.env.get('OPENAI_BASE_URL') || '').replace(/\/+$/, '');
-    const aiApiKey = Deno.env.get('OPENAI_API_KEY');
-
-    if (!aiBaseUrl || !aiApiKey) {
-      return new Response(JSON.stringify({ error: 'AI service not configured' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (isDirectOpenAIBaseUrl(aiBaseUrl) && !ALLOW_EDGE_OPENAI_DIRECT) {
-      return new Response(JSON.stringify({
-        error: 'Direct api.openai.com access is blocked for edge functions. Set ALLOW_EDGE_OPENAI_DIRECT=true to override.',
-      }), {
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
 
     const aiPrompt = `Analyze this data file and extract structured information for a freedom camping management system.
 
@@ -121,35 +92,14 @@ Rules:
 File content:
 ${fileContent}`;
 
-    const aiResponse = await fetch(`${aiBaseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${aiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: Deno.env.get('OPENAI_MODEL') || 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'user',
-            content: aiPrompt,
-          },
-        ],
-        response_format: { type: 'json_object' },
-      }),
+    const bobResult = await bobChat({
+      message: aiPrompt,
+      temperature: 0.1,
     });
 
-    if (!aiResponse.ok) {
-      const errorText = await aiResponse.text();
-      console.error('AI service error:', errorText);
-      return new Response(JSON.stringify({ error: `AI service error: ${errorText}` }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const aiResult = await aiResponse.json();
-    const extractedData = JSON.parse(aiResult.choices[0].message.content);
+    const extractedData = JSON.parse(
+      (bobResult.response || '{}').replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+    );
 
     console.log('AI extracted data:', extractedData);
 

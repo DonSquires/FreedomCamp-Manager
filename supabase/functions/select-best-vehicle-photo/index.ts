@@ -6,26 +6,13 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
+import { bobChat } from '../_shared/bobInfer.ts';
 
-const OPENAI_BASE_URL = (Deno.env.get('OPENAI_BASE_URL') || '').replace(/\/+$/, '');
-const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-const OPENAI_MODEL = Deno.env.get('OPENAI_MODEL') || 'gpt-4o';
-const ALLOW_EDGE_OPENAI_DIRECT = (Deno.env.get('ALLOW_EDGE_OPENAI_DIRECT') || 'false').toLowerCase() === 'true';
 const MIN_WEIGHTED_SCORE = Number(Deno.env.get('MIN_PROFILE_PHOTO_SCORE') ?? '70');
 const MIN_CLARITY_SCORE = Number(Deno.env.get('MIN_PROFILE_PHOTO_CLARITY') ?? '60');
 const REQUIRE_FULL_VEHICLE = (Deno.env.get('REQUIRE_FULL_VEHICLE_IN_FRAME') ?? '1') !== '0';
 
-function isDirectOpenAIBaseUrl(url: string): boolean {
-  try {
-    const host = new URL(url).hostname.toLowerCase();
-    return host === 'api.openai.com';
-  } catch {
-    return false;
-  }
-}
-
 interface PhotoAnalysis {
-  url: string;
   score: number;
   weightedScore: number;
   fullVehicleInFrame: boolean;
@@ -219,33 +206,11 @@ Deno.serve(async (req) => {
     // - Clear/sharp image
     // - Distinct, unobstructed view
     const analyses: PhotoAnalysis[] = [];
-    const aiConfigured = !!OPENAI_API_KEY && !!OPENAI_BASE_URL;
-    const aiDirectBlocked = !!OPENAI_BASE_URL && isDirectOpenAIBaseUrl(OPENAI_BASE_URL) && !ALLOW_EDGE_OPENAI_DIRECT;
 
     for (const url of photoUrls) {
       try {
         console.log(`🔍 Analyzing photo: ${url}`);
 
-        if (!aiConfigured || aiDirectBlocked) {
-          analyses.push({
-            url,
-            score: 50,
-            weightedScore: 50,
-            fullVehicleInFrame: false,
-            clarityScore: 50,
-            distinctnessScore: 50,
-            obstructionScore: 50,
-            angle: 'unclear',
-            confidence: 0.2,
-            reasons: [
-              aiDirectBlocked
-                ? 'AI vision blocked by policy (set ALLOW_EDGE_OPENAI_DIRECT=true to permit api.openai.com)'
-                : 'AI vision not configured',
-            ],
-          });
-          continue;
-        }
-        
         const analysisPrompt = `You are selecting the BEST canonical vehicle profile photo.
 Primary objective: choose a full, clear, distinct vehicle image.
 
@@ -269,64 +234,13 @@ Return strict JSON:
   "reasons": ["short reason", "short reason"]
 }`;
 
-        const aiResponse = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${OPENAI_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: OPENAI_MODEL,
-            messages: [
-              {
-                role: 'user',
-                content: [
-                  { type: 'text', text: analysisPrompt },
-                  { type: 'image_url', image_url: { url } }
-                ]
-              }
-            ],
-            temperature: 0.1,
-            max_tokens: 500,
-          }),
+        const bobResult = await bobChat({
+          message: analysisPrompt,
+          temperature: 0.1,
+          context: { image_url: url, action: 'analyze_image' },
         });
 
-        if (!aiResponse.ok) {
-          console.error(`❌ AI analysis failed for ${url}:`, await aiResponse.text());
-          analyses.push({
-            url,
-            score: 50,
-            weightedScore: 50,
-            fullVehicleInFrame: false,
-            clarityScore: 50,
-            distinctnessScore: 50,
-            obstructionScore: 50,
-            angle: 'unclear',
-            confidence: 0.2,
-            reasons: ['Analysis failed'],
-          });
-          continue;
-        }
-
-        const aiData = await aiResponse.json();
-        const content = aiData.choices[0]?.message?.content;
-        
-        if (!content) {
-          console.error(`❌ No content in AI response for ${url}`);
-          analyses.push({
-            url,
-            score: 50,
-            weightedScore: 50,
-            fullVehicleInFrame: false,
-            clarityScore: 50,
-            distinctnessScore: 50,
-            obstructionScore: 50,
-            angle: 'unclear',
-            confidence: 0.2,
-            reasons: ['No response'],
-          });
-          continue;
-        }
+        const content = bobResult.response || '';
 
         // Parse the JSON response
         const jsonMatch = content.match(/\{[\s\S]*\}/);

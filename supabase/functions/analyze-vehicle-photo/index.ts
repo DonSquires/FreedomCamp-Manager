@@ -19,19 +19,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
-
-const OPENAI_BASE_URL = (Deno.env.get('OPENAI_BASE_URL') || '').replace(/\/+$/, '');
-const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-const OPENAI_MODEL = Deno.env.get('OPENAI_MODEL') || 'gpt-4o';
-const ALLOW_EDGE_OPENAI_DIRECT = (Deno.env.get('ALLOW_EDGE_OPENAI_DIRECT') || 'false').toLowerCase() === 'true';
-
-function isDirectOpenAIBaseUrl(url: string): boolean {
-  try {
-    return new URL(url).hostname.toLowerCase() === 'api.openai.com';
-  } catch {
-    return false;
-  }
-}
+import { bobChat } from '../_shared/bobInfer.ts';
 
 interface AIAnalysisResult {
   make: string | null;
@@ -121,50 +109,15 @@ Respond ONLY with valid JSON (no markdown, no explanations):
     };
 
     try {
-      if (!OPENAI_API_KEY || !OPENAI_BASE_URL) {
-        throw new Error('AI vision not configured');
-      }
-      if (isDirectOpenAIBaseUrl(OPENAI_BASE_URL) && !ALLOW_EDGE_OPENAI_DIRECT) {
-        throw new Error('Direct api.openai.com access is blocked for edge functions. Set ALLOW_EDGE_OPENAI_DIRECT=true to override.');
-      }
-
-      const aiResponse = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: OPENAI_MODEL,
-          messages: [
-            {
-              role: 'user',
-              content: [
-                { type: 'text', text: analysisPrompt },
-                { type: 'image_url', image_url: { url: photoUrl } }
-              ]
-            }
-          ],
-          response_format: { type: 'json_object' },
-          temperature: 0.1,
-          max_tokens: 500,
-        }),
+      const bobResult = await bobChat({
+        message: analysisPrompt,
+        temperature: 0.1,
+        context: { image_url: photoUrl, action: 'analyze_image' },
       });
 
-      if (!aiResponse.ok) {
-        const errorText = await aiResponse.text();
-        console.error(`❌ [AI ANALYSIS] AI request failed:`, errorText);
-        throw new Error(`AI API error: ${aiResponse.status}`);
-      }
+      const content = bobResult.response || '';
 
-      const aiData = await aiResponse.json();
-      const content = aiData.choices[0]?.message?.content;
-      
-      if (!content) {
-        throw new Error('No content in AI response');
-      }
-
-      // Parse AI response
+      // Parse Bob response
       const parsedAnalysis = JSON.parse(content);
       aiAnalysis = {
         make: parsedAnalysis.make || null,

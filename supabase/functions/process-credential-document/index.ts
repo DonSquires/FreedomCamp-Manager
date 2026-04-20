@@ -4,16 +4,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { withCors, getCorsHeaders } from '../_shared/withCors.ts';
-
-const ALLOW_EDGE_OPENAI_DIRECT = (Deno.env.get('ALLOW_EDGE_OPENAI_DIRECT') || 'false').toLowerCase() === 'true';
-
-function isDirectOpenAIBaseUrl(url: string): boolean {
-  try {
-    return new URL(url).hostname.toLowerCase() === 'api.openai.com';
-  } catch {
-    return false;
-  }
-}
+import { bobChat } from '../_shared/bobInfer.ts';
 
 Deno.serve(withCors(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -43,17 +34,7 @@ Deno.serve(withCors(async (req) => {
     // If PDF, we'll need to process it (for now, assume images or use first page)
     // In production, you might use pdf2image converter
     
-    // Step 2: Call AI with vision model to extract text
-    const aiUrl = (Deno.env.get('OPENAI_BASE_URL') || '').replace(/\/+$/, '');
-    const aiKey = Deno.env.get('OPENAI_API_KEY');
-
-    if (!aiKey || !aiUrl) {
-      throw new Error('AI API key not configured');
-    }
-
-    if (isDirectOpenAIBaseUrl(aiUrl) && !ALLOW_EDGE_OPENAI_DIRECT) {
-      throw new Error('Direct api.openai.com access is blocked for edge functions. Set ALLOW_EDGE_OPENAI_DIRECT=true to override.');
-    }
+    // Step 2: Call Bob/Ollama via RunPod for document extraction
 
     // Build extraction prompt based on document type
     const extractionPrompt = documentType === 'coa' 
@@ -233,44 +214,13 @@ If back says "Freedom Camping Act 2011":
   - "Enforcement Officer" → may include multiple acts, use generic bylaw_enforcement
 
 If you cannot find a field, set it to null.`
-      ; // The semicolon was missing here
-    const aiResponse = await fetch(`${aiUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${aiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o', // GPT-4 with vision
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: extractionPrompt,
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: imageUrl,
-                },
-              },
-            ],
-          },
-        ],
-        max_tokens: 1000,
-        temperature: 0.1, // Low temperature for factual extraction
-      }),
+      ;
+    const bobResult = await bobChat({
+      message: extractionPrompt,
+      temperature: 0.1,
+      context: { image_url: imageUrl, document_type: documentType },
     });
-
-    if (!aiResponse.ok) {
-      const errorText = await aiResponse.text();
-      throw new Error(`AI error: ${aiResponse.status} - ${errorText}`);
-    }
-
-    const aiResult = await aiResponse.json();
-    const extractedText = aiResult.choices[0].message.content;
+    const extractedText = bobResult.response || '';
 
     console.log('AI Extraction Result:', extractedText);
 
@@ -294,7 +244,7 @@ If you cannot find a field, set it to null.`
         user_id: userId,
         document_type: documentType,
         document_url: documentUrl,
-        ai_model: 'gpt-4o',
+        ai_model: 'ollama',
         extracted_text: extractedText,
         extracted_data: extractedData,
         confidence_score: extractedData.confidence || null,
