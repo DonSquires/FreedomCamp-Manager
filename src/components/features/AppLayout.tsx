@@ -242,6 +242,7 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
     label: 'Settings',
     icon: Settings,
     items: [
+      { path: '/admin/service-provider-access', icon: ShieldCheck, label: 'Service Provider Access', roles: ['admin', 'master'] },
       { path: '/profile', icon: User, label: 'My Profile', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/notifications', icon: Bell, label: 'Notifications', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/settings', icon: Settings, label: 'Settings', roles: ['admin', 'admin_officer', 'master', 'officer', 'nzscv_monitor'] },

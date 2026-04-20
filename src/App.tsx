@@ -128,6 +128,7 @@ const OfficerHomePage = lazy(() => import('@/pages/OfficerHomePage'))
 const TenderWorkspace = lazy(() => import('@/pages/TenderWorkspace'))
 const TenderWorkspaceDetail = lazy(() => import('@/pages/TenderWorkspaceDetail'))
 const TenderReferenceLibrary = lazy(() => import('@/pages/TenderReferenceLibrary'))
+const ServiceProviderAccessSettings = lazy(() => import('@/pages/admin/ServiceProviderAccessSettings'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -1398,6 +1399,17 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Settings />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/service-provider-access"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'master']}>
+                  <ServiceProviderAccessSettings />
+                </RoleRoute>
               </ProtectedRoute>
             }
           />
