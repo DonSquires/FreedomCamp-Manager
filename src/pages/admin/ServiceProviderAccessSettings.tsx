@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
+import type { Database } from '@/types/database'
 import { ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -19,10 +20,7 @@ type ProviderGrant = {
   is_active: boolean
 }
 
-type OrganizationName = {
-  id: string
-  name: string
-}
+type OrganizationName = Pick<Database['public']['Tables']['organizations']['Row'], 'id' | 'name'>
 
 export default function ServiceProviderAccessSettings() {
   const { user } = useAuthStore()
@@ -33,6 +31,9 @@ export default function ServiceProviderAccessSettings() {
     queryKey: ['service-provider-access-grants', user?.organization_id],
     enabled: !!user?.organization_id && isAuthorized,
     queryFn: async () => {
+      // provider_client_access_grants is added by migration in this PR.
+      // Until generated types are refreshed post-migration, keep this query
+      // runtime-safe with a narrow local interface.
       const { data: grants, error: grantsError } = await (supabase as any)
         .from('provider_client_access_grants')
         .select('id, provider_org_id, client_org_id, service_type, allow_without_roster, is_active')

@@ -430,6 +430,8 @@ function updateKnowledgePacks(payload = {}) {
 
   const updated = [];
   for (const [key, value] of updates) {
+    // Allow letters/numbers plus "_" (common pack keys), "-" and ":" for
+    // namespaced keys used by operational automations.
     if (!key || !/^[a-z0-9_:-]+$/i.test(key)) continue;
     const normalized = {
       name: trimText(value.name || key, 120),

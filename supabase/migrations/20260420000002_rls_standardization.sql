@@ -84,14 +84,59 @@ $$;
 
 CREATE OR REPLACE FUNCTION public.get_user_organization_ids_v2()
 RETURNS uuid[]
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT COALESCE(array_agg(DISTINCT s.organization_id), ARRAY[]::uuid[])
-  FROM public.get_user_effective_access_scope() s
-  WHERE s.access_reason NOT LIKE 'provider_grant:%';
+DECLARE
+  v_user_id uuid := auth.uid();
+  v_role text;
+  v_primary_org uuid;
+  v_extra_org_ids uuid[] := ARRAY[]::uuid[];
+  v_authorized_locations uuid[] := ARRAY[]::uuid[];
+  v_result uuid[] := ARRAY[]::uuid[];
+BEGIN
+  IF v_user_id IS NULL THEN
+    RETURN ARRAY[]::uuid[];
+  END IF;
+
+  SELECT
+    up.role,
+    up.organization_id,
+    COALESCE(up.extra_organization_ids, ARRAY[]::uuid[]),
+    COALESCE(up.authorized_work_locations, ARRAY[]::uuid[])
+  INTO
+    v_role,
+    v_primary_org,
+    v_extra_org_ids,
+    v_authorized_locations
+  FROM public.user_profiles up
+  WHERE up.id = v_user_id;
+
+  IF v_role IN ('grand_master', 'master') THEN
+    SELECT COALESCE(array_agg(o.id), ARRAY[]::uuid[])
+    INTO v_result
+    FROM public.organizations o
+    WHERE COALESCE(o.is_active, true);
+    RETURN v_result;
+  END IF;
+
+  IF v_primary_org IS NOT NULL THEN
+    v_result := array_cat(v_result, ARRAY[v_primary_org]::uuid[]);
+    v_result := array_cat(v_result, COALESCE(public.get_descendant_organizations(v_primary_org), ARRAY[]::uuid[]));
+  END IF;
+
+  v_result := array_cat(v_result, v_extra_org_ids);
+  v_result := array_cat(v_result, v_authorized_locations);
+
+  SELECT COALESCE(array_agg(DISTINCT org_id), ARRAY[]::uuid[])
+  INTO v_result
+  FROM unnest(v_result) AS org_id
+  WHERE org_id IS NOT NULL;
+
+  RETURN v_result;
+END;
 $$;
 
 CREATE OR REPLACE FUNCTION public.can_access_service(

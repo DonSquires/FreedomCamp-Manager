@@ -41,6 +41,19 @@ function toWsUrl(baseHttpUrl: string): string {
   return normalized + '/ws'
 }
 
+async function canAccessChannelOrg(supabase: any, channelOrgId: string): Promise<boolean> {
+  const { data: canAccess, error: canAccessError } = await supabase.rpc('can_access_ptt_channel', {
+    p_channel_org_id: channelOrgId,
+  })
+
+  if (canAccessError) {
+    console.error('PTT access RPC failed:', canAccessError)
+    return false
+  }
+
+  return Boolean(canAccess)
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -158,21 +171,8 @@ Deno.serve(async (req) => {
       )
     }
 
-    const canAccessChannelOrg = async (channelOrgId: string): Promise<boolean> => {
-      const { data: canAccess, error: canAccessError } = await supabase.rpc('can_access_ptt_channel', {
-        p_channel_org_id: channelOrgId,
-      })
-
-      if (canAccessError) {
-        console.error('PTT access RPC failed:', canAccessError)
-        return false
-      }
-
-      return Boolean(canAccess)
-    }
-    
     if (scopeType === 'org') {
-      const canAccess = await canAccessChannelOrg(scopeId)
+      const canAccess = await canAccessChannelOrg(supabase, scopeId)
       if (!canAccess && userRole !== 'grand_master') {
         return new Response(
           JSON.stringify({ 
@@ -198,7 +198,7 @@ Deno.serve(async (req) => {
         )
       }
 
-      const canAccess = await canAccessChannelOrg(incident.organization_id)
+      const canAccess = await canAccessChannelOrg(supabase, incident.organization_id)
       if (!canAccess && userRole !== 'grand_master') {
         return new Response(
           JSON.stringify({
@@ -219,7 +219,7 @@ Deno.serve(async (req) => {
         .single()
 
       if (pttChannel?.organization_id) {
-        const canAccess = await canAccessChannelOrg(pttChannel.organization_id)
+        const canAccess = await canAccessChannelOrg(supabase, pttChannel.organization_id)
         if (!canAccess && userRole !== 'grand_master') {
           return new Response(
             JSON.stringify({
@@ -254,7 +254,7 @@ Deno.serve(async (req) => {
         )
       }
 
-      const canAccess = await canAccessChannelOrg(targetProfile.organization_id)
+      const canAccess = await canAccessChannelOrg(supabase, targetProfile.organization_id)
       if (!canAccess && userRole !== 'grand_master') {
         return new Response(
           JSON.stringify({

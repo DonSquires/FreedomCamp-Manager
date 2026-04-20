@@ -3,13 +3,17 @@
 WITH provider_orgs AS (
   SELECT id
   FROM public.organizations
-  WHERE LOWER(name) LIKE '%first security%'
+  WHERE LOWER(name) IN ('first security', 'first security nz', 'first security limited')
 ),
 client_orgs AS (
   SELECT id
   FROM public.organizations
-  WHERE LOWER(name) LIKE '%linz%'
-     OR LOWER(name) LIKE '%nelson%'
+  WHERE LOWER(name) IN (
+    'linz',
+    'land information new zealand',
+    'nelson',
+    'nelson city council'
+  )
 ),
 service_types AS (
   SELECT unnest(ARRAY['freedom_camping', 'ptt_access']::public.provider_service_type[]) AS service_type
