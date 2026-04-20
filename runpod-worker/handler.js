@@ -24,6 +24,7 @@ if (!GET_JOB_URL || !POST_OUT_URL) {
 
 const AUTH_HEADERS = API_KEY ? { 'Authorization': `Bearer ${API_KEY}` } : {};
 console.log('[worker] GET_JOB_URL:', GET_JOB_URL);
+console.log('[worker] POST_OUT_URL:', POST_OUT_URL);
 console.log('[worker] Auth header present:', !!API_KEY);
 
 // ─── Job handler ──────────────────────────────────────────────────────────────
@@ -50,7 +51,10 @@ async function completeJob(jobId, output) {
     headers: { 'Content-Type': 'application/json', ...AUTH_HEADERS },
     body:    JSON.stringify({ id: jobId, output }),
   });
-  if (!res.ok) throw new Error(`job_done HTTP ${res.status}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`job_done HTTP ${res.status}: ${body}`);
+  }
 }
 
 async function workerLoop() {
