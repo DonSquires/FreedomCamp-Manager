@@ -5,6 +5,8 @@
   "engines": {
     "node": ">=20"
   },
-  "dependencies": {}
+  "dependencies": {
+    "@runpod/serverless": "^3"
+  }
 }
 
