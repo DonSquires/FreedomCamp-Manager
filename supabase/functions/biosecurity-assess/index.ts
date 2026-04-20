@@ -79,18 +79,26 @@ Deno.serve(withCors(async (req: Request) => {
       if (gpsLat != null) formBody.gps_lat = String(gpsLat)
       if (gpsLng != null) formBody.gps_lng = String(gpsLng)
 
-      const inferResp = await fetch(`${BOB_SERVICE_URL}/infer/biosecurity`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${BOB_API_KEY}`,
-        },
-        body: JSON.stringify(formBody),
-        signal: AbortSignal.timeout(35_000),
-      })
+      const inferResp = await fetch(
+        /api\.runpod\.ai\/v2\/[^/]+\/?$/.test(BOB_SERVICE_URL)
+          ? `${BOB_SERVICE_URL.replace(/\/+$/, '')}/run-sync`
+          : `${BOB_SERVICE_URL}/infer/biosecurity`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${BOB_API_KEY}`,
+          },
+          body: /api\.runpod\.ai\/v2\/[^/]+\/?$/.test(BOB_SERVICE_URL)
+            ? JSON.stringify({ input: { action: 'assess', type: 'biosecurity', image_description: imageBase64 ? 'image provided' : 'no image', ...formBody } })
+            : JSON.stringify(formBody),
+          signal: AbortSignal.timeout(90_000),
+        }
+      )
 
       if (inferResp.ok) {
-        aiResult = await inferResp.json()
+        const raw = await inferResp.json()
+        aiResult = raw?.output ?? raw
       } else {
         const errText = await inferResp.text().catch(() => '')
         console.error('biosecurity-assess inference error:', inferResp.status, errText.slice(0, 200))

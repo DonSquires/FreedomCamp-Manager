@@ -83,18 +83,29 @@ Deno.serve(withCors(async (req: Request) => {
       if (gpsLat != null) inferBody.gps_lat = gpsLat
       if (gpsLng != null) inferBody.gps_lng = gpsLng
 
-      const inferResp = await fetch(`${BOB_SERVICE_URL}/infer/smoke`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${BOB_API_KEY}`,
-        },
-        body: JSON.stringify(inferBody),
-        signal: AbortSignal.timeout(35_000),
-      })
+      const inferResp = await fetch(
+        /api\.runpod\.ai\/v2\/[^/]+\/?$/.test(BOB_SERVICE_URL)
+          ? `${BOB_SERVICE_URL.replace(/\/+$/, '')}/run-sync`
+          : `${BOB_SERVICE_URL}/infer/smoke`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(/api\.runpod\.ai/.test(BOB_SERVICE_URL)
+              ? { 'Authorization': `Bearer ${BOB_API_KEY}` }
+              : { 'Authorization': `Bearer ${BOB_API_KEY}` }),
+          },
+          body: /api\.runpod\.ai\/v2\/[^/]+\/?$/.test(BOB_SERVICE_URL)
+            ? JSON.stringify({ input: { action: 'assess', type: 'smoke', image_description: imageBase64 ? 'image provided' : 'no image', ...inferBody } })
+            : JSON.stringify(inferBody),
+          signal: AbortSignal.timeout(90_000),
+        }
+      )
 
       if (inferResp.ok) {
-        aiResult = await inferResp.json()
+        const raw = await inferResp.json()
+        // Unwrap RunPod /run-sync envelope
+        aiResult = raw?.output ?? raw
       } else {
         const errText = await inferResp.text().catch(() => '')
         console.error('smoke-assess inference error:', inferResp.status, errText.slice(0, 200))

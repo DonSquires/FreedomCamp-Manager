@@ -54,17 +54,35 @@ Deno.serve(withCors(async (req: Request) => {
 
   const bobUrl = BOB_SERVICE_URL.replace(/\/+$/, '')
 
+  // RunPod serverless: use /run-sync job API
+  const isRunpodServerless = /api\.runpod\.ai\/v2\/[^/]+\/?$/.test(bobUrl)
+
   let bobResp: Response
   try {
-    bobResp = await fetch(`${bobUrl}/assess/ptt`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(BOB_API_KEY ? { 'x-inference-api-key': BOB_API_KEY } : {}),
-      },
-      body: JSON.stringify({ symptom: symptom.trim(), context: context ?? {} }),
-      signal: AbortSignal.timeout(30_000),
-    })
+    if (isRunpodServerless) {
+      const apiKey = BOB_API_KEY || Deno.env.get('RUNPOD_ENDPOINT_API_KEY') || ''
+      bobResp = await fetch(`${bobUrl}/run-sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}),
+        },
+        body: JSON.stringify({
+          input: { action: 'assess', type: 'ptt', symptom: symptom.trim(), context: context ?? {} },
+        }),
+        signal: AbortSignal.timeout(90_000),
+      })
+    } else {
+      bobResp = await fetch(`${bobUrl}/assess/ptt`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(BOB_API_KEY ? { 'x-inference-api-key': BOB_API_KEY } : {}),
+        },
+        body: JSON.stringify({ symptom: symptom.trim(), context: context ?? {} }),
+        signal: AbortSignal.timeout(30_000),
+      })
+    }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[ptt-assess] Bob fetch error:', msg)
@@ -82,7 +100,12 @@ Deno.serve(withCors(async (req: Request) => {
 
   let result: unknown
   try {
-    result = await bobResp.json()
+    const raw = await bobResp.json()
+    // Unwrap RunPod /run-sync envelope: { status: 'COMPLETED', output: {...} }
+    result = (raw as any)?.output ?? raw
+    if ((result as any)?.success === false) {
+      return errorResponse(`Bob worker error: ${(result as any).error ?? 'unknown'}`, req, 502)
+    }
   } catch {
     const raw = await bobResp.text().catch(() => '')
     return new Response(

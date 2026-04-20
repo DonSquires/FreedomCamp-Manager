@@ -491,6 +491,70 @@ Deno.serve(async (req: Request) => {
       .map((m) => ({ role: m.role, content: m.content }))
       .slice(0, -1) // exclude the current user message (sent separately as `message`)
 
+    // Detect RunPod serverless endpoint (api.runpod.ai/v2/<id>)
+    function isRunpodServerless(url: string): boolean {
+      return /api\.runpod\.ai\/v2\/[^/]+\/?$/.test(url)
+    }
+
+    // Call RunPod /run-sync and unwrap the output
+    async function callRunpodServerless(baseUrl: string): Promise<{ responseText: string; provider: string; model: string }> {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 90_000)
+
+      const apiKey = inferenceApiKey || Deno.env.get('RUNPOD_ENDPOINT_API_KEY') || ''
+      if (!apiKey) throw new Error('RunPod API key not configured (INFERENCE_API_KEY or RUNPOD_ENDPOINT_API_KEY)')
+
+      const runSyncUrl = `${baseUrl.replace(/\/run\/?$/, '')}/run-sync`
+
+      try {
+        const runRes = await fetch(runSyncUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            input: {
+              action: 'chat',
+              message: latestUserMessage,
+              history,
+              system_prompt: messages.find((m) => m.role === 'system')?.content,
+              model,
+              temperature,
+              context: {
+                user_email: user.email,
+                requested_model: model,
+                source: 'onspace-ai-chat',
+              },
+            },
+          }),
+          signal: controller.signal,
+        })
+
+        const runText = await runRes.text()
+        if (!runRes.ok) throw new Error(`RunPod run-sync HTTP ${runRes.status}: ${runText.slice(0, 300)}`)
+
+        const runData = (() => { try { return JSON.parse(runText) } catch { return null } })()
+        if (!runData) throw new Error(`RunPod returned non-JSON: ${runText.slice(0, 200)}`)
+
+        if (runData.status === 'FAILED') throw new Error(`RunPod job failed: ${JSON.stringify(runData.error ?? runData.output).slice(0, 200)}`)
+
+        const output = runData.output
+        if (!output?.success) throw new Error(`RunPod worker error: ${output?.error ?? 'unknown'}`)
+
+        const responseText = output.response || output.message || output.content || ''
+        if (!responseText) throw new Error('RunPod worker returned empty response')
+
+        return {
+          responseText,
+          provider: `runpod-serverless-${output.provider ?? 'openai'}`,
+          model: output.model ?? model,
+        }
+      } finally {
+        clearTimeout(timeoutId)
+      }
+    }
+
     async function callInferenceProvider() {
       const configuredFallbackUrl = normalizeBaseUrl(Deno.env.get('INFERENCE_SERVICE_FALLBACK_URL'))
       const candidates = Array.from(new Set([
@@ -502,28 +566,32 @@ Deno.serve(async (req: Request) => {
         throw new Error('INFERENCE_SERVICE_URL is not configured')
       }
 
-      // Build ordered list of auth strategies to try against the inference service.
-      // Bob accepts: (1) x-inference-api-key matching INFERENCE_API_KEY,
-      //              (2) Authorization: Bearer matching SUPABASE_SERVICE_ROLE_KEY,
-      //              (3) valid Supabase JWT (user auth).
-      // The edge function has SUPABASE_SERVICE_ROLE_KEY available natively, making
-      // it a reliable fallback when INFERENCE_API_KEY is absent or rotated.
-      const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-      const authStrategies: Array<Record<string, string>> = []
-      if (inferenceApiKey) {
-        authStrategies.push({ 'x-inference-api-key': inferenceApiKey })
-      }
-      if (serviceRoleKey && serviceRoleKey !== inferenceApiKey) {
-        authStrategies.push({ 'Authorization': `Bearer ${serviceRoleKey}` })
-      }
-      // Always have at least one strategy (no-auth — Bob allows if no auth configured)
-      if (!authStrategies.length) {
-        authStrategies.push({})
-      }
-
       let lastError: Error | null = null
 
       for (const candidateUrl of candidates) {
+        // ── RunPod serverless: use /run-sync job API ─────────────────────────
+        if (isRunpodServerless(candidateUrl)) {
+          try {
+            return await callRunpodServerless(candidateUrl)
+          } catch (err: any) {
+            lastError = err instanceof Error ? err : new Error(String(err?.message ?? err))
+            continue
+          }
+        }
+
+        // ── Standard inference-service REST API ──────────────────────────────
+        // Build ordered list of auth strategies to try against the inference service.
+        const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+        const authStrategies: Array<Record<string, string>> = []
+        if (inferenceApiKey) {
+          authStrategies.push({ 'x-inference-api-key': inferenceApiKey })
+        }
+        if (serviceRoleKey && serviceRoleKey !== inferenceApiKey) {
+          authStrategies.push({ 'Authorization': `Bearer ${serviceRoleKey}` })
+        }
+        if (!authStrategies.length) {
+          authStrategies.push({})
+        }
         for (const authHeaders of authStrategies) {
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), 60_000)
