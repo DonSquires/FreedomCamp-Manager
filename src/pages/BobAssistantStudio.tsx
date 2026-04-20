@@ -1145,7 +1145,7 @@ export default function BobAssistantStudio() {
 
       return {
         messages: rawMessages,
-        provider: 'inference' as const,
+        provider: 'auto' as const,
         context: {
           tone,
           source: 'bob-studio',

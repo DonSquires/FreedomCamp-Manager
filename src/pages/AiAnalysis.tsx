@@ -357,7 +357,7 @@ export default function AiAnalysis() {
       content: m.content,
     }))
 
-    const requestBody = { messages: conversationHistory, provider: 'inference' as const }
+    const requestBody = { messages: conversationHistory, provider: 'auto' as const }
 
     try {
       const result = await withTimeout(edgeFunctions.aiChat(requestBody), 60000, 'Bob chat request')
