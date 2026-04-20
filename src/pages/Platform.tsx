@@ -345,7 +345,7 @@ Be specific. Name exact files and line-level changes where possible.`
 
       const result = await edgeFunctions.aiChat({
         messages: [{ role: 'user', content: prompt }],
-        provider: 'ollama',
+        provider: 'auto',
       })
 
       if (result.error) throw new Error(result.error)

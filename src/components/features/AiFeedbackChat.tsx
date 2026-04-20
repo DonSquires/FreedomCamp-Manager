@@ -299,7 +299,7 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
             ...history,
           ],
           temperature: 0.5,
-          provider: 'ollama',
+          provider: 'auto',
         }),
         25000,
         'Bob chat request'
