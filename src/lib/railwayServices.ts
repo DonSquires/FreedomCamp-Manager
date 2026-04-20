@@ -1,9 +1,9 @@
 /**
- * Railway Services Integration
- * 
- * Direct client-side access to Railway-deployed services:
- * 1. Proxy Server (NZSCV/MotorWeb API gateway)
- * 2. Inference Service (ORC/AI vehicle detection)
+ * External Services Integration
+ *
+ * Client-side wrappers for proxy (NZSCV/MotorWeb — Railway) and
+ * Bob inference service (RunPod — ORC/AI vehicle detection).
+ * All network calls go through Supabase Edge Functions.
  */
 
 import { edgeFunctions } from './edgeFunctions'
@@ -18,7 +18,7 @@ interface InferenceServiceConfig {
 /**
  * Response type from the check-railway-health Edge Function.
  */
-interface RailwayHealthResponse {
+interface ServicesHealthResponse {
   proxy: { status: string; error?: string; [key: string]: unknown }
   proxy_url: string | null
   inference: { status: string; error?: string; config?: InferenceServiceConfig; [key: string]: unknown }
@@ -28,18 +28,17 @@ interface RailwayHealthResponse {
 }
 
 /**
- * Get Railway service URLs and health status from the check-railway-health Edge Function.
+ * Get service URLs and health status from the check-railway-health Edge Function.
  */
-async function getRailwayServiceURLs(): Promise<{
+async function getServiceURLs(): Promise<{
   proxyUrl: string | null
   inferenceUrl: string | null
-  proxyHealth: RailwayHealthResponse['proxy'] | null
-  inferenceHealth: RailwayHealthResponse['inference'] | null
+  proxyHealth: ServicesHealthResponse['proxy'] | null
+  inferenceHealth: ServicesHealthResponse['inference'] | null
   inferenceApiKeyConfigured: boolean
   error: string | null
 }> {
   try {
-    // Call Edge Function to retrieve Railway URLs and health from backend secrets
     const { data, error } = await edgeFunctions.checkRailwayHealth()
 
     if (error) {
@@ -49,11 +48,11 @@ async function getRailwayServiceURLs(): Promise<{
         proxyHealth: null,
         inferenceHealth: null,
         inferenceApiKeyConfigured: false,
-        error: error || 'Failed to get Railway service URLs',
+        error: error || 'Failed to get service URLs',
       }
     }
 
-    const response = data as RailwayHealthResponse | null
+    const response = data as ServicesHealthResponse | null
     return {
       proxyUrl: response?.proxy_url || null,
       inferenceUrl: response?.inference_url || null,
@@ -95,7 +94,7 @@ export interface NZSCVCheckResult {
 export async function checkNZSCVCertification(
   plateNumber: string
 ): Promise<{ data: NZSCVCheckResult | null; error: string | null }> {
-  const { proxyUrl, error: urlError } = await getRailwayServiceURLs()
+  const { proxyUrl, error: urlError } = await getServiceURLs()
 
   if (urlError || !proxyUrl) {
     return {
@@ -151,7 +150,7 @@ export interface MotorWebResult {
 export async function enrichVehicleFromMotorWeb(
   plateNumber: string
 ): Promise<{ data: MotorWebResult | null; error: string | null }> {
-  const { proxyUrl, error: urlError } = await getRailwayServiceURLs()
+  const { proxyUrl, error: urlError } = await getServiceURLs()
 
   if (urlError || !proxyUrl) {
     return {
@@ -255,7 +254,7 @@ export type OCRResult = {
 export async function inferVehicle(
   photoUrl: string
 ): Promise<{ data: InferResult | null; error: string | null }> {
-  const { inferenceUrl, error: urlError } = await getRailwayServiceURLs()
+  const { inferenceUrl, error: urlError } = await getServiceURLs()
 
   if (urlError || !inferenceUrl) {
     return {
@@ -460,7 +459,7 @@ export interface FaceDetectionResult {
 export async function inferFace(
   photoUrl: string
 ): Promise<{ data: FaceDetectionResult | null; error: string | null }> {
-  const { inferenceUrl, error: urlError } = await getRailwayServiceURLs()
+  const { inferenceUrl, error: urlError } = await getServiceURLs()
 
   if (urlError || !inferenceUrl) {
     return {
@@ -538,7 +537,7 @@ export async function compareFaceEmbeddings(
   } | null
   error: string | null
 }> {
-  const { inferenceUrl, error: urlError } = await getRailwayServiceURLs()
+  const { inferenceUrl, error: urlError } = await getServiceURLs()
 
   if (urlError || !inferenceUrl) {
     return {
@@ -608,7 +607,7 @@ export interface ServiceHealthStatus {
  * because the Railway services whitelist only the Supabase project origin.
  */
 export async function checkProxyHealth(): Promise<ServiceHealthStatus> {
-  const { proxyUrl, proxyHealth, error: urlError } = await getRailwayServiceURLs()
+  const { proxyUrl, proxyHealth, error: urlError } = await getServiceURLs()
 
   if (urlError) {
     return { status: 'offline', error: urlError }
@@ -639,7 +638,7 @@ export async function checkProxyHealth(): Promise<ServiceHealthStatus> {
  * Also returns API key configuration status to help diagnose authentication issues.
  */
 export async function checkInferenceHealth(): Promise<ServiceHealthStatus> {
-  const { inferenceUrl, inferenceHealth, inferenceApiKeyConfigured, error: urlError } = await getRailwayServiceURLs()
+  const { inferenceUrl, inferenceHealth, inferenceApiKeyConfigured, error: urlError } = await getServiceURLs()
 
   if (urlError) {
     return { status: 'offline', error: urlError, apiKeyConfigured: false }

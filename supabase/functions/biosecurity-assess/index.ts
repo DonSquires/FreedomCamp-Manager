@@ -22,7 +22,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { getCorsHeaders, withCors, jsonResponse, errorResponse } from '../_shared/withCors.ts'
 import { requireAuth } from '../_shared/requireAuth.ts'
 
-const BOB_SERVICE_URL   = Deno.env.get('BOB_SERVICE_URL') ?? ''
+const BOB_SERVICE_URL   = Deno.env.get('BOB_SERVICE_URL') || Deno.env.get('INFERENCE_SERVICE_URL') || ''
 const BOB_API_KEY       = Deno.env.get('BOB_INFERENCE_API_KEY') ?? ''
 const SUPABASE_URL      = Deno.env.get('SUPABASE_URL') ?? ''
 const SERVICE_ROLE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''

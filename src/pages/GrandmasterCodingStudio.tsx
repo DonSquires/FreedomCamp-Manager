@@ -804,7 +804,7 @@ export default function GrandmasterCodingStudio() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {['general', 'supabase', 'railway', 'github', 'vercel', 'expo', 'domain', 'email', 'ptt', 'coding'].map((c) => (
+                      {['general', 'supabase', 'runpod', 'github', 'vercel', 'expo', 'domain', 'email', 'ptt', 'coding'].map((c) => (
                         <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>
                       ))}
                     </SelectContent>

@@ -11,7 +11,7 @@ const proxyValidation = validateServiceUrl(
   'PROXY_SERVER_URL'
 )
 const inferenceValidation = validateServiceUrl(
-  Deno.env.get('INFERENCE_SERVICE_URL'),
+  Deno.env.get('INFERENCE_SERVICE_URL') || Deno.env.get('BOB_SERVICE_URL'),
   'INFERENCE_SERVICE_URL'
 )
 const pttValidation = validateServiceUrl(

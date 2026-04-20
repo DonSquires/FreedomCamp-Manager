@@ -11,7 +11,7 @@ export function useNZSCVStatus(plateNumber: string | null) {
     queryFn: () => checkNZSCVStatus(plateNumber!),
     enabled: !!plateNumber,
     staleTime: 1000 * 60 * 60 * 24, // 24 hours (warrants don't change frequently)
-    retry: 1, // Only retry once (Railway cold start)
+    retry: 1,
   })
 }
 

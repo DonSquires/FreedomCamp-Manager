@@ -539,7 +539,7 @@ export const edgeFunctions = {
   },
 
   /**
-   * Check health of Railway-backed proxy and inference services.
+   * Check health of proxy and Bob inference services.
    */
   checkRailwayHealth: async () => {
     return callEdgeFunction('check-railway-health')
@@ -859,7 +859,7 @@ export const edgeFunctions = {
    * Fully self-hosted — no cloud AI. Cascade:
    *   1. Ollama primary model (OLLAMA_MODEL)
    *   2. Ollama writing specialist (OLLAMA_MODEL_WRITING if different)
-   *   3. Secondary Railway-hosted assistant (SECONDARY_ASSISTANT_URL if configured)
+   *   3. Secondary inference assistant (SECONDARY_ASSISTANT_URL if configured)
    *   4. Enriched heuristic template (always available)
    *
    * Returns: { sections, provider, model_used, references_used }

@@ -424,7 +424,7 @@ export default function SystemDiagnostics() {
                 <Stethoscope className="h-4 w-4" /> Doctor Control Room
               </CardTitle>
               <CardDescription>
-                Cross-area health across Supabase, Railway, Vercel, and GitHub with timeline-backed self-healing.
+                Cross-area health across Supabase, RunPod, Vercel, and GitHub with timeline-backed self-healing.
               </CardDescription>
             </div>
             <Button variant="outline" size="sm" onClick={() => { void refetchDoctorHealth(); void refetchDoctorTimeline() }}>
@@ -450,7 +450,7 @@ export default function SystemDiagnostics() {
             <div className="rounded border p-3 space-y-2">
               <div className="text-xs font-medium text-muted-foreground">Cross-Area Coverage</div>
               <div className="text-sm">Supabase: {doctorHealth?.components?.cross_area?.supabase?.mode || 'unknown'}</div>
-              <div className="text-sm">Railway: {doctorHealth?.components?.cross_area?.railway?.mode || 'unknown'}</div>
+              <div className="text-sm">Proxy/Inference: {doctorHealth?.components?.cross_area?.railway?.mode || 'unknown'}</div>
               <div className="text-sm">Vercel: {doctorHealth?.components?.cross_area?.vercel?.mode || 'unknown'}</div>
               <div className="text-sm">GitHub: {doctorHealth?.components?.cross_area?.github?.mode || 'unknown'}</div>
             </div>

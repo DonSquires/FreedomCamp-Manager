@@ -1,16 +1,15 @@
 /**
- * Railway Services Integration
- * 
- * This module provides typed clients for interacting with Railway-deployed services:
- * 1. Proxy Server - NZSCV/MotorWeb API gateway
- * 2. Inference Service - Vehicle photo analysis (YOLOv8n + MobileNetV3 embeddings)
+ * External Services Integration
+ *
+ * Typed clients for proxy (NZSCV/MotorWeb, hosted on Railway) and
+ * Bob inference service (RunPod — vehicle ALPR + embeddings).
+ * All calls route through Supabase Edge Functions; secrets stay server-side.
  */
 
 import { supabase } from './supabase'
 import { edgeFunctions } from './edgeFunctions'
 
-// Railway service endpoints (set via Supabase Edge Function secrets)
-// These are NOT exposed to the frontend - only Edge Functions can access them
+// Dev-only URL hints (not used in production — Edge Function secrets take priority)
 const PROXY_SERVER_URL = import.meta.env.VITE_PROXY_SERVER_URL
 const INFERENCE_SERVICE_URL = import.meta.env.VITE_INFERENCE_SERVICE_URL
 
@@ -75,28 +74,27 @@ export async function selectBestVehiclePhoto(photoUrls: string[]) {
 }
 
 /**
- * Health check for Railway services
- * Note: Calls Edge Function which has access to service URLs
+ * Health check for external services (proxy + Bob inference)
+ * Calls the check-railway-health Edge Function which has access to service URLs.
  */
-export async function checkRailwayServicesHealth() {
+export async function checkServicesHealth() {
   try {
     const { data, error } = await edgeFunctions.checkRailwayHealth()
-    
+
     if (error) {
-      console.error('Railway health check failed:', error)
+      console.error('Services health check failed:', error)
       return { proxy: false, inference: false }
     }
 
     // Proxy returns { status: 'ok' }; inference returns { status: 'healthy' }.
-    // Accept either value so both display as online.
     const proxyOk = data?.proxy?.status === 'ok' || data?.proxy?.status === 'healthy'
     const inferenceOk = data?.inference?.status === 'ok' || data?.inference?.status === 'healthy'
-    return {
-      proxy: proxyOk,
-      inference: inferenceOk,
-    }
+    return { proxy: proxyOk, inference: inferenceOk }
   } catch (error) {
-    console.error('Railway health check error:', error)
+    console.error('Services health check error:', error)
     return { proxy: false, inference: false }
   }
 }
+
+/** @deprecated Use checkServicesHealth() */
+export const checkRailwayServicesHealth = checkServicesHealth

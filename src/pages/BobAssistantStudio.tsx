@@ -3061,7 +3061,7 @@ export default function BobAssistantStudio() {
                 </span>
                 <Badge variant="outline">{displayName}</Badge>
               </CardTitle>
-              <CardDescription>Talk to Bob by typing or voice. Bob is your inference agent and assistant, and can coordinate build context across DB, UI, Expo, Railway, and Vercel workflows.</CardDescription>
+              <CardDescription>Talk to Bob by typing or voice. Bob is your inference agent and assistant, and can coordinate build context across DB, UI, Expo, RunPod, and Vercel workflows.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {collaborationPacket && (
