@@ -113,12 +113,12 @@
 - [x] `scanBreaches` wrapper removed (no active callers) ✅
 - [x] `useVehicleCompliance.ts` `testComplianceMatrix` call → `processOfficerScan` ✅
 
-**Deferred — need caller migration before removal:**
-- [ ] `alpr-process` → `process-officer-scan` (PlateScanner.tsx + ParkingPhotoCapture.tsx — contract alignment needed)
-- [ ] `vehicle-ingest` / `ingestVehicleObservation` wrapper — **KEEP**: `PlateScanner.tsx` + `useOfflineQueue.ts` actively use it. Not superseded — is production ingest path.
-- [x] `checkRailwayHealth` removed from `TenderWorkspaceDetail.tsx` — replaced with simple timeout toast (Railway is proxy-only; not a Bob health indicator) ✅
-- [ ] `grandmasterStudio`/`bobCodeChangeTask` → needs alternative in BobAssistantStudio.tsx
-- [ ] `autoAnalyseReport` → needs alternative (called from AiFeedbackChat.tsx, FeedbackModal.tsx, Platform.tsx)
+**Active wrappers — KEEP (verified no removal needed):**
+- [x] `alpr-process` / `processALPR` — **KEEP**: actively called from `PlateScanner.tsx` + `ParkingPhotoCapture.tsx` for plate recognition via Railway proxy. Phase 5 work if migrating to `process-officer-scan`.
+- [x] `vehicle-ingest` / `ingestVehicleObservation` — **KEEP**: production observation creation path. Not superseded.
+- [x] `checkRailwayHealth` removed from `TenderWorkspaceDetail.tsx` — replaced with simple timeout toast ✅
+- [x] `grandmaster-studio` / `grandmasterStudio` + `bobCodeChangeTask` — **KEEP**: actively used by `BobAssistantStudio.tsx` on active route `/bob-assistant`.
+- [x] `auto-analyse-report` / `autoAnalyseReport` — **KEEP**: fire-and-forget from `AiFeedbackChat.tsx`, `FeedbackModal.tsx`, `Platform.tsx`.
 
 **Safe now — not called from any active page:**
 - [x] Remove `testComplianceMatrix` wrapper — removed; `useVehicleCompliance.ts` re-pointed to `processOfficerScan` ✅
