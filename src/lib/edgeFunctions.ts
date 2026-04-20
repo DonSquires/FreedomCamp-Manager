@@ -1534,4 +1534,45 @@ export const edgeFunctions = {
   }) => {
     return callEdgeFunction('export-data', params)
   },
+
+  /**
+   * Link evidence photos — runs ALPR on files in the evidence storage bucket
+   * and links recognised plates to canonical_vehicles profile photos.
+   * Requires admin or master role.
+   */
+  linkEvidencePhotos: async (params: {
+    path_prefix?: string
+    paths?: string[]
+    min_confidence?: number
+    force_update?: boolean
+    dry_run?: boolean
+    limit?: number
+  }) => {
+    return callEdgeFunction('link-evidence-photos', params)
+  },
+
+  /**
+   * Reingest photos — fetches a batch of existing observations with photos and
+   * returns them so the caller can re-run vehicle-ingest on each one.
+   * Supports pagination via before_recorded_at cursor.
+   */
+  reingestPhotos: async (params: {
+    organization_id?: string
+    date_from?: string
+    date_to?: string
+    batch_size?: number
+    before_recorded_at?: string
+  }) => {
+    return callEdgeFunction('reingest-photos', params)
+  },
+
+  /**
+   * Check data integrity — finds and optionally removes duplicate observations,
+   * marks invalid NZ plates, and returns a list of integrity issues found.
+   */
+  checkDataIntegrity: async (params: {
+    comprehensive?: boolean
+  }) => {
+    return callEdgeFunction('check-data-integrity', params)
+  },
 }
