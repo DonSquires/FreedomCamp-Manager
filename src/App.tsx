@@ -680,16 +680,7 @@ export default function App() {
             }
           />
 
-          <Route
-            path="/grandmaster-code-studio"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['grand_master']}>
-                  <GrandmasterCodingStudio />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/grandmaster-code-studio" element={<Navigate to="/" replace />} />
 
           <Route
             path="/compliance-escalations"
@@ -733,62 +724,17 @@ export default function App() {
             }
           />
 
-          <Route
-            path="/diagnostics"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['master']}>
-                  <SystemDiagnostics />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/diagnostics" element={<Navigate to="/" replace />} />
 
-          <Route
-            path="/test-dashboard"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['master']}>
-                  <TestDashboard />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/test-dashboard" element={<Navigate to="/" replace />} />
 
           {/* --- NEW ROUTES ADDED BELOW --- */}
 
-          <Route
-            path="/compliance-recalculation"
-            element={
-              <ProtectedRoute>
-                  <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <ComplianceRecalculation />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/compliance-recalculation" element={<Navigate to="/" replace />} />
 
-          <Route
-            path="/photo-reingest"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <PhotoReingest />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/photo-reingest" element={<Navigate to="/" replace />} />
 
-          <Route
-            path="/evidence-photo-linker"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <EvidencePhotoLinker />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/evidence-photo-linker" element={<Navigate to="/" replace />} />
 
           <Route
             path="/live-tracking"
@@ -823,27 +769,9 @@ export default function App() {
             }
           />
 
-          <Route
-            path="/enforcement-actions"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
-                  <EnforcementActions />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/enforcement-actions" element={<Navigate to="/enforcement-review" replace />} />
 
-          <Route
-            path="/enforcement-command-center"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <EnforcementCommandCenter />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/enforcement-command-center" element={<Navigate to="/enforcement-review" replace />} />
 
           <Route
             path="/infringements"
@@ -911,38 +839,11 @@ export default function App() {
             }
           />
 
-          <Route
-            path="/admin/data-cleanup"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <DataCleanupUtility />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/admin/data-cleanup" element={<Navigate to="/" replace />} />
 
-          <Route
-            path="/admin/cleanup-recalculate"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <CleanupAndRecalculate />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/admin/cleanup-recalculate" element={<Navigate to="/" replace />} />
 
-          <Route
-            path="/admin/data-integrity"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <DataIntegrityDashboard />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/admin/data-integrity" element={<Navigate to="/" replace />} />
 
           <Route
             path="/live-patrol"
@@ -955,16 +856,7 @@ export default function App() {
             }
           />
 
-          <Route
-            path="/reports-hub"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <ReportsHub />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/reports-hub" element={<Navigate to="/reports" replace />} />
 
           <Route
             path="/custom-reports"
@@ -1043,14 +935,7 @@ export default function App() {
             }
           />
 
-          <Route
-            path="/observation-records"
-            element={
-              <ProtectedRoute>
-                <ObservationRecords />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/observation-records" element={<Navigate to="/observations" replace />} />
 
           <Route
             path="/search"
@@ -1363,36 +1248,11 @@ export default function App() {
             }
           />
 
-          <Route
-            path="/import-historical"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <ImportHistoricalData />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/import-historical" element={<Navigate to="/import-data" replace />} />
 
-          <Route
-            path="/breach-notices"
-            element={
-              <ProtectedRoute>
-                <BreachNotices />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/breach-notices" element={<Navigate to="/breaches" replace />} />
 
-          <Route
-            path="/observations-report"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <ObservationsReport />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/observations-report" element={<Navigate to="/observations" replace />} />
 
           <Route
             path="/settings"
@@ -1453,26 +1313,8 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/compliance-dashboard"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'master', 'admin_officer']}>
-                  <ComplianceDashboard />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/clean-dashboard"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'master', 'admin_officer']}>
-                  <CleanDashboard />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/compliance-dashboard" element={<Navigate to="/compliance" replace />} />
+          <Route path="/clean-dashboard" element={<Navigate to="/" replace />} />
 
           {/* Invoicing — read-only billing view */}
           <Route
