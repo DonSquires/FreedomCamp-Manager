@@ -55,7 +55,7 @@ test.describe('Login Page', () => {
 
   test('shows a brand / product name on the login page', async ({ page }) => {
     await page.goto('/login')
-    await page.waitForLoadState('domcontentloaded')
+    await page.waitForLoadState('networkidle')
 
     // The page should mention the product name somewhere visible
     const bodyText = await page.locator('body').innerText()
@@ -411,7 +411,9 @@ test.describe('App shell', () => {
 
   test('React app mounts — root element is populated', async ({ page }) => {
     await page.goto('/login')
-    await page.waitForLoadState('domcontentloaded')
+    await page.waitForLoadState('networkidle')
+    // Wait for React to mount a visible element
+    await page.locator('#root [class]').first().waitFor({ state: 'attached', timeout: 10000 }).catch(() => {})
 
     // #root should have content (React mounted)
     const rootContent = await page.locator('#root').innerHTML()

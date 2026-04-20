@@ -81,8 +81,8 @@ test.describe('Scan Flow - Manual Plate Entry', () => {
     await expect(page.locator('h1').first()).toContainText('Field Officer Portal')
 
     // Open PlateScanner
-    await page.click('text=Scan Vehicle')
-    await expect(page.locator('text=Vehicle Scanner')).toBeVisible()
+    await page.click('text=Scan Vehicle (Detail)')
+    await expect(page.locator('h2:has-text("Vehicle Scanner")')).toBeVisible({ timeout: 10000 })
 
     // Manual entry
     await page.click('text=Manual Entry')
@@ -101,7 +101,7 @@ test.describe('Scan Flow - Manual Plate Entry', () => {
     await helpers.waitForToast(page, `Vehicle ${TEST_VEHICLE_PRIMARY} scanned successfully`)
 
     // Verify scanner closed
-    await expect(page.locator('text=Vehicle Scanner')).not.toBeVisible()
+    await expect(page.locator('h2:has-text("Vehicle Scanner")')).not.toBeVisible()
 
     // Verify observation in database
     const { data: observations } = await helpers.supabase
@@ -120,7 +120,8 @@ test.describe('Scan Flow - Manual Plate Entry', () => {
     const page = officerUser
 
     await page.goto('/field')
-    await page.click('text=Scan Vehicle')
+    await page.click('text=Scan Vehicle (Detail)')
+    await expect(page.locator('h2:has-text("Vehicle Scanner")')).toBeVisible({ timeout: 10000 })
     await page.click('text=Manual Entry')
 
     // Try invalid plate (lowercase)
@@ -135,7 +136,7 @@ test.describe('Scan Flow - Manual Plate Entry', () => {
     const page = officerUser
 
     await page.goto('/field')
-    await page.click('text=Scan Vehicle')
+    await page.click('text=Scan Vehicle (Detail)')
     await page.click('text=Manual Entry')
 
     // Enter plate without selecting zone
@@ -171,7 +172,7 @@ test.describe('Scan Flow - GPS Capture', () => {
     await page.context().setGeolocation({ latitude: -41.3366, longitude: 173.1830 })
 
     await page.goto('/field')
-    await page.click('text=Scan Vehicle')
+    await page.click('text=Scan Vehicle (Detail)')
     await page.click('text=Manual Entry')
 
     // Create observation
@@ -203,7 +204,7 @@ test.describe('Scan Flow - Compliance Evaluation', () => {
     const page = officerUser
 
     await page.goto('/field')
-    await page.click('text=Scan Vehicle')
+    await page.click('text=Scan Vehicle (Detail)')
     await page.click('text=Manual Entry')
 
     // Scan compliant vehicle
@@ -237,7 +238,7 @@ test.describe('Scan Flow - Breach Detection', () => {
     const page = officerUser
 
     await page.goto('/field')
-    await page.click('text=Scan Vehicle')
+    await page.click('text=Scan Vehicle (Detail)')
     await page.click('text=Manual Entry')
 
     // Scan non-compliant vehicle (no self-contained in restricted zone)
