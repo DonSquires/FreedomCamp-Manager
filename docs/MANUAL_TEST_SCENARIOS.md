@@ -79,7 +79,7 @@ Create 4 test users with different roles:
 - ✅ Camera opens
 - ✅ Photo captured
 - ✅ OCR detects plate automatically
-- ✅ Railway inference service called
+- ✅ Bob inference service called (RunPod)
 - ✅ Confidence score shown
 - ✅ Observation created with photo
 

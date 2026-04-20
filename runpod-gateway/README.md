@@ -73,7 +73,7 @@ Your public URL will look like:
 https://<pod-id>-8080.proxy.runpod.net
 ```
 
-Set this as `OLLAMA_BASE_URL` in Railway's inference-service environment.  
+Set this as `OLLAMA_BASE_URL` in the Bob inference-service environment (RunPod pod `.env`).  
 The inference-service will send `Authorization: Bearer <BOB_GATEWAY_KEY>` with each request.
 
 ## Proxied Endpoints

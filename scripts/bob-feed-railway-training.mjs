@@ -1,7 +1,7 @@
 /**
  * bob-feed-railway-training.mjs
  *
- * Pushes all Railway-era Bob training data to Bob's intel ingestion endpoint.
+ * Pushes historical and current Bob training data to Bob's intel ingestion endpoint.
  * Sources: inference-service/lib/ knowledge modules, docs/, and tools/.
  *
  * Usage:
@@ -71,9 +71,9 @@ bulletins.push({
     State: Zustand (src/stores/) + TanStack Query v5. Forms: react-hook-form + zod.
     Charts: recharts. Routing: react-router-dom v6. Package manager: bun (bun.lock at root).
     Backend: Supabase (PostgreSQL 17 + Edge Functions + Row Level Security).
-    Services: inference-service/ (Node/Express + ONNX AI, Bob), proxy-server/ (NZSCV, Node/Express),
-    ptt-server/ (WebSocket voice), ollama/ (Railway LLM).
-    Hosting: Vercel (fcmanager.co.nz frontend), Railway (Bob, Proxy, PTT, Ollama), Expo EAS (mobile).
+    Services: inference-service/ (Node/Express + ONNX AI, Bob — on RunPod), proxy-server/ (NZSCV, Node/Express — on Railway),
+    ptt-server/ (WebSocket voice — on hPanel VPS 72.61.123.97), ollama/ (LLM, same RunPod pod as Bob).
+    Hosting: Vercel (fcmanager.co.nz frontend), RunPod (Bob + Ollama), Railway (Proxy only), VPS 72.61.123.97 (PTT + TURN), Expo EAS (mobile).
     Path alias: @/* → ./src/* (defined in tsconfig.json and vite.config.ts).
     Build commands: bun run dev | bun run build | bun run lint.
     TypeScript config: noImplicitAny=false, strictNullChecks=false, skipLibCheck=true — do NOT tighten these.
@@ -95,7 +95,7 @@ bulletins.push({
 const platformRaw = readDoc('inference-service/lib/platform-knowledge.js');
 bulletins.push({
   type: 'system',
-  title: 'FieldOps platform knowledge: Supabase, Railway, GitHub, Vercel, Expo',
+  title: 'FieldOps platform knowledge: Supabase, RunPod, Railway, GitHub, Vercel, Expo',
   summary: clip(`
     Supabase project ref: kxwjcupuxnnbnzcgmkoi. Region: AWS ap-southeast-2 (Sydney).
     URL: https://kxwjcupuxnnbnzcgmkoi.supabase.co. DB: PostgreSQL 17.
@@ -105,14 +105,13 @@ bulletins.push({
     organizations, incidents, ptt_messages, ptt_presence, ptt_channels.
     Migrations: 70+ SQL files in supabase/migrations/ prefixed YYYYMMDD_*. Apply: supabase db push.
     Edge Functions: 47 functions. Deploy: supabase functions deploy <name> --project-ref $REF.
-    Railway: Bob at https://focused-courage-production-ccee.up.railway.app.
-    Ollama at http://ollama.railway.internal:11434 (internal). Model: llama3.1:8b.
-    Bob env: CHAT_PROVIDER=ollama, OLLAMA_BASE_URL=http://ollama.railway.internal:11434,
-    OLLAMA_MODEL=llama3.1:8b, SELF_CONTAINED_MODE=true.
+    Bob + Ollama: RunPod pod (SSH root@<RUNPOD_POD_SSH_HOST>). OLLAMA_BASE_URL=http://127.0.0.1:11434.
+    Ollama model: llama3.1:8b. Bob env: CHAT_PROVIDER=ollama, OLLAMA_MODEL=llama3.1:8b.
+    Railway: proxy-server only (NZSCV/MotorWeb proxy). RAILWAY_TOKEN (proxy deploy).
+    PTT + TURN: hPanel VPS ssh root@72.61.123.97.
     GitHub Actions: 25 workflows. Key: sync-bob-repo.yml mirrors inference-service/ to DonSquires/Bob.
     Vercel: frontend at fcmanager.co.nz. vercel.json has SPA rewrite and security headers.
     Expo EAS: mobile app at mobile-app/. Build profiles: development, preview, production.
-    Bob self-contained mode: blocks outbound cloud egress. Build-training mode: allows external providers.
     Bob pretrain profile: nz-enforcement-v1 (similarity threshold learning for vehicle recheck workflows).
     Bob intel endpoints: POST /intel/ingest-bulletin (API key only). POST /learn/ingest-feedback.
     POST /tender/train. POST /learn/pretrain. POST /ask-copilot/:id/answer.
@@ -302,25 +301,25 @@ bulletins.push({
   metadata: { module: 'pretrain-profiles', profile: 'nz-enforcement-v1' },
 });
 
-// 12. BOB PRODUCTION RAILWAY SETUP — service URLs, env vars, Ollama, sync workflow
+// 12. BOB PRODUCTION SETUP — service URLs, env vars, Ollama, sync workflow (RunPod era)
 bulletins.push({
   type: 'system',
-  title: 'Bob production Railway setup: service URLs, env vars, sync workflow, Ollama',
+  title: 'Bob production setup: RunPod service, env vars, sync workflow, Ollama',
   summary: clip(`
-    Bob Inference URL: https://focused-courage-production-ccee.up.railway.app.
-    Ollama URL (internal): http://ollama.railway.internal:11434 (external: ollama-production-a142.up.railway.app).
-    Ollama: v0.20.2, CPU-only, 22.4 GiB RAM, us-west2, keep-alive=24h, port 11434.
+    Bob Inference: deployed on RunPod pod. INFERENCE_SERVICE_URL = Bob's public RunPod URL.
+    Ollama: same RunPod pod as Bob, OLLAMA_BASE_URL=http://127.0.0.1:11434 (local).
+    Model: llama3.1:8b. Keep-alive: 24h.
     Bob required env: INFERENCE_API_KEY, CHAT_PROVIDER=ollama, TABULAR_NLP_PROVIDER=ollama,
-    OLLAMA_BASE_URL=http://ollama.railway.internal:11434, OLLAMA_MODEL=llama3.1:8b,
-    SELF_CONTAINED_MODE=true, SELF_LEARNING_ENABLED=true, SELF_LEARNING_PRETRAIN_PROFILE=nz-enforcement-v1.
+    OLLAMA_BASE_URL=http://127.0.0.1:11434, OLLAMA_MODEL=llama3.1:8b,
+    SELF_LEARNING_ENABLED=true, SELF_LEARNING_PRETRAIN_PROFILE=nz-enforcement-v1.
     Sync: FreedomCamp-Manager push to main that touches inference-service/ auto-syncs to DonSquires/Bob
     via .github/workflows/sync-bob-repo.yml. BOB_SYNC_PAT secret required.
     Bob second model for writing tasks: qwen2.5:7b.
-    Railway project token secret: RAILWAY_BOB_TOKEN. Service ID: RAILWAY_BOB_SERVICE_ID.
+    RUNPOD_API_KEY = RUNPOD_ENDPOINT_API_KEY (same credential, two names).
   `),
   source: 'docs/BOB_PRODUCTION_RAILWAY_SETUP.md',
-  effective_date: '2026-04-05',
-  metadata: { module: 'railway-setup' },
+  effective_date: '2026-04-19',
+  metadata: { module: 'runpod-setup' },
 });
 
 // 13. TENDER SYSTEM E2E — top priority context
@@ -349,7 +348,7 @@ bulletins.push({
 // INGEST LOOP
 // ---------------------------------------------------------------------------
 
-console.log(`\n🚀 Bob Railway Training Feed`);
+console.log(`\n🚀 Bob Training Feed`);
 console.log(`Target: ${BOB_URL}`);
 console.log(`Bulletins to push: ${bulletins.length}\n`);
 

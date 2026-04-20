@@ -140,7 +140,7 @@ export default function ComplianceDashboard() {
   const jurisdictionZones = zoneBreakdown.filter(z => z.parent_zone_id === null)
   const specificZones     = zoneBreakdown.filter(z => z.parent_zone_id !== null)
 
-  // Railway Integration: Analyze recent vehicle photos with Bob
+  // Bob Integration: Analyze recent vehicle photos via inference service
   const handleAnalyzeRecentPhotos = async () => {
     setAnalyzingPhotos(true)
     try {
@@ -359,7 +359,7 @@ export default function ComplianceDashboard() {
             </Card>
           )}
 
-          {/* Railway Integration: Bob Photo Analysis */}
+          {/* Bob Photo Analysis */}
           <Card className="mb-8">
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -369,7 +369,7 @@ export default function ComplianceDashboard() {
                     Bob Photo Analysis
                   </CardTitle>
                   <CardDescription>
-                    Analyse vehicle photos using Railway inference service
+                    Analyse vehicle photos using Bob inference service (RunPod)
                   </CardDescription>
                 </div>
                 <Button

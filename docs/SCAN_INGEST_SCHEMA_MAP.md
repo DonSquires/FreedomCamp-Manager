@@ -10,7 +10,7 @@ This map documents the end-to-end scan pipeline and the exact schema contract re
    - Current payload path sends `photo_url` (storage-first) to minimize request size.
    - `vehicle-ingest` downloads bytes server-side for inference when raw image payload is absent.
 4. `vehicle-ingest` orchestrates inference path in [supabase/functions/vehicle-ingest/index.ts](../supabase/functions/vehicle-ingest/index.ts):
-   - Primary: Railway inference (`/infer`)
+   - Primary: Bob inference on RunPod (`/infer`)
    - Backup: Plate Recognizer via [supabase/functions/_shared/alpr.ts](../supabase/functions/_shared/alpr.ts)
    - Final fallback: manual-required plate sentinel
 5. `vehicle-ingest` ensures canonical vehicle row exists.

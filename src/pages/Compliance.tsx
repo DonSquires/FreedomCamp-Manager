@@ -533,7 +533,7 @@ export default function Compliance() {
                         Bob Photo Analysis
                       </CardTitle>
                       <CardDescription>
-                        Analyse vehicle photos using Railway inference service
+                        Analyse vehicle photos using Bob inference service (RunPod)
                       </CardDescription>
                     </div>
                     <Button onClick={handleAnalyzeRecentPhotos} disabled={analyzingPhotos} size="sm">

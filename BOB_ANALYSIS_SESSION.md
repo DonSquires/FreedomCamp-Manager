@@ -136,7 +136,7 @@ Question 3: What is the circuit breaker state?
   → "open": Circuit tripped after 3+ failures
     Diagnosis: Ollama is unreachable or timing out
     ACTION: Verify OLLAMA_BASE_URL is correct port (3000 not 11434 on Railway)
-    ACTION: Restart Ollama service on Railway
+    ACTION: Restart Ollama service on RunPod pod
     
   → "half-open": Probe request allowed; next request will determine fate
     Diagnosis: Waiting for Ollama recovery
@@ -192,15 +192,15 @@ curl https://<VITE_SUPABASE_URL>/functions/v1/check-railway-health \
 | Field | Value | Action |
 |-------|-------|--------|
 | `CHAT_PROVIDER` | not `ollama` | Set Railway env: `CHAT_PROVIDER=ollama` |
-| `chat_local_ollama_enabled` | `false` | Check `OLLAMA_BASE_URL` (should be `http://ollama.railway.internal:3000`) |
-| `circuit_breaker.state` | `open` | Ollama is down; restart Railway Ollama service |
-| `inference.status` | not `healthy` | Restart Railway inference service |
+| `chat_local_ollama_enabled` | `false` | Check `OLLAMA_BASE_URL` (should be `http://127.0.0.1:11434`) |
+| `circuit_breaker.state` | `open` | Ollama is down; restart Ollama on RunPod pod |
+| `inference.status` | not `healthy` | Restart Bob inference (RunPod) service |
 
 #### Fix Path B: Ollama Service Recovery
 
 ```bash
 # If circuit breaker is open:
-# 1. SSH to Railway Ollama pod
+# 1. SSH to RunPod pod
 railway shell -s ollama-production
 
 # 2. Check Ollama is running

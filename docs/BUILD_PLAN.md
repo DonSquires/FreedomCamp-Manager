@@ -10,7 +10,7 @@
 > conflicting schema references in production. A clean project starting from this plan
 > avoids all of that technical debt.
 >
-> **Railway services** (inference-service and proxy-server) are **already deployed and
+> **Services**: inference-service (Bob/ORC AI) is deployed on **RunPod** and proxy-server is on **Railway**. Both are
 > operational**. This rebuild focuses on the Supabase backend and the React SPA frontend
 > that connect to them.
 >
@@ -135,7 +135,7 @@ without logging out.
 
 4. The photo is sent to the ALPR pipeline (alpr-process Edge Function):
    a. Plate Recognizer API extracts the plate number and confidence score.
-   b. Railway ORC/AI Inference Service detects vehicle make/model/colour and generates
+   b. Bob inference service (RunPod) detects vehicle make/model/colour and generates
       a 384-dimensional visual fingerprint (embedding) for the vehicle.
    c. ORC also checks for a blue/green self-contained certification sticker.
    d. The system calls NZSCV to verify if the vehicle holds a valid self-contained cert.
@@ -392,7 +392,7 @@ of accumulated bugs:
 │   │   └── _shared/               # CORS helpers (cors.ts, withCors.ts)
 │   └── migrations/                # 105+ SQL migration files (YYYYMMDD_ prefix)
 ├── proxy-server/                  # Railway: NZSCV/MotorWeb proxy
-├── inference-service/             # Railway: ORC/AI vehicle inference
+├── inference-service/             # Bob: ORC/AI vehicle inference (deploys to RunPod)
 ├── docs/                          # Architecture & feature docs
 ├── public/                        # Static assets
 ├── index.html                     # Vite HTML entry
@@ -1104,7 +1104,7 @@ preview-react-9b4t5o-*.onspace.build (preview deployments)
 | Function | Method | Purpose |
 |---|---|---|
 | `vehicle-ingest` | POST | Production vehicle observation pipeline (Plate Recognizer + photo hash) |
-| `orc-ingest` | POST | Unified pipeline: Plate Recognizer → Railway ORC/AI → OnSpace AI fallback |
+| `orc-ingest` | POST | Unified pipeline: Plate Recognizer → Bob ORC/AI (RunPod) → OnSpace AI fallback |
 | `plate-scanner-photo-first` | POST | Feature-flagged delegate to vehicle-ingest |
 | `observations-list` | POST | Paginated, filtered observation queries |
 | `observations-in-bounds` | POST | Map cluster GPS-bounded observations |
@@ -2039,14 +2039,14 @@ Build in parallel with pages:
 
 ## 16. V1 Inference Contract
 
-> This section documents the response fields produced by the Railway ORC/AI inference
+> This section documents the response fields produced by the Bob ORC/AI inference
 > service (`POST /infer`) and how they map to columns in the `observations` table.
 > See also `docs/INFERENCE_CONTRACT_V1.md` for the full specification.
 
 ### Inference Service Endpoint
 
 ```
-POST /infer   (Railway inference-service, multipart/form-data or JSON)
+POST /infer   (Bob inference-service on RunPod, multipart/form-data or JSON)
 GET  /health  (liveness check)
 ```
 

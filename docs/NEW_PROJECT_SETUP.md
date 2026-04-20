@@ -13,7 +13,8 @@ What you will have at the end:
   ✅ Supabase project (PostgreSQL + Auth + Storage + Edge Functions)
   ✅ Web admin portal (Vercel / any static host)
   ✅ proxy-server on Railway (static IP for NZSCV + MotorWeb)
-  ✅ inference-service on Railway (ONNX AI for plate reading)
+  ✅ Bob inference service on RunPod (ONNX AI for plate reading + Ollama LLM)
+  ✅ PTT + TURN on hPanel VPS (ssh root@72.61.123.97)
   ✅ iOS + Android officer app (Expo / EAS)
   ✅ Push notifications via Expo
   ✅ (Optional) ParkPow integration
@@ -249,50 +250,33 @@ supabase functions invoke check-nzscv-status --body '{"plate_number": "TEST123"}
 > [docs/RAILWAY_SERVICES_AUTHORITY.md](RAILWAY_SERVICES_AUTHORITY.md).  The sections below give a brief
 > overview; consult those docs for authoritative variable lists and deployment authority.
 
-FieldOps Manager uses **two Railway projects**:
+FieldOps Manager services:
 
-| Project | Services | GitHub Actions token secret |
+| Where | Services | Deploy token |
 |---|---|---|
-| **Bob** | `bob` (inference) + `ollama` (LLM) | `RAILWAY_BOB_TOKEN` |
-| **Core** | `proxy-server` + `ptt-server` | `RAILWAY_TOKEN` |
+| **RunPod pod** | `bob` (inference) + `ollama` (LLM) | `RUNPOD_API_KEY` |
+| **Railway Core** | `proxy-server` | `RAILWAY_TOKEN` |
+| **hPanel VPS** | `ptt-server` + TURN | SSH `root@72.61.123.97` |
 
-Bob and Ollama **must be in the same Railway project** so they can communicate via
-`railway.internal` private networking (`SELF_CONTAINED_STRICT_EGRESS=true` blocks
-public-internet fallback).
+### 3.1 Bob Inference Service + Ollama LLM (RunPod)
 
-### 3.1 Bob Inference Service + Ollama LLM
-
-1. Go to [https://railway.app](https://railway.app) → **New Project → Deploy from GitHub repo**
-2. Select `DonSquires/Bob` (Bob's canonical deploy repo, auto-synced from `inference-service/`)
-3. After deploy, add a second service inside the same project:
-   - New Service → Docker image → `ollama/ollama`
-4. Configure environment variables for the **Bob service**:
+1. Create a RunPod GPU pod with Docker support
+2. SSH into the pod and set up the environment:
 
 ```
 INFERENCE_API_KEY=YOUR_SHARED_API_KEY   # openssl rand -hex 32
 SUPABASE_URL=https://YOUR_REF.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
-OLLAMA_BASE_URL=http://ollama.railway.internal:11434
+OLLAMA_BASE_URL=http://127.0.0.1:11434
 OLLAMA_MODEL=llama3.1:8b
 CHAT_PROVIDER=ollama
 TABULAR_NLP_PROVIDER=ollama
-SELF_CONTAINED_MODE=true
-REQUIRE_SELF_CONTAINED_MODE=true
-SELF_CONTAINED_STRICT_EGRESS=true
 NODE_ENV=production
 ```
 
-5. Configure environment variables for the **Ollama service**:
-
-```
-OLLAMA_MODEL=llama3.1:8b
-OLLAMA_KEEP_ALIVE=24h
-OLLAMA_NO_CLOUD=true
-OLLAMA_ORIGINS=*
-OLLAMA_HOST=0.0.0.0:11434
-```
-
-6. Note the Bob public Railway URL → add as GitHub Actions secrets `BOB_SERVICE_URL` and `INFERENCE_SERVICE_URL`
+3. Start Ollama on the pod: `ollama serve` (or via docker-compose)
+4. Deploy Bob: `docker compose up -d` (or use the `deploy-runpod-gateway.yml` workflow)
+5. Note the pod's public URL → add as GitHub Actions secrets `BOB_SERVICE_URL` and `INFERENCE_SERVICE_URL`
 
 Verify Bob is healthy:
 ```bash
@@ -328,10 +312,11 @@ NODE_ENV=production
 
 4. Note the Railway public URL → add as GitHub Actions secret `PROXY_SERVER_URL`
 
-### 3.3 PTT Signaling Server (Push-to-Talk)
+### 3.3 PTT Signaling Server (Push-to-Talk) — hPanel VPS
 
-1. In the **Core Railway project** → New Service → GitHub repo → `ptt-server/` root directory
-2. Configure environment variables:
+1. SSH into the VPS: `ssh root@72.61.123.97`
+2. Deploy `ptt-server/` using the `deploy-voice-server.yml` workflow or manually
+3. Configure environment variables:
 
 ```
 PROXY_SECRET=YOUR_PTT_PROXY_SECRET       # same value as PROXY_SERVER_URL's PROXY_SECRET above
@@ -342,7 +327,7 @@ NODE_ENV=production
 MAX_PARTICIPANTS_PER_CHANNEL=50
 ```
 
-3. Note the Railway public URL → add as GitHub Actions secret `PTT_SERVER_URL`
+3. Note the VPS public URL → add as GitHub Actions secret `PTT_SERVER_URL` (e.g. `http://72.61.123.97:3002`)
 4. Run the `set-ptt-secret.yml` workflow to automatically write `PTT_SERVER_URL` and `PTT_PROXY_SECRET`
    into the Supabase vault.
 
@@ -607,10 +592,10 @@ Compliance (NZ Privacy Act 2020):
 | `EXPO_PUBLIC_SUPABASE_URL` | Mobile app `.env` | ✅ |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Mobile app `.env` | ✅ |
 | `INFERENCE_SERVICE_URL` | Supabase Edge Function secrets | ✅ (for AI features) |
-| `INFERENCE_API_KEY` | Supabase secrets + Railway Bob vars + GitHub Actions | ✅ |
+| `INFERENCE_API_KEY` | Supabase secrets + RunPod Bob pod env + GitHub Actions | ✅ |
 | `PROXY_SERVER_URL` | Supabase Edge Function secrets | ✅ (for NZSCV lookups) |
 | `PTT_SERVER_URL` | Supabase Edge Function secrets | ✅ (for PTT) |
-| `PTT_PROXY_SECRET` | Supabase secrets + Railway PTT `PROXY_SECRET` | ✅ (for PTT) |
+| `PTT_PROXY_SECRET` | Supabase secrets + VPS PTT `PROXY_SECRET` | ✅ (for PTT) |
 | `PLATERECOGNIZER_TOKEN` | Supabase Edge Function secrets | ✅ (for ALPR) |
 | `PARKPOW_API_TOKEN` | Supabase Edge Function secrets | Optional |
 | `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` + `VAPID_SUBJECT` | Supabase Edge Function secrets | For push notifications |
@@ -618,8 +603,8 @@ Compliance (NZ Privacy Act 2020):
 | `TURNSTILE_SECRET_KEY` | Supabase Edge Function secrets | For CAPTCHA in production |
 | `NZSCV_API_KEY` + `NZSCV_ID_KEY` | Railway proxy service vars | ✅ |
 | `MOTORWEB_API_KEY` + `MOTORWEB_ID_KEY` | Railway proxy service vars | Optional |
-| `OLLAMA_BASE_URL` + `OLLAMA_MODEL` | Railway Bob service vars | ✅ (for LLM) |
-| `PTT_JWT_SECRET` | Railway PTT service vars + Supabase secrets | ✅ (for PTT) |
+| `OLLAMA_BASE_URL` + `OLLAMA_MODEL` | RunPod Bob pod env | ✅ (for LLM) |
+| `PTT_JWT_SECRET` | VPS PTT service env + Supabase secrets | ✅ (for PTT) |
 
 ---
 
@@ -630,7 +615,7 @@ Compliance (NZ Privacy Act 2020):
 | Supabase | Pro | ~$45/mo |
 | Vercel | Hobby (free) or Pro | $0–$40/mo |
 | Railway proxy-server | Starter + Static IP | ~$15/mo |
-| Railway inference-service | Starter | ~$10/mo |
+| RunPod Bob + Ollama | GPU pod | ~$10–40/mo (GPU hours) |
 | Plate Recognizer | Standard | ~$80/mo (2500 lookups) |
 | OpenWeather | Free | $0 |
 | Apple Developer | Annual | ~$175/yr |

@@ -26,7 +26,7 @@ When an officer scans a plate, the canonical ingest path (`vehicle-ingest` + bac
 1. Plate Recognizer API    (PLATERECOGNIZER_TOKEN ✅)
    → plate number, make, model, colour, confidence
       ↓
-2. Railway ORC/AI           (INFERENCE_SERVICE_URL — optional)
+2. Bob ORC/AI (RunPod)      (INFERENCE_SERVICE_URL — optional)
    → 384-D visual embedding for vehicle fingerprinting
       ↓
 3. ParkPow watchlist check  (PARKPOW_API_TOKEN ✅)

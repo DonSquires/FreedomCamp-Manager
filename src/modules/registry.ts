@@ -9,7 +9,7 @@
  * - NZSCV (NZ Self-Contained Vehicle registry)
  * - Motoweb (NZ vehicle registration)
  * - OpenAI (optional AI features)
- * - Self-hosted AI on Railway (ALPR, face recognition)
+ * - Self-hosted AI on RunPod (ALPR, face recognition)
  */
 
 import type { LucideIcon } from 'lucide-react'

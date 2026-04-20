@@ -208,7 +208,7 @@
 **Monitored Services**:
 1. **Database**: PostgreSQL connection health, response time
 2. **Storage**: Supabase Storage usage and availability
-3. **Railway Services**: NZSCV, MotorWeb, ORC/AI health
+3. **External Services**: NZSCV, MotorWeb, ORC/AI (Bob RunPod) health
 4. **Edge Functions**: Deno function availability
 
 **Status Levels**:

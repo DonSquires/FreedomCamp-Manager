@@ -9,7 +9,7 @@ as those deploys complete.
 > **References:**
 > - Full variable descriptions and aliases → [SECRETS_REGISTRY.md](SECRETS_REGISTRY.md)
 > - Environment variable reference → [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md)
-> - Bob Railway setup → [BOB_PRODUCTION_RAILWAY_SETUP.md](BOB_PRODUCTION_RAILWAY_SETUP.md)
+> - Bob Railway setup (deprecated, historical) → [BOB_PRODUCTION_RAILWAY_SETUP.md](BOB_PRODUCTION_RAILWAY_SETUP.md)
 > - Service ownership → [RAILWAY_SERVICES_AUTHORITY.md](RAILWAY_SERVICES_AUTHORITY.md)
 > - New project provisioning → [NEW_PROJECT_SETUP.md](NEW_PROJECT_SETUP.md)
 
@@ -24,7 +24,7 @@ Run these commands on your machine **before** touching any dashboard.  Save the 
 openssl rand -hex 32   # → INFERENCE_API_KEY
 
 # 2. PTT proxy shared secret: PTT server ↔ ptt-signaling-token edge function
-openssl rand -hex 32   # → PTT_PROXY_SECRET  (also used as PROXY_SECRET on the PTT Railway service)
+openssl rand -hex 32   # → PTT_PROXY_SECRET  (also used as PROXY_SECRET on the PTT VPS service)
 
 # 3. PTT JWT signing secret: PTT server signs channel tokens
 openssl rand -hex 32   # → PTT_JWT_SECRET
@@ -169,38 +169,29 @@ Navigate to: **GitHub → DonSquires/FreedomCamp-Manager → Settings → Secret
 - [ ] `VERCEL_PROJECT_ID` (Vercel Dashboard → Project → Settings → General → Project ID)
 - [ ] `BOB_SYNC_PAT` (GitHub PAT — fine-grained, Contents: Read+Write on `DonSquires/Bob`)
 
-### 3b. Railway deploy tokens and service IDs (set after creating Railway services)
+### 3b. Railway deploy token and service ID (set after creating Railway Proxy service)
 
 | Secret | Source |
 |---|---|
-| `RAILWAY_BOB_TOKEN` | Railway → Bob project → Settings → Tokens |
-| `RAILWAY_BOB_SERVICE_ID` | Railway → Bob project → Bob service → Settings → Service ID |
-| `RAILWAY_BOB_PROJECT_ID` | Railway → Bob project → Settings → General → Project ID |
-| `RAILWAY_OLLAMA_SERVICE_ID` | Railway → Bob project → Ollama service → Settings → Service ID |
 | `RAILWAY_TOKEN` | Railway → Core project → Settings → Tokens |
 | `RAILWAY_PROXY_SERVICE_ID` | Railway → Core project → Proxy service → Settings → Service ID |
-| `RAILWAY_PTT_TOKEN` | Same as `RAILWAY_TOKEN` (same Core project) |
-| `RAILWAY_PTT_SERVICE_ID` | Railway → Core project → PTT service → Settings → Service ID |
 
-- [ ] `RAILWAY_BOB_TOKEN`
-- [ ] `RAILWAY_BOB_SERVICE_ID`
-- [ ] `RAILWAY_BOB_PROJECT_ID`
-- [ ] `RAILWAY_OLLAMA_SERVICE_ID`
+> ⚠️ `RAILWAY_BOB_TOKEN`, `RAILWAY_BOB_SERVICE_ID`, `RAILWAY_BOB_PROJECT_ID`, `RAILWAY_OLLAMA_SERVICE_ID` are **no longer required** — Bob and Ollama have moved to RunPod.
+> `RAILWAY_PTT_SERVICE_ID` / `RAILWAY_PTT_TOKEN` are **no longer required** — PTT+TURN run on the hPanel VPS at `root@72.61.123.97`.
+
 - [ ] `RAILWAY_TOKEN`
 - [ ] `RAILWAY_PROXY_SERVICE_ID`
-- [ ] `RAILWAY_PTT_SERVICE_ID`
 
 ### 3c. Service URLs (set after first successful deploy of each service)
 
-- [ ] `BOB_SERVICE_URL` (Bob's Railway public URL)
+- [ ] `BOB_SERVICE_URL` (Bob's public RunPod URL)
 - [ ] `INFERENCE_SERVICE_URL` (same value as `BOB_SERVICE_URL`)
 - [ ] `PROXY_SERVER_URL` (Proxy's Railway public URL)
-- [ ] `PTT_SERVER_URL` (PTT server's Railway public URL)
-- [ ] `OLLAMA_SERVICE_URL` (Ollama's Railway public URL)
+- [ ] `PTT_SERVER_URL` (PTT server's VPS URL e.g. `http://72.61.123.97:3002`)
 
 ### 3d. PTT
 
-- [ ] `PTT_PROXY_SECRET` (from Phase 0; must match `PROXY_SECRET` on PTT Railway service)
+- [ ] `PTT_PROXY_SECRET` (from Phase 0; must match `PROXY_SECRET` on PTT VPS service)
 
 ### 3e. Frontend environment isolation (Vercel production / preview split)
 
@@ -258,15 +249,15 @@ After adding or changing any secret here, redeploy the affected Edge Functions.
 
 ### 4a. Service connections (critical)
 
-- [ ] `INFERENCE_SERVICE_URL` (Bob's Railway URL)
-- [ ] `INFERENCE_API_KEY` (from Phase 0; must match Railway Bob service var)
+- [ ] `INFERENCE_SERVICE_URL` (Bob's RunPod URL)
+- [ ] `INFERENCE_API_KEY` (from Phase 0; must match Supabase vault + Bob RunPod pod env)
 - [ ] `PROXY_SERVER_URL` (Proxy's Railway URL)
-- [ ] `PTT_SERVER_URL` (PTT server's Railway URL)
-- [ ] `PTT_PROXY_SECRET` (from Phase 0; must match Railway PTT `PROXY_SECRET`)
+- [ ] `PTT_SERVER_URL` (PTT server's VPS URL e.g. `http://72.61.123.97:3002`)
+- [ ] `PTT_PROXY_SECRET` (from Phase 0; must match VPS PTT `PROXY_SECRET`)
 
 ### 4b. Push-to-Talk
 
-- [ ] `PTT_JWT_SECRET` (from Phase 0; must match Railway PTT service)
+- [ ] `PTT_JWT_SECRET` (from Phase 0; must match VPS PTT service)
 
 ### 4c. ALPR / vehicle recognition
 
@@ -322,33 +313,29 @@ After adding or changing any secret here, redeploy the affected Edge Functions.
 
 ---
 
-## Phase 5 — Railway Service Environment Variables
+## Phase 5 — Service Environment Variables
 
-### 5a. Bob Inference Service (Railway: Bob project → `bob` service)
+### 5a. Bob Inference Service (RunPod pod — SSH `root@<RUNPOD_POD_SSH_HOST>`)
+
+Set these in the pod's `.env` file or via `deploy-runpod-gateway.yml`:
 
 - [ ] `INFERENCE_API_KEY` (from Phase 0; must match Supabase vault + GitHub Actions)
 - [ ] `SUPABASE_SERVICE_ROLE_KEY`
 - [ ] `SUPABASE_URL`
-- [ ] `OLLAMA_BASE_URL` = `http://ollama.railway.internal:11434`
+- [ ] `OLLAMA_BASE_URL` = `http://127.0.0.1:11434`
 - [ ] `OLLAMA_MODEL` = `llama3.1:8b`
 - [ ] `CHAT_PROVIDER` = `ollama`
 - [ ] `TABULAR_NLP_PROVIDER` = `ollama`
 - [ ] `INTEL_HMAC_KEY` (from Phase 0; must match GitHub Actions)
-- [ ] `SELF_CONTAINED_MODE` = `true`
-- [ ] `REQUIRE_SELF_CONTAINED_MODE` = `true`
-- [ ] `SELF_CONTAINED_STRICT_EGRESS` = `true`
 - [ ] `NODE_ENV` = `production`
 
-### 5b. Ollama LLM Service (Railway: Bob project → `ollama` service)
+### 5b. Ollama LLM Service (same RunPod pod as Bob)
 
 - [ ] `OLLAMA_MODEL` = `llama3.1:8b`
 - [ ] `OLLAMA_KEEP_ALIVE` = `24h`
 - [ ] `OLLAMA_NO_CLOUD` = `true`
 - [ ] `OLLAMA_ORIGINS` = `*`
 - [ ] `OLLAMA_HOST` = `0.0.0.0:11434`
-
-> ⚠️  Bob and Ollama **must be in the same Railway project** for `*.railway.internal` private
-> networking to work.  `SELF_CONTAINED_STRICT_EGRESS=true` blocks public-internet fallback.
 
 ### 5c. Proxy Server (Railway: Core project → `proxy` service)
 
@@ -364,7 +351,7 @@ After adding or changing any secret here, redeploy the affected Edge Functions.
 - [ ] `SITE_URL` = `https://fcmanager.co.nz`
 - [ ] `NODE_ENV` = `production`
 
-### 5d. PTT Signaling Server (Railway: Core project → `ptt` service)
+### 5d. PTT Signaling Server (hPanel VPS — SSH `root@72.61.123.97`)
 
 - [ ] `PROXY_SECRET` (same value as `PTT_PROXY_SECRET` from Phase 0)
 - [ ] `PTT_JWT_SECRET` (from Phase 0; must match Supabase vault)
@@ -383,7 +370,7 @@ After adding or changing any secret here, redeploy the affected Edge Functions.
 These secrets **must have identical values** across multiple locations.
 Verify before testing end-to-end:
 
-| Secret | GitHub Actions | Supabase Vault | Railway: Bob | Railway: PTT |
+| Secret | GitHub Actions | Supabase Vault | RunPod: Bob | VPS: PTT |
 |---|:---:|:---:|:---:|:---:|
 | `INFERENCE_API_KEY` | ✅ | ✅ | ✅ | — |
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | auto-injected | ✅ | ✅ |
@@ -391,23 +378,22 @@ Verify before testing end-to-end:
 | `PTT_JWT_SECRET` | — | ✅ | — | ✅ |
 | `INTEL_HMAC_KEY` | ✅ | — | ✅ | — |
 
-- [ ] `INFERENCE_API_KEY` matches in GitHub Actions, Supabase vault, and Railway Bob service vars
-- [ ] `PTT_PROXY_SECRET` (Supabase vault) = `PROXY_SECRET` (Railway PTT service)
-- [ ] `PTT_JWT_SECRET` matches in Supabase vault and Railway PTT service
-- [ ] `INTEL_HMAC_KEY` matches in GitHub Actions and Railway Bob service vars
+- [ ] `INFERENCE_API_KEY` matches in GitHub Actions, Supabase vault, and RunPod Bob pod env
+- [ ] `PTT_PROXY_SECRET` (Supabase vault) = `PROXY_SECRET` (VPS PTT service)
+- [ ] `PTT_JWT_SECRET` matches in Supabase vault and VPS PTT service
+- [ ] `INTEL_HMAC_KEY` matches in GitHub Actions and RunPod Bob pod env
 
 ---
 
 ## Phase 7 — Post-Deploy Wiring
 
-Run these steps after the first successful Railway deploy of each service:
+Run these steps after the first successful deploy of each service:
 
-### 7a. Copy Railway public URLs into GitHub Actions secrets (Phase 3c)
+### 7a. Copy service public URLs into GitHub Actions secrets (Phase 3c)
 
-- [ ] `BOB_SERVICE_URL` + `INFERENCE_SERVICE_URL` set to Bob's Railway URL
+- [ ] `BOB_SERVICE_URL` + `INFERENCE_SERVICE_URL` set to Bob's RunPod public URL
 - [ ] `PROXY_SERVER_URL` set to Proxy's Railway URL
-- [ ] `PTT_SERVER_URL` set to PTT server's Railway URL
-- [ ] `OLLAMA_SERVICE_URL` set to Ollama's Railway URL
+- [ ] `PTT_SERVER_URL` set to PTT server's VPS URL (e.g. `http://72.61.123.97:3002`)
 
 ### 7b. Run the PTT wiring workflow
 

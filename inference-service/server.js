@@ -512,7 +512,7 @@ function isComplexChatTask(message, history = []) {
 }
 
 /**
- * Returns the Ollama base URL for a given workload type, taking Railway-vs-RunPod
+ * Returns the Ollama base URL for a given workload type, taking
  * complexity cost routing into account.
  *
  * workload:  'chat' | 'writing' | 'tabular' | 'ptt' | 'default'

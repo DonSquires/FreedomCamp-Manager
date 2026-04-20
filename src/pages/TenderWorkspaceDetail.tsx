@@ -1524,7 +1524,7 @@ export default function TenderWorkspaceDetail() {
                     <BrainCircuit className="h-4 w-4 text-primary" />
                     Generate with Bob
                     <span className="text-[10px] font-normal text-muted-foreground ml-1">
-                      100% self-hosted · Ollama on Railway · no cloud AI
+                      100% self-hosted · Ollama on RunPod · no cloud AI
                     </span>
                   </CardTitle>
                 </CardHeader>

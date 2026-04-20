@@ -319,7 +319,7 @@ Officer taps "Scan" on phone
   │
   └── process-officer-scan (single function, ~600 lines)
         1. Receive photo + GPS + officer context
-        2. Send photo to Railway inference service (ALPR + vehicle attributes)
+        2. Send photo to Bob inference service on RunPod (ALPR + vehicle attributes)
         3. Look up plate in canonical_vehicles (make/model/year/colour)
         4. Look up plate in canonical_scv (SCV status)
         5. Look up plate in canonical_homeless
@@ -1387,7 +1387,7 @@ against what V4 covers and what it defers.
 |---|---|---|---|
 | **NZSCV** (nzscv.co.nz) | Self-Contained Vehicle certification registry. Confirms whether a plate holds a current SCV certificate. Rate-limited to 1 req/sec | Via `proxy-server` → `/api/nzscv/vehicle-info`. Requires static IP (DigitalOcean droplet) for whitelist. Env: `NZSCV_BASE_URL`, `NZSCV_ENDPOINT_URL` | ✅ Keep — proxied through `proxy-server`; lookup via `sync-scv-list` cron, canonical_scv is authoritative |
 | **MotorWeb** (motorweb.co.nz) | NZ vehicle ownership lookup. Returns current registered owner name/address for enforcement notices. Privacy-restricted: requires `specificReason` in request | Via `proxy-server` → `/motorweb/currentOwnerCheck`. Env: `MOTORWEB_BASE_URL`, `MOTORWEB_API_KEY`, `MOTORWEB_ID_KEY` | ✅ Keep — folded into `cleanup-and-recalculate` vehicle enrichment step |
-| **Railway / Fly.io — Inference Service** | ONNX neural net inference: plate reading (YOLOv8n ALPR) + vehicle attribute extraction (MobileNetV3). Also: tabular NLP for CSV import date detection. Accepts photo as multipart form | `POST /infer` (photo → plate + make/model/year/colour), `POST /nlp/tabular/analyze` (CSV preview → date format). Env: `INFERENCE_SERVICE_URL`, `INFERENCE_SERVICE_AUTH_TOKEN` | ✅ Keep — core to every officer scan |
+| **Bob / RunPod — Inference Service** | ONNX neural net inference: plate reading (YOLOv8n ALPR) + vehicle attribute extraction (MobileNetV3). Also: tabular NLP for CSV import date detection. Accepts photo as multipart form | `POST /infer` (photo → plate + make/model/year/colour), `POST /nlp/tabular/analyze` (CSV preview → date format). Env: `INFERENCE_SERVICE_URL`, `INFERENCE_SERVICE_AUTH_TOKEN` | ✅ Keep — core to every officer scan |
 | **ParkPow** (parkpow.com) | ALPR SaaS. Was used as a secondary plate reader via `parkpow-sync` + `parkpow-photo-sync`. Detected plates in car park photos | Outbound API to ParkPow API. Env: `PARKPOW_API_KEY`, `PARKPOW_CAMERA_ID` | ❌ Removed from V4 — no active ParkPow camera deployment. Can be re-added as phase-2 optional integration |
 | **Expo Push Notifications** | Push notifications to mobile devices via Expo's hosted notification infrastructure. Sends welfare alerts and breach notifications | `send-push-notification` edge fn → `https://exp.host/--/api/v2/push/send`. User's `expo_push_token` stored in `user_profiles` | ✅ Keep — folded into `monitor-officer-welfare`; simplified to alert notifications only |
 | **SMTP (denomailer)** | Outbound transactional email — compliance reports, infringement notices, NTV delivery, invite emails | `denomailer@1.0.0` SMTPClient in edge functions. Env: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` (+ optional `SMTP_TOTAL_TIMEOUT_MS`) | ✅ Keep — `send-report-email`, `generate-infringement`, `generate-notice-to-vacate` all use this |

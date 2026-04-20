@@ -427,10 +427,10 @@ Use this checklist when setting up a new environment or after team changes.
 
 ### GitHub Actions — Core (all environments)
 
-- [ ] `RAILWAY_BOB_TOKEN`
-- [ ] `RAILWAY_BOB_SERVICE_ID`
-- [ ] `RAILWAY_OLLAMA_SERVICE_ID`
-- [ ] `RAILWAY_BOB_PROJECT_ID` (optional; required if SERVICE_ID not set)
+- [ ] `RAILWAY_BOB_TOKEN` *(deprecated — Bob moved to RunPod)*
+- [ ] `RAILWAY_BOB_SERVICE_ID` *(deprecated — Bob moved to RunPod)*
+- [ ] `RAILWAY_OLLAMA_SERVICE_ID` *(deprecated — Ollama moved to RunPod)*
+- [ ] `RAILWAY_BOB_PROJECT_ID` *(deprecated — Bob moved to RunPod)*
 - [ ] `RAILWAY_TOKEN`
 - [ ] `RAILWAY_PROXY_SERVICE_ID`
 - [ ] `VITE_SUPABASE_URL`

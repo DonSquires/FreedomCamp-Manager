@@ -14,7 +14,7 @@ Move real-time detection logic to the user device. Use cloud services for verifi
 | Component | Location | Responsibility | Latency Target | Technology |
 |---|---|---|---|---|
 | Bob (Edge) | User device | Immediate safety detection: vehicle detection, man-down alerts, and weapon detection. Must continue operating offline. | Near real-time | onnxruntime-react-native, onnxruntime-web, TensorFlow.js |
-| Bob (Core) | Railway | Orchestration: PTT signaling, authentication, rostering, CRM logic, policy routing, and audit event intake. | ~100 ms | Node.js, Supabase |
+| Bob (Core) | hPanel VPS / RunPod | Orchestration: PTT signaling, authentication, rostering, CRM logic, policy routing, and audit event intake. | ~100 ms | Node.js, Supabase |
 | Bob (Brain) | RunPod | Deep analysis: evidence review, infringement drafting with LLMs, multimodal verification for high-fidelity media. | Seconds | Ollama, LLaVA, containerized inference |
 
 ## 3. Network Optimization: Audio Hot Lane
@@ -70,7 +70,7 @@ Success criteria:
 ### Phase 2: Serverless Migration (Cost)
 - Package Ollama/LLaVA workflows as reproducible containers.
 - Deploy inference as RunPod Serverless endpoints.
-- Refactor Railway server.js orchestration to endpoint invocation instead of persistent inference sockets.
+- Refactor server.js orchestration to endpoint invocation instead of persistent inference sockets.
 
 Success criteria:
 - No always-on GPU required for routine operations.
