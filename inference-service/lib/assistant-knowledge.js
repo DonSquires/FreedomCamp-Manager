@@ -149,7 +149,7 @@ const KNOWLEDGE_PACKS = {
     name: 'github-cicd-knowledge',
     summary: '25 GitHub Actions workflows for deployment, database, operations, monitoring. Codespaces dev environment. Copilot integration.',
     key_points: [
-      '25 workflows in .github/workflows/. Deploy: frontend (Vercel), Bob/Ollama (RunPod), PTT+TURN (hPanel VPS), Proxy (Railway), mobile (EAS), Edge Functions (Supabase).
+      '25 workflows in .github/workflows/. Deploy: frontend (Vercel), Bob/Ollama (RunPod), PTT+TURN (hPanel VPS), Proxy (Railway), mobile (EAS), Edge Functions (Supabase).',
       'Required secrets: RAILWAY_BOB_TOKEN, RAILWAY_PTT_SERVICE_ID, RAILWAY_PROXY_SERVICE_ID, VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID, SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF, EXPO_TOKEN, INFERENCE_API_KEY.',
       'Database governance: db-push.yml (production migration, requires @DonSquires approval in "production-schema" environment).',
       'Ops crons: Bob feedback sync 03:47 NZST, self-learning pretrain 04:21 NZST, intel feed every 6h, ParkPow nightly, geofence review monthly.',
