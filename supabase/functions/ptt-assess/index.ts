@@ -54,14 +54,14 @@ Deno.serve(withCors(async (req: Request) => {
 
   const bobUrl = BOB_SERVICE_URL.replace(/\/+$/, '')
 
-  // RunPod serverless: use /run-sync job API
+  // RunPod serverless: use /runsync job API
   const isRunpodServerless = /api\.runpod\.ai\/v2\/[^/]+\/?$/.test(bobUrl)
 
   let bobResp: Response
   try {
     if (isRunpodServerless) {
       const apiKey = BOB_API_KEY || Deno.env.get('RUNPOD_ENDPOINT_API_KEY') || ''
-      bobResp = await fetch(`${bobUrl}/run-sync`, {
+      bobResp = await fetch(`${bobUrl}/runsync`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -101,7 +101,7 @@ Deno.serve(withCors(async (req: Request) => {
   let result: unknown
   try {
     const raw = await bobResp.json()
-    // Unwrap RunPod /run-sync envelope: { status: 'COMPLETED', output: {...} }
+    // Unwrap RunPod /runsync envelope: { status: 'COMPLETED', output: {...} }
     result = (raw as any)?.output ?? raw
     if ((result as any)?.success === false) {
       return errorResponse(`Bob worker error: ${(result as any).error ?? 'unknown'}`, req, 502)

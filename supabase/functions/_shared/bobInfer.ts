@@ -3,7 +3,7 @@
  *
  * All AI inference routes through Bob on RunPod (no OpenAI, no external AI providers).
  * When INFERENCE_SERVICE_URL is a RunPod serverless endpoint (api.runpod.ai/v2/*),
- * requests are submitted as /run-sync jobs.
+ * requests are submitted as /runsync jobs.
  */
 
 function isRunpodServerless(url: string): boolean {
@@ -58,7 +58,7 @@ export interface BobTranslateOptions {
 }
 
 /**
- * Call Bob AI (Ollama on RunPod) for chat. Automatically uses /run-sync for
+ * Call Bob AI (Ollama on RunPod) for chat. Automatically uses /runsync for
  * RunPod serverless endpoints, or direct /chat for HTTP inference services.
  */
 export async function bobChat(options: BobChatOptions): Promise<BobChatResult> {
@@ -75,7 +75,7 @@ export async function bobChat(options: BobChatOptions): Promise<BobChatResult> {
     let res: Response
 
     if (isRunpodServerless(inferenceUrl)) {
-      res = await fetch(`${inferenceUrl}/run-sync`, {
+      res = await fetch(`${inferenceUrl}/runsync`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -118,7 +118,7 @@ export async function bobChat(options: BobChatOptions): Promise<BobChatResult> {
     let data: any
     try { data = JSON.parse(text) } catch { throw new Error(`Bob returned non-JSON: ${text.slice(0, 200)}`) }
 
-    // Unwrap RunPod /run-sync envelope: { status, output: { ... } }
+    // Unwrap RunPod /runsync envelope: { status, output: { ... } }
     const output = data?.output ?? data
     if (output?.success === false) throw new Error(`Bob worker error: ${output?.error ?? 'unknown'}`)
 
@@ -152,7 +152,7 @@ export async function bobAssess(options: BobAssessOptions): Promise<BobAssessRes
     let res: Response
 
     if (isRunpodServerless(inferenceUrl)) {
-      res = await fetch(`${inferenceUrl}/run-sync`, {
+      res = await fetch(`${inferenceUrl}/runsync`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -224,7 +224,7 @@ export async function bobTranslate(options: BobTranslateOptions): Promise<{ tran
     let res: Response
 
     if (isRunpodServerless(inferenceUrl)) {
-      res = await fetch(`${inferenceUrl}/run-sync`, {
+      res = await fetch(`${inferenceUrl}/runsync`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

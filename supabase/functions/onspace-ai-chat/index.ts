@@ -496,7 +496,7 @@ Deno.serve(async (req: Request) => {
       return /api\.runpod\.ai\/v2\/[^/]+\/?$/.test(url)
     }
 
-    // Call RunPod /run-sync and unwrap the output
+    // Call RunPod /runsync and unwrap the output
     async function callRunpodServerless(baseUrl: string): Promise<{ responseText: string; provider: string; model: string }> {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 90_000)
@@ -504,7 +504,7 @@ Deno.serve(async (req: Request) => {
       const apiKey = inferenceApiKey || Deno.env.get('RUNPOD_ENDPOINT_API_KEY') || ''
       if (!apiKey) throw new Error('RunPod API key not configured (INFERENCE_API_KEY or RUNPOD_ENDPOINT_API_KEY)')
 
-      const runSyncUrl = `${baseUrl.replace(/\/run\/?$/, '')}/run-sync`
+      const runSyncUrl = `${baseUrl.replace(/\/run\/?$/, '')}/runsync`
 
       try {
         const runRes = await fetch(runSyncUrl, {
@@ -532,7 +532,7 @@ Deno.serve(async (req: Request) => {
         })
 
         const runText = await runRes.text()
-        if (!runRes.ok) throw new Error(`RunPod run-sync HTTP ${runRes.status}: ${runText.slice(0, 300)}`)
+        if (!runRes.ok) throw new Error(`RunPod runsync HTTP ${runRes.status}: ${runText.slice(0, 300)}`)
 
         const runData = (() => { try { return JSON.parse(runText) } catch { return null } })()
         if (!runData) throw new Error(`RunPod returned non-JSON: ${runText.slice(0, 200)}`)
@@ -569,7 +569,7 @@ Deno.serve(async (req: Request) => {
       let lastError: Error | null = null
 
       for (const candidateUrl of candidates) {
-        // ── RunPod serverless: use /run-sync job API ─────────────────────────
+        // ── RunPod serverless: use /runsync job API ──────────────────────────
         if (isRunpodServerless(candidateUrl)) {
           try {
             return await callRunpodServerless(candidateUrl)

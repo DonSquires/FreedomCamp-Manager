@@ -85,7 +85,7 @@ Deno.serve(withCors(async (req: Request) => {
 
       const inferResp = await fetch(
         /api\.runpod\.ai\/v2\/[^/]+\/?$/.test(BOB_SERVICE_URL)
-          ? `${BOB_SERVICE_URL.replace(/\/+$/, '')}/run-sync`
+          ? `${BOB_SERVICE_URL.replace(/\/+$/, '')}/runsync`
           : `${BOB_SERVICE_URL}/infer/smoke`,
         {
           method: 'POST',
@@ -104,7 +104,7 @@ Deno.serve(withCors(async (req: Request) => {
 
       if (inferResp.ok) {
         const raw = await inferResp.json()
-        // Unwrap RunPod /run-sync envelope
+        // Unwrap RunPod /runsync envelope
         aiResult = raw?.output ?? raw
       } else {
         const errText = await inferResp.text().catch(() => '')
