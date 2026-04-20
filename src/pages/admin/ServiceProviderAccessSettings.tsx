@@ -136,7 +136,7 @@ export default function ServiceProviderAccessSettings() {
                     <TableCell className="font-medium">{row.provider_org_name}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="uppercase tracking-wide">
-                        {row.service_type.replaceAll('_', ' ')}
+                        {row.service_type.replace(/_/g, ' ')}
                       </Badge>
                     </TableCell>
                     <TableCell>
