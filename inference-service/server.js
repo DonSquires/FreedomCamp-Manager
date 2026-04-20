@@ -382,6 +382,9 @@ function ollamaFetch(url, options = {}) {
 //   Falls back to RUNPOD_ENDPOINT_API_KEY if set (serverless reuse).
 // RUNPOD_IDLE_TIMEOUT_MS — inactivity window before auto-stop (default 15 min).
 //   Set to 0 to disable auto-stop entirely.
+if (process.env.RAILWAY_SIMPLE_OLLAMA_URL && !process.env.SIMPLE_OLLAMA_URL) {
+  console.warn('[Bob] RAILWAY_SIMPLE_OLLAMA_URL is deprecated — rename to SIMPLE_OLLAMA_URL');
+}
 const SIMPLE_OLLAMA_URL = (process.env.SIMPLE_OLLAMA_URL || process.env.RAILWAY_SIMPLE_OLLAMA_URL || OLLAMA_BASE_URL).replace(/\/+$/, '');
 const COMPLEX_CHAT_MIN_LEN = Number(process.env.COMPLEX_CHAT_MIN_LEN ?? 300);
 const RUNPOD_POD_ID = process.env.RUNPOD_POD_ID || '';
