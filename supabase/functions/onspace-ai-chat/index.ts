@@ -4,18 +4,18 @@
  * Bob-powered analysis and chat for FieldOps Manager admins.
  *
  * Self-contained policy:
- *   Primary provider is Railway inference-service (/chat endpoint).
+ *   Primary provider is the Bob inference service (/chat endpoint, RunPod).
  *   Optional fallback provider is Ollama (/api/chat), controlled via env vars.
  *
  * Required secrets:
- *   INFERENCE_SERVICE_URL   Railway inference-service base URL.
+ *   INFERENCE_SERVICE_URL   Bob inference-service base URL (RunPod).
  *   INFERENCE_API_KEY       Optional shared key for inference auth.
  *   AI_DEFAULT_MODEL        Optional UI hint only (handled by inference-service).
  *
  * Optional secrets for Ollama fallback/support:
- *   OLLAMA_BASE_URL         e.g. http://localhost:11434 or http://ollama.railway.internal:11434 (defaults to INFERENCE_SERVICE_URL)
+ *   OLLAMA_BASE_URL         e.g. http://localhost:11434 or RunPod gateway URL (defaults to INFERENCE_SERVICE_URL)
  *   OLLAMA_MODEL            e.g. llama3.1:8b
- *   OLLAMA_API_KEY          Optional bearer key (defaults to INFERENCE_API_KEY)
+ *   OLLAMA_API_KEY          Optional bearer key for gateway auth (defaults to INFERENCE_API_KEY)
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
@@ -379,7 +379,7 @@ Deno.serve(async (req: Request) => {
     // ── Provider configuration ──────────────────────────────────────────────
     const inferenceUrl = normalizeBaseUrl(Deno.env.get('INFERENCE_SERVICE_URL'))
     const inferenceApiKey = Deno.env.get('INFERENCE_API_KEY') ?? ''
-    // Ollama defaults to the same Railway project location/credential as Bob inference.
+    // Ollama defaults to the same base URL and credential as Bob inference when not configured separately.
     const ollamaBaseUrl = normalizeBaseUrl(Deno.env.get('OLLAMA_BASE_URL') ?? inferenceUrl)
     const ollamaModel = Deno.env.get('OLLAMA_MODEL') ?? model
     const ollamaApiKey = Deno.env.get('OLLAMA_API_KEY') ?? inferenceApiKey

@@ -1,9 +1,9 @@
 /**
  * generate-tender-sections
  *
- * Calls the Railway Bob inference service POST /tender/generate to produce
+ * Calls the Bob inference service POST /tender/generate to produce
  * AI-drafted sections for a tender application or response.
- * Fully self-hosted — Ollama → writing model → secondary Railway assistant → heuristic.
+ * Fully self-hosted — Ollama → writing model → secondary assistant → heuristic.
  * No cloud AI is used.
  *
  * Required body fields:

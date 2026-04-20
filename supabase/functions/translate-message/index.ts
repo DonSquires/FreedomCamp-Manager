@@ -11,7 +11,7 @@
  *   { translated_text: string, target_language: string, detected_source?: string }
  *
  * Required env vars:
- *   INFERENCE_SERVICE_URL   Railway inference-service base URL
+ *   INFERENCE_SERVICE_URL   Bob inference-service base URL (RunPod)
  *   INFERENCE_API_KEY       Optional bearer key
  */
 

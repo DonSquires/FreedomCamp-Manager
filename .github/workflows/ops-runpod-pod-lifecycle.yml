@@ -14,7 +14,7 @@ name: Ops – RunPod Pod Lifecycle
 #   RUNPOD_POD_ID          — Pod ID to manage (e.g. eipnu6bq181q20)
 #
 # Optional — used for idle detection when BOB_SERVICE is stopped:
-#   BOB_SERVICE_URL        — Bob Railway URL for idle query (e.g. https://bob-production.up.railway.app)
+#   BOB_SERVICE_URL        — Bob service URL for idle query (RunPod-hosted inference service)
 #   INFERENCE_API_KEY      — Bob API key for /runpod/pod endpoint
 #
 # Optional — cost guardrail:

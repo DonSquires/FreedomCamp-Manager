@@ -24,12 +24,10 @@ jobs:
     # To add a secret: GitHub → Settings → Environments → copilot → Add secret.
     #
     # Required for Bob / RunPod compute integration:
-    #   RUNPOD_ENDPOINT_API_KEY  — RunPod Serverless API key
+    #   RUNPOD_ENDPOINT_API_KEY  — RunPod Serverless API key (= RUNPOD_API_KEY)
     #   RUNPOD_ENDPOINT_ID       — RunPod Serverless endpoint ID
     #   RUNPOD_ENDPOINT_URL      — Optional full invoke URL (derived from ID if unset)
-    #   RUNPOD_API_KEY           — RunPod pod-lifecycle API key (start/stop/status)
-    #   INFERENCE_API_KEY        — Bob service API key (x-inference-api-key header)
-    #   BOB_SERVICE_URL          — Bob Railway URL (for Bob-assist test wrapper + doctor)
+    #   RUNPOD_API_KEY           — RunPod pod-lifecycle API key (start/stop/status); same value as RUNPOD_ENDPOINT_API_KEY
     #
     # Supabase (needed for DB-backed test scripts):
     #   SUPABASE_ACCESS_TOKEN
@@ -39,10 +37,7 @@ jobs:
       RUNPOD_ENDPOINT_API_KEY:  ${{ secrets.RUNPOD_ENDPOINT_API_KEY }}
       RUNPOD_ENDPOINT_ID:       ${{ secrets.RUNPOD_ENDPOINT_ID }}
       RUNPOD_ENDPOINT_URL:      ${{ secrets.RUNPOD_ENDPOINT_URL }}
-      RUNPOD_API_KEY:           ${{ secrets.RUNPOD_API_KEY }}
-      INFERENCE_API_KEY:        ${{ secrets.INFERENCE_API_KEY }}
-      BOB_SERVICE_URL:          ${{ secrets.BOB_SERVICE_URL }}
-      INFERENCE_SERVICE_URL:    ${{ secrets.BOB_SERVICE_URL }}
+      RUNPOD_API_KEY:           ${{ secrets.RUNPOD_ENDPOINT_API_KEY }}
       # Supabase
       SUPABASE_ACCESS_TOKEN:      ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_SERVICE_ROLE_KEY:  ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -101,15 +96,10 @@ jobs:
           else
             echo "✅ RunPod endpoint reference is set"
           fi
-          if [ -z "$INFERENCE_API_KEY" ]; then
-            echo "::warning::INFERENCE_API_KEY (Bob service key) is not set."
+          if [ -z "$RUNPOD_API_KEY" ]; then
+            echo "::warning::RUNPOD_API_KEY (= RUNPOD_ENDPOINT_API_KEY) is not set — pod lifecycle ops will fail."
           else
-            echo "✅ INFERENCE_API_KEY is set"
-          fi
-          if [ -z "$BOB_SERVICE_URL" ]; then
-            echo "::warning::BOB_SERVICE_URL is not set — Bob-assist test wrapper will run without AI."
-          else
-            echo "✅ BOB_SERVICE_URL is set: $BOB_SERVICE_URL"
+            echo "✅ RUNPOD_API_KEY is set"
           fi
 
       # ── Quick smoke: invoke RunPod endpoint if credentials are available ───

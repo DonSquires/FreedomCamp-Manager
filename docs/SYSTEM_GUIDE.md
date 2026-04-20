@@ -67,7 +67,7 @@ All CI/CD secrets live in **GitHub → Settings → Secrets and variables → Ac
 |--------|---------|-------|
 | `RAILWAY_TOKEN` | Various | Fallback Railway token |
 | `RAILWAY_PROXY_SERVICE_ID` | proxy deploy | Railway service ID for proxy-server |
-| `BOB_SERVICE_URL` | Smoke tests, ops workflows | Live URL for inference-service e.g. `https://xxx.up.railway.app` |
+| `BOB_SERVICE_URL` | Smoke tests, ops workflows | Live URL for inference-service on RunPod (e.g. `https://xxx.proxy.runpod.net`) |
 | `BOB_GATEWAY_KEY` | Bob model workflows | Bearer token for RunPod Ollama gateway |
 | `RUNPOD_GATEWAY_URL` | ops-upgrade-bob-model | Public URL for RunPod gate e.g. `https://xxx-8080.proxy.runpod.net` |
 | `RUNPOD_ALLOW_DIRECT_OLLAMA` | Bob ops workflows | Optional safety flag (`true` only during incident bypass to direct `11434` URL). Default is gateway-only. |
