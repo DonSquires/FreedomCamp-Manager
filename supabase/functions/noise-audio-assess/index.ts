@@ -8,6 +8,7 @@
 import { getCorsHeaders, withCors, jsonResponse, errorResponse } from '../_shared/withCors.ts'
 import { fetchWithRetry } from '../_shared/fetchWithRetry.ts'
 import { requireAuth } from '../_shared/requireAuth.ts'
+import { bobAssess } from '../_shared/bobInfer.ts'
 
 const BOB_SERVICE_URL = Deno.env.get('BOB_SERVICE_URL') || Deno.env.get('INFERENCE_SERVICE_URL') || ''
 const BOB_API_KEY = Deno.env.get('BOB_INFERENCE_API_KEY') ?? ''
@@ -31,6 +32,13 @@ Deno.serve(withCors(async (req: Request) => {
 
   const body = await req.json().catch(() => ({}))
 
+  // Validate: require at least audio or transcript
+  const hasAudio = !!body?.audio_base64
+  const hasTranscript = !!body?.transcript
+  if (!hasAudio && !hasTranscript) {
+    return errorResponse('Missing required field: audio_base64 or transcript', req, 400)
+  }
+
   const payload = {
     transcript: body?.transcript ?? '',
     observed_db: body?.observed_db ?? null,
@@ -43,27 +51,12 @@ Deno.serve(withCors(async (req: Request) => {
   }
 
   try {
-    const inferResp = await fetchWithRetry(`${BOB_SERVICE_URL}/infer/noise-audio`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${BOB_API_KEY}`,
-      },
-      body: JSON.stringify(payload),
-    }, {
-      retries: 2,
-      timeoutMs: 20_000,
-      backoffMs: 750,
+    const result = await bobAssess({
+      type: 'noise',
+      description: payload.transcript || payload.location_context,
+      context: payload,
     })
-
-    if (!inferResp.ok) {
-      const errText = await inferResp.text().catch(() => '')
-      console.error('noise-audio-assess inference error:', inferResp.status, errText.slice(0, 200))
-      return errorResponse(`Bob noise assessment failed (${inferResp.status})`, req, 502)
-    }
-
-    const result = await inferResp.json().catch(() => ({}))
-    return jsonResponse(result, req)
+    return jsonResponse(result.assessment ?? result, req)
   } catch (err: any) {
     console.error('noise-audio-assess fetch error:', err?.message || String(err))
     return errorResponse(err?.message || 'Noise audio assessment unavailable', req, 502)

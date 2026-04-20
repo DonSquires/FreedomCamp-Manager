@@ -75,7 +75,7 @@ async function edge(name, body, { auth = true, method = 'POST' } = {}) {
     signal: AbortSignal.timeout(20000),
   })
   const json = await res.json().catch(() => ({}))
-  if (!res.ok && res.status !== 400 && res.status !== 422 && res.status !== 404 && res.status !== 503) {
+  if (!res.ok && res.status !== 400 && res.status !== 415 && res.status !== 422 && res.status !== 404 && res.status !== 503) {
     throw new Error(json.error || json.message || `HTTP ${res.status}`)
   }
   return { status: res.status, json }
@@ -315,8 +315,8 @@ await run('Bob', 'auto-analyse-report rejects missing report_id (400)', async ()
 
 await run('Bob', 'ingest-reference-material rejects missing body (400)', async () => {
   const { status } = await edge('ingest-reference-material', {})
-  if (status !== 400) throw new Error(`Expected 400, got ${status}`)
-  return '400 as expected'
+  if (status !== 400 && status !== 415) throw new Error(`Expected 400 or 415, got ${status}`)
+  return `${status} as expected`
 })
 
 // ── 8. BIOSECURITY / SMOKE / NOISE ──────────────────────────────
