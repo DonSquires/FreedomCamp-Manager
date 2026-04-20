@@ -46,7 +46,7 @@ const TECH_STACK = {
     inference: 'inference-service/ — Node/Express + ONNX AI (Bob)',
     proxy: 'proxy-server/ — Node/Express (NZSCV plate lookup)',
     ptt: 'ptt-server/ — Node/Express + ws (WebSocket voice)',
-    ollama: 'ollama/ — Local LLM on Railway',
+    ollama: 'ollama/ — Local LLM on RunPod (co-located with Bob)',
   },
   hosting: {
     frontend: 'Vercel (fcmanager.co.nz)',

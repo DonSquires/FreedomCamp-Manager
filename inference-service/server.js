@@ -385,7 +385,7 @@ function ollamaFetch(url, options = {}) {
 if (process.env.RAILWAY_SIMPLE_OLLAMA_URL && !process.env.SIMPLE_OLLAMA_URL) {
   console.warn('[Bob] RAILWAY_SIMPLE_OLLAMA_URL is deprecated — rename to SIMPLE_OLLAMA_URL');
 }
-const SIMPLE_OLLAMA_URL = (process.env.SIMPLE_OLLAMA_URL || process.env.RAILWAY_SIMPLE_OLLAMA_URL || OLLAMA_BASE_URL).replace(/\/+$/, '');
+const SIMPLE_OLLAMA_URL = (process.env.SIMPLE_OLLAMA_URL || OLLAMA_BASE_URL).replace(/\/+$/, '');
 const COMPLEX_CHAT_MIN_LEN = Number(process.env.COMPLEX_CHAT_MIN_LEN ?? 300);
 const RUNPOD_POD_ID = process.env.RUNPOD_POD_ID || '';
 const RUNPOD_API_KEY_LIFECYCLE = process.env.RUNPOD_API_KEY || process.env.RUNPOD_ENDPOINT_API_KEY || '';

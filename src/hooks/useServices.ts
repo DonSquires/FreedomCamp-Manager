@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { checkNZSCVStatus, enrichFromMotorWeb, analyzeVehiclePhoto, selectBestVehiclePhoto } from '@/lib/railway'
+import { checkNZSCVStatus, enrichFromMotorWeb, analyzeVehiclePhoto, selectBestVehiclePhoto } from '@/lib/inferenceService'
 import { toast } from 'sonner'
 
 /**

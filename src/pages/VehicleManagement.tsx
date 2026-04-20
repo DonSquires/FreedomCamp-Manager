@@ -21,7 +21,7 @@ import {
 import { formatDate, formatDateTime } from '@/lib/utils'
 import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { HOMELESS_UI_STATUSES, isHomelessForUi, normalizeHomelessStatus } from '@/lib/homelessStatus'
-import { checkNZSCVCertification, enrichVehicleFromMotorWeb } from '@/lib/railwayServices'
+import { checkNZSCVCertification, enrichVehicleFromMotorWeb } from '@/lib/proxyServices'
 import { getObservationPhotoUrl, getVehiclePhotoUrl } from '@/lib/photoUtils'
 import { PhotoWithFallback } from '@/components/features/PhotoWithFallback'
 import { toast } from 'sonner'

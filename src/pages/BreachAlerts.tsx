@@ -46,7 +46,7 @@ import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { AdminFollowUpDrawer } from '@/components/features/AdminFollowUpDrawer'
-import { enrichVehicleFromMotorWeb } from '@/lib/railwayServices'
+import { enrichVehicleFromMotorWeb } from '@/lib/proxyServices'
 import { isPhotoUrlExpired, parseStorageUrl } from '@/lib/photoUtils'
 
 // Schema-aligned BreachAlert type

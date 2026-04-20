@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { Activity, Database, Server, Shield, RefreshCw, CheckCircle, XCircle, AlertTriangle, Stethoscope, Wrench, Loader2, Clock3, Languages } from 'lucide-react'
 import { AppLayout } from '@/components/features/AppLayout'
-import { checkProxyHealth, checkInferenceHealth } from '@/lib/railwayServices'
+import { checkProxyHealth, checkInferenceHealth } from '@/lib/proxyServices'
 
 interface IntegrityResults {
   processed: number

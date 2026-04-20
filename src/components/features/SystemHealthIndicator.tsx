@@ -18,7 +18,7 @@ import {
   Server,
   Zap,
 } from 'lucide-react'
-import { checkRailwayServicesHealth } from '@/lib/railway'
+import { checkRailwayServicesHealth } from '@/lib/inferenceService'
 
 interface ServiceStatus {
   name: string

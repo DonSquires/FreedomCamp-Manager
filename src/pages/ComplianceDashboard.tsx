@@ -23,7 +23,7 @@ import { formatDate, formatDateTime } from '@/lib/utils'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
-import { analyzeVehiclePhoto } from '@/lib/railwayServices'
+import { analyzeVehiclePhoto } from '@/lib/proxyServices'
 import { toast } from 'sonner'
 
 interface DashboardStats {

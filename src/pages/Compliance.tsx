@@ -75,7 +75,7 @@ import {
 import { cn, formatDate, formatDateTime } from '@/lib/utils'
 import { getObservationPhotoUrl } from '@/lib/photoUtils'
 import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
-import { analyzeVehiclePhoto } from '@/lib/railwayServices'
+import { analyzeVehiclePhoto } from '@/lib/proxyServices'
 import { toast } from 'sonner'
 import { arrayToCSV, downloadCSV } from '@/lib/csvExport'
 import { exportReportPDF } from '@/lib/pdfExport'

@@ -402,7 +402,7 @@ const DATA_FLOW_PATTERNS = {
   },
   inference: {
     description: 'Calling Bob (inference-service) on RunPod',
-    flow: 'Component → fetch("https://bob.railway.app/endpoint", { headers: { "x-inference-api-key": key } }) → Bob Express handler → ONNX/Sharp processing → JSON response',
+    flow: 'Component → fetch("<INFERENCE_SERVICE_URL>/endpoint", { headers: { "x-inference-api-key": key } }) → Bob Express handler → ONNX/Sharp processing → JSON response',
     hooks_pattern: 'Direct fetch calls or through an Edge Function that proxies to Bob.',
   },
   ptt_voice: {

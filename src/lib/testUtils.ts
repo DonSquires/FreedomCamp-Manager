@@ -6,7 +6,7 @@
 
 import { supabase } from './supabase'
 import { edgeFunctions } from './edgeFunctions'
-import { checkRailwayServicesHealth } from './railway'
+import { checkRailwayServicesHealth } from './inferenceService'
 import {
   BUG_REPORT_STATUSES,
   isKnownBugReportStatus,

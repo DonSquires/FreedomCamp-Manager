@@ -154,7 +154,7 @@ Deno.serve(async (req) => {
       },
     )
   } catch (error: any) {
-    console.error('Railway health check error:', error)
+    console.error('Services health check error:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       {

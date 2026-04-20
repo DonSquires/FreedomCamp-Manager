@@ -27,7 +27,7 @@ import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
-import { checkInferenceHealth, ServiceHealthStatus } from '@/lib/railwayServices'
+import { checkInferenceHealth, ServiceHealthStatus } from '@/lib/proxyServices'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
