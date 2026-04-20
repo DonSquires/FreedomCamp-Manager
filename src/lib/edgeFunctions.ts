@@ -479,34 +479,6 @@ export const edgeFunctions = {
   },
 
   /**
-   * List observations with filters
-   */
-  listObservations: async (params: {
-    organization_id?: string
-    zone_id?: string
-    date_from?: string
-    date_to?: string
-    plate_number?: string
-    page?: number
-    limit?: number
-  }) => {
-    return callEdgeFunction('observations-list', params)
-  },
-
-  /**
-   * Get observations within GPS bounds (for map)
-   */
-  observationsInBounds: async (params: {
-    north: number
-    south: number
-    east: number
-    west: number
-    organization_id?: string
-  }) => {
-    return callEdgeFunction('observations-in-bounds', params)
-  },
-
-  /**
    * AI vehicle analysis (make/model/year/colour + NZSCV validation).
    *
    * Accepts both camelCase and snake_case for compatibility and maps to the
@@ -634,24 +606,6 @@ export const edgeFunctions = {
   // ============================================================================
 
   /**
-   * Generate court-ready incident PDF
-   */
-  generateIncidentPDF: async (params: {
-    incident_id: string
-  }) => {
-    return callEdgeFunction('generate-incident-pdf', params)
-  },
-
-  /**
-   * Generate vehicle evidence report
-   */
-  generateVehicleReport: async (params: {
-    plate_number: string
-  }) => {
-    return callEdgeFunction('generate-vehicle-report', params)
-  },
-
-  /**
    * Generate dashboard statistics report.
    * Errors are surfaced to the caller (showToast: false) so the Reports page
    * mutation can handle the error toast once rather than showing it twice.
@@ -666,19 +620,6 @@ export const edgeFunctions = {
     end_date?: string
   }) => {
     return callEdgeFunction('generate-dashboard-report', params, { showToast: false })
-  },
-
-  /**
-   * Generate leadership pack (executive summary).
-   * Errors are surfaced to the caller so the Reports page mutation handles the
-   * error toast once rather than showing it twice.
-   */
-  generateLeadershipPack: async (params: {
-    organization_id?: string
-    date_from?: string
-    date_to?: string
-  }) => {
-    return callEdgeFunction('generate-leadership-pack', params, { showToast: false })
   },
 
   /**
@@ -765,16 +706,6 @@ export const edgeFunctions = {
     return callEdgeFunction('generate-seizure-receipt', params)
   },
 
-  /**
-   * Get real-time compliance statistics
-   */
-  getComplianceStatistics: async (params: {
-    organization_id?: string
-    zone_id?: string
-  }) => {
-    return callEdgeFunction('get-compliance-statistics', params)
-  },
-
   // ============================================================================
   // LOCATION & INTEGRATIONS (7 functions)
   // ============================================================================
@@ -809,26 +740,6 @@ export const edgeFunctions = {
     return callEdgeFunction('enrich-from-motorweb', params)
   },
 
-  /**
-   * Get weather at GPS coordinates
-   */
-  getWeather: async (params: {
-    latitude: number
-    longitude: number
-  }) => {
-    return callEdgeFunction('get-weather', params)
-  },
-
-  /**
-   * Suggest new zone via Nominatim
-   */
-  suggestNewZone: async (params: {
-    latitude: number
-    longitude: number
-  }) => {
-    return callEdgeFunction('suggest-new-zone', params)
-  },
-
   // ============================================================================
   // NOTIFICATIONS (2 functions)
   // ============================================================================
@@ -859,17 +770,6 @@ export const edgeFunctions = {
   // ============================================================================
   // ADMIN & USERS (3 functions)
   // ============================================================================
-
-  /**
-   * Admin incident operations (legal hold, bulk updates)
-   */
-  adminIncidentOps: async (params: {
-    operation: string
-    incident_ids?: string[]
-    legal_hold?: boolean
-  }) => {
-    return callEdgeFunction('admin-incident-ops', params)
-  },
 
   /**
    * Create user with profile & role (admin/master only — sets password directly)
@@ -905,16 +805,6 @@ export const edgeFunctions = {
       userId: params.user_id,
       payload: { password: params.new_password },
     })
-  },
-
-  /**
-   * Update compliance policy
-   */
-  updateCompliancePolicy: async (params: {
-    zone_id: string
-    policy: any
-  }) => {
-    return callEdgeFunction('update-compliance-policy', params)
   },
 
   // ============================================================================
@@ -1010,17 +900,6 @@ export const edgeFunctions = {
   // ============================================================================
   // UTILITIES (2 functions)
   // ============================================================================
-
-  /**
-   * Upload file to Supabase Storage
-   */
-  uploadFile: async (params: {
-    bucket: string
-    path: string
-    file: File
-  }) => {
-    return callEdgeFunction('upload-file', params)
-  },
 
   /**
    * AI chat for analysis and suggestions.
@@ -1232,17 +1111,6 @@ export const edgeFunctions = {
     plate_number?: string
   }) => {
     return callEdgeFunction('public-case-lookup', params, { showToast: false })
-  },
-
-  /**
-   * Send an email invite via the proxy relay.
-   */
-  sendInviteEmail: async (params: {
-    email: string
-    first_name?: string
-    invite_url: string
-  }) => {
-    return callEdgeFunction('send-invite-email', params)
   },
 
   /**

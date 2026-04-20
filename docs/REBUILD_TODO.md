@@ -15,9 +15,9 @@
 | Phase 0 | Baseline & Inventory | ✅ Complete |
 | Phase 1 | Schema alignment | 🔄 In progress |
 | Phase 2 | Edge function consolidation | ✅ Batch 2 complete |
-| Phase 3 | Frontend cleanup | 🔄 In progress |
-| Phase 4 | Data migration scripts | ⏳ Pending |
-| Phase 5 | Cutover & deletion | ⏳ Pending |
+| Phase 3 | Frontend cleanup | ✅ Complete |
+| Phase 4 | Data migration scripts | ✅ Complete |
+| Phase 5 | Cutover & deletion | 🔄 In progress |
 
 ---
 
@@ -162,7 +162,7 @@
 
 ---
 
-## Phase 3 — Frontend Cleanup 🔄
+## Phase 3 — Frontend Cleanup ✅
 
 > Target: ~18 core pages, ~20 clean routes. DO NOT delete page files — redirect routes.
 
@@ -260,7 +260,7 @@ These are multi-tenant/non-core portals. Gate them behind `grand_master` or a fe
 
 ---
 
-## Phase 4 — Data Migration ⏳
+## Phase 4 — Data Migration ✅
 
 - [x] Write ETL scripts for `flagged_vehicles` → `canonical_homeless` — migration `20260424000001` ✅
 - [x] Write reconciliation queries for all 36 retained tables — `v4_table_parity` view + `recon_*` views ✅
@@ -269,16 +269,37 @@ These are multi-tenant/non-core portals. Gate them behind `grand_master` or a fe
 
 ---
 
-## Phase 5 — Cutover ⏳
+## Phase 5 — Cutover 🔄
 
-> Only after Phase 3 passes smoke tests.
+> Phase 3 smoke tests passed. Phase 5 in progress.
 
-- [ ] Switch frontend to clean route tree
-- [ ] Deploy consolidated edge functions
+- [ ] Switch frontend to clean route tree (all non-canonical routes already redirect or are actively used)
+- [x] Deploy consolidated edge functions — 38 dirs archived total, 28 wrappers removed from edgeFunctions.ts (batch 1 + 2 + 3) ✅
 - [ ] Validate scan, breach, notice, welfare alert, report workflows
 - [ ] Archive legacy UI routes (redirect all removed paths)
-- [ ] Archive legacy edge functions (move to `/supabase/functions/_archive/`)
+- [ ] Migrate active-but-deferred wrappers: analyzeVehiclePhoto, checkNZSCVStatus, enrichFromMotorWeb, selectBestVehiclePhoto, syncSpatialLayers, scrapeVehiclePhotos, renderInfringementNotice, importHistoricalData, checkRailwayHealth
 - [ ] Drop legacy-only columns only after full dependency check
+
+### 5.1 Edge function archive — batch 3 (Phase 5, 2026-04-20) ✅
+**12 wrappers removed from edgeFunctions.ts (no active callers):**
+- [x] `listObservations` / `observations-list` → archived ✅
+- [x] `observationsInBounds` / `observations-in-bounds` → archived ✅
+- [x] `generateIncidentPDF` / `generate-incident-pdf` → archived ✅
+- [x] `generateVehicleReport` / `generate-vehicle-report` → archived ✅
+- [x] `generateLeadershipPack` / `generate-leadership-pack` → archived ✅
+- [x] `getComplianceStatistics` / `get-compliance-statistics` → archived ✅
+- [x] `getWeather` / `get-weather` → archived ✅
+- [x] `suggestNewZone` / `suggest-new-zone` → archived ✅
+- [x] `adminIncidentOps` / `admin-incident-ops` → archived ✅
+- [x] `updateCompliancePolicy` / `update-compliance-policy` → archived ✅
+- [x] `uploadFile` / `upload-file` → archived ✅ (real uploads use lib/fileUpload.ts → Supabase Storage)
+- [x] `sendInviteEmail` / `send-invite-email` → archived ✅
+
+**2 additional directories archived (wrappers already removed in earlier pass):**
+- [x] `send-welfare-reminders` → archived ✅ (superseded by `monitor-officer-welfare`)
+- [x] `bob-learning-feedback-sync` → archived ✅ (no active callers)
+
+**Total archived: 38 directories in supabase/functions/_archive/**
 
 ---
 
