@@ -66,11 +66,11 @@ jobs:
 
       # ── inference-service dependencies ─────────────────────────────────────
       - name: Install inference-service dependencies
-        run: cd inference-service && npm ci
+        run: cd inference-service && npm install --legacy-peer-deps
 
       # ── proxy-server dependencies ──────────────────────────────────────────
       - name: Install proxy-server dependencies
-        run: cd proxy-server && npm ci
+        run: cd proxy-server && npm install --legacy-peer-deps
 
       # ── Playwright browsers (needed for e2e tests) ─────────────────────────
       - name: Install Playwright browsers
