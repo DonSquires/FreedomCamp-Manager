@@ -579,10 +579,7 @@ export default function TenderWorkspaceDetail() {
           cleanup()
           queryClient.invalidateQueries({ queryKey: ['tender-document', id] })
           try {
-            const { data: health } = await edgeFunctions.checkRailwayHealth()
-            const inferenceStatus = (health as any)?.services?.inference?.status || 'unknown'
-            const ollamaStatus = (health as any)?.services?.ollama?.status || 'unknown'
-            toast.error(`Bob analysis timed out (${Math.round(ANALYSIS_MAX_WAIT_MS / 1000)}s). Inference: ${inferenceStatus}, Ollama: ${ollamaStatus}. Retry once.`)
+            toast.error(`Bob analysis timed out (${Math.round(ANALYSIS_MAX_WAIT_MS / 1000)}s). Please retry once or check Bob service health.`)
           } catch {
             toast.error('Bob analysis is taking too long. Please retry once or check Bob service health.')
           }

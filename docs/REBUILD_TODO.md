@@ -52,9 +52,9 @@
 - [x] `get_user_effective_access_scope()` RPC added (provider-client access grants migration)
 - [x] `can_access_service()` helper added (provider-client access grants migration)
 - [x] `can_access_ptt_channel()` helper added (PTT auth migration)
-- [ ] Verify `get_hotspot_data()` RPC exists and matches frontend call
-- [ ] Verify `get_compliance_statistics()` matches frontend expectations
-- [ ] Audit RLS policies for new tables (canonical_scv, canonical_homeless, dispute_intake) for org isolation
+- [x] Verify `get_hotspot_data()` / `hotspot-data` edge fn exists and matches frontend — ✅ both function and wrapper exist; no active page callers yet
+- [x] Verify `get_compliance_statistics()` — ✅ edge fn exists; only called from testUtils.ts
+- [x] Audit RLS policies for new tables (canonical_scv, canonical_homeless, dispute_intake) — ✅ all have RLS enabled + org-scoped policies
 
 ---
 
@@ -116,7 +116,7 @@
 **Deferred — need caller migration before removal:**
 - [ ] `alpr-process` → `process-officer-scan` (PlateScanner.tsx + ParkingPhotoCapture.tsx — contract alignment needed)
 - [ ] `vehicle-ingest` / `ingestVehicleObservation` wrapper — **KEEP**: `PlateScanner.tsx` + `useOfflineQueue.ts` actively use it. Not superseded — is production ingest path.
-- [ ] `checkRailwayHealth` → needs alternative in TenderWorkspaceDetail.tsx (health check endpoint)
+- [x] `checkRailwayHealth` removed from `TenderWorkspaceDetail.tsx` — replaced with simple timeout toast (Railway is proxy-only; not a Bob health indicator) ✅
 - [ ] `grandmasterStudio`/`bobCodeChangeTask` → needs alternative in BobAssistantStudio.tsx
 - [ ] `autoAnalyseReport` → needs alternative (called from AiFeedbackChat.tsx, FeedbackModal.tsx, Platform.tsx)
 
@@ -261,6 +261,6 @@ These are multi-tenant/non-core portals. Gate them behind `grand_master` or a fe
 
 - **Do not drop production tables** until parity testing confirms no live references.
 - **Do not delete page files** until routes are redirected and confirmed unused.
-- Specialist portals (parking, noise, biosecurity, smoke) are multi-tenant features — gate behind `grand_master` or leave until confirmed there are no active tenants.
+- Specialist portals (parking, noise, biosecurity, smoke) — `AreaRoute` already gates by org `portal_access` subscription. Verified ✅. No additional gating needed.
 - Bob/Ollama runs on RunPod pod; Railway is proxy-only (NZSCV/MotorWeb).
 - PTT signaling runs on VPS `72.61.123.97`.
