@@ -85,7 +85,7 @@ const { execFile } = require('child_process');
 const { promisify } = require('util');
 const { createSelfLearningService } = require('./lib/self-learning');
 const { profileExamples } = require('./lib/pretrain-profiles');
-const { buildSelfHealingPlan, buildPatchTask, getKnowledgePacks } = require('./lib/assistant-knowledge');
+const { buildSelfHealingPlan, buildPatchTask, getKnowledgePacks, updateKnowledgePacks } = require('./lib/assistant-knowledge');
 const { createIntelStore } = require('./lib/intel-updates');
 const { analyzeComponentCode, analyzeScreenshot, assessColourPalette, identifyLayoutPattern, DESIGN_SYSTEM } = require('./lib/ui-assessment');
 const { traceUIElement, getStackMap, findRoute, getDebuggingSteps, ROUTE_MAP, DEBUGGING_PLAYBOOK } = require('./lib/stack-navigation');
@@ -3004,6 +3004,22 @@ app.get('/self-heal/knowledge', rateLimit({ windowMs: 60_000, max: 60, standardH
     self_healing_enabled: SELF_HEALING_ENABLED,
     knowledge: getKnowledgePacks(),
   });
+});
+
+app.post('/self-heal/knowledge', inferenceRateLimit, requireInferenceAuth, (req, res) => {
+  try {
+    const payload = req.body && typeof req.body === 'object' ? req.body : {};
+    const result = updateKnowledgePacks(payload);
+    return res.json({
+      success: true,
+      self_healing_enabled: SELF_HEALING_ENABLED,
+      ...result,
+      knowledge: getKnowledgePacks(),
+    });
+  } catch (error) {
+    console.error('Self-heal knowledge update error:', error);
+    return res.status(500).json({ error: 'Knowledge update failed', message: error.message });
+  }
 });
 
 app.post('/self-heal/patch-task', inferenceRateLimit, requireInferenceAuth, async (req, res) => {

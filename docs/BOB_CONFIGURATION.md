@@ -19,6 +19,7 @@ This confirms strict egress is OFF and Bob is in learning/build-training mode.
 
 - `GET /health` — service status + model/runtime posture
 - `GET /self-heal/knowledge` — knowledge pack visibility (auth required)
+- `POST /self-heal/knowledge` — authenticated knowledge upsert for schema/training updates
 - `POST /infer` — ONNX inference path
 
 ## Example verification commands
@@ -26,6 +27,10 @@ This confirms strict egress is OFF and Bob is in learning/build-training mode.
 ```bash
 curl -sS "$BOB_SERVICE_URL/health"
 curl -sS -H "x-inference-api-key: $BOB_INFERENCE_API_KEY" "$BOB_SERVICE_URL/self-heal/knowledge"
+curl -sS -X POST "$BOB_SERVICE_URL/self-heal/knowledge" \
+  -H "x-inference-api-key: $BOB_INFERENCE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"knowledge":{"schema_provider_grants":{"name":"schema_provider_grants","summary":"Provider-client grant schema update","key_points":["provider_client_access_grants table added","can_access_service helper added","PTT uses can_access_ptt_channel"]}}}'
 curl -sS -X POST "$BOB_SERVICE_URL/infer" \
   -H "x-inference-api-key: $BOB_INFERENCE_API_KEY" \
   -H "Content-Type: application/json" \
@@ -37,7 +42,5 @@ curl -sS -X POST "$BOB_SERVICE_URL/infer" \
 Push schema and platform updates through Bob self-heal workflows:
 
 1. Build schema change summary payload (tables/functions/policies changed)
-2. Submit via Bob authenticated self-heal ingestion endpoint/process
+2. Submit via `POST /self-heal/knowledge`
 3. Validate visibility via `GET /self-heal/knowledge`
-
-> Note: in this repository snapshot, Bob exposes `GET /self-heal/knowledge` for retrieval. Use the project’s authenticated self-heal ingestion workflow for updates.

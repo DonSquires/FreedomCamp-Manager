@@ -410,6 +410,45 @@ function getKnowledgePacks() {
   return KNOWLEDGE_PACKS;
 }
 
+function updateKnowledgePacks(payload = {}) {
+  const updates = [];
+  const source = payload.knowledge || payload.packs || payload;
+
+  if (Array.isArray(source)) {
+    for (const item of source) {
+      if (!item || typeof item !== 'object') continue;
+      const key = String(item.key || '').trim();
+      if (!key) continue;
+      updates.push([key, item]);
+    }
+  } else if (source && typeof source === 'object') {
+    for (const [key, value] of Object.entries(source)) {
+      if (!value || typeof value !== 'object') continue;
+      updates.push([String(key).trim(), value]);
+    }
+  }
+
+  const updated = [];
+  for (const [key, value] of updates) {
+    if (!key || !/^[a-z0-9_:-]+$/i.test(key)) continue;
+    const normalized = {
+      name: trimText(value.name || key, 120),
+      summary: trimText(value.summary || '', 600),
+      key_points: Array.isArray(value.key_points)
+        ? value.key_points.map((point) => trimText(point, 800)).filter(Boolean)
+        : [],
+    };
+    KNOWLEDGE_PACKS[key] = normalized;
+    updated.push(key);
+  }
+
+  return {
+    updated_keys: updated,
+    updated_count: updated.length,
+    total_packs: Object.keys(KNOWLEDGE_PACKS).length,
+  };
+}
+
 function buildPatchTask(report, plan) {
   const summary = trimText(report?.summary || plan?.summary || 'Unspecified incident', 300);
   const severity = String(report?.severity || plan?.severity || 'medium').toLowerCase();
@@ -463,4 +502,5 @@ module.exports = {
   buildSelfHealingPlan,
   buildPatchTask,
   getKnowledgePacks,
+  updateKnowledgePacks,
 };
