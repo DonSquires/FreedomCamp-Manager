@@ -1153,7 +1153,7 @@ export const edgeFunctions = {
   },
 
   // ============================================================================
-  // PUSH-TO-TALK (PTT) (1 function)
+  // PUSH-TO-TALK (PTT) (2 functions)
   // ============================================================================
 
   /**
@@ -1167,6 +1167,20 @@ export const edgeFunctions = {
     channelScope: string
   }) => {
     return callEdgeFunction('ptt-signaling-token', params, { showToast: false })
+  },
+
+  /**
+   * Diagnose a PTT issue by forwarding a symptom description to Bob's /assess/ptt endpoint.
+   *
+   * Returns a structured diagnosis with root cause, remediation steps, and urgency.
+   */
+  assessPtt: async (params: {
+    /** Free-text description of the PTT symptom, e.g. "can't connect" or "no audio" */
+    symptom: string
+    /** Optional extra context: user role, channel scope, error code, etc. */
+    context?: Record<string, unknown>
+  }) => {
+    return callEdgeFunction('ptt-assess', params, { showToast: false })
   },
 
   // ============================================================================
