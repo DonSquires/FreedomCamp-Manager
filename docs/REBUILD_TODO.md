@@ -14,7 +14,7 @@
 |---|---|---|
 | Phase 0 | Baseline & Inventory | ✅ Complete |
 | Phase 1 | Schema alignment | 🔄 In progress |
-| Phase 2 | Edge function consolidation | ⏳ Pending |
+| Phase 2 | Edge function consolidation | 🔄 In progress |
 | Phase 3 | Frontend cleanup | 🔄 In progress |
 | Phase 4 | Data migration scripts | ⏳ Pending |
 | Phase 5 | Cutover & deletion | ⏳ Pending |
@@ -40,87 +40,100 @@
 ## Phase 1 — Schema & Types 🔄
 
 ### 1.1 LIVE_SCHEMA.md accuracy
-- [ ] Update `docs/LIVE_SCHEMA.md` — currently only documents 14 of 40+ live tables
-  - Many tables (canonical_scv, canonical_homeless, officer_shifts, dispute_intake, etc.) are fully implemented in migrations but absent from the doc
-  - Regenerate from current migration files
+- [x] Update `docs/LIVE_SCHEMA.md` — expanded from 14 to 41 tables documented
 
 ### 1.2 Database types
 - [ ] Regenerate `src/types/database.ts` to match actual current schema
   - Run: `npx supabase gen types typescript --local > src/types/database.ts` (needs live DB or local supabase)
-  - Check for any type drift from recent migrations (canonical_scv, canonical_homeless, dispute_intake)
+  - Check for any type drift from recent migrations (canonical_scv, canonical_homeless, dispute_intake, provider_client_access_grants)
 
 ### 1.3 RLS / RPCs
 - [x] `calculate_vehicle_compliance_v3()` RPC exists and is current
+- [x] `get_user_effective_access_scope()` RPC added (provider-client access grants migration)
+- [x] `can_access_service()` helper added (provider-client access grants migration)
+- [x] `can_access_ptt_channel()` helper added (PTT auth migration)
 - [ ] Verify `get_hotspot_data()` RPC exists and matches frontend call
 - [ ] Verify `get_compliance_statistics()` matches frontend expectations
 - [ ] Audit RLS policies for new tables (canonical_scv, canonical_homeless, dispute_intake) for org isolation
 
 ---
 
-## Phase 2 — Edge Function Consolidation ⏳
+## Phase 2 — Edge Function Consolidation 🔄
 
-> Target: 17 functions (from 93 current). DO NOT delete production functions yet — inventory first.
+> Target: 17 functions (from 93 current). DO NOT delete production functions yet — remove callers first.
+> Full inventory: `supabase/functions/_archive/README.md`
 
-### 2.1 Inventory: functions to KEEP (rebuild/consolidate into)
-| Target fn | Purpose | Current fns it replaces |
-|---|---|---|
-| `process-officer-scan` | Core scan pipeline | `alpr-process`, `alpr-retry`, `orc-ingest`, `plate-scanner-photo-first`, `check-nzscv-status`, `analyze-vehicle-photo`, `vehicle-ingest`, `stream-webhook`, `select-best-vehicle-photo`, `link-evidence-photos` |
-| `cleanup-and-recalculate` | Nightly batch | `recalculate-compliance-v3`, `scan-breaches`, `correct-zone-assignments`, `zone-correction`, `check-zone-corrections`, `duplicate-detection`, `check-almost-breaches`, `sync-scv-list`, `daily-photo-reconciler`, `enrich-from-motorweb`, `sync-spatial-layers` |
-| `generate-notice-to-vacate` | PDF notice | — |
-| `generate-infringement` | Infringement PDF | `render-infringement-notice` |
-| `sync-scv-list` | SCV registry sync | — |
-| `create-user` | User provisioning | `create_auth_and_profiles` |
-| `monitor-officer-welfare` | Welfare scheduler | `send-welfare-reminders` |
-| `send-report-email` | Email delivery | — |
-| `export-data` | Data export | `observations-export` |
-| `import-data` | Data import | `import-historical-data` |
-| `submit-dispute-intake` | Public dispute | — |
-| `public-case-lookup` | Public lookup | — |
-| `hotspot-data` | Heatmap data | — |
-| `process-homeless-data` | Homeless import | — |
-| `nightly-privacy-cleanup` | Privacy cleanup | — |
-| `manage-user` | User password mgmt | `set-user-password`, `update-user-password` |
-| `photo-maintenance` | Photo reconcile | `photo-recovery`, `daily-photo-reconciler`, `reingest-photos` |
+### 2.1 Inventory: functions to KEEP (rebuild/consolidate into) ✅
+> All 17 target functions exist and are complete. Verified:
+- [x] `process-officer-scan` — 1788 lines, full scan pipeline (ALPR, SCV, compliance, breach) ✅
+- [x] `cleanup-and-recalculate` — zone correction, dedup, compliance recalc ✅
+- [x] `photo-maintenance` — reconcile/reingest/recover modes ✅
+- [x] `manage-user` — create/update/set_password/deactivate ✅
+- [x] `export-data` — CSV export (replaces observations-export) ✅
+- [x] `import-data` — historical + standard import ✅
+- [x] `generate-notice-to-vacate` ✅
+- [x] `generate-infringement` ✅
+- [x] `sync-scv-list` ✅
+- [x] `create-user` ✅
+- [x] `monitor-officer-welfare` ✅
+- [x] `send-report-email` ✅
+- [x] `submit-dispute-intake` ✅
+- [x] `public-case-lookup` ✅
+- [x] `hotspot-data` ✅
+- [x] `process-homeless-data` ✅
+- [x] `nightly-privacy-cleanup` ✅
 
-### 2.2 Functions to REMOVE/ARCHIVE (dead or superseded)
-- [ ] `recalculate-compliance` — dead (callers use v3)
-- [ ] `recalculate-compliance-v2` — dead
-- [ ] `alpr-retry` — superseded by process-officer-scan error handling
-- [ ] `check-almost-breaches` — consolidated into cleanup-and-recalculate
-- [ ] `check-data-integrity` — developer tool, not production
-- [ ] `check-railway-health` — Railway is proxy-only now; health check irrelevant
-- [ ] `duplicate-detection` — consolidated into cleanup-and-recalculate
-- [ ] `test-compliance-matrix` — developer tool
-- [ ] `admin-incident-ops` — investigate whether still called
-- [ ] `get-weather` — investigate whether still called by any page
-- [ ] `grandmaster-studio` — developer tool
-- [ ] `bob-code-change-task` — developer tool (CI only, not edge fn product)
-- [ ] `auto-analyse-report` — investigate
-- [ ] `stream-webhook` — superseded
-- [ ] `orc-ingest` — superseded by process-officer-scan
+### 2.2 Archive inventory created ✅
+- [x] `supabase/functions/_archive/README.md` — full categorization of all 93 functions
+  - ~30 functions confirmed as ARCHIVE (dead or fully superseded)
+  - ~25 functions flagged for AUDIT (investigate usage before archiving)
+  - 17 functions marked KEEP
+  - 4 tender functions: KEEP
+  - 6 multi-tenant service portal functions: gate behind grand_master
 
-### 2.3 Functions to AUDIT (keep or phase-2)
-- [ ] `generate-dashboard-report` — may overlap with `generate-leadership-pack`
-- [ ] `generate-leadership-pack` — investigate usage
-- [ ] `observations-in-bounds` — may be needed by LiveMap, check
-- [ ] `observations-list` — may be needed, check vs direct DB query
-- [ ] `get-compliance-statistics` — likely needed by dashboard
-- [ ] `biosecurity-assess`, `biosecurity-notice` — outside freedom-camping core (phase 2)
-- [ ] `noise-audio-assess`, `generate-noise-notice` — outside core (phase 2)
-- [ ] `smoke-assess`, `smoke-notice` — outside core (phase 2)
-- [ ] `generate-vehicle-report`, `generate-seizure-receipt`, `generate-warning-notice` — check usage
-- [ ] `onspace-ai-chat` — keep (Bob chat gateway, actively used)
-- [ ] `ptt-signaling-token` — keep (PTT auth, actively used)
-- [ ] `translate-message` — keep (PTT translation)
-- [ ] `synthesize-speech` — investigate usage
-- [ ] `transcribe-audio` — investigate usage
-- [ ] `process-credential-document` — investigate
-- [ ] `process-face-scan` — investigate (flag for phase 2)
-- [ ] `process-investigation-document` — investigate
-- [ ] `generate-tender-sections`, `process-tender-document`, `process-reference-material`, `ingest-reference-material` — KEEP (tender workflow active)
-- [ ] `parkpow-sync`, `parkpow-photo-sync`, `scrape-vehicle-photos` — investigate (maybe railway-era dead)
-- [ ] `suggest-new-zone` — investigate
-- [ ] `update-compliance-policy` — investigate
+### 2.3 Remove caller wrappers from edgeFunctions.ts 🔄
+
+> ⚠️ **Discovery from audit**: Many functions previously labelled "dev tools" are actively called by production pages:
+> - `autoAnalyseReport` → `AiFeedbackChat.tsx`, `FeedbackModal.tsx`, `Platform.tsx`
+> - `grandmasterStudio` → `BobAssistantStudio.tsx` (health check endpoint)
+> - `bobCodeChangeTask` → `BobAssistantStudio.tsx`
+> - `checkRailwayHealth` → `TenderWorkspaceDetail.tsx`
+> - `syncSpatialLayers` → `SpatialComplianceAdmin.tsx`
+> - `analyzeVehiclePhoto` → `Compliance.tsx`, `ComplianceDashboard.tsx`
+>
+> These CANNOT be removed until the callers are migrated. Scan pipeline refactor requires
+> aligning `alpr-process` → `process-officer-scan` contract (different request shape).
+> This is deferred to Phase 2 detailed work.
+
+**Completed re-points:**
+- [x] `setUserPassword` wrapper re-pointed to `manage-user` with `action:'set_password'` (UserManagement.tsx still works)
+
+**Deferred — need caller migration before removal:**
+- [ ] `alpr-process` → `process-officer-scan` (PlateScanner.tsx + ParkingPhotoCapture.tsx — contract alignment needed)
+- [ ] `vehicle-ingest` → retire (only called from dev pages, safe to remove wrapper)
+- [ ] `analyze-vehicle-photo` → retire (only in Compliance.tsx via railwayServices, not edgeFunctions)
+- [ ] `recalculate-compliance-v3` → `cleanup-and-recalculate` (called from ComplianceRecalculation.tsx — route redirected)
+- [ ] `scan-breaches` → retire wrapper (called from redirected dev pages only)
+- [ ] `check-almost-breaches` → retire wrapper (investigate callers)
+- [ ] `import-historical-data` wrapper — KEEP, it's a distinct XLSX bulk import (not same as import-data)
+- [ ] `checkRailwayHealth` → needs alternative in TenderWorkspaceDetail.tsx (health check endpoint)
+- [ ] `grandmasterStudio`/`bobCodeChangeTask` → needs alternative in BobAssistantStudio.tsx
+- [ ] `autoAnalyseReport` → needs alternative (called from 3 active components)
+
+**Safe now — not called from any active page:**
+- [ ] Remove `testComplianceMatrix` wrapper (only SystemDiagnostics.tsx — route redirected)
+- [ ] Remove `checkDataIntegrity` wrapper (only SystemDiagnostics.tsx — route redirected)
+- [ ] Remove `reingestPhotos` wrapper (only PhotoReingest.tsx — route redirected)
+- [ ] Remove `linkEvidencePhotos` wrapper (only EvidencePhotoLinker.tsx — route redirected)
+
+### 2.4 Safe first-batch directory deletions 🔄
+> Only after callers are removed and build confirms clean.
+- [x] `supabase/functions/orc-ingest/` → moved to `_archive/` ✅
+- [x] `supabase/functions/create_auth_and_profiles/` → moved to `_archive/` ✅
+- [x] `supabase/functions/daily-photo-reconciler/` → moved to `_archive/` ✅
+- [x] `supabase/functions/update-user-password/` → moved to `_archive/` ✅
+- [x] `supabase/functions/recalculate-compliance-v2/` → moved to `_archive/` ✅
+- [ ] `supabase/functions/plate-scanner-photo-first/` — referenced in registry.ts as a string doc; archive when registry updated
 
 ---
 
@@ -128,28 +141,28 @@
 
 > Target: ~18 core pages, ~20 clean routes. DO NOT delete page files — redirect routes.
 
-### 3.1 Remove debug/developer routes from App.tsx
-These routes should be removed (redirect to `/` or kept only for `grand_master`):
-- [ ] `/diagnostics` → SystemDiagnostics (developer tool)
-- [ ] `/test-dashboard` → TestDashboard (developer tool)
-- [ ] `/compliance-recalculation` → ComplianceRecalculation (replaced by edge fn)
-- [ ] `/photo-reingest` → PhotoReingest (developer tool)
-- [ ] `/evidence-photo-linker` → EvidencePhotoLinker (developer tool)
-- [ ] `/admin/data-cleanup` → DataCleanupUtility (developer tool)
-- [ ] `/admin/data-integrity` → DataIntegrityDashboard (developer tool)
-- [ ] `/clean-dashboard` → CleanDashboard (dev/testing page)
-- [ ] `/grandmaster-code-studio` → GrandmasterCodingStudio (developer tool)
+### 3.1 Remove debug/developer routes from App.tsx ✅
+- [x] `/diagnostics` → `<Navigate to="/" replace />`
+- [x] `/test-dashboard` → `<Navigate to="/" replace />`
+- [x] `/compliance-recalculation` → `<Navigate to="/" replace />`
+- [x] `/photo-reingest` → `<Navigate to="/" replace />`
+- [x] `/evidence-photo-linker` → `<Navigate to="/" replace />`
+- [x] `/admin/data-cleanup` → `<Navigate to="/" replace />`
+- [x] `/admin/data-integrity` → `<Navigate to="/" replace />`
+- [x] `/clean-dashboard` → `<Navigate to="/" replace />`
+- [x] `/grandmaster-code-studio` → `<Navigate to="/" replace />`
 
-### 3.2 Redirect duplicate routes to canonical paths
-- [ ] `/compliance-unified` → redirect to `/compliance`
-- [ ] `/compliance-dashboard` → redirect to `/compliance`
-- [ ] `/reports-hub` → redirect to `/reports`
-- [ ] `/observation-records` → redirect to `/observations`
-- [ ] `/observations-report` → redirect to `/observations`
-- [ ] `/breach-notices` → redirect to `/breaches`
-- [ ] `/enforcement-actions` → redirect to `/enforcement-review`
-- [ ] `/enforcement-command-center` → redirect to `/enforcement-review`
-- [ ] `/import-data` + `/import-historical` → redirect to `/data`
+### 3.2 Redirect duplicate routes to canonical paths ✅
+- [x] `/compliance-unified` → `/compliance`
+- [x] `/compliance-dashboard` → `/compliance`
+- [x] `/reports-hub` → `/reports`
+- [x] `/observation-records` → `/observations`
+- [x] `/observations-report` → `/observations`
+- [x] `/breach-notices` → `/breaches`
+- [x] `/enforcement-actions` → `/enforcement-review`
+- [x] `/enforcement-command-center` → `/enforcement-review`
+- [x] `/import-historical` → `/import-data`
+- [x] `/admin/cleanup-recalculate` → `/`
 
 ### 3.3 Core route tree (canonical paths after cleanup)
 Public:

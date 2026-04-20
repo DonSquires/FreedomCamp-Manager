@@ -576,23 +576,6 @@ export const edgeFunctions = {
   },
 
   /**
-   * Test observations against zone compliance matrix and populate
-   * observation compliance fields (is_compliant, breach_type, breach_reason).
-   */
-  testComplianceMatrix: async (params: {
-    organization_id?: string
-    zone_id?: string
-    observation_id?: string
-    limit?: number
-    offset?: number
-    apply?: boolean
-    date_from?: string
-    date_to?: string
-  }) => {
-    return callEdgeFunction('test-compliance-matrix', params)
-  },
-
-  /**
    * 3-phase cleanup: zone correction → dedup → compliance recalc
    * Supports batched pagination: pass get_total=true first, then iterate with offset/batch_size.
    */
@@ -795,51 +778,9 @@ export const edgeFunctions = {
     })
   },
 
-  /**
-   * Reingest photos — batch reprocess existing observation photos through
-   * the vehicle-ingest pipeline, creating new observation records.
-   * Toast suppressed here; caller (PhotoReingest.tsx onError) handles it.
-   */
-  reingestPhotos: async (params: {
-    get_total?: boolean
-    batch_size?: number
-    before_recorded_at?: string
-    organization_id?: string
-    date_from?: string
-    date_to?: string
-  }) => {
-    return callEdgeFunction('reingest-photos', params, { showToast: false })
-  },
-
-  /**
-   * Link evidence bucket photos to canonical vehicle records via ALPR.
-   * Runs plate recognition on each image in the evidence bucket and sets
-   * profile_photo / profile_photo_url on the matching canonical_vehicles row.
-   * Toast suppressed here; caller handles it.
-   */
-  linkEvidencePhotos: async (params: {
-    path_prefix?: string
-    paths?: string[]
-    min_confidence?: number
-    force_update?: boolean
-    dry_run?: boolean
-    limit?: number
-  }) => {
-    return callEdgeFunction('link-evidence-photos', params, { showToast: false })
-  },
-
   // ============================================================================
   // DATA MANAGEMENT (6 functions)
   // ============================================================================
-
-  /**
-   * Check data integrity (duplicates, orphans, invalid plates)
-   */
-  checkDataIntegrity: async (params?: {
-    comprehensive?: boolean
-  }) => {
-    return callEdgeFunction('check-data-integrity', params)
-  },
 
   /**
    * Run the nightly privacy cleanup task on demand.
@@ -1220,13 +1161,18 @@ export const edgeFunctions = {
   },
 
   /**
-   * Set or reset a user's password (admin/master only)
+   * Set or reset a user's password (admin/master only).
+   * Re-pointed from deprecated `set-user-password` to consolidated `manage-user`.
    */
   setUserPassword: async (params: {
     user_id: string
     new_password: string
   }) => {
-    return callEdgeFunction('set-user-password', params)
+    return callEdgeFunction('manage-user', {
+      action: 'set_password',
+      userId: params.user_id,
+      payload: { password: params.new_password },
+    })
   },
 
   /**
