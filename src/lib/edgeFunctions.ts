@@ -1312,4 +1312,78 @@ export const edgeFunctions = {
     return callEdgeFunction('export-data', params)
   },
 
+  /**
+   * Export observations with zone/date filtering.
+   */
+  exportObservations: async (params: {
+    organization_id?: string
+    zone_id?: string
+    date_from?: string
+    date_to?: string
+    search?: string
+    format?: 'json' | 'csv'
+  }) => {
+    return callEdgeFunction('export-data', { type: 'observations', ...params })
+  },
+
+  /**
+   * Detect and optionally remove duplicate observations.
+   */
+  detectDuplicates: async (params: {
+    zoneIds?: string[]
+    time_window_minutes?: number
+    get_total?: boolean
+    offset?: number
+    batch_size?: number
+  }) => {
+    return callEdgeFunction('cleanup-and-recalculate', { action: 'detect-duplicates', ...params })
+  },
+
+  /**
+   * Link evidence photos to observations by path prefix.
+   */
+  linkEvidencePhotos: async (params: {
+    path_prefix?: string
+    min_confidence?: number
+    limit?: number
+    force_update?: boolean
+    dry_run?: boolean
+  }) => {
+    return callEdgeFunction('photo-maintenance', { action: 'link-evidence', ...params })
+  },
+
+  /**
+   * Re-ingest photos to reprocess ALPR/attributes.
+   */
+  reingestPhotos: async (params: {
+    organization_id?: string
+    date_from?: string
+    date_to?: string
+    batch_size?: number
+    before_recorded_at?: string
+  }) => {
+    return callEdgeFunction('photo-maintenance', { action: 'reingest', ...params })
+  },
+
+  /**
+   * Run a data integrity check.
+   */
+  checkDataIntegrity: async (params: {
+    comprehensive?: boolean
+  }) => {
+    return callEdgeFunction('cleanup-and-recalculate', { action: 'integrity-check', ...params })
+  },
+
+  /**
+   * Get compliance statistics summary.
+   */
+  getComplianceStatistics: async (params: {
+    organization_id?: string
+    zone_id?: string
+    date_from?: string
+    date_to?: string
+  }) => {
+    return callEdgeFunction('cleanup-and-recalculate', { action: 'statistics', ...params })
+  },
+
 }
