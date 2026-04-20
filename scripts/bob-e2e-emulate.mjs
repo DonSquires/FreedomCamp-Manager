@@ -29,10 +29,13 @@ function log(icon, label, detail = '') {
 
 // Known infra-only issues that exist on the live cluster, not code bugs
 const INFRA_WARNINGS = [
-  'ES256',                          // biosecurity/smoke/translate deployed with wrong JWT alg
-  'not yet deployed',               // ptt-assess not deployed (our throw message)
+  'ES256',                            // biosecurity/smoke/translate deployed with wrong JWT alg
+  'not yet deployed',                 // ptt-assess not deployed (our throw message)
   'Requested function was not found', // Supabase 404 for undeployed function
-  'PTT server error',               // PTT VPS offline / unreachable
+  'PTT server error',                 // PTT VPS offline / unreachable
+  'Bob assessment failed',            // Bob /assess/ptt route doesn\'t exist on RunPod yet
+  'Bob inference service unreachable', // RunPod pod is offline
+  'Translation service returned',     // translation upstream (Google/DeepL/Bob) not configured
 ]
 
 function isInfraWarn(msg) { return INFRA_WARNINGS.some(w => msg.includes(w)) }
@@ -169,13 +172,14 @@ if (token) {
     return `HTTP ${status}, token=${hasToken} iceServers=${hasIce} wsUrl=${json.wsUrl || 'present'}`
   })
 
-  // 9. PTT assess (Bob /assess/ptt) — may 404 if not yet deployed
-  await run('Edge: ptt-assess → Bob /assess/ptt (or 404 if not deployed)', async () => {
+  // 9. PTT assess (Bob /assess/ptt) — may fail if Bob /assess/ptt route doesn't exist on RunPod
+  await run('Edge: ptt-assess → Bob /assess/ptt (or infra if Bob missing route)', async () => {
     const { status, json } = await callEdge('ptt-assess', {
       symptom: 'PTT connection keeps dropping after 30 seconds',
       context: { user_role: 'officer' },
     }, token)
     if (status === 404) throw new Error(`HTTP 404 — function not yet deployed to Supabase (run: supabase functions deploy ptt-assess)`)
+    if (status >= 400) throw new Error(json.error || `HTTP ${status}: ${JSON.stringify(json).slice(0,80)}`)
     const diagnosis = json.diagnosis || json.root_cause || json.summary || JSON.stringify(json).slice(0, 80)
     return `HTTP ${status}, diagnosis=${diagnosis.slice(0, 80)}`
   })
