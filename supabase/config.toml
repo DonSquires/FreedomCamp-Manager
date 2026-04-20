@@ -359,3 +359,20 @@ verify_jwt = false
 # verification disabled to avoid pre-execution 401 Invalid JWT responses.
 [functions.ptt-signaling-token]
 verify_jwt = false
+
+# biosecurity-assess / smoke-assess / translate-message: browser callers send
+# HS256-signed Supabase JWTs but the hosted project's gateway may be configured
+# for ES256, causing a 401 "Unsupported JWT algorithm" before the function runs.
+# Each function validates auth internally via requireAuth (supabase.auth.getUser).
+[functions.biosecurity-assess]
+verify_jwt = false
+
+[functions.smoke-assess]
+verify_jwt = false
+
+[functions.translate-message]
+verify_jwt = false
+
+# ptt-assess: Bob AI PTT diagnostics endpoint.  Validates auth internally.
+[functions.ptt-assess]
+verify_jwt = false
