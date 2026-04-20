@@ -22,9 +22,6 @@ function extractBearerToken(req: Request): string | null {
   const candidates = [
     req.headers.get('Authorization'),
     req.headers.get('authorization'),
-    req.headers.get('x-authorization'),
-    req.headers.get('x-forwarded-authorization'),
-    req.headers.get('x-supabase-authorization'),
   ]
 
   for (const value of candidates) {

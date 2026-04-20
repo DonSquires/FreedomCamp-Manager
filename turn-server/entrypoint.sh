@@ -13,6 +13,11 @@ set -euo pipefail
 : "${TURN_LISTEN_IP:=0.0.0.0}"
 : "${TURN_NO_UDP:=false}"
 
+if [[ "${TURN_PASSWORD}" == "change-me-now" ]]; then
+  echo "ERROR: TURN_PASSWORD is using the default placeholder value. Set a strong secret before startup." >&2
+  exit 1
+fi
+
 TLS_BLOCK=""
 if [[ "${TURN_ENABLE_TLS}" == "true" ]]; then
   : "${TURN_CERT_FILE:=/etc/coturn/certs/fullchain.pem}"
