@@ -56,6 +56,13 @@ Deno.serve(withCors(async (req) => {
 
     const { fileContent, fileName, isImage, recordDate, organizationId }: ImportRequest = await req.json();
 
+    if (!fileContent || !fileName) {
+      return new Response(JSON.stringify({ error: 'Missing required fields: fileContent, fileName' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     console.log('Processing import:', { fileName, contentLength: fileContent.length });
 
     // Use AI to analyze and extract data

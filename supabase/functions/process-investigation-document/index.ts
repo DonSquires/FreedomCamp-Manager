@@ -62,6 +62,13 @@ Deno.serve(async (req: Request) => {
 
     const { fileUrl, fileName, fileType }: DocumentProcessRequest = await req.json();
 
+    if (!fileUrl || !fileName || !fileType) {
+      return new Response(
+        JSON.stringify({ error: 'Missing required fields: fileUrl, fileName, fileType' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     console.log('Processing document:', fileName, 'Type:', fileType);
 
     // Prepare content for AI processing based on file type

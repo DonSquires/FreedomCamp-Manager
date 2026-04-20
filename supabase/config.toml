@@ -376,3 +376,34 @@ verify_jwt = false
 # ptt-assess: Bob AI PTT diagnostics endpoint.  Validates auth internally.
 [functions.ptt-assess]
 verify_jwt = false
+
+# Additional functions requiring internal JWT validation (ES256 gateway workaround)
+[functions.grandmaster-studio]
+verify_jwt = false
+
+[functions.ingest-reference-material]
+verify_jwt = false
+
+[functions.noise-audio-assess]
+verify_jwt = false
+
+[functions.biosecurity-notice]
+verify_jwt = false
+
+[functions.smoke-notice]
+verify_jwt = false
+
+[functions.photo-maintenance]
+verify_jwt = false
+
+[functions.export-data]
+verify_jwt = false
+
+[functions.manage-user]
+verify_jwt = false
+
+[functions.process-tender-document]
+verify_jwt = false
+
+[functions.generate-tender-sections]
+verify_jwt = false
