@@ -181,12 +181,13 @@ export function useVehicleCompliance(plateNumber?: string, options?: {
     enabled: !!plateNumber,
   })
 
-  // Recalculate compliance mutation
+  // Recalculate compliance mutation — re-processes the observation through
+  // process-officer-scan (compliance evaluation phase) instead of the removed
+  // test-compliance-matrix dev tool.
   const recalculateCompliance = useMutation({
     mutationFn: async (observationId: string) => {
-      const { data, error } = await edgeFunctions.testComplianceMatrix({
+      const { data, error } = await edgeFunctions.processOfficerScan({
         observation_id: observationId,
-        apply: true,
       })
 
       if (error) {

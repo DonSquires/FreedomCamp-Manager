@@ -106,25 +106,25 @@
 > This is deferred to Phase 2 detailed work.
 
 **Completed re-points:**
-- [x] `setUserPassword` wrapper re-pointed to `manage-user` with `action:'set_password'` (UserManagement.tsx still works)
+- [x] `setUserPassword` wrapper re-pointed to `manage-user` with `action:'set_password'` (UserManagement.tsx still works) ✅
+- [x] `recalculateCompliance` (dead v1) + `recalculateComplianceV2` + `recalculateComplianceV3` + `recalculateComplianceUIPinned` wrappers — all removed ✅
+- [x] `ComplianceRecalculation.tsx` re-pointed to `cleanupAndRecalculate` with `phase:'compliance'` ✅
+- [x] `checkAlmostBreaches` wrapper removed; directory archived ✅
+- [x] `scanBreaches` wrapper removed (no active callers) ✅
+- [x] `useVehicleCompliance.ts` `testComplianceMatrix` call → `processOfficerScan` ✅
 
 **Deferred — need caller migration before removal:**
 - [ ] `alpr-process` → `process-officer-scan` (PlateScanner.tsx + ParkingPhotoCapture.tsx — contract alignment needed)
-- [ ] `vehicle-ingest` → retire (only called from dev pages, safe to remove wrapper)
-- [ ] `analyze-vehicle-photo` → retire (only in Compliance.tsx via railwayServices, not edgeFunctions)
-- [ ] `recalculate-compliance-v3` → `cleanup-and-recalculate` (called from ComplianceRecalculation.tsx — route redirected)
-- [ ] `scan-breaches` → retire wrapper (called from redirected dev pages only)
-- [ ] `check-almost-breaches` → retire wrapper (investigate callers)
-- [ ] `import-historical-data` wrapper — KEEP, it's a distinct XLSX bulk import (not same as import-data)
+- [ ] `vehicle-ingest` / `ingestVehicleObservation` wrapper — **KEEP**: `PlateScanner.tsx` + `useOfflineQueue.ts` actively use it. Not superseded — is production ingest path.
 - [ ] `checkRailwayHealth` → needs alternative in TenderWorkspaceDetail.tsx (health check endpoint)
 - [ ] `grandmasterStudio`/`bobCodeChangeTask` → needs alternative in BobAssistantStudio.tsx
-- [ ] `autoAnalyseReport` → needs alternative (called from 3 active components)
+- [ ] `autoAnalyseReport` → needs alternative (called from AiFeedbackChat.tsx, FeedbackModal.tsx, Platform.tsx)
 
 **Safe now — not called from any active page:**
-- [ ] Remove `testComplianceMatrix` wrapper (only SystemDiagnostics.tsx — route redirected)
-- [ ] Remove `checkDataIntegrity` wrapper (only SystemDiagnostics.tsx — route redirected)
-- [ ] Remove `reingestPhotos` wrapper (only PhotoReingest.tsx — route redirected)
-- [ ] Remove `linkEvidencePhotos` wrapper (only EvidencePhotoLinker.tsx — route redirected)
+- [x] Remove `testComplianceMatrix` wrapper — removed; `useVehicleCompliance.ts` re-pointed to `processOfficerScan` ✅
+- [x] Remove `checkDataIntegrity` wrapper — removed (SystemDiagnostics.tsx only, route redirected) ✅
+- [x] Remove `reingestPhotos` wrapper — removed (PhotoReingest.tsx only, route redirected) ✅
+- [x] Remove `linkEvidencePhotos` wrapper — removed (EvidencePhotoLinker.tsx only, route redirected) ✅
 
 ### 2.4 Safe first-batch directory deletions 🔄
 > Only after callers are removed and build confirms clean.
@@ -133,7 +133,7 @@
 - [x] `supabase/functions/daily-photo-reconciler/` → moved to `_archive/` ✅
 - [x] `supabase/functions/update-user-password/` → moved to `_archive/` ✅
 - [x] `supabase/functions/recalculate-compliance-v2/` → moved to `_archive/` ✅
-- [ ] `supabase/functions/plate-scanner-photo-first/` — referenced in registry.ts as a string doc; archive when registry updated
+- [x] `supabase/functions/plate-scanner-photo-first/` → moved to `_archive/` ✅ (registry.ts + bobKnowledgeBase updated)
 
 ---
 

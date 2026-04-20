@@ -151,13 +151,12 @@ NEW (correct): last_scan_zone, last_gps_latitude, last_gps_longitude, last_gps_u
 ## 7. Supabase Edge Functions (key ones)
 
 onspace-ai-chat: Bob / AI chat. Uses INFERENCE_SERVICE_URL pointing to Bob inference service (RunPod).
-plate-scanner-photo-first: Layer 1 scan ingest (v2 pathway, FEATURE_INGEST_V2).
-plate-scanner-complete: Legacy scan ingest (v1).
-recalculate-compliance-v3: Triggers compliance recalc for a plate/zone.
-generate-incident-pdf / generate-notice-to-vacate: PDF generation.
+process-officer-scan: Core scan pipeline — ALPR, SCV lookup, compliance evaluation, breach creation.
+vehicle-ingest: Field officer observation creation (creates initial observation row; process-officer-scan runs enrichment).
+generate-notice-to-vacate / generate-infringement: PDF generation.
 ptt-signaling-token: Push-to-talk JWT token. Requires PTT_SERVER_URL secret to be set.
 sync-scv-list: Bulk import NZ SCV register into canonical_scv.
-check-nzscv-status: Live NZSCV lookup via proxy-server.
+cleanup-and-recalculate: Nightly batch (zone correction, dedup, compliance recalc). Phases: all/zone/dedup/compliance.
 process-homeless-data: Import/update canonical_homeless records.
 submit-dispute-intake: Receive public dispute form submissions.
 monitor-officer-welfare: Welfare check scheduling and alerts.
