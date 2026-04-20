@@ -455,7 +455,7 @@ BEGIN
     p_recorded_by,
     NOW(),
     p_plate_number,
-    'vehicle_associated',    -- triggered by a vehicle scan
+    'vehicle_association',   -- triggered by a vehicle scan (aligned with identification_method)
     'vehicle_association',
     (array_length(p_alert_types, 1) > 0),
     p_alert_types,

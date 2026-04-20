@@ -1356,7 +1356,7 @@ Deno.serve(async (req: Request) => {
                   p_recorded_by: userId,
                   p_plate_number: plate ?? null,
                   p_alert_types: [alert.alert_type],
-                  p_geofence_validated: false,   // geofence validation is RLS-side
+                  p_geofence_validated: false,   // geofence gating is enforced in get_canonical_person_obs_history RPC at query time
                   p_officer_lat: gpsLatitude ?? null,
                   p_officer_lon: gpsLongitude ?? null,
                   p_officer_accuracy: gpsAccuracy ?? null,

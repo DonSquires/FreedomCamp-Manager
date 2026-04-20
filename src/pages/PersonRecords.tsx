@@ -45,6 +45,13 @@ function displayName(p: { first_name: string | null; last_name: string | null })
   return [p.first_name, p.last_name].filter(Boolean).join(' ') || '(No name)'
 }
 
+function isHighRiskSafety(p: { risk_level: string | null; risk_category: string | null }): boolean {
+  return !!(
+    p.risk_level && ['high', 'critical'].includes(p.risk_level) &&
+    p.risk_category && ['violence', 'aggression', 'weapon'].includes(p.risk_category)
+  )
+}
+
 interface PersonObservation {
   id: string
   recorded_at: string
@@ -337,7 +344,7 @@ export default function PersonRecords() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <User className="h-4 w-4 text-muted-foreground" />
                         <span className="font-semibold">{displayName(p)}</span>
-                        {p.risk_level && ['high', 'critical'].includes(p.risk_level) && p.risk_category && ['violence', 'aggression', 'weapon'].includes(p.risk_category) && (
+                        {isHighRiskSafety(p) && (
                           <Badge variant="destructive" className="text-xs flex items-center gap-1">
                             <ShieldAlert className="h-3 w-3" />
                             HIGH RISK
@@ -350,7 +357,7 @@ export default function PersonRecords() {
                           Added {formatDateTime(p.created_at)}
                         </span>
                       </div>
-                      {p.risk_level && ['high', 'critical'].includes(p.risk_level) && p.risk_category && ['violence', 'aggression', 'weapon'].includes(p.risk_category) && (
+                      {isHighRiskSafety(p) && (
                         <p className="text-xs text-red-600 font-medium flex items-center gap-1">
                           <ShieldAlert className="h-3 w-3" />
                           {isAdmin
