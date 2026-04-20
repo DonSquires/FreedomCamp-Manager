@@ -13,6 +13,7 @@ console.log(`[worker] Node.js ${process.version}`);
 
 const GET_JOB_URL   = process.env.RUNPOD_WEBHOOK_GET_JOB;
 const POST_OUT_URL  = process.env.RUNPOD_WEBHOOK_POST_OUTPUT;
+const API_KEY       = process.env.RUNPOD_AI_API_KEY;
 const POLL_MS       = 250;
 const ERR_RETRY_MS  = 2000;
 
@@ -21,7 +22,9 @@ if (!GET_JOB_URL || !POST_OUT_URL) {
   process.exit(1);
 }
 
+const AUTH_HEADERS = API_KEY ? { 'Authorization': `Bearer ${API_KEY}` } : {};
 console.log('[worker] GET_JOB_URL:', GET_JOB_URL);
+console.log('[worker] Auth header present:', !!API_KEY);
 
 // ─── Job handler ──────────────────────────────────────────────────────────────
 
@@ -35,7 +38,7 @@ async function handler(input) {
 // ─── RunPod polling loop ──────────────────────────────────────────────────────
 
 async function takeJob() {
-  const res = await fetch(GET_JOB_URL);
+  const res = await fetch(GET_JOB_URL, { headers: AUTH_HEADERS });
   if (res.status === 204) return null;
   if (!res.ok) throw new Error(`get_job HTTP ${res.status}`);
   return res.json();
@@ -45,7 +48,7 @@ async function completeJob(jobId, output) {
   const url = POST_OUT_URL.replace('${ID}', jobId);
   const res = await fetch(url, {
     method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...AUTH_HEADERS },
     body:    JSON.stringify({ id: jobId, output }),
   });
   if (!res.ok) throw new Error(`job_done HTTP ${res.status}`);
