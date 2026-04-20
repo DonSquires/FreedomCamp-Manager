@@ -5,7 +5,7 @@
  *
  *   UI (React)  →  Hooks (TanStack Query)  →  Supabase Client  →  Postgres / Edge Functions
  *       ↕                                         ↕
- *   react-router-dom v6                   Railway (inference-service)
+ *   react-router-dom v6                   Bob on RunPod (inference-service)
  *       ↕                                         ↕
  *   GitHub Actions CI/CD                  Ollama (local LLM)
  *
@@ -139,7 +139,7 @@ const STACK_TOPOLOGY = {
       name: 'CI/CD Layer',
       tech: 'GitHub Actions',
       directory: '.github/workflows/',
-      description: 'Deploy workflows for frontend (Supabase), Bob (Railway), Ollama (Railway), proxy (Railway). DB migrations via Supabase CLI.',
+      description: 'Deploy workflows for frontend (Vercel), Bob+Ollama (RunPod), proxy (Railway), PTT+TURN (VPS), mobile (EAS). DB migrations via Supabase CLI. DB migrations via Supabase CLI.',
       key_workflows: 'deploy-frontend.yml, deploy-bob-railway.yml, deploy-edge-functions.yml, db-run-migrations.yml, sync-bob-repo.yml.',
     },
   ],
@@ -401,7 +401,7 @@ const DATA_FLOW_PATTERNS = {
     hooks_pattern: 'supabase.functions.invoke() returns { data, error }. Check error for non-200 responses.',
   },
   inference: {
-    description: 'Calling Bob (inference-service) on Railway',
+    description: 'Calling Bob (inference-service) on RunPod',
     flow: 'Component → fetch("https://bob.railway.app/endpoint", { headers: { "x-inference-api-key": key } }) → Bob Express handler → ONNX/Sharp processing → JSON response',
     hooks_pattern: 'Direct fetch calls or through an Edge Function that proxies to Bob.',
   },
@@ -500,15 +500,15 @@ const DEBUGGING_PLAYBOOK = {
     ],
     steps: [
       '1. Get Bob\'s current config: GET <BOB_URL>/health — read the "config" and "capabilities" sections.',
-      '2. Check CHAT_PROVIDER: must be "ollama" in production. If "heuristic", set CHAT_PROVIDER=ollama in Bob Railway service → Variables.',
+      '2. Check CHAT_PROVIDER: must be "ollama" in production. If "heuristic", set CHAT_PROVIDER=ollama in Bob pod .env → restart.',
       '3. Check TABULAR_NLP_PROVIDER: must be "ollama" in production. Same fix if "heuristic".',
       '4. Check capabilities.chat_local_ollama_enabled: must be true. If false, OLLAMA_BASE_URL is wrong or Ollama is not running.',
-      '5. Verify OLLAMA_BASE_URL: must be http://ollama.railway.internal:11434 (not port 3000, not a public URL). Set in Bob Railway Variables.',
-      '6. Verify Bob and Ollama are in the same Railway project (same project ID). Private networking only works within a project.',
+      '5. Verify OLLAMA_BASE_URL: must be http://127.0.0.1:11434 when Ollama is on the same RunPod pod. Set in Bob pod .env.',
+      '6. Verify Bob and Ollama are co-located on the same RunPod pod. OLLAMA_BASE_URL=http://127.0.0.1:11434.',
       '7. Verify Ollama is running: GET <OLLAMA_SERVICE_URL>/api/tags should return 200 with a model list.',
       '8. If OPENAI_API_KEY_SET=true: confirm this is intentional for build-training mode and that data leaving the platform is approved.',
       '9. Check SELF_CONTAINED_MODE: build-training mode should report "false". If you need locked-down mode, set SELF_CONTAINED_MODE=true explicitly.',
-      '10. After fixing variables, redeploy Bob: Railway Dashboard → Bob service → Deployments → Redeploy. Wait 60s for health check.',
+      '10. After fixing variables, restart Bob on the RunPod pod. Wait 60s for health check.',
       '11. Re-run wiring audit: GitHub → Actions → Ops Railway Wiring Audit → Run workflow to confirm all checks pass.',
     ],
   },
@@ -540,7 +540,7 @@ const DEBUGGING_PLAYBOOK = {
     steps: [
       '1. Check if ptt-signaling-token Edge Function is deployed — run set-ptt-secret.yml workflow or deploy via Supabase CLI',
       '2. Check if PTT_SERVER_URL is set in Supabase Edge Function secrets (Settings → Edge Functions → Secrets)',
-      '3. Check if the PTT signaling server is running on Railway — hit its /health endpoint directly',
+      '3. Check if the PTT signaling server is running on VPS (ssh root.61.123.97) — hit its /health endpoint directly',
       '4. Check if PTT_JWT_SECRET and PROXY_SECRET are set on both the Edge Function AND the PTT server (they must match)',
       '5. Check browser Console for the specific error message — "unable to reach the edge function" means the Edge Function is not deployed',
       '6. Check if the user is authenticated and has an organization_id — PTT requires both',
@@ -769,7 +769,7 @@ function getDebuggingSteps(symptom) {
     '2. Check Network tab for failed requests (red entries)',
     '3. Check the component\'s hook for query/mutation errors',
     '4. Check Supabase dashboard for Edge Function logs',
-    '5. Check Railway dashboard for inference-service logs',
+    '5. Check RunPod pod logs for Bob inference-service',
     '6. Report to Bob via POST /self-heal/bug-report with the error details',
   ] }];
 }

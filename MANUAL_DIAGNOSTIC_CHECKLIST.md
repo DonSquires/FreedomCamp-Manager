@@ -8,7 +8,7 @@
 
 ## Step 1: Wiring Audit (Manual Execution)
 
-**What it validates**: Railway service URLs, status, and Ollama configuration
+**What it validates**: Bob service URLs, status, and Ollama configuration (RunPod)
 
 **Manual command** (requires VITE_SUPABASE_URL and SUPABASE_JWT):
 ```bash
@@ -55,7 +55,7 @@ cat wiring-audit-result.json
 |-------|----------|----------|--------------|
 | `inference.status` | `healthy` | Shows error | Restart inference service on Railway |
 | `CHAT_PROVIDER` | `ollama` | Shows different value | Update Railway env: `CHAT_PROVIDER=ollama` |
-| `chat_local_ollama_enabled` | `true` | Shows `false` | Check OLLAMA_BASE_URL on Railway (should be `http://ollama.railway.internal:11434`) |
+| `chat_local_ollama_enabled` | `true` | Shows `false` | Check OLLAMA_BASE_URL on RunPod pod (should be `http://127.0.0.1:11434`) |
 | `circuit_breaker.state` | `closed` | Shows `open` | Ollama service is down; restart it |
 
 **Status file**: Save output to `diagnose-step1-wiring-audit.json`
@@ -84,7 +84,7 @@ cat smoke-preflight-health.json
   "config": {
     "CHAT_PROVIDER": "ollama",
     "TABULAR_NLP_PROVIDER": "ollama",
-    "OLLAMA_BASE_URL": "http://ollama.railway.internal:11434"
+    "OLLAMA_BASE_URL": "http://127.0.0.1:11434"
   },
   "capabilities": {
     "chat_local_ollama_enabled": true,
@@ -149,7 +149,7 @@ IF state == "closed" AND lastError == null:
   
 IF state == "open":
   → Ollama has failed 3+ consecutive times
-  → Action: Restart Ollama service on Railway
+  → Action: Restart Ollama service on RunPod pod
   → Then: Wait 60 seconds for cooldown
   → Then: Re-run smoke test
   
@@ -161,7 +161,7 @@ IF state == "half-open":
 IF lastError contains "ECONNREFUSED" or "ETIMEDOUT":
   → Ollama is unreachable at OLLAMA_BASE_URL
   → Action: Check Railway internal DNS resolution
-  → Action: Verify OLLAMA_BASE_URL is http://ollama.railway.internal:11434
+  → Action: Verify OLLAMA_BASE_URL is http://127.0.0.1:11434
 ```
 
 **Status file**: Save output to `diagnose-step3-circuit-breaker.json`
@@ -183,10 +183,10 @@ EVIDENCE:
   - Step 1 (Wiring): circuit_breaker.state="open"
   - Step 2 (Preflight): circuit_breaker.state="open"
   - Step 3 (CB): state="open", lastError="ECONNREFUSED"
-INTERPRETATION: Ollama service is not responding at http://ollama.railway.internal:11434
+INTERPRETATION: Ollama service is not responding at http://127.0.0.1:11434
 ROOT CAUSE: Ollama pod crashed or is unreachable due to network isolation
 RECOMMENDED FIX:
-  1. SSH into Railway Ollama pod
+  1. SSH into RunPod pod
   2. Restart Ollama process
   3. Wait 60 seconds for circuit breaker cooldown
   4. Re-run smoke test; should now pass
@@ -222,7 +222,7 @@ RECOMMENDED FIX:
 To execute manual diagnostics, provide (in order):
 1. `VITE_SUPABASE_URL` — Supabase project URL
 2. `SUPABASE_JWT` — Valid Supabase JWT token (for check-railway-health call)
-3. `INFERENCE_SERVICE_URL` — Railway inference service URL
+3. `INFERENCE_SERVICE_URL` — Bob inference service URL (RunPod)
 4. `INFERENCE_API_KEY` — API key for inference service (x-inference-api-key header)
 
 **Privacy Note**: Credentials are only used to query `/health` endpoints; no data is collected or stored locally.

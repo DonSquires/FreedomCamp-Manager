@@ -67,24 +67,24 @@ LIMIT 1;
 2. Click "Camera Capture"
 3. Allow camera permissions
 4. Take photo of vehicle plate
-5. Wait for OCR processing (Railway inference service)
+5. Wait for OCR processing (Bob inference service on RunPod)
 6. Verify detected plate number
 7. Submit observation
 
 **Expected Results:**
 - ✅ Camera opens in device
 - ✅ Photo captured and displayed
-- ✅ OCR runs via Railway inference service
+- ✅ OCR runs via Bob inference service (RunPod)
 - ✅ Detected plate number auto-fills input
 - ✅ Confidence score displayed (>80% preferred)
 - ✅ Photo uploaded to Supabase Storage
 - ✅ Photo hash calculated and stored
 - ✅ Observation created with photo reference
 
-**Railway Service Call Verification:**
+**Bob Inference Call Verification:**
 ```javascript
 // Check console for:
-// POST https://your-inference.railway.app/ocr
+// POST https://<bob-runpod-url>/ocr
 // Response: { plate_number: "ABC123", confidence: 0.92 }
 ```
 
@@ -99,7 +99,7 @@ LIMIT 1;
 4. Wait for AI analysis to complete
 
 **Expected Results:**
-- ✅ Railway inference service called
+- ✅ Bob inference service called (RunPod)
 - ✅ YOLO vehicle detection runs
 - ✅ Vehicle count displayed
 - ✅ MobileNetV3 embedding generated (384-D vector)
@@ -694,8 +694,8 @@ Use this checklist to track testing progress:
 ### Core Functionality
 - [ ] PlateScanner manual entry works
 - [ ] PlateScanner camera capture works
-- [ ] OCR via Railway inference service works
-- [ ] Vehicle detection via Railway works
+- [ ] OCR via Bob inference service (RunPod) works
+- [ ] Vehicle detection via Bob inference works
 - [ ] Embedding generation works
 - [ ] NZSCV certification check works
 - [ ] MotorWeb enrichment works

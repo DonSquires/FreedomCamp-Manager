@@ -131,11 +131,12 @@ export default function ComplianceRecalculation() {
   }): Promise<RecalculationResult> => {
     const startedAt = Date.now()
 
-    const { data: totalData, error: totalError } = await edgeFunctions.recalculateComplianceUIPinned({
+    const { data: totalData, error: totalError } = await edgeFunctions.cleanupAndRecalculate({
       zone_ids: params.zone_ids,
-      date_from: params.date_from,
-      date_to: params.date_to,
+      date_range_start: params.date_from,
+      date_range_end: params.date_to,
       get_total: true,
+      phase: 'compliance',
     })
 
     if (totalError) throw new Error(totalError)
@@ -178,12 +179,13 @@ export default function ComplianceRecalculation() {
     let skippedNoRulesTotal = 0
 
     while (offset < total) {
-      const { data: batchData, error: batchError } = await edgeFunctions.recalculateComplianceUIPinned({
+      const { data: batchData, error: batchError } = await edgeFunctions.cleanupAndRecalculate({
         zone_ids: params.zone_ids,
-        date_from: params.date_from,
-        date_to: params.date_to,
+        date_range_start: params.date_from,
+        date_range_end: params.date_to,
         offset,
         batch_size: batchSize,
+        phase: 'compliance',
       })
 
       if (batchError) throw new Error(batchError)

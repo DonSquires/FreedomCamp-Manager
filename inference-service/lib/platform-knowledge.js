@@ -7,7 +7,7 @@
  *
  * Covers:
  *   Supabase   - Auth, Database, Edge Functions, Storage, Realtime, RLS
- *   Railway    - Deployment of Bob, Proxy, PTT, Ollama microservices
+ *   RunPod/Railway/VPS - Bob+Ollama on RunPod, Proxy on Railway, PTT+TURN on VPS 72.61.123.97
  *   GitHub     - Actions CI/CD (25 workflows), Codespaces, Copilot, Secrets
  *   Vercel     - Frontend hosting, rewrites, CDN, security headers
  *   Expo/EAS   - Mobile app (React Native), OTA updates, build profiles
@@ -159,12 +159,12 @@ const RAILWAY_KNOWLEDGE = {
       health_path: '/api/tags',
       health_timeout: 300,
       deploy_workflow: '.github/workflows/deploy-ollama-railway.yml',
-      internal_url: 'http://ollama.railway.internal:<port> — port must match Ollama OLLAMA_HOST variable (check startup logs: 🌐 Binding Ollama to 0.0.0.0:<port>)',
-      notes: 'Ollama pinned at 0.20.2. OLLAMA_ORIGINS=*. OLLAMA_KEEP_ALIVE=24h. CRITICAL: Bob OLLAMA_BASE_URL must use the same port that Ollama is actually listening on. If OLLAMA_HOST=0.0.0.0:8080 is set on the Ollama service, set OLLAMA_BASE_URL=http://ollama.railway.internal:8080 on Bob.',
+      internal_url: 'http://127.0.0.1:11434 — Ollama runs on the same RunPod pod as Bob',
+      notes: 'Ollama pinned at 0.20.2. OLLAMA_ORIGINS=*. OLLAMA_KEEP_ALIVE=24h. CRITICAL: Bob OLLAMA_BASE_URL must be http://127.0.0.1:11434 when Ollama runs co-located on the same RunPod pod.',
     },
   },
   deployment: {
-    github_token: 'RAILWAY_BOB_TOKEN — shared between Bob and Ollama services. RAILWAY_PTT_SERVICE_ID, RAILWAY_PROXY_SERVICE_ID, RAILWAY_OLLAMA_SERVICE_ID are separate.',
+    github_token: 'RUNPOD_API_KEY=RUNPOD_ENDPOINT_API_KEY — for Bob+Ollama on RunPod. RAILWAY_TOKEN (Proxy). PTT via SSH deploy.',
     cli: 'railway login → railway link → railway up → railway status (get URL) → railway logs (view logs)',
     env_vars: 'railway variables set KEY=value. Or Railway Dashboard → Service → Variables.',
     health_check: 'Railway calls healthcheckPath after deploy. If it returns non-200 within healthcheckTimeout seconds, deploy is marked failed.',
@@ -177,10 +177,10 @@ const RAILWAY_KNOWLEDGE = {
   common_issues: [
     'Service crash on startup: check Railway logs dashboard. Common: missing env var, model file not found, port binding to wrong value.',
     'Health check timeout: increase healthcheckTimeout in railway.json. Bob needs 60s because ONNX model loading takes ~30s.',
-    'OOM (Out of Memory): ONNX models need RAM. Bob needs at least 1GB RAM. Upgrade Railway plan if OOM errors appear.',
+    'OOM (Out of Memory): ONNX models need RAM. Bob needs at least 1GB RAM. Upgrade RunPod pod GPU/RAM if OOM errors appear.',
     'Deploy failed: check GitHub Actions log for deploy-bob-railway.yml. Common: RAILWAY_TOKEN expired, service ID changed.',
     'Ollama not responding: check circuit breaker state via GET /health on Bob. Breaker opens after 3 failures. Reset: wait 60s (OLLAMA_CB_COOLDOWN_MS) or redeploy Ollama.',
-    'Private network not working: both services must be in the same Railway project. Use *.railway.internal URL format, not public URL.',
+    'OLLAMA not reachable: verify OLLAMA_BASE_URL=http://127.0.0.1:11434 and that Ollama is running on the same RunPod pod.',
     'RAILWAY_TOKEN expired: regenerate in Railway dashboard → Account → Tokens. Update GitHub secret: GitHub → Settings → Secrets → RAILWAY_BOB_TOKEN.',
   ],
 };
@@ -194,9 +194,9 @@ const GITHUB_KNOWLEDGE = {
   workflows_count: 25,
   deployment_workflows: {
     'deploy-frontend.yml': 'Deploys React/Vite admin to Vercel. Triggers on main push or workflow_dispatch. Supports production/preview environments. Uses VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID.',
-    'deploy-bob-railway.yml': 'Deploys Bob inference service to Railway. Triggers on inference-service/ changes. 60s health wait. Auto-resolves service ID via GraphQL if not found.',
-    'deploy-ollama-railway.yml': 'Deploys Ollama LLM to Railway. Manual trigger only (deliberate). Optional model pull post-deploy. Shares RAILWAY_BOB_TOKEN with Bob service.',
-    'deploy-railway.yml': 'Deploys ONNX inference service (core/fallback project) to Railway. Triggers on inference-service/ changes. Uses RAILWAY_INFERENCE_SERVICE_ID. Legacy workflow — main Bob deploy uses deploy-bob-railway.yml.',
+    'deploy-bob-railway.yml': 'DEPRECATED: Bob moved to RunPod. Retained for historical reference only.',
+    'deploy-ollama-railway.yml': 'DEPRECATED: Ollama moved to RunPod (same pod as Bob). Retained for historical reference only.',
+    'deploy-railway.yml': 'DEPRECATED: Bob/inference moved to RunPod. Only proxy-server deploy (deploy-proxy-railway.yml) is active on Railway.',
     'deploy-proxy-railway.yml': 'Deploys proxy-server to Railway. Triggers on proxy-server/ changes. 45s health wait.',
     'deploy-mobile.yml': 'Deploys mobile app via Expo EAS. Requires EXPO_TOKEN, EXPO_PROJECT_ID. Builds for android/ios/all. OTA updates via EAS Update.',
     'deploy-edge-functions.yml': 'Deploys 47 Supabase Edge Functions. Triggers on supabase/functions/ changes. JWT verification auto-detected via PUBLIC_FUNCTIONS list.',
@@ -221,10 +221,10 @@ const GITHUB_KNOWLEDGE = {
   },
   secrets: {
     required_secrets: [
-      'RAILWAY_BOB_TOKEN — Railway project token (Bob + Ollama)',
-      'RAILWAY_PTT_SERVICE_ID — Railway service ID for ptt-server',
+      'RUNPOD_API_KEY — RunPod API key for Bob+Ollama pod (= RUNPOD_ENDPOINT_API_KEY)',
+      'PTT_SERVER_URL — VPS PTT server URL (e.g. http://72.61.123.97:3002)',
       'RAILWAY_PROXY_SERVICE_ID — Railway service ID for proxy-server',
-      'RAILWAY_OLLAMA_SERVICE_ID — Railway service ID for Ollama',
+      'RUNPOD_ENDPOINT_ID — RunPod serverless endpoint ID for Bob',
       'VERCEL_TOKEN — Vercel deployment token',
       'VERCEL_ORG_ID — Vercel team/org ID',
       'VERCEL_PROJECT_ID — Vercel project ID',
@@ -258,7 +258,7 @@ const GITHUB_KNOWLEDGE = {
     'Deploy workflow failed: go to Actions tab → find workflow run → click failed job → read error near bottom.',
     'bun install --frozen-lockfile fails: bun.lock is outdated. Run: bun install (updates lockfile) → commit bun.lock.',
     'TypeScript build fails: run bun run build locally → fix type errors → push.',
-    'Railway token expired: regenerate in Railway dashboard → update RAILWAY_BOB_TOKEN GitHub secret.',
+    'Railway token expired (for proxy): regenerate in Railway dashboard → update RAILWAY_TOKEN GitHub secret.',
     'Supabase CLI auth failed: regenerate in Supabase dashboard → Account → Access Tokens → update SUPABASE_ACCESS_TOKEN.',
     'Edge Function deploy 401: SUPABASE_ACCESS_TOKEN expired or wrong project ref.',
     'Workflow not triggering: check "on" conditions — path filters may not match changed files.',
@@ -369,7 +369,7 @@ const DOMAIN_DNS_KNOWLEDGE = {
     'freedomcampmanager.onspace.build': 'Onspace.ai hosted preview build. Also in Supabase redirect_urls.',
     '*.onspace.build': 'Wildcard for Onspace ephemeral preview builds.',
     '*.vercel.app': 'Vercel preview deployments (auto-generated per PR).',
-    '*.railway.app': 'Railway microservices (Bob, Proxy, PTT, Ollama — auto-assigned).',
+    '*.railway.app': 'Railway proxy-server only (auto-assigned). Bob is on RunPod, PTT is on VPS 72.61.123.97.',
     'kxwjcupuxnnbnzcgmkoi.supabase.co': 'Supabase project URL. All Edge Functions and API calls go here.',
   },
   ssl: {
@@ -482,7 +482,7 @@ const HYBRID_STACK_KNOWLEDGE = {
         tech: 'Node.js + Express + ONNX Runtime + Ollama',
         host: 'Railway',
         url: 'https://<bob-service>.railway.app',
-        connects_to: ['Ollama LLM (Railway private network)', 'Supabase (for JWKS validation)'],
+        connects_to: ['Ollama LLM (co-located on RunPod pod via 127.0.0.1:11434)', 'Supabase (for JWKS validation)'],
       },
       {
         name: 'Proxy Server',
@@ -500,7 +500,7 @@ const HYBRID_STACK_KNOWLEDGE = {
         name: 'Ollama LLM',
         tech: 'Ollama 0.20.2 with llama3.1:8b',
         host: 'Railway (private network)',
-        connects_to: ['Bob inference service (Railway private network only)'],
+        connects_to: ['Bob inference service (RunPod pod)'],
       },
     ],
   },
@@ -516,7 +516,7 @@ const HYBRID_STACK_KNOWLEDGE = {
     frontend: 'JWT from Supabase Auth. All DB access via RLS policies. No direct DB connection from frontend.',
     edge_functions: 'Service role key for DB access. PROXY_SECRET for microservice auth. JWT verification optional per function.',
     microservices: 'Bob: x-inference-api-key header. Proxy: PROXY_SECRET. PTT: PTT_JWT_SECRET + PROXY_SECRET.',
-    inter_service: 'Railway private network (*.railway.internal) for Bob ↔ Ollama. No public egress required.',
+    inter_service: 'Bob+Ollama co-located on same RunPod pod (loopback 127.0.0.1). No public networking required for Bob↔Ollama.',
     bob: 'Bob supports self-contained and build-training modes. Self-contained blocks outbound cloud calls; build-training enables upstream providers and JWKS auth. Knowledge remains grounded in code modules plus approved training inputs.',
   },
   similar_systems: {
@@ -550,7 +550,7 @@ const HYBRID_STACK_KNOWLEDGE = {
 
 // ---------------------------------------------------------------------------
 // RAILWAY SERVICES AUDIT KNOWLEDGE
-// Teaches Bob how to assess, detect and explain Railway config issues.
+// Teaches Bob how to assess, detect and explain service config issues (RunPod/VPS/Railway).
 // Used by POST /assess/platform and GET /platform/railway.
 // ---------------------------------------------------------------------------
 
@@ -567,7 +567,7 @@ const RAILWAY_SERVICES_AUDIT = {
       file: 'inference-service/RAILWAY_DEPLOY.md',
       title: 'RAILWAY_DEPLOY.md "Bob Self-Contained Mode" table listed CHAT_PROVIDER and TABULAR_NLP_PROVIDER as "heuristic"',
       root_cause: 'Documentation was written with conservative local-dev defaults instead of production values. Production Bob uses Ollama for both, which is the whole point of deploying it.',
-      fix_applied: 'Updated table to show CHAT_PROVIDER=ollama, TABULAR_NLP_PROVIDER=ollama, and added OLLAMA_BASE_URL=http://ollama.railway.internal:11434 and OLLAMA_MODEL=llama3.1:8b to the required variables.',
+      fix_applied: 'Updated table to show CHAT_PROVIDER=ollama, TABULAR_NLP_PROVIDER=ollama, and added OLLAMA_BASE_URL=http://127.0.0.1:11434 and OLLAMA_MODEL=llama3.1:8b to the required variables.',
       validation: 'ops-railway-wiring-audit.yml checks CHAT_PROVIDER=ollama and TABULAR_NLP_PROVIDER=ollama. Will now pass with correct production config.',
     },
     {
@@ -577,7 +577,7 @@ const RAILWAY_SERVICES_AUDIT = {
       file: 'inference-service/RAILWAY_DEPLOY.md',
       title: 'OLLAMA_BASE_URL in Optional table showed wrong port (3000 instead of 11434)',
       root_cause: 'Ollama listens on its default port 11434, not 3000. The wrong port causes Bob to silently fail Ollama connectivity.',
-      fix_applied: 'Corrected to http://ollama.railway.internal:11434 in both RAILWAY_DEPLOY.md and all platform-knowledge.js references.',
+      fix_applied: 'Corrected to http://127.0.0.1:11434 in RAILWAY_DEPLOY.md and platform-knowledge.js (RunPod co-located pod).',
       validation: 'Bob health endpoint GET /health shows capabilities.chat_local_ollama_enabled=true when Ollama is reachable.',
     },
     {
@@ -596,7 +596,7 @@ const RAILWAY_SERVICES_AUDIT = {
       service: 'Bob (inference-service)',
       file: 'inference-service/Dockerfile',
       title: 'Bob Dockerfile HEALTHCHECK hardcoded port 3000 instead of reading process.env.PORT',
-      root_cause: 'PTT and Proxy Dockerfiles correctly use process.env.PORT, but Bob was hardcoded. Railway assigns $PORT dynamically.',
+      root_cause: 'PTT and Proxy Dockerfiles correctly use process.env.PORT, but Bob was hardcoded. Both Railway proxy and RunPod assign $PORT dynamically.',
       fix_applied: 'Changed HEALTHCHECK CMD to use process.env.PORT || 3000.',
       validation: 'Healthcheck now respects Railway-assigned PORT env var.',
     },
@@ -606,7 +606,7 @@ const RAILWAY_SERVICES_AUDIT = {
       service: 'PTT Server (ptt-server)',
       file: 'ptt-server/.env.example',
       title: 'ptt-server/.env.example missing NODE_ENV=production',
-      root_cause: 'PTT server has HTTPS-only enforcement middleware that checks x-forwarded-proto header, but only activates when NODE_ENV=production. Without it, the check is silently skipped in Railway deployments that use the .env.example as a template.',
+      root_cause: 'PTT server has HTTPS-only enforcement middleware that checks x-forwarded-proto header, but only activates when NODE_ENV=production. Without it, the check is silently skipped in deployments that use the .env.example as a template.',
       fix_applied: 'Added NODE_ENV=production to ptt-server/.env.example.',
       validation: 'ptt-server enforces HTTPS in production. HTTP requests return 400 (not silently allowed).',
     },
@@ -628,7 +628,7 @@ const RAILWAY_SERVICES_AUDIT = {
       title: 'platform-knowledge.js had wrong Ollama port (3000 vs 11434) and wrong PTT deploy workflow',
       root_cause: 'Bob\'s own knowledge base had stale data from an earlier experimental Ollama config that remapped the port. Also deploy-railway.yml was incorrectly described as deploying PTT (it deploys the legacy inference service).',
       fix_applied: 'Corrected Ollama port to 11434 in services.ollama, deployment.private_networking, and PLATFORM_DIAGNOSTICS.railway. Fixed PTT deploy_workflow to deploy-ptt-railway.yml. Corrected deploy-railway.yml description to say it deploys the legacy ONNX inference service.',
-      validation: 'Bob now provides accurate Railway topology when asked. POST /assess/platform returns correct service config.',
+      validation: 'Bob now provides accurate service topology when asked. POST /assess/platform returns correct service config.',
     },
   ],
 
@@ -636,23 +636,23 @@ const RAILWAY_SERVICES_AUDIT = {
     {
       check_id: 'CHK-01',
       description: 'Verify Bob production env has CHAT_PROVIDER=ollama',
-      how_to_verify: 'GET <BOB_URL>/health → check config.CHAT_PROVIDER === "ollama". If "heuristic", update Railway Variables on Bob service.',
+      how_to_verify: 'GET <BOB_URL>/health → check config.CHAT_PROVIDER === "ollama". If "heuristic", update Bob pod .env and restart.',
       expected: 'ollama',
-      if_wrong: 'Set CHAT_PROVIDER=ollama in Bob Railway service Variables. Bob will fall back to heuristic if Ollama is unreachable anyway.',
+      if_wrong: 'Set CHAT_PROVIDER=ollama in Bob pod .env. Bob will fall back to heuristic if Ollama is unreachable anyway.',
     },
     {
       check_id: 'CHK-02',
       description: 'Verify Bob production env has TABULAR_NLP_PROVIDER=ollama',
       how_to_verify: 'GET <BOB_URL>/health → check config.TABULAR_NLP_PROVIDER === "ollama". Validated by ops-railway-wiring-audit.yml.',
       expected: 'ollama',
-      if_wrong: 'Set TABULAR_NLP_PROVIDER=ollama in Bob Railway service Variables.',
+      if_wrong: 'Set TABULAR_NLP_PROVIDER=ollama in Bob pod .env.',
     },
     {
       check_id: 'CHK-03',
       description: 'Verify Bob can reach Ollama via private network',
       how_to_verify: 'GET <BOB_URL>/health → check capabilities.chat_local_ollama_enabled === true.',
       expected: true,
-      if_wrong: 'Check OLLAMA_BASE_URL=http://ollama.railway.internal:11434 on Bob. Check Bob and Ollama are in the same Railway project. Check Ollama service is running (GET <OLLAMA_URL>/api/tags returns 200).',
+      if_wrong: 'Check OLLAMA_BASE_URL=http://127.0.0.1:11434 on Bob (RunPod pod). Check Ollama is running on the same pod. Check Ollama service is running (GET <OLLAMA_URL>/api/tags returns 200).',
     },
     {
       check_id: 'CHK-04',
@@ -673,7 +673,7 @@ const RAILWAY_SERVICES_AUDIT = {
       description: 'Verify Bob operating mode matches the intended deployment posture',
       how_to_verify: 'GET <BOB_URL>/health → check config.OPERATING_MODE. Use self-contained for locked-down production or build-training for internet-enabled build/training work.',
       expected: 'self-contained or build-training as intended',
-      if_wrong: 'Set BOB_OPERATING_MODE on the Bob Railway service and redeploy.',
+      if_wrong: 'Set BOB_OPERATING_MODE in Bob pod .env and restart.',
     },
     {
       check_id: 'CHK-07',
@@ -692,9 +692,9 @@ const RAILWAY_SERVICES_AUDIT = {
   ],
 
   how_bob_should_respond: {
-    when_asked_about_railway: 'Report the 4 services (Bob, Proxy, PTT, Ollama), their projects, deploy workflows, and key env vars. Always note that Ollama uses port 11434 and private networking URL is http://ollama.railway.internal:11434.',
+    when_asked_about_railway: 'Report the service topology: Bob+Ollama (RunPod pod), Proxy (Railway), PTT+TURN (VPS 72.61.123.97). Key Ollama URL: http://127.0.0.1:11434 (co-located on same RunPod pod).',
     when_asked_to_assess: 'Run through assessment_checks CHK-01 through CHK-08. Ask the user to share GET /health response from Bob for the config fields. Report each check result and remediation if needed.',
-    when_asked_to_fix: 'Guide user to Railway Dashboard → Bob service → Variables tab. Provide exact key=value pairs to add/update. Then trigger redeploy.',
+    when_asked_to_fix: 'Guide user to update Bob pod .env file on RunPod → restart container. Provide exact key=value pairs.',
   },
 };
 
@@ -726,7 +726,7 @@ const PLATFORM_DIAGNOSTICS = {
       { step: 'Check PORT binding', detail: 'Service MUST listen on process.env.PORT. Railway sets this automatically. Hardcoded ports will not receive traffic.' },
       { step: 'Check OOM errors', detail: 'Railway logs: "OOM" or "Killed". Upgrade to higher RAM plan in Railway Dashboard → service → Settings → Resources.' },
       { step: 'Check RAILWAY_TOKEN', detail: 'If deploy workflow fails: go to Railway Dashboard → Account → Tokens. Regenerate and update GitHub secret RAILWAY_BOB_TOKEN.' },
-      { step: 'Check private networking', detail: 'Bob → Ollama must use http://ollama.railway.internal:11434. Both services must be in the same Railway project.' },
+      { step: 'Check private networking', detail: 'Bob → Ollama must use http://127.0.0.1:11434 (co-located on same RunPod pod).' },
       { step: 'Check Docker build', detail: 'Review Dockerfile. Bob uses multi-stage: Python ONNX export → Node builder → production. Build errors in Stage 0 prevent model files from being present.' },
     ],
   },
@@ -834,9 +834,9 @@ function diagnosePlatformIssue(symptom) {
 
   results.sort((a, b) => b.score - a.score);
   return results.length > 0 ? results[0] : { platform: 'general', diagnosis: 'General platform issue', checks: [
-    { step: 'Check relevant service logs', detail: 'Vercel (frontend), Railway (Bob/PTT/Proxy), Supabase (Edge Functions), GitHub Actions (CI/CD).' },
+    { step: 'Check relevant service logs', detail: 'Vercel (frontend), RunPod (Bob), VPS 72.61.123.97 (PTT), Railway (Proxy), Supabase (Edge Functions), GitHub Actions (CI/CD).' },
     { step: 'Check environment variables', detail: 'Verify all required env vars are set on the relevant service.' },
-    { step: 'Check network connectivity', detail: 'Ensure services can reach each other. Railway private network for Bob ↔ Ollama.' },
+    { step: 'Check network connectivity', detail: 'Ensure services can reach each other. Bob ↔ Ollama via 127.0.0.1 (same RunPod pod).' },
   ] };
 }
 

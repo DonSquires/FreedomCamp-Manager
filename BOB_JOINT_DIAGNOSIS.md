@@ -87,7 +87,7 @@ Traced:
 # Check these via Railway dashboard:
 CHAT_PROVIDER=ollama              # Must be set
 TABULAR_NLP_PROVIDER=ollama       # Must be set
-OLLAMA_BASE_URL=http://ollama.railway.internal:3000  # Railway targetPort is 3000
+OLLAMA_BASE_URL=http://127.0.0.1:11434  # Ollama co-located on same RunPod pod
 SELF_CONTAINED_MODE=true
 REQUIRE_SELF_CONTAINED_MODE=true
 SELF_CONTAINED_STRICT_EGRESS=true
@@ -111,7 +111,7 @@ VITE_SUPABASE_URL=https://kxwjcupuxnnbnzcgmkoi.supabase.co
 
 If your canonical production URL differs, use the production one actually used by Edge Functions.
 
-### Fix A2: Railway variable update checklist (Bob service)
+### Fix A2: Pod environment update checklist (Bob RunPod pod)
 **Owner**: Railway project admin
 
 Minimum variables to satisfy strict workflow checks:
@@ -122,7 +122,7 @@ REQUIRE_SELF_CONTAINED_MODE=true
 SELF_CONTAINED_STRICT_EGRESS=true
 CHAT_PROVIDER=ollama
 TABULAR_NLP_PROVIDER=ollama
-OLLAMA_BASE_URL=http://ollama.railway.internal:3000
+OLLAMA_BASE_URL=http://127.0.0.1:11434
 ```
 
 After saving variables, redeploy/restart Bob service and verify:
@@ -245,7 +245,7 @@ requires_human_review BOOLEAN DEFAULT true
 
 5. **Emergency Ollama Recovery** (if breaker is open):
    - Circuit breaker has 3-failure threshold with 60-second cooldown
-   - Manual fix: Restart Ollama pod on Railway; breaker resets after successful request
+   - Manual fix: Restart Ollama on RunPod pod; breaker resets after successful request
    - Programmatic fix: Add `/reset/ollama-circuit-breaker` admin endpoint (if needed)
 
 6. **Add Circuit Breaker Recovery Logging**:
@@ -296,7 +296,7 @@ Since this shell cannot access live Supabase or GitHub secrets, Bob's analysis r
 **Likely Cause**: OLLAMA_BASE_URL unreachable from Railway OR circuit breaker is open  
 **Immediate Validation**: Run wiring audit + check smoke preflight artifact  
 **Evidence Captured**: Health endpoint now exposes circuit breaker state, config, and capabilities  
-**Next Action**: Verify Railway env variables match deployment docs or restart Ollama service
+**Next Action**: Verify Bob pod env variables match deployment docs or restart Ollama on RunPod pod
 
 ---
 

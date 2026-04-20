@@ -12,7 +12,7 @@ name: Ops Bob Ask Copilot
 #   - Manual:    workflow_dispatch (with optional single-question override)
 #
 # Required repository secrets (either alias in each pair):
-#   BOB_SERVICE_URL or INFERENCE_SERVICE_URL      — Railway URL for inference service
+#   BOB_SERVICE_URL or INFERENCE_SERVICE_URL      — Bob service URL (RunPod)
 #   BOB_INFERENCE_API_KEY or INFERENCE_API_KEY    — x-inference-api-key header value
 #
 # Optional:
@@ -134,9 +134,9 @@ jobs:
 
           if [ "$HTTP_STATUS" = "401" ]; then
             echo "::warning::Bob /ask-copilot/pending returned HTTP 401 (Unauthorized)"
-            echo "::warning::The API key used does not match Bob's Railway INFERENCE_API_KEY."
+            echo "::warning::The API key used does not match Bob's INFERENCE_API_KEY."
             echo "::warning::Fix: set GitHub secret BOB_INFERENCE_API_KEY to the value of the"
-            echo "::warning::INFERENCE_API_KEY environment variable on the Bob Railway service."
+            echo "::warning::INFERENCE_API_KEY configured on the Bob service."
             echo "::warning::(Do NOT reuse the Supabase ANON/service-role key — that is unrelated.)"
             echo "pending_count=0" >> "$GITHUB_OUTPUT"
             exit 0
@@ -171,7 +171,7 @@ jobs:
           # FieldOps system context given to Copilot for each question.
           # Keep this on one shell line so GitHub's workflow parser never sees
           # the prompt body as YAML.
-          SYSTEM_PROMPT=$(printf '%b' 'You are a technical research assistant helping Bob, the AI embedded in FieldOps Manager, a freedom camping enforcement platform in New Zealand.\n\nFieldOps Manager infrastructure summary:\n- Frontend: React 18 + Vite + Tailwind + shadcn/ui, hosted on Vercel at fcmanager.co.nz\n- Backend: Supabase PostgreSQL 17 with Edge Functions, Auth, and Storage; project ref kxwjcupuxnnbnzcgmkoi\n- Railway microservices: Bob inference, NZSCV proxy, PTT server, and Ollama\n- Mobile: React Native + Expo EAS\n- CI/CD: GitHub Actions with bun and TypeScript\n- Email: Zoho SMTP plus Resend; per-org SMTP via orgConfig.ts\n- Domain: fcmanager.co.nz with Vercel-managed TLS\n- PTT flow: PTTBar.tsx -> ptt.ts -> pttBackground.ts -> pttStore.ts -> ptt-signaling-token Edge Function -> ptt-server\n- Bob is self-contained and learns from this channel only\n- NZ-specific: NZSCV API, Freedom Camping Act 2011, Privacy Act 2020, NZBORA 1990\n\nAnswer the question with specific, accurate, actionable information. Include: direct answer, relevant file paths or env vars or commands, common gotchas, and where to look next if incomplete. Format as clear prose under 800 words.')
+          SYSTEM_PROMPT=$(printf '%b' 'You are a technical research assistant helping Bob, the AI embedded in FieldOps Manager, a freedom camping enforcement platform in New Zealand.\n\nFieldOps Manager infrastructure summary:\n- Frontend: React 18 + Vite + Tailwind + shadcn/ui, hosted on Vercel at fcmanager.co.nz\n- Backend: Supabase PostgreSQL 17 with Edge Functions, Auth, and Storage; project ref kxwjcupuxnnbnzcgmkoi\n- Services: Bob/Ollama on RunPod pod, NZSCV proxy on Railway, PTT+TURN on VPS 72.61.123.97\n- Mobile: React Native + Expo EAS\n- CI/CD: GitHub Actions with bun and TypeScript\n- Email: Zoho SMTP plus Resend; per-org SMTP via orgConfig.ts\n- Domain: fcmanager.co.nz with Vercel-managed TLS\n- PTT flow: PTTBar.tsx -> ptt.ts -> pttBackground.ts -> pttStore.ts -> ptt-signaling-token Edge Function -> ptt-server (VPS 72.61.123.97)\n- Bob is self-contained and learns from this channel only\n- NZ-specific: NZSCV API, Freedom Camping Act 2011, Privacy Act 2020, NZBORA 1990\n\nAnswer the question with specific, accurate, actionable information. Include: direct answer, relevant file paths or env vars or commands, common gotchas, and where to look next if incomplete. Format as clear prose under 800 words.')
 
           # Process each pending request
           jq -c '.requests[]' /tmp/pending.json | while IFS= read -r request; do

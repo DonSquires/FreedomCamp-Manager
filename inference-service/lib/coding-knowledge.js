@@ -50,7 +50,7 @@ const TECH_STACK = {
   },
   hosting: {
     frontend: 'Vercel (fcmanager.co.nz)',
-    microservices: 'Railway (Bob, Proxy, PTT, Ollama)',
+    microservices: 'RunPod (Bob+Ollama), Railway (Proxy), VPS 72.61.123.97 (PTT+TURN)',
     mobile: 'Expo EAS (React Native)',
   },
   path_alias: '@/* → ./src/*  (defined in tsconfig.json and vite.config.ts)',

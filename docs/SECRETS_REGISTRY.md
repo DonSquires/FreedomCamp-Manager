@@ -8,7 +8,7 @@ Secrets live in exactly one of three places:
 |---|---|
 | **GitHub Actions Secrets** (`Settings → Secrets and variables → Actions`) | CI/CD deploy tokens, workflow credentials |
 | **Supabase Edge Function Secrets** (Supabase Dashboard → Project Settings → Edge Functions → Secrets) | Runtime config available to all Edge Functions |
-| **Railway Service Environment Variables** (Railway Dashboard → Service → Variables) | Runtime config per Railway service (Bob, Ollama, Proxy, PTT) |
+| **Service Environment Variables** (RunPod pod env, VPS `.env`, Railway Dashboard → Proxy service → Variables) | Runtime config per service |
 
 > **Rule:** A secret belongs in exactly the place(s) listed in this document.
 > Never store Railway tokens in Supabase. Never store Supabase service role keys in GitHub plain variables.
@@ -35,10 +35,7 @@ The absolute minimum to get the system running. Every item must be set before an
 
 | Secret | Where to get it | Notes |
 |---|---|---|
-| `RAILWAY_BOB_TOKEN` | Railway → Bob project → Settings → Tokens | Deploys Bob + Ollama |
-| `RAILWAY_BOB_SERVICE_ID` | Railway → Bob project → Bob service → Settings → Service ID | |
-| `RAILWAY_OLLAMA_SERVICE_ID` | Railway → Bob project → Ollama service → Settings → Service ID | |
-| `RAILWAY_TOKEN` | Railway → Core project → Settings → Tokens | Deploys Proxy + PTT |
+| `RAILWAY_TOKEN` | Railway → Core project → Settings → Tokens | Deploys Proxy only |
 | `RAILWAY_PROXY_SERVICE_ID` | Railway → Core project → Proxy service → Settings → Service ID | |
 | `VITE_SUPABASE_URL` | Supabase Dashboard → Settings → API → Project URL | |
 | `VITE_SUPABASE_ANON_KEY` | Supabase Dashboard → Settings → API → Project API Keys → anon/public | |
@@ -51,30 +48,34 @@ The absolute minimum to get the system running. Every item must be set before an
 | `VERCEL_ORG_ID` | Vercel Dashboard → Settings → General → Team ID | |
 | `VERCEL_PROJECT_ID` | Vercel Dashboard → Project → Settings → General → Project ID | |
 | `BOB_SYNC_PAT` | GitHub → Settings → Developer settings → PATs | Contents: Read+Write on `DonSquires/Bob` |
-| `BOB_SERVICE_URL` | Set after first Bob deploy | Bob's public Railway URL; enables post-deploy health checks |
+| `BOB_SERVICE_URL` | Set after first Bob deploy | Bob's public RunPod URL; enables post-deploy health checks |
 | `PROXY_SERVER_URL` | Set after first Proxy deploy | Proxy's public Railway URL |
-| `PTT_SERVER_URL` | Set after first PTT deploy | PTT server's public Railway URL |
+| `PTT_SERVER_URL` | Set after first PTT deploy | PTT server's public URL (`http://72.61.123.97:PORT`) |
 
 ### Step 2 — Supabase Edge Function Secrets
 
 | Secret | Value |
 |---|---|
-| `INFERENCE_SERVICE_URL` | Same as `BOB_SERVICE_URL` (Bob's public Railway URL) |
+| `INFERENCE_SERVICE_URL` | Same as `BOB_SERVICE_URL` (Bob's public RunPod URL) |
 | `INFERENCE_API_KEY` | Same value as the GitHub Actions secret `INFERENCE_API_KEY` |
 | `PROXY_SERVER_URL` | Same as GitHub Actions `PROXY_SERVER_URL` |
 | `PTT_SERVER_URL` | Same as GitHub Actions `PTT_SERVER_URL` |
-| `PTT_PROXY_SECRET` | Generate: `openssl rand -hex 32` — set this exact value on the PTT Railway service and in Supabase vault |
+| `PTT_PROXY_SECRET` | Generate: `openssl rand -hex 32` — set this exact value on the PTT VPS service and in Supabase vault |
 
-### Step 3 — Railway: Bob service
+### Step 3 — RunPod: Bob service
 
-| Variable | Value |
-|---|---|
-| `INFERENCE_API_KEY` | Same as GitHub Actions `INFERENCE_API_KEY` |
-| `SUPABASE_SERVICE_ROLE_KEY` | Same as GitHub Actions `SUPABASE_SERVICE_ROLE_KEY` |
-| `OLLAMA_BASE_URL` | `http://ollama.railway.internal:11434` |
-| `OLLAMA_MODEL` | `llama3.1:8b` |
-| `CHAT_PROVIDER` | `ollama` |
-| `TABULAR_NLP_PROVIDER` | `ollama` |
+Bob runs as a persistent pod on RunPod (`ssh root@<RUNPOD_POD_SSH_HOST>`).
+Set these as environment variables in the pod's `.env` or via the `deploy-runpod-gateway.yml` workflow.
+
+| Variable | Required | Value / Notes |
+|---|---|---|
+| `INFERENCE_API_KEY` | ✅ Required | Same as GitHub Actions `INFERENCE_API_KEY` and Supabase vault `INFERENCE_API_KEY` |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅ Required | Supabase service role key — used for JWT verification fallback |
+| `SUPABASE_URL` | Recommended | Supabase project URL (enables JWKS verification) |
+| `OLLAMA_BASE_URL` | ✅ Required | `http://127.0.0.1:11434` (Ollama runs locally on the same pod) |
+| `OLLAMA_MODEL` | Recommended | `llama3.1:8b` (must match pulled model) |
+| `CHAT_PROVIDER` | ✅ Required | `ollama` |
+| `TABULAR_NLP_PROVIDER` | Recommended | `ollama` |
 
 ### Step 4 — Railway: Proxy service
 
@@ -95,8 +96,7 @@ Set at: **DonSquires/FreedomCamp-Manager → Settings → Secrets and variables 
 
 | Secret | Canonical | Accepted Aliases | Required For | Notes |
 |---|---|---|---|---|
-| `RAILWAY_BOB_TOKEN` | ✅ | `RAILWAY_TOKEN_BOB` (deprecated) | Bob + Ollama deploy | Bob Railway project token |
-| `RAILWAY_TOKEN` | ✅ | `RAILWAY_CORE_TOKEN` (deprecated) | Proxy + PTT + legacy inference deploy | Core Railway project token |
+| `RAILWAY_TOKEN` | ✅ | `RAILWAY_CORE_TOKEN` (deprecated) | Proxy deploy | Core Railway project token |
 
 Alias resolution is handled by `scripts/load-railway-secrets-from-github-env.sh`. Always configure the canonical name.
 
@@ -104,34 +104,30 @@ Alias resolution is handled by `scripts/load-railway-secrets-from-github-env.sh`
 
 | Secret | Canonical | Required For | Notes |
 |---|---|---|---|
-| `RAILWAY_BOB_SERVICE_ID` | ✅ | `deploy-bob-railway.yml` | Bob inference service ID |
-| `RAILWAY_BOB_PROJECT_ID` | ✅ | `deploy-bob-railway.yml` | Used for service auto-resolution when SERVICE_ID is missing |
-| `RAILWAY_OLLAMA_SERVICE_ID` | ✅ | `deploy-ollama-railway.yml` | Ollama service ID |
 | `RAILWAY_PROXY_SERVICE_ID` | ✅ | `deploy-proxy-railway.yml` | Proxy service ID |
-| `RAILWAY_INFERENCE_SERVICE_ID` | ✅ | `deploy-railway.yml` (legacy core) | Legacy inference-in-core-project deploy |
-
-> **Deprecated aliases** — never configure these directly; they exist only as backwards-compat fallbacks:
-> - `RAILWAY_SERVICE_ID` → normalised to `RAILWAY_BOB_SERVICE_ID`
-> - `RAILWAY_PROJECT_ID` → normalised to `RAILWAY_BOB_PROJECT_ID`
-> - `RAILWAY_BOB_SERVICE_NAME` → name-based fallback if ID resolution fails
+| `RAILWAY_BOB_TOKEN` | ⚠️ Deprecated | Previously `deploy-bob-railway.yml` | Bob has moved to RunPod |
+| `RAILWAY_BOB_SERVICE_ID` | ⚠️ Deprecated | Previously `deploy-bob-railway.yml` | Bob has moved to RunPod |
+| `RAILWAY_BOB_PROJECT_ID` | ⚠️ Deprecated | Previously `deploy-bob-railway.yml` | Bob has moved to RunPod |
+| `RAILWAY_OLLAMA_SERVICE_ID` | ⚠️ Deprecated | Previously `deploy-ollama-railway.yml` | Ollama runs on RunPod pod |
+| `RAILWAY_INFERENCE_SERVICE_ID` | ⚠️ Deprecated | `deploy-railway.yml` (legacy core) | Legacy inference-in-core-project deploy |
 
 ### Service URLs (Post-Deploy Health Checks + Wiring Audit)
 
 | Secret | Canonical | Accepted Aliases | Used By | Notes |
 |---|---|---|---|---|
-| `BOB_SERVICE_URL` | ✅ | `INFERENCE_SERVICE_URL` | Bob deploy + all Bob ops workflows | Bob's public Railway URL |
+| `BOB_SERVICE_URL` | ✅ | `INFERENCE_SERVICE_URL` | Bob deploy + all Bob ops workflows | Bob's public RunPod URL |
 | `INFERENCE_SERVICE_URL` | ✅ | `BOB_SERVICE_URL` | Ops workflows, wiring audit | Same value as `BOB_SERVICE_URL` |
 | `PROXY_SERVER_URL` | ✅ | `PROXY_SERVICE_URL`, `NZSCV_PROXY_URL` (deprecated) | Proxy deploy, wiring audit | Proxy public Railway URL |
-| `PTT_SERVER_URL` | ✅ | `PTT_SERVICE_URL` (deprecated) | PTT health check, wiring audit, `set-ptt-secret.yml` | PTT public Railway URL |
-| `OLLAMA_SERVICE_URL` | ✅ | — | Ollama post-deploy health check | Ollama public Railway URL |
+| `PTT_SERVER_URL` | ✅ | `PTT_SERVICE_URL` (deprecated) | PTT health check, wiring audit, `set-ptt-secret.yml` | PTT server URL on VPS (`http://72.61.123.97:PORT`) |
+| `OLLAMA_SERVICE_URL` | ✅ | — | Ollama post-deploy health check | RunPod gateway URL for direct Ollama access |
 
-Both `BOB_SERVICE_URL` and `INFERENCE_SERVICE_URL` should contain the same value (Bob's URL). The normalisation script maps each as a fallback for the other.
+Both `BOB_SERVICE_URL` and `INFERENCE_SERVICE_URL` should contain the same value (Bob's RunPod URL). The normalisation script maps each as a fallback for the other.
 
 ### Bob Auth Key
 
 | Secret | Canonical | Accepted Aliases | Required For | Notes |
 |---|---|---|---|---|
-| `INFERENCE_API_KEY` | ✅ | `BOB_INFERENCE_API_KEY` (deprecated) | All Bob ops workflows | Must match Bob Railway service var + Supabase vault |
+| `INFERENCE_API_KEY` | ✅ | `BOB_INFERENCE_API_KEY` (deprecated) | All Bob ops workflows | Must match Bob service env var + Supabase vault |
 
 Configure `INFERENCE_API_KEY` only. `BOB_INFERENCE_API_KEY` is accepted as an alias but is deprecated.
 
@@ -235,13 +231,13 @@ These are available as `Deno.env.get('SECRET_NAME')` inside all Edge Functions. 
 
 | Secret | Canonical | Aliases Accepted | Required | Notes |
 |---|---|---|---|---|
-| `INFERENCE_SERVICE_URL` | ✅ | — | For AI features | Bob's public Railway URL |
-| `INFERENCE_API_KEY` | ✅ | — | Recommended | Auth header sent to Bob; must match Bob Railway service var |
+| `INFERENCE_SERVICE_URL` | ✅ | — | For AI features | Bob's public RunPod URL |
+| `INFERENCE_API_KEY` | ✅ | — | Recommended | Auth header sent to Bob; must match Bob service `INFERENCE_API_KEY` |
 | `PROXY_SERVER_URL` | ✅ | `NZSCV_PROXY_URL`, `RAILWAY_PROXY_URL`, `PROXY_BASE_URL` (deprecated) | For vehicle lookup | Proxy public Railway URL |
-| `PTT_SERVER_URL` | ✅ | — | For PTT | PTT server public Railway URL |
+| `PTT_SERVER_URL` | ✅ | — | For PTT | PTT server URL on VPS (`http://72.61.123.97:PORT`) |
 | `PTT_PROXY_SECRET` | ✅ | — | For PTT | Shared secret for ptt-signaling-token Edge Function; must match PTT server `PTT_PROXY_SECRET` |
 
-> **PTT secret rule:** Set only `PTT_PROXY_SECRET` for PTT in both Supabase vault and the Railway PTT service.
+> **PTT secret rule:** Set only `PTT_PROXY_SECRET` for PTT in both Supabase vault and the VPS PTT service.
 
 ### Bob Feedback Sync
 
@@ -319,29 +315,26 @@ These are available as `Deno.env.get('SECRET_NAME')` inside all Edge Functions. 
 
 ---
 
-## Railway Service Environment Variables
+## Service Environment Variables
 
-Set at: **Railway Dashboard → [Project] → [Service] → Variables**
+### Bob Inference Service (`inference-service/`) — RunPod pod
 
-### Bob Inference Service (`inference-service/`)
-
-Railway project: **Bob** | Internal URL: `http://bob.railway.internal:3000`
+Bob runs on a RunPod GPU pod via SSH (`ssh root@<RUNPOD_POD_SSH_HOST>`).
+Set environment variables in the pod's `.env` file or via deployment workflow env injection.
 
 | Variable | Required | Value / Notes |
 |---|---|---|
-| `PORT` | Auto-set by Railway | Do not override; Railway injects this |
+| `PORT` | ✅ Required | Set to the port Bob listens on (default: `3000`) |
 | `INFERENCE_API_KEY` | ✅ Required | Same value as GitHub Actions `INFERENCE_API_KEY` and Supabase vault `INFERENCE_API_KEY` |
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ Required | Supabase service role key — used for JWT verification fallback |
 | `SUPABASE_URL` | Recommended | Supabase project URL (enables JWKS verification) |
 | `SUPABASE_JWKS_URL` | Optional | Default: derived from `SUPABASE_URL`; `https://<ref>.supabase.co/auth/v1/.well-known/jwks.json` |
 | `SUPABASE_JWT_ISSUER` | Optional | Default: derived from `SUPABASE_URL`; `https://<ref>.supabase.co/auth/v1` |
-| `OLLAMA_BASE_URL` | ✅ Required | **Must be** `http://ollama.railway.internal:11434` |
-| `OLLAMA_MODEL` | Recommended | `llama3.1:8b` (must match model pulled by Ollama service) |
+| `OLLAMA_BASE_URL` | ✅ Required | `http://127.0.0.1:11434` — Ollama runs locally on the same pod |
+| `OLLAMA_MODEL` | Recommended | `llama3.1:8b` (must match pulled model) |
 | `CHAT_PROVIDER` | ✅ Required | `ollama` |
 | `TABULAR_NLP_PROVIDER` | Recommended | `ollama` |
 | `INTEL_HMAC_KEY` | ⚠️ Strongly recommended | HMAC key for intel bulletin verification; same as GitHub Actions `INTEL_HMAC_KEY` |
-| `SELF_CONTAINED_MODE` | Do not change | Hard-coded `true` in source; setting this to `false` will be rejected |
-| `SELF_CONTAINED_STRICT_EGRESS` | Do not change | Hard-coded `true`; blocks all non-local outbound calls |
 | `SELF_HEALING_ENABLED` | Optional | `true` (default) |
 | `SELF_LEARNING_ENABLED` | Optional | `true` (default) |
 | `INTEL_STATE_PATH` | Optional | Default: `./data/intel-state.json` |
@@ -349,27 +342,26 @@ Railway project: **Bob** | Internal URL: `http://bob.railway.internal:3000`
 
 > **⚠️ Auth limitation in strict mode:** When `SELF_CONTAINED_STRICT_EGRESS=true`, user JWT verification via JWKS is disabled because it requires an outbound network call. Edge Functions **must** authenticate using `INFERENCE_API_KEY` (or `SUPABASE_SERVICE_ROLE_KEY` in `x-inference-api-key` header). User JWTs are not accepted by Bob in production.
 
-> **⚠️ State persistence:** Bob writes learned state to the container filesystem (`data/*.json`). Railway's ephemeral filesystem means state is lost on redeploy. Back up `data/self-learning-state.json` and `data/intel-state.json` periodically using Railway volumes or set `SELF_LEARNING_PERSIST_URL` / `INTEL_STATE_PERSIST_URL` to Supabase Storage presigned URLs (opt-in feature).
+> **State persistence:** Bob writes learned state to the pod filesystem (`data/*.json`). Back up `data/self-learning-state.json` and `data/intel-state.json` periodically, or set `SELF_LEARNING_PERSIST_URL` / `INTEL_STATE_PERSIST_URL` to Supabase Storage presigned URLs (opt-in feature).
 
-### Ollama LLM Service (`ollama/`)
+### Ollama LLM Service — RunPod pod (same pod as Bob)
 
-Railway project: **Bob** (same project as Bob service) | Internal URL: `http://ollama.railway.internal:11434`
+Ollama runs on the same RunPod pod as Bob, accessible at `http://127.0.0.1:11434`.
+The RunPod gateway (`runpod-gateway/`) exposes Ollama to the internet behind `BOB_GATEWAY_KEY` auth.
 
 | Variable | Required | Value / Notes |
 |---|---|---|
-| `OLLAMA_HOST` | ✅ Required | `0.0.0.0:11434` (baked into Dockerfile; override here if port changes) |
-| `OLLAMA_MODEL` | ✅ Required | `llama3.1:8b` — controls which model `start.sh` pre-pulls on deploy |
+| `OLLAMA_HOST` | ✅ Required | `0.0.0.0:11434` (baked into Dockerfile) |
+| `OLLAMA_MODEL` | ✅ Required | `llama3.1:8b` — controls which model `start.sh` pre-pulls on boot |
 | `OLLAMA_KEEP_ALIVE` | Recommended | `24h` — keeps model loaded in RAM between requests |
 | `OLLAMA_NO_CLOUD` | ✅ Required | `true` — disables Ollama cloud telemetry |
-| `OLLAMA_ORIGINS` | Required | `*` — allows requests from Bob's internal IP |
+| `OLLAMA_ORIGINS` | Required | `*` — allows requests from Bob process |
 
-> **Networking:** Ollama and Bob **must be in the same Railway project** for private networking (`*.railway.internal`) to work. Putting them in separate projects requires going via the public internet, which is blocked by `SELF_CONTAINED_STRICT_EGRESS`.
+> **RunPod gateway:** The `runpod-gateway/` reverse proxy authenticates external Ollama API access using `BOB_GATEWAY_KEY`. Set `BOB_GATEWAY_KEY` in the pod `.env`. Deploy via `deploy-runpod-gateway.yml`.
 
-> **Cold start:** The `start.sh` entrypoint pre-pulls `OLLAMA_MODEL` on first boot. Railway `healthcheckTimeout` is set to 300 s to accommodate the initial ~4.7 GB download. Subsequent restarts skip the pull if the model is already cached.
+### Proxy Server (`proxy-server/`) — Railway Core project
 
-### Proxy Server (`proxy-server/`)
-
-Railway project: **Core** | Internal URL: `http://proxy.railway.internal:3000`
+Railway project: **Core** | Public URL set in `PROXY_SERVER_URL` GitHub secret
 
 | Variable | Required | Value / Notes |
 |---|---|---|
@@ -390,19 +382,19 @@ Railway project: **Core** | Internal URL: `http://proxy.railway.internal:3000`
 | `SITE_URL` | Optional | Default: `https://fcmanager.co.nz` |
 | `NODE_ENV` | Recommended | `production` |
 
-### PTT Signaling Server (`ptt-server/`)
+### PTT Signaling Server (`ptt-server/`) — hPanel VPS `root@72.61.123.97`
 
-Railway project: **Core** | Internal URL: `http://ptt.railway.internal:3002`
+PTT and TURN both run on the VPS at `72.61.123.97`. Deploy via `deploy-voice-server.yml` (SSH).
 
 | Variable | Required | Value / Notes |
 |---|---|---|
-| `PORT` | Auto-set by Railway | |
+| `PORT` | Required | Port PTT listens on (e.g. `3002`) |
 | `PTT_PROXY_SECRET` | ✅ Required | Shared secret — must match Supabase vault `PTT_PROXY_SECRET` |
 | `PTT_JWT_SECRET` | ✅ Required | JWT signing secret for PTT channel tokens — generate with `openssl rand -hex 32` |
 | `NODE_ENV` | Recommended | `production` |
 | `MAX_PARTICIPANTS_PER_CHANNEL` | Optional | Default: `50` |
 | `MAX_CLIP_DURATION_SECONDS` | Optional | Default: `30` |
-| `TURN_URL` | Optional | TURN server URL for NAT traversal |
+| `TURN_URL` | Optional | `turn:72.61.123.97:3478` — co-located TURN server |
 | `TURN_USERNAME` | Optional | TURN username |
 | `TURN_CREDENTIAL` | Optional | TURN credential |
 
@@ -414,10 +406,7 @@ This table documents every alias accepted by `scripts/load-railway-secrets-from-
 
 | Canonical Secret | Accepted Aliases (deprecated) | Resolution |
 |---|---|---|
-| `RAILWAY_BOB_TOKEN` | `RAILWAY_TOKEN_BOB` | load-railway-secrets-from-github-env.sh |
 | `RAILWAY_TOKEN` | `RAILWAY_CORE_TOKEN` | load-railway-secrets-from-github-env.sh |
-| `RAILWAY_BOB_SERVICE_ID` | `RAILWAY_SERVICE_ID` | load-railway-secrets-from-github-env.sh |
-| `RAILWAY_BOB_PROJECT_ID` | `RAILWAY_PROJECT_ID` | load-railway-secrets-from-github-env.sh |
 | `INFERENCE_SERVICE_URL` | `BOB_SERVICE_URL` | load-railway-secrets-from-github-env.sh (bidirectional) |
 | `BOB_SERVICE_URL` | `INFERENCE_SERVICE_URL` | load-railway-secrets-from-github-env.sh (bidirectional) |
 | `PROXY_SERVER_URL` | `PROXY_SERVICE_URL`, `NZSCV_PROXY_URL` | load-railway-secrets-from-github-env.sh |
@@ -438,10 +427,10 @@ Use this checklist when setting up a new environment or after team changes.
 
 ### GitHub Actions — Core (all environments)
 
-- [ ] `RAILWAY_BOB_TOKEN`
-- [ ] `RAILWAY_BOB_SERVICE_ID`
-- [ ] `RAILWAY_OLLAMA_SERVICE_ID`
-- [ ] `RAILWAY_BOB_PROJECT_ID` (optional; required if SERVICE_ID not set)
+- [ ] `RAILWAY_BOB_TOKEN` *(deprecated — Bob moved to RunPod)*
+- [ ] `RAILWAY_BOB_SERVICE_ID` *(deprecated — Bob moved to RunPod)*
+- [ ] `RAILWAY_OLLAMA_SERVICE_ID` *(deprecated — Ollama moved to RunPod)*
+- [ ] `RAILWAY_BOB_PROJECT_ID` *(deprecated — Bob moved to RunPod)*
 - [ ] `RAILWAY_TOKEN`
 - [ ] `RAILWAY_PROXY_SERVICE_ID`
 - [ ] `VITE_SUPABASE_URL`
@@ -510,22 +499,26 @@ Use this checklist when setting up a new environment or after team changes.
 - [ ] `GITHUB_TOKEN` (optional — enables CI context in auto-analyse-report)
 - [ ] `GITHUB_REPO` (optional — defaults to `DonSquires/FreedomCamp-Manager`)
 
-### Railway: Bob service
+### RunPod: Bob service
 
 - [ ] `INFERENCE_API_KEY` (matches GitHub Actions + Supabase vault)
 - [ ] `SUPABASE_SERVICE_ROLE_KEY`
 - [ ] `SUPABASE_URL`
-- [ ] `OLLAMA_BASE_URL` = `http://ollama.railway.internal:11434`
+- [ ] `OLLAMA_BASE_URL` = `http://127.0.0.1:11434`
 - [ ] `OLLAMA_MODEL` = `llama3.1:8b`
 - [ ] `CHAT_PROVIDER` = `ollama`
 - [ ] `TABULAR_NLP_PROVIDER` = `ollama`
 - [ ] `INTEL_HMAC_KEY` (matches GitHub Actions `INTEL_HMAC_KEY`)
 
-### Railway: Ollama service
+### RunPod: Ollama (same pod as Bob)
 
 - [ ] `OLLAMA_MODEL` = `llama3.1:8b`
 - [ ] `OLLAMA_KEEP_ALIVE` = `24h`
 - [ ] `OLLAMA_NO_CLOUD` = `true`
+
+### RunPod: Gateway (`BOB_GATEWAY_KEY`)
+
+- [ ] `BOB_GATEWAY_KEY` set in pod `.env` (must match GitHub Actions `BOB_GATEWAY_KEY`)
 
 ### Railway: Proxy service
 
@@ -535,12 +528,12 @@ Use this checklist when setting up a new environment or after team changes.
 - [ ] `NZSCV_ENDPOINT_URL`
 - [ ] `SMTP_HOST`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL` (if using invite emails from proxy)
 
-### Railway: PTT service
+### VPS (`root@72.61.123.97`): PTT + TURN service
 
 - [ ] `PTT_PROXY_SECRET` (matches Supabase vault `PTT_PROXY_SECRET`)
 - [ ] `PTT_JWT_SECRET`
 - [ ] `NODE_ENV` = `production`
-- [ ] `TURN_URL` (recommended for production reliability)
+- [ ] `TURN_URL` = `turn:72.61.123.97:3478` (recommended for production reliability)
 - [ ] `TURN_USERNAME` (recommended for production reliability)
 - [ ] `TURN_CREDENTIAL` (recommended for production reliability)
 

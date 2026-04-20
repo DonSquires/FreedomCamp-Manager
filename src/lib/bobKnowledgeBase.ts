@@ -150,14 +150,13 @@ NEW (correct): last_scan_zone, last_gps_latitude, last_gps_longitude, last_gps_u
 
 ## 7. Supabase Edge Functions (key ones)
 
-onspace-ai-chat: Bob / AI chat. Uses INFERENCE_SERVICE_URL pointing to Railway inference-service.
-plate-scanner-photo-first: Layer 1 scan ingest (v2 pathway, FEATURE_INGEST_V2).
-plate-scanner-complete: Legacy scan ingest (v1).
-recalculate-compliance-v3: Triggers compliance recalc for a plate/zone.
-generate-incident-pdf / generate-notice-to-vacate: PDF generation.
+onspace-ai-chat: Bob / AI chat. Uses INFERENCE_SERVICE_URL pointing to Bob inference service (RunPod).
+process-officer-scan: Core scan pipeline — ALPR, SCV lookup, compliance evaluation, breach creation.
+vehicle-ingest: Field officer observation creation (creates initial observation row; process-officer-scan runs enrichment).
+generate-notice-to-vacate / generate-infringement: PDF generation.
 ptt-signaling-token: Push-to-talk JWT token. Requires PTT_SERVER_URL secret to be set.
 sync-scv-list: Bulk import NZ SCV register into canonical_scv.
-check-nzscv-status: Live NZSCV lookup via proxy-server.
+cleanup-and-recalculate: Nightly batch (zone correction, dedup, compliance recalc). Phases: all/zone/dedup/compliance.
 process-homeless-data: Import/update canonical_homeless records.
 submit-dispute-intake: Receive public dispute form submissions.
 monitor-officer-welfare: Welfare check scheduling and alerts.
@@ -172,13 +171,13 @@ CORS pattern required in all edge functions:
 
 ## 8. External Services
 
-Railway inference-service: ONNX OCR + /chat endpoint (inference-service/ folder).
+Bob inference service (RunPod): ONNX OCR + /chat endpoint (inference-service/ folder).
 Railway proxy-server: NZSCV API proxy, MotorWeb proxy (proxy-server/ folder).
 ParkPow: ALPR session/violation sync (supabase/functions/parkpow-sync).
 Vercel: Frontend hosting (vercel.json).
 Supabase: DB, Auth, Edge Functions, Storage.
 
-Required env vars for AI: INFERENCE_SERVICE_URL (Railway URL), INFERENCE_API_KEY (optional).
+Required env vars for AI: INFERENCE_SERVICE_URL (Bob RunPod URL), INFERENCE_API_KEY (optional).
 For PTT: PTT_SERVER_URL.
 If not set, both show "Unable to reach Edge Function" errors — this is a backend config issue, not a code bug.
 
@@ -238,7 +237,7 @@ If Bob receives a collaboration packet, he processes it fully and publishes the 
 ## 13. Pending / Known Issues (April 2026)
 
 - PTT offline: PTT_SERVER_URL not set in Supabase Edge Function secrets. Config fix needed by Don.
-- AI offline: INFERENCE_SERVICE_URL not set. Railway URL must be set in Supabase secrets.
+- AI offline: INFERENCE_SERVICE_URL not set. Bob's RunPod URL must be set in Supabase secrets.
 - 65/72 edge functions use wildcard CORS (cors.ts vs withCors.ts) — security hardening in progress.
 - USING (true) RLS policies on some sensitive tables — partial fix in migration, audit ongoing.
 - Conversation history was not being sent to onspace-ai-chat (history field name mismatch: client sent "history", edge function reads "messages") — fixed by switching to Format A messages array.

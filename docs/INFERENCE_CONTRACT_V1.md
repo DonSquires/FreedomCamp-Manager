@@ -1,6 +1,6 @@
 # Inference Service Contract — v1
 
-This document describes the response fields produced by the Railway ORC/AI inference service (`POST /infer`) and how they map to columns in the `observations` table.
+This document describes the response fields produced by the Bob ORC/AI inference service (`POST /infer`) and how they map to columns in the `observations` table.
 
 ---
 

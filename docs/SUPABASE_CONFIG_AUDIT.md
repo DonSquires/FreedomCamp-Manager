@@ -295,7 +295,7 @@ In the **Expo/EAS project dashboard** (or `eas.json` `env` block), set:
 
 ### R4 — Configure Inference Service CORS
 
-On **Railway (inference-service)**, set the environment variable:
+On **Bob inference service (RunPod pod)**, set the environment variable:
 
 ```env
 ALLOWED_ORIGINS=https://kxwjcupuxnnbnzcgmkoi.supabase.co
@@ -340,4 +340,4 @@ No database migrations are needed as a result of this audit.
 - [ ] GitHub Secrets configured → required manual step (see R1)
 - [ ] Vercel env vars configured → required manual step (see R2)
 - [ ] EAS env vars configured → required manual step (see R3)
-- [ ] Railway inference service `ALLOWED_ORIGINS` set → required manual step (see R4)
+- [ ] Bob inference service (RunPod) `ALLOWED_ORIGINS` set → required manual step (see R4)

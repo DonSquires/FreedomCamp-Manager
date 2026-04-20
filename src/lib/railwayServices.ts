@@ -364,7 +364,7 @@ export async function generateVehicleEmbedding(
 
 /**
  * Perform OCR on vehicle photo to extract plate number.
- * Plate extraction requires OPENAI_API_KEY on the Railway inference service.
+ * Plate extraction requires OPENAI_API_KEY on the Bob inference service.
  * @deprecated Use inferVehicle() – maps to the same /infer endpoint.
  */
 export async function performOCR(

@@ -87,14 +87,14 @@ export default function SystemDiagnostics() {
   // Check user role
   const isMaster = user?.role === 'master'
 
-  // Railway Integration: Check Proxy Server Health
+  // Bob Integration: Check Proxy Server Health
   const { data: proxyHealth, isLoading: proxyLoading, refetch: refetchProxy } = useQuery({
     queryKey: ['proxy-health'],
     queryFn: () => checkProxyHealth(),
     refetchInterval: 30000, // Refresh every 30 seconds
   })
 
-  // Railway Integration: Check Inference Service Health
+  // Bob Integration: Check Inference Service Health
   const { data: inferenceHealth, isLoading: inferenceLoading, refetch: refetchInference } = useQuery({
     queryKey: ['inference-health'],
     queryFn: () => checkInferenceHealth(),

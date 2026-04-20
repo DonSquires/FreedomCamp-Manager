@@ -181,12 +181,34 @@ export function useVehicleCompliance(plateNumber?: string, options?: {
     enabled: !!plateNumber,
   })
 
-  // Recalculate compliance mutation
+  // Recalculate compliance mutation — re-processes the observation through
+  // process-officer-scan (compliance evaluation phase).
+  // The observation's stored photo_url is fetched first so the scan pipeline
+  // can download the photo for ALPR re-identification.
   const recalculateCompliance = useMutation({
     mutationFn: async (observationId: string) => {
-      const { data, error } = await edgeFunctions.testComplianceMatrix({
+      // Look up the photo_url stored on the observation row
+      const { data: obsRow, error: obsErr } = await supabase
+        .from('observations')
+        .select('photo_url')
+        .eq('observation_id', observationId)
+        .maybeSingle()
+
+      if (obsErr) {
+        toast.error('Failed to load observation')
+        throw obsErr
+      }
+
+      const photoUrl: string | null = (obsRow as any)?.photo_url ?? null
+
+      if (!photoUrl) {
+        toast.error('No photo available for this observation — cannot re-run scan pipeline')
+        throw new Error('photo_url not found on observation')
+      }
+
+      const { data, error } = await edgeFunctions.processOfficerScan({
         observation_id: observationId,
-        apply: true,
+        photo_url: photoUrl,
       })
 
       if (error) {

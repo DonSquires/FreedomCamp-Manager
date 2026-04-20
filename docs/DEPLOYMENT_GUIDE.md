@@ -44,7 +44,7 @@ Before deploying, ensure all requirements are met:
 
 ### 3. External Services
 - [ ] Railway proxy-server deployed and healthy
-- [ ] Railway inference-service deployed and healthy
+- [ ] Bob inference service (RunPod) deployed and healthy
 - [ ] ParkPow ALPR credentials configured
 - [ ] OnSpace AI credentials configured (if used)
 
@@ -318,7 +318,7 @@ SMTP_FROM_NAME=FreedomCamp Manager
 Inference-service deployment env should enforce self-contained operation:
 
 ```bash
-# Set these on Railway for inference-service (not in Supabase function secrets)
+# Set these on RunPod pod for Bob inference service (not in Supabase function secrets)
 SELF_CONTAINED_MODE=true
 REQUIRE_SELF_CONTAINED_MODE=true
 SELF_CONTAINED_STRICT_EGRESS=true

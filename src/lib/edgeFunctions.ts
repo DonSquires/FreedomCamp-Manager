@@ -390,209 +390,6 @@ export const edgeFunctions = {
   },
 
   /**
-   * Retry ALPR processing on incident evidence
-   */
-  retryALPR: async (params: {
-    incident_id: string
-  }) => {
-    return callEdgeFunction('alpr-retry', params)
-  },
-
-  /**
-   * Check almost breaches (predict overnight violations)
-   */
-  checkAlmostBreaches: async (params: {
-    organization_id?: string
-    zone_id?: string
-  }) => {
-    return callEdgeFunction('check-almost-breaches', params)
-  },
-
-  /**
-   * Scan all vehicles for compliance breaches
-   */
-  scanBreaches: async (params: {
-    organization_id?: string
-    zone_id?: string
-  }) => {
-    return callEdgeFunction('scan-breaches', params)
-  },
-
-  /**
-   * Bulk compliance recalculation (v2 schema – observations table, BATCH_SIZE=150).
-   * Accepts both legacy and structured parameter formats.
-   * Toast display is suppressed here — callers are responsible for error feedback.
-    * @deprecated No current app callers remain; keep only for compatibility until legacy consumers are retired.
-   */
-  recalculateCompliance: async (params: {
-    // Legacy params
-    organization_id?: string
-    zone_id?: string
-    observation_id?: string
-    observation_ids?: string[]
-    date_from?: string
-    date_to?: string
-    // Structured params
-    scope_type?: 'ZONE' | 'ORG' | 'BUILD'
-    zone_ids?: string[]
-    organization_ids?: string[]
-    date_range_start?: string
-    date_range_end?: string
-  }) => {
-    return callEdgeFunction('recalculate-compliance', params, { showToast: false })
-  },
-
-  /**
-   * Strict zone-based compliance recalculation.
-   *
-   * Canonical runtime now routes through recalculate-compliance-v3 while
-   * preserving the v2 parameter/response shape expected by existing UI.
-    * @deprecated No current app callers remain; keep only for compatibility until legacy consumers are retired.
-   */
-  recalculateComplianceV2: async (params: {
-    zone_id?: string
-    zone_ids?: string[]
-    date_from?: string
-    date_to?: string
-    get_total?: boolean
-    offset?: number
-    batch_size?: number
-  }) => {
-    const zoneIds = params.zone_ids && params.zone_ids.length > 0
-      ? params.zone_ids
-      : params.zone_id
-        ? [params.zone_id]
-        : []
-
-    const v3Response = await callEdgeFunction('recalculate-compliance-v3', {
-      zone_ids: zoneIds,
-      date_from: params.date_from,
-      date_to: params.date_to,
-      get_total: params.get_total,
-      offset: params.offset,
-      limit: params.batch_size,
-      apply: true,
-    })
-
-    if (v3Response.error || !v3Response.data) {
-      return v3Response
-    }
-
-    const data: any = v3Response.data
-    if (params.get_total) {
-      return {
-        data: {
-          total: Number(data.total ?? 0),
-        },
-        error: null,
-      }
-    }
-
-    return {
-      data: {
-        processed: Number(data.processed ?? 0),
-        complianceChanged: Number(data.compliance_changed ?? 0),
-        breachesCreated: Number(data.breaches_created ?? 0),
-        skippedNoRules: Number(data.skipped_no_rules ?? 0),
-      },
-      error: null,
-    }
-  },
-
-  /**
-   * Fresh compliance recalculation path for current observations schema.
-  * This function is independent from legacy observation-table logic.
-   */
-  recalculateComplianceV3: async (params: {
-    zone_id?: string
-    zone_ids?: string[]
-    organization_id?: string
-    date_from?: string
-    date_to?: string
-    limit?: number
-    offset?: number
-    apply?: boolean
-    get_total?: boolean
-  }) => {
-    return callEdgeFunction('recalculate-compliance-v3', params)
-  },
-
-  /**
-   * UI-pinned compliance recalculation invoker.
-   *
-   * This keeps Admin UI flows locked to recalculate-compliance-v3 and returns
-   * stable fields expected by the Compliance Recalculation page.
-   */
-  recalculateComplianceUIPinned: async (params: {
-    zone_id?: string
-    zone_ids?: string[]
-    date_from?: string
-    date_to?: string
-    get_total?: boolean
-    offset?: number
-    batch_size?: number
-  }) => {
-    const zoneIds = params.zone_ids && params.zone_ids.length > 0
-      ? params.zone_ids
-      : params.zone_id
-        ? [params.zone_id]
-        : []
-
-    const v3Response = await callEdgeFunction('recalculate-compliance-v3', {
-      zone_ids: zoneIds,
-      date_from: params.date_from,
-      date_to: params.date_to,
-      get_total: params.get_total,
-      offset: params.offset,
-      limit: params.batch_size,
-      apply: true,
-      strict_matrix: false,
-    })
-
-    if (v3Response.error || !v3Response.data) {
-      return v3Response
-    }
-
-    const data: any = v3Response.data
-    if (params.get_total) {
-      return {
-        data: {
-          total: Number(data.total ?? 0),
-        },
-        error: null,
-      }
-    }
-
-    return {
-      data: {
-        processed: Number(data.processed ?? 0),
-        complianceChanged: Number(data.compliance_changed ?? 0),
-        breachesCreated: Number(data.breaches_created ?? 0),
-        breachesDismissed: Number(data.breaches_dismissed ?? 0),
-        skippedNoRules: Number(data.skipped_no_rules ?? 0),
-      },
-      error: null,
-    }
-  },
-
-  /**
-   * Test observations against zone compliance matrix and populate
-   * observation compliance fields (is_compliant, breach_type, breach_reason).
-   */
-  testComplianceMatrix: async (params: {
-    organization_id?: string
-    zone_id?: string
-    observation_id?: string
-    limit?: number
-    offset?: number
-    apply?: boolean
-    date_from?: string
-    date_to?: string
-  }) => {
-    return callEdgeFunction('test-compliance-matrix', params)
-  },
-
-  /**
    * 3-phase cleanup: zone correction → dedup → compliance recalc
    * Supports batched pagination: pass get_total=true first, then iterate with offset/batch_size.
    */
@@ -634,40 +431,6 @@ export const edgeFunctions = {
    */
   runParkPowSync: async (params: { action: 'sync-lots' | 'sync-watchlist' | 'push-violations' }) => {
     return callEdgeFunction('parkpow-sync', params)
-  },
-
-  /**
-   * Recover deleted observation photos using ParkPow as source-of-truth.
-   */
-  recoverObservationPhotos: async (params: {
-    organization_id?: string
-    date_from?: string
-    date_to?: string
-    window_minutes?: number
-    limit?: number
-    apply?: boolean
-    target_bucket?: string
-    parkpow_base_url?: string
-    require_empty_photo?: boolean
-    include_stale_signed_urls?: boolean
-    max_session_pages?: number
-  }) => {
-    return callEdgeFunction('photo-recovery', params)
-  },
-
-  /**
-   * Find and remove duplicate observations
-   */
-  detectDuplicates: async (params: {
-    zoneIds?: string[]
-    dateRangeStart?: string
-    dateRangeEnd?: string
-    offset?: number
-    batch_size?: number
-    time_window_minutes?: number
-    get_total?: boolean
-  }) => {
-    return callEdgeFunction('duplicate-detection', params)
   },
 
   // ============================================================================
@@ -716,47 +479,6 @@ export const edgeFunctions = {
   },
 
   /**
-   * List observations with filters
-   */
-  listObservations: async (params: {
-    organization_id?: string
-    zone_id?: string
-    date_from?: string
-    date_to?: string
-    plate_number?: string
-    page?: number
-    limit?: number
-  }) => {
-    return callEdgeFunction('observations-list', params)
-  },
-
-  /**
-   * Get observations within GPS bounds (for map)
-   */
-  observationsInBounds: async (params: {
-    north: number
-    south: number
-    east: number
-    west: number
-    organization_id?: string
-  }) => {
-    return callEdgeFunction('observations-in-bounds', params)
-  },
-
-  /**
-   * Export observations to CSV
-   */
-  exportObservations: async (params: {
-    organization_id?: string
-    zone_id?: string
-    date_from?: string
-    date_to?: string
-    search?: string
-  }) => {
-    return callEdgeFunction('observations-export', params)
-  },
-
-  /**
    * AI vehicle analysis (make/model/year/colour + NZSCV validation).
    *
    * Accepts both camelCase and snake_case for compatibility and maps to the
@@ -795,51 +517,9 @@ export const edgeFunctions = {
     })
   },
 
-  /**
-   * Reingest photos — batch reprocess existing observation photos through
-   * the vehicle-ingest pipeline, creating new observation records.
-   * Toast suppressed here; caller (PhotoReingest.tsx onError) handles it.
-   */
-  reingestPhotos: async (params: {
-    get_total?: boolean
-    batch_size?: number
-    before_recorded_at?: string
-    organization_id?: string
-    date_from?: string
-    date_to?: string
-  }) => {
-    return callEdgeFunction('reingest-photos', params, { showToast: false })
-  },
-
-  /**
-   * Link evidence bucket photos to canonical vehicle records via ALPR.
-   * Runs plate recognition on each image in the evidence bucket and sets
-   * profile_photo / profile_photo_url on the matching canonical_vehicles row.
-   * Toast suppressed here; caller handles it.
-   */
-  linkEvidencePhotos: async (params: {
-    path_prefix?: string
-    paths?: string[]
-    min_confidence?: number
-    force_update?: boolean
-    dry_run?: boolean
-    limit?: number
-  }) => {
-    return callEdgeFunction('link-evidence-photos', params, { showToast: false })
-  },
-
   // ============================================================================
   // DATA MANAGEMENT (6 functions)
   // ============================================================================
-
-  /**
-   * Check data integrity (duplicates, orphans, invalid plates)
-   */
-  checkDataIntegrity: async (params?: {
-    comprehensive?: boolean
-  }) => {
-    return callEdgeFunction('check-data-integrity', params)
-  },
 
   /**
    * Run the nightly privacy cleanup task on demand.
@@ -863,34 +543,6 @@ export const edgeFunctions = {
    */
   checkRailwayHealth: async () => {
     return callEdgeFunction('check-railway-health')
-  },
-
-  /**
-   * Validate GPS vs zone geofence
-   */
-  checkZoneCorrections: async (params: {
-    organization_id?: string
-  }) => {
-    return callEdgeFunction('check-zone-corrections', params)
-  },
-
-  /**
-   * Batch zone correction (GPS-based)
-   */
-  correctZoneAssignments: async (params: {
-    organization_id?: string
-    dry_run?: boolean
-  }) => {
-    return callEdgeFunction('correct-zone-assignments', params)
-  },
-
-  /**
-   * Zone correction with "Other Location" fallback
-   */
-  zoneCorrection: async (params: {
-    observation_id: string
-  }) => {
-    return callEdgeFunction('zone-correction', params)
   },
 
   /**
@@ -954,24 +606,6 @@ export const edgeFunctions = {
   // ============================================================================
 
   /**
-   * Generate court-ready incident PDF
-   */
-  generateIncidentPDF: async (params: {
-    incident_id: string
-  }) => {
-    return callEdgeFunction('generate-incident-pdf', params)
-  },
-
-  /**
-   * Generate vehicle evidence report
-   */
-  generateVehicleReport: async (params: {
-    plate_number: string
-  }) => {
-    return callEdgeFunction('generate-vehicle-report', params)
-  },
-
-  /**
    * Generate dashboard statistics report.
    * Errors are surfaced to the caller (showToast: false) so the Reports page
    * mutation can handle the error toast once rather than showing it twice.
@@ -986,19 +620,6 @@ export const edgeFunctions = {
     end_date?: string
   }) => {
     return callEdgeFunction('generate-dashboard-report', params, { showToast: false })
-  },
-
-  /**
-   * Generate leadership pack (executive summary).
-   * Errors are surfaced to the caller so the Reports page mutation handles the
-   * error toast once rather than showing it twice.
-   */
-  generateLeadershipPack: async (params: {
-    organization_id?: string
-    date_from?: string
-    date_to?: string
-  }) => {
-    return callEdgeFunction('generate-leadership-pack', params, { showToast: false })
   },
 
   /**
@@ -1085,16 +706,6 @@ export const edgeFunctions = {
     return callEdgeFunction('generate-seizure-receipt', params)
   },
 
-  /**
-   * Get real-time compliance statistics
-   */
-  getComplianceStatistics: async (params: {
-    organization_id?: string
-    zone_id?: string
-  }) => {
-    return callEdgeFunction('get-compliance-statistics', params)
-  },
-
   // ============================================================================
   // LOCATION & INTEGRATIONS (7 functions)
   // ============================================================================
@@ -1129,33 +740,6 @@ export const edgeFunctions = {
     return callEdgeFunction('enrich-from-motorweb', params)
   },
 
-  /**
-   * Get weather at GPS coordinates
-   */
-  getWeather: async (params: {
-    latitude: number
-    longitude: number
-  }) => {
-    return callEdgeFunction('get-weather', params)
-  },
-
-  /**
-   * Suggest new zone via Nominatim
-   */
-  suggestNewZone: async (params: {
-    latitude: number
-    longitude: number
-  }) => {
-    return callEdgeFunction('suggest-new-zone', params)
-  },
-
-  /**
-   * Stream webhook (Plate Recognizer Stream)
-   */
-  streamWebhook: async (params: any) => {
-    return callEdgeFunction('stream-webhook', params, { showToast: false })
-  },
-
   // ============================================================================
   // NOTIFICATIONS (2 functions)
   // ============================================================================
@@ -1188,17 +772,6 @@ export const edgeFunctions = {
   // ============================================================================
 
   /**
-   * Admin incident operations (legal hold, bulk updates)
-   */
-  adminIncidentOps: async (params: {
-    operation: string
-    incident_ids?: string[]
-    legal_hold?: boolean
-  }) => {
-    return callEdgeFunction('admin-incident-ops', params)
-  },
-
-  /**
    * Create user with profile & role (admin/master only — sets password directly)
    */
   createUser: async (params: {
@@ -1220,23 +793,18 @@ export const edgeFunctions = {
   },
 
   /**
-   * Set or reset a user's password (admin/master only)
+   * Set or reset a user's password (admin/master only).
+   * Re-pointed from deprecated `set-user-password` to consolidated `manage-user`.
    */
   setUserPassword: async (params: {
     user_id: string
     new_password: string
   }) => {
-    return callEdgeFunction('set-user-password', params)
-  },
-
-  /**
-   * Update compliance policy
-   */
-  updateCompliancePolicy: async (params: {
-    zone_id: string
-    policy: any
-  }) => {
-    return callEdgeFunction('update-compliance-policy', params)
+    return callEdgeFunction('manage-user', {
+      action: 'set_password',
+      userId: params.user_id,
+      payload: { password: params.new_password },
+    })
   },
 
   // ============================================================================
@@ -1332,17 +900,6 @@ export const edgeFunctions = {
   // ============================================================================
   // UTILITIES (2 functions)
   // ============================================================================
-
-  /**
-   * Upload file to Supabase Storage
-   */
-  uploadFile: async (params: {
-    bucket: string
-    path: string
-    file: File
-  }) => {
-    return callEdgeFunction('upload-file', params)
-  },
 
   /**
    * AI chat for analysis and suggestions.
@@ -1557,17 +1114,6 @@ export const edgeFunctions = {
   },
 
   /**
-   * Send an email invite via the proxy relay.
-   */
-  sendInviteEmail: async (params: {
-    email: string
-    first_name?: string
-    invite_url: string
-  }) => {
-    return callEdgeFunction('send-invite-email', params)
-  },
-
-  /**
    * Face detection and recognition.
    *
    * Detect mode (default): Accepts a photo URL, detects faces, generates
@@ -1765,4 +1311,79 @@ export const edgeFunctions = {
   }) => {
     return callEdgeFunction('export-data', params)
   },
+
+  /**
+   * Export observations with zone/date filtering.
+   */
+  exportObservations: async (params: {
+    organization_id?: string
+    zone_id?: string
+    date_from?: string
+    date_to?: string
+    search?: string
+    format?: 'json' | 'csv'
+  }) => {
+    return callEdgeFunction('export-data', { type: 'observations', ...params })
+  },
+
+  /**
+   * Detect and optionally remove duplicate observations.
+   */
+  detectDuplicates: async (params: {
+    zoneIds?: string[]
+    time_window_minutes?: number
+    get_total?: boolean
+    offset?: number
+    batch_size?: number
+  }) => {
+    return callEdgeFunction('cleanup-and-recalculate', { action: 'detect-duplicates', ...params })
+  },
+
+  /**
+   * Link evidence photos to observations by path prefix.
+   */
+  linkEvidencePhotos: async (params: {
+    path_prefix?: string
+    min_confidence?: number
+    limit?: number
+    force_update?: boolean
+    dry_run?: boolean
+  }) => {
+    return callEdgeFunction('photo-maintenance', { action: 'link-evidence', ...params })
+  },
+
+  /**
+   * Re-ingest photos to reprocess ALPR/attributes.
+   */
+  reingestPhotos: async (params: {
+    organization_id?: string
+    date_from?: string
+    date_to?: string
+    batch_size?: number
+    before_recorded_at?: string
+  }) => {
+    return callEdgeFunction('photo-maintenance', { action: 'reingest', ...params })
+  },
+
+  /**
+   * Run a data integrity check.
+   */
+  checkDataIntegrity: async (params: {
+    comprehensive?: boolean
+  }) => {
+    return callEdgeFunction('cleanup-and-recalculate', { action: 'integrity-check', ...params })
+  },
+
+  /**
+   * Get compliance statistics summary.
+   */
+  getComplianceStatistics: async (params: {
+    organization_id?: string
+    zone_id?: string
+    date_from?: string
+    date_to?: string
+  }) => {
+    return callEdgeFunction('cleanup-and-recalculate', { action: 'statistics', ...params })
+  },
+
 }

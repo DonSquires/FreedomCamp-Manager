@@ -14,12 +14,15 @@ import {
   Clock,
   Eye,
   Download,
-  ExternalLink
+  ExternalLink,
+  ShieldAlert,
+  ShieldOff
 } from 'lucide-react'
 import { formatDateTime, formatDate } from '@/lib/utils'
 import { homelessStatusLabel, isHomelessForUi } from '@/lib/homelessStatus'
 import { getVehiclePhotoUrl } from '@/lib/photoUtils'
 import { PhotoWithFallback } from '@/components/features/PhotoWithFallback'
+import { useAuthStore } from '@/stores/authStore'
 
 interface VehicleDetailsModalProps {
   isOpen: boolean
@@ -40,6 +43,11 @@ interface VehicleDetailsModalProps {
     first_seen_at?: string
     is_flagged?: boolean
     flagged_reason?: string
+    is_stolen?: boolean
+    stolen_reported_at?: string
+    stolen_source?: string
+    risk_level?: string
+    risk_category?: string
     homeless_status?: string
     profile_photo?: string
     owner_first_name?: string
@@ -72,6 +80,10 @@ export function VehicleDetailsModal({
 }: VehicleDetailsModalProps) {
   const displayPhoto = getVehiclePhotoUrl(vehicle)
   const navigate = useNavigate()
+  const userRole = useAuthStore(s => s.user?.role)
+  // Admins and above can see the full flagging details for high-risk vehicles
+  const canSeeRiskDetails = ['admin', 'admin_officer', 'master', 'grand_master'].includes(userRole ?? '')
+  const isSafetyRisk = vehicle.risk_category && ['violence', 'aggression', 'weapon'].includes(vehicle.risk_category)
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -305,8 +317,65 @@ export function VehicleDetailsModal({
             </Card>
           )}
 
-          {/* Flagged Vehicle Warning */}
-          {vehicle.is_flagged && (
+          {/* Stolen Vehicle Warning — always shown, full detail (IPP 11(1)(e)) */}
+          {vehicle.is_stolen && (
+            <Card className="border-red-400 bg-red-50 dark:bg-red-900/20">
+              <CardContent className="pt-4">
+                <div className="flex items-start gap-3">
+                  <ShieldOff className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-red-900 dark:text-red-100 flex items-center gap-2">
+                      STOLEN VEHICLE
+                      <Badge variant="destructive" className="text-xs">Global Flag</Badge>
+                    </h3>
+                    <p className="text-sm text-red-700 dark:text-red-200 mt-1">
+                      This vehicle has been reported stolen
+                      {vehicle.stolen_source && ` — source: ${vehicle.stolen_source.toUpperCase()}`}
+                      {vehicle.stolen_reported_at && ` on ${formatDate(vehicle.stolen_reported_at)}`}.
+                      {' '}Do not approach without Police support.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* High-Risk Safety Warning — flag shown to all, details only for admin+ (IPP 11(1)(c)) */}
+          {isSafetyRisk && vehicle.risk_level && ['high', 'critical'].includes(vehicle.risk_level) && (
+            <Card className="border-red-500 bg-red-50 dark:bg-red-900/20">
+              <CardContent className="pt-4">
+                <div className="flex items-start gap-3">
+                  <ShieldAlert className="h-5 w-5 text-red-700 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-red-900 dark:text-red-100 flex items-center gap-2">
+                      HIGH RISK — EXERCISE CAUTION
+                      <Badge variant="destructive" className="text-xs uppercase">{vehicle.risk_level}</Badge>
+                    </h3>
+                    {canSeeRiskDetails ? (
+                      <div className="mt-1 space-y-1">
+                        <p className="text-sm text-red-700 dark:text-red-200">
+                          Category: <span className="font-medium capitalize">{vehicle.risk_category}</span>
+                        </p>
+                        {vehicle.flagged_reason && (
+                          <p className="text-sm text-red-700 dark:text-red-200">
+                            {vehicle.flagged_reason}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-red-700 dark:text-red-200 mt-1">
+                        Do not approach alone. Contact supervisor before engagement.
+                        Details restricted — contact your admin for further information.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* General flagged warning (non-safety flags) */}
+          {vehicle.is_flagged && !isSafetyRisk && (
             <Card className="border-orange-200 bg-orange-50 dark:bg-orange-900/20">
               <CardContent className="pt-4">
                 <div className="flex items-start gap-3">

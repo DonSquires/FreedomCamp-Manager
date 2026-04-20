@@ -83,12 +83,12 @@
 ---
 
 ### 5. **FieldOfficerPortal.tsx** ✅
-**Railway Services:**
+**Services:**
 - Full PlateScanner component integration
 
 **Features Added:**
 - "Scan Vehicle" card now opens PlateScanner component
-- AI-powered plate recognition using Railway inference service
+- AI-powered plate recognition using Bob inference service (RunPod)
 - Camera capture and manual entry modes
 - Vehicle photo analysis and embedding generation
 - Compliance evaluation and breach detection
@@ -98,19 +98,19 @@
 - PlateScanner appears in collapsible card when activated
 - onComplete callback shows success toast
 - onCancel callback closes scanner
-- Scanner uses Railway services for OCR and vehicle detection
+- Scanner uses Bob inference service (RunPod) for OCR and vehicle detection
 
 ---
 
-## Railway Services Architecture
+## Services Architecture
 
 ### Services Used:
-1. **Proxy Server** (Railway TCP deployment)
+1. **Proxy Server** (Railway deployment)
    - NZSCV warrant checking
    - MotorWeb vehicle lookups
    - Acts as API gateway to external services
 
-2. **Inference Service** (Railway Docker deployment)
+2. **Bob Inference Service** (RunPod pod)
    - YOLOv8n vehicle detection
    - MobileNetV3 image embeddings
    - OCR plate recognition
@@ -137,7 +137,7 @@
 ## Testing Checklist
 
 ### Pre-deployment Testing:
-- [ ] Deploy Railway inference-service with updated Dockerfile
+- [ ] Deploy Bob inference service to RunPod pod
 - [ ] Deploy Railway proxy-server
 - [ ] Configure Supabase secrets (INFERENCE_SERVICE_URL, PROXY_SERVER_URL)
 - [ ] Test NZSCV check on VehicleManagement page

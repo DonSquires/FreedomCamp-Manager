@@ -9,7 +9,7 @@
  * - NZSCV (NZ Self-Contained Vehicle registry)
  * - Motoweb (NZ vehicle registration)
  * - OpenAI (optional AI features)
- * - Self-hosted AI on Railway (ALPR, face recognition)
+ * - Self-hosted AI on RunPod (ALPR, face recognition)
  */
 
 import type { LucideIcon } from 'lucide-react'
@@ -330,7 +330,7 @@ export const SERVICE_MODULES: Record<ModuleId, ServiceModule> = {
       { path: '/infringements', label: 'Infringements', roles: ['admin', 'master', 'admin_officer'], adminOnly: true },
     ],
     tables: ['observations', 'breach_alerts', 'notices_to_vacate', 'canonical_vehicles', 'enforcement_cases'],
-    edgeFunctions: ['plate-scanner-complete', 'plate-scanner-photo-first', 'evaluate-compliance', 'alpr-process'],
+    edgeFunctions: ['process-officer-scan', 'alpr-process'],
     featureFlags: ['FEATURE_INGEST_V2', 'FEATURE_ENFORCEMENT', 'FEATURE_OFFICER_OUTBOX'],
     displayOrder: 10,
   },

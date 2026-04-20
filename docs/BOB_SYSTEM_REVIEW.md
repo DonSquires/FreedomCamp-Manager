@@ -90,7 +90,7 @@ For now, to unlock Bob for building and training, set these Railway variables on
 BOB_OPERATING_MODE=build-training
 CHAT_PROVIDER=ollama
 TABULAR_NLP_PROVIDER=ollama
-OLLAMA_BASE_URL=http://ollama.railway.internal:11434
+OLLAMA_BASE_URL=http://127.0.0.1:11434
 ```
 
 If you want external model access beyond Ollama:

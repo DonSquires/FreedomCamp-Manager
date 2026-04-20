@@ -6,7 +6,7 @@ function trimText(value, maxLen = 1200) {
 const KNOWLEDGE_PACKS = {
   build_context: {
     name: 'fieldops-build-context',
-    summary: 'React + TypeScript frontend, Supabase backend, Railway inference microservice, with explicit self-contained and build-training modes.',
+    summary: 'React + TypeScript frontend, Supabase backend, Bob inference service (RunPod), with explicit self-contained and build-training modes.',
     key_points: [
       'Frontend stack: React 18, TypeScript, Vite, Tailwind, shadcn/ui.',
       'Backend stack: Supabase Postgres + Edge Functions + RLS.',
@@ -87,9 +87,9 @@ const KNOWLEDGE_PACKS = {
   },
   ptt_comms_context: {
     name: 'push-to-talk-communications',
-    summary: 'Push-to-Talk (PTT) subsystem: WebRTC signaling, WebSocket channels, half-duplex voice, VOX, Bluetooth, and Railway deployment.',
+    summary: 'Push-to-Talk (PTT) subsystem: WebRTC signaling, WebSocket channels, half-duplex voice, VOX, Bluetooth; deployed on hPanel VPS (ssh root.61.123.97).',
     key_points: [
-      'Architecture: PTTBar.tsx (UI) → ptt.ts (WebSocket + WebRTC) → pttBackground.ts (auto-connect service) → pttStore.ts (Zustand state) → ptt-signaling-token Edge Function → ptt-server (Railway WebSocket server).',
+      'Architecture: PTTBar.tsx (UI) → ptt.ts (WebSocket + WebRTC) → pttBackground.ts (auto-connect service) → pttStore.ts (Zustand state) → ptt-signaling-token Edge Function → ptt-server (VPS WebSocket server — ssh root.61.123.97).',
       'Channel scopes: org:<uuid> (org-wide), team:<uuid>, deployment:<uuid>, incident:<uuid>, direct:<uuid> (1:1). Scope determines who can join. validated by Edge Function against user_profiles.organization_id.',
       'Token flow: PTTBar → requestPTTToken() → edgeFunctions.pttSignalingToken({channelScope}) → ptt-signaling-token Edge Function → validates auth + org + role → POST /api/token/mint on ptt-server → JWT signed with PTT_JWT_SECRET → returns token + wsUrl + iceServers → connect WebSocket with ?token=jwt.',
       'Connection lifecycle: usePTTAutoConnect hook in App.tsx → startPTTBackgroundService() on login → connectToOrgChannel() → WebSocket /ws?token=jwt → server sync (presence, speakerId) → ping/pong heartbeat every 30s → auto-reconnect on drop (3s delay, then 30s steady-state).',
@@ -116,40 +116,40 @@ const KNOWLEDGE_PACKS = {
     ],
   },
   railway_services_audit: {
-    name: 'railway-services-audit-knowledge',
-    summary: 'Known Railway service configuration issues and how Bob assesses, diagnoses, and fixes them. Based on April 2026 audit of all 4 Railway services.',
+    name: 'service-deployment-knowledge',
+    summary: 'Known service configuration issues and how Bob assesses, diagnoses, and fixes them. Bob+Ollama on RunPod. PTT+TURN on VPS 72.61.123.97. Proxy on Railway.',
     key_points: [
-      'Four Railway services: Bob (inference-service/), Proxy (proxy-server/), PTT (ptt-server/), Ollama (ollama/). Bob and Ollama share one Railway project for private networking. Proxy and PTT are in a separate core project.',
+      'Services: Bob (inference-service/ — RunPod), Proxy (proxy-server/ — Railway), PTT+TURN (ptt-server/ — VPS ssh root@72.61.123.97), Ollama (same RunPod pod as Bob).',
       'CRITICAL: Bob production should expose an explicit operating mode in /health. Use BOB_OPERATING_MODE=self-contained for locked-down production and BOB_OPERATING_MODE=build-training for internet-enabled build/training work.',
-      'CRITICAL: Bob OLLAMA_BASE_URL must be http://ollama.railway.internal:<port> where <port> matches the Ollama OLLAMA_HOST setting. Check Ollama startup logs for: 🌐 Binding Ollama to 0.0.0.0:<port>. If port is 8080 use http://ollama.railway.internal:8080. If OLLAMA_BASE_URL is not set on Bob it defaults to localhost which is always unreachable.',
+      'CRITICAL: Bob OLLAMA_BASE_URL must be http://127.0.0.1:11434 when Ollama runs on the same RunPod pod. If OLLAMA_BASE_URL is not set on Bob it defaults to localhost which is always unreachable.',
       'CRITICAL: DEPLOY_SIGNATURE=bob-build-training-open-v1 is hardcoded in server.js. If /health shows a different value, the running image is outdated — redeploy from DonSquires/Bob main.',
       'CRITICAL: OPENAI_API_KEY must NOT be set in self-contained mode. In build-training mode it is allowed when CHAT_PROVIDER or TABULAR_NLP_PROVIDER uses openai.',
       'PTT deploy workflow: deploy-voice-server.yml (VPS SSH deploy). deploy-proxy-railway.yml is the only remaining Railway workflow (NZSCV/MotorWeb proxy).',
       'Bob Dockerfile HEALTHCHECK uses process.env.PORT (not hardcoded 3000). ptt-server/.env.example includes NODE_ENV=production to activate HTTPS enforcement middleware.',
-      'To assess Railway config: ask user for GET <BOB_URL>/health JSON. Check config.OPERATING_MODE, config.CHAT_PROVIDER, config.TABULAR_NLP_PROVIDER, config.DEPLOY_SIGNATURE, config.SUPABASE_JWT_RUNTIME_ENABLED, config.EXTERNAL_EGRESS_ALLOWED, and capabilities.chat_local_ollama_enabled.',
-      'To fix Railway config: Railway Dashboard → Bob service → Variables tab → set KEY=value → Redeploy. Wait 60s. Re-run wiring audit to confirm.',
+      'To assess Bob config: ask user for GET <BOB_URL>/health JSON. Check config.OPERATING_MODE, config.CHAT_PROVIDER, config.TABULAR_NLP_PROVIDER, config.DEPLOY_SIGNATURE, config.SUPABASE_JWT_RUNTIME_ENABLED, config.EXTERNAL_EGRESS_ALLOWED, and capabilities.chat_local_ollama_enabled.',
+      'To fix Bob config: update pod .env on RunPod → restart container. Wait 60s. Re-run wiring audit to confirm.',
       'Wiring audit should validate URL consistency, operating mode, provider settings, DEPLOY_SIGNATURE, and auth readiness from /health. Runs every hour at :11 past.',
     ],
   },
   railway_platform: {
-    name: 'railway-deployment-knowledge',
-    summary: 'Railway deployment: Bob, Proxy, PTT, Ollama services. Env vars, health checks, private networking, Docker, and common issues.',
+    name: 'service-deployment-knowledge',
+    summary: 'Service deployments: Bob+Ollama on RunPod, Proxy on Railway, PTT+TURN on hPanel VPS. Env vars, health checks, Docker, and common issues.',
     key_points: [
-      'Four Railway services: Bob (inference-service/, port 3000), Proxy (proxy-server/, port 3000), PTT (ptt-server/, port 3002), Ollama (ollama/, port depends on OLLAMA_HOST — check Ollama startup log for: 🌐 Binding Ollama to 0.0.0.0:<port>).',
+      'Bob (inference-service/, port 3000): RunPod pod. Ollama (same pod, port 11434 via 127.0.0.1). Proxy (proxy-server/, port 3000): Railway. PTT+TURN (ptt-server/, port 3002): hPanel VPS ssh root@72.61.123.97.',
       'Every service must listen on process.env.PORT. Health: /health (Bob timeout 60s, PTT 30s, Proxy 45s). /api/tags for Ollama.',
-      'Deploy tokens: RAILWAY_BOB_TOKEN (Bob+Ollama shared). RAILWAY_TOKEN (Proxy+PTT). RAILWAY_PROXY_SERVICE_ID, RAILWAY_OLLAMA_SERVICE_ID for each service.',
-      'Private network: Bob → Ollama via http://ollama.railway.internal:<port>. No public egress. Both must be in same Railway project.',
-      'Ollama: version 0.20.2 pinned. Default port 11434 but OLLAMA_HOST env var controls the actual listening port — if set to 0.0.0.0:8080 on Railway, use port 8080. Bob circuit breaker: 3 failures → 60s cooldown.',
+      'Deploy tokens: RUNPOD_API_KEY=RUNPOD_ENDPOINT_API_KEY (Bob/Ollama). RAILWAY_TOKEN (Proxy). PTT via SSH deploy-voice-server.yml.',
+      'Private network: Bob → Ollama via http://127.0.0.1:11434 (same pod). No public egress needed for Ollama. Bob circuit breaker: 3 failures → 60s cooldown.',
+      'Ollama: version 0.20.2 pinned. Default port 11434. OLLAMA_HOST=0.0.0.0:11434.',
       'Bob Docker: multi-stage (Python ONNX export → Node builder → production image). Non-root nodejs user. 1GB+ RAM for ONNX models.',
-      'Deploy workflows: deploy-proxy-railway.yml (NZSCV/MotorWeb proxy, only remaining Railway service). Bob: build-ai-worker.yml (RunPod). PTT+TURN: deploy-voice-server.yml (VPS 72.61.123.97). Bob/Ollama are NOT on Railway.',
-      'Common fix: crash → check Railway logs. OOM → upgrade RAM plan. RAILWAY_TOKEN expired → regenerate in dashboard + update GitHub secret.',
+      'Deploy workflows: deploy-proxy-railway.yml (NZSCV/MotorWeb proxy). Bob: build-ai-worker.yml (RunPod). PTT+TURN: deploy-voice-server.yml (VPS 72.61.123.97).',
+      'Common fix: crash → check RunPod pod logs. OOM → upgrade pod RAM/GPU. RAILWAY_TOKEN expired → regenerate in Railway dashboard + update GitHub secret.',
     ],
   },
   github_platform: {
     name: 'github-cicd-knowledge',
     summary: '25 GitHub Actions workflows for deployment, database, operations, monitoring. Codespaces dev environment. Copilot integration.',
     key_points: [
-      '25 workflows in .github/workflows/. Deploy: frontend (Vercel), Bob/Ollama/PTT/Proxy (Railway), mobile (EAS), Edge Functions (Supabase).',
+      '25 workflows in .github/workflows/. Deploy: frontend (Vercel), Bob/Ollama (RunPod), PTT+TURN (hPanel VPS), Proxy (Railway), mobile (EAS), Edge Functions (Supabase).',
       'Required secrets: RAILWAY_BOB_TOKEN, RAILWAY_PTT_SERVICE_ID, RAILWAY_PROXY_SERVICE_ID, VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID, SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF, EXPO_TOKEN, INFERENCE_API_KEY.',
       'Database governance: db-push.yml (production migration, requires @DonSquires approval in "production-schema" environment).',
       'Ops crons: Bob feedback sync 03:47 NZST, self-learning pretrain 04:21 NZST, intel feed every 6h, ParkPow nightly, geofence review monthly.',
@@ -219,7 +219,7 @@ const KNOWLEDGE_PACKS = {
     name: 'hybrid-stack-architecture',
     summary: 'Complete FieldOps Manager hybrid stack: web + mobile + BaaS + microservices + AI + CI/CD. How all layers connect.',
     key_points: [
-      'Layers: Web (Vercel) + Mobile (EAS) → Supabase BaaS (auth/DB/functions/storage) + Railway microservices (Bob/Proxy/PTT/Ollama).',
+      'Layers: Web (Vercel) + Mobile (EAS) → Supabase BaaS (auth/DB/functions/storage) + RunPod (Bob+Ollama) + Railway (Proxy) + VPS (PTT+TURN).',
       'Plate scan flow: Officer scans → Edge Function → Proxy → NZSCV API → observation stored → compliance check → breach if exceeded.',
       'AI flow: Photo → Edge Function → Bob /infer/alpr → ONNX model → plate result → DB. Nightly self-learning via GitHub Actions.',
       'PTT flow: Press button → ptt-signaling-token Edge Function → PTT server JWT → WebSocket → WebRTC audio.',
@@ -233,14 +233,14 @@ const KNOWLEDGE_PACKS = {
     name: 'full-stack-navigation-debugging',
     summary: 'Navigate the full FieldOps stack (UI → hooks → Supabase → DB → Edge Functions → Railway → GitHub CI) and diagnose UI element behaviour.',
     key_points: [
-      'Stack layers: React UI (src/pages/) → Zustand/TanStack Query hooks (src/hooks/) → Supabase client (src/lib/supabase.ts) → Postgres (supabase/migrations/) → Edge Functions (supabase/functions/) → Railway (inference-service/).',
+      'Stack layers: React UI (src/pages/) → Zustand/TanStack Query hooks (src/hooks/) → Supabase client (src/lib/supabase.ts) → Postgres (supabase/migrations/) → Edge Functions (supabase/functions/) → Bob (inference-service/ on RunPod).',
       'Route system: react-router-dom v6 in App.tsx. Guards: ProtectedRoute (auth), RoleRoute (role check), AreaRoute (portal area). Roles: admin, admin_officer, officer, master.',
       'Button trace: JSX onClick → handler function → mutation.mutate() → supabase.from("table").insert/update/delete → Postgres → RLS check → response → cache invalidation → re-render.',
       'Link trace: <Link to="/path"> → Route match in App.tsx → role guard check → target page component → useParams for dynamic segments → hook fetches data.',
       'Form trace: <Form onSubmit={handleSubmit}> → react-hook-form + zod validation → onSubmit handler → mutation → supabase call → success toast + cache invalidation.',
       'Data flow: useQuery fetches from Supabase with caching (TanStack Query). useMutation writes to Supabase. invalidateQueries forces re-fetch after writes.',
       'Common failures: button not working (check onClick/disabled/mutation), link 404 (check route path in App.tsx), form error (check zod schema/RLS), blank page (check hook data loading).',
-      'Debugging tools: browser DevTools Console (render errors), Network tab (API responses), Supabase dashboard (Edge Function logs), Railway dashboard (inference logs), GitHub Actions (CI/CD logs).',
+      'Debugging tools: browser DevTools Console (render errors), Network tab (API responses), Supabase dashboard (Edge Function logs), RunPod dashboard (Bob logs), GitHub Actions (CI/CD logs).',
       'Key tables: vehicles, observations, zones, breaches, enforcement_actions, patrols, users, organizations, incidents. All have RLS policies and organization_id scoping.',
       'Edge Functions: 70+ in supabase/functions/. Must import CORS from _shared/cors.ts and handle OPTIONS preflight. Run in Deno. Deploy via GitHub Actions.',
     ],
@@ -307,11 +307,11 @@ const KNOWLEDGE_PACKS = {
       // ── How Bob should generate the document ──────────────────────────────
       'Bob tender generation instructions: When generating a tender RESPONSE, Bob should: (1) analyse the extracted tender text for each service item, (2) draft a services_offered section with a sub-section for each service in the tender (matching their numbering), (3) populate the pricing section with a table formatted as markdown, (4) write team_qualifications highlighting PSA licencing, FieldOps system, welfare check capability, (5) write health_and_safety section covering HSWA 2015 PCBU obligations and the built-in welfare check system, (6) write declaration section with NZ Commerce Act collusion wording. Use professional NZ English. Do not fabricate specific prices — use placeholder [RATE] values that the user can replace. Do not fabricate CoA numbers or insurance details.',
       'Bob tender APPLICATION instructions: When generating a tender APPLICATION (Iron Eagle is submitting an expression of interest), Bob should: (1) write a cover letter expressing interest in the contract and confirming capacity, (2) executive summary focusing on Iron Eagle\'s unique position (FieldOps Manager, NZ-built, PSA compliant), (3) organisation profile section with placeholders for NZBN, PSA licence number, years of operation, (4) highlight FieldOps Manager as a differentiator — automated breach detection, GPS patrol tracking, ALPR, welfare checks, live reporting dashboards. Frame all content as a pitch to be shortlisted.',
-      'Bob multi-model routing for tender generation — fully self-hosted, no cloud AI: (1) Ollama primary model (OLLAMA_MODEL, e.g. llama3.1:8b) handles chat AND document generation. (2) Ollama writing model (OLLAMA_MODEL_WRITING — pull a larger model like qwen2.5:14b or mistral:7b into the same Ollama Railway instance). If it is the same as OLLAMA_MODEL this step is skipped. (3) Secondary Railway assistant (SECONDARY_ASSISTANT_URL + SECONDARY_ASSISTANT_API_KEY) — another Bob instance or dedicated writing service that exposes POST /tender/generate. 100% self-hosted. (4) Enriched heuristic template — always available, zero network, NZ security industry boilerplate. Bob never calls OpenAI for document tasks.',
+      'Bob multi-model routing for tender generation — fully self-hosted, no cloud AI: (1) Ollama primary model (OLLAMA_MODEL, e.g. llama3.1:8b) handles chat AND document generation. (2) Ollama writing model (OLLAMA_MODEL_WRITING — pull a larger model like qwen2.5:14b or mistral:7b into the same Ollama RunPod pod). If it is the same as OLLAMA_MODEL this step is skipped. (3) Secondary Railway assistant (SECONDARY_ASSISTANT_URL + SECONDARY_ASSISTANT_API_KEY) — another Bob instance or dedicated writing service that exposes POST /tender/generate. 100% self-hosted. (4) Enriched heuristic template — always available, zero network, NZ security industry boilerplate. Bob never calls OpenAI for document tasks.',
       'POST /tender/generate endpoint: accepts {generation_type:"application"|"response", context:{extracted_text, issuing_body, key_services, key_requirements, key_dates, reference_number, due_date, document_type}, organization_context:{name, psa_licence, nzbn}}. Returns {sections:{cover_letter, executive_summary, services_offered, pricing_notes, team_qualifications, health_and_safety, declaration}, provider:"ollama"|"ollama-writing"|"secondary-assistant"|"heuristic", model_used}. Past approved tenders are injected as learning context.',
       'POST /tender/train endpoint: called when a tender is approved/rejected/shortlisted. Body: {generation_type, issuing_body, key_services, outcome, outcome_notes, sections}. Stores condensed learning in data/tender-learning.json and pushes an intel bulletin into Bob live intel feed. Bob continuously improves from real outcomes — no cloud AI. GET /health returns capabilities.tender_training_enabled.',
-      'To upgrade Bob tender writing quality: (1) Pull a larger model: ollama pull qwen2.5:14b then set OLLAMA_MODEL_WRITING=qwen2.5:14b on Bob Railway service. (2) Deploy a second Railway service with large Ollama and set SECONDARY_ASSISTANT_URL + SECONDARY_ASSISTANT_API_KEY. (3) Approve more tenders — every approved tender trains Bob via POST /tender/train.',
-      'Bob is the face of the app and handles 100% of AI tasks: chat, document analysis, tender generation, code assist, self-healing, patrol compliance, legal checks, PTT diagnosis, UI assessment. All self-hosted on Railway. Constant self-learning from patrol intel, approved tenders, and knowledge requests.',
+      'To upgrade Bob tender writing quality: (1) Pull a larger model: ollama pull qwen2.5:14b then set OLLAMA_MODEL_WRITING=qwen2.5:14b on Bob RunPod pod. (2) Deploy a second Bob pod on RunPod with large Ollama and set SECONDARY_ASSISTANT_URL + SECONDARY_ASSISTANT_API_KEY. (3) Approve more tenders — every approved tender trains Bob via POST /tender/train.',
+      'Bob is the face of the app and handles 100% of AI tasks: chat, document analysis, tender generation, code assist, self-healing, patrol compliance, legal checks, PTT diagnosis, UI assessment. All self-hosted on RunPod/VPS/Railway. Constant self-learning from patrol intel, approved tenders, and knowledge requests.',
     ],
   },
 };
@@ -410,6 +410,47 @@ function getKnowledgePacks() {
   return KNOWLEDGE_PACKS;
 }
 
+function updateKnowledgePacks(payload = {}) {
+  const updates = [];
+  const source = payload.knowledge || payload.packs || payload;
+
+  if (Array.isArray(source)) {
+    for (const item of source) {
+      if (!item || typeof item !== 'object') continue;
+      const key = String(item.key || '').trim();
+      if (!key) continue;
+      updates.push([key, item]);
+    }
+  } else if (source && typeof source === 'object') {
+    for (const [key, value] of Object.entries(source)) {
+      if (!value || typeof value !== 'object') continue;
+      updates.push([String(key).trim(), value]);
+    }
+  }
+
+  const updated = [];
+  for (const [key, value] of updates) {
+    // Allow letters/numbers plus "_" (common pack keys), "-" and ":" for
+    // namespaced keys used by operational automations.
+    if (!key || !/^[a-z0-9_:-]+$/i.test(key)) continue;
+    const normalized = {
+      name: trimText(value.name || key, 120),
+      summary: trimText(value.summary || '', 600),
+      key_points: Array.isArray(value.key_points)
+        ? value.key_points.map((point) => trimText(point, 800)).filter(Boolean)
+        : [],
+    };
+    KNOWLEDGE_PACKS[key] = normalized;
+    updated.push(key);
+  }
+
+  return {
+    updated_keys: updated,
+    updated_count: updated.length,
+    total_packs: Object.keys(KNOWLEDGE_PACKS).length,
+  };
+}
+
 function buildPatchTask(report, plan) {
   const summary = trimText(report?.summary || plan?.summary || 'Unspecified incident', 300);
   const severity = String(report?.severity || plan?.severity || 'medium').toLowerCase();
@@ -463,4 +504,5 @@ module.exports = {
   buildSelfHealingPlan,
   buildPatchTask,
   getKnowledgePacks,
+  updateKnowledgePacks,
 };

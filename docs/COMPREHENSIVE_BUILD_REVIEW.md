@@ -92,7 +92,7 @@ const smsConfig = await getSmsConfig(supabase, organizationId)
 
 | Service | Status | Notes |
 |---------|--------|-------|
-| Railway (ALPR/AI) | ✅ Complete | Well documented in RAILWAY_INTEGRATION.md |
+| Bob/ALPR (RunPod) | ✅ Complete | Well documented in RAILWAY_INTEGRATION.md |
 | Supabase Auth | ✅ Complete | RLS + Edge Functions |
 | NZSCV/MotorWeb | ✅ Complete | Via proxy server |
 | Push Notifications | ✅ Complete | Web Push API |

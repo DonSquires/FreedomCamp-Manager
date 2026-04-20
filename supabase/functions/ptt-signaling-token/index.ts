@@ -41,6 +41,19 @@ function toWsUrl(baseHttpUrl: string): string {
   return normalized + '/ws'
 }
 
+async function canAccessChannelOrg(supabase: any, channelOrgId: string): Promise<boolean> {
+  const { data: canAccess, error: canAccessError } = await supabase.rpc('can_access_ptt_channel', {
+    p_channel_org_id: channelOrgId,
+  })
+
+  if (canAccessError) {
+    console.error('PTT access RPC failed:', canAccessError)
+    return false
+  }
+
+  return Boolean(canAccess)
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -144,6 +157,7 @@ Deno.serve(async (req) => {
     }
 
     const [scopeType, scopeId] = channelScope.split(':')
+    const userRole = profile.role
     const isPrivilegedRole = ['master', 'grand_master'].includes(profile.role)
 
     // Resolve effective organization context. For master/grand_master users who
@@ -156,12 +170,14 @@ Deno.serve(async (req) => {
         { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
-    
+
     if (scopeType === 'org') {
-      // Only allow access to user's own org unless privileged role.
-      if (!isPrivilegedRole && scopeId !== profile.organization_id) {
+      const canAccess = await canAccessChannelOrg(supabase, scopeId)
+      if (!canAccess && userRole !== 'grand_master') {
         return new Response(
-          JSON.stringify({ error: 'Forbidden', message: 'Cannot access channels in other organizations' }),
+          JSON.stringify({ 
+            error: 'Not authorized for this channel. Check provider access grants.' 
+          }),
           { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         )
       }
@@ -182,9 +198,12 @@ Deno.serve(async (req) => {
         )
       }
 
-      if (incident.organization_id !== profile.organization_id && !isPrivilegedRole) {
+      const canAccess = await canAccessChannelOrg(supabase, incident.organization_id)
+      if (!canAccess && userRole !== 'grand_master') {
         return new Response(
-          JSON.stringify({ error: 'Forbidden', message: 'Cannot access incident channels in other organizations' }),
+          JSON.stringify({
+            error: 'Not authorized for this channel. Check provider access grants.',
+          }),
           { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         )
       }
@@ -200,9 +219,12 @@ Deno.serve(async (req) => {
         .single()
 
       if (pttChannel?.organization_id) {
-        if (!isPrivilegedRole && pttChannel.organization_id !== profile.organization_id) {
+        const canAccess = await canAccessChannelOrg(supabase, pttChannel.organization_id)
+        if (!canAccess && userRole !== 'grand_master') {
           return new Response(
-            JSON.stringify({ error: 'Forbidden', message: 'Cannot access team/deployment channels in other organizations' }),
+            JSON.stringify({
+              error: 'Not authorized for this channel. Check provider access grants.',
+            }),
             { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
           )
         }
@@ -232,9 +254,12 @@ Deno.serve(async (req) => {
         )
       }
 
-      if (targetProfile.organization_id !== profile.organization_id && !isPrivilegedRole) {
+      const canAccess = await canAccessChannelOrg(supabase, targetProfile.organization_id)
+      if (!canAccess && userRole !== 'grand_master') {
         return new Response(
-          JSON.stringify({ error: 'Forbidden', message: 'Cannot create direct channels with users in other organizations' }),
+          JSON.stringify({
+            error: 'Not authorized for this channel. Check provider access grants.',
+          }),
           { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         )
       }

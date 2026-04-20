@@ -272,7 +272,7 @@ Used by `cleanup-and-recalculate` to verify service is available before nightly 
 
 ### Config
 ```
-INFERENCE_SERVICE_URL  (Supabase secret — Railway inference service URL)
+INFERENCE_SERVICE_URL  (Supabase secret — Bob inference service URL on RunPod)
 INFERENCE_API_KEY      (Supabase secret — shared secret for service-to-service auth)
 ```
 
@@ -434,7 +434,7 @@ ALPR_API_TOKEN          # Same value (alternate name used by legacy functions)
 ALPR_API_URL            # https://api.platerecognizer.com/v1/plate-reader/
 PARKPOW_API_TOKEN       # ParkPow API key (same subscription as PLATERECOGNIZER)
 PROXY_SERVER_URL        # Railway proxy server URL (for NZSCV + MotorWeb)
-INFERENCE_SERVICE_URL   # Railway inference service URL
+INFERENCE_SERVICE_URL   # Bob inference service URL (RunPod)
 INFERENCE_API_KEY       # Shared secret for inference service authentication
 SUPABASE_URL            # Auto-set by Supabase
 SUPABASE_ANON_KEY       # Auto-set by Supabase

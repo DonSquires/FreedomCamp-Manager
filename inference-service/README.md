@@ -72,7 +72,7 @@ npm start
 
 Service runs on http://localhost:3000
 
-Deployment note: Railway inference deployments are triggered by changes under inference-service/ on main.
+Deployment note: Bob inference deployments are triggered by changes under inference-service/ on main (syncs to DonSquires/Bob, deploys to RunPod).
 
 ---
 
@@ -549,7 +549,7 @@ railway logs
 
 ### **Authentication in Production (Build-Training Mode)**
 
-> ⚠️ **Known limitation:** When Bob is deployed on Railway with `SELF_CONTAINED_STRICT_EGRESS=true`
+> ⚠️ **Known limitation:** When Bob is deployed on RunPod with `SELF_CONTAINED_STRICT_EGRESS=true`
 > (locked-down mode), outbound network calls are blocked — including the JWKS fetch required
 > to verify Supabase user JWTs.
 >
@@ -558,7 +558,7 @@ railway logs
 > - `x-inference-api-key: <SUPABASE_SERVICE_ROLE_KEY>` header (accepted as equivalent)
 >
 > User-issued JWTs (`Authorization: Bearer <supabase_jwt>`) are **not** accepted when strict egress
-> is enabled. Set `INFERENCE_API_KEY` on the Bob Railway service and in Supabase vault — both must
+> is enabled. Set `INFERENCE_API_KEY` on the Bob RunPod pod and in Supabase vault — both must
 > have the same value.
 >
 > See [docs/SECRETS_REGISTRY.md](../docs/SECRETS_REGISTRY.md) for the full secrets setup guide.

@@ -220,7 +220,7 @@ function buildHeuristicAssessment(doc: any, text: string, reason: string): Asses
 }
 
 // ---------------------------------------------------------------------------
-// Call Bob via Railway inference service
+// Call Bob inference service
 // ---------------------------------------------------------------------------
 async function callBobChat(systemPrompt: string, userMessage: string): Promise<string> {
   if (!INFERENCE_SERVICE_URL) throw new Error('INFERENCE_SERVICE_URL not configured')

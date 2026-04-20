@@ -72,7 +72,7 @@ In Railway dashboard, click the **Variables** tab and add:
 | `INFER_RATE_LIMIT_RPM` | `30` | Max inference requests per minute per IP |
 | `ALPR_RATE_LIMIT_RPM` | `60` | Max ALPR requests per minute per IP |
 | `TABULAR_RATE_LIMIT_RPM` | `20` | Max tabular NLP requests per minute per IP |
-| `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Ollama API endpoint. For Railway internal networking use `http://ollama.railway.internal:11434` |
+| `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Ollama API endpoint (same pod). Use `http://127.0.0.1:11434` when Bob and Ollama are co-located on the same RunPod pod. |
 | `OLLAMA_MODEL` | `llama3.1:8b` | Only needed if using `VEHICLE_ATTRS_PROVIDER=ollama` |
 
 Then click the **Settings** tab and set **Health Check Path** to `/health`.

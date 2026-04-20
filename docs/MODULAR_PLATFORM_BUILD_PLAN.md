@@ -177,7 +177,7 @@ The CRM acts as the **central entity hub** for the entire platform:
 | **Forms** | react-hook-form + zod | Type-safe validation |
 | **Routing** | react-router-dom v6 | Industry standard |
 | **Backend** | Supabase (PostgreSQL + Edge Functions) | Rapid development, real-time, auth built-in |
-| **Self-hosted AI** | Node.js + ONNX Runtime on Railway | ALPR, face recognition, OCR |
+| **Self-hosted AI** | Node.js + ONNX Runtime on RunPod | ALPR, face recognition, OCR |
 | **Real-time Comms** | WebSocket + WebRTC | PTT, live tracking |
 | **Package Manager** | Bun | Fast installs and builds |
 
@@ -338,7 +338,7 @@ Real-time voice and text communication for field officers:
 **Infrastructure:**
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    PTT SIGNALING SERVER (Railway)                │
+│                    PTT SIGNALING SERVER (hPanel VPS 72.61.123.97)           │
 ├─────────────────────────────────────────────────────────────────┤
 │  WebSocket-based signaling for WebRTC peer connections          │
 │  • JWT authentication via ptt-signaling-token Edge Function     │
@@ -1139,7 +1139,7 @@ Each service module is a **self-contained vertical** that plugs into the Core Pl
 
 | Module | Description | Key Features | 3rd Party APIs |
 |--------|-------------|--------------|----------------|
-| **PTT & Chat** | Real-time comms | Push-to-talk (WebRTC), channels, VOX mode, Bluetooth PTT, team chat | PTT Server (Railway) |
+| **PTT & Chat** | Real-time comms | Push-to-talk (WebRTC), channels, VOX mode, Bluetooth PTT, team chat | PTT Server (VPS 72.61.123.97) |
 
 ### 4.2 Complete Module Summary
 
@@ -1389,7 +1389,7 @@ platform/
 │   │   └── arcface.onnx
 │   └── package.json
 │
-├── ptt-server/                    # PTT SIGNALING (Railway)
+├── ptt-server/                    # PTT SIGNALING (hPanel VPS 72.61.123.97)
 │   └── server.js
 │
 └── docs/

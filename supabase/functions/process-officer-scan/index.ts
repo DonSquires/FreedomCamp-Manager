@@ -1259,6 +1259,121 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // ── Step 5c: Person-vehicle link lookup ───────────────────────────────────
+    // When a plate is identified, check canonical_persons linked via
+    // person_vehicle_links. Surface flagged/trespassed/POI/high-risk persons
+    // as person_alerts in the response. Zone restriction is respected: if a
+    // person's record is zone_restricted, it is only surfaced when the
+    // observation zone matches one of that person's associated zone_ids.
+    interface PersonAlert {
+      person_id: string;
+      full_name: string;
+      alert_type: 'banned' | 'trespassed' | 'safety_risk' | 'flagged' | 'poi';
+      risk_level: string | null;
+      risk_category: string | null;
+      relationship_type: string | null;
+      zone_restricted: boolean;
+      is_minor: boolean;
+    }
+    const personAlerts: PersonAlert[] = [];
+
+    if (plate) {
+      try {
+        const { data: linkedPersons } = await supabase
+          .from('person_vehicle_links')
+          .select(`
+            relationship_type,
+            canonical_persons (
+              id,
+              full_name,
+              is_minor,
+              is_poi,
+              is_trespassed,
+              is_banned,
+              is_flagged,
+              flagged_priority,
+              risk_level,
+              risk_category,
+              zone_restricted,
+              zone_ids
+            )
+          `)
+          .eq('plate_number', plate) as any;
+
+        if (linkedPersons) {
+          for (const link of linkedPersons) {
+            const cp = link.canonical_persons;
+            if (!cp) continue;
+
+            // Only surface if the person has an alert status
+            const hasAlert = cp.is_trespassed || cp.is_banned || cp.is_flagged
+                             || cp.is_poi || cp.risk_level;
+            if (!hasAlert) continue;
+
+            // Zone restriction: if zone_restricted, only surface when the
+            // observation zone is in this person's zone_ids list
+            if (cp.zone_restricted) {
+              const personZoneIds: string[] = cp.zone_ids ?? [];
+              if (!personZoneIds.includes(zoneId)) continue;
+            }
+
+            const isHighRiskSafety =
+              cp.risk_level && ['high', 'critical'].includes(cp.risk_level) &&
+              cp.risk_category && ['violence', 'aggression', 'weapon'].includes(cp.risk_category);
+
+            personAlerts.push({
+              person_id:         cp.id,
+              // Full name redacted for high-risk safety records (officers see
+              // warning only; admin sees detail — matches vehicle safety flag model)
+              full_name:         isHighRiskSafety ? '[REDACTED — contact supervisor]'
+                                                  : (cp.full_name || 'Unknown person'),
+              alert_type:        cp.is_banned      ? 'banned'
+                                 : cp.is_trespassed ? 'trespassed'
+                                 : isHighRiskSafety  ? 'safety_risk'
+                                 : cp.is_flagged    ? 'flagged'
+                                                    : 'poi',
+              risk_level:        cp.risk_level ?? null,
+              risk_category:     cp.risk_category ?? null,
+              relationship_type: link.relationship_type ?? null,
+              zone_restricted:   cp.zone_restricted ?? false,
+              is_minor:          cp.is_minor ?? false,
+            });
+          }
+          if (personAlerts.length > 0) {
+            console.log(`⚠️ ${personAlerts.length} person alert(s) for plate ${plate}:`,
+              personAlerts.map(a => `${a.alert_type}:${a.full_name}`).join(', '));
+
+            // Auto-create person_observations for each alerted person so the
+            // encounter is permanently recorded against the canonical person's
+            // observation history (mirrors how vehicle scans create observations).
+            for (const alert of personAlerts) {
+              try {
+                await supabase.rpc('record_person_observation_from_scan', {
+                  p_canonical_person_id: alert.person_id,
+                  p_observation_id: observationId,
+                  p_zone_id: zoneId,
+                  p_organization_id: organizationId,
+                  p_recorded_by: userId,
+                  p_plate_number: plate ?? null,
+                  p_alert_types: [alert.alert_type],
+                  p_geofence_validated: false,   // geofence gating is enforced in get_canonical_person_obs_history RPC at query time
+                  p_officer_lat: gpsLatitude ?? null,
+                  p_officer_lon: gpsLongitude ?? null,
+                  p_officer_accuracy: gpsAccuracy ?? null,
+                } as any);
+              } catch (writeErr: any) {
+                // Non-fatal — write-back failure must not block the scan result
+                console.warn('⚠️ Person observation write-back failed (non-fatal):', writeErr.message);
+              }
+            }
+          }
+        }
+      } catch (personErr: any) {
+        // Non-fatal — person alert lookup failure must not block the scan result
+        console.warn('⚠️ Person-vehicle link lookup failed (non-fatal):', personErr.message);
+      }
+    }
+
     // ── Step 6: Movement detection + plate-mismatch-same-vehicle check ───────
     let vehicleMoved: boolean | null = null;
     // Plate mismatch: same vehicle (high embedding similarity) but different plate
@@ -1752,6 +1867,10 @@ Deno.serve(async (req: Request) => {
       mismatch_notices: mismatchNotices,
       has_discrepancies: finalHasDiscrepancies,
       sc_law_active:     scLawActive,
+      // Person alerts: flagged/trespassed/POI persons linked to this plate.
+      // Empty array when no associations or no alerts. Zone-restricted records
+      // are filtered to this observation's zone (Step 5c).
+      person_alerts: personAlerts,
     };
 
     console.log('✅ process-officer-scan complete', {

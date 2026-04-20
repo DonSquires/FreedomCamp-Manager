@@ -28,27 +28,19 @@ const UserManagement = lazy(() => import('@/pages/UserManagement'))
 const OrganizationManagement = lazy(() => import('@/pages/OrganizationManagement'))
 const IncidentManagement = lazy(() => import('@/pages/IncidentManagement'))
 const Reports = lazy(() => import('@/pages/Reports'))
-const SystemDiagnostics = lazy(() => import('@/pages/SystemDiagnostics'))
-const TestDashboard = lazy(() => import('@/pages/TestDashboard'))
-const ComplianceRecalculation = lazy(() => import('@/pages/ComplianceRecalculation'))
 const CleanupAndRecalculate = lazy(() => import('@/pages/CleanupAndRecalculate'))
 const PhotoReingest = lazy(() => import('@/pages/PhotoReingest'))
 const EvidencePhotoLinker = lazy(() => import('@/pages/EvidencePhotoLinker'))
 const LiveOfficerTracking = lazy(() => import('@/pages/LiveOfficerTracking'))
 const OrganizationProfile = lazy(() => import('@/pages/OrganizationProfile'))
 const AuditLog = lazy(() => import('@/pages/AuditLog'))
-const EnforcementActions = lazy(() => import('@/pages/EnforcementActions'))
-const EnforcementCommandCenter = lazy(() => import('@/pages/EnforcementCommandCenter'))
 const InfringementNotices = lazy(() => import('@/pages/InfringementNotices'))
 const PrivacyCurtain = lazy(() => import('@/pages/PrivacyCurtain'))
 const PatrolCheckpointManagement = lazy(() => import('@/pages/PatrolCheckpointManagement'))
 const PatrolScheduleManagement = lazy(() => import('@/pages/PatrolScheduleManagement'))
 const PatrolKPIDashboard = lazy(() => import('@/pages/PatrolKPIDashboard'))
 const DataManagementHub = lazy(() => import('@/pages/DataManagementHub'))
-const DataCleanupUtility = lazy(() => import('@/pages/DataCleanupUtility'))
-const DataIntegrityDashboard = lazy(() => import('@/pages/DataIntegrityDashboard'))
 const LivePatrolMonitor = lazy(() => import('@/pages/LivePatrolMonitor'))
-const ReportsHub = lazy(() => import('@/pages/ReportsHub'))
 const CustomReportBuilder = lazy(() => import('@/pages/CustomReportBuilder'))
 const AiAnalysis = lazy(() => import('@/pages/AiAnalysis'))
 const HotspotsMap = lazy(() => import('@/pages/HotspotsMap'))
@@ -90,8 +82,6 @@ const SiteRiskAssessment = lazy(() => import('@/pages/SiteRiskAssessment'))
 const VehicleDiscrepancies = lazy(() => import('@/pages/VehicleDiscrepancies'))
 const NZSCVMonitor = lazy(() => import('@/pages/NZSCVMonitor'))
 const NotificationsCenter = lazy(() => import('@/pages/NotificationsCenter'))
-const ComplianceDashboard = lazy(() => import('@/pages/ComplianceDashboard'))
-const CleanDashboard = lazy(() => import('@/pages/CleanDashboard'))
 const FaceRecognitionPage = lazy(() => import('@/pages/FaceRecognitionPage'))
 const IdentityVerificationPage = lazy(() => import('@/pages/IdentityVerificationPage'))
 const TimesheetReview = lazy(() => import('@/pages/TimesheetReview'))
@@ -122,12 +112,12 @@ const PTTRadio = lazy(() => import('@/pages/PTTRadio'))
 const IntelApprovalQueue = lazy(() => import('@/pages/IntelApprovalQueue'))
 const BobIntakeQueue = lazy(() => import('@/pages/BobIntakeQueue'))
 const BobAssistantStudio = lazy(() => import('@/pages/BobAssistantStudio'))
-const GrandmasterCodingStudio = lazy(() => import('@/pages/GrandmasterCodingStudio'))
 const OpsLivePlanReviewQueue = lazy(() => import('@/pages/OpsLivePlanReviewQueue'))
 const OfficerHomePage = lazy(() => import('@/pages/OfficerHomePage'))
 const TenderWorkspace = lazy(() => import('@/pages/TenderWorkspace'))
 const TenderWorkspaceDetail = lazy(() => import('@/pages/TenderWorkspaceDetail'))
 const TenderReferenceLibrary = lazy(() => import('@/pages/TenderReferenceLibrary'))
+const ServiceProviderAccessSettings = lazy(() => import('@/pages/admin/ServiceProviderAccessSettings'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -679,16 +669,7 @@ export default function App() {
             }
           />
 
-          <Route
-            path="/grandmaster-code-studio"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['grand_master']}>
-                  <GrandmasterCodingStudio />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/grandmaster-code-studio" element={<Navigate to="/" replace />} />
 
           <Route
             path="/compliance-escalations"
@@ -732,62 +713,17 @@ export default function App() {
             }
           />
 
-          <Route
-            path="/diagnostics"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['master']}>
-                  <SystemDiagnostics />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/diagnostics" element={<Navigate to="/" replace />} />
 
-          <Route
-            path="/test-dashboard"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['master']}>
-                  <TestDashboard />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/test-dashboard" element={<Navigate to="/" replace />} />
 
           {/* --- NEW ROUTES ADDED BELOW --- */}
 
-          <Route
-            path="/compliance-recalculation"
-            element={
-              <ProtectedRoute>
-                  <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <ComplianceRecalculation />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/compliance-recalculation" element={<Navigate to="/" replace />} />
 
-          <Route
-            path="/photo-reingest"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <PhotoReingest />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/photo-reingest" element={<Navigate to="/" replace />} />
 
-          <Route
-            path="/evidence-photo-linker"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <EvidencePhotoLinker />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/evidence-photo-linker" element={<Navigate to="/" replace />} />
 
           <Route
             path="/live-tracking"
@@ -822,27 +758,9 @@ export default function App() {
             }
           />
 
-          <Route
-            path="/enforcement-actions"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
-                  <EnforcementActions />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/enforcement-actions" element={<Navigate to="/enforcement-review" replace />} />
 
-          <Route
-            path="/enforcement-command-center"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <EnforcementCommandCenter />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/enforcement-command-center" element={<Navigate to="/enforcement-review" replace />} />
 
           <Route
             path="/infringements"
@@ -910,38 +828,11 @@ export default function App() {
             }
           />
 
-          <Route
-            path="/admin/data-cleanup"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <DataCleanupUtility />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/admin/data-cleanup" element={<Navigate to="/" replace />} />
 
-          <Route
-            path="/admin/cleanup-recalculate"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <CleanupAndRecalculate />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/admin/cleanup-recalculate" element={<Navigate to="/" replace />} />
 
-          <Route
-            path="/admin/data-integrity"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <DataIntegrityDashboard />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/admin/data-integrity" element={<Navigate to="/" replace />} />
 
           <Route
             path="/live-patrol"
@@ -954,16 +845,7 @@ export default function App() {
             }
           />
 
-          <Route
-            path="/reports-hub"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <ReportsHub />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/reports-hub" element={<Navigate to="/reports" replace />} />
 
           <Route
             path="/custom-reports"
@@ -1042,14 +924,7 @@ export default function App() {
             }
           />
 
-          <Route
-            path="/observation-records"
-            element={
-              <ProtectedRoute>
-                <ObservationRecords />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/observation-records" element={<Navigate to="/observations" replace />} />
 
           <Route
             path="/search"
@@ -1362,42 +1237,28 @@ export default function App() {
             }
           />
 
-          <Route
-            path="/import-historical"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <ImportHistoricalData />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/import-historical" element={<Navigate to="/import-data" replace />} />
 
-          <Route
-            path="/breach-notices"
-            element={
-              <ProtectedRoute>
-                <BreachNotices />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/breach-notices" element={<Navigate to="/breaches" replace />} />
 
-          <Route
-            path="/observations-report"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <ObservationsReport />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/observations-report" element={<Navigate to="/observations" replace />} />
 
           <Route
             path="/settings"
             element={
               <ProtectedRoute>
                 <Settings />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/service-provider-access"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'master']}>
+                  <ServiceProviderAccessSettings />
+                </RoleRoute>
               </ProtectedRoute>
             }
           />
@@ -1441,26 +1302,8 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/compliance-dashboard"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'master', 'admin_officer']}>
-                  <ComplianceDashboard />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/clean-dashboard"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'master', 'admin_officer']}>
-                  <CleanDashboard />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/compliance-dashboard" element={<Navigate to="/compliance" replace />} />
+          <Route path="/clean-dashboard" element={<Navigate to="/" replace />} />
 
           {/* Invoicing — read-only billing view */}
           <Route

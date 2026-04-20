@@ -30,7 +30,7 @@ All frontend variables must be prefixed with `VITE_` to be exposed to the browse
 |----------|-------------|---------|--------|
 | `VITE_GOOGLE_MAPS_API_KEY` | Google Maps JavaScript API key | None | Alphanumeric string |
 | `VITE_PROXY_SERVER_URL` | Railway proxy server URL | None | `https://<service>.railway.app` |
-| `VITE_INFERENCE_SERVICE_URL` | Railway inference service URL | None | `https://<service>.railway.app` |
+| `VITE_INFERENCE_SERVICE_URL` | Bob inference service URL (RunPod) | None | `https://<pod>.proxy.runpod.net` |
 | `VITE_APP_VERSION` | Application version for display | `1.0.0` | Semver string |
 | `VITE_ENVIRONMENT` | Environment name | `development` | `development`, `staging`, `production` |
 
@@ -73,9 +73,9 @@ VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 # Optional - Google Maps
 VITE_GOOGLE_MAPS_API_KEY=AIza...
 
-# Optional - Railway Services (if using local or custom inference)
+# Optional - Bob inference service (RunPod)
 VITE_PROXY_SERVER_URL=https://proxy-server-production.railway.app
-VITE_INFERENCE_SERVICE_URL=https://focused-courage-production-ccee.up.railway.app
+VITE_INFERENCE_SERVICE_URL=https://<runpod-pod-id>-3000.proxy.runpod.net
 
 # Environment
 VITE_ENVIRONMENT=development
@@ -99,7 +99,7 @@ These are set in Supabase Dashboard → Project Settings → Edge Functions → 
 
 | Variable | Description | Required | Notes |
 |----------|-------------|----------|-------|
-| `INFERENCE_SERVICE_URL` | Railway inference service URL | For AI features | Used by face recognition, ALPR |
+| `INFERENCE_SERVICE_URL` | Bob inference service URL (RunPod) | For AI features | Used by face recognition, ALPR |
 | `INFERENCE_API_KEY` | API key for inference service | Optional | Set for additional security |
 | `NZSCV_API_KEY` | NZ SCV API key | For SCV lookups | Ministry of Transport API |
 | `PARKPOW_API_KEY` | ParkPow API key | For ALPR integration | Third-party ALPR service |
@@ -217,23 +217,21 @@ Canonical secret names used by deploy workflows:
 
 | Secret | Used by |
 |----------|----------|
-| `RAILWAY_TOKEN` | Inference + proxy deploy workflows |
-| `RAILWAY_BOB_TOKEN` | Bob + Ollama deploy workflows |
-| `RAILWAY_INFERENCE_SERVICE_ID` | Inference deploy workflow |
+| `RAILWAY_TOKEN` | Proxy deploy workflow |
 | `RAILWAY_PROXY_SERVICE_ID` | Proxy deploy workflow |
-| `RAILWAY_BOB_SERVICE_ID` | Bob deploy workflow |
-| `RAILWAY_BOB_PROJECT_ID` | Bob service auto-resolution fallback |
-| `RAILWAY_OLLAMA_SERVICE_ID` | Ollama deploy workflow |
+| `RUNPOD_API_KEY` | Bob/Ollama RunPod deployment (`= RUNPOD_ENDPOINT_API_KEY`) |
+| `RUNPOD_ENDPOINT_ID` | Bob RunPod serverless endpoint |
 | `INFERENCE_SERVICE_URL` | Health checks + Bob pretrain workflows |
 | `PROXY_SERVICE_URL` | Proxy health check |
 | `BOB_SERVICE_URL` | Bob health + chat route verification |
 | `BOB_INFERENCE_API_KEY` | Bob ops workflow auth alias for `INFERENCE_API_KEY` |
-| `OLLAMA_SERVICE_URL` | Ollama health/model pull verification |
+
+> ⚠️ `RAILWAY_BOB_TOKEN`, `RAILWAY_BOB_SERVICE_ID`, `RAILWAY_BOB_PROJECT_ID`, `RAILWAY_OLLAMA_SERVICE_ID`, `OLLAMA_SERVICE_URL`
+> are **no longer required** — Bob and Ollama moved to RunPod.
 
 Notes:
-- Deploy workflows now accept token fallback (`RAILWAY_TOKEN` <-> `RAILWAY_BOB_TOKEN`) to reduce CI drift during token rotations.
 - Bob ops workflows accept URL/key aliases to reduce naming drift: `BOB_SERVICE_URL` <-> `INFERENCE_SERVICE_URL` and `BOB_INFERENCE_API_KEY` <-> `INFERENCE_API_KEY`.
-- Service IDs remain mandatory for deterministic deployments.
+- Service IDs remain mandatory for deterministic deployments (proxy only).
 
 ---
 

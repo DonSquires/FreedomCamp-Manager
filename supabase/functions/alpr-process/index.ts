@@ -2,7 +2,7 @@
  * ALPR Process — 3-Stage Plate Recognition Pipeline
  *
  * Stage 1: Plate Recognizer  (PLATERECOGNIZER_TOKEN — primary, highest accuracy)
- * Stage 2: Railway /infer    (INFERENCE_SERVICE_URL — vehicle embedding + plate fallback)
+ * Stage 2: Bob /infer        (INFERENCE_SERVICE_URL — vehicle embedding + plate fallback)
  * Stage 3: MANUAL_REQUIRED  (zero-failure guarantee)
  *
  * Flow (UPDATE mode — triggered by FieldOfficerPortal after fast observation save):
@@ -22,7 +22,7 @@ import { alprWithBytes } from '../_shared/alpr.ts';
 import { requireAuth } from '../_shared/requireAuth.ts';
 
 // API Configuration
-const RAILWAY_INFERENCE_URL = Deno.env.get('INFERENCE_SERVICE_URL');
+const INFERENCE_URL = Deno.env.get('INFERENCE_SERVICE_URL');
 const PHOTO_FETCH_TIMEOUT_MS = Number(Deno.env.get('ALPR_PHOTO_FETCH_TIMEOUT_MS') ?? '8000');
 
 function parseStorageLocation(raw: string): { bucket: string; path: string } | null {
@@ -157,7 +157,7 @@ interface ALPRResponse {
   observation_id?: string;
   plate?: string;
   confidence?: number;
-  stage?: 'platerecognizer' | 'railway' | 'manual';
+  stage?: 'platerecognizer' | 'bob' | 'manual';
   vehicle?: {
     make?: string;
     model?: string;
@@ -587,60 +587,60 @@ Deno.serve(async (req) => {
     }
 
     // ==========================================================================
-    // STAGE 2: RAILWAY INFERENCE SERVICE (vehicle embedding + plate fallback)
+    // STAGE 2: BOB INFERENCE SERVICE (vehicle embedding + plate fallback)
     // Endpoint: POST /infer  (multipart/form-data with "photo" field)
     // Returns:  { success, data: { embedding[], embedding_quality, detection: { confidence },
     //             sticker: { presence, color, bbox, detection_confidence, color_confidence },
     //             movement: { moved, background_similarity, vehicle_bbox_iou, decision } } }
-    // Plate extraction only available when OPENAI_API_KEY is set on Railway.
+    // Plate extraction available when OPENAI_API_KEY is configured on the inference service.
     // ==========================================================================
     let vehicleEmbedding: number[] | null = null;
     let embeddingQuality: number | null = null;
     let inferSticker: InferenceSticker | null = null;
     let inferMovement: InferenceMovement | null = null;
 
-    if (RAILWAY_INFERENCE_URL) {
+    if (INFERENCE_URL) {
       try {
-        console.log('🚂 Stage 2: Railway Inference Service /infer ...');
+        console.log('🤖 Stage 2: Bob inference /infer ...');
 
         const inferForm = new FormData();
         inferForm.append('photo', new Blob([photoBytes], { type: 'image/jpeg' }), 'photo.jpg');
 
-        const railwayResponse = await fetch(`${RAILWAY_INFERENCE_URL}/infer`, {
+        const inferResponse = await fetch(`${INFERENCE_URL}/infer`, {
           method: 'POST',
           body: inferForm,
           signal: AbortSignal.timeout(8000), // 8-second cap — prevent edge fn timeout
         });
 
-        if (railwayResponse.ok) {
-          const railwayData = await railwayResponse.json();
+        if (inferResponse.ok) {
+          const inferRespData = await inferResponse.json();
 
-          if (railwayData.success && railwayData.data) {
-            const inferData = railwayData.data;
+          if (inferRespData.success && inferRespData.data) {
+            const inferData = inferRespData.data;
 
             // Always store embedding for visual vehicle matching
             if (inferData.embedding && Array.isArray(inferData.embedding)) {
               vehicleEmbedding = inferData.embedding;
               embeddingQuality = inferData.embedding_quality ?? null;
               if (stage !== 'platerecognizer') {
-                // Only use Railway confidence when Plate Recognizer didn't fire
+                // Only use Bob confidence when Plate Recognizer didn't fire
                 plateConfidence = inferData.detection?.confidence ?? 0.5;
-                stage = 'railway';
+                stage = 'bob';
               }
               console.log('✅ Stage 2: embedding stored, detection confidence:', inferData.detection?.confidence);
             } else {
-              warnings.push('Railway Inference returned no embedding');
+              warnings.push('Bob inference returned no embedding');
             }
 
-            // Use Railway plate only if Stage 1 didn't find one
+            // Use Bob plate only if Stage 1 didn't find one
             if (!plateNumber && inferData.plate_number && inferData.plate_number !== 'UNKNOWN') {
               plateNumber = inferData.plate_number.toUpperCase();
               plateConfidence = inferData.detection?.confidence ?? 0.5;
-              stage = 'railway';
-              console.log('✅ Stage 2: plate from Railway:', plateNumber);
+              stage = 'bob';
+              console.log('✅ Stage 2: plate from Bob inference:', plateNumber);
             }
 
-            // Vehicle make/model/colour (Railway provides if OPENAI_API_KEY set)
+            // Vehicle make/model/colour (available when OPENAI_API_KEY is configured)
             if (inferData.vehicle_make || inferData.vehicle_model) {
               vehicle = {
                 make: inferData.vehicle_make,
@@ -682,15 +682,15 @@ Deno.serve(async (req) => {
             }
           } else {
             console.log('⚠️ Stage 2: No vehicle detected in photo');
-            warnings.push('Railway Inference: no vehicle detected');
+            warnings.push('Bob inference: no vehicle detected');
           }
         } else {
-          console.error('❌ Stage 2 Error:', railwayResponse.status);
-          warnings.push(`Railway Inference error: ${railwayResponse.status}`);
+          console.error('❌ Stage 2 Error:', inferResponse.status);
+          warnings.push(`Bob inference error: ${inferResponse.status}`);
         }
       } catch (error: any) {
         console.error('❌ Stage 2 Exception:', error.message);
-        warnings.push(`Railway Inference exception: ${error.message}`);
+        warnings.push(`Bob inference exception: ${error.message}`);
       }
     } else {
       warnings.push('INFERENCE_SERVICE_URL not configured');

@@ -85,7 +85,7 @@ const { execFile } = require('child_process');
 const { promisify } = require('util');
 const { createSelfLearningService } = require('./lib/self-learning');
 const { profileExamples } = require('./lib/pretrain-profiles');
-const { buildSelfHealingPlan, buildPatchTask, getKnowledgePacks } = require('./lib/assistant-knowledge');
+const { buildSelfHealingPlan, buildPatchTask, getKnowledgePacks, updateKnowledgePacks } = require('./lib/assistant-knowledge');
 const { createIntelStore } = require('./lib/intel-updates');
 const { analyzeComponentCode, analyzeScreenshot, assessColourPalette, identifyLayoutPattern, DESIGN_SYSTEM } = require('./lib/ui-assessment');
 const { traceUIElement, getStackMap, findRoute, getDebuggingSteps, ROUTE_MAP, DEBUGGING_PLAYBOOK } = require('./lib/stack-navigation');
@@ -368,19 +368,24 @@ function ollamaFetch(url, options = {}) {
 // ---------------------------------------------------------------------------
 // Simple-vs-complex task routing
 // ---------------------------------------------------------------------------
-// RAILWAY_SIMPLE_OLLAMA_URL — always-on Railway Ollama for lightweight tasks
+// SIMPLE_OLLAMA_URL — always-on Ollama URL for lightweight tasks
 //   (PTT translation, short chat, tabular). Defaults to OLLAMA_BASE_URL so
-//   the split is opt-in: set this to http://ollama.railway.internal:11434
-//   and set OLLAMA_CHAT_BASE_URL to your RunPod gateway URL.
+//   the split is opt-in: set this to your lightweight Ollama endpoint
+//   and set OLLAMA_CHAT_BASE_URL to your full RunPod gateway URL.
+//   Previously named RAILWAY_SIMPLE_OLLAMA_URL — old name still accepted
+//   for backwards compatibility with existing deployments.
 // COMPLEX_CHAT_MIN_LEN — message character threshold above which chat routes
-//   to the full (RunPod) model. Messages shorter than this stay on Railway.
+//   to the full (RunPod) model. Messages shorter than this use the simple URL.
 //   Default: 300 chars. Set to 0 to always use the RunPod model for chat.
 // RUNPOD_POD_ID  — pod to auto-stop when Bob has been idle (GPU cost saver).
 // RUNPOD_API_KEY — RunPod API key used for pod start/stop GraphQL calls.
 //   Falls back to RUNPOD_ENDPOINT_API_KEY if set (serverless reuse).
 // RUNPOD_IDLE_TIMEOUT_MS — inactivity window before auto-stop (default 15 min).
 //   Set to 0 to disable auto-stop entirely.
-const RAILWAY_SIMPLE_OLLAMA_URL = (process.env.RAILWAY_SIMPLE_OLLAMA_URL || OLLAMA_BASE_URL).replace(/\/+$/, '');
+if (process.env.RAILWAY_SIMPLE_OLLAMA_URL && !process.env.SIMPLE_OLLAMA_URL) {
+  console.warn('[Bob] RAILWAY_SIMPLE_OLLAMA_URL is deprecated — rename to SIMPLE_OLLAMA_URL');
+}
+const SIMPLE_OLLAMA_URL = (process.env.SIMPLE_OLLAMA_URL || process.env.RAILWAY_SIMPLE_OLLAMA_URL || OLLAMA_BASE_URL).replace(/\/+$/, '');
 const COMPLEX_CHAT_MIN_LEN = Number(process.env.COMPLEX_CHAT_MIN_LEN ?? 300);
 const RUNPOD_POD_ID = process.env.RUNPOD_POD_ID || '';
 const RUNPOD_API_KEY_LIFECYCLE = process.env.RUNPOD_API_KEY || process.env.RUNPOD_ENDPOINT_API_KEY || '';
@@ -510,7 +515,7 @@ function isComplexChatTask(message, history = []) {
 }
 
 /**
- * Returns the Ollama base URL for a given workload type, taking Railway-vs-RunPod
+ * Returns the Ollama base URL for a given workload type, taking
  * complexity cost routing into account.
  *
  * workload:  'chat' | 'writing' | 'tabular' | 'ptt' | 'default'
@@ -519,18 +524,17 @@ function isComplexChatTask(message, history = []) {
  */
 function getOllamaBaseUrlForWorkload(workload = 'default', complex = false) {
   // Writing / tender generation always wants the most capable model available.
-  // Never downsize writing to the simple Railway Ollama.
   if (workload === 'writing') return OLLAMA_CHAT_BASE_URL || OLLAMA_BASE_URL;
 
   if (workload === 'chat') {
-    // Short/simple chat stays on always-on Railway Ollama when a separate
-    // simple URL is configured and RunPod isn't needed.
-    const hasRunPodChatUrl = OLLAMA_CHAT_BASE_URL !== RAILWAY_SIMPLE_OLLAMA_URL;
-    if (!complex && hasRunPodChatUrl) return RAILWAY_SIMPLE_OLLAMA_URL;
+    // Short/simple chat uses the lightweight Ollama URL when a separate
+    // simple URL is configured and the full RunPod model isn't needed.
+    const hasRunPodChatUrl = OLLAMA_CHAT_BASE_URL !== SIMPLE_OLLAMA_URL;
+    if (!complex && hasRunPodChatUrl) return SIMPLE_OLLAMA_URL;
     return OLLAMA_CHAT_BASE_URL;
   }
 
-  // Tabular and PTT are always lightweight — anchor to Railway Ollama.
+  // Tabular and PTT are always lightweight — use the simple Ollama URL.
   if (workload === 'tabular') return OLLAMA_TABULAR_BASE_URL;
   if (workload === 'ptt') return OLLAMA_PTT_BASE_URL;
   return OLLAMA_BASE_URL;
@@ -556,9 +560,9 @@ const SAFETY_ACTION_RECOGNITION_MODEL = process.env.SAFETY_ACTION_RECOGNITION_MO
 const SAFETY_MAN_DOWN_MODEL = process.env.SAFETY_MAN_DOWN_MODEL || '';
 const OLLAMA_AUTO_PULL_MODELS = envFlag(process.env.OLLAMA_AUTO_PULL_MODELS, true);
 const OLLAMA_PULL_TIMEOUT_MS = Number(process.env.OLLAMA_PULL_TIMEOUT_MS || 120000);
-// SECONDARY_ASSISTANT_URL — optional second Railway-hosted AI service for
-// document generation when the primary Ollama model isn't sufficient.
-// Can be another Bob instance running a larger Ollama model, or a dedicated
+// SECONDARY_ASSISTANT_URL — optional secondary AI service for document
+// generation when the primary Ollama model isn't sufficient.
+// Can be another Bob instance running a larger model, or a dedicated
 // secondary writing-model service. Must expose POST /tender/generate.
 const SECONDARY_ASSISTANT_URL = (process.env.SECONDARY_ASSISTANT_URL || '').replace(/\/+$/, '');
 const SECONDARY_ASSISTANT_API_KEY = process.env.SECONDARY_ASSISTANT_API_KEY || '';
@@ -566,9 +570,9 @@ const SECONDARY_ASSISTANT_TIMEOUT_MS = Number(process.env.SECONDARY_ASSISTANT_TI
 // Accept any Ollama URL configured via REQUIRED_OLLAMA_BASE_URL.
 // Default to RunPod pod Ollama (accessible via RUNPOD_GATEWAY_URL or localhost).
 const REQUIRED_OLLAMA_BASE_URL = process.env.REQUIRED_OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
-function isRailwayOllamaInternal(url) {
+function isRailwayOllamaInternal(_url) {
   // Legacy check kept for compatibility — no longer relevant since Bob moved off Railway.
-  try { return new URL(url).hostname === 'ollama.railway.internal'; } catch { return false; }
+  return false;
 }
 
 function modelLooksPresent(availableModels, expectedModel) {
@@ -661,8 +665,7 @@ function isLocalUrl(value) {
       host === 'localhost' ||
       host === '127.0.0.1' ||
       host === '::1' ||
-      host === 'ollama' ||
-      host.endsWith('.railway.internal')
+      host === 'ollama'
     );
   } catch {
     return false;
@@ -1777,7 +1780,7 @@ function generateHeuristicChatReply(message, context = {}) {
     return 'I can help debug FieldOps issues. Use POST /navigate/debug with {symptom: "button not working"} and I will give you step-by-step debugging instructions. I know common failure patterns: button not clickable (check disabled/onClick/mutation), link 404 (check route path), form error (check zod/RLS), blank page (check hook errors), data not loading (check RLS/filters/auth). I can also trace any UI element — POST /assess/ui/trace with the component code.';
   }
   if (lowered.includes('stack') || lowered.includes('architecture') || lowered.includes('how does') || lowered.includes('topology')) {
-    return 'FieldOps stack: React UI (src/pages/) → Zustand + TanStack Query hooks (src/hooks/) → Supabase client (src/lib/supabase.ts) → Postgres with RLS (supabase/migrations/) → Edge Functions (supabase/functions/) → Bob inference on Railway (inference-service/). CI/CD via GitHub Actions (.github/workflows/). Use GET /navigate/stack-map for the full interactive topology.';
+    return 'FieldOps stack: React UI (src/pages/) → Zustand + TanStack Query hooks (src/hooks/) → Supabase client (src/lib/supabase.ts) → Postgres with RLS (supabase/migrations/) → Edge Functions (supabase/functions/) → Bob inference on RunPod (inference-service/). CI/CD via GitHub Actions (.github/workflows/). Use GET /navigate/stack-map for the full interactive topology.';
   }
   if (lowered.includes('supabase') || lowered.includes('database') || lowered.includes('rls') || lowered.includes('migration')) {
     return 'FieldOps uses Supabase Postgres with Row Level Security on every table. Key tables: vehicles, observations, zones, breaches, enforcement_actions, patrols, users, organizations. Types are generated in src/types/database.ts. Migrations in supabase/migrations/ (70+ files). Edge Functions in supabase/functions/ (70+ functions). All queries go through the typed Supabase client in src/lib/supabase.ts.';
@@ -1862,7 +1865,7 @@ function generateHeuristicChatReply(message, context = {}) {
     return 'Railway: only proxy-server/ (NZSCV/MotorWeb proxy) remains on Railway. Bob + Ollama moved to RunPod serverless (n0bp1ifmq01cx2). PTT + TURN moved to VPS 72.61.123.97. Railway token: RAILWAY_TOKEN (proxy only). Deploy proxy: deploy-proxy-railway.yml. Use GET /platform/railway for full knowledge.';
   }
   if (lowered.includes('github action') || lowered.includes('workflow') || lowered.includes('ci/cd') || lowered.includes('codespace')) {
-    return 'GitHub: 25 Actions workflows in .github/workflows/. Deploy: frontend (Vercel), Bob/Ollama/PTT/Proxy (Railway), mobile (EAS), Edge Functions (Supabase). Database: db-push.yml (requires @DonSquires approval). Ops crons: Bob feedback 03:47 NZST, self-learning pretrain 04:21 NZST, intel every 6h. Codespaces: Node 22, Bun, Supabase CLI, Deno (ports: 5173/3000/3002/8080). bun.lock must be committed or Railway deploy fails. Bob sync: sync-bob-repo.yml → DonSquires/Bob. Use GET /platform/github for full knowledge.';
+    return 'GitHub: 25 Actions workflows in .github/workflows/. Deploy: frontend (Vercel), Bob/Ollama (RunPod pod), PTT+TURN (VPS 72.61.123.97), Proxy (Railway), mobile (EAS), Edge Functions (Supabase). Database: db-push.yml (requires @DonSquires approval). Ops crons: Bob feedback 03:47 NZST, self-learning pretrain 04:21 NZST, intel every 6h. Codespaces: Node 22, Bun, Supabase CLI, Deno (ports: 5173/3000/3002/8080). bun.lock must be committed or deploy fails. Bob sync: sync-bob-repo.yml → DonSquires/Bob. Use GET /platform/github for full knowledge.';
   }
   if (lowered.includes('vercel') || (lowered.includes('frontend') && lowered.includes('deploy'))) {
     return 'Vercel hosts the React/Vite SPA. Build: bun run build → dist/. SPA rewrite: all routes → /index.html. Security headers: HSTS 1yr, X-Frame-Options:DENY, CSP (connect-src: *.supabase.co wss: *.railway.app). Environments: production (VITE_SUPABASE_URL_PRODUCTION) and preview (VITE_SUPABASE_URL_PREVIEW). Domain: fcmanager.co.nz. DNS: CNAME www → cname.vercel-dns.com. Client env vars must be prefixed VITE_. Use GET /platform/vercel for full knowledge.';
@@ -1877,10 +1880,10 @@ function generateHeuristicChatReply(message, context = {}) {
     return 'Domain: fcmanager.co.nz (.co.nz via NZRS). Vercel CNAME: www.fcmanager.co.nz → cname.vercel-dns.com. A record: @ → 76.76.21.21. SSL: Let\'s Encrypt auto-managed by Vercel. Supabase redirect_urls: fcmanager.co.nz, www, *.onspace.build, *.vercel.app, localhost:5173/3000. CORS allowlist in _shared/withCors.ts (DEV_CORS=true for local). Adding new domain: (1) Supabase redirect_urls, (2) CORS allowlist, (3) DNS records, (4) SSL. Use GET /platform/domain for full knowledge.';
   }
   if (lowered.includes('hybrid') || lowered.includes('architecture') || lowered.includes('stack overview') || lowered.includes('how everything') || lowered.includes('all the pieces')) {
-    return 'FieldOps hybrid stack: Web (React → Vercel) + Mobile (Expo → EAS) → Supabase BaaS (auth/DB/47 Edge Functions/Storage) + Railway microservices (Bob/Proxy/PTT/Ollama). CI/CD: 25 GitHub Actions. Plate scan: Mobile → Edge Function → Proxy → NZSCV → observation → compliance check → breach. AI: Photo → Bob ONNX → plate result. PTT: Button → Edge Function → PTT server JWT → WebSocket → WebRTC audio. Self-learning: nightly GitHub Actions → Bob /learn/pretrain. Similar: ParkPow, Genetec, Axon Field, Parking+Plus NZ. Use GET /platform/stack for full architecture overview.';
+    return 'FieldOps hybrid stack: Web (React → Vercel) + Mobile (Expo → EAS) → Supabase BaaS (auth/DB/47 Edge Functions/Storage) + services: Bob/Ollama on RunPod, Proxy on Railway, PTT+TURN on VPS 72.61.123.97. CI/CD: 25 GitHub Actions. Plate scan: Mobile → Edge Function → Proxy → NZSCV → observation → compliance check → breach. AI: Photo → Bob ONNX → plate result. PTT: Button → Edge Function → PTT server JWT → WebSocket → WebRTC audio. Self-learning: nightly GitHub Actions → Bob /learn/pretrain. Similar: ParkPow, Genetec, Axon Field, Parking+Plus NZ. Use GET /platform/stack for full architecture overview.';
   }
   if (lowered.includes('platform') || lowered.includes('infrastructure') || lowered.includes('hosting')) {
-    return 'FieldOps infrastructure: Vercel (frontend SPA), Supabase (auth/DB/Edge Functions/Storage, project kxwjcupuxnnbnzcgmkoi), Railway (Bob/Proxy/PTT/Ollama microservices), GitHub Actions (25 CI/CD workflows), Expo EAS (mobile builds). Primary domain: fcmanager.co.nz. Email: Zoho SMTP + Resend. Use GET /platform/:key for knowledge on supabase/railway/github/vercel/expo/domain/email. Use POST /assess/platform with {symptom:"..."} to diagnose. Use POST /ask-copilot to queue questions Bob cannot answer.';
+    return 'FieldOps infrastructure: Vercel (frontend SPA), Supabase (auth/DB/Edge Functions/Storage, project kxwjcupuxnnbnzcgmkoi), Bob/Ollama (RunPod pod), Proxy/NZSCV (Railway), PTT+TURN (VPS 72.61.123.97), GitHub Actions (25 CI/CD workflows), Expo EAS (mobile builds). Primary domain: fcmanager.co.nz. Email: Zoho SMTP + Resend. Use GET /platform/:key for knowledge on supabase/railway/github/vercel/expo/domain/email. Use POST /assess/platform with {symptom:"..."} to diagnose. Use POST /ask-copilot to queue questions Bob cannot answer.';
   }
   if (lowered.includes('ask copilot') || lowered.includes('knowledge request') || lowered.includes('learn') || lowered.includes('don\'t know') || lowered.includes('not sure')) {
     return 'Bob can queue knowledge requests for Copilot to research. Use POST /ask-copilot with {question: "...", category: "supabase|railway|github|vercel|expo|domain|email|ptt|general"} to submit a question. Copilot\'s ops-bob-ask-copilot.yml workflow polls GET /ask-copilot/pending hourly, researches answers via GitHub Models API, and sends answers back via POST /ask-copilot/:id/answer — which auto-ingests the knowledge into Bob\'s intel feed. Check status: GET /ask-copilot. Answered knowledge is available via /intel/state.';
@@ -1891,7 +1894,7 @@ function generateHeuristicChatReply(message, context = {}) {
   // ---------------------------------------------------------------------------
   if (lowered.includes('tech stack') || lowered.includes('what technology') || (lowered.includes('what') && lowered.includes('built with'))) {
     const s = TECH_STACK;
-    return `FieldOps Manager tech stack: ${s.frontend.framework} + ${s.frontend.language} + ${s.frontend.bundler} + ${s.frontend.styling} + ${s.frontend.components}. State: ${s.frontend.state}. Forms: ${s.frontend.forms}. Routing: ${s.frontend.routing}. Package manager: ${s.package_manager}. Backend: ${s.backend.platform} (${s.backend.database}, Edge Functions, Auth, Storage). Services on Railway: ${s.services.inference}, ${s.services.proxy}, ${s.services.ptt}. Frontend hosted on Vercel, mobile on ${s.hosting.mobile}. Use GET /code/tech-stack for full details or POST /code/assist with {question:"..."} for coding guidance.`;
+    return `FieldOps Manager tech stack: ${s.frontend.framework} + ${s.frontend.language} + ${s.frontend.bundler} + ${s.frontend.styling} + ${s.frontend.components}. State: ${s.frontend.state}. Forms: ${s.frontend.forms}. Routing: ${s.frontend.routing}. Package manager: ${s.package_manager}. Backend: ${s.backend.platform} (${s.backend.database}, Edge Functions, Auth, Storage). Services: Bob/Ollama (RunPod), Proxy (Railway), PTT+TURN (VPS 72.61.123.97). Frontend hosted on Vercel, mobile on ${s.hosting.mobile}. Use GET /code/tech-stack for full details or POST /code/assist with {question:"..."} for coding guidance.`;
   }
   if ((lowered.includes('create') || lowered.includes('add') || lowered.includes('build') || lowered.includes('make')) && lowered.includes('page')) {
     const steps = COMMON_TASKS.add_page.join(' ');
@@ -1932,7 +1935,7 @@ function generateHeuristicChatReply(message, context = {}) {
     return `FieldOps uses @/* → ./src/* path alias. Defined in tsconfig.json (paths) and vite.config.ts (resolve.alias). Examples: import { supabase } from "@/lib/supabase"; import { Button } from "@/components/ui/button"; import { useBreaches } from "@/hooks/useBreaches"; import { useAuthStore } from "@/stores/authStore"; import type { Database } from "@/types/database".`;
   }
   if (lowered.includes('env') && (lowered.includes('variable') || lowered.includes('var') || lowered.includes('secret'))) {
-    return `FieldOps env vars: Frontend (Vercel) must be prefixed VITE_ — VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are required. Edge Function secrets: supabase secrets set KEY=value --project-ref kxwjcupuxnnbnzcgmkoi. Railway service vars: set in Railway Dashboard → service → Variables. Bob service baseline: INFERENCE_API_KEY, CHAT_PROVIDER=ollama, TABULAR_NLP_PROVIDER=ollama, BOB_OPERATING_MODE=build-training, SELF_CONTAINED_MODE=false, and OLLAMA_BASE_URL pointing to Railway internal Ollama or the RunPod gateway.`;
+    return `FieldOps env vars: Frontend (Vercel) must be prefixed VITE_ — VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are required. Edge Function secrets: supabase secrets set KEY=value --project-ref kxwjcupuxnnbnzcgmkoi. Bob service vars: set in pod .env on RunPod. Proxy vars: Railway Dashboard → Core project → Proxy service → Variables. PTT vars: VPS .env or deploy-voice-server.yml. Bob service baseline: INFERENCE_API_KEY, CHAT_PROVIDER=ollama, TABULAR_NLP_PROVIDER=ollama, BOB_OPERATING_MODE=build-training, SELF_CONTAINED_MODE=false, and OLLAMA_BASE_URL pointing to http://127.0.0.1:11434 (local pod Ollama) or the RunPod gateway.`;
   }
   if (lowered.includes('bun') && (lowered.includes('install') || lowered.includes('lock') || lowered.includes('frozen'))) {
     return `bun.lock must be committed alongside package.json changes. Railway runs bun install --frozen-lockfile and will fail if bun.lock is stale or missing. Fix: run bun install (no --frozen-lockfile), commit the updated bun.lock. Verify: bun install --frozen-lockfile should output "no changes". Never use npm/yarn/pnpm in the root — use bun only.`;
@@ -1973,7 +1976,7 @@ async function generateChatReplyWithOllama(message, history = [], context = {}, 
   const complex = isComplexChatTask(message, history);
   const ollamaBaseUrl = getOllamaBaseUrlForWorkload('chat', complex);
   // Track RunPod activity so the idle-stop timer fires correctly.
-  if (ollamaBaseUrl !== RAILWAY_SIMPLE_OLLAMA_URL) runpodPodManager.recordActivity();
+  if (ollamaBaseUrl !== SIMPLE_OLLAMA_URL) runpodPodManager.recordActivity();
   if (!OLLAMA_ENABLED) {
     recordEgressEvent('ollama', 'blocked', 'Chat requested ollama but local ollama is unavailable');
     return buildChatHeuristicFallback(message, context);
@@ -2661,10 +2664,10 @@ async function generateTenderWithOllamaWriting(generationType, context, orgConte
 }
 
 /**
- * Forward a tender generation request to the secondary Railway-hosted assistant.
+ * Forward a tender generation request to the secondary assistant service.
  * The secondary assistant must expose POST /tender/generate with the same API shape.
  * Authenticate with SECONDARY_ASSISTANT_API_KEY in the Authorization header.
- * Use this for a dedicated writing-specialist Railway service (another Bob instance
+ * Use this for a dedicated writing-specialist service (another Bob instance
  * with a larger Ollama model, or a custom document-generation service).
  */
 async function generateTenderWithSecondaryAssistant(generationType, context, orgContext) {
@@ -3004,6 +3007,22 @@ app.get('/self-heal/knowledge', rateLimit({ windowMs: 60_000, max: 60, standardH
     self_healing_enabled: SELF_HEALING_ENABLED,
     knowledge: getKnowledgePacks(),
   });
+});
+
+app.post('/self-heal/knowledge', inferenceRateLimit, requireInferenceAuth, (req, res) => {
+  try {
+    const payload = req.body && typeof req.body === 'object' ? req.body : {};
+    const result = updateKnowledgePacks(payload);
+    return res.json({
+      success: true,
+      self_healing_enabled: SELF_HEALING_ENABLED,
+      ...result,
+      knowledge: getKnowledgePacks(),
+    });
+  } catch (error) {
+    console.error('Self-heal knowledge update error:', error);
+    return res.status(500).json({ error: 'Knowledge update failed', message: error.message });
+  }
 });
 
 app.post('/self-heal/patch-task', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
@@ -3373,7 +3392,7 @@ const PTT_DIAGNOSTICS = {
       { step: 'Check ptt-signaling-token Edge Function is deployed', detail: 'Run set-ptt-secret.yml workflow or: supabase functions deploy ptt-signaling-token --project-ref $REF --no-verify-jwt' },
       { step: 'Verify PTT_SERVER_URL in Supabase secrets', detail: 'Supabase Dashboard → Settings → Edge Functions → Secrets. Must be http://72.61.123.97:8080 (VPS, ptt-server port 8080)' },
       { step: 'Check ptt-server health endpoint', detail: 'GET http://72.61.123.97:8080/health — should return {status:"ok",channels:N,connectedUsers:N}' },
-      { step: 'Verify PTT_JWT_SECRET matches', detail: 'Same secret must be set on both Supabase Edge Function secrets AND Railway ptt-server environment variables' },
+      { step: 'Verify PTT_JWT_SECRET matches', detail: 'Same secret must be set on both Supabase Edge Function secrets AND the VPS ptt-server environment variables (ssh root@72.61.123.97)' },
       { step: 'Verify PROXY_SECRET matches', detail: 'Edge Function uses this to authenticate with ptt-server /api/token/mint. Must match between Supabase secrets and Railway env.' },
       { step: 'Check user authentication', detail: 'User must be logged in with a valid session. PTT waits for auth loading to complete before connecting (usePTTAutoConnect).' },
       { step: 'Check organization_id', detail: 'User must have an organization_id. Master/grand_master users need an org selected in global filter dropdown.' },
@@ -3410,13 +3429,13 @@ const PTT_DIAGNOSTICS = {
     keywords: ['deploy', 'railway', 'setup', 'install', 'configure', 'secret', 'env'],
     diagnosis: 'PTT deployment/configuration issue',
     checks: [
-      { step: 'Deploy ptt-server to Railway', detail: 'Create Railway service from ptt-server/ directory. Set builder to Dockerfile. Configure env vars.' },
-      { step: 'Set required env vars on Railway', detail: 'PTT_JWT_SECRET (generate: openssl rand -hex 32), PROXY_SECRET (shared with Edge Function), PORT (auto-set by Railway).' },
+      { step: 'Deploy ptt-server to VPS', detail: 'SSH into root@72.61.123.97. Deploy ptt-server/ via deploy-voice-server.yml workflow or manual rsync + pm2 start.' },
+      { step: 'Set required env vars on VPS', detail: 'PTT_JWT_SECRET (generate: openssl rand -hex 32), PTT_PROXY_SECRET (shared with Edge Function), PORT (e.g. 3002).' },
       { step: 'Set Supabase Edge Function secrets', detail: 'Run set-ptt-secret.yml workflow or manually set PTT_SERVER_URL and PTT_PROXY_SECRET in Supabase Dashboard.' },
       { step: 'Deploy ptt-signaling-token Edge Function', detail: 'supabase functions deploy ptt-signaling-token --project-ref $REF --no-verify-jwt' },
       { step: 'Create ptt-clips Storage bucket', detail: 'Supabase Dashboard → Storage → New Bucket → name: ptt-clips. Set RLS policies for org-scoped access.' },
       { step: 'Run PTT migration', detail: 'Migration 20260329000002_ptt_tables.sql creates ptt_messages, ptt_presence, ptt_channels tables.' },
-      { step: 'Verify health endpoint', detail: 'GET https://<railway-url>/health should return status:ok. If not, check Railway logs for startup errors.' },
+      { step: 'Verify health endpoint', detail: 'GET http://72.61.123.97:<PORT>/health should return status:ok. If not, check VPS service logs (pm2 logs or journalctl).' },
       { step: 'Optional: Configure TURN server', detail: 'For NAT traversal in corporate/restricted networks. Set TURN_URL, TURN_USERNAME, TURN_CREDENTIAL on ptt-server.' },
     ],
   },
@@ -3454,7 +3473,7 @@ app.post('/assess/ptt', inferenceRateLimit, requireInferenceAuth, async (req, re
       diagnosis: matched.diagnosis,
       category: matched.category,
       checks: matched.checks,
-      stack_overview: 'PTTBar.tsx → ptt.ts → pttBackground.ts → pttStore.ts → ptt-signaling-token Edge Function → ptt-server (Railway)',
+      stack_overview: 'PTTBar.tsx → ptt.ts → pttBackground.ts → pttStore.ts → ptt-signaling-token Edge Function → ptt-server (VPS 72.61.123.97)',
       files: {
         ui_component: 'src/components/features/PTTBar.tsx',
         library: 'src/lib/ptt.ts',
@@ -7244,12 +7263,12 @@ loadModels().then(() => {
     console.warn('   Check the Ollama service startup logs for the line: 🌐 Binding Ollama to 0.0.0.0:<port>');
   } else if (OLLAMA_REQUESTED && !isRailwayOllamaInternal(OLLAMA_BASE_URL)) {
     if (SELF_CONTAINED_MODE) {
-      console.warn(`⚠️  OLLAMA_BASE_URL is not a Railway internal URL. Current value: ${OLLAMA_BASE_URL}`);
+      console.warn(`⚠️  OLLAMA_BASE_URL is not a local URL. Current value: ${OLLAMA_BASE_URL}`);
       console.warn('   SELF_CONTAINED_MODE will keep Ollama disabled for non-local URLs; chat will fall back to heuristic.');
       recordEgressEvent('ollama', 'blocked', 'self-contained startup with non-local/non-required OLLAMA_BASE_URL');
     } else {
-      console.warn(`⚠️  OLLAMA_BASE_URL is not a Railway internal URL. Current value: ${OLLAMA_BASE_URL}`);
-      console.warn('   build-training mode allows external Ollama URLs, but railway.internal is recommended for security.');
+      console.warn(`⚠️  OLLAMA_BASE_URL is set to an external URL. Current value: ${OLLAMA_BASE_URL}`);
+      console.warn('   build-training mode allows external Ollama URLs (e.g. RunPod gateway).');
       recordEgressEvent('ollama', 'allow', 'startup with external OLLAMA_BASE_URL while SELF_CONTAINED_MODE=false');
     }
   }

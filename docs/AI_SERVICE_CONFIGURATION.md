@@ -36,11 +36,11 @@ Go to Supabase Dashboard → Edge Functions → Manage Secrets and add:
 
 | Secret | Value | Required |
 |--------|-------|----------|
-| `INFERENCE_SERVICE_URL` | `https://focused-courage-production-ccee.up.railway.app` | Yes |
+| `INFERENCE_SERVICE_URL` | Bob's RunPod service URL | Yes |
 | `INFERENCE_API_KEY` | Shared secret for inference-service auth | Recommended |
 | `PROXY_SERVER_URL` | Railway proxy URL | For NZSCV lookups |
 
-For build/training mode on Railway, also set Bob service variables:
+For Bob service environment variables (set in RunPod pod `.env`):
 
 | Variable | Value |
 |---|---|
@@ -61,14 +61,14 @@ No external cloud AI provider secrets are required under this policy.
 
 | Secret | Purpose |
 |--------|---------|
-| `INFERENCE_SERVICE_URL` | Railway inference service URL for YOLO/MobileNet models |
+| `INFERENCE_SERVICE_URL` | Bob inference service URL (RunPod) for YOLO/MobileNet models |
 | `INFERENCE_API_KEY` | Optional API key for inference service auth |
 
 ### NZSCV Self-Contained Vehicle Lookups
 
 | Secret | Purpose |
 |--------|---------|
-| `PROXY_SERVER_URL` or `NZSCV_PROXY_URL` | Railway proxy server URL |
+| `PROXY_SERVER_URL` or `NZSCV_PROXY_URL` | Railway proxy server URL (NZSCV/MotorWeb) |
 | `NZSCV_PROXY_SECRET` | Shared secret for proxy authentication |
 
 ## Verifying Configuration
@@ -120,7 +120,7 @@ curl https://kxwjcupuxnnbnzcgmkoi.supabase.co/functions/v1/check-railway-health
 **Cause**: The Bob service is still running in `self-contained` mode, so Supabase JWKS auth and external upstream access remain blocked.
 
 **Fix**:
-1. Set `BOB_OPERATING_MODE=build-training` on the Railway Bob service.
+1. Set `BOB_OPERATING_MODE=build-training` on the Bob service (RunPod pod `.env`).
 2. Redeploy the Bob service.
 3. Re-check `/health` and confirm:
   - `config.OPERATING_MODE = build-training`
@@ -131,16 +131,16 @@ See [docs/BOB_SYSTEM_REVIEW.md](BOB_SYSTEM_REVIEW.md) for the current consolidat
 
 ### "INFERENCE_SERVICE_URL not configured"
 
-**Cause**: The Railway inference service URL is not set
+**Cause**: The Bob inference service URL is not set
 
-**Fix**: Add `INFERENCE_SERVICE_URL` secret with the Railway service URL
+**Fix**: Add `INFERENCE_SERVICE_URL` secret with Bob's RunPod service URL
 
-### "Inference service offline" but Railway is healthy
+### "Inference service offline" but RunPod is healthy
 
 **Cause**: `INFERENCE_SERVICE_URL` is missing the protocol (for example `https://`).
 
 **Fix**:
-1. Set a full URL value such as `https://focused-courage-production-ccee.up.railway.app`.
+1. Set a full URL value such as `https://<your-runpod-pod-id>-3000.proxy.runpod.net`.
 2. Redeploy affected edge functions after secret changes.
 
 ### Auto bug analysis returns 401 Invalid JWT
@@ -154,21 +154,20 @@ See [docs/BOB_SYSTEM_REVIEW.md](BOB_SYSTEM_REVIEW.md) for the current consolidat
 
 ### Services show "Offline" in System Diagnostics
 
-1. Check that the Railway services are running
+1. Check that the Bob service (RunPod) and Proxy (Railway) are running
 2. Verify the URLs are correct in the secrets
-3. Check Railway dashboard for service health
+3. Check RunPod dashboard / Railway dashboard for service health
 
 ## Architecture Overview
 
 ```
 ┌─────────────────────┐     ┌──────────────────────┐     ┌─────────────────┐
-│  Browser/UI         │────▶│ Supabase Edge        │────▶│ Railway         │
-│  - FaceRecognition  │     │ Functions            │     │ - inference     │
-│  - PlateScanner     │     │ - check-railway      │     │ - proxy         │
+│  Browser/UI         │────▶│ Supabase Edge        │────▶│ RunPod / Railway│
+│  - FaceRecognition  │     │ Functions            │     │ - Bob inference │
+│  - PlateScanner     │     │ - onspace-ai-chat    │     │ - proxy         │
 │  - AIChat           │     │ - process-face-scan  │     │                 │
-└─────────────────────┘     │ - onspace-ai-chat    │     └─────────────────┘
-                            │ - vehicle-ingest     │
+└─────────────────────┘     │ - vehicle-ingest     │     └─────────────────┘
                             └──────────────────────┘
 ```
 
-**Key point**: Browser cannot call Railway directly (CORS). All calls go through Edge Functions.
+**Key point**: Browser cannot call Bob or the proxy directly (CORS). All calls go through Edge Functions.

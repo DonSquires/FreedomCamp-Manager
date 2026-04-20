@@ -3,8 +3,8 @@
  *
  * Compact camera-capture component for parking enforcement.
  * Opens a dialog with a live camera view, captures a JPEG, uploads to
- * Supabase Storage, and optionally runs ALPR (via the Railway inference
- * service) to auto-detect the plate number and vehicle details.
+ * Supabase Storage, and optionally runs ALPR (via the Bob inference
+ * service on RunPod) to auto-detect the plate number and vehicle details.
  *
  * Usage modes:
  *   runInference=true  — vehicle photo: auto-fills plate, make/model/colour
@@ -41,7 +41,7 @@ interface ParkingPhotoCaptureProps {
   /** When set, shows a photo thumbnail instead of the trigger button */
   existingPhotoUrl?: string
   /**
-   * When true the component runs the Railway ALPR inference pipeline after
+   * When true the component runs the Bob ALPR inference pipeline after
    * uploading the photo and returns detected plate / vehicle details.
    * When false (default) it simply uploads and returns the photo URL.
    */

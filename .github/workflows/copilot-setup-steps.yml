@@ -1,0 +1,114 @@
+name: "Copilot Setup Steps"
+
+# Run automatically when this file changes, and allow manual test runs.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  # MUST be named `copilot-setup-steps` — GitHub Copilot picks this up automatically.
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    permissions:
+      contents: read
+
+    # ── Injected secrets (from the `copilot` GitHub environment) ─────────────
+    # Add secrets here so they appear as env vars in every agent session.
+    # To add a secret: GitHub → Settings → Environments → copilot → Add secret.
+    #
+    # Required for Bob / RunPod compute integration:
+    #   RUNPOD_ENDPOINT_API_KEY  — RunPod Serverless API key (= RUNPOD_API_KEY)
+    #   RUNPOD_ENDPOINT_ID       — RunPod Serverless endpoint ID
+    #   RUNPOD_ENDPOINT_URL      — Optional full invoke URL (derived from ID if unset)
+    #   RUNPOD_API_KEY           — RunPod pod-lifecycle API key (start/stop/status); same value as RUNPOD_ENDPOINT_API_KEY
+    #
+    # Supabase (needed for DB-backed test scripts):
+    #   SUPABASE_ACCESS_TOKEN
+    #   SUPABASE_SERVICE_ROLE_KEY
+    env:
+      # RunPod / Bob compute
+      RUNPOD_ENDPOINT_API_KEY:  ${{ secrets.RUNPOD_ENDPOINT_API_KEY }}
+      RUNPOD_ENDPOINT_ID:       ${{ secrets.RUNPOD_ENDPOINT_ID }}
+      RUNPOD_ENDPOINT_URL:      ${{ secrets.RUNPOD_ENDPOINT_URL }}
+      RUNPOD_API_KEY:           ${{ secrets.RUNPOD_ENDPOINT_API_KEY }}
+      # Supabase
+      SUPABASE_ACCESS_TOKEN:      ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_SERVICE_ROLE_KEY:  ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      # ── Node.js (inference-service + scripts) ──────────────────────────────
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: inference-service/package.json
+
+      # ── Bun (frontend) ─────────────────────────────────────────────────────
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # ── Frontend dependencies (cached via bun.lock) ────────────────────────
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+
+      # ── inference-service dependencies ─────────────────────────────────────
+      - name: Install inference-service dependencies
+        run: cd inference-service && npm install --legacy-peer-deps
+
+      # ── proxy-server dependencies ──────────────────────────────────────────
+      - name: Install proxy-server dependencies
+        run: cd proxy-server && npm install --legacy-peer-deps
+
+      # ── Playwright browsers (needed for e2e tests) ─────────────────────────
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      # ── Supabase CLI (needed for migration checks + type gen) ──────────────
+      - name: Install Supabase CLI
+        run: |
+          curl -sSfL https://github.com/supabase/cli/releases/download/v2.78.1/supabase_linux_amd64.tar.gz \
+            | tar xz -C /usr/local/bin supabase
+
+      # ── Verify RunPod endpoint secret is present ───────────────────────────
+      - name: Check RunPod endpoint secret availability
+        run: |
+          if [ -z "$RUNPOD_ENDPOINT_API_KEY" ]; then
+            echo "::warning::RUNPOD_ENDPOINT_API_KEY is not set in the copilot environment."
+            echo "::warning::Add it at: GitHub → Settings → Environments → copilot → Add secret"
+          else
+            echo "✅ RUNPOD_ENDPOINT_API_KEY is set (${#RUNPOD_ENDPOINT_API_KEY} chars)"
+          fi
+          if [ -z "$RUNPOD_ENDPOINT_ID" ] && [ -z "$RUNPOD_ENDPOINT_URL" ]; then
+            echo "::warning::Neither RUNPOD_ENDPOINT_ID nor RUNPOD_ENDPOINT_URL is set."
+          else
+            echo "✅ RunPod endpoint reference is set"
+          fi
+          if [ -z "$RUNPOD_API_KEY" ]; then
+            echo "::warning::RUNPOD_API_KEY (= RUNPOD_ENDPOINT_API_KEY) is not set — pod lifecycle ops will fail."
+          else
+            echo "✅ RUNPOD_API_KEY is set"
+          fi
+
+      # ── Quick smoke: invoke RunPod endpoint if credentials are available ───
+      - name: RunPod endpoint smoke (if credentials available)
+        if: ${{ env.RUNPOD_ENDPOINT_API_KEY != '' && (env.RUNPOD_ENDPOINT_ID != '' || env.RUNPOD_ENDPOINT_URL != '') }}
+        run: |
+          node scripts/invoke-runpod-endpoint.mjs \
+            --prompt "Copilot setup-steps smoke test" \
+            --poll true \
+            --timeoutMs 120000 \
+            --intervalMs 3000
+        continue-on-error: true

@@ -23,7 +23,7 @@ name: Ops Bob Code Task
 #   - Manual: workflow_dispatch (with optional task and file list)
 #
 # Required repository secrets:
-#   BOB_SERVICE_URL or INFERENCE_SERVICE_URL    — Bob Railway URL
+#   BOB_SERVICE_URL or INFERENCE_SERVICE_URL    — Bob service URL (RunPod)
 #   BOB_INFERENCE_API_KEY or INFERENCE_API_KEY  — x-inference-api-key header
 #   (optional fallback) SUPABASE_SERVICE_ROLE_KEY — accepted by inference auth
 #
@@ -259,7 +259,7 @@ jobs:
           # Keep this on one shell line so GitHub's workflow parser never sees
           # prompt content as YAML.
           # ----------------------------------------------------------------
-          CODE_SYSTEM_PROMPT=$(printf '%b' 'You are an expert FieldOps Manager developer. FieldOps Manager is a TypeScript and React SPA for freedom camping enforcement in New Zealand.\n\nTech stack:\n- React 18, TypeScript, Vite, Tailwind CSS v3, shadcn/ui\n- Zustand stores and TanStack Query v5\n- react-hook-form plus zod\n- react-router-dom v6\n- Supabase PostgreSQL, Edge Functions, RLS, Auth, Storage\n- Railway services for inference-service, proxy-server, and ptt-server\n- bun package manager\n\nKey conventions:\n- Supabase client from @/lib/supabase\n- DB row types from Database["public"]["Tables"]["table"]["Row"]\n- Path alias @/* maps to ./src/*\n- Pages live in src/pages and default export a React component\n- Hooks live in src/hooks and follow query and mutation patterns\n- Stores live in src/stores and commonly use persist to sessionStorage\n- Use shadcn/ui components from @/components/ui and do not re-implement them\n- Edge Functions use withCors from ../_shared/withCors.ts and handle OPTIONS\n- Migrations live in supabase/migrations and must include RLS where required\n- Keep TypeScript config lenient: noImplicitAny=false, strictNullChecks=false, skipLibCheck=true\n- User roles include admin, master, officer, and admin_officer; routes are guarded in App.tsx\n- All datetimes use Pacific/Auckland timezone\n- Toasts come from sonner\n- Validate with bun run build and bun run lint\n\nOutput only valid JSON with summary, pr_title, and files. Each file entry must use operation create or overwrite, include the repo-relative path, and include full file contents. Never truncate content and never return markdown or prose outside the JSON object.')
+          CODE_SYSTEM_PROMPT=$(printf '%b' 'You are an expert FieldOps Manager developer. FieldOps Manager is a TypeScript and React SPA for freedom camping enforcement in New Zealand.\n\nTech stack:\n- React 18, TypeScript, Vite, Tailwind CSS v3, shadcn/ui\n- Zustand stores and TanStack Query v5\n- react-hook-form plus zod\n- react-router-dom v6\n- Supabase PostgreSQL, Edge Functions, RLS, Auth, Storage\n- Bob inference service on RunPod; proxy-server on Railway; PTT server on VPS (72.61.123.97)\n- bun package manager\n\nKey conventions:\n- Supabase client from @/lib/supabase\n- DB row types from Database["public"]["Tables"]["table"]["Row"]\n- Path alias @/* maps to ./src/*\n- Pages live in src/pages and default export a React component\n- Hooks live in src/hooks and follow query and mutation patterns\n- Stores live in src/stores and commonly use persist to sessionStorage\n- Use shadcn/ui components from @/components/ui and do not re-implement them\n- Edge Functions use withCors from ../_shared/withCors.ts and handle OPTIONS\n- Migrations live in supabase/migrations and must include RLS where required\n- Keep TypeScript config lenient: noImplicitAny=false, strictNullChecks=false, skipLibCheck=true\n- User roles include admin, master, officer, and admin_officer; routes are guarded in App.tsx\n- All datetimes use Pacific/Auckland timezone\n- Toasts come from sonner\n- Validate with bun run build and bun run lint\n\nOutput only valid JSON with summary, pr_title, and files. Each file entry must use operation create or overwrite, include the repo-relative path, and include full file contents. Never truncate content and never return markdown or prose outside the JSON object.')
 
           # ----------------------------------------------------------------
           # Helper: call GitHub Models API
@@ -589,6 +589,6 @@ jobs:
           echo ""
           echo "Setup:"
           echo "  1. GitHub → Settings → Secrets and variables → Actions"
-          echo "  2. Add: BOB_SERVICE_URL (or INFERENCE_SERVICE_URL) — Bob's Railway URL"
+          echo "  2. Add: BOB_SERVICE_URL (or INFERENCE_SERVICE_URL) — Bob's service URL (RunPod)"
           echo "  3. Add: BOB_INFERENCE_API_KEY (or INFERENCE_API_KEY) — Bob's auth key"
           echo "  4. Re-run this workflow"

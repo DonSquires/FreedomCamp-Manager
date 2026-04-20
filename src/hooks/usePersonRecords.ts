@@ -26,16 +26,31 @@ function personDisplayName(r: { first_name: string | null; last_name: string | n
 
 interface PersonObservation {
   id: string
-  person_id: string
+  person_id: string | null
+  canonical_person_id: string | null
   organization_id: string
   zone_id: string
-  observed_by: string
-  observed_at: string
+  zone?: { name: string } | null
+  observed_at?: string
+  recorded_at?: string
   gps_latitude: number | null
   gps_longitude: number | null
+  gps_accuracy: number | null
   notes: string | null
-  attachments: any[]
+  officer_notes?: string | null
+  attachments?: string[]
+  evidence_photos?: string[] | null
+  observation_type?: string
+  identification_method: string | null
+  match_confidence: number | null
+  alert_generated: boolean | null
+  alert_types: string[] | null
+  geofence_validated: boolean | null
+  is_minor_record: boolean | null
+  plate_number: string | null
+  observation_id: string | null
   created_at: string
+  observer?: { first_name: string; last_name: string } | null
 }
 
 interface CreatePersonRecordInput {
@@ -46,12 +61,24 @@ interface CreatePersonRecordInput {
 }
 
 interface CreatePersonObservationInput {
-  person_id: string
+  person_id?: string
+  canonical_person_id?: string
   zone_id: string
   gps_latitude?: number
   gps_longitude?: number
+  gps_accuracy?: number
   notes?: string
-  attachments?: any[]
+  officer_notes?: string
+  attachments?: string[]
+  evidence_photos?: string[]
+  observation_type?: string
+  identification_method?: string
+  match_confidence?: number
+  plate_number?: string
+  observation_id?: string
+  alert_generated?: boolean
+  alert_types?: string[]
+  geofence_validated?: boolean
 }
 
 export function usePersonRecords(options?: {
@@ -183,14 +210,39 @@ export function usePersonRecords(options?: {
   }
 }
 
-// Hook for person observations
-export function usePersonObservations(personId: string | null) {
+// Hook for person observations — supports both legacy person_records.id and
+// canonical_persons.id. When canonicalPersonId is provided it uses the
+// get_canonical_person_obs_history RPC (zone-gated, minor-redacted).
+export function usePersonObservations(
+  personId: string | null,
+  canonicalPersonId?: string | null,
+  callerLat?: number | null,
+  callerLon?: number | null
+) {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
 
   const query = useQuery({
-    queryKey: ['person-observations', personId],
+    queryKey: ['person-observations', personId, canonicalPersonId, callerLat, callerLon],
     queryFn: async () => {
+      // Prefer canonical path when we have a canonical_person_id
+      if (canonicalPersonId) {
+        const { data, error } = await supabase.rpc(
+          'get_canonical_person_obs_history',
+          {
+            p_canonical_person_id: canonicalPersonId,
+            p_caller_lat: callerLat ?? undefined,
+            p_caller_lon: callerLon ?? undefined,
+          }
+        )
+        if (error) {
+          toast.error('Failed to load observations')
+          throw error
+        }
+        return (data || []) as unknown as PersonObservation[]
+      }
+
+      // Legacy path: query by person_records.id
       if (!personId) return []
 
       const { data, error } = await supabase
@@ -210,25 +262,35 @@ export function usePersonObservations(personId: string | null) {
 
       return data as unknown as PersonObservation[]
     },
-    enabled: !!personId,
+    enabled: !!(canonicalPersonId || personId),
   })
 
-  // Create observation mutation
+  // Create observation mutation — writes to person_observations with full new fields
   const createObservation = useMutation({
     mutationFn: async (input: CreatePersonObservationInput) => {
-      const { data, error } = await (supabase
-        .from('person_observations') as any)
+      const { data, error } = await supabase
+        .from('person_observations')
         .insert({
-          person_id: input.person_id,
+          person_id: input.person_id ?? null,
+          canonical_person_id: input.canonical_person_id ?? null,
           organization_id: user?.organization_id,
           zone_id: input.zone_id,
-          observed_by: user?.id,
-          observed_at: new Date().toISOString(),
+          recorded_by: user?.id,
+          recorded_at: new Date().toISOString(),
           gps_latitude: input.gps_latitude,
           gps_longitude: input.gps_longitude,
-          notes: input.notes,
-          attachments: input.attachments || [],
-        })
+          gps_accuracy: input.gps_accuracy,
+          officer_notes: input.officer_notes ?? input.notes,
+          evidence_photos: input.evidence_photos ?? input.attachments ?? [],
+          observation_type: input.observation_type ?? 'officer_encounter',
+          identification_method: input.identification_method ?? 'officer_encounter',
+          match_confidence: input.match_confidence ?? null,
+          plate_number: input.plate_number ?? null,
+          observation_id: input.observation_id ?? null,
+          alert_generated: input.alert_generated ?? false,
+          alert_types: input.alert_types ?? [],
+          geofence_validated: input.geofence_validated ?? false,
+        } as any)
         .select()
         .single()
 
@@ -246,7 +308,7 @@ export function usePersonObservations(personId: string | null) {
   })
 
   return {
-    observations: query.data,
+    observations: query.data ?? [],
     isLoading: query.isLoading,
     createObservation,
   }
