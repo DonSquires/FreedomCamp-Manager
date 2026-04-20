@@ -6,9 +6,11 @@
 > from the repository owner (@DonSquires) via a reviewed and approved Pull Request.**
 > See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for the full governance policy.
 
-**Last verified:** 2026-04-25  
-**Verified by:** Copilot schema alignment audit (Schema Extract #29 pass) against migrations through 20260425000001  
-**Live row counts at verification:** observations 30,789 · canonical_vehicles 61,535 · zones 3,731 · breach_alerts 1,484 · user_profiles 7 · compliance_results 1,959
+**Last verified:** 2026-04-20  
+**Verified by:** Migration file analysis (not live DB query) — full table inventory across 303 migration files through 20260425000001  
+**Live row counts at verification:** observations 30,789 · canonical_vehicles 61,535 · zones 3,731 · breach_alerts 1,484 · user_profiles 7 · compliance_results 1,959 (from last live query 2026-04-25)
+
+> 📋 **Source note:** This document was updated via static analysis of `supabase/migrations/*.sql` files, not a live database query. Column definitions reflect the CREATE TABLE statements in the migration files. Run the information_schema query above to verify against the live DB.
 
 ---
 
@@ -518,10 +520,228 @@ Columns: `id`, `batch_id`, `raw_data`, `enriched_data`, `status` (default 'pendi
 
 ---
 
+## public.zone_signage_evidence
+
+**Primary key:** `id` (uuid, NOT NULL)
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| zone_id | uuid | NO | — |
+| photo_url | text | NO | — |
+| photo_sha256 | text | NO | — |
+| signage_type | text | YES | — |
+| captured_by | uuid | YES | — |
+| captured_at | timestamptz | YES | now() |
+| gps_latitude | numeric | YES | — |
+| gps_longitude | numeric | YES | — |
+| notes | text | YES | — |
+| is_current | boolean | YES | true |
+| created_at | timestamptz | YES | now() |
+
+**CHECK constraints:** `signage_type` ∈ `{restriction_notice, bylaw_reference, prohibitory, regulatory, warning}`
+
+---
+
+## public.infringement_notice_counters
+
+**Primary key:** `(organization_id, year_code)` (composite)
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| organization_id | uuid | NO | — |
+| year_code | text | NO | — |
+| last_seq | integer | NO | 0 |
+| created_at | timestamptz | NO | now() |
+| updated_at | timestamptz | NO | now() |
+
+**CHECK constraints:** `last_seq >= 0`
+
+---
+
+## public.enforcement_cases
+
+**Primary key:** `id` (uuid, NOT NULL)
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| observation_id | uuid | YES | — |
+| plate_number | text | NO | — |
+| organization_id | uuid | YES | — |
+| zone_id | uuid | YES | — |
+| case_number | text | NO | — |
+| case_status | text | NO | 'open' |
+| created_by | uuid | YES | — |
+| assigned_to | uuid | YES | — |
+| violation_summary | text | YES | — |
+| evidence_snapshot | jsonb | YES | — |
+| created_at | timestamptz | YES | now() |
+| updated_at | timestamptz | YES | now() |
+
+**Unique:** `case_number`
+
+---
+
+## public.enforcement_case_events
+
+**Primary key:** `id` (uuid, NOT NULL)
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| case_id | uuid | YES | — |
+| event_type | text | NO | — |
+| event_data | jsonb | YES | — |
+| performed_by | uuid | YES | — |
+| occurred_at | timestamptz | YES | now() |
+
+---
+
+## public.patrol_checkpoints
+
+**Primary key:** `id` (uuid, NOT NULL)
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| organization_id | uuid | NO | — |
+| zone_id | uuid | YES | — |
+| name | text | NO | — |
+| description | text | YES | — |
+| location_lat | double precision | YES | — |
+| location_lng | double precision | YES | — |
+| qr_code | text | NO | — |
+| nfc_tag_id | text | YES | — |
+| is_active | boolean | NO | true |
+| required_on_patrol | boolean | NO | false |
+| check_in_radius_metres | integer | NO | 50 |
+| created_by | uuid | YES | — |
+| created_at | timestamptz | NO | now() |
+| updated_at | timestamptz | NO | now() |
+
+**Unique:** `qr_code`
+
+---
+
+## public.checkpoint_visits
+
+**Primary key:** `id` (uuid, NOT NULL)
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| checkpoint_id | uuid | NO | — |
+| officer_id | uuid | NO | — |
+| patrol_id | uuid | YES | — |
+| organization_id | uuid | NO | — |
+| scan_method | text | NO | — |
+| gps_latitude | double precision | YES | — |
+| gps_longitude | double precision | YES | — |
+| gps_accuracy | double precision | YES | — |
+| gps_distance_from_checkpoint | double precision | YES | — |
+| within_radius | boolean | YES | — |
+| visited_at | timestamptz | NO | now() |
+| notes | text | YES | — |
+| created_at | timestamptz | NO | now() |
+
+**CHECK constraints:** `scan_method` ∈ `{qr_camera, nfc, manual_code, url_deep_link}`
+
+---
+
+## public.incident_attachments
+
+**Primary key:** `id` (uuid, NOT NULL)
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| incident_id | uuid | YES | — |
+| file_url | text | NO | — |
+| file_name | text | NO | — |
+| file_type | text | NO | — |
+| file_hash | text | YES | — |
+| uploaded_by | uuid | YES | — |
+| uploaded_at | timestamptz | YES | now() |
+
+---
+
+## public.privacy_access_log
+
+**Primary key:** `id` (uuid, NOT NULL)
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| organization_id | uuid | NO | — |
+| actor | uuid | NO | — |
+| target_table | text | NO | — |
+| target_record_id | text | NO | — |
+| field_accessed | text | NO | — |
+| access_reason | text | YES | — |
+| ip_address | inet | YES | — |
+| user_agent | text | YES | — |
+| accessed_at | timestamptz | NO | now() |
+
+---
+
+## public.privacy_curtain_settings
+
+**Primary key:** `id` (uuid, NOT NULL)  
+**Unique:** `organization_id` (one row per org)
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| organization_id | uuid | NO | — |
+| auto_redact_enabled | boolean | NO | true |
+| redact_owner_name | boolean | NO | true |
+| redact_owner_address | boolean | NO | true |
+| redact_phone_number | boolean | NO | true |
+| redact_plate_in_exports | boolean | NO | false |
+| require_reason_for_unredact | boolean | NO | true |
+| unredact_roles | text[] | NO | {admin,master} |
+| created_at | timestamptz | NO | now() |
+| updated_at | timestamptz | NO | now() |
+
+---
+
+## public.retention_policies
+
+**Primary key:** `id` (uuid, NOT NULL)
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| organization_id | uuid | NO | — |
+| record_type | text | NO | — |
+| retention_days | integer | NO | — |
+| litigation_hold | boolean | YES | false |
+| auto_purge | boolean | YES | true |
+| public_records_act_schedule | text | YES | — |
+| notes | text | YES | — |
+| created_by | uuid | YES | — |
+| created_at | timestamptz | YES | now() |
+
+**CHECK constraints:** `record_type` ∈ `{observations, incidents, infringement_notices, audit_logs, investigation_jobs, enforcement_actions}`  
+**Unique:** `(organization_id, record_type)`
+
+---
+
 ## Other Public Tables (summary)
 
 | Table | PK | Notes |
 |---|---|---|
+| patrol_checkpoints | id | QR/NFC scan checkpoints per zone — see full section above |
+| checkpoint_visits | id | Officer checkpoint scan records — see full section above |
+| privacy_access_log | id | Privacy field access audit — see full section above |
+| privacy_curtain_settings | id | Per-org data redaction config — see full section above |
+| zone_signage_evidence | id | Zone signage photo evidence — see full section above |
+| infringement_notice_counters | (organization_id, year_code) | Sequential notice number counters — see full section above |
+| enforcement_cases | id | Formal enforcement case files — see full section above |
+| enforcement_case_events | id | Audit events per enforcement case — see full section above |
+| incident_attachments | id | File attachments for incidents — see full section above |
+| retention_policies | id | Data retention rules per record type — see full section above |
 | canonical_scv | plate_number | Canonical SCV certification per plate: `is_self_contained`, `certificate_expiry`, `source`, `verified_at`, `notes` — **authoritative source for all SCV lookups** (replaces `canonical_vehicles.self_contained`) — added `20260421000001` |
 | canonical_homeless | plate_number | Canonical homeless designation per plate: `status` (confirmed/claimed/suspected/declined/none), `confirmed_by`, `confirmed_at`, `source`, `notes` — **authoritative source for all homeless lookups** (replaces `canonical_vehicles.homeless_status`) — added `20260421000001` |
 | dispute_intake | id | Public/staff-submitted disputes: `organization_id`, `zone_id`, `source_type` (notice_to_vacate/infringement/homeless_status/other), `source_reference`, `plate_number`, `claimant_name/email/phone`, `message`, `request_homeless_review`, `hardship_context`, `evidence_statement`, `submitted_via`, `status` (received/under_review/info_requested/upheld/varied/rejected/closed), `assigned_to`, `admin_notes`, `submitted_at` — added `20260418000006`, extended `20260418000007` |
