@@ -23,6 +23,7 @@ import {
   Calendar,
   Edit,
   Eye,
+  ShieldAlert,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
@@ -33,6 +34,8 @@ interface Person {
   last_name: string | null
   date_of_birth: string | null
   notes: string | null
+  risk_level: string | null
+  risk_category: string | null
   created_at: string
 }
 
@@ -80,7 +83,7 @@ export default function PersonRecords() {
     queryFn: async () => {
       let q = (supabase
         .from('person_records') as any)
-        .select('id, first_name, last_name, date_of_birth, notes, created_at')
+        .select('id, first_name, last_name, date_of_birth, notes, risk_level, risk_category, created_at')
         .order('last_name', { ascending: true })
         .limit(200)
 
@@ -309,6 +312,12 @@ export default function PersonRecords() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <User className="h-4 w-4 text-muted-foreground" />
                         <span className="font-semibold">{displayName(p)}</span>
+                        {p.risk_level && ['high', 'critical'].includes(p.risk_level) && p.risk_category && ['violence', 'aggression', 'weapon'].includes(p.risk_category) && (
+                          <Badge variant="destructive" className="text-xs flex items-center gap-1">
+                            <ShieldAlert className="h-3 w-3" />
+                            HIGH RISK
+                          </Badge>
+                        )}
                       </div>
                       <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
@@ -316,7 +325,17 @@ export default function PersonRecords() {
                           Added {formatDateTime(p.created_at)}
                         </span>
                       </div>
-                      {p.notes && <p className="text-xs text-muted-foreground line-clamp-1">{p.notes}</p>}
+                      {p.risk_level && ['high', 'critical'].includes(p.risk_level) && p.risk_category && ['violence', 'aggression', 'weapon'].includes(p.risk_category) && (
+                        <p className="text-xs text-red-600 font-medium flex items-center gap-1">
+                          <ShieldAlert className="h-3 w-3" />
+                          {isAdmin
+                            ? `Risk: ${p.risk_category} — exercise caution`
+                            : 'Exercise caution — contact supervisor before engagement'}
+                        </p>
+                      )}
+                      {p.notes && !(['high', 'critical'].includes(p.risk_level ?? '') && ['violence', 'aggression', 'weapon'].includes(p.risk_category ?? '') && !isAdmin) && (
+                        <p className="text-xs text-muted-foreground line-clamp-1">{p.notes}</p>
+                      )}
                     </div>
                     <div className="flex gap-2 shrink-0">
                       <Button size="sm" variant="outline" onClick={() => setViewTarget(p)}>

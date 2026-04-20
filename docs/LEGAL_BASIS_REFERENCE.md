@@ -131,6 +131,56 @@ All enforcement actions are logged with the officer's identity, timestamp, and l
 
 ---
 
+## 7. Cross-Organisation Safety Flags — Privacy Framework
+
+> **Implemented in migration `20260424000002_global_safety_flags.sql`**
+
+### 7.1 Stolen Vehicles — Global, No Redaction
+
+**Legal basis: Privacy Act 2020 IPP 11(1)(e)** — disclosure necessary to avoid prejudice to the maintenance of the law, including the prevention, detection, investigation, prosecution, and punishment of offences.
+
+Stolen vehicle status is already shared cross-agency by NZ Police and Waka Kotahi (NZTA) by convention. The `is_stolen` flag on `canonical_vehicles`, together with `stolen_reported_at` and `stolen_source`, is globally visible to all authenticated officers with no redaction requirement. Officers should not approach a stolen vehicle without Police support.
+
+### 7.2 High-Risk Persons/Vehicles (Violence, Aggression, Weapon) — Global Flag, Details Redacted
+
+**Legal basis: Privacy Act 2020 IPP 11(1)(c)** — disclosure necessary to prevent or lessen a serious and imminent threat to the life or health of an individual.
+
+When a vehicle or person is assigned `risk_level = 'high'` or `'critical'` AND `risk_category IN ('violence', 'aggression', 'weapon')`, a safety warning travels globally across all organisations. This satisfies the officer safety justification under IPP 11(1)(c).
+
+**Two-tier display:**
+
+| Role | What is shown |
+|---|---|
+| `officer` | ⚠️ HIGH RISK — exercise caution. Do not approach alone. Contact supervisor. |
+| `admin`, `admin_officer`, `master`, `grand_master` | Risk level, risk category, full flagged_reason/notes |
+
+The underlying `flagged_reason`, `flagged_notes`, and `flagged_by` fields contain personal information and case details. Exposing these cross-organisation would exceed the IPP 11(1)(c) exception — only the safety signal (the flag itself) is necessary to protect officer safety. Details remain with the recording organisation.
+
+### 7.3 Homeless Status — Org-Scoped, NOT Global
+
+**Decision: Homeless status does NOT propagate globally.**
+
+Homelessness and housing status is **sensitive personal information** under the Privacy Act 2020. It may reveal health status, welfare needs, and personal vulnerability. The IPP 11(c) serious-threat exception does not apply to routine freedom camping enforcement — it does not meet the "serious, likely, imminent" threshold. The IPP 11(e) law enforcement exception also does not apply because homelessness is not an offence.
+
+`canonical_homeless` records and `homeless_records` remain accessible only within the recording organisation (org-scoped RLS). If a homeless individual is **also** assessed as high-risk (violence/aggression), the high-risk flag travels globally per §7.2 — but the homeless designation does not.
+
+This position should be reviewed if:
+- The organisation establishes an Approved Information Sharing Agreement (AISA) under Privacy Act 2020 Part 7 with other councils for a specific cross-agency purpose.
+- Legal counsel confirms a specific statutory authority exists for inter-council sharing of housing/welfare status.
+
+### 7.4 General Interest Flags (Low/Medium Risk) — Org-Scoped
+
+General `is_flagged` flags with `risk_level IN ('low', 'medium')` or no `risk_category` are operational intelligence. They are not subject to an IPP exception for cross-org sharing and remain visible only within the organisation that created them.
+
+---
+
+*References:*
+- [Privacy Act 2020 IPP 11](https://www.legislation.govt.nz/act/public/2020/0031/latest/LMS23223.html#LMS23376) — Limits on disclosure of personal information
+- [Office of the Privacy Commissioner — Serious Threat](https://privacy.org.nz/resources-2/guidance-resources/serious-threat-guideline/)
+- [Approved Information Sharing Agreements](https://privacy.org.nz/privacy-act-2020/approved-information-sharing-agreements/)
+
+---
+
 ## 6. Useful External References
 
 - [Freedom Camping Act 2011](https://www.legislation.govt.nz/act/public/2011/0061/latest/DLM3175418.html) — New Zealand Parliamentary Counsel Office
