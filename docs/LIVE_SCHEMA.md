@@ -824,6 +824,436 @@ public.vehicle_monthly_stays.(plate_number, organization_id, zone_id)
 
 ---
 
+## public.canonical_scv
+
+**Primary key:** `plate_number` (text, NOT NULL)  
+**Source migration:** `supabase/migrations/20260421000001_canonical_scv_and_homeless_tables.sql`
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| plate_number | text | NO | — |
+| is_self_contained | boolean | NO | false |
+| certificate_expiry | date | YES | — |
+| source | text | YES | 'unknown' |
+| verified_at | timestamptz | YES | — |
+| notes | text | YES | — |
+| created_at | timestamptz | NO | now() |
+| updated_at | timestamptz | NO | now() |
+
+---
+
+## public.canonical_homeless
+
+**Primary key:** `plate_number` (text, NOT NULL)  
+**Source migration:** `supabase/migrations/20260421000001_canonical_scv_and_homeless_tables.sql`
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| plate_number | text | NO | — |
+| status | text | NO | 'none' |
+| confirmed_by | uuid | YES | — |
+| confirmed_at | timestamptz | YES | — |
+| source | text | YES | 'unknown' |
+| notes | text | YES | — |
+| created_at | timestamptz | NO | now() |
+| updated_at | timestamptz | NO | now() |
+
+---
+
+## public.zone_legal_config
+
+**Primary key:** `id` (uuid, NOT NULL)  
+**Source migration:** `supabase/migrations/20250202000002_notice_to_vacate_system.sql`
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| zone_id | uuid | NO | — |
+| organization_id | uuid | NO | — |
+| org_office_name | text | NO | — |
+| org_building | text | YES | — |
+| org_street_address | text | NO | — |
+| org_po_box | text | YES | — |
+| org_city | text | NO | — |
+| org_postcode | text | NO | — |
+| org_country | text | YES | 'New Zealand' |
+| org_phone | text | YES | — |
+| org_fax | text | YES | — |
+| org_email | text | YES | — |
+| org_website | text | YES | — |
+| legal_description | text | NO | — |
+| land_act | text | NO | — |
+| land_owner | text | NO | — |
+| managing_authority | text | YES | — |
+| max_stay_nights | integer | YES | 3 |
+| max_consecutive_nights | integer | YES | 3 |
+| self_contained_required | boolean | YES | true |
+| breach_template | text | NO | — |
+| enforcement_type | text | NO | — |
+| enforcement_authority | text | YES | — |
+| trespass_duration_years | integer | YES | 2 |
+| fine_amount | numeric(10,2) | YES | — |
+| vacate_hours | integer | YES | 4 |
+| authorized_signatories | jsonb | YES | '[]' |
+| created_at | timestamptz | YES | now() |
+| updated_at | timestamptz | YES | now() |
+
+---
+
+## public.notices_to_vacate
+
+**Primary key:** `id` (uuid, NOT NULL)  
+**Source migration:** `supabase/migrations/20250202000002_notice_to_vacate_system.sql`
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| reference_number | text | NO | — |
+| organization_id | uuid | NO | — |
+| zone_id | uuid | NO | — |
+| vehicle_id | uuid | YES | — |
+| plate_number | text | NO | — |
+| recipient_name | text | YES | — |
+| breach_reason | text | NO | — |
+| nights_stayed | integer | YES | — |
+| breach_date | date | NO | — |
+| breach_details | jsonb | YES | '{}' |
+| notice_document_url | text | YES | — |
+| notice_html | text | YES | — |
+| delivery_method | text | YES | — |
+| delivered_to_email | text | YES | — |
+| delivered_to_officer | uuid | YES | — |
+| delivered_at | timestamptz | YES | — |
+| status | text | YES | 'draft' |
+| issued_by | uuid | NO | — |
+| issued_at | timestamptz | YES | — |
+| authorized_by | uuid | YES | — |
+| authorized_at | timestamptz | YES | — |
+| vacate_deadline | timestamptz | YES | — |
+| complied_at | timestamptz | YES | — |
+| compliance_verified_by | uuid | YES | — |
+| escalated_at | timestamptz | YES | — |
+| escalation_notes | text | YES | — |
+| created_at | timestamptz | YES | now() |
+| updated_at | timestamptz | YES | now() |
+
+---
+
+## public.infringement_notices
+
+**Primary key:** `id` (uuid, NOT NULL)  
+**Source migration:** `supabase/migrations/20260219000002_evidence_integrity_and_legal_compliance.sql`
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| organization_id | uuid | NO | — |
+| observation_id | uuid | YES | — |
+| breach_alert_id | uuid | YES | — |
+| template_id | uuid | YES | — |
+| notice_number | text | NO | — |
+| plate_number | text | NO | — |
+| offence_description | text | NO | — |
+| legal_basis | text | NO | — |
+| offence_date | timestamptz | NO | — |
+| offence_location | text | NO | — |
+| offence_location_gps | text | YES | — |
+| fee_amount | numeric(10,2) | NO | — |
+| payment_methods | jsonb | YES | '[]' |
+| payment_deadline | date | NO | — |
+| payment_reference | text | YES | — |
+| summary_of_rights | text | NO | — |
+| service_method | text | NO | — |
+| served_at | timestamptz | YES | — |
+| delivery_evidence | jsonb | YES | '{}' |
+| recipient_name | text | YES | — |
+| recipient_address | text | YES | — |
+| recipient_email | text | YES | — |
+| status | text | YES | 'draft' |
+| issued_by | uuid | YES | — |
+| issued_at | timestamptz | YES | — |
+| reminder_sent_at | timestamptz | YES | — |
+| court_referral_date | date | YES | — |
+| withdrawn_reason | text | YES | — |
+| notice_pdf_url | text | YES | — |
+| notice_pdf_hash | text | YES | — |
+| evidence_bundle_url | text | YES | — |
+| evidence_bundle_hash | text | YES | — |
+| created_at | timestamptz | YES | now() |
+| updated_at | timestamptz | YES | now() |
+
+---
+
+## public.patrol_schedule_zones
+
+**Primary key:** `id` (uuid, NOT NULL)  
+**Source migration:** `supabase/migrations/20260409000002_patrol_schedule_and_kpis.sql`
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| patrol_id | uuid | NO | — |
+| zone_id | uuid | NO | — |
+| visit_order | integer | NO | 0 |
+| estimated_duration_minutes | integer | YES | — |
+| actual_duration_minutes | integer | YES | — |
+| visited_at | timestamptz | YES | — |
+| completed_at | timestamptz | YES | — |
+| created_at | timestamptz | NO | now() |
+
+---
+
+## public.officer_shifts
+
+**Primary key:** `id` (uuid, NOT NULL)  
+**Source migration:** `supabase/migrations/20260409000002_patrol_schedule_and_kpis.sql`
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| officer_id | uuid | NO | — |
+| organization_id | uuid | NO | — |
+| parent_zone_id | uuid | YES | — |
+| started_at | timestamptz | NO | now() |
+| ended_at | timestamptz | YES | — |
+| end_reason | text | YES | — |
+| gps_start_lat | double precision | YES | — |
+| gps_start_lng | double precision | YES | — |
+| gps_end_lat | double precision | YES | — |
+| gps_end_lng | double precision | YES | — |
+| created_at | timestamptz | NO | now() |
+| updated_at | timestamptz | NO | now() |
+
+---
+
+## public.officer_welfare_settings
+
+**Primary key:** `id` (uuid, NOT NULL)  
+**Source migration:** `supabase/migrations/20250201000002_officer_welfare_system.sql`
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| organization_id | uuid | NO | — |
+| user_id | uuid | NO | — |
+| auto_logoff_enabled | boolean | YES | true |
+| welfare_check_enabled | boolean | YES | true |
+| inactivity_warning_time | integer | YES | 10 |
+| auto_logoff_time | integer | YES | 20 |
+| gps_inactivity_threshold | integer | YES | 10 |
+| admin_escalation_time | integer | YES | 5 |
+| critical_escalation_time | integer | YES | 5 |
+| investigation_exception_enabled | boolean | YES | true |
+| created_at | timestamptz | YES | now() |
+| updated_at | timestamptz | YES | now() |
+
+---
+
+## public.officer_welfare_alerts
+
+**Primary key:** `id` (uuid, NOT NULL)  
+**Source migration:** `supabase/migrations/20250201000002_officer_welfare_system.sql`
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| officer_id | uuid | NO | — |
+| organization_id | uuid | NO | — |
+| alert_type | text | NO | — |
+| status | text | YES | 'pending' |
+| officer_name | text | NO | — |
+| officer_phone | text | YES | — |
+| gps_latitude | numeric(10,8) | YES | — |
+| gps_longitude | numeric(11,8) | YES | — |
+| gps_accuracy | numeric(10,2) | YES | — |
+| last_activity_at | timestamptz | NO | — |
+| alert_sent_at | timestamptz | YES | now() |
+| acknowledged_at | timestamptz | YES | — |
+| acknowledged_by | uuid | YES | — |
+| resolved_at | timestamptz | YES | — |
+| resolved_by | uuid | YES | — |
+| escalation_level | integer | YES | 1 |
+| escalated_at | timestamptz | YES | — |
+| acknowledgement_notes | text | YES | — |
+| resolution_notes | text | YES | — |
+| created_at | timestamptz | YES | now() |
+| updated_at | timestamptz | YES | now() |
+
+---
+
+## public.officer_activity_log
+
+**Primary key:** `id` (uuid, NOT NULL)  
+**Source migration:** `supabase/migrations/20250201000002_officer_welfare_system.sql`
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| user_id | uuid | NO | — |
+| organization_id | uuid | NO | — |
+| activity_type | text | NO | — |
+| gps_latitude | numeric(10,8) | YES | — |
+| gps_longitude | numeric(11,8) | YES | — |
+| gps_accuracy | numeric(10,2) | YES | — |
+| metadata | jsonb | YES | '{}' |
+| recorded_at | timestamptz | YES | now() |
+| created_at | timestamptz | YES | now() |
+
+---
+
+## public.health_safety_reports
+
+**Primary key:** `id` (uuid, NOT NULL)  
+**Source migration:** `supabase/migrations/20250101_initial_schema.sql`
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| organization_id | uuid | NO | — |
+| zone_id | uuid | YES | — |
+| reported_by | uuid | YES | — |
+| incident_type | text | YES | — |
+| description | text | YES | — |
+| severity | text | YES | — |
+| status | text | YES | 'open' |
+| created_at | timestamptz | YES | now() |
+| updated_at | timestamptz | YES | now() |
+
+---
+
+## public.person_records
+
+**Primary key:** `id` (uuid, NOT NULL)  
+**Source migration:** `supabase/migrations/20250101_initial_schema.sql`
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| organization_id | uuid | YES | — |
+| first_name | text | YES | — |
+| last_name | text | YES | — |
+| date_of_birth | date | YES | — |
+| is_of_interest | boolean | YES | false |
+| notes | text | YES | — |
+| created_at | timestamptz | YES | now() |
+| updated_at | timestamptz | YES | now() |
+
+---
+
+## public.person_observations
+
+**Primary key:** `id` (uuid, NOT NULL)  
+**Source migration:** `supabase/migrations/20260220000005_core_pipeline_rebuild.sql`
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| person_id | uuid | YES | — |
+| organization_id | uuid | YES | — |
+| zone_id | uuid | YES | — |
+| observed_by | uuid | YES | — |
+| observed_at | timestamptz | NO | — |
+| gps_latitude | numeric(10,8) | YES | — |
+| gps_longitude | numeric(11,8) | YES | — |
+| notes | text | YES | — |
+| attachments | jsonb | YES | '[]' |
+| created_at | timestamptz | YES | now() |
+
+---
+
+## public.person_vehicle_links
+
+**Primary key:** `id` (uuid, NOT NULL)  
+**Source migration:** `supabase/migrations/20260220000005_core_pipeline_rebuild.sql`
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| person_id | uuid | YES | — |
+| plate_number | text | YES | — |
+| relationship_type | text | YES | — |
+| confidence | text | YES | — |
+| linked_at | timestamptz | YES | now() |
+| linked_by | uuid | YES | — |
+
+---
+
+## public.person_interactions
+
+**Primary key:** `id` (uuid, NOT NULL)  
+**Source migration:** `supabase/migrations/20250212000006_streamlined_reporting_system.sql`
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| organization_id | uuid | NO | — |
+| person_id | uuid | NO | — |
+| interaction_type | text | NO | — |
+| zone_id | uuid | YES | — |
+| gps_latitude | numeric(10,8) | YES | — |
+| gps_longitude | numeric(11,8) | YES | — |
+| officer_id | uuid | NO | — |
+| officer_notes | text | YES | — |
+| vehicle_id | text | YES | — |
+| incident_id | uuid | YES | — |
+| hs_report_id | uuid | YES | — |
+| photos | text[] | YES | — |
+| attachments | jsonb | YES | — |
+| outcome | text | YES | — |
+| requires_follow_up | boolean | YES | false |
+| follow_up_date | date | YES | — |
+| interaction_at | timestamptz | YES | nz_now() |
+| created_at | timestamptz | YES | nz_now() |
+
+---
+
+## public.audit_log
+
+**Primary key:** `id` (uuid, NOT NULL)  
+**Source migration:** `supabase/migrations/20250101_initial_schema.sql`
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| action | text | NO | — |
+| entity_type | text | YES | — |
+| entity_id | text | YES | — |
+| old_values | jsonb | YES | — |
+| new_values | jsonb | YES | — |
+| performed_by | uuid | YES | — |
+| created_at | timestamptz | YES | now() |
+
+---
+
+## public.dispute_intake
+
+**Primary key:** `id` (uuid, NOT NULL)  
+**Source migration:** `supabase/migrations/20260418000006_dispute_portal_and_intake.sql`
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| organization_id | uuid | YES | — |
+| zone_id | uuid | YES | — |
+| source_type | text | NO | — |
+| source_reference | text | YES | — |
+| plate_number | text | YES | — |
+| claimant_name | text | YES | — |
+| claimant_email | text | YES | — |
+| claimant_phone | text | YES | — |
+| message | text | NO | — |
+| request_homeless_review | boolean | NO | false |
+| hardship_context | text | YES | — |
+| evidence_statement | text | YES | — |
+| submitted_via | text | NO | 'public_portal' |
+| status | text | NO | 'received' |
+| assigned_to | uuid | YES | — |
+| admin_notes | text | YES | — |
+| submitted_at | timestamptz | NO | now() |
+| updated_at | timestamptz | NO | now() |
+
+---
+
 ## Database Functions
 
 The live database functions (stored procedures, triggers, RPCs, extensions) are documented in a dedicated companion file:
