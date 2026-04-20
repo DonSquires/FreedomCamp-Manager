@@ -191,4 +191,74 @@ General `is_flagged` flags with `risk_level IN ('low', 'medium')` or no `risk_ca
 
 ---
 
-*Last updated: April 2026. Review this document whenever relevant legislation changes.*
+## 8. Canonical Persons — Privacy Framework
+
+> **Implemented in migration `20260609000001_canonical_persons.sql`**
+
+The `canonical_persons` table is the master person registry for all individuals encountered during enforcement, access control, or welfare operations. It consolidates the earlier `person_records` and `persons_of_interest` tables into one org-scoped canonical record.
+
+### 8.1 Collection Purpose and Lawful Authority
+
+**Legal basis: NZ Privacy Act 2020 IPP 1** — information may only be collected for a lawful purpose connected to a function or activity of the organisation.
+
+Permitted collection purposes for canonical_persons records:
+
+| Use case | Lawful authority |
+|---|---|
+| Trespass notice enforcement | Trespass Act 1980 s.3–4 |
+| Freedom camping enforcement | Freedom Camping Act 2011 s.20 |
+| Access control (site entry) | Private land/property rights; contractual obligations |
+| Welfare monitoring | Trespass Act 1980; HSWA 2015 duty of care |
+| Persons of interest (POI) | Operational security (must have specific documented reason) |
+| Background check records | Contractual / employer authority (with consent) |
+
+Every record should have `privacy_lawful_purpose` populated with the specific statutory basis.
+
+### 8.2 Zone-Scoped Visibility (Proportionate Disclosure)
+
+**Legal basis: NZ Privacy Act 2020 IPP 11** — personal information must not be disclosed more broadly than necessary for the purpose.
+
+When `zone_restricted = true`, the full record details are only returned to officers who are physically inside one of the person's associated zones (Haversine GPS check via `get_canonical_person_for_zone()`). Admins always see all records.
+
+**Example**: A trespass notice served at Bus Hub A is flagged as `zone_restricted = true` with a zone association for Bus Hub A. Officers patrolling the waterfront do not see this person's details. Officers entering Bus Hub A geofence receive the trespass alert automatically via the scan pipeline.
+
+### 8.3 Person ↔ Vehicle Bidirectional Association
+
+`person_vehicle_links` links `canonical_persons(id) ↔ canonical_vehicles(plate_number)`. When a plate is scanned by `process-officer-scan`, Step 5c queries this join table and returns `person_alerts` in the scan result for any flagged, trespassed, banned, POI, or high-risk persons associated with that vehicle.
+
+This enables officers to be warned: *"This vehicle is registered to a trespassed person"* or *"A person of interest is associated with this plate"* — without needing to manually cross-reference records.
+
+### 8.4 Youth Protection (Under 18)
+
+**Legal basis: Oranga Tamariki Act 1989; NZ Privacy Act 2020 IPP 1–4**
+
+- `is_minor` is automatically set when `date_of_birth` confirms age < 18.
+- A database trigger **blocks** `profile_photo_url` from being set for minor records. Photographs of minors must not be retained in the system.
+- Face embeddings (384-D float vectors) **are permitted** for minors with documented lawful purpose — a biometric template cannot be used to reconstruct the person's appearance and does not constitute a photograph under the Privacy Act.
+- `photo_retention_justification` is required before an embedding can be stored for a minor. This field must document: the lawful purpose, the specific statute, and confirmation that parent/guardian notification was given or was not practicable.
+- In `get_canonical_person_for_zone()`, the `date_of_birth` returned for minors is **year-only** (January 1 of birth year) to minimise unnecessary data exposure.
+
+### 8.5 Unknown Persons
+
+`identity_status = 'unknown'` is valid — officers can create a record with only a face embedding and notes when a person cannot be identified (e.g., refuses to give name, ID not available). This allows the record to be resolved later via ID scan, OCR of documents, or face matching without requiring a name at the time of the incident.
+
+### 8.6 ID Document Collection
+
+**Legal basis: NZ Privacy Act 2020 IPP 2** — information should be collected directly from the individual where reasonably practicable.
+
+ID documents (driver's licence, passport, national ID) may be photographed and OCR-processed to auto-populate `canonical_persons` fields. The original document image should **not** be retained longer than necessary for identity verification — once details are extracted and verified, images should be purged or archived with restricted access.
+
+The `person_id_documents` table stores document metadata and extracted fields. The `person_id_documents.front_photo_url` should point to a storage path with restricted access policies.
+
+### 8.7 Retention Limits
+
+**Legal basis: NZ Privacy Act 2020 IPP 9** — personal information must not be kept longer than is required for the purpose.
+
+- `expiry_date` on `canonical_persons` should be set for time-limited records (e.g., a 2-year trespass notice).
+- `nightly-privacy-cleanup` edge function should be updated to deactivate expired canonical_persons records.
+- Records linked to active trespass notices should be retained until the notice expires or is withdrawn.
+- Welfare-only records (no enforcement action) should be reviewed after 12 months.
+
+---
+
+*Last updated: June 2026. Review this document whenever relevant legislation changes.*

@@ -896,6 +896,266 @@ export type Database = {
         }
         Relationships: []
       }
+      canonical_persons: {
+        Row: {
+          id: string
+          organization_id: string | null
+          first_name: string | null
+          last_name: string | null
+          full_name: string | null
+          date_of_birth: string | null
+          gender: string | null
+          ethnicity: string | null
+          nationality: string | null
+          height_cm: number | null
+          weight_kg: number | null
+          distinguishing_features: string | null
+          description: string | null
+          identity_status: 'identified' | 'partial' | 'unknown'
+          is_minor: boolean
+          photo_retention_justification: string | null
+          profile_photo_url: string | null
+          profile_photo_embedding: number[] | null
+          profile_photo_updated_at: string | null
+          profile_embedding_quality: number | null
+          contact_email: string | null
+          contact_phone: string | null
+          address: string | null
+          address_verified: boolean | null
+          is_poi: boolean
+          is_trespassed: boolean
+          is_banned: boolean
+          is_flagged: boolean
+          flagged_priority: 'low' | 'medium' | 'high' | 'critical' | null
+          flagged_reason: string | null
+          flagged_notes: string | null
+          flagged_at: string | null
+          flagged_by: string | null
+          access_allowed: boolean | null
+          access_clearance_level: 'public' | 'restricted' | 'confidential' | 'secret' | 'top_secret' | null
+          access_badge_number: string | null
+          access_notes: string | null
+          risk_level: 'low' | 'medium' | 'high' | 'critical' | null
+          risk_category: 'violence' | 'aggression' | 'weapon' | 'other_safety' | null
+          zone_restricted: boolean
+          zone_ids: string[] | null
+          privacy_notice_given: boolean | null
+          privacy_lawful_purpose: string | null
+          collection_authority: string | null
+          expiry_date: string | null
+          user_profile_id: string | null
+          total_interactions: number
+          first_seen_at: string | null
+          last_seen_at: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+          notes: string | null
+          homeless_status: string | null
+          homeless_confirmed_at: string | null
+          homeless_confirmed_by: string | null
+        }
+        Insert: {
+          id?: string
+          organization_id?: string | null
+          first_name?: string | null
+          last_name?: string | null
+          full_name?: string | null
+          date_of_birth?: string | null
+          gender?: string | null
+          ethnicity?: string | null
+          nationality?: string | null
+          height_cm?: number | null
+          weight_kg?: number | null
+          distinguishing_features?: string | null
+          description?: string | null
+          identity_status?: 'identified' | 'partial' | 'unknown'
+          is_minor?: boolean
+          photo_retention_justification?: string | null
+          profile_photo_url?: string | null
+          profile_photo_embedding?: number[] | null
+          profile_photo_updated_at?: string | null
+          profile_embedding_quality?: number | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          address?: string | null
+          address_verified?: boolean | null
+          is_poi?: boolean
+          is_trespassed?: boolean
+          is_banned?: boolean
+          is_flagged?: boolean
+          flagged_priority?: 'low' | 'medium' | 'high' | 'critical' | null
+          flagged_reason?: string | null
+          flagged_notes?: string | null
+          flagged_at?: string | null
+          flagged_by?: string | null
+          access_allowed?: boolean | null
+          access_clearance_level?: 'public' | 'restricted' | 'confidential' | 'secret' | 'top_secret' | null
+          access_badge_number?: string | null
+          access_notes?: string | null
+          risk_level?: 'low' | 'medium' | 'high' | 'critical' | null
+          risk_category?: 'violence' | 'aggression' | 'weapon' | 'other_safety' | null
+          zone_restricted?: boolean
+          zone_ids?: string[] | null
+          privacy_notice_given?: boolean | null
+          privacy_lawful_purpose?: string | null
+          collection_authority?: string | null
+          expiry_date?: string | null
+          user_profile_id?: string | null
+          total_interactions?: number
+          first_seen_at?: string | null
+          last_seen_at?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+          notes?: string | null
+          homeless_status?: string | null
+          homeless_confirmed_at?: string | null
+          homeless_confirmed_by?: string | null
+        }
+        Update: {
+          id?: string
+          organization_id?: string | null
+          first_name?: string | null
+          last_name?: string | null
+          full_name?: string | null
+          date_of_birth?: string | null
+          gender?: string | null
+          ethnicity?: string | null
+          nationality?: string | null
+          height_cm?: number | null
+          weight_kg?: number | null
+          distinguishing_features?: string | null
+          description?: string | null
+          identity_status?: 'identified' | 'partial' | 'unknown'
+          is_minor?: boolean
+          photo_retention_justification?: string | null
+          profile_photo_url?: string | null
+          profile_photo_embedding?: number[] | null
+          profile_photo_updated_at?: string | null
+          profile_embedding_quality?: number | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          address?: string | null
+          address_verified?: boolean | null
+          is_poi?: boolean
+          is_trespassed?: boolean
+          is_banned?: boolean
+          is_flagged?: boolean
+          flagged_priority?: 'low' | 'medium' | 'high' | 'critical' | null
+          flagged_reason?: string | null
+          flagged_notes?: string | null
+          flagged_at?: string | null
+          flagged_by?: string | null
+          access_allowed?: boolean | null
+          access_clearance_level?: 'public' | 'restricted' | 'confidential' | 'secret' | 'top_secret' | null
+          access_badge_number?: string | null
+          access_notes?: string | null
+          risk_level?: 'low' | 'medium' | 'high' | 'critical' | null
+          risk_category?: 'violence' | 'aggression' | 'weapon' | 'other_safety' | null
+          zone_restricted?: boolean
+          zone_ids?: string[] | null
+          privacy_notice_given?: boolean | null
+          privacy_lawful_purpose?: string | null
+          collection_authority?: string | null
+          expiry_date?: string | null
+          user_profile_id?: string | null
+          total_interactions?: number
+          first_seen_at?: string | null
+          last_seen_at?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+          notes?: string | null
+          homeless_status?: string | null
+          homeless_confirmed_at?: string | null
+          homeless_confirmed_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "canonical_persons_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "canonical_persons_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "canonical_persons_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      canonical_person_zones: {
+        Row: {
+          id: string
+          person_id: string
+          zone_id: string
+          organization_id: string
+          scope_type: 'trespass' | 'banned' | 'poi' | 'access_control' | 'flagged' | 'welfare'
+          is_active: boolean
+          notes: string | null
+          added_by: string | null
+          added_at: string
+          expires_at: string | null
+        }
+        Insert: {
+          id?: string
+          person_id: string
+          zone_id: string
+          organization_id: string
+          scope_type?: 'trespass' | 'banned' | 'poi' | 'access_control' | 'flagged' | 'welfare'
+          is_active?: boolean
+          notes?: string | null
+          added_by?: string | null
+          added_at?: string
+          expires_at?: string | null
+        }
+        Update: {
+          id?: string
+          person_id?: string
+          zone_id?: string
+          organization_id?: string
+          scope_type?: 'trespass' | 'banned' | 'poi' | 'access_control' | 'flagged' | 'welfare'
+          is_active?: boolean
+          notes?: string | null
+          added_by?: string | null
+          added_at?: string
+          expires_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "canonical_person_zones_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "canonical_persons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "canonical_person_zones_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "zones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "canonical_person_zones_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       canonical_vehicles: {
         Row: {
           created_at: string | null
