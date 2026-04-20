@@ -1342,6 +1342,30 @@ Deno.serve(async (req: Request) => {
           if (personAlerts.length > 0) {
             console.log(`⚠️ ${personAlerts.length} person alert(s) for plate ${plate}:`,
               personAlerts.map(a => `${a.alert_type}:${a.full_name}`).join(', '));
+
+            // Auto-create person_observations for each alerted person so the
+            // encounter is permanently recorded against the canonical person's
+            // observation history (mirrors how vehicle scans create observations).
+            for (const alert of personAlerts) {
+              try {
+                await supabase.rpc('record_person_observation_from_scan', {
+                  p_canonical_person_id: alert.person_id,
+                  p_observation_id: observationId,
+                  p_zone_id: zoneId,
+                  p_organization_id: organizationId,
+                  p_recorded_by: userId,
+                  p_plate_number: plate ?? null,
+                  p_alert_types: [alert.alert_type],
+                  p_geofence_validated: false,   // geofence validation is RLS-side
+                  p_officer_lat: gpsLatitude ?? null,
+                  p_officer_lon: gpsLongitude ?? null,
+                  p_officer_accuracy: gpsAccuracy ?? null,
+                } as any);
+              } catch (writeErr: any) {
+                // Non-fatal — write-back failure must not block the scan result
+                console.warn('⚠️ Person observation write-back failed (non-fatal):', writeErr.message);
+              }
+            }
           }
         }
       } catch (personErr: any) {

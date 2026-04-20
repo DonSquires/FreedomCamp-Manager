@@ -36,6 +36,7 @@ interface Person {
   notes: string | null
   risk_level: string | null
   risk_category: string | null
+  canonical_person_id: string | null
   created_at: string
 }
 
@@ -49,7 +50,17 @@ interface PersonObservation {
   recorded_at: string
   officer_notes: string | null
   zone: { name: string } | null
-  observed_by_user: { first_name: string; last_name: string } | null
+  zone_name?: string | null
+  observed_by_user?: { first_name: string; last_name: string } | null
+  officer_name?: string | null
+  identification_method: string | null
+  match_confidence: number | null
+  alert_generated: boolean | null
+  alert_types: string[] | null
+  geofence_validated: boolean | null
+  is_minor_record: boolean | null
+  plate_number: string | null
+  observation_type?: string | null
 }
 
 interface PersonVehicleLink {
@@ -83,7 +94,7 @@ export default function PersonRecords() {
     queryFn: async () => {
       let q = (supabase
         .from('person_records') as any)
-        .select('id, first_name, last_name, date_of_birth, notes, risk_level, risk_category, created_at')
+        .select('id, first_name, last_name, date_of_birth, notes, risk_level, risk_category, canonical_person_id, created_at')
         .order('last_name', { ascending: true })
         .limit(200)
 
@@ -96,14 +107,28 @@ export default function PersonRecords() {
     enabled: !!user,
   })
 
-  // Fetch observations for selected person
+  // Fetch observations for selected person — prefer get_canonical_person_obs_history
+  // (zone-gated, minor-redacted RPC) via canonical_person_id; fall back to direct
+  // person_observations query by person_records.id for legacy rows.
   const { data: selectedObs = [] } = useQuery({
-    queryKey: ['person-observations', viewTarget?.id],
+    queryKey: ['person-observations', viewTarget?.id, viewTarget?.canonical_person_id],
     queryFn: async () => {
+      const cpId = (viewTarget as any)?.canonical_person_id
+      if (cpId) {
+        const { data, error } = await supabase.rpc(
+          'get_canonical_person_obs_history',
+          { p_canonical_person_id: cpId }
+        )
+        if (error) throw error
+        return (data || []) as unknown as PersonObservation[]
+      }
+      // Legacy fallback
       const { data, error } = await (supabase
         .from('person_observations') as any)
         .select(`
-          id, recorded_at, officer_notes,
+          id, recorded_at, officer_notes, plate_number,
+          identification_method, match_confidence,
+          alert_generated, alert_types, geofence_validated, is_minor_record,
           zone:zones!zone_id(name),
           observed_by_user:user_profiles!person_observations_recorded_by_fkey(first_name, last_name)
         `)
@@ -378,11 +403,51 @@ export default function PersonRecords() {
                 <p className="text-sm text-muted-foreground text-center py-4">No observations recorded</p>
               ) : selectedObs.map(o => (
                 <div key={o.id} className="border rounded p-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    {o.zone && <span className="flex items-center gap-1 text-muted-foreground"><MapPin className="h-3 w-3" />{o.zone.name}</span>}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {(o.zone?.name || o.zone_name) && (
+                      <span className="flex items-center gap-1 text-muted-foreground">
+                        <MapPin className="h-3 w-3" />{o.zone?.name ?? o.zone_name}
+                      </span>
+                    )}
                     <span className="text-muted-foreground">{formatDateTime(o.recorded_at)}</span>
+                    {o.identification_method && o.identification_method !== 'unknown' && (
+                      <Badge variant="outline" className="text-xs">
+                        {o.identification_method === 'face_scan' ? '🎭 Face scan' :
+                         o.identification_method === 'id_scan' ? '🪪 ID scan' :
+                         o.identification_method === 'vehicle_association' ? '🚗 Via vehicle' :
+                         o.identification_method === 'officer_encounter' ? '👮 Officer' :
+                         o.identification_method}
+                        {o.match_confidence != null && ` ${Math.round(o.match_confidence * 100)}%`}
+                      </Badge>
+                    )}
+                    {o.alert_generated && (
+                      <Badge variant="destructive" className="text-xs">
+                        <ShieldAlert className="h-3 w-3 mr-1" />
+                        Alert
+                      </Badge>
+                    )}
+                    {o.is_minor_record && (
+                      <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-300">
+                        Minor
+                      </Badge>
+                    )}
+                    {o.plate_number && (
+                      <span className="font-mono text-xs text-muted-foreground">{o.plate_number}</span>
+                    )}
                   </div>
-                  {o.officer_notes && <p className="mt-1 text-muted-foreground line-clamp-2">{o.officer_notes}</p>}
+                  {o.alert_types && o.alert_types.length > 0 && (
+                    <div className="flex gap-1 mt-1 flex-wrap">
+                      {o.alert_types.map(t => (
+                        <Badge key={t} variant="outline" className="text-xs bg-red-50 text-red-700 border-red-300">{t}</Badge>
+                      ))}
+                    </div>
+                  )}
+                  {o.officer_notes && (
+                    <p className="mt-1 text-muted-foreground line-clamp-2">{o.officer_notes}</p>
+                  )}
+                  {(o.officer_name) && (
+                    <p className="mt-0.5 text-xs text-muted-foreground">Officer: {o.officer_name}</p>
+                  )}
                 </div>
               ))}
             </TabsContent>

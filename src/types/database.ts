@@ -7369,13 +7369,21 @@ export type Database = {
       }
       person_observations: {
         Row: {
+          alert_generated: boolean | null
+          alert_types: string[] | null
+          canonical_person_id: string | null
           created_at: string | null
           evidence_photos: string[] | null
+          geofence_validated: boolean | null
           gps_accuracy: number | null
           gps_latitude: number | null
           gps_longitude: number | null
           id: string
+          identification_method: string | null
+          is_minor_record: boolean | null
+          match_confidence: number | null
           metadata: Json | null
+          observation_id: string | null
           observation_type: string
           officer_notes: string | null
           organization_id: string
@@ -7387,17 +7395,25 @@ export type Database = {
           zone_id: string
         }
         Insert: {
+          alert_generated?: boolean | null
+          alert_types?: string[] | null
+          canonical_person_id?: string | null
           created_at?: string | null
           evidence_photos?: string[] | null
+          geofence_validated?: boolean | null
           gps_accuracy?: number | null
           gps_latitude?: number | null
           gps_longitude?: number | null
           id?: string
+          identification_method?: string | null
+          is_minor_record?: boolean | null
+          match_confidence?: number | null
           metadata?: Json | null
+          observation_id?: string | null
           observation_type: string
           officer_notes?: string | null
           organization_id: string
-          person_id: string
+          person_id?: string | null
           plate_number?: string | null
           recorded_at?: string
           recorded_by: string
@@ -7405,17 +7421,25 @@ export type Database = {
           zone_id: string
         }
         Update: {
+          alert_generated?: boolean | null
+          alert_types?: string[] | null
+          canonical_person_id?: string | null
           created_at?: string | null
           evidence_photos?: string[] | null
+          geofence_validated?: boolean | null
           gps_accuracy?: number | null
           gps_latitude?: number | null
           gps_longitude?: number | null
           id?: string
+          identification_method?: string | null
+          is_minor_record?: boolean | null
+          match_confidence?: number | null
           metadata?: Json | null
+          observation_id?: string | null
           observation_type?: string
           officer_notes?: string | null
           organization_id?: string
-          person_id?: string
+          person_id?: string | null
           plate_number?: string | null
           recorded_at?: string
           recorded_by?: string
@@ -10122,6 +10146,28 @@ export type Database = {
       }
     }
     Views: {
+      v_canonical_person_obs_summary: {
+        Row: {
+          canonical_person_id: string | null
+          distinct_vehicles: number | null
+          distinct_zones: number | null
+          first_name: string | null
+          first_observed_at: string | null
+          identification_methods_used: string[] | null
+          is_banned: boolean | null
+          is_flagged: boolean | null
+          is_minor: boolean | null
+          is_poi: boolean | null
+          is_trespassed: boolean | null
+          last_name: string | null
+          last_observed_at: string | null
+          last_zone_name: string | null
+          risk_level: string | null
+          total_alerts: number | null
+          total_observations: number | null
+        }
+        Relationships: []
+      }
       active_breaches_v2: {
         Row: {
           breach_count: number | null
@@ -11236,11 +11282,47 @@ export type Database = {
           zone_name: string
         }[]
       }
+      get_canonical_person_obs_history: {
+        Args: {
+          p_canonical_person_id: string
+          p_caller_lat?: number
+          p_caller_lon?: number
+        }
+        Returns: {
+          alert_generated: boolean
+          alert_types: string[]
+          canonical_person_id: string
+          evidence_photos: string[]
+          geofence_validated: boolean
+          id: string
+          identification_method: string
+          is_minor_record: boolean
+          match_confidence: number
+          observation_type: string
+          officer_name: string
+          officer_notes: string
+          person_id: string
+          plate_number: string
+          recorded_at: string
+          vehicle_color: string
+          vehicle_make: string
+          vehicle_model: string
+          zone_id: string
+          zone_name: string
+        }[]
+      }
       get_person_observation_history: {
         Args: { p_person_id: string }
         Returns: {
+          alert_generated: boolean
+          alert_types: string[]
+          canonical_person_id: string
           evidence_photos: string[]
+          geofence_validated: boolean
           id: string
+          identification_method: string
+          is_minor_record: boolean
+          match_confidence: number
           observation_type: string
           officer_name: string
           officer_notes: string
