@@ -12,7 +12,15 @@
  *   POST http://$RUNPOD_AI_API_HOST:$RUNPOD_AI_API_PORT/v2/job_done
  */
 
-const HOST = process.env.RUNPOD_AI_API_HOST || 'localhost';
+const dns = require('node:dns');
+
+try {
+  dns.setDefaultResultOrder('ipv4first');
+} catch (_) {
+  // Ignore when runtime does not support this API.
+}
+
+const HOST = process.env.RUNPOD_AI_API_HOST || '127.0.0.1';
 const PORT = process.env.RUNPOD_AI_API_PORT || '8080';
 const BASE_URL = `http://${HOST}:${PORT}`;
 const POLL_INTERVAL_MS = 250;

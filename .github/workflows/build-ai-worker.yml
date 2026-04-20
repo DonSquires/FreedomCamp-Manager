@@ -35,6 +35,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push Docker image
+        id: build_push
         uses: docker/build-push-action@v5
         with:
           context: ./runpod-worker
@@ -43,3 +44,17 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
+      - name: Print immutable image references
+        run: |
+          set -e
+          echo "Immutable tag: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+          echo "Image digest:  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build_push.outputs.digest }}"
+
+          {
+            echo "## AI Worker Image Published"
+            echo ""
+            echo "- Immutable tag: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}\`"
+            echo "- Immutable digest: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build_push.outputs.digest }}\`"
+            echo ""
+            echo "Use one of these in RunPod endpoint image settings (do not use `:latest`)."
+          } >> "$GITHUB_STEP_SUMMARY"

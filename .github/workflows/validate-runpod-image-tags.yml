@@ -1,0 +1,21 @@
+name: Validate RunPod Image Tags
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate-runpod-image-tags:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Validate RunPod worker image tags are immutable
+        run: |
+          set -e
+          chmod +x scripts/validate-runpod-image-tags.sh
+          scripts/validate-runpod-image-tags.sh
