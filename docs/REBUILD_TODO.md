@@ -14,7 +14,7 @@
 |---|---|---|
 | Phase 0 | Baseline & Inventory | ✅ Complete |
 | Phase 1 | Schema alignment | 🔄 In progress |
-| Phase 2 | Edge function consolidation | 🔄 In progress |
+| Phase 2 | Edge function consolidation | ✅ Batch 2 complete |
 | Phase 3 | Frontend cleanup | 🔄 In progress |
 | Phase 4 | Data migration scripts | ⏳ Pending |
 | Phase 5 | Cutover & deletion | ⏳ Pending |
@@ -120,20 +120,45 @@
 - [x] `grandmaster-studio` / `grandmasterStudio` + `bobCodeChangeTask` — **KEEP**: actively used by `BobAssistantStudio.tsx` on active route `/bob-assistant`.
 - [x] `auto-analyse-report` / `autoAnalyseReport` — **KEEP**: fire-and-forget from `AiFeedbackChat.tsx`, `FeedbackModal.tsx`, `Platform.tsx`.
 
-**Safe now — not called from any active page:**
-- [x] Remove `testComplianceMatrix` wrapper — removed; `useVehicleCompliance.ts` re-pointed to `processOfficerScan` ✅
-- [x] Remove `checkDataIntegrity` wrapper — removed (SystemDiagnostics.tsx only, route redirected) ✅
-- [x] Remove `reingestPhotos` wrapper — removed (PhotoReingest.tsx only, route redirected) ✅
-- [x] Remove `linkEvidencePhotos` wrapper — removed (EvidencePhotoLinker.tsx only, route redirected) ✅
+- [x] `checkZoneCorrections` wrapper removed; directory archived ✅
+- [x] `correctZoneAssignments` wrapper removed; directory archived ✅
+- [x] `zoneCorrection` wrapper removed; directory archived ✅
+- [x] `retryALPR` wrapper removed; directory archived ✅
+- [x] `streamWebhook` wrapper removed; directory archived ✅
+- [x] `recoverObservationPhotos` wrapper removed; `photo-recovery` directory archived ✅
+- [x] `detectDuplicates` wrapper removed; `duplicate-detection` directory archived ✅
+- [x] `exportObservations` wrapper removed; `observations-export` directory archived ✅
+- [x] `linkEvidencePhotos` wrapper removed; directory archived ✅
+- [x] `reingestPhotos` wrapper removed; directory archived ✅
+- [x] `checkDataIntegrity` wrapper removed; directory archived ✅
+- [x] `recalculate-compliance` directory archived ✅
+- [x] `recalculate-compliance-v3` directory archived ✅
+- [x] `scan-breaches` directory archived ✅
+- [x] `test-compliance-matrix` directory archived ✅
+- [x] `set-user-password` directory archived (wrapper kept, re-pointed to `manage-user`) ✅
 
-### 2.4 Safe first-batch directory deletions 🔄
-> Only after callers are removed and build confirms clean.
-- [x] `supabase/functions/orc-ingest/` → moved to `_archive/` ✅
-- [x] `supabase/functions/create_auth_and_profiles/` → moved to `_archive/` ✅
-- [x] `supabase/functions/daily-photo-reconciler/` → moved to `_archive/` ✅
-- [x] `supabase/functions/update-user-password/` → moved to `_archive/` ✅
-- [x] `supabase/functions/recalculate-compliance-v2/` → moved to `_archive/` ✅
-- [x] `supabase/functions/plate-scanner-photo-first/` → moved to `_archive/` ✅ (registry.ts + bobKnowledgeBase updated)
+**Deferred (active callers — Phase 5 cutover scope):**
+- `analyzeVehiclePhoto` / `analyze-vehicle-photo` → active in `useVehicleAnalysis.ts`, `Compliance.tsx`, `ComplianceDashboard.tsx`, `railway.ts`
+- `selectBestVehiclePhoto` / `select-best-vehicle-photo` → active in `useVehicleProfilePhoto.ts`, `railway.ts`
+- `checkNZSCVStatus` / `check-nzscv-status` → active in `PlateScanner.tsx`, `railway.ts`
+- `enrichFromMotorWeb` / `enrich-from-motorweb` → active in `PlateScanner.tsx`, `railway.ts`
+- `syncSpatialLayers` / `sync-spatial-layers` → active in `SpatialComplianceAdmin.tsx`
+- `scrapeVehiclePhotos` / `scrape-vehicle-photos` → active in `VehicleManagement.tsx`
+- `renderInfringementNotice` / `render-infringement-notice` → active in `InfringementNotices.tsx` (reprint — different operation from `generateInfringement`)
+- `importHistoricalData` / `import-historical-data` → active in `ImportData.tsx` (verify param compat with `import-data` before merging)
+
+### 2.4 Safe first-batch directory deletions ✅
+> All safe-to-archive directories moved. 24 directories now in `_archive/`.
+- [x] `supabase/functions/orc-ingest/` → archived ✅
+- [x] `supabase/functions/create_auth_and_profiles/` → archived ✅
+- [x] `supabase/functions/daily-photo-reconciler/` → archived ✅
+- [x] `supabase/functions/update-user-password/` → archived ✅
+- [x] `supabase/functions/recalculate-compliance-v2/` → archived ✅
+- [x] `supabase/functions/plate-scanner-photo-first/` → archived ✅
+- [x] `alpr-retry`, `photo-recovery`, `duplicate-detection`, `observations-export` → archived ✅
+- [x] `check-zone-corrections`, `correct-zone-assignments`, `zone-correction` → archived ✅
+- [x] `stream-webhook`, `link-evidence-photos`, `reingest-photos`, `check-data-integrity` → archived ✅
+- [x] `scan-breaches`, `recalculate-compliance`, `recalculate-compliance-v3`, `test-compliance-matrix`, `set-user-password` → archived ✅
 
 ---
 

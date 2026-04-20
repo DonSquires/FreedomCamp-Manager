@@ -390,15 +390,6 @@ export const edgeFunctions = {
   },
 
   /**
-   * Retry ALPR processing on incident evidence
-   */
-  retryALPR: async (params: {
-    incident_id: string
-  }) => {
-    return callEdgeFunction('alpr-retry', params)
-  },
-
-  /**
    * 3-phase cleanup: zone correction → dedup → compliance recalc
    * Supports batched pagination: pass get_total=true first, then iterate with offset/batch_size.
    */
@@ -440,40 +431,6 @@ export const edgeFunctions = {
    */
   runParkPowSync: async (params: { action: 'sync-lots' | 'sync-watchlist' | 'push-violations' }) => {
     return callEdgeFunction('parkpow-sync', params)
-  },
-
-  /**
-   * Recover deleted observation photos using ParkPow as source-of-truth.
-   */
-  recoverObservationPhotos: async (params: {
-    organization_id?: string
-    date_from?: string
-    date_to?: string
-    window_minutes?: number
-    limit?: number
-    apply?: boolean
-    target_bucket?: string
-    parkpow_base_url?: string
-    require_empty_photo?: boolean
-    include_stale_signed_urls?: boolean
-    max_session_pages?: number
-  }) => {
-    return callEdgeFunction('photo-recovery', params)
-  },
-
-  /**
-   * Find and remove duplicate observations
-   */
-  detectDuplicates: async (params: {
-    zoneIds?: string[]
-    dateRangeStart?: string
-    dateRangeEnd?: string
-    offset?: number
-    batch_size?: number
-    time_window_minutes?: number
-    get_total?: boolean
-  }) => {
-    return callEdgeFunction('duplicate-detection', params)
   },
 
   // ============================================================================
@@ -550,19 +507,6 @@ export const edgeFunctions = {
   },
 
   /**
-   * Export observations to CSV
-   */
-  exportObservations: async (params: {
-    organization_id?: string
-    zone_id?: string
-    date_from?: string
-    date_to?: string
-    search?: string
-  }) => {
-    return callEdgeFunction('observations-export', params)
-  },
-
-  /**
    * AI vehicle analysis (make/model/year/colour + NZSCV validation).
    *
    * Accepts both camelCase and snake_case for compatibility and maps to the
@@ -627,34 +571,6 @@ export const edgeFunctions = {
    */
   checkRailwayHealth: async () => {
     return callEdgeFunction('check-railway-health')
-  },
-
-  /**
-   * Validate GPS vs zone geofence
-   */
-  checkZoneCorrections: async (params: {
-    organization_id?: string
-  }) => {
-    return callEdgeFunction('check-zone-corrections', params)
-  },
-
-  /**
-   * Batch zone correction (GPS-based)
-   */
-  correctZoneAssignments: async (params: {
-    organization_id?: string
-    dry_run?: boolean
-  }) => {
-    return callEdgeFunction('correct-zone-assignments', params)
-  },
-
-  /**
-   * Zone correction with "Other Location" fallback
-   */
-  zoneCorrection: async (params: {
-    observation_id: string
-  }) => {
-    return callEdgeFunction('zone-correction', params)
   },
 
   /**
@@ -911,13 +827,6 @@ export const edgeFunctions = {
     longitude: number
   }) => {
     return callEdgeFunction('suggest-new-zone', params)
-  },
-
-  /**
-   * Stream webhook (Plate Recognizer Stream)
-   */
-  streamWebhook: async (params: any) => {
-    return callEdgeFunction('stream-webhook', params, { showToast: false })
   },
 
   // ============================================================================
@@ -1535,44 +1444,4 @@ export const edgeFunctions = {
     return callEdgeFunction('export-data', params)
   },
 
-  /**
-   * Link evidence photos — runs ALPR on files in the evidence storage bucket
-   * and links recognised plates to canonical_vehicles profile photos.
-   * Requires admin or master role.
-   */
-  linkEvidencePhotos: async (params: {
-    path_prefix?: string
-    paths?: string[]
-    min_confidence?: number
-    force_update?: boolean
-    dry_run?: boolean
-    limit?: number
-  }) => {
-    return callEdgeFunction('link-evidence-photos', params)
-  },
-
-  /**
-   * Reingest photos — fetches a batch of existing observations with photos and
-   * returns them so the caller can re-run vehicle-ingest on each one.
-   * Supports pagination via before_recorded_at cursor.
-   */
-  reingestPhotos: async (params: {
-    organization_id?: string
-    date_from?: string
-    date_to?: string
-    batch_size?: number
-    before_recorded_at?: string
-  }) => {
-    return callEdgeFunction('reingest-photos', params)
-  },
-
-  /**
-   * Check data integrity — finds and optionally removes duplicate observations,
-   * marks invalid NZ plates, and returns a list of integrity issues found.
-   */
-  checkDataIntegrity: async (params: {
-    comprehensive?: boolean
-  }) => {
-    return callEdgeFunction('check-data-integrity', params)
-  },
 }
