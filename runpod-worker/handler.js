@@ -45,8 +45,7 @@ async function takeJob() {
 }
 
 async function completeJob(jobId, output) {
-  const url = POST_OUT_URL.replace('${ID}', jobId);
-  const res = await fetch(url, {
+  const res = await fetch(POST_OUT_URL, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json', ...AUTH_HEADERS },
     body:    JSON.stringify({ id: jobId, output }),
