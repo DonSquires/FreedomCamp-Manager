@@ -237,10 +237,10 @@ These are multi-tenant/non-core portals. Gate them behind `grand_master` or a fe
 
 ## Phase 4 — Data Migration ⏳
 
-- [ ] Write ETL scripts for `flagged_vehicles` → `canonical_homeless`
-- [ ] Write reconciliation queries for all 36 retained tables
-- [ ] Document archive strategy for tables outside clean model scope
-- [ ] Row-count parity report
+- [x] Write ETL scripts for `flagged_vehicles` → `canonical_homeless` — migration `20260424000001` ✅
+- [x] Write reconciliation queries for all 36 retained tables — `v4_table_parity` view + `recon_*` views ✅
+- [x] Document archive strategy for tables outside clean model scope — comments in migration ✅
+- [x] Row-count parity report — `v4_table_parity` view (pg_stat_user_tables backed) ✅
 
 ---
 
