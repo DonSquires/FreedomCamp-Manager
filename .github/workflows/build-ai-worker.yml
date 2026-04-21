@@ -83,23 +83,35 @@ jobs:
             exit 0
           fi
 
+          rest() {
+            local method="$1" path="$2" body="${3:-}"
+            if [ -n "$body" ]; then
+              curl -fsSL -X "$method" "https://rest.runpod.io/v1/${path}" \
+                -H "Authorization: Bearer $RUNPOD_API_KEY" \
+                -H "Content-Type: application/json" -d "$body"
+            else
+              curl -fsSL -X "$method" "https://rest.runpod.io/v1/${path}" \
+                -H "Authorization: Bearer $RUNPOD_API_KEY"
+            fi
+          }
+
           gql() {
             curl -fsSL "https://api.runpod.io/graphql?api_key=$RUNPOD_API_KEY" \
               -H "Content-Type: application/json" --data-raw "$1"
           }
 
-          echo "🐳 Creating RunPod template with new image: $IMAGE_REF ..."
+          echo "🐳 Creating RunPod pod template with new image: $IMAGE_REF ..."
           TMPL=$(gql "{\"query\":\"mutation { saveTemplate(input: { name: \\\"fieldops-ai-worker\\\", imageName: \\\"$IMAGE_REF\\\", containerDiskInGb: 50, dockerArgs: \\\"\\\", env: [], volumeInGb: 0 }) { id name imageName } }\"}")
           TMPL_ID=$(echo "$TMPL" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['saveTemplate']['id'])")
           echo "✅ Template created: $TMPL_ID"
 
-          echo "🔗 Updating endpoint $RUNPOD_ENDPOINT_ID → template $TMPL_ID ..."
-          EP=$(gql "{\"query\":\"mutation { saveEndpoint(input: { id: \\\"$RUNPOD_ENDPOINT_ID\\\", name: \\\"fieldops-ai-engine\\\", templateId: \\\"$TMPL_ID\\\", workersMin: 1, workersMax: 6, gpuIds: \\\"ADA_24\\\" }) { id name templateId } }\"}")
-          echo "$EP" | python3 -c "import sys,json; d=json.load(sys.stdin); e=d.get('data',{}).get('saveEndpoint',{}); print('Endpoint:', e.get('id'), '| template:', e.get('templateId'))"
+          echo "🔗 Updating endpoint $RUNPOD_ENDPOINT_ID → template $TMPL_ID via REST ..."
+          EP=$(rest PATCH "endpoints/$RUNPOD_ENDPOINT_ID" "{\"templateId\":\"$TMPL_ID\"}")
+          GOT_TMPL=$(echo "$EP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('templateId','?'))")
+          echo "Endpoint templateId: $GOT_TMPL"
 
-          if echo "$EP" | python3 -c "import sys,json; d=json.load(sys.stdin); exit(0 if d.get('data',{}).get('saveEndpoint') else 1)"; then
+          if [ "$GOT_TMPL" = "$TMPL_ID" ]; then
             echo "✅ RunPod endpoint updated to image: $IMAGE_REF"
           else
-            echo "::warning::RunPod endpoint update may have failed. Update manually: $IMAGE_TAG"
-            echo "Errors: $(echo "$EP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('errors','?'))")"
+            echo "::warning::RunPod endpoint update may have failed (got templateId=$GOT_TMPL). Update manually: $IMAGE_TAG"
           fi
