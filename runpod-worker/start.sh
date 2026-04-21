@@ -20,7 +20,27 @@ if ! ollama list 2>/dev/null | grep -q "$MODEL"; then
   echo "[start] Model not found, pulling..."
   ollama pull "$MODEL"
 fi
-echo "[start] Model ready"
-
-echo "[start] Starting Node worker..."
+echo "[start] Warming up model $MODEL (first chat loads weights into VRAM)..."
+WARMUP_ATTEMPTS=0
+until python3 -c "
+import requests, sys
+try:
+    r = requests.post('http://127.0.0.1:11434/api/chat',
+        json={'model': '${MODEL}', 'messages': [{'role':'user','content':'hi'}], 'stream': False},
+        timeout=120)
+    r.raise_for_status()
+    print('[start] Warm-up OK:', r.json().get('message',{}).get('content','?')[:40])
+    sys.exit(0)
+except Exception as e:
+    print('[start] Warm-up not ready:', e)
+    sys.exit(1)
+"; do
+  WARMUP_ATTEMPTS=$((WARMUP_ATTEMPTS+1))
+  if [ "$WARMUP_ATTEMPTS" -ge 10 ]; then
+    echo "[start] WARNING: warm-up did not complete after 10 attempts, starting handler anyway"
+    break
+  fi
+  sleep 5
+done
+echo "[start] Model warm-up complete"
 exec python3 handler.py
