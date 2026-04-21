@@ -64,7 +64,7 @@ export interface BobTranslateOptions {
 export async function bobChat(options: BobChatOptions): Promise<BobChatResult> {
   const inferenceUrl = normalizeBaseUrl(Deno.env.get('INFERENCE_SERVICE_URL'))
   const apiKey = Deno.env.get('INFERENCE_API_KEY') || Deno.env.get('RUNPOD_ENDPOINT_API_KEY') || ''
-  const timeoutMs = options.timeoutMs ?? 90_000
+  const timeoutMs = options.timeoutMs ?? 130_000
 
   if (!inferenceUrl) throw new Error('INFERENCE_SERVICE_URL is not configured')
 
@@ -82,6 +82,7 @@ export async function bobChat(options: BobChatOptions): Promise<BobChatResult> {
           ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}),
         },
         body: JSON.stringify({
+          executionTimeout: 120000,
           input: {
             action: 'chat',
             message: options.message,
@@ -141,7 +142,7 @@ export async function bobChat(options: BobChatOptions): Promise<BobChatResult> {
 export async function bobAssess(options: BobAssessOptions): Promise<BobAssessResult> {
   const inferenceUrl = normalizeBaseUrl(Deno.env.get('INFERENCE_SERVICE_URL'))
   const apiKey = Deno.env.get('INFERENCE_API_KEY') || Deno.env.get('RUNPOD_ENDPOINT_API_KEY') || ''
-  const timeoutMs = options.timeoutMs ?? 90_000
+  const timeoutMs = options.timeoutMs ?? 130_000
 
   if (!inferenceUrl) throw new Error('INFERENCE_SERVICE_URL is not configured')
 
@@ -159,6 +160,7 @@ export async function bobAssess(options: BobAssessOptions): Promise<BobAssessRes
           ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}),
         },
         body: JSON.stringify({
+          executionTimeout: 120000,
           input: {
             action: 'assess',
             type: options.type,
@@ -231,6 +233,7 @@ export async function bobTranslate(options: BobTranslateOptions): Promise<{ tran
           ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}),
         },
         body: JSON.stringify({
+          executionTimeout: 120000,
           input: {
             action: 'translate',
             text: options.text,
