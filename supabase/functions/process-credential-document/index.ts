@@ -31,7 +31,8 @@ Deno.serve(withCors(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 422 }
       );
     }
-    if (supabaseUrlBase && !documentUrl.startsWith(supabaseUrlBase)) {
+    const urlHost = parsedUrl.hostname;
+    if (!urlHost.endsWith('.supabase.co') && !urlHost.endsWith('.supabase.in')) {
       return new Response(
         JSON.stringify({ success: false, error: 'Invalid documentUrl: must be a Supabase storage URL' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 422 }
