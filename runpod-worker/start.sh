@@ -5,10 +5,12 @@ echo "[start] Starting Ollama..."
 ollama serve &
 OLLAMA_PID=$!
 
-echo "[start] Waiting for Ollama to be ready..."
-until curl -s http://127.0.0.1:11434/api/tags > /dev/null 2>&1; do
+echo "[start] Waiting for Ollama to be ready (HTTP 200 on /api/tags)..."
+until curl -sf http://127.0.0.1:11434/api/tags > /dev/null 2>&1; do
   sleep 1
 done
+# Brief extra wait for model loading after API is live
+sleep 2
 echo "[start] Ollama is ready"
 
 MODEL="${OLLAMA_MODEL:-llama3.1:8b}"
