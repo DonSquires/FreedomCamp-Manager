@@ -79,7 +79,7 @@ function normalizeBearerToken(rawAuthHeader: string | null): string | null {
 function json(status: number, payload: unknown): Response {
   return new Response(JSON.stringify(payload), {
     status,
-    headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
   });
 }
 
