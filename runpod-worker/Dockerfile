@@ -1,10 +1,13 @@
 FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
 
-# Install Node.js 20 and curl
-RUN apt-get update && apt-get install -y curl ca-certificates && \
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y nodejs && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install dependencies including zstd required by Ollama installer
+RUN apt-get update && apt-get install -y \
+    curl ca-certificates zstd \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Ollama
 RUN curl -fsSL https://ollama.com/install.sh | sh
