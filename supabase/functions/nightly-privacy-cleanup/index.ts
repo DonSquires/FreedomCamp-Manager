@@ -71,6 +71,13 @@ Deno.serve(async (req) => {
       .limit(limit);
 
     if (fetchError) {
+      if (dryRun) {
+        // Table may not exist yet — return 0 candidates for dry_run instead of crashing
+        return new Response(
+          JSON.stringify({ success: true, dry_run: true, candidates: 0, deleted: 0, note: 'photo_metadata table not yet available' }),
+          { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+        );
+      }
       throw fetchError;
     }
 
