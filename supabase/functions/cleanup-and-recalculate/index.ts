@@ -418,9 +418,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (profileError || !profile || !['admin', 'master'].includes(String((profile as any).role))) {
+    if (profileError || !profile || !['admin', 'master', 'grand_master'].includes(String((profile as any).role))) {
       return new Response(
-        JSON.stringify({ error: 'Admin or master role required' }),
+        JSON.stringify({ error: 'Admin, master, or grand_master role required' }),
         { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }

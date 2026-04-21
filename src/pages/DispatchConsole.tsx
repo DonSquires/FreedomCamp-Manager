@@ -456,10 +456,13 @@ export default function DispatchConsole() {
               Dispatch Console
             </h1>
             <p className="text-sm text-muted-foreground mt-0.5">
-              GDS CATS-style job dispatch — assign jobs to officers in real time
+              GDS CATS-style job dispatch — assign jobs to officers in real time and coordinate on the employer-wide dispatch radio net
             </p>
           </div>
           <div className="flex gap-2 flex-wrap">
+            <Button variant="outline" size="sm" onClick={() => navigate('/radio?mode=dispatch')} className="gap-1.5">
+              <Radio className="h-4 w-4" /> Dispatch Radio
+            </Button>
             <Button variant="outline" size="sm" onClick={() => navigate('/dispatch-monitor')} className="gap-1.5">
               <LayoutList className="h-4 w-4" /> Monitor
             </Button>
@@ -800,6 +803,10 @@ export default function DispatchConsole() {
                       )}
                     </p>
                   )}
+
+                  <p className="text-xs text-muted-foreground rounded px-2 py-1.5 bg-muted/40">
+                    Dispatcher traffic runs on the employer-wide dispatch radio net so branch dispatchers can coordinate across all authorized employer locations.
+                  </p>
                 </div>
               )}
             </div>

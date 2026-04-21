@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -35,6 +36,7 @@ interface OfficerLocation {
 }
 
 export default function LiveOfficerTracking() {
+  const navigate = useNavigate()
   const { organizationId } = useGlobalFiltersStore()
   const [autoRefresh, setAutoRefresh] = useState(true)
 
@@ -251,6 +253,22 @@ export default function LiveOfficerTracking() {
 
                   {/* Actions */}
                   <div className="pt-3 border-t flex gap-2">
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => {
+                        const params = new URLSearchParams({
+                          mode: 'direct',
+                          targetUserId: officer.user_id,
+                          targetName: `${officer.first_name} ${officer.last_name}`,
+                        })
+                        navigate(`/radio?${params.toString()}`)
+                      }}
+                    >
+                      <Activity className="h-4 w-4 mr-1" />
+                      Call Officer
+                    </Button>
                     <Button 
                       variant="outline" 
                       size="sm" 

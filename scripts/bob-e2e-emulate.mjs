@@ -73,7 +73,7 @@ async function edge(name, body, { auth = true, method = 'POST' } = {}) {
   const res = await fetch(`${EDGE_BASE}/${name}`, {
     method, headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(20000),
+    signal: AbortSignal.timeout(150000),
   })
   const json = await res.json().catch(() => ({}))
   if (!res.ok && res.status !== 400 && res.status !== 415 && res.status !== 422 && res.status !== 404 && res.status !== 503) {

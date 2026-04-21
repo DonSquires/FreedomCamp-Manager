@@ -33,6 +33,12 @@ export function usePTTAutoConnect(): void {
       ? selectedOrganizationId || user?.organization_id || null
       : user?.organization_id || null
 
+  // Background org-channel PTT should only auto-start for field-operational
+  // users. Platform/master users access CRM, pricing, and admin surfaces that
+  // must not depend on radio infrastructure being available.
+  const shouldAutoStartBackgroundPTT =
+    user?.role === 'officer' || user?.role === 'admin_officer'
+
   const isRadioRoute = location.pathname === '/radio'
 
   useEffect(() => {
@@ -53,7 +59,7 @@ export function usePTTAutoConnect(): void {
     }
 
     // Start PTT service when user is authenticated
-    if (isAuthenticated && operationalOrganizationId && !hasStarted.current) {
+    if (isAuthenticated && shouldAutoStartBackgroundPTT && operationalOrganizationId && !hasStarted.current) {
       hasStarted.current = true
       
       // Request notification permission first
@@ -61,6 +67,11 @@ export function usePTTAutoConnect(): void {
         // Start the PTT background service
         startPTTBackgroundService()
       })
+    }
+
+    if (isAuthenticated && !shouldAutoStartBackgroundPTT && hasStarted.current) {
+      hasStarted.current = false
+      stopPTTBackgroundService()
     }
 
     // Stop PTT service when user logs out
@@ -74,7 +85,7 @@ export function usePTTAutoConnect(): void {
       // Don't stop on unmount - service should persist
       // Only stop on explicit logout (handled above)
     }
-  }, [loading, isAuthenticated, operationalOrganizationId, isRadioRoute])
+  }, [loading, isAuthenticated, operationalOrganizationId, isRadioRoute, shouldAutoStartBackgroundPTT])
 
   // Log connection status changes
   useEffect(() => {

@@ -18,6 +18,7 @@ import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import {
   connectToOrgChannel,
   disconnectFromPTT,
+  normalizePTTErrorMessage,
   initBluetoothPTT,
 } from '@/lib/ptt'
 
@@ -45,6 +46,15 @@ function resolveOperationalOrganizationId(): string | null {
   }
 
   return user.organization_id || null
+}
+
+function isTransientPTTError(message: string): boolean {
+  const text = message.toLowerCase()
+  return (
+    text.includes('reconnecting too quickly') ||
+    text.includes('retry shortly') ||
+    text.includes('currently unavailable')
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -144,7 +154,12 @@ export async function startPTTBackgroundService(): Promise<void> {
     reconnectAttempts = 0
     console.log('🎤 PTT Background: Connected to org channel')
   } catch (err) {
-    console.error('🎤 PTT Background: Failed to connect', err)
+    const message = normalizePTTErrorMessage(err)
+    if (isTransientPTTError(message)) {
+      console.warn('🎤 PTT Background: Initial connect deferred', message)
+    } else {
+      console.error('🎤 PTT Background: Failed to connect', err)
+    }
     scheduleReconnect()
   }
 
@@ -264,7 +279,12 @@ async function reconnect(): Promise<void> {
     reconnectAttempts = 0
     console.log('🎤 PTT Background: Reconnected')
   } catch (err) {
-    console.error('🎤 PTT Background: Reconnect failed', err)
+    const message = normalizePTTErrorMessage(err)
+    if (isTransientPTTError(message)) {
+      console.warn('🎤 PTT Background: Reconnect deferred', message)
+    } else {
+      console.error('🎤 PTT Background: Reconnect failed', err)
+    }
     scheduleReconnect()
   }
 }

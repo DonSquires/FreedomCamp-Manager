@@ -40,16 +40,93 @@ Deno.serve(async (req) => {
       deliverToEmail,
       deliverToOfficer,
       breachAlertId,
+      autoBootstrapLegalConfig,
     } = await req.json();
 
     console.log('📝 Generating Notice to Vacate:', { zoneId, plateNumber, nightsStayed });
 
     // 1. Get zone legal configuration
-    const { data: legalConfig, error: configError } = await supabaseAdmin
+    let { data: legalConfig, error: configError } = await supabaseAdmin
       .from('zone_legal_config')
       .select('*, zones(name, organization_id)')
       .eq('zone_id', zoneId)
       .single();
+
+    if ((configError || !legalConfig) && autoBootstrapLegalConfig === true) {
+      // Bootstrap minimal legal config for orgs that have not completed setup yet.
+      const { data: zoneRow, error: zoneError } = await supabaseAdmin
+        .from('zones')
+        .select('id, name, organization_id')
+        .eq('id', zoneId)
+        .single();
+
+      if (zoneError || !zoneRow) {
+        throw new Error('Zone not found for legal config bootstrap');
+      }
+
+      const { data: issuingUserForBootstrap, error: issuingUserBootstrapError } = await supabaseAdmin
+        .from('user_profiles')
+        .select('id, first_name, last_name, email, role')
+        .eq('id', issuedBy)
+        .single();
+
+      if (issuingUserBootstrapError || !issuingUserForBootstrap) {
+        throw new Error('Issuing user not found for legal config bootstrap');
+      }
+
+      if (!['admin', 'master', 'grand_master'].includes(String(issuingUserForBootstrap.role))) {
+        throw new Error('Only administrators can bootstrap legal configuration');
+      }
+
+      const { data: orgRow } = await supabaseAdmin
+        .from('organizations')
+        .select('name')
+        .eq('id', zoneRow.organization_id)
+        .single();
+
+      const fallbackOfficeName = orgRow?.name ? `${orgRow.name} Enforcement` : 'Field Enforcement Office';
+      const fallbackSignatoryName = `${issuingUserForBootstrap.first_name ?? ''} ${issuingUserForBootstrap.last_name ?? ''}`.trim() || 'Authorized Officer';
+
+      const { error: bootstrapInsertError } = await supabaseAdmin
+        .from('zone_legal_config')
+        .upsert({
+          zone_id: zoneRow.id,
+          organization_id: zoneRow.organization_id,
+          org_office_name: fallbackOfficeName,
+          org_street_address: 'Address to be configured',
+          org_city: 'Wellington',
+          org_postcode: '6011',
+          org_email: issuingUserForBootstrap.email ?? null,
+          legal_description: `Managed area: ${zoneRow.name}`,
+          land_act: 'Freedom Camping Act 2011',
+          land_owner: orgRow?.name ?? 'Local Authority',
+          breach_template: 'Vehicle has breached the zone stay limits and must vacate within the stated timeframe.',
+          enforcement_type: 'warning',
+          vacate_hours: 4,
+          authorized_signatories: [{
+            user_id: issuingUserForBootstrap.id,
+            name: fallbackSignatoryName,
+            title: 'Authorised Officer',
+          }],
+        }, { onConflict: 'zone_id' });
+
+      if (bootstrapInsertError) {
+        throw new Error(`Failed to bootstrap legal configuration: ${bootstrapInsertError.message}`);
+      }
+
+      const { data: reloadedConfig, error: reloadError } = await supabaseAdmin
+        .from('zone_legal_config')
+        .select('*, zones(name, organization_id)')
+        .eq('zone_id', zoneId)
+        .single();
+
+      if (reloadError || !reloadedConfig) {
+        throw new Error('Legal configuration bootstrap completed but reload failed');
+      }
+
+      legalConfig = reloadedConfig;
+      configError = null;
+    }
 
     if (configError || !legalConfig) {
       throw new Error('Legal configuration not found for this zone');
@@ -73,8 +150,8 @@ Deno.serve(async (req) => {
       throw new Error('Issuing user not found');
     }
 
-    // Only admins can issue notices
-    if (!['admin', 'master'].includes(issuingUser.role)) {
+    // Only privileged users can issue notices
+    if (!['admin', 'master', 'grand_master'].includes(issuingUser.role)) {
       throw new Error('Only administrators can issue Notice to Vacate');
     }
 

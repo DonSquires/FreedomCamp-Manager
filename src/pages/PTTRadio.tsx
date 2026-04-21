@@ -30,7 +30,7 @@ interface TranslationResult {
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -118,6 +118,14 @@ interface RadioChannel {
   is_priority: boolean
   description: string | null
   is_active: boolean
+  scope_override?: string | null
+  badge_label?: string | null
+  scope_label?: string | null
+}
+
+interface OrganizationSummary {
+  id: string
+  name: string
 }
 
 interface TransmissionEntry {
@@ -148,7 +156,7 @@ const DEFAULT_CHANNELS: RadioChannel[] = [
 ]
 
 const CHANNEL_TYPE_ORDER: Record<string, number> = {
-  primary: 0, dispatch: 1, team: 2, incident: 3, welfare: 4, admin: 5, emergency: 99,
+  primary: 0, cross_org: 1, dispatch: 2, team: 3, incident: 4, welfare: 5, admin: 6, emergency: 99,
 }
 
 const TRANSLATION_LANGUAGE_OPTIONS = [
@@ -169,6 +177,10 @@ const CHANNEL_SWITCH_DEBOUNCE_MS = 400
 const CONNECT_ACTION_COOLDOWN_MS = 800
 
 function getChannelScope(channel: RadioChannel, effectiveOrgId: string): string {
+  if (channel.scope_override) {
+    return channel.scope_override
+  }
+
   // Primary channel must always be org-wide so all clients converge on the
   // same scope even when one device falls back to default channel metadata.
   if (channel.channel_type === 'primary' || channel.channel_number === 1) {
@@ -368,6 +380,7 @@ function AudioLevelMeter({ level, transmitting }: { level: number; transmitting:
 
 export default function PTTRadio() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuthStore()
   const { organizationId } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
@@ -421,6 +434,18 @@ export default function PTTRadio() {
   const [interpreterPrefsHydrated, setInterpreterPrefsHydrated] = useState(false)
   const [isInterpreterListening, setIsInterpreterListening] = useState(false)
   const [isInterpreterTranslating, setIsInterpreterTranslating] = useState(false)
+  const radioMode = useMemo(() => {
+    const search = new URLSearchParams(location.search)
+    return search.get('mode') || ''
+  }, [location.search])
+  const radioTargetUserId = useMemo(() => {
+    const search = new URLSearchParams(location.search)
+    return search.get('targetUserId') || ''
+  }, [location.search])
+  const radioTargetName = useMemo(() => {
+    const search = new URLSearchParams(location.search)
+    return search.get('targetName') || ''
+  }, [location.search])
 
   // Auto-transcription state – populated after each incoming clip
   const [lastClipTranscript, setLastClipTranscript] = useState<string | null>(null)
@@ -446,6 +471,31 @@ export default function PTTRadio() {
         ? organizationId || user?.organization_id || null
         : user?.organization_id || null,
     [organizationId, user?.organization_id, user?.role],
+  )
+  const homeOrganizationId = user?.organization_id || effectiveOrgId || null
+  const employerOrganizationId = user?.employer_organization_id || null
+  const crossOrgIds = useMemo(() => {
+    const ids = new Set<string>()
+    const excluded = new Set<string>([homeOrganizationId || ''])
+
+    if (employerOrganizationId && employerOrganizationId !== homeOrganizationId) {
+      ids.add(employerOrganizationId)
+      excluded.add(employerOrganizationId)
+    }
+
+    for (const id of user?.authorized_work_locations || []) {
+      if (id && !excluded.has(id)) ids.add(id)
+    }
+
+    for (const id of user?.extra_organization_ids || []) {
+      if (id && !excluded.has(id)) ids.add(id)
+    }
+
+    return Array.from(ids)
+  }, [employerOrganizationId, homeOrganizationId, user?.authorized_work_locations, user?.extra_organization_ids])
+  const crossOrgQueryIds = useMemo(
+    () => (crossOrgIds.length ? [...crossOrgIds].sort() : []),
+    [crossOrgIds],
   )
 
   // ── Load channels from DB ─────────────────────────────────
@@ -489,7 +539,107 @@ export default function PTTRadio() {
     retry: false,
   })
 
-  const channels = useMemo(() => {
+  const { data: crossOrgMetadata = [] } = useQuery<OrganizationSummary[]>({
+    queryKey: ['ptt-cross-org-metadata', crossOrgQueryIds.join(',')],
+    queryFn: async () => {
+      if (!crossOrgQueryIds.length) return []
+      const { data, error } = await (supabase as any)
+        .from('organizations')
+        .select('id, name')
+        .in('id', crossOrgQueryIds)
+
+      if (error) throw error
+      return (data || []) as OrganizationSummary[]
+    },
+    enabled: crossOrgQueryIds.length > 0,
+    staleTime: 60_000,
+  })
+
+  const crossOrgMap = useMemo(() => {
+    const map = new Map<string, OrganizationSummary>()
+    for (const org of crossOrgMetadata) {
+      map.set(org.id, org)
+    }
+    return map
+  }, [crossOrgMetadata])
+
+  const crossOrgChannels = useMemo(() => {
+    const scopedChannels: RadioChannel[] = []
+
+    if (employerOrganizationId && employerOrganizationId !== homeOrganizationId) {
+      const employerName = crossOrgMap.get(employerOrganizationId)?.name || 'Employer'
+      scopedChannels.push({
+        id: `employer-dispatch-${employerOrganizationId}`,
+        channel_number: 80,
+        badge_label: 'DSP',
+        name: `${employerName} Dispatch`,
+        channel_type: 'cross_org',
+        color: '#0ea5e9',
+        is_priority: true,
+        description: `Employer-wide dispatcher channel for all ${employerName} operations staff.`,
+        is_active: true,
+        scope_override: `org:${employerOrganizationId}`,
+        scope_label: `${employerName} Dispatch Net`,
+      })
+      scopedChannels.push({
+        id: `employer-scope-${employerOrganizationId}`,
+        channel_number: 81,
+        badge_label: 'EMP',
+        name: `${employerName} Global`,
+        channel_type: 'cross_org',
+        color: '#f59e0b',
+        is_priority: false,
+        description: `Employer-wide channel for all staff in ${employerName}.`,
+        is_active: true,
+        scope_override: `org:${employerOrganizationId}`,
+        scope_label: employerName,
+      })
+    }
+
+    const authorizedIds = crossOrgIds.filter((id) => id !== employerOrganizationId)
+    authorizedIds.forEach((orgId, index) => {
+      const orgName = crossOrgMap.get(orgId)?.name || `Authorized Org ${index + 1}`
+      scopedChannels.push({
+        id: `authorized-scope-${orgId}`,
+        channel_number: 82 + index,
+        badge_label: 'ORG',
+        name: `${orgName} Channel`,
+        channel_type: 'cross_org',
+        color: '#14b8a6',
+        is_priority: false,
+        description: `Switch to the authorized ${orgName} organization radio channel.`,
+        is_active: true,
+        scope_override: `org:${orgId}`,
+        scope_label: orgName,
+      })
+    })
+
+    return scopedChannels
+  }, [crossOrgIds, crossOrgMap, employerOrganizationId, homeOrganizationId])
+
+  const launchChannels = useMemo(() => {
+    if (radioMode !== 'direct' || !radioTargetUserId) return [] as RadioChannel[]
+
+    return [
+      {
+        id: `direct-launch-${radioTargetUserId}`,
+        channel_number: 90,
+        badge_label: 'DIR',
+        name: radioTargetName ? `Direct: ${radioTargetName}` : 'Direct Call',
+        channel_type: 'direct',
+        color: '#e11d48',
+        is_priority: true,
+        description: radioTargetName
+          ? `Private dispatcher call with ${radioTargetName}.`
+          : 'Private dispatcher direct call.',
+        is_active: true,
+        scope_override: `direct:${radioTargetUserId}`,
+        scope_label: 'Direct Call',
+      },
+    ]
+  }, [radioMode, radioTargetName, radioTargetUserId])
+
+  const baseChannels = useMemo(() => {
     const source = dbChannels?.length ? dbChannels : DEFAULT_CHANNELS
     return [...source].sort(
       (a, b) =>
@@ -497,6 +647,11 @@ export default function PTTRadio() {
         a.channel_number - b.channel_number,
     )
   }, [dbChannels])
+
+  const channels = useMemo(
+    () => [...launchChannels, ...crossOrgChannels, ...baseChannels],
+    [launchChannels, crossOrgChannels, baseChannels],
+  )
 
   // ── Load recent transmission log from DB ──────────────────
   const { data: dbTxLog = [] } = useQuery<TransmissionEntry[]>({
@@ -561,6 +716,11 @@ export default function PTTRadio() {
     const withoutSelf = base.filter((p) => p.userId !== user.id)
     return [{ userId: user.id, name: selfName, role: selfRole, status: selfStatus }, ...withoutSelf]
   }, [presence, user?.id, user?.first_name, user?.last_name, user?.email, user?.role, isSpeaking])
+
+  const renderChannelBadge = useCallback((channel: RadioChannel) => {
+    if (channel.channel_type === 'emergency') return '🚨'
+    return channel.badge_label || channel.channel_number
+  }, [])
 
   // ─────────────────────────────────────────────────────────
   // Channel connection callbacks (before effects that use them)
@@ -688,17 +848,33 @@ export default function PTTRadio() {
     if (!effectiveOrgId || channels.length === 0) return
     if (initialConnectRef.current) return // Already attempted initial connect
 
-    // Prioritize Channel 1 (primary or channel_number === 1) so users aren't
-    // "ghost online" without being in an actual channel.
-    const channel1 = channels.find((c) => c.channel_number === 1) ?? 
-                     channels.find((c) => c.channel_type === 'primary') ?? 
+    const directLaunch =
+      radioMode === 'direct'
+        ? channels.find((c) => c.id === `direct-launch-${radioTargetUserId}`)
+        : null
+
+    const dispatcherDefault =
+      radioMode === 'dispatch'
+        ? channels.find((c) => c.id.startsWith('employer-dispatch-')) ??
+          channels.find((c) => c.id.startsWith('employer-scope-'))
+        : null
+
+    // Prioritize dispatcher employer net when requested; otherwise fall back
+    // to the local branch primary channel so operators land in a real net.
+    const channel1 = directLaunch ??
+                     dispatcherDefault ??
+                     channels.find((c) => c.channel_number === 1) ??
+                     channels.find((c) => c.channel_type === 'primary') ??
                      channels[0]
     
     if (channel1) {
       setActiveChannel(channel1)
+      if (radioMode === 'dispatch' || radioMode === 'direct') {
+        void connectToChannel(channel1)
+      }
       initialConnectRef.current = true
     }
-  }, [effectiveOrgId, channels])
+  }, [connectToChannel, effectiveOrgId, channels, radioMode, radioTargetUserId])
 
   // ── Notification permission prompt ───────────────────────
   useEffect(() => {
@@ -775,7 +951,7 @@ export default function PTTRadio() {
       if (scanTimerRef.current) { clearInterval(scanTimerRef.current); scanTimerRef.current = null }
       return
     }
-    const nonEmergency = channels.filter((c) => c.channel_type !== 'emergency')
+    const nonEmergency = channels.filter((c) => c.channel_type !== 'emergency' && c.channel_type !== 'cross_org')
     if (!nonEmergency.length) return
 
     scanTimerRef.current = setInterval(async () => {
@@ -1097,7 +1273,7 @@ export default function PTTRadio() {
       if (scanTimerRef.current) { clearInterval(scanTimerRef.current); scanTimerRef.current = null }
       return
     }
-    const nonEmergency = channels.filter((c) => c.channel_type !== 'emergency')
+    const nonEmergency = channels.filter((c) => c.channel_type !== 'emergency' && c.channel_type !== 'cross_org')
     if (!nonEmergency.length) return
 
     scanTimerRef.current = setInterval(async () => {
@@ -1384,7 +1560,7 @@ export default function PTTRadio() {
                             <div className="flex flex-col items-center justify-center w-9 h-9 rounded bg-slate-900/80 shrink-0">
                               <span className="text-[9px] text-slate-500 uppercase leading-tight">CH</span>
                               <span className="text-base font-bold leading-tight" style={{ color: ch.color }}>
-                                {isEmergencyCh ? '🚨' : ch.channel_number}
+                                {renderChannelBadge(ch)}
                               </span>
                             </div>
                             <div className="min-w-0">
@@ -1479,9 +1655,14 @@ export default function PTTRadio() {
           <div className="flex items-center gap-2 px-4 py-1.5 rounded bg-slate-800 border border-slate-700 min-w-[180px] justify-center">
             {activeChannel ? (
               <>
-                <span className="text-xs text-slate-400 uppercase">CH {activeChannel.channel_number}</span>
+                <span className="text-xs text-slate-400 uppercase">
+                  {activeChannel.badge_label || `CH ${activeChannel.channel_number}`}
+                </span>
                 <span className="w-2 h-2 rounded-full" style={{ backgroundColor: activeChannel.color }} />
                 <span className="font-bold text-white text-sm tracking-wide">{activeChannel.name.toUpperCase()}</span>
+                {activeChannel.scope_label && (
+                  <span className="text-[10px] text-slate-500 uppercase tracking-wide">{activeChannel.scope_label}</span>
+                )}
                 {scanMode && <span className="text-xs text-yellow-400 animate-pulse ml-1">SCAN</span>}
               </>
             ) : (
@@ -1606,7 +1787,7 @@ export default function PTTRadio() {
                         <div className="flex flex-col items-center justify-center w-9 h-9 rounded bg-slate-900/80 shrink-0">
                           <span className="text-[9px] text-slate-500 uppercase leading-tight">CH</span>
                           <span className="text-base font-bold leading-tight" style={{ color: ch.color }}>
-                            {isEmergencyCh ? '🚨' : ch.channel_number}
+                            {renderChannelBadge(ch)}
                           </span>
                         </div>
                         <div className="min-w-0">
@@ -1647,8 +1828,11 @@ export default function PTTRadio() {
               <div className="text-center">
                 <div className="text-[10px] text-slate-500 uppercase tracking-widest">Active Channel</div>
                 <div className="text-2xl font-bold tracking-wider mt-0.5" style={{ color: activeChannel.color }}>
-                  CH {activeChannel.channel_number} · {activeChannel.name.toUpperCase()}
+                  {(activeChannel.badge_label || `CH ${activeChannel.channel_number}`)} · {activeChannel.name.toUpperCase()}
                 </div>
+                {activeChannel.scope_label && (
+                  <div className="text-[11px] text-slate-500 uppercase tracking-wide mt-1">{activeChannel.scope_label}</div>
+                )}
               </div>
             )}
 

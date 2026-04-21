@@ -292,9 +292,49 @@ let ws: WebSocket | null = null
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
 let reconnectAttempts = 0
 const MAX_RECONNECT_ATTEMPTS = 8
+const MIN_TOKEN_REQUEST_INTERVAL_MS = 2200
+const TOKEN_REQUEST_AT_KEY = 'ptt-last-token-request-at'
+let tokenRequestInFlight: Promise<PTTTokenResponse> | null = null
+let tokenRequestInFlightScope: string | null = null
+let localTokenCooldownUntilMs = 0
 let pingInterval: ReturnType<typeof setInterval> | null = null
 let activeChannelScope: string | null = null  // Tracks the last requested scope for visibility-triggered reconnects
 let lastRequestedChannelScope: string | null = null
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)))
+}
+
+function readLastTokenRequestAt(): number {
+  if (typeof window === 'undefined') return 0
+  const raw = window.localStorage.getItem(TOKEN_REQUEST_AT_KEY)
+  const parsed = Number.parseInt(raw || '', 10)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function writeLastTokenRequestAt(ts: number): void {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(TOKEN_REQUEST_AT_KEY, String(ts))
+}
+
+function isTransientPTTErrorMessage(message: string): boolean {
+  const text = message.toLowerCase()
+  return (
+    text.includes('reconnecting too quickly') ||
+    text.includes('retry shortly') ||
+    text.includes('currently unavailable')
+  )
+}
+
+async function waitForPTTTokenWindow(): Promise<void> {
+  const now = Date.now()
+  const lastRequestAt = readLastTokenRequestAt()
+  const pacedUntil = lastRequestAt + MIN_TOKEN_REQUEST_INTERVAL_MS
+  const nextAllowedAt = Math.max(pacedUntil, localTokenCooldownUntilMs)
+  if (nextAllowedAt > now) {
+    await delay(nextAllowedAt - now)
+  }
+}
 
 // Reconnect when the page/tab becomes visible again (handles mobile browser backgrounding).
 if (typeof document !== 'undefined') {
@@ -586,12 +626,41 @@ let bluetoothMediaSession: MediaSession | null = null
  * Request a PTT channel token from the Edge Function
  */
 export async function requestPTTToken(channelScope: string): Promise<PTTTokenResponse> {
-  const { data, error } = await edgeFunctions.pttSignalingToken({ channelScope })
+  if (tokenRequestInFlight && tokenRequestInFlightScope === channelScope) {
+    return tokenRequestInFlight
+  }
 
-  if (error) throw new Error(normalizePTTErrorMessage(error))
-  if (!data) throw new Error('No token data received')
+  const requestPromise = (async () => {
+    await waitForPTTTokenWindow()
+    const requestStartedAt = Date.now()
+    writeLastTokenRequestAt(requestStartedAt)
 
-  return data as PTTTokenResponse
+    const { data, error } = await edgeFunctions.pttSignalingToken({ channelScope })
+
+    if (error) {
+      const retryAfterSec = extractPTTRetryAfterSeconds(error)
+      if (retryAfterSec && Number.isFinite(retryAfterSec) && retryAfterSec > 0) {
+        localTokenCooldownUntilMs = Date.now() + retryAfterSec * 1000
+      }
+      throw new Error(normalizePTTErrorMessage(error))
+    }
+
+    if (!data) throw new Error('No token data received')
+
+    return data as PTTTokenResponse
+  })()
+
+  tokenRequestInFlight = requestPromise
+  tokenRequestInFlightScope = channelScope
+
+  try {
+    return await requestPromise
+  } finally {
+    if (tokenRequestInFlight === requestPromise) {
+      tokenRequestInFlight = null
+      tokenRequestInFlightScope = null
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -717,8 +786,12 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
       handleServerMessage(JSON.parse(event.data))
     }
   } catch (error: any) {
-    console.error('🎤 PTT: Connection failed', error)
     const normalizedMessage = normalizePTTErrorMessage(error)
+    if (isTransientPTTErrorMessage(normalizedMessage)) {
+      console.warn('🎤 PTT: Connection deferred', normalizedMessage)
+    } else {
+      console.error('🎤 PTT: Connection failed', error)
+    }
     store.setConnection('error')
     store.setError(normalizedMessage)
     throw new Error(normalizedMessage)
@@ -813,7 +886,12 @@ function scheduleReconnect(channelScope: string): void {
   reconnectTimeout = setTimeout(() => {
     reconnectTimeout = null
     connectToPTT(channelScope).catch((err) => {
-      console.error('🎤 PTT: Reconnect failed', err)
+      const message = err instanceof Error ? err.message : String(err || '')
+      if (isTransientPTTErrorMessage(message)) {
+        console.warn('🎤 PTT: Reconnect deferred', message)
+      } else {
+        console.error('🎤 PTT: Reconnect failed', err)
+      }
     })
   }, delay)
 }

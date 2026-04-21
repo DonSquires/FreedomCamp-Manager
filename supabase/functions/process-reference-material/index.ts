@@ -24,6 +24,19 @@ const MAX_EXTRACTED_TEXT_LENGTH = 50000
 const MAX_SPREADSHEET_TEXT_LENGTH = 30000
 const MAX_CSV_ROWS = 200
 
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+    const base64Url = parts[1]
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4)
+    return JSON.parse(atob(padded))
+  } catch {
+    return null
+  }
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function stripXml(raw: string): string {
@@ -172,8 +185,17 @@ Deno.serve(withCors(async (req: Request) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
   )
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token)
-  if (authError || !user) return json({ error: 'Invalid or expired session' }, 401)
+  let user: { id: string } | null = null
+  const jwtPayload = decodeJwtPayload(token)
+  if (typeof jwtPayload?.sub === 'string' && jwtPayload.sub.length > 0) {
+    user = { id: jwtPayload.sub }
+  }
+
+  if (!user) {
+    const { data, error: authError } = await supabase.auth.getUser(token)
+    if (authError || !data?.user) return json({ error: 'Invalid or expired session' }, 401)
+    user = { id: data.user.id }
+  }
 
   // ── Parse body ────────────────────────────────────────────────────────────
   let body: Record<string, unknown>

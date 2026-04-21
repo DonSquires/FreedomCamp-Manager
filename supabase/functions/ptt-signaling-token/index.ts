@@ -41,6 +41,8 @@ function toWsUrl(baseHttpUrl: string): string {
   return normalized + '/ws'
 }
 
+const PTT_AUTHORIZATION_ERROR = 'Not authorized for this channel. PTT access is limited to your employer organization and explicitly authorized organizations.'
+
 async function canAccessChannelOrg(supabase: any, channelOrgId: string): Promise<boolean> {
   const { data: canAccess, error: canAccessError } = await supabase.rpc('can_access_ptt_channel', {
     p_channel_org_id: channelOrgId,
@@ -121,7 +123,7 @@ Deno.serve(async (req) => {
     // Get user profile for role and org
     const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
-      .select('id, first_name, last_name, role, organization_id')
+      .select('id, first_name, last_name, role, organization_id, employer_organization_id')
       .eq('id', user.id)
       .single()
 
@@ -173,10 +175,10 @@ Deno.serve(async (req) => {
 
     if (scopeType === 'org') {
       const canAccess = await canAccessChannelOrg(supabase, scopeId)
-      if (!canAccess && userRole !== 'grand_master') {
+      if (!canAccess) {
         return new Response(
           JSON.stringify({ 
-            error: 'Not authorized for this channel. Check provider access grants.' 
+            error: PTT_AUTHORIZATION_ERROR,
           }),
           { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         )
@@ -199,10 +201,10 @@ Deno.serve(async (req) => {
       }
 
       const canAccess = await canAccessChannelOrg(supabase, incident.organization_id)
-      if (!canAccess && userRole !== 'grand_master') {
+      if (!canAccess) {
         return new Response(
           JSON.stringify({
-            error: 'Not authorized for this channel. Check provider access grants.',
+            error: PTT_AUTHORIZATION_ERROR,
           }),
           { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         )
@@ -220,10 +222,10 @@ Deno.serve(async (req) => {
 
       if (pttChannel?.organization_id) {
         const canAccess = await canAccessChannelOrg(supabase, pttChannel.organization_id)
-        if (!canAccess && userRole !== 'grand_master') {
+        if (!canAccess) {
           return new Response(
             JSON.stringify({
-              error: 'Not authorized for this channel. Check provider access grants.',
+              error: PTT_AUTHORIZATION_ERROR,
             }),
             { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
           )
@@ -243,7 +245,7 @@ Deno.serve(async (req) => {
       // Verify target user exists and is in same org
       const { data: targetProfile } = await supabase
         .from('user_profiles')
-        .select('organization_id')
+        .select('organization_id, employer_organization_id')
         .eq('id', scopeId)
         .single()
 
@@ -254,17 +256,30 @@ Deno.serve(async (req) => {
         )
       }
 
-      const canAccess = await canAccessChannelOrg(supabase, targetProfile.organization_id)
-      if (!canAccess && userRole !== 'grand_master') {
+      const directScopeCandidates = [
+        targetProfile.employer_organization_id,
+        targetProfile.organization_id,
+      ].filter(Boolean) as string[]
+
+      let matchedDirectOrgId: string | null = null
+      for (const candidateOrgId of directScopeCandidates) {
+        const canAccess = await canAccessChannelOrg(supabase, candidateOrgId)
+        if (canAccess) {
+          matchedDirectOrgId = candidateOrgId
+          break
+        }
+      }
+
+      if (!matchedDirectOrgId) {
         return new Response(
           JSON.stringify({
-            error: 'Not authorized for this channel. Check provider access grants.',
+            error: PTT_AUTHORIZATION_ERROR,
           }),
           { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         )
       }
 
-      effectiveOrganizationId = targetProfile.organization_id
+      effectiveOrganizationId = matchedDirectOrgId
     }
 
     if (!effectiveOrganizationId) {
