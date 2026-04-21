@@ -1,6 +1,7 @@
 
 // AI-Powered Credential Document Processing
 // Extracts COA/Warrant details from uploaded documents using AI vision
+// URL validation: rejects non-Supabase storage URLs (v2)
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { withCors, getCorsHeaders } from '../_shared/withCors.ts';
