@@ -3,26 +3,41 @@
 /**
  * RunPod Serverless Worker — FieldOps AI Engine (Bob)
  *
- * Uses the official runpod-sdk so RunPod can properly dispatch jobs to this worker.
+ * Implements the RunPod serverless job-polling protocol.
  * All inference goes through Ollama (co-located at 127.0.0.1:11434).
  *
  * Required env vars (set in RunPod template):
  *   OLLAMA_BASE_URL    — default http://127.0.0.1:11434
  *   OLLAMA_MODEL       — default llama3.1:8b
  *   OLLAMA_TIMEOUT_MS  — per-request timeout ms, default 120000
+ *
+ * RunPod injects:
+ *   RUNPOD_WEBHOOK_GET_JOB      — GET this URL to dequeue a job
+ *   RUNPOD_WEBHOOK_POST_OUTPUT  — POST {id, output} here to complete a job
  */
-
-const runpod = require('runpod-sdk');
 
 console.log('[worker] RunPod AI Worker starting');
 console.log(`[worker] Node.js ${process.version}`);
+
+const GET_JOB_URL  = process.env.RUNPOD_WEBHOOK_GET_JOB;
+const POST_OUT_URL = process.env.RUNPOD_WEBHOOK_POST_OUTPUT;
+const POLL_MS      = 250;
+const ERR_RETRY_MS = 2000;
+
+if (!GET_JOB_URL || !POST_OUT_URL) {
+  console.error('[worker] Missing RUNPOD_WEBHOOK_GET_JOB or RUNPOD_WEBHOOK_POST_OUTPUT');
+  process.exit(1);
+}
 
 const OLLAMA_BASE    = String(process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
 const OLLAMA_MODEL   = process.env.OLLAMA_MODEL || 'llama3.1:8b';
 const OLLAMA_TIMEOUT = Number(process.env.OLLAMA_TIMEOUT_MS || 120_000);
 
+console.log('[worker] GET_JOB_URL:', GET_JOB_URL);
 console.log('[worker] OLLAMA_BASE:', OLLAMA_BASE);
 console.log('[worker] OLLAMA_MODEL:', OLLAMA_MODEL);
+
+// ─── Ollama helpers ───────────────────────────────────────────────────────────
 
 async function ollamaChat({ messages, model, temperature = 0.7 }) {
   const controller = new AbortController();
@@ -54,6 +69,8 @@ async function ollamaChat({ messages, model, temperature = 0.7 }) {
   }
 }
 
+// ─── Bob system prompt ────────────────────────────────────────────────────────
+
 const BOB_SYSTEM_PROMPT = `You are Bob, the AI assistant embedded in FieldOps Manager — a freedom camping enforcement platform used by councils and security contractors in New Zealand.
 
 You assist officers, supervisors, and administrators with:
@@ -65,6 +82,8 @@ You assist officers, supervisors, and administrators with:
 - Incident and evidence management and investigation notes
 
 Be concise — field officers need fast actionable answers. Never fabricate data or plate numbers. All guidance is operational, not formal legal advice.`;
+
+// ─── Action handlers ──────────────────────────────────────────────────────────
 
 async function handleChat(input) {
   const { message, history = [], system_prompt, model, temperature = 0.7, context } = input;
@@ -159,12 +178,11 @@ async function handleTranslate(input) {
   return { success: true, translation: content, translated_text: content, target_language, model: usedModel, provider: 'ollama' };
 }
 
-async function handler(job) {
-  const input = job.input;
+async function handler(input) {
   if (!input) return { success: false, error: 'No input provided' };
 
   const action = input.action || 'chat';
-  console.log(`[worker] Job ${job.id} action=${action}`);
+  console.log(`[worker] action=${action}`);
 
   if (action === 'ping')      return { success: true, message: 'AI Engine is online and ready!', model: OLLAMA_MODEL, provider: 'ollama' };
   if (action === 'chat')      return handleChat(input);
@@ -174,4 +192,67 @@ async function handler(job) {
   return { success: false, error: `Unknown action: ${action}. Supported: ping, chat, assess, translate` };
 }
 
-runpod.serverless.start({ handler });
+// ─── RunPod polling loop ──────────────────────────────────────────────────────
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function takeJob() {
+  const res = await fetch(GET_JOB_URL);
+  if (res.status === 204) return null;
+  if (!res.ok) throw new Error(`get_job HTTP ${res.status}`);
+  return res.json();
+}
+
+async function completeJob(jobId, output) {
+  const url = POST_OUT_URL
+    .replace('${ID}', encodeURIComponent(jobId))
+    .replace('$ID', encodeURIComponent(jobId));
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: jobId, output }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`job_done HTTP ${res.status}: ${body}`);
+  }
+}
+
+async function workerLoop() {
+  console.log('[worker] Polling for jobs...');
+  while (true) {
+    let job = null;
+    try {
+      job = await takeJob();
+    } catch (err) {
+      console.error('[worker] Failed to take job:', err.message);
+      await sleep(ERR_RETRY_MS);
+      continue;
+    }
+
+    if (!job) { await sleep(POLL_MS); continue; }
+
+    console.log(`[worker] Processing job ${job.id}`);
+    let output;
+    try {
+      output = await handler(job.input);
+    } catch (err) {
+      console.error(`[worker] Handler error for ${job.id}:`, err.message);
+      output = { success: false, error: err.message };
+    }
+
+    try {
+      await completeJob(job.id, output);
+      console.log(`[worker] Completed job ${job.id}`);
+    } catch (err) {
+      console.error(`[worker] Failed to complete job ${job.id}:`, err.message);
+      await sleep(ERR_RETRY_MS);
+    }
+  }
+}
+
+process.on('uncaughtException',  err => { console.error('[worker] Uncaught:', err); process.exit(1); });
+process.on('unhandledRejection', err => { console.error('[worker] Rejection:', err); process.exit(1); });
+
+workerLoop().catch(err => { console.error('[worker] Fatal:', err); process.exit(1); });
