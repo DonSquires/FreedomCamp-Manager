@@ -22,9 +22,6 @@ RUN ollama serve & \
 
 WORKDIR /app
 
-COPY package.json ./
-RUN npm install --omit=dev
-
 COPY handler.js start.sh ./
 RUN chmod +x start.sh
 

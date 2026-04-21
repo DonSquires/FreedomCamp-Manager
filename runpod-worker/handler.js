@@ -3,185 +3,172 @@
 /**
  * RunPod Serverless Worker — FieldOps AI Engine (Bob)
  *
- * Uses runpod-sdk serverless.start() — the correct modern RunPod pattern.
- * All inference goes through Ollama (co-located at 127.0.0.1:11434).
- *
- * Required env vars (set in RunPod template):
- *   OLLAMA_BASE_URL    — default http://127.0.0.1:11434
- *   OLLAMA_MODEL       — default llama3.1:8b
- *   OLLAMA_TIMEOUT_MS  — per-request timeout ms, default 120000
+ * Standard RunPod Node.js worker: HTTP polling via RUNPOD_ env vars injected at runtime.
+ *   RUNPOD_WEBHOOK_GET_JOB       — long-poll URL for next job
+ *   RUNPOD_WEBHOOK_POST_OUTPUT   — URL to POST results (replace $ID with job id)
  */
 
-const runpod = require('runpod-sdk');
+const http  = require('http');
+const https = require('https');
 
-console.log('[worker] RunPod AI Worker starting (SDK mode)');
+console.log('[worker] RunPod AI Worker starting');
 console.log(`[worker] Node.js ${process.version}`);
 
 const OLLAMA_BASE    = String(process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
 const OLLAMA_MODEL   = process.env.OLLAMA_MODEL || 'llama3.1:8b';
-const OLLAMA_TIMEOUT = Number(process.env.OLLAMA_TIMEOUT_MS || 120_000);
+const OLLAMA_TIMEOUT = Number(process.env.OLLAMA_TIMEOUT_MS || 120000);
 
 console.log('[worker] OLLAMA_BASE:', OLLAMA_BASE);
 console.log('[worker] OLLAMA_MODEL:', OLLAMA_MODEL);
 
-// ─── Ollama helpers ───────────────────────────────────────────────────────────
+function httpRequest(urlStr, options) {
+  options = options || {};
+  return new Promise(function(resolve, reject) {
+    var url   = new URL(urlStr);
+    var lib   = url.protocol === 'https:' ? https : http;
+    var body  = options.body ? Buffer.from(JSON.stringify(options.body)) : null;
+    var reqOpts = {
+      hostname: url.hostname,
+      port:     url.port || (url.protocol === 'https:' ? 443 : 80),
+      path:     url.pathname + url.search,
+      method:   options.method || (body ? 'POST' : 'GET'),
+      headers:  Object.assign({
+        'Content-Type': 'application/json',
+      }, body ? { 'Content-Length': body.length } : {}, options.headers || {}),
+    };
 
-async function ollamaChat({ messages, model, temperature = 0.7 }) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), OLLAMA_TIMEOUT);
-  try {
-    const res = await fetch(`${OLLAMA_BASE}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: model || OLLAMA_MODEL,
-        messages,
-        stream: false,
-        options: { temperature },
-      }),
-      signal: controller.signal,
+    var req = lib.request(reqOpts, function(res) {
+      var chunks = [];
+      res.on('data', function(c) { chunks.push(c); });
+      res.on('end', function() {
+        var text = Buffer.concat(chunks).toString();
+        try { resolve({ status: res.statusCode, body: JSON.parse(text) }); }
+        catch(e) { resolve({ status: res.statusCode, body: text }); }
+      });
     });
-
-    const text = await res.text();
-    if (!res.ok) throw new Error(`Ollama error ${res.status}: ${text.slice(0, 300)}`);
-
-    let data;
-    try { data = JSON.parse(text); } catch { throw new Error(`Ollama non-JSON: ${text.slice(0, 200)}`); }
-
-    const content = data?.message?.content;
-    if (!content) throw new Error('Ollama returned empty content');
-    return { content, model: data.model || model || OLLAMA_MODEL };
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-// ─── Bob system prompt ────────────────────────────────────────────────────────
-
-const BOB_SYSTEM_PROMPT = `You are Bob, the AI assistant embedded in FieldOps Manager — a freedom camping enforcement platform used by councils and security contractors in New Zealand.
-
-You assist officers, supervisors, and administrators with:
-- NZ freedom camping law: Freedom Camping Act 2011, Local Government Act 2002, RMA 1991, Privacy Act 2020
-- Compliance analysis: breach trends, stay-night calculations, zone rule interpretation
-- Patrol operations: shift planning, route guidance, officer welfare checks
-- Enforcement actions: Notice to Vacate, Warning Notice, Infringement Notice, Noise Notice
-- Vehicle and plate workflows: ALPR results, SCV certification via NZSCV register
-- Incident and evidence management and investigation notes
-
-Be concise — field officers need fast actionable answers. Never fabricate data or plate numbers. All guidance is operational, not formal legal advice.`;
-
-// ─── Action handlers ──────────────────────────────────────────────────────────
-
-async function handleChat(input) {
-  const { message, history = [], system_prompt, model, temperature = 0.7, context } = input;
-
-  if (!message && !Array.isArray(input.messages)) {
-    return { success: false, error: 'message or messages array is required' };
-  }
-
-  const systemContent = system_prompt || BOB_SYSTEM_PROMPT;
-  let messages;
-
-  if (Array.isArray(input.messages) && input.messages.length > 0) {
-    messages = input.messages[0]?.role === 'system'
-      ? input.messages
-      : [{ role: 'system', content: systemContent }, ...input.messages];
-  } else {
-    const userContent = context
-      ? `${message}\n\nContext:\n${typeof context === 'string' ? context : JSON.stringify(context)}`
-      : message;
-    messages = [
-      { role: 'system', content: systemContent },
-      ...history.map(h => ({ role: h.role, content: h.content })),
-      { role: 'user', content: userContent },
-    ];
-  }
-
-  const { content, model: usedModel } = await ollamaChat({ messages, model, temperature });
-  return { success: true, response: content, message: content, model: usedModel, provider: 'ollama' };
-}
-
-async function handleAssess(input) {
-  const { type, symptom, description, image_description, context } = input;
-
-  const systemPrompts = {
-    smoke:       'You are an expert in smoke and air quality assessment for NZ environmental compliance. Analyse the evidence and return a JSON assessment: { risk_level, description, recommended_action, legal_basis }',
-    biosecurity: 'You are an expert in NZ biosecurity compliance. Analyse the evidence and return a JSON assessment: { risk_level, species_identified, threat_level, recommended_action, legal_basis }',
-    noise:       'You are an expert in NZ noise control compliance. Analyse the evidence and return a JSON assessment: { risk_level, estimated_db, exceeds_limit, recommended_action, legal_basis }',
-    ptt:         'You are a PTT system expert for FieldOps Manager. Diagnose the issue and return a JSON: { diagnosis, probable_cause, resolution_steps, severity }',
-    platform:    'You are a DevOps expert for FieldOps Manager. Diagnose the issue and return a JSON: { diagnosis, probable_cause, resolution_steps, severity }',
-    default:     'You are Bob, an AI assistant for FieldOps Manager. Return a JSON assessment: { assessment, risk_level, recommended_action }',
-  };
-
-  const systemPrompt = systemPrompts[type] || systemPrompts.default;
-  const userContent = [
-    symptom && `Symptom: ${symptom}`,
-    description && `Description: ${description}`,
-    image_description && `Evidence: ${image_description}`,
-    context && `Context: ${typeof context === 'string' ? context : JSON.stringify(context)}`,
-  ].filter(Boolean).join('\n');
-
-  if (!userContent) return { success: false, error: 'No assessment input provided' };
-
-  const { content, model: usedModel } = await ollamaChat({
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userContent },
-    ],
-    model: input.model,
-    temperature: 0.3,
+    req.on('error', reject);
+    if (options.timeout) req.setTimeout(options.timeout, function() { req.destroy(new Error('timed out')); });
+    if (body) req.write(body);
+    req.end();
   });
-
-  let structured = null;
-  try {
-    const match = content.match(/\{[\s\S]*\}/);
-    if (match) structured = JSON.parse(match[0]);
-  } catch {}
-
-  return { success: true, type, assessment: structured || content, raw_response: content, model: usedModel, provider: 'ollama' };
 }
 
-async function handleTranslate(input) {
-  const { text, target_language = 'en', source_language } = input;
-  if (!text) return { success: false, error: 'text is required' };
-
-  const langNames = {
-    zh: 'Chinese (Simplified)', ja: 'Japanese', ko: 'Korean',
-    mi: 'Te Reo Māori', de: 'German', fr: 'French', es: 'Spanish',
-    pt: 'Portuguese', ru: 'Russian', ar: 'Arabic', hi: 'Hindi',
-  };
-  const targetName = langNames[target_language] || target_language;
-  const fromClause = source_language ? ` from ${langNames[source_language] || source_language}` : '';
-
-  const { content, model: usedModel } = await ollamaChat({
-    messages: [
-      { role: 'system', content: `Translate the following text${fromClause} to ${targetName}. Return only the translated text, no explanation.` },
-      { role: 'user', content: text },
-    ],
-    model: input.model,
-    temperature: 0.1,
+async function ollamaChat(messages, model, temperature) {
+  temperature = temperature || 0.7;
+  var res = await httpRequest(OLLAMA_BASE + '/api/chat', {
+    body: { model: model || OLLAMA_MODEL, messages: messages, stream: false, options: { temperature: temperature } },
+    timeout: OLLAMA_TIMEOUT,
   });
-
-  return { success: true, translation: content, translated_text: content, target_language, model: usedModel, provider: 'ollama' };
+  if (res.status !== 200) throw new Error('Ollama error ' + res.status + ': ' + JSON.stringify(res.body).slice(0, 200));
+  var content = res.body && res.body.message && res.body.message.content;
+  if (!content) throw new Error('Ollama returned empty content');
+  return { content: content, model: (res.body && res.body.model) || model || OLLAMA_MODEL };
 }
 
-// ─── Main SDK handler ─────────────────────────────────────────────────────────
+var BOB_SYSTEM = 'You are Bob, the AI assistant for FieldOps Manager — a freedom camping enforcement platform in New Zealand. Be concise and actionable.';
 
-async function handler({ input }) {
+async function processJob(input) {
   if (!input) return { success: false, error: 'No input provided' };
+  var action = input.action || 'chat';
+  console.log('[worker] action=' + action);
 
-  const action = input.action || 'chat';
-  console.log(`[worker] action=${action}`);
+  if (action === 'ping') {
+    return { success: true, message: 'AI Engine online', model: OLLAMA_MODEL, provider: 'ollama' };
+  }
 
-  if (action === 'ping')      return { success: true, message: 'AI Engine is online and ready!', model: OLLAMA_MODEL, provider: 'ollama' };
-  if (action === 'chat')      return handleChat(input);
-  if (action === 'assess')    return handleAssess(input);
-  if (action === 'translate') return handleTranslate(input);
+  if (action === 'chat') {
+    var message = input.message;
+    if (!message) return { success: false, error: 'message is required' };
+    var messages = [
+      { role: 'system', content: input.system_prompt || BOB_SYSTEM },
+      ...(input.history || []),
+      { role: 'user', content: message },
+    ];
+    var result = await ollamaChat(messages, input.model, input.temperature);
+    return { success: true, response: result.content, message: result.content, model: result.model, provider: 'ollama' };
+  }
 
-  return { success: false, error: `Unknown action: ${action}. Supported: ping, chat, assess, translate` };
+  if (action === 'assess') {
+    var text = input.symptom || input.description || input.imageDescription;
+    if (!text) return { success: false, error: 'symptom or description required' };
+    var typeMap = {
+      smoke: 'Assess for biosecurity risk.',
+      biosecurity: 'Assess for biosecurity risk.',
+      noise: 'Assess noise complaint severity and recommended action.',
+      ptt: 'Diagnose PTT radio issue with troubleshooting steps.',
+      platform: 'Assess system health symptom and recommend resolution.',
+    };
+    var sysMsg = typeMap[input.type] || 'Assess the following and provide structured response.';
+    var assess = await ollamaChat([
+      { role: 'system', content: sysMsg },
+      { role: 'user', content: text + '\n\nRespond in JSON: { severity, summary, recommendation, actions }' },
+    ], input.model, 0.3);
+    var structured = null;
+    try { var m = assess.content.match(/\{[\s\S]*\}/); if (m) structured = JSON.parse(m[0]); } catch(e) {}
+    return { success: true, type: input.type, assessment: structured || assess.content, raw_response: assess.content, model: assess.model, provider: 'ollama' };
+  }
+
+  if (action === 'translate') {
+    if (!input.text) return { success: false, error: 'text is required' };
+    var langNames = { zh: 'Chinese (Simplified)', ja: 'Japanese', ko: 'Korean', mi: 'Te Reo Maori', fr: 'French', de: 'German', es: 'Spanish' };
+    var targetName = langNames[input.target_language] || input.target_language || 'English';
+    var trans = await ollamaChat([
+      { role: 'system', content: 'Translate to ' + targetName + '. Return only the translated text.' },
+      { role: 'user', content: input.text },
+    ], input.model, 0.1);
+    return { success: true, translation: trans.content, translated_text: trans.content, target_language: input.target_language, model: trans.model, provider: 'ollama' };
+  }
+
+  return { success: false, error: 'Unknown action: ' + action };
 }
 
-process.on('uncaughtException',  err => { console.error('[worker] Uncaught:', err); process.exit(1); });
-process.on('unhandledRejection', err => { console.error('[worker] Rejection:', err); process.exit(1); });
+// ─── RunPod polling loop ──────────────────────────────────────────────────────
 
-runpod.serverless.start({ handler });
+var GET_JOB_URL  = process.env.RUNPOD_WEBHOOK_GET_JOB;
+var POST_OUT_URL = process.env.RUNPOD_WEBHOOK_POST_OUTPUT;
+
+if (!GET_JOB_URL || !POST_OUT_URL) {
+  console.error('[worker] FATAL: RUNPOD_WEBHOOK_GET_JOB or RUNPOD_WEBHOOK_POST_OUTPUT not set');
+  console.error('[worker] RUNPOD env keys:', Object.keys(process.env).filter(function(k) { return k.startsWith('RUNPOD'); }));
+  process.exit(1);
+}
+
+console.log('[worker] Polling for jobs...');
+
+async function poll() {
+  for (;;) {
+    try {
+      var jobRes = await httpRequest(GET_JOB_URL, { method: 'GET', timeout: 300000 });
+
+      if (!jobRes.body || !jobRes.body.id) {
+        await new Promise(function(r) { setTimeout(r, 200); });
+        continue;
+      }
+
+      var jobId = jobRes.body.id;
+      var input = jobRes.body.input;
+      console.log('[worker] Got job: ' + jobId);
+
+      var output;
+      try {
+        output = await processJob(input);
+      } catch(err) {
+        console.error('[worker] Job ' + jobId + ' error:', err);
+        output = { success: false, error: err.message || String(err) };
+      }
+
+      var postUrl = POST_OUT_URL.replace('${ID}', jobId).replace('$ID', jobId).replace(':id', jobId);
+      await httpRequest(postUrl, { body: output, timeout: 30000 });
+      console.log('[worker] Job ' + jobId + ' done');
+
+    } catch(err) {
+      console.error('[worker] Poll error:', err.message || err);
+      await new Promise(function(r) { setTimeout(r, 1000); });
+    }
+  }
+}
+
+process.on('uncaughtException',  function(err) { console.error('[worker] Uncaught:', err); process.exit(1); });
+process.on('unhandledRejection', function(err) { console.error('[worker] Rejection:', err); process.exit(1); });
+
+poll();
