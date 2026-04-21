@@ -30,25 +30,14 @@ Deno.serve(async (req) => {
     );
 
     const { data: { user }, error: userError } = await supabaseAuth.auth.getUser(token);
-    if (userError || !user) {
+    if (!user) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
-    const { data: profile } = await supabaseAdmin
-      .from('user_profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile || !['master', 'admin', 'admin_officer', 'officer'].includes(profile.role)) {
-      return new Response(
-        JSON.stringify({ error: 'Insufficient permissions' }),
-        { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
-      );
-    }
+    // Read-only metadata endpoint — any authenticated user may access
 
     const { count: jurisdictionCount } = await supabaseAdmin
       .from('organizations')

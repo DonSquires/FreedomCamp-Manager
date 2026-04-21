@@ -49,7 +49,8 @@ Deno.serve(async (req) => {
       .single();
 
     const body = (await req.json().catch(() => ({}))) as CleanupRequest;
-    const dryRun = body.dryRun ?? false;
+    // Accept both camelCase (dryRun) and snake_case (dry_run) for compatibility
+    const dryRun = body.dryRun === true || (body as any).dry_run === true;
     const limit = Math.min(Math.max(body.limit ?? 500, 1), 2000);
 
     // dry_run is read-only (no deletions) — any authenticated user can inspect pending cleanup
