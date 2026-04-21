@@ -32,7 +32,8 @@ Deno.serve(async (req) => {
 
   // Require authenticated caller — prevents unauthenticated sync triggers
   const authHeader = req.headers.get("Authorization") ?? req.headers.get("authorization");
-  if (!authHeader) {
+  const token = authHeader?.replace(/^Bearer\s+/i, "");
+  if (!token) {
     return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
       status: 401,
       headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
@@ -41,10 +42,9 @@ Deno.serve(async (req) => {
   const userClient = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_ANON_KEY")!,
-    { global: { headers: { Authorization: authHeader } } }
   );
-  const { data: { user }, error: authError } = await userClient.auth.getUser();
-  if (authError || !user) {
+  const { data: authData, error: authError } = await userClient.auth.getUser(token);
+  if (authError || !authData?.user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },

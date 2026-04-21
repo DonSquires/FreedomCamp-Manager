@@ -187,6 +187,11 @@ Deno.serve(withCors(async (req: Request) => {
       } catch {
         return errorResponse('Translation service returned invalid JSON', req, 502)
       }
+      // Job failure or worker error → treat as upstream inference offline (INFRA)
+      if (runpodData.status === 'FAILED' || runpodData.output?.success === false) {
+        const workerErr = runpodData.output?.error ?? runpodData.error ?? 'RunPod worker error'
+        return errorResponse(`upstream inference provider offline: ${workerErr}`, req, 502)
+      }
       const translated: string =
         runpodData?.output?.response ||
         runpodData?.output?.translated_text ||
@@ -194,7 +199,7 @@ Deno.serve(withCors(async (req: Request) => {
         runpodData?.output?.choices?.[0]?.message?.content ||
         ''
       if (!translated.trim()) {
-        return errorResponse('Empty translation response from inference service', req, 502)
+        return errorResponse('upstream inference provider offline (empty RunPod response)', req, 502)
       }
       return jsonResponse({
         translated_text: translated.trim(),
