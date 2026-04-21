@@ -31,6 +31,7 @@ const INFRA_PATTERNS = [
   'Admin or master role required', 'Insufficient permissions', 'role required',
   'HTTP 500', 'HTTP 503',
   'AI error', 'AI_APICallError', 'Upstream status code', 'downloading',
+  'Application not found', 'Bob inference HTTP 404', 'Bob inference HTTP 500', 'Bob inference HTTP 502', 'Bob inference HTTP 503',
 ]
 function isInfra(msg) { return INFRA_PATTERNS.some(p => msg.toLowerCase().includes(p.toLowerCase())) }
 
