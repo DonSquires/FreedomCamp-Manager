@@ -568,3 +568,4 @@ process.on('unhandledRejection', err => { console.error('[worker] Rejection:', e
 
 workerLoop().catch(err => { console.error('[worker] Fatal:', err); process.exit(1); });
 
+
