@@ -112,6 +112,7 @@ const PTTRadio = lazy(() => import('@/pages/PTTRadio'))
 const IntelApprovalQueue = lazy(() => import('@/pages/IntelApprovalQueue'))
 const BobIntakeQueue = lazy(() => import('@/pages/BobIntakeQueue'))
 const BobAssistantStudio = lazy(() => import('@/pages/BobAssistantStudio'))
+const BobUIReview = lazy(() => import('@/pages/BobUIReview'))
 const OpsLivePlanReviewQueue = lazy(() => import('@/pages/OpsLivePlanReviewQueue'))
 const OfficerHomePage = lazy(() => import('@/pages/OfficerHomePage'))
 const TenderWorkspace = lazy(() => import('@/pages/TenderWorkspace'))
@@ -981,6 +982,17 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer', 'grand_master']}>
                   <BobAssistantStudio />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/bob-ui-review"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
+                  <BobUIReview />
                 </RoleRoute>
               </ProtectedRoute>
             }

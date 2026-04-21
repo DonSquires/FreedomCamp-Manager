@@ -8,13 +8,15 @@ import json
 import requests
 import runpod
 
-OLLAMA_BASE  = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.1:8b")
-TIMEOUT_S    = int(os.environ.get("OLLAMA_TIMEOUT_MS", "120000")) // 1000
+OLLAMA_BASE         = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
+OLLAMA_MODEL        = os.environ.get("OLLAMA_MODEL", "llama3.1:8b")
+OLLAMA_VISION_MODEL = os.environ.get("OLLAMA_VISION_MODEL", "llama3.2-vision:11b")
+TIMEOUT_S           = int(os.environ.get("OLLAMA_TIMEOUT_MS", "120000")) // 1000
 
 print(f"[worker] FieldOps AI Worker (Python/runpod) starting")
 print(f"[worker] OLLAMA_BASE: {OLLAMA_BASE}")
 print(f"[worker] OLLAMA_MODEL: {OLLAMA_MODEL}")
+print(f"[worker] OLLAMA_VISION_MODEL: {OLLAMA_VISION_MODEL}")
 
 BOB_SYSTEM = (
     "You are Bob, the AI assistant for FieldOps Manager — a freedom camping "
@@ -35,6 +37,26 @@ def ollama_chat(messages, model=None, temperature=0.7):
     if not content:
         raise ValueError("Ollama returned empty content")
     return {"content": content, "model": data.get("model", OLLAMA_MODEL)}
+
+
+def ollama_vision_chat(prompt, image_b64, model=None, temperature=0.2):
+    """Send an image + prompt to the vision model. image_b64 is a base64-encoded image string."""
+    resp = requests.post(
+        f"{OLLAMA_BASE}/api/chat",
+        json={
+            "model": model or OLLAMA_VISION_MODEL,
+            "messages": [{"role": "user", "content": prompt, "images": [image_b64]}],
+            "stream": False,
+            "options": {"temperature": temperature},
+        },
+        timeout=TIMEOUT_S,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    content = data.get("message", {}).get("content", "")
+    if not content:
+        raise ValueError("Vision model returned empty content")
+    return {"content": content, "model": data.get("model", OLLAMA_VISION_MODEL)}
 
 
 def handler(job):
@@ -99,6 +121,42 @@ def handler(job):
         ], inp.get("model"), 0.1)
         return {"success": True, "translation": result["content"], "translated_text": result["content"],
                 "target_language": target, "model": result["model"], "provider": "ollama"}
+
+    if action == "ui_vision":
+        image_b64 = inp.get("image_b64")  # base64-encoded PNG/JPG
+        if not image_b64:
+            return {"success": False, "error": "image_b64 required"}
+        focus = inp.get("focus", "general")
+        focus_prompts = {
+            "general":       "You are a UI/UX expert. Describe what you see in this screenshot. Identify usability issues, layout problems, cluttered areas, hard-to-read text, or anything that would frustrate a field officer using this on a mobile device. Be specific and actionable. Respond in JSON: {summary, issues: [{area, severity, description, suggestion}], overall_score_out_of_10, top_3_improvements}",
+            "accessibility": "You are an accessibility expert. Review this UI screenshot for WCAG compliance issues: contrast ratios, text size, touch target sizes, visual hierarchy, and colour-only information. Respond in JSON: {summary, issues: [{area, severity, description, suggestion}], overall_score_out_of_10, top_3_improvements}",
+            "mobile":        "You are a mobile UX expert. Review this UI for mobile usability: thumb-reach zones, touch target sizes, text legibility on small screens, scroll behaviour, and whether a field officer could use this with one hand at night. Respond in JSON: {summary, issues: [{area, severity, description, suggestion}], overall_score_out_of_10, top_3_improvements}",
+            "clutter":       "You are a minimalist UI designer. Identify areas of visual clutter, information overload, poor whitespace usage, and unnecessary UI elements in this screenshot. Respond in JSON: {summary, issues: [{area, severity, description, suggestion}], overall_score_out_of_10, top_3_improvements}",
+        }
+        prompt = focus_prompts.get(focus, focus_prompts["general"])
+        context = inp.get("context", "")
+        if context:
+            prompt = f"Context: {context}\n\n{prompt}"
+        try:
+            result = ollama_vision_chat(prompt, image_b64, inp.get("vision_model"))
+            structured = None
+            try:
+                import re
+                m = re.search(r"\{[\s\S]*\}", result["content"])
+                if m:
+                    structured = json.loads(m.group(0))
+            except Exception:
+                pass
+            return {
+                "success": True,
+                "focus": focus,
+                "analysis": structured or result["content"],
+                "raw_response": result["content"],
+                "model": result["model"],
+                "provider": "ollama_vision",
+            }
+        except Exception as e:
+            return {"success": False, "error": f"Vision analysis failed: {str(e)}", "provider": "ollama_vision"}
 
     return {"success": False, "error": f"Unknown action: {action}"}
 
