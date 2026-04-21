@@ -65,3 +65,48 @@ jobs:
             echo ""
             echo "Use one of these in RunPod endpoint image settings (do not use `:latest`)."
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Update RunPod serverless endpoint image
+        env:
+          RUNPOD_API_KEY:      ${{ secrets.RUNPOD_API_KEY }}
+          RUNPOD_ENDPOINT_ID:  ${{ secrets.RUNPOD_ENDPOINT_ID }}
+        run: |
+          set -euo pipefail
+
+          IMAGE_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+          DIGEST="${{ steps.build_push.outputs.digest }}"
+          # Prefer digest (immutable) over tag
+          IMAGE_REF="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST}"
+
+          if [ -z "${RUNPOD_API_KEY:-}" ] || [ -z "${RUNPOD_ENDPOINT_ID:-}" ]; then
+            echo "⚠️  RUNPOD_API_KEY or RUNPOD_ENDPOINT_ID not set — skipping endpoint update."
+            echo "   Add them to GitHub Actions secrets to enable automatic endpoint updates."
+            echo "   New image to deploy manually: $IMAGE_TAG"
+            exit 0
+          fi
+
+          echo "🚀 Updating RunPod endpoint $RUNPOD_ENDPOINT_ID → $IMAGE_REF ..."
+
+          MUTATION=$(jq -n \
+            --arg endpointId "$RUNPOD_ENDPOINT_ID" \
+            --arg imageName "$IMAGE_REF" \
+            '{
+              query: "mutation UpdateEndpoint($endpointId: String!, $input: EndpointInput!) { saveEndpoint(endpointId: $endpointId, input: $input) { id name workersMax workersMin } }",
+              variables: {
+                endpointId: $endpointId,
+                input: { imageName: $imageName }
+              }
+            }')
+
+          RESPONSE=$(curl -fsSL https://api.runpod.io/graphql \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $RUNPOD_API_KEY" \
+            --data "$MUTATION")
+
+          if echo "$RESPONSE" | jq -e '.errors | length > 0' >/dev/null 2>&1; then
+            echo "::warning::RunPod endpoint update failed: $(echo "$RESPONSE" | jq -r '.errors[0].message')"
+            echo "   Update manually: $IMAGE_TAG"
+          else
+            echo "✅ RunPod endpoint updated to: $IMAGE_REF"
+            echo "$RESPONSE" | jq -r '.data.saveEndpoint // empty'
+          fi
