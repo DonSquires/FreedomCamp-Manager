@@ -43,17 +43,33 @@ function toWsUrl(baseHttpUrl: string): string {
 
 const PTT_AUTHORIZATION_ERROR = 'Not authorized for this channel. PTT access is limited to your employer organization and explicitly authorized organizations.'
 
-async function canAccessChannelOrg(supabase: any, channelOrgId: string): Promise<boolean> {
-  const { data: canAccess, error: canAccessError } = await supabase.rpc('can_access_ptt_channel', {
-    p_channel_org_id: channelOrgId,
-  })
+function buildAllowedOrgIds(profile: {
+  organization_id?: string | null
+  employer_organization_id?: string | null
+  authorized_work_locations?: string[] | null
+  extra_organization_ids?: string[] | null
+}): Set<string> {
+  const allowed = new Set<string>()
 
-  if (canAccessError) {
-    console.error('PTT access RPC failed:', canAccessError)
-    return false
+  const add = (value?: string | null) => {
+    if (typeof value === 'string' && value.length > 0) allowed.add(value)
   }
 
-  return Boolean(canAccess)
+  add(profile.organization_id)
+  add(profile.employer_organization_id)
+  for (const orgId of profile.authorized_work_locations ?? []) add(orgId)
+  for (const orgId of profile.extra_organization_ids ?? []) add(orgId)
+
+  return allowed
+}
+
+function canAccessChannelOrg(profile: {
+  organization_id?: string | null
+  employer_organization_id?: string | null
+  authorized_work_locations?: string[] | null
+  extra_organization_ids?: string[] | null
+}, channelOrgId: string): boolean {
+  return buildAllowedOrgIds(profile).has(channelOrgId)
 }
 
 Deno.serve(async (req) => {
@@ -123,7 +139,7 @@ Deno.serve(async (req) => {
     // Get user profile for role and org
     const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
-      .select('id, first_name, last_name, role, organization_id, employer_organization_id')
+      .select('id, first_name, last_name, role, organization_id, employer_organization_id, authorized_work_locations, extra_organization_ids')
       .eq('id', user.id)
       .single()
 
@@ -174,7 +190,7 @@ Deno.serve(async (req) => {
     }
 
     if (scopeType === 'org') {
-      const canAccess = await canAccessChannelOrg(supabase, scopeId)
+      const canAccess = canAccessChannelOrg(profile, scopeId)
       if (!canAccess) {
         return new Response(
           JSON.stringify({ 
@@ -200,7 +216,7 @@ Deno.serve(async (req) => {
         )
       }
 
-      const canAccess = await canAccessChannelOrg(supabase, incident.organization_id)
+      const canAccess = canAccessChannelOrg(profile, incident.organization_id)
       if (!canAccess) {
         return new Response(
           JSON.stringify({
@@ -221,7 +237,7 @@ Deno.serve(async (req) => {
         .single()
 
       if (pttChannel?.organization_id) {
-        const canAccess = await canAccessChannelOrg(supabase, pttChannel.organization_id)
+        const canAccess = canAccessChannelOrg(profile, pttChannel.organization_id)
         if (!canAccess) {
           return new Response(
             JSON.stringify({
@@ -263,7 +279,7 @@ Deno.serve(async (req) => {
 
       let matchedDirectOrgId: string | null = null
       for (const candidateOrgId of directScopeCandidates) {
-        const canAccess = await canAccessChannelOrg(supabase, candidateOrgId)
+        const canAccess = canAccessChannelOrg(profile, candidateOrgId)
         if (canAccess) {
           matchedDirectOrgId = candidateOrgId
           break
