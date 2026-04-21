@@ -12,6 +12,14 @@ RUN apt-get update && apt-get install -y \
 # Install Ollama
 RUN curl -fsSL https://ollama.com/install.sh | sh
 
+# Pre-pull model at build time so workers start instantly (no runtime download)
+ENV OLLAMA_MODEL=llama3.1:8b
+RUN ollama serve & \
+    sleep 8 && \
+    until curl -s http://localhost:11434/api/tags > /dev/null 2>&1; do sleep 1; done && \
+    ollama pull llama3.1:8b && \
+    pkill ollama || true
+
 WORKDIR /app
 
 COPY package.json ./

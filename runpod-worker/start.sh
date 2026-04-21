@@ -12,8 +12,12 @@ done
 echo "[start] Ollama is ready"
 
 MODEL="${OLLAMA_MODEL:-llama3.1:8b}"
-echo "[start] Pulling model: $MODEL"
-ollama pull "$MODEL"
+echo "[start] Verifying model $MODEL is available (pre-baked at build time)..."
+# Model is pre-baked — pull only if somehow missing
+if ! ollama list 2>/dev/null | grep -q "$MODEL"; then
+  echo "[start] Model not found, pulling..."
+  ollama pull "$MODEL"
+fi
 echo "[start] Model ready"
 
 echo "[start] Starting Node worker..."
