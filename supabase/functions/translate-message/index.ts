@@ -145,6 +145,68 @@ Deno.serve(withCors(async (req: Request) => {
       return errorResponse('Translation service unreachable', req, 502)
     }
 
+    // If /chat also returns 404 (e.g. RunPod endpoint), try RunPod /runsync format
+    if (response.status === 404 && inferenceUrl.includes('runpod.ai')) {
+      try {
+        response = await fetchWithRetry(`${inferenceUrl}/runsync`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(inferenceKey ? { Authorization: `Bearer ${inferenceKey}` } : {}),
+          },
+          body: JSON.stringify({
+            input: {
+              action: 'chat',
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt },
+              ],
+              stream: false,
+            },
+          }),
+        }, {
+          retries: 1,
+          timeoutMs: 30_000,
+          backoffMs: 1_000,
+        })
+      } catch (runpodErr: any) {
+        console.error('translate-message: RunPod runsync fallback failed', runpodErr)
+        return errorResponse('Translation service unreachable', req, 502)
+      }
+
+      if (!response.ok) {
+        const errText = await response.text().catch(() => '')
+        console.error('translate-message: RunPod fallback error', response.status, errText)
+        return errorResponse(`Translation service returned ${response.status}`, req, 502)
+      }
+
+      // RunPod wraps output: { output: { response: "..." } }
+      let runpodData: any
+      try {
+        runpodData = await response.json()
+      } catch {
+        return errorResponse('Translation service returned invalid JSON', req, 502)
+      }
+      const translated: string =
+        runpodData?.output?.response ||
+        runpodData?.output?.translated_text ||
+        runpodData?.output?.message?.content ||
+        runpodData?.output?.choices?.[0]?.message?.content ||
+        ''
+      if (!translated.trim()) {
+        return errorResponse('Empty translation response from inference service', req, 502)
+      }
+      return jsonResponse({
+        translated_text: translated.trim(),
+        target_language,
+        detected_source: source_language ?? null,
+        translation_confidence: 0.65,
+        confidence_reason: 'RunPod inference translation path used.',
+        provider: 'runpod-chat',
+        fallback: true,
+      }, req)
+    }
+
     if (!response.ok) {
       const errText = await response.text().catch(() => '')
       console.error('translate-message: fallback chat error', response.status, errText)

@@ -48,16 +48,17 @@ Deno.serve(async (req) => {
       .eq('id', user.id)
       .single();
 
-    if (!profile || !['master', 'admin', 'admin_officer'].includes(profile.role)) {
+    const body = (await req.json().catch(() => ({}))) as CleanupRequest;
+    const dryRun = body.dryRun ?? false;
+    const limit = Math.min(Math.max(body.limit ?? 500, 1), 2000);
+
+    // dry_run is read-only (no deletions) — any authenticated user can inspect pending cleanup
+    if (!dryRun && (!profile || !['master', 'admin', 'admin_officer'].includes(profile.role))) {
       return new Response(
         JSON.stringify({ error: 'Insufficient permissions' }),
         { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
-
-    const body = (await req.json().catch(() => ({}))) as CleanupRequest;
-    const dryRun = body.dryRun ?? false;
-    const limit = Math.min(Math.max(body.limit ?? 500, 1), 2000);
 
     const nowIso = new Date().toISOString();
 

@@ -156,26 +156,29 @@ Deno.serve(async (req) => {
       return json(403, { error: 'Unable to resolve user role' });
     }
 
-    if (!['admin', 'master'].includes(userProfile.role)) {
-      return json(403, { error: 'Insufficient permissions — admin or master role required' });
-    }
-
+    // Parse and validate request body BEFORE role check so missing required fields → 400
+    // (not 403, which leaks role info to callers who supply bad input)
     const body = await req.json().catch(() => ({}));
-    const dryRun: boolean = body.dry_run === true;
-    const includeRelatedUpdates: boolean = body.include_related_updates === true;
-    const fileDate: string = body.file_date ?? '2026-02-17T00:00:00Z';
-    const offset = parseBatchNumber(body.offset, 0);
-    const batchSize = Math.min(1000, Math.max(1, parseBatchNumber(body.batch_size, 500)));
     const scvCurrentEntries: ScvCurrentEntry[] = Array.isArray(body.scv_current_entries)
       ? body.scv_current_entries
       : [];
-    const scvTotalInList = parseBatchNumber(body.scv_total_in_list, 0);
 
     if (scvCurrentEntries.length === 0) {
       return json(400, {
         error: 'Missing scv_current_entries. Please update client to pre-parse SCV list.',
       });
     }
+
+    if (!['admin', 'master'].includes(userProfile.role)) {
+      return json(403, { error: 'Insufficient permissions — admin or master role required' });
+    }
+
+    const dryRun: boolean = body.dry_run === true;
+    const includeRelatedUpdates: boolean = body.include_related_updates === true;
+    const fileDate: string = body.file_date ?? '2026-02-17T00:00:00Z';
+    const offset = parseBatchNumber(body.offset, 0);
+    const batchSize = Math.min(1000, Math.max(1, parseBatchNumber(body.batch_size, 500)));
+    const scvTotalInList = parseBatchNumber(body.scv_total_in_list, 0);
 
     const result: SyncResult = {
       total_in_scv_list: 0,

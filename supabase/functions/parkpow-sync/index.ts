@@ -51,6 +51,22 @@ Deno.serve(async (req) => {
     });
   }
 
+  // Validate action early — before checking API key, so missing action → 400 not 503
+  let action: string | undefined;
+  try {
+    const body = await req.json();
+    action = body?.action;
+  } catch {
+    return json({ success: false, error: "Invalid JSON body" }, 400);
+  }
+
+  if (!action || !["sync-lots", "sync-watchlist", "push-violations"].includes(action)) {
+    return json({
+      success: false,
+      error: `Missing or invalid action "${action ?? ""}". Valid: sync-lots | sync-watchlist | push-violations`,
+    }, 400);
+  }
+
   if (!isParkPowEnabled()) {
     return json({ success: false, error: "PARKPOW_API_TOKEN not configured in Supabase secrets" }, 503);
   }
@@ -61,17 +77,12 @@ Deno.serve(async (req) => {
   );
 
   try {
-    const { action } = await req.json();
-
     switch (action) {
       case "sync-lots":     return json(await syncLots(supabase));
       case "sync-watchlist": return json(await syncWatchlist(supabase));
       case "push-violations": return json(await pushViolations(supabase));
       default:
-        return json({
-          success: false,
-          error: `Unknown action "${action}". Valid: sync-lots | sync-watchlist | push-violations`,
-        }, 400);
+        return json({ success: false, error: `Unhandled action "${action}"` }, 400);
     }
   } catch (err: any) {
     console.error("❌ parkpow-sync error:", err);

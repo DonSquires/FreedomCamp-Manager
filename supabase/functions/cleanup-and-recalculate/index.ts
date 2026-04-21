@@ -406,6 +406,18 @@ Deno.serve(async (req) => {
       .eq('id', authUserId)
       .single();
 
+    // Parse body early so we can validate required fields before role check
+    // (missing org_id → 400 before the caller learns they'd need admin role)
+    const reqBody = await req.json().catch(() => ({})) as Record<string, unknown>;
+    const org_id: string | undefined = typeof reqBody.org_id === 'string' ? reqBody.org_id : undefined;
+
+    if (!org_id) {
+      return new Response(
+        JSON.stringify({ error: 'Missing required field: org_id' }),
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      );
+    }
+
     if (profileError || !profile || !['admin', 'master'].includes(String((profile as any).role))) {
       return new Response(
         JSON.stringify({ error: 'Admin or master role required' }),
@@ -424,7 +436,7 @@ Deno.serve(async (req) => {
       batch_size = 50,
       get_total = false,
       phase = 'all',
-    } = await req.json();
+    } = reqBody as any;
 
     const normalizedZoneIds = Array.isArray(zoneIds)
       ? zoneIds
