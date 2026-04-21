@@ -124,6 +124,61 @@ jobs:
 
           echo "token_valid=true" >> "$GITHUB_OUTPUT"
 
+      - name: Set NZSCV environment variables on Railway service
+        if: >-
+          steps.check-secrets.outputs.secrets_present == 'true' &&
+          steps.validate-token.outputs.token_valid == 'true'
+        env:
+          RAILWAY_TOKEN:            ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROXY_SERVICE_ID: ${{ secrets.RAILWAY_PROXY_SERVICE_ID }}
+          NZSCV_ID_KEY:             ${{ secrets.NZSCV_ID_KEY }}
+          NZSCV_API_KEY:            ${{ secrets.NZSCV_API_KEY }}
+          NZSCV_ENDPOINT_URL:       ${{ secrets.NZSCV_ENDPOINT_URL }}
+          PROXY_SECRET:             ${{ secrets.PROXY_SECRET }}
+        run: |
+          set -euo pipefail
+
+          # Build the upsert variables array — only include vars that are actually set
+          VARS_JSON="[]"
+          add_var() {
+            local name="$1" value="$2"
+            [ -z "$value" ] && return
+            VARS_JSON=$(echo "$VARS_JSON" | jq --arg n "$name" --arg v "$value" '. + [{"name":$n,"value":$v}]')
+          }
+
+          add_var "NZSCV_ID_KEY"       "${NZSCV_ID_KEY:-}"
+          add_var "NZSCV_API_KEY"      "${NZSCV_API_KEY:-}"
+          add_var "NZSCV_ENDPOINT_URL" "${NZSCV_ENDPOINT_URL:-}"
+          add_var "PROXY_SECRET"       "${PROXY_SECRET:-}"
+
+          COUNT=$(echo "$VARS_JSON" | jq 'length')
+          if [ "$COUNT" -eq 0 ]; then
+            echo "ℹ️  No NZSCV/proxy secrets found in GitHub secrets — skipping Railway variable sync."
+            exit 0
+          fi
+
+          echo "🔧 Setting $COUNT Railway environment variable(s) on service $RAILWAY_PROXY_SERVICE_ID ..."
+
+          # Railway GraphQL: upsertVariables mutation
+          MUTATION=$(jq -n \
+            --arg serviceId "$RAILWAY_PROXY_SERVICE_ID" \
+            --argjson variables "$VARS_JSON" \
+            '{
+              query: "mutation UpsertVariables($serviceId: String!, $variables: [VariableUpsertInput!]!) { variablesUpsert(serviceId: $serviceId, variables: $variables) }",
+              variables: { serviceId: $serviceId, variables: $variables }
+            }')
+
+          RESPONSE=$(curl -fsSL https://backboard.railway.app/graphql/v2 \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data "$MUTATION")
+
+          if echo "$RESPONSE" | jq -e '.errors | length > 0' >/dev/null 2>&1; then
+            echo "::warning::Railway variables may not have been set: $(echo "$RESPONSE" | jq -r '.errors[0].message')"
+          else
+            echo "✅ Railway environment variables updated."
+          fi
+
       - name: Deploy proxy-server to Railway
         if: >-
           steps.check-secrets.outputs.secrets_present == 'true' &&
