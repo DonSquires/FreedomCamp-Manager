@@ -499,6 +499,7 @@ export default function BobAssistantStudio() {
   const [listening, setListening] = useState(false)
   const [thinking, setThinking] = useState(false)
   const [isBobSpeaking, setIsBobSpeaking] = useState(false)
+  const [bobDegraded, setBobDegraded] = useState(false)
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([])
   const [origin, setOrigin] = useState('')
   const [destination, setDestination] = useState('')
@@ -1123,6 +1124,7 @@ export default function BobAssistantStudio() {
     setChat((prev) => [...prev, userMsg])
     setChatInput('')
     setThinking(true)
+    setBobDegraded(false)
     const learningUserId = user?.id ?? 'anonymous'
 
     const buildRequestBody = () => {
@@ -1169,6 +1171,7 @@ export default function BobAssistantStudio() {
       }
 
       const replyText: string = data?.response || 'I could not generate a response. Please try again.'
+      setBobDegraded(data?.provider === 'local-fallback')
 
       const bobMsg: ChatMessage = {
         id: crypto.randomUUID(),
@@ -1237,6 +1240,7 @@ export default function BobAssistantStudio() {
       }
     } catch (err: any) {
       console.error('Bob assistant invoke failed:', err)
+      setBobDegraded(true)
       const replyText = 'Bob/Ollama is temporarily unavailable right now. Please retry in a moment.'
       const bobMsg: ChatMessage = {
         id: crypto.randomUUID(),
@@ -3054,6 +3058,7 @@ export default function BobAssistantStudio() {
                       (listening ? 'listening'
                         : thinking ? 'thinking'
                         : isBobSpeaking ? 'speaking'
+                        : bobDegraded ? 'degraded'
                         : 'idle') as BobOrbState
                     }
                   />

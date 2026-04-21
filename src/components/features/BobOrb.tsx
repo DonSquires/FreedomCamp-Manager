@@ -1,6 +1,16 @@
+import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 
 export type BobOrbState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'degraded'
+
+const THINKING_KEYFRAMES = `
+@keyframes bobThinkPulse {
+  0%   { transform: scale(1);    opacity: 1; }
+  40%  { transform: scale(1.18); opacity: 0.7; }
+  60%  { transform: scale(0.9);  opacity: 0.9; }
+  100% { transform: scale(1);    opacity: 1; }
+}
+`
 
 interface BobOrbProps {
   state?: BobOrbState
@@ -16,11 +26,11 @@ const RING_GRADIENTS: Record<BobOrbState, string> = {
   degraded: 'conic-gradient(from 0deg, #9ca3af, #6b7280, #9ca3af, #6b7280)',
 }
 
-/** CSS animation name → animation string (uses Tailwind's globally-injected keyframes) */
+/** CSS animation name → animation string */
 const RING_ANIMATION: Record<BobOrbState, string> = {
   idle: 'spin 5s linear infinite',
   listening: 'spin 1s linear infinite',
-  thinking: 'pulse 1s ease-in-out infinite',
+  thinking: 'bobThinkPulse 0.85s cubic-bezier(0.4, 0, 0.6, 1) infinite',
   speaking: 'spin 1.5s linear infinite',
   degraded: 'none',
 }
@@ -41,6 +51,17 @@ const SIZE_INNER: Record<'sm' | 'md' | 'lg', number> = { sm: 22, md: 28, lg: 40 
 export function BobOrb({ state = 'idle', size = 'md', className }: BobOrbProps) {
   const outerPx = SIZE_OUTER[size]
   const innerPx = SIZE_INNER[size]
+
+  // Inject thinking keyframes once
+  useEffect(() => {
+    const id = 'bob-orb-keyframes'
+    if (!document.getElementById(id)) {
+      const style = document.createElement('style')
+      style.id = id
+      style.textContent = THINKING_KEYFRAMES
+      document.head.appendChild(style)
+    }
+  }, [])
 
   return (
     <div

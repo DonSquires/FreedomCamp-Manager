@@ -70,6 +70,7 @@ jobs:
         env:
           RUNPOD_API_KEY:      ${{ secrets.RUNPOD_API_KEY }}
           RUNPOD_ENDPOINT_ID:  ${{ secrets.RUNPOD_ENDPOINT_ID }}
+          RUNPOD_TEMPLATE_ID:  ${{ secrets.RUNPOD_TEMPLATE_ID }}
         run: |
           set -euo pipefail
 
@@ -77,8 +78,8 @@ jobs:
           DIGEST="${{ steps.build_push.outputs.digest }}"
           IMAGE_REF="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST}"
 
-          if [ -z "${RUNPOD_API_KEY:-}" ] || [ -z "${RUNPOD_ENDPOINT_ID:-}" ]; then
-            echo "⚠️  RUNPOD_API_KEY or RUNPOD_ENDPOINT_ID not set — skipping endpoint update."
+          if [ -z "${RUNPOD_API_KEY:-}" ] || [ -z "${RUNPOD_TEMPLATE_ID:-}" ]; then
+            echo "⚠️  RUNPOD_API_KEY or RUNPOD_TEMPLATE_ID not set — skipping endpoint update."
             echo "   New image: $IMAGE_TAG"
             exit 0
           fi
@@ -95,23 +96,14 @@ jobs:
             fi
           }
 
-          gql() {
-            curl -fsSL "https://api.runpod.io/graphql?api_key=$RUNPOD_API_KEY" \
-              -H "Content-Type: application/json" --data-raw "$1"
-          }
+          echo "� Updating RunPod serverless template $RUNPOD_TEMPLATE_ID with new image ..."
+          TMPL_RESP=$(rest PATCH "templates/$RUNPOD_TEMPLATE_ID" "{\"imageName\":\"$IMAGE_REF\"}")
+          GOT_IMG=$(echo "$TMPL_RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('imageName','?'))" 2>/dev/null || echo "?")
+          echo "Template imageName: $GOT_IMG"
 
-          echo "🐳 Creating RunPod pod template with new image: $IMAGE_REF ..."
-          TMPL=$(gql "{\"query\":\"mutation { saveTemplate(input: { name: \\\"fieldops-ai-worker\\\", imageName: \\\"$IMAGE_REF\\\", containerDiskInGb: 50, dockerArgs: \\\"\\\", env: [], volumeInGb: 0 }) { id name imageName } }\"}")
-          TMPL_ID=$(echo "$TMPL" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['saveTemplate']['id'])")
-          echo "✅ Template created: $TMPL_ID"
-
-          echo "🔗 Updating endpoint $RUNPOD_ENDPOINT_ID → template $TMPL_ID via REST ..."
-          EP=$(rest PATCH "endpoints/$RUNPOD_ENDPOINT_ID" "{\"templateId\":\"$TMPL_ID\"}")
-          GOT_TMPL=$(echo "$EP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('templateId','?'))")
-          echo "Endpoint templateId: $GOT_TMPL"
-
-          if [ "$GOT_TMPL" = "$TMPL_ID" ]; then
-            echo "✅ RunPod endpoint updated to image: $IMAGE_REF"
+          if echo "$GOT_IMG" | grep -q "$DIGEST\|$IMAGE_TAG"; then
+            echo "✅ RunPod serverless template updated to: $IMAGE_REF"
           else
-            echo "::warning::RunPod endpoint update may have failed (got templateId=$GOT_TMPL). Update manually: $IMAGE_TAG"
+            echo "::warning::Template update may have failed (got imageName=$GOT_IMG). Update manually: $IMAGE_TAG"
           fi
+
