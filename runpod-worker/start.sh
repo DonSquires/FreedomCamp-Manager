@@ -21,4 +21,4 @@ fi
 echo "[start] Model ready"
 
 echo "[start] Starting Node worker..."
-exec node handler.js
+exec python3 handler.py

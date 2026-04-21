@@ -5,8 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install dependencies including zstd required by Ollama installer
 RUN apt-get update && apt-get install -y \
     curl ca-certificates zstd \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y nodejs \
+    python3 python3-pip \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Ollama
@@ -20,9 +19,12 @@ RUN ollama serve & \
     ollama pull llama3.1:8b && \
     pkill ollama || true
 
+# Install runpod Python SDK
+RUN pip3 install --no-cache-dir runpod requests
+
 WORKDIR /app
 
-COPY handler.js start.sh ./
+COPY handler.py start.sh ./
 RUN chmod +x start.sh
 
 CMD ["./start.sh"]
