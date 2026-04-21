@@ -20,6 +20,24 @@ Deno.serve(withCors(async (req) => {
       throw new Error('Invalid documentType. Must be "coa" or "warrant"');
     }
 
+    // Validate documentUrl points to our Supabase storage
+    const supabaseUrlBase = Deno.env.get('SUPABASE_URL') || '';
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(documentUrl);
+    } catch {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid documentUrl: must be a valid URL' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 422 }
+      );
+    }
+    if (supabaseUrlBase && !documentUrl.startsWith(supabaseUrlBase)) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid documentUrl: must be a Supabase storage URL' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 422 }
+      );
+    }
+
     // Create Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
