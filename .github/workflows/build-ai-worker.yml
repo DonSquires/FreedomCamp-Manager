@@ -75,38 +75,31 @@ jobs:
 
           IMAGE_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
           DIGEST="${{ steps.build_push.outputs.digest }}"
-          # Prefer digest (immutable) over tag
           IMAGE_REF="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST}"
 
           if [ -z "${RUNPOD_API_KEY:-}" ] || [ -z "${RUNPOD_ENDPOINT_ID:-}" ]; then
             echo "⚠️  RUNPOD_API_KEY or RUNPOD_ENDPOINT_ID not set — skipping endpoint update."
-            echo "   Add them to GitHub Actions secrets to enable automatic endpoint updates."
-            echo "   New image to deploy manually: $IMAGE_TAG"
+            echo "   New image: $IMAGE_TAG"
             exit 0
           fi
 
-          echo "🚀 Updating RunPod endpoint $RUNPOD_ENDPOINT_ID → $IMAGE_REF ..."
+          gql() {
+            curl -fsSL "https://api.runpod.io/graphql?api_key=$RUNPOD_API_KEY" \
+              -H "Content-Type: application/json" --data-raw "$1"
+          }
 
-          MUTATION=$(jq -n \
-            --arg endpointId "$RUNPOD_ENDPOINT_ID" \
-            --arg imageName "$IMAGE_REF" \
-            '{
-              query: "mutation UpdateEndpoint($endpointId: String!, $input: EndpointInput!) { saveEndpoint(endpointId: $endpointId, input: $input) { id name workersMax workersMin } }",
-              variables: {
-                endpointId: $endpointId,
-                input: { imageName: $imageName }
-              }
-            }')
+          echo "🐳 Creating RunPod template with new image: $IMAGE_REF ..."
+          TMPL=$(gql "{\"query\":\"mutation { saveTemplate(input: { name: \\\"fieldops-ai-worker\\\", imageName: \\\"$IMAGE_REF\\\", containerDiskInGb: 50, dockerArgs: \\\"\\\", env: [], volumeInGb: 0 }) { id name imageName } }\"}")
+          TMPL_ID=$(echo "$TMPL" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['saveTemplate']['id'])")
+          echo "✅ Template created: $TMPL_ID"
 
-          RESPONSE=$(curl -fsSL https://api.runpod.io/graphql \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $RUNPOD_API_KEY" \
-            --data "$MUTATION")
+          echo "🔗 Updating endpoint $RUNPOD_ENDPOINT_ID → template $TMPL_ID ..."
+          EP=$(gql "{\"query\":\"mutation { saveEndpoint(input: { id: \\\"$RUNPOD_ENDPOINT_ID\\\", name: \\\"fieldops-ai-engine\\\", templateId: \\\"$TMPL_ID\\\", workersMin: 1, workersMax: 6, gpuIds: \\\"ADA_24\\\" }) { id name templateId } }\"}")
+          echo "$EP" | python3 -c "import sys,json; d=json.load(sys.stdin); e=d.get('data',{}).get('saveEndpoint',{}); print('Endpoint:', e.get('id'), '| template:', e.get('templateId'))"
 
-          if echo "$RESPONSE" | jq -e '.errors | length > 0' >/dev/null 2>&1; then
-            echo "::warning::RunPod endpoint update failed: $(echo "$RESPONSE" | jq -r '.errors[0].message')"
-            echo "   Update manually: $IMAGE_TAG"
+          if echo "$EP" | python3 -c "import sys,json; d=json.load(sys.stdin); exit(0 if d.get('data',{}).get('saveEndpoint') else 1)"; then
+            echo "✅ RunPod endpoint updated to image: $IMAGE_REF"
           else
-            echo "✅ RunPod endpoint updated to: $IMAGE_REF"
-            echo "$RESPONSE" | jq -r '.data.saveEndpoint // empty'
+            echo "::warning::RunPod endpoint update may have failed. Update manually: $IMAGE_TAG"
+            echo "Errors: $(echo "$EP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('errors','?'))")"
           fi
