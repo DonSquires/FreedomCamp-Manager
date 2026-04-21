@@ -148,7 +148,11 @@ Deno.serve(async (req) => {
     // ── Step 1: Query NZSCV API via proxy (PRIMARY) ─────────────────────────
 
     // Get proxy server URL and secret from environment
-    const PROXY_URL = Deno.env.get('NZSCV_PROXY_URL') || Deno.env.get('PROXY_SERVER_URL');
+    const rawProxyUrl = Deno.env.get('NZSCV_PROXY_URL') || Deno.env.get('PROXY_SERVER_URL');
+    // Ensure the URL has a scheme — Railway sometimes stores just the hostname
+    const PROXY_URL = rawProxyUrl
+      ? (rawProxyUrl.startsWith('http') ? rawProxyUrl : `https://${rawProxyUrl}`).replace(/\/+$/, '')
+      : null;
     const PROXY_SECRET = Deno.env.get('NZSCV_PROXY_SECRET') || Deno.env.get('PROXY_SERVER_SECRET');
 
     if (!PROXY_URL) {

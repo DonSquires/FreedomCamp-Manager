@@ -222,3 +222,42 @@ jobs:
           else
             echo "✅ Proxy health check passed"
           fi
+
+          # Write the confirmed live URL back to Supabase so edge functions use the correct value
+          echo "PROXY_LIVE_URL=$BASE_URL" >> "$GITHUB_ENV"
+
+      - name: Update Supabase with confirmed proxy URL
+        if: >-
+          steps.check-secrets.outputs.secrets_present == 'true' &&
+          steps.validate-token.outputs.token_valid == 'true' &&
+          env.PROXY_LIVE_URL != ''
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF:  ${{ secrets.SUPABASE_PROJECT_REF }}
+          NZSCV_PROXY_SECRET:    ${{ secrets.NZSCV_PROXY_SECRET }}
+          PROXY_SECRET:          ${{ secrets.PROXY_SECRET }}
+        run: |
+          set -euo pipefail
+          LIVE_URL="${PROXY_LIVE_URL}"
+          # Ensure https:// prefix
+          [[ "$LIVE_URL" != http* ]] && LIVE_URL="https://${LIVE_URL}"
+          LIVE_URL="${LIVE_URL%/}"
+          FINAL_SECRET="${NZSCV_PROXY_SECRET:-${PROXY_SECRET:-}}"
+
+          echo "📝 Updating Supabase NZSCV_PROXY_URL → $LIVE_URL"
+          curl -fsSL -X POST "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}/secrets" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "[
+              {\"name\":\"NZSCV_PROXY_URL\",\"value\":\"$LIVE_URL\"},
+              {\"name\":\"PROXY_SERVER_URL\",\"value\":\"$LIVE_URL\"}
+            ]"
+
+          if [ -n "$FINAL_SECRET" ]; then
+            curl -fsSL -X POST "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}/secrets" \
+              -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "[{\"name\":\"NZSCV_PROXY_SECRET\",\"value\":\"$FINAL_SECRET\"},{\"name\":\"PROXY_SERVER_SECRET\",\"value\":\"$FINAL_SECRET\"}]"
+          fi
+
+          echo "✅ Supabase proxy URL updated to $LIVE_URL"
