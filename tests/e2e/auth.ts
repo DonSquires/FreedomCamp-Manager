@@ -1,11 +1,40 @@
 import type { Page } from '@playwright/test'
 
-export type TestUserKey = 'master' | 'adminOrg1' | 'adminOrg2' | 'officerOrg1'
+export type TestUserKey =
+  | 'master'
+  | 'adminOrg1'
+  | 'adminOrg2'
+  | 'officerOrg1'
+  | 'clientViewer'
+  | 'clientStaff'
 
 type TestCredentials = {
   email: string
   password: string
 }
+
+type RoleCredentialConfig = {
+  label: string
+  emailVars: string[]
+  passwordVars: string[]
+  fallbackEmail: string
+}
+
+type ExpectedProfileConfig = {
+  allowedRoles: string[]
+  requiredCapability: 'master_ops' | 'admin_screen' | 'field_ops' | 'client_portal_view' | 'client_portal_manage'
+  expectedOrgName?: string
+}
+
+type ResolvedProfile = {
+  id: string
+  email: string | null
+  role: string | null
+  organizationName: string | null
+  employerOrganizationName: string | null
+}
+
+type DesiredRole = 'master' | 'grand_master' | 'admin' | 'admin_officer' | 'officer' | 'client_viewer'
 
 function readEnv(...names: string[]): string {
   for (const name of names) {
@@ -20,12 +49,6 @@ function sharedPassword(...names: string[]): string {
   return readEnv(...names) || 'Test123!'
 }
 
-const defaultPassword = sharedPassword(
-  'PLAYWRIGHT_TEST_PASSWORD',
-  'E2E_TEST_PASSWORD',
-  'API_TEST_PASSWORD'
-)
-
 const defaultLiveEmail = readEnv('PLAYWRIGHT_LIVE_EMAIL', 'E2E_LIVE_EMAIL', 'API_TEST_EMAIL')
 const defaultLivePassword = sharedPassword(
   'PLAYWRIGHT_LIVE_PASSWORD',
@@ -35,61 +58,361 @@ const defaultLivePassword = sharedPassword(
   'E2E_TEST_PASSWORD'
 )
 
-export const testUsers: Record<TestUserKey, TestCredentials> = {
+const allowSharedFallback = readEnv('PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK') === '1'
+const skipRoleAssertions = readEnv('PLAYWRIGHT_SKIP_ROLE_ASSERTIONS') === '1'
+const roleAssertionMode = readEnv('PLAYWRIGHT_ROLE_ASSERTION_MODE') || 'strict'
+const autoSetTestRole = readEnv('PLAYWRIGHT_AUTO_SET_TEST_ROLE') === '1'
+
+const roleCapabilities: Record<string, string[]> = {
+  grand_master: ['master_ops', 'admin_screen', 'field_ops', 'client_portal_view', 'client_portal_manage'],
+  master: ['master_ops', 'admin_screen', 'field_ops', 'client_portal_view', 'client_portal_manage'],
+  admin: ['admin_screen', 'client_portal_view', 'client_portal_manage'],
+  admin_officer: ['admin_screen', 'field_ops', 'client_portal_view', 'client_portal_manage'],
+  officer: ['field_ops', 'client_portal_manage'],
+  client_viewer: ['client_portal_view'],
+}
+
+const defaultRequiredTestUsers: TestUserKey[] = [
+  'master',
+  'adminOrg1',
+  'adminOrg2',
+  'officerOrg1',
+  'clientViewer',
+  'clientStaff',
+]
+
+const roleCredentialConfig: Record<TestUserKey, RoleCredentialConfig> = {
   master: {
-    email: readEnv('PLAYWRIGHT_MASTER_EMAIL', 'E2E_MASTER_EMAIL') || defaultLiveEmail || 'master@test.com',
-    password: sharedPassword(
-      'PLAYWRIGHT_MASTER_PASSWORD',
-      'E2E_MASTER_PASSWORD',
-      'PLAYWRIGHT_LIVE_PASSWORD',
-      'E2E_LIVE_PASSWORD',
-      'API_TEST_PASSWORD',
-      'PLAYWRIGHT_TEST_PASSWORD',
-      'E2E_TEST_PASSWORD'
-    ) || defaultLivePassword,
+    label: 'master',
+    emailVars: ['PLAYWRIGHT_MASTER_EMAIL', 'E2E_MASTER_EMAIL'],
+    passwordVars: ['PLAYWRIGHT_MASTER_PASSWORD', 'E2E_MASTER_PASSWORD'],
+    fallbackEmail: 'master@test.com',
   },
   adminOrg1: {
-    email: readEnv('PLAYWRIGHT_ADMIN_EMAIL', 'E2E_ADMIN_EMAIL', 'PLAYWRIGHT_ADMIN_ORG1_EMAIL') || defaultLiveEmail || 'admin@org1.com',
-    password: sharedPassword(
-      'PLAYWRIGHT_ADMIN_PASSWORD',
-      'E2E_ADMIN_PASSWORD',
-      'PLAYWRIGHT_ADMIN_ORG1_PASSWORD',
-      'PLAYWRIGHT_LIVE_PASSWORD',
-      'E2E_LIVE_PASSWORD',
-      'API_TEST_PASSWORD',
-      'PLAYWRIGHT_TEST_PASSWORD',
-      'E2E_TEST_PASSWORD'
-    ) || defaultLivePassword,
+    label: 'adminOrg1',
+    emailVars: ['PLAYWRIGHT_ADMIN_ORG1_EMAIL', 'PLAYWRIGHT_ADMIN_EMAIL', 'E2E_ADMIN_EMAIL'],
+    passwordVars: ['PLAYWRIGHT_ADMIN_ORG1_PASSWORD', 'PLAYWRIGHT_ADMIN_PASSWORD', 'E2E_ADMIN_PASSWORD'],
+    fallbackEmail: 'admin@org1.com',
   },
   adminOrg2: {
-    email: readEnv('PLAYWRIGHT_ADMIN_ORG2_EMAIL', 'E2E_ADMIN_ORG2_EMAIL') || defaultLiveEmail || 'admin@org2.com',
-    password: sharedPassword(
-      'PLAYWRIGHT_ADMIN_ORG2_PASSWORD',
-      'E2E_ADMIN_ORG2_PASSWORD',
-      'PLAYWRIGHT_LIVE_PASSWORD',
-      'E2E_LIVE_PASSWORD',
-      'API_TEST_PASSWORD',
-      'PLAYWRIGHT_TEST_PASSWORD',
-      'E2E_TEST_PASSWORD'
-    ) || defaultLivePassword,
+    label: 'adminOrg2',
+    emailVars: ['PLAYWRIGHT_ADMIN_ORG2_EMAIL', 'E2E_ADMIN_ORG2_EMAIL'],
+    passwordVars: ['PLAYWRIGHT_ADMIN_ORG2_PASSWORD', 'E2E_ADMIN_ORG2_PASSWORD'],
+    fallbackEmail: 'admin@org2.com',
   },
   officerOrg1: {
-    email: readEnv('PLAYWRIGHT_OFFICER_EMAIL', 'E2E_OFFICER_EMAIL', 'PLAYWRIGHT_OFFICER_ORG1_EMAIL') || defaultLiveEmail || 'officer@org1.com',
-    password: sharedPassword(
-      'PLAYWRIGHT_OFFICER_PASSWORD',
-      'E2E_OFFICER_PASSWORD',
-      'PLAYWRIGHT_OFFICER_ORG1_PASSWORD',
-      'PLAYWRIGHT_LIVE_PASSWORD',
-      'E2E_LIVE_PASSWORD',
-      'API_TEST_PASSWORD',
-      'PLAYWRIGHT_TEST_PASSWORD',
-      'E2E_TEST_PASSWORD'
-    ) || defaultLivePassword,
+    label: 'officerOrg1',
+    emailVars: ['PLAYWRIGHT_OFFICER_ORG1_EMAIL', 'PLAYWRIGHT_OFFICER_EMAIL', 'E2E_OFFICER_EMAIL'],
+    passwordVars: ['PLAYWRIGHT_OFFICER_ORG1_PASSWORD', 'PLAYWRIGHT_OFFICER_PASSWORD', 'E2E_OFFICER_PASSWORD'],
+    fallbackEmail: 'officer@org1.com',
+  },
+  clientViewer: {
+    label: 'clientViewer',
+    emailVars: ['PLAYWRIGHT_CLIENT_VIEWER_EMAIL', 'E2E_CLIENT_VIEWER_EMAIL'],
+    passwordVars: ['PLAYWRIGHT_CLIENT_VIEWER_PASSWORD', 'E2E_CLIENT_VIEWER_PASSWORD'],
+    fallbackEmail: 'client.viewer@test.com',
+  },
+  clientStaff: {
+    label: 'clientStaff',
+    emailVars: ['PLAYWRIGHT_CLIENT_STAFF_EMAIL', 'E2E_CLIENT_STAFF_EMAIL'],
+    passwordVars: ['PLAYWRIGHT_CLIENT_STAFF_PASSWORD', 'E2E_CLIENT_STAFF_PASSWORD'],
+    fallbackEmail: 'client.staff@test.com',
   },
 }
 
+const expectedProfileConfig: Record<TestUserKey, ExpectedProfileConfig> = {
+  master: {
+    allowedRoles: ['master', 'grand_master'],
+    requiredCapability: 'master_ops',
+  },
+  adminOrg1: {
+    allowedRoles: ['admin', 'admin_officer'],
+    requiredCapability: 'admin_screen',
+    expectedOrgName: readEnv('PLAYWRIGHT_ADMIN_ORG1_NAME') || 'First Security - Nelson',
+  },
+  adminOrg2: {
+    allowedRoles: ['admin', 'admin_officer'],
+    requiredCapability: 'admin_screen',
+    expectedOrgName: readEnv('PLAYWRIGHT_ADMIN_ORG2_NAME') || 'Nelson City Council',
+  },
+  officerOrg1: {
+    allowedRoles: ['officer', 'admin_officer'],
+    requiredCapability: 'field_ops',
+    expectedOrgName: readEnv('PLAYWRIGHT_OFFICER_ORG1_NAME') || 'First Security - Nelson',
+  },
+  clientViewer: {
+    allowedRoles: ['client_viewer'],
+    requiredCapability: 'client_portal_view',
+    expectedOrgName: readEnv('PLAYWRIGHT_CLIENT_VIEWER_NAME') || 'Nelson City Council',
+  },
+  clientStaff: {
+    allowedRoles: ['admin', 'admin_officer', 'officer'],
+    requiredCapability: 'client_portal_manage',
+    expectedOrgName: readEnv('PLAYWRIGHT_CLIENT_STAFF_NAME') || 'Nelson City Council',
+  },
+}
+
+const desiredRoleByTestUser: Record<TestUserKey, DesiredRole> = {
+  master: 'grand_master',
+  adminOrg1: 'admin_officer',
+  adminOrg2: 'admin_officer',
+  officerOrg1: 'officer',
+  clientViewer: 'client_viewer',
+  clientStaff: 'admin',
+}
+
+export function getRequiredTestUsersFromEnv(
+  raw: string | undefined = process.env.PLAYWRIGHT_REQUIRED_TEST_USERS
+): TestUserKey[] {
+  if (!raw || !raw.trim()) {
+    return defaultRequiredTestUsers
+  }
+
+  const validUsers = new Set<TestUserKey>(Object.keys(roleCredentialConfig) as TestUserKey[])
+  const parsed = raw
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+
+  const invalid = parsed.filter((value) => !validUsers.has(value as TestUserKey))
+  if (invalid.length > 0) {
+    throw new Error(
+      `Invalid PLAYWRIGHT_REQUIRED_TEST_USERS entries: ${invalid.join(', ')}. ` +
+        `Valid keys: ${Array.from(validUsers).join(', ')}`
+    )
+  }
+
+  const deduped = Array.from(new Set(parsed)) as TestUserKey[]
+  return deduped.length > 0 ? deduped : defaultRequiredTestUsers
+}
+
+function getMissingRoleCredentialDetails(user: TestUserKey): string[] {
+  const config = roleCredentialConfig[user]
+  const roleEmail = readEnv(...config.emailVars)
+  const rolePassword = readEnv(...config.passwordVars)
+  const missingDetails: string[] = []
+
+  if (!roleEmail) {
+    missingDetails.push(`email (${config.emailVars.join(' | ')})`)
+  }
+
+  if (!rolePassword) {
+    missingDetails.push(`password (${config.passwordVars.join(' | ')})`)
+  }
+
+  return missingDetails
+}
+
+export function validateRoleCredentialPreflight(
+  requiredUsers: TestUserKey[] = defaultRequiredTestUsers
+): void {
+  if (allowSharedFallback) return
+
+  const problems = requiredUsers
+    .map((user) => {
+      const config = roleCredentialConfig[user]
+      const missing = getMissingRoleCredentialDetails(user)
+      if (missing.length === 0) return null
+      return `- ${config.label}: ${missing.join(', ')}`
+    })
+    .filter((line): line is string => !!line)
+
+  if (problems.length === 0) return
+
+  throw new Error(
+    'Playwright role credential preflight failed. Missing variables:\n' +
+      `${problems.join('\n')}\n` +
+      'Add role variables in .env.playwright.local (recommended for Nelson/First Security runs), ' +
+      'or set PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=1 to opt into shared fallback behavior.'
+  )
+}
+
+function resolveRoleCredentials(user: TestUserKey): TestCredentials {
+  const config = roleCredentialConfig[user]
+  const roleEmail = readEnv(...config.emailVars)
+  const rolePassword = readEnv(...config.passwordVars)
+
+  if (roleEmail && rolePassword) {
+    return { email: roleEmail, password: rolePassword }
+  }
+
+  if (allowSharedFallback) {
+    return {
+      email: roleEmail || defaultLiveEmail || config.fallbackEmail,
+      password: rolePassword || defaultLivePassword,
+    }
+  }
+
+  const missingDetails = getMissingRoleCredentialDetails(user)
+
+  throw new Error(
+    `Missing role-specific Playwright credentials for ${config.label}: ${missingDetails.join(', ')}. ` +
+      'Add role variables in .env.playwright.local (recommended for Nelson/First Security runs). ' +
+      'If you intentionally want shared fallback credentials, set PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=1.'
+  )
+}
+
 export function getTestUser(user: TestUserKey): TestCredentials {
-  return testUsers[user]
+  return resolveRoleCredentials(user)
+}
+
+function normalize(value: string | null | undefined): string {
+  return (value || '').trim().toLowerCase()
+}
+
+async function fetchResolvedProfile(page: Page): Promise<ResolvedProfile | null> {
+  const supabaseUrl = readEnv('VITE_SUPABASE_URL')
+  const anonKey = readEnv('VITE_SUPABASE_ANON_KEY')
+  if (!supabaseUrl || !anonKey) return null
+
+  const accessToken = await getAccessTokenFromBrowser(page)
+  if (!accessToken) return null
+
+  const authRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+    headers: {
+      apikey: anonKey,
+      Authorization: `Bearer ${accessToken}`,
+    },
+  })
+
+  if (!authRes.ok) {
+    throw new Error(`Role assertion auth lookup failed with status ${authRes.status}`)
+  }
+
+  const authUser = await authRes.json() as { id?: string, email?: string | null }
+  if (!authUser.id) return null
+
+  const profileRes = await fetch(
+    `${supabaseUrl}/rest/v1/user_profiles?select=id,email,role,organization:organizations!organization_id(name),employer_org:organizations!employer_organization_id(name)&id=eq.${authUser.id}&limit=1`,
+    {
+      headers: {
+        apikey: anonKey,
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  )
+
+  if (!profileRes.ok) {
+    throw new Error(`Role assertion profile lookup failed with status ${profileRes.status}`)
+  }
+
+  const profiles = await profileRes.json() as Array<{
+    id: string
+    email?: string | null
+    role?: string | null
+    organization?: { name?: string | null } | Array<{ name?: string | null }> | null
+    employer_org?: { name?: string | null } | Array<{ name?: string | null }> | null
+  }>
+
+  const profile = profiles[0]
+  if (!profile?.id) return null
+
+  const organization = Array.isArray(profile.organization) ? profile.organization[0] : profile.organization
+  const employerOrganization = Array.isArray(profile.employer_org) ? profile.employer_org[0] : profile.employer_org
+
+  return {
+    id: profile.id,
+    email: profile.email ?? authUser.email ?? null,
+    role: profile.role ?? null,
+    organizationName: organization?.name ?? null,
+    employerOrganizationName: employerOrganization?.name ?? null,
+  }
+}
+
+async function autoSetRoleForTestUser(page: Page, user: TestUserKey): Promise<boolean> {
+  if (!autoSetTestRole) return false
+
+  const targetRole = desiredRoleByTestUser[user]
+  const profile = await fetchResolvedProfile(page)
+  if (!profile?.id) {
+    throw new Error(`Cannot auto-set role for ${user}; authenticated profile could not be resolved.`)
+  }
+
+  const currentRole = normalize(profile.role)
+  if (currentRole === normalize(targetRole)) {
+    return false
+  }
+
+  const supabaseUrl = readEnv('VITE_SUPABASE_URL')
+  const anonKey = readEnv('VITE_SUPABASE_ANON_KEY')
+  if (!supabaseUrl || !anonKey) {
+    throw new Error(`Cannot auto-set role for ${user}; VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY missing.`)
+  }
+
+  const accessToken = await getAccessTokenFromBrowser(page)
+  if (!accessToken) {
+    throw new Error(`Cannot auto-set role for ${user}; browser access token missing.`)
+  }
+
+  const patchRes = await fetch(`${supabaseUrl}/rest/v1/user_profiles?id=eq.${profile.id}`, {
+    method: 'PATCH',
+    headers: {
+      apikey: anonKey,
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    },
+    body: JSON.stringify({ role: targetRole }),
+  })
+
+  if (!patchRes.ok) {
+    const errorText = await patchRes.text().catch(() => '')
+    throw new Error(
+      `Failed to auto-set role for ${user} from ${profile.role || 'unknown'} to ${targetRole}. ` +
+        `HTTP ${patchRes.status}. ${errorText.slice(0, 240)}`
+    )
+  }
+
+  // Reload to ensure the app auth store re-reads the updated profile role.
+  await page.reload({ waitUntil: 'networkidle' })
+  return true
+}
+
+async function assertExpectedLoginProfile(page: Page, user: TestUserKey): Promise<void> {
+  if (skipRoleAssertions) return
+
+  const expected = expectedProfileConfig[user]
+  const profile = await fetchResolvedProfile(page)
+  if (!profile) {
+    throw new Error(`Unable to resolve the authenticated profile for ${user}; set PLAYWRIGHT_SKIP_ROLE_ASSERTIONS=1 only if you intentionally want to bypass this check.`)
+  }
+
+  const actualRole = normalize(profile.role)
+  const allowedRoles = expected.allowedRoles.map(normalize)
+
+  if (normalize(roleAssertionMode) === 'strict') {
+    if (!allowedRoles.includes(actualRole)) {
+      throw new Error(
+        `Login role mismatch for ${user}. Expected one of [${expected.allowedRoles.join(', ')}], ` +
+          `got ${profile.role || 'unknown'} (${profile.email || 'no-email'}). ` +
+          `Org=${profile.organizationName || 'n/a'}, EmployerOrg=${profile.employerOrganizationName || 'n/a'}.`
+      )
+    }
+  } else {
+    const capabilities = roleCapabilities[actualRole] || []
+    if (!capabilities.includes(expected.requiredCapability)) {
+      throw new Error(
+        `Login access mismatch for ${user}. Expected capability ${expected.requiredCapability}, ` +
+          `but role ${profile.role || 'unknown'} does not provide it. ` +
+          `Email=${profile.email || 'no-email'}, Org=${profile.organizationName || 'n/a'}, EmployerOrg=${profile.employerOrganizationName || 'n/a'}.`
+      )
+    }
+  }
+
+  if (!expected.expectedOrgName) return
+
+  const expectedOrg = normalize(expected.expectedOrgName)
+  const actualOrgs = [profile.organizationName, profile.employerOrganizationName]
+    .map(normalize)
+    .filter(Boolean)
+
+  if (actualOrgs.length === 0 || !actualOrgs.some((org) => org.includes(expectedOrg))) {
+    throw new Error(
+      `Login organization mismatch for ${user}. Expected org containing "${expected.expectedOrgName}", ` +
+        `got Org=${profile.organizationName || 'n/a'}, EmployerOrg=${profile.employerOrganizationName || 'n/a'} ` +
+        `for ${profile.email || 'no-email'} (${profile.role || 'unknown'}).`
+    )
+  }
 }
 
 export function getApiTestCredentials(): TestCredentials {
@@ -245,6 +568,8 @@ export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
   // Best-effort: ensure the user can work in the configured council area
   // (defaults to Nelson City Council for location-based test flows).
   await ensureWorkAreaPermission(page)
+  await autoSetRoleForTestUser(page, user)
+  await assertExpectedLoginProfile(page, user)
 
   await page.waitForLoadState('networkidle').catch(() => undefined)
 }

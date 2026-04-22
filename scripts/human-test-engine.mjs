@@ -82,11 +82,12 @@ async function ensureDir(dirPath) {
   await fs.mkdir(dirPath, { recursive: true })
 }
 
-async function runCommand(command, args, cwd) {
+async function runCommand(command, args, cwd, envOverrides = {}) {
+  const mergedEnv = { ...process.env, ...envOverrides }
   return await new Promise((resolve) => {
     const child = spawn(command, args, {
       cwd,
-      env: process.env,
+      env: mergedEnv,
       shell: false,
       stdio: 'pipe',
     })
@@ -209,6 +210,45 @@ async function main() {
   await ensureDir(runDir)
 
   const profile = await readJson(profilePath)
+  const profileEnv = profile?.env && typeof profile.env === 'object' ? profile.env : {}
+
+  // Profile-level env values are authoritative for this run and all child commands.
+  for (const [key, value] of Object.entries(profileEnv)) {
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      process.env[key] = String(value)
+    }
+  }
+
+  // Normalize inference service URL aliases to a single canonical value
+  {
+    const inferenceCanonical =
+      String(process.env.BOB_SERVICE_URL || '').trim() ||
+      String(process.env.INFERENCE_SERVICE_URL || '').trim() ||
+      String(process.env.VITE_INFERENCE_SERVICE_URL || '').trim() ||
+      ''
+
+    if (inferenceCanonical) {
+      process.env.BOB_SERVICE_URL = inferenceCanonical
+      process.env.INFERENCE_SERVICE_URL = inferenceCanonical
+      process.env.VITE_INFERENCE_SERVICE_URL = inferenceCanonical
+    }
+  }
+
+  // Normalize RunPod URL aliases to a single canonical value
+  {
+    const runpodCanonical =
+      String(process.env.RUNPOD_URL || '').trim() ||
+      String(process.env.RUNPOD_GATEWAY_URL || '').trim() ||
+      String(process.env.RUNPOD_SERVERLESS_URL || '').trim() ||
+      ''
+
+    if (runpodCanonical) {
+      process.env.RUNPOD_URL = runpodCanonical
+      process.env.RUNPOD_GATEWAY_URL = runpodCanonical
+      process.env.RUNPOD_SERVERLESS_URL = runpodCanonical
+    }
+  }
+
   const report = {
     runId,
     startedAt: new Date().toISOString(),
@@ -617,7 +657,8 @@ async function main() {
         String(toNumber(profile.ui?.agenticMaxSteps, 14)),
         '--timeout-ms',
         String(toNumber(profile.ui?.agenticTimeoutMs, 15000)),
-      ], repoRoot)
+        ...(toBool(profile.ui?.agenticNoPlanner, true) ? ['--no-planner'] : []),
+      ], repoRoot, profileEnv)
 
       let packStatus = 'fail'
       let packDetail = `exit=${cmd.exitCode}`
@@ -653,7 +694,7 @@ async function main() {
       const start = Date.now()
       const command = String(profile.ui?.playwrightCommand || 'bunx playwright test tests/e2e/crm-service-provider-visual.spec.ts --project=chromium')
       const parts = command.split(' ').filter(Boolean)
-      const cmd = await runCommand(parts[0], parts.slice(1), repoRoot)
+      const cmd = await runCommand(parts[0], parts.slice(1), repoRoot, profileEnv)
       if (cmd.exitCode === 0) {
         record('ui.playwright.crm_visual_sweep', 'pass', 'Playwright sweep passed', { durationMs: Date.now() - start })
       } else {

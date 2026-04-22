@@ -1,4 +1,9 @@
 {
+  "env": {
+    "BOB_UI_ALLOW_SUPABASE_FALLBACK": "0",
+    "BOB_UI_HARD_FAIL": "1",
+    "BOB_UI_SCORE_THRESHOLD": "70"
+  },
   "stages": {
     "secretAlignmentChecks": true,
     "externalServiceChecks": true,
@@ -15,6 +20,7 @@
       "tender-shadow",
       "ptt-zindex"
     ],
+    "agenticNoPlanner": true,
     "agenticMaxSteps": 14,
     "agenticTimeoutMs": 15000,
     "runPlaywrightSweep": true,

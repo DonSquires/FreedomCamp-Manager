@@ -52,12 +52,31 @@ const mobileSafariProject = canUseWebkitOnHost
       },
     }
 
+const playwrightBaseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173'
+
+function buildWebServerCommand(baseURL: string): string {
+  try {
+    const parsed = new URL(baseURL)
+    const isLocalHost = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1'
+    const port = parsed.port || '5173'
+
+    if (!isLocalHost || parsed.protocol !== 'http:') {
+      return "sh -c 'set -a; [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; [ -f .env.playwright.local ] && . ./.env.playwright.local; set +a; npm run dev'"
+    }
+
+    return `sh -c 'set -a; [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; [ -f .env.playwright.local ] && . ./.env.playwright.local; set +a; npm run dev -- --port ${port} --strictPort'`
+  } catch {
+    return "sh -c 'set -a; [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; [ -f .env.playwright.local ] && . ./.env.playwright.local; set +a; npm run dev -- --port 5173 --strictPort'"
+  }
+}
+
 /**
  * Playwright Configuration for FieldOps Manager
  * E2E Integration Testing - Phase 9
  */
 export default defineConfig({
   testDir: './tests/e2e',
+  globalSetup: './tests/e2e/global-setup.ts',
   
   // Run tests in files in parallel
   fullyParallel: true,
@@ -69,7 +88,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   
   // Opt out of parallel tests on CI
-  workers: process.env.CI ? 1 : undefined,
+  workers: process.env.CI ? 1 : (process.env.PLAYWRIGHT_AUTO_SET_TEST_ROLE === '1' ? 1 : undefined),
   
   // Reporter to use
   reporter: [
@@ -81,7 +100,7 @@ export default defineConfig({
   // Shared settings for all the projects below
   use: {
     // Base URL to use in actions like `await page.goto('/')`
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173',
+    baseURL: playwrightBaseURL,
     
     // Collect trace when retrying the failed test
     trace: 'on-first-retry',
@@ -126,8 +145,8 @@ export default defineConfig({
 
   // Run your local dev server before starting the tests
   webServer: {
-    command: "sh -c 'set -a; [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; [ -f .env.playwright.local ] && . ./.env.playwright.local; set +a; npm run dev'",
-    url: 'http://localhost:5173',
+    command: buildWebServerCommand(playwrightBaseURL),
+    url: playwrightBaseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
   },

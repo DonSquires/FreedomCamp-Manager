@@ -182,7 +182,7 @@ function buildPackPlan(pack) {
       { type: 'clickIfVisible', selector: 'main a[href^="/tender-workspace/"]:not([href="/tender-workspace"])', note: 'Open first tender detail if available' },
       { type: 'clickIfVisible', selector: '[role="tab"]:has-text("Draft Response")', note: 'Open draft tab' },
       { type: 'clickIfVisible', selector: 'button:has-text("Submit for Approval")', note: 'Attempt submit (shadow check)' },
-      { type: 'expectVisibleAny', value: 'text=/Cannot submit|mandatory requirement|Submitted for approval|Submitted for Approval|Pending Review|Tender Workspace|No tenders?/i', note: 'Verify either submission outcome or valid tender workspace state is visible' },
+      { type: 'expectVisibleAny', value: 'text=/Cannot submit|mandatory requirement|Submitted for approval|Submitted for Approval|Pending Review|Tender & Document Workspace|Tender Workspace|No tenders?/i', note: 'Verify either submission outcome or valid tender workspace state is visible' },
       { type: 'axeCheck', note: 'Quick a11y scan' },
       { type: 'done', note: 'Tender shadow pack complete' },
     ]
