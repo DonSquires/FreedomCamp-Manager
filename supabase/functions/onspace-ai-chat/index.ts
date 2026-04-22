@@ -265,6 +265,18 @@ function buildLocalFailsafeResponse(userMessage: string): string {
     text.includes('latest race') ||
     text.includes('source url')
 
+  const asksMarketResearch =
+    text.includes('research') ||
+    text.includes('similar apps') ||
+    text.includes('similar app') ||
+    text.includes('competitor') ||
+    text.includes('security and enforcement') ||
+    text.includes('public sector') ||
+    text.includes('council') ||
+    text.includes('pricing model') ||
+    text.includes('subscription') ||
+    text.includes('client portal')
+
   if (asksLiveInternetFact) {
     return [
       'I cannot verify live internet facts from this fallback mode because the upstream inference provider is currently unavailable.',
@@ -295,6 +307,47 @@ function buildLocalFailsafeResponse(userMessage: string): string {
       '3. Define release checks with pass/fail criteria and verify live behavior after rollout.',
       '4. Enforce policy and privacy guardrails during operational support and incident triage.',
       '5. Summarize residual risk, remediation order, and safest next actions for operators.',
+    ].join('\n')
+  }
+
+  if (asksMarketResearch) {
+    return [
+      'I cannot fetch or verify live web sources right now because upstream inference is unavailable, but I can provide an operational market baseline for planning:',
+      '',
+      '1) Private Security Operations (commonly selected capabilities)',
+      '- Guard tour + checkpoint proof-of-presence',
+      '- Incident workflow with evidence chain and court-ready export',
+      '- Live officer status/location, welfare, and dispatch',
+      '- Roster, time capture, payroll/accounting integrations',
+      '- Client portal visibility for jobs, KPIs, and SLA outcomes',
+      '',
+      '2) Council / Public Sector Enforcement (commonly selected capabilities)',
+      '- Statutory workflow: warning -> infringement -> dispute -> adjudication/recovery',
+      '- Audit/compliance controls (privacy, retention, legal hold)',
+      '- Geo-jurisdiction controls by zone/site/authority',
+      '- Public-facing payment/dispute channels',
+      '- Multi-agency reporting and defensible evidence packaging',
+      '',
+      '3) Client Portal Expectations',
+      '- Real-time service outcomes (patrols, breaches, cases)',
+      '- SLA/RAG status and trend lines',
+      '- Invoice/payment transparency + downloadable artifacts',
+      '- Request/approval workflows and role-scoped access',
+      '- White-label branding and organization-specific views',
+      '',
+      '4) Recommended Commercial Model (owner -> provider -> client)',
+      '- Platform owner bills service provider: base + seats + usage/add-ons.',
+      '- Service provider bills client via contract rates (hourly/event/SLA-based).',
+      '- Optional owner take-rate on selected transactions (e.g., payment rail, ticketing).',
+      '- Margin controls: enforce floor margins and exception approvals on discounted deals.',
+      '',
+      '5) Suggested Packaging',
+      '- Base: core CRM + dispatch + audit + basic client portal.',
+      '- Pro: enforcement modules, advanced analytics, workflow automation.',
+      '- Enterprise: multi-entity billing, white-label portal, API/SSO/governance.',
+      '- Optional add-ons: ticketing/disputes, AI assessments, premium support.',
+      '',
+      'If you share your target market (NZ-only vs NZ/AU/UK/US) and expected officer volume, I can return a pricing matrix with example ARPU, margin bands, and rollout sequence.',
     ].join('\n')
   }
 
@@ -351,6 +404,16 @@ Deno.serve(async (req: Request) => {
     const defaultModel = Deno.env.get('AI_DEFAULT_MODEL') ?? 'gpt-4o'
     const model = requestedModel ?? defaultModel
 
+    // RunPod worker and direct Ollama backends require an Ollama model tag, not OpenAI-style names.
+    const preferredOllamaModel = Deno.env.get('OLLAMA_MODEL') ?? 'llama3.1:8b'
+    const normalizeOllamaModel = (candidate: string) => {
+      const value = String(candidate || '').trim()
+      if (!value) return preferredOllamaModel
+      if (/^(gpt-|o\d|claude|gemini)/i.test(value)) return preferredOllamaModel
+      return value
+    }
+    const inferenceModel = normalizeOllamaModel(model)
+
     // Build messages array — accept Format A (full array) or Format B (single message + context)
     let messages: Array<{ role: string; content: string }>
 
@@ -381,7 +444,7 @@ Deno.serve(async (req: Request) => {
     const inferenceApiKey = Deno.env.get('INFERENCE_API_KEY') ?? ''
     // Ollama defaults to the same base URL and credential as Bob inference when not configured separately.
     const ollamaBaseUrl = normalizeBaseUrl(Deno.env.get('OLLAMA_BASE_URL') ?? inferenceUrl)
-    const ollamaModel = Deno.env.get('OLLAMA_MODEL') ?? model
+    const ollamaModel = normalizeOllamaModel(Deno.env.get('OLLAMA_MODEL') ?? model)
     const ollamaApiKey = Deno.env.get('OLLAMA_API_KEY') ?? inferenceApiKey
     const configuredProviderPreference = parseProviderPreference(Deno.env.get('BOB_CHAT_PROVIDER') ?? Deno.env.get('AI_CHAT_PROVIDER') ?? 'auto')
     const providerPreference = parseProviderPreference(requestedProvider ?? configuredProviderPreference)
@@ -519,11 +582,12 @@ Deno.serve(async (req: Request) => {
               message: latestUserMessage,
               history,
               system_prompt: messages.find((m) => m.role === 'system')?.content,
-              model,
+              model: inferenceModel,
               temperature,
               context: {
                 user_email: user.email,
                 requested_model: model,
+                resolved_model: inferenceModel,
                 source: 'onspace-ai-chat',
               },
             },
@@ -537,10 +601,17 @@ Deno.serve(async (req: Request) => {
         const runData = (() => { try { return JSON.parse(runText) } catch { return null } })()
         if (!runData) throw new Error(`RunPod returned non-JSON: ${runText.slice(0, 200)}`)
 
-        if (runData.status === 'FAILED') throw new Error(`RunPod job failed: ${JSON.stringify(runData.error ?? runData.output).slice(0, 200)}`)
+        if (runData.status === 'FAILED') {
+          const workerId = runData?.workerId ?? runData?.executionTime?.workerId ?? runData?.output?.metadata?.workerId ?? 'unknown'
+          const runpodError = JSON.stringify(runData.error ?? runData.output).slice(0, 300)
+          throw new Error(`RunPod job failed [endpoint=${baseUrl} job=${runData?.id ?? 'unknown'} worker=${workerId}]: ${runpodError}`)
+        }
 
         const output = runData.output
-        if (!output?.success) throw new Error(`RunPod worker error: ${output?.error ?? 'unknown'}`)
+        if (!output?.success) {
+          const workerId = runData?.workerId ?? runData?.executionTime?.workerId ?? output?.metadata?.workerId ?? 'unknown'
+          throw new Error(`RunPod worker error [endpoint=${baseUrl} job=${runData?.id ?? 'unknown'} worker=${workerId}]: ${String(output?.error ?? 'unknown').slice(0, 300)}`)
+        }
 
         const responseText = output.response || output.message || output.content || ''
         if (!responseText) throw new Error('RunPod worker returned empty response')
