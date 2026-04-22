@@ -1,0 +1,165 @@
+{
+  "started_at": "2026-04-22T01:11:39.277Z",
+  "config": {
+    "goal": "shadow run: tender compliance submission block check",
+    "baseUrl": "http://localhost:5173",
+    "headless": true,
+    "maxSteps": 14,
+    "timeoutMs": 15000,
+    "plannerEnabled": true,
+    "emailProvided": true,
+    "passwordProvided": true
+  },
+  "actions": [
+    {
+      "step": 1,
+      "action": {
+        "type": "goto",
+        "url": "/login",
+        "note": "Navigate to login page"
+      },
+      "execution": {
+        "ok": true
+      },
+      "duration_ms": 1024,
+      "url_after": "http://localhost:5173/login",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-22T01-11-22-486Z/agentic/tender-shadow/step-01.png"
+    },
+    {
+      "step": 2,
+      "action": {
+        "type": "fill",
+        "selector": "input[type=\"email\"]",
+        "value": "__EMAIL__",
+        "note": "Enter email"
+      },
+      "execution": {
+        "ok": true
+      },
+      "duration_ms": 108,
+      "url_after": "http://localhost:5173/login",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-22T01-11-22-486Z/agentic/tender-shadow/step-02.png"
+    },
+    {
+      "step": 3,
+      "action": {
+        "type": "fill",
+        "selector": "input[type=\"password\"]",
+        "value": "__PASSWORD__",
+        "note": "Enter password"
+      },
+      "execution": {
+        "ok": true
+      },
+      "duration_ms": 88,
+      "url_after": "http://localhost:5173/login",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-22T01-11-22-486Z/agentic/tender-shadow/step-03.png"
+    },
+    {
+      "step": 4,
+      "action": {
+        "type": "click",
+        "selector": "button[type=\"submit\"]",
+        "note": "Submit login form"
+      },
+      "execution": {
+        "ok": true
+      },
+      "duration_ms": 131,
+      "url_after": "http://localhost:5173/login",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-22T01-11-22-486Z/agentic/tender-shadow/step-04.png"
+    },
+    {
+      "step": 5,
+      "action": {
+        "type": "waitForUrlNotContains",
+        "text": "/login",
+        "note": "Confirm login success"
+      },
+      "execution": {
+        "ok": true
+      },
+      "duration_ms": 373,
+      "url_after": "http://localhost:5173/platform",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-22T01-11-22-486Z/agentic/tender-shadow/step-05.png"
+    },
+    {
+      "step": 6,
+      "action": {
+        "type": "goto",
+        "url": "/tender-workspace",
+        "note": "Open tender workspace list"
+      },
+      "execution": {
+        "ok": true
+      },
+      "duration_ms": 1350,
+      "url_after": "http://localhost:5173/tender-workspace",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-22T01-11-22-486Z/agentic/tender-shadow/step-06.png"
+    },
+    {
+      "step": 7,
+      "action": {
+        "type": "clickIfVisible",
+        "selector": "main a[href^=\"/tender-workspace/\"]:not([href=\"/tender-workspace\"])",
+        "note": "Open first tender detail if available"
+      },
+      "execution": {
+        "ok": true,
+        "clicked": false
+      },
+      "duration_ms": 94,
+      "url_after": "http://localhost:5173/tender-workspace",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-22T01-11-22-486Z/agentic/tender-shadow/step-07.png"
+    },
+    {
+      "step": 8,
+      "action": {
+        "type": "clickIfVisible",
+        "selector": "[role=\"tab\"]:has-text(\"Draft Response\")",
+        "note": "Open draft tab"
+      },
+      "execution": {
+        "ok": true,
+        "clicked": false
+      },
+      "duration_ms": 81,
+      "url_after": "http://localhost:5173/tender-workspace",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-22T01-11-22-486Z/agentic/tender-shadow/step-08.png"
+    },
+    {
+      "step": 9,
+      "action": {
+        "type": "clickIfVisible",
+        "selector": "button:has-text(\"Submit for Approval\")",
+        "note": "Attempt submit (shadow check)"
+      },
+      "execution": {
+        "ok": true,
+        "clicked": false
+      },
+      "duration_ms": 80,
+      "url_after": "http://localhost:5173/tender-workspace",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-22T01-11-22-486Z/agentic/tender-shadow/step-09.png"
+    },
+    {
+      "step": 10,
+      "action": {
+        "type": "expectVisibleAny",
+        "value": "text=/Cannot submit|mandatory requirement|Submitted for approval|Submitted for Approval|Pending Review/i",
+        "note": "Verify validation or status transition outcome is visible"
+      },
+      "execution": {
+        "ok": false,
+        "error": "Expected selector not visible: text=/Cannot submit|mandatory requirement|Submitted for approval|Submitted for Approval|Pending Review/i"
+      },
+      "duration_ms": 83,
+      "url_after": "http://localhost:5173/tender-workspace",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-22T01-11-22-486Z/agentic/tender-shadow/step-10.png"
+    }
+  ],
+  "result": "failed",
+  "pack": "tender-shadow",
+  "compliance_findings": [],
+  "ended_at": "2026-04-22T01:11:43.138Z"
+}

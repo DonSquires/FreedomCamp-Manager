@@ -1,0 +1,160 @@
+{
+  "runId": "2026-04-21T22-36-37-841Z",
+  "startedAt": "2026-04-21T22:36:37.852Z",
+  "profilePath": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/profiles/default.json",
+  "config": {
+    "stages": {
+      "externalServiceChecks": true,
+      "multimodalChecks": true,
+      "uiChecks": true
+    },
+    "timeouts": {
+      "documentPollAttempts": 8,
+      "documentPollIntervalMs": 2000
+    },
+    "ui": {
+      "agenticPacks": [
+        "login-health",
+        "tender-shadow",
+        "ptt-zindex"
+      ],
+      "agenticMaxSteps": 14,
+      "agenticTimeoutMs": 15000,
+      "runPlaywrightSweep": true,
+      "playwrightCommand": "bunx playwright test tests/e2e/crm-service-provider-visual.spec.ts --project=chromium"
+    }
+  },
+  "tests": [
+    {
+      "name": "auth.signin",
+      "status": "pass",
+      "detail": "Authenticated test account",
+      "at": "2026-04-21T22:36:38.093Z",
+      "durationMs": 209
+    },
+    {
+      "name": "auth.resolve_org",
+      "status": "pass",
+      "detail": "organization_id=f3a3cabf-77fb-49f9-be6d-96e3d6060a11",
+      "at": "2026-04-21T22:36:38.155Z",
+      "durationMs": 60
+    },
+    {
+      "name": "external.check_railway_health",
+      "status": "pass",
+      "detail": "HTTP 200",
+      "at": "2026-04-21T22:36:38.688Z",
+      "durationMs": 533,
+      "payload": {
+        "proxy": {
+          "status": "offline",
+          "error": "HTTP 404"
+        },
+        "proxy_url": "https://proxy-server-production-5299.up.railway.app",
+        "inference": {
+          "status": "offline",
+          "error": "HTTP 404"
+        },
+        "inference_url": "https://focused-courage-production-ccee.up.railway.app",
+        "ptt": {
+          "status": "ok",
+          "timestamp": "2026-04-21T22:36:38.707Z",
+          "service": "PTT Signaling Server",
+          "channels": 0,
+          "connectedUsers": 0,
+          "turnConfigured": true,
+          "forceTurnRelay": false,
+          "mediaPath": {
+            "mode": "peer",
+            "signaling_path": "app->railway->app",
+            "media_path": "webrtc-peer-or-turn-relay",
+            "sfu": null
+          }
+        },
+        "ptt_url": "http://72.61.123.97:8080",
+        "inference_api_key_configured": true,
+        "checked_at": "2026-04-21T22:36:38.857Z"
+      }
+    },
+    {
+      "name": "multimodal.chat_response",
+      "status": "infra",
+      "detail": "This operation was aborted",
+      "at": "2026-04-21T22:38:08.690Z",
+      "durationMs": 90002
+    },
+    {
+      "name": "multimodal.speak",
+      "status": "infra",
+      "detail": "Speech synthesis failed (404)",
+      "at": "2026-04-21T22:38:12.497Z",
+      "durationMs": 3807,
+      "statusCode": 502
+    },
+    {
+      "name": "multimodal.listen",
+      "status": "infra",
+      "detail": "Transcription failed (404)",
+      "at": "2026-04-21T22:38:13.299Z",
+      "durationMs": 802,
+      "statusCode": 502
+    },
+    {
+      "name": "multimodal.image_assess",
+      "status": "pass",
+      "detail": "HTTP 200",
+      "at": "2026-04-21T22:38:14.197Z",
+      "durationMs": 898
+    },
+    {
+      "name": "multimodal.document_extract",
+      "status": "infra",
+      "detail": "new row violates row-level security policy",
+      "at": "2026-04-21T22:38:14.619Z",
+      "durationMs": 422
+    }
+  ],
+  "ux": {
+    "a11yViolations": 0,
+    "blockedAuthCount": 0,
+    "flowBreaks": 0
+  },
+  "auth": {
+    "userId": "cb811356-2c47-46a4-a9f9-0fcdab268012",
+    "organizationId": "f3a3cabf-77fb-49f9-be6d-96e3d6060a11"
+  },
+  "findings": [
+    {
+      "severity": "medium",
+      "test": "multimodal.chat_response",
+      "detail": "This operation was aborted"
+    },
+    {
+      "severity": "medium",
+      "test": "multimodal.speak",
+      "detail": "Speech synthesis failed (404)"
+    },
+    {
+      "severity": "medium",
+      "test": "multimodal.listen",
+      "detail": "Transcription failed (404)"
+    },
+    {
+      "severity": "medium",
+      "test": "multimodal.document_extract",
+      "detail": "new row violates row-level security policy"
+    }
+  ],
+  "score": {
+    "totals": {
+      "pass": 4,
+      "fail": 0,
+      "infra": 4,
+      "skipped": 0
+    },
+    "reliability": 50,
+    "stability": 100,
+    "operationalReadiness": 68
+  },
+  "endedAt": "2026-04-21T22:38:14.620Z"
+}

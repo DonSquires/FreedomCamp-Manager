@@ -1,0 +1,119 @@
+{
+  "started_at": "2026-04-22T01:11:43.754Z",
+  "config": {
+    "goal": "shadow run: verify ptt control visibility and z-index safety",
+    "baseUrl": "http://localhost:5173",
+    "headless": true,
+    "maxSteps": 14,
+    "timeoutMs": 15000,
+    "plannerEnabled": true,
+    "emailProvided": true,
+    "passwordProvided": true
+  },
+  "actions": [
+    {
+      "step": 1,
+      "action": {
+        "type": "goto",
+        "url": "/login",
+        "note": "Navigate to login page"
+      },
+      "execution": {
+        "ok": true
+      },
+      "duration_ms": 1031,
+      "url_after": "http://localhost:5173/login",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-22T01-11-22-486Z/agentic/ptt-zindex/step-01.png"
+    },
+    {
+      "step": 2,
+      "action": {
+        "type": "fill",
+        "selector": "input[type=\"email\"]",
+        "value": "__EMAIL__",
+        "note": "Enter email"
+      },
+      "execution": {
+        "ok": true
+      },
+      "duration_ms": 105,
+      "url_after": "http://localhost:5173/login",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-22T01-11-22-486Z/agentic/ptt-zindex/step-02.png"
+    },
+    {
+      "step": 3,
+      "action": {
+        "type": "fill",
+        "selector": "input[type=\"password\"]",
+        "value": "__PASSWORD__",
+        "note": "Enter password"
+      },
+      "execution": {
+        "ok": true
+      },
+      "duration_ms": 95,
+      "url_after": "http://localhost:5173/login",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-22T01-11-22-486Z/agentic/ptt-zindex/step-03.png"
+    },
+    {
+      "step": 4,
+      "action": {
+        "type": "click",
+        "selector": "button[type=\"submit\"]",
+        "note": "Submit login form"
+      },
+      "execution": {
+        "ok": true
+      },
+      "duration_ms": 135,
+      "url_after": "http://localhost:5173/login",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-22T01-11-22-486Z/agentic/ptt-zindex/step-04.png"
+    },
+    {
+      "step": 5,
+      "action": {
+        "type": "waitForUrlNotContains",
+        "text": "/login",
+        "note": "Confirm login success"
+      },
+      "execution": {
+        "ok": true
+      },
+      "duration_ms": 333,
+      "url_after": "http://localhost:5173/platform",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-22T01-11-22-486Z/agentic/ptt-zindex/step-05.png"
+    },
+    {
+      "step": 6,
+      "action": {
+        "type": "goto",
+        "url": "/team-chat",
+        "note": "Open team chat where PTT bar is commonly rendered"
+      },
+      "execution": {
+        "ok": true
+      },
+      "duration_ms": 1937,
+      "url_after": "http://localhost:5173/team-chat",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-22T01-11-22-486Z/agentic/ptt-zindex/step-06.png"
+    },
+    {
+      "step": 7,
+      "action": {
+        "type": "pttZIndexCheck",
+        "note": "Verify a PTT-like control is visible and not occluded"
+      },
+      "execution": {
+        "ok": false,
+        "error": "page.evaluate: SyntaxError: Failed to execute 'querySelector' on 'Document': 'button:has-text(\"Push to Talk\")' is not a valid selector.\n    at find (eval at evaluate (:302:30), <anonymous>:12:31)\n    at eval (eval at evaluate (:302:30), <anonymous>:18:21)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      },
+      "duration_ms": 124,
+      "url_after": "http://localhost:5173/team-chat",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-22T01-11-22-486Z/agentic/ptt-zindex/step-07.png"
+    }
+  ],
+  "result": "failed",
+  "pack": "ptt-zindex",
+  "compliance_findings": [],
+  "ended_at": "2026-04-22T01:11:47.985Z"
+}

@@ -1,0 +1,106 @@
+{
+  "started_at": "2026-04-22T01:09:54.485Z",
+  "config": {
+    "goal": "shadow run: login health check",
+    "baseUrl": "http://localhost:5173",
+    "headless": true,
+    "maxSteps": 12,
+    "timeoutMs": 15000,
+    "plannerEnabled": false,
+    "emailProvided": true,
+    "passwordProvided": true
+  },
+  "actions": [
+    {
+      "step": 1,
+      "action": {
+        "type": "goto",
+        "url": "/login",
+        "note": "Navigate to login page"
+      },
+      "execution": {
+        "ok": true
+      },
+      "duration_ms": 1051,
+      "url_after": "http://localhost:5173/login",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/agentic-ui-reports/login-health-verify/step-01.png"
+    },
+    {
+      "step": 2,
+      "action": {
+        "type": "fill",
+        "selector": "input[type=\"email\"]",
+        "value": "__EMAIL__",
+        "note": "Enter email"
+      },
+      "execution": {
+        "ok": true
+      },
+      "duration_ms": 91,
+      "url_after": "http://localhost:5173/login",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/agentic-ui-reports/login-health-verify/step-02.png"
+    },
+    {
+      "step": 3,
+      "action": {
+        "type": "fill",
+        "selector": "input[type=\"password\"]",
+        "value": "__PASSWORD__",
+        "note": "Enter password"
+      },
+      "execution": {
+        "ok": true
+      },
+      "duration_ms": 86,
+      "url_after": "http://localhost:5173/login",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/agentic-ui-reports/login-health-verify/step-03.png"
+    },
+    {
+      "step": 4,
+      "action": {
+        "type": "click",
+        "selector": "button[type=\"submit\"]",
+        "note": "Submit login form"
+      },
+      "execution": {
+        "ok": true
+      },
+      "duration_ms": 126,
+      "url_after": "http://localhost:5173/login",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/agentic-ui-reports/login-health-verify/step-04.png"
+    },
+    {
+      "step": 5,
+      "action": {
+        "type": "waitForUrlNotContains",
+        "text": "/login",
+        "note": "Confirm login success"
+      },
+      "execution": {
+        "ok": true
+      },
+      "duration_ms": 664,
+      "url_after": "http://localhost:5173/platform",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/agentic-ui-reports/login-health-verify/step-05.png"
+    },
+    {
+      "step": 6,
+      "action": {
+        "type": "expectVisibleAny",
+        "value": "text=/Admin Hub|FieldOps|Portal|Dashboard/i",
+        "note": "Confirm authenticated landing state"
+      },
+      "execution": {
+        "ok": false,
+        "error": "locator.waitFor: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('text=/Admin Hub|FieldOps|Portal|Dashboard/i').first() to be visible\u001b[22m\n\u001b[2m    32 × locator resolved to hidden <h1 class=\"font-semibold text-lg truncate\">FieldOps</h1>\u001b[22m\n"
+      },
+      "duration_ms": 15266,
+      "url_after": "http://localhost:5173/platform",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/agentic-ui-reports/login-health-verify/step-06.png"
+    }
+  ],
+  "result": "failed",
+  "pack": "login-health",
+  "compliance_findings": [],
+  "ended_at": "2026-04-22T01:10:12.193Z"
+}

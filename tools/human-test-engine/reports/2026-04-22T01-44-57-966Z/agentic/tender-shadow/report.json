@@ -1,0 +1,34 @@
+{
+  "started_at": "2026-04-22T01:45:05.162Z",
+  "config": {
+    "goal": "shadow run: tender compliance submission block check",
+    "baseUrl": "http://localhost:5173",
+    "headless": true,
+    "maxSteps": 14,
+    "timeoutMs": 15000,
+    "plannerEnabled": true,
+    "emailProvided": true,
+    "passwordProvided": true
+  },
+  "actions": [
+    {
+      "step": 1,
+      "action": {
+        "type": "goto",
+        "url": "/login",
+        "note": "Navigate to login page"
+      },
+      "execution": {
+        "ok": false,
+        "error": "page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/login\", waiting until \"networkidle\"\u001b[22m\n"
+      },
+      "duration_ms": 171,
+      "url_after": "chrome-error://chromewebdata/",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-22T01-44-57-966Z/agentic/tender-shadow/step-01.png"
+    }
+  ],
+  "result": "failed",
+  "pack": "tender-shadow",
+  "compliance_findings": [],
+  "ended_at": "2026-04-22T01:45:06.020Z"
+}

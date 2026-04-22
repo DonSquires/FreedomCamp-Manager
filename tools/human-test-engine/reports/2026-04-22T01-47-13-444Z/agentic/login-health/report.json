@@ -1,0 +1,129 @@
+{
+  "started_at": "2026-04-22T01:47:18.663Z",
+  "config": {
+    "goal": "shadow run: login health check",
+    "baseUrl": "http://localhost:5173",
+    "headless": true,
+    "maxSteps": 14,
+    "timeoutMs": 15000,
+    "plannerEnabled": true,
+    "emailProvided": true,
+    "passwordProvided": true
+  },
+  "actions": [
+    {
+      "step": 1,
+      "action": {
+        "type": "goto",
+        "url": "/login",
+        "note": "Navigate to login page"
+      },
+      "execution": {
+        "ok": true
+      },
+      "duration_ms": 3850,
+      "url_after": "http://localhost:5173/login",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-22T01-47-13-444Z/agentic/login-health/step-01.png"
+    },
+    {
+      "step": 2,
+      "action": {
+        "type": "fill",
+        "selector": "input[type=\"email\"]",
+        "value": "__EMAIL__",
+        "note": "Enter email"
+      },
+      "execution": {
+        "ok": true
+      },
+      "duration_ms": 100,
+      "url_after": "http://localhost:5173/login",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-22T01-47-13-444Z/agentic/login-health/step-02.png"
+    },
+    {
+      "step": 3,
+      "action": {
+        "type": "fill",
+        "selector": "input[type=\"password\"]",
+        "value": "__PASSWORD__",
+        "note": "Enter password"
+      },
+      "execution": {
+        "ok": true
+      },
+      "duration_ms": 104,
+      "url_after": "http://localhost:5173/login",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-22T01-47-13-444Z/agentic/login-health/step-03.png"
+    },
+    {
+      "step": 4,
+      "action": {
+        "type": "click",
+        "selector": "button[type=\"submit\"]",
+        "note": "Submit login form"
+      },
+      "execution": {
+        "ok": true
+      },
+      "duration_ms": 119,
+      "url_after": "http://localhost:5173/login",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-22T01-47-13-444Z/agentic/login-health/step-04.png"
+    },
+    {
+      "step": 5,
+      "action": {
+        "type": "waitForUrlNotContains",
+        "text": "/login",
+        "note": "Confirm login success"
+      },
+      "execution": {
+        "ok": true
+      },
+      "duration_ms": 145,
+      "url_after": "http://localhost:5173/platform",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-22T01-47-13-444Z/agentic/login-health/step-05.png"
+    },
+    {
+      "step": 6,
+      "action": {
+        "type": "axeCheck",
+        "note": "Quick a11y scan after login"
+      },
+      "execution": {
+        "ok": true,
+        "axe": {
+          "ok": true,
+          "violations": [
+            {
+              "id": "color-contrast",
+              "impact": "serious",
+              "nodes": 18
+            }
+          ],
+          "passes": 23
+        }
+      },
+      "duration_ms": 1040,
+      "url_after": "http://localhost:5173/platform",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-22T01-47-13-444Z/agentic/login-health/step-06.png"
+    },
+    {
+      "step": 7,
+      "action": {
+        "type": "done",
+        "note": "Login health pack complete"
+      },
+      "execution": {
+        "ok": true,
+        "done": true
+      },
+      "duration_ms": 221,
+      "url_after": "http://localhost:5173/platform",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-22T01-47-13-444Z/agentic/login-health/step-07.png"
+    }
+  ],
+  "result": "completed",
+  "pack": "login-health",
+  "compliance_findings": [],
+  "ended_at": "2026-04-22T01:47:26.407Z"
+}

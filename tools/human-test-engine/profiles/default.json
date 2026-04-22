@@ -1,0 +1,23 @@
+{
+  "stages": {
+    "secretAlignmentChecks": true,
+    "externalServiceChecks": true,
+    "multimodalChecks": true,
+    "uiChecks": true
+  },
+  "timeouts": {
+    "documentPollAttempts": 8,
+    "documentPollIntervalMs": 2000
+  },
+  "ui": {
+    "agenticPacks": [
+      "login-health",
+      "tender-shadow",
+      "ptt-zindex"
+    ],
+    "agenticMaxSteps": 14,
+    "agenticTimeoutMs": 15000,
+    "runPlaywrightSweep": true,
+    "playwrightCommand": "bunx playwright test tests/e2e/crm-service-provider-visual.spec.ts --project=chromium"
+  }
+}

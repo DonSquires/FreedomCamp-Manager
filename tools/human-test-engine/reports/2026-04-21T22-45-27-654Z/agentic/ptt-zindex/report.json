@@ -1,0 +1,98 @@
+{
+  "started_at": "2026-04-21T22:47:37.204Z",
+  "config": {
+    "goal": "shadow run: verify ptt control visibility and z-index safety",
+    "baseUrl": "http://localhost:5173",
+    "headless": true,
+    "maxSteps": 14,
+    "timeoutMs": 15000,
+    "plannerEnabled": true,
+    "emailProvided": true,
+    "passwordProvided": true
+  },
+  "actions": [
+    {
+      "step": 1,
+      "action": {
+        "type": "goto",
+        "url": "/login",
+        "note": "Navigate to login page"
+      },
+      "execution": {
+        "ok": true
+      },
+      "duration_ms": 1080,
+      "url_after": "http://localhost:5173/login",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-21T22-45-27-654Z/agentic/ptt-zindex/step-01.png"
+    },
+    {
+      "step": 2,
+      "action": {
+        "type": "fill",
+        "selector": "input[type=\"email\"]",
+        "value": "__EMAIL__",
+        "note": "Enter email"
+      },
+      "execution": {
+        "ok": true
+      },
+      "duration_ms": 102,
+      "url_after": "http://localhost:5173/login",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-21T22-45-27-654Z/agentic/ptt-zindex/step-02.png"
+    },
+    {
+      "step": 3,
+      "action": {
+        "type": "fill",
+        "selector": "input[type=\"password\"]",
+        "value": "__PASSWORD__",
+        "note": "Enter password"
+      },
+      "execution": {
+        "ok": true
+      },
+      "duration_ms": 88,
+      "url_after": "http://localhost:5173/login",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-21T22-45-27-654Z/agentic/ptt-zindex/step-03.png"
+    },
+    {
+      "step": 4,
+      "action": {
+        "type": "click",
+        "selector": "button[type=\"submit\"]",
+        "note": "Submit login form"
+      },
+      "execution": {
+        "ok": true
+      },
+      "duration_ms": 146,
+      "url_after": "http://localhost:5173/login",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-21T22-45-27-654Z/agentic/ptt-zindex/step-04.png"
+    },
+    {
+      "step": 5,
+      "action": {
+        "type": "waitForUrlNotContains",
+        "text": "/login",
+        "note": "Confirm login success"
+      },
+      "execution": {
+        "ok": false,
+        "error": "page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================"
+      },
+      "duration_ms": 15084,
+      "url_after": "http://localhost:5173/login",
+      "screenshot": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-21T22-45-27-654Z/agentic/ptt-zindex/step-05.png"
+    }
+  ],
+  "result": "blocked_auth",
+  "pack": "ptt-zindex",
+  "compliance_findings": [
+    {
+      "level": "info",
+      "code": "LOGIN_BLOCKED",
+      "detail": "Authentication did not complete. Provide valid --email/--password or environment credentials for full pack execution."
+    }
+  ],
+  "ended_at": "2026-04-21T22:47:54.087Z"
+}

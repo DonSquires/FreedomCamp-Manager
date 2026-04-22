@@ -1,0 +1,381 @@
+{
+  "runId": "2026-04-21T22-45-27-654Z",
+  "startedAt": "2026-04-21T22:45:27.666Z",
+  "profilePath": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/profiles/default.json",
+  "config": {
+    "stages": {
+      "secretAlignmentChecks": true,
+      "externalServiceChecks": true,
+      "multimodalChecks": true,
+      "uiChecks": true
+    },
+    "timeouts": {
+      "documentPollAttempts": 8,
+      "documentPollIntervalMs": 2000
+    },
+    "ui": {
+      "agenticPacks": [
+        "login-health",
+        "tender-shadow",
+        "ptt-zindex"
+      ],
+      "agenticMaxSteps": 14,
+      "agenticTimeoutMs": 15000,
+      "runPlaywrightSweep": true,
+      "playwrightCommand": "bunx playwright test tests/e2e/crm-service-provider-visual.spec.ts --project=chromium"
+    }
+  },
+  "tests": [
+    {
+      "name": "secret-alignment.supabase-url",
+      "status": "pass",
+      "detail": "Aligned across VITE_SUPABASE_URL",
+      "at": "2026-04-21T22:45:27.666Z"
+    },
+    {
+      "name": "secret-alignment.inference-url",
+      "status": "pass",
+      "detail": "Aligned across VITE_INFERENCE_SERVICE_URL",
+      "at": "2026-04-21T22:45:27.666Z"
+    },
+    {
+      "name": "secret-alignment.inference-key",
+      "status": "pass",
+      "detail": "Aligned across VITE_INFERENCE_API_KEY",
+      "at": "2026-04-21T22:45:27.666Z"
+    },
+    {
+      "name": "secret-alignment.runpod-url",
+      "status": "infra",
+      "detail": "No value set for RUNPOD_GATEWAY_URL, RUNPOD_SERVERLESS_URL, RUNPOD_URL",
+      "at": "2026-04-21T22:45:27.666Z"
+    },
+    {
+      "name": "secret-alignment.runpod-key",
+      "status": "pass",
+      "detail": "Aligned across RUNPOD_API_KEY",
+      "at": "2026-04-21T22:45:27.666Z"
+    },
+    {
+      "name": "secret-alignment.org-context",
+      "status": "infra",
+      "detail": "No value set for BOB_ORG_ID, ORG_ID, DEFAULT_ORG_ID",
+      "at": "2026-04-21T22:45:27.666Z"
+    },
+    {
+      "name": "secret-alignment.supabase-service-role",
+      "status": "infra",
+      "detail": "SUPABASE_SERVICE_ROLE_KEY not set; admin/document probes may be limited",
+      "at": "2026-04-21T22:45:27.666Z"
+    },
+    {
+      "name": "secret-alignment.test-user-email",
+      "status": "pass",
+      "detail": "Test-user email sources align",
+      "at": "2026-04-21T22:45:27.666Z"
+    },
+    {
+      "name": "auth.signin",
+      "status": "pass",
+      "detail": "Authenticated test account",
+      "at": "2026-04-21T22:45:28.190Z",
+      "durationMs": 492
+    },
+    {
+      "name": "auth.resolve_org",
+      "status": "pass",
+      "detail": "organization_id=f3a3cabf-77fb-49f9-be6d-96e3d6060a11",
+      "at": "2026-04-21T22:45:28.243Z",
+      "durationMs": 51
+    },
+    {
+      "name": "external.check_railway_health",
+      "status": "pass",
+      "detail": "HTTP 200",
+      "at": "2026-04-21T22:45:28.958Z",
+      "durationMs": 715,
+      "payload": {
+        "proxy": {
+          "status": "offline",
+          "error": "HTTP 404"
+        },
+        "proxy_url": "https://proxy-server-production-5299.up.railway.app",
+        "inference": {
+          "status": "offline",
+          "error": "HTTP 404"
+        },
+        "inference_url": "https://focused-courage-production-ccee.up.railway.app",
+        "ptt": {
+          "status": "ok",
+          "timestamp": "2026-04-21T22:45:28.774Z",
+          "service": "PTT Signaling Server",
+          "channels": 0,
+          "connectedUsers": 0,
+          "turnConfigured": true,
+          "forceTurnRelay": false,
+          "mediaPath": {
+            "mode": "peer",
+            "signaling_path": "app->railway->app",
+            "media_path": "webrtc-peer-or-turn-relay",
+            "sfu": null
+          }
+        },
+        "ptt_url": "http://72.61.123.97:8080",
+        "inference_api_key_configured": true,
+        "checked_at": "2026-04-21T22:45:29.138Z"
+      }
+    },
+    {
+      "name": "multimodal.chat_response",
+      "status": "infra",
+      "detail": "This operation was aborted",
+      "at": "2026-04-21T22:46:58.962Z",
+      "durationMs": 90004
+    },
+    {
+      "name": "multimodal.speak",
+      "status": "infra",
+      "detail": "Speech synthesis failed (404)",
+      "at": "2026-04-21T22:46:59.778Z",
+      "durationMs": 816,
+      "statusCode": 502
+    },
+    {
+      "name": "multimodal.listen",
+      "status": "infra",
+      "detail": "Transcription failed (404)",
+      "at": "2026-04-21T22:47:00.551Z",
+      "durationMs": 773,
+      "statusCode": 502
+    },
+    {
+      "name": "multimodal.image_assess",
+      "status": "pass",
+      "detail": "HTTP 200",
+      "at": "2026-04-21T22:47:01.330Z",
+      "durationMs": 779
+    },
+    {
+      "name": "multimodal.document_extract",
+      "status": "infra",
+      "detail": "new row violates row-level security policy",
+      "at": "2026-04-21T22:47:01.663Z",
+      "durationMs": 333
+    },
+    {
+      "name": "ui.agentic.login-health",
+      "status": "infra",
+      "detail": "flow blocked by authentication credentials",
+      "at": "2026-04-21T22:47:19.182Z",
+      "durationMs": 17519
+    },
+    {
+      "name": "ui.agentic.tender-shadow",
+      "status": "infra",
+      "detail": "flow blocked by authentication credentials",
+      "at": "2026-04-21T22:47:36.686Z",
+      "durationMs": 17504
+    },
+    {
+      "name": "ui.agentic.ptt-zindex",
+      "status": "infra",
+      "detail": "flow blocked by authentication credentials",
+      "at": "2026-04-21T22:47:54.183Z",
+      "durationMs": 17497
+    },
+    {
+      "name": "ui.playwright.crm_visual_sweep",
+      "status": "fail",
+      "detail": "t: test-results/crm-service-provider-visua-84e5c-for-CRM-and-enabled-modules-chromium/error-context.md\n\n  1 failed\n    [chromium] › tests/e2e/crm-service-provider-visual.spec.ts:70:3 › CRM full visual provisioning and module sweep › visual route sweep for CRM and enabled modules \n  1 passed (46.1s)\n",
+      "at": "2026-04-21T22:48:41.363Z",
+      "durationMs": 47180
+    }
+  ],
+  "ux": {
+    "a11yViolations": 0,
+    "blockedAuthCount": 3,
+    "flowBreaks": 1
+  },
+  "auth": {
+    "userId": "cb811356-2c47-46a4-a9f9-0fcdab268012",
+    "organizationId": "f3a3cabf-77fb-49f9-be6d-96e3d6060a11"
+  },
+  "secretAlignment": {
+    "mismatchCount": 0,
+    "missingCount": 3,
+    "checks": [
+      {
+        "group": "supabase-url",
+        "vars": [
+          "VITE_SUPABASE_URL",
+          "SUPABASE_URL"
+        ],
+        "present": [
+          "VITE_SUPABASE_URL"
+        ],
+        "missing": false,
+        "mismatch": false
+      },
+      {
+        "group": "inference-url",
+        "vars": [
+          "BOB_SERVICE_URL",
+          "INFERENCE_SERVICE_URL",
+          "VITE_INFERENCE_SERVICE_URL"
+        ],
+        "present": [
+          "VITE_INFERENCE_SERVICE_URL"
+        ],
+        "missing": false,
+        "mismatch": false
+      },
+      {
+        "group": "inference-key",
+        "vars": [
+          "BOB_INFERENCE_API_KEY",
+          "INFERENCE_API_KEY",
+          "VITE_INFERENCE_API_KEY"
+        ],
+        "present": [
+          "VITE_INFERENCE_API_KEY"
+        ],
+        "missing": false,
+        "mismatch": false
+      },
+      {
+        "group": "runpod-url",
+        "vars": [
+          "RUNPOD_GATEWAY_URL",
+          "RUNPOD_SERVERLESS_URL",
+          "RUNPOD_URL"
+        ],
+        "present": [],
+        "missing": true,
+        "mismatch": false
+      },
+      {
+        "group": "runpod-key",
+        "vars": [
+          "RUNPOD_API_KEY",
+          "DR_BOB_API"
+        ],
+        "present": [
+          "RUNPOD_API_KEY"
+        ],
+        "missing": false,
+        "mismatch": false
+      },
+      {
+        "group": "org-context",
+        "vars": [
+          "BOB_ORG_ID",
+          "ORG_ID",
+          "DEFAULT_ORG_ID"
+        ],
+        "present": [],
+        "missing": true,
+        "mismatch": false
+      },
+      {
+        "group": "supabase-service-role",
+        "vars": [
+          "SUPABASE_SERVICE_ROLE_KEY"
+        ],
+        "present": [],
+        "missing": true,
+        "mismatch": false
+      },
+      {
+        "group": "test-user-email",
+        "vars": [
+          "API_TEST_EMAIL",
+          "PLAYWRIGHT_ADMIN_EMAIL"
+        ],
+        "present": [
+          "API_TEST_EMAIL"
+        ],
+        "missing": false,
+        "mismatch": false
+      }
+    ]
+  },
+  "findings": [
+    {
+      "severity": "high",
+      "test": "ui.playwright.crm_visual_sweep",
+      "detail": "t: test-results/crm-service-provider-visua-84e5c-for-CRM-and-enabled-modules-chromium/error-context.md\n\n  1 failed\n    [chromium] › tests/e2e/crm-service-provider-visual.spec.ts:70:3 › CRM full visual provisioning and module sweep › visual route sweep for CRM and enabled modules \n  1 passed (46.1s)\n"
+    },
+    {
+      "severity": "medium",
+      "test": "secret-alignment.runpod-url",
+      "detail": "No value set for RUNPOD_GATEWAY_URL, RUNPOD_SERVERLESS_URL, RUNPOD_URL"
+    },
+    {
+      "severity": "medium",
+      "test": "secret-alignment.org-context",
+      "detail": "No value set for BOB_ORG_ID, ORG_ID, DEFAULT_ORG_ID"
+    },
+    {
+      "severity": "medium",
+      "test": "secret-alignment.supabase-service-role",
+      "detail": "SUPABASE_SERVICE_ROLE_KEY not set; admin/document probes may be limited"
+    },
+    {
+      "severity": "medium",
+      "test": "multimodal.chat_response",
+      "detail": "This operation was aborted"
+    },
+    {
+      "severity": "medium",
+      "test": "multimodal.speak",
+      "detail": "Speech synthesis failed (404)"
+    },
+    {
+      "severity": "medium",
+      "test": "multimodal.listen",
+      "detail": "Transcription failed (404)"
+    },
+    {
+      "severity": "medium",
+      "test": "multimodal.document_extract",
+      "detail": "new row violates row-level security policy"
+    },
+    {
+      "severity": "medium",
+      "test": "ui.agentic.login-health",
+      "detail": "flow blocked by authentication credentials"
+    },
+    {
+      "severity": "medium",
+      "test": "ui.agentic.tender-shadow",
+      "detail": "flow blocked by authentication credentials"
+    },
+    {
+      "severity": "medium",
+      "test": "ui.agentic.ptt-zindex",
+      "detail": "flow blocked by authentication credentials"
+    },
+    {
+      "severity": "medium",
+      "test": "ux-auth-flow",
+      "detail": "3 flow(s) were blocked by authentication"
+    },
+    {
+      "severity": "medium",
+      "test": "secret-alignment",
+      "detail": "3 required or recommended secret group(s) missing"
+    }
+  ],
+  "score": {
+    "totals": {
+      "pass": 9,
+      "fail": 1,
+      "infra": 10,
+      "skipped": 0
+    },
+    "reliability": 45,
+    "stability": 95,
+    "operationalReadiness": 63
+  },
+  "endedAt": "2026-04-21T22:48:41.364Z"
+}
