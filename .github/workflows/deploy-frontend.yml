@@ -9,7 +9,7 @@ name: Deploy Admin Portal to Vercel
 # Required secrets:
 #   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
 #   SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF  (for type drift check)
-#   VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID
+#   VERCEL_TOKEN (or VERCEL_API), VERCEL_ORG_ID, VERCEL_PROJECT_ID
 
 on:
   push:
@@ -79,6 +79,7 @@ jobs:
         id: check-secrets
         run: |
           missing=""
+          VERCEL_TOKEN="${VERCEL_TOKEN:-$VERCEL_API}"
           [ -z "$VERCEL_TOKEN" ]           && missing="$missing VERCEL_TOKEN"
           [ -z "$VERCEL_ORG_ID" ]          && missing="$missing VERCEL_ORG_ID"
           [ -z "$VERCEL_PROJECT_ID" ]      && missing="$missing VERCEL_PROJECT_ID"
@@ -107,7 +108,7 @@ jobs:
             echo ""
             echo "  VITE_SUPABASE_URL:      https://YOUR_REF.supabase.co"
             echo "  VITE_SUPABASE_ANON_KEY: Supabase Dashboard → Settings → API → anon key"
-            echo "  VERCEL_TOKEN:           https://vercel.com/account/tokens"
+            echo "  VERCEL_TOKEN (or VERCEL_API): https://vercel.com/account/tokens"
             echo "  VERCEL_ORG_ID:          Vercel Dashboard → Settings → General → Team ID"
             echo "  VERCEL_PROJECT_ID:      Vercel Dashboard → Project → Settings → Project ID"
             echo ""
@@ -130,7 +131,8 @@ jobs:
           VITE_PROXY_SERVER_URL_PREVIEW:      ${{ secrets.VITE_PROXY_SERVER_URL_PREVIEW }}
           VITE_SUPABASE_URL:      ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          VERCEL_TOKEN:           ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TOKEN:           ${{ secrets.VERCEL_TOKEN || secrets.VERCEL_API }}
+          VERCEL_API:             ${{ secrets.VERCEL_API }}
           VERCEL_ORG_ID:          ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID:      ${{ secrets.VERCEL_PROJECT_ID }}
 
@@ -262,7 +264,7 @@ jobs:
         if: steps.check-secrets.outputs.secrets_present == 'true'
         run: vercel pull --yes --environment="${{ steps.resolve-env.outputs.portal_environment }}" --token "$VERCEL_TOKEN"
         env:
-          VERCEL_TOKEN:      ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TOKEN:      ${{ secrets.VERCEL_TOKEN || secrets.VERCEL_API }}
           VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
@@ -277,7 +279,7 @@ jobs:
           echo "✅ Admin portal production deployment complete!"
           echo "🌐 URL: $(tail -1 /tmp/deploy-url.txt)"
         env:
-          VERCEL_TOKEN:      ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TOKEN:      ${{ secrets.VERCEL_TOKEN || secrets.VERCEL_API }}
           VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
@@ -292,6 +294,6 @@ jobs:
           echo "✅ Admin portal preview deployment complete!"
           echo "🌐 URL: $(tail -1 /tmp/deploy-url.txt)"
         env:
-          VERCEL_TOKEN:      ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TOKEN:      ${{ secrets.VERCEL_TOKEN || secrets.VERCEL_API }}
           VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
