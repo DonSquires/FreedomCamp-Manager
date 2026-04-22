@@ -126,7 +126,7 @@ export default defineConfig({
 
   // Run your local dev server before starting the tests
   webServer: {
-    command: "sh -c 'set -a; [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; [ -f .env.playwright.local ] && . ./.env.playwright.local; set +a; npm run dev'",
+    command: "bash -lc 'set -a; [ -f .env ] && source ./.env; [ -f .env.local ] && source ./.env.local; [ -f .env.playwright.local ] && source ./.env.playwright.local; set +a; npm run dev'",
     url: 'http://localhost:5173',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,

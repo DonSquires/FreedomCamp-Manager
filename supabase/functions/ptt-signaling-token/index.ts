@@ -15,15 +15,12 @@
  */
 
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
-import { fetchWithRetry } from '../_shared/fetchWithRetry.ts'
-
-const DEFAULT_PTT_SERVER_URL = 'http://72.61.123.97:8080'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
 
 const PTT_SERVER_URL =
   Deno.env.get('PTT_SERVER_URL') ||
   Deno.env.get('PTT_SERVICE_URL') ||
-  DEFAULT_PTT_SERVER_URL
+  ''
 const PROXY_SECRET = Deno.env.get('PTT_PROXY_SECRET') || ''
 
 function normalizeBaseUrl(value: string): string {
@@ -266,7 +263,7 @@ Deno.serve(async (req) => {
 
     let mintResponse: Response
     try {
-      mintResponse = await fetchWithRetry(`${normalizedPttServerUrl}/api/token/mint`, {
+      mintResponse = await fetch(`${normalizedPttServerUrl}/api/token/mint`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -280,10 +277,6 @@ Deno.serve(async (req) => {
           firstName: profile.first_name,
           lastName: profile.last_name,
         }),
-      }, {
-        retries: 2,
-        timeoutMs: 8_000,
-        backoffMs: 500,
       })
     } catch (fetchError: any) {
       console.error('PTT server fetch failed:', fetchError)
@@ -299,42 +292,13 @@ Deno.serve(async (req) => {
     if (!mintResponse.ok) {
       const errorText = await mintResponse.text()
       console.error('PTT server error:', mintResponse.status, errorText)
-
-      let upstreamMessage = 'Failed to mint channel token'
-      let retryAfter: number | null = null
-
-      try {
-        const parsed = JSON.parse(errorText)
-        if (typeof parsed?.message === 'string' && parsed.message.trim()) {
-          upstreamMessage = parsed.message.trim()
-        }
-        if (typeof parsed?.retryAfter === 'number' && Number.isFinite(parsed.retryAfter) && parsed.retryAfter > 0) {
-          retryAfter = Math.ceil(parsed.retryAfter)
-        }
-      } catch {
-        if (errorText.trim()) {
-          upstreamMessage = errorText.trim().slice(0, 200)
-        }
-      }
-
-      const status = mintResponse.status === 429 ? 429 : 502
-      const headers: Record<string, string> = {
-        ...getCorsHeaders(req),
-        'Content-Type': 'application/json',
-      }
-      if (status === 429 && retryAfter && retryAfter > 0) {
-        headers['Retry-After'] = String(retryAfter)
-      }
-
       return new Response(
         JSON.stringify({
           error: 'PTT server error',
-          message: upstreamMessage,
-          upstreamStatus: mintResponse.status,
-          ...(status === 429 && retryAfter ? { retryAfter } : {}),
+          message: 'Failed to mint channel token',
           details: errorText.slice(0, 200),
         }),
-        { status, headers }
+        { status: 502, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
 

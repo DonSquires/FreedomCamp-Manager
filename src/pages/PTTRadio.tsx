@@ -391,9 +391,6 @@ export default function PTTRadio() {
   const setVoxEnabled = usePTTStore((s) => s.setVoxEnabled)
   const setError = usePTTStore((s) => s.setError)
 
-  const isAvailable = usePTTAvailable()
-  const canSpeak = usePTTCanSpeak()
-
   // Component state
   const [activeChannel, setActiveChannel] = useState<RadioChannel | null>(null)
   const [isTransmitting, setIsTransmitting] = useState(false)
@@ -404,6 +401,19 @@ export default function PTTRadio() {
   const [isConnecting, setIsConnecting] = useState(false)
   const [connectCooldownUntil, setConnectCooldownUntil] = useState(0)
   const [retryCountdownSeconds, setRetryCountdownSeconds] = useState<number | null>(null)
+
+  const isAvailable = usePTTAvailable()
+  const canSpeak = usePTTCanSpeak()
+  const pttButtonState = isTransmitting
+    ? 'transmitting'
+    : isMuted
+    ? 'muted'
+    : connectionStatus !== 'connected'
+    ? connectionStatus
+    : canSpeak
+    ? 'ready'
+    : 'disabled'
+
   const [callsign, setCallsign] = useState('')
   const [txLog, setTxLog] = useState<TransmissionEntry[]>([])
   const [currentTxStart, setCurrentTxStart] = useState<Date | null>(null)
@@ -1491,7 +1501,7 @@ export default function PTTRadio() {
 
           {/* Right: connection + clock */}
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1.5 text-xs">
+            <div className="flex items-center gap-1.5 text-xs" data-testid="ptt-connection-status" data-state={connectionStatus}>
               <span className={`w-2 h-2 rounded-full ${connectionDot}`} />
               <span className={`uppercase tracking-wide ${connectionColor}`}>{connectionStatus}</span>
               {isConnecting && <Loader2 className="h-3 w-3 animate-spin text-yellow-400 ml-1" />}
@@ -1590,6 +1600,7 @@ export default function PTTRadio() {
                     return (
                       <button
                         key={ch.id}
+                        data-testid={`ptt-channel-${ch.channel_number}`}
                         className={`w-full flex items-center gap-2.5 px-3 py-3 rounded-lg text-left transition-all ${
                           isActive
                             ? 'bg-slate-700 shadow-[0_0_12px_rgba(59,130,246,0.3)]'
@@ -1644,7 +1655,7 @@ export default function PTTRadio() {
 
             {/* Active channel header */}
             {activeChannel && (
-              <div className="text-center">
+              <div className="text-center" data-testid="ptt-active-channel">
                 <div className="text-[10px] text-slate-500 uppercase tracking-widest">Active Channel</div>
                 <div className="text-2xl font-bold tracking-wider mt-0.5" style={{ color: activeChannel.color }}>
                   CH {activeChannel.channel_number} · {activeChannel.name.toUpperCase()}
@@ -1667,6 +1678,8 @@ export default function PTTRadio() {
                 <TooltipTrigger asChild>
                   <button
                     ref={pttButtonRef}
+                    data-testid="ptt-main-button"
+                    data-ptt-state={pttButtonState}
                     className={`select-none rounded-full flex items-center justify-center transition-all duration-100 border-4 ${
                       isTransmitting
                         ? 'bg-red-600 border-red-400 shadow-[0_0_40px_#dc262680] scale-105'

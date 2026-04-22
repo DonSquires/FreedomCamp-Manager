@@ -43,7 +43,31 @@ function appendLog(record) {
 
 function resolveHealthEndpoints() {
   const configured = process.env.SYSTEM_TELEMETRY_HEALTH_ENDPOINTS || process.env.BOB_TEST_HEALTH_ENDPOINTS || '';
-  return parsePairs(configured).map((entry) => ({ name: entry.name, url: entry.value }));
+  if (configured.trim()) {
+    return parsePairs(configured).map((entry) => ({ name: entry.name, url: entry.value, headers: { Accept: 'application/json' } }));
+  }
+
+  const endpoints = [];
+  const bobBaseUrl = String(process.env.BOB_SERVICE_URL || process.env.INFERENCE_SERVICE_URL || '').trim().replace(/\/+$/, '');
+  if (bobBaseUrl) endpoints.push({ name: 'bob', url: `${bobBaseUrl}/health`, headers: { Accept: 'application/json' } });
+
+  const pttBaseUrl = String(process.env.PTT_SERVER_URL || process.env.PTT_SERVICE_URL || '').trim().replace(/\/+$/, '');
+  if (pttBaseUrl) endpoints.push({ name: 'ptt', url: `${pttBaseUrl}/health`, headers: { Accept: 'application/json' } });
+
+  const runpodBaseUrl = String(process.env.RUNPOD_GATEWAY_URL || process.env.RUNPOD_SERVERLESS_URL || '').trim().replace(/\/+$/, '');
+  if (runpodBaseUrl) endpoints.push({ name: 'runpod', url: `${runpodBaseUrl}/health`, headers: { Accept: 'application/json' } });
+
+  const supabaseUrl = String(process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim().replace(/\/+$/, '');
+  const supabaseAnonKey = String(process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim();
+  if (supabaseUrl && supabaseAnonKey) {
+    endpoints.push({
+      name: 'supabase',
+      url: `${supabaseUrl}/rest/v1/organizations?select=id&limit=1`,
+      headers: { Accept: 'application/json', apikey: supabaseAnonKey },
+    });
+  }
+
+  return endpoints;
 }
 
 function resolveCommands() {
@@ -69,7 +93,7 @@ async function pollHealth() {
 
   for (const endpoint of endpoints) {
     try {
-      const response = await fetch(endpoint.url, { headers: { Accept: 'application/json' } });
+      const response = await fetch(endpoint.url, { headers: endpoint.headers || { Accept: 'application/json' } });
       let payload = null;
       try {
         payload = await response.json();

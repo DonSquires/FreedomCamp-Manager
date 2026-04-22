@@ -70,12 +70,27 @@ function parseHealthEndpoints() {
       .filter((entry) => entry.url);
   }
 
+  const endpoints = [];
   const baseUrl = resolveBaseUrl();
-  if (baseUrl) {
-    return [{ name: 'bob', url: `${baseUrl}/health` }];
+  if (baseUrl) endpoints.push({ name: 'bob', url: `${baseUrl}/health`, headers: { Accept: 'application/json' } });
+
+  const pttBaseUrl = String(process.env.PTT_SERVER_URL || process.env.PTT_SERVICE_URL || '').trim().replace(/\/+$/, '');
+  if (pttBaseUrl) endpoints.push({ name: 'ptt', url: `${pttBaseUrl}/health`, headers: { Accept: 'application/json' } });
+
+  const runpodBaseUrl = String(process.env.RUNPOD_GATEWAY_URL || process.env.RUNPOD_SERVERLESS_URL || '').trim().replace(/\/+$/, '');
+  if (runpodBaseUrl) endpoints.push({ name: 'runpod', url: `${runpodBaseUrl}/health`, headers: { Accept: 'application/json' } });
+
+  const supabaseUrl = String(process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim().replace(/\/+$/, '');
+  const supabaseAnonKey = String(process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim();
+  if (supabaseUrl && supabaseAnonKey) {
+    endpoints.push({
+      name: 'supabase',
+      url: `${supabaseUrl}/rest/v1/organizations?select=id&limit=1`,
+      headers: { Accept: 'application/json', apikey: supabaseAnonKey },
+    });
   }
 
-  return [];
+  return endpoints;
 }
 
 async function fetchHealthSnapshot() {
@@ -89,7 +104,7 @@ async function fetchHealthSnapshot() {
     try {
       const response = await fetch(endpoint.url, {
         method: 'GET',
-        headers: { Accept: 'application/json' },
+        headers: endpoint.headers || { Accept: 'application/json' },
         signal: controller.signal,
       });
 

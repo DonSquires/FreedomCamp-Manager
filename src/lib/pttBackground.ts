@@ -32,7 +32,7 @@ const RECONNECT_DELAY_MS = 3000
 const STEADY_STATE_RECONNECT_DELAY_MS = 30000
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
 let visibilityHandler: (() => void) | null = null
-let storeUnsubscribe: (() => void) | null = null
+let unsubscribeStore: (() => void) | null = null
 
 function resolveOperationalOrganizationId(): string | null {
   const { user } = useAuthStore.getState()
@@ -166,7 +166,7 @@ export async function startPTTBackgroundService(): Promise<void> {
   document.addEventListener('visibilitychange', visibilityHandler)
 
   // Subscribe to speaking state changes for notifications
-  storeUnsubscribe = usePTTStore.subscribe((state, prevState) => {
+  unsubscribeStore = usePTTStore.subscribe((state, prevState) => {
     // Show notification when someone starts speaking
     if (state.speakerId && !prevState.speakerId && !state.isSpeaking) {
       showIncomingCallNotification(
@@ -205,9 +205,9 @@ export function stopPTTBackgroundService(): void {
     visibilityHandler = null
   }
 
-  if (storeUnsubscribe) {
-    storeUnsubscribe()
-    storeUnsubscribe = null
+  if (unsubscribeStore) {
+    unsubscribeStore()
+    unsubscribeStore = null
   }
 
   disconnectFromPTT()

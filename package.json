@@ -45,7 +45,7 @@
     "test:reports": "node scripts/run-test-with-bob-assist.mjs -- playwright test tests/e2e/report-generation.spec.ts",
     "test:smoke": "node scripts/run-test-with-bob-assist.mjs -- playwright test --grep @smoke",
     "test:api": "node scripts/run-test-with-bob-assist.mjs -- playwright test -c playwright.api.config.ts",
-    "test:ptt:mock": "sh -c 'NEXT_PUBLIC_API_MOCK=true VITE_PTT_MOCK_MODE=true node scripts/run-test-with-bob-assist.mjs -- playwright test tests/e2e/ptt-radio-smoke.spec.ts'",
+    "test:ptt:mock": "env NEXT_PUBLIC_API_MOCK=true VITE_PTT_MOCK_MODE=true BOB_TEST_ABORT_ON_UNHEALTHY=false node scripts/run-test-with-bob-assist.mjs -- playwright test tests/e2e/ptt-radio-smoke.spec.ts",
     "install:playwright": "playwright install"
   },
   "dependencies": {
