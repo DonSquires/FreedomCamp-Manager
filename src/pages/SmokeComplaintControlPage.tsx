@@ -22,6 +22,11 @@ function formatDateTime(val: string | null) {
   return new Date(val).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland' });
 }
 
+function formatOfficerName(officer: { first_name?: string | null; last_name?: string | null }) {
+  const name = [officer.first_name, officer.last_name].filter(Boolean).join(' ').trim();
+  return name || 'Unnamed officer';
+}
+
 const SMOKE_OPACITY_LABELS: Record<string, string> = {
   light: 'Light', moderate: 'Moderate', heavy: 'Heavy', very_heavy: 'Very Heavy', black: 'Black',
 };
@@ -91,7 +96,7 @@ export default function SmokeComplaintControlPage() {
   const { data: officers = [] } = useQuery({
     queryKey: ['user_profiles', orgId],
     queryFn: async () => {
-      const { data, error } = await supabase.from('user_profiles').select('id, full_name').eq('organization_id', orgId);
+      const { data, error } = await supabase.from('user_profiles').select('id, first_name, last_name').eq('organization_id', orgId);
       if (error) throw error;
       return data || [];
     },
@@ -620,7 +625,7 @@ export default function SmokeComplaintControlPage() {
                 <SelectContent>
                   <SelectItem value="__none__">Unassigned</SelectItem>
                   {officers.map((o: any) => (
-                    <SelectItem key={o.id} value={o.id}>{o.full_name}</SelectItem>
+                    <SelectItem key={o.id} value={o.id}>{formatOfficerName(o)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

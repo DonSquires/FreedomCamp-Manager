@@ -135,7 +135,7 @@ async function getAccessTokenFromBrowser(page: Page): Promise<string | null> {
 }
 
 async function ensureWorkAreaPermission(page: Page): Promise<void> {
-  const targetOrgName = readEnv('PLAYWRIGHT_WORK_AREA_ORG', 'E2E_WORK_AREA_ORG') || 'Tasman District Council'
+  const targetOrgName = readEnv('PLAYWRIGHT_WORK_AREA_ORG', 'E2E_WORK_AREA_ORG') || 'Nelson City Council'
   const supabaseUrl = readEnv('VITE_SUPABASE_URL')
   const anonKey = readEnv('VITE_SUPABASE_ANON_KEY')
 
@@ -243,7 +243,7 @@ export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
   }
 
   // Best-effort: ensure the user can work in the configured council area
-  // (defaults to Tasman District Council for location-based test flows).
+  // (defaults to Nelson City Council for location-based test flows).
   await ensureWorkAreaPermission(page)
 
   await page.waitForLoadState('networkidle').catch(() => undefined)

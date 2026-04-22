@@ -62,6 +62,10 @@ interface WelfareAlert {
   id: string
   officer_id: string
   alert_type: string
+  created_at: string | null
+  last_activity_at: string
+  acknowledgement_notes: string | null
+  resolution_notes: string | null
   triggered_at: string
   acknowledged_at: string | null
   resolved_at: string | null
@@ -126,17 +130,22 @@ export default function OfficerWelfareSettings() {
       const { data, error } = await supabase
         .from('officer_welfare_alerts')
         .select(`
-          id, officer_id, alert_type, triggered_at, acknowledged_at, resolved_at, notes,
+          id, officer_id, alert_type, created_at, last_activity_at,
+          acknowledged_at, resolved_at, acknowledgement_notes, resolution_notes,
           officer:user_profiles!officer_id(first_name, last_name),
           acknowledged_by_user:user_profiles!acknowledged_by(first_name, last_name)
         `)
         .eq('organization_id', orgId!)
         .is('resolved_at', null)
-        .order('triggered_at', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(100)
 
       if (error) throw error
-      return (data || []) as unknown as WelfareAlert[]
+      return (data || []).map((row: any) => ({
+        ...row,
+        triggered_at: row.created_at ?? row.last_activity_at,
+        notes: row.resolution_notes ?? row.acknowledgement_notes ?? null,
+      })) as WelfareAlert[]
     },
     enabled: !!orgId,
     refetchInterval: 15000,

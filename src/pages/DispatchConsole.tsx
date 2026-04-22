@@ -14,6 +14,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { insertDispatchJobWithAlarmTypeFallback } from '@/lib/dispatchJobs'
 import { formatDistance } from '@/lib/geo'
 import { useAuthStore } from '@/stores/authStore'
 import { useClientOrgIds } from '@/hooks/useClientOrgIds'
@@ -181,6 +182,16 @@ const ALARM_TYPE_LABELS: Record<string, string> = {
 
 const ACTIVE_STATUSES = ['pending', 'dispatched', 'acknowledged', 'en_route', 'on_scene']
 
+const DISPATCH_JOB_SELECT = `
+  id, job_number, job_type, priority, status, title, description,
+  address, gps_lat, gps_lng, caller_name, caller_phone, created_at, dispatched_at,
+  acknowledged_at, on_scene_at, completed_at,
+  response_sla_minutes, sla_breached, escalation_level,
+  assigned_officer:user_profiles!assigned_to(id, first_name, last_name, phone),
+  client_site:client_sites!client_site_id(name, address),
+  zone:zones!zone_id(name)
+`
+
 const ALARM_JOB_TYPES = new Set([
   'alarm_response', 'first_line_one_guard', 'first_line_two_guard', 'second_line_response',
 ])
@@ -226,15 +237,7 @@ export default function DispatchConsole() {
     queryFn: async () => {
       let q = (supabase as any)
         .from('dispatch_jobs')
-        .select(`
-          id, job_number, job_type, alarm_type, priority, status, title, description,
-          address, gps_lat, gps_lng, caller_name, caller_phone, created_at, dispatched_at,
-          acknowledged_at, on_scene_at, completed_at,
-          response_sla_minutes, sla_breached, escalation_level,
-          assigned_officer:user_profiles!assigned_to(id, first_name, last_name, phone),
-          client_site:client_sites!client_site_id(name, address),
-          zone:zones!zone_id(name)
-        `)
+        .select(DISPATCH_JOB_SELECT)
         .eq('organization_id', orgId ?? '')
         .order('priority', { ascending: false })
         .order('created_at', { ascending: true })
@@ -404,7 +407,7 @@ export default function DispatchConsole() {
   // ── Create job mutation ─────────────────────────────────────────────────────
   const createMutation = useMutation({
     mutationFn: async (f: JobForm) => {
-      const { error } = await (supabase as any).from('dispatch_jobs').insert({
+      const { error } = await insertDispatchJobWithAlarmTypeFallback({
         organization_id:      orgId,
         created_by:           user?.id,
         job_type:             f.job_type,
@@ -418,7 +421,7 @@ export default function DispatchConsole() {
         client_site_id:       f.client_site_id || null,
         zone_id:              f.zone_id || null,
         response_sla_minutes: f.response_sla_minutes,
-      })
+      }, 'id')
       if (error) throw error
     },
     onSuccess: () => {

@@ -11,7 +11,9 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { insertDispatchJobWithAlarmTypeFallback } from '@/lib/dispatchJobs'
 import { useAuthStore } from '@/stores/authStore'
+import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -132,6 +134,7 @@ export default function DispatchWizard() {
   const { user } = useAuthStore()
   const navigate = useNavigate()
   const orgId = user?.organization_id
+  const { orgIds: clientOrgIds, isLoading: clientOrgIdsLoading } = useClientOrgIds()
 
   const [step, setStep] = useState(0)
   const [state, setState] = useState<WizardState>(emptyState())
@@ -140,18 +143,21 @@ export default function DispatchWizard() {
   // ── Data queries ───────────────────────────────────────────────────────────
 
   const { data: clientSites = [] } = useQuery({
-    queryKey: ['wizard-client-sites', orgId],
+    queryKey: ['wizard-client-sites', orgId, clientOrgIds],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      let query = (supabase as any)
         .from('client_sites')
-        .select('id, name, client_code, address, city, has_keys, contact_phone, bureau_id')
-        .eq('organization_id', orgId ?? '')
+        .select('id, name, address, city, contact_phone')
         .eq('is_active', true)
         .order('name')
+
+      if (clientOrgIds !== null) query = query.in('organization_id', clientOrgIds)
+
+      const { data, error } = await query
       if (error) throw error
       return data as any[]
     },
-    enabled: !!orgId,
+    enabled: !!orgId && !clientOrgIdsLoading,
   })
 
   const { data: officers = [] } = useQuery({
@@ -169,7 +175,7 @@ export default function DispatchWizard() {
         .from('user_profiles')
         .select(`
           id, first_name, last_name, phone, role,
-          current_patrol:patrols!assigned_to(id, status, patrol_route:patrol_routes!patrol_route_id(call_sign, route_name))
+          current_patrol:patrols!assigned_to(id, status, patrol_route:patrol_routes!patrol_route_id(route_name))
         `)
         .eq('organization_id', orgId ?? '')
         .in('role', ['officer', 'admin_officer'])
@@ -178,7 +184,7 @@ export default function DispatchWizard() {
       return (data ?? []).map((o: any) => ({
         ...o,
         is_on_shift: onShiftIds.includes(o.id),
-        call_sign: o.current_patrol?.[0]?.patrol_route?.call_sign ?? null,
+        call_sign: o.current_patrol?.[0]?.patrol_route?.route_name ?? null,
         active_patrol_count: (o.current_patrol ?? []).filter((p: any) => p.status === 'in_progress').length,
       }))
     },
@@ -189,9 +195,7 @@ export default function DispatchWizard() {
 
   const dispatchMutation = useMutation({
     mutationFn: async () => {
-      const { data: job, error } = await (supabase as any)
-        .from('dispatch_jobs')
-        .insert({
+      const { data: job, error } = await insertDispatchJobWithAlarmTypeFallback<{ id: string; job_number: string }>({
           organization_id:  orgId,
           created_by:       user?.id,
           job_type:         state.job_type,
@@ -208,9 +212,7 @@ export default function DispatchWizard() {
           dispatched_at:    state.assigned_to ? new Date().toISOString() : null,
           dispatched_by:    state.assigned_to ? user?.id : null,
           response_sla_minutes: 60,
-        })
-        .select('id, job_number')
-        .single()
+        }, 'id, job_number')
       if (error) throw error
       return job
     },
@@ -225,7 +227,7 @@ export default function DispatchWizard() {
 
   const filteredSites = clientSites.filter((s: any) => {
     const q = siteSearch.toLowerCase()
-    return !q || s.name.toLowerCase().includes(q) || (s.client_code ?? '').toLowerCase().includes(q) || (s.city ?? '').toLowerCase().includes(q)
+    return !q || s.name.toLowerCase().includes(q) || (s.city ?? '').toLowerCase().includes(q)
   })
 
   const canProceed = (() => {
@@ -275,7 +277,7 @@ export default function DispatchWizard() {
                         ...st,
                         client_site_id: s.id,
                         client_site_name: s.name,
-                        client_site_code: s.client_code ?? '',
+                        client_site_code: '',
                         client_site_address: [s.address, s.city].filter(Boolean).join(', '),
                         caller_phone: s.contact_phone ?? st.caller_phone,
                       }))}
@@ -286,19 +288,12 @@ export default function DispatchWizard() {
                       }`}
                     >
                       <div className="flex items-center gap-2">
-                        {s.client_code && (
-                          <span className="font-mono text-xs font-bold text-blue-700 bg-blue-100 dark:bg-blue-900/30 px-1.5 py-0.5 rounded">{s.client_code}</span>
-                        )}
                         <span className="font-medium text-sm">{s.name}</span>
-                        {s.has_keys && <Key className="h-3.5 w-3.5 text-amber-500 shrink-0 ml-auto" />}
                       </div>
                       {s.address && (
                         <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
                           <MapPin className="h-3 w-3" />{[s.address, s.city].filter(Boolean).join(', ')}
                         </p>
-                      )}
-                      {s.bureau_id && (
-                        <p className="text-xs text-muted-foreground mt-0.5">Bureau: {s.bureau_id}</p>
                       )}
                     </button>
                   ))}

@@ -60,8 +60,8 @@ export function usePatrols(options: UsePatrolsOptions = {}) {
         .select(`
           *,
           zone:zones(name),
-          officer:user_profiles!patrols_officer_id_fkey(first_name, last_name),
-          patrol_route:patrol_routes!patrol_route_id(call_sign, route_name)
+          officer:user_profiles!patrols_assigned_to_fkey(first_name, last_name),
+          patrol_route:patrol_routes!patrol_route_id(route_name)
         `)
         .order('created_at', { ascending: false })
 
@@ -322,6 +322,129 @@ interface PatrolKPIs {
   }[]
 }
 
+interface PatrolKPIBaseRow {
+  id: string
+  patrol_date: string | null
+  status: Patrol['status']
+  duration_minutes: number | null
+  vehicles_checked: number | null
+  breaches_found: number | null
+  scheduled_start_time: string | null
+  actual_start_time: string | null
+  actual_end_time: string | null
+  assigned_to: string | null
+  zone_id: string | null
+  officer: {
+    first_name: string | null
+    last_name: string | null
+  } | null
+}
+
+function toIsoDate(value?: string | null) {
+  return value?.split('T')[0] ?? null
+}
+
+function roundTo(value: number, decimals = 1) {
+  const factor = 10 ** decimals
+  return Math.round(value * factor) / factor
+}
+
+function diffMinutes(start?: string | null, end?: string | null) {
+  if (!start || !end) return null
+  const startTime = new Date(start).getTime()
+  const endTime = new Date(end).getTime()
+  if (Number.isNaN(startTime) || Number.isNaN(endTime) || endTime < startTime) return null
+  return Math.round((endTime - startTime) / 60000)
+}
+
+function buildPatrolKPIFallback(
+  rows: PatrolKPIBaseRow[],
+  from: string | undefined,
+  to: string | undefined,
+): PatrolKPIs {
+  const totalPatrols = rows.length
+  const completed = rows.filter((row) => row.status === 'completed').length
+  const scheduled = rows.filter((row) => row.status === 'scheduled').length
+  const inProgress = rows.filter((row) => row.status === 'in_progress').length
+  const cancelled = rows.filter((row) => row.status === 'cancelled').length
+  const durationValues = rows
+    .map((row) => row.duration_minutes ?? diffMinutes(row.actual_start_time, row.actual_end_time))
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0)
+  const totalDurationMinutes = durationValues.reduce((sum, value) => sum + value, 0)
+  const totalVehiclesChecked = rows.reduce((sum, row) => sum + (row.vehicles_checked ?? 0), 0)
+  const totalBreachesFound = rows.reduce((sum, row) => sum + (row.breaches_found ?? 0), 0)
+  const totalSiteVisits = rows.filter((row) => !!row.zone_id).length
+  const onTimeStarts = rows.filter((row) => {
+    if (!row.scheduled_start_time || !row.actual_start_time) return false
+    return new Date(row.actual_start_time).getTime() <= new Date(row.scheduled_start_time).getTime()
+  }).length
+  const lateStarts = rows.filter((row) => {
+    if (!row.scheduled_start_time || !row.actual_start_time) return false
+    return new Date(row.actual_start_time).getTime() > new Date(row.scheduled_start_time).getTime()
+  }).length
+
+  const officerMap = new Map<string, PatrolKPIs['officers'][number]>()
+  for (const row of rows) {
+    if (!row.assigned_to) continue
+    const existing = officerMap.get(row.assigned_to) ?? {
+      officer_id: row.assigned_to,
+      officer_name: [row.officer?.first_name, row.officer?.last_name].filter(Boolean).join(' ') || 'Unassigned officer',
+      total_patrols: 0,
+      completed_patrols: 0,
+      avg_duration_minutes: 0,
+      vehicles_checked: 0,
+      breaches_found: 0,
+      shift_hours: 0,
+      site_visits: 0,
+    }
+
+    existing.total_patrols += 1
+    if (row.status === 'completed') existing.completed_patrols += 1
+    existing.vehicles_checked += row.vehicles_checked ?? 0
+    existing.breaches_found += row.breaches_found ?? 0
+    if (row.zone_id) existing.site_visits += 1
+
+    const duration = row.duration_minutes ?? diffMinutes(row.actual_start_time, row.actual_end_time)
+    if (typeof duration === 'number' && Number.isFinite(duration) && duration >= 0) {
+      existing.avg_duration_minutes += duration
+      existing.shift_hours += duration / 60
+    }
+
+    officerMap.set(row.assigned_to, existing)
+  }
+
+  const officers = Array.from(officerMap.values())
+    .map((officer) => ({
+      ...officer,
+      avg_duration_minutes: officer.total_patrols > 0
+        ? roundTo(officer.avg_duration_minutes / officer.total_patrols, 0)
+        : 0,
+      shift_hours: roundTo(officer.shift_hours, 1),
+    }))
+    .sort((left, right) => right.total_patrols - left.total_patrols)
+
+  return {
+    period_from: from ?? '',
+    period_to: to ?? '',
+    total_patrols: totalPatrols,
+    completed,
+    scheduled,
+    in_progress: inProgress,
+    cancelled,
+    completion_rate: totalPatrols > 0 ? roundTo((completed / totalPatrols) * 100, 1) : 0,
+    avg_duration_minutes: durationValues.length > 0 ? roundTo(totalDurationMinutes / durationValues.length, 0) : 0,
+    total_vehicles_checked: totalVehiclesChecked,
+    total_breaches_found: totalBreachesFound,
+    total_site_visits: totalSiteVisits,
+    avg_site_visit_minutes: totalSiteVisits > 0 ? roundTo(totalDurationMinutes / totalSiteVisits, 0) : 0,
+    total_shift_hours: roundTo(totalDurationMinutes / 60, 1),
+    on_time_starts: onTimeStarts,
+    late_starts: lateStarts,
+    punctuality_rate: onTimeStarts + lateStarts > 0 ? roundTo((onTimeStarts / (onTimeStarts + lateStarts)) * 100, 1) : 0,
+    officers,
+  }
+}
+
 /** Fetch patrol KPIs from the server-side RPC */
 export function usePatrolKPIs(options?: {
   from?: string
@@ -335,15 +458,47 @@ export function usePatrolKPIs(options?: {
     queryFn: async () => {
       if (!user?.organization_id) return null
 
-      const params: any = { p_organization_id: user.organization_id }
-      if (options?.from) params.p_from = options.from
-      if (options?.to) params.p_to = options.to
-      if (options?.officerId) params.p_officer_id = options.officerId
+      let fallbackQuery = (supabase.from('patrols') as any)
+        .select(`
+          id,
+          patrol_date,
+          status,
+          duration_minutes,
+          vehicles_checked,
+          breaches_found,
+          scheduled_start_time,
+          actual_start_time,
+          actual_end_time,
+          assigned_to,
+          zone_id,
+          officer:user_profiles!patrols_assigned_to_fkey(first_name, last_name)
+        `)
+        .eq('organization_id', user.organization_id)
+        .order('patrol_date', { ascending: false })
 
-      const { data, error } = await supabase.rpc('get_patrol_kpis', params)
+      const fromDate = toIsoDate(options?.from)
+      const toDate = toIsoDate(options?.to)
 
-      if (error) throw error
-      return data as unknown as PatrolKPIs
+      if (fromDate) {
+        fallbackQuery = fallbackQuery.gte('patrol_date', fromDate)
+      }
+
+      if (toDate) {
+        fallbackQuery = fallbackQuery.lte('patrol_date', toDate)
+      }
+
+      if (options?.officerId) {
+        fallbackQuery = fallbackQuery.eq('assigned_to', options.officerId)
+      }
+
+      const { data: fallbackRows, error: fallbackError } = await fallbackQuery.limit(1000)
+
+      if (fallbackError) throw fallbackError
+      return buildPatrolKPIFallback(
+        (fallbackRows ?? []) as PatrolKPIBaseRow[],
+        options?.from,
+        options?.to,
+      )
     },
     enabled: !!user?.organization_id,
   })

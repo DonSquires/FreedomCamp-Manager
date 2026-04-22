@@ -51,6 +51,12 @@ const PRIORITY_COLORS: Record<string, string> = {
   urgent: "bg-red-100 text-red-700",
 };
 
+function formatOfficerName(officer?: { first_name?: string | null; last_name?: string | null } | null) {
+  if (!officer) return "—";
+  const name = [officer.first_name, officer.last_name].filter(Boolean).join(" ").trim();
+  return name || "Unnamed officer";
+}
+
 export default function BiosecurityControlPage() {
   const { user } = useAuthStore();
   const orgId = user?.organization_id;
@@ -78,7 +84,7 @@ export default function BiosecurityControlPage() {
     queryFn: async () => {
       let q = (supabase as any)
         .from("biosecurity_jobs")
-        .select("*, assigned_officer:user_profiles!biosecurity_jobs_assigned_to_fkey(full_name)")
+        .select("*, assigned_officer:user_profiles!biosecurity_jobs_assigned_to_fkey(first_name,last_name)")
         .eq("organization_id", orgId)
         .order("created_at", { ascending: false });
       if (statusFilter !== "all") q = q.eq("status", statusFilter);
@@ -95,7 +101,7 @@ export default function BiosecurityControlPage() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("biosecurity_assessments")
-        .select("*, officer:user_profiles!biosecurity_assessments_officer_id_fkey(full_name)")
+        .select("*, officer:user_profiles!biosecurity_assessments_officer_id_fkey(first_name,last_name)")
         .order("created_at", { ascending: false })
         .limit(200);
       if (error) throw error;
@@ -125,7 +131,7 @@ export default function BiosecurityControlPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("user_profiles")
-        .select("id, full_name")
+        .select("id, first_name, last_name")
         .eq("organization_id", orgId)
         .in("role", ["officer", "admin_officer"]);
       if (error) throw error;
@@ -280,7 +286,7 @@ export default function BiosecurityControlPage() {
                                 {job.status?.replace("_", " ")}
                               </span>
                             </td>
-                            <td className="px-3 py-2 text-gray-600">{job.assigned_officer?.full_name || "Unassigned"}</td>
+                            <td className="px-3 py-2 text-gray-600">{job.assigned_officer ? formatOfficerName(job.assigned_officer) : "Unassigned"}</td>
                             <td className="px-3 py-2 text-gray-500 text-xs">{formatDateTime(job.created_at)}</td>
                           </tr>
                         ))}
@@ -323,7 +329,7 @@ export default function BiosecurityControlPage() {
                       <tbody className="divide-y divide-gray-100">
                         {assessments.map((a: any) => (
                           <tr key={a.id} className="hover:bg-gray-50">
-                            <td className="px-3 py-2">{a.officer?.full_name || "—"}</td>
+                            <td className="px-3 py-2">{formatOfficerName(a.officer)}</td>
                             <td className="px-3 py-2 text-gray-600 max-w-[140px] truncate">{a.address}</td>
                             <td className="px-3 py-2 italic text-emerald-700">{a.plant_species || "—"}</td>
                             <td className="px-3 py-2">
@@ -565,7 +571,7 @@ export default function BiosecurityControlPage() {
                   <SelectContent>
                     <SelectItem value="__none__">Unassigned</SelectItem>
                     {officers.map((o: any) => (
-                      <SelectItem key={o.id} value={o.id}>{o.full_name}</SelectItem>
+                      <SelectItem key={o.id} value={o.id}>{formatOfficerName(o)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

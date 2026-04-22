@@ -163,12 +163,12 @@ export default function PatrolScheduleManagement() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('patrol_routes')
-        .select('id, route_name, call_sign, default_shift')
+        .select('id, route_name, default_shift')
         .eq('organization_id', user!.organization_id!)
         .eq('is_active', true)
-        .order('call_sign', { ascending: true, nullsFirst: false })
+        .order('route_name')
       if (error) throw error
-      return data as { id: string; route_name: string; call_sign: string | null; default_shift: string | null }[]
+      return data as { id: string; route_name: string; default_shift: string | null }[]
     },
     enabled: !!user?.organization_id,
   })
@@ -290,7 +290,7 @@ export default function PatrolScheduleManagement() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Call Sign</TableHead>
+                  <TableHead>Route</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Shift</TableHead>
                   <TableHead>Zone</TableHead>
@@ -321,13 +321,13 @@ export default function PatrolScheduleManagement() {
                 {patrols.map((patrol: any) => {
                   const statusInfo = STATUS_BADGE[patrol.status] ?? STATUS_BADGE.scheduled
                   const priorityInfo = PRIORITY_BADGE[patrol.priority] ?? PRIORITY_BADGE.normal
-                  const callSign = patrol.patrol_route?.call_sign
+                  const routeName = patrol.patrol_route?.route_name
                   return (
                     <TableRow key={patrol.id}>
                       <TableCell>
-                        {callSign ? (
-                          <Badge variant="outline" className="font-mono font-bold text-blue-700 border-blue-400 gap-1">
-                            <Radio className="h-3 w-3" />{callSign}
+                        {routeName ? (
+                          <Badge variant="outline" className="text-blue-700 border-blue-400 gap-1">
+                            <Radio className="h-3 w-3" />{routeName}
                           </Badge>
                         ) : (
                           <span className="text-muted-foreground text-sm">—</span>
@@ -441,7 +441,7 @@ export default function PatrolScheduleManagement() {
           <div className="grid gap-4">
             {/* Patrol Route / Call Sign */}
             <div className="grid gap-2">
-              <Label className="flex items-center gap-1.5"><Radio className="h-3.5 w-3.5 text-blue-600" />Patrol Route / Call Sign</Label>
+              <Label className="flex items-center gap-1.5"><Radio className="h-3.5 w-3.5 text-blue-600" />Patrol Route</Label>
               <Select value={form.patrol_route_id || '__none__'} onValueChange={v => setForm(f => ({ ...f, patrol_route_id: v === '__none__' ? '' : v }))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select patrol route (optional)" />
@@ -450,7 +450,7 @@ export default function PatrolScheduleManagement() {
                   <SelectItem value="__none__">No route</SelectItem>
                   {patrolRoutes.map(r => (
                     <SelectItem key={r.id} value={r.id}>
-                      {r.call_sign ? `${r.call_sign} – ${r.route_name}` : r.route_name}
+                      {r.route_name}
                     </SelectItem>
                   ))}
                 </SelectContent>

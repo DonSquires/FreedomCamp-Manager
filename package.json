@@ -43,6 +43,7 @@
     "test:reports": "node scripts/run-test-with-bob-assist.mjs -- playwright test tests/e2e/report-generation.spec.ts",
     "test:smoke": "node scripts/run-test-with-bob-assist.mjs -- playwright test --grep @smoke",
     "test:api": "node scripts/run-test-with-bob-assist.mjs -- playwright test -c playwright.api.config.ts",
+    "test:human-engine": "node scripts/human-test-engine.mjs",
     "install:playwright": "playwright install"
   },
   "dependencies": {

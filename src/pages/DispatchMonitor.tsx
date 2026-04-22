@@ -37,6 +37,8 @@ const ALARM_TYPE_FILTERS = [
 
 const RESPONSE_SLA_THRESHOLD_MIN = 60
 
+const DISPATCH_MONITOR_SELECT = 'id, status, dispatched_at, acknowledged_at, on_scene_at, completed_at, cancelled_at, created_at, response_sla_minutes, priority'
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface MonitorStats {
@@ -87,7 +89,7 @@ export default function DispatchMonitor() {
       // Fetch all jobs for today onwards
       const { data: jobs, error } = await (supabase as any)
         .from('dispatch_jobs')
-        .select('id, status, alarm_type, dispatched_at, acknowledged_at, on_scene_at, completed_at, cancelled_at, created_at, response_sla_minutes, priority')
+        .select(DISPATCH_MONITOR_SELECT)
         .eq('organization_id', orgId ?? '')
         .gte('created_at', new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString())
 

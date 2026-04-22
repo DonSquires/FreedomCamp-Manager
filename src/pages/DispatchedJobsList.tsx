@@ -97,6 +97,15 @@ function responseTime(job: DispatchedJob): string {
   return `${mins}m`
 }
 
+const DISPATCHED_JOBS_SELECT = `
+  id, job_number, job_type, priority, status, title, address,
+  caller_name, created_at, dispatched_at, on_scene_at, completed_at,
+  response_sla_minutes, sla_breached,
+  assigned_officer:user_profiles!assigned_to(first_name, last_name),
+  client_site:client_sites!client_site_id(name, client_code, city, bureau_id),
+  zone:zones!zone_id(name)
+`
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function DispatchedJobsList() {
@@ -126,14 +135,7 @@ export default function DispatchedJobsList() {
 
       let q = (supabase as any)
         .from('dispatch_jobs')
-        .select(`
-          id, job_number, job_type, alarm_type, priority, status, title, address,
-          caller_name, created_at, dispatched_at, on_scene_at, completed_at,
-          response_sla_minutes, sla_breached,
-          assigned_officer:user_profiles!assigned_to(first_name, last_name),
-          client_site:client_sites!client_site_id(name, client_code, city, bureau_id),
-          zone:zones!zone_id(name)
-        `)
+        .select(DISPATCHED_JOBS_SELECT)
         .order('created_at', { ascending: false })
         .limit(500)
 
@@ -142,7 +144,6 @@ export default function DispatchedJobsList() {
       if (showMode === 'all_excl_cancelled') q = q.neq('status', 'cancelled')
       if (dispatchNo) q = q.ilike('job_number', `%${dispatchNo}%`)
       if (jobType) q = q.eq('job_type', jobType)
-      if (alarmType) q = q.eq('alarm_type', alarmType)
       if (dateFrom) q = q.gte('created_at', `${dateFrom}T00:00:00`)
       if (dateTo) q = q.lte('created_at', `${dateTo}T23:59:59`)
 

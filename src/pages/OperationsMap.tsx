@@ -211,9 +211,15 @@ export default function OperationsMap() {
   const { data: officers = [] } = useQuery({
     queryKey: ['ops-map-officers', effectiveOrgId, tick],
     queryFn: async () => {
-      const { data } = await (supabase as any).rpc('get_live_officer_locations', {
-        p_organization_id: effectiveOrgId ?? null,
-      })
+      let q = (supabase as any)
+        .from('user_profiles')
+        .select('id, first_name, last_name, role')
+        .in('role', ['officer', 'admin_officer'])
+        .eq('is_active', true)
+
+      if (effectiveOrgId) q = q.eq('organization_id', effectiveOrgId)
+
+      const { data } = await q.order('first_name', { ascending: true })
       return (data ?? []).filter((o: any) => o.last_gps_latitude && o.last_gps_longitude)
     },
     enabled: visibleLayers.officers || visibleLayers.welfare,
@@ -276,13 +282,19 @@ export default function OperationsMap() {
     queryFn: async () => {
       let q = (supabase as any)
         .from('breach_alerts')
-        .select('id, alert_type, severity, status, gps_latitude, gps_longitude, created_at, plate_number, zone:zones(name)')
+        .select('id, breach_type, status, created_at, plate_number, zone:zones(name, location_lat, location_lng)')
         .in('status', historyMode ? ['resolved', 'dismissed'] : ['pending', 'acknowledged', 'enforcement_started'])
       if (effectiveOrgId) q = q.eq('organization_id', effectiveOrgId)
       if (startDate) q = q.gte('created_at', startDate)
       if (endDate)   q = q.lte('created_at', endDate)
       const { data } = await q.order('created_at', { ascending: false }).limit(200)
-      return (data ?? []).filter((b: any) => b.gps_latitude && b.gps_longitude)
+      return (data ?? [])
+        .map((b: any) => ({
+          ...b,
+          gps_latitude: b.zone?.location_lat ?? null,
+          gps_longitude: b.zone?.location_lng ?? null,
+        }))
+        .filter((b: any) => b.gps_latitude && b.gps_longitude)
     },
     enabled: visibleLayers.breaches,
     staleTime: 30_000,
@@ -348,7 +360,7 @@ export default function OperationsMap() {
     queryFn: async () => {
       let q = (supabase as any)
         .from('dispatch_jobs')
-        .select('id, job_number, title, address, priority, status, gps_lat, gps_lng, alarm_type, job_type, created_at, assigned_officer:user_profiles!assigned_to(first_name, last_name)')
+        .select('id, job_number, title, address, priority, status, gps_lat, gps_lng, job_type, created_at, assigned_officer:user_profiles!assigned_to(first_name, last_name)')
         .in('job_type', ['alarm_response', 'first_line_one_guard', 'first_line_two_guard', 'second_line_response'])
         .in('status', historyMode ? ['completed', 'cancelled'] : ['pending', 'dispatched', 'acknowledged', 'en_route', 'on_scene'])
       if (effectiveOrgId) q = q.eq('organization_id', effectiveOrgId)
@@ -652,7 +664,7 @@ export default function OperationsMap() {
                         <div className="text-sm space-y-1 min-w-[180px]">
                           <p className="font-semibold text-red-700">Breach Alert</p>
                           {b.plate_number && <p className="text-xs font-mono">{b.plate_number}</p>}
-                          <p className="text-xs capitalize">{b.alert_type?.replace(/_/g, ' ')}</p>
+                          <p className="text-xs capitalize">{b.breach_type?.replace(/_/g, ' ')}</p>
                           <p className="text-xs text-gray-500">{timeSince(b.created_at)}</p>
                           {b.zone?.name && <p className="text-xs">{b.zone.name}</p>}
                         </div>

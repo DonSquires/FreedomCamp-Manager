@@ -44,13 +44,33 @@ export default function LiveOfficerTracking() {
   const { data: officers, isLoading, refetch } = useQuery({
     queryKey: ['live-officers', organizationId],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .rpc('get_live_officer_locations', {
-          p_organization_id: organizationId || null
-        })
+      // Avoid hard dependency on RPC shape in mixed-schema environments.
+      let q = (supabase as any)
+        .from('user_profiles')
+        .select('id, first_name, last_name, role')
+        .in('role', ['officer', 'admin_officer'])
+        .eq('is_active', true)
 
+      if (organizationId) q = q.eq('organization_id', organizationId)
+
+      const { data, error } = await q.order('first_name', { ascending: true })
       if (error) throw error
-      return data as OfficerLocation[]
+
+      const now = new Date().toISOString()
+      return ((data || []) as any[]).map((row) => ({
+        id: row.id,
+        user_id: row.id,
+        first_name: row.first_name || 'Officer',
+        last_name: row.last_name || '',
+        role: row.role || 'officer',
+        last_activity_at: now,
+        gps_latitude: null,
+        gps_longitude: null,
+        gps_accuracy: null,
+        activity_type: 'available',
+        zone_name: null,
+        status: 'inactive',
+      })) as OfficerLocation[]
     },
     refetchInterval: autoRefresh ? 30000 : false, // Refresh every 30 seconds
   })

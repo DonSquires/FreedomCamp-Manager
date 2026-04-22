@@ -458,7 +458,6 @@ export default function PTTRadio() {
   const liveTxTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const wakeLockRef = useRef(false)
   const txLogUnavailableRef = useRef(false)
-  const seedRpcUnavailableRef = useRef(false)
   const initialConnectRef = useRef(false)
   const connectDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const connectRetryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -515,15 +514,7 @@ export default function PTTRadio() {
         throw error
       }
       if (!data?.length) {
-        // Seed defaults for this org
-        if (!seedRpcUnavailableRef.current) {
-          const { error: seedError } = await (supabase as any).rpc('seed_default_ptt_channels', { p_organization_id: effectiveOrgId })
-          if (seedError) {
-            // Seeding is best-effort only; do not block radio if rpc is unavailable or rejected.
-            seedRpcUnavailableRef.current = true
-          }
-        }
-        // Retry fetch
+        // No persisted channels yet in this environment; keep radio usable with in-memory defaults.
         const { data: seeded } = await (supabase as any)
           .from('ptt_channels')
           .select('*')

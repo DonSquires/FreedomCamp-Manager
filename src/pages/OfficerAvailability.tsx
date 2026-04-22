@@ -57,7 +57,7 @@ interface RosterShift {
   officer_notes: string | null
   status: string
   site_id: string
-  sites?: { name: string }
+  client_site?: { name: string } | null
 }
 
 interface OfficerProfile {
@@ -173,7 +173,7 @@ function OfficerView() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('roster_shifts')
-        .select('*, sites(name)')
+        .select('*, client_site:client_sites!client_site_id(name)')
         .eq('officer_id', user!.id)
         .gte('shift_date', today)
         .lte('shift_date', in14)
@@ -373,7 +373,7 @@ function OfficerView() {
                   <div className="flex flex-wrap items-center gap-3">
                     <span className="font-medium text-sm">{s.shift_date}</span>
                     <span className="text-sm text-gray-600">{s.start_time} – {s.end_time}</span>
-                    {s.sites && <span className="text-sm text-gray-700 font-medium">{s.sites.name}</span>}
+                    {s.client_site && <span className="text-sm text-gray-700 font-medium">{s.client_site.name}</span>}
                     <Badge variant={s.status === 'confirmed' ? 'default' : 'secondary'} className="text-xs">{s.status}</Badge>
                     {s.officer_response && (
                       <Badge variant={s.officer_response === 'accepted' ? 'default' : 'destructive'} className="text-xs">
@@ -533,7 +533,7 @@ function AdminView() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('roster_shifts')
-        .select('id, shift_date, start_time, end_time, officer_id, status, sites(name)')
+        .select('id, shift_date, start_time, end_time, officer_id, status, client_site:client_sites!client_site_id(name)')
         .gte('shift_date', today)
         .lte('shift_date', in14)
         .in('status', ['published', 'confirmed'])
@@ -660,7 +660,7 @@ function AdminView() {
                       {' '}is rostered on{' '}
                       <span className="font-medium">{s.shift_date}</span>
                       {' '}but has marked unavailability.
-                      {s.sites && <span className="text-gray-500"> ({s.sites.name})</span>}
+                      {s.client_site && <span className="text-gray-500"> ({s.client_site.name})</span>}
                     </span>
                   </div>
                 )

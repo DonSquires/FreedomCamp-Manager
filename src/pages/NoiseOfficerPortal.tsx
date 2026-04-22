@@ -349,10 +349,10 @@ export default function NoiseOfficerPortal() {
     queryFn: async () => {
       if (!orgId || !user?.id) return []
       const q: any = supabase.from('noise_notices' as any)
-        .select('id, notice_number, notice_type, status, recipient_address, created_at')
+        .select('id, notice_number, notice_type, status, recipient_address, issued_at')
         .eq('organization_id', orgId)
-        .eq('issued_by', user?.id)
-        .order('created_at', { ascending: false })
+        .eq('issuing_officer_id', user?.id)
+        .order('issued_at', { ascending: false })
         .limit(20)
       const { data, error } = await q
       if (error) throw error
@@ -366,9 +366,9 @@ export default function NoiseOfficerPortal() {
     queryFn: async () => {
       if (!orgId || !user?.id) return []
       const q: any = supabase.from('noise_seizures' as any)
-        .select('id, seizure_number, status, equipment_type, equipment_make, seized_at')
+        .select('id, seizure_number, status, equipment_description, seized_at')
         .eq('organization_id', orgId)
-        .eq('seized_by', user?.id)
+        .eq('seizing_officer_id', user?.id)
         .order('seized_at', { ascending: false })
         .limit(20)
       const { data, error } = await q
@@ -1267,7 +1267,7 @@ export default function NoiseOfficerPortal() {
                         <div className="flex-1 min-w-0">
                           <p className="font-mono text-sm font-semibold text-gray-800">{n.notice_number}</p>
                           <p className="text-xs text-gray-500 truncate">{n.recipient_address}</p>
-                          <p className="text-xs text-gray-400">{formatDateTime(n.created_at)}</p>
+                          <p className="text-xs text-gray-400">{formatDateTime(n.issued_at)}</p>
                         </div>
                         <Button
                           size="sm"
@@ -1298,7 +1298,7 @@ export default function NoiseOfficerPortal() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-mono text-sm font-semibold text-gray-800">{s.seizure_number}</p>
-                        <p className="text-xs text-gray-600 truncate">{s.equipment_type}{s.equipment_make ? ` · ${s.equipment_make}` : ''}</p>
+                        <p className="text-xs text-gray-600 truncate">{s.equipment_description || 'Equipment recorded'}</p>
                         <p className="text-xs text-gray-400">{formatDateTime(s.seized_at)}</p>
                       </div>
                       <Button

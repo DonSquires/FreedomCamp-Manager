@@ -22,6 +22,20 @@ try {
 
 let loaded = false;
 
+function firstNonEmptyEnv(names) {
+  for (const name of names) {
+    const value = String(process.env[name] || '').trim();
+    if (value) return value;
+  }
+  return '';
+}
+
+function setEnvIfMissing(name, value) {
+  if (!value) return;
+  if (String(process.env[name] || '').trim()) return;
+  process.env[name] = value;
+}
+
 function applyEnvFile(filePath, override) {
   if (dotenv) {
     dotenv.config({ path: filePath, override });
@@ -73,4 +87,23 @@ export function loadLocalEnv() {
   if (fs.existsSync(runtimePath)) {
     applyEnvFile(runtimePath, true);
   }
+
+  const inferenceUrl = firstNonEmptyEnv([
+    'INFERENCE_SERVICE_URL',
+    'BOB_SERVICE_URL',
+    'VITE_INFERENCE_SERVICE_URL',
+  ]);
+
+  setEnvIfMissing('INFERENCE_SERVICE_URL', inferenceUrl);
+  setEnvIfMissing('BOB_SERVICE_URL', inferenceUrl);
+
+  if (/runpod/i.test(inferenceUrl)) {
+    setEnvIfMissing('RUNPOD_URL', inferenceUrl);
+  }
+
+  const supabaseServiceRole = firstNonEmptyEnv([
+    'SUPABASE_SERVICE_ROLE_KEY',
+    'SUPERBASE_SURVICE_ROLE_KEY',
+  ]);
+  setEnvIfMissing('SUPABASE_SERVICE_ROLE_KEY', supabaseServiceRole);
 }
