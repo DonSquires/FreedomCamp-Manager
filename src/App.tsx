@@ -99,6 +99,7 @@ const OfficerSkills = lazy(() => import('@/pages/OfficerSkills'))
 const OfficerAvailability = lazy(() => import('@/pages/OfficerAvailability'))
 const ClientOrganisationPortal = lazy(() => import('@/pages/ClientOrganisationPortal'))
 const InvoicingPage = lazy(() => import('@/pages/InvoicingPage'))
+const AssetManagement = lazy(() => import('@/pages/AssetManagement'))
 const PricingPage = lazy(() => import('@/pages/PricingPage'))
 const OperationsMap = lazy(() => import('@/pages/OperationsMap'))
 const CRMModule = lazy(() => import('@/pages/CRMModule'))
@@ -1316,6 +1317,18 @@ export default function App() {
           />
           <Route path="/compliance-dashboard" element={<Navigate to="/compliance" replace />} />
           <Route path="/clean-dashboard" element={<Navigate to="/" replace />} />
+
+          {/* Asset Management — equipment, stock, stocktake, keys */}
+          <Route
+            path="/asset-management"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
+                  <AssetManagement />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
 
           {/* Invoicing — read-only billing view */}
           <Route
