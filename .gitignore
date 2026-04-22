@@ -29,6 +29,7 @@ tools/schema-extract/output/*
 
 # Additional analysis outputs
 tools/onspace-analysis/output/
+tools/system-health.json
 
 # Both bun.lock (Bun) and package-lock.json (npm) are committed for reproducible installs.
 *.tsbuildinfo

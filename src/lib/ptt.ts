@@ -154,6 +154,15 @@ export interface PTTDiagnostics {
 const PTT_WS_PROTOCOLS = ['ptt.v2', 'ptt.v1']
 const PTT_CLIENT_PROTOCOL_VERSION = '2.0.0'
 const PTT_INTEROP_PROFILE = 'fieldops-ptt-interop-v1'
+const MOCK_PTT_WS_URL = 'mock://ptt'
+
+function isPTTMockModeEnabled(): boolean {
+  const runtimeFlag = (globalThis as typeof globalThis & { __PTT_MOCK_MODE__?: boolean }).__PTT_MOCK_MODE__
+  if (typeof runtimeFlag === 'boolean') return runtimeFlag
+
+  const envValue = import.meta.env.VITE_PTT_MOCK_MODE ?? import.meta.env.VITE_API_MOCK_MODE
+  return ['1', 'true', 'yes', 'on'].includes(String(envValue || '').toLowerCase())
+}
 
 async function requestLocalAudioStream(): Promise<MediaStream> {
   try {
@@ -624,6 +633,15 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
   const channelType = channelScope.split(':')[0] as PTTChannelType
   store.setChannel(channelScope, channelType, channelName || null)
   activeChannelScope = channelScope  // Remember for visibility-triggered reconnects
+
+  if (isPTTMockModeEnabled()) {
+    cleanupConnection()
+    store.setIceServers([])
+    store.setConnection('connected', MOCK_PTT_WS_URL, 'mock-token')
+    store.setError(null)
+    console.log('🎤 PTT: Mock mode enabled, skipping signaling server connection')
+    return
+  }
 
   try {
     // Get token from Edge Function
@@ -1202,6 +1220,14 @@ export async function startSpeaking(): Promise<void> {
     throw new Error('Channel is busy')
   }
 
+  if (isPTTMockModeEnabled()) {
+    store.setSpeaking(true)
+    store.setSpeaker('mock-self', 'You')
+    store.setError(null)
+    console.log('🎤 PTT: Mock mode start speaking')
+    return
+  }
+
   try {
     if (customAudioSourceFactory) {
       const customSource = await customAudioSourceFactory()
@@ -1281,6 +1307,22 @@ export async function stopSpeaking(): Promise<void> {
   const store = usePTTStore.getState()
 
   if (!store.isSpeaking) return
+
+  if (isPTTMockModeEnabled()) {
+    store.setSpeaking(false)
+    store.setSpeaker(null)
+    store.addClip({
+      id: crypto.randomUUID(),
+      senderId: 'mock-self',
+      senderName: 'You',
+      channelId: store.channelId || 'mock-channel',
+      clipUrl: 'mock://ptt/hello-world',
+      duration: 1,
+      createdAt: new Date().toISOString(),
+    })
+    console.log('🎤 PTT: Mock mode stop speaking')
+    return
+  }
 
   store.setSpeaking(false)
 
