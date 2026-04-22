@@ -7,6 +7,11 @@ on:
     paths:
       - 'runpod-worker/**'
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Optional release tag (for example v1.2.3). Leave blank to auto-generate.'
+        required: false
+        type: string
 
 env:
   REGISTRY: ghcr.io
@@ -16,7 +21,7 @@ jobs:
   build-and-push-image:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:
@@ -30,9 +35,54 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Resolve version tag
+        id: version
+        run: |
+          set -euo pipefail
+          INPUT_TAG="${{ github.event.inputs.release_tag || '' }}"
+          if [ -n "$INPUT_TAG" ]; then
+            TAG="$INPUT_TAG"
+          else
+            TAG="v$(date -u +'%Y.%m.%d')-${GITHUB_SHA::7}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Generate Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ steps.version.outputs.tag }}
+            type=sha,format=short
+          labels: |
+            org.opencontainers.image.title=FreedomCamp Manager AI Worker
+            org.opencontainers.image.version=${{ steps.version.outputs.tag }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: ./runpod-worker
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Create GitHub release for AI worker build
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: AI Worker ${{ steps.version.outputs.tag }}
+          body: |
+            Automated AI worker build release.
+
+            Docker images:
+            - `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.tag }}`
+            - `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest`
+
+            Source commit: `${{ github.sha }}`
+          draft: false
+          prerelease: false

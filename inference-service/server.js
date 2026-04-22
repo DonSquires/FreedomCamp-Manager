@@ -509,6 +509,43 @@ function isComplexChatTask(message, history = []) {
   return false;
 }
 
+function parseCheapModeRequested(req) {
+  if (!CHEAP_MODE_ENABLED) return false;
+  if (FORCE_CHEAP_MODE) return true;
+
+  const header = String(req.get('x-cheap-mode') || req.get('x-bob-cheap-mode') || '').toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(header)) return true;
+
+  const query = String(req.query?.cheap_mode || req.query?.cheapMode || '').toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(query)) return true;
+
+  const body = String(req.body?.cheap_mode ?? req.body?.cheapMode ?? '').toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(body)) return true;
+
+  return false;
+}
+
+function getCheapModeRuntime(workload = 'chat') {
+  if (CHEAP_MODE_PROVIDER === 'heuristic') {
+    return {
+      provider: 'heuristic',
+      model: null,
+      baseUrl: null,
+      forceSimple: true,
+      workload,
+    };
+  }
+
+  const model = workload === 'translation' ? CHEAP_MODE_TRANSLATION_MODEL : CHEAP_MODE_MODEL;
+  return {
+    provider: 'ollama',
+    model,
+    baseUrl: RAILWAY_SIMPLE_OLLAMA_URL,
+    forceSimple: true,
+    workload,
+  };
+}
+
 /**
  * Returns the Ollama base URL for a given workload type, taking Railway-vs-RunPod
  * complexity cost routing into account.
@@ -564,6 +601,15 @@ const OLLAMA_PULL_TIMEOUT_MS = Number(process.env.OLLAMA_PULL_TIMEOUT_MS || 1200
 const SECONDARY_ASSISTANT_URL = (process.env.SECONDARY_ASSISTANT_URL || '').replace(/\/+$/, '');
 const SECONDARY_ASSISTANT_API_KEY = process.env.SECONDARY_ASSISTANT_API_KEY || '';
 const SECONDARY_ASSISTANT_TIMEOUT_MS = Number(process.env.SECONDARY_ASSISTANT_TIMEOUT_MS || 90000);
+const SENIOR_ARCHITECT_URL = (process.env.SENIOR_ARCHITECT_URL || SECONDARY_ASSISTANT_URL || '').replace(/\/+$/, '');
+const SENIOR_ARCHITECT_API_KEY = process.env.SENIOR_ARCHITECT_API_KEY || SECONDARY_ASSISTANT_API_KEY || '';
+const SENIOR_ARCHITECT_TIMEOUT_MS = Number(process.env.SENIOR_ARCHITECT_TIMEOUT_MS || 45000);
+const SENIOR_ARCHITECT_ENABLED = !!SENIOR_ARCHITECT_URL && !!SENIOR_ARCHITECT_API_KEY;
+const CHEAP_MODE_ENABLED = envFlag(process.env.CHEAP_MODE_ENABLED, true);
+const FORCE_CHEAP_MODE = envFlag(process.env.FORCE_CHEAP_MODE, false);
+const CHEAP_MODE_PROVIDER = normalizeProvider((process.env.CHEAP_MODE_PROVIDER || 'ollama').toLowerCase(), 'ollama');
+const CHEAP_MODE_MODEL = process.env.CHEAP_MODE_MODEL || 'llama3.1:8b';
+const CHEAP_MODE_TRANSLATION_MODEL = process.env.CHEAP_MODE_TRANSLATION_MODEL || CHEAP_MODE_MODEL;
 // Accept any ollama.railway.internal URL regardless of port — the actual
 // listening port on the Ollama service may differ from the default 11434
 // (e.g. if OLLAMA_HOST is set to 0.0.0.0:8080 on the Ollama Railway service).
@@ -1970,9 +2016,21 @@ function generateHeuristicChatReply(message, context = {}) {
   return `I don't have a specific answer for that in my current knowledge. I've queued this question for Copilot research — it will be answered and added to my intel feed via the ops-bob-ask-copilot workflow. Check GET /ask-copilot/pending to monitor status. In the meantime, I will respond ${tone} with what I know and keep recommendations aligned with local enforcement policy and NZ legal requirements.`;
 }
 
-async function generateChatReplyWithOllama(message, history = [], context = {}, systemPromptOverride = null) {
-  const complex = isComplexChatTask(message, history);
-  const ollamaBaseUrl = getOllamaBaseUrlForWorkload('chat', complex);
+async function generateChatReplyWithOllama(message, history = [], context = {}, systemPromptOverride = null, runtime = null) {
+  if (runtime?.provider === 'heuristic') {
+    const fallback = buildChatHeuristicFallback(message, context);
+    return {
+      provider: 'heuristic',
+      text: fallback.text,
+      fallback: fallback.fallback,
+      model_used: null,
+      cheap_mode: true,
+    };
+  }
+
+  const complex = runtime?.forceSimple ? false : isComplexChatTask(message, history);
+  const ollamaBaseUrl = runtime?.baseUrl || getOllamaBaseUrlForWorkload('chat', complex);
+  const chatModel = runtime?.model || OLLAMA_MODEL;
   // Track RunPod activity so the idle-stop timer fires correctly.
   if (ollamaBaseUrl !== RAILWAY_SIMPLE_OLLAMA_URL) runpodPodManager.recordActivity();
   if (!OLLAMA_ENABLED) {
@@ -1997,7 +2055,7 @@ async function generateChatReplyWithOllama(message, history = [], context = {}, 
       },
       signal: controller.signal,
       body: JSON.stringify({
-        model: OLLAMA_MODEL,
+        model: chatModel,
         stream: false,
         messages: [
           {
@@ -2049,6 +2107,8 @@ async function generateChatReplyWithOllama(message, history = [], context = {}, 
       provider: 'ollama',
       text: trimmed,
       fallback: false,
+      model_used: chatModel,
+      cheap_mode: !!runtime,
     };
   } catch (error) {
     ollamaCircuitBreaker.recordFailure(error);
@@ -2063,8 +2123,22 @@ async function generateChatReplyWithOllama(message, history = [], context = {}, 
   }
 }
 
-async function generateTranslationWithOllama({ text, targetLanguage, sourceLanguage = null }) {
-  const ollamaBaseUrl = getOllamaBaseUrlForWorkload('ptt');
+async function generateTranslationWithOllama({ text, targetLanguage, sourceLanguage = null, runtime = null }) {
+  if (runtime?.provider === 'heuristic') {
+    return {
+      provider: 'heuristic',
+      model_used: null,
+      translated_text: String(text || '').trim(),
+      detected_source: sourceLanguage,
+      translation_confidence: 0.35,
+      confidence_reason: 'Cheap mode heuristic provider selected; returned original text.',
+      fallback: true,
+      cheap_mode: true,
+    };
+  }
+
+  const ollamaBaseUrl = runtime?.baseUrl || getOllamaBaseUrlForWorkload('ptt');
+  const translationModel = runtime?.model || TRANSLATION_MODEL;
   if (!OLLAMA_ENABLED) {
     return {
       provider: 'heuristic',
@@ -2097,7 +2171,7 @@ async function generateTranslationWithOllama({ text, targetLanguage, sourceLangu
       },
       signal: controller.signal,
       body: JSON.stringify({
-        model: TRANSLATION_MODEL,
+        model: translationModel,
         stream: false,
         format: 'json',
         messages: [
@@ -2121,7 +2195,7 @@ async function generateTranslationWithOllama({ text, targetLanguage, sourceLangu
     if (!response.ok) {
       return {
         provider: 'heuristic',
-        model_used: TRANSLATION_MODEL,
+        model_used: translationModel,
         translated_text: String(text || '').trim(),
         detected_source: sourceLanguage,
         translation_confidence: 0.4,
@@ -2135,7 +2209,7 @@ async function generateTranslationWithOllama({ text, targetLanguage, sourceLangu
     if (!content) {
       return {
         provider: 'heuristic',
-        model_used: TRANSLATION_MODEL,
+        model_used: translationModel,
         translated_text: String(text || '').trim(),
         detected_source: sourceLanguage,
         translation_confidence: 0.4,
@@ -2155,7 +2229,7 @@ async function generateTranslationWithOllama({ text, targetLanguage, sourceLangu
     if (!translated) {
       return {
         provider: 'heuristic',
-        model_used: TRANSLATION_MODEL,
+        model_used: translationModel,
         translated_text: String(text || '').trim(),
         detected_source: sourceLanguage,
         translation_confidence: 0.4,
@@ -2169,7 +2243,7 @@ async function generateTranslationWithOllama({ text, targetLanguage, sourceLangu
 
     return {
       provider: 'ollama',
-      model_used: TRANSLATION_MODEL,
+      model_used: translationModel,
       translated_text: translated,
       detected_source: typeof parsed?.detected_source === 'string' && parsed.detected_source.trim()
         ? parsed.detected_source.trim()
@@ -2179,11 +2253,12 @@ async function generateTranslationWithOllama({ text, targetLanguage, sourceLangu
         ? 'Model returned the same text; source may already match the target language.'
         : 'Dedicated translation model completed successfully.',
       fallback: false,
+      cheap_mode: !!runtime,
     };
   } catch (error) {
     return {
       provider: 'heuristic',
-      model_used: TRANSLATION_MODEL,
+      model_used: translationModel,
       translated_text: String(text || '').trim(),
       detected_source: sourceLanguage,
       translation_confidence: 0.35,
@@ -2247,13 +2322,22 @@ app.post('/chat', inferenceRateLimit, requireInferenceAuth, async (req, res) => 
     }
 
     if (CHAT_PROVIDER === 'ollama') {
-      const reply = await generateChatReplyWithOllama(message, history, context, systemPromptOverride);
+      const cheapModeRequested = parseCheapModeRequested(req);
+      const cheapRuntime = cheapModeRequested ? getCheapModeRuntime('chat') : null;
+      const reply = await generateChatReplyWithOllama(message, history, context, systemPromptOverride, cheapRuntime);
       return res.json({
         success: true,
         provider: reply.provider,
         fallback: reply.fallback,
         message: reply.text,
         text: reply.text,
+        model_used: reply.model_used || OLLAMA_MODEL,
+        cheap_mode: {
+          enabled: cheapModeRequested,
+          forced: FORCE_CHEAP_MODE,
+          provider: cheapRuntime?.provider || 'ollama',
+          model: cheapRuntime?.model || null,
+        },
       });
     }
 
@@ -2285,10 +2369,14 @@ app.post('/translate', inferenceRateLimit, requireInferenceAuth, async (req, res
       return res.status(400).json({ error: 'target_language must be provided (example: en-NZ)' });
     }
 
+    const cheapModeRequested = parseCheapModeRequested(req);
+    const cheapRuntime = cheapModeRequested ? getCheapModeRuntime('translation') : null;
+
     const result = await generateTranslationWithOllama({
       text,
       targetLanguage,
       sourceLanguage,
+      runtime: cheapRuntime,
     });
 
     return res.json({
@@ -2301,10 +2389,91 @@ app.post('/translate', inferenceRateLimit, requireInferenceAuth, async (req, res
       detected_source: result.detected_source,
       translation_confidence: result.translation_confidence,
       confidence_reason: result.confidence_reason,
+      cheap_mode: {
+        enabled: cheapModeRequested,
+        forced: FORCE_CHEAP_MODE,
+        provider: cheapRuntime?.provider || 'ollama',
+        model: cheapRuntime?.model || null,
+      },
     });
   } catch (error) {
     console.error('Translate endpoint error:', error);
     return res.status(500).json({ error: 'Translation failed', message: error.message });
+  }
+});
+
+app.post('/escalate/senior-architect', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    if (!SENIOR_ARCHITECT_ENABLED) {
+      return res.status(503).json({
+        error: 'Senior architect escalation is not configured',
+        required_env: ['SENIOR_ARCHITECT_URL', 'SENIOR_ARCHITECT_API_KEY'],
+      });
+    }
+
+    const summary = String(req.body?.summary || '').trim();
+    const errorContext = String(req.body?.error_context || req.body?.errorContext || '').trim();
+    const attempts = Number(req.body?.attempt_count ?? req.body?.attemptCount ?? 0);
+    const forceEscalate = ['1', 'true', 'yes', 'on'].includes(String(req.body?.force || '').toLowerCase());
+
+    if (!summary || !errorContext) {
+      return res.status(400).json({ error: 'summary and error_context are required' });
+    }
+
+    if (!forceEscalate && attempts < 3) {
+      return res.status(400).json({
+        error: 'Escalation requires at least 3 failed attempts unless force=true',
+        attempts,
+      });
+    }
+
+    const target = SENIOR_ARCHITECT_URL.endsWith('/chat')
+      ? SENIOR_ARCHITECT_URL
+      : `${SENIOR_ARCHITECT_URL}/chat`;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), SENIOR_ARCHITECT_TIMEOUT_MS);
+    try {
+      const response = await fetch(target, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-inference-api-key': SENIOR_ARCHITECT_API_KEY,
+          Authorization: `Bearer ${SENIOR_ARCHITECT_API_KEY}`,
+        },
+        body: JSON.stringify({
+          message: [
+            'You are a senior architect assistant helping Bob after repeated failed attempts.',
+            `Summary: ${summary}`,
+            `Attempts: ${attempts}`,
+            'Error context:',
+            errorContext,
+            'Return: likely root cause, immediate fix, and one safe rollback path.',
+          ].join('\n'),
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return res.status(502).json({
+          error: 'Senior architect escalation call failed',
+          status: response.status,
+          detail: payload,
+        });
+      }
+
+      return res.json({
+        success: true,
+        provider: payload?.provider || 'senior-architect',
+        message: payload?.message || payload?.text || payload,
+        attempts,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+  } catch (error) {
+    return res.status(500).json({ error: 'Senior architect escalation failed', message: error.message });
   }
 });
 
@@ -6538,6 +6707,13 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       WHISPER_MODEL_PATH: WHISPER_MODEL_PATH || null,
       CHAT_TIMEOUT_MS,
       CHAT_HEURISTIC_ENABLED,
+      CHEAP_MODE_ENABLED,
+      FORCE_CHEAP_MODE,
+      CHEAP_MODE_PROVIDER,
+      CHEAP_MODE_MODEL,
+      CHEAP_MODE_TRANSLATION_MODEL,
+      SENIOR_ARCHITECT_ENABLED,
+      SENIOR_ARCHITECT_URL_SET: !!SENIOR_ARCHITECT_URL,
       AUDIO_SYNTH_TIMEOUT_MS,
       TTS_ENGINE,
       TTS_DEFAULT_VOICE,
