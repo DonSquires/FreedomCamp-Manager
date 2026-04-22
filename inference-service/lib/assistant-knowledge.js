@@ -453,6 +453,32 @@ const KNOWLEDGE_PACKS = {
         'Aider reference implementation: https://aider.chat/',
 
         'Execution discipline Bob should enforce: project-first learning, fast prototype in sandbox, instrument with observability, then harden via policy gates and reproducible IaC.',
+
+        // ── Bob as Agentic Sub-Agent in Codespaces ───────────────────────────
+        'Bob agentic evolution: once Bob operates as a sub-agent within Codespaces he moves from "AI as chatbox" to "AI as Operator." Optimise Bob by shifting from generic observation to context-aware debugging.',
+
+        'Observer pattern for Playwright tests: create a system_telemetry.log in the Codespace. Pipe Vercel, Supabase, and RunPod logs into this single file via a tail/aggregation script. Tell Bob: "Run the Playwright test. If the visual check fails, cross-reference the timestamp in system_telemetry.log." Bob can then produce specific diagnoses such as "The translation did not appear because RunPod returned a 504 timeout at 10:04:22" instead of guessing.',
+
+        'Domain schema file for Bob: maintain a SCHEMA.md in the repo root containing exported Supabase table structures and RLS policies. When Bob writes or fixes code for CRM, Rostering, or PTT, he reads SCHEMA.md instead of querying the DB each time. This prevents Bob from generating code that violates multi-tenant organization_id constraints.',
+
+        'Mock-first test strategy: add a NEXT_PUBLIC_API_MOCK=true flag. When active, the PTT system returns a static hardwired response instead of calling RunPod. Instruct Bob: run mock tests for UI/logic changes and live tests only for wiring changes. This saves ~90% in RunPod GPU costs during development.',
+
+        'PTT audio emulation for Bob: maintain a soundboard folder with 5–10 .wav sample files (Hindi, English, Hinglish). Provide Bob a Playwright inject-audio command. Example instruction: "Bob, test the Hinglish translation module. Use audio/hinglish_sample_1.wav and verify that the English CRM entry is created in ptt_logs within 5 seconds."',
+
+        'Agentic Codespace tooling: Axiom Vercel Integration (https://axiom.co/docs/integrations/vercel) for structured log streams Bob can parse. Mock Service Worker MSW (https://mswjs.io/) to let Bob mock RunPod translation responses for faster test cycles. Prisma Studio (https://www.prisma.io/studio) as a DB visualizer to surface cross-tenant data leakage.',
+
+        'How to talk to Bob for better results: (1) define success state explicitly — not "test the PTT" but "success = HTTP 200, transcription row present in ptt_logs, UI toast visible"; (2) after failure ask Bob for the delta between expected and actual JSON; (3) give Bob a sandbox branch policy — if he finds a wiring bug, create branch fix/bug-name, apply the fix, and re-run the emulator.',
+
+        // ── Agentic DevOps Training Resources ───────────────────────────────
+        'AI agent orchestration resources: LangGraph / LangChain Academy (https://academy.langchain.com/) — gold standard for agentic workflows, teaches the run → fail → read log → fix loop. GitHub Copilot Extensions Docs — explains how to wire an AI into the GitHub / Codespaces environment. OpenHands (OpenDevin) architecture section — study how they enforce sandbox safety for AI terminal access.',
+
+        'Advanced E2E testing for AI-readable output: Playwright Trace Viewer (https://playwright.dev/docs/trace-viewer) — teach Bob to parse trace files containing network logs, console output, and screenshots in one artifact. Checkly Playwright guides for testing complex multi-step flows (PTT, CRM entry chains). Applitools Automated Visual Testing (https://applitools.com/tutorials/) — teaches ignoring cosmetic pixel changes while catching structural UI bugs.',
+
+        'Observability and telemetry for Bob: Axiom docs (https://axiom.co/) for high-volume structured log streams optimized for AI parsing. OpenTelemetry OTel Observatory (https://opentelemetry.io/docs/concepts/) — industry standard for end-to-end tracing (mobile → Vercel → RunPod → Supabase); use this to give Bob a full call trace for every PTT request.',
+
+        'Agentic coding pattern study: Aider.chat "How Aider Works" and Repository Map docs — explains how AI understands a large folder structure (CRM, assets, PTT modules). AutoGPT / BabyAGI Tools folder on GitHub (https://github.com/Significant-Gravitas/AutoGPT) — Python implementations of file-read and shell-execute tools for AI agents.',
+
+        'Bob optimization checklist: teach Bob the exact JSON payload to trigger a Playwright run (OpenAI function-calling pattern). Use Lost Pixel for visual regression so Bob detects UI drift. Use JSON-structured logs throughout so Bob parses errors without format ambiguity. Integrate MSW (https://mswjs.io/) to mock RunPod for isolated UI/logic test runs.',
     ],
   },
 };
