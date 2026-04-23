@@ -128,6 +128,38 @@ jobs:
             echo "::warning::Template update may have failed (got imageName=$GOT_IMG). Update manually: $IMAGE_TAG"
           fi
 
+          # Best-effort endpoint refresh: some RunPod serverless endpoints keep warm workers
+          # on the previous image until the endpoint config is touched.
+          if [ -n "${RUNPOD_ENDPOINT_ID:-}" ]; then
+            echo "Refreshing RunPod endpoint $RUNPOD_ENDPOINT_ID to pick up template/image changes ..."
+
+            EP_STATUS=$(curl -sS -o /tmp/runpod_endpoint_before.json -w "%{http_code}" \
+              -X GET "https://rest.runpod.io/v1/endpoints/${RUNPOD_ENDPOINT_ID}" \
+              -H "Authorization: Bearer $RUNPOD_API_KEY" || true)
+            if [ "$EP_STATUS" = "200" ]; then
+              EP_TMPL_BEFORE=$(python3 -c "import json; d=json.load(open('/tmp/runpod_endpoint_before.json')); print(d.get('templateId',''))" 2>/dev/null || echo "")
+              EP_IMG_BEFORE=$(python3 -c "import json; d=json.load(open('/tmp/runpod_endpoint_before.json')); print(d.get('imageName',''))" 2>/dev/null || echo "")
+              echo "Endpoint before refresh: templateId=${EP_TMPL_BEFORE:-?} imageName=${EP_IMG_BEFORE:-?}"
+            else
+              echo "::warning::Unable to fetch endpoint details (HTTP $EP_STATUS)."
+            fi
+
+            EP_PATCH_STATUS=$(curl -sS -o /tmp/runpod_endpoint_patch.json -w "%{http_code}" \
+              -X PATCH "https://rest.runpod.io/v1/endpoints/${RUNPOD_ENDPOINT_ID}" \
+              -H "Authorization: Bearer $RUNPOD_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d "{\"templateId\":\"${RUNPOD_TEMPLATE_ID}\"}" || true)
+            if [ "$EP_PATCH_STATUS" = "200" ] || [ "$EP_PATCH_STATUS" = "202" ]; then
+              EP_TMPL_AFTER=$(python3 -c "import json; d=json.load(open('/tmp/runpod_endpoint_patch.json')); print(d.get('templateId',''))" 2>/dev/null || echo "")
+              EP_IMG_AFTER=$(python3 -c "import json; d=json.load(open('/tmp/runpod_endpoint_patch.json')); print(d.get('imageName',''))" 2>/dev/null || echo "")
+              echo "Endpoint refresh accepted: templateId=${EP_TMPL_AFTER:-?} imageName=${EP_IMG_AFTER:-?}"
+            else
+              echo "::warning::Endpoint refresh PATCH failed (HTTP $EP_PATCH_STATUS)."
+            fi
+          else
+            echo "RUNPOD_ENDPOINT_ID not set - skipping endpoint refresh attempt."
+          fi
+
       - name: Post-deploy training smoke
         env:
           RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
