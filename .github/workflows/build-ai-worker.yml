@@ -84,7 +84,7 @@ jobs:
             echo "- Immutable tag: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}\`"
             echo "- Immutable digest: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build_push.outputs.digest }}\`"
             echo ""
-            echo "Use one of these in RunPod endpoint image settings (do not use `:latest`)."
+            echo 'Use one of these in RunPod endpoint image settings (do not use :latest).'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Update RunPod serverless endpoint image
@@ -139,20 +139,34 @@ jobs:
             if [ "$EP_STATUS" = "200" ]; then
               EP_TMPL_BEFORE=$(python3 -c "import json; d=json.load(open('/tmp/runpod_endpoint_before.json')); print(d.get('templateId',''))" 2>/dev/null || echo "")
               EP_IMG_BEFORE=$(python3 -c "import json; d=json.load(open('/tmp/runpod_endpoint_before.json')); print(d.get('imageName',''))" 2>/dev/null || echo "")
+              EP_WORKERS_MIN_BEFORE=$(python3 -c "import json; d=json.load(open('/tmp/runpod_endpoint_before.json')); print(d.get('workersMin',''))" 2>/dev/null || echo "")
               echo "Endpoint before refresh: templateId=${EP_TMPL_BEFORE:-?} imageName=${EP_IMG_BEFORE:-?}"
+
+              if printf '%s' "$EP_WORKERS_MIN_BEFORE" | grep -Eq '^[0-9]+$'; then
+                EP_WORKERS_MIN_BUMPED=$((EP_WORKERS_MIN_BEFORE + 1))
+                echo "ORIGINAL_RUNPOD_WORKERS_MIN=$EP_WORKERS_MIN_BEFORE" >> "$GITHUB_ENV"
+                echo "DEPLOY_RUNPOD_BUMPED_MIN=$EP_WORKERS_MIN_BUMPED" >> "$GITHUB_ENV"
+              else
+                EP_WORKERS_MIN_BUMPED=2
+                echo "DEPLOY_RUNPOD_BUMPED_MIN=$EP_WORKERS_MIN_BUMPED" >> "$GITHUB_ENV"
+              fi
             else
               echo "::warning::Unable to fetch endpoint details (HTTP $EP_STATUS)."
+              EP_WORKERS_MIN_BUMPED=2
+              echo "DEPLOY_RUNPOD_BUMPED_MIN=$EP_WORKERS_MIN_BUMPED" >> "$GITHUB_ENV"
             fi
 
+            EP_PATCH_BODY=$(printf '{"templateId":"%s","workersMin":%s}' "$RUNPOD_TEMPLATE_ID" "$EP_WORKERS_MIN_BUMPED")
             EP_PATCH_STATUS=$(curl -sS -o /tmp/runpod_endpoint_patch.json -w "%{http_code}" \
               -X PATCH "https://rest.runpod.io/v1/endpoints/${RUNPOD_ENDPOINT_ID}" \
               -H "Authorization: Bearer $RUNPOD_API_KEY" \
               -H "Content-Type: application/json" \
-              -d "{\"templateId\":\"${RUNPOD_TEMPLATE_ID}\"}" || true)
+              -d "$EP_PATCH_BODY" || true)
             if [ "$EP_PATCH_STATUS" = "200" ] || [ "$EP_PATCH_STATUS" = "202" ]; then
               EP_TMPL_AFTER=$(python3 -c "import json; d=json.load(open('/tmp/runpod_endpoint_patch.json')); print(d.get('templateId',''))" 2>/dev/null || echo "")
               EP_IMG_AFTER=$(python3 -c "import json; d=json.load(open('/tmp/runpod_endpoint_patch.json')); print(d.get('imageName',''))" 2>/dev/null || echo "")
-              echo "Endpoint refresh accepted: templateId=${EP_TMPL_AFTER:-?} imageName=${EP_IMG_AFTER:-?}"
+              EP_WORKERS_MIN_AFTER=$(python3 -c "import json; d=json.load(open('/tmp/runpod_endpoint_patch.json')); print(d.get('workersMin',''))" 2>/dev/null || echo "")
+              echo "Endpoint refresh accepted: templateId=${EP_TMPL_AFTER:-?} imageName=${EP_IMG_AFTER:-?} workersMin=${EP_WORKERS_MIN_AFTER:-?}"
             else
               echo "::warning::Endpoint refresh PATCH failed (HTTP $EP_PATCH_STATUS)."
             fi
@@ -166,6 +180,19 @@ jobs:
           RUNPOD_ENDPOINT_ID: ${{ secrets.RUNPOD_ENDPOINT_ID }}
         run: |
           set -euo pipefail
+
+          restore_workers_min() {
+            if [ -z "${RUNPOD_API_KEY:-}" ] || [ -z "${RUNPOD_ENDPOINT_ID:-}" ] || [ -z "${ORIGINAL_RUNPOD_WORKERS_MIN:-}" ]; then
+              return 0
+            fi
+
+            curl -fsSL -X PATCH "https://rest.runpod.io/v1/endpoints/${RUNPOD_ENDPOINT_ID}" \
+              -H "Authorization: Bearer $RUNPOD_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d "{\"workersMin\":${ORIGINAL_RUNPOD_WORKERS_MIN}}" >/dev/null || true
+          }
+
+          trap restore_workers_min EXIT
 
           if [ -z "${RUNPOD_API_KEY:-}" ] || [ -z "${RUNPOD_ENDPOINT_ID:-}" ]; then
             echo "::warning::RUNPOD_API_KEY or RUNPOD_ENDPOINT_ID not set - skipping post-deploy training smoke."
@@ -184,7 +211,7 @@ jobs:
           }
 
           echo "Waiting for live worker to report training_memory_version=$EXPECTED_VERSION"
-          for attempt in $(seq 1 15); do
+          for attempt in $(seq 1 45); do
             PING_RESP=$(call_runsync '{"input":{"action":"ping"}}')
             echo "$PING_RESP"
             LIVE_STATUS=$(printf '%s' "$PING_RESP" | python3 -c "import json, sys; payload = json.load(sys.stdin); output = payload.get('output', {}); print('ok' if output.get('training_memory_loaded') and output.get('training_memory_version') else 'missing'); print(output.get('training_memory_version', ''))")
@@ -196,12 +223,12 @@ jobs:
               break
             fi
 
-            if [ "$attempt" -eq 15 ]; then
+            if [ "$attempt" -eq 45 ]; then
               echo "::error::Live worker did not report the expected training bundle version after deploy. expected=$EXPECTED_VERSION actual=$LIVE_VERSION"
               exit 1
             fi
 
-            echo "Attempt $attempt/15: live version is '$LIVE_VERSION' - retrying in 10s"
+            echo "Attempt $attempt/45: live version is '$LIVE_VERSION' - retrying in 10s"
             sleep 10
           done
 
