@@ -490,6 +490,23 @@ const KNOWLEDGE_PACKS = {
         'Rubber duck escalation rule: if Bob cannot resolve an issue after 3 attempts, Bob must escalate the full error context to a Senior Architect AI instance (Claude or GPT-4o secondary endpoint) for a fresh perspective. Bob must never loop indefinitely — escalate at attempt 3.',
         'PTT latency emulation directive: Bob must run Playwright Network Throttling (Slow 3G) on all PTT tests before any PTT release. Bugs invisible on fast Wi-Fi appear reliably under throttled conditions.',
         'Health check JSON — Bob pre-test rule: before any PTT or translation test run, Bob fetches GET /health. If supabase shows degraded, Bob must abort the test suite, surface the status to the user, and wait for recovery before proceeding.',
+
+        // ── Resilience and Offline Protocols ─────────────────────────────────
+        'OFFLINE-FIRST protocol: all Patrol and Asset updates must be persisted locally (AsyncStorage or SQLite on mobile, equivalent offline cache on web) BEFORE attempting sync to Supabase. Remote sync is second step, never first.',
+        'BATCHED UPLOADS protocol: AI transcriptions from PTT must be queued when network/API status is unstable (status < 200 or transport errors). Drain queue in order when service health recovers.',
+        'BATTERY OPTIMIZATION protocol: GPS High Accuracy mode is allowed only during active Patrols. For routine Welfare monitoring use Balanced mode to reduce battery drain and background OS throttling risk.',
+        'RETRY LOGIC protocol: all RunPod API calls must use exponential backoff. Minimum schedule: 1s, 2s, 4s before reporting failure; include jitter where possible to avoid retry storms.',
+        'CRITICAL ALERTS protocol: Welfare breach notifications must be sent as high-priority push alerts so urgent safety messages are not silently deferred by device notification policies.',
+
+        // ── Cross-Platform Compatibility Rules ───────────────────────────────
+        'PLATFORM CHECK rule: always use Platform.OS from react-native to branch behavior for web, ios, and android, especially for PTT audio permissions and media capabilities.',
+        'WEBVIEW BRIDGING rule: when using WebViews, send AI transcription events to native via window.ReactNativeWebView.postMessage and validate payload schema at the receiver.',
+        'ADAPTIVE LAYOUTS rule: use Flexbox-first responsive design; avoid fixed pixel widths and prefer percentage/vh/vw constraints so CRM modules render correctly on iPad and desktop.',
+        'STORAGE ABSTRACTION rule: use a storage wrapper. Use LocalStorage on web and SecureStore (Expo) on mobile for organization-scoped auth/session tokens.',
+        'ZERO BROWSER-ONLY CODE rule: never access window/document without Platform.OS === "web" or equivalent runtime guard; unguarded browser globals must be treated as mobile crash risks.',
+
+        // ── Foundation Layer Reinforcement ───────────────────────────────────
+        'Foundation learning reminder: architecture and multi-tenancy are layer-one prerequisites. Reinforce with SaaS isolation references (https://microsoft.com), modular design references (https://github.com), and domain mapping references (https://domainlanguage.com) before module-level feature implementation.',
     ],
   },
 };
