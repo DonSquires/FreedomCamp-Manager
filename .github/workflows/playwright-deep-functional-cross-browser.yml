@@ -8,6 +8,7 @@ on:
       - 'public/**'
       - 'tests/e2e/**'
       - 'playwright.config.ts'
+      - 'playwright.deep-lite.config.ts'
       - 'playwright.api.config.ts'
       - 'package.json'
       - 'bun.lock'
@@ -20,6 +21,7 @@ on:
       - 'public/**'
       - 'tests/e2e/**'
       - 'playwright.config.ts'
+      - 'playwright.deep-lite.config.ts'
       - 'playwright.api.config.ts'
       - 'package.json'
       - 'bun.lock'
@@ -107,6 +109,7 @@ jobs:
         if: steps.creds-check.outputs.creds_available == 'true'
         run: |
           bunx playwright test tests/e2e/deep-functional.spec.ts tests/e2e/tender-workspace.spec.ts \
+            --config=playwright.deep-lite.config.ts \
             --project="${{ matrix.project }}" \
             --reporter=list \
             --timeout=90000
