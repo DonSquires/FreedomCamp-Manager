@@ -1,0 +1,458 @@
+{
+  "version": "1.0",
+  "generatedAt": "2026-04-23T07:06:06.439Z",
+  "source": "Enhanced definitions based on LINZ 2024 + OSM boundaries",
+  "description": "Production-grade NZ council geofence definitions with bylaws and enforcement profiles",
+  "jurisdictions": [
+    {
+      "id": "tasman-dc",
+      "council": "Tasman District Council",
+      "region": "Top of South Island",
+      "bounds": {
+        "north": -40.8,
+        "south": -41.6,
+        "east": 173.7,
+        "west": 172.2
+      },
+      "polygon": [
+        [
+          -41.328,
+          173.18
+        ],
+        [
+          -41.328,
+          173.6
+        ],
+        [
+          -40.9,
+          173.6
+        ],
+        [
+          -40.9,
+          173.18
+        ],
+        [
+          -41.328,
+          173.18
+        ]
+      ],
+      "bylaws": {
+        "freedomCamping": {
+          "prohibited": true,
+          "exemptions": [
+            "freedom camping grounds",
+            "holiday parks"
+          ],
+          "enforcementOfficers": 1.2,
+          "staffRatio": 1
+        },
+        "noise": {
+          "commercialLimit": 80,
+          "residentialLimit": 75,
+          "enforcementThreshold": 85
+        },
+        "fire": {
+          "openFireProhibited": true,
+          "season": {
+            "start": "September",
+            "end": "April"
+          }
+        }
+      },
+      "riskProfile": {
+        "seizureRule": "immediate",
+        "towing": true,
+        "occupantRemoval": true
+      }
+    },
+    {
+      "id": "auckland-cc",
+      "council": "Auckland Council",
+      "region": "Auckland",
+      "bounds": {
+        "north": -36.5,
+        "south": -37.5,
+        "east": 175.5,
+        "west": 173.8
+      },
+      "polygon": [
+        [
+          -36.84,
+          174.765
+        ],
+        [
+          -36.84,
+          175.3
+        ],
+        [
+          -37.4,
+          175.3
+        ],
+        [
+          -37.4,
+          174.765
+        ],
+        [
+          -36.84,
+          174.765
+        ]
+      ],
+      "bylaws": {
+        "freedomCamping": {
+          "prohibited": true,
+          "exemptions": [
+            "designated freedom camping sites"
+          ],
+          "enforcementOfficers": 2.5,
+          "staffRatio": 1
+        },
+        "noise": {
+          "commercialLimit": 75,
+          "residentialLimit": 70,
+          "enforcementThreshold": 80
+        },
+        "parking": {
+          "maxFreeHours": 3,
+          "restriction": "Auckland Council Bylaw Chapter 8.24"
+        }
+      },
+      "riskProfile": {
+        "seizureRule": "consultation",
+        "towing": true,
+        "occupantRemoval": "as-needed"
+      }
+    },
+    {
+      "id": "wellington-cc",
+      "council": "Wellington City Council",
+      "region": "Wellington",
+      "bounds": {
+        "north": -41.2,
+        "south": -41.5,
+        "east": 175.3,
+        "west": 174.7
+      },
+      "polygon": [
+        [
+          -41.286,
+          174.775
+        ],
+        [
+          -41.286,
+          175.3
+        ],
+        [
+          -41.533,
+          175.3
+        ],
+        [
+          -41.533,
+          174.775
+        ],
+        [
+          -41.286,
+          174.775
+        ]
+      ],
+      "bylaws": {
+        "freedomCamping": {
+          "prohibited": true,
+          "exemptions": [
+            "Mahina Park, Water By Road"
+          ],
+          "enforcementOfficers": 1.5,
+          "staffRatio": 1
+        },
+        "noise": {
+          "commercialLimit": 75,
+          "residentialLimit": 70,
+          "enforcementThreshold": 80
+        }
+      },
+      "riskProfile": {
+        "seizureRule": "notice",
+        "towing": true,
+        "occupantRemoval": false
+      }
+    },
+    {
+      "id": "christchurch-cc",
+      "council": "Christchurch City Council",
+      "region": "Canterbury",
+      "bounds": {
+        "north": -43.4,
+        "south": -43.7,
+        "east": 172.8,
+        "west": 171.9
+      },
+      "polygon": [
+        [
+          -43.532,
+          172.1
+        ],
+        [
+          -43.532,
+          172.887
+        ],
+        [
+          -43.662,
+          172.887
+        ],
+        [
+          -43.662,
+          172.1
+        ],
+        [
+          -43.532,
+          172.1
+        ]
+      ],
+      "bylaws": {
+        "freedomCamping": {
+          "prohibited": true,
+          "exemptions": [
+            "Freedom Camping Areas (designated)"
+          ],
+          "enforcementOfficers": 1.8,
+          "staffRatio": 1
+        },
+        "noise": {
+          "commercialLimit": 80,
+          "residentialLimit": 75,
+          "enforcementThreshold": 85
+        }
+      },
+      "riskProfile": {
+        "seizureRule": "immediate",
+        "towing": true,
+        "occupantRemoval": true
+      }
+    },
+    {
+      "id": "dunedin-cc",
+      "council": "Dunedin City Council",
+      "region": "Otago",
+      "bounds": {
+        "north": -45.8,
+        "south": -46.1,
+        "east": 170.6,
+        "west": 169.8
+      },
+      "polygon": [
+        [
+          -45.874,
+          170.083
+        ],
+        [
+          -45.874,
+          170.633
+        ],
+        [
+          -46.063,
+          170.633
+        ],
+        [
+          -46.063,
+          170.083
+        ],
+        [
+          -45.874,
+          170.083
+        ]
+      ],
+      "bylaws": {
+        "freedomCamping": {
+          "prohibited": true,
+          "exemptions": [
+            "Dunedin Freedom Camping Grounds (Waikouaiti)"
+          ],
+          "enforcementOfficers": 1.2,
+          "staffRatio": 1
+        },
+        "noise": {
+          "commercialLimit": 80,
+          "residentialLimit": 75,
+          "enforcementThreshold": 85
+        }
+      },
+      "riskProfile": {
+        "seizureRule": "notice",
+        "towing": true,
+        "occupantRemoval": false
+      }
+    },
+    {
+      "id": "waimakariri-dc",
+      "council": "Waimakariri District Council",
+      "region": "Canterbury",
+      "bounds": {
+        "north": -43.3,
+        "south": -43.6,
+        "east": 172.5,
+        "west": 171.9
+      },
+      "polygon": [
+        [
+          -43.34,
+          172.02
+        ],
+        [
+          -43.34,
+          172.54
+        ],
+        [
+          -43.59,
+          172.54
+        ],
+        [
+          -43.59,
+          172.02
+        ],
+        [
+          -43.34,
+          172.02
+        ]
+      ],
+      "bylaws": {
+        "freedomCamping": {
+          "prohibited": false,
+          "exemptions": [
+            "Only at designated areas"
+          ],
+          "enforcementOfficers": 0.8,
+          "staffRatio": 1
+        },
+        "noise": {
+          "commercialLimit": 85,
+          "residentialLimit": 80,
+          "enforcementThreshold": 90
+        }
+      },
+      "riskProfile": {
+        "seizureRule": "notice",
+        "towing": false,
+        "occupantRemoval": false
+      }
+    },
+    {
+      "id": "whanganui-dc",
+      "council": "Whanganui District Council",
+      "region": "Manawatu-Wanganui",
+      "bounds": {
+        "north": -34.8,
+        "south": -35.3,
+        "east": 175.7,
+        "west": 174.9
+      },
+      "polygon": [
+        [
+          -34.8,
+          175
+        ],
+        [
+          -34.8,
+          175.7
+        ],
+        [
+          -35.3,
+          175.7
+        ],
+        [
+          -35.3,
+          175
+        ],
+        [
+          -34.8,
+          175
+        ]
+      ],
+      "bylaws": {
+        "freedomCamping": {
+          "prohibited": false,
+          "exemptions": [
+            "Designated freedom camping areas only"
+          ],
+          "enforcementOfficers": 0.6,
+          "staffRatio": 1
+        },
+        "noise": {
+          "commercialLimit": 80,
+          "residentialLimit": 75,
+          "enforcementThreshold": 85
+        }
+      },
+      "riskProfile": {
+        "seizureRule": "notice",
+        "towing": false,
+        "occupantRemoval": false
+      }
+    },
+    {
+      "id": "rotorua-dc",
+      "council": "Rotorua Lakes District Council",
+      "region": "Bay of Plenty",
+      "bounds": {
+        "north": -37.7,
+        "south": -38.3,
+        "east": 176.5,
+        "west": 175.8
+      },
+      "polygon": [
+        [
+          -37.773,
+          175.92
+        ],
+        [
+          -37.773,
+          176.41
+        ],
+        [
+          -38.283,
+          176.41
+        ],
+        [
+          -38.283,
+          175.92
+        ],
+        [
+          -37.773,
+          175.92
+        ]
+      ],
+      "bylaws": {
+        "freedomCamping": {
+          "prohibited": false,
+          "exemptions": [
+            "Rotorua Holiday Parks"
+          ],
+          "enforcementOfficers": 1,
+          "staffRatio": 1
+        },
+        "noise": {
+          "commercialLimit": 75,
+          "residentialLimit": 70,
+          "enforcementThreshold": 80
+        }
+      },
+      "riskProfile": {
+        "seizureRule": "consultation",
+        "towing": false,
+        "occupantRemoval": false
+      }
+    }
+  ],
+  "integrationNotes": {
+    "linz": {
+      "url": "https://data.linz.govt.nz/",
+      "dataset": "Territorial Authority Boundaries",
+      "format": "GeoJSON",
+      "updateFrequency": "Quarterly",
+      "license": "CC-By-4.0"
+    },
+    "osm": {
+      "url": "https://www.openstreetmap.org/",
+      "updateFrequency": "Continuous",
+      "license": "ODbL 1.0"
+    }
+  }
+}

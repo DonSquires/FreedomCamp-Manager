@@ -18,9 +18,9 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { withCors, getCorsHeaders } from '../_shared/withCors.ts'
+import { bobChat } from '../_shared/bobInfer.ts'
 
 const INFERENCE_SERVICE_URL = (Deno.env.get('INFERENCE_SERVICE_URL') || '').replace(/\/$/, '')
-const INFERENCE_API_KEY = Deno.env.get('INFERENCE_API_KEY') || ''
 const BOB_CHAT_TIMEOUT_MS = 90_000
 
 interface AssessmentResult {
@@ -225,51 +225,30 @@ function buildHeuristicAssessment(doc: any, text: string, reason: string): Asses
 async function callBobChat(systemPrompt: string, userMessage: string): Promise<string> {
   if (!INFERENCE_SERVICE_URL) throw new Error('INFERENCE_SERVICE_URL not configured')
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (INFERENCE_API_KEY) {
-    // Include both auth forms to align with Bob middleware and strict mode docs.
-    headers['Authorization'] = `Bearer ${INFERENCE_API_KEY}`
-    headers['x-inference-api-key'] = INFERENCE_API_KEY
-  }
-
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), BOB_CHAT_TIMEOUT_MS)
-
-  let resp: Response
   try {
-    resp = await fetch(`${INFERENCE_SERVICE_URL}/chat`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        message: userMessage,
-        system_prompt: systemPrompt,
-        provider_preference: 'auto',
-        response_format: 'json',
-      }),
-      signal: controller.signal,
+    const result = await bobChat({
+      message: userMessage,
+      systemPrompt,
+      temperature: 0.2,
+      timeoutMs: BOB_CHAT_TIMEOUT_MS,
     })
+    return result.response
   } catch (err: any) {
-    if (err?.name === 'AbortError') {
+    const message = String(err?.message || err || 'Unknown inference error')
+    if (message.includes('AbortError') || message.includes('timeout')) {
       throw new Error(`Inference service timeout after ${Math.floor(BOB_CHAT_TIMEOUT_MS / 1000)}s`)
     }
-    throw err
-  } finally {
-    clearTimeout(timeoutId)
-  }
 
-  if (!resp.ok) {
-    const errText = await resp.text()
-    throw new Error(`Inference service error ${resp.status}: ${errText.slice(0, 200)}`)
-  }
+    // Improve actionability for stale/deleted RunPod endpoint IDs.
+    if (message.includes('Application not found')) {
+      throw new Error(
+        'Inference service is pointing at a missing RunPod application. ' +
+        'Update INFERENCE_SERVICE_URL (or RUNPOD endpoint env) to a valid active endpoint.'
+      )
+    }
 
-  const json = await resp.json()
-  return (
-    json?.text ||
-    json?.message?.content ||
-    json?.message ||
-    json?.response ||
-    JSON.stringify(json)
-  )
+    throw new Error(`Inference service error: ${message}`)
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -55,6 +55,9 @@
  * - GET  /code/tasks/pending - List pending code tasks (for ops-bob-code-task workflow)
  * - GET  /code/tasks - List all code tasks (filter ?status=pending|in_progress|completed|failed)
  * - GET  /code/tasks/:id - Get a single code task
+ * - GET  /code/executor/state - Internal code-task executor status
+ * - POST /code/executor/run - Run internal code-task executor cycle
+ * - POST /code/tasks/:id/execute-internal - Execute one task with internal executor
  * - POST /code/tasks/:id/start - Mark a task in_progress (workflow picked it up)
  * - POST /code/tasks/:id/result - Record successful PR creation
  * - POST /code/tasks/:id/fail - Record task failure
@@ -93,6 +96,7 @@ const { checkLegalCompliance, getLegalFramework, getLegalDetail, AI_LEGAL_GUARDR
 const { getPlatformKnowledge, diagnosePlatformIssue, getHybridStackOverview, RAILWAY_SERVICES_AUDIT } = require('./lib/platform-knowledge');
 const { createKnowledgeRequestStore } = require('./lib/knowledge-requests');
 const { createCodeTaskStore } = require('./lib/code-tasks');
+const { recordResponseFeedback } = require('./lib/response-feedback');
 const { identifyPlants, getWeatherForLocation: getBioWeather } = require('./lib/biosecurity-inference');
 const { assessSmoke } = require('./lib/smoke-inference');
 const {
@@ -103,6 +107,15 @@ const {
 } = require('./lib/coding-knowledge');
 
 const execFileAsync = promisify(execFile);
+
+function logBobResponse(options = {}) {
+  try {
+    return recordResponseFeedback(options);
+  } catch (error) {
+    console.warn(`⚠️  Failed to record Bob response feedback: ${error.message}`);
+    return null;
+  }
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -452,6 +465,13 @@ async function runpodEndpointRequest(url, method = 'GET', body = undefined) {
     }
 
     if (!response.ok) {
+      const message = String(json?.message || '');
+      if (response.status === 404 && /application not found/i.test(message)) {
+        throw new Error(
+          'RunPod endpoint 404: Application not found. ' +
+          'Check RUNPOD_ENDPOINT_ID/RUNPOD_ENDPOINT_URL and ensure the endpoint is active in the same RunPod account as RUNPOD_ENDPOINT_API_KEY.'
+        );
+      }
       throw new Error(`RunPod endpoint HTTP ${response.status}: ${JSON.stringify(json).slice(0, 300)}`);
     }
 
@@ -620,6 +640,19 @@ async function ensureOllamaModelPulled(modelName) {
 }
 const DEPLOY_SIGNATURE = 'bob-build-training-open-v1';
 const SOURCE_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.SOURCE_VERSION || process.env.GITHUB_SHA || '';
+
+// ── Mock Mode ────────────────────────────────────────────────────────────────
+// When MOCK_MODE=true, compute-heavy endpoints (/infer/transcribe, /infer/speak,
+// /infer/audio/*, /infer/video/*, /infer/welfare/man-down, /assess/ptt) return
+// deterministic static responses instead of hitting RunPod / Whisper / ONNX.
+// Use this during E2E / UI-only tests to eliminate GPU costs and flakiness.
+//   - Set MOCK_MODE=true in .env.playwright.local or inference-service/.env
+//   - Bob command: "Run Mock Tests for UI/Logic changes only"
+const MOCK_MODE = envFlag(process.env.MOCK_MODE, false);
+if (MOCK_MODE) {
+  console.warn('⚠️  MOCK_MODE=true — inference service returning static responses for compute endpoints');
+}
+
 const LEGACY_SELF_CONTAINED_MODE = envFlag(process.env.SELF_CONTAINED_MODE, false);
 const LEGACY_REQUIRE_SELF_CONTAINED_MODE = envFlag(process.env.REQUIRE_SELF_CONTAINED_MODE, false);
 const LEGACY_SELF_CONTAINED_STRICT_EGRESS = envFlag(process.env.SELF_CONTAINED_STRICT_EGRESS, false);
@@ -639,6 +672,44 @@ const DOCTOR_AUDIT_MAX_ENTRIES = Number(process.env.DOCTOR_AUDIT_MAX_ENTRIES || 
 const DOCTOR_AUTO_HEAL_ENABLED = envFlag(process.env.DOCTOR_AUTO_HEAL_ENABLED, true);
 const DOCTOR_AUTO_HEAL_INTERVAL_MS = Math.max(30_000, Number(process.env.DOCTOR_AUTO_HEAL_INTERVAL_MS || 120_000));
 const DOCTOR_AUTO_HEAL_COOLDOWN_MS = Math.max(60_000, Number(process.env.DOCTOR_AUTO_HEAL_COOLDOWN_MS || 300_000));
+const BOB_INTERNAL_CODE_TASK_EXECUTOR_ENABLED = envFlag(process.env.BOB_INTERNAL_CODE_TASK_EXECUTOR_ENABLED, false);
+const BOB_INTERNAL_CODE_TASK_EXECUTOR_AUTORUN = envFlag(process.env.BOB_INTERNAL_CODE_TASK_EXECUTOR_AUTORUN, false);
+const BOB_INTERNAL_CODE_TASK_EXECUTOR_INTERVAL_MS = Math.max(15_000, Number(process.env.BOB_INTERNAL_CODE_TASK_EXECUTOR_INTERVAL_MS || 60_000));
+const BOB_INTERNAL_CODE_TASK_EXECUTOR_TIMEOUT_MS = Math.max(30_000, Number(process.env.BOB_INTERNAL_CODE_TASK_EXECUTOR_TIMEOUT_MS || 300_000));
+const BOB_INTERNAL_CODE_TASK_EXECUTOR_SCRIPT = path.join(__dirname, 'scripts', 'internal-code-executor.mjs');
+const BOB_INTERNAL_CODE_TASK_EXECUTOR_BIN = String(process.env.BOB_INTERNAL_CODE_TASK_EXECUTOR_BIN || 'node').trim();
+const BOB_INTERNAL_CODE_TASK_EXECUTOR_DRY_RUN = envFlag(process.env.BOB_INTERNAL_CODE_TASK_EXECUTOR_DRY_RUN, true);
+const BOB_INTERNAL_CODE_TASK_EXECUTOR_REQUIRE_DRY_RUN = envFlag(process.env.BOB_INTERNAL_CODE_TASK_EXECUTOR_REQUIRE_DRY_RUN, true);
+const BOB_INTERNAL_CODE_TASK_EXECUTOR_ALLOWED_PATHS = (() => {
+  const raw = String(process.env.BOB_INTERNAL_CODE_TASK_EXECUTOR_ALLOWED_PATHS || '').trim();
+  if (!raw) return [
+    path.resolve(__dirname),
+    path.resolve(__dirname, '..', 'src'),
+    path.resolve(__dirname, '..', 'supabase'),
+    path.resolve(__dirname, '..', 'tools'),
+  ];
+  return raw
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => path.resolve(item));
+})();
+const BOB_INTERNAL_CODE_TASK_EXECUTOR_COMMAND_ALLOWLIST = (() => {
+  const raw = String(process.env.BOB_INTERNAL_CODE_TASK_EXECUTOR_COMMAND_ALLOWLIST || '').trim();
+  if (!raw) return ['node'];
+  return raw.split(',').map((item) => item.trim()).filter(Boolean);
+})();
+const BOB_INTERNAL_CODE_TASK_EXECUTOR_ARGS = (() => {
+  const raw = process.env.BOB_INTERNAL_CODE_TASK_EXECUTOR_ARGS;
+  if (!raw) return [BOB_INTERNAL_CODE_TASK_EXECUTOR_SCRIPT];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item) => String(item));
+  } catch {
+    return [];
+  }
+})();
 const SIMILARITY_THRESHOLD = Number(process.env.SIMILARITY_THRESHOLD || 0.85);
 const SIMILARITY_THRESHOLD_MIN = Number(process.env.SIMILARITY_THRESHOLD_MIN || 0.65);
 const SIMILARITY_THRESHOLD_MAX = Number(process.env.SIMILARITY_THRESHOLD_MAX || 0.95);
@@ -1022,6 +1093,195 @@ const knowledgeRequestsStore = createKnowledgeRequestStore(
 const codeTaskStore = createCodeTaskStore(
   process.env.CODE_TASKS_PATH || path.join(__dirname, 'data', 'code-tasks.json')
 );
+
+let internalCodeExecutorInFlight = false;
+const internalCodeExecutorState = {
+  timer: null,
+  runs: 0,
+  failures: 0,
+  last_run_at: null,
+  last_error: null,
+  last_completed_task_id: null,
+};
+
+function isInternalCodeExecutorConfigured() {
+  return BOB_INTERNAL_CODE_TASK_EXECUTOR_ENABLED
+    && !!BOB_INTERNAL_CODE_TASK_EXECUTOR_BIN
+    && Array.isArray(BOB_INTERNAL_CODE_TASK_EXECUTOR_ARGS)
+    && BOB_INTERNAL_CODE_TASK_EXECUTOR_ARGS.length > 0;
+}
+
+function validateInternalExecutorSafety(task) {
+  const command = BOB_INTERNAL_CODE_TASK_EXECUTOR_BIN;
+  const normalizedAllowedCommands = BOB_INTERNAL_CODE_TASK_EXECUTOR_COMMAND_ALLOWLIST.map((item) => item.toLowerCase());
+  const commandBase = path.basename(command || '').toLowerCase();
+  const commandAllowed = normalizedAllowedCommands.includes(command.toLowerCase()) || normalizedAllowedCommands.includes(commandBase);
+
+  if (!commandAllowed) {
+    throw new Error(`Internal executor command is not allowlisted: ${command}`);
+  }
+
+  if (BOB_INTERNAL_CODE_TASK_EXECUTOR_REQUIRE_DRY_RUN && !BOB_INTERNAL_CODE_TASK_EXECUTOR_DRY_RUN) {
+    throw new Error('Internal executor policy requires dry-run mode; set BOB_INTERNAL_CODE_TASK_EXECUTOR_DRY_RUN=true');
+  }
+
+  const rawTargets = Array.isArray(task?.target_files) ? task.target_files : [];
+  for (const rawTarget of rawTargets) {
+    const resolvedTarget = path.resolve(path.join(__dirname, '..', String(rawTarget || '')));
+    const allowed = BOB_INTERNAL_CODE_TASK_EXECUTOR_ALLOWED_PATHS.some((root) => {
+      const normalizedRoot = path.resolve(root);
+      return resolvedTarget === normalizedRoot || resolvedTarget.startsWith(`${normalizedRoot}${path.sep}`);
+    });
+    if (!allowed) {
+      throw new Error(`Target path is outside allowed roots: ${rawTarget}`);
+    }
+  }
+}
+
+function parseExecutorOutput(stdout) {
+  const text = String(stdout || '').trim();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    const lines = text.split('\n').map((line) => line.trim()).filter(Boolean).reverse();
+    for (const line of lines) {
+      try {
+        return JSON.parse(line);
+      } catch {
+        continue;
+      }
+    }
+    return { raw_output: text.slice(0, 4000) };
+  }
+}
+
+async function executeCodeTaskInternally(taskId, actor = 'internal-executor') {
+  if (!isInternalCodeExecutorConfigured()) {
+    throw new Error('Internal executor is disabled or not configured');
+  }
+
+  const existing = codeTaskStore.getTask(taskId);
+  if (!existing) {
+    throw new Error(`Code task not found: ${taskId}`);
+  }
+  if (existing.status !== 'pending') {
+    throw new Error(`Task ${taskId} is not pending (status: ${existing.status})`);
+  }
+
+  validateInternalExecutorSafety(existing);
+
+  const task = codeTaskStore.startTask(taskId);
+  const payloadPath = path.join(os.tmpdir(), `bob-code-task-${task.short_id}-${Date.now()}.json`);
+  let stdout = '';
+  let stderr = '';
+
+  try {
+    fs.writeFileSync(payloadPath, JSON.stringify({ task, actor, requested_at: new Date().toISOString() }, null, 2));
+
+    const args = [...BOB_INTERNAL_CODE_TASK_EXECUTOR_ARGS, payloadPath];
+    const execResult = await execFileAsync(BOB_INTERNAL_CODE_TASK_EXECUTOR_BIN, args, {
+      timeout: BOB_INTERNAL_CODE_TASK_EXECUTOR_TIMEOUT_MS,
+      maxBuffer: 2 * 1024 * 1024,
+      env: {
+        ...process.env,
+        BOB_CODE_TASK_ID: task.id,
+        BOB_CODE_TASK_SHORT_ID: task.short_id,
+        BOB_CODE_TASK_PAYLOAD_PATH: payloadPath,
+        BOB_INTERNAL_CODE_TASK_EXECUTOR_DRY_RUN: String(BOB_INTERNAL_CODE_TASK_EXECUTOR_DRY_RUN),
+        BOB_INTERNAL_CODE_TASK_EXECUTOR_ALLOWED_PATHS: BOB_INTERNAL_CODE_TASK_EXECUTOR_ALLOWED_PATHS.join(','),
+      },
+    });
+
+    stdout = execResult.stdout || '';
+    stderr = execResult.stderr || '';
+    const parsed = parseExecutorOutput(stdout);
+    if (parsed && parsed.success === false) {
+      throw new Error(String(parsed.error || 'Internal executor reported failure'));
+    }
+
+    const completedTask = codeTaskStore.completeTask(taskId, {
+      pr_url: typeof parsed.pr_url === 'string' && parsed.pr_url.trim()
+        ? parsed.pr_url.trim()
+        : `internal://${task.branch}`,
+      pr_number: Number.isFinite(Number(parsed.pr_number)) ? Number(parsed.pr_number) : null,
+      files_changed: Array.isArray(parsed.files_changed) ? parsed.files_changed.map((item) => String(item)) : null,
+      build_passed: parsed.build_passed !== false,
+      branch: typeof parsed.branch === 'string' && parsed.branch.trim() ? parsed.branch.trim() : task.branch,
+    });
+
+    internalCodeExecutorState.last_completed_task_id = completedTask.id;
+    return {
+      success: true,
+      task: completedTask,
+      executor_output: {
+        stdout: stdout.slice(-4000),
+        stderr: stderr.slice(-2000),
+      },
+    };
+  } catch (error) {
+    const message = String(error?.message || error);
+    codeTaskStore.failTask(taskId, message.slice(0, 1000));
+    throw error;
+  } finally {
+    try {
+      fs.unlinkSync(payloadPath);
+    } catch {
+      // No-op: payload file is best-effort cleanup.
+    }
+  }
+}
+
+async function runInternalCodeExecutorCycle(limit = 1, actor = 'internal-executor-cycle') {
+  if (!isInternalCodeExecutorConfigured()) {
+    return {
+      success: false,
+      reason: 'not_configured',
+      message: 'Internal executor is disabled or not configured',
+      results: [],
+    };
+  }
+
+  if (internalCodeExecutorInFlight) {
+    return {
+      success: false,
+      reason: 'in_progress',
+      message: 'Internal code executor already running',
+      results: [],
+    };
+  }
+
+  internalCodeExecutorInFlight = true;
+  internalCodeExecutorState.last_run_at = new Date().toISOString();
+  internalCodeExecutorState.runs += 1;
+
+  const boundedLimit = Math.max(1, Math.min(Number(limit) || 1, 10));
+  const pendingTasks = codeTaskStore.listPending(boundedLimit);
+  const results = [];
+
+  try {
+    for (const pending of pendingTasks) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        const result = await executeCodeTaskInternally(pending.id, actor);
+        results.push({ id: pending.id, short_id: pending.short_id, success: true, task: result.task });
+      } catch (error) {
+        internalCodeExecutorState.failures += 1;
+        const message = String(error?.message || error);
+        internalCodeExecutorState.last_error = message;
+        results.push({ id: pending.id, short_id: pending.short_id, success: false, error: message });
+      }
+    }
+
+    return {
+      success: true,
+      processed: pendingTasks.length,
+      results,
+    };
+  } finally {
+    internalCodeExecutorInFlight = false;
+  }
+}
 
 const egressAudit = {
   started_at: new Date().toISOString(),
@@ -1663,7 +1923,235 @@ function buildCodePlanPrompt(task, context, targetFiles) {
   lines.push('- Migrations: supabase/migrations/YYYYMMDD_HHMMSS_description.sql. RLS required on every table.');
   lines.push('- TypeScript: noImplicitAny=false, strictNullChecks=false. Do NOT tighten.');
   lines.push('- shadcn/ui components from @/components/ui/. Never re-implement them.');
+  lines.push('');
+  lines.push('Architecture context injection (mandatory for redesign/new module work):');
+  lines.push('- Scope data and UI state by organizationId; include active org context indicator.');
+  lines.push('- Never leak data, controls, or state across organizations.');
+  lines.push('- Use spacing/typography hierarchy over heavy borders.');
+  lines.push('- Functional color semantics: action=blue, success=green, warning=amber, danger=red.');
+  lines.push('- Real-time/PTT actions require optimistic updates with states: idle, processing, synced, error.');
+  lines.push('- New module structure must be self-contained under src/modules/<module>/{components,services,hooks,types.ts}.');
+  lines.push('- Ensure keyboard accessibility and low-spec Ubuntu VPS compatibility.');
+  lines.push('');
+  lines.push('Recommended training packs (mandatory):');
+  lines.push('- docs/BOB_TRAINING_STACK_SCHEMA_FIDELITY.md');
+  lines.push('- docs/BOB_TRAINING_TENANT_ISOLATION_PROOF.md');
+  lines.push('- docs/BOB_TRAINING_SELF_EVAL_LOOP.md');
+  lines.push('- docs/BOB_TRAINING_TRUTH_PROTOCOL.md');
+  lines.push('- docs/BOB_TRAINING_ADVANCED_ARCHITECT_2026.md');
+  lines.push('Required response sections: Schema Evidence, Tenant Isolation Proof, Self-Eval Gates.');
+  lines.push('Self-Eval gates must include: stack_fidelity, org_scope_enforcement, tenant_isolation_proof, ui_hierarchy_color_semantics, realtime_ptt_states, module_blueprint_compliance, accessibility_coverage, low_spec_vps_performance.');
+  lines.push('Truth Protocol (mandatory before major redesign): run scripts/system-check.sh (or scripts/system-check.mjs), read system_state.json, and never assume modules or package manager outside that file.');
+  lines.push('Spec-driven flow (mandatory): write spec.md -> self-critique with at least 3 flaws -> plan.md with bite-sized tickets -> implement one ticket at a time with tests before done.');
+  lines.push('Agentic quality loop: Dr Bob must attempt to break assumptions/regressions before completion claims.');
   return lines.join('\n');
+}
+
+function slugifyModuleName(input) {
+  const raw = String(input || '').trim().toLowerCase();
+  if (!raw) return 'new-module';
+  return raw
+    .replace(/[^a-z0-9\s_-]/g, '')
+    .replace(/[\s_]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '') || 'new-module';
+}
+
+function isModuleScaffoldRequest(task, context) {
+  const text = `${String(task || '')}\n${String(context || '')}`.toLowerCase();
+  const hasModuleSignal = text.includes('new module') || text.includes('build module') || text.includes('create module') || text.includes('redesign');
+  const hasArchitectureSignal = text.includes('src/modules') || text.includes('organizationid') || text.includes('active org') || text.includes('multi-org');
+  return hasModuleSignal || hasArchitectureSignal;
+}
+
+function inferModuleName(task, context) {
+  const source = `${String(task || '')} ${String(context || '')}`;
+  const patterns = [
+    /(?:new|build|create|redesign)\s+(?:a\s+)?(?:high-fidelity\s+)?['\"]?([a-zA-Z0-9\s_-]{2,50})['\"]?\s+module/i,
+    /module\s+['\"]?([a-zA-Z0-9\s_-]{2,50})['\"]?/i,
+  ];
+  for (const pattern of patterns) {
+    const match = source.match(pattern);
+    if (match?.[1]) return slugifyModuleName(match[1]);
+  }
+  return 'new-module';
+}
+
+function buildModuleScaffoldTargets(moduleName) {
+  const root = `src/modules/${moduleName}`;
+  return [
+    `${root}/index.ts`,
+    `${root}/types.ts`,
+    `${root}/components/index.tsx`,
+    `${root}/services/index.ts`,
+    `${root}/hooks/useOrganizationContext.ts`,
+  ];
+}
+
+function buildArchitectureContextAppendix(moduleName) {
+  return [
+    'Architecture Blueprint Enforcement:',
+    `- Module root: src/modules/${moduleName}`,
+    '- Required structure: components/, services/, hooks/, types.ts',
+    '- Multi-org: resolve activeOrgId first; include organizationId in all API boundaries.',
+    '- UI states for signal/approve actions: idle | processing | synced | error with optimistic updates.',
+    '- Dashboard pattern: active-org header + breadcrumbs, 12-column desktop grid, mobile collapse, explicit empty states.',
+    '- Accessibility and low-spec Ubuntu VPS compatibility are mandatory acceptance gates.',
+  ].join('\n');
+}
+
+const BOB_REQUIRED_RESPONSE_SECTIONS = ['Schema Evidence', 'Tenant Isolation Proof', 'Self-Eval Gates'];
+const BOB_SELF_EVAL_GATES = [
+  'stack_fidelity',
+  'org_scope_enforcement',
+  'tenant_isolation_proof',
+  'ui_hierarchy_color_semantics',
+  'realtime_ptt_states',
+  'module_blueprint_compliance',
+  'accessibility_coverage',
+  'low_spec_vps_performance',
+];
+const BOB_GOLD_STANDARD_DOC_PATH = path.resolve(__dirname, '..', 'docs', 'BOB_USER_MANAGEMENT_GOLD_STANDARD.md');
+const BOB_SYSTEM_STATE_PATH = path.resolve(__dirname, '..', 'system_state.json');
+let cachedGoldStandardTemplate = null;
+
+function textIncludesAll(sourceText, needles) {
+  const lower = String(sourceText || '').toLowerCase();
+  return needles.every((needle) => lower.includes(String(needle || '').toLowerCase()));
+}
+
+function loadGoldStandardTemplate() {
+  if (cachedGoldStandardTemplate !== null) return cachedGoldStandardTemplate;
+  try {
+    cachedGoldStandardTemplate = fs.readFileSync(BOB_GOLD_STANDARD_DOC_PATH, 'utf8').trim();
+  } catch (error) {
+    console.warn(`⚠️  Gold-standard template unavailable at ${BOB_GOLD_STANDARD_DOC_PATH}: ${error.message}`);
+    cachedGoldStandardTemplate = '';
+  }
+  return cachedGoldStandardTemplate;
+}
+
+function loadSystemStateModules() {
+  try {
+    if (!fs.existsSync(BOB_SYSTEM_STATE_PATH)) return [];
+    const raw = fs.readFileSync(BOB_SYSTEM_STATE_PATH, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed?.modules)) return [];
+    return parsed.modules.map((name) => slugifyModuleName(name)).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function loadRepoModules() {
+  const modulesRoot = path.resolve(__dirname, '..', 'src', 'modules');
+  try {
+    const entries = fs.readdirSync(modulesRoot, { withFileTypes: true });
+    return entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => slugifyModuleName(entry.name))
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function resolveKnownModules() {
+  const merged = new Set([...loadRepoModules(), ...loadSystemStateModules()]);
+  return Array.from(merged).filter(Boolean).sort();
+}
+
+function extractMentionedModules(planText) {
+  const text = String(planText || '');
+  const matches = text.matchAll(/src\/modules\/([a-zA-Z0-9_-]+)/g);
+  const names = new Set();
+  for (const match of matches) {
+    const normalized = slugifyModuleName(match?.[1] || '');
+    if (normalized) names.add(normalized);
+  }
+  return Array.from(names);
+}
+
+function evaluateModulePlanQuality(planText, options = {}) {
+  const lower = String(planText || '').toLowerCase();
+  const knownModules = Array.isArray(options.knownModules) && options.knownModules.length
+    ? options.knownModules.map((item) => slugifyModuleName(item)).filter(Boolean)
+    : resolveKnownModules();
+  const inferredModule = slugifyModuleName(options.inferredModuleName || '');
+  const allowedModules = new Set(knownModules);
+  if (inferredModule) allowedModules.add(inferredModule);
+  const referencedModules = extractMentionedModules(planText);
+  const hallucinatedModules = referencedModules.filter((name) => !allowedModules.has(name));
+
+  const gateStatus = {
+    stack_fidelity:
+      !lower.includes('vue') &&
+      !lower.includes('vuex') &&
+      textIncludesAll(lower, ['react', 'typescript', 'tailwind', 'tanstack', 'zustand', 'react-hook-form', 'zod']),
+    org_scope_enforcement:
+      textIncludesAll(lower, ['activeorgid', 'organizationid', 'active-org']) ||
+      textIncludesAll(lower, ['active org', 'organization id']),
+    tenant_isolation_proof:
+      textIncludesAll(lower, ['tenant isolation proof']) &&
+      textIncludesAll(lower, ['org a', 'org b']) &&
+      textIncludesAll(lower, ['no cross-tenant', 'leak']),
+    ui_hierarchy_color_semantics:
+      textIncludesAll(lower, ['breadcrumbs', '12-col']) &&
+      textIncludesAll(lower, ['blue', 'green', 'amber', 'red']),
+    realtime_ptt_states:
+      textIncludesAll(lower, ['idle', 'processing', 'synced', 'error']) &&
+      textIncludesAll(lower, ['optimistic']),
+    module_blueprint_compliance:
+      textIncludesAll(lower, ['src/modules']) &&
+      textIncludesAll(lower, ['components', 'services', 'hooks', 'types.ts']) &&
+      hallucinatedModules.length === 0,
+    accessibility_coverage:
+      textIncludesAll(lower, ['keyboard']) &&
+      (textIncludesAll(lower, ['focus']) || textIncludesAll(lower, ['accessibility'])),
+    low_spec_vps_performance:
+      textIncludesAll(lower, ['ubuntu vps']) ||
+      textIncludesAll(lower, ['low-spec', 'performance']),
+  };
+
+  const failedGates = BOB_SELF_EVAL_GATES.filter((name) => !gateStatus[name]);
+  const missingSections = BOB_REQUIRED_RESPONSE_SECTIONS.filter((section) => !lower.includes(section.toLowerCase()));
+
+  return {
+    passed: failedGates.length === 0 && missingSections.length === 0,
+    failed_gates: failedGates,
+    missing_sections: missingSections,
+    hallucinated_modules: hallucinatedModules,
+    known_modules: knownModules,
+  };
+}
+
+function buildGoldStandardFallbackPlan(moduleName, qualityReport) {
+  const normalizedModuleName = slugifyModuleName(moduleName);
+  const canonicalDoc = loadGoldStandardTemplate();
+  const adaptedDoc = normalizedModuleName === 'user-management'
+    ? canonicalDoc
+    : canonicalDoc
+      .replace(/user-management/g, normalizedModuleName)
+      .replace(/User Management/g, normalizedModuleName.replace(/-/g, ' '));
+
+  const fallbackBody = adaptedDoc || [
+    '# Canonical Fallback Blueprint',
+    '- Module path: src/modules/<module>/{components,services,hooks,types.ts,index.ts}',
+    '- Enforce org-scoped data boundaries in all reads/writes.',
+    '- Include required sections: Schema Evidence, Tenant Isolation Proof, Self-Eval Gates.',
+  ].join('\n');
+
+  return [
+    'quality_gate_failed',
+    `failed_gates: ${(qualityReport?.failed_gates || []).join(', ') || 'none'}`,
+    `missing_sections: ${(qualityReport?.missing_sections || []).join(', ') || 'none'}`,
+    `hallucinated_modules: ${(qualityReport?.hallucinated_modules || []).join(', ') || 'none'}`,
+    `fallback_source: ${path.relative(path.resolve(__dirname, '..'), BOB_GOLD_STANDARD_DOC_PATH)}`,
+    `truth_state_source: ${path.relative(path.resolve(__dirname, '..'), BOB_SYSTEM_STATE_PATH)}`,
+    'fallback_mode: canonical_template',
+    '',
+    fallbackBody,
+  ].join('\n').slice(0, 8000);
 }
 
 function generateHeuristicChatReply(message, context = {}) {
@@ -1787,7 +2275,7 @@ function generateHeuristicChatReply(message, context = {}) {
   }
   if (lowered.includes('railway') || lowered.includes('deploy') || lowered.includes('ci') || lowered.includes('github action')) {
     const auditSummary = RAILWAY_SERVICES_AUDIT.known_issues_resolved.map(i => `[${i.id}] ${i.title} — ${i.fix_applied}`).join(' | ');
-    return `FieldOps services: Bob (RunPod serverless, endpoint n0bp1ifmq01cx2, deploy via build-ai-worker.yml), Proxy/NZSCV (proxy-server/ on Railway, deploy-proxy-railway.yml), PTT+TURN (ptt-server/ on VPS 72.61.123.97 / srv1601189.hstgr.cloud, deploy-voice-server.yml). Bob accesses Ollama via RunPod pod SSH gateway. Production Bob should have CHAT_PROVIDER=ollama, TABULAR_NLP_PROVIDER=ollama, BOB_OPERATING_MODE=build-training, and heuristic fallback enabled. Check config via GET /health. Use GET /platform/railway-audit for full audit findings (${RAILWAY_SERVICES_AUDIT.known_issues_resolved.length} resolved issues). Quick summary: ${auditSummary}`;
+    return `FieldOps services: Bob (RunPod serverless, endpoint configured via RUNPOD_ENDPOINT_ID/URL, deploy via build-ai-worker.yml), Proxy/NZSCV (proxy-server/ on Railway, deploy-proxy-railway.yml), PTT+TURN (ptt-server/ on VPS 72.61.123.97 / srv1601189.hstgr.cloud, deploy-voice-server.yml). Bob accesses Ollama via RunPod pod SSH gateway. Production Bob should have CHAT_PROVIDER=ollama, TABULAR_NLP_PROVIDER=ollama, BOB_OPERATING_MODE=build-training, and heuristic fallback enabled. Check config via GET /health. Use GET /platform/railway-audit for full audit findings (${RAILWAY_SERVICES_AUDIT.known_issues_resolved.length} resolved issues). Quick summary: ${auditSummary}`;
   }
   if (lowered.includes('hook') || lowered.includes('query') || lowered.includes('mutation') || lowered.includes('tanstack') || lowered.includes('zustand')) {
     return 'Data flow: Components use TanStack Query hooks (src/hooks/useXxx.ts) for server state. useQuery fetches data with automatic caching. useMutation writes data and invalidates queries on success. Zustand stores (src/stores/) hold auth state (authStore.ts) and global filters (globalFiltersStore.ts). The Supabase client is typed with Database types from src/types/database.ts.';
@@ -1862,7 +2350,7 @@ function generateHeuristicChatReply(message, context = {}) {
     return 'Supabase: project ref kxwjcupuxnnbnzcgmkoi, AWS ap-southeast-2 (Sydney), PostgreSQL 17. Auth JWT 3600s expiry, token rotation on. RLS on every table — auth.uid() + organization_id. 70+ migrations in supabase/migrations/ (YYYYMMDD_* prefix). Apply: supabase db push. Types: supabase gen types typescript → src/types/database.ts. Connection pooler (Transaction mode) for Edge Functions. Anon key (RLS-enforced) for frontend; service role (bypasses RLS) for Edge Functions only. Use GET /platform/supabase for full knowledge. Use POST /assess/platform with {symptom:"..."} to diagnose.';
   }
   if ((lowered.includes('railway') && !lowered.includes('ptt server')) || lowered.includes('dockerfile') || lowered.includes('oom') || lowered.includes('health check') && lowered.includes('service')) {
-    return 'Railway: only proxy-server/ (NZSCV/MotorWeb proxy) remains on Railway. Bob + Ollama moved to RunPod serverless (n0bp1ifmq01cx2). PTT + TURN moved to VPS 72.61.123.97. Railway token: RAILWAY_TOKEN (proxy only). Deploy proxy: deploy-proxy-railway.yml. Use GET /platform/railway for full knowledge.';
+    return 'Railway: only proxy-server/ (NZSCV/MotorWeb proxy) remains on Railway. Bob + Ollama moved to RunPod serverless (configured via RUNPOD_ENDPOINT_ID/URL). PTT + TURN moved to VPS 72.61.123.97. Railway token: RAILWAY_TOKEN (proxy only). Deploy proxy: deploy-proxy-railway.yml. Use GET /platform/railway for full knowledge.';
   }
   if (lowered.includes('github action') || lowered.includes('workflow') || lowered.includes('ci/cd') || lowered.includes('codespace')) {
     return 'GitHub: 25 Actions workflows in .github/workflows/. Deploy: frontend (Vercel), Bob/Ollama (RunPod pod), PTT+TURN (VPS 72.61.123.97), Proxy (Railway), mobile (EAS), Edge Functions (Supabase). Database: db-push.yml (requires @DonSquires approval). Ops crons: Bob feedback 03:47 NZST, self-learning pretrain 04:21 NZST, intel every 6h. Codespaces: Node 22, Bun, Supabase CLI, Deno (ports: 5173/3000/3002/8080). bun.lock must be committed or deploy fails. Bob sync: sync-bob-repo.yml → DonSquires/Bob. Use GET /platform/github for full knowledge.';
@@ -1955,7 +2443,7 @@ function generateHeuristicChatReply(message, context = {}) {
     (lowered.includes('write') || lowered.includes('generate') || lowered.includes('build') || lowered.includes('make me')) &&
     (lowered.includes('code') || lowered.includes('page') || lowered.includes('component') || lowered.includes('hook') || lowered.includes('function') || lowered.includes('migration'))
   ) {
-    return 'I can write code for you. Submit a coding task via POST /code/task with {task: "build a vehicle filter page with search and pagination", priority: "normal"}. The ops-bob-code-task workflow will generate the code using GitHub Models API with full FieldOps context, apply it to the repo, run bun run build to validate, then open a PR. Monitor progress: GET /code/tasks/pending. I also draft an initial plan with Ollama when the task is submitted.';
+    return 'I can write code for you. Submit a coding task via POST /code/task with {task: "build a vehicle filter page with search and pagination", priority: "normal"}. Execution can run via internal executor (POST /code/executor/run) or the ops-bob-code-task workflow. Monitor progress with GET /code/tasks/:id and GET /code/executor/state. I also draft an initial plan with Ollama when the task is submitted.';
   }
   if (lowered.includes('code task') || lowered.includes('/code/task') || (lowered.includes('task') && lowered.includes('pr'))) {
     return 'Bob code tasks: POST /code/task {task:"...", context:"...", target_files:["src/pages/X.tsx"], priority:"normal|high"} to queue a task. GET /code/tasks/pending to see queued tasks. GET /code/tasks to list all (filter with ?status=pending|in_progress|completed|failed). GET /code/tasks/:id for a specific task. POST /code/tasks/:id/skip to cancel. DELETE /code/tasks/:id to remove. Completed tasks include the PR URL and list of files changed.';
@@ -2004,7 +2492,7 @@ async function generateChatReplyWithOllama(message, history = [], context = {}, 
         messages: [
           {
             role: 'system',
-            content: 'You are Bob, the AI assistant embedded in FieldOps Manager — a freedom camping enforcement platform used by councils and security contractors in New Zealand.\n\nYou assist officers, supervisors, and administrators with:\n- NZ freedom camping law: Freedom Camping Act 2011, Local Government Act 2002, RMA 1991, Privacy Act 2020\n- Compliance analysis: breach trends, stay-night calculations, zone rule interpretation\n- Patrol operations: shift planning, route guidance, officer welfare checks\n- Enforcement actions: Notice to Vacate, Warning Notice, Infringement Notice, Noise Notice\n- Vehicle and plate workflows: ALPR results, SCV certification via NZSCV register\n- Incident and evidence management and investigation notes\n- Risk assessments, SOPs, H&S plans, evacuation plans, active offender procedures\n- Data import, system diagnostics, and operational guidance\n\nNZ Legal Framework (Bob and Ollama MUST abide by these rules):\n- Privacy Act 2020: 13 IPPs. Minimise collection, ensure security, limit use/disclosure, restrict cross-border transfers. Mandatory breach reporting.\n- NZBORA 1990: Rights to movement (s 18), protection from unreasonable search (s 21), natural justice (s 27). All enforcement must respect these.\n- Freedom Camping Act 2011: Officers can issue infringements/NTV/request identity. Officers CANNOT arrest, detain, use force, or enter vehicles — only Police can.\n- RMA 1991: Protect environment. Track environmental impact. Respect Māori cultural sites.\n- Search and Surveillance Act 2012: Public observation/ALPR lawful. Entering vehicles requires warrant/consent. Covert surveillance requires authorisation.\n- Evidence Act 2006: Computer evidence admissible if reliability established (s 137). Maintain chain of custody and audit trails.\n- Policing Act 2008: Involve Police for threats, violence, stolen vehicles, refusal to identify. Share only necessary info, log disclosures.\n- NZDF: Defence land outside council jurisdiction. Do not share surveillance data without authorisation.\n- AI Guardrails: G1 privacy by design, G2 lawful evidence, G3 human review, G4 proportionate enforcement, G5 no Police powers, G6 audit trail, G7 no cross-border leakage, G8 data security, G9 breach notification, G10 respect rights, G11 not legal advice, G12 vulnerable persons.\n- Use POST /legal/check to validate any action. GET /legal/framework for overview. GET /legal/guardrails for full rules.\n\nUI/UX Design Assessment:\n- Design system: Tailwind CSS v3 + shadcn/ui (Radix) with HSL CSS variable theming\n- Four themes: light, dark, high-contrast, night-patrol (for officers in low-light with gloves)\n- Colours: primary teal (HSL 187 72% 37%), accent amber (HSL 48 96% 53%), destructive red (HSL 0 84% 60%)\n- Night-patrol mode: pure black bg, bright cyan primary, 56px min button height, 52px min input height, 17px base font\n- WCAG AA target: 4.5:1 contrast for text, 3:1 for large text, semantic HTML, ARIA attributes, focus-visible rings\n- Responsive breakpoints: sm 640px, md 768px, lg 1024px, xl 1280px (mobile-first)\n- Layout patterns: dashboard (grid cards + table), form (labelled inputs + validation), list (virtualized + empty states), detail (hero + tabs), map (full-height + overlays)\n- Human-friendliness: score components on accessibility (35%), responsiveness (30%), design consistency (35%)\n- Use POST /assess/ui for code analysis, POST /assess/ui/screenshot for visual analysis, POST /assess/ui/colours for contrast checks\n\nFull-Stack Navigation & Debugging:\n- Stack: React UI (src/pages/) → hooks (src/hooks/) → Supabase client → Postgres with RLS → Edge Functions (supabase/functions/) → Bob inference on RunPod serverless (endpoint n0bp1ifmq01cx2)\n- Routes: react-router-dom v6 in App.tsx with ProtectedRoute, RoleRoute, AreaRoute guards. 60+ routes.\n- Button trace: onClick handler → mutation.mutate() → supabase.from(table).insert/update/delete → Postgres → RLS → response → cache invalidation\n- Link trace: <Link to="/path"> → route match → role guard → page component → useParams → hook data fetch\n- Form trace: react-hook-form + zod validation → onSubmit → mutation → Supabase → success toast\n- Debug: POST /navigate/debug with symptom. GET /navigate/stack-map for topology. GET /navigate/route?path= for route lookup.\n- POST /assess/ui/trace to trace any button/link/form from JSX through to database\n- Common fixes: button disabled (check loading state), 404 (check route path), 403 (check RLS), blank page (check hook errors)\n\nPush-to-Talk (PTT) System:\n- Stack: PTTBar.tsx (UI) → ptt.ts (WebSocket + WebRTC) → pttBackground.ts (auto-connect) → pttStore.ts (Zustand) → ptt-signaling-token Edge Function → ptt-server on VPS 72.61.123.97 port 8080 (WebSocket)\n- Channel types: org:<uuid> (org-wide), team:<uuid>, deployment:<uuid>, incident:<uuid>, direct:<uuid> (1:1)\n- Token flow: requestPTTToken() → Edge Function validates auth + org → ptt-server /api/token/mint → JWT (10min expiry) → WebSocket connect with ?token=jwt\n- Input modes: PTT (hold to talk), Toggle (click), VOX (voice-activated with threshold). Half-duplex — one speaker per channel.\n- Auto-connect: usePTTAutoConnect hook in App.tsx starts pttBackground service on login. Maintains connection with ping/pong heartbeat.\n- Audio: getUserMedia with echoCancellation + noiseSuppression. MediaRecorder (opus/webm, max 60s/3MB). Clips upload to ptt-clips Supabase Storage.\n- Common issues: "PTT unavailable" = Edge Function not deployed or PTT_SERVER_URL not set. 4001/4002 = auth failure. 4003 = channel full. CHANNEL_BUSY = someone else talking.\n- PTT server env: PTT_JWT_SECRET + PROXY_SECRET (required, must match Edge Function). TURN on same VPS: TURN_URL=turn:72.61.123.97:3478 + TURN_USERNAME + TURN_CREDENTIAL.\n- DB tables: ptt_messages (clip metadata), ptt_presence (online status), ptt_channels (config). All org-scoped with RLS.\n- Voice data privacy: Audio clips have 24h signed URLs, 30-day retention default, org-scoped access. Privacy Act IPP 5 applies.\n- Use POST /assess/ptt with {symptom: "..."} to diagnose PTT issues.\n\nFieldOps Codebase Coding Knowledge:\n- Tech stack: React 18 + TypeScript + Vite + Tailwind CSS v3 + shadcn/ui. State: Zustand + TanStack Query v5. Forms: react-hook-form + zod. Package manager: bun. Backend: Supabase (PostgreSQL 17, 47 Edge Functions, RLS). Services: Bob (RunPod serverless, endpoint n0bp1ifmq01cx2), Proxy/NZSCV (proxy-server/ on Railway), PTT+TURN (ptt-server/ on VPS 72.61.123.97), Ollama on RunPod pod.\n- Project layout: pages in src/pages/, hooks in src/hooks/, stores in src/stores/, shadcn primitives in src/components/ui/ (never re-implement), feature components in src/components/features/. Path alias @/* → ./src/*.\n- Supabase client: import { supabase } from "@/lib/supabase". Typed with Database from @/types/database. Row types: Database["public"]["Tables"]["table"]["Row"]. All queries go through this typed client.\n- Hooks: useQuery for reads, useMutation for writes. queryKey must include all filter vars. invalidateQueries after mutations. toast from sonner for notifications. Files in src/hooks/useXxx.ts.\n- Edge Functions: supabase/functions/<name>/index.ts, Deno TypeScript. Always import withCors + getCorsHeaders + jsonResponse + errorResponse from ../_shared/withCors.ts. Always handle OPTIONS preflight. Deploy: supabase functions deploy <name> --project-ref kxwjcupuxnnbnzcgmkoi.\n- Migrations: supabase/migrations/YYYYMMDD_HHMMSS_description.sql. Every table needs RLS enabled. Policies scope by auth.uid() + organization_id. After migration regenerate types.\n- TypeScript config: noImplicitAny=false, strictNullChecks=false, skipLibCheck=true. Do NOT tighten these. Build: bun run build. Dev: bun run dev.\n- Roles: admin, master, officer, admin_officer. Route guards: RoleRoute, ProtectedRoute, AreaRoute in App.tsx. authStore.ts holds current user + organization_id.\n- All datetimes in Pacific/Auckland timezone. bun.lock must be committed — Railway uses --frozen-lockfile.\n- For coding templates and step-by-step guides: GET /code/patterns, GET /code/conventions, GET /code/tasks, POST /code/assist.\n- To write or update code: POST /code/task {task:"...", context:"...", target_files:[], priority:"normal|high"} — queues a task for the ops-bob-code-task workflow which generates code, applies file operations, runs bun run build, and opens a PR. Monitor: GET /code/tasks/pending.\n\nCurrent internal training and vetted intel:\n' + intelContext + '\n\nKey facts:\n- Zones have allowed_days, max_consecutive_nights, max_nights_per_month\n- Observations track plate_number, zone, recorded_at, and photo evidence\n- Breach triggers when stay limits are exceeded\n- Homeless or vulnerable occupants receive special consideration under policy\n- SCV status from NZSCV register can grant zone exemptions\n- All times are NZ timezone (Pacific/Auckland)\n\nResponse behavior guardrails:\n- Do not claim you can browse the public internet or fetch live web pages unless the request is explicitly routed through a configured platform connector in this environment.\n- Do not claim you can click, open, or inspect app pages directly. Ask the user for visible errors, screenshots, or steps and then diagnose.\n- Do not present internal endpoint playbooks (for example, GET/POST route lists) unless the user explicitly asks for API-level diagnostics. Keep normal replies user-focused.\n- If asked "Can you hear me?", explain that voice input arrives as transcribed text from the app and you respond to that transcript.\n- Keep answers in the trained FieldOps copilot voice: practical, direct, and concise.\n\nBe concise — field officers need fast actionable answers. When you do not know something specific, say so. Never fabricate data or plate numbers. All guidance is operational, not formal legal advice. Return plain text only, no markdown formatting.',
+            content: 'You are Bob, the AI assistant embedded in FieldOps Manager — a freedom camping enforcement platform used by councils and security contractors in New Zealand.\n\nYou assist officers, supervisors, and administrators with:\n- NZ freedom camping law: Freedom Camping Act 2011, Local Government Act 2002, RMA 1991, Privacy Act 2020\n- Compliance analysis: breach trends, stay-night calculations, zone rule interpretation\n- Patrol operations: shift planning, route guidance, officer welfare checks\n- Enforcement actions: Notice to Vacate, Warning Notice, Infringement Notice, Noise Notice\n- Vehicle and plate workflows: ALPR results, SCV certification via NZSCV register\n- Incident and evidence management and investigation notes\n- Risk assessments, SOPs, H&S plans, evacuation plans, active offender procedures\n- Data import, system diagnostics, and operational guidance\n\nNZ Legal Framework (Bob and Ollama MUST abide by these rules):\n- Privacy Act 2020: 13 IPPs. Minimise collection, ensure security, limit use/disclosure, restrict cross-border transfers. Mandatory breach reporting.\n- NZBORA 1990: Rights to movement (s 18), protection from unreasonable search (s 21), natural justice (s 27). All enforcement must respect these.\n- Freedom Camping Act 2011: Officers can issue infringements/NTV/request identity. Officers CANNOT arrest, detain, use force, or enter vehicles — only Police can.\n- RMA 1991: Protect environment. Track environmental impact. Respect Māori cultural sites.\n- Search and Surveillance Act 2012: Public observation/ALPR lawful. Entering vehicles requires warrant/consent. Covert surveillance requires authorisation.\n- Evidence Act 2006: Computer evidence admissible if reliability established (s 137). Maintain chain of custody and audit trails.\n- Policing Act 2008: Involve Police for threats, violence, stolen vehicles, refusal to identify. Share only necessary info, log disclosures.\n- NZDF: Defence land outside council jurisdiction. Do not share surveillance data without authorisation.\n- AI Guardrails: G1 privacy by design, G2 lawful evidence, G3 human review, G4 proportionate enforcement, G5 no Police powers, G6 audit trail, G7 no cross-border leakage, G8 data security, G9 breach notification, G10 respect rights, G11 not legal advice, G12 vulnerable persons.\n- Use POST /legal/check to validate any action. GET /legal/framework for overview. GET /legal/guardrails for full rules.\n\nUI/UX Design Assessment:\n- Design system: Tailwind CSS v3 + shadcn/ui (Radix) with HSL CSS variable theming\n- Four themes: light, dark, high-contrast, night-patrol (for officers in low-light with gloves)\n- Colours: primary teal (HSL 187 72% 37%), accent amber (HSL 48 96% 53%), destructive red (HSL 0 84% 60%)\n- Night-patrol mode: pure black bg, bright cyan primary, 56px min button height, 52px min input height, 17px base font\n- WCAG AA target: 4.5:1 contrast for text, 3:1 for large text, semantic HTML, ARIA attributes, focus-visible rings\n- Responsive breakpoints: sm 640px, md 768px, lg 1024px, xl 1280px (mobile-first)\n- Layout patterns: dashboard (grid cards + table), form (labelled inputs + validation), list (virtualized + empty states), detail (hero + tabs), map (full-height + overlays)\n- Human-friendliness: score components on accessibility (35%), responsiveness (30%), design consistency (35%)\n- Use POST /assess/ui for code analysis, POST /assess/ui/screenshot for visual analysis, POST /assess/ui/colours for contrast checks\n\nFull-Stack Navigation & Debugging:\n- Stack: React UI (src/pages/) → hooks (src/hooks/) → Supabase client → Postgres with RLS → Edge Functions (supabase/functions/) → Bob inference on RunPod serverless (endpoint configured via RUNPOD_ENDPOINT_ID/URL)\n- Routes: react-router-dom v6 in App.tsx with ProtectedRoute, RoleRoute, AreaRoute guards. 60+ routes.\n- Button trace: onClick handler → mutation.mutate() → supabase.from(table).insert/update/delete → Postgres → RLS → response → cache invalidation\n- Link trace: <Link to="/path"> → route match → role guard → page component → useParams → hook data fetch\n- Form trace: react-hook-form + zod validation → onSubmit → mutation → Supabase → success toast\n- Debug: POST /navigate/debug with symptom. GET /navigate/stack-map for topology. GET /navigate/route?path= for route lookup.\n- POST /assess/ui/trace to trace any button/link/form from JSX through to database\n- Common fixes: button disabled (check loading state), 404 (check route path), 403 (check RLS), blank page (check hook errors)\n\nPush-to-Talk (PTT) System:\n- Stack: PTTBar.tsx (UI) → ptt.ts (WebSocket + WebRTC) → pttBackground.ts (auto-connect) → pttStore.ts (Zustand) → ptt-signaling-token Edge Function → ptt-server on VPS 72.61.123.97 port 8080 (WebSocket)\n- Channel types: org:<uuid> (org-wide), team:<uuid>, deployment:<uuid>, incident:<uuid>, direct:<uuid> (1:1)\n- Token flow: requestPTTToken() → Edge Function validates auth + org → ptt-server /api/token/mint → JWT (10min expiry) → WebSocket connect with ?token=jwt\n- Input modes: PTT (hold to talk), Toggle (click), VOX (voice-activated with threshold). Half-duplex — one speaker per channel.\n- Auto-connect: usePTTAutoConnect hook in App.tsx starts pttBackground service on login. Maintains connection with ping/pong heartbeat.\n- Audio: getUserMedia with echoCancellation + noiseSuppression. MediaRecorder (opus/webm, max 60s/3MB). Clips upload to ptt-clips Supabase Storage.\n- Common issues: "PTT unavailable" = Edge Function not deployed or PTT_SERVER_URL not set. 4001/4002 = auth failure. 4003 = channel full. CHANNEL_BUSY = someone else talking.\n- PTT server env: PTT_JWT_SECRET + PROXY_SECRET (required, must match Edge Function). TURN on same VPS: TURN_URL=turn:72.61.123.97:3478 + TURN_USERNAME + TURN_CREDENTIAL.\n- DB tables: ptt_messages (clip metadata), ptt_presence (online status), ptt_channels (config). All org-scoped with RLS.\n- Voice data privacy: Audio clips have 24h signed URLs, 30-day retention default, org-scoped access. Privacy Act IPP 5 applies.\n- Use POST /assess/ptt with {symptom: "..."} to diagnose PTT issues.\n\nFieldOps Codebase Coding Knowledge:\n- Tech stack: React 18 + TypeScript + Vite + Tailwind CSS v3 + shadcn/ui. State: Zustand + TanStack Query v5. Forms: react-hook-form + zod. Package manager: bun. Backend: Supabase (PostgreSQL 17, 47 Edge Functions, RLS). Services: Bob (RunPod serverless, endpoint configured via RUNPOD_ENDPOINT_ID/URL), Proxy/NZSCV (proxy-server/ on Railway), PTT+TURN (ptt-server/ on VPS 72.61.123.97), Ollama on RunPod pod.\n- Project layout: pages in src/pages/, hooks in src/hooks/, stores in src/stores/, shadcn primitives in src/components/ui/ (never re-implement), feature components in src/components/features/. Path alias @/* → ./src/*.\n- Supabase client: import { supabase } from "@/lib/supabase". Typed with Database from @/types/database. Row types: Database["public"]["Tables"]["table"]["Row"]. All queries go through this typed client.\n- Hooks: useQuery for reads, useMutation for writes. queryKey must include all filter vars. invalidateQueries after mutations. toast from sonner for notifications. Files in src/hooks/useXxx.ts.\n- Edge Functions: supabase/functions/<name>/index.ts, Deno TypeScript. Always import withCors + getCorsHeaders + jsonResponse + errorResponse from ../_shared/withCors.ts. Always handle OPTIONS preflight. Deploy: supabase functions deploy <name> --project-ref kxwjcupuxnnbnzcgmkoi.\n- Migrations: supabase/migrations/YYYYMMDD_HHMMSS_description.sql. Every table needs RLS enabled. Policies scope by auth.uid() + organization_id. After migration regenerate types.\n- TypeScript config: noImplicitAny=false, strictNullChecks=false, skipLibCheck=true. Do NOT tighten these. Build: bun run build. Dev: bun run dev.\n- Roles: admin, master, officer, admin_officer. Route guards: RoleRoute, ProtectedRoute, AreaRoute in App.tsx. authStore.ts holds current user + organization_id.\n- All datetimes in Pacific/Auckland timezone. bun.lock must be committed — Railway uses --frozen-lockfile.\n- For coding templates and step-by-step guides: GET /code/patterns, GET /code/conventions, GET /code/tasks, POST /code/assist.\n- To write or update code: POST /code/task {task:"...", context:"...", target_files:[], priority:"normal|high"} — queues a task for either the internal executor (POST /code/executor/run, optional auto-run) or the ops-bob-code-task workflow. Monitor: GET /code/tasks/:id and GET /code/executor/state.\n- Truth Protocol (mandatory before major redesign): run scripts/system-check.sh (or scripts/system-check.mjs), read system_state.json, and never assume modules or package manager outside that file.\n\nCurrent internal training and vetted intel:\n' + intelContext + '\n\nKey facts:\n- Zones have allowed_days, max_consecutive_nights, max_nights_per_month\n- Observations track plate_number, zone, recorded_at, and photo evidence\n- Breach triggers when stay limits are exceeded\n- Homeless or vulnerable occupants receive special consideration under policy\n- SCV status from NZSCV register can grant zone exemptions\n- All times are NZ timezone (Pacific/Auckland)\n\nResponse behavior guardrails:\n- Do not claim you can browse the public internet or fetch live web pages unless the request is explicitly routed through a configured platform connector in this environment.\n- Do not claim you can click, open, or inspect app pages directly. Ask the user for visible errors, screenshots, or steps and then diagnose.\n- Do not present internal endpoint playbooks (for example, GET/POST route lists) unless the user explicitly asks for API-level diagnostics. Keep normal replies user-focused.\n- If asked "Can you hear me?", explain that voice input arrives as transcribed text from the app and you respond to that transcript.\n- Keep answers in the trained FieldOps copilot voice: practical, direct, and concise.\n\nBe concise — field officers need fast actionable answers. When you do not know something specific, say so. Never fabricate data or plate numbers. All guidance is operational, not formal legal advice. Return plain text only, no markdown formatting.',
           },
           ...(systemPromptOverride
             ? [{
@@ -2046,11 +2534,50 @@ async function generateChatReplyWithOllama(message, history = [], context = {}, 
       return buildChatHeuristicFallback(message, context);
     }
 
+    let quality_gate = null;
+    const contextText = context && typeof context === 'object' ? JSON.stringify(context) : '';
+    if (isModuleScaffoldRequest(message, contextText)) {
+      const moduleName = inferModuleName(message, contextText);
+      const qualityReport = evaluateModulePlanQuality(trimmed, { inferredModuleName: moduleName });
+      if (!qualityReport.passed) {
+        quality_gate = {
+          status: 'failed',
+          failed_gates: qualityReport.failed_gates,
+          missing_sections: qualityReport.missing_sections,
+          hallucinated_modules: qualityReport.hallucinated_modules,
+          required_sections: BOB_REQUIRED_RESPONSE_SECTIONS,
+          gate_names: BOB_SELF_EVAL_GATES,
+          fallback_source: path.relative(path.resolve(__dirname, '..'), BOB_GOLD_STANDARD_DOC_PATH),
+          truth_state_source: path.relative(path.resolve(__dirname, '..'), BOB_SYSTEM_STATE_PATH),
+          fallback_applied: true,
+        };
+
+        ollamaCircuitBreaker.recordSuccess();
+        return {
+          provider: 'gold_standard_fallback',
+          text: buildGoldStandardFallbackPlan(moduleName, qualityReport),
+          fallback: true,
+          quality_gate,
+        };
+      }
+
+      quality_gate = {
+        status: 'passed',
+        failed_gates: [],
+        missing_sections: [],
+        hallucinated_modules: [],
+        required_sections: BOB_REQUIRED_RESPONSE_SECTIONS,
+        gate_names: BOB_SELF_EVAL_GATES,
+        fallback_applied: false,
+      };
+    }
+
     ollamaCircuitBreaker.recordSuccess();
     return {
       provider: 'ollama',
       text: trimmed,
       fallback: false,
+      quality_gate,
     };
   } catch (error) {
     ollamaCircuitBreaker.recordFailure(error);
@@ -2239,6 +2766,14 @@ app.post('/chat', inferenceRateLimit, requireInferenceAuth, async (req, res) => 
     if (!systemPromptOverride) {
       const trainingReply = answerFromTrainingIntel(message);
       if (trainingReply) {
+        logBobResponse({
+          target: 'Bob',
+          channel: 'training-intel',
+          prompt: message,
+          response: trainingReply,
+          delivery: { sent: true, status: 200, channel: 'training-intel' },
+          metadata: { provider: 'training-intel', route: '/chat' },
+        });
         return res.json({
           success: true,
           provider: 'training-intel',
@@ -2250,20 +2785,46 @@ app.post('/chat', inferenceRateLimit, requireInferenceAuth, async (req, res) => 
 
     if (CHAT_PROVIDER === 'ollama') {
       const reply = await generateChatReplyWithOllama(message, history, context, systemPromptOverride);
+      logBobResponse({
+        target: 'Bob',
+        channel: reply.provider || 'ollama',
+        prompt: message,
+        response: reply.text,
+        delivery: { sent: true, status: 200, channel: reply.provider || 'ollama' },
+        metadata: {
+          provider: reply.provider || 'ollama',
+          fallback: reply.fallback === true,
+          qualityGateFailed: reply.quality_gate?.status === 'failed',
+          fallbackApplied: reply.quality_gate?.fallback_applied === true,
+          qualityGateStatus: reply.quality_gate?.status || null,
+          route: '/chat',
+        },
+      });
       return res.json({
         success: true,
         provider: reply.provider,
         fallback: reply.fallback,
         message: reply.text,
         text: reply.text,
+        quality_gate: reply.quality_gate || null,
+        quality_gate_failed: reply.quality_gate?.status === 'failed',
       });
     }
 
+    const heuristicReply = generateHeuristicChatReply(message, context);
+    logBobResponse({
+      target: 'Bob',
+      channel: 'heuristic',
+      prompt: message,
+      response: heuristicReply,
+      delivery: { sent: true, status: 200, channel: 'heuristic' },
+      metadata: { provider: 'heuristic', route: '/chat' },
+    });
     return res.json({
       success: true,
       provider: 'heuristic',
       fallback: false,
-      message: generateHeuristicChatReply(message, context),
+      message: heuristicReply,
       text: generateHeuristicChatReply(message, context),
     });
   } catch (error) {
@@ -3705,13 +4266,12 @@ app.delete('/ask-copilot/:id', inferenceRateLimit, requireInferenceAuth, async (
 //
 // Flow:
 //   1. POST /code/task         — submit a task; Bob drafts a plan with Ollama
-//   2. GET  /code/tasks/pending — ops-bob-code-task.yml polls this
-//   3. Workflow uses GitHub Models API + FieldOps context to generate files
-//   4. POST /code/tasks/:id/start  — workflow marks task in_progress
-//   5. POST /code/tasks/:id/result — workflow reports PR URL + build result
-//   6. POST /code/tasks/:id/fail   — workflow reports failure
-//   7. POST /code/tasks/:id/skip   — manually skip a pending task
-//   8. DELETE /code/tasks/:id      — remove a task
+//   2. One of two executors processes pending tasks:
+//      a) External: ops-bob-code-task.yml polls GET /code/tasks/pending
+//      b) Internal: POST /code/executor/run or auto-loop (env controlled)
+//   3. Executor marks task in_progress and reports result/failure
+//   4. POST /code/tasks/:id/skip   — manually skip a pending task
+//   5. DELETE /code/tasks/:id      — remove a task
 // ---------------------------------------------------------------------------
 
 const codeTaskRateLimit = rateLimit({ windowMs: 60_000, max: 30, standardHeaders: true, legacyHeaders: false });
@@ -3732,11 +4292,31 @@ app.post('/code/task', inferenceRateLimit, requireInferenceAuth, async (req, res
       return res.status(400).json({ error: 'task must be 4000 characters or fewer' });
     }
 
+    const normalizedTask = task.trim();
+    const normalizedContext = context ? String(context).slice(0, 4000) : '';
+    const shouldScaffoldModule = isModuleScaffoldRequest(normalizedTask, normalizedContext);
+    const inferredModuleName = shouldScaffoldModule ? inferModuleName(normalizedTask, normalizedContext) : '';
+    const scaffoldTargets = shouldScaffoldModule ? buildModuleScaffoldTargets(inferredModuleName) : [];
+    const normalizedTargetFiles = Array.isArray(target_files) && target_files.length > 0
+      ? target_files
+      : scaffoldTargets;
+
+    const architectureAppendix = shouldScaffoldModule
+      ? buildArchitectureContextAppendix(inferredModuleName)
+      : '';
+
+    const enrichedContext = [normalizedContext, architectureAppendix]
+      .filter(Boolean)
+      .join('\n\n')
+      .slice(0, 6000);
+
     // Attempt to generate an initial plan with Ollama (non-blocking — fall back silently)
     let bob_plan = null;
+    let plan_source = 'none';
+    let quality_gate = null;
     if (OLLAMA_ENABLED && !SELF_CONTAINED_MODE) {
       try {
-        const planPrompt = buildCodePlanPrompt(task, context, target_files);
+        const planPrompt = buildCodePlanPrompt(normalizedTask, enrichedContext, normalizedTargetFiles);
         const planResp = await fetchWithEgressCheck(
           `${OLLAMA_BASE_URL}/api/chat`,
           {
@@ -3762,6 +4342,7 @@ app.post('/code/task', inferenceRateLimit, requireInferenceAuth, async (req, res
           const planText = planPayload?.message?.content;
           if (planText && typeof planText === 'string' && planText.trim()) {
             bob_plan = planText.trim().slice(0, 8000);
+            plan_source = 'ollama';
           }
         }
       } catch (planErr) {
@@ -3769,19 +4350,71 @@ app.post('/code/task', inferenceRateLimit, requireInferenceAuth, async (req, res
       }
     }
 
+    if (shouldScaffoldModule) {
+      const qualityReport = evaluateModulePlanQuality(bob_plan || '', { inferredModuleName: inferredModuleName });
+      if (!qualityReport.passed) {
+        quality_gate = {
+          status: 'failed',
+          failed_gates: qualityReport.failed_gates,
+          missing_sections: qualityReport.missing_sections,
+          hallucinated_modules: qualityReport.hallucinated_modules,
+          required_sections: BOB_REQUIRED_RESPONSE_SECTIONS,
+          gate_names: BOB_SELF_EVAL_GATES,
+          fallback_source: path.relative(path.resolve(__dirname, '..'), BOB_GOLD_STANDARD_DOC_PATH),
+          truth_state_source: path.relative(path.resolve(__dirname, '..'), BOB_SYSTEM_STATE_PATH),
+          fallback_applied: true,
+        };
+        bob_plan = buildGoldStandardFallbackPlan(inferredModuleName, qualityReport);
+        plan_source = 'gold_standard_fallback';
+      } else {
+        quality_gate = {
+          status: 'passed',
+          failed_gates: [],
+          missing_sections: [],
+          hallucinated_modules: [],
+          required_sections: BOB_REQUIRED_RESPONSE_SECTIONS,
+          gate_names: BOB_SELF_EVAL_GATES,
+          fallback_applied: false,
+        };
+      }
+    }
+
     const entry = codeTaskStore.queueTask({
-      task: task.trim(),
-      context: context ? String(context).slice(0, 2000) : null,
-      target_files: Array.isArray(target_files) ? target_files : [],
+      task: normalizedTask,
+      context: enrichedContext || null,
+      target_files: normalizedTargetFiles,
       priority: priority === 'high' ? 'high' : 'normal',
       requested_by: requested_by ? String(requested_by).slice(0, 200) : null,
       bob_plan,
+      plan_source,
+      quality_gate,
+    });
+
+    const queueMessage = isInternalCodeExecutorConfigured()
+      ? `Task queued [${entry.short_id}]. Internal executor is enabled. Run POST /code/executor/run or wait for auto-run. Monitor: GET /code/tasks/${entry.id}`
+      : `Task queued [${entry.short_id}]. The ops-bob-code-task workflow will pick it up, generate code, and open a PR. Monitor: GET /code/tasks/${entry.id}`;
+
+    logBobResponse({
+      target: 'Bob',
+      channel: plan_source,
+      prompt: buildCodePlanPrompt(normalizedTask, enrichedContext, normalizedTargetFiles),
+      response: bob_plan || queueMessage,
+      delivery: { sent: true, status: 201, channel: plan_source },
+      metadata: {
+        provider: plan_source,
+        qualityGateFailed: quality_gate?.status === 'failed',
+        fallbackApplied: quality_gate?.fallback_applied === true,
+        qualityGateStatus: quality_gate?.status || null,
+        route: '/code/task',
+      },
     });
 
     return res.status(201).json({
       success: true,
       task: entry,
-      message: `Task queued [${entry.short_id}]. The ops-bob-code-task workflow will pick it up, generate code, and open a PR. Monitor: GET /code/tasks/${entry.id}`,
+      quality_gate,
+      quality_gate_failed: quality_gate?.status === 'failed',
+      message: queueMessage,
     });
   } catch (error) {
     console.error('Code task queue error:', error);
@@ -3884,6 +4517,66 @@ app.delete('/code/tasks/:id', codeTaskRateLimit, requireInferenceAuth, (req, res
   } catch (error) {
     const status = error.message.includes('not found') ? 404 : 500;
     return res.status(status).json({ error: 'Failed to delete task', message: error.message });
+  }
+});
+
+// GET /code/executor/state — internal code executor status
+app.get('/code/executor/state', codeTaskRateLimit, requireInferenceAuth, (req, res) => {
+  return res.json({
+    success: true,
+    executor: {
+      enabled: BOB_INTERNAL_CODE_TASK_EXECUTOR_ENABLED,
+      configured: isInternalCodeExecutorConfigured(),
+      auto_run: BOB_INTERNAL_CODE_TASK_EXECUTOR_AUTORUN,
+      interval_ms: BOB_INTERNAL_CODE_TASK_EXECUTOR_INTERVAL_MS,
+      timeout_ms: BOB_INTERNAL_CODE_TASK_EXECUTOR_TIMEOUT_MS,
+      dry_run: BOB_INTERNAL_CODE_TASK_EXECUTOR_DRY_RUN,
+      require_dry_run: BOB_INTERNAL_CODE_TASK_EXECUTOR_REQUIRE_DRY_RUN,
+      allowed_paths: BOB_INTERNAL_CODE_TASK_EXECUTOR_ALLOWED_PATHS,
+      command_allowlist: BOB_INTERNAL_CODE_TASK_EXECUTOR_COMMAND_ALLOWLIST,
+      in_flight: internalCodeExecutorInFlight,
+      runs: internalCodeExecutorState.runs,
+      failures: internalCodeExecutorState.failures,
+      last_run_at: internalCodeExecutorState.last_run_at,
+      last_error: internalCodeExecutorState.last_error,
+      last_completed_task_id: internalCodeExecutorState.last_completed_task_id,
+    },
+  });
+});
+
+// POST /code/executor/run — run one internal execution cycle against pending tasks
+app.post('/code/executor/run', codeTaskRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const limit = Number(req.body?.limit || 1);
+    const actor = req?.user?.email || req?.user?.id || 'api-client';
+    const result = await runInternalCodeExecutorCycle(limit, actor);
+    const status = result.success ? 200 : 409;
+    return res.status(status).json(result);
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to run internal code executor', message: error.message });
+  }
+});
+
+// POST /code/tasks/:id/execute-internal — execute a specific task immediately
+app.post('/code/tasks/:id/execute-internal', codeTaskRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    if (!isInternalCodeExecutorConfigured()) {
+      return res.status(503).json({
+        error: 'Internal code executor is disabled or not configured',
+        required_env: [
+          'BOB_INTERNAL_CODE_TASK_EXECUTOR_ENABLED=true',
+          'BOB_INTERNAL_CODE_TASK_EXECUTOR_BIN=node',
+          'BOB_INTERNAL_CODE_TASK_EXECUTOR_ARGS=["/app/scripts/internal-code-executor.mjs"]',
+        ],
+      });
+    }
+
+    const actor = req?.user?.email || req?.user?.id || 'api-client';
+    const result = await executeCodeTaskInternally(req.params.id, actor);
+    return res.json(result);
+  } catch (error) {
+    const status = String(error.message || '').includes('not found') ? 404 : 400;
+    return res.status(status).json({ error: 'Failed to execute task internally', message: error.message });
   }
 });
 
@@ -6229,6 +6922,14 @@ app.get('/infer/safety/capabilities', rateLimit({ windowMs: 60_000, max: 60, sta
 });
 
 app.post('/infer/audio/classify-nuisance', inferenceRateLimit, upload.single('audio'), requireInferenceAuth, async (req, res) => {
+  if (MOCK_MODE) {
+    return res.json({
+      classification: 'nuisance_noise', confidence: 0.72, approx_db_a: 58,
+      transcript: '[MOCK] Audio sample received.',
+      label: 'Unreasonable noise', recommendation: 'Issue formal warning under RMA s.326',
+      provider: 'mock', mock: true,
+    });
+  }
   try {
     if (!SAFETY_AUDIO_CLASSIFIER_ENABLED) {
       return res.status(503).json({
@@ -6410,6 +7111,16 @@ app.post('/safety/emergency/hot-mic/trigger', inferenceRateLimit, requireInferen
 });
 
 app.post('/infer/transcribe', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  if (MOCK_MODE) {
+    const language = String(req.body?.language || 'en').trim().slice(0, 8);
+    const filename = req.body?.filename || '';
+    // Return a deterministic transcript keyed to the filename so Playwright
+    // tests can assert on specific content without running Whisper.
+    const transcript = filename
+      ? `[MOCK] Transcript of ${filename}`
+      : '[MOCK] Hello world — this is a static mock transcript for E2E testing.';
+    return res.json({ transcript, language, provider: 'mock', source_mime_type: req.body?.audio_mime_type || 'audio/webm', mock: true });
+  }
   try {
     const audioBase64 = String(req.body?.audio_base64 || '').trim();
     const audioMimeType = String(req.body?.audio_mime_type || 'audio/webm').trim();
@@ -6556,6 +7267,15 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       WHISPER_MODEL_PATH: WHISPER_MODEL_PATH || null,
       CHAT_TIMEOUT_MS,
       CHAT_HEURISTIC_ENABLED,
+      BOB_INTERNAL_CODE_TASK_EXECUTOR_ENABLED,
+      BOB_INTERNAL_CODE_TASK_EXECUTOR_AUTORUN,
+      BOB_INTERNAL_CODE_TASK_EXECUTOR_INTERVAL_MS,
+      BOB_INTERNAL_CODE_TASK_EXECUTOR_TIMEOUT_MS,
+      BOB_INTERNAL_CODE_TASK_EXECUTOR_DRY_RUN,
+      BOB_INTERNAL_CODE_TASK_EXECUTOR_REQUIRE_DRY_RUN,
+      BOB_INTERNAL_CODE_TASK_EXECUTOR_ALLOWED_PATHS,
+      BOB_INTERNAL_CODE_TASK_EXECUTOR_COMMAND_ALLOWLIST,
+      BOB_INTERNAL_CODE_TASK_EXECUTOR_CONFIGURED: isInternalCodeExecutorConfigured(),
       AUDIO_SYNTH_TIMEOUT_MS,
       TTS_ENGINE,
       TTS_DEFAULT_VOICE,
@@ -6610,9 +7330,14 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       // Coding knowledge (FieldOps codebase — same as Copilot coding agent context)
       code_assist: true,
       code_patterns_available: Object.keys(CODE_PATTERNS),
-      // Code writing (Bob queues tasks; ops-bob-code-task workflow executes them)
+      // Code writing (Bob queues tasks; executor can be internal or workflow-driven)
       code_task_queue: true,
       code_tasks_pending: codeTaskStore.getState().counts.pending,
+      code_task_internal_executor: BOB_INTERNAL_CODE_TASK_EXECUTOR_ENABLED,
+      code_task_internal_executor_configured: isInternalCodeExecutorConfigured(),
+      code_task_internal_executor_autorun: BOB_INTERNAL_CODE_TASK_EXECUTOR_AUTORUN,
+      code_task_internal_executor_dry_run: BOB_INTERNAL_CODE_TASK_EXECUTOR_DRY_RUN,
+      code_task_internal_executor_dry_run_required: BOB_INTERNAL_CODE_TASK_EXECUTOR_REQUIRE_DRY_RUN,
       // Biosecurity + Smoke OOH enforcement AI
       biosecurity_plant_id: OPENAI_ENABLED || OLLAMA_VISION_ACTIVE,
       smoke_assessment: OPENAI_ENABLED || OLLAMA_VISION_ACTIVE,
@@ -6628,6 +7353,82 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
     code_tasks: codeTaskStore.getState(),
     uptime: process.uptime(),
     memory: process.memoryUsage()
+  });
+});
+
+// ── /health/stack ──────────────────────────────────────────────────────────────
+// Lightweight structured status endpoint for Bob's Observer loop.
+// Returns per-service reachability in a fixed schema Bob can parse without
+// reading the full /health payload.
+// Status values: "online" | "degraded" | "offline" | "unknown"
+app.get('/health/stack', rateLimit({ windowMs: 30_000, max: 30, standardHeaders: true, legacyHeaders: false }), async (req, res) => {
+  const checks = await Promise.allSettled([
+    // RunPod — try the API gateway
+    (async () => {
+      if (!RUNPOD_ENDPOINT_API_KEY) return { service: 'runpod', status: 'unknown', note: 'not configured' };
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), 5000);
+      try {
+        const url = RUNPOD_ENDPOINT_URL
+          ? RUNPOD_ENDPOINT_URL.replace(/\/run$/, '/health')
+          : `https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}/health`;
+        const r = await fetch(url, { headers: { Authorization: `Bearer ${RUNPOD_ENDPOINT_API_KEY}` }, signal: controller.signal });
+        clearTimeout(t);
+        if (r.ok) return { service: 'runpod', status: 'online' };
+        if (r.status >= 500) return { service: 'runpod', status: 'degraded', http: r.status };
+        // 4xx usually means bad auth / wrong endpoint — still reachable
+        return { service: 'runpod', status: 'online', note: `http ${r.status}` };
+      } catch (e) {
+        clearTimeout(t);
+        return { service: 'runpod', status: 'offline', error: e.message };
+      }
+    })(),
+
+    // Supabase REST API
+    (async () => {
+      const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+      if (!url) return { service: 'supabase', status: 'unknown', note: 'SUPABASE_URL not set' };
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), 5000);
+      try {
+        const r = await fetch(`${url.replace(/\/$/, '')}/rest/v1/`, {
+          signal: controller.signal,
+          headers: process.env.SUPABASE_ANON_KEY ? { apikey: process.env.SUPABASE_ANON_KEY } : {},
+        });
+        clearTimeout(t);
+        return { service: 'supabase', status: r.ok || r.status === 200 ? 'online' : 'degraded', http: r.status };
+      } catch (e) {
+        clearTimeout(t);
+        return { service: 'supabase', status: 'offline', error: e.message };
+      }
+    })(),
+
+    // Ollama (primary chat)
+    (async () => {
+      if (!OLLAMA_BASE_URL_CONFIGURED) return { service: 'ollama', status: 'unknown', note: 'not configured' };
+      const base = String(OLLAMA_BASE_URL).replace(/\/$/, '');
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), 5000);
+      try {
+        const r = await fetch(`${base}/api/tags`, { signal: controller.signal });
+        clearTimeout(t);
+        return { service: 'ollama', status: r.ok ? 'online' : 'degraded', http: r.status };
+      } catch (e) {
+        clearTimeout(t);
+        return { service: 'ollama', status: 'offline', error: e.message };
+      }
+    })(),
+  ]);
+
+  const services = checks.map((c) => (c.status === 'fulfilled' ? c.value : { service: 'unknown', status: 'unknown', error: c.reason?.message }));
+  const statusMap = Object.fromEntries(services.map((s) => [s.service, s.status]));
+
+  res.json({
+    ok: services.every((s) => s.status === 'online' || s.status === 'unknown'),
+    mock_mode: MOCK_MODE,
+    timestamp: new Date().toISOString(),
+    services: statusMap,
+    details: services,
   });
 });
 
@@ -7385,6 +8186,25 @@ loadModels().then(() => {
       }, DOCTOR_AUTO_HEAL_INTERVAL_MS);
     } else {
       console.log('🩺 Doctor auto-heal loop disabled (DOCTOR_AUTO_HEAL_ENABLED=false)');
+    }
+
+    if (BOB_INTERNAL_CODE_TASK_EXECUTOR_ENABLED) {
+      if (isInternalCodeExecutorConfigured()) {
+        console.log(`🤖 Internal code-task executor enabled (${Math.round(BOB_INTERNAL_CODE_TASK_EXECUTOR_TIMEOUT_MS / 1000)}s timeout)`);
+        if (BOB_INTERNAL_CODE_TASK_EXECUTOR_AUTORUN) {
+          console.log(`🤖 Internal executor auto-run enabled (${Math.round(BOB_INTERNAL_CODE_TASK_EXECUTOR_INTERVAL_MS / 1000)}s interval)`);
+          runInternalCodeExecutorCycle(1, 'startup-auto-run').catch(() => {});
+          internalCodeExecutorState.timer = setInterval(() => {
+            runInternalCodeExecutorCycle(1, 'scheduled-auto-run').catch(() => {});
+          }, BOB_INTERNAL_CODE_TASK_EXECUTOR_INTERVAL_MS);
+        } else {
+          console.log('🤖 Internal executor auto-run disabled (manual POST /code/executor/run)');
+        }
+      } else {
+        console.warn('⚠️  Internal code-task executor enabled but not configured. Set BOB_INTERNAL_CODE_TASK_EXECUTOR_BIN and BOB_INTERNAL_CODE_TASK_EXECUTOR_ARGS.');
+      }
+    } else {
+      console.log('🤖 Internal code-task executor disabled (BOB_INTERNAL_CODE_TASK_EXECUTOR_ENABLED=false)');
     }
   });
 });

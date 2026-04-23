@@ -7,14 +7,18 @@
  */
 
 function isRunpodServerless(url: string): boolean {
-  return /api\.runpod\.ai\/v2\/[^/]+\/?$/.test(url)
+  return /api\.runpod\.ai\/v2\/[^/]+(?:\/(?:run|runsync))?\/?$/i.test(url)
+}
+
+function normalizeRunpodBase(url: string): string {
+  return url.replace(/\/(run|runsync)\/?$/i, '')
 }
 
 function normalizeBaseUrl(raw?: string | null): string {
   const trimmed = String(raw ?? '').trim().replace(/\/$/, '')
   if (!trimmed) return ''
-  if (/^https?:\/\//i.test(trimmed)) return trimmed
-  return `https://${trimmed}`
+  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+  return isRunpodServerless(withScheme) ? normalizeRunpodBase(withScheme) : withScheme
 }
 
 export interface BobChatOptions {

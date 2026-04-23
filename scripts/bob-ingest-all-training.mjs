@@ -29,11 +29,7 @@ let API_KEY = String(process.env.BOB_INFERENCE_API_KEY || process.env.INFERENCE_
 const DRY_RUN = process.argv.includes('--dry-run')
 const SKIP_TESTS = process.argv.includes('--skip-connectivity-test')
 
-// If not set, try to infer from known RunPod endpoint
-if (!BOB_URL) {
-  BOB_URL = 'https://n0bp1ifmq01cx2-8080.proxy.runpod.net'
-  console.log('ℹ️  Bob endpoint not set in environment. Using inferred RunPod gateway URL...')
-}
+// Require explicit endpoint configuration to avoid stale hardcoded endpoint drift.
 
 // API key from VITE version in .env
 if (!API_KEY && process.env.VITE_INFERENCE_API_KEY) {

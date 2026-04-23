@@ -6,12 +6,14 @@ import { loadLocalEnv } from './load-local-env.mjs';
 loadLocalEnv();
 
 const isCodespaces = String(process.env.CODESPACES || '').toLowerCase() === 'true';
+const runpodEndpointId = String(process.env.RUNPOD_ENDPOINT_ID || '').trim();
 
 const runpodUrl = String(
   process.env.RUNPOD_GATEWAY_URL ||
     process.env.RUNPOD_SERVERLESS_URL ||
     process.env.RUNPOD_URL ||
-    'https://api.runpod.ai/v2/apynoxmf9eiyzd/runsync'
+    process.env.RUNPOD_RUNSYNC_URL ||
+    (runpodEndpointId ? `https://api.runpod.ai/v2/${runpodEndpointId}/runsync` : '')
 )
   .trim()
   .replace(/\/+$/, '');
@@ -96,7 +98,7 @@ async function main() {
 
   console.log('\nRequired Codespaces secrets to set:');
   console.log('- RUNPOD_API_KEY (or DR_BOB_API)');
-  console.log('- RUNPOD_GATEWAY_URL (or RUNPOD_SERVERLESS_URL, optional override for the runsync endpoint)');
+  console.log('- RUNPOD_GATEWAY_URL (or RUNPOD_SERVERLESS_URL / RUNPOD_RUNSYNC_URL / RUNPOD_ENDPOINT_ID)');
   console.log('- BOB_ORG_ID (or ORG_ID) for multi-tenant context');
   console.log('- SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (for admin/ops scripts)');
 }

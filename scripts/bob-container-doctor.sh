@@ -110,7 +110,13 @@ fi
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/load-railway-secrets-from-github-env.sh" --quiet
 
-BASE_URL="${RUNPOD_GATEWAY_URL:-${RUNPOD_SERVERLESS_URL:-${RUNPOD_URL:-https://api.runpod.ai/v2/apynoxmf9eiyzd/runsync}}}"
+if [[ -n "${RUNPOD_ENDPOINT_ID:-}" ]]; then
+  RUNPOD_ENDPOINT_RUNSYNC_URL="https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}/runsync"
+else
+  RUNPOD_ENDPOINT_RUNSYNC_URL=""
+fi
+
+BASE_URL="${RUNPOD_GATEWAY_URL:-${RUNPOD_SERVERLESS_URL:-${RUNPOD_RUNSYNC_URL:-${RUNPOD_URL:-${RUNPOD_ENDPOINT_RUNSYNC_URL}}}}}"
 API_KEY="${RUNPOD_API_KEY:-${DR_BOB_API:-}}"
 BASE_URL="${BASE_URL%/}"
 

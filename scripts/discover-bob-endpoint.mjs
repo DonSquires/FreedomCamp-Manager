@@ -15,8 +15,10 @@
 import { spawn } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 
-const RUNPOD_ENDPOINT_ID = 'n0bp1ifmq01cx2' // from conversation/docs
-const LIKELY_GATEWAY_URL = `https://${RUNPOD_ENDPOINT_ID}-8080.proxy.runpod.net`
+const RUNPOD_ENDPOINT_ID = String(process.env.RUNPOD_ENDPOINT_ID || '').trim()
+const LIKELY_GATEWAY_URL = RUNPOD_ENDPOINT_ID
+  ? `https://${RUNPOD_ENDPOINT_ID}-8080.proxy.runpod.net`
+  : ''
 
 console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
 console.log('BOB ENDPOINT DISCOVERY')
@@ -33,8 +35,13 @@ if (BOB_FROM_ENV) {
 }
 
 console.log('📍 Endpoint not found in environment.\n')
-console.log(`Based on system configuration, the likely RunPod gateway URL is:`)
-console.log(`   ${LIKELY_GATEWAY_URL}\n`)
+if (LIKELY_GATEWAY_URL) {
+  console.log('Based on RUNPOD_ENDPOINT_ID, the likely RunPod gateway URL is:')
+  console.log(`   ${LIKELY_GATEWAY_URL}\n`)
+} else {
+  console.log('RUNPOD_ENDPOINT_ID not set, so a likely gateway URL cannot be inferred.')
+  console.log('Set RUNPOD_ENDPOINT_ID or provide --test <url>.\n')
+}
 
 async function testEndpoint(url) {
   const testUrl = url.replace(/\/$/, '')

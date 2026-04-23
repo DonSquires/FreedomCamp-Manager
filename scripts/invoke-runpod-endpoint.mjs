@@ -4,10 +4,10 @@
  * Invoke a RunPod Serverless endpoint from local/Codespaces and optionally poll for completion.
  *
  * Required env:
- *   RUNPOD_ENDPOINT_API_KEY
+ *   RUNPOD_ENDPOINT_API_KEY (or RUNPOD_API_KEY / DR_BOB_API)
  *
  * Required env, one of:
- *   RUNPOD_ENDPOINT_URL
+ *   RUNPOD_ENDPOINT_URL (or RUNPOD_RUNSYNC_URL)
  *   RUNPOD_ENDPOINT_ID
  *
  * Optional env:
@@ -162,9 +162,17 @@ async function pollStatus({ endpointUrl, endpointId, apiKey, statusJobId, status
 }
 
 async function main() {
-  const apiKey = requiredEnv('RUNPOD_ENDPOINT_API_KEY');
+  const apiKey = String(
+    process.env.RUNPOD_ENDPOINT_API_KEY || process.env.RUNPOD_API_KEY || process.env.DR_BOB_API || ''
+  ).trim();
+  if (!apiKey) {
+    throw new Error('RUNPOD_ENDPOINT_API_KEY (or RUNPOD_API_KEY / DR_BOB_API) is required');
+  }
   const endpointId = String(process.env.RUNPOD_ENDPOINT_ID || '').trim();
-  const endpointUrl = deriveInvokeUrl(process.env.RUNPOD_ENDPOINT_URL, endpointId);
+  const endpointUrl = deriveInvokeUrl(
+    process.env.RUNPOD_ENDPOINT_URL || process.env.RUNPOD_RUNSYNC_URL,
+    endpointId,
+  );
 
   const inputRaw = getArg('input', '');
   const promptRaw = getArg('prompt', '');

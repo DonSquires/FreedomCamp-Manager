@@ -22,8 +22,13 @@ import { loadLocalEnv } from './load-local-env.mjs'
 
 loadLocalEnv()
 
-const BOB_URL = (process.env.BOB_SERVICE_URL || process.env.INFERENCE_SERVICE_URL || 'https://n0bp1ifmq01cx2-8080.proxy.runpod.net').trim().replace(/\/$/, '')
+const BOB_URL = (process.env.BOB_SERVICE_URL || process.env.INFERENCE_SERVICE_URL || '').trim().replace(/\/$/, '')
 const API_KEY = (process.env.BOB_INFERENCE_API_KEY || process.env.INFERENCE_API_KEY || process.env.VITE_INFERENCE_API_KEY || '').trim()
+
+if (!BOB_URL) {
+  console.error('❌ Missing BOB_SERVICE_URL or INFERENCE_SERVICE_URL.')
+  process.exit(1)
+}
 
 if (!API_KEY) {
   console.error('❌ Missing INFERENCE_API_KEY. Set BOB_INFERENCE_API_KEY environment variable.')
