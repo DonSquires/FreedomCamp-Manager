@@ -1,19 +1,18 @@
 {
   "os": "Ubuntu 24.04.4 LTS",
-  "node_version": "v24.15.0",
+  "node_version": "v24.14.1",
   "bun_version": "not installed",
   "modules": [],
   "lockfiles": [
     "bun.lock"
   ],
-  "generated_at": "2026-04-23T16:48:26Z",
+  "generated_at": "2026-04-23T18:10:54Z",
   "source": "scripts/system-check.sh",
   "monitor": {
-    "checked_at": "2026-04-23T16:48:26.526Z",
+    "checked_at": "2026-04-23T18:10:54.129Z",
     "window_minutes": 15,
     "error_threshold": 5,
-    "recent_500_errors": 6,
-    "status": "warning"
-  },
-  "critical_warning": "Bob monitor detected 6 server-side 500 errors in the last 15 minutes."
+    "recent_500_errors": 4,
+    "status": "healthy"
+  }
 }
