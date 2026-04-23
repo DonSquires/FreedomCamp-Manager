@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-04-23T06:07:40.006Z",
+  "generatedAt": "2026-04-23T08:08:21.859Z",
   "windowHours": 24,
-  "totalEntries": 6,
+  "totalEntries": 9,
   "lowScoreCount": 1,
   "topFailureReasons": [
     {
@@ -12,6 +12,10 @@
   "topHallucinationPatterns": [],
   "repeatedHallucinations": [],
   "topFlaggedArtifacts": [
+    {
+      "name": "/workspaces/FreedomCamp-Manager/docs/BOB_AUTONOMOUS_LEARNING.md",
+      "count": 3
+    },
     {
       "name": "/workspaces/FreedomCamp-Manager/docs/BOB_TRAINING_ADVANCED_ARCHITECT_2026.md",
       "count": 3
