@@ -102,8 +102,15 @@ load_env_file() {
 if [[ "$LOAD_RUNTIME" == "true" ]]; then
   load_env_file "$ROOT_DIR/.runtime/bob-local-credentials.env"
   load_env_file "$ROOT_DIR/.runtime/railway-secrets.env"
+  load_env_file "$ROOT_DIR/.runtime/bob.env"
   load_env_file "$ROOT_DIR/.env.local"
   load_env_file "$ROOT_DIR/inference-service/.env"
+fi
+
+log "Ensuring Dr Bob is configured for all container profiles"
+if ! bash "$SCRIPT_DIR/ensure-dr-bob-containers.sh" --load-runtime --write-env-files --strict-required; then
+  fail "Dr Bob container configuration is incomplete. Run: npm run -s bob:setup:any-container"
+  exit 1
 fi
 
 # Normalize aliases to canonical names.
