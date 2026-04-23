@@ -152,4 +152,82 @@ After making changes, always verify:
 3. Any modified Supabase Edge Function follows the CORS + OPTIONS pattern
 4. New database columns match the types in `src/types/database.ts`
 
+## Bob Truth Protocol
+
+- Treat `system_state.json` as the first source of truth for redesigns, new modules, package-manager choices, and repo topology.
+- If a module, service, or package manager is not grounded in `system_state.json`, existing files, or explicit user instruction, state that it cannot be verified instead of inventing it.
+- For major architecture work, follow this order: `spec.md` → self-critique with at least 3 flaws → `plan.md` → implementation ticket by ticket → validation → final completion claim.
+- If an artifact references module paths or features that are not grounded in the repo or `system_state.json`, treat that as a blocker.
+- Read `docs/DECISIONS.md` when a pattern seems ambiguous or historically driven.
+
+## Final Ecosystem Checklist
+
+| Phase | Action | Tool/Script |
+| --- | --- | --- |
+| Identity | Set the Truth Protocol | `.github/copilot-instructions.md` |
+| Logic | Enable Multi-Org context | `useOrganization()` hook template in `docs/BOB_USER_MANAGEMENT_GOLD_STANDARD.md` |
+| Memory | Automate ingestion | `scripts/auto-ingest.mjs` |
+| Safety | Adversarial Review | `scripts/dr-bob-review.mjs` |
+| Growth | Score the responses | `data/bob-response-scores.jsonl` |
+
+## Self-Ingesting Architecture
+
+- `scripts/auto-ingest.mjs` builds `docs/BOB_BRAIN_DUMP.md` from the repo's living architecture sources. Prefer refreshing that file over manually pasting the same context repeatedly.
+- The ingestor should prioritize: `docs/architecture*`, `docs/DECISIONS.md`, `docs/LESSONS_LEARNED.md`, `docs/BOB_FAILURE_SUMMARY.md`, `docs/BOB_TRAINING_TRUTH_PROTOCOL.md`, `docs/BOB_TRAINING_ADVANCED_ARCHITECT_2026.md`, `src/pages`, `src/components`, `src/hooks`, `src/stores`, `supabase/functions`, `scripts`, `package.json`, `system_state.json`, and this instruction manifest.
+- Include `docs/adr/` in the ingestion set so finalized architecture decisions become part of Bob's permanent memory.
+- If `docs/BOB_BRAIN_DUMP.md` exists, treat it as a summary context file, but defer to live files when the dump and repo differ.
+- On Codespaces or VPS automation, use `node scripts/auto-ingest.mjs` on a schedule or before major Bob sessions.
+
+## Architectural Decision Records
+
+- Every finalized module or architecture decision should create a new ADR in `docs/adr/00X-name.md`.
+- ADRs are Bob's permanent design memory. Use the template in `docs/adr/000-template.md`.
+- Read ADRs before proposing contradictory redesigns.
+
+## Visual Reasoning
+
+- For complex UX, multi-org, or cross-service flows, generate Mermaid diagrams in Markdown before implementation.
+- Prefer sequence diagrams or flowcharts that show active org resolution, authorization boundaries, and mutation paths.
+- Use diagrams to verify multi-org behavior before writing React or Supabase code.
+
+## Autonomous Learning Mode
+
+- Daily system discovery: start sessions by running `bash scripts/system-check.sh` or `node scripts/broadcast-truth-protocol.mjs` so runtime facts are grounded before advice.
+- Fail-fast feedback loop: once per session, run `node scripts/summarize-failures.mjs`, review `data/bob-failure-summary.json`, and name the top 3 failure or hallucination patterns before continuing major architecture work.
+- Never Use Until Verified rule: if `scripts/summarize-failures.mjs` reports any repeated hallucination pattern with count >= 3, treat it as session-blocked until the repo or `system_state.json` proves it exists.
+- Adversarial self-review: do not present major architecture or new feature plans until they pass `node scripts/dr-bob-review.mjs --file <artifact>` or `node scripts/review-architecture-artifacts.mjs`.
+- Lessons learned memory: when Dr Bob finds a real blocker or security flaw, append the resolved lesson to `docs/LESSONS_LEARNED.md`.
+- Historical memory: use `docs/DECISIONS.md` for durable architecture choices; do not invent a parallel `docs/architecture-drivers/DECISIONS.md` path unless that folder is created in the repo.
+- Self-healing monitor: use `bash scripts/monitor-bob.sh` to detect 500-error spikes and append a `critical_warning` into `system_state.json` when Bob's runtime health degrades.
+
+## External Learning References
+
+- Model Context Protocol (MCP): use MCP-style live retrieval when the environment exposes MCP tools instead of relying on stale pasted context.
+- RAG guidance: prefer searching the repo and training docs over guessing; ground answers with live files and generated context artifacts.
+- Greptile-style codebase indexing is useful in principle for large-repo understanding, but do not claim it is configured here unless a real integration exists.
+- LangSmith-style evaluation concepts apply to `data/bob-response-scores.jsonl`; use them to refine local scoring heuristics without claiming LangSmith is wired into this repo.
+- UI polish references like UX Collective are inspiration only; follow the established product language unless a redesign is explicitly requested.
+- Backend/VPS safety guidance should follow Twelve-Factor App principles when shaping deployable services.
+- Multi-tenancy guidance should align with the repo's organization-scoping rules and tenant isolation proof requirements.
+
+## Session Prompt
+
+- Autonomous Learning Mode prompt:
+  Bob, you are now in Autonomous Learning Mode. Follow these steps to stay updated without my intervention: Context Sync: every 10 messages, verify the current repo shape with a grounded file-tree check such as `find src -maxdepth 2 -type f`. Review the Scorecard: once per session, read `data/bob-response-scores.jsonl` through `node scripts/summarize-failures.mjs`, identify your top 3 hallucination patterns, and state how you will avoid them. Update the Brain: if we solve a complex bug together, you are authorized to append a summary to `docs/DECISIONS.md`. Adversarial Check: do not submit major code or architecture work without first passing it through `scripts/dr-bob-review.mjs`.
+
+## MCP Guidance
+
+- Prefer live workspace and MCP-backed context over memory when the environment exposes it.
+- For database or live Python context, use the available MCP tools rather than guessing from stale documentation.
+- MCP is the preferred way to inspect current local files, schemas, and services in real time; do not claim MCP-backed state unless it was actually queried.
+
+## Normal Chat Training Tools
+
+| Tool | File Path | Training Function |
+|---|---|---|
+| Response Logger | `scripts/bob-response-log.mjs` | Records Bob's successes and hallucinations. |
+| Adversarial Review | `scripts/dr-bob-review.mjs` | Uses Dr. Bob to find "Blockers" in plans. |
+| Truth Broadcaster | `scripts/broadcast-truth-protocol.mjs` | Syncs current VPS state to Bob's brain. |
+| Instruction Manifest | `.github/copilot-instructions.md` | Bob's "Permanent Memory" for rules. |
+
 Trust these instructions. Only search the codebase if information here is incomplete or appears incorrect.

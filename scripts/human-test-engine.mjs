@@ -82,6 +82,24 @@ async function ensureDir(dirPath) {
   await fs.mkdir(dirPath, { recursive: true })
 }
 
+async function fileExists(filePath) {
+  try {
+    await fs.access(filePath)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function fileContainsAll(filePath, snippets) {
+  try {
+    const raw = await fs.readFile(filePath, 'utf8')
+    return snippets.every((snippet) => raw.includes(snippet))
+  } catch {
+    return false
+  }
+}
+
 async function runCommand(command, args, cwd, envOverrides = {}) {
   const mergedEnv = { ...process.env, ...envOverrides }
   return await new Promise((resolve) => {
@@ -269,6 +287,15 @@ async function main() {
       missingCount: 0,
       checks: [],
     },
+    architectureContext: {
+      configured: false,
+      missingKeys: [],
+    },
+    trainingPacks: {
+      enabled: false,
+      configuredCount: 0,
+      missing: [],
+    },
     findings: [],
     score: null,
   }
@@ -281,6 +308,112 @@ async function main() {
       at: new Date().toISOString(),
       ...extra,
     })
+  }
+
+  if (!toBool(args['skip-architecture-context'], false) && toBool(profile.stages?.architectureContextChecks, true)) {
+    const context = profile?.architectureContext && typeof profile.architectureContext === 'object'
+      ? profile.architectureContext
+      : null
+
+    const hasMultiOrg = Boolean(context?.multiOrgDriver?.scopeBy)
+      && context?.multiOrgDriver?.requireContextIndicator === true
+      && context?.multiOrgDriver?.forbidCrossTenantLeakage === true
+
+    const hasVisual = context?.visualHierarchy?.preferSpacingOverBorders === true
+      && Boolean(context?.visualHierarchy?.colorLogic?.action)
+      && Boolean(context?.visualHierarchy?.colorLogic?.success)
+      && Boolean(context?.visualHierarchy?.colorLogic?.warning)
+      && Boolean(context?.visualHierarchy?.colorLogic?.danger)
+
+    const hasRealtime = context?.realtimeAndPTT?.optimisticUpdatesRequired === true
+      && Array.isArray(context?.realtimeAndPTT?.requiredStates)
+      && context.realtimeAndPTT.requiredStates.length >= 4
+
+    const hasModuleBlueprint = Boolean(context?.moduleBlueprint?.root)
+      && Array.isArray(context?.moduleBlueprint?.requiredStructure)
+      && context.moduleBlueprint.requiredStructure.length >= 4
+
+    const missingKeys = []
+    if (!hasMultiOrg) missingKeys.push('multiOrgDriver')
+    if (!hasVisual) missingKeys.push('visualHierarchy')
+    if (!hasRealtime) missingKeys.push('realtimeAndPTT')
+    if (!hasModuleBlueprint) missingKeys.push('moduleBlueprint')
+
+    report.architectureContext.configured = missingKeys.length === 0
+    report.architectureContext.missingKeys = missingKeys
+
+    if (missingKeys.length === 0) {
+      record('architecture-context.blueprint', 'pass', 'Architecture context injection loaded from Human Test profile')
+    } else {
+      record('architecture-context.blueprint', 'fail', `Missing architecture context sections: ${missingKeys.join(', ')}`)
+    }
+  }
+
+  if (!toBool(args['skip-training-packs'], false) && toBool(profile.stages?.trainingPackChecks, true)) {
+    const configuredPacks = Array.isArray(profile?.trainingPacks) ? profile.trainingPacks : []
+    const packs = configuredPacks.length > 0
+      ? configuredPacks
+      : [
+          {
+            name: 'stack-schema-fidelity',
+            path: 'docs/BOB_TRAINING_STACK_SCHEMA_FIDELITY.md',
+            requiredSnippets: ['Stack Lock (Non-Negotiable)', 'Schema Truth Protocol', 'Required Output Evidence Block'],
+          },
+          {
+            name: 'tenant-isolation-proof',
+            path: 'docs/BOB_TRAINING_TENANT_ISOLATION_PROOF.md',
+            requiredSnippets: ['Tenant Isolation Proof', 'Negative Test Cases (Mandatory)'],
+          },
+          {
+            name: 'self-eval-loop',
+            path: 'docs/BOB_TRAINING_SELF_EVAL_LOOP.md',
+            requiredSnippets: ['Self-Eval Gates (8)', 'Auto-Revision Rule', 'Blocker Declaration'],
+          },
+        ]
+
+    report.trainingPacks.enabled = true
+    report.trainingPacks.configuredCount = packs.length
+
+    for (const pack of packs) {
+      const relativePath = String(pack.path || '').trim()
+      const absolutePath = path.resolve(path.join(repoRoot, relativePath))
+      const exists = await fileExists(absolutePath)
+      if (!exists) {
+        report.trainingPacks.missing.push(relativePath)
+        record(`training-pack.${pack.name}`, 'fail', `Missing training pack file: ${relativePath}`)
+        continue
+      }
+
+      const requiredSnippets = Array.isArray(pack.requiredSnippets)
+        ? pack.requiredSnippets.map((item) => String(item)).filter(Boolean)
+        : []
+
+      if (requiredSnippets.length === 0) {
+        record(`training-pack.${pack.name}`, 'pass', `Training pack present: ${relativePath}`)
+        continue
+      }
+
+      const contentOk = await fileContainsAll(absolutePath, requiredSnippets)
+      if (contentOk) {
+        record(`training-pack.${pack.name}`, 'pass', `Training pack present and content-validated: ${relativePath}`)
+      } else {
+        record(`training-pack.${pack.name}`, 'fail', `Training pack missing required sections: ${relativePath}`)
+      }
+    }
+
+    const instructionsPath = path.resolve(path.join(repoRoot, 'BOB_INSTRUCTIONS.md'))
+    const instructionsOk = await fileContainsAll(instructionsPath, [
+      'docs/BOB_TRAINING_STACK_SCHEMA_FIDELITY.md',
+      'docs/BOB_TRAINING_TENANT_ISOLATION_PROOF.md',
+      'docs/BOB_TRAINING_SELF_EVAL_LOOP.md',
+    ])
+    record(
+      'training-pack.instructions-wiring',
+      instructionsOk ? 'pass' : 'fail',
+      instructionsOk
+        ? 'BOB_INSTRUCTIONS references all three training packs'
+        : 'BOB_INSTRUCTIONS missing one or more training pack references',
+    )
   }
 
   const SUPABASE_URL = process.env.VITE_SUPABASE_URL || ''

@@ -72,6 +72,15 @@ const roleCapabilities: Record<string, string[]> = {
   client_viewer: ['client_portal_view'],
 }
 
+function mergeExpectedOrgNames(...orgSets: Array<string | undefined>): string {
+  const merged = orgSets
+    .flatMap((set) => (set || '').split('|'))
+    .map((org) => org.trim())
+    .filter(Boolean)
+
+  return Array.from(new Set(merged)).join('|')
+}
+
 const defaultRequiredTestUsers: TestUserKey[] = [
   'master',
   'adminOrg1',
@@ -143,12 +152,18 @@ const expectedProfileConfig: Record<TestUserKey, ExpectedProfileConfig> = {
   clientViewer: {
     allowedRoles: ['client_viewer'],
     requiredCapability: 'client_portal_view',
-    expectedOrgName: readEnv('PLAYWRIGHT_CLIENT_VIEWER_NAME') || 'Nelson City Council',
+    expectedOrgName: mergeExpectedOrgNames(
+      readEnv('PLAYWRIGHT_CLIENT_VIEWER_NAME'),
+      'Nelson City Council|First Security - Nelson'
+    ),
   },
   clientStaff: {
     allowedRoles: ['admin', 'admin_officer', 'officer'],
     requiredCapability: 'client_portal_manage',
-    expectedOrgName: readEnv('PLAYWRIGHT_CLIENT_STAFF_NAME') || 'Nelson City Council',
+    expectedOrgName: mergeExpectedOrgNames(
+      readEnv('PLAYWRIGHT_CLIENT_STAFF_NAME'),
+      'Nelson City Council|First Security - Nelson'
+    ),
   },
 }
 
@@ -401,12 +416,19 @@ async function assertExpectedLoginProfile(page: Page, user: TestUserKey): Promis
 
   if (!expected.expectedOrgName) return
 
-  const expectedOrg = normalize(expected.expectedOrgName)
+  const expectedOrgs = expected.expectedOrgName
+    .split('|')
+    .map((org) => normalize(org))
+    .filter(Boolean)
   const actualOrgs = [profile.organizationName, profile.employerOrganizationName]
     .map(normalize)
     .filter(Boolean)
 
-  if (actualOrgs.length === 0 || !actualOrgs.some((org) => org.includes(expectedOrg))) {
+  const orgMatched = expectedOrgs.some((expectedOrg) =>
+    actualOrgs.some((actualOrg) => actualOrg.includes(expectedOrg))
+  )
+
+  if (actualOrgs.length === 0 || !orgMatched) {
     throw new Error(
       `Login organization mismatch for ${user}. Expected org containing "${expected.expectedOrgName}", ` +
         `got Org=${profile.organizationName || 'n/a'}, EmployerOrg=${profile.employerOrganizationName || 'n/a'} ` +

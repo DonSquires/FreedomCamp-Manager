@@ -960,17 +960,22 @@ export default function RosterPlanner() {
   })
 
   const { data: zones = [] } = useQuery<Zone[]>({
-    queryKey: ['roster_zones', user?.organization_id],
+    queryKey: ['roster_zones', user?.organization_id, clientOrgIds],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = (supabase as any)
         .from('zones')
         .select('id, name')
-        .eq('organization_id', user!.organization_id!)
+        .eq('is_active', true)
         .order('name')
+
+      // clientOrgIds === null means master (unrestricted)
+      if (clientOrgIds !== null) q = q.in('organization_id', clientOrgIds)
+
+      const { data, error } = await q
       if (error) throw error
       return (data || []) as Zone[]
     },
-    enabled: !!user?.organization_id,
+    enabled: !!user?.organization_id && !clientOrgIdsLoading,
   })
 
   const { data: availability = [] } = useQuery<OfficerAvailability[]>({

@@ -3,6 +3,7 @@
 // Then: const bobInput = await consultBob('your question or request', { context })
 
 import process from 'node:process';
+import { recordScoredResponse } from './bob-response-log.mjs';
 import { loadLocalEnv } from './load-local-env.mjs';
 
 loadLocalEnv();
@@ -28,6 +29,19 @@ function resolveOrgId() {
       process.env.DEFAULT_ORG_ID ||
       ''
   ).trim();
+}
+
+function buildScoreMetadata(payload = {}) {
+  return {
+    provider: payload.provider || null,
+    fallback: payload.fallback === true,
+    qualityGateFailed:
+      payload.quality_gate_failed === true ||
+      payload.quality_gate?.status === 'failed',
+    fallbackApplied:
+      payload.quality_gate?.fallback_applied === true ||
+      payload.fallback === true,
+  };
 }
 
 /**
@@ -86,11 +100,21 @@ export async function consultBob(message, options = {}) {
     }
 
     const payload = await response.json().catch(() => ({}));
-    return (
+    const bobMessage =
       payload.message ||
       payload.response ||
-      JSON.stringify(payload).slice(0, 500)
-    );
+      JSON.stringify(payload).slice(0, 500);
+
+    await recordScoredResponse({
+      target: 'Bob',
+      channel: 'bob-chat',
+      prompt: message,
+      response: bobMessage,
+      delivery: { sent: true, status: response.status, channel: 'bob-chat' },
+      metadata: buildScoreMetadata(payload),
+    });
+
+    return bobMessage;
   } finally {
     clearTimeout(timer);
   }
@@ -160,6 +184,15 @@ export class BobSession {
         payload.message ||
         payload.response ||
         JSON.stringify(payload).slice(0, 500);
+
+      await recordScoredResponse({
+        target: 'Bob',
+        channel: 'bob-chat',
+        prompt: message,
+        response: bobMessage,
+        delivery: { sent: true, status: response.status, channel: 'bob-chat' },
+        metadata: buildScoreMetadata(payload),
+      });
 
       // Store in history for context
       this.history.push(

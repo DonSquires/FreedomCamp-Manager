@@ -1,0 +1,10 @@
+[Unit]
+Description=Run FieldOps Bob Autonomous Learning hourly
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+Unit=bob-autonomous-learning.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Bob Client Intake Form",
+  "description": "Schema for onboarding private enterprise geofence + SOP context into Bob Spatial Intelligence Engine.",
+  "type": "object",
+  "required": [
+    "clientId",
+    "clientName",
+    "siteName",
+    "siteType",
+    "primaryContact",
+    "geofence",
+    "jobModes",
+    "compliance"
+  ],
+  "properties": {
+    "clientId": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "clientName": { "type": "string", "minLength": 2 },
+    "siteName": { "type": "string", "minLength": 2 },
+    "siteType": {
+      "type": "string",
+      "enum": ["depot", "campground", "retail", "transport-hub", "industrial", "other"]
+    },
+    "primaryContact": {
+      "type": "object",
+      "required": ["name", "phone", "email"],
+      "properties": {
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string", "format": "email" }
+      }
+    },
+    "geofence": {
+      "type": "object",
+      "required": ["polygon"],
+      "properties": {
+        "polygon": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "type": "array",
+            "prefixItems": [{ "type": "number" }, { "type": "number" }],
+            "items": false
+          }
+        },
+        "bufferMeters": { "type": "number", "minimum": 0 }
+      }
+    },
+    "jobModes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "Client Site Security",
+          "Asset Protection",
+          "Visitor Screening",
+          "After-hours Patrol",
+          "Biosecurity Gate"
+        ]
+      }
+    },
+    "compliance": {
+      "type": "object",
+      "required": ["jurisdictionId", "noiseThresholdDb", "seizurePolicy"],
+      "properties": {
+        "jurisdictionId": { "type": "string" },
+        "noiseThresholdDb": { "type": "number", "minimum": 40, "maximum": 140 },
+        "seizurePolicy": { "type": "string", "enum": ["immediate", "2h-notice", "24h-notice"] },
+        "councilBylawRefs": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "sop": {
+      "type": "object",
+      "properties": {
+        "terminology": { "type": "array", "items": { "type": "string" } },
+        "accessControlProcedure": { "type": "string" },
+        "incidentEscalationProcedure": { "type": "string" },
+        "radioCallSign": { "type": "string" }
+      }
+    },
+    "dataGovernance": {
+      "type": "object",
+      "properties": {
+        "retentionDays": { "type": "number", "minimum": 1 },
+        "containsPII": { "type": "boolean" },
+        "approvedBy": { "type": "string" }
+      }
+    }
+  },
+  "additionalProperties": false
+}

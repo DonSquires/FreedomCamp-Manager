@@ -2,6 +2,7 @@
 
 import process from 'node:process';
 import readline from 'node:readline';
+import { recordScoredResponse } from './bob-response-log.mjs';
 import { loadLocalEnv } from './load-local-env.mjs';
 
 loadLocalEnv();
@@ -106,6 +107,24 @@ class BobConversation {
         metadata: {
           provider: payload.provider || 'unknown',
           fallback: payload.fallback === true,
+        },
+      });
+
+      await recordScoredResponse({
+        target: 'Bob',
+        channel: 'bob-chat',
+        prompt: message,
+        response: bobReply,
+        delivery: { sent: true, status: response.status, channel: 'bob-chat' },
+        metadata: {
+          provider: payload.provider || 'unknown',
+          fallback: payload.fallback === true,
+          qualityGateFailed:
+            payload.quality_gate_failed === true ||
+            payload.quality_gate?.status === 'failed',
+          fallbackApplied:
+            payload.quality_gate?.fallback_applied === true ||
+            payload.fallback === true,
         },
       });
 

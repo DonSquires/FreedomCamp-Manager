@@ -151,6 +151,25 @@ function createCodeTaskStore(statePath = DEFAULT_PATH) {
       priority: options.priority === 'high' ? 'high' : 'normal',
       requested_by: options.requested_by ? String(options.requested_by).slice(0, 200) : null,
       bob_plan: options.bob_plan ? String(options.bob_plan).slice(0, 8000) : null,
+      plan_source: options.plan_source ? String(options.plan_source).slice(0, 100) : 'none',
+      quality_gate: options.quality_gate && typeof options.quality_gate === 'object'
+        ? {
+            status: String(options.quality_gate.status || 'unknown').slice(0, 50),
+            failed_gates: Array.isArray(options.quality_gate.failed_gates)
+              ? options.quality_gate.failed_gates.map((item) => String(item).slice(0, 100)).slice(0, 20)
+              : [],
+            missing_sections: Array.isArray(options.quality_gate.missing_sections)
+              ? options.quality_gate.missing_sections.map((item) => String(item).slice(0, 200)).slice(0, 20)
+              : [],
+            hallucinated_modules: Array.isArray(options.quality_gate.hallucinated_modules)
+              ? options.quality_gate.hallucinated_modules.map((item) => String(item).slice(0, 100)).slice(0, 50)
+              : [],
+            fallback_applied: options.quality_gate.fallback_applied === true,
+            fallback_source: options.quality_gate.fallback_source
+              ? String(options.quality_gate.fallback_source).slice(0, 300)
+              : null,
+          }
+        : null,
       status: 'pending',
       branch: `bob/task-${shortId}`,
       pr_url: null,

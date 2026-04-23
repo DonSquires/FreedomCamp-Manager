@@ -1,0 +1,13 @@
+[Unit]
+Description=FieldOps Bob Autonomous Learning Cycle
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/FreedomCamp-Manager
+Environment=BOB_REVIEW_ARTIFACTS=false
+ExecStart=/usr/bin/env bash scripts/run-autonomous-learning-cycle.sh
+
+[Install]
+WantedBy=default.target

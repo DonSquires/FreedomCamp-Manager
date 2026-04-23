@@ -922,12 +922,14 @@ export const edgeFunctions = {
   /**
    * Bob self-healing code change task.
    *
-   * Generates an executable patch task payload from the inference-service
-   * /self-heal/patch-task endpoint.
+    * Generates and optionally executes guarded Bob tasks.
+    * - self_heal_patch: generates patch plan via /self-heal/patch-task
+    * - human_test_run: queues a Human Test engine run task
    *
-   * Routing rule:
+    * Policy rule:
    * - simple/moderate => self-heal worker mode
    * - complex => github assist mode
+    * - protected/high-risk scopes => approval_required or never_auto_fix tiers
    */
   bobCodeChangeTask: async (params: {
     summary: string
@@ -935,6 +937,9 @@ export const edgeFunctions = {
     stack_trace?: string
     severity?: 'low' | 'medium' | 'high' | 'critical'
     complexity?: 'simple' | 'moderate' | 'complex'
+    task_type?: 'self_heal_patch' | 'human_test_run'
+    autonomy_tier?: 'auto_fix_allowed' | 'approval_required' | 'never_auto_fix'
+    approved?: boolean
     target_paths?: string[]
   }) => {
     return callEdgeFunction('bob-code-change-task', params, { showToast: false })

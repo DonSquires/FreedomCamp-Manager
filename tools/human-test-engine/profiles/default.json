@@ -6,6 +6,8 @@
   },
   "stages": {
     "secretAlignmentChecks": true,
+    "architectureContextChecks": true,
+    "trainingPackChecks": true,
     "externalServiceChecks": true,
     "multimodalChecks": true,
     "uiChecks": true
@@ -24,6 +26,74 @@
     "agenticMaxSteps": 14,
     "agenticTimeoutMs": 15000,
     "runPlaywrightSweep": true,
-    "playwrightCommand": "bunx playwright test tests/e2e/crm-service-provider-visual.spec.ts --project=chromium"
-  }
+    "playwrightCommand": "bunx playwright test tests/e2e/module-route-access.spec.ts tests/e2e/user-creation.spec.ts tests/e2e/module-e2e-comprehensive.spec.ts --project=chromium"
+  },
+  "architectureContext": {
+    "multiOrgDriver": {
+      "scopeBy": "organizationId",
+      "requireContextIndicator": true,
+      "forbidCrossTenantLeakage": true
+    },
+    "visualHierarchy": {
+      "preferSpacingOverBorders": true,
+      "colorLogic": {
+        "action": "blue",
+        "success": "green",
+        "warning": "amber",
+        "danger": "red"
+      }
+    },
+    "realtimeAndPTT": {
+      "optimisticUpdatesRequired": true,
+      "requiredStates": [
+        "idle",
+        "processing",
+        "synced",
+        "error"
+      ]
+    },
+    "moduleBlueprint": {
+      "root": "src/modules",
+      "requiredStructure": [
+        "components",
+        "services",
+        "hooks",
+        "types.ts"
+      ],
+      "validationChecklist": {
+        "noCrossOrgLeakage": true,
+        "lowSpecUbuntuVps": true,
+        "keyboardAccessible": true,
+        "refactoringUiHierarchy": true
+      }
+    }
+  },
+  "trainingPacks": [
+    {
+      "name": "stack-schema-fidelity",
+      "path": "docs/BOB_TRAINING_STACK_SCHEMA_FIDELITY.md",
+      "requiredSnippets": [
+        "Stack Lock (Non-Negotiable)",
+        "Schema Truth Protocol",
+        "Required Output Evidence Block"
+      ]
+    },
+    {
+      "name": "tenant-isolation-proof",
+      "path": "docs/BOB_TRAINING_TENANT_ISOLATION_PROOF.md",
+      "requiredSnippets": [
+        "Tenant Isolation Proof",
+        "Negative Test Cases (Mandatory)"
+      ]
+    },
+    {
+      "name": "self-eval-loop",
+      "path": "docs/BOB_TRAINING_SELF_EVAL_LOOP.md",
+      "requiredSnippets": [
+        "Self-Eval Gates (8)",
+        "Auto-Revision Rule",
+        "Blocker Declaration"
+      ]
+    }
+  ]
 }

@@ -1,0 +1,23 @@
+{
+  "generatedAt": "2026-04-23T00:00:00.000Z",
+  "shifts": [
+    {
+      "officerId": "officer-001",
+      "assignment": "Site Security - Avis",
+      "clientId": "avis-richmond-depot",
+      "patrolZoneId": "beat-4-richmond-central",
+      "specialistZoneId": "fc-restricted-richmond-foreshore",
+      "startAt": "2026-04-23T06:00:00.000Z",
+      "endAt": "2026-04-23T18:00:00.000Z"
+    },
+    {
+      "officerId": "officer-002",
+      "assignment": "Freedom Camping Patrol - Richmond",
+      "clientId": null,
+      "patrolZoneId": "beat-4-richmond-central",
+      "specialistZoneId": "fc-restricted-richmond-foreshore",
+      "startAt": "2026-04-23T06:00:00.000Z",
+      "endAt": "2026-04-23T18:00:00.000Z"
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "clientId": "avis-richmond-depot",
+  "clientName": "Avis Car Rental",
+  "siteName": "Avis Car Rental Depot - Richmond",
+  "siteType": "depot",
+  "primaryContact": {
+    "name": "Depot Duty Manager",
+    "phone": "+64-3-555-0101",
+    "email": "duty.manager@avis-example.co.nz"
+  },
+  "geofence": {
+    "polygon": [
+      [-41.3295, 173.1750],
+      [-41.3295, 173.1835],
+      [-41.3350, 173.1835],
+      [-41.3350, 173.1750]
+    ],
+    "bufferMeters": 20
+  },
+  "jobModes": ["Client Site Security", "Asset Protection", "After-hours Patrol"],
+  "compliance": {
+    "jurisdictionId": "tasman-dc",
+    "noiseThresholdDb": 80,
+    "seizurePolicy": "immediate",
+    "councilBylawRefs": [
+      "Tasman District Council Excessive Noise Directions / RMA s327",
+      "Tasman District Council Freedom Camping Bylaw 2015"
+    ]
+  },
+  "sop": {
+    "terminology": ["asset-protection", "depot-perimeter", "handover-lane"],
+    "accessControlProcedure": "Check ID against shift roster. Verify vehicle booking tag before allowing movement through gate.",
+    "incidentEscalationProcedure": "Escalate theft attempt or violence immediately to Duty Officer and NZ Police.",
+    "radioCallSign": "AVIS-GATE-1"
+  },
+  "dataGovernance": {
+    "retentionDays": 365,
+    "containsPII": true,
+    "approvedBy": "Ops Compliance Lead"
+  }
+}

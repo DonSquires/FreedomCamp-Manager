@@ -27,6 +27,16 @@ const MASTER_ALLOWED_ACTIONS = new Set<Action>([
   'doctor_playbook_run',
 ])
 
+const GRANDMASTER_OWNER_EMAIL = (Deno.env.get('GRANDMASTER_OWNER_EMAIL') || 'squires.don@live.com').toLowerCase().trim()
+
+const OWNER_ONLY_ACTIONS = new Set<Action>([
+  'code_task_submit',
+  'code_task_skip',
+  'code_task_delete',
+  'doctor_playbook_run',
+  'ask_copilot_submit',
+])
+
 function extractBearerToken(req: Request): string | null {
   const authHeader = req.headers.get('Authorization') || req.headers.get('authorization')
   if (!authHeader) return null
@@ -94,6 +104,17 @@ Deno.serve(async (req: Request) => {
     if (!isGrandMaster && !(isMaster && actionAllowedForMaster)) {
       return new Response(
         JSON.stringify({ error: 'Forbidden: insufficient role for this action' }),
+        { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
+      )
+    }
+
+    const email = String(user.email || '').toLowerCase().trim()
+    const ownerOnlyAction = OWNER_ONLY_ACTIONS.has(action)
+    if (ownerOnlyAction && !(isGrandMaster && email === GRANDMASTER_OWNER_EMAIL)) {
+      return new Response(
+        JSON.stringify({
+          error: 'Forbidden: this action is restricted to the configured Grandmaster owner account',
+        }),
         { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
       )
     }

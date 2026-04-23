@@ -1,0 +1,23 @@
+{
+  "generatedAt": "2026-04-23T06:07:40.006Z",
+  "windowHours": 24,
+  "totalEntries": 6,
+  "lowScoreCount": 1,
+  "topFailureReasons": [
+    {
+      "name": "Bob chat network failure",
+      "count": 1
+    }
+  ],
+  "topHallucinationPatterns": [],
+  "repeatedHallucinations": [],
+  "topFlaggedArtifacts": [
+    {
+      "name": "/workspaces/FreedomCamp-Manager/docs/BOB_TRAINING_ADVANCED_ARCHITECT_2026.md",
+      "count": 3
+    }
+  ],
+  "recommendations": [
+    "Prefer the proven RunPod delivery path when Bob local /chat is unavailable."
+  ]
+}

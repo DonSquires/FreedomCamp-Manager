@@ -40,14 +40,47 @@ export default function LiveOfficerTracking() {
   const { organizationId } = useGlobalFiltersStore()
   const [autoRefresh, setAutoRefresh] = useState(true)
 
+  const deriveStatus = (lastGpsUpdate: string | null): OfficerLocation['status'] => {
+    if (!lastGpsUpdate) return 'inactive'
+    const minutes = Math.floor((Date.now() - new Date(lastGpsUpdate).getTime()) / 60000)
+    if (minutes <= 15) return 'active'
+    if (minutes <= 45) return 'warning'
+    return 'inactive'
+  }
+
   // Fetch live officer locations
   const { data: officers, isLoading, refetch } = useQuery({
     queryKey: ['live-officers', organizationId],
     queryFn: async () => {
-      // Avoid hard dependency on RPC shape in mixed-schema environments.
+      // Primary source: org-scoped live-tracking RPC backed by officer_activity_log
+      const { data: liveRows, error: liveError } = await (supabase as any).rpc('get_live_officer_locations', {
+        p_organization_id: organizationId ?? null,
+      })
+
+      if (!liveError && Array.isArray(liveRows)) {
+        return liveRows.map((row: any) => {
+          const lastGpsUpdate = row.last_gps_update ?? null
+          return {
+            id: row.user_id,
+            user_id: row.user_id,
+            first_name: row.first_name || 'Officer',
+            last_name: row.last_name || '',
+            role: 'officer',
+            last_activity_at: lastGpsUpdate || new Date().toISOString(),
+            gps_latitude: row.last_gps_latitude ?? null,
+            gps_longitude: row.last_gps_longitude ?? null,
+            gps_accuracy: row.last_gps_accuracy ?? null,
+            activity_type: Number(row.recent_scans ?? 0) > 0 ? 'vehicle_scan' : 'gps_update',
+            zone_name: row.last_scan_zone ?? null,
+            status: deriveStatus(lastGpsUpdate),
+          } as OfficerLocation
+        })
+      }
+
+      // Fallback source: user_profiles live GPS fields
       let q = (supabase as any)
         .from('user_profiles')
-        .select('id, first_name, last_name, role')
+        .select('id, first_name, last_name, role, last_gps_latitude, last_gps_longitude, last_gps_update')
         .in('role', ['officer', 'admin_officer'])
         .eq('is_active', true)
 
@@ -56,21 +89,23 @@ export default function LiveOfficerTracking() {
       const { data, error } = await q.order('first_name', { ascending: true })
       if (error) throw error
 
-      const now = new Date().toISOString()
-      return ((data || []) as any[]).map((row) => ({
-        id: row.id,
-        user_id: row.id,
-        first_name: row.first_name || 'Officer',
-        last_name: row.last_name || '',
-        role: row.role || 'officer',
-        last_activity_at: now,
-        gps_latitude: null,
-        gps_longitude: null,
-        gps_accuracy: null,
-        activity_type: 'available',
-        zone_name: null,
-        status: 'inactive',
-      })) as OfficerLocation[]
+      return ((data || []) as any[]).map((row) => {
+        const lastGpsUpdate = row.last_gps_update ?? null
+        return {
+          id: row.id,
+          user_id: row.id,
+          first_name: row.first_name || 'Officer',
+          last_name: row.last_name || '',
+          role: row.role || 'officer',
+          last_activity_at: lastGpsUpdate || new Date().toISOString(),
+          gps_latitude: row.last_gps_latitude ?? null,
+          gps_longitude: row.last_gps_longitude ?? null,
+          gps_accuracy: null,
+          activity_type: 'gps_update',
+          zone_name: null,
+          status: deriveStatus(lastGpsUpdate),
+        } as OfficerLocation
+      })
     },
     refetchInterval: autoRefresh ? 30000 : false, // Refresh every 30 seconds
   })

@@ -1,0 +1,1 @@
+5 * * * * cd /path/to/FreedomCamp-Manager && bash scripts/run-autonomous-learning-cycle.sh >> /var/log/bob-autonomous-learning.log 2>&1

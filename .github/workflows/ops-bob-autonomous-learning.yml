@@ -1,0 +1,181 @@
+name: Ops Bob Autonomous Learning
+
+'on':
+  push:
+    branches: [main]
+    paths:
+      - '.github/copilot-instructions.md'
+      - '.github/workflows/ops-bob-autonomous-learning.yml'
+      - 'docs/DECISIONS.md'
+      - 'docs/LESSONS_LEARNED.md'
+      - 'docs/BOB_AUTONOMOUS_LEARNING.md'
+      - 'docs/BOB_TRAINING_TRUTH_PROTOCOL.md'
+      - 'docs/BOB_TRAINING_ADVANCED_ARCHITECT_2026.md'
+      - 'docs/architecture/**'
+      - 'docs/adr/**'
+      - 'package.json'
+      - 'scripts/auto-ingest.mjs'
+      - 'scripts/monitor-bob.sh'
+      - 'scripts/system-check.sh'
+      - 'scripts/system-check.mjs'
+      - 'scripts/summarize-failures.mjs'
+      - 'scripts/run-autonomous-learning-cycle.sh'
+      - 'src/modules/**'
+      - 'system_state.json'
+  schedule:
+    - cron: '5 * * * *'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  refresh-bob-context:
+    name: Refresh Bob Context Artifacts
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Run autonomous learning cycle
+        run: |
+          set -euo pipefail
+          bash scripts/run-autonomous-learning-cycle.sh
+
+      - name: Detect critical warning
+        id: detect-warning
+        run: |
+          set -euo pipefail
+
+          if jq -e '.critical_warning and (.critical_warning | length > 0)' system_state.json >/dev/null 2>&1; then
+            echo "has_warning=true" >> "$GITHUB_OUTPUT"
+            warning_text=$(jq -r '.critical_warning' system_state.json)
+            warning_text="${warning_text//$'\n'/' '}"
+            echo "warning_text=${warning_text}" >> "$GITHUB_OUTPUT"
+            echo "monitor_status=$(jq -r '.monitor.status // "unknown"' system_state.json)" >> "$GITHUB_OUTPUT"
+            echo "recent_500_errors=$(jq -r '.monitor.recent_500_errors // 0' system_state.json)" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_warning=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit refreshed Bob artifacts
+        run: |
+          set -euo pipefail
+
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+
+          git add \
+            system_state.json \
+            data/bob-failure-summary.json \
+            docs/BOB_FAILURE_SUMMARY.md \
+            docs/BOB_BRAIN_DUMP.md
+
+          if git diff --staged --quiet; then
+            echo "ℹ️ No autonomous-learning artifact changes to commit."
+            exit 0
+          fi
+
+          git commit -m "chore(bob): refresh autonomous learning artifacts"
+          git push
+
+          echo "✅ Bob autonomous-learning artifacts refreshed and pushed"
+
+      - name: Create or update critical warning issue
+        if: steps.detect-warning.outputs.has_warning == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'Bob autonomous learning critical warning';
+            const body = [
+              'Bob autonomous learning detected a runtime health warning.',
+              '',
+              `Warning: ${process.env.WARNING_TEXT}`,
+              `Monitor status: ${process.env.MONITOR_STATUS}`,
+              `Recent 500 errors: ${process.env.RECENT_500_ERRORS}`,
+              '',
+              'Source files:',
+              '- system_state.json',
+              '- data/bob-failure-summary.json',
+              '- docs/BOB_FAILURE_SUMMARY.md',
+              '- docs/BOB_BRAIN_DUMP.md',
+              '',
+              `Workflow run: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            ].join('\n');
+
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            });
+
+            const existing = issues.find((issue) => issue.title === title);
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body,
+              });
+              core.notice(`Updated existing issue #${existing.number}`);
+            } else {
+              const created = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ['bob-autonomous-warning'],
+              });
+              core.notice(`Created issue #${created.data.number}`);
+            }
+        env:
+          WARNING_TEXT: ${{ steps.detect-warning.outputs.warning_text }}
+          MONITOR_STATUS: ${{ steps.detect-warning.outputs.monitor_status }}
+          RECENT_500_ERRORS: ${{ steps.detect-warning.outputs.recent_500_errors }}
+
+      - name: Auto-close resolved warning issue
+        if: steps.detect-warning.outputs.has_warning == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'Bob autonomous learning critical warning';
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            });
+            const existing = issues.find((issue) => issue.title === title);
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: `Monitor check passed — no critical_warning found in system_state.json. Auto-closing.\n\nWorkflow run: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                state: 'closed',
+              });
+              core.notice(`Auto-closed resolved warning issue #${existing.number}`);
+            }
+
+      - name: Fail on critical warning
+        if: steps.detect-warning.outputs.has_warning == 'true'
+        run: |
+          echo "::error::${{ steps.detect-warning.outputs.warning_text }}"
+          exit 1

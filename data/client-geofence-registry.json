@@ -1,0 +1,53 @@
+{
+  "generatedAt": "2026-04-23T06:48:14.775Z",
+  "total": 1,
+  "records": [
+    {
+      "id": "avis-richmond-depot",
+      "name": "Avis Car Rental Depot - Richmond",
+      "clientName": "Avis Car Rental",
+      "clientType": "private-enterprise",
+      "polygon": [
+        [
+          -41.3295,
+          173.175
+        ],
+        [
+          -41.3295,
+          173.1835
+        ],
+        [
+          -41.335,
+          173.1835
+        ],
+        [
+          -41.335,
+          173.175
+        ]
+      ],
+      "sopPath": "docs/templates/clients/avis-car-rental/sop.md",
+      "accessCodeRef": "Check ID against shift roster. Verify vehicle booking tag before allowing movement through gate.",
+      "terminology": [
+        "asset-protection",
+        "depot-perimeter",
+        "handover-lane"
+      ],
+      "jobModes": [
+        "Client Site Security",
+        "Asset Protection",
+        "After-hours Patrol"
+      ],
+      "compliance": {
+        "jurisdictionId": "tasman-dc",
+        "noiseLimit": 80,
+        "seizureRule": "immediate",
+        "councilBylawRefs": [
+          "Tasman District Council Excessive Noise Directions / RMA s327",
+          "Tasman District Council Freedom Camping Bylaw 2015"
+        ]
+      },
+      "source": "docs/templates/clients/avis-car-rental/intake.example.json"
+    }
+  ],
+  "errors": []
+}
