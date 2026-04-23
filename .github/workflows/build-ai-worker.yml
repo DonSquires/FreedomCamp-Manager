@@ -117,7 +117,7 @@ jobs:
             fi
           }
 
-          echo "� Updating RunPod serverless template $RUNPOD_TEMPLATE_ID with new image ..."
+          echo "Updating RunPod serverless template $RUNPOD_TEMPLATE_ID with new image ..."
           TMPL_RESP=$(rest PATCH "templates/$RUNPOD_TEMPLATE_ID" "{\"imageName\":\"$IMAGE_REF\"}")
           GOT_IMG=$(echo "$TMPL_RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('imageName','?'))" 2>/dev/null || echo "?")
           echo "Template imageName: $GOT_IMG"
