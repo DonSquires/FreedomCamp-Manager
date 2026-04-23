@@ -134,6 +134,14 @@ All datetimes are NZ timezone (`Pacific/Auckland`). The Supabase client sends `X
 - For Bob background/admin tasks (non-user interactive), use service-role authorization where required (`SUPABASE_SERVICE_ROLE_KEY`) and never hardcode secrets.
 - For tenant-aware Bob requests, include org context headers (`x-org-id`) using `BOB_ORG_ID` / `ORG_ID` / `DEFAULT_ORG_ID`.
 
+## AMBIENT INTERACTION PROTOCOLS
+
+- **VOICE-FIRST DESIGN:** Always prioritize Voice-to-Action (STT) over manual form entry for the Mobile/Expo module.
+- **WAKE WORD:** Implement 'Hey Bob' using Picovoice for hands-free patrol updates.
+- **INTENT MAPPING:** Use Semantic Extraction to turn PTT audio into structured JSON before saving to the `incidents` table.
+- **PROACTIVE ALERTS:** If a 'Missed Patrol' occurs, Bob should trigger a TTS (Text-to-Speech) call to the supervisor using ElevenLabs.
+- **HAPTIC FEEDBACK:** Every AI-confirmed action must trigger a 'success' haptic vibration on the mobile device.
+
 ---
 
 ## Validation
