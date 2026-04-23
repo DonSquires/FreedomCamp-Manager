@@ -1,15 +1,15 @@
 {
   "os": "Ubuntu 24.04.4 LTS",
-  "node_version": "v24.15.0",
+  "node_version": "v24.14.1",
   "bun_version": "not installed",
   "modules": [],
   "lockfiles": [
     "bun.lock"
   ],
-  "generated_at": "2026-04-23T20:10:07Z",
+  "generated_at": "2026-04-23T21:55:12Z",
   "source": "scripts/system-check.sh",
   "monitor": {
-    "checked_at": "2026-04-23T20:10:07.367Z",
+    "checked_at": "2026-04-23T21:55:12.304Z",
     "window_minutes": 15,
     "error_threshold": 5,
     "recent_500_errors": 4,

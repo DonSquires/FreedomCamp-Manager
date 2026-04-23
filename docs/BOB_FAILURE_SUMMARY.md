@@ -1,6 +1,6 @@
 # Bob Failure Summary
 
-Generated: 2026-04-23T20:10:07.423Z
+Generated: 2026-04-23T21:55:12.354Z
 Window: last 24 hours
 Entries analyzed: 9
 Low-score entries: 1
