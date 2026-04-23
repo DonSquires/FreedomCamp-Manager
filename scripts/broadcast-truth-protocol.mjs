@@ -32,6 +32,8 @@ const runpodEndpoint = String(
   (runpodEndpointId ? `https://api.runpod.ai/v2/${runpodEndpointId}/runsync` : '')
 ).trim();
 const runpodKey = String(process.env.RUNPOD_API_KEY || process.env.DR_BOB_API || '').trim();
+const bobModel = String(process.env.BOB_MODEL || process.env.OLLAMA_MODEL || '').trim();
+const drBobModel = String(process.env.DR_BOB_MODEL || process.env.OLLAMA_MODEL || '').trim();
 
 const bobBaseUrl = String(
   process.env.BOB_SERVICE_URL || process.env.INFERENCE_SERVICE_URL || process.env.VITE_INFERENCE_SERVICE_URL || ''
@@ -60,7 +62,7 @@ async function postJson(url, headers, body) {
   }
 }
 
-async function sendViaRunpod(message) {
+async function sendViaRunpod(message, model = '') {
   if (!runpodKey) return { sent: false, reason: 'RUNPOD_API_KEY missing' };
   if (!runpodEndpoint) {
     return { sent: false, reason: 'RUNPOD endpoint URL missing (set RUNPOD_RUNSYNC_URL, RUNPOD_SERVERLESS_URL, RUNPOD_GATEWAY_URL, or RUNPOD_ENDPOINT_ID)' };
@@ -71,10 +73,11 @@ async function sendViaRunpod(message) {
   };
   if (orgId) headers['x-org-id'] = orgId;
 
+  const withModel = (input) => (model ? { ...input, model } : input);
   const attempts = [
-    { input: { message } },
-    { input: { prompt: message } },
-    { input: { action: 'training_note', message } },
+    { input: withModel({ message }) },
+    { input: withModel({ prompt: message }) },
+    { input: withModel({ action: 'training_note', message }) },
   ];
 
   for (const body of attempts) {
@@ -124,7 +127,7 @@ async function main() {
   });
   results.push({ target: 'Bob', ...bobChat });
   if (!bobChat.sent) {
-    const bobRunpod = await sendViaRunpod(bobPrefixed);
+    const bobRunpod = await sendViaRunpod(bobPrefixed, bobModel);
     await recordScoredResponse({
       target: 'Bob',
       channel: bobRunpod.channel || 'runpod-runsync',
@@ -137,7 +140,7 @@ async function main() {
   }
 
   // Dr Bob delivery: RunPod endpoint is authoritative in this environment.
-  const drBobRunpod = await sendViaRunpod(drBobPrefixed);
+  const drBobRunpod = await sendViaRunpod(drBobPrefixed, drBobModel);
   await recordScoredResponse({
     target: 'Dr Bob',
     channel: drBobRunpod.channel || 'runpod-runsync',

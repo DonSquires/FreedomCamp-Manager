@@ -100,7 +100,7 @@ Deno.serve(withCors(async (req: Request) => {
     penaltyAmountNzd:   notice.penalty_amount_nzd ?? null,
     previousNoticeCount: notice.previous_notice_count ?? 0,
     notes:              notice.notes ?? '',
-    issuedAt:           new Date(notice.created_at),
+    issuedAt:           new Date(notice.issued_at ?? notice.created_at),
     officerName,
     officerRole:        'Environmental Compliance Officer',
     orgName:            org?.name ?? '',

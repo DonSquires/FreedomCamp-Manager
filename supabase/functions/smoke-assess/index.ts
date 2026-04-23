@@ -27,6 +27,14 @@ const BOB_API_KEY      = Deno.env.get('BOB_INFERENCE_API_KEY') ?? ''
 const SUPABASE_URL     = Deno.env.get('SUPABASE_URL') ?? ''
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 
+function pickKeys<T extends Record<string, unknown>>(obj: T, keys: Array<keyof T>): Partial<T> {
+  const picked: Partial<T> = {}
+  for (const key of keys) {
+    if (obj[key] !== undefined) picked[key] = obj[key]
+  }
+  return picked
+}
+
 Deno.serve(withCors(async (req: Request) => {
   const authResult = await requireAuth(req)
   if (!authResult.user) {
@@ -158,9 +166,18 @@ Deno.serve(withCors(async (req: Request) => {
     photos:                        body.photo_url ? [body.photo_url] : [],
   }
 
+  const safeAssessData = pickKeys(assessData, [
+    'organization_id', 'officer_id', 'smoke_job_id', 'address', 'gps_lat', 'gps_lng',
+    'smoke_opacity', 'smoke_color', 'smoke_continuous', 'fire_type',
+    'prohibited_materials_suspected', 'materials_checklist', 'odor_description', 'odor_offensive',
+    'wind_direction', 'wind_speed_kmh', 'smoke_affecting_neighbors', 'smoke_affecting_road',
+    'weather_conditions', 'ai_assessment', 'ai_confidence', 'ai_recommendation',
+    'checklist_responses', 'recommended_action', 'photos',
+  ])
+
   const { data: assessRow, error: insertErr } = await supabase
     .from('smoke_assessments')
-    .insert(assessData)
+    .insert(safeAssessData)
     .select('id')
     .single()
 

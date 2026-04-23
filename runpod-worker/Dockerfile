@@ -18,19 +18,38 @@ ENV OLLAMA_VERSION=0.6.5
 RUN OLLAMA_VERSION=${OLLAMA_VERSION} curl -fsSL https://ollama.com/install.sh | sh
 RUN ollama --version
 
+# ---------------------------------------------------------------------------
 # Pre-pull models at build time so workers start instantly (no runtime download)
-ENV OLLAMA_MODEL=llama3.1:8b
+#
+# Model roster (3 logical roles, 2 Ollama pulls):
+#   1. qwen2.5:7b          — Bob chat / reasoning / Dr Bob reviewer  (~5 GB Q4)
+#   2. llama3.2-vision:11b — Vision: biosecurity plant ID + smoke assessment (~7 GB)
+#
+# Noise/audio classification uses a separate ONNX model (yamnet.onnx) pulled by
+# the inference-service at startup via download-models.js — NOT an Ollama model.
+#
+# VRAM budget: ~12 GB total — fits L4/A10G (24 GB) with concurrency headroom.
+# ---------------------------------------------------------------------------
+ENV OLLAMA_MODEL=qwen2.5:7b
+ENV DR_BOB_MODEL=qwen2.5:7b
 ENV OLLAMA_VISION_MODEL=llama3.2-vision:11b
 RUN ollama serve & \
     until curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; do sleep 2; done && \
-    ollama pull llama3.1:8b && \
+    echo "[build] Pulling model 1/2: qwen2.5:7b (Bob chat + Dr Bob reviewer)" && \
+    ollama pull qwen2.5:7b && \
+    echo "[build] Pulling model 2/2: llama3.2-vision:11b (biosecurity + smoke vision)" && \
     ollama pull llama3.2-vision:11b && \
-    # Verify /api/chat endpoint exists before baking the image
+    echo "[build] Verifying model 1 — /api/chat qwen2.5:7b ..." && \
     curl -sf -X POST http://localhost:11434/api/chat \
       -H 'Content-Type: application/json' \
-      -d '{"model":"llama3.1:8b","messages":[{"role":"user","content":"ping"}],"stream":false}' \
-      | python3 -c "import sys,json; d=json.load(sys.stdin); assert d.get('message'), 'No message in /api/chat response'" && \
-    echo "[build] /api/chat verified OK" && \
+      -d '{"model":"qwen2.5:7b","messages":[{"role":"user","content":"ping"}],"stream":false}' \
+      | python3 -c "import sys,json; d=json.load(sys.stdin); assert d.get('message'), 'qwen2.5:7b /api/chat check failed'" && \
+    echo "[build] Verifying model 2 — /api/chat llama3.2-vision:11b ..." && \
+    curl -sf -X POST http://localhost:11434/api/chat \
+      -H 'Content-Type: application/json' \
+      -d '{"model":"llama3.2-vision:11b","messages":[{"role":"user","content":"ping"}],"stream":false}' \
+      | python3 -c "import sys,json; d=json.load(sys.stdin); assert d.get('message'), 'llama3.2-vision:11b /api/chat check failed'" && \
+    echo "[build] All Ollama models verified OK" && \
     pkill ollama || true
 
 # Install runpod Python SDK
@@ -38,7 +57,7 @@ RUN pip3 install --no-cache-dir runpod requests
 
 WORKDIR /app
 
-COPY handler.py start.sh ./
+COPY handler.py start.sh training_memory.json ./
 RUN chmod +x start.sh
 
 CMD ["./start.sh"]

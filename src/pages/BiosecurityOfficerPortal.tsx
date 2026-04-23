@@ -125,6 +125,14 @@ const PRIORITY_COLOUR: Record<string, string> = {
   urgent: 'bg-red-100 text-red-700',
 }
 
+function pickKeys<T extends Record<string, any>>(obj: T, keys: Array<keyof T>): Partial<T> {
+  const picked: Partial<T> = {}
+  for (const key of keys) {
+    if (obj[key] !== undefined) picked[key] = obj[key]
+  }
+  return picked
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function BiosecurityOfficerPortal() {
@@ -227,36 +235,46 @@ export default function BiosecurityOfficerPortal() {
   const saveAssessmentMutation = useMutation({
     mutationFn: async () => {
       if (!orgId || !user?.id) throw new Error('Not authenticated')
+      if (!state.address.trim()) throw new Error('Address is required for assessment')
+      if (!state.recommended_action) throw new Error('Select a recommended action before saving')
+      const rawPayload = {
+        organization_id: orgId,
+        officer_id: user.id,
+        biosecurity_job_id: state.job_id,
+        address: state.address,
+        gps_lat: state.gps_lat,
+        gps_lng: state.gps_lng,
+        plant_species: state.plant_species || null,
+        density_estimate: state.density_estimate ? parseFloat(state.density_estimate) : null,
+        density_category: state.density_category || null,
+        seed_heads_present: state.seed_heads_present,
+        basal_seeds_present: state.basal_seeds_present,
+        cleistogenes_present: state.cleistogenes_present,
+        leaf_texture_harsh: state.leaf_texture_harsh,
+        awn_visible: state.awn_visible,
+        infestation_stage: state.infestation_stage || null,
+        location_type: state.location_type || null,
+        patch_area_m2: state.patch_area_m2 ? parseFloat(state.patch_area_m2) : null,
+        patch_count: state.patch_count ? parseInt(state.patch_count) : null,
+        buffer_zone_breached: state.buffer_zone_breached,
+        management_plan_current: state.management_plan_current,
+        pathway_evidence: state.pathway_evidence || null,
+        sample_taken: state.sample_taken,
+        weather_conditions: state.weather_summary ? { summary: state.weather_summary } : null,
+        action_notes: state.officer_notes || null,
+        recommended_action: state.recommended_action,
+        ai_species_identification: state.ai_result,
+      }
       const { error } = await supabase
         .from('biosecurity_assessments' as any)
-        .insert({
-          organization_id: orgId,
-          officer_id: user.id,
-          biosecurity_job_id: state.job_id,
-          address: state.address,
-          gps_lat: state.gps_lat,
-          gps_lng: state.gps_lng,
-          plant_species: state.plant_species || null,
-          density_estimate: state.density_estimate ? parseFloat(state.density_estimate) : null,
-          density_category: state.density_category || null,
-          seed_heads_present: state.seed_heads_present,
-          basal_seeds_present: state.basal_seeds_present,
-          cleistogenes_present: state.cleistogenes_present,
-          leaf_texture_harsh: state.leaf_texture_harsh,
-          awn_visible: state.awn_visible,
-          infestation_stage: state.infestation_stage || null,
-          location_type: state.location_type || null,
-          patch_area_m2: state.patch_area_m2 ? parseFloat(state.patch_area_m2) : null,
-          patch_count: state.patch_count ? parseInt(state.patch_count) : null,
-          buffer_zone_breached: state.buffer_zone_breached,
-          management_plan_current: state.management_plan_current,
-          pathway_evidence: state.pathway_evidence || null,
-          sample_taken: state.sample_taken,
-          weather_conditions: state.weather_summary ? { summary: state.weather_summary } : null,
-          officer_notes: state.officer_notes || null,
-          recommended_action: state.recommended_action,
-          ai_species_identification: state.ai_result,
-        })
+        .insert(pickKeys(rawPayload, [
+          'organization_id', 'officer_id', 'biosecurity_job_id', 'address', 'gps_lat', 'gps_lng',
+          'plant_species', 'density_estimate', 'density_category', 'seed_heads_present',
+          'basal_seeds_present', 'cleistogenes_present', 'leaf_texture_harsh', 'awn_visible',
+          'infestation_stage', 'location_type', 'patch_area_m2', 'patch_count', 'buffer_zone_breached',
+          'management_plan_current', 'pathway_evidence', 'sample_taken', 'weather_conditions',
+          'action_notes', 'recommended_action', 'ai_species_identification',
+        ]))
       if (error) throw error
       if (state.job_id) {
         await updateJobStatusMutation.mutateAsync({ jobId: state.job_id, status: 'completed' })
@@ -343,7 +361,7 @@ export default function BiosecurityOfficerPortal() {
 
       const { data: inserted, error: insertErr } = await (supabase as any)
         .from('biosecurity_notices')
-        .insert({
+        .insert(pickKeys({
           organization_id: orgId,
           notice_number: noticeNumber,
           biosecurity_job_id: state.job_id ?? null,
@@ -363,7 +381,12 @@ export default function BiosecurityOfficerPortal() {
           penalty_amount_nzd: state.penalty_amount ? parseFloat(state.penalty_amount) : null,
           issuing_officer_id: user.id,
           status: 'issued',
-        })
+        }, [
+          'organization_id', 'notice_number', 'biosecurity_job_id', 'notice_type', 'recipient_name',
+          'recipient_address', 'offence_description', 'biosecurity_act_section', 'species_identified',
+          'infestation_location', 'comply_by', 'required_actions', 'penalty_amount_nzd',
+          'issuing_officer_id', 'status',
+        ]))
         .select('id')
         .single()
       if (insertErr) throw new Error(insertErr.message)

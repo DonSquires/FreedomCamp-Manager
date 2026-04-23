@@ -474,6 +474,7 @@ export default function BobAssistantStudio() {
     tone,
     voiceGender,
     accent,
+    speechStyle,
     speechEnabled,
     autoSpeakReplies,
     voiceActivatedConversation,
@@ -485,6 +486,7 @@ export default function BobAssistantStudio() {
     setTone,
     setVoiceGender,
     setAccent,
+    setSpeechStyle,
     setSpeechEnabled,
     setAutoSpeakReplies,
     setVoiceActivatedConversation,
@@ -678,6 +680,7 @@ export default function BobAssistantStudio() {
     setVoiceGender('male')
     setAccent('en-GB')
     setTone('friendly')
+    setSpeechStyle('default')
     setSpeechEnabled(true)
     setAutoSpeakReplies(true)
     toast.success('Classic command voice preset applied')
@@ -687,9 +690,30 @@ export default function BobAssistantStudio() {
     setVoiceGender('male')
     setAccent('en-NZ')
     setTone('professional')
+    setSpeechStyle('default')
     setSpeechEnabled(true)
     setAutoSpeakReplies(true)
     toast.success('Soft conversational preset applied')
+  }
+
+  const applyBridgeLeadPreset = () => {
+    setVoiceGender('male')
+    setAccent('en-GB')
+    setTone('professional')
+    setSpeechStyle('bridge_lead')
+    setSpeechEnabled(true)
+    setAutoSpeakReplies(true)
+    toast.success('Bridge Lead preset applied')
+  }
+
+  const applyWiseMentorPreset = () => {
+    setVoiceGender('neutral')
+    setAccent('en-NZ')
+    setTone('coach')
+    setSpeechStyle('wise_mentor')
+    setSpeechEnabled(true)
+    setAutoSpeakReplies(true)
+    toast.success('Wise Mentor preset applied')
   }
 
   useEffect(() => {
@@ -886,11 +910,24 @@ export default function BobAssistantStudio() {
   const synthesizeBobSpeech = useCallback(async (text: string) => {
     const voice = accent === 'en-NZ' ? 'en-nz' : accent === 'en-AU' ? 'en-au' : 'en'
     const rate = tone === 'professional' ? 150 : tone === 'coach' ? 170 : 160
+    const pitch = speechStyle === 'bridge_lead'
+      ? 44
+      : speechStyle === 'wise_mentor'
+        ? 58
+        : tone === 'coach'
+          ? (voiceGender === 'neutral' ? 56 : 52)
+          : voiceGender === 'female'
+            ? 60
+            : voiceGender === 'male'
+              ? 47
+              : 52
 
     const { data, error } = await edgeFunctions.synthesizeSpeech({
       text,
       voice,
       rate,
+      pitch,
+      style: speechStyle,
       format: 'wav',
     })
 
@@ -907,7 +944,7 @@ export default function BobAssistantStudio() {
       audioBase64,
       audioMimeType: String((data as any)?.audio_mime_type || 'audio/wav'),
     }
-  }, [accent, tone])
+  }, [accent, speechStyle, tone, voiceGender])
 
   const playSynthesizedSpeech = useCallback(async (audioBase64: string, audioMimeType = 'audio/wav') => {
     const binary = atob(audioBase64)
@@ -2510,7 +2547,14 @@ export default function BobAssistantStudio() {
                   <Button type="button" variant="outline" size="sm" onClick={applySoftConversationalPreset}>
                     Soft Conversational
                   </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={applyBridgeLeadPreset}>
+                    Bridge Lead
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={applyWiseMentorPreset}>
+                    Wise Mentor
+                  </Button>
                 </div>
+                <p className="text-[11px] text-muted-foreground">Inspired styles only. Exact character/celebrity voice imitation is not supported.</p>
               </div>
 
               <div className="space-y-1.5">
@@ -2521,6 +2565,18 @@ export default function BobAssistantStudio() {
                     <SelectItem value="friendly">Friendly</SelectItem>
                     <SelectItem value="professional">Professional</SelectItem>
                     <SelectItem value="coach">Coach</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Speech Style</Label>
+                <Select value={speechStyle} onValueChange={(value) => setSpeechStyle(value as any)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">Default</SelectItem>
+                    <SelectItem value="bridge_lead">Bridge Lead (inspired)</SelectItem>
+                    <SelectItem value="wise_mentor">Wise Mentor (inspired)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

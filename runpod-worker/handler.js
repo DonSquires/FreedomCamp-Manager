@@ -20,6 +20,8 @@ const WORKER_ID      = process.env.RUNPOD_POD_ID || process.env.RUNPOD_WORKER_ID
 const OLLAMA_BASE    = String(process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
 const OLLAMA_MODEL   = process.env.OLLAMA_MODEL || 'llama3.1:8b';
 const OLLAMA_TIMEOUT = Number(process.env.OLLAMA_TIMEOUT_MS || 120000);
+const BOB_ATTITUDE_PROFILE = String(process.env.BOB_ATTITUDE_PROFILE || 'operational').trim().toLowerCase();
+const BOB_ATTITUDE_INSTRUCTIONS = String(process.env.BOB_ATTITUDE_INSTRUCTIONS || '').trim();
 
 const GET_JOB_URL_TEMPLATE  = process.env.RUNPOD_WEBHOOK_GET_JOB;
 const POST_OUT_URL_TEMPLATE = process.env.RUNPOD_WEBHOOK_POST_OUTPUT;
@@ -27,6 +29,7 @@ const POST_OUT_URL_TEMPLATE = process.env.RUNPOD_WEBHOOK_POST_OUTPUT;
 console.log('[worker] WORKER_ID:', WORKER_ID);
 console.log('[worker] OLLAMA_BASE:', OLLAMA_BASE);
 console.log('[worker] OLLAMA_MODEL:', OLLAMA_MODEL);
+console.log('[worker] BOB_ATTITUDE_PROFILE:', BOB_ATTITUDE_PROFILE);
 console.log('[worker] GET_JOB_URL_TEMPLATE:', GET_JOB_URL_TEMPLATE);
 console.log('[worker] POST_OUT_URL_TEMPLATE:', POST_OUT_URL_TEMPLATE ? '***set***' : 'NOT SET');
 
@@ -102,7 +105,26 @@ async function ollamaChat(messages, model, temperature) {
 
 // ─── Bob system prompt ────────────────────────────────────────────────────────
 
-var BOB_SYSTEM = 'You are Bob, the AI assistant for FieldOps Manager — a freedom camping enforcement platform in New Zealand. Be concise and actionable.';
+var ATTITUDE_PRESETS = {
+  operational: 'Tone: calm, decisive, and practical. Prioritize concise operational steps and clear outcomes.',
+  supportive: 'Tone: warm, reassuring, and respectful. Reduce stress while still giving direct, actionable guidance.',
+  strict: 'Tone: compliance-first, firm, and unambiguous. Highlight policy and safety constraints early.',
+  coach: 'Tone: instructive and developmental. Explain brief reasoning and teach the user the next best action.',
+};
+
+function buildBobSystemPrompt() {
+  var attitude = ATTITUDE_PRESETS[BOB_ATTITUDE_PROFILE] || ATTITUDE_PRESETS.operational;
+  var parts = [
+    'You are Bob, the AI assistant for FieldOps Manager — a freedom camping enforcement platform in New Zealand. Be concise and actionable.',
+    'Attitude profile: ' + attitude,
+  ];
+  if (BOB_ATTITUDE_INSTRUCTIONS) {
+    parts.push('Attitude override: ' + BOB_ATTITUDE_INSTRUCTIONS);
+  }
+  return parts.join('\n\n');
+}
+
+var BOB_SYSTEM = buildBobSystemPrompt();
 
 // ─── Action handlers ──────────────────────────────────────────────────────────
 

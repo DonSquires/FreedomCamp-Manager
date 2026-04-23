@@ -4,12 +4,14 @@ import { createJSONStorage, persist } from 'zustand/middleware'
 export type BobVoiceGender = 'male' | 'female' | 'neutral'
 export type BobAccent = 'en-NZ' | 'en-AU' | 'en-GB' | 'en-US'
 export type BobTone = 'professional' | 'friendly' | 'coach'
+export type BobSpeechStyle = 'default' | 'bridge_lead' | 'wise_mentor'
 
 interface BobAssistantState {
   displayName: string
   tone: BobTone
   voiceGender: BobVoiceGender
   accent: BobAccent
+  speechStyle: BobSpeechStyle
   speechEnabled: boolean
   autoSpeakReplies: boolean
   voiceActivatedConversation: boolean
@@ -21,6 +23,7 @@ interface BobAssistantState {
   setTone: (value: BobTone) => void
   setVoiceGender: (value: BobVoiceGender) => void
   setAccent: (value: BobAccent) => void
+  setSpeechStyle: (value: BobSpeechStyle) => void
   setSpeechEnabled: (value: boolean) => void
   setAutoSpeakReplies: (value: boolean) => void
   setVoiceActivatedConversation: (value: boolean) => void
@@ -37,6 +40,7 @@ export const useBobAssistantStore = create<BobAssistantState>()(
       tone: 'friendly',
       voiceGender: 'male',
       accent: 'en-NZ',
+      speechStyle: 'default',
       speechEnabled: true,
       autoSpeakReplies: true,
       voiceActivatedConversation: false,
@@ -48,6 +52,7 @@ export const useBobAssistantStore = create<BobAssistantState>()(
       setTone: (value) => set({ tone: value }),
       setVoiceGender: (value) => set({ voiceGender: value }),
       setAccent: (value) => set({ accent: value }),
+      setSpeechStyle: (value) => set({ speechStyle: value }),
       setSpeechEnabled: (value) => set({ speechEnabled: value }),
       setAutoSpeakReplies: (value) => set({ autoSpeakReplies: value }),
       setVoiceActivatedConversation: (value) => set({ voiceActivatedConversation: value }),

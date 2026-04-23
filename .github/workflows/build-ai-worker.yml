@@ -6,6 +6,16 @@ on:
       - main
     paths:
       - 'runpod-worker/**'
+      - 'docs/BOB_AUTONOMOUS_LEARNING.md'
+      - 'docs/BOB_TRAINING_ADVANCED_ARCHITECT_2026.md'
+      - 'docs/DECISIONS.md'
+      - 'docs/LESSONS_LEARNED.md'
+      - 'docs/BOB_FAILURE_SUMMARY.md'
+      - 'docs/BOB_BRAIN_DUMP.md'
+      - 'inference-service/data/intel-state.json'
+      - 'data/bob-failure-summary.json'
+      - 'data/dr-bob-reviews/**'
+      - 'scripts/generate-runpod-training-memory.mjs'
   workflow_dispatch:
 
 env:
@@ -33,6 +43,17 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v5
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+
+      - name: Generate RunPod training memory bundle
+        run: |
+          set -euo pipefail
+          node scripts/generate-runpod-training-memory.mjs
+          test -s runpod-worker/training_memory.json
 
       - name: Log in to the Container registry
         uses: docker/login-action@v3
@@ -106,4 +127,85 @@ jobs:
           else
             echo "::warning::Template update may have failed (got imageName=$GOT_IMG). Update manually: $IMAGE_TAG"
           fi
+
+      - name: Post-deploy training smoke
+        env:
+          RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+          RUNPOD_ENDPOINT_ID: ${{ secrets.RUNPOD_ENDPOINT_ID }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${RUNPOD_API_KEY:-}" ] || [ -z "${RUNPOD_ENDPOINT_ID:-}" ]; then
+            echo "::warning::RUNPOD_API_KEY or RUNPOD_ENDPOINT_ID not set — skipping post-deploy training smoke."
+            exit 0
+          fi
+
+          RUNSYNC_URL="https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}/runsync"
+          EXPECTED_VERSION=$(python3 - <<'PY'
+import json
+with open('runpod-worker/training_memory.json', 'r', encoding='utf-8') as handle:
+    print(json.load(handle)['version'])
+PY
+)
+
+          call_runsync() {
+            local payload="$1"
+            curl -fsSL -X POST "$RUNSYNC_URL" \
+              -H "Authorization: Bearer $RUNPOD_API_KEY" \
+              -H 'Content-Type: application/json' \
+              -d "$payload"
+          }
+
+          echo "Waiting for live worker to report training_memory_version=$EXPECTED_VERSION"
+          for attempt in $(seq 1 15); do
+            PING_RESP=$(call_runsync '{"input":{"action":"ping"}}')
+            echo "$PING_RESP"
+            LIVE_STATUS=$(printf '%s' "$PING_RESP" | python3 - <<'PY'
+import json, sys
+payload = json.load(sys.stdin)
+output = payload.get('output', {})
+print('ok' if output.get('training_memory_loaded') and output.get('training_memory_version') else 'missing')
+print(output.get('training_memory_version', ''))
+PY
+)
+            LIVE_OK=$(printf '%s' "$LIVE_STATUS" | sed -n '1p')
+            LIVE_VERSION=$(printf '%s' "$LIVE_STATUS" | sed -n '2p')
+
+            if [ "$LIVE_OK" = "ok" ] && [ "$LIVE_VERSION" = "$EXPECTED_VERSION" ]; then
+              echo "Live worker is serving the expected training bundle version."
+              break
+            fi
+
+            if [ "$attempt" -eq 15 ]; then
+              echo "::error::Live worker did not report the expected training bundle version after deploy. expected=$EXPECTED_VERSION actual=$LIVE_VERSION"
+              exit 1
+            fi
+
+            echo "Attempt $attempt/15: live version is '$LIVE_VERSION' — retrying in 10s"
+            sleep 10
+          done
+
+          QUESTION="What are the exact go-live acceptance criteria for Bob's internal build-review training loop, including any score thresholds, lint requirements, and repetition requirements?"
+          CHAT_RESP=$(call_runsync "{\"input\":{\"action\":\"chat\",\"message\":\"$QUESTION\",\"temperature\":0.1}}")
+          echo "$CHAT_RESP"
+
+          printf '%s' "$CHAT_RESP" | python3 - <<'PY'
+import json, sys
+payload = json.load(sys.stdin)
+message = (payload.get('output') or {}).get('message', '')
+required_phrases = [
+    'zero lint errors before release',
+    'successful builds',
+    'chunk strategy for large routes',
+    'review scores of at least 9 across 3 consecutive runs',
+    'no outbound dependency in the training loop',
+]
+missing = [phrase for phrase in required_phrases if phrase not in message]
+if missing:
+    print('Missing required phrases:')
+    for phrase in missing:
+        print(f'- {phrase}')
+    sys.exit(1)
+print('Live Bob training smoke passed.')
+PY
 

@@ -57,6 +57,14 @@ function formatOfficerName(officer?: { first_name?: string | null; last_name?: s
   return name || "Unnamed officer";
 }
 
+function pickKeys<T extends Record<string, any>>(obj: T, keys: Array<keyof T>): Partial<T> {
+  const picked: Partial<T> = {};
+  for (const key of keys) {
+    if (obj[key] !== undefined) picked[key] = obj[key];
+  }
+  return picked;
+}
+
 export default function BiosecurityControlPage() {
   const { user } = useAuthStore();
   const orgId = user?.organization_id;
@@ -99,11 +107,13 @@ export default function BiosecurityControlPage() {
   const { data: assessments = [], isLoading: assessmentsLoading, refetch: refetchAssessments } = useQuery({
     queryKey: ["biosecurity_assessments", orgId],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      let q = (supabase as any)
         .from("biosecurity_assessments")
         .select("*, officer:user_profiles!biosecurity_assessments_officer_id_fkey(first_name,last_name)")
         .order("created_at", { ascending: false })
         .limit(200);
+      if (orgId) q = q.eq("organization_id", orgId);
+      const { data, error } = await q;
       if (error) throw error;
       return data || [];
     },
@@ -114,11 +124,13 @@ export default function BiosecurityControlPage() {
   const { data: notices = [], isLoading: noticesLoading, refetch: refetchNotices } = useQuery({
     queryKey: ["biosecurity_notices", orgId],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      let q = (supabase as any)
         .from("biosecurity_notices")
         .select("*")
         .order("created_at", { ascending: false })
         .limit(200);
+      if (orgId) q = q.eq("organization_id", orgId);
+      const { data, error } = await q;
       if (error) throw error;
       return data || [];
     },
@@ -143,8 +155,10 @@ export default function BiosecurityControlPage() {
   // Create job mutation
   const createJobMutation = useMutation({
     mutationFn: async () => {
+      if (!orgId) throw new Error("organization_id is required");
+      if (!form.address.trim()) throw new Error("Address is required");
       const { data: jobNumber } = await (supabase as any).rpc("next_biosecurity_job_number", { p_org_id: orgId });
-      const payload: any = {
+      const rawPayload: any = {
         organization_id: orgId,
         job_number: jobNumber,
         title: form.title || `Biosecurity Inspection – ${form.address}`,
@@ -156,10 +170,23 @@ export default function BiosecurityControlPage() {
         has_management_plan: form.has_management_plan,
         safety_notes: form.safety_notes,
         status: form.assigned_to ? "assigned" : "pending",
-        created_by: user?.id,
       };
-      if (form.assigned_to) payload.assigned_to = form.assigned_to;
-      const { error } = await (supabase as any).from("biosecurity_jobs").insert(payload);
+      if (form.assigned_to) rawPayload.assigned_to = form.assigned_to;
+      const safePayload = pickKeys(rawPayload, [
+        "organization_id",
+        "job_number",
+        "title",
+        "address",
+        "inspection_type",
+        "complaint_source",
+        "priority",
+        "has_prior_notice",
+        "has_management_plan",
+        "safety_notes",
+        "status",
+        "assigned_to",
+      ]);
+      const { error } = await (supabase as any).from("biosecurity_jobs").insert(safePayload);
       if (error) throw error;
     },
     onSuccess: () => {

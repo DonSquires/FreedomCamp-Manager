@@ -19,6 +19,7 @@ const defaultRunpodUrl = String(
   process.env.RUNPOD_GATEWAY_URL ||
   (envRunpodEndpointId ? `https://api.runpod.ai/v2/${envRunpodEndpointId}/runsync` : '')
 ).trim();
+const drBobModel = String(process.env.DR_BOB_MODEL || process.env.OLLAMA_MODEL || '').trim();
 
 function getArg(name, fallback = '') {
   const flag = `--${name}`;
@@ -158,10 +159,11 @@ async function sendViaRunpod(message) {
   };
   if (orgId) headers['x-org-id'] = orgId;
 
+  const withModel = (input) => (drBobModel ? { ...input, model: drBobModel } : input);
   const attempts = [
-    { input: { message } },
-    { input: { prompt: message } },
-    { input: { action: 'review', message } },
+    { input: withModel({ message }) },
+    { input: withModel({ prompt: message }) },
+    { input: withModel({ action: 'review', message }) },
   ];
 
   let lastFailure = null;

@@ -30,6 +30,7 @@ Deno.serve(withCors(async (req: Request) => {
     voice?: string
     rate?: number
     pitch?: number
+    style?: 'default' | 'bridge_lead' | 'wise_mentor'
     format?: 'wav'
   }
 
@@ -50,6 +51,7 @@ Deno.serve(withCors(async (req: Request) => {
         voice: typeof body.voice === 'string' && body.voice.trim() ? body.voice.trim() : undefined,
         rate: typeof body.rate === 'number' ? body.rate : undefined,
         pitch: typeof body.pitch === 'number' ? body.pitch : undefined,
+        style: typeof body.style === 'string' ? body.style : undefined,
         format: body.format === 'wav' ? 'wav' : 'wav',
       }),
     }, {

@@ -1,0 +1,187 @@
+{
+  "version": "2026-04-23T10:12:12.787Z",
+  "generated_from": [
+    "docs/BOB_AUTONOMOUS_LEARNING.md",
+    "docs/BOB_TRAINING_ADVANCED_ARCHITECT_2026.md",
+    "inference-service/data/intel-state.json",
+    "data/bob-failure-summary.json",
+    "docs/BOB_FAILURE_SUMMARY.md",
+    "data/dr-bob-reviews/BOB_AUTONOMOUS_LEARNING.md.2026-04-23T08-02-55-554Z.json",
+    "data/dr-bob-reviews/BOB_AUTONOMOUS_LEARNING.md.2026-04-23T07-56-15-718Z.json",
+    "data/dr-bob-reviews/BOB_AUTONOMOUS_LEARNING.md.2026-04-23T07-54-17-431Z.json",
+    "data/dr-bob-reviews/BOB_TRAINING_ADVANCED_ARCHITECT_2026.md.2026-04-23T05-45-27-124Z.json",
+    "data/dr-bob-reviews/BOB_TRAINING_ADVANCED_ARCHITECT_2026.md.2026-04-23T05-27-26-860Z.json",
+    "data/dr-bob-reviews/BOB_TRAINING_ADVANCED_ARCHITECT_2026.md.2026-04-23T05-27-05-283Z.json"
+  ],
+  "bob": {
+    "identity": "Bob is the internal AI assistant for FieldOps Manager. Stay repo-grounded, concise, and actionable. Prefer exact repo-specific rules over generic QA advice.",
+    "rules": [
+      "Check system_state.json before making architecture assumptions.",
+      "Do not invent modules, routes, tables, services, migrations, or package-manager choices.",
+      "Use internal evidence only for build-review and self-contained training tasks: build logs, lint logs, repository code context, and stored intel.",
+      "When asked about build review or go-live gates, answer with the exact acceptance gate from training memory rather than generic best practice."
+    ],
+    "recent_training": [],
+    "architect_rules": [
+      "Spec-First: plan before code.",
+      "Self-Test: require tests for each feature increment.",
+      "State Check: run system-check and read system_state.json for redesigns.",
+      "Feedback Loop: score outputs for truthfulness and architectural quality."
+    ]
+  },
+  "dr_bob": {
+    "identity": "Dr Bob is the blocking reviewer before implementation begins. Challenge ungrounded assumptions and regressions before approval.",
+    "rules": [
+      "Block plans that reference modules not grounded in system_state.json or repo files.",
+      "Block invented data models, routes, services, or migrations.",
+      "Require explicit validation steps and executable checks before completion claims.",
+      "Prefer concrete blocker findings with evidence and required actions over generic project-management risks."
+    ],
+    "recent_reviews": [
+      {
+        "relativePath": "data/dr-bob-reviews/BOB_AUTONOMOUS_LEARNING.md.2026-04-23T08-02-55-554Z.json",
+        "decision": "block",
+        "summary": "The plan does not address the required architecture, which is a blocker severity issue.",
+        "findings": [
+          {
+            "severity": "blocker",
+            "title": "src/modules/* are referenced without being in system_state.json",
+            "requiredAction": "Update system_state.json to include all modules referenced in the plan"
+          }
+        ]
+      },
+      {
+        "relativePath": "data/dr-bob-reviews/BOB_AUTONOMOUS_LEARNING.md.2026-04-23T07-56-15-718Z.json",
+        "decision": "needs-revision",
+        "summary": "Dr Bob returned an unstructured review. Inspect the raw response.",
+        "findings": [
+          {
+            "severity": "major",
+            "title": "Unstructured review response",
+            "requiredAction": "Rerun the review or tighten the prompt until valid JSON is returned."
+          }
+        ]
+      },
+      {
+        "relativePath": "data/dr-bob-reviews/BOB_AUTONOMOUS_LEARNING.md.2026-04-23T07-54-17-431Z.json",
+        "decision": "needs-revision",
+        "summary": "Dr Bob returned an unstructured review. Inspect the raw response.",
+        "findings": [
+          {
+            "severity": "major",
+            "title": "Unstructured review response",
+            "requiredAction": "Rerun the review or tighten the prompt until valid JSON is returned."
+          }
+        ]
+      },
+      {
+        "relativePath": "data/dr-bob-reviews/BOB_TRAINING_ADVANCED_ARCHITECT_2026.md.2026-04-23T05-45-27-124Z.json",
+        "decision": "block",
+        "summary": "The design-artifact introduces ungrounded modules without specifying them in the current system state JSON, violating the repo truth protocol.",
+        "findings": [
+          {
+            "severity": "blocker",
+            "title": "Unspecified Modules in Design-Artifact",
+            "requiredAction": "Specify all modules in system_state.json before implementation."
+          }
+        ]
+      },
+      {
+        "relativePath": "data/dr-bob-reviews/BOB_TRAINING_ADVANCED_ARCHITECT_2026.md.2026-04-23T05-27-26-860Z.json",
+        "decision": "block",
+        "summary": "The plan introduces several blocker issues, including the creation of fictional modules and data models not listed in system_state.json. The lack of explicit revision mode also raises concerns.",
+        "findings": [
+          {
+            "severity": "blocker",
+            "title": "Fictional Modules",
+            "requiredAction": "Remove fictional modules and ensure all module names are listed in system_state.json before implementation."
+          },
+          {
+            "severity": "blocker",
+            "title": "Unlisted Data Models",
+            "requiredAction": "Clearly define and list all data models in system_state.json before implementation."
+          },
+          {
+            "severity": "major",
+            "title": "Lack of Explicit Revision Mode",
+            "requiredAction": "Specify an explicit revision mode (true or false) to ensure the artifact is revisable and testable."
+          }
+        ]
+      },
+      {
+        "relativePath": "data/dr-bob-reviews/BOB_TRAINING_ADVANCED_ARCHITECT_2026.md.2026-04-23T05-27-05-283Z.json",
+        "decision": "needs-revision",
+        "summary": "Dr Bob returned an unstructured review. Inspect the raw response.",
+        "findings": [
+          {
+            "severity": "major",
+            "title": "Unstructured review response",
+            "requiredAction": "Rerun the review or tighten the prompt until valid JSON is returned."
+          }
+        ]
+      }
+    ],
+    "recent_blocker_facts": [
+      "src/modules/* are referenced without being in system_state.json — Update system_state.json to include all modules referenced in the plan",
+      "Unspecified Modules in Design-Artifact — Specify all modules in system_state.json before implementation.",
+      "Fictional Modules — Remove fictional modules and ensure all module names are listed in system_state.json before implementation.",
+      "Unlisted Data Models — Clearly define and list all data models in system_state.json before implementation."
+    ]
+  },
+  "build_review": {
+    "review_order": [
+      "critical blockers",
+      "performance risks",
+      "reliability risks",
+      "privacy checks",
+      "14-day remediation plan"
+    ],
+    "acceptance_gate": [
+      "zero lint errors before release",
+      "successful builds",
+      "chunk strategy for large routes",
+      "review scores of at least 9 across 3 consecutive runs",
+      "no outbound dependency in the training loop"
+    ],
+    "evidence_sources": [
+      "build logs",
+      "lint logs",
+      "repository code context",
+      "system_state.json",
+      "stored training intel"
+    ],
+    "failure_patterns": [
+      "generic QA checklists instead of repo-specific acceptance gates",
+      "hallucinated modules or architecture",
+      "cloud-dependent advice for self-contained review work",
+      "missing tenant isolation or org-scoping concerns when architecture is involved"
+    ],
+    "summaries": [
+      "Bob must train and evaluate in self-contained mode only. Training and inference must avoid outbound cloud calls, use internal evidence only such as build logs, lint logs, and repository code context, and strip sensitive values before storing prompts or logs.",
+      "Training baseline from the 2026-04-04 validation run: build succeeded with large chunk warnings, lint failed with 6 errors and 8 warnings, ImportData was the main bundle hotspot, and hook dependency warnings were concentrated in operational pages. Bob should separate blockers from advisories, cite concrete evidence, prioritize impact, and propose short execution plans without asking for cloud access.",
+      "Expected review order is: critical blockers, performance risks, reliability risks, privacy checks, and a 14-day remediation plan. Lint must be zero-error before release, ImportData is the highest-impact bundle hotspot, stale hook dependencies must be fixed on high-traffic pages first, and privacy checks must confirm no outbound dependency is required for the training loop.",
+      "Internal training loop: run build and lint, feed evidence into Bob, score against the rubric, coach with blocker-only triage and reliability prompts if score is below 9, and repeat after each fix batch. Go-live acceptance requires zero lint errors, successful builds, a chunk strategy for large routes, review scores of at least 9 across three consecutive runs, and no outbound dependency in the training loop."
+    ],
+    "live_recommendations": [
+      "Prefer the proven RunPod delivery path when Bob local /chat is unavailable."
+    ],
+    "top_flagged_artifacts": [
+      "/workspaces/FreedomCamp-Manager/docs/BOB_AUTONOMOUS_LEARNING.md",
+      "/workspaces/FreedomCamp-Manager/docs/BOB_TRAINING_ADVANCED_ARCHITECT_2026.md"
+    ]
+  },
+  "review_protocol": {
+    "required_checks": [
+      "read system_state.json first",
+      "cite grounded repo evidence",
+      "use approve, needs-revision, or block decisions with concrete findings",
+      "require validation steps after implementation"
+    ],
+    "blockers": [
+      "src/modules/* are referenced without being in system_state.json — Update system_state.json to include all modules referenced in the plan",
+      "Unspecified Modules in Design-Artifact — Specify all modules in system_state.json before implementation.",
+      "Fictional Modules — Remove fictional modules and ensure all module names are listed in system_state.json before implementation.",
+      "Unlisted Data Models — Clearly define and list all data models in system_state.json before implementation."
+    ]
+  }
+}

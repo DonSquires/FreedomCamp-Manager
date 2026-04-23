@@ -1297,6 +1297,7 @@ export const edgeFunctions = {
     voice?: string
     rate?: number
     pitch?: number
+    style?: 'default' | 'bridge_lead' | 'wise_mentor'
     format?: 'wav'
   }) => {
     return callEdgeFunction('synthesize-speech', params, { showToast: false })

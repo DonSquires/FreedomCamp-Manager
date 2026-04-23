@@ -36,14 +36,23 @@ const NOTICE_TYPE_LABELS: Record<string, string> = {
   prosecution_referral: 'Prosecution Referral',
 };
 const STATUS_COLORS: Record<string, string> = {
-  open: 'bg-blue-100 text-blue-800', dispatched: 'bg-amber-100 text-amber-800',
-  in_progress: 'bg-orange-100 text-orange-800', completed: 'bg-green-100 text-green-800',
+  pending: 'bg-blue-100 text-blue-800', assigned: 'bg-amber-100 text-amber-800',
+  en_route: 'bg-indigo-100 text-indigo-800', on_scene: 'bg-orange-100 text-orange-800',
+  referred: 'bg-purple-100 text-purple-800', completed: 'bg-green-100 text-green-800',
   cancelled: 'bg-gray-100 text-gray-700',
 };
 const PRIORITY_COLORS: Record<string, string> = {
   low: 'bg-gray-100 text-gray-700', normal: 'bg-blue-100 text-blue-800',
   high: 'bg-orange-100 text-orange-800', urgent: 'bg-red-100 text-red-800',
 };
+
+function pickKeys<T extends Record<string, any>>(obj: T, keys: Array<keyof T>): Partial<T> {
+  const picked: Partial<T> = {};
+  for (const key of keys) {
+    if (obj[key] !== undefined) picked[key] = obj[key];
+  }
+  return picked;
+}
 
 export default function SmokeComplaintControlPage() {
   const { user } = useAuthStore();
@@ -78,19 +87,25 @@ export default function SmokeComplaintControlPage() {
   const { data: assessments = [], isLoading: assLoading } = useQuery({
     queryKey: ['smoke_assessments'],
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from('smoke_assessments').select('*').order('created_at', { ascending: false });
+      let q = (supabase as any).from('smoke_assessments').select('*').order('created_at', { ascending: false });
+      if (orgId) q = q.eq('organization_id', orgId);
+      const { data, error } = await q;
       if (error) throw error;
       return data || [];
     },
+    enabled: !!orgId,
   });
 
   const { data: notices = [], isLoading: noticesLoading } = useQuery({
     queryKey: ['smoke_notices'],
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from('smoke_notices').select('*').order('created_at', { ascending: false });
+      let q = (supabase as any).from('smoke_notices').select('*').order('created_at', { ascending: false });
+      if (orgId) q = q.eq('organization_id', orgId);
+      const { data, error } = await q;
       if (error) throw error;
       return data || [];
     },
+    enabled: !!orgId,
   });
 
   const { data: officers = [] } = useQuery({
@@ -105,26 +120,36 @@ export default function SmokeComplaintControlPage() {
 
   const createJobMutation = useMutation({
     mutationFn: async () => {
+      if (!orgId) throw new Error('organization_id is required');
+      if (!form.address.trim()) throw new Error('Address is required');
       const { data: jobNum } = await (supabase as any).rpc('next_smoke_job_number', { p_org_id: orgId });
       const now = new Date();
       const h = now.getHours();
-      const is_out_of_hours = h >= 23 || h < 7;
-      const { error } = await (supabase as any).from('smoke_jobs').insert({
+      const is_out_of_hours = h >= 22 || h < 7;
+      const rawPayload = {
+        organization_id: orgId,
         job_number: jobNum,
-        title: form.title,
+        title: form.title || `Smoke Complaint – ${form.address}`,
         address: form.address,
-        suburb: form.suburb,
+        suburb: form.suburb || null,
         complaint_source: form.complaint_source,
         complaint_time: new Date(form.complaint_time).toISOString(),
         priority: form.priority,
         has_prior_notice: form.has_prior_notice,
         has_repeat_offender: form.has_repeat_offender,
-        complaint_description: form.complaint_description,
-        safety_notes: form.safety_notes,
+        complaint_description: form.complaint_description || null,
+        safety_notes: form.safety_notes || null,
         assigned_to: form.assigned_to || null,
         is_out_of_hours,
-        status: 'open',
-      });
+        status: 'pending',
+      };
+      const safePayload = pickKeys(rawPayload, [
+        'organization_id', 'job_number', 'title', 'address', 'suburb',
+        'complaint_source', 'complaint_time', 'priority', 'has_prior_notice',
+        'has_repeat_offender', 'complaint_description', 'safety_notes',
+        'assigned_to', 'is_out_of_hours', 'status',
+      ]);
+      const { error } = await (supabase as any).from('smoke_jobs').insert(safePayload);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -160,9 +185,12 @@ export default function SmokeComplaintControlPage() {
   const { data: analyticsAssessments = [] } = useQuery({
     queryKey: ['smoke_analytics_ass'],
     queryFn: async () => {
-      const { data } = await (supabase as any).from('smoke_assessments').select('fire_type, ai_confidence').gte('created_at', monthStart);
+      let q = (supabase as any).from('smoke_assessments').select('fire_type, ai_confidence').gte('created_at', monthStart);
+      if (orgId) q = q.eq('organization_id', orgId);
+      const { data } = await q;
       return data || [];
     },
+    enabled: !!orgId,
   });
 
   const totalMonthJobs = analyticsJobs.length;
@@ -226,8 +254,8 @@ export default function SmokeComplaintControlPage() {
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5 text-red-500" />
                 <div>
-                  <p className="text-xs text-gray-500">Open/Urgent</p>
-                  <p className="text-2xl font-bold text-red-600">{jobs.filter((j: any) => j.status === 'open' || j.priority === 'urgent').length}</p>
+                  <p className="text-xs text-gray-500">Active/Urgent</p>
+                  <p className="text-2xl font-bold text-red-600">{jobs.filter((j: any) => ['pending', 'assigned', 'en_route', 'on_scene'].includes(j.status) || j.priority === 'urgent').length}</p>
                 </div>
               </div>
             </CardContent>

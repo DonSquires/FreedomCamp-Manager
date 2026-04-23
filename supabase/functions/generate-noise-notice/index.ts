@@ -58,9 +58,9 @@ Deno.serve(async (req: Request) => {
         id, notice_number, notice_type, status,
         recipient_name, recipient_address,
         offence_description, rma_section,
-        comply_by_hours, comply_by_datetime,
+        comply_by,
         penalty_amount_nzd, notes,
-        created_at, issued_by,
+        created_at, issued_at, issuing_officer_id,
         organization_id,
         noise_job_id
       `)
@@ -97,6 +97,12 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── 5. Build printable HTML ──────────────────────────────────────────────
+    const issuedAt = new Date(notice.issued_at ?? notice.created_at)
+    const complyByDatetime = notice.comply_by ?? null
+    const complyByHours = notice.comply_by
+      ? Math.max(1, Math.round((new Date(notice.comply_by).getTime() - issuedAt.getTime()) / (3600 * 1000)))
+      : 72
+
     const html = buildNoticeHtml({
       noticeNumber: notice.notice_number,
       noticeType: notice.notice_type,
@@ -104,11 +110,11 @@ Deno.serve(async (req: Request) => {
       recipientAddress: notice.recipient_address ?? jobAddress,
       offenceDescription: notice.offence_description ?? '',
       rmaSection: notice.rma_section ?? '',
-      complyByHours: notice.comply_by_hours ?? 72,
-      complyByDatetime: notice.comply_by_datetime ?? null,
+      complyByHours,
+      complyByDatetime,
       penaltyAmountNzd: notice.penalty_amount_nzd ?? null,
       notes: notice.notes ?? '',
-      issuedAt: new Date(notice.created_at),
+      issuedAt,
       officerName: officer
         ? `${officer.first_name ?? ''} ${officer.last_name ?? ''}`.trim()
         : 'Authorised Officer',

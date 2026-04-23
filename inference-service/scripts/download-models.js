@@ -76,6 +76,23 @@ const MODELS = [
     size: '1.3 MB',
     minSize: 500 * 1024,        // 500 KB minimum
     optional: true,             // service still works; OpenAI vision is the fallback
+  },
+  {
+    name: 'YAMNet (Audio Nuisance Classifier)',
+    // YAMNet ONNX — classifies audio into 521 AudioSet classes.
+    // Used by /infer/audio/classify-nuisance when SAFETY_AUDIO_CLASSIFIER_PROVIDER=onnx.
+    // Input:  float32 waveform, 16 kHz, mono.  Output: [521] class scores (softmax).
+    // MIT-compatible ONNX export maintained at:
+    //   https://github.com/PINTO0309/PINTO_model_zoo (model 307 — yamnet)
+    // Override the URL via YAMNET_MODEL_URL env var if you host the file internally.
+    // If the download fails the noise endpoint falls back to the heuristic pipeline.
+    urls: getCandidateUrls('YAMNET_MODEL_URL', [
+      'https://github.com/PINTO0309/PINTO_model_zoo/releases/download/v3.0.0/yamnet_1_default_1.onnx',
+    ]),
+    filename: 'yamnet.onnx',
+    size: '3.5 MB',
+    minSize: 1 * 1024 * 1024,  // 1 MB minimum
+    optional: true,             // falls back to heuristic if unavailable
   }
 ];
 

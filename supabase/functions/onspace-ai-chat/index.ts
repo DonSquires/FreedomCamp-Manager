@@ -16,6 +16,8 @@
  *   OLLAMA_BASE_URL         e.g. http://localhost:11434 or RunPod gateway URL (defaults to INFERENCE_SERVICE_URL)
  *   OLLAMA_MODEL            e.g. llama3.1:8b
  *   OLLAMA_API_KEY          Optional bearer key for gateway auth (defaults to INFERENCE_API_KEY)
+ *   BOB_ATTITUDE_PROFILE    Optional Bob tone profile: operational|supportive|strict|coach
+ *   BOB_ATTITUDE_INSTRUCTIONS Optional extra attitude instruction appended to system prompt
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
@@ -156,6 +158,26 @@ Critical policy rules:
 - Grand Master can override normal information restrictions when necessary for lawful operational control.
 - If you detect likely criminal behavior, privacy breach, evidence tampering, or deliberate rule/law evasion, you must warn the user and escalate to Grand Master immediately.
 - If a user appears to be requesting something unlawful or non-compliant, advise them they may be about to breach policy or law and suggest compliant alternatives.`
+
+const ATTITUDE_PRESETS: Record<string, string> = {
+  operational: 'Tone: calm, decisive, and practical. Prioritize concise operational steps and clear outcomes.',
+  supportive: 'Tone: warm, reassuring, and respectful. Reduce stress while still giving direct, actionable guidance.',
+  strict: 'Tone: compliance-first, firm, and unambiguous. Highlight policy and safety constraints early.',
+  coach: 'Tone: instructive and developmental. Explain brief reasoning and teach the user the next best action.',
+}
+
+function buildSystemPromptWithAttitude(): string {
+  const profile = String(Deno.env.get('BOB_ATTITUDE_PROFILE') ?? 'operational').trim().toLowerCase()
+  const custom = String(Deno.env.get('BOB_ATTITUDE_INSTRUCTIONS') ?? '').trim()
+  const preset = ATTITUDE_PRESETS[profile] ?? ATTITUDE_PRESETS.operational
+  const attitudeSection = [
+    'ATTITUDE PROFILE:',
+    `- ${preset}`,
+    ...(custom ? [`- Custom attitude override: ${custom}`] : []),
+  ].join('\n')
+
+  return `${SYSTEM_PROMPT}\n\n${attitudeSection}`
+}
 
 const PRIVACY_REQUEST_PATTERN = /(share|show|reveal|give|tell|export|download).*(user|officer|profile|email|phone|address|location|personal|private|details)/i
 const EXPLICIT_PERMISSION_PATTERN = /(with permission|has permission|consent|authori[sz]ed by user|user approved|user said yes)/i
@@ -511,19 +533,21 @@ Deno.serve(async (req: Request) => {
     // Build messages array — accept Format A (full array) or Format B (single message + context)
     let messages: Array<{ role: string; content: string }>
 
+    const defaultSystemPrompt = buildSystemPromptWithAttitude()
+
     if (Array.isArray(rawMessages) && rawMessages.length > 0) {
       // Format A: caller provides full messages array; inject system prompt only if not present
       const hasSystem = rawMessages[0]?.role === 'system'
       messages = hasSystem
         ? rawMessages
-        : [{ role: 'system', content: SYSTEM_PROMPT }, ...rawMessages]
+        : [{ role: 'system', content: defaultSystemPrompt }, ...rawMessages]
     } else if (message) {
       // Format B: single message + optional context object
       const userContent = context
         ? `${message}\n\nContext:\n${typeof context === 'string' ? context : JSON.stringify(context, null, 2)}`
         : message
       messages = [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: defaultSystemPrompt },
         { role: 'user', content: userContent },
       ]
     } else {

@@ -128,6 +128,14 @@ const PRIORITY_BADGE: Record<string, string> = {
   urgent: 'bg-red-100 text-red-800',
 }
 
+function pickKeys<T extends Record<string, any>>(obj: T, keys: Array<keyof T>): Partial<T> {
+  const picked: Partial<T> = {}
+  for (const key of keys) {
+    if (obj[key] !== undefined) picked[key] = obj[key]
+  }
+  return picked
+}
+
 function offensiveRatingColor(rating: number) {
   if (rating <= 2) return 'bg-green-500'
   if (rating === 3) return 'bg-amber-400'
@@ -241,6 +249,8 @@ export default function SmokeComplaintOfficerPortal() {
   const submitMutation = useMutation({
     mutationFn: async () => {
       if (!orgId || !user?.id || !selectedJob || !state) throw new Error('Missing data')
+      if (!state.address.trim()) throw new Error('Address is required for assessment')
+      if (!state.action) throw new Error('Select a recommended action before saving')
       const actionStatus: Record<string, string> = {
         no_action: 'completed',
         verbal_warning: 'completed',
@@ -248,36 +258,50 @@ export default function SmokeComplaintOfficerPortal() {
         infringement_notice: 'completed',
         prosecution_referral: 'referred',
       }
+      const rawPayload = {
+        organization_id: orgId,
+        smoke_job_id: selectedJob.id,
+        officer_id: user.id,
+        address: state.address,
+        gps_lat: state.gps_lat,
+        gps_lng: state.gps_lng,
+        smoke_opacity: state.smoke_opacity || null,
+        smoke_color: state.smoke_color || null,
+        smoke_continuous: state.is_continuous,
+        smoke_duration_minutes: state.duration_minutes ? parseInt(state.duration_minutes) : null,
+        prohibited_materials_suspected: Array.isArray(state.prohibited_materials)
+          ? state.prohibited_materials.length > 0
+          : false,
+        materials_checklist: Array.isArray(state.prohibited_materials)
+          ? { selected: state.prohibited_materials }
+          : null,
+        odor_description: state.odor_type || null,
+        odor_offensive: state.odor_offensive,
+        wind_speed_kmh: state.wind_speed ? parseFloat(state.wind_speed) : null,
+        wind_direction: state.wind_direction || null,
+        smoke_drifting_direction: state.smoke_drift_direction || null,
+        smoke_affecting_neighbors: state.affecting_neighbors,
+        smoke_affecting_road: state.affecting_road,
+        neighbor_impact_description: state.neighbor_impact_description || null,
+        sample_taken: state.sample_taken,
+        sample_type: state.sample_taken ? state.sample_type || null : null,
+        officer_professional_opinion: state.officer_opinion,
+        recommended_action: state.action,
+        action_notes: state.officer_opinion || null,
+        ai_assessment: aiResult,
+      }
+      const safePayload = pickKeys(rawPayload, [
+        'organization_id', 'smoke_job_id', 'officer_id', 'address', 'gps_lat', 'gps_lng',
+        'smoke_opacity', 'smoke_color', 'smoke_continuous', 'smoke_duration_minutes',
+        'prohibited_materials_suspected', 'materials_checklist', 'odor_description', 'odor_offensive',
+        'wind_speed_kmh', 'wind_direction', 'smoke_drifting_direction', 'smoke_affecting_neighbors',
+        'smoke_affecting_road', 'neighbor_impact_description', 'sample_taken', 'sample_type',
+        'officer_professional_opinion', 'recommended_action', 'action_notes', 'ai_assessment',
+      ])
       // Save assessment
       const { error: aErr } = await supabase
         .from('smoke_assessments' as any)
-        .insert({
-          organization_id: orgId,
-          smoke_job_id: selectedJob.id,
-          officer_id: user.id,
-          address: state.address,
-          gps_lat: state.gps_lat,
-          gps_lng: state.gps_lng,
-          is_out_of_hours: state.is_out_of_hours,
-          smoke_opacity: state.smoke_opacity || null,
-          smoke_color: state.smoke_color || null,
-          is_continuous: state.is_continuous,
-          duration_minutes: state.duration_minutes ? parseInt(state.duration_minutes) : null,
-          prohibited_materials: state.prohibited_materials,
-          odor_type: state.odor_type || null,
-          odor_offensive: state.odor_offensive,
-          wind_speed: state.wind_speed ? parseFloat(state.wind_speed) : null,
-          wind_direction: state.wind_direction || null,
-          smoke_drift_direction: state.smoke_drift_direction || null,
-          affecting_neighbors: state.affecting_neighbors,
-          affecting_road: state.affecting_road,
-          neighbor_impact_description: state.neighbor_impact_description || null,
-          sample_taken: state.sample_taken,
-          sample_type: state.sample_taken ? state.sample_type || null : null,
-          officer_opinion: state.officer_opinion,
-          action_taken: state.action,
-          ai_offensive_rating: aiResult?.offensive_rating ?? null,
-        })
+        .insert(safePayload)
       if (aErr) throw aErr
       // Update job status
       await supabase
@@ -312,7 +336,7 @@ export default function SmokeComplaintOfficerPortal() {
 
       const { data: inserted, error: insertErr } = await (supabase as any)
         .from('smoke_notices')
-        .insert({
+        .insert(pickKeys({
           organization_id: orgId,
           notice_number: noticeNumber,
           smoke_job_id: selectedJob.id,
@@ -329,7 +353,11 @@ export default function SmokeComplaintOfficerPortal() {
           penalty_amount_nzd: state.penalty_amount_nzd ? parseFloat(state.penalty_amount_nzd) : null,
           issuing_officer_id: user.id,
           status: 'issued',
-        })
+        }, [
+          'organization_id', 'notice_number', 'smoke_job_id', 'notice_type', 'recipient_name',
+          'recipient_address', 'offence_description', 'rma_section', 'comply_by',
+          'penalty_amount_nzd', 'issuing_officer_id', 'status',
+        ]))
         .select('id')
         .single()
       if (insertErr) throw new Error(insertErr.message)

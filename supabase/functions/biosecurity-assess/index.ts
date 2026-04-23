@@ -27,6 +27,14 @@ const BOB_API_KEY       = Deno.env.get('BOB_INFERENCE_API_KEY') ?? ''
 const SUPABASE_URL      = Deno.env.get('SUPABASE_URL') ?? ''
 const SERVICE_ROLE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 
+function pickKeys<T extends Record<string, unknown>>(obj: T, keys: Array<keyof T>): Partial<T> {
+  const picked: Partial<T> = {}
+  for (const key of keys) {
+    if (obj[key] !== undefined) picked[key] = obj[key]
+  }
+  return picked
+}
+
 Deno.serve(withCors(async (req: Request) => {
   const authResult = await requireAuth(req)
   if (!authResult.user) {
@@ -143,9 +151,18 @@ Deno.serve(withCors(async (req: Request) => {
     photos:                    body.photo_url ? [body.photo_url] : [],
   }
 
+  const safeAssessmentData = pickKeys(assessmentData, [
+    'organization_id', 'officer_id', 'biosecurity_job_id', 'address', 'gps_lat', 'gps_lng',
+    'plant_species', 'species_list', 'density_estimate', 'density_category', 'infestation_stage',
+    'seed_heads_present', 'basal_seeds_present', 'cleistogenes_present', 'leaf_texture_harsh',
+    'awn_visible', 'location_type', 'buffer_zone_breached', 'stock_welfare_risk',
+    'weather_conditions', 'ai_species_identification', 'ai_confidence', 'ai_recommendation',
+    'checklist_responses', 'recommended_action', 'photos',
+  ])
+
   const { data: assessment, error: insertErr } = await supabase
     .from('biosecurity_assessments')
-    .insert(assessmentData)
+    .insert(safeAssessmentData)
     .select('id')
     .single()
 

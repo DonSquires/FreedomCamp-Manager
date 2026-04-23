@@ -576,6 +576,79 @@ const SAFETY_AUDIO_CLASSIFIER_PROVIDER = (process.env.SAFETY_AUDIO_CLASSIFIER_PR
 const SAFETY_ACTION_RECOGNITION_PROVIDER = (process.env.SAFETY_ACTION_RECOGNITION_PROVIDER || 'none').toLowerCase();
 const SAFETY_MAN_DOWN_MODEL_PROVIDER = (process.env.SAFETY_MAN_DOWN_MODEL_PROVIDER || 'none').toLowerCase();
 const SAFETY_AUDIO_CLASSIFIER_MODEL = process.env.SAFETY_AUDIO_CLASSIFIER_MODEL || '';
+
+// ---------------------------------------------------------------------------
+// YAMNet ONNX — noise/audio nuisance classifier
+// Loaded lazily at first use when SAFETY_AUDIO_CLASSIFIER_PROVIDER=onnx.
+// Model file: models/yamnet.onnx (downloaded by scripts/download-models.js).
+// Input:  float32 waveform tensor [1, N] at 16 kHz mono.
+// Output: float32 scores tensor [1, 521] — AudioSet class probabilities.
+//
+// NUISANCE_AUDIO_CLASSES maps AudioSet label indexes to NZ RMA enforcement labels.
+// ---------------------------------------------------------------------------
+// ort is declared at module top-level (line ~72)
+const YAMNET_MODEL_PATH = path.resolve(
+  process.env.SAFETY_AUDIO_CLASSIFIER_MODEL ||
+  path.join(__dirname, 'models', 'yamnet.onnx')
+);
+const NUISANCE_AUDIO_CLASSES = {
+  // AudioSet indexes that map to enforcement-relevant noise categories.
+  // See: https://research.google.com/audioset/ontology
+  0:   { label: 'speech',              category: 'human_activity',  nuisance: false },
+  137: { label: 'music',               category: 'entertainment',   nuisance: true  },
+  494: { label: 'dog_barking',         category: 'animal_noise',    nuisance: true  },
+  21:  { label: 'crowd_noise',         category: 'human_activity',  nuisance: true  },
+  302: { label: 'engine_idling',       category: 'vehicle',         nuisance: false },
+  312: { label: 'power_tool',          category: 'construction',    nuisance: true  },
+  316: { label: 'chainsaw',            category: 'construction',    nuisance: true  },
+  42:  { label: 'laughter',            category: 'human_activity',  nuisance: false },
+  72:  { label: 'yell_shout',          category: 'human_activity',  nuisance: true  },
+  375: { label: 'domestic_sounds',     category: 'residential',     nuisance: false },
+  388: { label: 'fire_alarm',          category: 'emergency',       nuisance: false },
+};
+let _yamnetSession = null;
+async function getYamnetSession() {
+  if (_yamnetSession) return _yamnetSession;
+  if (!ort) throw new Error('onnxruntime-node not available');
+  if (!fs.existsSync(YAMNET_MODEL_PATH)) {
+    throw new Error(`YAMNet ONNX model not found at ${YAMNET_MODEL_PATH} — run: node scripts/download-models.js`);
+  }
+  _yamnetSession = await ort.InferenceSession.create(YAMNET_MODEL_PATH);
+  console.log('[yamnet] ONNX session loaded:', YAMNET_MODEL_PATH);
+  return _yamnetSession;
+}
+
+/**
+ * Classify a 16 kHz mono PCM Float32Array using YAMNet ONNX.
+ * Returns top-5 classes plus a nuisance determination.
+ */
+async function classifyAudioWithYamnet(float32Samples) {
+  const session = await getYamnetSession();
+  const inputName = session.inputNames[0];
+  const tensor = new ort.Tensor('float32', float32Samples, [1, float32Samples.length]);
+  const results = await session.run({ [inputName]: tensor });
+  const outputName = session.outputNames[0];
+  const scores = Array.from(results[outputName].data);
+
+  const indexed = scores.map((score, idx) => ({ idx, score }));
+  indexed.sort((a, b) => b.score - a.score);
+  const top5 = indexed.slice(0, 5);
+
+  const topClass = NUISANCE_AUDIO_CLASSES[top5[0].idx] || { label: `audioset_${top5[0].idx}`, category: 'unknown', nuisance: false };
+  const isNuisance = top5.some((t) => NUISANCE_AUDIO_CLASSES[t.idx]?.nuisance);
+
+  return {
+    top_class: topClass.label,
+    category: topClass.category,
+    is_nuisance: isNuisance,
+    confidence: top5[0].score,
+    top5: top5.map((t) => ({
+      idx: t.idx,
+      score: Number(t.score.toFixed(4)),
+      label: NUISANCE_AUDIO_CLASSES[t.idx]?.label || `audioset_${t.idx}`,
+    })),
+  };
+}
 const SAFETY_ACTION_RECOGNITION_MODEL = process.env.SAFETY_ACTION_RECOGNITION_MODEL || '';
 const SAFETY_MAN_DOWN_MODEL = process.env.SAFETY_MAN_DOWN_MODEL || '';
 const OLLAMA_AUTO_PULL_MODELS = envFlag(process.env.OLLAMA_AUTO_PULL_MODELS, true);
@@ -6685,6 +6758,8 @@ function computeAudioFeatures(samples, sampleRate) {
     approxDbA,
     durationSec: n / sampleRate,
     sampleRate,
+    // Float32Array of raw samples — used by YAMNet ONNX classifier
+    rawSamples: samples instanceof Float32Array ? samples : new Float32Array(samples),
   };
 }
 
@@ -6978,6 +7053,18 @@ app.post('/infer/audio/classify-nuisance', inferenceRateLimit, upload.single('au
       }
     }
 
+    // --- ONNX YAMNet path ---
+    // When SAFETY_AUDIO_CLASSIFIER_PROVIDER=onnx and audio was uploaded,
+    // run YAMNet ONNX inference on the raw PCM samples.
+    let onnxResult = null;
+    if (SAFETY_AUDIO_CLASSIFIER_PROVIDER === 'onnx' && audioFeatures?.rawSamples?.length) {
+      try {
+        onnxResult = await classifyAudioWithYamnet(audioFeatures.rawSamples);
+      } catch (onnxErr) {
+        console.warn('[yamnet] ONNX inference failed, falling back to heuristic:', onnxErr.message);
+      }
+    }
+
     const result = classifyNuisanceHeuristic(transcript, approxDbA);
     if (audioFeatures?.lowFreqRatio >= 0.55 && !result.tags.includes('low_freq_dominant')) {
       result.tags.push('low_freq_dominant');
@@ -6985,14 +7072,18 @@ app.post('/infer/audio/classify-nuisance', inferenceRateLimit, upload.single('au
     if (audioFeatures?.durationSec >= 8 && !result.tags.includes('sustained_noise')) {
       result.tags.push('sustained_noise');
     }
+    if (onnxResult?.is_nuisance && !result.tags.includes('onnx_nuisance_detected')) {
+      result.tags.push('onnx_nuisance_detected');
+    }
 
     return res.json({
       success: true,
       provider: SAFETY_AUDIO_CLASSIFIER_PROVIDER,
       model: SAFETY_AUDIO_CLASSIFIER_MODEL || null,
-      runtime: 'operational_heuristic_pipeline',
-      adapter_status: 'heuristic_live',
+      runtime: onnxResult ? 'onnx_yamnet' : 'operational_heuristic_pipeline',
+      adapter_status: onnxResult ? 'onnx_live' : 'heuristic_live',
       classification: result,
+      onnx_classification: onnxResult || null,
       transcript,
       observed_db_a: Number.isFinite(approxDbA) ? approxDbA : null,
       audio_features: audioFeatures,
@@ -7166,10 +7257,42 @@ app.post('/infer/transcribe', inferenceRateLimit, requireInferenceAuth, async (r
 
 app.post('/infer/speak', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
   try {
+    const normalizeSpeechStyle = (raw) => {
+      const v = String(raw || 'default').trim().toLowerCase();
+      return v === 'bridge_lead' || v === 'wise_mentor' ? v : 'default';
+    };
+    const applySpeechCadence = (inputText, style) => {
+      const base = String(inputText || '')
+        .replace(/\s+/g, ' ')
+        .replace(/[!?]{2,}/g, '.')
+        .trim();
+      if (!base) return base;
+      if (style === 'bridge_lead') {
+        return base
+          .replace(/\s*[;:]\s*/g, '. ')
+          .replace(/\s*\-\s*/g, ', ')
+          .replace(/\.{2,}/g, '.');
+      }
+      if (style === 'wise_mentor') {
+        return base
+          .replace(/\s*[;:]\s*/g, ', ')
+          .replace(/\b(therefore|however|meanwhile|instead)\b/gi, ', $1')
+          .replace(/\.(\s|$)/g, ', pause. ')
+          .replace(/\s+/g, ' ')
+          .trim();
+      }
+      return base;
+    };
+
     const text = String(req.body?.text || '').trim();
     const voice = String(req.body?.voice || TTS_DEFAULT_VOICE).trim();
-    const rate = Number.isFinite(Number(req.body?.rate)) ? Math.max(90, Math.min(260, Number(req.body?.rate))) : TTS_DEFAULT_RATE;
+    const style = normalizeSpeechStyle(req.body?.style);
+    const requestedRate = Number.isFinite(Number(req.body?.rate)) ? Math.max(90, Math.min(260, Number(req.body?.rate))) : TTS_DEFAULT_RATE;
+    const requestedPitch = Number.isFinite(Number(req.body?.pitch)) ? Math.max(0, Math.min(99, Number(req.body?.pitch))) : 50;
+    const rate = style === 'bridge_lead' ? Math.max(120, Math.min(175, requestedRate - 8)) : style === 'wise_mentor' ? Math.max(115, Math.min(170, requestedRate - 15)) : requestedRate;
+    const pitch = style === 'bridge_lead' ? Math.max(30, Math.min(65, requestedPitch - 4)) : style === 'wise_mentor' ? Math.max(45, Math.min(80, requestedPitch + 3)) : requestedPitch;
     const format = String(req.body?.format || 'wav').toLowerCase() === 'wav' ? 'wav' : 'wav';
+    const speakText = applySpeechCadence(text, style);
 
     if (!text) {
       return res.status(400).json({ error: 'text is required' });
@@ -7182,7 +7305,7 @@ app.post('/infer/speak', inferenceRateLimit, requireInferenceAuth, async (req, r
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tts-'));
     const outputPath = path.join(tempDir, `speech.${format}`);
     try {
-      await execFileAsync('/usr/bin/espeak-ng', ['-v', voice, '-s', String(rate), '-w', outputPath, text], {
+      await execFileAsync('/usr/bin/espeak-ng', ['-v', voice, '-s', String(rate), '-p', String(pitch), '-w', outputPath, speakText], {
         timeout: AUDIO_SYNTH_TIMEOUT_MS,
       });
 
@@ -7193,6 +7316,8 @@ app.post('/infer/speak', inferenceRateLimit, requireInferenceAuth, async (req, r
         provider: 'espeak-ng',
         voice,
         rate,
+        pitch,
+        style,
       });
     } finally {
       try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch {}
