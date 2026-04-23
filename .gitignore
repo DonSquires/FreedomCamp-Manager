@@ -68,6 +68,13 @@ node_modules/
 .runtime/
 __pycache__/
 
+# Bob generated review and analysis artifacts
+data/dr-bob-reviews/
+data/internal-code-executor/
+tools/agentic-ui-reports/
+tools/human-test-engine/reports/
+docs/BOB_BRAIN_DUMP.md
+
 # Temporary data exports and analysis output files
 tmp/
 *.xlsx
