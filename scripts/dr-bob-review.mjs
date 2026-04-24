@@ -3,6 +3,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { recordScoredResponse } from './bob-response-log.mjs';
 import { loadLocalEnv } from './load-local-env.mjs';
@@ -38,6 +39,12 @@ function getArg(name, fallback = '') {
 function getBooleanArg(name, fallback = false) {
   const raw = String(getArg(name, String(fallback))).trim().toLowerCase();
   return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+}
+
+function getNumberArg(name, fallback = 0) {
+  const raw = String(getArg(name, String(fallback))).trim();
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 function extractPositionalFileArg() {
@@ -103,26 +110,128 @@ function parseReviewResponse(rawText) {
   for (const candidate of candidates) {
     try {
       const parsed = JSON.parse(candidate);
-      if (isReviewShape(parsed)) return parsed;
+      if (isReviewShape(parsed)) {
+        return {
+          review: parsed,
+          structured: true,
+          normalized,
+        };
+      }
     } catch {
       // Keep trying fallback variants.
     }
   }
 
   return {
-    decision: 'needs-revision',
-    summary: 'Dr Bob returned an unstructured review. Inspect the raw response.',
-    findings: [
-      {
-        severity: 'major',
-        title: 'Unstructured review response',
-        evidence: normalized.slice(0, 800),
-        requiredAction: 'Rerun the review or tighten the prompt until valid JSON is returned.',
-      },
-    ],
-    verificationChecks: [],
-    rawResponse: normalized,
+    review: {
+      decision: 'needs-revision',
+      summary: 'Dr Bob returned an unstructured review. Inspect the raw response.',
+      findings: [
+        {
+          severity: 'major',
+          title: 'Unstructured review response',
+          evidence: normalized.slice(0, 800),
+          requiredAction: 'Rerun the review or tighten the prompt until valid JSON is returned.',
+        },
+      ],
+      verificationChecks: [],
+      rawResponse: normalized,
+    },
+    structured: false,
+    normalized,
   };
+}
+
+function buildRetryPrompt(basePrompt, attempt) {
+  return [
+    basePrompt,
+    '',
+    `Retry attempt ${attempt}: your prior output was not valid JSON.`,
+    'Return only JSON, no markdown fences, no prose before or after JSON.',
+    'If uncertain, still return the JSON object with empty findings and explicit verificationChecks.',
+  ].join('\n');
+}
+
+function shouldAttemptBasicFix(review) {
+  const actionableTerms = [
+    'lint',
+    'format',
+    'unused import',
+    'type error',
+    'typescript',
+    'syntax',
+    'build failure',
+    'test failure',
+  ];
+
+  const hasBlocker = review.findings.some(
+    (finding) => String(finding?.severity || '').toLowerCase() === 'blocker',
+  );
+  if (hasBlocker) return false;
+
+  return review.findings.some((finding) => {
+    const text = `${finding?.title || ''} ${finding?.requiredAction || ''}`.toLowerCase();
+    return actionableTerms.some((term) => text.includes(term));
+  });
+}
+
+async function runCommand(command, args = []) {
+  return await new Promise((resolve) => {
+    const child = spawn(command, args, {
+      cwd: workspaceRoot,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: process.env,
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    child.on('close', (code) => {
+      resolve({ code: code ?? 1, stdout, stderr });
+    });
+  });
+}
+
+async function attemptBasicCodeFixes() {
+  const steps = [];
+
+  const lintFix = await runCommand('bun', ['run', 'lint', '--fix']);
+  steps.push({
+    step: 'lint-fix',
+    code: lintFix.code,
+    output: (lintFix.stdout + lintFix.stderr).slice(0, 1500),
+  });
+  if (lintFix.code !== 0) {
+    return { success: false, steps };
+  }
+
+  const build = await runCommand('bun', ['run', 'build']);
+  steps.push({
+    step: 'build-verify',
+    code: build.code,
+    output: (build.stdout + build.stderr).slice(0, 1500),
+  });
+
+  return { success: build.code === 0, steps };
+}
+
+async function writeEscalationArtifact(payload, requestedPath = '') {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const fallbackPath = path.join(workspaceRoot, 'data', 'dr-bob-escalations', `escalation.${stamp}.json`);
+  const outputPath = requestedPath
+    ? path.resolve(process.cwd(), requestedPath)
+    : fallbackPath;
+
+  await fs.mkdir(path.dirname(outputPath), { recursive: true });
+  await fs.writeFile(outputPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+  return outputPath;
 }
 
 async function postJson(url, headers, body) {
@@ -337,6 +446,10 @@ export async function runDrBobReview(options = {}) {
   const artifactText = await fs.readFile(artifactPath, 'utf8');
   const artifactType = inferArtifactType(artifactPath, String(options.type || '').trim());
   const failOnRevision = options.failOnRevision === true;
+  const strictJson = options.strictJson !== false;
+  const maxAttempts = Math.max(1, Number(options.maxAttempts || 3));
+  const selfHealBasic = options.selfHealBasic === true;
+  const escalateFile = String(options.escalateFile || '').trim();
 
   let systemState = '{}';
   try {
@@ -345,7 +458,7 @@ export async function runDrBobReview(options = {}) {
     systemState = JSON.stringify({ warning: 'system_state.json unavailable' });
   }
 
-  const prompt = buildReviewPrompt({
+  const basePrompt = buildReviewPrompt({
     artifactType,
     artifactPath,
     artifactText,
@@ -353,31 +466,73 @@ export async function runDrBobReview(options = {}) {
     failOnRevision,
   });
 
-  const delivery = await sendViaRunpod(prompt);
-  if (!delivery.sent) {
-    await recordScoredResponse({
-      target: 'Dr Bob',
-      channel: delivery.channel,
-      prompt,
-      response: delivery.text,
-      delivery,
-      metadata: { sourceFile: artifactPath },
-    });
-    throw new Error(`Dr Bob review failed (${delivery.status}): ${delivery.text.slice(0, 300)}`);
+  let delivery = null;
+  let review = null;
+  let structured = false;
+  let finalPrompt = basePrompt;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    finalPrompt = strictJson && attempt > 1 ? buildRetryPrompt(basePrompt, attempt) : basePrompt;
+    delivery = await sendViaRunpod(finalPrompt);
+    if (!delivery.sent) {
+      await recordScoredResponse({
+        target: 'Dr Bob',
+        channel: delivery.channel,
+        prompt: finalPrompt,
+        response: delivery.text,
+        delivery,
+        metadata: { sourceFile: artifactPath },
+      });
+      throw new Error(`Dr Bob review failed (${delivery.status}): ${delivery.text.slice(0, 300)}`);
+    }
+
+    const parsed = parseReviewResponse(delivery.text);
+    review = parsed.review;
+    structured = parsed.structured;
+
+    if (structured || !strictJson) break;
   }
 
-  const review = parseReviewResponse(delivery.text);
+  if (!review) {
+    throw new Error('Dr Bob review returned no review payload');
+  }
   const outputPath = await writeArtifact(review, artifactPath);
+
+  let basicFixResult = null;
+  if (selfHealBasic && shouldAttemptBasicFix(review)) {
+    basicFixResult = await attemptBasicCodeFixes();
+  }
+
+  const escalationRequired = !structured || hasBlockingFinding(review) || (selfHealBasic && basicFixResult && !basicFixResult.success);
+  let escalationPath = null;
+  if (escalationRequired) {
+    escalationPath = await writeEscalationArtifact({
+      createdAt: new Date().toISOString(),
+      sourceFile: artifactPath,
+      outputPath,
+      decision: review.decision,
+      structured,
+      escalationReason: !structured
+        ? 'unstructured-review'
+        : hasBlockingFinding(review)
+          ? 'blocker-findings'
+          : 'basic-fix-failed',
+      review,
+      basicFixResult,
+      requiredAction: 'Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope.',
+    }, escalateFile);
+  }
 
   await recordScoredResponse({
     target: 'Dr Bob',
     channel: delivery.channel,
-    prompt,
+    prompt: finalPrompt,
     response: JSON.stringify(review),
     delivery,
     metadata: {
       sourceFile: artifactPath,
       reviewDecision: review.decision,
+      qualityGateFailed: !structured,
     },
   });
 
@@ -402,6 +557,12 @@ export async function runDrBobReview(options = {}) {
   }
 
   console.log(`Review artifact: ${outputPath}`);
+  if (basicFixResult) {
+    console.log(`Basic self-heal: ${basicFixResult.success ? 'success' : 'failed'}`);
+  }
+  if (escalationPath) {
+    console.log(`Escalation artifact: ${escalationPath}`);
+  }
 
   const shouldFail = hasBlockingFinding(review) ||
     (failOnRevision && String(review.decision || '').toLowerCase() === 'needs-revision');
@@ -409,6 +570,9 @@ export async function runDrBobReview(options = {}) {
     artifactPath,
     outputPath,
     review,
+    structured,
+    basicFixResult,
+    escalationPath,
     shouldFail,
   };
 }
@@ -424,6 +588,10 @@ async function main() {
     file: requestedFile,
     type: getArg('type', '').trim(),
     failOnRevision: getBooleanArg('fail-on-revision', false),
+    strictJson: getBooleanArg('strict-json', true),
+    maxAttempts: getNumberArg('max-attempts', 3),
+    selfHealBasic: getBooleanArg('self-heal-basic', false),
+    escalateFile: getArg('escalate-file', '').trim(),
   });
   if (result.shouldFail) process.exit(1);
 }

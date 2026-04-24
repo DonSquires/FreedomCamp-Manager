@@ -8,6 +8,7 @@ WINDOW_MINUTES="${BOB_MONITOR_WINDOW_MINUTES:-15}"
 ERROR_THRESHOLD="${BOB_MONITOR_ERROR_THRESHOLD:-5}"
 ESCALATE_TO_DR_BOB="${BOB_ESCALATE_TO_DR_BOB:-true}"
 INCIDENT_FILE="${BOB_MONITOR_INCIDENT_FILE:-data/dr-bob-live-incident.md}"
+ESCALATION_FILE="${BOB_MONITOR_ESCALATION_FILE:-data/dr-bob-live-escalation.json}"
 
 TMP_INPUT="$(mktemp)"
 cleanup() {
@@ -90,5 +91,11 @@ ${LAST_ERRORS}
 EOF_INCIDENT
 
   echo "Bob monitor: escalating incident to Dr Bob via scripts/dr-bob-review.mjs"
-  node scripts/dr-bob-review.mjs --file "$INCIDENT_FILE" --type plan || true
+  node scripts/dr-bob-review.mjs \
+    --file "$INCIDENT_FILE" \
+    --type plan \
+    --strict-json true \
+    --max-attempts 4 \
+    --self-heal-basic true \
+    --escalate-file "$ESCALATION_FILE" || true
 fi

@@ -4,6 +4,7 @@ import { validateServiceUrl, buildEndpointUrl } from '../_shared/urlUtils.ts'
 const HEALTH_CHECK_TIMEOUT_MS = 8_000
 const INFERENCE_API_KEY = Deno.env.get('INFERENCE_API_KEY') || ''
 const DEFAULT_PTT_SERVER_URL = 'http://72.61.123.97:8080'
+const PTT_WS_URL = Deno.env.get('PTT_WS_URL') || Deno.env.get('PTT_SIGNALING_WS_URL') || ''
 
 // Validate and normalize URLs at startup
 const proxyValidation = validateServiceUrl(
@@ -18,6 +19,22 @@ const pttValidation = validateServiceUrl(
   Deno.env.get('PTT_SERVER_URL') || Deno.env.get('PTT_SERVICE_URL') || DEFAULT_PTT_SERVER_URL,
   'PTT_SERVER_URL'
 )
+
+function validateWsUrl(value: string): { valid: boolean; warning?: string; error?: string; normalized: string | null } {
+  const normalized = String(value || '').trim().replace(/\/+$/, '')
+  if (!normalized) {
+    return { valid: false, warning: 'PTT_WS_URL not set; derived ws URL from PTT server URL will be used', normalized: null }
+  }
+  if (!(normalized.startsWith('ws://') || normalized.startsWith('wss://'))) {
+    return { valid: false, error: 'PTT_WS_URL must start with ws:// or wss://', normalized }
+  }
+  if (normalized.startsWith('ws://')) {
+    return { valid: true, warning: 'PTT_WS_URL uses insecure ws://; HTTPS clients may reject mixed content', normalized }
+  }
+  return { valid: true, normalized }
+}
+
+const pttWsValidation = validateWsUrl(PTT_WS_URL)
 
 const PROXY_SERVER_URL = proxyValidation.url
 const INFERENCE_SERVICE_URL = inferenceValidation.url
@@ -64,13 +81,23 @@ Deno.serve(async (req) => {
         },
         inference_url: INFERENCE_SERVICE_URL || null,
         ptt: PTT_SERVER_URL
-          ? { status: 'unknown', warning: 'PTT health check skipped while core services are not configured' }
+          ? {
+              status: pttWsValidation.error ? 'degraded' : 'unknown',
+              warning: pttWsValidation.warning || 'PTT health check skipped while core services are not configured',
+              ...(pttWsValidation.error ? { error: pttWsValidation.error } : {}),
+            }
           : {
               status: 'offline',
               error: pttValidation.error || 'PTT_SERVER_URL not configured',
               warning: pttValidation.warning,
             },
         ptt_url: PTT_SERVER_URL || null,
+        ptt_ws_url: pttWsValidation.normalized,
+        ptt_ws_url_validation: {
+          valid: pttWsValidation.valid,
+          ...(pttWsValidation.warning ? { warning: pttWsValidation.warning } : {}),
+          ...(pttWsValidation.error ? { error: pttWsValidation.error } : {}),
+        },
         inference_api_key_configured: !!INFERENCE_API_KEY,
         checked_at: new Date().toISOString(),
       }),
@@ -137,6 +164,14 @@ Deno.serve(async (req) => {
           warning: pttValidation.warning,
         }
 
+    if (pttStatus.status === 'ok' && pttWsValidation.error) {
+      pttStatus.status = 'degraded'
+      pttStatus.error = pttWsValidation.error
+    }
+    if (pttWsValidation.warning) {
+      pttStatus.warning = pttWsValidation.warning
+    }
+
     return new Response(
       JSON.stringify({
         proxy: proxyStatus,
@@ -145,6 +180,12 @@ Deno.serve(async (req) => {
         inference_url: INFERENCE_SERVICE_URL,
         ptt: pttStatus,
         ptt_url: PTT_SERVER_URL || null,
+        ptt_ws_url: pttWsValidation.normalized,
+        ptt_ws_url_validation: {
+          valid: pttWsValidation.valid,
+          ...(pttWsValidation.warning ? { warning: pttWsValidation.warning } : {}),
+          ...(pttWsValidation.error ? { error: pttWsValidation.error } : {}),
+        },
         inference_api_key_configured: !!INFERENCE_API_KEY,
         checked_at: new Date().toISOString(),
       }),
