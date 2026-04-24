@@ -86,6 +86,16 @@ interface PTTMessage {
   fromName?: string
   code?: string
   message?: string
+  active?: boolean
+  initiatedBy?: string | null
+  initiatedByName?: string | null
+  at?: string | null
+  emergencyBroadcast?: {
+    active?: boolean
+    initiatedBy?: string | null
+    initiatedByName?: string | null
+    at?: string | null
+  }
   protocolVersion?: string
   interopProfile?: string
   selectedProtocol?: string
@@ -293,12 +303,17 @@ let ws: WebSocket | null = null
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
 let reconnectAttempts = 0
 const MAX_RECONNECT_ATTEMPTS = 8
+const SOCKET_CONNECT_TIMEOUT_MS = 12_000
 const MIN_TOKEN_REQUEST_INTERVAL_MS = 2200
 const TOKEN_REQUEST_AT_KEY = 'ptt-last-token-request-at'
+const MIN_TOKEN_REFRESH_DELAY_MS = 15_000
+const DEFAULT_TOKEN_EXPIRY_SECONDS = 300
 let tokenRequestInFlight: Promise<PTTTokenResponse> | null = null
 let tokenRequestInFlightScope: string | null = null
 let localTokenCooldownUntilMs = 0
 let pingInterval: ReturnType<typeof setInterval> | null = null
+let tokenRefreshTimeout: ReturnType<typeof setTimeout> | null = null
+let socketConnectTimeout: ReturnType<typeof setTimeout> | null = null
 let activeChannelScope: string | null = null  // Tracks the last requested scope for visibility-triggered reconnects
 let activeChannelName: string | null = null   // Tracks the channel display name for reconnect restoration
 let lastRequestedChannelScope: string | null = null
@@ -345,6 +360,44 @@ async function waitForPTTTokenWindow(): Promise<void> {
   if (nextAllowedAt > now) {
     await delay(nextAllowedAt - now)
   }
+}
+
+function clearTokenRefreshTimer(): void {
+  if (tokenRefreshTimeout) {
+    clearTimeout(tokenRefreshTimeout)
+    tokenRefreshTimeout = null
+  }
+}
+
+function clearSocketConnectTimeout(): void {
+  if (socketConnectTimeout) {
+    clearTimeout(socketConnectTimeout)
+    socketConnectTimeout = null
+  }
+}
+
+function scheduleTokenRefresh(channelScope: string, channelName: string | undefined, expiresInSeconds?: number): void {
+  clearTokenRefreshTimer()
+
+  const ttlSeconds = Number.isFinite(expiresInSeconds) && (expiresInSeconds || 0) > 0
+    ? Number(expiresInSeconds)
+    : DEFAULT_TOKEN_EXPIRY_SECONDS
+
+  // Refresh when ~60% of TTL remains (40% elapsed) to leave overlap for
+  // edge cold starts and transient network delays.
+  const delayMs = Math.max(MIN_TOKEN_REFRESH_DELAY_MS, Math.floor(ttlSeconds * 1000 * 0.4))
+
+  tokenRefreshTimeout = setTimeout(() => {
+    tokenRefreshTimeout = null
+
+    if (!activeChannelScope || activeChannelScope !== channelScope) return
+    const store = usePTTStore.getState()
+    if (store.connectionStatus !== 'connected') return
+
+    connectToPTT(channelScope, activeChannelName || channelName, true).catch((err) => {
+      console.warn('🎤 PTT: Token refresh reconnect deferred', err)
+    })
+  }, delayMs)
 }
 
 // Reconnect when the page/tab becomes visible again (handles mobile browser backgrounding).
@@ -681,13 +734,13 @@ export async function requestPTTToken(channelScope: string): Promise<PTTTokenRes
 /**
  * Connect to the PTT signaling server
  */
-export async function connectToPTT(channelScope: string, channelName?: string): Promise<void> {
+export async function connectToPTT(channelScope: string, channelName?: string, forceReconnect = false): Promise<void> {
   const store = usePTTStore.getState()
   lastRequestedChannelScope = channelScope
 
   // If already connected (or connecting) to the same channel, avoid churn.
   const sameChannel = store.channelId === channelScope
-  if (sameChannel && ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+  if (!forceReconnect && sameChannel && ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
     if (channelName) {
       const currentType = channelScope.split(':')[0] as PTTChannelType
       store.setChannel(channelScope, currentType, channelName)
@@ -697,7 +750,11 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
 
   // Disconnect existing connection
   if (ws) {
-    disconnectFromPTT()
+    if (forceReconnect) {
+      cleanupConnection()
+    } else {
+      disconnectFromPTT()
+    }
   }
 
   store.setConnection('connecting')
@@ -748,8 +805,18 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
     }
     ws = socket
 
+    socketConnectTimeout = setTimeout(() => {
+      if (ws !== socket || socket.readyState !== WebSocket.CONNECTING) return
+
+      console.warn('🎤 PTT: WebSocket connect timeout — forcing reconnect')
+      cleanupConnection()
+      store.setConnection('reconnecting')
+      scheduleReconnect(channelScope)
+    }, SOCKET_CONNECT_TIMEOUT_MS)
+
     socket.onopen = () => {
       if (ws !== socket) return
+      clearSocketConnectTimeout()
       console.log('🎤 PTT: Connected to signaling server')
       reconnectAttempts = 0
       lastSocketCloseCode = null
@@ -760,10 +827,12 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
       store.setConnection('connected')
       startPingInterval()
       sendClientHello()
+      scheduleTokenRefresh(channelScope, channelName, tokenData.expiresIn)
     }
 
     socket.onclose = (event) => {
       if (ws !== socket) return
+      clearSocketConnectTimeout()
       console.log('🎤 PTT: Disconnected', event.code, event.reason)
       lastSocketCloseCode = event.code
       lastSocketCloseReason = event.reason || null
@@ -832,6 +901,7 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
  */
 export function disconnectFromPTT(): void {
   activeChannelScope = null  // Stop visibility-triggered reconnects after an intentional disconnect
+  clearTokenRefreshTimer()
   cleanupConnection()
   usePTTStore.getState().reset()
 }
@@ -841,6 +911,8 @@ export function disconnectFromPTT(): void {
  */
 function cleanupConnection(): void {
   reconnectAttempts = 0
+  clearTokenRefreshTimer()
+  clearSocketConnectTimeout()
   if (reconnectTimeout) {
     clearTimeout(reconnectTimeout)
     reconnectTimeout = null
@@ -995,7 +1067,26 @@ function handleServerMessage(message: PTTMessage): void {
       if (message.speakerId) {
         store.setSpeaker(message.speakerId)
       }
+      if (message.emergencyBroadcast) {
+        store.setEmergencyBroadcastState(
+          message.emergencyBroadcast.active === true,
+          message.emergencyBroadcast.initiatedBy ?? null,
+          message.emergencyBroadcast.initiatedByName ?? null,
+          message.emergencyBroadcast.at ?? null,
+        )
+      } else {
+        store.setEmergencyBroadcastState(false)
+      }
       applyTransportDiagnostics(message.transport)
+      break
+
+    case 'emergency_broadcast':
+      store.setEmergencyBroadcastState(
+        message.active === true,
+        message.initiatedBy ?? null,
+        message.initiatedByName ?? null,
+        message.at ?? null,
+      )
       break
 
     case 'presence':
@@ -1391,10 +1482,10 @@ export async function startSpeaking(): Promise<void> {
 /**
  * Stop speaking (release)
  */
-export async function stopSpeaking(): Promise<void> {
+export async function stopSpeaking(): Promise<{ clipUrl?: string; duration?: number }> {
   const store = usePTTStore.getState()
 
-  if (!store.isSpeaking) return
+  if (!store.isSpeaking) return {}
 
   store.setSpeaking(false)
 
@@ -1444,6 +1535,7 @@ export async function stopSpeaking(): Promise<void> {
   recordingStartTime = null
 
   console.log('🎤 PTT: Stopped speaking')
+  return { clipUrl, duration }
 }
 
 /**
@@ -1493,6 +1585,12 @@ export async function playClip(clipUrl: string): Promise<void> {
 export function updateStatus(status: 'online' | 'busy' | 'offshift'): void {
   if (ws?.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'status', status }))
+  }
+}
+
+export function sendEmergencyBroadcast(active: boolean): void {
+  if (ws?.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'emergency_broadcast', active }))
   }
 }
 
