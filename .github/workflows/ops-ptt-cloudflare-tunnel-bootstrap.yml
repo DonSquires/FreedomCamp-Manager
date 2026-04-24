@@ -42,59 +42,60 @@ jobs:
 
       - name: Start Cloudflare tunnel on VPS
         id: tunnel
-        uses: appleboy/ssh-action@v1.0.3
         env:
+          VPS_IP: ${{ secrets.VPS_IP }}
+          VPS_USERNAME: ${{ secrets.VPS_USERNAME }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
           PTT_UPSTREAM_HOST: ${{ inputs.ptt_upstream_host }}
           PTT_UPSTREAM_PORT: ${{ inputs.ptt_upstream_port }}
-        with:
-          host: ${{ secrets.VPS_IP }}
-          username: ${{ secrets.VPS_USERNAME }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          envs: PTT_UPSTREAM_HOST,PTT_UPSTREAM_PORT
-          script: |
-            set -euo pipefail
-
-            : "${PTT_UPSTREAM_HOST:=127.0.0.1}"
-            : "${PTT_UPSTREAM_PORT:=8080}"
-
-            sudo mkdir -p /opt/cloudflared
-            if ! command -v cloudflared >/dev/null 2>&1; then
-              curl -fsSL --retry 3 https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /tmp/cloudflared
-              sudo install -m 0755 /tmp/cloudflared /usr/local/bin/cloudflared
-            fi
-
-            if pgrep -x cloudflared >/dev/null 2>&1; then
-              sudo pkill -x cloudflared || true
-            fi
-
-            sudo rm -f /var/log/ptt-cloudflared.log
-            sudo nohup cloudflared tunnel --url "http://${PTT_UPSTREAM_HOST}:${PTT_UPSTREAM_PORT}" --no-autoupdate > /var/log/ptt-cloudflared.log 2>&1 &
-
-            for _ in $(seq 1 30); do
-              url=$(sudo grep -Eo 'https://[-a-z0-9]+\.trycloudflare\.com' /var/log/ptt-cloudflared.log | tail -n1 || true)
-              if [ -n "$url" ]; then
-                echo "PTT_TUNNEL_URL=$url"
-                exit 0
-              fi
-              sleep 2
-            done
-
-            echo "Failed to discover Cloudflare tunnel URL"
-            sudo cat /var/log/ptt-cloudflared.log || true
-            exit 1
-
-      - name: Extract tunnel URL
-        id: extract
-        env:
-          SSH_OUTPUT: ${{ steps.tunnel.outputs.stdout }}
         run: |
           set -euo pipefail
-          tunnel_url=$(printf '%s\n' "$SSH_OUTPUT" | grep -Eo 'https://[-a-z0-9]+\.trycloudflare\.com' | tail -n1 || true)
-          if [ -z "$tunnel_url" ]; then
-            echo "::error::Tunnel URL not found in SSH output"
-            printf '%s\n' "$SSH_OUTPUT"
-            exit 1
-          fi
+
+          : "${PTT_UPSTREAM_HOST:=127.0.0.1}"
+          : "${PTT_UPSTREAM_PORT:=8080}"
+
+          key_file="$RUNNER_TEMP/ptt_vps_key"
+          printf '%s\n' "$VPS_SSH_KEY" > "$key_file"
+          chmod 600 "$key_file"
+
+          remote_script=$(cat <<'EOF'
+set -euo pipefail
+
+: "${PTT_UPSTREAM_HOST:=127.0.0.1}"
+: "${PTT_UPSTREAM_PORT:=8080}"
+
+sudo mkdir -p /opt/cloudflared
+if ! command -v cloudflared >/dev/null 2>&1; then
+  curl -fsSL --retry 3 https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /tmp/cloudflared
+  sudo install -m 0755 /tmp/cloudflared /usr/local/bin/cloudflared
+fi
+
+if pgrep -x cloudflared >/dev/null 2>&1; then
+  sudo pkill -x cloudflared || true
+fi
+
+sudo rm -f /var/log/ptt-cloudflared.log
+sudo nohup cloudflared tunnel --url "http://${PTT_UPSTREAM_HOST}:${PTT_UPSTREAM_PORT}" --no-autoupdate > /var/log/ptt-cloudflared.log 2>&1 &
+
+for _ in $(seq 1 30); do
+  url=$(sudo grep -Eo 'https://[-a-z0-9]+\.trycloudflare\.com' /var/log/ptt-cloudflared.log | tail -n1 || true)
+  if [ -n "$url" ]; then
+    echo "$url"
+    exit 0
+  fi
+  sleep 2
+done
+
+echo "Failed to discover Cloudflare tunnel URL" >&2
+sudo cat /var/log/ptt-cloudflared.log >&2 || true
+exit 1
+EOF
+)
+
+          tunnel_url=$(ssh -o StrictHostKeyChecking=no -i "$key_file" "$VPS_USERNAME@$VPS_IP" \
+            PTT_UPSTREAM_HOST="$PTT_UPSTREAM_HOST" PTT_UPSTREAM_PORT="$PTT_UPSTREAM_PORT" \
+            'bash -se' <<< "$remote_script" | tail -n1)
+
           echo "tunnel_url=$tunnel_url" >> "$GITHUB_OUTPUT"
           echo "wss_url=${tunnel_url/https:/wss:}/ws" >> "$GITHUB_OUTPUT"
 
@@ -105,8 +106,8 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
-          PTT_PUBLIC_HTTPS_URL: ${{ steps.extract.outputs.tunnel_url }}
-          PTT_PUBLIC_WSS_URL: ${{ steps.extract.outputs.wss_url }}
+          PTT_PUBLIC_HTTPS_URL: ${{ steps.tunnel.outputs.tunnel_url }}
+          PTT_PUBLIC_WSS_URL: ${{ steps.tunnel.outputs.wss_url }}
         run: |
           set -euo pipefail
 
