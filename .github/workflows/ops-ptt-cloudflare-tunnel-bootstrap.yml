@@ -63,9 +63,9 @@ jobs:
               sudo install -m 0755 /tmp/cloudflared /usr/local/bin/cloudflared
             fi
 
-            pkill -f 'cloudflared tunnel --url http://127.0.0.1:8080' || true
-            pkill -f 'cloudflared tunnel --url http://localhost:8080' || true
-            pkill -f 'cloudflared tunnel --url http://' || true
+            if pgrep -x cloudflared >/dev/null 2>&1; then
+              sudo pkill -x cloudflared || true
+            fi
 
             sudo rm -f /var/log/ptt-cloudflared.log
             sudo nohup cloudflared tunnel --url "http://${PTT_UPSTREAM_HOST}:${PTT_UPSTREAM_PORT}" --no-autoupdate > /var/log/ptt-cloudflared.log 2>&1 &
