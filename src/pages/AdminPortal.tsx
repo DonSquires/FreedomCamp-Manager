@@ -1191,10 +1191,16 @@ export default function AdminPortal() {
               </CardTitle>
               <CardDescription className="text-xs">Every operational module — click any tile to navigate</CardDescription>
             </CardHeader>
-            <CardContent className="pt-0 space-y-5">
+            <CardContent className="pt-0 space-y-4">
+
+              <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 px-3 py-2.5">
+                <p className="text-xs text-muted-foreground">
+                  Module groups are organised by operational function. Specialist services include scope context to reduce cross-jurisdiction mistakes.
+                </p>
+              </div>
 
               {/* Compliance & Enforcement */}
-              <div>
+              <div className="rounded-xl border border-blue-100 dark:border-blue-900/40 bg-blue-50/40 dark:bg-blue-950/10 p-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
                   <BarChart3 className="h-3 w-3 text-blue-500" /> Compliance & Enforcement
                 </p>
@@ -1225,7 +1231,7 @@ export default function AdminPortal() {
               </div>
 
               {/* Patrol & Officers */}
-              <div>
+              <div className="rounded-xl border border-green-100 dark:border-green-900/40 bg-green-50/40 dark:bg-green-950/10 p-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
                   <Navigation className="h-3 w-3 text-green-500" /> Patrol & Officers
                 </p>
@@ -1252,7 +1258,7 @@ export default function AdminPortal() {
               </div>
 
               {/* Vehicles & Zones */}
-              <div>
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30 p-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
                   <Car className="h-3 w-3 text-slate-500" /> Vehicles & Zones
                 </p>
@@ -1280,7 +1286,7 @@ export default function AdminPortal() {
               </div>
 
               {/* People & Records */}
-              <div>
+              <div className="rounded-xl border border-orange-100 dark:border-orange-900/40 bg-orange-50/40 dark:bg-orange-950/10 p-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
                   <Users className="h-3 w-3 text-orange-500" /> People & Records
                 </p>
@@ -1308,31 +1314,35 @@ export default function AdminPortal() {
               </div>
 
               {/* Specialist Services */}
-              <div>
+              <div className="rounded-xl border border-teal-100 dark:border-teal-900/40 bg-teal-50/40 dark:bg-teal-950/10 p-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
                   <Lock className="h-3 w-3 text-teal-500" /> Specialist Services
                 </p>
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
                   {[
-                    { path: '/parking',      label: 'Parking',      Icon: ParkingSquare, color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
-                    { path: '/noise-control',label: 'Noise Control', Icon: Volume2,       color: 'text-yellow-700', bg: 'bg-yellow-50 dark:bg-yellow-900/20' },
+                    { path: '/field-officer?service=freedom_camping', label: 'Freedom Camping', Icon: MapPin, color: 'text-emerald-700', bg: 'bg-emerald-50 dark:bg-emerald-900/20', scopeHint: 'Zone-based' },
+                    { path: '/parking-officer', label: 'Parking',      Icon: ParkingSquare, color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20', scopeHint: 'Zone-based' },
+                    { path: '/noise-officer', label: 'Noise Control', Icon: Volume2,       color: 'text-yellow-700', bg: 'bg-yellow-50 dark:bg-yellow-900/20', scopeHint: 'Jurisdiction' },
+                    { path: '/biosecurity-officer', label: 'Biosecurity', Icon: Search,    color: 'text-emerald-700', bg: 'bg-emerald-50 dark:bg-emerald-900/20', scopeHint: 'Jurisdiction' },
+                    { path: '/smoke-officer', label: 'Smoke (OOH)', Icon: AlertTriangle, color: 'text-amber-700', bg: 'bg-amber-50 dark:bg-amber-900/20', scopeHint: 'Jurisdiction' },
                     { path: '/ems',          label: 'EMS',           Icon: Zap,           color: 'text-red-700',    bg: 'bg-red-50 dark:bg-red-900/20' },
                     { path: '/site-guard',   label: 'Site Guard',    Icon: Lock,          color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
                     { path: '/client-sites', label: 'Client Sites',  Icon: Building2,     color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
                     { path: '/dispatch',     label: 'Dispatch',      Icon: Radio,         color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
-                  ].map(({ path, label, Icon, color, bg }) => (
+                  ].map(({ path, label, Icon, color, bg, scopeHint }) => (
                     <button key={path} onClick={() => navigate(path)}
-                      className={`min-h-20 flex flex-col items-center justify-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`}
+                      className={`min-h-20 flex flex-col items-center justify-center gap-0.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`}
                     >
                       <Icon className={`h-5 w-5 ${color}`} />
                       <span className="text-xs font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                      {scopeHint && <span className="text-[10px] text-muted-foreground leading-tight">{scopeHint}</span>}
                     </button>
                   ))}
                 </div>
               </div>
 
               {/* Workforce */}
-              <div>
+              <div className="rounded-xl border border-violet-100 dark:border-violet-900/40 bg-violet-50/40 dark:bg-violet-950/10 p-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
                   <CalendarDays className="h-3 w-3 text-violet-500" /> Workforce
                 </p>
@@ -1355,7 +1365,7 @@ export default function AdminPortal() {
               </div>
 
               {/* Reports & Analytics */}
-              <div>
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30 p-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
                   <FileBarChart className="h-3 w-3 text-gray-500" /> Reports & Analytics
                 </p>
