@@ -51,6 +51,32 @@ Deno.serve(async (req: Request) => {
     if (!noise_notice_id) throw new Error('noise_notice_id is required')
     if (!issued_by) throw new Error('issued_by is required')
 
+    const { data: profile, error: profileErr } = await supabaseAdmin
+      .from('user_profiles')
+      .select('id, role, organization_id, employer_organization_id, extra_organization_ids, authorized_work_locations')
+      .eq('id', authResult.user.id)
+      .single()
+
+    if (profileErr || !profile) {
+      throw new Error('User profile not found')
+    }
+
+    if (!['admin', 'admin_officer', 'master', 'officer'].includes(profile.role)) {
+      throw new Error('Insufficient permissions')
+    }
+
+    const allowedOrganizationIds = new Set<string>([
+      (profile as any).organization_id,
+      (profile as any).employer_organization_id,
+      ...(((profile as any).extra_organization_ids ?? []) as string[]),
+      ...(((profile as any).authorized_work_locations ?? []) as string[]),
+    ].filter((id): id is string => typeof id === 'string' && id.length > 0))
+
+    const canOverrideIssuedBy = ['admin', 'admin_officer', 'master'].includes(profile.role)
+    if (!canOverrideIssuedBy && issued_by !== authResult.user.id) {
+      throw new Error('issued_by must match the authenticated user')
+    }
+
     // ── 1. Fetch the notice ──────────────────────────────────────────────────
     const { data: notice, error: noticeErr } = await supabaseAdmin
       .from('noise_notices')
@@ -68,6 +94,10 @@ Deno.serve(async (req: Request) => {
       .single()
 
     if (noticeErr || !notice) throw new Error('Notice not found')
+
+    if (profile.role !== 'master' && !allowedOrganizationIds.has(notice.organization_id as string)) {
+      throw new Error('Forbidden')
+    }
 
     // ── 2. Fetch the issuing officer ─────────────────────────────────────────
     const { data: officer } = await supabaseAdmin
