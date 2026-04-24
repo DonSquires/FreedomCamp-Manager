@@ -207,7 +207,7 @@ PROXY_SERVER_URL  (Supabase secret — shared with NZSCV proxy)
 
 ---
 
-## 5. Inference Service (Railway)
+## 5. Inference Service (RunPod)
 
 **What it does**: Two essential things Supabase edge functions cannot do:
 1. Load ONNX models (YOLOv8n + MobileNetV3) — native binaries, 30 MB

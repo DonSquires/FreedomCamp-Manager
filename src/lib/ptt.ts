@@ -76,6 +76,7 @@ interface PTTMessage {
   status?: string
   presence?: PTTPresence[]
   channelId?: string
+  channelName?: string
   speakerId?: string
   clipUrl?: string
   duration?: number
@@ -299,6 +300,7 @@ let tokenRequestInFlightScope: string | null = null
 let localTokenCooldownUntilMs = 0
 let pingInterval: ReturnType<typeof setInterval> | null = null
 let activeChannelScope: string | null = null  // Tracks the last requested scope for visibility-triggered reconnects
+let activeChannelName: string | null = null   // Tracks the channel display name for reconnect restoration
 let lastRequestedChannelScope: string | null = null
 
 function delay(ms: number): Promise<void> {
@@ -692,7 +694,8 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
   store.setConnection('connecting')
   const channelType = channelScope.split(':')[0] as PTTChannelType
   store.setChannel(channelScope, channelType, channelName || null)
-  activeChannelScope = channelScope  // Remember for visibility-triggered reconnects
+  activeChannelScope = channelScope     // Remember for visibility-triggered reconnects
+  if (channelName) activeChannelName = channelName  // Remember for reconnect restoration
 
   try {
     // Get token from Edge Function
@@ -885,7 +888,7 @@ function scheduleReconnect(channelScope: string): void {
 
   reconnectTimeout = setTimeout(() => {
     reconnectTimeout = null
-    connectToPTT(channelScope).catch((err) => {
+    connectToPTT(channelScope, activeChannelName || undefined).catch((err) => {
       const message = err instanceof Error ? err.message : String(err || '')
       if (isTransientPTTErrorMessage(message)) {
         console.warn('🎤 PTT: Reconnect deferred', message)
@@ -943,7 +946,14 @@ function handleServerMessage(message: PTTMessage): void {
       break
 
     case 'sync':
-      // Initial sync on connect
+      // Initial sync on connect — restore channelName if the store lost it during reconnect
+      if (!store.channelName && activeChannelScope) {
+        const restoredName = message.channelName || activeChannelName || null
+        if (restoredName) {
+          const channelType = activeChannelScope.split(':')[0] as PTTChannelType
+          store.setChannel(activeChannelScope, channelType, restoredName)
+        }
+      }
       if (message.presence) {
         store.setPresence(message.presence)
 

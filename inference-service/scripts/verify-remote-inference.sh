@@ -3,13 +3,13 @@ set -eu
 
 # Verify a deployed inference service with /health and /infer calls.
 # Usage:
-#   INFERENCE_URL="https://your-service.up.railway.app" ./scripts/verify-remote-inference.sh
+#   INFERENCE_URL="https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync" ./scripts/verify-remote-inference.sh
 # Optional:
 #   TIMEOUT=60 ./scripts/verify-remote-inference.sh
 
 if [ "${INFERENCE_URL:-}" = "" ]; then
   echo "ERROR: INFERENCE_URL is required"
-  echo "Example: INFERENCE_URL=https://focused-courage-production-ccee.up.railway.app ./scripts/verify-remote-inference.sh"
+  echo "Example: INFERENCE_URL=https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync ./scripts/verify-remote-inference.sh"
   exit 1
 fi
 

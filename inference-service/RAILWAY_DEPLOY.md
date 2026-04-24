@@ -46,7 +46,7 @@ In Railway dashboard, click the **Variables** tab and add:
 | `CHAT_HEURISTIC_ENABLED` | `true` | Falls back to trained heuristic replies when Ollama is slow or unavailable |
 | `CHAT_TIMEOUT_MS` | `120000` | Gives RunPod-backed Ollama time to warm and answer |
 | `OLLAMA_BASE_URL` | `https://<runpod-gateway>.proxy.runpod.net` | RunPod gateway URL, or Railway internal Ollama URL if using the internal service |
-| `OLLAMA_MODEL` | `llama3.1:8b` | LLM model served by Ollama |
+| `OLLAMA_MODEL` | `qwen2.5:7b` | LLM model served by Ollama |
 | `SELF_HEALING_ENABLED` | `true` | Enables self-heal endpoints through Bob |
 
 #### Optional
@@ -73,7 +73,7 @@ In Railway dashboard, click the **Variables** tab and add:
 | `ALPR_RATE_LIMIT_RPM` | `60` | Max ALPR requests per minute per IP |
 | `TABULAR_RATE_LIMIT_RPM` | `20` | Max tabular NLP requests per minute per IP |
 | `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Ollama API endpoint (same pod). Use `http://127.0.0.1:11434` when Bob and Ollama are co-located on the same RunPod pod. |
-| `OLLAMA_MODEL` | `llama3.1:8b` | Only needed if using `VEHICLE_ATTRS_PROVIDER=ollama` |
+| `OLLAMA_MODEL` | `qwen2.5:7b` | Only needed if using `VEHICLE_ATTRS_PROVIDER=ollama` |
 
 Then click the **Settings** tab and set **Health Check Path** to `/health`.
 
@@ -110,7 +110,7 @@ Then click the **Settings** tab and set **Health Check Path** to `/health`.
 
 1. Go to **Settings** → **Networking**
 2. Click **Generate Domain**
-3. Copy your Railway URL (e.g. `https://focused-courage-production-ccee.up.railway.app`)
+3. Copy your Railway URL (e.g. `https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync`)
 
 ---
 
@@ -118,7 +118,7 @@ Then click the **Settings** tab and set **Health Check Path** to `/health`.
 
 ```bash
 # Replace with YOUR Railway URL
-RAILWAY_URL="https://focused-courage-production-ccee.up.railway.app"
+RAILWAY_URL="https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync"
 
 # Test health
 curl "$RAILWAY_URL/health" | jq .
@@ -149,7 +149,7 @@ curl -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" "$RAILWAY_URL/audit/e
 
 ```bash
 # Set your Railway URL in Supabase so Edge Functions can find the service
-supabase secrets set INFERENCE_SERVICE_URL="https://focused-courage-production-ccee.up.railway.app"
+supabase secrets set INFERENCE_SERVICE_URL="https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync"
 
 # Verify
 supabase secrets list

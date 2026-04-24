@@ -38,7 +38,7 @@
 
 5. **Generate Domain**
    - Settings → Networking → Generate Domain
-   - Copy URL: `https://focused-courage-production-ccee.up.railway.app`
+   - Copy URL: `https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync`
 
 **✅ Done!**
 
@@ -69,7 +69,7 @@ railway domain
 
 ```bash
 # Replace with YOUR Railway URL
-RAILWAY_URL="https://focused-courage-production-ccee.up.railway.app"
+RAILWAY_URL="https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync"
 
 # Test health
 curl "$RAILWAY_URL/health" | jq .
@@ -87,7 +87,7 @@ curl "$RAILWAY_URL/health" | jq .
 
 ```bash
 # Set inference URL in Supabase
-supabase secrets set INFERENCE_SERVICE_URL="https://focused-courage-production-ccee.up.railway.app"
+supabase secrets set INFERENCE_SERVICE_URL="https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync"
 
 # Verify
 supabase secrets list
@@ -110,7 +110,7 @@ supabase secrets list
 Reply with:
 ```
 ✅ Railway deployed
-URL: https://focused-courage-production-ccee.up.railway.app
+URL: https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync
 ```
 
 Then I'll proceed with:

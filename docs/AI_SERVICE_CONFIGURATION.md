@@ -97,7 +97,7 @@ curl https://kxwjcupuxnnbnzcgmkoi.supabase.co/functions/v1/check-railway-health
   "proxy": { "status": "online" },
   "proxy_url": "https://...",
   "inference": { "status": "online" },
-  "inference_url": "https://focused-courage-production-ccee.up.railway.app",
+  "inference_url": "https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync",
   "inference_api_key_configured": true,
   "checked_at": "2026-03-31T..."
 }

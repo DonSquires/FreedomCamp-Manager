@@ -73,7 +73,7 @@ Set these as environment variables in the pod's `.env` or via the `deploy-runpod
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ Required | Supabase service role key — used for JWT verification fallback |
 | `SUPABASE_URL` | Recommended | Supabase project URL (enables JWKS verification) |
 | `OLLAMA_BASE_URL` | ✅ Required | `http://127.0.0.1:11434` (Ollama runs locally on the same pod) |
-| `OLLAMA_MODEL` | Recommended | `llama3.1:8b` (must match pulled model) |
+| `OLLAMA_MODEL` | Recommended | `qwen2.5:7b` (must match pulled model) |
 | `CHAT_PROVIDER` | ✅ Required | `ollama` |
 | `TABULAR_NLP_PROVIDER` | Recommended | `ollama` |
 
@@ -105,10 +105,6 @@ Alias resolution is handled by `scripts/load-railway-secrets-from-github-env.sh`
 | Secret | Canonical | Required For | Notes |
 |---|---|---|---|
 | `RAILWAY_PROXY_SERVICE_ID` | ✅ | `deploy-proxy-railway.yml` | Proxy service ID |
-| `RAILWAY_BOB_TOKEN` | ⚠️ Deprecated | Previously `deploy-bob-railway.yml` | Bob has moved to RunPod |
-| `RAILWAY_BOB_SERVICE_ID` | ⚠️ Deprecated | Previously `deploy-bob-railway.yml` | Bob has moved to RunPod |
-| `RAILWAY_BOB_PROJECT_ID` | ⚠️ Deprecated | Previously `deploy-bob-railway.yml` | Bob has moved to RunPod |
-| `RAILWAY_OLLAMA_SERVICE_ID` | ⚠️ Deprecated | Previously `deploy-ollama-railway.yml` | Ollama runs on RunPod pod |
 | `RAILWAY_INFERENCE_SERVICE_ID` | ⚠️ Deprecated | `deploy-railway.yml` (legacy core) | Legacy inference-in-core-project deploy |
 
 ### Service URLs (Post-Deploy Health Checks + Wiring Audit)
@@ -331,7 +327,7 @@ Set environment variables in the pod's `.env` file or via deployment workflow en
 | `SUPABASE_JWKS_URL` | Optional | Default: derived from `SUPABASE_URL`; `https://<ref>.supabase.co/auth/v1/.well-known/jwks.json` |
 | `SUPABASE_JWT_ISSUER` | Optional | Default: derived from `SUPABASE_URL`; `https://<ref>.supabase.co/auth/v1` |
 | `OLLAMA_BASE_URL` | ✅ Required | `http://127.0.0.1:11434` — Ollama runs locally on the same pod |
-| `OLLAMA_MODEL` | Recommended | `llama3.1:8b` (must match pulled model) |
+| `OLLAMA_MODEL` | Recommended | `qwen2.5:7b` (must match pulled model) |
 | `CHAT_PROVIDER` | ✅ Required | `ollama` |
 | `TABULAR_NLP_PROVIDER` | Recommended | `ollama` |
 | `INTEL_HMAC_KEY` | ⚠️ Strongly recommended | HMAC key for intel bulletin verification; same as GitHub Actions `INTEL_HMAC_KEY` |
@@ -352,7 +348,7 @@ The RunPod gateway (`runpod-gateway/`) exposes Ollama to the internet behind `BO
 | Variable | Required | Value / Notes |
 |---|---|---|
 | `OLLAMA_HOST` | ✅ Required | `0.0.0.0:11434` (baked into Dockerfile) |
-| `OLLAMA_MODEL` | ✅ Required | `llama3.1:8b` — controls which model `start.sh` pre-pulls on boot |
+| `OLLAMA_MODEL` | ✅ Required | `qwen2.5:7b` — controls which model `start.sh` pre-pulls on boot |
 | `OLLAMA_KEEP_ALIVE` | Recommended | `24h` — keeps model loaded in RAM between requests |
 | `OLLAMA_NO_CLOUD` | ✅ Required | `true` — disables Ollama cloud telemetry |
 | `OLLAMA_ORIGINS` | Required | `*` — allows requests from Bob process |
@@ -505,14 +501,14 @@ Use this checklist when setting up a new environment or after team changes.
 - [ ] `SUPABASE_SERVICE_ROLE_KEY`
 - [ ] `SUPABASE_URL`
 - [ ] `OLLAMA_BASE_URL` = `http://127.0.0.1:11434`
-- [ ] `OLLAMA_MODEL` = `llama3.1:8b`
+- [ ] `OLLAMA_MODEL` = `qwen2.5:7b`
 - [ ] `CHAT_PROVIDER` = `ollama`
 - [ ] `TABULAR_NLP_PROVIDER` = `ollama`
 - [ ] `INTEL_HMAC_KEY` (matches GitHub Actions `INTEL_HMAC_KEY`)
 
 ### RunPod: Ollama (same pod as Bob)
 
-- [ ] `OLLAMA_MODEL` = `llama3.1:8b`
+- [ ] `OLLAMA_MODEL` = `qwen2.5:7b`
 - [ ] `OLLAMA_KEEP_ALIVE` = `24h`
 - [ ] `OLLAMA_NO_CLOUD` = `true`
 

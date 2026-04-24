@@ -111,20 +111,20 @@ const SUPABASE_KNOWLEDGE = {
 // ---------------------------------------------------------------------------
 
 const RAILWAY_KNOWLEDGE = {
-  summary: 'Railway.app is the hosting platform for all backend microservices. Each service has its own Docker container and Railway service ID.',
+  summary: 'Railway.app is used only for the proxy-server static-IP integration surface.',
   services: {
     bob_inference: {
       name: 'inference-service (Bob)',
       root: 'inference-service/',
       dockerfile: 'inference-service/Dockerfile',
-      railway_json: 'inference-service/railway.json',
+      railway_json: 'deprecated (Bob now runs on RunPod)',
       port: 3000,
       health_path: '/health',
       health_timeout: 60,
       start_command: 'node server.js',
-      deploy_workflow: '.github/workflows/deploy-bob-railway.yml',
+      deploy_workflow: '.github/workflows/build-ai-worker.yml',
       secrets_needed: ['INFERENCE_API_KEY', 'SUPABASE_URL', 'SUPABASE_JWKS_URL', 'SUPABASE_JWT_ISSUER', 'OLLAMA_BASE_URL', 'BOB_OPERATING_MODE'],
-      notes: 'Multi-stage Docker build: Python ONNX model export → Node builder → production image. Non-root nodejs user.',
+      notes: 'Runs on RunPod serverless endpoint. Multi-stage Docker build: Python ONNX model export → Node builder → production image. Non-root nodejs user.',
     },
     proxy_server: {
       name: 'proxy-server (NZSCV)',
@@ -154,11 +154,11 @@ const RAILWAY_KNOWLEDGE = {
       name: 'ollama (Local LLM)',
       root: 'ollama/',
       dockerfile: 'ollama/Dockerfile',
-      railway_json: 'ollama/railway.json',
-      port: 'dynamic — controlled by OLLAMA_HOST Railway variable (default 11434; currently 8080 if OLLAMA_HOST=0.0.0.0:8080 is set)',
+      railway_json: 'deprecated (Ollama now runs with Bob on RunPod)',
+      port: '11434 (co-located with Bob on RunPod pod)',
       health_path: '/api/tags',
       health_timeout: 300,
-      deploy_workflow: '.github/workflows/deploy-ollama-railway.yml',
+      deploy_workflow: '.github/workflows/build-ai-worker.yml',
       internal_url: 'http://127.0.0.1:11434 — Ollama runs on the same RunPod pod as Bob',
       notes: 'Ollama pinned at 0.20.2. OLLAMA_ORIGINS=*. OLLAMA_KEEP_ALIVE=24h. CRITICAL: Bob OLLAMA_BASE_URL must be http://127.0.0.1:11434 when Ollama runs co-located on the same RunPod pod.',
     },
@@ -175,10 +175,10 @@ const RAILWAY_KNOWLEDGE = {
     domains: 'Railway auto-assigns *.railway.app domains. Custom domains can be added via dashboard.',
   },
   common_issues: [
-    'Service crash on startup: check Railway logs dashboard. Common: missing env var, model file not found, port binding to wrong value.',
-    'Health check timeout: increase healthcheckTimeout in railway.json. Bob needs 60s because ONNX model loading takes ~30s.',
+    'Service crash on startup: for proxy, check Railway logs dashboard. For Bob/Ollama, check RunPod logs and worker startup.',
+    'Health check timeout: proxy uses Railway checks. Bob/Ollama use RunPod endpoint health and job status.',
     'OOM (Out of Memory): ONNX models need RAM. Bob needs at least 1GB RAM. Upgrade RunPod pod GPU/RAM if OOM errors appear.',
-    'Deploy failed: check GitHub Actions log for deploy-bob-railway.yml. Common: RAILWAY_TOKEN expired, service ID changed.',
+    'Deploy failed: check GitHub Actions logs. Bob/Ollama deploy through build-ai-worker.yml; proxy deploys via deploy-proxy-railway.yml.',
     'Ollama not responding: check circuit breaker state via GET /health on Bob. Breaker opens after 3 failures. Reset: wait 60s (OLLAMA_CB_COOLDOWN_MS) or redeploy Ollama.',
     'OLLAMA not reachable: verify OLLAMA_BASE_URL=http://127.0.0.1:11434 and that Ollama is running on the same RunPod pod.',
     'RAILWAY_TOKEN expired: regenerate in Railway dashboard → Account → Tokens. Update GitHub secret: GitHub → Settings → Secrets → RAILWAY_BOB_TOKEN.',
@@ -194,8 +194,7 @@ const GITHUB_KNOWLEDGE = {
   workflows_count: 25,
   deployment_workflows: {
     'deploy-frontend.yml': 'Deploys React/Vite admin to Vercel. Triggers on main push or workflow_dispatch. Supports production/preview environments. Uses VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID.',
-    'deploy-bob-railway.yml': 'DEPRECATED: Bob moved to RunPod. Retained for historical reference only.',
-    'deploy-ollama-railway.yml': 'DEPRECATED: Ollama moved to RunPod (same pod as Bob). Retained for historical reference only.',
+    'build-ai-worker.yml': 'Active Bob/Ollama deployment workflow to RunPod serverless.',
     'deploy-railway.yml': 'DEPRECATED: Bob/inference moved to RunPod. Only proxy-server deploy (deploy-proxy-railway.yml) is active on Railway.',
     'deploy-proxy-railway.yml': 'Deploys proxy-server to Railway. Triggers on proxy-server/ changes. 45s health wait.',
     'deploy-mobile.yml': 'Deploys mobile app via Expo EAS. Requires EXPO_TOKEN, EXPO_PROJECT_ID. Builds for android/ios/all. OTA updates via EAS Update.',
@@ -480,8 +479,8 @@ const HYBRID_STACK_KNOWLEDGE = {
       {
         name: 'Bob Inference Service',
         tech: 'Node.js + Express + ONNX Runtime + Ollama',
-        host: 'Railway',
-        url: 'https://<bob-service>.railway.app',
+        host: 'RunPod serverless',
+        url: 'https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync',
         connects_to: ['Ollama LLM (co-located on RunPod pod via 127.0.0.1:11434)', 'Supabase (for JWKS validation)'],
       },
       {
@@ -493,13 +492,13 @@ const HYBRID_STACK_KNOWLEDGE = {
       {
         name: 'PTT Signaling Server',
         tech: 'Node.js + Express + WebSocket (ws)',
-        host: 'Railway',
+        host: 'VPS 72.61.123.97',
         connects_to: ['Web browser (WebSocket)', 'Mobile app (WebSocket)', 'Supabase Edge Function (ptt-signaling-token → /api/token/mint)'],
       },
       {
         name: 'Ollama LLM',
-        tech: 'Ollama 0.20.2 with llama3.1:8b',
-        host: 'Railway (private network)',
+        tech: 'Ollama 0.20.2 with qwen2.5:7b',
+        host: 'RunPod pod (co-located with Bob)',
         connects_to: ['Bob inference service (RunPod pod)'],
       },
     ],
@@ -567,7 +566,7 @@ const RAILWAY_SERVICES_AUDIT = {
       file: 'inference-service/RAILWAY_DEPLOY.md',
       title: 'RAILWAY_DEPLOY.md "Bob Self-Contained Mode" table listed CHAT_PROVIDER and TABULAR_NLP_PROVIDER as "heuristic"',
       root_cause: 'Documentation was written with conservative local-dev defaults instead of production values. Production Bob uses Ollama for both, which is the whole point of deploying it.',
-      fix_applied: 'Updated table to show CHAT_PROVIDER=ollama, TABULAR_NLP_PROVIDER=ollama, and added OLLAMA_BASE_URL=http://127.0.0.1:11434 and OLLAMA_MODEL=llama3.1:8b to the required variables.',
+      fix_applied: 'Updated table to show CHAT_PROVIDER=ollama, TABULAR_NLP_PROVIDER=ollama, and added OLLAMA_BASE_URL=http://127.0.0.1:11434 and OLLAMA_MODEL=qwen2.5:7b to the required variables.',
       validation: 'ops-railway-wiring-audit.yml checks CHAT_PROVIDER=ollama and TABULAR_NLP_PROVIDER=ollama. Will now pass with correct production config.',
     },
     {

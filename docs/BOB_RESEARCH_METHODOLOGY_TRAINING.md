@@ -706,7 +706,7 @@ When analyzing technology claims:
    - Always check library `CHANGELOG.md` for breaking changes
 
 5. **Document your environment**
-   - "Tested on: Ollama 0.1.32, llama3.1:8b model, RunPod container"
+   - "Tested on: Ollama 0.1.32, qwen2.5:7b model, RunPod container"
    - "This may differ on other hardware/versions"
 
 ---

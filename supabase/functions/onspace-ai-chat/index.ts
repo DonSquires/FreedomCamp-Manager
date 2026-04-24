@@ -14,7 +14,7 @@
  *
  * Optional secrets for Ollama fallback/support:
  *   OLLAMA_BASE_URL         e.g. http://localhost:11434 or RunPod gateway URL (defaults to INFERENCE_SERVICE_URL)
- *   OLLAMA_MODEL            e.g. llama3.1:8b
+ *   OLLAMA_MODEL            e.g. qwen2.5:7b
  *   OLLAMA_API_KEY          Optional bearer key for gateway auth (defaults to INFERENCE_API_KEY)
  *   BOB_ATTITUDE_PROFILE    Optional Bob tone profile: operational|supportive|strict|coach
  *   BOB_ATTITUDE_INSTRUCTIONS Optional extra attitude instruction appended to system prompt
@@ -521,7 +521,7 @@ Deno.serve(async (req: Request) => {
     const model = requestedModel ?? defaultModel
 
     // RunPod worker and direct Ollama backends require an Ollama model tag, not OpenAI-style names.
-    const preferredOllamaModel = Deno.env.get('OLLAMA_MODEL') ?? 'llama3.1:8b'
+    const preferredOllamaModel = Deno.env.get('OLLAMA_MODEL') ?? 'qwen2.5:7b'
     const normalizeOllamaModel = (candidate: string) => {
       const value = String(candidate || '').trim()
       if (!value) return preferredOllamaModel

@@ -412,6 +412,7 @@ export default function PTTRadio() {
   const [isTransmitting, setIsTransmitting] = useState(false)
   const [scanMode, setScanMode] = useState(false)
   const [scanIndex, setScanIndex] = useState(0)
+  const [scanDwellMs, setScanDwellMs] = useState(8000)
   const [showSettings, setShowSettings] = useState(false)
   const [emergencyMode, setEmergencyMode] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
@@ -427,6 +428,8 @@ export default function PTTRadio() {
   const [microphoneError, setMicrophoneError] = useState<string | null>(null)
   const [showDiagnostics, setShowDiagnostics] = useState(false)
   const [diagnostics, setDiagnostics] = useState<PTTDiagnostics>(() => getPTTDiagnostics())
+  const [showVoxCalibrator, setShowVoxCalibrator] = useState(false)
+  const [degradedMode, setDegradedMode] = useState(false)
   const [interpreterInput, setInterpreterInput] = useState('')
   const [interpreterOutput, setInterpreterOutput] = useState('')
   const [interpreterTranslationMeta, setInterpreterTranslationMeta] = useState<TranslationResult | null>(null)
@@ -957,7 +960,7 @@ export default function PTTRadio() {
         }
         return next
       })
-    }, 2500)
+    }, scanDwellMs)
 
     return () => { if (scanTimerRef.current) clearInterval(scanTimerRef.current) }
   }, [scanMode, channels, speakerId, connectToChannel])
@@ -1117,6 +1120,8 @@ export default function PTTRadio() {
       await startSpeaking()
       setIsTransmitting(true)
       playStatusTone('tx_start')
+      // Haptic feedback: double-buzz on TX start (field-usable with gloves)
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([80, 40, 80])
 
       // Wake lock to keep screen on while transmitting
       if (!wakeLockRef.current) {
@@ -1142,6 +1147,8 @@ export default function PTTRadio() {
 
     setIsTransmitting(false)
     playStatusTone('tx_end')
+    // Short haptic on TX end
+    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(60)
 
     if (wakeLockRef.current) {
       releaseWakeLock()
@@ -1279,10 +1286,20 @@ export default function PTTRadio() {
         }
         return next
       })
-    }, 2500)
+    }, scanDwellMs)
 
     return () => { if (scanTimerRef.current) clearInterval(scanTimerRef.current) }
   }, [scanMode, channels, speakerId, connectToChannel])
+
+  // ── Degraded connection warning (15s stuck connecting → amber banner) ─────
+  useEffect(() => {
+    if (connectionStatus !== 'connecting') {
+      setDegradedMode(false)
+      return
+    }
+    const timer = setTimeout(() => setDegradedMode(true), 15000)
+    return () => clearTimeout(timer)
+  }, [connectionStatus])
 
   // ── Cleanup on unmount ────────────────────────────────────
   useEffect(() => {
@@ -1725,6 +1742,23 @@ export default function PTTRadio() {
           </div>
         )}
 
+        {/* ── Degraded connection banner ──────────────────── */}
+        {degradedMode && !error && (
+          <div className="px-4 py-2 bg-amber-950 border-b border-amber-700 text-xs text-amber-300 flex items-center gap-2 shrink-0">
+            <WifiOff className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+            PTT server unreachable — check your connection or use mobile phone direct.
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto h-6 text-xs text-amber-300 hover:text-white"
+              disabled={isConnecting}
+              onClick={() => { setDegradedMode(false); if (activeChannel) connectToChannel(activeChannel) }}
+            >
+              <RefreshCw className="h-3 w-3 mr-1" /> Retry
+            </Button>
+          </div>
+        )}
+
         {/* ── Notification hint ────────────────────────────── */}
         {showNotificationHint && (
           <div className="px-4 py-1.5 bg-blue-950 border-b border-blue-800 text-xs text-blue-300 flex items-center gap-2 shrink-0">
@@ -1836,22 +1870,39 @@ export default function PTTRadio() {
               </div>
             )}
 
-            {/* Main PTT Button */}
+            {/* TX pulsing ring indicator — unmissable in the dark */}
+            {isTransmitting && (
+              <div className="w-full flex flex-col items-center gap-1 shrink-0 pointer-events-none select-none">
+                <div className="relative flex items-center justify-center">
+                  <div className="absolute w-52 h-52 rounded-full border-4 border-red-500 animate-ping opacity-40" />
+                  <div className="absolute w-44 h-44 rounded-full border-2 border-red-400 animate-ping opacity-60" style={{ animationDelay: '0.15s' }} />
+                  <div className="w-36 h-36 rounded-full bg-red-600/20 flex items-center justify-center">
+                    <span className="text-red-300 font-black text-sm tracking-[0.3em] uppercase">TX</span>
+                  </div>
+                </div>
+                <span className="text-red-400 font-black text-base tracking-[0.2em] uppercase animate-pulse">TRANSMITTING</span>
+              </div>
+            )}
+
+            {/* Main PTT Button — full-width on mobile, round on desktop */}
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
                     ref={pttButtonRef}
-                    className={`select-none rounded-full flex items-center justify-center transition-all duration-100 border-4 ${
+                    className={[
+                      // Mobile: full-width tall bar; Desktop: round button
+                      'select-none touch-none flex items-center justify-center transition-all duration-100 border-4',
+                      'w-full min-h-[80px] rounded-2xl md:rounded-full md:min-h-0',
+                      'md:w-40 md:h-40',
                       isTransmitting
-                        ? 'bg-red-600 border-red-400 shadow-[0_0_40px_#dc262680] scale-105'
+                        ? 'bg-red-600 border-red-400 shadow-[0_0_40px_#dc262680] scale-[1.02]'
                         : emergencyMode
                         ? 'bg-red-900 border-red-600 animate-pulse'
                         : canSpeak && !isMuted
                         ? 'bg-slate-800 border-slate-600 hover:bg-slate-700 hover:border-blue-500 hover:shadow-[0_0_20px_#3b82f633] active:scale-95'
-                        : 'bg-slate-900 border-slate-800 opacity-50 cursor-not-allowed'
-                    }`}
-                    style={{ width: 160, height: 160 }}
+                        : 'bg-slate-900 border-slate-800 opacity-50 cursor-not-allowed',
+                    ].join(' ')}
                     onMouseDown={(e) => { e.preventDefault(); handlePTTPress() }}
                     onMouseUp={handlePTTRelease}
                     onMouseLeave={() => { if (isTransmitting) handlePTTRelease() }}
@@ -1878,7 +1929,7 @@ export default function PTTRadio() {
                           ? 'MUTED'
                           : connectionStatus !== 'connected'
                           ? connectionStatus.toUpperCase()
-                          : 'PTT'}
+                          : 'HOLD TO TALK'}
                       </span>
                     </div>
                   </button>
@@ -2171,7 +2222,7 @@ export default function PTTRadio() {
                 </div>
 
                 {voxEnabled && (
-                  <div>
+                  <div className="space-y-2">
                     <div className="flex justify-between text-xs text-slate-400 mb-1">
                       <span>VOX Threshold</span>
                       <span>{voxThreshold}%</span>
@@ -2182,6 +2233,40 @@ export default function PTTRadio() {
                       min={5} max={80} step={5}
                       className="w-full"
                     />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full border-slate-700 bg-slate-800 text-slate-200 text-xs"
+                      onClick={() => setShowVoxCalibrator(!showVoxCalibrator)}
+                    >
+                      {showVoxCalibrator ? 'Hide Calibrator' : 'Calibrate VOX'}
+                    </Button>
+                    {showVoxCalibrator && (
+                      <div className="rounded-lg border border-slate-700 bg-slate-950 p-3 space-y-2">
+                        <div className="flex items-center justify-between text-xs text-slate-400">
+                          <span className="uppercase tracking-widest">Live dB Level</span>
+                          <span className="tabular-nums font-bold text-slate-200">{audioLevel}%</span>
+                        </div>
+                        <div className="relative h-3 bg-slate-800 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-75 ${
+                              audioLevel >= voxThreshold ? 'bg-red-500' : audioLevel > voxThreshold * 0.7 ? 'bg-amber-400' : 'bg-green-500'
+                            }`}
+                            style={{ width: `${audioLevel}%` }}
+                          />
+                          {/* Threshold marker */}
+                          <div
+                            className="absolute top-0 bottom-0 w-0.5 bg-white opacity-70"
+                            style={{ left: `${voxThreshold}%` }}
+                          />
+                        </div>
+                        <div className="text-[10px] text-slate-500">
+                          {audioLevel >= voxThreshold
+                            ? '🔴 Would transmit now — raise threshold if wind is triggering it'
+                            : `Mic below threshold — speak to test. Threshold: ${voxThreshold}%`}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -2199,6 +2284,27 @@ export default function PTTRadio() {
                     }}
                     className="data-[state=checked]:bg-blue-600"
                   />
+                </div>
+
+                {/* Scanner dwell */}
+                <div>
+                  <div className="text-sm text-slate-200 mb-1">Scanner Dwell</div>
+                  <div className="flex gap-2">
+                    {[5000, 8000, 15000].map((ms) => (
+                      <button
+                        key={ms}
+                        className={`flex-1 py-1.5 rounded text-xs font-bold border transition-colors ${
+                          scanDwellMs === ms
+                            ? 'bg-yellow-500/20 border-yellow-600 text-yellow-300'
+                            : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'
+                        }`}
+                        onClick={() => setScanDwellMs(ms)}
+                      >
+                        {ms / 1000}s
+                      </button>
+                    ))}
+                  </div>
+                  <div className="text-[10px] text-slate-600 mt-1">Time on each channel before cycling</div>
                 </div>
               </div>
             )}

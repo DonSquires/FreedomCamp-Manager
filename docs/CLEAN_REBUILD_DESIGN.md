@@ -639,7 +639,7 @@ Do not configure direct external cloud AI providers for production enforcement w
 
 ```env
 # Supabase Edge Function secrets
-INFERENCE_SERVICE_URL=https://<inference>.up.railway.app
+INFERENCE_SERVICE_URL=https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync
 INFERENCE_API_KEY=<inference-shared-secret>
 
 # inference-service env vars (on Fly.io / Railway)

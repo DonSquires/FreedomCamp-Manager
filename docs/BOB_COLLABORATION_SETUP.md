@@ -50,7 +50,7 @@ Security notes:
 
 **Once Available**, command to activate:
 ```bash
-export INFERENCE_SERVICE_URL="https://focused-courage-production-ccee.up.railway.app"
+export INFERENCE_SERVICE_URL="https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync"
 export INFERENCE_API_KEY="<your-secret-key>"
 ```
 

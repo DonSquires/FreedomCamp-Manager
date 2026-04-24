@@ -10,7 +10,7 @@ set -eu
 #   TIMEOUT
 #
 # Example:
-#   INFERENCE_URL="https://focused-courage-production-ccee.up.railway.app" \
+#   INFERENCE_URL="https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync" \
 #   SUPABASE_URL="https://xbfnlzmpumthnjmtqufp.supabase.co" \
 #   ./scripts/verify-all.sh
 

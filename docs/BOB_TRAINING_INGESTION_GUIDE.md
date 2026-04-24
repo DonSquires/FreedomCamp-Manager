@@ -60,7 +60,7 @@ When Bob solves a problem, analyzes code, or provides guidance, his response inc
 ```json
 {
   "response": "...",
-  "model": "llama3.1:8b",
+  "model": "qwen2.5:7b",
   "provider": "runpod-serverless-ollama",
   "metadata": {
     "confidence": 0.85,

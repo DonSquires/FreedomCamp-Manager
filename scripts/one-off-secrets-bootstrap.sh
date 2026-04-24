@@ -5,7 +5,7 @@ set -euo pipefail
 # and Railway service variables. Values are sourced from existing environment
 # variables where available, with secure random defaults generated for internal keys.
 # Example:
-#   export INFERENCE_SERVICE_URL="https://focused-courage-production-ccee.up.railway.app"
+#   export INFERENCE_SERVICE_URL="https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"

@@ -106,7 +106,7 @@ bulletins.push({
     Migrations: 70+ SQL files in supabase/migrations/ prefixed YYYYMMDD_*. Apply: supabase db push.
     Edge Functions: 47 functions. Deploy: supabase functions deploy <name> --project-ref $REF.
     Bob + Ollama: RunPod pod (SSH root@<RUNPOD_POD_SSH_HOST>). OLLAMA_BASE_URL=http://127.0.0.1:11434.
-    Ollama model: llama3.1:8b. Bob env: CHAT_PROVIDER=ollama, OLLAMA_MODEL=llama3.1:8b.
+    Ollama model: qwen2.5:7b. Bob env: CHAT_PROVIDER=ollama, OLLAMA_MODEL=qwen2.5:7b.
     Railway: proxy-server only (NZSCV/MotorWeb proxy). RAILWAY_TOKEN (proxy deploy).
     PTT + TURN: hPanel VPS ssh root@72.61.123.97.
     GitHub Actions: 25 workflows. Key: sync-bob-repo.yml mirrors inference-service/ to DonSquires/Bob.
@@ -308,9 +308,9 @@ bulletins.push({
   summary: clip(`
     Bob Inference: deployed on RunPod pod. INFERENCE_SERVICE_URL = Bob's public RunPod URL.
     Ollama: same RunPod pod as Bob, OLLAMA_BASE_URL=http://127.0.0.1:11434 (local).
-    Model: llama3.1:8b. Keep-alive: 24h.
+    Model: qwen2.5:7b. Keep-alive: 24h.
     Bob required env: INFERENCE_API_KEY, CHAT_PROVIDER=ollama, TABULAR_NLP_PROVIDER=ollama,
-    OLLAMA_BASE_URL=http://127.0.0.1:11434, OLLAMA_MODEL=llama3.1:8b,
+    OLLAMA_BASE_URL=http://127.0.0.1:11434, OLLAMA_MODEL=qwen2.5:7b,
     SELF_LEARNING_ENABLED=true, SELF_LEARNING_PRETRAIN_PROFILE=nz-enforcement-v1.
     Sync: FreedomCamp-Manager push to main that touches inference-service/ auto-syncs to DonSquires/Bob
     via .github/workflows/sync-bob-repo.yml. BOB_SYNC_PAT secret required.

@@ -433,7 +433,7 @@ SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
 # Railway Services
 PROXY_SERVER_URL=https://<proxy>.up.railway.app
 PROXY_SECRET=<shared-secret>
-INFERENCE_SERVICE_URL=https://<inference>.up.railway.app
+INFERENCE_SERVICE_URL=https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync
 INFERENCE_API_KEY=<inference-shared-secret>
 
 # External APIs
@@ -1787,8 +1787,8 @@ Build in parallel with pages:
    ```
 3. **Test inference endpoints**:
    ```bash
-   curl https://<inference>.up.railway.app/health
-   curl -X POST https://<inference>.up.railway.app/infer \
+   curl https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync/health
+   curl -X POST https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync/infer \
      -F "image=@test-vehicle.jpg"
    ```
 4. **Verify Edge Functions** call Railway services correctly

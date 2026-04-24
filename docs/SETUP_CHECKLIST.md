@@ -323,7 +323,7 @@ Set these in the pod's `.env` file or via `deploy-runpod-gateway.yml`:
 - [ ] `SUPABASE_SERVICE_ROLE_KEY`
 - [ ] `SUPABASE_URL`
 - [ ] `OLLAMA_BASE_URL` = `http://127.0.0.1:11434`
-- [ ] `OLLAMA_MODEL` = `llama3.1:8b`
+- [ ] `OLLAMA_MODEL` = `qwen2.5:7b`
 - [ ] `CHAT_PROVIDER` = `ollama`
 - [ ] `TABULAR_NLP_PROVIDER` = `ollama`
 - [ ] `INTEL_HMAC_KEY` (from Phase 0; must match GitHub Actions)
@@ -331,7 +331,7 @@ Set these in the pod's `.env` file or via `deploy-runpod-gateway.yml`:
 
 ### 5b. Ollama LLM Service (same RunPod pod as Bob)
 
-- [ ] `OLLAMA_MODEL` = `llama3.1:8b`
+- [ ] `OLLAMA_MODEL` = `qwen2.5:7b`
 - [ ] `OLLAMA_KEEP_ALIVE` = `24h`
 - [ ] `OLLAMA_NO_CLOUD` = `true`
 - [ ] `OLLAMA_ORIGINS` = `*`

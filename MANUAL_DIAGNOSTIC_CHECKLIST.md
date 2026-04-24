@@ -25,7 +25,7 @@ cat wiring-audit-result.json
 ```json
 {
   "proxy_url": "https://proxy-server.railway.app",
-  "inference_url": "https://inference-service.railway.app",
+  "inference_url": "https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync",
   "ptt_url": "https://ptt-server.railway.app",
   "proxy": { "status": "ok" },
   "inference": {

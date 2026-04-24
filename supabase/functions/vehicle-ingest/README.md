@@ -73,7 +73,7 @@ ALPR_CONF_THRESHOLD=0.78
 ### ORC (Fallback)
 
 ```bash
-INFERENCE_SERVICE_URL=https://focused-courage-production-ccee.up.railway.app
+INFERENCE_SERVICE_URL=https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync
 ```
 
 ## Request Format
@@ -146,7 +146,7 @@ supabase secrets set \
   ALPR_CONFIG='{"mode":"fast"}' \
   ALPR_TIMEOUT_MS=15000 \
   ALPR_CONF_THRESHOLD=0.78 \
-  INFERENCE_SERVICE_URL=https://focused-courage-production-ccee.up.railway.app
+  INFERENCE_SERVICE_URL=https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync
 
 # Deploy function
 supabase functions deploy vehicle-ingest

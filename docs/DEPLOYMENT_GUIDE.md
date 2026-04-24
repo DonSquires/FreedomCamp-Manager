@@ -171,9 +171,9 @@ Then run smoke tests for:
 
 ---
 
-### Option 3: Railway (self-hosted option)
+### Option 3: Railway (proxy-only)
 
-Railway can host supporting services (e.g., `inference-service/`, `proxy-server/`) and, if desired, a static deploy of the web app. Use this when you want a single PaaS without Fly/Render.
+Railway is used for the proxy static-IP surface (`proxy-server/`) only. Bob/Ollama inference runs on RunPod.
 
 **Quick steps**
 1. Install CLI & login:
@@ -181,7 +181,7 @@ Railway can host supporting services (e.g., `inference-service/`, `proxy-server/
    npm i -g @railway/cli
    railway login
    ```
-2. From the service directory (e.g., `inference-service/`):
+2. From the service directory (`proxy-server/`):
    ```bash
    railway link   # or railway init
    railway up
@@ -190,7 +190,7 @@ Railway can host supporting services (e.g., `inference-service/`, `proxy-server/
    ```bash
    railway variables set VITE_SUPABASE_URL=... VITE_SUPABASE_ANON_KEY=...
    ```
-4. Copy the deployment URL from `railway status` and wire it into app config/secrets.
+4. Copy the proxy deployment URL from `railway status` and wire it into app config/secrets.
 
 See `docs/RAILWAY_DEPLOYMENT_GUIDE.md` for full instructions (including GitHub deployments and endpoint tests).
 
@@ -294,14 +294,14 @@ Set these via **Supabase Dashboard → Project Settings → Edge Functions → M
 
 ```bash
 PROXY_SERVER_URL=https://your-proxy-server.railway.app
-INFERENCE_SERVICE_URL=https://your-inference-service.railway.app
+INFERENCE_SERVICE_URL=https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync
 INFERENCE_API_KEY=your-inference-shared-secret
 ALPR_API_TOKEN=your-parkpow-token
 ALPR_API_URL=https://app.parkpow.com/api/v1
 
 # AI policy: inference-service only (no direct external AI provider secrets in Supabase)
 # Keep INFERENCE_SERVICE_URL as a full HTTPS URL with scheme, for example:
-#   https://focused-courage-production-ccee.up.railway.app
+#   https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync
 
 # Edge Function SMTP email (report emails, infringement notices, notices to vacate)
 # User invitation emails are sent by Supabase Auth invite flow, configured under
@@ -326,7 +326,7 @@ CHAT_PROVIDER=ollama
 VEHICLE_ATTRS_PROVIDER=basic
 TABULAR_NLP_PROVIDER=ollama
 OLLAMA_BASE_URL=http://127.0.0.1:11434
-OLLAMA_MODEL=llama3.1:8b
+OLLAMA_MODEL=qwen2.5:7b
 SELF_HEALING_ENABLED=true
 ```
 

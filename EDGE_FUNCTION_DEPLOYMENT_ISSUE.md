@@ -99,8 +99,8 @@ Then test:
 
 Once the function is reachable, also make sure you've set these secrets
 (from `BOB_INFERENCE_SECRET_CONFIGURATION.md`):
-- `INFERENCE_SERVICE_URL = https://focused-courage-production-ccee.up.railway.app`
-- `OLLAMA_BASE_URL = http://ollama.railway.internal:8080`  
+- `INFERENCE_SERVICE_URL = https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync`
+- `OLLAMA_BASE_URL = http://127.0.0.1:11434` (Ollama is co-located on the RunPod pod)
 - `INFERENCE_API_KEY = <Bob service API key>`
 
 ## How to Check Git-Based Deployment Status

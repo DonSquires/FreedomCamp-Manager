@@ -102,7 +102,7 @@ Set via Supabase/hosted runtime environment and RunPod endpoint configuration:
 | `INFERENCE_API_URL` | RunPod Serverless endpoint URL for Bob/Ollama inference |
 | `OLLAMA_HOST` | URL to the runpod-gateway, e.g. `https://xxx-8080.proxy.runpod.net` |
 | `OLLAMA_GATEWAY_KEY` | Bearer token for runpod-gateway |
-| `OLLAMA_MODEL` | Active chat model, e.g. `llama3.1:8b`, `llama3.3:70b` |
+| `OLLAMA_MODEL` | Active chat model, e.g. `qwen2.5:7b`, `llama3.3:70b` |
 | `OLLAMA_VISION_MODEL` | Vision model, e.g. `llava:7b`, `llava:13b` |
 | `OLLAMA_MODEL_WRITING` | Model for report writing |
 | `TRANSLATION_MODEL` | Model for real-time translation |
@@ -268,7 +268,7 @@ Run workflow: **`ops-upgrade-bob-model.yml`** (GitHub Actions → Actions tab)
 The workflow:
 1. SSHes into RunPod pod
 2. Detects available VRAM via `nvidia-smi`
-3. Pulls the largest model that fits: `qwen2.5:72b` → `llama3.3:70b` → `qwen2.5:32b` → `mistral:22b` → `llama3.1:8b`
+3. Pulls the largest model that fits: `qwen2.5:72b` → `llama3.3:70b` → `qwen2.5:32b` → `mistral:22b` → `qwen2.5:7b`
 4. Updates Railway env vars (`OLLAMA_MODEL`, `OLLAMA_VISION_MODEL`, etc.)
 5. Redeploys Bob and smoke-tests the new model
 
@@ -321,8 +321,6 @@ The workflow:
 | Workflow | Reason removed |
 |----------|---------------|
 | `deploy-railway.yml` | Legacy ONNX Railway deploy removed |
-| `deploy-bob-railway.yml` | Bob/Ollama moved to RunPod Serverless |
-| `deploy-ollama-railway.yml` | Bob/Ollama moved to RunPod Serverless |
 | `deploy-ptt-railway.yml` | PTT moved to Voice VPS (`72.61.123.97`) |
 | `ops-fix-inference-vars.yml` | One-shot purpose fulfilled |
 | `set-ptt-secret.yml` | One-shot purpose fulfilled |

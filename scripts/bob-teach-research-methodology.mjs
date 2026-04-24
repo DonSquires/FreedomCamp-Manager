@@ -101,7 +101,7 @@ async function chat(messages) {
       },
       body: JSON.stringify({
         messages,
-        model: 'llama3.1:8b',
+        model: 'qwen2.5:7b',
         stream: false,
       }),
     })

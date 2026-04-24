@@ -139,8 +139,8 @@ const STACK_TOPOLOGY = {
       name: 'CI/CD Layer',
       tech: 'GitHub Actions',
       directory: '.github/workflows/',
-      description: 'Deploy workflows for frontend (Vercel), Bob+Ollama (RunPod), proxy (Railway), PTT+TURN (VPS), mobile (EAS). DB migrations via Supabase CLI. DB migrations via Supabase CLI.',
-      key_workflows: 'deploy-frontend.yml, deploy-bob-railway.yml, deploy-edge-functions.yml, db-run-migrations.yml, sync-bob-repo.yml.',
+      description: 'Deploy workflows for frontend (Vercel), Bob+Ollama (RunPod), proxy (Railway), PTT+TURN (VPS), mobile (EAS). DB migrations via Supabase CLI.',
+      key_workflows: 'deploy-frontend.yml, build-ai-worker.yml, deploy-edge-functions.yml, db-run-migrations.yml, sync-bob-repo.yml.',
     },
   ],
 };

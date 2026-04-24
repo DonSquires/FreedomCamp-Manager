@@ -13,7 +13,7 @@ done
 sleep 2
 echo "[start] Ollama is ready"
 
-MODEL="${OLLAMA_MODEL:-llama3.1:8b}"
+MODEL="${OLLAMA_MODEL:-qwen2.5:7b}"
 echo "[start] Verifying model $MODEL is available (pre-baked at build time)..."
 # Model is pre-baked — pull only if somehow missing
 if ! ollama list 2>/dev/null | grep -q "$MODEL"; then

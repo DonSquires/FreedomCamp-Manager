@@ -83,7 +83,7 @@ Bob's own canonical deploy repo (`DonSquires/Bob`) should have:
 
 | Component | Status | Domain / Notes |
 |---|---|---|
-| Bob Inference | ✅ Deployed | `https://focused-courage-production-ccee.up.railway.app` |
+| Bob Inference | ✅ Deployed | `https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync` |
 | Ollama | ✅ Deployed | `ollama-production-a142.up.railway.app` (us-west2, CPU, 22 GiB RAM, Ollama v0.20.2) |
 
 ## Ollama Service Details
@@ -93,15 +93,12 @@ Bob's own canonical deploy repo (`DonSquires/Bob`) should have:
 - **Replicas**: 1
 - **Compute**: CPU-only (22.4 GiB RAM available)
 - **Internal port**: 11434 (configured via `OLLAMA_HOST=http://0.0.0.0:11434`)
-- **Internal URL**: `http://ollama.railway.internal:11434`
+- **Internal URL**: `http://127.0.0.1:11434` (Ollama is co-located with Bob on the same RunPod pod)
 - **Keep-alive**: 24 hours (`OLLAMA_KEEP_ALIVE=24h0m0s`)
 - **Default context**: 4096 tokens
 
-> **Note**: Railway's Ollama service listens on port **11434**.
-> Bob must use `http://ollama.railway.internal:11434` as `OLLAMA_BASE_URL`.
->
-> For Railway dashboard source deploy settings, set Root Directory to `ollama`
-> (no leading slash). `/ollama` can break manual snapshot redeploy.
+> **Note**: Ollama runs co-located with Bob on the RunPod pod.
+> Bob must use `http://127.0.0.1:11434` (or `http://ollama:11434` in multi-container dev) as `OLLAMA_BASE_URL`.
 
 ## Setup Steps
 
@@ -109,19 +106,19 @@ Bob's own canonical deploy repo (`DonSquires/Bob`) should have:
 
 Shell into the Ollama service and pull the model:
 ```bash
-ollama pull llama3.1:8b
+ollama pull qwen2.5:7b
 ```
 
 ### 2. Configure Bob Inference Environment Variables
 
-In **Bob Inference service → Settings → Variables**, add exactly these variables:
+In **Bob Inference (RunPod) → Template → Environment Variables**, add exactly these variables:
 
 ```
 INFERENCE_API_KEY=<strong random secret>
 CHAT_PROVIDER=ollama
 TABULAR_NLP_PROVIDER=ollama
-OLLAMA_BASE_URL=http://ollama.railway.internal:11434
-OLLAMA_MODEL=llama3.1:8b
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+OLLAMA_MODEL=qwen2.5:7b
 SELF_CONTAINED_MODE=true
 REQUIRE_SELF_CONTAINED_MODE=true
 SELF_CONTAINED_STRICT_EGRESS=true
@@ -147,7 +144,7 @@ In **Bob Inference service → click Redeploy** (or push to `main` on DonSquires
 ### 4. Verify Bob + Ollama
 
 ```bash
-BOB_URL="https://focused-courage-production-ccee.up.railway.app"
+BOB_URL="https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync"
 
 # Test Bob health
 curl -sS "$BOB_URL/health" | jq .
@@ -207,9 +204,9 @@ SIMILARITY_THRESHOLD_MAX=0.95
 SELF_LEARNING_ENABLED=true
 SELF_HEALING_ENABLED=true
 
-# --- Internal Ollama URL (Ollama listens on port 11434 on Railway private networking) ---
-OLLAMA_BASE_URL=http://ollama.railway.internal:11434
-OLLAMA_MODEL=llama3.1:8b
+# --- Internal Ollama URL (Ollama is co-located on the RunPod pod) ---
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+OLLAMA_MODEL=qwen2.5:7b
 ```
 
 ### Profile B: strict self-contained Bob
@@ -255,7 +252,7 @@ SELF_HEALING_ENABLED=true
 # CHAT_PROVIDER=ollama
 # TABULAR_NLP_PROVIDER=ollama
 # OLLAMA_BASE_URL=http://127.0.0.1:11434
-# OLLAMA_MODEL=llama3.1:8b
+# OLLAMA_MODEL=qwen2.5:7b
 ```
 
 ## Verify Deployment
@@ -270,9 +267,9 @@ After deploy:
 Example checks:
 
 ```bash
-curl -sS https://focused-courage-production-ccee.up.railway.app/health
+curl -sS https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync/health
 
-curl -sS -X POST https://focused-courage-production-ccee.up.railway.app/chat \
+curl -sS -X POST https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync/chat \
   -H 'Content-Type: application/json' \
   -d '{"message":"ping"}'
 ```
@@ -318,14 +315,14 @@ For Profile A, also verify Bob logs indicate `CHAT_PROVIDER=ollama`.
 
 | Workflow | Trigger | Service |
 |---|---|---|
-| `deploy-bob-railway.yml` | Push to `main` (inference-service/) or manual | Bob inference |
-| `deploy-ollama-railway.yml` | Manual only | Ollama LLM server |
+| `build-ai-worker.yml` | Push to `main` (inference-service/) or manual | Bob inference |
+| `build-ai-worker.yml` | Manual only | Ollama LLM server |
 | `sync-bob-repo.yml` | Push to `main` (inference-service/) | Syncs to DonSquires/Bob |
 
 ### Deploying Ollama via CI
 
 1. Go to **Actions → Deploy Ollama to Railway → Run workflow**
-2. Optionally enter a model name (e.g. `llama3.1:8b`) to pull after deploy
+2. Optionally enter a model name (e.g. `qwen2.5:7b`) to pull after deploy
 3. The workflow deploys `ollama/Dockerfile` to the Ollama Railway service
 4. If `OLLAMA_SERVICE_URL` is set, it verifies health via `/api/tags`
 
@@ -351,7 +348,7 @@ For Profile A, also verify Bob logs indicate `CHAT_PROVIDER=ollama`.
 
 ### Ollama not responding
 1. Verify Ollama service is running: **Railway → Ollama → Deploy tab** should show status **Running**.
-2. Model may not be pulled yet. SSH into Ollama container and run: `ollama pull llama3.1:8b`
+2. Model may not be pulled yet. SSH into Ollama container and run: `ollama pull qwen2.5:7b`
 3. Confirm Bob can reach Ollama: In Bob logs, look for messages about Ollama connection state.
 4. Confirm `OLLAMA_BASE_URL` uses port **11434**. Railway Ollama listens on 11434 via `OLLAMA_HOST`.
 

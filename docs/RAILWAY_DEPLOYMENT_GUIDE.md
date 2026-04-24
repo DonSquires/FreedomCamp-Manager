@@ -61,7 +61,7 @@ railway up
 
 # Get deployment URL
 railway status
-# Copy the deployment URL (e.g., https://freedomcamp-inference.railway.app)
+# Copy the deployment URL (proxy only, e.g., https://freedomcamp-proxy.railway.app)
 
 # Set environment variables (if needed)
 railway variables set MODEL_PATH=/app/models
@@ -227,7 +227,7 @@ VITE_SUPABASE_URL=...your Supabase project URL...
 VITE_SUPABASE_ANON_KEY=...your anon key...
 # Optional but recommended so the UI can display service status
 VITE_PROXY_SERVER_URL=https://your-proxy.railway.app
-VITE_INFERENCE_SERVICE_URL=https://your-inference.railway.app
+VITE_INFERENCE_SERVICE_URL=https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync
 ```
 
 ### Smoke test
@@ -249,7 +249,7 @@ Once both services are deployed, update Supabase secrets:
 
 ```bash
 # Set Railway service URLs
-supabase secrets set INFERENCE_SERVICE_URL=https://your-inference.railway.app
+supabase secrets set INFERENCE_SERVICE_URL=https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync
 supabase secrets set PROXY_SERVER_URL=https://your-proxy.railway.app
 
 # Verify secrets are set
@@ -271,7 +271,7 @@ curl -X POST https://your-project.supabase.co/functions/v1/check-railway-health 
 # Expected response:
 # {
 #   "proxy_url": "https://your-proxy.railway.app",
-#   "inference_url": "https://your-inference.railway.app",
+#   "inference_url": "https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync",
 #   "proxy_status": "online",
 #   "inference_status": "online"
 # }
@@ -443,7 +443,7 @@ Set up a cron job to monitor Railway services:
 
 ```bash
 # Add to crontab (every 5 minutes)
-*/5 * * * * curl -f https://your-inference.railway.app/health || echo "Inference service down"
+*/5 * * * * curl -f https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync/health || echo "Inference service down"
 */5 * * * * curl -f https://your-proxy.railway.app/health || echo "Proxy service down"
 ```
 

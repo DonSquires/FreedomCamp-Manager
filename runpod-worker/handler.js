@@ -18,7 +18,7 @@ console.log(`[worker] Node.js ${process.version}`);
 
 const WORKER_ID      = process.env.RUNPOD_POD_ID || process.env.RUNPOD_WORKER_ID || 'local';
 const OLLAMA_BASE    = String(process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
-const OLLAMA_MODEL   = process.env.OLLAMA_MODEL || 'llama3.1:8b';
+const OLLAMA_MODEL   = process.env.OLLAMA_MODEL || 'qwen2.5:7b';
 const OLLAMA_TIMEOUT = Number(process.env.OLLAMA_TIMEOUT_MS || 120000);
 const BOB_ATTITUDE_PROFILE = String(process.env.BOB_ATTITUDE_PROFILE || 'operational').trim().toLowerCase();
 const BOB_ATTITUDE_INSTRUCTIONS = String(process.env.BOB_ATTITUDE_INSTRUCTIONS || '').trim();

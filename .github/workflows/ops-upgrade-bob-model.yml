@@ -9,7 +9,7 @@ name: Upgrade Bob AI Model
 #   ≥ 40 GB  → llama3.3:70b  (frontier class reasoning) + llava:13b  vision
 #   ≥ 20 GB  → qwen2.5:32b   (strong GPT-3.5+ reasoning) + llava:7b  vision
 #   ≥ 10 GB  → mistral:22b   (solid GPT-3.5 class)       + llava:7b  vision
-#   fallback → llama3.1:8b   (current)
+#   fallback → qwen2.5:7b   (current)
 #
 # Required secrets:
 #   RUNPOD_POD_SSH_HOST, RUNPOD_POD_SSH_USER, RUNPOD_POD_SSH_KEY, RUNPOD_POD_SSH_PORT
@@ -87,10 +87,10 @@ jobs:
               WRITING_MODEL="mistral:22b"
               NUM_PARALLEL=1
             else
-              echo "VRAM too low or unreadable (${VRAM_GIB} GiB); keeping llama3.1:8b"
-              CHAT_MODEL="llama3.1:8b"
+              echo "VRAM too low or unreadable (${VRAM_GIB} GiB); keeping qwen2.5:7b"
+              CHAT_MODEL="qwen2.5:7b"
               VISION_MODEL="llava:7b"
-              WRITING_MODEL="llama3.1:8b"
+              WRITING_MODEL="qwen2.5:7b"
               NUM_PARALLEL=1
             fi
 
@@ -182,9 +182,9 @@ jobs:
             ('llama3.3:70b', 'llava:13b', 4),
             ('qwen2.5:32b', 'llava:7b',  2),
             ('mistral:22b', 'llava:7b',  2),
-            ('llama3.1:8b', 'llava:7b',  2),
+            ('qwen2.5:7b', 'llava:7b',  2),
           ]
-          chat, vision, num_parallel = 'llama3.1:8b', 'llava:7b', 2
+          chat, vision, num_parallel = 'qwen2.5:7b', 'llava:7b', 2
           for m, v, p in PRIORITY:
             if m in names:
               chat = m

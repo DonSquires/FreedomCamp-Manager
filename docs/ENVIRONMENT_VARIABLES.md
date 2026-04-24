@@ -34,14 +34,14 @@ All frontend variables must be prefixed with `VITE_` to be exposed to the browse
 | `VITE_APP_VERSION` | Application version for display | `1.0.0` | Semver string |
 | `VITE_ENVIRONMENT` | Environment name | `development` | `development`, `staging`, `production` |
 
-### Deployment Environment Matrix (Vercel + Railway)
+### Deployment Environment Matrix (Vercel + RunPod + Railway Proxy)
 
 Use distinct values for preview and production. Do not point preview at production services.
 
 | Deployment target | `VITE_SUPABASE_URL` | `VITE_INFERENCE_SERVICE_URL` | `VITE_PROXY_SERVER_URL` | `VITE_ENVIRONMENT` |
 |----------|----------|----------|----------|----------|
-| Vercel production | Production Supabase URL | Production inference Railway URL | Production proxy Railway URL | `production` |
-| Vercel preview | Preview/staging Supabase URL | Preview inference Railway URL | Preview proxy Railway URL | `preview` |
+| Vercel production | Production Supabase URL | Production inference RunPod URL | Production proxy Railway URL | `production` |
+| Vercel preview | Preview/staging Supabase URL | Preview/staging inference RunPod URL | Preview proxy Railway URL | `preview` |
 
 ### GitHub Secrets For Isolated Deployments
 
@@ -61,7 +61,7 @@ The frontend deployment workflow supports environment-specific secrets and enfor
 Notes:
 - Legacy fallback still works for production: `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
 - Preview deployments are blocked if preview URLs match production URLs.
-- In Railway, map Vercel Preview to a non-production Railway environment.
+- Keep proxy Railway preview/prod separated when using environment-specific proxy URLs.
 
 ### Example `.env` File (Development)
 
@@ -155,9 +155,9 @@ VITE_TURNSTILE_SITE_KEY=0x4AAAAA...  # Cloudflare Turnstile site key
 
 ---
 
-## Railway Service Variables
+## Service Runtime Variables
 
-### Inference Service (`/inference-service/`)
+### Inference Service (`/inference-service/`, RunPod)
 
 | Variable | Description | Required | Default |
 |----------|-------------|----------|---------|
@@ -168,7 +168,7 @@ VITE_TURNSTILE_SITE_KEY=0x4AAAAA...  # Cloudflare Turnstile site key
 | `CHAT_PROVIDER` | Chat provider mode | Recommended | `ollama` |
 | `TABULAR_NLP_PROVIDER` | Tabular NLP provider mode | Recommended | `ollama` |
 | `OLLAMA_BASE_URL` | Ollama endpoint for chat/NLP | Recommended | `http://127.0.0.1:11434` |
-| `OLLAMA_MODEL` | Ollama model name | Recommended | `llama3.1:8b` |
+| `OLLAMA_MODEL` | Ollama model name | Recommended | `qwen2.5:7b` |
 | `RUNPOD_POD_ID` | RunPod pod id for lifecycle start/stop | Optional | None |
 | `RUNPOD_API_KEY` | RunPod API key for pod lifecycle GraphQL | Optional | None |
 | `RUNPOD_IDLE_TIMEOUT_MS` | Idle timeout before auto-stop of pod | Optional | `900000` |
@@ -178,7 +178,7 @@ VITE_TURNSTILE_SITE_KEY=0x4AAAAA...  # Cloudflare Turnstile site key
 | `RUNPOD_ENDPOINT_TIMEOUT_MS` | Serverless invoke/poll timeout in ms | Optional | `120000` |
 | `RUNPOD_ENDPOINT_POLL_INTERVAL_MS` | Serverless polling interval in ms | Optional | `3000` |
 
-### Proxy Server (`/proxy-server/`)
+### Proxy Server (`/proxy-server/`, Railway)
 
 | Variable | Description | Required | Default |
 |----------|-------------|----------|---------|

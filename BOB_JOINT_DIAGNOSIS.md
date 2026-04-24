@@ -9,7 +9,7 @@
 ## Known Issues Discovered
 
 ### 0. **Current Blocking Mismatches (verified live)**
-**Evidence source**: `https://focused-courage-production-ccee.up.railway.app/health`
+**Evidence source**: `https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync/health`
 
 - `REQUIRE_SELF_CONTAINED_MODE`: `null` (workflow expects `true`)
 - `SELF_CONTAINED_STRICT_EGRESS`: `null` (workflow expects `true`)
@@ -128,7 +128,7 @@ OLLAMA_BASE_URL=http://127.0.0.1:11434
 After saving variables, redeploy/restart Bob service and verify:
 
 ```bash
-curl -fsS --max-time 20 https://focused-courage-production-ccee.up.railway.app/health | jq '{
+curl -fsS --max-time 20 https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync/health | jq '{
    status,
    require:.config.REQUIRE_SELF_CONTAINED_MODE,
    strict:.config.SELF_CONTAINED_STRICT_EGRESS,

@@ -352,7 +352,7 @@ const OLLAMA_GATEWAY_KEY = process.env.OLLAMA_GATEWAY_KEY || '';
 const OLLAMA_GATEWAY_HEADERS = OLLAMA_GATEWAY_KEY
   ? { Authorization: `Bearer ${OLLAMA_GATEWAY_KEY}` }
   : {};
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1:8b';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:7b';
 const TRANSLATION_MODEL = process.env.TRANSLATION_MODEL || OLLAMA_MODEL;
 const TRANSLATION_TIMEOUT_MS = Number(process.env.TRANSLATION_TIMEOUT_MS || 20000);
 // OLLAMA_MODEL_WRITING — specialist model for tender/document generation.
@@ -526,7 +526,7 @@ async function invokeRunpodServerless({ input, payload, poll = true, timeoutMs =
 
 /**
  * Returns true if this message/history qualifies as a complex task that
- * warrants sending to the RunPod (GPU) Ollama rather than Railway Ollama.
+ * warrants sending to the RunPod (GPU) Ollama rather than lightweight local/default Ollama.
  */
 function isComplexChatTask(message, history = []) {
   if (String(message || '').length >= COMPLEX_CHAT_MIN_LEN) return true;
@@ -2348,7 +2348,7 @@ function generateHeuristicChatReply(message, context = {}) {
   }
   if (lowered.includes('railway') || lowered.includes('deploy') || lowered.includes('ci') || lowered.includes('github action')) {
     const auditSummary = RAILWAY_SERVICES_AUDIT.known_issues_resolved.map(i => `[${i.id}] ${i.title} — ${i.fix_applied}`).join(' | ');
-    return `FieldOps services: Bob (RunPod serverless, endpoint configured via RUNPOD_ENDPOINT_ID/URL, deploy via build-ai-worker.yml), Proxy/NZSCV (proxy-server/ on Railway, deploy-proxy-railway.yml), PTT+TURN (ptt-server/ on VPS 72.61.123.97 / srv1601189.hstgr.cloud, deploy-voice-server.yml). Bob accesses Ollama via RunPod pod SSH gateway. Production Bob should have CHAT_PROVIDER=ollama, TABULAR_NLP_PROVIDER=ollama, BOB_OPERATING_MODE=build-training, and heuristic fallback enabled. Check config via GET /health. Use GET /platform/railway-audit for full audit findings (${RAILWAY_SERVICES_AUDIT.known_issues_resolved.length} resolved issues). Quick summary: ${auditSummary}`;
+    return `FieldOps services: Bob (RunPod serverless, endpoint configured via RUNPOD_ENDPOINT_ID/URL, deploy via build-ai-worker.yml), Proxy/NZSCV (proxy-server/ on Railway, deploy-proxy-railway.yml), PTT+TURN (ptt-server/ on VPS 72.61.123.97 / srv1601189.hstgr.cloud, deploy-voice-server.yml). Bob accesses Ollama via RunPod pod SSH gateway. Production Bob should have CHAT_PROVIDER=ollama, TABULAR_NLP_PROVIDER=ollama, BOB_OPERATING_MODE=build-training, and heuristic fallback enabled. Check config via GET /health. Use GET /platform/railway-audit for historical wiring findings (${RAILWAY_SERVICES_AUDIT.known_issues_resolved.length} resolved issues). Quick summary: ${auditSummary}`;
   }
   if (lowered.includes('hook') || lowered.includes('query') || lowered.includes('mutation') || lowered.includes('tanstack') || lowered.includes('zustand')) {
     return 'Data flow: Components use TanStack Query hooks (src/hooks/useXxx.ts) for server state. useQuery fetches data with automatic caching. useMutation writes data and invalidates queries on success. Zustand stores (src/stores/) hold auth state (authStore.ts) and global filters (globalFiltersStore.ts). The Supabase client is typed with Database types from src/types/database.ts.';

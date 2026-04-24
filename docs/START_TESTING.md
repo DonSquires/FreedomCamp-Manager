@@ -254,7 +254,7 @@ npx playwright test --project=chromium --headed
 
 **Solution:**
 1. Warm up Railway services first:
-   - Visit: https://your-inference.railway.app/health
+   - Visit: https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync/health
    - Visit: https://your-proxy.railway.app/health
 2. Increase test timeout:
    ```typescript
