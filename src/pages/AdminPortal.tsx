@@ -1082,24 +1082,28 @@ export default function AdminPortal() {
             return (
               <Card
                 key={kpi.title}
-                className="cursor-pointer overflow-hidden group bg-white dark:bg-gray-900 shadow-sm hover:shadow-md transition-shadow"
+                className="cursor-pointer overflow-hidden group border border-white/60 dark:border-white/10 bg-white/80 dark:bg-slate-900/70 backdrop-blur-sm shadow-sm hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200"
                 onClick={() => openDrilldown(kpi.config)}
               >
                 <div className={`h-1 w-full bg-gradient-to-r ${kpi.accentColor}`} />
                 <CardHeader className="pb-2 pt-4">
-                  <CardDescription className="flex items-center justify-between text-xs font-medium uppercase tracking-wide">
+                  <CardDescription className="flex items-center justify-between text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                     {kpi.title}
                     <ArrowRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                   </CardDescription>
                   <div className="flex items-end justify-between mt-1">
-                    <CardTitle className="text-4xl font-bold tracking-tight">{kpi.value}</CardTitle>
-                    <div className={`rounded-xl p-2.5 ${kpi.iconBg}`}>
+                    <CardTitle className="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-white">{kpi.value}</CardTitle>
+                    <div className={`rounded-xl p-2.5 shadow-sm ring-1 ring-black/10 ${kpi.iconBg}`}>
                       <Icon className={`h-5 w-5 ${kpi.iconColor}`} />
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0 pb-3">
-                  {kpi.subtitle && <p className="text-xs text-muted-foreground">{kpi.subtitle}</p>}
+                  {kpi.subtitle && (
+                    <p className="inline-flex rounded-md border border-white/70 dark:border-white/10 bg-white/70 dark:bg-black/20 px-2 py-1 text-[11px] text-muted-foreground leading-tight">
+                      {kpi.subtitle}
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             )
@@ -1107,19 +1111,19 @@ export default function AdminPortal() {
         </section>
 
         {/* ── SECONDARY KPIs — attention items ─────────────────────────────────────── */}
-        <section className="grid gap-2 grid-cols-2 sm:grid-cols-4 lg:grid-cols-7">
+        <section className="grid gap-2.5 grid-cols-2 sm:grid-cols-4 lg:grid-cols-7">
           {secondaryKPIs.map((kpi) => {
             const Icon = kpi.icon
             return (
               <button
                 key={kpi.title}
                 onClick={() => openDrilldown(kpi.config)}
-                className="min-h-14 flex items-center gap-2 rounded-lg border bg-white dark:bg-gray-900 px-3 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                className="min-h-14 flex items-center gap-2.5 rounded-lg border border-white/60 dark:border-white/10 bg-white/80 dark:bg-slate-900/70 px-3 py-2.5 text-left hover:bg-white dark:hover:bg-slate-900 transition-colors shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
               >
-                <Icon className={`h-3.5 w-3.5 shrink-0 ${kpi.iconColor}`} />
+                <Icon className={`h-4 w-4 shrink-0 ${kpi.iconColor}`} />
                 <div className="min-w-0">
-                  <p className="text-base font-semibold text-gray-900 dark:text-white leading-tight">{kpi.value}</p>
-                  <p className="text-xs text-muted-foreground truncate">{kpi.title}</p>
+                  <p className="text-lg font-semibold text-gray-900 dark:text-white leading-tight">{kpi.value}</p>
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground truncate">{kpi.title}</p>
                 </div>
               </button>
             )

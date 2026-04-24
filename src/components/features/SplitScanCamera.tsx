@@ -23,6 +23,18 @@ interface SplitScanCameraProps {
   statusLabel?: string
 }
 
+function isE2ECaptureEnabled() {
+  return typeof window !== 'undefined' && !!(window as any).__FIELDOPS_E2E_CAPTURE__
+}
+
+function getE2ECapturePhotoUrl(): string | null {
+  if (typeof window === 'undefined') return null
+  const value = (window as any).__FIELDOPS_E2E_CAPTURE_PHOTO_URL__
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
 export function SplitScanCamera({ onCapture, onCancel, isProcessing = false, statusLabel }: SplitScanCameraProps) {
   const videoRef  = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -63,6 +75,11 @@ export function SplitScanCamera({ onCapture, onCancel, isProcessing = false, sta
   }, [stopCamera])
 
   useEffect(() => {
+    if (isE2ECaptureEnabled()) {
+      setIsStreaming(true)
+      return () => stopCamera()
+    }
+
     startCamera(facingMode)
     return () => stopCamera()
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -85,7 +102,43 @@ export function SplitScanCamera({ onCapture, onCancel, isProcessing = false, sta
     } catch { /* zoom not supported on this device */ }
   }
 
-  const capture = () => {
+  const capture = async () => {
+    if (isE2ECaptureEnabled()) {
+      const sourceUrl = getE2ECapturePhotoUrl()
+      if (sourceUrl) {
+        try {
+          const response = await fetch(sourceUrl)
+          if (!response.ok) {
+            throw new Error(`Capture source responded ${response.status}`)
+          }
+          const blob = await response.blob()
+          const type = blob.type || 'image/jpeg'
+          onCapture(new File([blob], `scan_${Date.now()}.jpg`, { type }))
+          return
+        } catch {
+          // Fall back to synthetic frame when storage photo source is unavailable.
+        }
+      }
+
+      const canvas = canvasRef.current ?? document.createElement('canvas')
+      canvas.width = 1280
+      canvas.height = 720
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+      ctx.fillStyle = '#111827'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.fillStyle = '#f8fafc'
+      ctx.font = 'bold 56px sans-serif'
+      ctx.fillText('FIELDOPS E2E CAPTURE', 72, 120)
+      ctx.font = '32px sans-serif'
+      ctx.fillText(new Date().toISOString(), 72, 180)
+      canvas.toBlob(blob => {
+        if (!blob) { toast.error('Failed to capture photo'); return }
+        onCapture(new File([blob], `scan_${Date.now()}.jpg`, { type: 'image/jpeg' }))
+      }, 'image/jpeg', 0.95)
+      return
+    }
+
     if (!videoRef.current || !canvasRef.current || !isStreaming) return
     const video  = videoRef.current
     const canvas = canvasRef.current

@@ -11,6 +11,7 @@ import { toZonedTime } from 'date-fns-tz'
 export interface GeofenceZone {
   id: string
   name: string
+  organization_id: string
   location_lat: number
   location_lng: number
   radius_meters?: number
@@ -108,16 +109,18 @@ function isPointInPolygon(
 export async function detectCurrentZones(
   userLat: number,
   userLng: number,
-  organizationId?: string
+  organizationScope?: string | string[]
 ): Promise<GeofenceZone[]> {
   try {
     // Fetch all active zones – include zone_type so we can sort by specificity
     let query = (supabase.from('zones') as any)
-      .select('id, name, location_lat, location_lng, geometry, zone_type, radius_meters, parent_zone_id')
+      .select('id, name, organization_id, location_lat, location_lng, geometry, zone_type, radius_meters, parent_zone_id')
       .eq('is_active', true)
     
-    if (organizationId) {
-      query = query.eq('organization_id', organizationId)
+    if (Array.isArray(organizationScope) && organizationScope.length > 0) {
+      query = query.in('organization_id', organizationScope)
+    } else if (typeof organizationScope === 'string' && organizationScope.length > 0) {
+      query = query.eq('organization_id', organizationScope)
     }
     
     const { data: zones, error } = await query
@@ -404,9 +407,9 @@ export async function autoStopPatrol(
  */
 export async function monitorGeofenceAndPatrol(
   userId: string,
-  organizationId: string,
+  organizationScope: string | string[],
   currentZoneId: string | null,
-  onZoneChange: (zoneId: string | null, zoneName: string | null) => void,
+  onZoneChange: (zoneId: string | null, zoneName: string | null, organizationId?: string | null) => void,
   options?: MonitorOptions
 ): Promise<void> {
   try {
@@ -465,7 +468,7 @@ export async function monitorGeofenceAndPatrol(
     }
     
     // Detect current zones
-    const zones = await detectCurrentZones(userLat, userLng, organizationId)
+    const zones = await detectCurrentZones(userLat, userLng, organizationScope)
     
     if (zones.length > 0) {
       // Inside a geofence
@@ -477,10 +480,10 @@ export async function monitorGeofenceAndPatrol(
           if (currentZoneId) {
             await autoStopPatrol(userId, currentZoneId)
           }
-          await autoStartPatrol(userId, primaryZone.id, organizationId, userLat, userLng)
+          await autoStartPatrol(userId, primaryZone.id, primaryZone.organization_id, userLat, userLng)
         }
 
-        onZoneChange(primaryZone.id, primaryZone.name)
+        onZoneChange(primaryZone.id, primaryZone.name, primaryZone.organization_id)
       }
     } else {
       // Outside all geofences
@@ -488,9 +491,9 @@ export async function monitorGeofenceAndPatrol(
         if (activePatrols.length === 0) {
           await autoStopPatrol(userId, currentZoneId)
         }
-        onZoneChange(null, 'Other Location')
+        onZoneChange(null, 'Other Location', null)
       } else if (options?.currentZoneName !== 'Other Location') {
-        onZoneChange(null, 'Other Location')
+        onZoneChange(null, 'Other Location', null)
       }
     }
   } catch (error: any) {
