@@ -104,6 +104,42 @@ function isReviewShape(value) {
   );
 }
 
+function normalizeCanonicalReviewShape(value) {
+  if (!value || typeof value !== 'object' || !Array.isArray(value.findings)) return null;
+
+  const verificationChecks = Array.isArray(value.verificationChecks)
+    ? value.verificationChecks.map((item) => {
+        if (item && typeof item === 'object') {
+          return String(item.description || item.title || item.status || '').trim();
+        }
+        return String(item || '').trim();
+      }).filter(Boolean)
+    : Array.isArray(value.exitCriteria)
+      ? value.exitCriteria.map((item) => String(item || '').trim()).filter(Boolean)
+      : [];
+
+  const findings = value.findings.map((finding) => {
+    const detail = String(finding?.evidence || finding?.description || '').trim();
+    return {
+      severity: String(finding?.severity || 'major').trim() || 'major',
+      title: String(finding?.title || 'Review finding').trim() || 'Review finding',
+      evidence: detail || 'No evidence provided.',
+      requiredAction: String(finding?.requiredAction || '').trim() || (verificationChecks[0] || 'Revise the artifact and rerun Dr Bob review.'),
+    };
+  });
+
+  return {
+    decision: typeof value.decision === 'string'
+      ? value.decision
+      : findings.length === 0
+        ? 'approve'
+        : 'needs-revision',
+    summary: String(value.summary || '').trim() || 'Dr Bob returned a structured review.',
+    findings,
+    verificationChecks,
+  };
+}
+
 function normalizeAlternateReviewShape(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
 
@@ -112,7 +148,7 @@ function normalizeAlternateReviewShape(value) {
     return null;
   }
 
-  const verificationSource = value.verificationChecks;
+  const verificationSource = value.verificationChecks || value.exitCriteria;
   const verificationChecks = Array.isArray(verificationSource)
     ? verificationSource.map((item) => String(item || '').trim()).filter(Boolean)
     : verificationSource && typeof verificationSource === 'object'
@@ -130,11 +166,22 @@ function normalizeAlternateReviewShape(value) {
       requiredAction: `Address the ${key} concern and rerun Dr Bob review.`,
     }));
 
-  if (findings.length === 0) return null;
+  if (findings.length === 0) {
+    return {
+      decision: typeof value.decision === 'string' ? value.decision : 'approve',
+      summary: typeof value.summary === 'string' && value.summary.trim()
+        ? value.summary.trim()
+        : 'Dr Bob returned a non-canonical JSON shape with no concrete findings.',
+      findings: [],
+      verificationChecks,
+    };
+  }
 
   return {
-    decision: 'needs-revision',
-    summary: 'Dr Bob returned a non-canonical JSON shape; normalized repo-grounded concerns were extracted.',
+    decision: typeof value.decision === 'string' ? value.decision : 'needs-revision',
+    summary: typeof value.summary === 'string' && value.summary.trim()
+      ? value.summary.trim()
+      : 'Dr Bob returned a non-canonical JSON shape; normalized repo-grounded concerns were extracted.',
     findings,
     verificationChecks,
   };
@@ -161,9 +208,10 @@ function parseReviewResponse(rawText) {
   for (const candidate of candidates) {
     try {
       const parsed = JSON.parse(candidate);
-      if (isReviewShape(parsed)) {
+      const normalizedCanonical = normalizeCanonicalReviewShape(parsed);
+      if (normalizedCanonical) {
         return {
-          review: parsed,
+          review: normalizedCanonical,
           structured: true,
           normalized,
         };
@@ -451,7 +499,11 @@ function buildReviewPrompt({ artifactType, artifactPath, artifactText, systemSta
     'Dr Bob adversarial architecture review.',
     'You are the blocking reviewer before implementation begins.',
     'Use the repo truth protocol: do not invent modules, data models, routes, migrations, or services.',
-    'If the artifact mentions src/modules/* that are not in system_state.json, mark that as blocker severity.',
+    'If the artifact falsely claims something already exists in the repo when it does not, mark that as blocker severity.',
+    'Do not treat clearly labeled target-state proposals, future modules, future services, or future data models as blockers solely because they are not yet in system_state.json.',
+    'Only block on ungrounded repo references when the artifact presents them as existing current-state implementation rather than proposed future-state design.',
+    'For clean-sheet specs and rollout plans, future ADRs, backlog tickets, target-state services, and target-state tables are expected. They are not blockers when presented as proposed work.',
+    'Do not require proposed future-state modules, ADRs, or data models to already exist in system_state.json.',
     'Output contract is strict: return one JSON object only. No headings, no bullets, no markdown, no code fences.',
     'If you add any text outside the JSON object, the response is invalid.',
     `Artifact type: ${artifactType}`,
