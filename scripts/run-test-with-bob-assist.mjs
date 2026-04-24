@@ -23,6 +23,22 @@ function resolveBaseUrl() {
   return String(raw).trim().replace(/\/+$/, '');
 }
 
+function resolveRunpodEndpointUrl() {
+  return String(
+    process.env.RUNPOD_ENDPOINT_URL ||
+    process.env.RUNPOD_API_URL ||
+    ''
+  ).trim().replace(/\/+$/, '');
+}
+
+function resolveRunpodApiKey() {
+  return String(
+    process.env.RUNPOD_ENDPOINT_API_KEY ||
+    process.env.RUNPOD_API_KEY ||
+    ''
+  ).trim();
+}
+
 function resolveApiKey() {
   return String(
     process.env.BOB_INFERENCE_API_KEY ||
@@ -244,6 +260,94 @@ function buildBobMessage(stage, command, exitCode = null) {
   ].join('\n');
 }
 
+async function httpJson(url, apiKey, body) {
+  const response = await fetch(url, {
+    method: body ? 'POST' : 'GET',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  const text = await response.text();
+  let json = {};
+  try {
+    json = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(`RunPod returned non-JSON response (${response.status}): ${text.slice(0, 240)}`);
+  }
+
+  if (!response.ok) {
+    throw new Error(`RunPod HTTP ${response.status}: ${JSON.stringify(json).slice(0, 240)}`);
+  }
+
+  return json;
+}
+
+function deriveRunpodStatusUrl(endpointUrl, statusJobId) {
+  if (endpointUrl.includes('/run')) {
+    return endpointUrl.replace(/\/runs?$/i, `/status/${encodeURIComponent(statusJobId)}`);
+  }
+  throw new Error('Unable to derive RunPod status URL from endpoint URL');
+}
+
+function isTerminalRunpodStatus(status) {
+  const value = String(status || '').toUpperCase();
+  return value === 'COMPLETED' || value === 'FAILED' || value === 'CANCELLED' || value === 'TIMED_OUT';
+}
+
+function extractRunpodText(payload) {
+  const output = payload?.output || payload || {};
+  const candidates = [output.message, output.response, output.text, payload?.message, payload?.response, payload?.text];
+  for (const value of candidates) {
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return '';
+}
+
+async function pingBobViaRunpod(stage, command, exitCode = null) {
+  const endpointUrl = resolveRunpodEndpointUrl();
+  const apiKey = resolveRunpodApiKey();
+
+  if (!endpointUrl || !apiKey) {
+    throw new Error('RunPod fallback unavailable: missing RUNPOD_ENDPOINT_URL/RUNPOD_API_URL or RUNPOD_ENDPOINT_API_KEY/RUNPOD_API_KEY');
+  }
+
+  const invokeData = await httpJson(endpointUrl, apiKey, {
+    input: {
+      action: 'chat',
+      message: buildBobMessage(stage, command, exitCode),
+      messages: [{ role: 'user', content: buildBobMessage(stage, command, exitCode) }],
+    },
+  });
+
+  const status = String(invokeData?.status || '').toUpperCase();
+  let finalPayload = invokeData;
+
+  if (!isTerminalRunpodStatus(status)) {
+    const jobId = invokeData?.id || invokeData?.jobId;
+    if (!jobId) throw new Error('RunPod fallback did not return a job id');
+
+    const startedAt = Date.now();
+    const timeoutMs = Number(process.env.BOB_TEST_ASSIST_TIMEOUT_MS || 15000);
+    const intervalMs = 3000;
+    while (Date.now() - startedAt <= timeoutMs) {
+      const statusData = await httpJson(deriveRunpodStatusUrl(endpointUrl, jobId), apiKey, null);
+      finalPayload = statusData;
+      if (isTerminalRunpodStatus(statusData?.status)) break;
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+  }
+
+  if (String(finalPayload?.status || '').toUpperCase() === 'FAILED') {
+    throw new Error(`RunPod fallback failed: ${JSON.stringify(finalPayload).slice(0, 240)}`);
+  }
+
+  const reply = extractRunpodText(finalPayload);
+  console.log(`[bob-test-assist] ${stage} assist completed via runpod${reply ? ` (${reply.slice(0, 80)})` : ''}`);
+}
+
 async function pingBob(stage, command, exitCode = null) {
   const baseUrl = resolveBaseUrl();
   const apiKey = resolveApiKey();
@@ -291,13 +395,25 @@ async function pingBob(stage, command, exitCode = null) {
     const provider = payload?.provider || 'unknown';
     const fallback = payload?.fallback === true ? 'yes' : 'no';
     console.log(`[bob-test-assist] ${stage} assist completed (provider=${provider}, fallback=${fallback})`);
+  } catch (error) {
+    const shouldTryRunpodFallback = Boolean(resolveRunpodEndpointUrl() && resolveRunpodApiKey());
+    if (!shouldTryRunpodFallback) throw error;
+    await pingBobViaRunpod(stage, command, exitCode);
   } finally {
     clearTimeout(timer);
   }
 }
 
-function spawnCommand(command, args) {
+function runOnce(command, args) {
   return new Promise((resolve) => {
+    let settled = false;
+
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+
     const child = spawn(command, args, {
       stdio: 'inherit',
       shell: false,
@@ -305,12 +421,29 @@ function spawnCommand(command, args) {
     });
 
     child.on('close', (code, signal) => {
-      if (signal) return resolve(1);
-      resolve(code ?? 1);
+      if (signal) return finish({ code: 1, signal });
+      finish({ code: code ?? 1 });
     });
 
-    child.on('error', () => resolve(1));
+    child.on('error', (error) => {
+      finish({
+        code: 1,
+        error,
+        enoent: String(error?.code || '') === 'ENOENT',
+      });
+    });
   });
+}
+
+async function spawnCommand(command, args) {
+  const firstAttempt = await runOnce(command, args);
+  if (!firstAttempt.enoent || command === 'npx') {
+    return firstAttempt.code;
+  }
+
+  console.warn(`[bob-test-assist] Command '${command}' not found on PATH. Retrying via npx --no-install.`);
+  const secondAttempt = await runOnce('npx', ['--no-install', command, ...args]);
+  return secondAttempt.code;
 }
 
 async function main() {

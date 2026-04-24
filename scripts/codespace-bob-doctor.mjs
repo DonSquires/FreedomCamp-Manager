@@ -8,12 +8,15 @@ loadLocalEnv();
 const isCodespaces = String(process.env.CODESPACES || '').toLowerCase() === 'true';
 
 const runpodUrl = String(
-  process.env.RUNPOD_SERVERLESS_URL ||
+  process.env.RUNPOD_API_URL ||
+    process.env.RUNPOD_SERVERLESS_URL ||
     process.env.RUNPOD_URL ||
     'https://api.runpod.ai/v2/apynoxmf9eiyzd/runsync'
 )
   .trim()
   .replace(/\/+$/, '');
+
+const endpointKind = /\/run(s)?$/i.test(runpodUrl) ? 'run (async)' : 'runsync (sync)';
 
 const runpodApiKey = String(process.env.RUNPOD_API_KEY || '').trim();
 
@@ -52,7 +55,7 @@ async function main() {
   console.log('---------------------');
 
   status('CODESPACES flag', isCodespaces, isCodespaces ? 'true' : 'not true');
-  status('RunPod runsync URL', Boolean(runpodUrl));
+  status('RunPod endpoint URL', Boolean(runpodUrl), endpointKind);
   status('RUNPOD_API_KEY', Boolean(runpodApiKey));
   status('Org context header source', Boolean(orgId), orgId ? 'x-org-id will be sent' : 'optional but recommended');
   status('SUPABASE URL', Boolean(supabaseUrl));
@@ -90,12 +93,12 @@ async function main() {
       }
     }
 
-    status('RunPod runsync ping', ping.ok, detail);
+    status('RunPod endpoint ping', ping.ok, detail);
   }
 
   console.log('\nRequired Codespaces secrets to set:');
   console.log('- RUNPOD_API_KEY');
-  console.log('- RUNPOD_SERVERLESS_URL (optional override; defaults to the configured runsync endpoint)');
+  console.log('- RUNPOD_API_URL (preferred; use /run endpoint) or RUNPOD_SERVERLESS_URL (legacy)');
   console.log('- BOB_ORG_ID (or ORG_ID) for multi-tenant context');
   console.log('- SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (for admin/ops scripts)');
 }

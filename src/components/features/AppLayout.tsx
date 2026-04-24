@@ -11,6 +11,7 @@ import { useSessionPreferencesStore } from '@/stores/sessionPreferencesStore'
 import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
 import { PublicSafetyBanner } from '@/components/features/PublicSafetyBanner'
 import { Button } from '@/components/ui/button'
+import { HealthBanner } from '@/components/features/HealthBanner'
 import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import {
@@ -164,7 +165,7 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
       { path: '/zones', icon: MapPin, label: 'Zones', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/client-master-list', icon: ListChecks, label: 'Client Master List', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/client-sites', icon: Building2, label: 'Client Sites', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/admin/site-permissions', icon: ShieldCheck, label: 'Site Permissions', roles: ['admin', 'master'] },
+      { path: '/site-permissions', icon: ShieldCheck, label: 'Site Permissions', roles: ['admin', 'master'] },
       { path: '/crm', icon: Building2, label: 'CRM / Accounts', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/tender-workspace', icon: Gavel, label: 'Tenders & Contracts', roles: ['admin', 'master', 'grand_master'] },
       { path: '/tender-reference-library', icon: BookOpen, label: 'Reference Library', roles: ['admin', 'master', 'grand_master'] },
@@ -807,6 +808,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
         {/* Page Content */}
         <main className="p-4 lg:p-6 relative">
           <PublicSafetyBanner />
+          {(user?.role === 'admin' || user?.role === 'master' || user?.role === 'grand_master') && <HealthBanner />}
           {children}
 
           {/* Global feedback button — visible to all authenticated users */}

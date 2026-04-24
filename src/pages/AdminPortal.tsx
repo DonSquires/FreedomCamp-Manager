@@ -5,11 +5,13 @@ import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { ComplianceTrendChart, type TrendDataPoint } from '@/components/features/ComplianceTrendChart'
+import { SystemHealthIndicator } from '@/components/features/SystemHealthIndicator'
 import { nzDateToUTCStart, nzDateToUTCEnd, parseNZDate } from '@/lib/timezone'
 import { format } from 'date-fns'
 import { HOMELESS_UI_STATUSES } from '@/lib/homelessStatus'
@@ -926,6 +928,57 @@ export default function AdminPortal() {
     },
   ]
 
+  if (isError) {
+    return (
+      <AppLayout
+        title="Command Centre"
+        description="Dashboard KPI query failed"
+      >
+        <div className="max-w-2xl mx-auto mt-16 px-4">
+          <Card className="border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950/20">
+            <CardHeader>
+              <CardTitle className="text-red-800 dark:text-red-200 flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5" />
+                Dashboard failed to load
+              </CardTitle>
+              <CardDescription className="text-red-700 dark:text-red-300">
+                {(error as any)?.message ?? 'KPI query returned an unexpected error. Try refreshing.'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button variant="outline" onClick={() => queryClient.invalidateQueries({ queryKey: ['admin-primary-dashboard'] })}>
+                Retry
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </AppLayout>
+    )
+  }
+
+  if (isLoading && !data) {
+    return (
+      <AppLayout
+        title="Command Centre"
+        description="Loading…"
+      >
+        <div className="space-y-4 p-4">
+          <Skeleton className="h-14 w-full rounded-xl" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-20 rounded-lg" />
+            ))}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-40 rounded-xl" />
+            ))}
+          </div>
+        </div>
+      </AppLayout>
+    )
+  }
+
   return (
     <AppLayout
       title="Command Centre"
@@ -971,7 +1024,7 @@ export default function AdminPortal() {
           {welfareAlertCount > 0 && (
             <button
               onClick={() => navigate('/officer-welfare')}
-              className="flex items-center gap-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3 py-1.5 transition-colors shrink-0"
+              className="min-h-10 flex items-center gap-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3 py-1.5 transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
             >
               <Heart className="h-3.5 w-3.5" />
               {welfareAlertCount} Welfare Alert{welfareAlertCount > 1 ? 's' : ''}
@@ -992,16 +1045,25 @@ export default function AdminPortal() {
               key={label}
               onClick={() => path && navigate(path)}
               disabled={!path}
-              className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-all ${bgClass} ${path ? 'cursor-pointer hover:shadow-sm active:scale-[0.98]' : 'cursor-default'}`}
+              className={`min-h-16 flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${bgClass} ${path ? 'cursor-pointer hover:shadow-sm active:scale-[0.98]' : 'cursor-default'}`}
             >
               <Icon className={`h-4 w-4 shrink-0 ${colorClass}`} />
               <div className="min-w-0">
                 <p className={`text-xl font-bold leading-tight ${colorClass}`}>{isLoading ? '—' : value}</p>
-                <p className="text-[11px] text-muted-foreground truncate">{label}</p>
+                <p className="text-xs text-muted-foreground truncate">{label}</p>
               </div>
             </button>
           ))}
         </section>
+
+        {/* ── SYSTEM HEALTH ────────────────────────────────────────────────────────── */}
+        <details className="group">
+          <summary className="flex items-center gap-2 cursor-pointer text-xs text-muted-foreground hover:text-foreground transition-colors list-none mb-2 select-none">
+            <span className="font-medium">System Health</span>
+            <span className="text-[10px] text-gray-400 group-open:hidden">(click to expand)</span>
+          </summary>
+          <SystemHealthIndicator />
+        </details>
 
         {/* ── PRIMARY KPIs — Big Three ──────────────────────────────────────────────── */}
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -1042,12 +1104,12 @@ export default function AdminPortal() {
               <button
                 key={kpi.title}
                 onClick={() => openDrilldown(kpi.config)}
-                className="flex items-center gap-2 rounded-lg border bg-white dark:bg-gray-900 px-3 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm"
+                className="min-h-14 flex items-center gap-2 rounded-lg border bg-white dark:bg-gray-900 px-3 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
               >
                 <Icon className={`h-3.5 w-3.5 shrink-0 ${kpi.iconColor}`} />
                 <div className="min-w-0">
                   <p className="text-base font-semibold text-gray-900 dark:text-white leading-tight">{kpi.value}</p>
-                  <p className="text-[11px] text-muted-foreground truncate">{kpi.title}</p>
+                  <p className="text-xs text-muted-foreground truncate">{kpi.title}</p>
                 </div>
               </button>
             )
@@ -1087,7 +1149,7 @@ export default function AdminPortal() {
                     return (
                       <div
                         key={shift.id}
-                        className={`rounded-lg border p-2.5 text-sm ${
+                        className={`min-h-20 rounded-lg border p-2.5 text-sm ${
                           isActive
                             ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950/20'
                             : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40'
@@ -1097,8 +1159,8 @@ export default function AdminPortal() {
                           {isActive && <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse shrink-0" />}
                           <span className="font-medium text-xs truncate">{officerName}</span>
                         </div>
-                        <p className="text-[11px] text-muted-foreground">{startTime} – {endTime}</p>
-                        <p className="text-[11px] text-muted-foreground truncate">{serviceLabel}</p>
+                        <p className="text-xs text-muted-foreground">{startTime} – {endTime}</p>
+                        <p className="text-xs text-muted-foreground truncate">{serviceLabel}</p>
                       </div>
                     )
                   })}
@@ -1123,7 +1185,7 @@ export default function AdminPortal() {
 
               {/* Compliance & Enforcement */}
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
                   <BarChart3 className="h-3 w-3 text-blue-500" /> Compliance & Enforcement
                 </p>
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
@@ -1140,13 +1202,13 @@ export default function AdminPortal() {
                     { path: '/spatial-compliance',         label: 'Spatial',          Icon: Map,           color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)}
-                      className={`relative flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all`}
+                      className={`relative min-h-20 flex flex-col items-center justify-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`}
                     >
                       {badge !== undefined && (
                         <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">{badge > 99 ? '99+' : badge}</span>
                       )}
                       <Icon className={`h-5 w-5 ${color}`} />
-                      <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
                     </button>
                   ))}
                 </div>
@@ -1154,7 +1216,7 @@ export default function AdminPortal() {
 
               {/* Patrol & Officers */}
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
                   <Navigation className="h-3 w-3 text-green-500" /> Patrol & Officers
                 </p>
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
@@ -1167,13 +1229,13 @@ export default function AdminPortal() {
                     { path: '/patrol-checkpoints', label: 'Checkpoints',     Icon: ScanLine,      color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)}
-                      className={`relative flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all`}
+                      className={`relative min-h-20 flex flex-col items-center justify-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`}
                     >
                       {badge !== undefined && (
                         <span className={`absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full ${path === '/officer-welfare' ? 'bg-red-500' : 'bg-green-500'} text-[9px] font-bold text-white`}>{badge > 99 ? '99+' : badge}</span>
                       )}
                       <Icon className={`h-5 w-5 ${color}`} />
-                      <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
                     </button>
                   ))}
                 </div>
@@ -1181,7 +1243,7 @@ export default function AdminPortal() {
 
               {/* Vehicles & Zones */}
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
                   <Car className="h-3 w-3 text-slate-500" /> Vehicles & Zones
                 </p>
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
@@ -1195,13 +1257,13 @@ export default function AdminPortal() {
                     { path: '/admin/canonical-records',label: 'Canonical Records', Icon: Database,      color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)}
-                      className={`relative flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all`}
+                      className={`relative min-h-20 flex flex-col items-center justify-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`}
                     >
                       {badge !== undefined && (
                         <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-white">{badge > 99 ? '99+' : badge}</span>
                       )}
                       <Icon className={`h-5 w-5 ${color}`} />
-                      <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
                     </button>
                   ))}
                 </div>
@@ -1209,7 +1271,7 @@ export default function AdminPortal() {
 
               {/* People & Records */}
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
                   <Users className="h-3 w-3 text-orange-500" /> People & Records
                 </p>
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
@@ -1223,13 +1285,13 @@ export default function AdminPortal() {
                     { path: '/site-risk-assessment',label: 'Risk Assessment',   Icon: ClipboardCheck,color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)}
-                      className={`relative flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all`}
+                      className={`relative min-h-20 flex flex-col items-center justify-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`}
                     >
                       {badge !== undefined && (
                         <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500 text-[9px] font-bold text-white">{badge}</span>
                       )}
                       <Icon className={`h-5 w-5 ${color}`} />
-                      <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
                     </button>
                   ))}
                 </div>
@@ -1237,7 +1299,7 @@ export default function AdminPortal() {
 
               {/* Specialist Services */}
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
                   <Lock className="h-3 w-3 text-teal-500" /> Specialist Services
                 </p>
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
@@ -1250,10 +1312,10 @@ export default function AdminPortal() {
                     { path: '/dispatch',     label: 'Dispatch',      Icon: Radio,         color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)}
-                      className={`flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all`}
+                      className={`min-h-20 flex flex-col items-center justify-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`}
                     >
                       <Icon className={`h-5 w-5 ${color}`} />
-                      <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
                     </button>
                   ))}
                 </div>
@@ -1261,7 +1323,7 @@ export default function AdminPortal() {
 
               {/* Workforce */}
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
                   <CalendarDays className="h-3 w-3 text-violet-500" /> Workforce
                 </p>
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
@@ -1273,10 +1335,10 @@ export default function AdminPortal() {
                     { path: '/availability',  label: 'Availability',     Icon: CalendarDays,  color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)}
-                      className={`flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all`}
+                      className={`min-h-20 flex flex-col items-center justify-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`}
                     >
                       <Icon className={`h-5 w-5 ${color}`} />
-                      <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
                     </button>
                   ))}
                 </div>
@@ -1284,7 +1346,7 @@ export default function AdminPortal() {
 
               {/* Reports & Analytics */}
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
                   <FileBarChart className="h-3 w-3 text-gray-500" /> Reports & Analytics
                 </p>
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
@@ -1297,10 +1359,10 @@ export default function AdminPortal() {
                     { path: '/users',                label: 'Users',               Icon: Users,         color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)}
-                      className={`flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all`}
+                      className={`min-h-20 flex flex-col items-center justify-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`}
                     >
                       <Icon className={`h-5 w-5 ${color}`} />
-                      <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
                     </button>
                   ))}
                 </div>

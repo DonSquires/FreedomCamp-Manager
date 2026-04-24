@@ -159,7 +159,7 @@ function useHubMetrics(orgId: string | null) {
 function ModuleCard({ card }: { card: HubCard }) {
   const navigate = useNavigate()
   return (
-    <Card className={`relative overflow-hidden border-0 shadow-md hover:shadow-lg transition-shadow ${card.bgGradient}`}>
+    <Card className={`relative overflow-hidden border-0 shadow-md hover:shadow-lg transition-all ${card.bgGradient}`}>
       {/* Top accent bar */}
       <div className={`h-1 w-full ${card.accentColor}`} />
 
@@ -196,10 +196,10 @@ function ModuleCard({ card }: { card: HubCard }) {
             <button
               key={path}
               onClick={(e) => { e.stopPropagation(); navigate(path) }}
-              className="flex flex-col items-center gap-1 rounded-lg px-1.5 py-2 text-center bg-white/60 dark:bg-white/5 hover:bg-white/90 dark:hover:bg-white/10 border border-white/50 dark:border-white/10 hover:border-white/80 dark:hover:border-white/20 transition-all group"
+              className="min-h-16 flex flex-col items-center justify-center gap-1 rounded-lg px-1.5 py-2 text-center bg-white/60 dark:bg-white/5 hover:bg-white/90 dark:hover:bg-white/10 border border-white/50 dark:border-white/10 hover:border-white/80 dark:hover:border-white/20 transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
             >
               <Icon className="h-4 w-4 text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white" />
-              <span className="text-[10px] font-medium text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white leading-tight">
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white leading-tight">
                 {label}
               </span>
             </button>
@@ -210,7 +210,7 @@ function ModuleCard({ card }: { card: HubCard }) {
         <Button
           variant="ghost"
           size="sm"
-          className="w-full h-8 text-xs font-medium bg-white/50 dark:bg-white/5 hover:bg-white/80 dark:hover:bg-white/10 border border-white/40 dark:border-white/10"
+          className="w-full min-h-10 text-xs font-medium bg-white/50 dark:bg-white/5 hover:bg-white/80 dark:hover:bg-white/10 border border-white/40 dark:border-white/10"
           onClick={() => navigate(card.primaryPath)}
         >
           Open {card.title}

@@ -531,7 +531,7 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          {/* Legacy deep-link support */}
+          {/* Backward-compatibility redirect for legacy deep-links */}
           <Route
             path="/field"
             element={<Navigate to="/field-officer" replace />}
@@ -608,13 +608,6 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-
-          {/* /compliance-unified is a legacy alias — redirect to the canonical /compliance */}
-          <Route
-            path="/compliance-unified"
-            element={<Navigate to="/compliance" replace />}
-          />
-
           <Route
             path="/breaches"
             element={
@@ -1581,7 +1574,7 @@ export default function App() {
             }
           />
           <Route
-            path="/admin/site-permissions"
+            path="/site-permissions"
             element={
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'master', 'grand_master']}>
@@ -1589,6 +1582,11 @@ export default function App() {
                 </RoleRoute>
               </ProtectedRoute>
             }
+          />
+          {/* Backward-compatibility redirect for legacy deep-links */}
+          <Route
+            path="/admin/site-permissions"
+            element={<Navigate to="/site-permissions" replace />}
           />
           <Route
             path="/client-master-list"

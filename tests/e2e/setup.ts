@@ -26,7 +26,8 @@ async function createSyntheticOrganization(): Promise<SyntheticOrganization> {
     .from('organizations')
     .insert({
       name,
-      organization_type: 'playwright_test',
+      // Keep fixture values aligned with the live DB check constraint enum.
+      organization_type: 'client',
       is_active: true,
       overnight_verification_mode: 'standard',
     })

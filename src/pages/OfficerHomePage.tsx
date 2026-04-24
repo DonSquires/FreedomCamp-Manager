@@ -50,6 +50,7 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { PTTBar } from '@/components/features/PTTBar'
+import { OfficerShell } from '@/components/features/OfficerShell'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { nzNow } from '@/lib/timezone'
@@ -138,22 +139,12 @@ export default function OfficerHomePage() {
   const today = format(nzNow(), 'EEEE d MMMM yyyy')
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-slate-50 to-gray-100 flex flex-col">
-      {/* Header */}
-      <header className="bg-white border-b shadow-sm px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <img
-            src="/iron-eagle-security-logo.jpg"
-            className="h-8 w-8 rounded object-cover"
-            alt="Logo"
-          />
-          <div>
-            <p className="text-sm font-semibold text-gray-900">
-              {user?.first_name ? `Hi, ${user.first_name}` : 'FieldOps Manager'}
-            </p>
-            <p className="text-xs text-gray-400">{today}</p>
-          </div>
-        </div>
+    <OfficerShell
+      title={user?.first_name ? `Hi, ${user.first_name}` : 'Officer Home'}
+      description={today}
+    >
+
+      <div className="mb-3 flex w-full justify-end">
         <Button
           variant="ghost"
           size="sm"
@@ -163,14 +154,14 @@ export default function OfficerHomePage() {
           <LogOut className="h-4 w-4 mr-1" />
           Sign out
         </Button>
-      </header>
+      </div>
 
       {/* PTT radio — navigate to /radio page from the sidebar nav */}
       <div className="border-b px-4 py-2">
         <PTTBar />
       </div>
 
-      <main className="flex-1 flex flex-col items-center justify-center px-4 py-8 gap-6 max-w-md mx-auto w-full">
+      <main className="flex-1 flex flex-col items-center justify-center px-0 py-8 gap-6 max-w-md mx-auto w-full">
 
         {/* ── Status banner ──────────────────────────────────────────────── */}
         {geofenceViolation && isRostered ? (
@@ -189,21 +180,21 @@ export default function OfficerHomePage() {
             </div>
           </div>
         ) : !isRostered ? (
-          <div className="w-full rounded-xl border border-blue-200 bg-blue-50 p-4 flex gap-3">
+          <div className="w-full rounded-xl border border-blue-200 bg-blue-50 p-4 flex gap-3 dark:border-blue-800 dark:bg-blue-950/50">
             <CalendarDays className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-semibold text-blue-800">You are not rostered today</p>
-              <p className="text-xs text-blue-600 mt-0.5">
+              <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">You are not rostered today</p>
+              <p className="text-xs text-blue-600 mt-0.5 dark:text-blue-300">
                 You can view available open shifts, request an ad-hoc shift, or use team chat below.
               </p>
             </div>
           </div>
         ) : hasActiveShift ? (
-          <div className="w-full rounded-xl border border-green-200 bg-green-50 p-4 flex gap-3">
+          <div className="w-full rounded-xl border border-green-200 bg-green-50 p-4 flex gap-3 dark:border-green-800 dark:bg-green-950/50">
             <MapPin className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="text-sm font-semibold text-green-800">Shift active – waiting for geofence</p>
-              <p className="text-xs text-green-600 mt-0.5">
+              <p className="text-sm font-semibold text-green-800 dark:text-green-200">Shift active – waiting for geofence</p>
+              <p className="text-xs text-green-600 mt-0.5 dark:text-green-300">
                 Move into your assigned zone to unlock the full portal.
               </p>
               <Button
@@ -211,7 +202,7 @@ export default function OfficerHomePage() {
                 variant="outline"
                 onClick={handleEndShift}
                 disabled={isEndingShift}
-                className="mt-2 text-xs border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                className="mt-2 min-h-11 text-xs border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-950/40"
               >
                 <LogOut className="h-3.5 w-3.5 mr-1.5" />
                 {isEndingShift ? 'Ending…' : 'End Shift'}
@@ -219,15 +210,15 @@ export default function OfficerHomePage() {
             </div>
           </div>
         ) : (
-          <div className="w-full rounded-xl border border-yellow-200 bg-yellow-50 p-4 flex gap-3">
+          <div className="w-full rounded-xl border border-yellow-200 bg-yellow-50 p-4 flex gap-3 dark:border-yellow-800 dark:bg-yellow-950/40">
             <Clock className="h-5 w-5 text-yellow-500 shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-semibold text-yellow-800">Your shift has not started yet</p>
-              <p className="text-xs text-yellow-600 mt-0.5">
+              <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-200">Your shift has not started yet</p>
+              <p className="text-xs text-yellow-600 mt-0.5 dark:text-yellow-300">
                 You are rostered today. Start your shift in the portal once you are on-site.
               </p>
               {rosteredShift && (
-                <p className="text-xs text-yellow-500 mt-1">
+                <p className="text-xs text-yellow-500 mt-1 dark:text-yellow-300">
                   {rosteredShift.start_time
                     ? `Scheduled start: ${rosteredShift.start_time.substring(11, 16)}`
                     : null}
@@ -268,52 +259,52 @@ export default function OfficerHomePage() {
           {/* Team Chat — always available */}
           <button
             onClick={() => navigate('/team-chat')}
-            className="w-full flex items-center justify-between bg-white rounded-xl border shadow-sm p-4 hover:bg-gray-50 transition-colors"
+            className="w-full min-h-14 flex items-center justify-between bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:bg-gray-50 dark:bg-gray-900 dark:border-gray-700 dark:hover:bg-gray-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           >
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-indigo-100 flex items-center justify-center">
-                <MessageSquare className="h-5 w-5 text-indigo-600" />
+              <div className="h-10 w-10 rounded-lg bg-indigo-100 dark:bg-indigo-950/50 flex items-center justify-center">
+                <MessageSquare className="h-5 w-5 text-indigo-600 dark:text-indigo-300" />
               </div>
               <div className="text-left">
-                <p className="text-sm font-semibold text-gray-900">Team Chat</p>
-                <p className="text-xs text-gray-500">Message your team and supervisors</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Team Chat</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Message your team and supervisors</p>
               </div>
             </div>
-            <ChevronRight className="h-4 w-4 text-gray-400" />
+            <ChevronRight className="h-4 w-4 text-gray-400 dark:text-gray-500" />
           </button>
 
           {/* Open Shifts */}
           <button
             onClick={() => navigate('/open-shifts')}
-            className="w-full flex items-center justify-between bg-white rounded-xl border shadow-sm p-4 hover:bg-gray-50 transition-colors"
+            className="w-full min-h-14 flex items-center justify-between bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:bg-gray-50 dark:bg-gray-900 dark:border-gray-700 dark:hover:bg-gray-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           >
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-green-100 flex items-center justify-center">
-                <CalendarDays className="h-5 w-5 text-green-600" />
+              <div className="h-10 w-10 rounded-lg bg-green-100 dark:bg-green-950/50 flex items-center justify-center">
+                <CalendarDays className="h-5 w-5 text-green-600 dark:text-green-300" />
               </div>
               <div className="text-left">
-                <p className="text-sm font-semibold text-gray-900">Browse Open Shifts</p>
-                <p className="text-xs text-gray-500">Browse and claim open shifts</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Browse Open Shifts</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Browse and claim open shifts</p>
               </div>
             </div>
-            <ChevronRight className="h-4 w-4 text-gray-400" />
+            <ChevronRight className="h-4 w-4 text-gray-400 dark:text-gray-500" />
           </button>
 
           {/* Request Ad-hoc Shift */}
           <button
             onClick={() => setShowAdhocDialog(true)}
-            className="w-full flex items-center justify-between bg-white rounded-xl border shadow-sm p-4 hover:bg-gray-50 transition-colors"
+            className="w-full min-h-14 flex items-center justify-between bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:bg-gray-50 dark:bg-gray-900 dark:border-gray-700 dark:hover:bg-gray-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           >
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-amber-100 flex items-center justify-center">
-                <ClipboardPlus className="h-5 w-5 text-amber-600" />
+              <div className="h-10 w-10 rounded-lg bg-amber-100 dark:bg-amber-950/50 flex items-center justify-center">
+                <ClipboardPlus className="h-5 w-5 text-amber-600 dark:text-amber-300" />
               </div>
               <div className="text-left">
-                <p className="text-sm font-semibold text-gray-900">Request Ad-hoc Shift</p>
-                <p className="text-xs text-gray-500">Submit an availability request for supervisor review</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Request Ad-hoc Shift</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Submit an availability request for supervisor review</p>
               </div>
             </div>
-            <ChevronRight className="h-4 w-4 text-gray-400" />
+            <ChevronRight className="h-4 w-4 text-gray-400 dark:text-gray-500" />
           </button>
         </div>
       </main>
@@ -407,6 +398,6 @@ export default function OfficerHomePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </OfficerShell>
   )
 }

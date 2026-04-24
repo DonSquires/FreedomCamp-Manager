@@ -121,6 +121,16 @@ BASE_URL="${RUNPOD_SERVERLESS_URL:-${RUNPOD_URL:-https://api.runpod.ai/v2/apynox
 API_KEY="${RUNPOD_API_KEY:-}"
 BASE_URL="${BASE_URL%/}"
 
+# Prefer explicit API URL when provided. This is commonly a /run endpoint.
+if [[ -n "${RUNPOD_API_URL:-}" ]]; then
+  BASE_URL="${RUNPOD_API_URL%/}"
+fi
+
+endpoint_kind="runsync"
+if [[ "$BASE_URL" =~ /run$ || "$BASE_URL" =~ /runs$ ]]; then
+  endpoint_kind="run"
+fi
+
 if [[ -z "$BASE_URL" || -z "$API_KEY" ]]; then
   fail "Missing RunPod credentials. Need RUNPOD_API_KEY (and optional RUNPOD_SERVERLESS_URL override)."
   exit 1
@@ -130,41 +140,64 @@ if [[ "$BASE_URL" != http://* && "$BASE_URL" != https://* ]]; then
   BASE_URL="http://$BASE_URL"
 fi
 
-log "Checking RunPod runsync ping"
-PING_PAYLOAD='{"input":{"action":"ping"}}'
-PING_HTTP="$(curl -sS -m 30 -o /tmp/bob-ping.json -w '%{http_code}' \
-  -X POST "$BASE_URL" \
-  -H 'Content-Type: application/json' \
-  -H "Authorization: Bearer $API_KEY" \
-  -d "$PING_PAYLOAD" || true)"
+log "Checking RunPod endpoint health (kind=$endpoint_kind)"
+if [[ "$endpoint_kind" == "runsync" ]]; then
+  PING_PAYLOAD='{"input":{"action":"ping"}}'
+  PING_HTTP="$(curl -sS -m 30 -o /tmp/bob-ping.json -w '%{http_code}' \
+    -X POST "$BASE_URL" \
+    -H 'Content-Type: application/json' \
+    -H "Authorization: Bearer $API_KEY" \
+    -d "$PING_PAYLOAD" || true)"
 
-if [[ "$PING_HTTP" != "200" ]]; then
-  fail "RunPod ping failed at $BASE_URL (HTTP $PING_HTTP)"
-  cat /tmp/bob-ping.json 2>/dev/null || true
-  exit 1
+  if [[ "$PING_HTTP" != "200" ]]; then
+    fail "RunPod ping failed at $BASE_URL (HTTP $PING_HTTP)"
+    cat /tmp/bob-ping.json 2>/dev/null || true
+    exit 1
+  fi
+
+  PING_STATUS="$(jq -r '.status // "unknown"' /tmp/bob-ping.json 2>/dev/null || echo unknown)"
+  PING_MESSAGE="$(jq -r '.output.message // .message // "unknown"' /tmp/bob-ping.json 2>/dev/null || echo unknown)"
+  log "RunPod ping OK: status=$PING_STATUS message=$PING_MESSAGE"
+
+  log "Checking RunPod chat action"
+  CHAT_PAYLOAD='{"input":{"action":"chat","messages":[{"role":"user","content":"Container doctor ping. Reply with one short line."}]}}'
+  CHAT_HTTP="$(curl -sS -m 45 -o /tmp/bob-chat.json -w '%{http_code}' \
+    -X POST "$BASE_URL" \
+    -H 'Content-Type: application/json' \
+    -H "Authorization: Bearer $API_KEY" \
+    -d "$CHAT_PAYLOAD" || true)"
+
+  if [[ "$CHAT_HTTP" != "200" ]]; then
+    fail "RunPod chat action failed at $BASE_URL (HTTP $CHAT_HTTP)"
+    cat /tmp/bob-chat.json 2>/dev/null || true
+    exit 1
+  fi
+
+  CHAT_PROVIDER="$(jq -r '.output.provider // .provider // "unknown"' /tmp/bob-chat.json 2>/dev/null || echo unknown)"
+  CHAT_SUCCESS="$(jq -r '.output.success // .success // "unknown"' /tmp/bob-chat.json 2>/dev/null || echo unknown)"
+  log "Chat OK: provider=$CHAT_PROVIDER success=$CHAT_SUCCESS"
+else
+  log "Using async /run endpoint probe with polling"
+  if ! RUNPOD_ENDPOINT_API_KEY="$API_KEY" RUNPOD_ENDPOINT_URL="$BASE_URL" \
+    node "$SCRIPT_DIR/invoke-runpod-endpoint.mjs" \
+      --payload '{"input":{"action":"ping"}}' \
+      --poll true --timeoutMs 60000 --intervalMs 3000 > /tmp/bob-ping-async.json 2>&1; then
+    fail "RunPod async ping failed at $BASE_URL"
+    cat /tmp/bob-ping-async.json 2>/dev/null || true
+    exit 1
+  fi
+  log "Async ping OK"
+
+  if ! RUNPOD_ENDPOINT_API_KEY="$API_KEY" RUNPOD_ENDPOINT_URL="$BASE_URL" \
+    node "$SCRIPT_DIR/invoke-runpod-endpoint.mjs" \
+      --payload '{"input":{"message":"Container doctor ping. Reply with one short line.","action":"chat","messages":[{"role":"user","content":"Container doctor ping. Reply with one short line."}]}}' \
+      --poll true --timeoutMs 120000 --intervalMs 3000 > /tmp/bob-chat-async.json 2>&1; then
+    fail "RunPod async chat failed at $BASE_URL"
+    cat /tmp/bob-chat-async.json 2>/dev/null || true
+    exit 1
+  fi
+  log "Async chat completed"
 fi
-
-PING_STATUS="$(jq -r '.status // "unknown"' /tmp/bob-ping.json 2>/dev/null || echo unknown)"
-PING_MESSAGE="$(jq -r '.output.message // .message // "unknown"' /tmp/bob-ping.json 2>/dev/null || echo unknown)"
-log "RunPod ping OK: status=$PING_STATUS message=$PING_MESSAGE"
-
-log "Checking RunPod chat action"
-CHAT_PAYLOAD='{"input":{"action":"chat","messages":[{"role":"user","content":"Container doctor ping. Reply with one short line."}]}}'
-CHAT_HTTP="$(curl -sS -m 45 -o /tmp/bob-chat.json -w '%{http_code}' \
-  -X POST "$BASE_URL" \
-  -H 'Content-Type: application/json' \
-  -H "Authorization: Bearer $API_KEY" \
-  -d "$CHAT_PAYLOAD" || true)"
-
-if [[ "$CHAT_HTTP" != "200" ]]; then
-  fail "RunPod chat action failed at $BASE_URL (HTTP $CHAT_HTTP)"
-  cat /tmp/bob-chat.json 2>/dev/null || true
-  exit 1
-fi
-
-CHAT_PROVIDER="$(jq -r '.output.provider // .provider // "unknown"' /tmp/bob-chat.json 2>/dev/null || echo unknown)"
-CHAT_SUCCESS="$(jq -r '.output.success // .success // "unknown"' /tmp/bob-chat.json 2>/dev/null || echo unknown)"
-log "Chat OK: provider=$CHAT_PROVIDER success=$CHAT_SUCCESS"
 
 if [[ "$CHECK_RAILWAY" == "true" ]]; then
   if [[ -n "${RAILWAY_BOB_TOKEN:-}" ]]; then

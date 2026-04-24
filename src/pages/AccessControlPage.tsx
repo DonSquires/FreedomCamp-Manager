@@ -50,6 +50,8 @@ import {
   AlertCircle,
   RefreshCw,
   ArrowLeft,
+  FileText,
+  Settings,
 } from 'lucide-react'
 import { PORTAL_AREA_CODES, PORTAL_AREA_LABELS, type PortalAreaCode } from '@/hooks/usePermissions'
 
@@ -271,7 +273,10 @@ export default function AccessControlPage() {
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <AppLayout>
+    <AppLayout
+      title="Access Control"
+      description="Manage portal-area access and multi-organisation permissions for users, service providers and contractors."
+    >
       <GlobalFilterRibbon />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 
@@ -299,6 +304,42 @@ export default function AccessControlPage() {
             Refresh
           </Button>
         </div>
+
+        {/* ── Governance Quick Actions ───────────────────────────────────── */}
+        <Card className="border-blue-200 bg-blue-50/60 dark:bg-blue-950/20 dark:border-blue-900">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-blue-600" />
+              Governance Quick Actions
+            </CardTitle>
+            <CardDescription>
+              Jump between organisation governance surfaces and audit traceability.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+              {[
+                { label: 'Organisations', path: '/organizations', Icon: Building2 },
+                { label: 'Users', path: '/users', Icon: Users },
+                { label: 'Site Permissions', path: '/site-permissions', Icon: Settings },
+                { label: 'Audit Log', path: '/audit-log', Icon: FileText },
+                { label: 'Command Centre', path: '/admin', Icon: ShieldCheck },
+              ].map(({ label, path, Icon }) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => navigate(path)}
+                  className="text-left rounded-lg border bg-white dark:bg-gray-900 px-3 py-2 transition-colors hover:bg-blue-100/60 dark:hover:bg-blue-900/20"
+                >
+                  <div className="flex items-center gap-1.5 text-sm font-medium text-gray-900 dark:text-gray-100">
+                    <Icon className="h-4 w-4 text-blue-600" />
+                    {label}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* ── Filters ────────────────────────────────────────────────────── */}
         <Card>
@@ -436,6 +477,17 @@ export default function AccessControlPage() {
                 </span>
               )}
             </DialogDescription>
+            <div className="pt-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/audit-log')}
+                className="h-8"
+              >
+                <FileText className="h-3.5 w-3.5 mr-1" />
+                Open Audit Log
+              </Button>
+            </div>
           </DialogHeader>
 
           <Tabs defaultValue="areas">

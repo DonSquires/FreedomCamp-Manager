@@ -17,7 +17,8 @@ async function assertRadioLoads(page: any) {
 
   // Stable radio UI markers on PTTRadio page.
   await expect(page.getByRole('heading', { name: 'Radio' })).toBeVisible({ timeout: 20000 })
-  await expect(page.getByText('Channels', { exact: true })).toBeVisible({ timeout: 20000 })
+  await expect(page.getByTestId('ptt-main-button')).toBeVisible({ timeout: 20000 })
+  await expect(page.getByTestId('ptt-channel-1').first()).toBeVisible({ timeout: 20000 })
   await expect(page.getByText('Emergency — All Channels')).toBeVisible({ timeout: 20000 })
 }
 

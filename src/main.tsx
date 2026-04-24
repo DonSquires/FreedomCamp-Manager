@@ -5,6 +5,7 @@ import './index.css'
 import 'leaflet/dist/leaflet.css'
 import { supabaseConfigured } from './lib/supabase.ts'
 import { registerServiceWorker } from './lib/pwa.ts'
+import { assertRouteManifestValid, routeManifest } from './navigation'
 
 const App = lazy(() => import('./App.tsx'))
 const CleanAppScaffold = lazy(() => import('./rebuild/CleanAppScaffold.tsx'))
@@ -30,6 +31,30 @@ if (clearFromQuery) localStorage.removeItem('clean_rebuild_surface')
 else if (cleanFromQuery) localStorage.setItem('clean_rebuild_surface', 'true')
 const cleanFromStorage = localStorage.getItem('clean_rebuild_surface') === 'true'
 const useCleanSurface = enableCleanRebuildRoutes || cleanFromQuery || cleanFromStorage
+
+if (import.meta.env.DEV) {
+  assertRouteManifestValid(routeManifest)
+}
+
+const appBootLoader = (
+  <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950 px-6 text-center text-slate-50">
+    <div className="space-y-5">
+      <div className="relative mx-auto flex h-20 w-20 items-center justify-center">
+        <div className="absolute h-20 w-20 rounded-full border-[3px] border-cyan-300/20 border-t-cyan-300 animate-spin" />
+        <img
+          src="/iron-eagle-security-logo.jpg"
+          alt="Iron Eagle Security"
+          className="h-12 w-12 rounded-xl object-cover shadow-lg"
+        />
+      </div>
+      <div className="space-y-1">
+        <p className="text-sm font-semibold uppercase tracking-[0.28em] text-cyan-200">Iron Eagle Security</p>
+        <h1 className="text-2xl font-bold text-white">FieldOps Manager</h1>
+        <p className="text-sm text-slate-300">Preparing the Freedom Camp enforcement workspace...</p>
+      </div>
+    </div>
+  </div>
+)
 
 if (supabaseConfigured && typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   registerServiceWorker().catch(() => {
@@ -70,7 +95,7 @@ if (!supabaseConfigured) {
 } else {
   createRoot(root).render(
     <StrictMode>
-      <Suspense fallback={null}>
+      <Suspense fallback={appBootLoader}>
         {useCleanSurface ? <CleanAppScaffold /> : <App />}
       </Suspense>
       <RebuildSurfaceSwitcher />
