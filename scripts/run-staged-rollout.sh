@@ -23,15 +23,25 @@ bun run build > "$LOG_DIR/2_build.log" 2>&1
 echo "[rollout] Step 3/5: bundle budget"
 node scripts/check-bundle-budget.mjs > "$LOG_DIR/3_budget.log" 2>&1
 
-echo "[rollout] Step 4/5: governance regression (Bob-assisted)"
-BOB_TEST_ABORT_ON_UNHEALTHY=false node scripts/run-test-with-bob-assist.mjs -- \
-  npx --no-install playwright test tests/e2e/governance-bob-regression.spec.ts --project=chromium \
-  > "$LOG_DIR/4_governance.log" 2>&1
+if [ "${USE_BOB_WRAPPER:-0}" = "1" ]; then
+  echo "[rollout] Step 4/5: governance regression (Bob-assisted)"
+  BOB_TEST_ABORT_ON_UNHEALTHY=false node scripts/run-test-with-bob-assist.mjs -- \
+    npx --no-install playwright test tests/e2e/governance-bob-regression.spec.ts --project=chromium \
+    > "$LOG_DIR/4_governance.log" 2>&1
 
-echo "[rollout] Step 5/5: capability overview (Bob-assisted)"
-BOB_TEST_ABORT_ON_UNHEALTHY=false node scripts/run-test-with-bob-assist.mjs -- \
-  npx --no-install playwright test tests/e2e/capability-overview.spec.ts --project=chromium \
-  > "$LOG_DIR/5_capability.log" 2>&1
+  echo "[rollout] Step 5/5: capability overview (Bob-assisted)"
+  BOB_TEST_ABORT_ON_UNHEALTHY=false node scripts/run-test-with-bob-assist.mjs -- \
+    npx --no-install playwright test tests/e2e/capability-overview.spec.ts --project=chromium \
+    > "$LOG_DIR/5_capability.log" 2>&1
+else
+  echo "[rollout] Step 4/5: governance regression"
+  npx --no-install playwright test tests/e2e/governance-bob-regression.spec.ts --project=chromium --reporter=line \
+    > "$LOG_DIR/4_governance.log" 2>&1
+
+  echo "[rollout] Step 5/5: capability overview"
+  npx --no-install playwright test tests/e2e/capability-overview.spec.ts --project=chromium --reporter=line \
+    > "$LOG_DIR/5_capability.log" 2>&1
+fi
 
 echo "[rollout] Complete. Summary:"
 echo "  lint:       OK"
