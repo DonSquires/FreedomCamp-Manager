@@ -447,6 +447,15 @@ export default function PTTRadio() {
       return wsUrl
     }
   }, [wsUrl])
+  const signalingTransportState = useMemo(() => {
+    if (!wsUrl) return 'SIGNAL UNKNOWN'
+    if (wsUrl.startsWith('wss://')) return 'WSS OK'
+    if (wsUrl.startsWith('ws://')) {
+      if (typeof window !== 'undefined' && window.location.protocol === 'https:') return 'WS BLOCKED'
+      return 'WS INSECURE'
+    }
+    return 'SIGNAL UNKNOWN'
+  }, [wsUrl])
   const radioMode = useMemo(() => {
     const search = new URLSearchParams(location.search)
     return search.get('mode') || ''
@@ -1715,7 +1724,7 @@ export default function PTTRadio() {
             <div className="min-w-0">
               <div>{error}</div>
               <div className="text-[10px] text-red-400/80 uppercase tracking-wider mt-1">
-                Signaling: {signalingDebugLabel}
+                Signaling: {signalingDebugLabel} ({signalingTransportState})
               </div>
             </div>
             {canFallbackToTextChat && (
@@ -1764,7 +1773,7 @@ export default function PTTRadio() {
             <div className="min-w-0">
               <div>PTT server unreachable - check your connection or use mobile phone direct.</div>
               <div className="text-[10px] text-amber-400/80 uppercase tracking-wider mt-1">
-                Signaling: {signalingDebugLabel}
+                Signaling: {signalingDebugLabel} ({signalingTransportState})
               </div>
             </div>
             <Button

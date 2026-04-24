@@ -7,6 +7,9 @@ import { test, expect, helpers } from './setup'
 import { loginAs } from './auth'
 
 const hasAdminOrg2Creds = !!(process.env.PLAYWRIGHT_ADMIN_ORG2_EMAIL || process.env.E2E_ADMIN_ORG2_EMAIL)
+const adminOrg1Email = String(process.env.PLAYWRIGHT_ADMIN_ORG1_EMAIL || process.env.PLAYWRIGHT_ADMIN_EMAIL || process.env.E2E_ADMIN_EMAIL || '').trim().toLowerCase()
+const adminOrg2Email = String(process.env.PLAYWRIGHT_ADMIN_ORG2_EMAIL || process.env.E2E_ADMIN_ORG2_EMAIL || '').trim().toLowerCase()
+const hasDistinctAdminOrg2Creds = hasAdminOrg2Creds && !!adminOrg2Email && adminOrg2Email !== adminOrg1Email
 
 test.describe('Multi-Org RLS - Data Isolation', () => {
   test('Admin can only see own organization data', async ({ page }) => {
@@ -20,7 +23,7 @@ test.describe('Multi-Org RLS - Data Isolation', () => {
   })
 
   test('Different admin sees different organization data', async ({ page }) => {
-    test.skip(!hasAdminOrg2Creds, 'Admin Org 2 credentials not configured in environment')
+    test.skip(!hasDistinctAdminOrg2Creds, 'Admin Org 2 credentials not configured distinctly from Admin Org 1')
 
     // Login as Org 2 Admin
     await loginAs(page, 'adminOrg2')
