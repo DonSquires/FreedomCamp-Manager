@@ -1,8 +1,8 @@
 # Bob Failure Summary
 
-Generated: 2026-04-24T06:17:46.016Z
+Generated: 2026-04-24T09:06:26.930Z
 Window: last 24 hours
-Entries analyzed: 3
+Entries analyzed: 0
 Low-score entries: 0
 
 ## Top Failure Reasons
@@ -19,7 +19,7 @@ Low-score entries: 0
 
 ## Most-Flagged Artifacts
 
-- /workspaces/FreedomCamp-Manager/docs/BOB_AUTONOMOUS_LEARNING.md (3)
+- none
 
 ## Recommendations
 
