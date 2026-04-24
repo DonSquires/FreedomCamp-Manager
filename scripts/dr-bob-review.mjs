@@ -104,9 +104,59 @@ function isReviewShape(value) {
   );
 }
 
+function normalizeAlternateReviewShape(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+
+  const findingsObject = value.findings;
+  if (!findingsObject || typeof findingsObject !== 'object' || Array.isArray(findingsObject)) {
+    return null;
+  }
+
+  const verificationSource = value.verificationChecks;
+  const verificationChecks = Array.isArray(verificationSource)
+    ? verificationSource.map((item) => String(item || '').trim()).filter(Boolean)
+    : verificationSource && typeof verificationSource === 'object'
+      ? Object.values(verificationSource).map((item) => String(item || '').trim()).filter(Boolean)
+      : typeof verificationSource === 'string'
+        ? [verificationSource.trim()].filter(Boolean)
+        : [];
+
+  const findings = Object.entries(findingsObject)
+    .filter(([, enabled]) => enabled)
+    .map(([key]) => ({
+      severity: 'major',
+      title: key.replace(/([A-Z])/g, ' $1').replace(/^./, (ch) => ch.toUpperCase()).trim(),
+      evidence: verificationChecks[0] || `Alternate review shape flagged ${key}.`,
+      requiredAction: `Address the ${key} concern and rerun Dr Bob review.`,
+    }));
+
+  if (findings.length === 0) return null;
+
+  return {
+    decision: 'needs-revision',
+    summary: 'Dr Bob returned a non-canonical JSON shape; normalized repo-grounded concerns were extracted.',
+    findings,
+    verificationChecks,
+  };
+}
+
 function parseReviewResponse(rawText) {
   const normalized = normalizeRunpodText(rawText);
-  const candidates = [normalized, stripCodeFence(normalized)];
+  const extractEmbeddedJson = (value) => {
+    const text = String(value || '');
+    const firstBrace = text.indexOf('{');
+    const lastBrace = text.lastIndexOf('}');
+    if (firstBrace >= 0 && lastBrace > firstBrace) {
+      return text.slice(firstBrace, lastBrace + 1);
+    }
+    return '';
+  };
+  const candidates = [
+    normalized,
+    stripCodeFence(normalized),
+    extractEmbeddedJson(normalized),
+    extractEmbeddedJson(stripCodeFence(normalized)),
+  ].filter(Boolean);
 
   for (const candidate of candidates) {
     try {
@@ -114,6 +164,15 @@ function parseReviewResponse(rawText) {
       if (isReviewShape(parsed)) {
         return {
           review: parsed,
+          structured: true,
+          normalized,
+        };
+      }
+
+      const normalizedAlternate = normalizeAlternateReviewShape(parsed);
+      if (normalizedAlternate) {
+        return {
+          review: normalizedAlternate,
           structured: true,
           normalized,
         };
@@ -149,6 +208,7 @@ function buildRetryPrompt(basePrompt, attempt) {
     '',
     `Retry attempt ${attempt}: your prior output was not valid JSON.`,
     'Return only JSON, no markdown fences, no prose before or after JSON.',
+    'The first character of your response must be { and the last character must be }.',
     'If uncertain, still return the JSON object with empty findings and explicit verificationChecks.',
   ].join('\n');
 }
@@ -358,9 +418,9 @@ async function sendViaRunpod(message) {
 
   const withModel = (input) => (drBobModel ? { ...input, model: drBobModel } : input);
   const attempts = [
-    { input: withModel({ message }) },
-    { input: withModel({ prompt: message }) },
     { input: withModel({ action: 'review', message }) },
+    { input: withModel({ prompt: message }) },
+    { input: withModel({ message }) },
   ];
 
   let lastFailure = null;
@@ -392,6 +452,8 @@ function buildReviewPrompt({ artifactType, artifactPath, artifactText, systemSta
     'You are the blocking reviewer before implementation begins.',
     'Use the repo truth protocol: do not invent modules, data models, routes, migrations, or services.',
     'If the artifact mentions src/modules/* that are not in system_state.json, mark that as blocker severity.',
+    'Output contract is strict: return one JSON object only. No headings, no bullets, no markdown, no code fences.',
+    'If you add any text outside the JSON object, the response is invalid.',
     `Artifact type: ${artifactType}`,
     `Artifact path: ${artifactPath}`,
     `Fail on revision mode: ${failOnRevision ? 'true' : 'false'}`,
@@ -412,6 +474,9 @@ function buildReviewPrompt({ artifactType, artifactPath, artifactText, systemSta
     '  ],',
     '  "verificationChecks": ["specific checks to run after fixes"]',
     '}',
+    '',
+    'Valid example:',
+    '{"decision":"needs-revision","summary":"Grounded summary.","findings":[{"severity":"major","title":"Example issue","evidence":"Artifact says X but repo shows Y","requiredAction":"Change X to Y before implementation"}],"verificationChecks":["Run targeted build","Run org-isolation validation"]}',
     '',
     `Review this ${artifactType}:`,
     artifactText,
