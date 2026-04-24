@@ -497,7 +497,6 @@ export default function App() {
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/dispute" element={<PublicDisputePortal />} />
-          <Route path="/public/dispute" element={<Navigate to="/dispute" replace />} />
           <Route
             path="/portal-selection"
             element={
@@ -1583,11 +1582,6 @@ export default function App() {
                 </RoleRoute>
               </ProtectedRoute>
             }
-          />
-          {/* Backward-compatibility redirect for legacy deep-links */}
-          <Route
-            path="/admin/site-permissions"
-            element={<Navigate to="/site-permissions" replace />}
           />
           <Route
             path="/client-master-list"

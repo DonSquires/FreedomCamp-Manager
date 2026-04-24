@@ -7,6 +7,7 @@
     "build": "tsc -b && vite build",
     "check:budget": "node scripts/check-bundle-budget.mjs",
     "build:check": "tsc -b && vite build && node scripts/check-bundle-budget.mjs",
+    "review:kpi": "node scripts/review-rollout-kpis.mjs",
     "typecheck": "tsc -b",
     "lint": "eslint .",
     "review:evidence": "node scripts/generate-bob-build-review-evidence.mjs tools/bob-build-review-evidence.json",
