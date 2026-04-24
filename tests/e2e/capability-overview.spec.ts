@@ -104,33 +104,41 @@ test.describe('Login Page', () => {
 // ─── Public Dispute Portal ───────────────────────────────────────────────────
 
 test.describe('Public Dispute Portal', () => {
-  test('is accessible without authentication', async ({ page }) => {
-    await page.goto('/public/dispute')
+  async function waitForDisputePortal(page: Page) {
+    await page.goto('/dispute')
     await page.waitForLoadState('domcontentloaded')
+    // Route is lazy-loaded; on cold dev startup this can take longer than 10s.
+    await expect(page.locator('body')).toContainText('Notice Review and Dispute Portal', {
+      timeout: 20000,
+    })
+  }
+
+  test('is accessible without authentication', async ({ page }) => {
+    await waitForDisputePortal(page)
 
     // Should NOT redirect to login
     expect(page.url()).not.toContain('/login')
   })
 
   test('renders a notice reference number input', async ({ page }) => {
-    await page.goto('/public/dispute')
+    await waitForDisputePortal(page)
     // Wait for the specific reference input to appear (rendered by React)
-    const refInput = page.locator('input[placeholder*="INF"]')
-    await expect(refInput).toBeVisible({ timeout: 10000 })
+    const refInput = page.locator('input[placeholder*="INF" i]').first()
+    await expect(refInput).toBeVisible({ timeout: 20000 })
   })
 
   test('renders a Find Notice button', async ({ page }) => {
-    await page.goto('/public/dispute')
+    await waitForDisputePortal(page)
     // Wait for the Find Notice button to appear (rendered by React)
     const findBtn = page.locator('button').filter({ hasText: /find notice/i }).first()
-    await expect(findBtn).toBeVisible({ timeout: 10000 })
+    await expect(findBtn).toBeVisible({ timeout: 20000 })
   })
 
   test('shows a heading describing the dispute process', async ({ page }) => {
-    await page.goto('/public/dispute')
+    await waitForDisputePortal(page)
     // CardTitle renders as h3; wait for the specific portal heading
-    const heading = page.locator('h3').filter({ hasText: /notice.*review|dispute.*portal/i }).first()
-    await expect(heading).toBeVisible({ timeout: 10000 })
+    const heading = page.locator('h1, h2, h3').filter({ hasText: /notice.*review|dispute.*portal/i }).first()
+    await expect(heading).toBeVisible({ timeout: 20000 })
   })
 })
 

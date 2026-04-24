@@ -994,7 +994,7 @@ export default function ZoneManagement() {
                   type="url"
                   value={editDisputePortalUrl}
                   onChange={(e) => setEditDisputePortalUrl(e.target.value)}
-                  placeholder="https://yourapp.example.com/public/dispute"
+                  placeholder="https://yourapp.example.com/dispute"
                 />
                 <p className="text-xs text-muted-foreground mt-1">Printed on notices so recipients can self-serve a dispute online.</p>
               </div>

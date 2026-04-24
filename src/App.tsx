@@ -496,7 +496,8 @@ export default function App() {
         <Routes>
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
-          <Route path="/public/dispute" element={<PublicDisputePortal />} />
+          <Route path="/dispute" element={<PublicDisputePortal />} />
+          <Route path="/public/dispute" element={<Navigate to="/dispute" replace />} />
           <Route
             path="/portal-selection"
             element={
