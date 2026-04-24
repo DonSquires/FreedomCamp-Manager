@@ -309,9 +309,15 @@ function extractRunpodText(payload) {
 async function pingBobViaRunpod(stage, command, exitCode = null) {
   const endpointUrl = resolveRunpodEndpointUrl();
   const apiKey = resolveRunpodApiKey();
+  const required = envFlag(process.env.REQUIRE_BOB_TEST_ASSIST, false);
 
   if (!endpointUrl || !apiKey) {
-    throw new Error('RunPod fallback unavailable: missing RUNPOD_ENDPOINT_URL/RUNPOD_API_URL or RUNPOD_ENDPOINT_API_KEY/RUNPOD_API_KEY');
+    const message = 'RunPod fallback unavailable: missing RUNPOD_ENDPOINT_URL/RUNPOD_API_URL or RUNPOD_ENDPOINT_API_KEY/RUNPOD_API_KEY';
+    if (required) {
+      throw new Error(message);
+    }
+    console.warn(`[bob-test-assist] ${message} — continuing without fallback assist`);
+    return;
   }
 
   const invokeData = await httpJson(endpointUrl, apiKey, {

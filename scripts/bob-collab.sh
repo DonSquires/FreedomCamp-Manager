@@ -1,12 +1,35 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-set -a
-[[ -f .env ]] && source .env || true
-[[ -f .env.local ]] && source .env.local || true
-[[ -f .env.playwright.local ]] && source .env.playwright.local || true
-[[ -f .runtime/bob.env ]] && source .runtime/bob.env || true
-set +a
+load_env_file() {
+  local file="$1"
+  [[ -f "$file" ]] || return 0
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "$line" ]] && continue
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+
+    if [[ "$line" =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+      local key="${BASH_REMATCH[1]}"
+      local val="${BASH_REMATCH[2]}"
+      if [[ -n "${!key:-}" ]]; then
+        continue
+      fi
+      # Strip optional surrounding quotes to mirror common .env parsing.
+      if [[ "$val" =~ ^\".*\"$ ]]; then
+        val="${val:1:${#val}-2}"
+      elif [[ "$val" =~ ^\'.*\'$ ]]; then
+        val="${val:1:${#val}-2}"
+      fi
+      export "$key=$val"
+    fi
+  done < "$file"
+}
+
+load_env_file .env
+load_env_file .env.local
+load_env_file .env.playwright.local
+load_env_file .runtime/bob.env
 
 # Copilot <-> Bob collaboration helper.
 # Modes:
@@ -36,8 +59,8 @@ if [[ "$MODE" == "queue" || "$MODE" == "hybrid" || "$MODE" == "queue-run" || "$M
   fi
 fi
 
-BASE_URL="${BOB_SERVICE_URL:-${INFERENCE_SERVICE_URL:-}}"
-API_KEY="${BOB_INFERENCE_API_KEY:-${INFERENCE_API_KEY:-}}"
+BASE_URL="${INFERENCE_SERVICE_URL:-${BOB_SERVICE_URL:-}}"
+API_KEY="${INFERENCE_API_KEY:-${BOB_INFERENCE_API_KEY:-}}"
 
 if [[ -z "$MODE" || -z "$INPUT" ]]; then
   cat <<'USAGE'
@@ -93,11 +116,12 @@ to_json_file_array() {
 
 call_chat() {
   local message="$1"
+  local system_prompt="You are Bob, a practical engineering assistant for FieldOps Manager. Return concise, concrete, testable guidance for the exact task."
   curl -sS --max-time 120 \
     -X POST "$BASE_URL/chat" \
     -H 'Content-Type: application/json' \
     -H "x-inference-api-key: $API_KEY" \
-    -d "{\"message\":$(json_escape "$message")}" \
+    -d "{\"message\":$(json_escape "$message"),\"system_prompt\":$(json_escape "$system_prompt")}" \
     | jq -r '.text // .message // .error // "(no response text)"'
 }
 
