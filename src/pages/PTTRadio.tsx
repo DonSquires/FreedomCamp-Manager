@@ -388,6 +388,7 @@ export default function PTTRadio() {
 
   // PTT store state
   const connectionStatus = usePTTStore((s) => s.connectionStatus)
+  const wsUrl = usePTTStore((s) => s.wsUrl)
   const channelId = usePTTStore((s) => s.channelId)
   const isSpeaking = usePTTStore((s) => s.isSpeaking)
   const speakerId = usePTTStore((s) => s.speakerId)
@@ -437,6 +438,15 @@ export default function PTTRadio() {
   const [interpreterPrefsHydrated, setInterpreterPrefsHydrated] = useState(false)
   const [isInterpreterListening, setIsInterpreterListening] = useState(false)
   const [isInterpreterTranslating, setIsInterpreterTranslating] = useState(false)
+  const signalingDebugLabel = useMemo(() => {
+    if (!wsUrl) return 'Signal URL unavailable'
+    try {
+      const parsed = new URL(wsUrl)
+      return `${parsed.protocol}//${parsed.host}`
+    } catch {
+      return wsUrl
+    }
+  }, [wsUrl])
   const radioMode = useMemo(() => {
     const search = new URLSearchParams(location.search)
     return search.get('mode') || ''
@@ -1702,7 +1712,12 @@ export default function PTTRadio() {
         {error && (
           <div className="px-4 py-2 bg-red-950 border-b border-red-800 text-xs text-red-300 flex items-center gap-2 shrink-0">
             <AlertTriangle className="h-3.5 w-3.5 text-red-400 shrink-0" />
-            {error}
+            <div className="min-w-0">
+              <div>{error}</div>
+              <div className="text-[10px] text-red-400/80 uppercase tracking-wider mt-1">
+                Signaling: {signalingDebugLabel}
+              </div>
+            </div>
             {canFallbackToTextChat && (
               <Button
                 variant="ghost"
@@ -1746,7 +1761,12 @@ export default function PTTRadio() {
         {degradedMode && !error && (
           <div className="px-4 py-2 bg-amber-950 border-b border-amber-700 text-xs text-amber-300 flex items-center gap-2 shrink-0">
             <WifiOff className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-            PTT server unreachable — check your connection or use mobile phone direct.
+            <div className="min-w-0">
+              <div>PTT server unreachable - check your connection or use mobile phone direct.</div>
+              <div className="text-[10px] text-amber-400/80 uppercase tracking-wider mt-1">
+                Signaling: {signalingDebugLabel}
+              </div>
+            </div>
             <Button
               variant="ghost"
               size="sm"
