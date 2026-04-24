@@ -6,6 +6,8 @@ cd "$ROOT_DIR"
 
 WINDOW_MINUTES="${BOB_MONITOR_WINDOW_MINUTES:-15}"
 ERROR_THRESHOLD="${BOB_MONITOR_ERROR_THRESHOLD:-5}"
+ESCALATE_TO_DR_BOB="${BOB_ESCALATE_TO_DR_BOB:-true}"
+INCIDENT_FILE="${BOB_MONITOR_INCIDENT_FILE:-data/dr-bob-live-incident.md}"
 
 TMP_INPUT="$(mktemp)"
 cleanup() {
@@ -66,3 +68,27 @@ fs.writeFileSync(filePath, `${JSON.stringify(state, null, 2)}\n`);
 EOF_NODE
 
 echo "Bob monitor checked logs: ${ERROR_COUNT} server-side 500 errors in last ${WINDOW_MINUTES} minutes"
+
+if [[ "${ESCALATE_TO_DR_BOB}" == "true" && "$ERROR_COUNT" -ge "$ERROR_THRESHOLD" ]]; then
+  mkdir -p "$(dirname "$INCIDENT_FILE")"
+  LAST_ERRORS="$({ grep -Ei '(^|[^0-9])500([^0-9]|$)|status=500|HTTP 500|Internal Server Error' "$TMP_INPUT" | tail -n 40; } || true)"
+
+  cat > "$INCIDENT_FILE" <<EOF_INCIDENT
+# Live Bob Monitor Incident
+
+- Detected at: $(date -u '+%Y-%m-%dT%H:%M:%SZ')
+- Error count: ${ERROR_COUNT}
+- Window minutes: ${WINDOW_MINUTES}
+- Threshold: ${ERROR_THRESHOLD}
+- Source: scripts/monitor-bob.sh
+
+## Recent Error Samples
+
+\`\`\`
+${LAST_ERRORS}
+\`\`\`
+EOF_INCIDENT
+
+  echo "Bob monitor: escalating incident to Dr Bob via scripts/dr-bob-review.mjs"
+  node scripts/dr-bob-review.mjs --file "$INCIDENT_FILE" --type plan || true
+fi
