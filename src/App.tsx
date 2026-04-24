@@ -110,6 +110,7 @@ const SiteGuardPortal = lazy(() => import('@/pages/SiteGuardPortal'))
 const AccessControlPage = lazy(() => import('@/pages/AccessControlPage'))
 const TeamChat = lazy(() => import('@/pages/TeamChat'))
 const PTTRadio = lazy(() => import('@/pages/PTTRadio'))
+const MessagingPage = lazy(() => import('@/modules/messaging'))
 const IntelApprovalQueue = lazy(() => import('@/pages/IntelApprovalQueue'))
 const BobIntakeQueue = lazy(() => import('@/pages/BobIntakeQueue'))
 const BobAssistantStudio = lazy(() => import('@/pages/BobAssistantStudio'))
@@ -954,6 +955,15 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+
+            <Route
+              path="/messages"
+              element={
+                <ProtectedRoute>
+                  <MessagingPage />
+                </ProtectedRoute>
+              }
+            />
 
           <Route
             path="/intel-approvals"

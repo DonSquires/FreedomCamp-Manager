@@ -701,6 +701,17 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
     // Get token from Edge Function
     const tokenData = await requestPTTToken(channelScope)
 
+    // Prevent mixed-content websocket failures when app is served over HTTPS.
+    if (
+      typeof window !== 'undefined' &&
+      window.location.protocol === 'https:' &&
+      tokenData.wsUrl.startsWith('ws://')
+    ) {
+      store.setConnection('error')
+      store.setError('PTT misconfiguration: secure app requires wss:// signaling URL. Please contact support.')
+      return
+    }
+
     store.setConnection('connecting', tokenData.wsUrl, tokenData.token)
     store.setIceServers(tokenData.iceServers)
     applyTransportDiagnostics(tokenData.transport || {

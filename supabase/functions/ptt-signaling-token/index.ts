@@ -18,12 +18,10 @@ import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_share
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { fetchWithRetry } from '../_shared/fetchWithRetry.ts'
 
-const DEFAULT_PTT_SERVER_URL = 'http://72.61.123.97:8080'
-
 const PTT_SERVER_URL =
   Deno.env.get('PTT_SERVER_URL') ||
   Deno.env.get('PTT_SERVICE_URL') ||
-  DEFAULT_PTT_SERVER_URL
+  ''
 const PROXY_SECRET = Deno.env.get('PTT_PROXY_SECRET') || ''
 
 function normalizeBaseUrl(value: string): string {
