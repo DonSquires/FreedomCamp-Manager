@@ -59,6 +59,7 @@ import {
   Users,
   Zap,
   ChevronRight,
+  Package2,
 } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -301,6 +302,7 @@ export default function AdminHub() {
         { path: '/availability',    label: 'Availability',    Icon: UserCheck },
         { path: '/patrol-schedule', label: 'Patrol Schedule', Icon: Navigation },
         { path: '/patrol-kpis',     label: 'Patrol KPIs',     Icon: TrendingUp },
+        { path: '/asset-management', label: 'Assets',         Icon: Package2 },
       ],
     },
     {

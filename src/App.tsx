@@ -107,6 +107,7 @@ const DispatchedJobsList = lazy(() => import('@/pages/DispatchedJobsList'))
 const RosterPlanner = lazy(() => import('@/pages/RosterPlanner'))
 const OfficerSkills = lazy(() => import('@/pages/OfficerSkills'))
 const OfficerAvailability = lazy(() => import('@/pages/OfficerAvailability'))
+const AssetManagement = lazy(() => import('@/pages/AssetManagement'))
 const ClientOrganisationPortal = lazy(() => import('@/pages/ClientOrganisationPortal'))
 const InvoicingPage = lazy(() => import('@/pages/InvoicingPage'))
 const PricingPage = lazy(() => import('@/pages/PricingPage'))
@@ -534,7 +535,7 @@ export default function App() {
           {/* Backward-compatibility redirect for legacy deep-links */}
           <Route
             path="/field"
-            element={<Navigate to="/field-officer" replace />}
+            element={<Navigate to="/field-officer?service=freedom_camping" replace />}
           />
           {/* Protected routes */}
           <Route
@@ -1609,6 +1610,16 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <OfficerSkills />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/asset-management"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <AssetManagement />
                 </RoleRoute>
               </ProtectedRoute>
             }
