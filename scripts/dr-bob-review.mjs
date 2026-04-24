@@ -6,6 +6,7 @@ import process from 'node:process';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { recordScoredResponse } from './bob-response-log.mjs';
+import { recordDrBobEscalation } from './dr-bob-escalation-log.mjs';
 import { loadLocalEnv } from './load-local-env.mjs';
 
 loadLocalEnv();
@@ -521,6 +522,29 @@ export async function runDrBobReview(options = {}) {
       basicFixResult,
       requiredAction: 'Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope.',
     }, escalateFile);
+
+    await recordDrBobEscalation({
+      sourceFile: artifactPath,
+      reviewArtifact: outputPath,
+      escalationArtifact: escalationPath,
+      structured,
+      decision: review.decision,
+      reason: !structured
+        ? 'unstructured-review'
+        : hasBlockingFinding(review)
+          ? 'blocker-findings'
+          : 'basic-fix-failed',
+      summary: review.summary,
+      findingsCount: Array.isArray(review.findings) ? review.findings.length : 0,
+      topFinding: Array.isArray(review.findings) && review.findings.length > 0
+        ? review.findings[0].title || null
+        : null,
+      selfHealAttempted: !!basicFixResult,
+      selfHealSuccess: basicFixResult?.success === true,
+      handoffRequired: true,
+      copilotActionHint: 'Investigate escalation artifact and implement targeted fix',
+      responsePreview: delivery?.text || '',
+    });
   }
 
   await recordScoredResponse({
