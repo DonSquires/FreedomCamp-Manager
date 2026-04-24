@@ -7,6 +7,7 @@ export function useOperationalOrganization() {
 
   const authorizedOrganizationIds = Array.from(new Set([
     ...(user?.organization_id ? [user.organization_id] : []),
+    ...(user?.employer_organization_id ? [user.employer_organization_id] : []),
     ...(user?.authorized_work_locations ?? []),
     ...(user?.extra_organization_ids ?? []),
   ]))
@@ -14,7 +15,7 @@ export function useOperationalOrganization() {
   const operationalOrganizationId =
     organizationId && authorizedOrganizationIds.includes(organizationId)
       ? organizationId
-      : user?.organization_id ?? null
+      : user?.employer_organization_id ?? user?.organization_id ?? null
 
   return {
     operationalOrganizationId,

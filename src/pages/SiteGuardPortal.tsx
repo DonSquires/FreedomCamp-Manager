@@ -25,6 +25,7 @@ import { AppLayout } from '@/components/features/AppLayout'
 import { FieldSafetyBar } from '@/components/features/FieldSafetyBar'
 import { GeofenceWarningBanner } from '@/components/features/GeofenceWarningBanner'
 import { useShiftGate } from '@/hooks/useShiftGate'
+import { useGeofenceOrgTransition } from '@/hooks/useGeofenceOrgTransition'
 import { VOILookup } from '@/components/features/VOILookup'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -251,6 +252,7 @@ export default function SiteGuardPortal() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { user } = useAuthStore()
+  useGeofenceOrgTransition({ enabled: true })
   const queryClient = useQueryClient()
 
   const { gateApplies, canAccessPortal, canUseFeature, geofenceViolation, isLoading: gateLoading } = useShiftGate()
