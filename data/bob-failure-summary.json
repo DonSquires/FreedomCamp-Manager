@@ -1,27 +1,18 @@
 {
-  "generatedAt": "2026-04-24T03:49:47.426Z",
+  "generatedAt": "2026-04-24T06:17:46.016Z",
   "windowHours": 24,
-  "totalEntries": 9,
-  "lowScoreCount": 1,
-  "topFailureReasons": [
-    {
-      "name": "Bob chat network failure",
-      "count": 1
-    }
-  ],
+  "totalEntries": 3,
+  "lowScoreCount": 0,
+  "topFailureReasons": [],
   "topHallucinationPatterns": [],
   "repeatedHallucinations": [],
   "topFlaggedArtifacts": [
     {
       "name": "/workspaces/FreedomCamp-Manager/docs/BOB_AUTONOMOUS_LEARNING.md",
       "count": 3
-    },
-    {
-      "name": "/workspaces/FreedomCamp-Manager/docs/BOB_TRAINING_ADVANCED_ARCHITECT_2026.md",
-      "count": 3
     }
   ],
   "recommendations": [
-    "Prefer the proven RunPod delivery path when Bob local /chat is unavailable."
+    "No repeated failure mode crossed the automatic threshold in this window."
   ]
 }

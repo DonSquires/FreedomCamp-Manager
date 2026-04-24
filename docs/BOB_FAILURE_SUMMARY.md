@@ -1,13 +1,13 @@
 # Bob Failure Summary
 
-Generated: 2026-04-24T03:49:47.426Z
+Generated: 2026-04-24T06:17:46.016Z
 Window: last 24 hours
-Entries analyzed: 9
-Low-score entries: 1
+Entries analyzed: 3
+Low-score entries: 0
 
 ## Top Failure Reasons
 
-- Bob chat network failure (1)
+- none
 
 ## Top Hallucination Patterns
 
@@ -19,8 +19,8 @@ Low-score entries: 1
 
 ## Most-Flagged Artifacts
 
-- /workspaces/FreedomCamp-Manager/docs/BOB_AUTONOMOUS_LEARNING.md (3), /workspaces/FreedomCamp-Manager/docs/BOB_TRAINING_ADVANCED_ARCHITECT_2026.md (3)
+- /workspaces/FreedomCamp-Manager/docs/BOB_AUTONOMOUS_LEARNING.md (3)
 
 ## Recommendations
 
-- Prefer the proven RunPod delivery path when Bob local /chat is unavailable.
+- No repeated failure mode crossed the automatic threshold in this window.
