@@ -71,6 +71,11 @@ jobs:
             sudo apt-get update -y
             sudo DEBIAN_FRONTEND=noninteractive apt-get install -y nginx certbot python3-certbot-nginx
 
+            # Ensure inbound ACME challenge and TLS traffic are permitted.
+            sudo ufw allow 80/tcp || true
+            sudo ufw allow 443/tcp || true
+            sudo ufw reload || true
+
             sudo tee "/etc/nginx/sites-available/ptt-${PTT_DOMAIN}.conf" >/dev/null <<EOF
             server {
               listen 80;
