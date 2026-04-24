@@ -42,9 +42,16 @@ Deno.serve(async (req) => {
 
     const { data: caller } = await adminClient
       .from('user_profiles')
-      .select('organization_id, role')
+      .select('organization_id, role, employer_organization_id, extra_organization_ids, authorized_work_locations')
       .eq('id', user.id)
       .single()
+
+    const callerOrganizationIds = new Set<string>([
+      (caller as any)?.organization_id,
+      (caller as any)?.employer_organization_id,
+      ...((((caller as any)?.extra_organization_ids) ?? []) as string[]),
+      ...((((caller as any)?.authorized_work_locations) ?? []) as string[]),
+    ].filter((id): id is string => typeof id === 'string' && id.length > 0))
 
     const isAdminLike = caller && ['admin', 'master', 'grand_master'].includes(caller.role)
     if (!isAdminLike) {
@@ -75,7 +82,7 @@ Deno.serve(async (req) => {
         })
       }
 
-      if (caller.role !== 'grand_master' && caller.organization_id !== organizationId) {
+      if (caller.role !== 'grand_master' && !callerOrganizationIds.has(organizationId)) {
         return new Response(JSON.stringify({ error: 'Cannot create users in another organization' }), {
           status: 403,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -134,7 +141,7 @@ Deno.serve(async (req) => {
       })
     }
 
-    if (caller.role !== 'grand_master' && caller.organization_id !== targetProfile.organization_id) {
+    if (caller.role !== 'grand_master' && !callerOrganizationIds.has(targetProfile.organization_id as string)) {
       return new Response(JSON.stringify({ error: 'Cannot manage users in another organization' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
