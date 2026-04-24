@@ -117,7 +117,8 @@ to_json_file_array() {
 call_chat() {
   local message="$1"
   local system_prompt="You are Bob, a practical engineering assistant for FieldOps Manager. Return concise, concrete, testable guidance for the exact task."
-  curl -sS --max-time 120 \
+  local request_timeout="${BOB_COLLAB_TIMEOUT_SEC:-300}"
+  curl -sS --max-time "$request_timeout" \
     -X POST "$BASE_URL/chat" \
     -H 'Content-Type: application/json' \
     -H "x-inference-api-key: $API_KEY" \
