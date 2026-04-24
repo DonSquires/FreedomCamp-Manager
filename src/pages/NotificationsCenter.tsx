@@ -202,7 +202,28 @@ export default function NotificationsCenter() {
     >
       <GlobalFilterRibbon />
 
-      <div className="space-y-6 p-4">
+      <div className="space-y-5 px-0">
+
+        {/* ── Notifications hero ──────────────────────────────────── */}
+        <div className="relative overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-gradient-to-br from-slate-50 via-white to-violet-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 p-4 sm:p-5 shadow-sm">
+          <div className="absolute -top-12 -right-10 h-36 w-36 rounded-full bg-violet-200/40 blur-2xl dark:bg-violet-500/10 pointer-events-none" />
+          <div className="relative flex items-center justify-between gap-3">
+            <div>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight flex items-center gap-2">
+                <Bell className="h-5 w-5 text-violet-600" />
+                Notifications
+              </h1>
+              <p className="text-sm text-muted-foreground mt-0.5">Inbox, broadcast and notification preferences.</p>
+            </div>
+            {unreadCount > 0 && (
+              <Badge variant="destructive" className="text-sm px-3 py-1 shrink-0">
+                {unreadCount} unread
+              </Badge>
+            )}
+          </div>
+        </div>
+
+        <Tabs defaultValue="inbox">
 
         <Tabs defaultValue="inbox">
           <TabsList className="mb-4">
@@ -229,8 +250,9 @@ export default function NotificationsCenter() {
 
           {/* ── Inbox ──────────────────────────────────────────────── */}
           <TabsContent value="inbox">
-            <Card>
-              <CardHeader>
+            <Card className="border border-white/60 dark:border-white/10 bg-white/80 dark:bg-slate-900/70 shadow-sm overflow-hidden">
+              <div className="h-1 w-full bg-gradient-to-r from-violet-500 to-purple-600" />
+              <CardHeader className="pt-4">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div>
                     <CardTitle className="flex items-center gap-2">
