@@ -67,6 +67,7 @@ interface QuickLink {
   path: string
   label: string
   Icon: React.ElementType
+  scopeHint?: string
 }
 
 interface HubCard {
@@ -192,16 +193,21 @@ function ModuleCard({ card }: { card: HubCard }) {
       <CardContent className="pt-0 space-y-3">
         {/* Quick link grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-          {card.quickLinks.map(({ path, label, Icon }) => (
+          {card.quickLinks.map(({ path, label, Icon, scopeHint }) => (
             <button
               key={path}
               onClick={(e) => { e.stopPropagation(); navigate(path) }}
-              className="min-h-16 flex flex-col items-center justify-center gap-1 rounded-lg px-1.5 py-2 text-center bg-white/60 dark:bg-white/5 hover:bg-white/90 dark:hover:bg-white/10 border border-white/50 dark:border-white/10 hover:border-white/80 dark:hover:border-white/20 transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              className="min-h-16 flex flex-col items-center justify-center gap-0.5 rounded-lg px-1.5 py-2 text-center bg-white/60 dark:bg-white/5 hover:bg-white/90 dark:hover:bg-white/10 border border-white/50 dark:border-white/10 hover:border-white/80 dark:hover:border-white/20 transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
             >
               <Icon className="h-4 w-4 text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white" />
               <span className="text-xs font-medium text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white leading-tight">
                 {label}
               </span>
+              {scopeHint && (
+                <span className="text-[10px] leading-tight text-gray-500 dark:text-gray-500">
+                  {scopeHint}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -270,8 +276,11 @@ export default function AdminHub() {
         { path: '/operations-map',    label: 'Ops Map',        Icon: Layers },
         { path: '/site-guard',        label: 'Site Guard',     Icon: Lock },
         { path: '/access-control',    label: 'Access Control', Icon: Lock },
-        { path: '/noise-control',     label: 'Noise Control',  Icon: Zap },
-        { path: '/parking',           label: 'Parking',        Icon: ParkingSquare },
+        { path: '/field-officer?service=freedom_camping', label: 'Freedom Camping', Icon: MapPin, scopeHint: 'Zone-based' },
+        { path: '/parking-officer',   label: 'Parking',        Icon: ParkingSquare, scopeHint: 'Zone-based' },
+        { path: '/noise-officer',     label: 'Noise Control',  Icon: Zap, scopeHint: 'Jurisdiction' },
+        { path: '/biosecurity-officer', label: 'Biosecurity',  Icon: Search, scopeHint: 'Jurisdiction' },
+        { path: '/smoke-officer',     label: 'Smoke (OOH)',    Icon: AlertTriangle, scopeHint: 'Jurisdiction' },
         { path: '/ems',               label: 'EMS',            Icon: Zap },
       ],
     },
@@ -310,7 +319,7 @@ export default function AdminHub() {
         { path: '/live-tracking',      label: 'Live Tracking',  Icon: Navigation },
         { path: '/officer-skills',     label: 'Skills',         Icon: GraduationCap },
         { path: '/person-records',     label: 'Person Records', Icon: Users },
-        { path: '/identity-verification', label: 'ID Check',   Icon: Shield },
+        { path: '/identity-verification', label: 'ID Check',   Icon: Shield, scopeHint: 'Client/Site' },
       ],
     },
     {
