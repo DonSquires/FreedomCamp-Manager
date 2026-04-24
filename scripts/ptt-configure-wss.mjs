@@ -113,7 +113,7 @@ function buildSupabaseCommands(wssUrl) {
     `supabase functions deploy ptt-signaling-token --project-ref <YOUR_PROJECT_REF>`,
     ``,
     `# 3. Verify the health check shows ptt_ws_url = "${wssUrl}":`,
-    `curl -s https://<YOUR_PROJECT_REF>.supabase.co/functions/v1/check-railway-health \\`,
+    `curl -s https://<YOUR_PROJECT_REF>.supabase.co/functions/v1/check-ptt-health \\`,
     `  -H "Authorization: Bearer <ANON_KEY>" | jq .ptt_ws_url`,
   ].join('\n');
 }
@@ -164,11 +164,11 @@ async function main() {
   console.log(buildSupabaseCommands('wss://<assigned-subdomain>.trycloudflare.com/ws'));
   console.log('');
 
-  // ── Option C: Railway ─────────────────────────────────────────────────────
-  console.log('━━━ OPTION C: Deploy PTT server to Railway (built-in TLS) ━━━━━━━━━━━━');
-  console.log('  If the PTT server is containerised, deploy it to Railway/Render/Fly.io.');
-  console.log('  These platforms provide automatic HTTPS/WSS on a custom domain.');
-  console.log('  Then set PTT_WS_URL=wss://<your-railway-domain>/ws in Supabase secrets.\n');
+  // ── Option C: nginx on hPanel VPS ─────────────────────────────────────────
+  console.log('━━━ OPTION C: nginx SSL proxy on existing hPanel VPS ━━━━━━━━━━━━━━━━━');
+  console.log('  Generate nginx config: node scripts/ptt-configure-wss.mjs --domain your.domain.com');
+  console.log('  Upload ops/nginx-ptt-ssl.conf to the VPS, run certbot, then:');
+  console.log('  Set PTT_WS_URL=wss://ptt.<your-domain>/ws in Supabase secrets.\n');
 
   // ── Minimal test ──────────────────────────────────────────────────────────
   console.log('━━━ Test the fix ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');

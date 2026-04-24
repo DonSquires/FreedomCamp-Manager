@@ -8,7 +8,7 @@
  * 3. Presence tracking (who's online, who's talking)
  * 4. Token validation for secure channel access
  * 
- * Deploy this to Railway alongside the existing proxy and inference services.
+ * Deploy this to your hPanel VPS alongside the existing proxy and inference services.
  */
 
 const express = require('express');
@@ -92,7 +92,7 @@ const PTT_SFU_URL = String(process.env.PTT_SFU_URL || '').trim();
 function getMediaPathConfig() {
   return {
     mode: PTT_MEDIA_MODE,
-    signaling_path: 'app->railway->app',
+    signaling_path: 'app->vps->app',
     media_path: PTT_MEDIA_MODE === 'sfu' ? 'app->sfu->app' : 'webrtc-peer-or-turn-relay',
     sfu: PTT_MEDIA_MODE === 'sfu'
       ? {
@@ -123,8 +123,7 @@ function normalizeTurnUrl(rawUrl) {
     return withPreferredTurnTransport(url);
   }
 
-  // Railway often exposes the TURN relay as bare host:port. Browsers require
-  // an explicit turn: URL scheme for RTCPeerConnection iceServers.
+  // Bare host:port values require an explicit turn: URL scheme for RTCPeerConnection iceServers.
   return withPreferredTurnTransport(`turn:${url}`);
 }
 
@@ -132,12 +131,6 @@ function withPreferredTurnTransport(url) {
   if (typeof url !== 'string') return url;
   if (!url.startsWith('turn:')) return url;
   if (url.includes('transport=')) return url;
-
-  // Railway proxy endpoints are TCP fronted; force TCP allocations so TURN
-  // doesn't try UDP by default (which fails behind the proxy).
-  if (url.includes('.proxy.rlwy.net')) {
-    return `${url}${url.includes('?') ? '&' : '?'}transport=tcp`;
-  }
 
   return url;
 }

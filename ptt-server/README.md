@@ -30,44 +30,32 @@ npm run dev
 curl http://localhost:3002/health
 ```
 
-### Deploy to Railway
-
-#### Option 1: Railway CLI
+### Deploy to hPanel VPS
 
 ```bash
-# Login to Railway
-railway login
+# Copy ptt-server/ to your VPS (via scp, git pull, or hPanel File Manager)
+# SSH into the VPS and navigate to the project directory:
+cd /opt/fieldops-voice/ptt-server
+npm install --production
 
-# Link or create project
-railway init
+# Create .env from example and fill in required values:
+cp .env.example .env
+# Edit .env: set PTT_PROXY_SECRET, PTT_JWT_SECRET, PORT=8080
 
-# Set environment variables
-railway variables set PTT_PROXY_SECRET=your-secret
-railway variables set PTT_JWT_SECRET=your-jwt-secret
-
-# Deploy
-railway up
-
-# Get URL
-railway status
+# Start with PM2 for persistent process management:
+pm2 start server.js --name ptt-server
+pm2 save
+pm2 startup
 ```
 
-#### Option 2: Railway Dashboard
-
-1. Go to https://railway.app/dashboard
-2. Click **"New Project"** → **"Deploy from GitHub"**
-3. Select repository, set **Root Directory**: `ptt-server/`
-4. Add environment variables:
-  - `PTT_PROXY_SECRET`: Shared secret with Edge Functions
-   - `PTT_JWT_SECRET`: JWT signing secret (must match Edge Function)
-   - `PORT`: Auto-set by Railway
-5. Deploy and copy the URL
+For SSL/wss:// support, run `node scripts/ptt-configure-wss.mjs --domain your.domain.com`
+to generate the nginx config for your hPanel VPS.
 
 ## Configuration
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `PORT` | Auto | Server port (Railway sets this) |
+| `PORT` | No | Server port (default: 8080) |
 | `PTT_PROXY_SECRET` | Yes | Authenticates requests from Edge Functions |
 | `PTT_JWT_SECRET` | Yes | Signs/verifies channel access tokens |
 | `MAX_PARTICIPANTS_PER_CHANNEL` | No | Limit per channel (default: 50) |
@@ -200,7 +188,7 @@ Professional compatibility mode:
   - Channel membership
   - Presence tracking
   - Pub/sub for cross-instance messaging
-- Consider Railway Pro for always-on services
+- Use PM2 on hPanel VPS for always-on process management (`pm2 start server.js --name ptt-server`)
 
 ## Monitoring
 
@@ -224,4 +212,4 @@ curl -H "x-proxy-secret: your-ptt-proxy-secret" \
 - [Push-to-Talk Blueprint](../docs/push-to-talk.md)
 - [PTT Self-Hosted Operations Standard](../docs/PTT_SELF_HOSTED_OPERATIONS_STANDARD.md)
 - [Push-to-Talk Options](../docs/push-to-talk-options.md)
-- [Railway Deployment Guide](../docs/RAILWAY_DEPLOYMENT_GUIDE.md)
+- [PTT wss:// Configuration Helper](../scripts/ptt-configure-wss.mjs)
