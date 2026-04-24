@@ -637,9 +637,9 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-cyan-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900">
       {/* Mobile Header */}
-      <header className="lg:hidden bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-40">
+      <header className="lg:hidden bg-white/95 dark:bg-gray-800/95 backdrop-blur shadow-sm sticky top-0 z-40 border-b border-gray-200/60 dark:border-gray-700/60">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
             <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
@@ -712,12 +712,12 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
       {/* Desktop Sidebar */}
       <aside
         className={cn(
-          'hidden lg:block fixed inset-y-0 left-0 w-64 bg-white dark:bg-gray-800 border-r dark:border-gray-700 z-30 transition-transform duration-200 shadow-[2px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[2px_0_12px_-2px_rgba(0,0,0,0.4)]',
+          'hidden lg:block fixed inset-y-0 left-0 w-64 bg-white/95 dark:bg-gray-800/95 backdrop-blur border-r dark:border-gray-700 z-30 transition-transform duration-200 shadow-[2px_0_14px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_14px_-2px_rgba(0,0,0,0.45)]',
           desktopNavOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         <div className="flex flex-col h-full">
-          <div className="p-5 border-b dark:border-gray-700 bg-gradient-to-br from-cyan-700 to-cyan-800 dark:from-cyan-900 dark:to-cyan-950">
+          <div className="p-5 border-b dark:border-gray-700 bg-gradient-to-br from-cyan-700 via-cyan-800 to-slate-900 dark:from-cyan-900 dark:via-cyan-950 dark:to-slate-950">
             <div className="flex items-start justify-between">
               <div className="min-w-0">
                 <h2 className="font-bold text-xl text-white">FieldOps</h2>
@@ -730,6 +730,9 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
                    user?.role === 'admin' ? 'Administrator' :
                   user?.role === 'admin_officer' ? 'Admin Officer' :
                   user?.role === 'nzscv_monitor' ? 'NZSCV Monitor' : 'Field Officer'}
+                </p>
+                <p className="mt-2 inline-flex rounded-full border border-cyan-200/30 bg-cyan-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cyan-100">
+                  Operations Console
                 </p>
               </div>
               <button
@@ -762,7 +765,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
       {/* Main Content */}
       <div className={cn('transition-[padding] duration-200', desktopNavOpen ? 'lg:pl-64' : 'lg:pl-0')}>
         {/* Desktop Header */}
-        <header className="hidden lg:block bg-white dark:bg-gray-800 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.4)] sticky top-0 z-20 border-b border-gray-100 dark:border-gray-700/50">
+        <header className="hidden lg:block bg-white/95 dark:bg-gray-800/90 backdrop-blur shadow-[0_2px_8px_-2px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.4)] sticky top-0 z-20 border-b border-gray-100/90 dark:border-gray-700/60">
           <div className="px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-start gap-3">

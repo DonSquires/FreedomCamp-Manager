@@ -988,6 +988,16 @@ export default function AdminPortal() {
 
       <div className="space-y-4">
 
+        {/* ── Scope model strip ───────────────────────────────────────────── */}
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/60 px-4 py-3">
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">Operational Scope Model</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="text-[11px]">Zone-based: Parking, Freedom Camping</Badge>
+            <Badge variant="outline" className="text-[11px]">Jurisdiction-wide: Noise, Smoke, Biosecurity</Badge>
+            <Badge variant="outline" className="text-[11px]">Client/Site driven: ID Verification</Badge>
+          </div>
+        </div>
+
         {/* ── RAG OPERATIONAL STATUS BANNER — Rapid Global / Lighthouse IO inspired ── */}
         <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors ${
           ragStatus === 'green' ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-700'
