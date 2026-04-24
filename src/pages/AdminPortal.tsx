@@ -62,6 +62,7 @@ import {
   Volume2,
   Zap,
   AlertCircle,
+  Package2,
 } from 'lucide-react'
 
 type DrillConfig = {
@@ -1352,11 +1353,12 @@ export default function AdminPortal() {
                 </p>
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
                   {[
-                    { path: '/roster',        label: 'Roster Planner',   Icon: CalendarDays,  color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
-                    { path: '/timesheets',    label: 'Timesheets',       Icon: Clock,         color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
-                    { path: '/open-shifts',   label: 'Open Shifts',      Icon: CalendarCheck2,color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20' },
-                    { path: '/officer-skills',label: 'Skills & Licences',Icon: GraduationCap, color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
-                    { path: '/availability',  label: 'Availability',     Icon: CalendarDays,  color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/roster',            label: 'Roster Planner',   Icon: CalendarDays,  color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    { path: '/timesheets',        label: 'Timesheets',       Icon: Clock,         color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
+                    { path: '/open-shifts',       label: 'Open Shifts',      Icon: CalendarCheck2,color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20' },
+                    { path: '/officer-skills',    label: 'Skills & Licences',Icon: GraduationCap, color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
+                    { path: '/availability',      label: 'Availability',     Icon: CalendarDays,  color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/asset-management',  label: 'Assets',           Icon: Package2,      color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)}
                       className={`min-h-20 flex flex-col items-center justify-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`}
@@ -1418,8 +1420,9 @@ export default function AdminPortal() {
             title="Compliance Performance"
             description="Rolling compliance vs breach signal for current filter scope"
           />
-          <Card className="bg-white dark:bg-gray-900 shadow-sm">
-            <CardHeader className="pb-3">
+          <Card className="border border-white/60 dark:border-white/10 bg-white/80 dark:bg-slate-900/70 backdrop-blur-sm shadow-sm overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-cyan-500 to-blue-600" />
+            <CardHeader className="pb-3 pt-4">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Radio className="h-4 w-4 text-cyan-600" />
                 Quick Actions
@@ -1430,7 +1433,7 @@ export default function AdminPortal() {
               {drilldowns.map(({ title, to, icon: Icon, metric, config }) => (
                 <button
                   key={to}
-                  className="flex w-full items-center justify-between rounded-lg border bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group"
+                  className="flex w-full items-center justify-between rounded-lg border border-white/60 dark:border-white/10 bg-white/70 dark:bg-slate-800/50 px-3 py-2.5 text-left hover:bg-white dark:hover:bg-slate-800 transition-colors group"
                   onClick={() => openDrilldown(config)}
                 >
                   <span className="flex items-center gap-2 min-w-0">
@@ -1449,8 +1452,9 @@ export default function AdminPortal() {
 
         {/* ── RECENT OBSERVATIONS ──────────────────────────────────────────────────── */}
         <section>
-          <Card className="bg-white dark:bg-gray-900 shadow-sm">
-            <CardHeader className="pb-3">
+          <Card className="border border-white/60 dark:border-white/10 bg-white/80 dark:bg-slate-900/70 backdrop-blur-sm shadow-sm overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-blue-500 to-indigo-600" />
+            <CardHeader className="pb-3 pt-4">
               <CardTitle className="flex items-center justify-between text-base">
                 <span>Recent Observations</span>
                 <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => navigate('/observation-records')}>
@@ -1463,7 +1467,7 @@ export default function AdminPortal() {
               {recentHistoricalObservations.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No recent observations found.</p>
               ) : recentHistoricalObservations.map((obs: any) => (
-                <div key={obs.observation_id} className="flex items-center justify-between gap-3 rounded-lg border bg-gray-50 dark:bg-gray-800 px-3 py-2">
+                <div key={obs.observation_id} className="flex items-center justify-between gap-3 rounded-lg border border-white/60 dark:border-white/10 bg-white/70 dark:bg-slate-800/50 px-3 py-2">
                   <div className="min-w-0">
                     <p className="font-mono text-sm font-semibold truncate">{obs.plate_number || 'UNKNOWN'}</p>
                     <p className="text-xs text-muted-foreground truncate">
