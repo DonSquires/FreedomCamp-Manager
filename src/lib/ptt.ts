@@ -328,6 +328,15 @@ function isTransientPTTErrorMessage(message: string): boolean {
   )
 }
 
+function isValidWebSocketUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'ws:' || parsed.protocol === 'wss:'
+  } catch {
+    return false
+  }
+}
+
 async function waitForPTTTokenWindow(): Promise<void> {
   const now = Date.now()
   const lastRequestAt = readLastTokenRequestAt()
@@ -700,6 +709,12 @@ export async function connectToPTT(channelScope: string, channelName?: string): 
   try {
     // Get token from Edge Function
     const tokenData = await requestPTTToken(channelScope)
+
+    if (!tokenData.wsUrl || !isValidWebSocketUrl(tokenData.wsUrl)) {
+      store.setConnection('error')
+      store.setError('PTT misconfiguration: signaling URL is invalid or unacceptable. Please contact support.')
+      return
+    }
 
     // Prevent mixed-content websocket failures when app is served over HTTPS.
     if (

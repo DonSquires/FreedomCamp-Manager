@@ -14,12 +14,15 @@ const __dirname = path.dirname(__filename);
 const workspaceRoot = path.resolve(__dirname, '..');
 const envRunpodEndpointId = String(process.env.RUNPOD_ENDPOINT_ID || '').trim();
 const defaultRunpodUrl = String(
+  process.env.RUNPOD_API_URL ||
   process.env.RUNPOD_RUNSYNC_URL ||
   process.env.RUNPOD_SERVERLESS_URL ||
   process.env.RUNPOD_GATEWAY_URL ||
   (envRunpodEndpointId ? `https://api.runpod.ai/v2/${envRunpodEndpointId}/runsync` : '')
 ).trim();
 const drBobModel = String(process.env.DR_BOB_MODEL || process.env.OLLAMA_MODEL || '').trim();
+const runpodPollIntervalMs = Number.parseInt(String(process.env.DR_BOB_RUNPOD_POLL_INTERVAL_MS || '2500'), 10) || 2500;
+const runpodPollTimeoutMs = Number.parseInt(String(process.env.DR_BOB_RUNPOD_POLL_TIMEOUT_MS || '120000'), 10) || 120000;
 
 function getArg(name, fallback = '') {
   const flag = `--${name}`;
@@ -133,9 +136,93 @@ async function postJson(url, headers, body) {
   return { ok: response.ok, status: response.status, text };
 }
 
+async function getJson(url, headers) {
+  const response = await fetch(url, {
+    method: 'GET',
+    headers,
+  });
+
+  const text = await response.text();
+  return { ok: response.ok, status: response.status, text };
+}
+
+function isTerminalRunpodStatus(status) {
+  const value = String(status || '').trim().toUpperCase();
+  return value === 'COMPLETED' || value === 'FAILED' || value === 'CANCELLED' || value === 'TIMED_OUT';
+}
+
+function deriveRunpodStatusUrl(runpodUrl, endpointId, jobId) {
+  if (!jobId) return '';
+  if (endpointId) {
+    return `https://api.runpod.ai/v2/${endpointId}/status/${encodeURIComponent(jobId)}`;
+  }
+  if (/\/runs?$/i.test(runpodUrl)) {
+    return runpodUrl.replace(/\/runs?$/i, `/status/${encodeURIComponent(jobId)}`);
+  }
+  return '';
+}
+
+function extractRunpodText(payload) {
+  const candidates = [
+    payload?.output?.message,
+    payload?.output?.response,
+    payload?.output?.text,
+    payload?.message,
+    payload?.response,
+    payload?.output,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) return candidate;
+    if (candidate && typeof candidate === 'object') return JSON.stringify(candidate);
+  }
+  return JSON.stringify(payload);
+}
+
+async function awaitRunpodCompletion({ runpodUrl, headers, initialText }) {
+  let parsed;
+  try {
+    parsed = JSON.parse(initialText);
+  } catch {
+    return initialText;
+  }
+
+  const initialStatus = String(parsed?.status || '').trim().toUpperCase();
+  const jobId = parsed?.id || parsed?.jobId;
+  const statusUrl = deriveRunpodStatusUrl(runpodUrl, envRunpodEndpointId, jobId);
+  if (!jobId || !statusUrl || (initialStatus && isTerminalRunpodStatus(initialStatus))) {
+    return initialText;
+  }
+
+  const startedAt = Date.now();
+  let lastPayload = parsed;
+  while (Date.now() - startedAt < runpodPollTimeoutMs) {
+    const statusResult = await getJson(statusUrl, headers);
+    if (!statusResult.ok) {
+      return statusResult.text || initialText;
+    }
+
+    try {
+      lastPayload = JSON.parse(statusResult.text);
+    } catch {
+      return statusResult.text || initialText;
+    }
+
+    const status = String(lastPayload?.status || '').trim().toUpperCase();
+    if (status && isTerminalRunpodStatus(status)) {
+      return extractRunpodText(lastPayload);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, runpodPollIntervalMs));
+  }
+
+  return extractRunpodText(lastPayload);
+}
+
 async function sendViaRunpod(message) {
   const runpodUrl = String(
     process.env.DR_BOB_RUNPOD_URL ||
+      process.env.RUNPOD_API_URL ||
       process.env.RUNPOD_RUNSYNC_URL ||
       defaultRunpodUrl
   ).trim();
@@ -169,7 +256,14 @@ async function sendViaRunpod(message) {
   let lastFailure = null;
   for (const payload of attempts) {
     const result = await postJson(runpodUrl, headers, payload);
-    if (result.ok) return { ...result, channel: 'runpod-runsync', sent: true };
+    if (result.ok) {
+      const settledText = await awaitRunpodCompletion({
+        runpodUrl,
+        headers,
+        initialText: result.text,
+      });
+      return { ...result, text: settledText, channel: 'runpod-runsync', sent: true };
+    }
     lastFailure = result;
   }
 

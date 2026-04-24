@@ -22,6 +22,10 @@ const PTT_SERVER_URL =
   Deno.env.get('PTT_SERVER_URL') ||
   Deno.env.get('PTT_SERVICE_URL') ||
   ''
+const PTT_WS_URL =
+  Deno.env.get('PTT_WS_URL') ||
+  Deno.env.get('PTT_SIGNALING_WS_URL') ||
+  ''
 const PROXY_SECRET = Deno.env.get('PTT_PROXY_SECRET') || ''
 
 function normalizeBaseUrl(value: string): string {
@@ -37,6 +41,12 @@ function toWsUrl(baseHttpUrl: string): string {
     return normalized.replace('http://', 'ws://') + '/ws'
   }
   return normalized + '/ws'
+}
+
+function normalizeWsUrl(value: string): string {
+  const normalized = normalizeBaseUrl(value)
+  if (normalized.startsWith('ws://') || normalized.startsWith('wss://')) return normalized
+  return ''
 }
 
 const PTT_AUTHORIZATION_ERROR = 'Not authorized for this channel. PTT access is limited to your employer organization and explicitly authorized organizations.'
@@ -425,10 +435,21 @@ Deno.serve(async (req) => {
       console.warn('PTT presence upsert failed:', presenceError)
     }
 
+    const resolvedWsUrl = normalizeWsUrl(PTT_WS_URL) || toWsUrl(normalizedPttServerUrl)
+    if (!resolvedWsUrl.startsWith('ws://') && !resolvedWsUrl.startsWith('wss://')) {
+      return new Response(
+        JSON.stringify({
+          error: 'PTT websocket URL invalid',
+          message: 'Resolved websocket URL must start with ws:// or wss://',
+        }),
+        { status: 503, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      )
+    }
+
     return new Response(
       JSON.stringify({
         ...tokenData,
-        wsUrl: toWsUrl(normalizedPttServerUrl),
+        wsUrl: resolvedWsUrl,
       }),
       { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     )
