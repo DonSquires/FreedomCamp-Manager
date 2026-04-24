@@ -148,49 +148,49 @@ export default function Profile() {
 
   return (
     <AppLayout title="My Profile" description="Manage your account details and emergency contact">
-      <div className="max-w-2xl space-y-6">
+      <div className="max-w-2xl space-y-5">
 
-        {/* Profile header */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-blue-100 border-2 border-blue-200 flex items-center justify-center overflow-hidden">
-                {profile?.profile_photo_url ? (
-                  <img src={profile.profile_photo_url} alt="Profile" className="w-full h-full object-cover" />
-                ) : (
-                  <User className="h-8 w-8 text-blue-600" />
-                )}
-              </div>
-              <div>
-                <h2 className="text-xl font-bold">
-                  {profile?.first_name || profile?.last_name
-                    ? `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim()
-                    : user?.email}
-                </h2>
-                <div className="flex items-center gap-2 mt-1">
-                  <Badge variant="outline" className="capitalize text-xs">{profile?.role}</Badge>
-                  {profile?.is_active && <Badge variant="secondary" className="text-xs">Active</Badge>}
-                  {profile?.organization && (
-                    <span className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Building2 className="h-3 w-3" />
-                      {profile.organization.name}
-                    </span>
-                  )}
-                </div>
-                {profile?.created_at && (
-                  <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    Member since {formatDateTime(profile.created_at)}
-                  </div>
-                )}
-              </div>
+        {/* ── Profile hero ─────────────────────────────────────────────── */}
+        <div className="relative overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-gradient-to-br from-slate-50 via-white to-blue-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 p-4 sm:p-5 shadow-sm">
+          <div className="absolute -top-12 -right-10 h-36 w-36 rounded-full bg-blue-200/40 blur-2xl dark:bg-blue-500/10 pointer-events-none" />
+          <div className="relative flex items-center gap-4">
+            <div className="w-16 h-16 rounded-2xl bg-blue-100 dark:bg-blue-900/40 border-2 border-blue-200 dark:border-blue-700 flex items-center justify-center overflow-hidden shadow-sm shrink-0">
+              {profile?.profile_photo_url ? (
+                <img src={profile.profile_photo_url} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <User className="h-8 w-8 text-blue-600" />
+              )}
             </div>
-          </CardContent>
-        </Card>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white truncate">
+                {profile?.first_name || profile?.last_name
+                  ? `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim()
+                  : user?.email}
+              </h2>
+              <div className="flex flex-wrap items-center gap-2 mt-1">
+                <Badge variant="outline" className="capitalize text-xs">{profile?.role}</Badge>
+                {profile?.is_active && <Badge variant="secondary" className="text-xs">Active</Badge>}
+                {profile?.organization && (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Building2 className="h-3 w-3" />
+                    {profile.organization.name}
+                  </span>
+                )}
+              </div>
+              {profile?.created_at && (
+                <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  Member since {formatDateTime(profile.created_at)}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
 
         {/* Edit form */}
-        <Card>
-          <CardHeader>
+        <Card className="border border-white/60 dark:border-white/10 bg-white/80 dark:bg-slate-900/70 shadow-sm overflow-hidden">
+          <div className="h-1 w-full bg-gradient-to-r from-blue-500 to-indigo-600" />
+          <CardHeader className="pt-4 pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <User className="h-4 w-4" />
               Personal Details
@@ -248,8 +248,9 @@ export default function Profile() {
         </Card>
 
         {/* Emergency contact */}
-        <Card>
-          <CardHeader>
+        <Card className="border border-white/60 dark:border-white/10 bg-white/80 dark:bg-slate-900/70 shadow-sm overflow-hidden">
+          <div className="h-1 w-full bg-gradient-to-r from-red-500 to-rose-600" />
+          <CardHeader className="pt-4 pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <Shield className="h-4 w-4 text-red-500" />
               Emergency Contact
@@ -292,8 +293,9 @@ export default function Profile() {
 
         {/* Sessions */}
         {sessions.length > 0 && (
-          <Card>
-            <CardHeader>
+          <Card className="border border-white/60 dark:border-white/10 bg-white/80 dark:bg-slate-900/70 shadow-sm overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-slate-400 to-slate-600" />
+            <CardHeader className="pt-4 pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Activity className="h-4 w-4" />
                 Active Sessions
@@ -302,7 +304,7 @@ export default function Profile() {
             <CardContent>
               <div className="space-y-2">
                 {sessions.map(s => (
-                  <div key={s.id} className="flex items-center justify-between text-sm border rounded p-2">
+                  <div key={s.id} className="flex items-center justify-between text-sm border border-white/60 dark:border-white/10 bg-white/70 dark:bg-slate-800/50 rounded-lg px-3 py-2.5">
                     <div>
                       <div className="font-medium">{s.device_name || s.device_platform || 'Unknown device'}</div>
                       <div className="text-xs text-muted-foreground">

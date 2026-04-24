@@ -4,7 +4,6 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -130,30 +129,30 @@ export default function Settings() {
     <AppLayout title="Settings" description="Manage notification and application preferences">
 
       <div className="max-w-2xl space-y-6">
-        {/* Account info */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Shield className="h-4 w-4" />
-              Account
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Email</span>
-              <span className="font-medium">{user?.email}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Role</span>
-              <Badge variant="outline" className="capitalize">{user?.role}</Badge>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">User ID</span>
-              <span className="font-mono text-xs text-muted-foreground">{user?.id}</span>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="max-w-2xl space-y-5">
 
+        {/* ── Settings hero ──────────────────────────────────────────── */}
+        <div className="relative overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-gradient-to-br from-slate-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 p-4 sm:p-5 shadow-sm">
+          <div className="absolute -top-12 -right-10 h-36 w-36 rounded-full bg-indigo-200/40 blur-2xl dark:bg-indigo-500/10 pointer-events-none" />
+          <div className="relative">
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Settings</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">Notifications, application preferences and account details.</p>
+          </div>
+          <div className="relative mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="rounded-lg border border-white/70 dark:border-white/10 bg-white/70 dark:bg-black/20 px-3 py-2">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Email</p>
+              <p className="text-sm font-medium truncate text-gray-900 dark:text-white">{user?.email}</p>
+            </div>
+            <div className="rounded-lg border border-white/70 dark:border-white/10 bg-white/70 dark:bg-black/20 px-3 py-2">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Role</p>
+              <p className="text-sm font-medium capitalize text-gray-900 dark:text-white">{user?.role}</p>
+            </div>
+            <div className="rounded-lg border border-white/70 dark:border-white/10 bg-white/70 dark:bg-black/20 px-3 py-2">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">User ID</p>
+              <p className="text-xs font-mono text-muted-foreground truncate">{user?.id}</p>
+            </div>
+          </div>
+        </div>
         <Tabs defaultValue="notifications">
           <TabsList>
             <TabsTrigger value="notifications" className="flex items-center gap-1.5">
