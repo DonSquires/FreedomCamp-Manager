@@ -292,7 +292,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
   const visiblePinned = pinnedItems.filter(item => user && item.roles.includes(user.role))
 
   return (
-    <nav className="space-y-1">
+    <nav className="space-y-2">
       {/* Pinned items */}
       {visiblePinned.map((item) => {
         const Icon = item.icon
@@ -303,9 +303,9 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
             to={item.path}
             onClick={onClick}
             className={cn(
-              'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-150',
+              'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150',
               isActive
-                ? 'bg-primary/10 text-primary shadow-[inset_3px_0_0_hsl(var(--primary))] dark:bg-primary/15'
+                ? 'bg-primary/10 text-primary shadow-[inset_3px_0_0_hsl(var(--primary))] dark:bg-primary/15 ring-1 ring-primary/20'
                 : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700/60 dark:hover:text-gray-100'
             )}
           >
@@ -315,7 +315,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
         )
       })}
 
-      <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
+      <div className="my-2 border-t border-gray-200/90 dark:border-gray-700/80" />
 
       {/* Grouped navigation with accordion */}
       {navigationGroups.map((group) => {
@@ -327,14 +327,20 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
         const hasActiveChild = visibleItems.some(item => location.pathname === item.path)
 
         return (
-          <div key={group.label}>
+          <div
+            key={group.label}
+            className={cn(
+              'rounded-xl p-1 transition-colors',
+              hasActiveChild ? 'bg-primary/5 dark:bg-primary/10' : 'bg-transparent'
+            )}
+          >
             <button
               onClick={() => toggleGroup(group.label)}
               className={cn(
-                'flex w-full items-center justify-between px-3 py-2 rounded-md text-sm font-medium transition-all duration-150',
+                'flex w-full items-center justify-between px-3 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150',
                 hasActiveChild
-                  ? 'text-primary bg-primary/5 dark:bg-primary/10'
-                  : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700/60 dark:hover:text-gray-200'
+                  ? 'text-primary bg-primary/5 dark:bg-primary/15'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700/60 dark:hover:text-gray-100'
               )}
             >
               <span className="flex items-center gap-3">
@@ -345,7 +351,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
             </button>
 
             {isOpen && (
-              <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-200 dark:border-gray-700 pl-3">
+              <div className="ml-4 mt-1 space-y-1 border-l border-gray-200 dark:border-gray-700 pl-3">
                 {visibleItems.map((item) => {
                   const Icon = item.icon
                   const isActive = location.pathname === item.path
@@ -355,9 +361,9 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
                       to={item.path}
                       onClick={onClick}
                       className={cn(
-                        'flex items-center gap-3 px-2 py-1.5 rounded-md text-sm transition-all duration-150',
+                        'flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm transition-all duration-150',
                         isActive
-                          ? 'bg-primary/10 text-primary font-medium dark:bg-primary/15'
+                          ? 'bg-primary/10 text-primary font-medium dark:bg-primary/15 ring-1 ring-primary/20'
                           : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700/60 dark:hover:text-gray-100'
                       )}
                     >
