@@ -4,7 +4,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Shield, Radio, ChevronRight, ParkingSquare, Volume2, Building2, Zap, MapPin, Clock, Lock } from 'lucide-react'
+import { Shield, Radio, ChevronRight, ParkingSquare, Volume2, Building2, Zap, MapPin, Clock, Lock, Tent } from 'lucide-react'
 import { useRosteredShift, type RosterServiceType } from '@/hooks/useRosteredShift'
 import { format, parseISO } from 'date-fns'
 
@@ -164,6 +164,21 @@ export default function PortalSelection() {
             <span className="text-xs text-green-400 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">Open →</span>
           </div>
 
+          {/* Freedom Camping */}
+          <div
+            className="flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-white/5 backdrop-blur px-4 py-3 cursor-pointer hover:bg-white/10 hover:border-emerald-400/50 transition-all group"
+            onClick={() => selectPortal('/field-officer?service=freedom_camping')}
+          >
+            <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center shrink-0">
+              <Tent className="h-5 w-5 text-white" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-white leading-tight">Freedom Camping</p>
+              <p className="text-xs text-emerald-300 truncate">Zone-based enforcement & self-contained rules</p>
+            </div>
+            <span className="text-xs text-emerald-400 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">Open →</span>
+          </div>
+
           {/* Site Guard */}
           <div
             className="flex items-center gap-3 rounded-xl border border-teal-500/30 bg-white/5 backdrop-blur px-4 py-3 cursor-pointer hover:bg-white/10 hover:border-teal-400/50 transition-all group"
@@ -200,7 +215,7 @@ export default function PortalSelection() {
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-white leading-tight">Parking Enforcement</p>
-              <p className="text-xs text-orange-300 truncate">Chalk pass, permit check & notices</p>
+              <p className="text-xs text-orange-300 truncate">Zone-based permits, chalk pass & notices</p>
             </div>
             <span className="text-xs text-orange-400 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">Open →</span>
           </div>
@@ -215,7 +230,7 @@ export default function PortalSelection() {
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-white leading-tight">Noise Control</p>
-              <p className="text-xs text-yellow-300 truncate">RMA assessments & notices</p>
+              <p className="text-xs text-yellow-300 truncate">Jurisdiction-wide RMA assessments & notices</p>
             </div>
             <span className="text-xs text-yellow-400 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">Open →</span>
           </div>

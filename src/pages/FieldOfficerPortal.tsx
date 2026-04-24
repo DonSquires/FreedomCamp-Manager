@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
@@ -81,7 +81,7 @@ const SERVICE_TYPE_CONFIG: Record<ServiceType, {
 }> = {
   freedom_camping: {
     label: 'Freedom Camping Patrol',
-    description: 'Vehicle scanning, breach detection, compliance',
+    description: 'Zone-based rules: self-contained eligibility, nights, local bylaws',
     Icon: Tent,
     color: 'text-green-700 dark:text-green-400',
     bgColor: 'bg-green-100 dark:bg-green-900',
@@ -97,7 +97,7 @@ const SERVICE_TYPE_CONFIG: Record<ServiceType, {
   },
   parking: {
     label: 'Parking Enforcement',
-    description: 'Chalk pass, recheck, infringement notices',
+    description: 'Zone-based permits and time limits, chalk pass, infringement notices',
     Icon: ParkingSquare,
     color: 'text-orange-700 dark:text-orange-400',
     bgColor: 'bg-orange-100 dark:bg-orange-900',
@@ -105,7 +105,7 @@ const SERVICE_TYPE_CONFIG: Record<ServiceType, {
   },
   noise: {
     label: 'Noise Control',
-    description: 'Assessment matrix, AN/DN/END notices, seizures',
+    description: 'Jurisdiction-wide assessment matrix, AN/DN/END notices, seizures',
     Icon: Volume2,
     color: 'text-yellow-700 dark:text-yellow-400',
     bgColor: 'bg-yellow-100 dark:bg-yellow-900',
@@ -113,7 +113,7 @@ const SERVICE_TYPE_CONFIG: Record<ServiceType, {
   },
   biosecurity_inspection: {
     label: 'Biosecurity Inspection',
-    description: 'CNG/plant ID, density assessment, RPMP notices',
+    description: 'Jurisdiction-wide CNG/plant ID, density assessment, RPMP notices',
     Icon: Leaf,
     color: 'text-emerald-700 dark:text-emerald-400',
     bgColor: 'bg-emerald-100 dark:bg-emerald-900',
@@ -121,7 +121,7 @@ const SERVICE_TYPE_CONFIG: Record<ServiceType, {
   },
   smoke_complaint_ooh: {
     label: 'Smoke Complaint (OOH)',
-    description: 'Smoke opacity, prohibited materials, RMA s.17A notices',
+    description: 'Jurisdiction-wide smoke opacity, prohibited materials, RMA s.17A notices',
     Icon: Wind,
     color: 'text-amber-700 dark:text-amber-400',
     bgColor: 'bg-amber-100 dark:bg-amber-900',
@@ -177,6 +177,16 @@ function readSupabaseAccessTokenFromStorage(): string | null {
   }
 
   return null
+}
+
+function readE2EScanHint(): string | null {
+  if (typeof window === 'undefined') return null
+
+  const value = (window as any).__FIELDOPS_E2E_SCAN_HINT__
+  if (typeof value !== 'string') return null
+
+  const normalized = value.trim().toUpperCase().replace(/\s+/g, '')
+  return normalized || null
 }
 
 async function postgrestInsertWithTimeout(table: string, payload: Record<string, unknown>, timeoutMs: number): Promise<void> {
@@ -247,7 +257,7 @@ async function postgrestInsertWithTimeout(table: string, payload: Record<string,
 
 export default function FieldOfficerPortal() {
   const { user } = useAuthStore()
-  const { zoneId, zoneName, setZone, setOrganization } = useGlobalFiltersStore()
+  const { organizationId, zoneId, zoneName, setZone, setOrganization } = useGlobalFiltersStore()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
@@ -365,7 +375,7 @@ export default function FieldOfficerPortal() {
     setSosHoldProgress(0)
   }
   async function triggerSOS() {
-    if (!user?.id || !user?.organization_id) return
+    if (!user?.id || !activeOperationalOrganizationId) return
     try {
       const officerName = `${user?.first_name ?? ''} ${user?.last_name ?? ''}`.trim()
       const locationLabel = currentLocation
@@ -374,7 +384,7 @@ export default function FieldOfficerPortal() {
 
       await supabase.from('officer_welfare_alerts').insert({
         officer_id:       user.id,
-        organization_id:  user.organization_id,
+        organization_id:  activeOperationalOrganizationId,
         alert_type:       'sos',
         officer_name:     officerName,
         gps_latitude:     currentLocation?.latitude  ?? null,
@@ -385,7 +395,7 @@ export default function FieldOfficerPortal() {
 
       publishEmergencyAssistRequest({
         source: 'welfare_panic_button',
-        organizationId: user.organization_id,
+        organizationId: activeOperationalOrganizationId,
         officerId: user.id,
         officerName: officerName || null,
         locationLabel,
@@ -412,6 +422,18 @@ export default function FieldOfficerPortal() {
   // Check if user is a service provider member (has access to multiple organizations)
   const isServiceProviderMember = (user?.authorized_work_locations?.length ?? 0) > 0 ||
     (user?.extra_organization_ids?.length ?? 0) > 0
+
+  const geofenceOrganizationScope = useMemo(() => {
+    const orgIds = new Set<string>()
+    if (employerOrganizationId) orgIds.add(employerOrganizationId)
+    if (user?.organization_id) orgIds.add(user.organization_id)
+    user?.authorized_work_locations?.forEach((id) => orgIds.add(id))
+    user?.extra_organization_ids?.forEach((id) => orgIds.add(id))
+    return Array.from(orgIds)
+  }, [employerOrganizationId, user?.organization_id, user?.authorized_work_locations, user?.extra_organization_ids])
+
+  const activeOperationalOrganizationId =
+    organizationId || shiftOrgId || employerOrganizationId || user?.organization_id || null
 
   // Fetch organizations accessible to this user for shift selection
   const { data: accessibleOrgs = [] } = useQuery({
@@ -680,7 +702,7 @@ export default function FieldOfficerPortal() {
       const { error } = await (supabase
         .from('enforcement_actions') as any)
         .insert({
-          organization_id: (activeShift as any)?.organization_id || shiftOrgId || employerOrganizationId,
+          organization_id: activeOperationalOrganizationId,
           created_by: user?.id,
           zone_id: obsZoneId,
           plate_number: plateNumber,
@@ -705,23 +727,27 @@ export default function FieldOfficerPortal() {
 
   // Auto-monitor geofence and manage patrol
   useEffect(() => {
-    if (!user?.id || !employerOrganizationId) return
+    if (!user?.id || geofenceOrganizationScope.length === 0) return
 
-    const geofenceOrgId =
-      isServiceProviderMember
-        ? (activeShift as any)?.organization_id || shiftOrgId || employerOrganizationId
-        : employerOrganizationId
+    const geofenceOrgScope = isServiceProviderMember
+      ? geofenceOrganizationScope
+      : [employerOrganizationId || user.organization_id].filter(Boolean) as string[]
 
     const gpsActivityType = shareLiveLocationWithClient ? 'gps_update' : 'gps_private'
 
     const checkGeofence = () => {
       monitorGeofenceAndPatrol(
         user.id,
-        geofenceOrgId,
+        geofenceOrgScope,
         currentPatrolZone,
-        (newZoneId, newZoneName) => {
+        (newZoneId, newZoneName, newOrganizationId) => {
           setCurrentPatrolZone(newZoneId)
           setZone(newZoneId, newZoneName)
+          if (newOrganizationId && newOrganizationId !== organizationId) {
+            const matchedOrgName = accessibleOrgs.find((org) => org.id === newOrganizationId)?.name || null
+            setOrganization(newOrganizationId, matchedOrgName)
+            setShiftOrgId(newOrganizationId)
+          }
         },
         {
           onLocationUpdate: ({ latitude, longitude }) => {
@@ -743,7 +769,20 @@ export default function FieldOfficerPortal() {
       clearInterval(interval)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, employerOrganizationId, isServiceProviderMember, shiftOrgId, currentPatrolZone, setZone, recordGPSUpdate, zoneName, shareLiveLocationWithClient])
+  }, [
+    user,
+    employerOrganizationId,
+    isServiceProviderMember,
+    currentPatrolZone,
+    setZone,
+    setOrganization,
+    organizationId,
+    accessibleOrgs,
+    geofenceOrganizationScope,
+    recordGPSUpdate,
+    zoneName,
+    shareLiveLocationWithClient,
+  ])
 
   // ── Shift management — explicit Start/End (not auto-start) ──────────────
   // Fetch active shift for current officer
@@ -953,13 +992,18 @@ export default function FieldOfficerPortal() {
     try {
       const result = await captureAndSave(
         file,
-        { id: user.id, organization_id: user.organization_id, full_name: user.full_name },
+        {
+          id: user.id,
+          organization_id: organizationId || user.organization_id,
+          full_name: user.full_name,
+        },
         zoneId,
         (lat, lon) => {
           setCurrentLocation({ latitude: lat, longitude: lon })
           recordGPSUpdate(lat, lon)
         },
         (_stage: ScanProgressStage, label: string) => setScanProgressLabel(label),
+        { plateHint: readE2EScanHint() },
       )
 
       toast.success('✅ Observation captured — detecting plate…', {
@@ -1001,13 +1045,20 @@ export default function FieldOfficerPortal() {
       setShowDetailPanel(true)
       refetchScans()
 
+      if ((window as any).__FIELDOPS_E2E_CAPTURE__) {
+        ;(window as any).__FIELDOPS_E2E_LAST_ERROR__ = null
+        ;(window as any).__FIELDOPS_E2E_LAST_OBSERVATION_ID__ = result.observationId
+      }
     } catch (err: any) {
+      if ((window as any).__FIELDOPS_E2E_CAPTURE__) {
+        ;(window as any).__FIELDOPS_E2E_LAST_ERROR__ = err?.message || 'Scan failed — please try again'
+      }
       toast.error(err.message || 'Scan failed — please try again')
     } finally {
       setIsProcessing(false)
       setScanProgressLabel(SCAN_PROGRESS_LABELS.gps)
     }
-  }, [user, zoneId, zoneName, recordGPSUpdate, refetchScans])
+  }, [organizationId, user, zoneId, zoneName, recordGPSUpdate, refetchScans])
 
   const handleManualEntrySubmit = useCallback(async () => {
     if (!user?.id || !user?.organization_id) {
@@ -1122,6 +1173,10 @@ export default function FieldOfficerPortal() {
       toast.warning('Please describe the incident')
       return
     }
+    if (!activeOperationalOrganizationId) {
+      toast.warning('No active jurisdiction found. Move into a mapped geofence or select an organization.')
+      return
+    }
     setIsSubmittingReport(true)
     try {
       const descFull = qrDescription.trim() +
@@ -1133,7 +1188,7 @@ export default function FieldOfficerPortal() {
         let hsInsertError: unknown | null = null
         try {
           await postgrestInsertWithTimeout('health_safety_reports', {
-            organization_id: user.organization_id,
+            organization_id: activeOperationalOrganizationId,
             reported_by: user.id,
             zone_id: zoneId || null,
             incident_type: qrIncidentType,
@@ -1157,7 +1212,7 @@ export default function FieldOfficerPortal() {
           let hsFallbackUserIdError: unknown | null = null
           try {
             await postgrestInsertWithTimeout('incidents', {
-              organization_id: user.organization_id,
+              organization_id: activeOperationalOrganizationId,
               zone_id: zoneId || null,
               user_id: user.id,
               plate_number: qrVehiclePlate.trim().toUpperCase() || null,
@@ -1181,7 +1236,7 @@ export default function FieldOfficerPortal() {
             }
 
             await postgrestInsertWithTimeout('incidents', {
-              organization_id: user.organization_id,
+              organization_id: activeOperationalOrganizationId,
               zone_id: zoneId || null,
               reported_by: user.id,
               plate_number: qrVehiclePlate.trim().toUpperCase() || null,
@@ -1201,7 +1256,7 @@ export default function FieldOfficerPortal() {
         toast.success(successText)
       } else {
         const incidentPayload = {
-          organization_id: user.organization_id,
+          organization_id: activeOperationalOrganizationId,
           zone_id:         zoneId || null,
           plate_number:    qrVehiclePlate.trim().toUpperCase() || null,
           incident_type:   qrReportType === 'maintenance' ? 'Maintenance Report' : qrIncidentType,

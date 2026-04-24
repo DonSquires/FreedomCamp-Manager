@@ -86,6 +86,7 @@ import {
   ListChecks,
   LayoutList,
   Mic,
+  Tent,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -101,7 +102,13 @@ interface AppLayoutProps {
   showBackButton?: boolean
 }
 
-type NavItem = { path: string; icon: React.FC<{ className?: string }>; label: string; roles: string[] }
+type NavItem = {
+  path: string
+  icon: React.FC<{ className?: string }>
+  label: string
+  roles: string[]
+  scopeHint?: string
+}
 
 // Pinned items always visible at the top of the sidebar
 const pinnedItems: NavItem[] = [
@@ -195,12 +202,13 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
     label: 'Specialist Portals',
     icon: Layers,
     items: [
-      { path: '/noise-control', icon: Volume2, label: 'Noise Control', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/biosecurity-control', icon: Leaf, label: 'Biosecurity (CNG)', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/smoke-control', icon: Wind, label: 'Smoke Complaints (OOH)', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/parking', icon: ParkingSquare, label: 'Parking Enforcement', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/officer-welfare', icon: HeartPulse, label: 'Officer Welfare', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/identity-verification', icon: ShieldCheck, label: 'ID Verification', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/field-officer?service=freedom_camping', icon: Tent, label: 'Freedom Camping', roles: ['officer', 'admin_officer'], scopeHint: 'Zone-based' },
+      { path: '/parking-officer', icon: ParkingSquare, label: 'Parking Enforcement', roles: ['officer', 'admin_officer', 'admin', 'master'], scopeHint: 'Zone-based' },
+      { path: '/noise-officer', icon: Volume2, label: 'Noise Control', roles: ['officer', 'admin_officer', 'admin', 'master'], scopeHint: 'Jurisdiction-wide' },
+      { path: '/biosecurity-officer', icon: Leaf, label: 'Biosecurity (CNG)', roles: ['officer', 'admin_officer', 'admin', 'master'], scopeHint: 'Jurisdiction-wide' },
+      { path: '/smoke-officer', icon: Wind, label: 'Smoke Complaints (OOH)', roles: ['officer', 'admin_officer', 'admin', 'master'], scopeHint: 'Jurisdiction-wide' },
+      { path: '/identity-verification', icon: ShieldCheck, label: 'ID Verification', roles: ['admin', 'admin_officer', 'master'], scopeHint: 'Client/Site driven' },
+      { path: '/officer-welfare', icon: HeartPulse, label: 'Officer Welfare', roles: ['admin', 'admin_officer', 'master'], scopeHint: 'Officer-based' },
     ],
   },
   {
@@ -354,7 +362,14 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
                       )}
                     >
                       <Icon className={cn('h-3.5 w-3.5 shrink-0', isActive ? 'text-primary' : 'text-gray-400 dark:text-gray-500')} />
-                      <span>{item.label}</span>
+                      <span className="min-w-0">
+                        <span className="block truncate">{item.label}</span>
+                        {item.scopeHint && (
+                          <span className="block text-[10px] leading-tight text-gray-500 dark:text-gray-400">
+                            {item.scopeHint}
+                          </span>
+                        )}
+                      </span>
                     </Link>
                   )
                 })}
