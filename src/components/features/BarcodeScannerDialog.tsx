@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -46,7 +46,7 @@ export function BarcodeScannerDialog({
   const cameraSupported = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia
   const detectorSupported = typeof window !== 'undefined' && !!getBarcodeDetectorCtor()
 
-  const stopCamera = () => {
+  const stopCamera = useCallback(() => {
     if (intervalRef.current) {
       window.clearInterval(intervalRef.current)
       intervalRef.current = null
@@ -56,15 +56,15 @@ export function BarcodeScannerDialog({
       streamRef.current = null
     }
     setCameraReady(false)
-  }
+  }, [])
 
-  const submitScan = (raw: string) => {
+  const submitScan = useCallback((raw: string) => {
     const value = raw.trim()
     if (!value) return
     onScan(value)
     onOpenChange(false)
     setManualValue('')
-  }
+  }, [onOpenChange, onScan])
 
   useEffect(() => {
     if (!open) {
@@ -144,7 +144,7 @@ export function BarcodeScannerDialog({
       cancelled = true
       stopCamera()
     }
-  }, [open, mode, cameraSupported, detectorSupported])
+  }, [open, mode, cameraSupported, detectorSupported, stopCamera, submitScan])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

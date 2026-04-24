@@ -199,8 +199,26 @@ function isOverdue(dateStr: string | null) {
 // ─────────────────────────────────────────────
 // BarcodeDetector feature detection
 // ─────────────────────────────────────────────
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const hasBarcodeDetector = typeof (window as any).BarcodeDetector !== 'undefined'
+type BarcodeDetectionResult = {
+  rawValue?: string
+}
+
+type BarcodeDetectorLike = {
+  detect: (source: ImageBitmapSource) => Promise<BarcodeDetectionResult[]>
+}
+
+type BarcodeDetectorCtor = new (options?: { formats?: string[] }) => BarcodeDetectorLike
+
+type ScannerTestWindow = Window & {
+  BarcodeDetector?: BarcodeDetectorCtor
+  __ASSET_SCANNER_TEST_CODE__?: string
+}
+
+function getWindowWithScannerTypes(): ScannerTestWindow {
+  return window as ScannerTestWindow
+}
+
+const hasBarcodeDetector = typeof getWindowWithScannerTypes().BarcodeDetector !== 'undefined'
 
 type ScannerEngine = 'auto' | 'native' | 'zxing'
 
@@ -322,8 +340,7 @@ function CameraScanner({ onScan, onClose, settings }: CameraScannerProps) {
     scannedRef.current = false
 
     // Test hook for deterministic Playwright scan flows.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const forcedCode = (window as any).__ASSET_SCANNER_TEST_CODE__
+    const forcedCode = getWindowWithScannerTypes().__ASSET_SCANNER_TEST_CODE__
     if (typeof forcedCode === 'string' && forcedCode.length > 0) {
       onScan(forcedCode)
       return
@@ -378,8 +395,10 @@ function CameraScanner({ onScan, onClose, settings }: CameraScannerProps) {
 
   function scanNative() {
     if (!hasBarcodeDetector || scannedRef.current) return
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const detector = new (window as any).BarcodeDetector({
+    const BarcodeDetectorImpl = getWindowWithScannerTypes().BarcodeDetector
+    if (!BarcodeDetectorImpl) return
+
+    const detector = new BarcodeDetectorImpl({
       formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'data_matrix'],
     })
 
@@ -387,8 +406,7 @@ function CameraScanner({ onScan, onClose, settings }: CameraScannerProps) {
       if (!videoRef.current || scannedRef.current) return
       detector
         .detect(videoRef.current)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .then((barcodes: any[]) => {
+        .then((barcodes: BarcodeDetectionResult[]) => {
           if (barcodes.length > 0 && !scannedRef.current) {
             scannedRef.current = true
             stop()
