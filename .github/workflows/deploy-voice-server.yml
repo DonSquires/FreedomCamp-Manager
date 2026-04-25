@@ -104,6 +104,7 @@ jobs:
 
             coturn_port="$(printf '%s\n' "$coturn_config" | sed -n 's/^listening-port=//p' | tail -n1)"
             coturn_tls_port="$(printf '%s\n' "$coturn_config" | sed -n 's/^tls-listening-port=//p' | tail -n1)"
+            coturn_static_secret="$(printf '%s\n' "$coturn_config" | sed -n 's/^static-auth-secret=//p' | tail -n1)"
 
             # Reuse the currently running container's TURN settings when GitHub
             # Actions secrets are incomplete. This keeps deploys reproducible even
@@ -138,7 +139,16 @@ jobs:
               TURN_CREDENTIAL="$(printf '%s\n' "$docker_env_dump" | sed -n 's/^TURN_CREDENTIAL=//p' | tail -n1)"
             fi
             if [ -z "${TURN_CREDENTIAL:-}" ]; then
+              TURN_CREDENTIAL="$(printf '%s\n' "$existing_env" | sed -n 's/^TURN_SECRET=//p' | tail -n1)"
+            fi
+            if [ -z "${TURN_CREDENTIAL:-}" ]; then
+              TURN_CREDENTIAL="$(printf '%s\n' "$docker_env_dump" | sed -n 's/^TURN_SECRET=//p' | tail -n1)"
+            fi
+            if [ -z "${TURN_CREDENTIAL:-}" ]; then
               TURN_CREDENTIAL="$coturn_password"
+            fi
+            if [ -z "${TURN_CREDENTIAL:-}" ]; then
+              TURN_CREDENTIAL="$coturn_static_secret"
             fi
             if [ -z "${TURN_CREDENTIAL:-}" ]; then
               TURN_CREDENTIAL="$(printf '%s\n' "$docker_env_dump" | sed -n 's/^TURN_PASSWORD=//p' | tail -n1)"
