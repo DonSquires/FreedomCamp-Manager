@@ -1,12 +1,17 @@
 {
-  "generatedAt": "2026-04-24T23:50:36.716Z",
+  "generatedAt": "2026-04-25T02:17:36.451Z",
   "windowHours": 24,
-  "totalEntries": 0,
+  "totalEntries": 7,
   "lowScoreCount": 0,
   "topFailureReasons": [],
   "topHallucinationPatterns": [],
   "repeatedHallucinations": [],
-  "topFlaggedArtifacts": [],
+  "topFlaggedArtifacts": [
+    {
+      "name": "/workspaces/FreedomCamp-Manager/docs/PTT_ENTERPRISE_STACK_FIT_AND_BUILD.md",
+      "count": 7
+    }
+  ],
   "recommendations": [
     "No repeated failure mode crossed the automatic threshold in this window."
   ]
