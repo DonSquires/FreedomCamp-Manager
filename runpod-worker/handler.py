@@ -26,12 +26,16 @@ BOB_ATTITUDE_INSTRUCTIONS = os.environ.get("BOB_ATTITUDE_INSTRUCTIONS", "").stri
 TIMEOUT_S           = int(os.environ.get("OLLAMA_TIMEOUT_MS", "120000")) // 1000
 TRAINING_MEMORY_PATH = os.environ.get("TRAINING_MEMORY_PATH", os.path.join(os.path.dirname(__file__), "training_memory.json"))
 MAX_RUNTIME_NOTES = 8
+OPENAI_REFERENCE_GATE_ENABLED = os.environ.get("OPENAI_REFERENCE_GATE_ENABLED", "true").strip().lower() in {"1", "true", "yes", "on"}
+ALLOW_OPENAI_REFERENCE_PROVIDER = os.environ.get("ALLOW_OPENAI_REFERENCE_PROVIDER", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 print(f"[worker] FieldOps AI Worker (Python/runpod) starting")
 print(f"[worker] OLLAMA_BASE: {OLLAMA_BASE} ({'external' if _ext else 'local'})")
 print(f"[worker] OLLAMA_MODEL: {OLLAMA_MODEL}")
 print(f"[worker] OLLAMA_VISION_MODEL: {OLLAMA_VISION_MODEL}")
 print(f"[worker] BOB_ATTITUDE_PROFILE: {BOB_ATTITUDE_PROFILE}")
+print(f"[worker] OPENAI_REFERENCE_GATE_ENABLED: {OPENAI_REFERENCE_GATE_ENABLED}")
+print(f"[worker] ALLOW_OPENAI_REFERENCE_PROVIDER: {ALLOW_OPENAI_REFERENCE_PROVIDER}")
 
 ATTITUDE_PRESETS = {
     "operational": "Tone: calm, decisive, and practical. Prioritize concise operational steps and clear outcomes.",
@@ -134,6 +138,12 @@ def detect_role(action, inp):
     if text.startswith("dr bob:") or "blocking reviewer" in text or "adversarial architecture review" in text:
         return "dr_bob"
     return "bob"
+
+
+def wants_openai_provider(inp):
+    provider = str(inp.get("provider") or "").strip().lower()
+    model = str(inp.get("model") or "").strip().lower()
+    return provider in {"openai", "chatgpt"} or model.startswith("gpt-")
 
 
 def remember_training_note(message):
@@ -291,6 +301,14 @@ def handler(job):
     print(f"[worker] action={action} job={job.get('id','?')}")
     role = detect_role(action, inp)
 
+    if OPENAI_REFERENCE_GATE_ENABLED and not ALLOW_OPENAI_REFERENCE_PROVIDER and wants_openai_provider(inp):
+        return {
+            "success": False,
+            "error": "OpenAI reference provider requests are disabled by policy on this worker. Use ollama/inference providers.",
+            "provider": "policy-enforcer",
+            "openai_reference_gate_enabled": OPENAI_REFERENCE_GATE_ENABLED,
+        }
+
     if action == "ping":
         try:
             probe = requests.get(f"{OLLAMA_BASE}/api/tags", timeout=10)
@@ -309,6 +327,8 @@ def handler(job):
             "training_memory_loaded": True,
             "training_memory_version": TRAINING_MEMORY.get("version"),
             "runtime_training_notes": len(RUNTIME_TRAINING_NOTES),
+            "openai_reference_gate_enabled": OPENAI_REFERENCE_GATE_ENABLED,
+            "allow_openai_reference_provider": ALLOW_OPENAI_REFERENCE_PROVIDER,
             "provider": "ollama",
         }
 

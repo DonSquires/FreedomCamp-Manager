@@ -57,6 +57,7 @@ import {
   FileText,
   X,
   RefreshCw,
+  Loader2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -899,6 +900,7 @@ export default function RosterPlanner() {
   const [prefillOfficerId, setPrefillOfficerId] = useState('')
   const [prefillDate, setPrefillDate] = useState('')
   const [showPublishConfirm, setShowPublishConfirm] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
 
   // ─── Data queries ──────────────────────────────────────────────────────────
 
@@ -1186,6 +1188,16 @@ export default function RosterPlanner() {
     deleteMutation.mutate(id)
   }
 
+  async function handleExportCsv() {
+    try {
+      setIsExporting(true)
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      exportToCSV(filteredShifts, officers, sites)
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   const isLoading = shiftsLoading || officersLoading
   const saving = createMutation.isPending || updateMutation.isPending
   const deleting = deleteMutation.isPending
@@ -1208,10 +1220,15 @@ export default function RosterPlanner() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => exportToCSV(filteredShifts, officers, sites)}
+                onClick={handleExportCsv}
+                disabled={isExporting || isLoading}
               >
-                <Download className="w-4 h-4 mr-1" />
-                Export CSV
+                {isExporting ? (
+                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4 mr-1" />
+                )}
+                {isExporting ? 'Exporting…' : 'Export CSV'}
               </Button>
               {isAdmin && (
                 <Button

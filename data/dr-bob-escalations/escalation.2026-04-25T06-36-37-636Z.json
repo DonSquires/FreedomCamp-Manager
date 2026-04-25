@@ -1,0 +1,24 @@
+{
+  "createdAt": "2026-04-25T06:36:37.636Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-25T06-28-53-681Z/report.md",
+  "outputPath": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/report.md.2026-04-25T06-36-37-621Z.json",
+  "decision": "needs-revision",
+  "structured": false,
+  "escalationReason": "unstructured-review",
+  "review": {
+    "decision": "needs-revision",
+    "summary": "Dr Bob returned an unstructured review. Inspect the raw response.",
+    "findings": [
+      {
+        "severity": "major",
+        "title": "Unstructured review response",
+        "evidence": "{\"id\":\"f5a37d43-03d0-4707-a344-90a9160dbd04-u2\",\"status\":\"IN_QUEUE\"}",
+        "requiredAction": "Rerun the review or tighten the prompt until valid JSON is returned."
+      }
+    ],
+    "verificationChecks": [],
+    "rawResponse": "{\"id\":\"f5a37d43-03d0-4707-a344-90a9160dbd04-u2\",\"status\":\"IN_QUEUE\"}"
+  },
+  "basicFixResult": null,
+  "requiredAction": "Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope."
+}

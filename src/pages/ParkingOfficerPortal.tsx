@@ -498,96 +498,64 @@ export default function ParkingOfficerPortal() {
       {mode === null && (
         <div className="space-y-6">
           {/* Quick action cards */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Card
-              className="cursor-pointer hover:shadow-lg border-blue-200 hover:border-blue-400 transition-all"
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+            <button
               onClick={() => setMode('chalk')}
+              className="flex items-center gap-4 w-full rounded-2xl border-2 border-blue-200 bg-blue-50 p-4 text-left hover:border-blue-400 hover:shadow-md active:scale-[0.97] transition-all"
             >
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <Camera className="h-5 w-5 text-blue-600" />
-                  </div>
-                  Chalk Pass
-                  <Badge variant="outline" className="ml-auto text-xs">1st Visit</Badge>
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  First observation — scan plate, photo tyre valve
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm">
-                  New Chalk Pass
-                </Button>
-              </CardContent>
-            </Card>
+              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shrink-0">
+                <Camera className="h-6 w-6 text-white" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-base font-semibold text-blue-900">Chalk Pass</p>
+                  <Badge variant="outline" className="text-xs">1st Visit</Badge>
+                </div>
+                <p className="text-xs text-blue-700 mt-0.5">First observation — scan plate, photo tyre valve</p>
+              </div>
+            </button>
 
-            <Card
-              className="cursor-pointer hover:shadow-lg border-orange-200 hover:border-orange-400 transition-all"
+            <button
               onClick={() => setMode('recheck')}
+              className="flex items-center gap-4 w-full rounded-2xl border-2 border-orange-200 bg-orange-50 p-4 text-left hover:border-orange-400 hover:shadow-md active:scale-[0.97] transition-all"
             >
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <div className="p-2 bg-orange-100 rounded-lg">
-                    <RotateCcw className="h-5 w-5 text-orange-600" />
-                  </div>
-                  Recheck Pass
-                  <Badge variant="outline" className="ml-auto text-xs">2nd Visit</Badge>
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Check dwell time — issue infringement if over limit
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-orange-600 hover:bg-orange-700 text-white text-sm">
-                  Recheck Plate
-                </Button>
-              </CardContent>
-            </Card>
+              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shrink-0">
+                <RotateCcw className="h-6 w-6 text-white" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-base font-semibold text-orange-900">Recheck Pass</p>
+                  <Badge variant="outline" className="text-xs">2nd Visit</Badge>
+                </div>
+                <p className="text-xs text-orange-700 mt-0.5">Check dwell time — issue infringement if over limit</p>
+              </div>
+            </button>
 
-            <Card
-              className="cursor-pointer hover:shadow-lg border-purple-200 hover:border-purple-400 transition-all"
+            <button
               onClick={() => setMode('permit_check')}
+              className="flex items-center gap-4 w-full rounded-2xl border-2 border-purple-200 bg-purple-50 p-4 text-left hover:border-purple-400 hover:shadow-md active:scale-[0.97] transition-all"
             >
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <div className="p-2 bg-purple-100 rounded-lg">
-                    <Shield className="h-5 w-5 text-purple-600" />
-                  </div>
-                  Permit Check
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Verify if vehicle has a valid parking permit
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white text-sm">
-                  Check Permit
-                </Button>
-              </CardContent>
-            </Card>
+              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center shrink-0">
+                <Shield className="h-6 w-6 text-white" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-base font-semibold text-purple-900">Permit Check</p>
+                <p className="text-xs text-purple-700 mt-0.5">Verify if vehicle has a valid parking permit</p>
+              </div>
+            </button>
 
-            <Card
-              className="cursor-pointer hover:shadow-lg border-gray-200 hover:border-gray-400 transition-all"
+            <button
               onClick={() => navigate('/parking')}
+              className="flex items-center gap-4 w-full rounded-2xl border-2 border-gray-200 bg-gray-50 p-4 text-left hover:border-gray-400 hover:shadow-md active:scale-[0.97] transition-all"
             >
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <div className="p-2 bg-gray-100 rounded-lg">
-                    <History className="h-5 w-5 text-gray-600" />
-                  </div>
-                  History
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  View my issued notices and session history
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button variant="outline" className="w-full text-sm">
-                  View History
-                </Button>
-              </CardContent>
-            </Card>
+              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-gray-400 to-gray-600 flex items-center justify-center shrink-0">
+                <History className="h-6 w-6 text-white" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-base font-semibold text-gray-900">History</p>
+                <p className="text-xs text-gray-700 mt-0.5">View my issued notices and session history</p>
+              </div>
+            </button>
           </div>
 
           {/* Active chalked vehicles */}

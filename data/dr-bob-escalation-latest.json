@@ -1,17 +1,17 @@
 {
-  "timestamp": "2026-04-24T23:22:27.179Z",
-  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/PTT_ENTERPRISE_STACK_FIT_AND_BUILD.md",
-  "reviewArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/PTT_ENTERPRISE_STACK_FIT_AND_BUILD.md.2026-04-24T23-22-27-166Z.json",
-  "escalationArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-escalations/escalation.2026-04-24T23-22-27-178Z.json",
-  "structured": true,
+  "timestamp": "2026-04-25T06:36:37.637Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-25T06-28-53-681Z/report.md",
+  "reviewArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/report.md.2026-04-25T06-36-37-621Z.json",
+  "escalationArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-escalations/escalation.2026-04-25T06-36-37-636Z.json",
+  "structured": false,
   "decision": "needs-revision",
-  "reason": "blocker-findings",
-  "summary": "The artifact contains ungrounded references to future-state designs that are not currently present in the system_state.json. These should be clearly labeled as proposed work.",
+  "reason": "unstructured-review",
+  "summary": "Dr Bob returned an unstructured review. Inspect the raw response.",
   "findingsCount": 1,
-  "topFinding": "Unimplemented modules and services",
+  "topFinding": "Unstructured review response",
   "selfHealAttempted": false,
   "selfHealSuccess": false,
   "handoffRequired": true,
   "copilotActionHint": "Investigate escalation artifact and implement targeted fix",
-  "responsePreview": "{\n  \"decision\": \"needs-revision\",\n  \"summary\": \"The artifact contains ungrounded references to future-state designs that are not currently present in the system_state.json. These should be clearly labeled as proposed work.\",\n  \"findings\": [\n    {\n      \"severity\": \"blocker\",\n      \"title\": \"Unimplem"
+  "responsePreview": "{\"id\":\"f5a37d43-03d0-4707-a344-90a9160dbd04-u2\",\"status\":\"IN_QUEUE\"}"
 }

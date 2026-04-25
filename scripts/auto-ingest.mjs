@@ -4,36 +4,14 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { buildCanonicalTrainingSources } from './bob-training-sources.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const workspaceRoot = path.resolve(__dirname, '..');
 const outputPath = path.join(workspaceRoot, 'docs', 'BOB_BRAIN_DUMP.md');
 
-const preferredSources = [
-  'docs/architecture-drivers',
-  'docs/architecture',
-  'docs/DECISIONS.md',
-  'docs/LESSONS_LEARNED.md',
-  'docs/adr',
-  'docs/BOB_FAILURE_SUMMARY.md',
-  'docs/BOB_AUTONOMOUS_LEARNING.md',
-  'docs/BOB_FIELD_INTELLIGENCE.md',
-  'docs/BOB_TRAINING_TRUTH_PROTOCOL.md',
-  'docs/rules',
-  'docs/templates/clients',
-  'docs/BOB_TRAINING_ADVANCED_ARCHITECT_2026.md',
-  'data/client-geofence-registry.json',
-  'data/roster-active-shifts.json',
-  'scripts/spatial-intelligence-engine.mjs',
-  'scripts/import-client-geofences.mjs',
-  'scripts/roster-context-adapter.mjs',
-  'scripts/spatial-context-api.mjs',
-  'src/modules',
-  'package.json',
-  'system_state.json',
-  '.github/copilot-instructions.md',
-];
+const preferredSources = buildCanonicalTrainingSources(workspaceRoot, { includeContext: true });
 
 function toAbsolute(relativePath) {
   return path.join(workspaceRoot, relativePath);

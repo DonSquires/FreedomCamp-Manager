@@ -18,6 +18,7 @@ const chromiumLaunchOptions = {
   args: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
   ...(nativeChromiumExecutablePath ? { executablePath: nativeChromiumExecutablePath } : {}),
 }
+const ignoreHTTPSErrors = process.env.PLAYWRIGHT_IGNORE_HTTPS_ERRORS !== '0'
 
 const canUseWebkitOnHost = process.platform !== 'linux' || process.env.PLAYWRIGHT_FORCE_WEBKIT === '1'
 
@@ -101,6 +102,7 @@ export default defineConfig({
   use: {
     // Base URL to use in actions like `await page.goto('/')`
     baseURL: playwrightBaseURL,
+    ignoreHTTPSErrors,
     
     // Collect trace when retrying the failed test
     trace: 'on-first-retry',

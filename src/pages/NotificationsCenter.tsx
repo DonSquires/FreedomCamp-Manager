@@ -205,8 +205,8 @@ export default function NotificationsCenter() {
       <div className="space-y-6 p-4">
 
         <Tabs defaultValue="inbox">
-          <TabsList className="mb-4">
-            <TabsTrigger value="inbox" className="flex items-center gap-2">
+          <TabsList className="mb-4 grid grid-cols-2 sm:grid-cols-3 h-auto gap-2 bg-transparent p-0">
+            <TabsTrigger value="inbox" className="flex items-center gap-2 rounded-xl border data-[state=active]:bg-white data-[state=active]:shadow-sm py-2.5">
               <Bell className="h-4 w-4" />
               Inbox
               {unreadCount > 0 && (
@@ -216,12 +216,12 @@ export default function NotificationsCenter() {
               )}
             </TabsTrigger>
             {isAdmin && (
-              <TabsTrigger value="broadcast" className="flex items-center gap-2">
+              <TabsTrigger value="broadcast" className="flex items-center gap-2 rounded-xl border data-[state=active]:bg-white data-[state=active]:shadow-sm py-2.5">
                 <Send className="h-4 w-4" />
                 Broadcast
               </TabsTrigger>
             )}
-            <TabsTrigger value="preferences" className="flex items-center gap-2">
+            <TabsTrigger value="preferences" className="flex items-center gap-2 rounded-xl border data-[state=active]:bg-white data-[state=active]:shadow-sm py-2.5">
               <BellRing className="h-4 w-4" />
               Preferences
             </TabsTrigger>
@@ -229,7 +229,7 @@ export default function NotificationsCenter() {
 
           {/* ── Inbox ──────────────────────────────────────────────── */}
           <TabsContent value="inbox">
-            <Card>
+            <Card className="border-2 border-slate-200">
               <CardHeader>
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div>
@@ -285,13 +285,22 @@ export default function NotificationsCenter() {
                     <p className="text-sm">
                       {unreadOnly ? 'No unread notifications' : 'No notifications yet'}
                     </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-2"
+                      onClick={() => queryClient.invalidateQueries({ queryKey: ['notifications'] })}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                      Refresh Inbox
+                    </Button>
                   </div>
                 ) : (
-                  <ul className="divide-y">
+                  <ul className="space-y-2">
                     {notifications.map(n => (
                       <li
                         key={n.id}
-                        className={`py-3 flex items-start gap-3 ${!n.read ? 'bg-blue-50/40 dark:bg-blue-950/20 -mx-4 px-4 rounded' : ''}`}
+                        className={`p-3 sm:p-4 rounded-2xl border-2 flex items-start gap-3 ${!n.read ? 'bg-blue-50/70 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800' : 'bg-white border-slate-200'}`}
                       >
                         <div className="mt-0.5 flex-shrink-0">
                           {TYPE_ICONS[n.type] ?? <Info className="h-4 w-4 text-gray-400" />}
@@ -318,7 +327,7 @@ export default function NotificationsCenter() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-7 w-7 p-0"
+                              className="h-8 w-8 p-0 rounded-lg"
                               title="Mark as read"
                               onClick={() => markAsRead.mutate(n.id)}
                             >
@@ -328,7 +337,7 @@ export default function NotificationsCenter() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                            className="h-8 w-8 p-0 rounded-lg text-destructive hover:text-destructive"
                             title="Delete"
                             onClick={() => deleteNotification.mutate(n.id)}
                           >
@@ -346,7 +355,7 @@ export default function NotificationsCenter() {
           {/* ── Broadcast ──────────────────────────────────────────── */}
           {isAdmin && (
             <TabsContent value="broadcast">
-              <Card>
+              <Card className="border-2 border-slate-200">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Send className="h-5 w-5" />
@@ -449,7 +458,7 @@ export default function NotificationsCenter() {
 
           {/* ── Preferences ────────────────────────────────────────── */}
           <TabsContent value="preferences">
-            <Card>
+            <Card className="border-2 border-slate-200">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <BellRing className="h-5 w-5" />
@@ -465,7 +474,7 @@ export default function NotificationsCenter() {
                     Loading preferences…
                   </p>
                 ) : (
-                  <ul className="divide-y">
+                  <ul className="space-y-2">
                     {(
                       [
                         { key: 'breach_alerts',             label: 'Breach Alerts',               desc: 'Notify when new breach alerts are triggered in your zones' },
@@ -475,7 +484,7 @@ export default function NotificationsCenter() {
                         { key: 'system_alerts',             label: 'System & Broadcast Alerts',   desc: 'Receive admin broadcasts and system notices' },
                       ] as Array<{ key: keyof typeof preferences; label: string; desc: string }>
                     ).map(({ key, label, desc }) => (
-                      <li key={key} className="py-4 flex items-start justify-between gap-4">
+                      <li key={key} className="p-3 rounded-xl border border-slate-200 bg-white flex items-start justify-between gap-4">
                         <div>
                           <p className="text-sm font-medium">{label}</p>
                           <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>

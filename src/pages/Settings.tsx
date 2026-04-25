@@ -155,20 +155,24 @@ export default function Settings() {
         </Card>
 
         <Tabs defaultValue="notifications">
-          <TabsList>
-            <TabsTrigger value="notifications" className="flex items-center gap-1.5">
+          <TabsList className="grid grid-cols-3 h-auto gap-2 bg-transparent p-0">
+            <TabsTrigger value="notifications" className="flex items-center gap-1.5 rounded-xl border data-[state=active]:bg-white data-[state=active]:shadow-sm py-2.5">
               <Bell className="h-4 w-4" />
               Notifications
             </TabsTrigger>
-            <TabsTrigger value="app" className="flex items-center gap-1.5">
+            <TabsTrigger value="app" className="flex items-center gap-1.5 rounded-xl border data-[state=active]:bg-white data-[state=active]:shadow-sm py-2.5">
               <Smartphone className="h-4 w-4" />
               Application
+            </TabsTrigger>
+            <TabsTrigger value="privacy" className="flex items-center gap-1.5 rounded-xl border data-[state=active]:bg-white data-[state=active]:shadow-sm py-2.5">
+              <Key className="h-4 w-4" />
+              Privacy
             </TabsTrigger>
           </TabsList>
 
           {/* Notifications */}
           <TabsContent value="notifications" className="mt-4">
-            <Card>
+            <Card className="border-2 border-slate-200">
               <CardHeader>
                 <CardTitle className="text-base">Notification Channels</CardTitle>
               </CardHeader>
@@ -190,7 +194,7 @@ export default function Settings() {
               </CardContent>
             </Card>
 
-            <Card className="mt-4">
+            <Card className="mt-4 border-2 border-slate-200">
               <CardHeader>
                 <CardTitle className="text-base">Alert Types</CardTitle>
               </CardHeader>
@@ -236,9 +240,12 @@ export default function Settings() {
 
           {/* Application */}
           <TabsContent value="app" className="mt-4">
-            <Card>
+            <Card className="border-2 border-slate-200">
               <CardHeader>
                 <CardTitle className="text-base">Application Preferences</CardTitle>
+                <CardDescription>
+                  Display and interaction settings for everyday portal use.
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="py-3 border-b">
@@ -275,6 +282,26 @@ export default function Settings() {
                   checked={appPrefs.driving_mode}
                   onCheckedChange={v => setAppPrefs(p => ({ ...p, driving_mode: v }))}
                 />
+                <p className="text-xs text-muted-foreground py-3">
+                  Privacy, security, and session controls are now managed in the Privacy tab.
+                </p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Privacy */}
+          <TabsContent value="privacy" className="mt-4">
+            <Card className="border-2 border-slate-200">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  Privacy & Session Security
+                </CardTitle>
+                <CardDescription>
+                  Control session lock behavior, local data handling, and patrol tracking.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
                 <AppToggle
                   label="Auto Logoff"
                   description="Automatically log off after a period of inactivity"
@@ -299,16 +326,19 @@ export default function Settings() {
                 </div>
                 <AppToggle
                   label="Offline Sync"
-                  description="Queue observations and sync when connectivity is restored"
+                  description="Queue observations locally and sync once connectivity is restored"
                   checked={appPrefs.offline_sync_enabled}
                   onCheckedChange={v => setAppPrefs(p => ({ ...p, offline_sync_enabled: v }))}
                 />
                 <AppToggle
                   label="GPS Tracking"
-                  description="Track your location during active patrols"
+                  description="Track your location during active patrols and welfare monitoring"
                   checked={appPrefs.gps_tracking_enabled}
                   onCheckedChange={v => setAppPrefs(p => ({ ...p, gps_tracking_enabled: v }))}
                 />
+                <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                  Keep Auto Logoff enabled on shared devices. GPS can be disabled when off-shift, but active patrol features may be limited.
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

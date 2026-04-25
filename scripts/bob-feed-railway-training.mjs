@@ -12,6 +12,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { loadLocalEnv } from './load-local-env.mjs';
+import { buildCanonicalTrainingSources } from './bob-training-sources.mjs';
 
 loadLocalEnv();
 
@@ -343,6 +344,35 @@ bulletins.push({
   effective_date: '2026-04-18',
   metadata: { module: 'tender-priority', priority: 'TOP' },
 });
+
+// 14. DYNAMIC TRAINING DOC INGESTION — rewire to existing corpus in docs/
+const alreadyCoveredSources = new Set([
+  'docs/BOB_READINESS_SCORECARD.md',
+  'docs/BOB_SYSTEM_REVIEW.md',
+  'docs/BOB_COLLABORATION_BRIDGE.md',
+  'docs/BOB_COPILOT_SELF_HEAL_BRIDGE.md',
+  'docs/AI_SERVICE_CONFIGURATION.md',
+  'docs/BOB_PRODUCTION_RAILWAY_SETUP.md',
+]);
+
+const dynamicTrainingDocs = [
+  ...buildCanonicalTrainingSources(ROOT),
+];
+
+for (const relPath of dynamicTrainingDocs) {
+  if (alreadyCoveredSources.has(relPath)) continue;
+  const raw = readDoc(relPath);
+  if (!raw) continue;
+
+  bulletins.push({
+    type: 'system',
+    title: `Training corpus sync: ${path.basename(relPath)}`,
+    summary: clip(raw.replace(/#+\s*/g, '').replace(/\n+/g, ' '), 6000),
+    source: relPath,
+    effective_date: new Date().toISOString().slice(0, 10),
+    metadata: { module: 'dynamic-training-corpus' },
+  });
+}
 
 // ---------------------------------------------------------------------------
 // INGEST LOOP

@@ -1,0 +1,25 @@
+{
+  "checkedAt": "2026-04-24T21:01:15.601Z",
+  "overall": "offline",
+  "services": [
+    {
+      "name": "bob",
+      "url": "http://127.0.0.1:3000/health",
+      "status": "offline",
+      "httpStatus": null,
+      "reportedStatus": null,
+      "error": "fetch failed"
+    },
+    {
+      "name": "supabase",
+      "url": "https://kxwjcupuxnnbnzcgmkoi.supabase.co/rest/v1/organizations?select=id&limit=1",
+      "status": "online",
+      "httpStatus": 200,
+      "reportedStatus": null
+    }
+  ],
+  "summary": {
+    "bob": "offline",
+    "supabase": "online"
+  }
+}

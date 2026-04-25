@@ -1,0 +1,870 @@
+{
+  "analysis": {
+    "timestamp": "2026-04-25",
+    "project": "FieldOps Manager",
+    "scope": "Comprehensive access control, routing, organization scoping, navigation, and test infrastructure analysis"
+  },
+  "1_access_control_implementation": {
+    "overview": {
+      "total_roles": 7,
+      "role_hierarchy": {
+        "grand_master": {
+          "level": 0,
+          "description": "Platform owner - bypasses all role restrictions",
+          "capabilities": ["master_ops", "admin_screen", "field_ops", "client_portal_view", "client_portal_manage"],
+          "special_cases": [
+            "Implicit bypass of all RoleRoute and AreaRoute checks",
+            "Redirected to /platform on root (/) access",
+            "Can access all pages unless explicitly blocked for super-users"
+          ],
+          "usage_frequency": "Rare (platform administration)"
+        },
+        "master": {
+          "level": 1,
+          "description": "Multi-organization administrator - system operations",
+          "capabilities": ["master_ops", "admin_screen", "field_ops", "client_portal_view", "client_portal_manage"],
+          "special_cases": [
+            "Bypasses area restrictions but not role checks",
+            "Can view all organizations",
+            "Can access /platform, /organizations, /intel-approvals, /users, /access-control"
+          ],
+          "usage_frequency": "Moderate (system administration)"
+        },
+        "admin": {
+          "level": 2,
+          "description": "Organization-scoped administrator",
+          "capabilities": ["admin_screen", "client_portal_view", "client_portal_manage"],
+          "special_cases": [
+            "Scoped to organization_id",
+            "Cannot bypass to other organizations",
+            "Can view all zones/regions within their org"
+          ],
+          "usage_frequency": "High (day-to-day administration)"
+        },
+        "admin_officer": {
+          "level": 2.5,
+          "description": "Hybrid role - admin AND field operations",
+          "capabilities": ["admin_screen", "field_ops", "client_portal_view", "client_portal_manage"],
+          "special_cases": [
+            "Must choose a portal once per session (portal-selection required)",
+            "Can switch between admin and field officer modes",
+            "Requires portal_access validation for specialist portals",
+            "Stored in sessionStorage['adminOfficerPortalChoice']"
+          ],
+          "usage_frequency": "High (multi-duty personnel)"
+        },
+        "officer": {
+          "level": 3,
+          "description": "Field enforcement officer",
+          "capabilities": ["field_ops", "client_portal_manage"],
+          "special_cases": [
+            "Limited to allowed routes via RoleRoute",
+            "Redirected to /officer-home on root (/) access",
+            "Can only access field-specific portals if in portal_access",
+            "Requires AreaRoute check for area='field_officer'"
+          ],
+          "usage_frequency": "Very High (primary field users)"
+        },
+        "nzscv_monitor": {
+          "level": 4,
+          "description": "Vehicle scanning registry monitor",
+          "capabilities": [],
+          "special_cases": [
+            "Extremely limited access: ['/vehicle-registry', '/admin/nzscv', '/search', '/profile', '/settings']",
+            "Any other route: redirected to /admin/nzscv",
+            "No capability inheritance"
+          ],
+          "usage_frequency": "Moderate (registry monitoring)"
+        },
+        "client_viewer": {
+          "level": 5,
+          "description": "Client organization - read-only portal access",
+          "capabilities": ["client_portal_view"],
+          "special_cases": [
+            "Limited to: ['/client-portal', '/profile', '/settings']",
+            "No access to enforcement or operational pages",
+            "Redirected to /client-portal on root (/) access"
+          ],
+          "usage_frequency": "Moderate (client liaison)"
+        }
+      }
+    },
+    "role_check_locations": [
+      {
+        "file": "[src/stores/authStore.ts](src/stores/authStore.ts#L34)",
+        "lines": "34-39",
+        "type": "Type Definition",
+        "description": "AuthUser interface defines the role field as a union type",
+        "code_snippet": "role: 'master' | 'admin' | 'officer' | 'admin_officer' | 'nzscv_monitor' | 'grand_master' | 'client_viewer'",
+        "complexity": "simple"
+      },
+      {
+        "file": "[src/App.tsx](src/App.tsx#L327)",
+        "lines": "327-345",
+        "type": "Route Guard Component",
+        "description": "RoleRoute component - enforces role-based access control",
+        "code_snippet": "function RoleRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles: string[] }) {\n  const { user } = useAuthStore()\n  if (!user) return <Navigate to='/login' replace />\n  if (user.role === 'grand_master') return <>{children}</>\n  if (!allowedRoles.includes(user.role)) return <Navigate to='/' replace />\n  return <>{children}</>\n}",
+        "complexity": "simple"
+      },
+      {
+        "file": "[src/App.tsx](src/App.tsx#L358)",
+        "lines": "358-383",
+        "type": "Route Guard Component",
+        "description": "AreaRoute component - extends RoleRoute with portal-area access control",
+        "code_snippet": "function AreaRoute({ children, allowedRoles, area }: { children: React.ReactNode; allowedRoles: string[]; area: string }) {\n  const { user } = useAuthStore()\n  if (!user) return <Navigate to='/login' replace />\n  const isSuperUser = user.role === 'grand_master' || user.role === 'master'\n  if (!isSuperUser && !allowedRoles.includes(user.role)) return <Navigate to='/' replace />\n  if (!isSuperUser && user.portal_access && user.portal_access.length > 0) {\n    if (!user.portal_access.includes(area)) return <Navigate to='/' replace />\n  }\n  return <>{children}</>\n}",
+        "complexity": "medium"
+      },
+      {
+        "file": "[src/App.tsx](src/App.tsx#L247)",
+        "lines": "247-324",
+        "type": "Route Guard Component",
+        "description": "ProtectedRoute component - enforces authentication and handles role-specific redirects",
+        "code_snippet": "function ProtectedRoute({ children }: { children: React.ReactNode }) {\n  const { user, loading } = useAuthStore()\n  // Special handling for admin_officer (portal choice)\n  // Special handling for nzscv_monitor (limited routes)\n  // Special handling for grand_master (platform redirect)\n  // Special handling for client_viewer (portal redirect)\n  return <>{children}</>\n}",
+        "complexity": "medium",
+        "special_cases": [
+          "admin_officer check for hasPortalChoice (line 262-275)",
+          "nzscv_monitor whitelist check (line 277-282)",
+          "grand_master home redirect (line 284-288)",
+          "client_viewer portal redirect (line 290-295)"
+        ]
+      },
+      {
+        "file": "[src/stores/authStore.ts](src/stores/authStore.ts#L80-120)",
+        "lines": "80-120",
+        "type": "Profile Fetch",
+        "description": "Auth store fetches user profile with role and organization from database",
+        "code_snippet": "const { data: profile, error: profileError } = await (supabase.from('user_profiles') as any)\n  .select('id, email, role, organization_id, employer_organization_id, first_name, last_name, portal_access, authorized_work_locations, extra_organization_ids')\n  .eq('id', session.user.id)\n  .single()",
+        "complexity": "simple"
+      }
+    ],
+    "authorized_actions_by_role": {
+      "grand_master": {
+        "routes": "All routes (implicit bypass)",
+        "example_pages": ["/platform", "/organizations", "/intel-approvals", "/users", "/access-control"],
+        "data_scope": "All organizations",
+        "special_abilities": [
+          "Can access /admin/service-provider-access",
+          "Can view all organization data",
+          "Can manage all users across all orgs"
+        ]
+      },
+      "master": {
+        "routes": "/platform, /organizations, /intel-approvals, /users, /access-control",
+        "example_pages": ["All RoleRoute with ['master', ...]"],
+        "data_scope": "All organizations or selected via globalFiltersStore",
+        "special_abilities": [
+          "Can view all org data through global filters",
+          "Can approve intelligence entries",
+          "System-wide user management"
+        ]
+      },
+      "admin": {
+        "routes": "/admin, /compliance, /vehicles, /breaches, /zones, /data, /users, /reports, /live-tracking, /organization-profile, /audit-log, /infringements, /patrol-*",
+        "example_pages": ["All core operational pages"],
+        "data_scope": "Only their organization_id",
+        "access_query_pattern": "WHERE organization_id = session.user.organization_id"
+      },
+      "admin_officer": {
+        "routes": "Restricted based on portal choice: admin routes OR officer routes",
+        "example_pages": ["/portal-selection", "/admin or /field-officer"],
+        "data_scope": "Depends on portal: admin=org_id, officer=based on shifts/geofence",
+        "special_requirement": "sessionStorage['adminOfficerPortalChoice']"
+      },
+      "officer": {
+        "routes": "/officer-home, /field-officer (with AreaRoute check), /breaches, /profile, /settings",
+        "example_pages": ["Field operational pages only"],
+        "data_scope": "Data within assigned patrol zones/shifts",
+        "restrictions": ["Cannot access admin pages", "Cannot switch portals automatically"]
+      },
+      "nzscv_monitor": {
+        "routes": "['/vehicle-registry', '/admin/nzscv', '/search', '/profile', '/settings'] only",
+        "example_pages": ["Registry monitoring only"],
+        "data_scope": "Vehicle registry scans",
+        "restrictions": ["Hard whitelist - no other routes possible"]
+      },
+      "client_viewer": {
+        "routes": "['/client-portal', '/profile', '/settings'] only",
+        "example_pages": ["Client portal only"],
+        "data_scope": "Their organization's data",
+        "restrictions": ["Cannot access operational pages", "Read-only portal"]
+      }
+    },
+    "access_control_edge_cases": [
+      {
+        "case": "grand_master bypass in AreaRoute",
+        "location": "[src/App.tsx](src/App.tsx#L367)",
+        "description": "grand_master skips BOTH role AND area checks",
+        "condition": "user.role === 'grand_master' || user.role === 'master'",
+        "behavior": "Returns <>{children}</> without validation"
+      },
+      {
+        "case": "Portal-access empty array handling",
+        "location": "[src/App.tsx](src/App.tsx#L378)",
+        "description": "If user.portal_access is empty, falls back to role-only check",
+        "condition": "!user.portal_access || user.portal_access.length === 0",
+        "behavior": "Skips area code check entirely"
+      },
+      {
+        "case": "admin_officer double validation",
+        "location": "[src/App.tsx](src/App.tsx#L262-275)",
+        "description": "Must pass adminOfficerPortalChoice check in ProtectedRoute",
+        "condition": "user.role === 'admin_officer' && !hasPortalChoice()",
+        "behavior": "Redirects to /portal-selection every session"
+      },
+      {
+        "case": "nzscv_monitor whitelist redirect",
+        "location": "[src/App.tsx](src/App.tsx#L277-282)",
+        "description": "Any route outside whitelist redirects to /admin/nzscv",
+        "condition": "user.role === 'nzscv_monitor' && !WHITELIST.includes(pathname)",
+        "behavior": "Silent redirect (no toast notification)"
+      },
+      {
+        "case": "client_viewer portal redirect",
+        "location": "[src/App.tsx](src/App.tsx#L290-295)",
+        "description": "Client viewers cannot navigate away from /client-portal",
+        "condition": "user.role === 'client_viewer' && !WHITELIST.includes(pathname)",
+        "behavior": "Silent redirect to /client-portal"
+      }
+    ]
+  },
+  "2_routing_architecture": {
+    "overview": {
+      "total_routes": 121,
+      "total_page_components": 126,
+      "router_type": "react-router-dom v6",
+      "main_file": "[src/App.tsx](src/App.tsx)",
+      "app_file_lines": 1618,
+      "code_splitting": "Lazy-loaded via React.lazy() + Suspense (all pages chunked)",
+      "loader": "PageLoader component with spinner animation"
+    },
+    "routing_guard_coverage": {
+      "routes_with_ProtectedRoute": "All authenticated routes",
+      "routes_with_RoleRoute": "~90 routes",
+      "routes_with_AreaRoute": "~8 routes (specialist portals)",
+      "unprotected_routes": 2,
+      "unprotected_routes_list": ["/login", "/public/dispute"]
+    },
+    "main_route_categories": [
+      {
+        "category": "Public & Auth",
+        "routes": [
+          {"path": "/login", "guard": "None (public)", "component": "Login"},
+          {"path": "/public/dispute", "guard": "None (public)", "component": "PublicDisputePortal"},
+          {"path": "/portal-selection", "guard": "ProtectedRoute + RoleRoute(['admin_officer'])", "component": "PortalSelection", "complexity": "medium"}
+        ]
+      },
+      {
+        "category": "Core Admin (RoleRoute protection)",
+        "routes": [
+          {"path": "/admin", "guard": "RoleRoute(['admin', 'admin_officer', 'master'])", "component": "AdminHub", "lines": "556-559"},
+          {"path": "/admin/dashboard", "guard": "RoleRoute(['admin', 'admin_officer', 'master'])", "component": "AdminPortal", "lines": "565-571"},
+          {"path": "/compliance", "guard": "RoleRoute(['admin', 'admin_officer', 'master'])", "component": "CompliancePage", "lines": "588-594"},
+          {"path": "/vehicles", "guard": "ProtectedRoute only", "component": "VehicleManagement", "lines": "580-584"},
+          {"path": "/breaches", "guard": "ProtectedRoute only", "component": "BreachAlerts", "lines": "597-604"},
+          {"path": "/zones", "guard": "RoleRoute(['admin', 'admin_officer', 'master'])", "component": "ZoneManagement", "lines": "568-574"},
+          {"path": "/data", "guard": "RoleRoute(['admin', 'admin_officer', 'master'])", "component": "DataManagement", "lines": "606-613"},
+          {"path": "/users", "guard": "AreaRoute(['admin', 'admin_officer', 'master'], area='users')", "component": "UserManagement", "lines": "615-622", "complexity": "medium"}
+        ],
+        "estimated_complexity": "simple"
+      },
+      {
+        "category": "Field Operations",
+        "routes": [
+          {"path": "/officer-home", "guard": "RoleRoute(['officer', 'admin_officer'])", "component": "OfficerHomePage"},
+          {"path": "/field-officer", "guard": "AreaRoute(['officer', 'admin_officer'], area='field_officer')", "component": "FieldOfficerPortal", "lines": "522-526", "complexity": "medium"},
+          {"path": "/field", "guard": "Redirect to /field-officer", "component": "Navigate", "description": "Legacy support"}
+        ],
+        "estimated_complexity": "medium"
+      },
+      {
+        "category": "Specialist Portals (AreaRoute protection)",
+        "routes": [
+          {"path": "/parking", "guard": "AreaRoute(['admin', 'admin_officer', 'master'], area='parking_enforcement')"},
+          {"path": "/parking-officer", "guard": "AreaRoute(['officer', 'admin_officer'], area='parking_officer')"},
+          {"path": "/noise-control", "guard": "AreaRoute(['admin', 'admin_officer', 'master'], area='noise_control')"},
+          {"path": "/noise-officer", "guard": "AreaRoute(['officer', 'admin_officer'], area='noise_officer')"},
+          {"path": "/biosecurity-officer", "guard": "AreaRoute(['officer', 'admin_officer'], area='biosecurity')"},
+          {"path": "/biosecurity-control", "guard": "AreaRoute(['admin', 'admin_officer', 'master'], area='biosecurity')"},
+          {"path": "/smoke-officer", "guard": "AreaRoute(['officer', 'admin_officer'], area='smoke_complaint')"},
+          {"path": "/smoke-control", "guard": "AreaRoute(['admin', 'admin_officer', 'master'], area='smoke_complaint')"}
+        ],
+        "estimated_complexity": "medium",
+        "special_note": "Requires user.portal_access array subscription"
+      },
+      {
+        "category": "Operational & Tactical",
+        "routes": [
+          {"path": "/compliance-dashboard", "guard": "RoleRoute(['admin', 'admin_officer', 'master'])"},
+          {"path": "/compliance-analytics", "guard": "RoleRoute(['admin', 'admin_officer', 'master'])"},
+          {"path": "/enforcement-command-center", "guard": "RoleRoute(['admin', 'admin_officer', 'master'])"},
+          {"path": "/live-patrol", "guard": "RoleRoute(['admin', 'admin_officer', 'master'])"},
+          {"path": "/live-tracking", "guard": "RoleRoute(['admin', 'admin_officer', 'master'])"},
+          {"path": "/officer-welfare", "guard": "RoleRoute(['admin', 'admin_officer', 'master', 'officer'])"},
+          {"path": "/patrol-schedule", "guard": "RoleRoute(['admin', 'admin_officer', 'master'])"},
+          {"path": "/patrol-kpis", "guard": "RoleRoute(['admin', 'admin_officer', 'master'])"},
+          {"path": "/hotspots", "guard": "RoleRoute(['admin', 'admin_officer', 'master'])"},
+          {"path": "/incident-reports", "guard": "RoleRoute(['admin', 'admin_officer', 'master'])"}
+        ],
+        "estimated_complexity": "simple"
+      },
+      {
+        "category": "System & Config (grand_master / master only)",
+        "routes": [
+          {"path": "/platform", "guard": "RoleRoute(['master', 'grand_master'])", "lines": "658-664"},
+          {"path": "/organizations", "guard": "RoleRoute(['master', 'grand_master'])", "lines": "669-675"},
+          {"path": "/intel-approvals", "guard": "RoleRoute(['master', 'grand_master'])", "lines": "682-688"},
+          {"path": "/admin/service-provider-access", "guard": "RoleRoute(['master', 'grand_master'])", "lines": "707-712"}
+        ],
+        "estimated_complexity": "simple"
+      },
+      {
+        "category": "Client Portal",
+        "routes": [
+          {"path": "/client-portal", "guard": "RoleRoute(['client_viewer', 'admin', 'admin_officer', 'master', 'grand_master'])", "lines": "693-699"}
+        ],
+        "estimated_complexity": "simple"
+      },
+      {
+        "category": "Utility & Personal",
+        "routes": [
+          {"path": "/search", "guard": "ProtectedRoute only"},
+          {"path": "/profile", "guard": "ProtectedRoute only"},
+          {"path": "/settings", "guard": "ProtectedRoute only"},
+          {"path": "/notifications", "guard": "ProtectedRoute only"}
+        ],
+        "estimated_complexity": "simple"
+      }
+    ],
+    "lazy_loading_strategy": {
+      "pattern": "const PageName = lazy(() => import('@/pages/PageName'))",
+      "example": "[src/App.tsx](src/App.tsx#L17-18)",
+      "code_snippet": "const AdminHub = lazy(() => import('@/pages/AdminHub'))\nconst AdminPortal = lazy(() => import('@/pages/AdminPortal'))",
+      "suspense_fallback": "PageLoader component (spinner with logo)",
+      "benefit": "Code-splitting reduces initial bundle; each route chunk downloaded on demand",
+      "benefit_secondary": "Lighthouse FCP/LCP/TTI improvements"
+    },
+    "navigation_flow": {
+      "entry_point": "/login or detected authenticated state",
+      "post_login_redirect_logic": {
+        "grand_master": "/platform",
+        "master": "/platform or /organizations (based on global filters)",
+        "admin": "/admin or preserved state",
+        "admin_officer": "/portal-selection (must choose admin or officer)",
+        "officer": "/officer-home or /field-officer (if rostered)",
+        "nzscv_monitor": "/admin/nzscv",
+        "client_viewer": "/client-portal"
+      },
+      "role_home_pages": [
+        {"role": "officer", "home": "/officer-home", "trigger": "root (/)"},
+        {"role": "admin_officer", "home": "/portal-selection", "trigger": "root (/) + first load"},
+        {"role": "nzscv_monitor", "home": "/admin/nzscv", "trigger": "any non-whitelisted route"},
+        {"role": "client_viewer", "home": "/client-portal", "trigger": "any non-whitelisted route"}
+      ]
+    }
+  },
+  "3_organization_tenant_scope": {
+    "overview": {
+      "multi_org_model": "Yes - full multi-tenant",
+      "org_fields_in_user_profile": [
+        "organization_id (primary org)",
+        "employer_organization_id (employer for contractors)",
+        "authorized_work_locations (array of org IDs)",
+        "extra_organization_ids (array of org IDs)",
+        "portal_access (array of portal area codes)"
+      ],
+      "org_scoped_queries_pattern": "WHERE organization_id = user.organization_id"
+    },
+    "organization_context_hooks": [
+      {
+        "hook": "[useOrganizations](src/hooks/useOrganizations.ts)",
+        "lines": "26-44",
+        "description": "Fetches all active organizations with parent org info",
+        "returns": "UseQuery<OrganizationWithParent[]>",
+        "query": "SELECT *, parent_organization(name) FROM organizations WHERE is_active = true ORDER BY name",
+        "usage_locations": [
+          "ClientSites.tsx",
+          "CleanupAndRecalculate.tsx",
+          "ComplianceRecalculation.tsx",
+          "PhotoReingest.tsx",
+          "OrganizationSelector.tsx"
+        ],
+        "complexity": "simple"
+      },
+      {
+        "hook": "[useOrganization](src/hooks/useOrganizations.ts)",
+        "lines": "45-62",
+        "description": "Fetches single organization by ID with parent org",
+        "returns": "UseQuery<OrganizationWithParent>",
+        "parameters": {"orgId": "string (required for query)"},
+        "query": "SELECT *, parent_organization(name) FROM organizations WHERE id = orgId",
+        "complexity": "simple"
+      },
+      {
+        "hook": "[useOrganizationStats](src/hooks/useOrganizations.ts)",
+        "lines": "139-?",
+        "description": "Fetches organization statistics",
+        "returns": "UseQuery<OrganizationStats>",
+        "usage_locations": ["AdminPortal, ComplianceDashboard"],
+        "complexity": "medium"
+      },
+      {
+        "hook": "[useOrganizationBoundary](src/hooks/useOrganizationBoundary.ts)",
+        "lines": "94-150",
+        "description": "Fetches organization geospatial boundary (GeoJSON + bounding box)",
+        "returns": "UseQuery<OrganizationBoundary>",
+        "query": "SELECT id, name, type, geom, updated_at FROM organizations WHERE id = organizationId",
+        "post_processing": [
+          "Converts GeoJSON geometry to bounding box [minLng, minLat, maxLng, maxLat]",
+          "Calculates approximate area in km² using haversine formula",
+          "Caches for 5 minutes (staleTime), 10 minutes (gcTime)"
+        ],
+        "complexity": "medium"
+      }
+    ],
+    "org_scoping_in_pages": {
+      "AdminPortal.tsx": {
+        "file": "[src/pages/AdminPortal.tsx](src/pages/AdminPortal.tsx)",
+        "lines": "88-90",
+        "pattern": "effectiveOrganizationId = user?.role === 'master' ? organizationId || null : user?.organization_id || null",
+        "description": "master users can filter via globalFiltersStore; admins stuck to their org_id",
+        "enforcement": "RLS on supabase queries (backend)"
+      },
+      "ComplianceDashboard": "Similar to AdminPortal - master can select org, admin scoped to org_id",
+      "UserManagement": "Queries user_profiles WHERE organization_id = auth.uid()::organization_id or selected org (master only)",
+      "Vehicles/Zones/Patrols": "All scoped to org_id in WHERE clause"
+    },
+    "organization_filter_store": {
+      "file": "[src/stores/globalFiltersStore.ts](src/stores/globalFiltersStore.ts)",
+      "lines": "1-100",
+      "fields": [
+        "organizationId (string | null)",
+        "organizationName (string | null)",
+        "zoneId (string | null)",
+        "zoneName (string | null)",
+        "dateFrom, dateTo (ISO format)"
+      ],
+      "actions": [
+        "setOrganization(id, name)",
+        "setZone(id, name)",
+        "setDateRange(from, to, preset)"
+      ],
+      "persistence": "Via zustand persist middleware (localStorage)",
+      "usage_pattern": "Master/admin users can set org filter to view different org data",
+      "complexity": "simple"
+    },
+    "org_isolation_patterns": [
+      {
+        "pattern": "Direct role + org_id check",
+        "location": "Supabase RLS policies (backend)",
+        "example": "master -> any org; admin/officer -> their org_id only",
+        "enforcement_level": "Database (Row-Level Security)"
+      },
+      {
+        "pattern": "User-side WHERE clause filtering",
+        "location": "useQuery hooks in src/hooks/",
+        "example": ".eq('organization_id', effectiveOrganizationId)",
+        "enforcement_level": "Frontend (for UX; backend RLS is true enforcement)"
+      },
+      {
+        "pattern": "Portal-access array subscription",
+        "location": "user.portal_access in AreaRoute",
+        "example": "user.portal_access.includes(area) check before allowing specialist portals",
+        "enforcement_level": "Frontend route guard + backend RLS"
+      },
+      {
+        "pattern": "Geospatial boundary validation",
+        "location": "[src/hooks/useOrganizationBoundary.ts](src/hooks/useOrganizationBoundary.ts)",
+        "example": "Calculates geofence bbox for officer location validation",
+        "enforcement_level": "Frontend (for UI); backend business logic enforces patrol assignments"
+      }
+    ],
+    "multi_org_edge_cases": [
+      {
+        "case": "Master viewing different orgs",
+        "flow": "Master selects org in globalFiltersStore → effectiveOrganizationId becomes selected org_id → queries filtered by selected org",
+        "limitation": "No cascade - master must manually switch org filter"
+      },
+      {
+        "case": "Admin_officer with extra_organization_ids",
+        "flow": "authorized_work_locations allows user to view multiple org branches",
+        "status": "Defined in AuthUser but not fully utilized in current routes",
+        "potential_refactor": "Could enable cross-org work location view"
+      },
+      {
+        "case": "Contractor (employer_organization_id) scoping",
+        "flow": "Employer org is separate from primary org_id (for billing/management)",
+        "usage": "Not currently visible in route guards; likely used in data layer"
+      }
+    ]
+  },
+  "4_navigation_menu_metadata": {
+    "overview": {
+      "menu_component": "[AdminNavigationMenu.tsx](src/components/features/AdminNavigationMenu.tsx)",
+      "menu_structure": "Static hardcoded arrays + dynamic dropdown",
+      "visibility_strategy": "No role-based filtering - all items shown to all authenticated users",
+      "actual_access_control": "Route guards (ProtectedRoute, RoleRoute, AreaRoute) block access if not authorized"
+    },
+    "menu_items_structure": {
+      "primaryLinks": {
+        "file": "[src/components/features/AdminNavigationMenu.tsx](src/components/features/AdminNavigationMenu.tsx)",
+        "lines": "17-21",
+        "items": [
+          {"to": "/admin", "label": "Dashboard", "icon": "Home"},
+          {"to": "/compliance", "label": "Compliance", "icon": "BarChart3"},
+          {"to": "/vehicles", "label": "Vehicles", "icon": "Car"},
+          {"to": "/breaches", "label": "Breaches", "icon": "AlertTriangle"},
+          {"to": "/search", "label": "Search", "icon": "Search"}
+        ],
+        "visibility": "All authenticated users (no role check in menu)",
+        "actual_access": "Controlled by route guards - officer will be redirected if clicking"
+      },
+      "moreGroups": {
+        "file": "[src/components/features/AdminNavigationMenu.tsx](src/components/features/AdminNavigationMenu.tsx)",
+        "lines": "23-96",
+        "groups": [
+          {
+            "label": "Compliance",
+            "items": [
+              {"to": "/compliance-dashboard", "label": "Compliance Dashboard"},
+              {"to": "/compliance-analytics", "label": "Analytics"},
+              {"to": "/compliance-recalculation", "label": "Recalculation"},
+              {"to": "/spatial-compliance", "label": "Spatial Compliance"}
+            ]
+          },
+          {
+            "label": "Enforcement",
+            "items": [
+              {"to": "/enforcement-command-center", "label": "Command Centre"},
+              {"to": "/enforcement-review", "label": "Review"},
+              {"to": "/disputes", "label": "Disputes"},
+              {"to": "/notice-to-vacate", "label": "Notice to Vacate"},
+              {"to": "/infringements", "label": "Infringements"},
+              {"to": "/breach-notices", "label": "Breach Notices"}
+            ]
+          },
+          {
+            "label": "Vehicles & Zones",
+            "items": [
+              {"to": "/vehicle-registry", "label": "Vehicle Registry"},
+              {"to": "/admin/canonical-records", "label": "Canonical Records"},
+              {"to": "/zones", "label": "Zones"},
+              {"to": "/hotspots", "label": "Hotspots Map"}
+            ]
+          },
+          {
+            "label": "Officers & Patrols",
+            "items": [
+              {"to": "/live-patrol", "label": "Live Patrol"},
+              {"to": "/live-tracking", "label": "Officer Tracking"},
+              {"to": "/officer-welfare", "label": "Officer Welfare"},
+              {"to": "/patrol-schedule", "label": "Patrol Schedule"},
+              {"to": "/patrol-kpis", "label": "Patrol KPIs"},
+              {"to": "/patrol-checkpoints", "label": "Checkpoints"}
+            ]
+          },
+          {
+            "label": "People & Incidents",
+            "items": [
+              {"to": "/person-records", "label": "Person Records"},
+              {"to": "/face-recognition", "label": "Face Recognition"},
+              {"to": "/points-of-interest", "label": "Points of Interest"},
+              {"to": "/incidents", "label": "Incidents & Maintenance"},
+              {"to": "/incident-reports", "label": "Incident Reports"},
+              {"to": "/investigations", "label": "Investigations"},
+              {"to": "/site-risk-assessment", "label": "Site Risk Assessment"}
+            ]
+          },
+          {
+            "label": "Specialist Services",
+            "items": [
+              {"to": "/parking", "label": "Parking Enforcement"},
+              {"to": "/parking-officer", "label": "Parking Officer"},
+              {"to": "/noise-control", "label": "Noise Control"},
+              {"to": "/noise-officer", "label": "Noise Officer"}
+            ]
+          },
+          {
+            "label": "Reports",
+            "items": [
+              {"to": "/reports-hub", "label": "Reports Hub"},
+              {"to": "/observations-report", "label": "Observations"},
+              {"to": "/observations", "label": "Observation Map"},
+              {"to": "/ai-analysis", "label": "Bob"}
+            ]
+          },
+          {
+            "label": "Admin",
+            "items": [
+              {"to": "/users", "label": "Users"},
+              {"to": "/audit-log", "label": "Audit Log"},
+              {"to": "/privacy-curtain", "label": "Privacy"},
+              {"to": "/import-data", "label": "Import Data"},
+              {"to": "/import-historical", "label": "Import Excel"},
+              {"to": "/data", "label": "Data Tools"},
+              {"to": "/photo-reingest", "label": "Photo Reingest"},
+              {"to": "/evidence-photo-linker", "label": "Evidence Linker"},
+              {"to": "/settings", "label": "Settings"}
+            ]
+          }
+        ],
+        "visibility": "Dropdown (all items shown to all authenticated users)",
+        "layout": "Responsive grid: 2 cols mobile, 3 cols tablet, 4 cols desktop"
+      }
+    },
+    "menu_visibility_control_issue": {
+      "description": "Menu does NOT implement role-based filtering",
+      "current_status": "All menu items visible to all authenticated users",
+      "actual_effect": "Silent redirects happen when unauthorized users click items",
+      "example_scenario": "Officer clicks '/compliance' → visually loads page → route guard redirects to '/' (no toast)",
+      "documented_issue": "[docs/BUG-REPORT-OFFICER-ACCESS-CONTROL.md](docs/BUG-REPORT-OFFICER-ACCESS-CONTROL.md)",
+      "recommended_fix": "Implement filter at render time: only show items user's role can access",
+      "complexity": "medium"
+    },
+    "menu_rendering_logic": {
+      "file": "[src/components/features/AdminNavigationMenu.tsx](src/components/features/AdminNavigationMenu.tsx)",
+      "lines": "150-250",
+      "pattern": "Static arrays mapped to JSX; no role checks in rendering",
+      "dropdown_ui": "Uses shadcn Button + absolute positioned grid",
+      "click_handling": "Link to path (no validation)",
+      "active_state": "Highlights current pathname via isActive(to)"
+    },
+    "portal_access_visibility": {
+      "observation": "portal_access array NOT used in menu visibility",
+      "location": "Should be used in: specialist portal menu items visibility",
+      "example": "Show '/parking' item only if user.portal_access.includes('parking_enforcement')",
+      "current_status": "Not implemented - all specialist portals always shown",
+      "potential_issue": "Officer with only 'field_officer' access still sees '/parking' in menu"
+    }
+  },
+  "5_test_infrastructure": {
+    "overview": {
+      "test_framework": "Playwright (E2E)",
+      "config_file": "[playwright.api.config.ts](playwright.api.config.ts) (main), [playwright.config.ts](playwright.config.ts)",
+      "test_directory": "[tests/e2e/](tests/e2e/)",
+      "test_files_count": 30,
+      "auth_helper": "[tests/e2e/auth.ts](tests/e2e/auth.ts)"
+    },
+    "test_credentials_structure": {
+      "file": "[tests/e2e/auth.ts](tests/e2e/auth.ts)",
+      "lines": "1-300+",
+      "type": "TestUserKey enum",
+      "roles_covered": [
+        "master",
+        "adminOrg1 (admin for first org)",
+        "adminOrg2 (admin for second org)",
+        "officerOrg1 (officer for first org)",
+        "clientViewer",
+        "clientStaff"
+      ],
+      "credential_sources": {
+        "priority_1": "Environment variables (role-specific: PLAYWRIGHT_MASTER_EMAIL, PLAYWRIGHT_ADMIN_ORG1_EMAIL, etc.)",
+        "priority_2": "Shared fallback (PLAYWRIGHT_LIVE_EMAIL, E2E_LIVE_EMAIL if allowSharedFallback=1)",
+        "priority_3": "Hardcoded fallback (e.g., 'master@test.com', 'admin@org1.com')"
+      },
+      "env_var_config": {
+        "master": {
+          "email_vars": ["PLAYWRIGHT_MASTER_EMAIL", "E2E_MASTER_EMAIL"],
+          "password_vars": ["PLAYWRIGHT_MASTER_PASSWORD", "E2E_MASTER_PASSWORD"],
+          "fallback_email": "master@test.com"
+        },
+        "adminOrg1": {
+          "email_vars": ["PLAYWRIGHT_ADMIN_ORG1_EMAIL", "PLAYWRIGHT_ADMIN_EMAIL", "E2E_ADMIN_EMAIL"],
+          "password_vars": ["PLAYWRIGHT_ADMIN_ORG1_PASSWORD", "PLAYWRIGHT_ADMIN_PASSWORD", "E2E_ADMIN_PASSWORD"],
+          "fallback_email": "admin@org1.com",
+          "expected_org_name": "First Security - Nelson (or PLAYWRIGHT_ADMIN_ORG1_NAME override)"
+        },
+        "adminOrg2": {
+          "email_vars": ["PLAYWRIGHT_ADMIN_ORG2_EMAIL", "E2E_ADMIN_ORG2_EMAIL"],
+          "password_vars": ["PLAYWRIGHT_ADMIN_ORG2_PASSWORD", "E2E_ADMIN_ORG2_PASSWORD"],
+          "fallback_email": "admin@org2.com",
+          "expected_org_name": "Nelson City Council (or PLAYWRIGHT_ADMIN_ORG2_NAME override)"
+        },
+        "officerOrg1": {
+          "email_vars": ["PLAYWRIGHT_OFFICER_ORG1_EMAIL", "PLAYWRIGHT_OFFICER_EMAIL", "E2E_OFFICER_EMAIL"],
+          "password_vars": ["PLAYWRIGHT_OFFICER_ORG1_PASSWORD", "PLAYWRIGHT_OFFICER_PASSWORD", "E2E_OFFICER_PASSWORD"],
+          "fallback_email": "officer@org1.com"
+        },
+        "clientViewer": {
+          "email_vars": ["PLAYWRIGHT_CLIENT_VIEWER_EMAIL", "E2E_CLIENT_VIEWER_EMAIL"],
+          "password_vars": ["PLAYWRIGHT_CLIENT_VIEWER_PASSWORD", "E2E_CLIENT_VIEWER_PASSWORD"],
+          "fallback_email": "client.viewer@test.com"
+        },
+        "clientStaff": {
+          "email_vars": ["PLAYWRIGHT_CLIENT_STAFF_EMAIL", "E2E_CLIENT_STAFF_EMAIL"],
+          "password_vars": ["PLAYWRIGHT_CLIENT_STAFF_PASSWORD", "E2E_CLIENT_STAFF_PASSWORD"],
+          "fallback_email": "client.staff@test.com"
+        }
+      }
+    },
+    "test_credentials_validation": {
+      "file": "[tests/e2e/auth.ts](tests/e2e/auth.ts)",
+      "function": "validateRoleCredentialPreflight()",
+      "triggers": "Runs in global-setup.ts before all tests",
+      "behavior": "Checks that all required test users have email + password defined",
+      "error_behavior": "Throws error if missing (unless PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=1)",
+      "env_controls": [
+        "PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=1 allows fallback to shared credentials",
+        "PLAYWRIGHT_REQUIRED_TEST_USERS=master,adminOrg1,officerOrg1 (comma-separated list of users to validate)"
+      ]
+    },
+    "test_user_functions": [
+      {
+        "function": "getTestUser(user: TestUserKey)",
+        "location": "[tests/e2e/auth.ts](tests/e2e/auth.ts)",
+        "returns": "TestCredentials { email, password }",
+        "usage": "await loginAs(page, 'master')",
+        "resolution_logic": "Environment vars → shared fallback → hardcoded fallback"
+      },
+      {
+        "function": "loginAs(page, user: TestUserKey)",
+        "location": "[tests/e2e/auth.ts](tests/e2e/auth.ts) (export from module)",
+        "description": "Log in a test user and wait for navigation",
+        "steps": ["Get credentials via getTestUser()", "Fill login form", "Submit", "Wait for redirect"]
+      },
+      {
+        "function": "getRequiredTestUsersFromEnv()",
+        "location": "[tests/e2e/auth.ts](tests/e2e/auth.ts)",
+        "returns": "TestUserKey[]",
+        "default": "['master', 'adminOrg1', 'adminOrg2', 'officerOrg1', 'clientViewer', 'clientStaff']"
+      },
+      {
+        "function": "validateRoleCredentialPreflight()",
+        "location": "[tests/e2e/auth.ts](tests/e2e/auth.ts)",
+        "description": "Preflight check - runs in global-setup.ts"
+      },
+      {
+        "function": "fetchResolvedProfile(page)",
+        "location": "[tests/e2e/auth.ts](tests/e2e/auth.ts)",
+        "returns": "ResolvedProfile { id, email, role, organizationName, employerOrganizationName }",
+        "calls": "Supabase auth/v1/user endpoint + user_profiles query"
+      }
+    ],
+    "test_role_assertions": {
+      "config_options": [
+        "PLAYWRIGHT_SKIP_ROLE_ASSERTIONS=1 (skip all role validation)",
+        "PLAYWRIGHT_ROLE_ASSERTION_MODE=strict|warn|off (controls behavior)",
+        "PLAYWRIGHT_AUTO_SET_TEST_ROLE=1 (auto-assign role during login)"
+      ],
+      "expected_role_by_user": {
+        "master": "grand_master | master",
+        "adminOrg1": "admin | admin_officer",
+        "adminOrg2": "admin | admin_officer",
+        "officerOrg1": "officer | admin_officer",
+        "clientViewer": "client_viewer",
+        "clientStaff": "admin | admin_officer | officer"
+      }
+    },
+    "module_route_access_test": {
+      "file": "[tests/e2e/module-route-access.spec.ts](tests/e2e/module-route-access.spec.ts)",
+      "lines": "1-50+",
+      "description": "E2E test that verifies every protected route loads for authorized roles and redirects for unauthorized roles",
+      "test_structure": "test.describe() groups by role, test() validates individual routes",
+      "test_pattern": "await loginAs(page, 'master') → await assertRouteLoads(page, '/platform')",
+      "coverage": "All major routes across all roles",
+      "bob_ui_assess": "Calls bobAssessPage() after each route load to assess UI quality",
+      "complexity": "medium"
+    },
+    "bob_ui_assess_helper": {
+      "file": "[tests/e2e/bob-ui-assess.ts](tests/e2e/bob-ui-assess.ts)",
+      "lines": "1-100+",
+      "description": "Takes screenshots and POSTs to Bob inference service for UI quality assessment",
+      "function": "bobAssessPage(page, testInfo, testName)",
+      "flow": [
+        "Takes full-page screenshot after route load",
+        "POSTs image to BOB_SERVICE_URL/assess/ui/screenshot",
+        "Receives JSON with scored metrics (layout, contrast, accessibility, consistency)",
+        "Attaches results to Playwright test report",
+        "Warns if score < BOB_UI_SCORE_THRESHOLD"
+      ],
+      "env_config": {
+        "BOB_SERVICE_URL": "Base URL of inference service (default: localhost:3001 or fallback to RunPod)",
+        "BOB_INFERENCE_API_KEY": "Optional bearer token",
+        "BOB_UI_SCORE_THRESHOLD": "Minimum acceptable score (0-100, default 60)",
+        "BOB_UI_HARD_FAIL": "Set to '1' to fail test on low score (default: warn only)",
+        "BOB_UI_ASSESS_URL": "Direct Bob assessment URL (preferred over BOB_SERVICE_URL)"
+      },
+      "graceful_degradation": "If Bob service unavailable, logs warning but test continues",
+      "complexity": "medium"
+    },
+    "test_fixtures": {
+      "directory": "[tests/e2e/fixtures/](tests/e2e/fixtures/)",
+      "files": [
+        "network-profile.ts",
+        "synth-org.ts"
+      ]
+    },
+    "test_data_factories": {
+      "observation": "No explicit test data factories found in codebase",
+      "note": "Test credentials are used directly; data is assumed to exist in test database"
+    },
+    "global_setup": {
+      "file": "[tests/e2e/global-setup.ts](tests/e2e/global-setup.ts)",
+      "runs": "Before all tests (Playwright config)",
+      "actions": [
+        "validateRoleCredentialPreflight() - validates test creds are set",
+        "checkBobUiCapability() - checks if Bob service is available (non-blocking)"
+      ]
+    },
+    "existing_tests_coverage": [
+      "[module-route-access.spec.ts](tests/e2e/module-route-access.spec.ts) - Route access by role",
+      "[role-matrix-smoke.spec.ts](tests/e2e/role-matrix-smoke.spec.ts) - Role permission matrix",
+      "[user-creation.spec.ts](tests/e2e/user-creation.spec.ts) - User creation workflows",
+      "[crm-service-provider-visual.spec.ts](tests/e2e/crm-service-provider-visual.spec.ts) - CRM visual tests",
+      "[module-e2e-comprehensive.spec.ts](tests/e2e/module-e2e-comprehensive.spec.ts) - Comprehensive module tests",
+      "[production-readiness-audit.spec.ts](tests/e2e/production-readiness-audit.spec.ts) - Production checks"
+    ],
+    "test_credentials_summary": {
+      "total_test_users": 6,
+      "recommended_setup": {
+        "step_1": "Create .env.playwright.local with role-specific vars",
+        "step_2": "Example: PLAYWRIGHT_MASTER_EMAIL=master@yourtest.com, PLAYWRIGHT_MASTER_PASSWORD=SecurePass123",
+        "step_3": "Run: npx playwright test (uses env vars)",
+        "fallback": "Or set PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=1 to use shared credentials"
+      }
+    }
+  },
+  "6_summary_and_complexity_assessment": {
+    "access_control": {
+      "components": 3,
+      "components_list": ["ProtectedRoute (medium)", "RoleRoute (simple)", "AreaRoute (medium)"],
+      "total_complexity": "medium",
+      "main_risk": "Menu does not filter items by role - confuses users when redirected",
+      "main_strength": "Grand master bypass pattern clearly implemented"
+    },
+    "routing": {
+      "total_routes": 121,
+      "guarded_routes": "~110 (90%+)",
+      "unguarded_public_routes": 2,
+      "lazy_loading": "All pages code-split",
+      "total_complexity": "simple",
+      "main_strength": "Comprehensive route coverage, good lazy-loading strategy",
+      "refactor_opportunity": "Consider route prefixing for clarity (e.g., /admin/*, /officer/*, /system/*)"
+    },
+    "org_scoping": {
+      "patterns": 3,
+      "hooks": 4,
+      "stores": 1,
+      "total_complexity": "medium",
+      "main_strength": "Multi-org support via globalFiltersStore + RLS",
+      "potential_issue": "authorized_work_locations and extra_organization_ids not fully utilized",
+      "refactor_opportunity": "Centralize org boundary validation in a dedicated service"
+    },
+    "navigation": {
+      "menu_component": 1,
+      "menu_items": "60+",
+      "visibility_filtering": "None (risk)",
+      "total_complexity": "simple",
+      "main_issue": "No role-based filtering - all items shown to all users",
+      "recommended_fix": "Add role/area filter to menu rendering"
+    },
+    "test_infrastructure": {
+      "test_framework": "Playwright",
+      "test_users": 6,
+      "test_files": 30,
+      "coverage": "Comprehensive (routes, roles, smoke tests, E2E)",
+      "total_complexity": "medium",
+      "main_strength": "Flexible credential management (env vars + fallback)",
+      "potential_enhancement": "Add test data factories for faster test setup"
+    }
+  }
+}

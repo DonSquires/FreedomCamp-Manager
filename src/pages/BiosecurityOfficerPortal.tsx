@@ -484,14 +484,14 @@ export default function BiosecurityOfficerPortal() {
         </div>
 
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="w-full">
-            <TabsTrigger value="jobs" className="flex-1">
+          <TabsList className="w-full grid grid-cols-3 h-auto gap-2 bg-transparent p-0">
+            <TabsTrigger value="jobs" className="rounded-xl border data-[state=active]:bg-white data-[state=active]:shadow-sm py-2.5">
               <TreePine className="h-4 w-4 mr-1" /> Active Jobs ({activeJobs.length})
             </TabsTrigger>
-            <TabsTrigger value="new" className="flex-1">
+            <TabsTrigger value="new" className="rounded-xl border data-[state=active]:bg-white data-[state=active]:shadow-sm py-2.5">
               <Bug className="h-4 w-4 mr-1" /> New Assessment
             </TabsTrigger>
-            <TabsTrigger value="completed" className="flex-1">
+            <TabsTrigger value="completed" className="rounded-xl border data-[state=active]:bg-white data-[state=active]:shadow-sm py-2.5">
               <Eye className="h-4 w-4 mr-1" /> Completed
             </TabsTrigger>
           </TabsList>
@@ -507,59 +507,62 @@ export default function BiosecurityOfficerPortal() {
               </div>
             ) : (
               activeJobs.map(job => (
-                <Card key={job.id} className="cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => openNewAssessment(job)}>
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <span className="font-mono text-sm font-semibold text-gray-700">{job.job_number}</span>
-                          <Badge className={`text-xs ${PRIORITY_COLOUR[job.priority] ?? 'bg-gray-100 text-gray-600'}`}>
-                            {job.priority.toUpperCase()}
-                          </Badge>
-                          <Badge className={`text-xs ${STATUS_COLOUR[job.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                            {job.status.replace(/_/g, ' ')}
-                          </Badge>
-                          {job.has_prior_notice && (
-                            <Badge className="text-xs bg-orange-100 text-orange-700">Prior Notice</Badge>
-                          )}
-                        </div>
-                        <p className="font-semibold text-gray-900 text-sm truncate">{job.title}</p>
-                        <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-                          <MapPin className="h-3 w-3" /> {job.address}
-                        </p>
-                        {job.safety_notes && (
-                          <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                            <AlertTriangle className="h-3 w-3" /> {job.safety_notes}
-                          </p>
-                        )}
-                        {/* Status advance buttons */}
-                        <div className="flex gap-2 mt-2" onClick={e => e.stopPropagation()}>
-                          {job.status === 'assigned' && (
-                            <Button size="sm" variant="outline" className="text-xs h-7"
-                              onClick={() => updateJobStatusMutation.mutate({ jobId: job.id, status: 'en_route' })}>
-                              En Route
-                            </Button>
-                          )}
-                          {job.status === 'en_route' && (
-                            <Button size="sm" variant="outline" className="text-xs h-7"
-                              onClick={() => updateJobStatusMutation.mutate({ jobId: job.id, status: 'on_scene' })}>
-                              On Scene
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                      <ChevronRight className="h-5 w-5 text-gray-400 mt-1 shrink-0" />
+                <button
+                  key={job.id}
+                  onClick={() => openNewAssessment(job)}
+                  className="w-full text-left rounded-2xl border-2 border-emerald-200 bg-emerald-50/40 p-4 hover:border-emerald-400 hover:shadow-md active:scale-[0.99] transition-all"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shrink-0">
+                      <Leaf className="h-6 w-6 text-white" />
                     </div>
-                  </CardContent>
-                </Card>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="font-mono text-sm font-semibold text-gray-700">{job.job_number}</span>
+                        <Badge className={`text-xs ${PRIORITY_COLOUR[job.priority] ?? 'bg-gray-100 text-gray-600'}`}>
+                          {job.priority.toUpperCase()}
+                        </Badge>
+                        <Badge className={`text-xs ${STATUS_COLOUR[job.status] ?? 'bg-gray-100 text-gray-600'}`}>
+                          {job.status.replace(/_/g, ' ')}
+                        </Badge>
+                        {job.has_prior_notice && (
+                          <Badge className="text-xs bg-orange-100 text-orange-700">Prior Notice</Badge>
+                        )}
+                      </div>
+                      <p className="font-semibold text-gray-900 text-sm truncate">{job.title}</p>
+                      <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                        <MapPin className="h-3 w-3" /> {job.address}
+                      </p>
+                      {job.safety_notes && (
+                        <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" /> {job.safety_notes}
+                        </p>
+                      )}
+                      <div className="flex gap-2 mt-2" onClick={e => e.stopPropagation()}>
+                        {job.status === 'assigned' && (
+                          <Button size="sm" variant="outline" className="text-xs h-8 rounded-lg"
+                            onClick={() => updateJobStatusMutation.mutate({ jobId: job.id, status: 'en_route' })}>
+                            En Route
+                          </Button>
+                        )}
+                        {job.status === 'en_route' && (
+                          <Button size="sm" variant="outline" className="text-xs h-8 rounded-lg"
+                            onClick={() => updateJobStatusMutation.mutate({ jobId: job.id, status: 'on_scene' })}>
+                            On Scene
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-gray-400 mt-1 shrink-0" />
+                  </div>
+                </button>
               ))
             )}
           </TabsContent>
 
           {/* ── New assessment tab ──────────────────────────────────────── */}
           <TabsContent value="new" className="mt-4">
-            <Card>
+            <Card className="border-2 border-emerald-200">
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                   <Leaf className="h-4 w-4 text-emerald-600" /> Ad-hoc Biosecurity Inspection
@@ -570,7 +573,7 @@ export default function BiosecurityOfficerPortal() {
                   Start a new biosecurity assessment without a dispatched job — e.g. observed infestation
                   while on patrol.
                 </p>
-                <Button className="bg-emerald-600 hover:bg-emerald-700 text-white w-full"
+                <Button className="bg-emerald-600 hover:bg-emerald-700 text-white w-full rounded-xl h-11"
                   onClick={() => { openNewAssessment(); setTab('jobs') }}>
                   <Plus className="h-4 w-4 mr-2" /> Start New Assessment
                 </Button>
@@ -586,19 +589,17 @@ export default function BiosecurityOfficerPortal() {
               <div className="text-center py-12 text-gray-400">No completed jobs yet</div>
             ) : (
               completedJobs.map(job => (
-                <Card key={job.id}>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-mono text-sm font-semibold text-gray-700">{job.job_number}</span>
-                      <Badge className="text-xs bg-green-100 text-green-700">Completed</Badge>
-                    </div>
-                    <p className="font-semibold text-gray-900 text-sm">{job.title}</p>
-                    <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-                      <MapPin className="h-3 w-3" /> {job.address}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1">{formatDateTime(job.created_at)}</p>
-                  </CardContent>
-                </Card>
+                <div key={job.id} className="rounded-2xl border-2 border-emerald-200 bg-emerald-50/40 p-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-mono text-sm font-semibold text-gray-700">{job.job_number}</span>
+                    <Badge className="text-xs bg-green-100 text-green-700">Completed</Badge>
+                  </div>
+                  <p className="font-semibold text-gray-900 text-sm">{job.title}</p>
+                  <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                    <MapPin className="h-3 w-3" /> {job.address}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">{formatDateTime(job.created_at)}</p>
+                </div>
               ))
             )}
           </TabsContent>
