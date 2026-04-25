@@ -21,6 +21,64 @@ function normalizeBaseUrl(raw?: string | null): string {
   return isRunpodServerless(withScheme) ? normalizeRunpodBase(withScheme) : withScheme
 }
 
+function isTruthyEnv(value: string | null | undefined): boolean {
+  return String(value ?? '').trim().toLowerCase() === 'true'
+}
+
+function getOrigin(url: string): string {
+  return new URL(url).origin
+}
+
+function getAllowedInferenceOrigins(): string[] {
+  const raw = String(Deno.env.get('BOB_ALLOWED_INFERENCE_HOSTS') ?? '').trim()
+  if (!raw) return []
+
+  return raw
+    .split(',')
+    .map((entry) => normalizeBaseUrl(entry))
+    .filter(Boolean)
+    .map((entry) => getOrigin(entry))
+}
+
+function getForbiddenProviderEnvKeys(): string[] {
+  const env = Deno.env.toObject()
+  return Object.keys(env)
+    .filter((key) => /^OPENAI_/i.test(key) || /^AZURE_OPENAI_/i.test(key))
+    .filter((key) => String(env[key] ?? '').trim() !== '')
+}
+
+function enforceBobOnlyProviderLock(inferenceUrl: string): void {
+  const providerLockEnabled = !isTruthyEnv(Deno.env.get('BOB_PROVIDER_LOCK_DISABLED'))
+  if (!providerLockEnabled) return
+
+  const forbiddenKeys = getForbiddenProviderEnvKeys()
+  if (forbiddenKeys.length > 0) {
+    throw new Error(`BOB_PROVIDER_LOCK: forbidden provider env vars present (${forbiddenKeys.join(', ')})`)
+  }
+
+  const allowedOrigins = getAllowedInferenceOrigins()
+  if (allowedOrigins.length === 0) {
+    throw new Error('BOB_PROVIDER_LOCK: BOB_ALLOWED_INFERENCE_HOSTS must be configured')
+  }
+
+  const targetOrigin = getOrigin(inferenceUrl)
+  if (!allowedOrigins.includes(targetOrigin)) {
+    throw new Error(`OUTBOUND_HOST_NOT_ALLOWED: ${targetOrigin}`)
+  }
+}
+
+function getInferenceConfig(): { inferenceUrl: string; apiKey: string } {
+  const inferenceUrl = normalizeBaseUrl(Deno.env.get('INFERENCE_SERVICE_URL'))
+  const apiKey = Deno.env.get('INFERENCE_API_KEY') || Deno.env.get('RUNPOD_ENDPOINT_API_KEY') || ''
+
+  if (!inferenceUrl) {
+    throw new Error('INFERENCE_SERVICE_URL is not configured')
+  }
+
+  enforceBobOnlyProviderLock(inferenceUrl)
+  return { inferenceUrl, apiKey }
+}
+
 export interface BobChatOptions {
   message: string
   history?: Array<{ role: string; content: string }>
@@ -66,11 +124,8 @@ export interface BobTranslateOptions {
  * RunPod serverless endpoints, or direct /chat for HTTP inference services.
  */
 export async function bobChat(options: BobChatOptions): Promise<BobChatResult> {
-  const inferenceUrl = normalizeBaseUrl(Deno.env.get('INFERENCE_SERVICE_URL'))
-  const apiKey = Deno.env.get('INFERENCE_API_KEY') || Deno.env.get('RUNPOD_ENDPOINT_API_KEY') || ''
+  const { inferenceUrl, apiKey } = getInferenceConfig()
   const timeoutMs = options.timeoutMs ?? 130_000
-
-  if (!inferenceUrl) throw new Error('INFERENCE_SERVICE_URL is not configured')
 
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
@@ -144,11 +199,8 @@ export async function bobChat(options: BobChatOptions): Promise<BobChatResult> {
  * Call Bob AI for structured assessment (smoke, biosecurity, noise, ptt, etc.)
  */
 export async function bobAssess(options: BobAssessOptions): Promise<BobAssessResult> {
-  const inferenceUrl = normalizeBaseUrl(Deno.env.get('INFERENCE_SERVICE_URL'))
-  const apiKey = Deno.env.get('INFERENCE_API_KEY') || Deno.env.get('RUNPOD_ENDPOINT_API_KEY') || ''
+  const { inferenceUrl, apiKey } = getInferenceConfig()
   const timeoutMs = options.timeoutMs ?? 130_000
-
-  if (!inferenceUrl) throw new Error('INFERENCE_SERVICE_URL is not configured')
 
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
@@ -217,11 +269,8 @@ export async function bobAssess(options: BobAssessOptions): Promise<BobAssessRes
  * Translate text via Bob/Ollama on RunPod.
  */
 export async function bobTranslate(options: BobTranslateOptions): Promise<{ translation: string; model: string }> {
-  const inferenceUrl = normalizeBaseUrl(Deno.env.get('INFERENCE_SERVICE_URL'))
-  const apiKey = Deno.env.get('INFERENCE_API_KEY') || Deno.env.get('RUNPOD_ENDPOINT_API_KEY') || ''
+  const { inferenceUrl, apiKey } = getInferenceConfig()
   const timeoutMs = options.timeoutMs ?? 60_000
-
-  if (!inferenceUrl) throw new Error('INFERENCE_SERVICE_URL is not configured')
 
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)

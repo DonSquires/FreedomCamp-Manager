@@ -1,0 +1,19 @@
+name: policy-bob-no-openai
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  guard-no-openai:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Guard Bob-only policy (no new OpenAI refs)
+        run: sh scripts/guard-no-openai-new.sh
