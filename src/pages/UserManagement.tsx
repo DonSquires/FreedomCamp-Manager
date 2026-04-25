@@ -353,6 +353,33 @@ export default function UserManagement() {
     },
   })
 
+  const disconnectPttMutation = useMutation({
+    mutationFn: async ({ userId }: { userId: string }) => {
+      const { data, error } = await withTimeout(
+        edgeFunctions.disconnectUserPtt({ user_id: userId }),
+        30000,
+        'Request timed out after 30 seconds.',
+      )
+
+      if (error) throw new Error(error)
+
+      return {
+        pttRevoke: (data as any)?.pttRevoke,
+      }
+    },
+    onSuccess: (result) => {
+      if (result?.pttRevoke?.attempted && result?.pttRevoke?.ok === false) {
+        toast.warning('PTT disconnect requested, but revoke did not fully confirm. Check voice server logs.')
+      } else {
+        toast.success('PTT disconnect request sent')
+      }
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to disconnect PTT session')
+    },
+  })
+
   const resetForm = () => {
     setEmail('')
     setFirstName('')
@@ -962,6 +989,19 @@ export default function UserManagement() {
                         Set Password
                       </Button>
                     </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => disconnectPttMutation.mutate({ userId: userProfile.id })}
+                      disabled={
+                        userProfile.id === user?.id ||
+                        !userProfile.is_active ||
+                        disconnectPttMutation.isPending
+                      }
+                      className="text-xs"
+                    >
+                      Disconnect PTT
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"

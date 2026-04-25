@@ -208,6 +208,12 @@ const emergencyBroadcastState = new Map();
  */
 const tokenMintTracker = new Map();
 
+/**
+ * Temporary deny-list for users forcibly disconnected from PTT.
+ * Map<userId, { denyUntilMs, reason, addedAt }>
+ */
+const forcedDisconnectDenyList = new Map();
+
 let tokenTrackerSweepInterval = null;
 let redisClient = null;
 let redisReady = false;
@@ -490,6 +496,10 @@ function getEmergencyBroadcastForSync(organizationId) {
 const RATE_LIMIT_MAX = parseInt(process.env.PTT_RATE_LIMIT_PER_MIN || '120', 10);
 const TOKEN_MINT_COOLDOWN_MS = parseInt(process.env.PTT_TOKEN_MINT_COOLDOWN_MS || '3000', 10);
 const TOKEN_EXPIRY_SECONDS = parseInt(process.env.PTT_TOKEN_EXPIRY_SECONDS || '300', 10);
+const FORCE_DISCONNECT_DENY_WINDOW_MS = parseInt(
+  process.env.PTT_FORCE_DISCONNECT_DENY_WINDOW_MS || String(TOKEN_EXPIRY_SECONDS * 1000),
+  10,
+);
 const rateLimitMiddleware = rateLimit({
   windowMs: 60 * 1000,
   max: RATE_LIMIT_MAX,
@@ -732,6 +742,16 @@ app.post('/api/token/mint', rateLimitMiddleware, (req, res) => {
     });
   }
 
+  const denyState = getActiveDenyState(userId);
+  if (denyState) {
+    return res.status(403).json({
+      error: 'PTT access temporarily revoked',
+      message: 'This user was recently disconnected and cannot mint a new token yet.',
+      reason: denyState.reason,
+      retryAfter: denyState.retryAfterSeconds,
+    });
+  }
+
   const now = Date.now();
   const lastMint = tokenMintTracker.get(userId) || null;
   const mintedAt = typeof lastMint?.mintedAt === 'number' ? lastMint.mintedAt : 0;
@@ -946,10 +966,55 @@ function startTokenTrackerSweep() {
         tokenMintTracker.delete(userId);
       }
     }
+
+    for (const [userId, denyState] of forcedDisconnectDenyList.entries()) {
+      const denyUntilMs = typeof denyState?.denyUntilMs === 'number' ? denyState.denyUntilMs : 0;
+      if (!denyUntilMs || now >= denyUntilMs) {
+        forcedDisconnectDenyList.delete(userId);
+      }
+    }
   }, 60_000);
 }
 
+function markUserTemporarilyDenied(userId, reason = 'access_revoked', denyWindowMs = FORCE_DISCONNECT_DENY_WINDOW_MS) {
+  const now = Date.now();
+  const safeWindow = Number.isFinite(denyWindowMs)
+    ? Math.max(1000, denyWindowMs)
+    : TOKEN_EXPIRY_SECONDS * 1000;
+  const denyUntilMs = now + safeWindow;
+
+  forcedDisconnectDenyList.set(userId, {
+    denyUntilMs,
+    reason,
+    addedAt: now,
+  });
+
+  return {
+    denyUntilMs,
+    retryAfterSeconds: Math.max(1, Math.ceil((denyUntilMs - now) / 1000)),
+  };
+}
+
+function getActiveDenyState(userId) {
+  const state = forcedDisconnectDenyList.get(userId);
+  if (!state) return null;
+
+  const now = Date.now();
+  if (now >= state.denyUntilMs) {
+    forcedDisconnectDenyList.delete(userId);
+    return null;
+  }
+
+  return {
+    reason: state.reason || 'access_revoked',
+    denyUntilMs: state.denyUntilMs,
+    retryAfterSeconds: Math.max(1, Math.ceil((state.denyUntilMs - now) / 1000)),
+  };
+}
+
 function disconnectUserSession(userId, reason = 'Disconnected by administrator') {
+  markUserTemporarilyDenied(userId, reason || 'admin_forced_disconnect');
+
   const presence = userPresence.get(userId);
   if (!presence) {
     return { disconnected: false, reason: 'not_found' };
@@ -1041,6 +1106,13 @@ wss.on('connection', async (ws, req) => {
   }
 
   const { sub: userId, role, org: organizationId, channel: channelId, name } = verification.payload;
+
+  const denyState = getActiveDenyState(userId);
+  if (denyState) {
+    ws.close(4008, `PTT access revoked; retry in ${denyState.retryAfterSeconds}s`);
+    return;
+  }
+
   ws.pttProtocol = wsAuth.requestedProtocol || 'ptt.v1';
 
   ws.send(JSON.stringify({
@@ -1229,6 +1301,24 @@ function handleMessage(ws, userId, channelId, organizationId, name, role, messag
       break;
 
     case 'start_speaking':
+      {
+        const denyState = getActiveDenyState(userId);
+        if (denyState) {
+          ws.send(JSON.stringify({
+            type: 'error',
+            code: 'ACCESS_REVOKED',
+            message: `PTT access is temporarily revoked. Retry in ${denyState.retryAfterSeconds}s.`,
+            retryAfter: denyState.retryAfterSeconds,
+          }));
+          try {
+            ws.close(4008, 'PTT access revoked');
+          } catch (_err) {
+            // Ignore close race conditions.
+          }
+          return;
+        }
+      }
+
       // Half-duplex: only one speaker at a time
       if (meta && meta.speakerId && meta.speakerId !== userId) {
         ws.send(JSON.stringify({

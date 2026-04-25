@@ -423,6 +423,7 @@ let mediaRecorder: MediaRecorder | null = null
 let recordedChunks: Blob[] = []
 let recordingStartTime: number | null = null
 const remoteAudioElements: Map<string, HTMLAudioElement> = new Map()
+let remoteAudioPrimed = false
 let currentIceTransportPolicy: RTCIceTransportPolicy = 'all'
 const peerConnectionStates: Map<string, {
   connectionState: RTCPeerConnectionState
@@ -461,6 +462,20 @@ let activeOutboundAudioSourceLabel = 'microphone'
 const statsIntervals: Map<string, ReturnType<typeof setInterval>> = new Map()
 
 const STATS_POLL_INTERVAL_MS = 5_000
+
+interface PTTDiagnosticsIngestPayload {
+  channel_id: string
+  rtt_ms: number | null
+  packet_loss: number | null
+  jitter_ms: number | null
+  ice_type: string | null
+  packets_sent: number | null
+  packets_recv: number | null
+}
+
+function ingestPttDiagnosticsEvent(payload: PTTDiagnosticsIngestPayload): void {
+  void edgeFunctions.pttDiagnosticsIngest(payload)
+}
 
 /**
  * Poll RTCPeerConnection.getStats() every 5 s and ship the report to
@@ -503,25 +518,13 @@ function startStatsTelemetry(peerId: string, pc: RTCPeerConnection): void {
         }
       })
 
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user || !store.channelId) return
-
-      // Resolve org_id from user_profiles (typed table name in this codebase)
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('organization_id')
-        .eq('id', user.id)
-        .single()
-      if (!profile?.organization_id) return
+      if (!store.channelId) return
 
       const packetLossPct = (packetsLost != null && packetsRecv != null && packetsRecv > 0)
         ? Math.round((packetsLost / (packetsLost + packetsRecv)) * 10000) / 100
         : null
 
-      // Table not yet in generated types — cast to any until migration is applied to Supabase
-      ;(supabase as any).from('ptt_diagnostic_events').insert({
-        org_id: profile.organization_id,
-        user_id: user.id,
+      ingestPttDiagnosticsEvent({
         channel_id: store.channelId,
         rtt_ms: rttMs,
         packet_loss: packetLossPct,
@@ -529,7 +532,7 @@ function startStatsTelemetry(peerId: string, pc: RTCPeerConnection): void {
         ice_type: iceType,
         packets_sent: packetsSent,
         packets_recv: packetsRecv,
-      }).then()  // fire-and-forget
+      })
     } catch {
       // Swallow — telemetry must never affect PTT audio path
     }
@@ -1410,7 +1413,11 @@ function createPeerConnection(peerId: string): RTCPeerConnection {
     const audio = getOrCreateRemoteAudio(peerId)
 
     audio.srcObject = event.streams[0]
-    audio.play().catch((playErr) => {
+    audio.play().then(() => {
+      remoteAudioPrimed = true
+    }).catch((playErr) => {
+      const store = usePTTStore.getState()
+      store.setError('Remote audio blocked by browser. Tap the speaker icon or Push to Talk once to enable playback.')
       console.error('🎤 PTT: Remote audio autoplay blocked', playErr)
     })
   }
@@ -1739,6 +1746,43 @@ async function uploadClip(blob: Blob, channelId: string, organizationId: string 
 export async function playClip(clipUrl: string): Promise<void> {
   const audio = new Audio(clipUrl)
   await audio.play()
+}
+
+/**
+ * Prime remote audio playback on mobile browsers that block autoplay until
+ * explicit user gesture. Safe to call repeatedly.
+ */
+export async function primePTTRemoteAudioPlayback(): Promise<boolean> {
+  const store = usePTTStore.getState()
+
+  // Try currently attached remote streams first.
+  for (const audio of remoteAudioElements.values()) {
+    try {
+      audio.muted = false
+      await audio.play()
+      remoteAudioPrimed = true
+      return true
+    } catch {
+      // Continue to silent unlock probe.
+    }
+  }
+
+  // If there are no active remote streams yet, unlock audio stack with a tiny
+  // silent sample so future remote stream playback succeeds on mobile Safari/Chrome.
+  const SILENT_AUDIO_DATA_URI = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'
+  const probe = new Audio(SILENT_AUDIO_DATA_URI)
+  probe.loop = false
+
+  try {
+    await probe.play()
+    probe.pause()
+    probe.currentTime = 0
+    remoteAudioPrimed = true
+    return true
+  } catch {
+    store.setError('Remote audio playback is blocked. Tap Push to Talk once to enable audio output on this device.')
+    return false
+  }
 }
 
 // ---------------------------------------------------------------------------

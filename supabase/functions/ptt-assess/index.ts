@@ -19,8 +19,28 @@
 import { withCors, getCorsHeaders, jsonResponse, errorResponse } from '../_shared/withCors.ts'
 import { requireAuth } from '../_shared/requireAuth.ts'
 
-const BOB_SERVICE_URL = Deno.env.get('BOB_SERVICE_URL') || Deno.env.get('INFERENCE_SERVICE_URL') || ''
-const BOB_API_KEY     = Deno.env.get('BOB_INFERENCE_API_KEY') ?? ''
+function isRunpodServerless(url: string): boolean {
+  return /api\.runpod\.ai\/v2\/[^/]+(?:\/(?:run|runsync))?\/?$/i.test(url)
+}
+
+function normalizeRunpodBase(url: string): string {
+  return url.replace(/\/(run|runsync)\/?$/i, '')
+}
+
+function normalizeBaseUrl(raw?: string | null): string {
+  const trimmed = String(raw ?? '').trim().replace(/\/+$/, '')
+  if (!trimmed) return ''
+  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+  return isRunpodServerless(withScheme) ? normalizeRunpodBase(withScheme) : withScheme
+}
+
+const BOB_SERVICE_URL = normalizeBaseUrl(Deno.env.get('BOB_SERVICE_URL') || Deno.env.get('INFERENCE_SERVICE_URL') || '')
+const BOB_API_KEY =
+  Deno.env.get('BOB_INFERENCE_API_KEY') ??
+  Deno.env.get('INFERENCE_API_KEY') ??
+  Deno.env.get('RUNPOD_ENDPOINT_API_KEY') ??
+  Deno.env.get('RUNPOD_API_KEY') ??
+  ''
 
 Deno.serve(withCors(async (req: Request) => {
   const authResult = await requireAuth(req)
@@ -61,20 +81,19 @@ Deno.serve(withCors(async (req: Request) => {
     )
   }
 
-  const bobUrl = BOB_SERVICE_URL.replace(/\/+$/, '')
+  const bobUrl = BOB_SERVICE_URL
 
   // RunPod serverless: use /runsync job API
-  const isRunpodServerless = /api\.runpod\.ai\/v2\/[^/]+\/?$/.test(bobUrl)
+  const runpodServerless = isRunpodServerless(bobUrl)
 
   let bobResp: Response
   try {
-    if (isRunpodServerless) {
-      const apiKey = BOB_API_KEY || Deno.env.get('RUNPOD_ENDPOINT_API_KEY') || ''
+    if (runpodServerless) {
       bobResp = await fetch(`${bobUrl}/runsync`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}),
+          ...(BOB_API_KEY ? { 'Authorization': `Bearer ${BOB_API_KEY}` } : {}),
         },
         body: JSON.stringify({
           input: { action: 'assess', type: 'ptt', symptom: symptom.trim(), context: context ?? {} },
@@ -86,7 +105,12 @@ Deno.serve(withCors(async (req: Request) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(BOB_API_KEY ? { 'x-inference-api-key': BOB_API_KEY } : {}),
+          ...(BOB_API_KEY
+            ? {
+                'x-inference-api-key': BOB_API_KEY,
+                'Authorization': `Bearer ${BOB_API_KEY}`,
+              }
+            : {}),
         },
         body: JSON.stringify({ symptom: symptom.trim(), context: context ?? {} }),
         signal: AbortSignal.timeout(30_000),

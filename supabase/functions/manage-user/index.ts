@@ -2,7 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { getCorsHeaders } from '../_shared/withCors.ts'
 
 interface ManageUserRequest {
-  action: 'create' | 'update' | 'set_password' | 'deactivate'
+  action: 'create' | 'update' | 'set_password' | 'deactivate' | 'disconnect_ptt'
   userId?: string
   organizationId?: string
   payload?: Record<string, unknown>
@@ -12,7 +12,10 @@ function normalizeBaseUrl(value: string): string {
   return value.trim().replace(/\/+$/, '')
 }
 
-async function revokeActivePTTConnection(userId: string): Promise<{ attempted: boolean; ok: boolean; status?: number; message?: string }> {
+async function revokeActivePTTConnection(
+  userId: string,
+  reason = 'user_deactivated',
+): Promise<{ attempted: boolean; ok: boolean; status?: number; message?: string }> {
   const pttServerUrl =
     Deno.env.get('PTT_SERVER_URL') ||
     Deno.env.get('PTT_SERVICE_URL') ||
@@ -28,8 +31,8 @@ async function revokeActivePTTConnection(userId: string): Promise<{ attempted: b
     return { attempted: false, ok: false, message: 'PTT revoke skipped: invalid PTT server URL' }
   }
 
-  const reason = encodeURIComponent('user_deactivated')
-  const endpoint = `${normalized}/api/connections/${encodeURIComponent(userId)}?reason=${reason}`
+  const encodedReason = encodeURIComponent(reason)
+  const endpoint = `${normalized}/api/connections/${encodeURIComponent(userId)}?reason=${encodedReason}`
 
   try {
     const response = await fetch(endpoint, {
@@ -217,6 +220,14 @@ Deno.serve(async (req) => {
       const pttRevoke = await revokeActivePTTConnection(body.userId)
 
       return new Response(JSON.stringify({ ok: true, message: 'User deactivated', pttRevoke }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    if (body.action === 'disconnect_ptt') {
+      const pttRevoke = await revokeActivePTTConnection(body.userId, 'admin_forced_disconnect')
+
+      return new Response(JSON.stringify({ ok: true, message: 'PTT disconnect requested', pttRevoke }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }

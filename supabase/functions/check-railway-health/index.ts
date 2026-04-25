@@ -2,8 +2,12 @@ import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_share
 import { validateServiceUrl, buildEndpointUrl } from '../_shared/urlUtils.ts'
 
 const HEALTH_CHECK_TIMEOUT_MS = 8_000
-const INFERENCE_API_KEY = Deno.env.get('INFERENCE_API_KEY') || ''
-const DEFAULT_PTT_SERVER_URL = 'http://72.61.123.97:8080'
+const INFERENCE_API_KEY =
+  Deno.env.get('INFERENCE_API_KEY') ||
+  Deno.env.get('RUNPOD_ENDPOINT_API_KEY') ||
+  Deno.env.get('RUNPOD_API_KEY') ||
+  Deno.env.get('BOB_INFERENCE_API_KEY') ||
+  ''
 const PTT_WS_URL = Deno.env.get('PTT_WS_URL') || Deno.env.get('PTT_SIGNALING_WS_URL') || ''
 
 // Validate and normalize URLs at startup
@@ -16,7 +20,7 @@ const inferenceValidation = validateServiceUrl(
   'INFERENCE_SERVICE_URL'
 )
 const pttValidation = validateServiceUrl(
-  Deno.env.get('PTT_SERVER_URL') || Deno.env.get('PTT_SERVICE_URL') || DEFAULT_PTT_SERVER_URL,
+  Deno.env.get('PTT_SERVER_URL') || Deno.env.get('PTT_SERVICE_URL') || '',
   'PTT_SERVER_URL'
 )
 

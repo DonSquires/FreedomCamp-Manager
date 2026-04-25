@@ -891,6 +891,18 @@ export const edgeFunctions = {
   },
 
   /**
+   * Force-disconnect an active user's PTT session without changing account status.
+   */
+  disconnectUserPtt: async (params: {
+    user_id: string
+  }) => {
+    return callEdgeFunction('manage-user', {
+      action: 'disconnect_ptt',
+      userId: params.user_id,
+    })
+  },
+
+  /**
    * Set user active state via consolidated user management edge function.
    */
   setUserActiveStatus: async (params: {
@@ -1112,6 +1124,7 @@ export const edgeFunctions = {
       | 'doctor_playbook_run'
       | 'intel_bulletin_submit'
       | 'intel_state'
+      | 'bob_automation_status'
     // code_task_submit
     task?: string
     context?: string
@@ -1286,7 +1299,7 @@ export const edgeFunctions = {
   },
 
   // ============================================================================
-  // PUSH-TO-TALK (PTT) (2 functions)
+  // PUSH-TO-TALK (PTT) (3 functions)
   // ============================================================================
 
   /**
@@ -1300,6 +1313,21 @@ export const edgeFunctions = {
     channelScope: string
   }) => {
     return callEdgeFunction('ptt-signaling-token', params, { showToast: false })
+  },
+
+  /**
+   * Ingest RTCPeerConnection getStats telemetry for quality monitoring.
+   */
+  pttDiagnosticsIngest: async (params: {
+    channel_id: string
+    rtt_ms?: number | null
+    packet_loss?: number | null
+    jitter_ms?: number | null
+    ice_type?: string | null
+    packets_sent?: number | null
+    packets_recv?: number | null
+  }) => {
+    return callEdgeFunction('ptt-diagnostics-ingest', params, { showToast: false })
   },
 
   /**

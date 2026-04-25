@@ -57,6 +57,7 @@ import {
   sendEmergencyBroadcast,
   initBluetoothPTT,
   normalizePTTErrorMessage,
+  primePTTRemoteAudioPlayback,
 } from '@/lib/ptt'
 import { requestWakeLock, releaseWakeLock, requestNotificationPermission } from '@/lib/pttBackground'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -414,6 +415,7 @@ export default function PTTRadio() {
 
   const isAvailable = usePTTAvailable()
   const canSpeak = usePTTCanSpeak()
+  const hasPttSupervisorControls = user?.role === 'master' || user?.role === 'grand_master'
 
   // Component state
   const [activeChannel, setActiveChannel] = useState<RadioChannel | null>(null)
@@ -434,10 +436,13 @@ export default function PTTRadio() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [microphoneReady, setMicrophoneReady] = useState(false)
   const [microphoneError, setMicrophoneError] = useState<string | null>(null)
+  const [audioPrimed, setAudioPrimed] = useState(false)
+  const [isPrimingAudio, setIsPrimingAudio] = useState(false)
   const [showDiagnostics, setShowDiagnostics] = useState(false)
   const [diagnostics, setDiagnostics] = useState<PTTDiagnostics>(() => getPTTDiagnostics())
   const [showVoxCalibrator, setShowVoxCalibrator] = useState(false)
   const [degradedMode, setDegradedMode] = useState(false)
+  const [disconnectingUserId, setDisconnectingUserId] = useState<string | null>(null)
   const [interpreterInput, setInterpreterInput] = useState('')
   const [interpreterOutput, setInterpreterOutput] = useState('')
   const [interpreterTranslationMeta, setInterpreterTranslationMeta] = useState<TranslationResult | null>(null)
@@ -768,6 +773,28 @@ export default function PTTRadio() {
     return channel.badge_label || channel.channel_number
   }, [])
 
+  const handleForceDisconnect = useCallback(async (targetUserId: string, targetName: string) => {
+    if (!hasPttSupervisorControls) {
+      toast.error('Only Master and Grand Master profiles can force disconnect PTT sessions.')
+      return
+    }
+    if (!targetUserId || targetUserId === user?.id) {
+      return
+    }
+
+    setDisconnectingUserId(targetUserId)
+    try {
+      const { error: disconnectError } = await edgeFunctions.disconnectUserPtt({ user_id: targetUserId })
+      if (disconnectError) throw new Error(String(disconnectError))
+      toast.success(`Disconnect requested for ${targetName || 'selected unit'}.`)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      toast.error(`Failed to disconnect ${targetName || 'unit'}: ${message}`)
+    } finally {
+      setDisconnectingUserId(null)
+    }
+  }, [hasPttSupervisorControls, user?.id])
+
   // ─────────────────────────────────────────────────────────
   // Channel connection callbacks (before effects that use them)
   // ─────────────────────────────────────────────────────────
@@ -942,6 +969,26 @@ export default function PTTRadio() {
       toast.error(msg)
     }
   }, [])
+
+  const primeAudioOutput = useCallback(async (silent = false) => {
+    if (isPrimingAudio || audioPrimed) return
+    setIsPrimingAudio(true)
+    try {
+      const primed = await primePTTRemoteAudioPlayback()
+      if (primed) {
+        setAudioPrimed(true)
+        if (!silent) {
+          toast.success('Audio output primed for live radio playback')
+        }
+      }
+    } catch {
+      if (!silent) {
+        toast.warning('Tap and hold Push to Talk once to unlock mobile audio playback')
+      }
+    } finally {
+      setIsPrimingAudio(false)
+    }
+  }, [audioPrimed, isPrimingAudio])
 
   // ── Incoming transmission detection ──────────────────────
   useEffect(() => {
@@ -1164,6 +1211,10 @@ export default function PTTRadio() {
     if (!canSpeak || !isAvailable || isTransmitting) return
 
     try {
+      if (!audioPrimed) {
+        await primeAudioOutput(true)
+      }
+
       if (!microphoneReady) {
         await ensureMicrophonePermission()
         setMicrophoneReady(true)
@@ -1184,7 +1235,7 @@ export default function PTTRadio() {
       setMicrophoneError(msg)
       toast.error(msg)
     }
-  }, [canSpeak, isAvailable, isTransmitting, microphoneReady])
+  }, [audioPrimed, canSpeak, isAvailable, isTransmitting, microphoneReady, primeAudioOutput])
 
   const handlePTTRelease = useCallback(async () => {
     if (!isTransmitting) return
@@ -1394,15 +1445,54 @@ export default function PTTRadio() {
     return () => { if (scanTimerRef.current) clearInterval(scanTimerRef.current) }
   }, [scanMode, channels, speakerId, connectToChannel, scanDwellMs])
 
-  // ── Degraded connection warning (15s stuck connecting → amber banner) ─────
+  // ── Degraded connection warning (15s non-connected state → amber banner) ───
   useEffect(() => {
-    if (connectionStatus !== 'connecting') {
+    if (!activeChannel || connectionStatus === 'connected') {
       setDegradedMode(false)
       return
     }
+
     const timer = setTimeout(() => setDegradedMode(true), 15000)
     return () => clearTimeout(timer)
-  }, [connectionStatus])
+  }, [activeChannel, connectionStatus])
+
+  // ── Auto-retry while degraded (best-effort, no user spam) ─────────────────
+  useEffect(() => {
+    if (!degradedMode || !activeChannel || isTransmitting || isConnecting) return
+
+    const retryIv = setInterval(() => {
+      if (!isTransmitting && !isConnecting) {
+        void connectToChannel(activeChannel, { autoRetry: true })
+      }
+    }, 20000)
+
+    return () => clearInterval(retryIv)
+  }, [activeChannel, connectToChannel, degradedMode, isConnecting, isTransmitting])
+
+  // ── Safety release guard for mobile/background interruptions ───────────────
+  useEffect(() => {
+    const forceRelease = () => {
+      if (isTransmitting) {
+        void handlePTTRelease()
+      }
+    }
+
+    const onVisibility = () => {
+      if (document.visibilityState !== 'visible') {
+        forceRelease()
+      }
+    }
+
+    window.addEventListener('blur', forceRelease)
+    window.addEventListener('pagehide', forceRelease)
+    document.addEventListener('visibilitychange', onVisibility)
+
+    return () => {
+      window.removeEventListener('blur', forceRelease)
+      window.removeEventListener('pagehide', forceRelease)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [handlePTTRelease, isTransmitting])
 
   // ── Cleanup on unmount ────────────────────────────────────
   useEffect(() => {
@@ -1690,6 +1780,44 @@ export default function PTTRadio() {
                     )}
                   </div>
                 </ScrollArea>
+
+                <div className="border-t border-slate-800 px-3 py-2 shrink-0">
+                  <div className="flex items-center gap-1.5 text-[10px] text-slate-500 uppercase tracking-widest mb-2">
+                    <Users className="h-3 w-3" />
+                    Units Online ({rosterWithSelf.length})
+                  </div>
+                  {rosterWithSelf.length === 0 ? (
+                    <p className="text-xs text-slate-600">No presence data — connect to a channel</p>
+                  ) : (
+                    <div className="space-y-1 max-h-28 overflow-y-auto">
+                      {rosterWithSelf.map((p) => (
+                        <div key={`mobile-roster-${p.userId}`} className="flex items-center gap-2 text-xs">
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${
+                            p.status === 'online' ? 'bg-green-400' : p.status === 'busy' ? 'bg-yellow-400' : 'bg-slate-600'
+                          }`} />
+                          <span className="text-slate-300 truncate font-medium">{p.name}</span>
+                          {hasPttSupervisorControls && p.userId !== user?.id && (
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-1 rounded border border-red-900 bg-red-950/60 px-1.5 py-0.5 text-[10px] text-red-300 hover:bg-red-900/50 disabled:cursor-not-allowed disabled:opacity-60"
+                              onClick={() => void handleForceDisconnect(p.userId, p.name)}
+                              disabled={disconnectingUserId === p.userId}
+                              title="Force disconnect PTT session"
+                            >
+                              {disconnectingUserId === p.userId ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <PhoneOff className="h-3 w-3" />
+                              )}
+                              Drop
+                            </button>
+                          )}
+                          <span className="text-slate-600 capitalize ml-auto shrink-0">{p.role}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 <div className="border-t border-slate-800 px-3 py-2 shrink-0 flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs text-slate-400">
@@ -2029,11 +2157,21 @@ export default function PTTRadio() {
                         ? 'bg-slate-800 border-slate-600 hover:bg-slate-700 hover:border-blue-500 hover:shadow-[0_0_20px_#3b82f633] active:scale-95'
                         : 'bg-slate-900 border-slate-800 opacity-50 cursor-not-allowed',
                     ].join(' ')}
-                    onMouseDown={(e) => { e.preventDefault(); handlePTTPress() }}
-                    onMouseUp={handlePTTRelease}
-                    onMouseLeave={() => { if (isTransmitting) handlePTTRelease() }}
-                    onTouchStart={(e) => { e.preventDefault(); handlePTTPress() }}
-                    onTouchEnd={(e) => { e.preventDefault(); handlePTTRelease() }}
+                    onPointerDown={(e) => {
+                      if (e.pointerType === 'mouse' && e.button !== 0) return
+                      e.preventDefault()
+                      void handlePTTPress()
+                    }}
+                    onPointerUp={(e) => {
+                      e.preventDefault()
+                      void handlePTTRelease()
+                    }}
+                    onPointerCancel={() => { void handlePTTRelease() }}
+                    onPointerLeave={() => {
+                      if (isTransmitting) {
+                        void handlePTTRelease()
+                      }
+                    }}
                     onContextMenu={(e) => e.preventDefault()}
                     disabled={!canSpeak && !isTransmitting}
                     aria-label="Push to talk"
@@ -2157,6 +2295,21 @@ export default function PTTRadio() {
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>{isMuted ? 'Unmute' : 'Mute'}</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className={`h-11 w-11 rounded-xl border-slate-700 bg-slate-800 hover:bg-slate-700 ${audioPrimed ? 'text-emerald-300 border-emerald-700' : 'text-slate-300'}`}
+                      onClick={() => void primeAudioOutput()}
+                      disabled={isPrimingAudio}
+                    >
+                      {isPrimingAudio ? <Loader2 className="h-5 w-5 animate-spin" /> : <Volume2 className="h-5 w-5" />}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{audioPrimed ? 'Audio output ready' : 'Prime mobile audio output'}</TooltipContent>
                 </Tooltip>
 
                 <Tooltip>
@@ -2456,10 +2609,16 @@ export default function PTTRadio() {
                   ? 'bg-red-600 border-red-400 text-white animate-pulse shadow-[0_0_30px_#dc2626]'
                   : 'bg-red-950 border-red-800 text-red-400 hover:bg-red-900 hover:border-red-600 hover:text-red-300'
               }`}
-              onMouseDown={handleEmergencyBroadcast}
-              onMouseUp={handlePTTRelease}
-              onTouchStart={(e) => { e.preventDefault(); handleEmergencyBroadcast() }}
-              onTouchEnd={(e) => { e.preventDefault(); handlePTTRelease() }}
+              onPointerDown={(e) => {
+                if (e.pointerType === 'mouse' && e.button !== 0) return
+                e.preventDefault()
+                void handleEmergencyBroadcast()
+              }}
+              onPointerUp={(e) => {
+                e.preventDefault()
+                void handlePTTRelease()
+              }}
+              onPointerCancel={() => { void handlePTTRelease() }}
             >
               <AlertTriangle className="h-4 w-4" />
               Emergency — All Channels
@@ -2485,6 +2644,22 @@ export default function PTTRadio() {
                         p.status === 'online' ? 'bg-green-400' : p.status === 'busy' ? 'bg-yellow-400' : 'bg-slate-600'
                       }`} />
                       <span className="text-slate-300 truncate font-medium">{p.name}</span>
+                      {hasPttSupervisorControls && p.userId !== user?.id && (
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 rounded border border-red-900 bg-red-950/60 px-1.5 py-0.5 text-[10px] text-red-300 hover:bg-red-900/50 disabled:cursor-not-allowed disabled:opacity-60"
+                          onClick={() => void handleForceDisconnect(p.userId, p.name)}
+                          disabled={disconnectingUserId === p.userId}
+                          title="Force disconnect PTT session"
+                        >
+                          {disconnectingUserId === p.userId ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <PhoneOff className="h-3 w-3" />
+                          )}
+                          Drop
+                        </button>
+                      )}
                       <span className="text-slate-600 capitalize ml-auto shrink-0">{p.role}</span>
                     </div>
                   ))}
