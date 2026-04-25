@@ -19,6 +19,7 @@ import RecentScansScreen from './src/screens/RecentScansScreen'
 import BreachAlertsScreen from './src/screens/BreachAlertsScreen'
 import EnforcementActionsScreen from './src/screens/EnforcementActionsScreen'
 import InfringementNoticesScreen from './src/screens/InfringementNoticesScreen'
+import PTTScreen from './src/screens/PTTScreen'
 import OfflineModeBanner from './src/components/OfflineModeBanner'
 import { SUPABASE_URL } from './src/lib/supabase'
 import { highVis } from './src/lib/highVisTheme'
@@ -51,6 +52,7 @@ function OfficerTabs() {
             Breaches: focused ? 'warning'          : 'warning-outline',
             Enforce:  focused ? 'shield-checkmark' : 'shield-checkmark-outline',
             Fines:    focused ? 'document-text'    : 'document-text-outline',
+            Radio:    focused ? 'radio'            : 'radio-outline',
           }
           return <Ionicons name={icons[route.name] as any} size={size} color={color} />
         },
@@ -62,6 +64,7 @@ function OfficerTabs() {
       <Tab.Screen name="Breaches" component={BreachAlertsScreen} options={{ tabBarLabel: 'Breaches' }} />
       <Tab.Screen name="Enforce"  component={EnforcementActionsScreen} options={{ tabBarLabel: 'Actions' }} />
       <Tab.Screen name="Fines"    component={InfringementNoticesScreen} options={{ tabBarLabel: 'Fines' }} />
+      <Tab.Screen name="Radio"    component={PTTScreen}                 options={{ tabBarLabel: 'Radio' }} />
     </Tab.Navigator>
   )
 }
