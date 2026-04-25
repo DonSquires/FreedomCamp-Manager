@@ -1,17 +1,25 @@
 {
-  "generatedAt": "2026-04-25T18:19:54.425Z",
+  "generatedAt": "2026-04-25T19:06:09.407Z",
   "windowHours": 24,
-  "totalEntries": 8,
-  "lowScoreCount": 3,
+  "totalEntries": 10,
+  "lowScoreCount": 5,
   "topFailureReasons": [
     {
       "name": "quality_gate_failed",
       "count": 3
+    },
+    {
+      "name": "delivery_failed",
+      "count": 2
     }
   ],
   "topHallucinationPatterns": [],
   "repeatedHallucinations": [],
   "topFlaggedArtifacts": [
+    {
+      "name": "/workspaces/FreedomCamp-Manager/docs/PHASE0_OBSERVABILITY_SLO_BASELINE_2026-04-25.md",
+      "count": 2
+    },
     {
       "name": "/workspaces/FreedomCamp-Manager/docs/PTT_ENTERPRISE_STACK_FIT_AND_BUILD.md",
       "count": 2
@@ -26,6 +34,7 @@
     }
   ],
   "recommendations": [
-    "Re-read docs/BOB_TRAINING_TRUTH_PROTOCOL.md before the next redesign response."
+    "Re-read docs/BOB_TRAINING_TRUTH_PROTOCOL.md before the next redesign response.",
+    "Prefer the proven RunPod delivery path when Bob local /chat is unavailable."
   ]
 }
