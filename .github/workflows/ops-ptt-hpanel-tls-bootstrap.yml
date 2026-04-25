@@ -145,6 +145,20 @@ jobs:
         with:
           version: latest
 
+      - name: Check optional validation secret
+        id: check-validation-secrets
+        env:
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "$SUPABASE_ANON_KEY" ]; then
+            echo "anon_ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "anon_ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::SUPABASE_ANON_KEY missing; secure PTT response validation will be skipped."
+          fi
+
       - name: Sync secure PTT secrets
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -172,12 +186,12 @@ jobs:
           supabase functions deploy check-ptt-health --project-ref "${SUPABASE_PROJECT_REF}"
 
       - name: Validate secure PTT response
+        if: steps.check-validation-secrets.outputs.anon_ready == 'true'
         env:
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
           set -euo pipefail
-          : "${SUPABASE_ANON_KEY:?SUPABASE_ANON_KEY secret is required}"
 
           curl -sS "https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/check-ptt-health" \
             -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
