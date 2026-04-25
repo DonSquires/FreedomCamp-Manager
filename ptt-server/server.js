@@ -80,6 +80,7 @@ const REDIS_URL = String(process.env.REDIS_URL || '').trim();
 const REDIS_CHANNEL_META_TTL_SECONDS = parseInt(process.env.PTT_REDIS_CHANNEL_META_TTL_SECONDS || '86400', 10);
 const REDIS_PRESENCE_TTL_SECONDS = parseInt(process.env.PTT_REDIS_PRESENCE_TTL_SECONDS || '86400', 10);
 const REDIS_EMERGENCY_TTL_SECONDS = parseInt(process.env.PTT_REDIS_EMERGENCY_TTL_SECONDS || '86400', 10);
+const REDIS_FORCE_DISCONNECT_TTL_SECONDS = parseInt(process.env.PTT_REDIS_FORCE_DISCONNECT_TTL_SECONDS || '3600', 10);
 const PREVIEW_HOST_REGEX =
   process.env.PTT_ALLOWED_PREVIEW_ORIGIN_REGEX ||
   '^preview-[a-z0-9-]+\\.onspace\\.build$';
@@ -228,6 +229,10 @@ function getRedisChannelPresenceKey(channelId) {
 
 function getRedisEmergencyKey(organizationId) {
   return `ptt:emergency:${organizationId}`;
+}
+
+function getRedisForcedDisconnectKey(userId) {
+  return `ptt:deny:${userId}`;
 }
 
 function isRedisConfigured() {
@@ -480,6 +485,68 @@ async function clearEmergencyBroadcastPersistence(organizationId) {
   }
 }
 
+async function persistForcedDisconnectState(userId, denyState) {
+  if (!isRedisAvailable() || !userId || !denyState) return;
+
+  const now = Date.now();
+  const remainingSeconds = Math.ceil((Number(denyState.denyUntilMs || 0) - now) / 1000);
+  const ttlSeconds = Math.max(1, Math.min(REDIS_FORCE_DISCONNECT_TTL_SECONDS, remainingSeconds || REDIS_FORCE_DISCONNECT_TTL_SECONDS));
+
+  try {
+    await redisClient.set(getRedisForcedDisconnectKey(userId), JSON.stringify(denyState), {
+      EX: ttlSeconds,
+    });
+  } catch (err) {
+    console.warn(`Failed to persist deny state for ${userId}:`, err.message);
+  }
+}
+
+async function clearForcedDisconnectState(userId) {
+  if (!isRedisAvailable() || !userId) return;
+
+  try {
+    await redisClient.del(getRedisForcedDisconnectKey(userId));
+  } catch (err) {
+    console.warn(`Failed to clear deny state for ${userId}:`, err.message);
+  }
+}
+
+async function hydrateForcedDisconnectState(userId) {
+  if (!isRedisAvailable() || !userId) return null;
+
+  try {
+    const raw = await redisClient.get(getRedisForcedDisconnectKey(userId));
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+
+    const denyUntilMs = Number(parsed.denyUntilMs || 0);
+    if (!denyUntilMs) {
+      await clearForcedDisconnectState(userId);
+      return null;
+    }
+
+    const now = Date.now();
+    if (now >= denyUntilMs) {
+      await clearForcedDisconnectState(userId);
+      return null;
+    }
+
+    const hydrated = {
+      denyUntilMs,
+      reason: parsed.reason || 'access_revoked',
+      addedAt: Number(parsed.addedAt || now),
+    };
+
+    forcedDisconnectDenyList.set(userId, hydrated);
+    return hydrated;
+  } catch (err) {
+    console.warn(`Failed to hydrate deny state for ${userId}:`, err.message);
+    return null;
+  }
+}
+
 function getEmergencyBroadcastForSync(organizationId) {
   return emergencyBroadcastState.get(organizationId) || {
     active: false,
@@ -720,7 +787,7 @@ app.get('/api/diagnostics', (req, res) => {
  * Mint a channel access token (called by Supabase Edge Function)
  * Body: { userId, userRole, organizationId, channelScope }
  */
-app.post('/api/token/mint', rateLimitMiddleware, (req, res) => {
+app.post('/api/token/mint', rateLimitMiddleware, async (req, res) => {
   const authResult = checkProxyAuth(req);
   if (authResult) {
     return res.status(authResult.status).json(authResult.body);
@@ -742,7 +809,7 @@ app.post('/api/token/mint', rateLimitMiddleware, (req, res) => {
     });
   }
 
-  const denyState = getActiveDenyState(userId);
+  const denyState = await getActiveDenyState(userId);
   if (denyState) {
     return res.status(403).json({
       error: 'PTT access temporarily revoked',
@@ -969,14 +1036,15 @@ function startTokenTrackerSweep() {
 
     for (const [userId, denyState] of forcedDisconnectDenyList.entries()) {
       const denyUntilMs = typeof denyState?.denyUntilMs === 'number' ? denyState.denyUntilMs : 0;
-      if (!denyUntilMs || now >= denyUntilMs) {
-        forcedDisconnectDenyList.delete(userId);
-      }
+        if (!denyUntilMs || now >= denyUntilMs) {
+          forcedDisconnectDenyList.delete(userId);
+          void clearForcedDisconnectState(userId);
+        }
     }
   }, 60_000);
 }
 
-function markUserTemporarilyDenied(userId, reason = 'access_revoked', denyWindowMs = FORCE_DISCONNECT_DENY_WINDOW_MS) {
+async function markUserTemporarilyDenied(userId, reason = 'access_revoked', denyWindowMs = FORCE_DISCONNECT_DENY_WINDOW_MS) {
   const now = Date.now();
   const safeWindow = Number.isFinite(denyWindowMs)
     ? Math.max(1000, denyWindowMs)
@@ -989,19 +1057,26 @@ function markUserTemporarilyDenied(userId, reason = 'access_revoked', denyWindow
     addedAt: now,
   });
 
+  await persistForcedDisconnectState(userId, {
+    denyUntilMs,
+    reason,
+    addedAt: now,
+  });
+
   return {
     denyUntilMs,
     retryAfterSeconds: Math.max(1, Math.ceil((denyUntilMs - now) / 1000)),
   };
 }
 
-function getActiveDenyState(userId) {
+function getActiveDenyStateFromMemory(userId) {
   const state = forcedDisconnectDenyList.get(userId);
   if (!state) return null;
 
   const now = Date.now();
   if (now >= state.denyUntilMs) {
     forcedDisconnectDenyList.delete(userId);
+    void clearForcedDisconnectState(userId);
     return null;
   }
 
@@ -1012,12 +1087,25 @@ function getActiveDenyState(userId) {
   };
 }
 
-function disconnectUserSession(userId, reason = 'Disconnected by administrator') {
-  markUserTemporarilyDenied(userId, reason || 'admin_forced_disconnect');
+async function getActiveDenyState(userId) {
+  const memoryState = getActiveDenyStateFromMemory(userId);
+  if (memoryState) return memoryState;
+
+  await hydrateForcedDisconnectState(userId);
+  return getActiveDenyStateFromMemory(userId);
+}
+
+async function disconnectUserSession(userId, reason = 'Disconnected by administrator') {
+  const denyApplied = await markUserTemporarilyDenied(userId, reason || 'admin_forced_disconnect');
 
   const presence = userPresence.get(userId);
   if (!presence) {
-    return { disconnected: false, reason: 'not_found' };
+    return {
+      disconnected: true,
+      mode: 'deny_only',
+      denyUntilMs: denyApplied.denyUntilMs,
+      retryAfterSeconds: denyApplied.retryAfterSeconds,
+    };
   }
 
   const activeWs = presence.ws;
@@ -1033,6 +1121,8 @@ function disconnectUserSession(userId, reason = 'Disconnected by administrator')
       name: presence.name,
       role: presence.role,
       mode: 'ws_close',
+      denyUntilMs: denyApplied.denyUntilMs,
+      retryAfterSeconds: denyApplied.retryAfterSeconds,
     };
   }
 
@@ -1045,10 +1135,12 @@ function disconnectUserSession(userId, reason = 'Disconnected by administrator')
     name: presence.name,
     role: presence.role,
     mode: 'presence_cleanup',
+    denyUntilMs: denyApplied.denyUntilMs,
+    retryAfterSeconds: denyApplied.retryAfterSeconds,
   };
 }
 
-app.delete('/api/connections/:userId', rateLimitMiddleware, (req, res) => {
+app.delete('/api/connections/:userId', rateLimitMiddleware, async (req, res) => {
   const authResult = checkProxyAuth(req);
   if (authResult) {
     return res.status(authResult.status).json(authResult.body);
@@ -1067,14 +1159,7 @@ app.delete('/api/connections/:userId', rateLimitMiddleware, (req, res) => {
     : 'Disconnected by administrator';
   const reason = reasonRaw.trim() || 'Disconnected by administrator';
 
-  const result = disconnectUserSession(userId, reason);
-  if (!result.disconnected) {
-    return res.status(404).json({
-      error: 'Not found',
-      message: 'No active connection found for this user',
-      userId,
-    });
-  }
+  const result = await disconnectUserSession(userId, reason);
 
   return res.json({
     success: true,
@@ -1082,6 +1167,8 @@ app.delete('/api/connections/:userId', rateLimitMiddleware, (req, res) => {
     channelId: result.channelId || null,
     mode: result.mode,
     reason,
+    retryAfter: result.retryAfterSeconds || null,
+    denyUntilMs: result.denyUntilMs || null,
     disconnectedAt: new Date().toISOString(),
   });
 });
@@ -1107,7 +1194,7 @@ wss.on('connection', async (ws, req) => {
 
   const { sub: userId, role, org: organizationId, channel: channelId, name } = verification.payload;
 
-  const denyState = getActiveDenyState(userId);
+  const denyState = await getActiveDenyState(userId);
   if (denyState) {
     ws.close(4008, `PTT access revoked; retry in ${denyState.retryAfterSeconds}s`);
     return;
@@ -1302,7 +1389,7 @@ function handleMessage(ws, userId, channelId, organizationId, name, role, messag
 
     case 'start_speaking':
       {
-        const denyState = getActiveDenyState(userId);
+        const denyState = getActiveDenyStateFromMemory(userId);
         if (denyState) {
           ws.send(JSON.stringify({
             type: 'error',

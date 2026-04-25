@@ -12,6 +12,21 @@ type IncomingPayload = {
   packets_recv?: number | null
 }
 
+function parseChannelScope(channelId: string): { type: string; value: string } | null {
+  const trimmed = String(channelId || '').trim()
+  const parts = trimmed.split(':')
+  if (parts.length !== 2) return null
+
+  const [type, value] = parts
+  if (!type || !value) return null
+
+  const validType = ['org', 'incident', 'direct', 'team', 'deployment'].includes(type)
+  const validValue = /^[a-f0-9-]{36}$/i.test(value)
+  if (!validType || !validValue) return null
+
+  return { type, value }
+}
+
 function asNullableNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null
   const num = Number(value)
@@ -50,6 +65,11 @@ Deno.serve(withCors(async (req: Request) => {
     return errorResponse('channel_id is required', req, 400)
   }
 
+  const channelScope = parseChannelScope(channelId)
+  if (!channelScope) {
+    return errorResponse('channel_id must be a valid scope (org|incident|direct|team|deployment):<uuid>', req, 400)
+  }
+
   const serviceClient = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
@@ -67,6 +87,11 @@ Deno.serve(withCors(async (req: Request) => {
 
   if (!profile?.organization_id) {
     return errorResponse('User organization not found', req, 403)
+  }
+
+  // Enforce direct org ownership for org-scoped channels.
+  if (channelScope.type === 'org' && channelScope.value !== profile.organization_id) {
+    return errorResponse('Channel scope is not authorized for this user organization', req, 403)
   }
 
   const payload = {
