@@ -15,6 +15,30 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Check optional Supabase secrets
+        id: check-secrets
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          PTT_PUBLIC_WSS_URL: ${{ secrets.PTT_PUBLIC_WSS_URL }}
+          PTT_PUBLIC_HTTPS_URL: ${{ secrets.PTT_PUBLIC_HTTPS_URL }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$SUPABASE_PROJECT_REF" ]; then
+            echo "supabase_ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "supabase_ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Supabase deploy secrets missing; secret sync steps will be skipped."
+          fi
+
+          if [ -n "$PTT_PUBLIC_WSS_URL" ] && [ -n "$PTT_PUBLIC_HTTPS_URL" ]; then
+            echo "ptt_urls_ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ptt_urls_ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::PTT_PUBLIC_WSS_URL / PTT_PUBLIC_HTTPS_URL missing; PTT secret sync will be skipped."
+          fi
+
       - name: Checkout Code
         uses: actions/checkout@v4
 
@@ -100,11 +124,11 @@ jobs:
             echo "✅ PTT server is healthy on port 8080"
 
       - name: Setup Supabase CLI
-        if: ${{ secrets.SUPABASE_ACCESS_TOKEN != '' && secrets.SUPABASE_PROJECT_REF != '' }}
+        if: steps.check-secrets.outputs.supabase_ready == 'true'
         uses: supabase/setup-cli@v1
 
       - name: Sync PTT secrets and deploy edge functions
-        if: ${{ secrets.SUPABASE_ACCESS_TOKEN != '' && secrets.SUPABASE_PROJECT_REF != '' && secrets.PTT_PUBLIC_WSS_URL != '' && secrets.PTT_PUBLIC_HTTPS_URL != '' }}
+        if: steps.check-secrets.outputs.supabase_ready == 'true' && steps.check-secrets.outputs.ptt_urls_ready == 'true'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
