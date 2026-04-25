@@ -2057,40 +2057,31 @@ export default function FieldOfficerPortal() {
                 <ParkingSquare className="h-3.5 w-3.5" />
                 Parking Enforcement
               </h3>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
-                <Card className="hover:shadow-lg transition-shadow border-orange-200 dark:border-orange-900 border-2">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-lg">
-                        <ParkingSquare className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-                      </div>
-                      Parking Enforcement
-                    </CardTitle>
-                    <CardDescription>Chalk pass · Recheck · Infringement</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Button className="w-full" variant="outline" onClick={() => navigate('/parking-officer')}>
-                      Open Parking Portal
-                    </Button>
-                  </CardContent>
-                </Card>
-
-                <Card className="hover:shadow-lg transition-shadow border-red-200 dark:border-red-900">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <div className="p-2 bg-red-100 dark:bg-red-900 rounded-lg">
-                        <Shield className="h-5 w-5 text-red-600 dark:text-red-400" />
-                      </div>
-                      Infringement Notices
-                    </CardTitle>
-                    <CardDescription>Issue fines on-site</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Button className="w-full" variant="outline" onClick={() => navigate('/infringements')}>
-                      Issue / View Notices
-                    </Button>
-                  </CardContent>
-                </Card>
+              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 mb-6">
+                <button
+                  onClick={() => navigate('/parking-officer')}
+                  className="flex items-center gap-4 w-full rounded-2xl border-2 border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/40 p-4 text-left hover:border-orange-400 hover:shadow-md active:scale-[0.97] transition-all"
+                >
+                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shrink-0">
+                    <ParkingSquare className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-base font-semibold text-orange-800 dark:text-orange-200">Parking Enforcement</p>
+                    <p className="text-xs text-orange-600 dark:text-orange-400 mt-0.5">Chalk pass · Recheck · Infringement</p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => navigate('/infringements')}
+                  className="flex items-center gap-4 w-full rounded-2xl border-2 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-4 text-left hover:border-red-400 hover:shadow-md active:scale-[0.97] transition-all"
+                >
+                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center shrink-0">
+                    <Shield className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-base font-semibold text-red-800 dark:text-red-200">Infringement Notices</p>
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">Issue fines on-site</p>
+                  </div>
+                </button>
               </div>
             </>
           )}
@@ -2104,23 +2095,19 @@ export default function FieldOfficerPortal() {
                 <Volume2 className="h-3.5 w-3.5" />
                 Noise Control
               </h3>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
-                <Card className="hover:shadow-lg transition-shadow border-yellow-200 dark:border-yellow-900 border-2">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-lg">
-                        <Volume2 className="h-5 w-5 text-yellow-700 dark:text-yellow-400" />
-                      </div>
-                      Noise Control
-                    </CardTitle>
-                    <CardDescription>Jobs · AN / DN / END · Seizures</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Button className="w-full" variant="outline" onClick={() => navigate('/noise-officer')}>
-                      Open Noise Portal
-                    </Button>
-                  </CardContent>
-                </Card>
+              <div className="grid gap-3 grid-cols-1 mb-6">
+                <button
+                  onClick={() => navigate('/noise-officer')}
+                  className="flex items-center gap-4 w-full rounded-2xl border-2 border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950/40 p-4 text-left hover:border-yellow-400 hover:shadow-md active:scale-[0.97] transition-all"
+                >
+                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center shrink-0">
+                    <Volume2 className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-base font-semibold text-yellow-800 dark:text-yellow-200">Noise Control</p>
+                    <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-0.5">Jobs · AN / DN / END · Seizures</p>
+                  </div>
+                </button>
               </div>
             </>
           )}
@@ -2134,23 +2121,19 @@ export default function FieldOfficerPortal() {
                 <Leaf className="h-3.5 w-3.5" />
                 Biosecurity Inspection
               </h3>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
-                <Card className="hover:shadow-lg transition-shadow border-emerald-200 dark:border-emerald-900 border-2">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <div className="p-2 bg-emerald-100 dark:bg-emerald-900 rounded-lg">
-                        <Leaf className="h-5 w-5 text-emerald-700 dark:text-emerald-400" />
-                      </div>
-                      Biosecurity (CNG)
-                    </CardTitle>
-                    <CardDescription>Plant ID · RPMP · Notices · Bob AI</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => navigate('/biosecurity-officer')}>
-                      Open Biosecurity Portal
-                    </Button>
-                  </CardContent>
-                </Card>
+              <div className="grid gap-3 grid-cols-1 mb-6">
+                <button
+                  onClick={() => navigate('/biosecurity-officer')}
+                  className="flex items-center gap-4 w-full rounded-2xl border-2 border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 p-4 text-left hover:border-emerald-400 hover:shadow-md active:scale-[0.97] transition-all"
+                >
+                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shrink-0">
+                    <Leaf className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-base font-semibold text-emerald-800 dark:text-emerald-200">Biosecurity (CNG)</p>
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">Plant ID · RPMP · Notices · Bob AI</p>
+                  </div>
+                </button>
               </div>
             </>
           )}
@@ -2164,23 +2147,19 @@ export default function FieldOfficerPortal() {
                 <Wind className="h-3.5 w-3.5" />
                 Smoke Complaint (OOH)
               </h3>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
-                <Card className="hover:shadow-lg transition-shadow border-amber-200 dark:border-amber-900 border-2">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <div className="p-2 bg-amber-100 dark:bg-amber-900 rounded-lg">
-                        <Wind className="h-5 w-5 text-amber-700 dark:text-amber-400" />
-                      </div>
-                      Smoke Complaint
-                    </CardTitle>
-                    <CardDescription>OOH · Opacity · Materials · RMA s.17A</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white" onClick={() => navigate('/smoke-officer')}>
-                      Open Smoke Portal
-                    </Button>
-                  </CardContent>
-                </Card>
+              <div className="grid gap-3 grid-cols-1 mb-6">
+                <button
+                  onClick={() => navigate('/smoke-officer')}
+                  className="flex items-center gap-4 w-full rounded-2xl border-2 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 p-4 text-left hover:border-amber-400 hover:shadow-md active:scale-[0.97] transition-all"
+                >
+                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shrink-0">
+                    <Wind className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-base font-semibold text-amber-800 dark:text-amber-200">Smoke Complaint (OOH)</p>
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">OOH · Opacity · Materials · RMA s.17A</p>
+                  </div>
+                </button>
               </div>
             </>
           )}
@@ -2189,209 +2168,150 @@ export default function FieldOfficerPortal() {
               COMMON TOOLS — always visible (shared across all services)
               ═══════════════════════════════════════════════════════════ */}
           {!activeService && (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
-              {/* QR Checkpoint Check-In */}
-              <Card className="hover:shadow-lg transition-shadow border-indigo-200 dark:border-indigo-900 border-2">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <div className="p-2 bg-indigo-100 dark:bg-indigo-900 rounded-lg">
-                      <QrCode className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-                    </div>
-                    Checkpoint
-                    <Badge variant="outline" className="ml-auto text-xs">Lone Worker</Badge>
-                  </CardTitle>
-                  <CardDescription>Scan QR/NFC at patrol checkpoint</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button className="w-full" onClick={() => setShowCheckpoint(true)}>
-                    Check In at Checkpoint
-                  </Button>
-                </CardContent>
-              </Card>
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 mb-6">
+              <button
+                onClick={() => setShowCheckpoint(true)}
+                className="flex items-center gap-4 w-full rounded-2xl border-2 border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/40 p-4 text-left hover:border-indigo-400 hover:shadow-md active:scale-[0.97] transition-all"
+              >
+                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center shrink-0">
+                  <QrCode className="h-6 w-6 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-base font-semibold text-indigo-800 dark:text-indigo-200">Checkpoint</p>
+                  <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-0.5">Scan QR/NFC at patrol checkpoint</p>
+                </div>
+                <Badge variant="outline" className="text-xs shrink-0">Lone Worker</Badge>
+              </button>
 
-              {/* Active Patrol */}
-              <Card className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
-                      <Map className="h-5 w-5 text-green-600 dark:text-green-400" />
-                    </div>
-                    Active Patrol
-                  </CardTitle>
-                  <CardDescription>Manage your patrol session</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button className="w-full" variant="outline" onClick={() => navigate('/live-patrol')}>
-                    Patrol Status
-                  </Button>
-                </CardContent>
-              </Card>
+              <button
+                onClick={() => navigate('/live-patrol')}
+                className="flex items-center gap-4 w-full rounded-2xl border-2 border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 p-4 text-left hover:border-green-400 hover:shadow-md active:scale-[0.97] transition-all"
+              >
+                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center shrink-0">
+                  <Map className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-base font-semibold text-green-800 dark:text-green-200">Active Patrol</p>
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">Manage your patrol session</p>
+                </div>
+              </button>
 
-              {/* Create Report */}
-              <Card className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
-                      <FileText className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                    </div>
-                    Create Report
-                  </CardTitle>
-                  <CardDescription>H&amp;S, incident or maintenance</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <Button className="w-full" onClick={handleOpenQuickReport}>
-                    <PlusCircle className="h-4 w-4 mr-2" />
-                    New Quick Report
-                  </Button>
-                  <Button className="w-full" variant="outline" onClick={() => navigate('/incidents')}>
-                    View All Reports
-                  </Button>
-                </CardContent>
-              </Card>
+              <button
+                onClick={handleOpenQuickReport}
+                className="flex items-center gap-4 w-full rounded-2xl border-2 border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/40 p-4 text-left hover:border-purple-400 hover:shadow-md active:scale-[0.97] transition-all"
+              >
+                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center shrink-0">
+                  <PlusCircle className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-base font-semibold text-purple-800 dark:text-purple-200">New Quick Report</p>
+                  <p className="text-xs text-purple-600 dark:text-purple-400 mt-0.5">H&amp;S, incident or maintenance</p>
+                </div>
+              </button>
 
-              {/* My Scans */}
-              <Card className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-lg">
-                      <History className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-                    </div>
-                    My Scans
-                  </CardTitle>
-                  <CardDescription>Recent observations</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button className="w-full" variant="outline" onClick={handleViewHistory}>
-                    {user?.role === 'officer' ? 'View 24h History' : 'View History'}
-                  </Button>
-                </CardContent>
-              </Card>
+              <button
+                onClick={handleViewHistory}
+                className="flex items-center gap-4 w-full rounded-2xl border-2 border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/40 p-4 text-left hover:border-orange-400 hover:shadow-md active:scale-[0.97] transition-all"
+              >
+                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shrink-0">
+                  <History className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-base font-semibold text-orange-800 dark:text-orange-200">My Scans</p>
+                  <p className="text-xs text-orange-600 dark:text-orange-400 mt-0.5">{user?.role === 'officer' ? 'View 24h History' : 'View History'}</p>
+                </div>
+              </button>
 
-              {/* Breach Alerts */}
-              <Card className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <div className="p-2 bg-red-100 dark:bg-red-900 rounded-lg">
-                      <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
-                    </div>
-                    Breach Alerts
-                  </CardTitle>
-                  <CardDescription>Active notifications</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button className="w-full" variant="outline" onClick={() => navigate('/breaches')}>
-                    View Alerts
-                  </Button>
-                </CardContent>
-              </Card>
+              <button
+                onClick={() => navigate('/breaches')}
+                className="flex items-center gap-4 w-full rounded-2xl border-2 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-4 text-left hover:border-red-400 hover:shadow-md active:scale-[0.97] transition-all"
+              >
+                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-base font-semibold text-red-800 dark:text-red-200">Breach Alerts</p>
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">Active notifications</p>
+                </div>
+              </button>
 
-              {/* Zones */}
-              <Card className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <div className="p-2 bg-teal-100 dark:bg-teal-900 rounded-lg">
-                      <MapPin className="h-5 w-5 text-teal-600 dark:text-teal-400" />
-                    </div>
-                    Zones
-                  </CardTitle>
-                  <CardDescription>Enforcement zones</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button className="w-full" variant="outline" onClick={() => navigate('/zones')}>
-                    View Zones
-                  </Button>
-                </CardContent>
-              </Card>
+              <button
+                onClick={() => navigate('/zones')}
+                className="flex items-center gap-4 w-full rounded-2xl border-2 border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/40 p-4 text-left hover:border-teal-400 hover:shadow-md active:scale-[0.97] transition-all"
+              >
+                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center shrink-0">
+                  <MapPin className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-base font-semibold text-teal-800 dark:text-teal-200">Zones</p>
+                  <p className="text-xs text-teal-600 dark:text-teal-400 mt-0.5">Enforcement zones</p>
+                </div>
+              </button>
 
-              {/* Infringements */}
-              <Card className="hover:shadow-lg transition-shadow border-red-200 dark:border-red-900">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <div className="p-2 bg-red-100 dark:bg-red-900 rounded-lg">
-                      <Shield className="h-5 w-5 text-red-600 dark:text-red-400" />
-                    </div>
-                    Infringement Notices
-                  </CardTitle>
-                  <CardDescription>Issue fines on-site</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button className="w-full" variant="outline" onClick={() => navigate('/infringements')}>
-                    Issue / View Notices
-                  </Button>
-                </CardContent>
-              </Card>
+              <button
+                onClick={() => navigate('/infringements')}
+                className="flex items-center gap-4 w-full rounded-2xl border-2 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-4 text-left hover:border-red-400 hover:shadow-md active:scale-[0.97] transition-all"
+              >
+                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center shrink-0">
+                  <Shield className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-base font-semibold text-red-800 dark:text-red-200">Infringement Notices</p>
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">Issue fines on-site</p>
+                </div>
+              </button>
 
-              {/* Parking Enforcement */}
-              <Card className="hover:shadow-lg transition-shadow border-orange-200 dark:border-orange-900">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-lg">
-                      <ParkingSquare className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-                    </div>
-                    Parking Enforcement
-                  </CardTitle>
-                  <CardDescription>Chalk pass · Recheck · Infringement</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button className="w-full" variant="outline" onClick={() => navigate('/parking-officer')}>
-                    Open Parking Portal
-                  </Button>
-                </CardContent>
-              </Card>
+              <button
+                onClick={() => navigate('/parking-officer')}
+                className="flex items-center gap-4 w-full rounded-2xl border-2 border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/40 p-4 text-left hover:border-orange-400 hover:shadow-md active:scale-[0.97] transition-all"
+              >
+                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shrink-0">
+                  <ParkingSquare className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-base font-semibold text-orange-800 dark:text-orange-200">Parking Enforcement</p>
+                  <p className="text-xs text-orange-600 dark:text-orange-400 mt-0.5">Chalk pass · Recheck · Infringement</p>
+                </div>
+              </button>
 
-              {/* Noise Control */}
-              <Card className="hover:shadow-lg transition-shadow border-yellow-200 dark:border-yellow-900">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-lg">
-                      <Volume2 className="h-5 w-5 text-yellow-700 dark:text-yellow-400" />
-                    </div>
-                    Noise Control
-                  </CardTitle>
-                  <CardDescription>Jobs · AN / DN / END · Seizures</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button className="w-full" variant="outline" onClick={() => navigate('/noise-officer')}>
-                    Open Noise Portal
-                  </Button>
-                </CardContent>
-              </Card>
+              <button
+                onClick={() => navigate('/noise-officer')}
+                className="flex items-center gap-4 w-full rounded-2xl border-2 border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950/40 p-4 text-left hover:border-yellow-400 hover:shadow-md active:scale-[0.97] transition-all"
+              >
+                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center shrink-0">
+                  <Volume2 className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-base font-semibold text-yellow-800 dark:text-yellow-200">Noise Control</p>
+                  <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-0.5">Jobs · AN / DN / END · Seizures</p>
+                </div>
+              </button>
 
-              {/* Biosecurity Inspection */}
-              <Card className="hover:shadow-lg transition-shadow border-emerald-200 dark:border-emerald-900">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <div className="p-2 bg-emerald-100 dark:bg-emerald-900 rounded-lg">
-                      <Leaf className="h-5 w-5 text-emerald-700 dark:text-emerald-400" />
-                    </div>
-                    Biosecurity (CNG)
-                  </CardTitle>
-                  <CardDescription>Plant ID · RPMP · Bob AI</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => navigate('/biosecurity-officer')}>
-                    Open Biosecurity Portal
-                  </Button>
-                </CardContent>
-              </Card>
+              <button
+                onClick={() => navigate('/biosecurity-officer')}
+                className="flex items-center gap-4 w-full rounded-2xl border-2 border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 p-4 text-left hover:border-emerald-400 hover:shadow-md active:scale-[0.97] transition-all"
+              >
+                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shrink-0">
+                  <Leaf className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-base font-semibold text-emerald-800 dark:text-emerald-200">Biosecurity (CNG)</p>
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">Plant ID · RPMP · Bob AI</p>
+                </div>
+              </button>
 
-              {/* Smoke Complaint OOH */}
-              <Card className="hover:shadow-lg transition-shadow border-amber-200 dark:border-amber-900">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <div className="p-2 bg-amber-100 dark:bg-amber-900 rounded-lg">
-                      <Wind className="h-5 w-5 text-amber-700 dark:text-amber-400" />
-                    </div>
-                    Smoke Complaint (OOH)
-                  </CardTitle>
-                  <CardDescription>Opacity · Materials · RMA s.17A</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white" onClick={() => navigate('/smoke-officer')}>
-                    Open Smoke Portal
-                  </Button>
-                </CardContent>
-              </Card>
+              <button
+                onClick={() => navigate('/smoke-officer')}
+                className="flex items-center gap-4 w-full rounded-2xl border-2 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 p-4 text-left hover:border-amber-400 hover:shadow-md active:scale-[0.97] transition-all"
+              >
+                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shrink-0">
+                  <Wind className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-base font-semibold text-amber-800 dark:text-amber-200">Smoke Complaint (OOH)</p>
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Opacity · Materials · RMA s.17A</p>
+                </div>
+              </button>
             </div>
           )}
 
@@ -2456,105 +2376,79 @@ export default function FieldOfficerPortal() {
 
           {/* Service-specific common tools */}
           {activeService && (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 mb-6">
               {/* My Scans — shown for freedom_camping and guarding */}
               {(activeService === 'freedom_camping' || activeService === 'guarding') && (
-                <Card className="hover:shadow-lg transition-shadow">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-lg">
-                        <History className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-                      </div>
-                      My Scans
-                    </CardTitle>
-                    <CardDescription>Recent observations</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Button className="w-full" variant="outline" onClick={handleViewHistory}>
-                      {user?.role === 'officer' ? 'View 24h History' : 'View History'}
-                    </Button>
-                  </CardContent>
-                </Card>
+                <button
+                  onClick={handleViewHistory}
+                  className="flex items-center gap-4 w-full rounded-2xl border-2 border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/40 p-4 text-left hover:border-orange-400 hover:shadow-md active:scale-[0.97] transition-all"
+                >
+                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shrink-0">
+                    <History className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-base font-semibold text-orange-800 dark:text-orange-200">My Scans</p>
+                    <p className="text-xs text-orange-600 dark:text-orange-400 mt-0.5">{user?.role === 'officer' ? 'View 24h History' : 'View History'}</p>
+                  </div>
+                </button>
               )}
 
               {/* Breach Alerts — shown for freedom_camping */}
               {activeService === 'freedom_camping' && (
                 <>
-                  <Card className="hover:shadow-lg transition-shadow">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <div className="p-2 bg-red-100 dark:bg-red-900 rounded-lg">
-                          <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
-                        </div>
-                        Breach Alerts
-                      </CardTitle>
-                      <CardDescription>Active notifications</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <Button className="w-full" variant="outline" onClick={() => navigate('/breaches')}>
-                        View Alerts
-                      </Button>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="hover:shadow-lg transition-shadow">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <div className="p-2 bg-teal-100 dark:bg-teal-900 rounded-lg">
-                          <MapPin className="h-5 w-5 text-teal-600 dark:text-teal-400" />
-                        </div>
-                        Zones
-                      </CardTitle>
-                      <CardDescription>Enforcement zones</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <Button className="w-full" variant="outline" onClick={() => navigate('/zones')}>
-                        View Zones
-                      </Button>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="hover:shadow-lg transition-shadow border-red-200 dark:border-red-900">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <div className="p-2 bg-red-100 dark:bg-red-900 rounded-lg">
-                          <Shield className="h-5 w-5 text-red-600 dark:text-red-400" />
-                        </div>
-                        Infringement Notices
-                      </CardTitle>
-                      <CardDescription>Issue fines on-site</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <Button className="w-full" variant="outline" onClick={() => navigate('/infringements')}>
-                        Issue / View Notices
-                      </Button>
-                    </CardContent>
-                  </Card>
+                  <button
+                    onClick={() => navigate('/breaches')}
+                    className="flex items-center gap-4 w-full rounded-2xl border-2 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-4 text-left hover:border-red-400 hover:shadow-md active:scale-[0.97] transition-all"
+                  >
+                    <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center shrink-0">
+                      <AlertTriangle className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-base font-semibold text-red-800 dark:text-red-200">Breach Alerts</p>
+                      <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">Active notifications</p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => navigate('/zones')}
+                    className="flex items-center gap-4 w-full rounded-2xl border-2 border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/40 p-4 text-left hover:border-teal-400 hover:shadow-md active:scale-[0.97] transition-all"
+                  >
+                    <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center shrink-0">
+                      <MapPin className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-base font-semibold text-teal-800 dark:text-teal-200">Zones</p>
+                      <p className="text-xs text-teal-600 dark:text-teal-400 mt-0.5">Enforcement zones</p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => navigate('/infringements')}
+                    className="flex items-center gap-4 w-full rounded-2xl border-2 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-4 text-left hover:border-red-400 hover:shadow-md active:scale-[0.97] transition-all"
+                  >
+                    <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center shrink-0">
+                      <Shield className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-base font-semibold text-red-800 dark:text-red-200">Infringement Notices</p>
+                      <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">Issue fines on-site</p>
+                    </div>
+                  </button>
                 </>
               )}
 
               {/* Create Report — shown for guarding */}
               {activeService === 'guarding' && (
-                <Card className="hover:shadow-lg transition-shadow">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
-                        <FileText className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                      </div>
-                      Create Report
-                    </CardTitle>
-                    <CardDescription>H&amp;S, incident or maintenance</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <Button className="w-full" onClick={handleOpenQuickReport}>
-                      <PlusCircle className="h-4 w-4 mr-2" />
-                      New Quick Report
-                    </Button>
-                    <Button className="w-full" variant="outline" onClick={() => navigate('/incidents')}>
-                      View All Reports
-                    </Button>
-                  </CardContent>
-                </Card>
+                <button
+                  onClick={handleOpenQuickReport}
+                  className="flex items-center gap-4 w-full rounded-2xl border-2 border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/40 p-4 text-left hover:border-purple-400 hover:shadow-md active:scale-[0.97] transition-all"
+                >
+                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center shrink-0">
+                    <PlusCircle className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-base font-semibold text-purple-800 dark:text-purple-200">Create Report</p>
+                    <p className="text-xs text-purple-600 dark:text-purple-400 mt-0.5">H&amp;S, incident or maintenance</p>
+                  </div>
+                </button>
               )}
             </div>
           )}
