@@ -187,7 +187,7 @@ Navigate to: **GitHub → DonSquires/FreedomCamp-Manager → Settings → Secret
 - [ ] `BOB_SERVICE_URL` (Bob's public RunPod URL)
 - [ ] `INFERENCE_SERVICE_URL` (same value as `BOB_SERVICE_URL`)
 - [ ] `PROXY_SERVER_URL` (Proxy's Railway public URL)
-- [ ] `PTT_SERVER_URL` (PTT server's VPS URL e.g. `http://72.61.123.97:3002`)
+- [ ] `PTT_SERVER_URL` (PTT server public URL, e.g. `https://ptt.<your-domain>`)
 
 ### 3d. PTT
 
@@ -252,7 +252,7 @@ After adding or changing any secret here, redeploy the affected Edge Functions.
 - [ ] `INFERENCE_SERVICE_URL` (Bob's RunPod URL)
 - [ ] `INFERENCE_API_KEY` (from Phase 0; must match Supabase vault + Bob RunPod pod env)
 - [ ] `PROXY_SERVER_URL` (Proxy's Railway URL)
-- [ ] `PTT_SERVER_URL` (PTT server's VPS URL e.g. `http://72.61.123.97:3002`)
+- [ ] `PTT_SERVER_URL` (PTT server public URL, e.g. `https://ptt.<your-domain>`)
 - [ ] `PTT_PROXY_SECRET` (from Phase 0; must match VPS PTT `PROXY_SECRET`)
 
 ### 4b. Push-to-Talk
@@ -393,7 +393,7 @@ Run these steps after the first successful deploy of each service:
 
 - [ ] `BOB_SERVICE_URL` + `INFERENCE_SERVICE_URL` set to Bob's RunPod public URL
 - [ ] `PROXY_SERVER_URL` set to Proxy's Railway URL
-- [ ] `PTT_SERVER_URL` set to PTT server's VPS URL (e.g. `http://72.61.123.97:3002`)
+- [ ] `PTT_SERVER_URL` set to PTT server public URL (e.g. `https://ptt.<your-domain>`)
 
 ### 7b. Run the PTT wiring workflow
 

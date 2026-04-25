@@ -15,6 +15,7 @@
  *   node scripts/ptt-configure-wss.mjs
  *   node scripts/ptt-configure-wss.mjs --domain ptt.yourdomain.com
  *   node scripts/ptt-configure-wss.mjs --nginx-only
+ *   node scripts/ptt-configure-wss.mjs --strict --https-url https://ptt.example.com --wss-url wss://ptt.example.com/ws
  *   node scripts/ptt-configure-wss.mjs --apply --wss-url wss://ptt.example.com/ws --https-url https://ptt.example.com
  */
 
@@ -34,6 +35,7 @@ function getArg(flag) {
 const domain = getArg('--domain') || process.env.PTT_DOMAIN || null;
 const nginxOnly = args.includes('--nginx-only');
 const applyMode = args.includes('--apply');
+const strictMode = args.includes('--strict');
 const providedWssUrl = getArg('--wss-url') || process.env.PTT_PUBLIC_WSS_URL || null;
 const providedHttpsUrl = getArg('--https-url') || process.env.PTT_PUBLIC_HTTPS_URL || null;
 
@@ -196,7 +198,7 @@ function applySupabaseConfig({ wssUrl, httpsUrl }) {
 
 async function main() {
   const state = await readSystemState();
-  const pttServerUrl = state?.ptt?.server_url || state?.ptt_server_url || 'http://72.61.123.97:8080';
+  const pttServerUrl = state?.ptt?.server_url || state?.ptt_server_url || 'http://127.0.0.1:8080';
   const effectiveHttpsUrl = normalizePublicHttpsUrl(providedHttpsUrl || pttServerUrl);
   const effectiveWssUrl = normalizePublicWssUrl(
     providedWssUrl || (domain ? `wss://ptt.${domain}/ws` : null)
@@ -289,6 +291,17 @@ async function main() {
     }
 
     applySupabaseConfig({ wssUrl: effectiveWssUrl, httpsUrl: effectiveHttpsUrl });
+  }
+
+  if (strictMode) {
+    if (!effectiveHttpsUrl || !effectiveHttpsUrl.startsWith('https://')) {
+      throw new Error('Strict mode: resolved PTT public URL must be https://. Provide --https-url https://<ptt-host>.');
+    }
+    if (!effectiveWssUrl || !effectiveWssUrl.startsWith('wss://')) {
+      throw new Error('Strict mode: resolved PTT websocket URL must be wss://. Provide --wss-url wss://<ptt-host>/ws.');
+    }
+
+    console.log('Strict mode checks passed: secure HTTPS/WSS public endpoints are configured.');
   }
 }
 

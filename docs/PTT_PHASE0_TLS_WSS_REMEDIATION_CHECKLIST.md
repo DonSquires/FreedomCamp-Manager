@@ -1,6 +1,6 @@
 # PTT Phase 0 TLS and WSS Remediation Checklist
 
-Updated: 2026-04-24
+Updated: 2026-04-25
 Owner: Platform + Voice Team
 
 This checklist is tied directly to audit warnings produced by [scripts/ptt-phase0-runtime-audit.sh](scripts/ptt-phase0-runtime-audit.sh).
@@ -37,6 +37,8 @@ This checklist is tied directly to audit warnings produced by [scripts/ptt-phase
    - Confirm diagnostics return `forceTurnRelay=true` and `iceTransportPolicy=relay`.
 5. Run strict audit:
    - `PTT_AUDIT_FAIL_ON_WARN=true PTT_AUDIT_REQUIRE_STRICT_RELAY=true PTT_AUDIT_REQUIRE_HTTPS=true PTT_AUDIT_REQUIRE_SUPABASE_CHECK=true bash scripts/ptt-phase0-runtime-audit.sh`
+   - If the endpoint is reached by fixed IP but certificate is issued to a hostname, provide both:
+   - `PTT_SERVER_IP=<public-ip> PTT_SERVER_HOSTNAME=<tls-hostname> PTT_AUDIT_FAIL_ON_WARN=true PTT_AUDIT_REQUIRE_STRICT_RELAY=true PTT_AUDIT_REQUIRE_HTTPS=true PTT_AUDIT_REQUIRE_SUPABASE_CHECK=true bash scripts/ptt-phase0-runtime-audit.sh`
 
 ## Acceptance Criteria
 
@@ -51,3 +53,4 @@ This checklist is tied directly to audit warnings produced by [scripts/ptt-phase
 1. If strict relay fails while TURN appears configured, verify credentials are named exactly `TURN_USERNAME` and `TURN_CREDENTIAL` in the PTT runtime.
 2. If Supabase check returns 404, deploy `check-ptt-health` or ensure `check-railway-health` remains deployed and reachable.
 3. If HTTPS probe returns 000/timeouts, confirm firewall allows TCP 443 and reverse proxy virtual host is bound to the public hostname/IP.
+4. If HTTPS probe reports TLS SAN mismatch, set `PTT_SERVER_HOSTNAME` to the certificate hostname and ensure the certificate includes that exact DNS name.

@@ -50,7 +50,7 @@ The absolute minimum to get the system running. Every item must be set before an
 | `BOB_SYNC_PAT` | GitHub → Settings → Developer settings → PATs | Contents: Read+Write on `DonSquires/Bob` |
 | `BOB_SERVICE_URL` | Set after first Bob deploy | Bob's public RunPod URL; enables post-deploy health checks |
 | `PROXY_SERVER_URL` | Set after first Proxy deploy | Proxy's public Railway URL |
-| `PTT_SERVER_URL` | Set after first PTT deploy | PTT server's public URL (`http://72.61.123.97:PORT`) |
+| `PTT_SERVER_URL` | Set after first PTT deploy | PTT server's public URL (`https://ptt.<your-domain>`) |
 
 ### Step 2 — Supabase Edge Function Secrets
 
@@ -114,7 +114,7 @@ Alias resolution is handled by `scripts/load-railway-secrets-from-github-env.sh`
 | `BOB_SERVICE_URL` | ✅ | `INFERENCE_SERVICE_URL` | Bob deploy + all Bob ops workflows | Bob's public RunPod URL |
 | `INFERENCE_SERVICE_URL` | ✅ | `BOB_SERVICE_URL` | Ops workflows, wiring audit | Same value as `BOB_SERVICE_URL` |
 | `PROXY_SERVER_URL` | ✅ | `PROXY_SERVICE_URL`, `NZSCV_PROXY_URL` (deprecated) | Proxy deploy, wiring audit | Proxy public Railway URL |
-| `PTT_SERVER_URL` | ✅ | `PTT_SERVICE_URL` (deprecated) | PTT health check, wiring audit, `set-ptt-secret.yml` | PTT server URL on VPS (`http://72.61.123.97:PORT`) |
+| `PTT_SERVER_URL` | ✅ | `PTT_SERVICE_URL` (deprecated) | PTT health check, wiring audit, `set-ptt-secret.yml` | PTT server URL (`https://ptt.<your-domain>`) |
 | `OLLAMA_SERVICE_URL` | ✅ | — | Ollama post-deploy health check | RunPod gateway URL for direct Ollama access |
 
 Both `BOB_SERVICE_URL` and `INFERENCE_SERVICE_URL` should contain the same value (Bob's RunPod URL). The normalisation script maps each as a fallback for the other.
@@ -230,7 +230,7 @@ These are available as `Deno.env.get('SECRET_NAME')` inside all Edge Functions. 
 | `INFERENCE_SERVICE_URL` | ✅ | — | For AI features | Bob's public RunPod URL |
 | `INFERENCE_API_KEY` | ✅ | — | Recommended | Auth header sent to Bob; must match Bob service `INFERENCE_API_KEY` |
 | `PROXY_SERVER_URL` | ✅ | `NZSCV_PROXY_URL`, `RAILWAY_PROXY_URL`, `PROXY_BASE_URL` (deprecated) | For vehicle lookup | Proxy public Railway URL |
-| `PTT_SERVER_URL` | ✅ | — | For PTT | PTT server URL on VPS (`http://72.61.123.97:PORT`) |
+| `PTT_SERVER_URL` | ✅ | — | For PTT | PTT server URL (`https://ptt.<your-domain>`) |
 | `PTT_PROXY_SECRET` | ✅ | — | For PTT | Shared secret for ptt-signaling-token Edge Function; must match PTT server `PTT_PROXY_SECRET` |
 
 > **PTT secret rule:** Set only `PTT_PROXY_SECRET` for PTT in both Supabase vault and the VPS PTT service.

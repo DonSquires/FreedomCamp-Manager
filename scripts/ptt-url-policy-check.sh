@@ -13,7 +13,7 @@ set -euo pipefail
 
 https_url="${PTT_PUBLIC_HTTPS_URL:-${PTT_SERVER_URL:-}}"
 wss_url="${PTT_PUBLIC_WSS_URL:-${PTT_WS_URL:-}}"
-allowed_host_regex="${PTT_ALLOWED_HOST_REGEX:-^(srv1601189\.hstgr\.cloud|ptt\.onspace\.build)$}"
+allowed_host_regex="${PTT_ALLOWED_HOST_REGEX:-^(srv1601189\.hstgr\.cloud|ptt\.onspace\.build|ptt\.fcmanager\.co\.nz)$}"
 
 fail() {
   echo "PTT URL policy violation: $1" >&2
