@@ -49,6 +49,8 @@ interface AuthUser {
   /** Additional org/branch IDs beyond the primary organization_id */
   authorized_work_locations: string[]
   extra_organization_ids: string[]
+  /** Optional per-officer PTT scopes beyond the default org channel */
+  ptt_channel_access: string[] | null
 }
 
 interface AuthState {
@@ -92,7 +94,7 @@ export const useAuthStore = create<AuthState>()(
             }
 
             const { data: profile, error: profileError } = await (supabase.from('user_profiles') as any)
-              .select('id, email, role, organization_id, employer_organization_id, first_name, last_name, portal_access, authorized_work_locations, extra_organization_ids')
+              .select('id, email, role, organization_id, employer_organization_id, first_name, last_name, portal_access, authorized_work_locations, extra_organization_ids, ptt_channel_access')
               .eq('id', session.user.id)
               .single()
 
@@ -124,6 +126,7 @@ export const useAuthStore = create<AuthState>()(
               portal_access: (profile as any).portal_access ?? [],
               authorized_work_locations: (profile as any).authorized_work_locations ?? [],
               extra_organization_ids: (profile as any).extra_organization_ids ?? [],
+              ptt_channel_access: (profile as any).ptt_channel_access ?? null,
             }
             // Null-guard: only write to store if the built authUser is valid.
             // Always write the freshly-fetched profile so the store stays
@@ -176,7 +179,7 @@ export const useAuthStore = create<AuthState>()(
         // Fetch user profile
         const { data: profile, error: profileError } = await supabase
           .from('user_profiles')
-          .select('id, email, role, organization_id, employer_organization_id, first_name, last_name, portal_access, authorized_work_locations, extra_organization_ids')
+          .select('id, email, role, organization_id, employer_organization_id, first_name, last_name, portal_access, authorized_work_locations, extra_organization_ids, ptt_channel_access')
           .eq('id', data.user.id)
           .single()
 
@@ -197,6 +200,7 @@ export const useAuthStore = create<AuthState>()(
           portal_access: p.portal_access ?? [],
           authorized_work_locations: p.authorized_work_locations ?? [],
           extra_organization_ids: p.extra_organization_ids ?? [],
+          ptt_channel_access: p.ptt_channel_access ?? null,
         }
 
         set({ user: authUser, isAuthenticated: true })
@@ -258,7 +262,7 @@ export const useAuthStore = create<AuthState>()(
 
           // Fetch user profile
           const { data: profile, error: profileError } = await (supabase.from('user_profiles') as any)
-            .select('id, email, role, organization_id, employer_organization_id, first_name, last_name, portal_access, authorized_work_locations, extra_organization_ids')
+            .select('id, email, role, organization_id, employer_organization_id, first_name, last_name, portal_access, authorized_work_locations, extra_organization_ids, ptt_channel_access')
             .eq('id', session.user.id)
             .single()
 
@@ -286,6 +290,7 @@ export const useAuthStore = create<AuthState>()(
               portal_access: (profile as any).portal_access ?? [],
               authorized_work_locations: (profile as any).authorized_work_locations ?? [],
               extra_organization_ids: (profile as any).extra_organization_ids ?? [],
+              ptt_channel_access: (profile as any).ptt_channel_access ?? null,
             }
             set({ user: authUser, isAuthenticated: true, loading: false })
           } else {

@@ -525,6 +525,22 @@ export default function PTTRadio() {
     () => (crossOrgIds.length ? [...crossOrgIds].sort() : []),
     [crossOrgIds],
   )
+  const shouldEnforceChannelAcl = user?.role === 'officer' || user?.role === 'admin_officer'
+  const allowedChannelScopes = useMemo(
+    () => new Set(user?.ptt_channel_access ?? []),
+    [user?.ptt_channel_access],
+  )
+
+  const canAccessChannel = useCallback((channel: RadioChannel) => {
+    if (!effectiveOrgId || !shouldEnforceChannelAcl) return true
+
+    const channelScope = getChannelScope(channel, effectiveOrgId)
+    if (channelScope === `org:${effectiveOrgId}`) {
+      return true
+    }
+
+    return allowedChannelScopes.has(channelScope)
+  }, [allowedChannelScopes, effectiveOrgId, shouldEnforceChannelAcl])
 
   // ── Load channels from DB ─────────────────────────────────
   const { data: dbChannels, isLoading: loadingChannels, error: channelsError } = useQuery<RadioChannel[]>({
@@ -661,16 +677,28 @@ export default function PTTRadio() {
 
   const baseChannels = useMemo(() => {
     const source = dbChannels?.length ? dbChannels : DEFAULT_CHANNELS
-    return [...source].sort(
-      (a, b) =>
-        (CHANNEL_TYPE_ORDER[a.channel_type] ?? 50) - (CHANNEL_TYPE_ORDER[b.channel_type] ?? 50) ||
-        a.channel_number - b.channel_number,
-    )
-  }, [dbChannels])
+    return [...source]
+      .filter((channel) => canAccessChannel(channel))
+      .sort(
+        (a, b) =>
+          (CHANNEL_TYPE_ORDER[a.channel_type] ?? 50) - (CHANNEL_TYPE_ORDER[b.channel_type] ?? 50) ||
+          a.channel_number - b.channel_number,
+      )
+  }, [canAccessChannel, dbChannels])
+
+  const visibleCrossOrgChannels = useMemo(
+    () => crossOrgChannels.filter((channel) => canAccessChannel(channel)),
+    [canAccessChannel, crossOrgChannels],
+  )
+
+  const visibleLaunchChannels = useMemo(
+    () => launchChannels.filter((channel) => canAccessChannel(channel)),
+    [canAccessChannel, launchChannels],
+  )
 
   const channels = useMemo(
-    () => [...launchChannels, ...crossOrgChannels, ...baseChannels],
-    [launchChannels, crossOrgChannels, baseChannels],
+    () => [...visibleLaunchChannels, ...visibleCrossOrgChannels, ...baseChannels],
+    [visibleLaunchChannels, visibleCrossOrgChannels, baseChannels],
   )
 
   // ── Load recent transmission log from DB ──────────────────
