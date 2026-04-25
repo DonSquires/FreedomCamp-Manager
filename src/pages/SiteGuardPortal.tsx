@@ -122,7 +122,7 @@ function POICard({
 }) {
   const isExpired = poi.expires_at && poi.expires_at < new Date().toISOString()
   return (
-    <div className={`border rounded-lg p-3 ${isExpired ? 'opacity-50' : ''}`}>
+    <div className={`rounded-2xl border-2 p-3 sm:p-4 bg-white/90 shadow-sm ${isExpired ? 'opacity-60' : ''} ${poi.status === 'banned' ? 'border-red-200' : poi.status === 'trespassed' ? 'border-orange-200' : 'border-blue-200'}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
           {poi.photos?.[0] ? (
@@ -162,7 +162,7 @@ function POICard({
           <Button
             size="sm"
             variant="outline"
-            className="flex-shrink-0 text-xs"
+            className="flex-shrink-0 text-xs rounded-xl"
             onClick={() => onLinkToIncident(poi)}
           >
             Link
@@ -189,9 +189,9 @@ function POICard({
 function IncidentRow({ incident }: { incident: SiteIncident }) {
   const [expanded, setExpanded] = useState(false)
   return (
-    <div className="border rounded-lg overflow-hidden">
+    <div className="border-2 rounded-2xl overflow-hidden bg-white/90 shadow-sm">
       <button
-        className="w-full flex items-center justify-between p-3 hover:bg-gray-50 text-left"
+        className="w-full flex items-center justify-between p-3 sm:p-4 hover:bg-gray-50 text-left transition-colors"
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex items-center gap-2">
@@ -223,7 +223,7 @@ function IncidentRow({ incident }: { incident: SiteIncident }) {
         </div>
       </button>
       {expanded && (
-        <div className="p-3 border-t bg-gray-50 text-sm space-y-2">
+        <div className="p-3 sm:p-4 border-t bg-gray-50 text-sm space-y-2">
           <p>{incident.description}</p>
           {incident.police_notified && (
             <div className="rounded bg-blue-50 border border-blue-200 p-2 text-xs space-y-0.5">
@@ -360,7 +360,7 @@ export default function SiteGuardPortal() {
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <Building2 className="h-12 w-12 text-gray-300 mb-4" />
           <p className="text-gray-500">No site selected.</p>
-          <Button className="mt-4" onClick={() => navigate('/field-officer')}>
+          <Button className="mt-4 rounded-xl" onClick={() => navigate('/field-officer')}>
             Go to Field Portal
           </Button>
         </div>
@@ -384,7 +384,8 @@ export default function SiteGuardPortal() {
       />
 
       {/* ── Site header ─────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between mb-4 rounded-xl border p-3 bg-white shadow-sm">
+      <div className="mb-4 rounded-2xl border-2 border-slate-200 p-4 bg-gradient-to-br from-white to-slate-50 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
             isInsideFence ? 'bg-green-100' : 'bg-orange-100'
@@ -410,7 +411,7 @@ export default function SiteGuardPortal() {
           )}
           <Button
             size="sm"
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
             onClick={() => {
               setForm(emptyIncident(clientSiteId))
               setLinkedPOI(null)
@@ -420,6 +421,7 @@ export default function SiteGuardPortal() {
             <Plus className="h-4 w-4 mr-1" />
             Report Incident
           </Button>
+        </div>
         </div>
       </div>
 
@@ -435,8 +437,8 @@ export default function SiteGuardPortal() {
       )}
 
       <Tabs defaultValue="poi">
-        <TabsList className="mb-4 flex-wrap h-auto gap-1">
-          <TabsTrigger value="poi">
+        <TabsList className="mb-4 grid grid-cols-2 sm:grid-cols-4 h-auto gap-2 bg-transparent p-0">
+          <TabsTrigger value="poi" className="rounded-xl border data-[state=active]:bg-white data-[state=active]:shadow-sm py-2">
             <Users className="h-4 w-4 mr-1.5" />
             POI
             {sitePOI.length > 0 && (
@@ -445,11 +447,11 @@ export default function SiteGuardPortal() {
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="voi">
+          <TabsTrigger value="voi" className="rounded-xl border data-[state=active]:bg-white data-[state=active]:shadow-sm py-2">
             <Car className="h-4 w-4 mr-1.5" />
             VOI
           </TabsTrigger>
-          <TabsTrigger value="incidents">
+          <TabsTrigger value="incidents" className="rounded-xl border data-[state=active]:bg-white data-[state=active]:shadow-sm py-2">
             <FileText className="h-4 w-4 mr-1.5" />
             Incidents
             {incidents.length > 0 && (
@@ -458,7 +460,7 @@ export default function SiteGuardPortal() {
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="info">
+          <TabsTrigger value="info" className="rounded-xl border data-[state=active]:bg-white data-[state=active]:shadow-sm py-2">
             <Building2 className="h-4 w-4 mr-1.5" />
             Site Info
           </TabsTrigger>
@@ -484,21 +486,21 @@ export default function SiteGuardPortal() {
             </div>
           )}
 
-          <div className="flex gap-2 mb-3">
-            <Button
-              size="sm"
-              variant={poiTab === 'active' ? 'default' : 'outline'}
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <button
+              type="button"
               onClick={() => setPoiTab('active')}
+              className={`rounded-xl border-2 px-3 py-2 text-sm font-medium transition-colors ${poiTab === 'active' ? 'border-blue-400 bg-blue-50 text-blue-800' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'}`}
             >
               Active ({sitePOI.length})
-            </Button>
-            <Button
-              size="sm"
-              variant={poiTab === 'search' ? 'default' : 'outline'}
+            </button>
+            <button
+              type="button"
               onClick={() => setPoiTab('search')}
+              className={`rounded-xl border-2 px-3 py-2 text-sm font-medium transition-colors flex items-center justify-center gap-1 ${poiTab === 'search' ? 'border-blue-400 bg-blue-50 text-blue-800' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'}`}
             >
-              <Search className="h-3.5 w-3.5 mr-1" />Search All
-            </Button>
+              <Search className="h-3.5 w-3.5" />Search All
+            </button>
           </div>
 
           {poiTab === 'search' && (
