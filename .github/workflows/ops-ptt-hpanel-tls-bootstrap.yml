@@ -59,6 +59,9 @@ jobs:
           : "${SUPABASE_ACCESS_TOKEN:?SUPABASE_ACCESS_TOKEN secret is required}"
           : "${SUPABASE_PROJECT_REF:?SUPABASE_PROJECT_REF secret is required}"
 
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
       - name: Configure nginx and certbot on VPS
         uses: appleboy/ssh-action@v1.0.3
         env:
