@@ -4024,8 +4024,8 @@ const PTT_DIAGNOSTICS = {
     diagnosis: 'PTT connection failure',
     checks: [
       { step: 'Check ptt-signaling-token Edge Function is deployed', detail: 'Run set-ptt-secret.yml workflow or: supabase functions deploy ptt-signaling-token --project-ref $REF --no-verify-jwt' },
-      { step: 'Verify PTT_SERVER_URL in Supabase secrets', detail: 'Supabase Dashboard → Settings → Edge Functions → Secrets. Must be http://72.61.123.97:8080 (VPS, ptt-server port 8080)' },
-      { step: 'Check ptt-server health endpoint', detail: 'GET http://72.61.123.97:8080/health — should return {status:"ok",channels:N,connectedUsers:N}' },
+      { step: 'Verify PTT_SERVER_URL in Supabase secrets', detail: 'Supabase Dashboard → Settings → Edge Functions → Secrets. Must use the HTTPS host (for example https://ptt.fcmanager.co.nz).' },
+      { step: 'Check ptt-server health endpoint', detail: 'GET https://ptt.fcmanager.co.nz/health — should return {status:"ok",channels:N,connectedUsers:N}' },
       { step: 'Verify PTT_JWT_SECRET matches', detail: 'Same secret must be set on both Supabase Edge Function secrets AND the VPS ptt-server environment variables (ssh root@72.61.123.97)' },
       { step: 'Verify PROXY_SECRET matches', detail: 'Edge Function uses this to authenticate with ptt-server /api/token/mint. Must match between Supabase secrets and Railway env.' },
       { step: 'Check user authentication', detail: 'User must be logged in with a valid session. PTT waits for auth loading to complete before connecting (usePTTAutoConnect).' },
@@ -4069,7 +4069,7 @@ const PTT_DIAGNOSTICS = {
       { step: 'Deploy ptt-signaling-token Edge Function', detail: 'supabase functions deploy ptt-signaling-token --project-ref $REF --no-verify-jwt' },
       { step: 'Create ptt-clips Storage bucket', detail: 'Supabase Dashboard → Storage → New Bucket → name: ptt-clips. Set RLS policies for org-scoped access.' },
       { step: 'Run PTT migration', detail: 'Migration 20260329000002_ptt_tables.sql creates ptt_messages, ptt_presence, ptt_channels tables.' },
-      { step: 'Verify health endpoint', detail: 'GET http://72.61.123.97:<PORT>/health should return status:ok. If not, check VPS service logs (pm2 logs or journalctl).' },
+      { step: 'Verify health endpoint', detail: 'GET https://ptt.fcmanager.co.nz/health should return status:ok. If not, check VPS service logs (pm2 logs or journalctl).' },
       { step: 'Optional: Configure TURN server', detail: 'For NAT traversal in corporate/restricted networks. Set TURN_URL, TURN_USERNAME, TURN_CREDENTIAL on ptt-server.' },
     ],
   },
@@ -4107,7 +4107,7 @@ app.post('/assess/ptt', inferenceRateLimit, requireInferenceAuth, async (req, re
       diagnosis: matched.diagnosis,
       category: matched.category,
       checks: matched.checks,
-      stack_overview: 'PTTBar.tsx → ptt.ts → pttBackground.ts → pttStore.ts → ptt-signaling-token Edge Function → ptt-server (VPS 72.61.123.97)',
+      stack_overview: 'PTTBar.tsx → ptt.ts → pttBackground.ts → pttStore.ts → ptt-signaling-token Edge Function → ptt-server (HTTPS/WSS host)',
       files: {
         ui_component: 'src/components/features/PTTBar.tsx',
         library: 'src/lib/ptt.ts',

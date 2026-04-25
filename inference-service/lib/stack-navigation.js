@@ -412,8 +412,8 @@ const DATA_FLOW_PATTERNS = {
   },
   ptt_token: {
     description: 'PTT token acquisition for channel access',
-    flow: 'requestPTTToken(channelScope) → edgeFunctions.pttSignalingToken({channelScope}) → ptt-signaling-token Edge Function → validates user auth + org membership + channelScope → POST /api/token/mint on ptt-server with PROXY_SECRET → JWT signed with PTT_JWT_SECRET → returns {token, wsUrl, iceServers, expiresIn: 600} → client connects WebSocket with ?token=jwt',
-    hooks_pattern: 'Called automatically by connectToPTT() in ptt.ts. Edge Function calls ptt-server /api/token/mint on VPS 72.61.123.97:8080. Secrets: PTT_SERVER_URL, PROXY_SECRET, PTT_JWT_SECRET.',
+    flow: 'requestPTTToken(channelScope) → edgeFunctions.pttSignalingToken({channelScope}) → ptt-signaling-token Edge Function → validates user auth + org membership + channelScope → POST /api/token/mint on ptt-server with PROXY_SECRET → JWT signed with PTT_JWT_SECRET → returns {token, wsUrl, iceServers, expiresIn: 300} → client connects WebSocket with ?token=jwt',
+    hooks_pattern: 'Called automatically by connectToPTT() in ptt.ts. Edge Function calls ptt-server /api/token/mint via PTT_SERVER_URL (HTTPS in production). Secrets: PTT_SERVER_URL, PROXY_SECRET, PTT_JWT_SECRET.',
   },
 };
 

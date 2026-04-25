@@ -212,7 +212,7 @@ const GITHUB_KNOWLEDGE = {
     'ops-intel-feed-sync.yml': 'Every 6 hours. Harvests intel feeds, sends to Bob /intel/ingest-bulletin.',
     'ops-parkpow-sync.yml': 'Nightly 02:00 UTC. Syncs parking data from ParkPow API.',
     'ops-geofence-review.yml': 'Monthly (1st of month). Reviews zone geofences for staleness.',
-    'set-ptt-secret.yml': 'One-shot manual. Sets PTT_SERVER_URL (http://72.61.123.97:8080), PROXY_SERVER_URL, INFERENCE_SERVICE_URL in Supabase Edge Function secrets.',
+    'set-ptt-secret.yml': 'One-shot manual. Sets PTT_SERVER_URL (HTTPS PTT host), PROXY_SERVER_URL, INFERENCE_SERVICE_URL in Supabase Edge Function secrets.',
     'bug-report-escalator.yml': 'Every 10 minutes. Escalates stale bug reports older than configurable threshold.',
     'synthetic-monitor.yml': 'Every 30 minutes. Checks frontend, Supabase API, and Playwright render. Files bug reports on failure.',
     'sync-bob-repo.yml': 'Mirrors inference-service/ to DonSquires/Bob repo via BOB_SYNC_PAT.',
@@ -221,7 +221,7 @@ const GITHUB_KNOWLEDGE = {
   secrets: {
     required_secrets: [
       'RUNPOD_API_KEY — RunPod API key for Bob+Ollama pod (= RUNPOD_ENDPOINT_API_KEY)',
-      'PTT_SERVER_URL — VPS PTT server URL (e.g. http://72.61.123.97:3002)',
+      'PTT_SERVER_URL — PTT server URL (must be HTTPS in production, for example https://ptt.fcmanager.co.nz)',
       'RAILWAY_PROXY_SERVICE_ID — Railway service ID for proxy-server',
       'RUNPOD_ENDPOINT_ID — RunPod serverless endpoint ID for Bob',
       'VERCEL_TOKEN — Vercel deployment token',
