@@ -738,30 +738,33 @@ export default function NoiseOfficerPortal() {
               myJobs.map(job => {
                 const rec = getActionRecommendation(job)
                 return (
-                  <Card key={job.id} className={`cursor-pointer hover:shadow-md transition-shadow ${selectedJob?.id === job.id ? 'ring-2 ring-orange-400' : ''}`}
-                    onClick={() => { setSelectedJob(job); setTab('assess') }}>
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap mb-1">
-                            <span className="font-mono text-sm font-semibold text-gray-700">{job.job_number}</span>
-                            <Badge className={`text-xs ${PRIORITY_COLOUR[job.priority]}`}>{job.priority.toUpperCase()}</Badge>
-                            {job.has_permanent_end && <Badge className="text-xs bg-red-600 text-white">PERMANENT END</Badge>}
-                            {job.has_hs_incident && <Badge className="text-xs bg-yellow-600 text-white">H&S</Badge>}
-                          </div>
-                          <p className="font-semibold text-gray-900 text-sm truncate">{job.title}</p>
-                          <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-                            <MapPin className="h-3 w-3" /> {job.address}{job.suburb ? `, ${job.suburb}` : ''}
-                          </p>
-                          {/* Inline action recommendation preview */}
-                          <div className={`mt-2 rounded p-2 text-xs border ${REC_STYLES[rec.level]}`}>
-                            <strong>{rec.title}</strong>
-                          </div>
-                        </div>
-                        <ChevronRight className="h-5 w-5 text-gray-400 mt-1 shrink-0" />
+                  <button
+                    key={job.id}
+                    onClick={() => { setSelectedJob(job); setTab('assess') }}
+                    className={`w-full text-left rounded-2xl border-2 bg-white p-4 hover:shadow-md active:scale-[0.99] transition-all ${selectedJob?.id === job.id ? 'ring-2 ring-orange-400 border-orange-300' : 'border-gray-200 hover:border-orange-300'}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shrink-0">
+                        <Radio className="h-6 w-6 text-white" />
                       </div>
-                    </CardContent>
-                  </Card>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className="font-mono text-sm font-semibold text-gray-700">{job.job_number}</span>
+                          <Badge className={`text-xs ${PRIORITY_COLOUR[job.priority]}`}>{job.priority.toUpperCase()}</Badge>
+                          {job.has_permanent_end && <Badge className="text-xs bg-red-600 text-white">PERMANENT END</Badge>}
+                          {job.has_hs_incident && <Badge className="text-xs bg-yellow-600 text-white">H&S</Badge>}
+                        </div>
+                        <p className="font-semibold text-gray-900 text-sm truncate">{job.title}</p>
+                        <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                          <MapPin className="h-3 w-3" /> {job.address}{job.suburb ? `, ${job.suburb}` : ''}
+                        </p>
+                        <div className={`mt-2 rounded p-2 text-xs border ${REC_STYLES[rec.level]}`}>
+                          <strong>{rec.title}</strong>
+                        </div>
+                      </div>
+                      <ChevronRight className="h-5 w-5 text-gray-400 mt-1 shrink-0" />
+                    </div>
+                  </button>
                 )
               })
             )}
@@ -1259,28 +1262,26 @@ export default function NoiseOfficerPortal() {
                   const ABBR: Record<string, string> = { abatement_notice: 'AN', direction_notice: 'DN', enforcement_notice: 'END' }
                   const abbr = ABBR[n.notice_type] ?? 'NO'
                   return (
-                    <Card key={n.id}>
-                      <CardContent className="p-3 flex items-center gap-3">
-                        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
-                          <span className="text-xs font-bold text-orange-700">{abbr}</span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-mono text-sm font-semibold text-gray-800">{n.notice_number}</p>
-                          <p className="text-xs text-gray-500 truncate">{n.recipient_address}</p>
-                          <p className="text-xs text-gray-400">{formatDateTime(n.issued_at)}</p>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-shrink-0 text-xs gap-1"
-                          disabled={printingId === n.id}
-                          onClick={() => handlePrintNotice(n.id, n.notice_number)}
-                        >
-                          <Printer className="h-3.5 w-3.5" />
-                          {printingId === n.id ? 'Loading…' : 'Print'}
-                        </Button>
-                      </CardContent>
-                    </Card>
+                    <div key={n.id} className="rounded-2xl border-2 border-orange-200 bg-orange-50 p-3 flex items-center gap-3">
+                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
+                        <span className="text-xs font-bold text-orange-700">{abbr}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-mono text-sm font-semibold text-gray-800">{n.notice_number}</p>
+                        <p className="text-xs text-gray-500 truncate">{n.recipient_address}</p>
+                        <p className="text-xs text-gray-400">{formatDateTime(n.issued_at)}</p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-shrink-0 text-xs gap-1"
+                        disabled={printingId === n.id}
+                        onClick={() => handlePrintNotice(n.id, n.notice_number)}
+                      >
+                        <Printer className="h-3.5 w-3.5" />
+                        {printingId === n.id ? 'Loading…' : 'Print'}
+                      </Button>
+                    </div>
                   )
                 })}
               </div>
@@ -1291,28 +1292,26 @@ export default function NoiseOfficerPortal() {
               <div className="space-y-2">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Seizure Receipts</p>
                 {mySeizures.map((s: any) => (
-                  <Card key={s.id}>
-                    <CardContent className="p-3 flex items-center gap-3">
-                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-                        <Package className="h-4 w-4 text-red-700" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-mono text-sm font-semibold text-gray-800">{s.seizure_number}</p>
-                        <p className="text-xs text-gray-600 truncate">{s.equipment_description || 'Equipment recorded'}</p>
-                        <p className="text-xs text-gray-400">{formatDateTime(s.seized_at)}</p>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex-shrink-0 text-xs gap-1 border-red-200 text-red-700 hover:bg-red-50"
-                        disabled={printingId === s.id}
-                        onClick={() => handlePrintSeizureReceipt(s.id, s.seizure_number)}
-                      >
-                        <Printer className="h-3.5 w-3.5" />
-                        {printingId === s.id ? 'Loading…' : 'Receipt'}
-                      </Button>
-                    </CardContent>
-                  </Card>
+                  <div key={s.id} className="rounded-2xl border-2 border-red-200 bg-red-50 p-3 flex items-center gap-3">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                      <Package className="h-4 w-4 text-red-700" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-mono text-sm font-semibold text-gray-800">{s.seizure_number}</p>
+                      <p className="text-xs text-gray-600 truncate">{s.equipment_description || 'Equipment recorded'}</p>
+                      <p className="text-xs text-gray-400">{formatDateTime(s.seized_at)}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-shrink-0 text-xs gap-1 border-red-200 text-red-700 hover:bg-red-50"
+                      disabled={printingId === s.id}
+                      onClick={() => handlePrintSeizureReceipt(s.id, s.seizure_number)}
+                    >
+                      <Printer className="h-3.5 w-3.5" />
+                      {printingId === s.id ? 'Loading…' : 'Receipt'}
+                    </Button>
+                  </div>
                 ))}
               </div>
             )}
