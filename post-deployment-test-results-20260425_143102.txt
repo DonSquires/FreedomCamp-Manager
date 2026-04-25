@@ -1,0 +1,27 @@
+Core Schema Tests
+=================
+  [organizations table exists] ✓ PASS
+  [auth.users accessible] ✗ FAIL (got:     53, expected: [0-9])
+  [RLS policies exist] ✗ FAIL (got:      2, expected: [0-9])
+
+Feature Table Tests
+===================
+  [CRM tables created] ✗ FAIL (got:     24, expected: [0-9])
+  [Patrol route tables created] ✗ FAIL (got: ERROR, expected: [0-9])
+  [Roster tables created] ✗ FAIL (got: ERROR, expected: [0-9])
+  [Reporting tables created] ✗ FAIL (got: ERROR, expected: [0-9])
+
+Data Integrity Tests
+=====================
+  [observations table intact] ✗ FAIL (got:     81, expected: [0-9])
+  [patrols table intact] ✗ FAIL (got:     36, expected: [0-9])
+  [vehicles table intact] ✗ FAIL (got: ERROR, expected: [0-9])
+
+Security Tests
+===============
+  [observations RLS policies active] ✗ FAIL (got:     14, expected: [0-9])
+  [access_controls table exists] ✗ FAIL (got:      0, expected: 1)
+
+Performance Tests
+==================
+  [Query Performance] ✓ PASS (     1 queries > 5s)

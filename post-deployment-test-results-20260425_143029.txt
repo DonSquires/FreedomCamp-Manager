@@ -1,0 +1,3 @@
+Core Schema Tests
+=================
+  [organizations table exists] ✓ PASS
