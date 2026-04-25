@@ -1,6 +1,12 @@
 name: Ops PTT hPanel TLS Bootstrap
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/ops-ptt-hpanel-tls-bootstrap.yml'
+      - 'ops/ptt-tls-bootstrap.trigger'
   workflow_dispatch:
     inputs:
       ptt_domain:
@@ -29,6 +35,11 @@ jobs:
   bootstrap:
     name: Configure TLS and Sync PTT Secrets
     runs-on: ubuntu-latest
+    env:
+      PTT_DOMAIN_RESOLVED: ${{ github.event.inputs.ptt_domain || vars.PTT_DOMAIN || 'ptt.fcmanager.co.nz' }}
+      CERTBOT_EMAIL_RESOLVED: ${{ github.event.inputs.certbot_email || vars.CERTBOT_EMAIL || 'squires.don@gmail.com' }}
+      PTT_UPSTREAM_HOST_RESOLVED: ${{ github.event.inputs.ptt_upstream_host || vars.PTT_UPSTREAM_HOST || '127.0.0.1' }}
+      PTT_UPSTREAM_PORT_RESOLVED: ${{ github.event.inputs.ptt_upstream_port || vars.PTT_UPSTREAM_PORT || '8080' }}
     permissions:
       contents: read
 
@@ -51,10 +62,10 @@ jobs:
       - name: Configure nginx and certbot on VPS
         uses: appleboy/ssh-action@v1.0.3
         env:
-          PTT_DOMAIN: ${{ inputs.ptt_domain }}
-          CERTBOT_EMAIL: ${{ inputs.certbot_email }}
-          PTT_UPSTREAM_HOST: ${{ inputs.ptt_upstream_host }}
-          PTT_UPSTREAM_PORT: ${{ inputs.ptt_upstream_port }}
+          PTT_DOMAIN: ${{ env.PTT_DOMAIN_RESOLVED }}
+          CERTBOT_EMAIL: ${{ env.CERTBOT_EMAIL_RESOLVED }}
+          PTT_UPSTREAM_HOST: ${{ env.PTT_UPSTREAM_HOST_RESOLVED }}
+          PTT_UPSTREAM_PORT: ${{ env.PTT_UPSTREAM_PORT_RESOLVED }}
         with:
           host: ${{ secrets.VPS_IP }}
           port: ${{ secrets.VPS_PORT || 22 }}
@@ -133,7 +144,7 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
-          PTT_DOMAIN: ${{ inputs.ptt_domain }}
+          PTT_DOMAIN: ${{ env.PTT_DOMAIN_RESOLVED }}
         run: |
           set -euo pipefail
 
