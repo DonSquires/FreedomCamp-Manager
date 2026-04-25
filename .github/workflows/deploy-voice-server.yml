@@ -78,13 +78,33 @@ jobs:
           command_timeout: 20m
           script: |
             cd /opt/fieldops-voice
-            : "${TURN_SERVER_URL:?TURN_SERVER_URL secret is required}"
+
+            existing_env=""
+            if docker ps -a --format '{{.Names}}' | grep -qx 'fieldops-ptt'; then
+              existing_env="$(docker inspect fieldops-ptt --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null || true)"
+            fi
+
+            # Reuse the currently running container's TURN settings when GitHub
+            # Actions secrets are incomplete. This keeps deploys reproducible even
+            # while repo secrets are being normalized.
+            if [ -z "${TURN_SERVER_URL:-}" ]; then
+              TURN_SERVER_URL="$(printf '%s\n' "$existing_env" | sed -n 's/^TURN_URL=//p' | tail -n1)"
+            fi
 
             # Backward compatibility: allow old TURN_SECRET to satisfy TURN_CREDENTIAL
             # while repos are migrated to TURN_CREDENTIAL secret naming.
             TURN_CREDENTIAL="${TURN_CREDENTIAL:-${TURN_SECRET:-}}"
+            if [ -z "${TURN_CREDENTIAL:-}" ]; then
+              TURN_CREDENTIAL="$(printf '%s\n' "$existing_env" | sed -n 's/^TURN_CREDENTIAL=//p' | tail -n1)"
+            fi
             TURN_USERNAME="${TURN_USERNAME:-fieldops}"
-            : "${TURN_CREDENTIAL:?TURN_CREDENTIAL (or TURN_SECRET) secret is required}"
+            if [ "${TURN_USERNAME}" = "fieldops" ]; then
+              TURN_USERNAME="$(printf '%s\n' "$existing_env" | sed -n 's/^TURN_USERNAME=//p' | tail -n1 || true)"
+              TURN_USERNAME="${TURN_USERNAME:-fieldops}"
+            fi
+
+            : "${TURN_SERVER_URL:?TURN_SERVER_URL secret is required or must exist on current fieldops-ptt container}"
+            : "${TURN_CREDENTIAL:?TURN_CREDENTIAL (or TURN_SECRET) secret is required or must exist on current fieldops-ptt container}"
             : "${PTT_JWT_SECRET:?PTT_JWT_SECRET secret is required}"
             : "${PTT_PROXY_SECRET:?PTT_PROXY_SECRET secret is required}"
             # Always write the authoritative docker-compose.yml so env changes take effect
