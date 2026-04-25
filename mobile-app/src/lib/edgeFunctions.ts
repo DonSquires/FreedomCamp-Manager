@@ -159,6 +159,8 @@ export const edgeFunctions = {
   listObservations: async (params: any) => callEdgeFunction('observations-list', params, 'Failed to fetch observations'),
   renderInfringementNotice: async (params: { notice_id: string }) => callEdgeFunction('render-infringement-notice', params, 'Failed to load printable notice'),
   generateInfringement: async (params: any) => callEdgeFunctionHttp('generate-infringement', params, 'Failed to issue notice'),
+  pttSignalingToken: async (params: { channelScope: string }) => callEdgeFunction('ptt-signaling-token', params, 'Failed to mint PTT token'),
+  transcribeAudio: async (params: { clip_url: string; language?: string }) => callEdgeFunction('transcribe-audio', params, 'Failed to transcribe audio'),
 }
 
 export { withTimeout }

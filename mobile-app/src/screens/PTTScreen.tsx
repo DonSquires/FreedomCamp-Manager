@@ -29,16 +29,12 @@ import { Ionicons } from '@expo/vector-icons'
 import { Audio } from 'expo-av'
 
 import { supabase } from '../lib/supabase'
+import { edgeFunctions } from '../lib/edgeFunctions'
 import { uploadPTTClip } from '../lib/pttAudio'
 import { useAuthStore } from '../stores/authStore'
 import { highVis } from '../lib/highVisTheme'
 
-// ---------------------------------------------------------------------------
-// Env
-// ---------------------------------------------------------------------------
-const PTT_SERVER_URL: string = (
-  process.env.EXPO_PUBLIC_PTT_SERVER_URL || 'wss://ptt.yourdomain.com'
-).replace(/\/$/, '')
+const MIN_TOKEN_REFRESH_DELAY_MS = 15_000
 
 // ---------------------------------------------------------------------------
 // Types
@@ -102,15 +98,18 @@ interface EmergencyMessage {
   emergency: SyncMessage['emergencyBroadcast']
 }
 
+interface PTTTokenResponse {
+  token: string
+  channelScope: string
+  expiresIn: number
+  wsUrl: string
+}
+
 type ServerMessage = SyncMessage | PresenceMessage | SpeakerMessage | SpeakingMessage | EmergencyMessage | ErrorMessage
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-function buildWsUrl(channelId: string, token: string): string {
-  return `${PTT_SERVER_URL}/ws?channel=${encodeURIComponent(channelId)}&token=${encodeURIComponent(token)}`
-}
-
 function roleColor(role: string): string {
   if (role === 'admin' || role === 'master') return highVis.colors.actionBlue
   if (role === 'admin_officer') return highVis.colors.warningAmber
@@ -146,7 +145,10 @@ export default function PTTScreen() {
   const soundRef = useRef<Audio.Sound | null>(null)
   const appStateRef = useRef<AppStateStatus>(AppState.currentState)
   const reconnectTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const tokenRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const mountedRef = useRef(true)
+  const connectionStartedAtRef = useRef<number | null>(null)
+  const [degradedMode, setDegradedMode] = useState(false)
 
   // ------------------------------------------------------------------
   // Play incoming clip
@@ -240,6 +242,85 @@ export default function PTTScreen() {
     }
   }, [playClip, user?.id])
 
+  const clearTokenRefreshTimer = useCallback(() => {
+    if (tokenRefreshTimerRef.current) {
+      clearTimeout(tokenRefreshTimerRef.current)
+      tokenRefreshTimerRef.current = null
+    }
+  }, [])
+
+  const scheduleTokenRefresh = useCallback((expiresInSeconds?: number) => {
+    clearTokenRefreshTimer()
+
+    const ttl = Number.isFinite(expiresInSeconds) && (expiresInSeconds || 0) > 0
+      ? Number(expiresInSeconds)
+      : 300
+    const delayMs = Math.max(MIN_TOKEN_REFRESH_DELAY_MS, Math.floor(ttl * 1000 * 0.5))
+
+    tokenRefreshTimerRef.current = setTimeout(() => {
+      tokenRefreshTimerRef.current = null
+      if (!mountedRef.current) return
+      if (appStateRef.current !== 'active') return
+      connect().catch(() => {})
+    }, delayMs)
+  }, [clearTokenRefreshTimer])
+
+  const persistTransmissionLog = useCallback(async (clipUrl: string | null, durationSeconds: number) => {
+    if (!user?.id || !orgId) return
+
+    const basePayload: Record<string, any> = {
+      organization_id: orgId,
+      channel_number: 0,
+      channel_name: channelId,
+      speaker_id: user.id,
+      speaker_name: user.full_name || [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email,
+      speaker_callsign: user.first_name || user.email,
+      duration_seconds: durationSeconds,
+      is_emergency: !!emergency?.active,
+      transcript: null,
+    }
+
+    let insertedId: string | null = null
+    let insertResult = await (supabase as any)
+      .from('ptt_transmission_log')
+      .insert({
+        ...basePayload,
+        clip_url: clipUrl,
+      })
+      .select('id')
+      .single()
+
+    if (insertResult.error && (String(insertResult.error?.message || '').includes('clip_url') || insertResult.error?.code === '42703')) {
+      insertResult = await (supabase as any)
+        .from('ptt_transmission_log')
+        .insert(basePayload)
+        .select('id')
+        .single()
+    }
+
+    if (insertResult.error) {
+      return
+    }
+
+    insertedId = insertResult.data?.id || null
+    if (!clipUrl) return
+
+    try {
+      const { data, error } = await edgeFunctions.transcribeAudio({ clip_url: clipUrl, language: 'en' })
+      if (error) return
+
+      const transcript = String((data as any)?.transcript ?? (data as any)?.text ?? '').trim()
+      if (!transcript || !insertedId) return
+
+      await (supabase as any)
+        .from('ptt_transmission_log')
+        .update({ transcript })
+        .eq('id', insertedId)
+    } catch {
+      // best effort only
+    }
+  }, [channelId, emergency?.active, orgId, user])
+
   // ------------------------------------------------------------------
   // Connect to PTT server
   // ------------------------------------------------------------------
@@ -250,49 +331,79 @@ export default function PTTScreen() {
     }
 
     setWsStatus('connecting')
+    connectionStartedAtRef.current = Date.now()
     setWsError(null)
+    setDegradedMode(false)
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession()
-      const token = sessionData.session?.access_token
-      if (!token) {
+      const { data, error } = await edgeFunctions.pttSignalingToken({ channelScope: channelId })
+      if (error || !data?.token || !data?.wsUrl) {
         setWsStatus('error')
-        setWsError('Not authenticated – please log in again.')
+        setWsError(error || 'Unable to mint PTT token.')
         return
       }
 
-      const url = buildWsUrl(channelId, token)
-      const ws = new WebSocket(url, ['ptt.v2'])
-      wsRef.current = ws
-
-      ws.onopen = () => setWsStatus('connected')
-
-      ws.onerror = () => {
+      const tokenData = data as PTTTokenResponse
+      if (!tokenData.wsUrl.startsWith('ws://') && !tokenData.wsUrl.startsWith('wss://')) {
         setWsStatus('error')
-        setWsError('Connection failed. Tap to retry.')
+        setWsError('PTT websocket URL is invalid.')
+        return
       }
 
-      ws.onclose = () => {
-        if (!mountedRef.current) return
-        setWsStatus('disconnected')
-        wsRef.current = null
-      }
+      const openSocket = (mode: 'subprotocol' | 'query', attemptedFallback = false) => {
+        const fallbackUrl = `${tokenData.wsUrl}?token=${encodeURIComponent(tokenData.token)}`
+        const ws = mode === 'subprotocol'
+          ? new WebSocket(tokenData.wsUrl, ['ptt.v2', `auth.${tokenData.token}`])
+          : new WebSocket(fallbackUrl)
+        wsRef.current = ws
 
-      ws.onmessage = (event) => {
-        try {
-          const msg: ServerMessage = JSON.parse(event.data as string)
-          handleMessage(msg)
-        } catch {
-          // ignore malformed frames
+        ws.onopen = () => {
+          if (!mountedRef.current) return
+          setWsStatus('connected')
+          setWsError(null)
+          setDegradedMode(false)
+          connectionStartedAtRef.current = null
+          scheduleTokenRefresh(tokenData.expiresIn)
+        }
+
+        ws.onerror = () => {
+          if (!mountedRef.current) return
+          setWsStatus('error')
+          setWsError('Connection failed. Tap to retry.')
+        }
+
+        ws.onclose = (event) => {
+          if (!mountedRef.current) return
+          wsRef.current = null
+
+          // Proxy chains may reject long subprotocol headers; retry once with query-token auth.
+          if (!attemptedFallback && mode === 'subprotocol' && event.code !== 1000) {
+            openSocket('query', true)
+            return
+          }
+
+          setWsStatus('disconnected')
+        }
+
+        ws.onmessage = (event) => {
+          try {
+            const msg: ServerMessage = JSON.parse(event.data as string)
+            handleMessage(msg)
+          } catch {
+            // ignore malformed frames
+          }
         }
       }
+
+      openSocket('subprotocol')
     } catch (err: any) {
       setWsStatus('error')
       setWsError(err?.message ?? 'Unknown error')
     }
-  }, [channelId, handleMessage])
+  }, [channelId, handleMessage, scheduleTokenRefresh])
 
   const disconnect = useCallback(() => {
+    clearTokenRefreshTimer()
     // Stop recording if active
     if (recordingRef.current) {
       recordingRef.current.stopAndUnloadAsync().catch(() => {})
@@ -311,7 +422,7 @@ export default function PTTScreen() {
     setPresence([])
     setSpeakerId(null)
     setEmergency(null)
-  }, [])
+  }, [clearTokenRefreshTimer])
 
   // ------------------------------------------------------------------
   // Audio permissions (requested once on first connect)
@@ -386,6 +497,9 @@ export default function PTTScreen() {
             orgId,
           })
           clipUrl = result.clipUrl
+
+          // Persist log + transcript as best effort (non-blocking).
+          void persistTransmissionLog(clipUrl, duration)
         }
       } catch (err: any) {
         setAudioError(`Upload failed: ${err?.message ?? 'unknown'}`)
@@ -406,7 +520,7 @@ export default function PTTScreen() {
     }
 
     setUploading(false)
-  }, [transmitting, channelId, orgId, user?.id])
+  }, [transmitting, channelId, orgId, persistTransmissionLog, user?.id])
 
   // ------------------------------------------------------------------
   // Lifecycle
@@ -436,6 +550,21 @@ export default function PTTScreen() {
       }
     }, 8000)
 
+    const degradedTimer = setInterval(() => {
+      if (!mountedRef.current) return
+      if (appStateRef.current !== 'active') return
+      if (wsStatus === 'connected') {
+        setDegradedMode(false)
+        return
+      }
+
+      const startedAt = connectionStartedAtRef.current
+      if (!startedAt) return
+      if (Date.now() - startedAt >= 15_000) {
+        setDegradedMode(true)
+      }
+    }, 1000)
+
     return () => {
       mountedRef.current = false
       appStateSub.remove()
@@ -443,9 +572,10 @@ export default function PTTScreen() {
         clearInterval(reconnectTimerRef.current)
         reconnectTimerRef.current = null
       }
+      clearInterval(degradedTimer)
       disconnect()
     }
-  }, [connect, disconnect])
+  }, [connect, disconnect, wsStatus])
 
   // ------------------------------------------------------------------
   // Render helpers
@@ -512,6 +642,16 @@ export default function PTTScreen() {
           <Ionicons name="refresh" size={14} color={highVis.colors.actionBlue} />
           <Text style={styles.retryText}>{wsError ?? 'Tap to retry'}</Text>
         </Pressable>
+      )}
+
+      {degradedMode && wsStatus !== 'connected' && (
+        <View style={styles.degradedBar}>
+          <Ionicons name="warning-outline" size={14} color={highVis.colors.warningAmber} />
+          <Text style={styles.degradedText}>PTT server unreachable - check your connection or use mobile phone direct.</Text>
+          <Pressable onPress={connect}>
+            <Text style={styles.degradedRetryText}>Retry</Text>
+          </Pressable>
+        </View>
       )}
 
       {/* ── Presence roster ── */}
@@ -646,6 +786,27 @@ const styles = StyleSheet.create({
   retryText: {
     color: highVis.colors.actionBlue,
     fontSize: 13,
+  },
+  degradedBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: highVis.spacing.md,
+    marginBottom: highVis.spacing.sm,
+    backgroundColor: '#2b200a',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  degradedText: {
+    flex: 1,
+    color: highVis.colors.warningAmber,
+    fontSize: 12,
+  },
+  degradedRetryText: {
+    color: highVis.colors.actionBlue,
+    fontSize: 12,
+    fontWeight: '700',
   },
   rosterContainer: {
     flex: 1,
