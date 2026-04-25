@@ -32,6 +32,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { edgeFunctions } from '@/lib/edgeFunctions'
+import { canAccessPTTChannel } from '@/lib/pttChannelAccess'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
@@ -526,21 +527,16 @@ export default function PTTRadio() {
     [crossOrgIds],
   )
   const shouldEnforceChannelAcl = user?.role === 'officer' || user?.role === 'admin_officer'
-  const allowedChannelScopes = useMemo(
-    () => new Set(user?.ptt_channel_access ?? []),
-    [user?.ptt_channel_access],
-  )
 
   const canAccessChannel = useCallback((channel: RadioChannel) => {
-    if (!effectiveOrgId || !shouldEnforceChannelAcl) return true
-
-    const channelScope = getChannelScope(channel, effectiveOrgId)
-    if (channelScope === `org:${effectiveOrgId}`) {
-      return true
-    }
-
-    return allowedChannelScopes.has(channelScope)
-  }, [allowedChannelScopes, effectiveOrgId, shouldEnforceChannelAcl])
+    return canAccessPTTChannel({
+      channel,
+      effectiveOrgId,
+      userRole: shouldEnforceChannelAcl ? user?.role : null,
+      allowedChannelScopes: user?.ptt_channel_access ?? null,
+      getScope: getChannelScope,
+    })
+  }, [effectiveOrgId, shouldEnforceChannelAcl, user?.ptt_channel_access, user?.role])
 
   // ── Load channels from DB ─────────────────────────────────
   const { data: dbChannels, isLoading: loadingChannels, error: channelsError } = useQuery<RadioChannel[]>({

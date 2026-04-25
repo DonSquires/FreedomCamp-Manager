@@ -17,6 +17,7 @@ const helmet = require('helmet');
 const http = require('http');
 const { WebSocketServer } = require('ws');
 const jwt = require('jsonwebtoken');
+const { createClient } = require('redis');
 const { v4: uuidv4 } = require('uuid');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
@@ -75,6 +76,9 @@ const TURN_CREDENTIAL = process.env.TURN_CREDENTIAL;
 const FORCE_TURN_RELAY = String(process.env.FORCE_TURN_RELAY || '').toLowerCase() === 'true';
 const PTT_DISABLE_PUBLIC_STUN = String(process.env.PTT_DISABLE_PUBLIC_STUN || '').toLowerCase() === 'true';
 const TOKEN_TRACKER_RETENTION_MS = parseInt(process.env.PTT_TOKEN_TRACKER_RETENTION_MS || '300000', 10);
+const REDIS_URL = String(process.env.REDIS_URL || '').trim();
+const REDIS_CHANNEL_META_TTL_SECONDS = parseInt(process.env.PTT_REDIS_CHANNEL_META_TTL_SECONDS || '86400', 10);
+const REDIS_EMERGENCY_TTL_SECONDS = parseInt(process.env.PTT_REDIS_EMERGENCY_TTL_SECONDS || '86400', 10);
 const PREVIEW_HOST_REGEX =
   process.env.PTT_ALLOWED_PREVIEW_ORIGIN_REGEX ||
   '^preview-[a-z0-9-]+\\.onspace\\.build$';
@@ -204,6 +208,159 @@ const emergencyBroadcastState = new Map();
 const tokenMintTracker = new Map();
 
 let tokenTrackerSweepInterval = null;
+let redisClient = null;
+let redisReady = false;
+
+function getRedisChannelMetaKey(channelId) {
+  return `ptt:channel-meta:${channelId}`;
+}
+
+function getRedisEmergencyKey(organizationId) {
+  return `ptt:emergency:${organizationId}`;
+}
+
+function isRedisConfigured() {
+  return !!REDIS_URL;
+}
+
+function isRedisAvailable() {
+  return !!(redisClient && redisReady);
+}
+
+async function initRedis() {
+  if (!isRedisConfigured()) return;
+
+  redisClient = createClient({ url: REDIS_URL });
+  redisClient.on('error', (err) => {
+    redisReady = false;
+    console.error('PTT Redis error:', err.message);
+  });
+  redisClient.on('ready', () => {
+    redisReady = true;
+    console.log('PTT Redis connected');
+  });
+  redisClient.on('end', () => {
+    redisReady = false;
+    console.warn('PTT Redis connection closed');
+  });
+
+  try {
+    await redisClient.connect();
+  } catch (err) {
+    redisReady = false;
+    console.error('PTT Redis init failed:', err.message);
+  }
+}
+
+async function closeRedis() {
+  if (!redisClient) return;
+  try {
+    await redisClient.quit();
+  } catch (_err) {
+    try {
+      await redisClient.disconnect();
+    } catch (_disconnectErr) {
+      // Ignore shutdown failures.
+    }
+  }
+}
+
+async function persistChannelMeta(channelId) {
+  if (!isRedisAvailable()) return;
+  const meta = channelMeta.get(channelId);
+  if (!meta) return;
+
+  try {
+    await redisClient.set(getRedisChannelMetaKey(channelId), JSON.stringify(meta), {
+      EX: REDIS_CHANNEL_META_TTL_SECONDS,
+    });
+  } catch (err) {
+    console.warn(`Failed to persist channel meta for ${channelId}:`, err.message);
+  }
+}
+
+async function hydrateChannelMeta(channelId) {
+  if (!isRedisAvailable() || channelMeta.has(channelId)) return null;
+
+  try {
+    const raw = await redisClient.get(getRedisChannelMetaKey(channelId));
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+
+    const hydrated = {
+      organizationId: parsed.organizationId || null,
+      type: parsed.type || channelId.split(':')[0] || 'org',
+      speakerId: null,
+      createdAt: parsed.createdAt || new Date().toISOString(),
+    };
+    channelMeta.set(channelId, hydrated);
+    return hydrated;
+  } catch (err) {
+    console.warn(`Failed to hydrate channel meta for ${channelId}:`, err.message);
+    return null;
+  }
+}
+
+async function clearChannelMetaPersistence(channelId) {
+  if (!isRedisAvailable()) return;
+  try {
+    await redisClient.del(getRedisChannelMetaKey(channelId));
+  } catch (err) {
+    console.warn(`Failed to clear channel meta for ${channelId}:`, err.message);
+  }
+}
+
+async function persistEmergencyBroadcastState(organizationId, state) {
+  if (!isRedisAvailable()) return;
+  try {
+    await redisClient.set(getRedisEmergencyKey(organizationId), JSON.stringify(state), {
+      EX: REDIS_EMERGENCY_TTL_SECONDS,
+    });
+  } catch (err) {
+    console.warn(`Failed to persist emergency state for org ${organizationId}:`, err.message);
+  }
+}
+
+async function hydrateEmergencyBroadcastState(organizationId) {
+  if (emergencyBroadcastState.has(organizationId)) {
+    return emergencyBroadcastState.get(organizationId);
+  }
+  if (!isRedisAvailable()) return null;
+
+  try {
+    const raw = await redisClient.get(getRedisEmergencyKey(organizationId));
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || parsed.active !== true) return null;
+
+    emergencyBroadcastState.set(organizationId, parsed);
+    return parsed;
+  } catch (err) {
+    console.warn(`Failed to hydrate emergency state for org ${organizationId}:`, err.message);
+    return null;
+  }
+}
+
+async function clearEmergencyBroadcastPersistence(organizationId) {
+  if (!isRedisAvailable()) return;
+  try {
+    await redisClient.del(getRedisEmergencyKey(organizationId));
+  } catch (err) {
+    console.warn(`Failed to clear emergency state for org ${organizationId}:`, err.message);
+  }
+}
+
+function getEmergencyBroadcastForSync(organizationId) {
+  return emergencyBroadcastState.get(organizationId) || {
+    active: false,
+    initiatedBy: null,
+    initiatedByName: null,
+    at: null,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Rate limiting
@@ -327,6 +484,8 @@ app.get('/health', (req, res) => {
     connectedUsers: userPresence.size,
     turnConfigured: isTurnConfigured(),
     forceTurnRelay: FORCE_TURN_RELAY,
+    redisConfigured: isRedisConfigured(),
+    redisReady: isRedisAvailable(),
     mediaPath: getMediaPathConfig(),
   });
 });
@@ -359,6 +518,10 @@ app.get('/api/info', (req, res) => {
     },
     turnConfigured: isTurnConfigured(),
     forceTurnRelay: FORCE_TURN_RELAY,
+    redis: {
+      configured: isRedisConfigured(),
+      ready: isRedisAvailable(),
+    },
     protocol: {
       version: PTT_PROTOCOL_VERSION,
       interopProfile: INTEROP_PROFILE,
@@ -413,6 +576,10 @@ app.get('/api/diagnostics', (req, res) => {
       forceTurnRelay: FORCE_TURN_RELAY,
       iceTransportPolicy: FORCE_TURN_RELAY ? 'relay' : 'all',
       hasTurnCredentials: !!(TURN_USERNAME && TURN_CREDENTIAL),
+    },
+    redis: {
+      configured: isRedisConfigured(),
+      ready: isRedisAvailable(),
     },
     mediaPath: getMediaPathConfig(),
   });
@@ -747,7 +914,7 @@ app.delete('/api/connections/:userId', rateLimitMiddleware, (req, res) => {
 /**
  * WebSocket connection handler
  */
-wss.on('connection', (ws, req) => {
+wss.on('connection', async (ws, req) => {
   // Prefer subprotocol auth.<jwt>, fallback to query token for backward compatibility.
   const wsAuth = extractTokenFromWebSocketRequest(req);
   const token = wsAuth?.token;
@@ -794,6 +961,7 @@ wss.on('connection', (ws, req) => {
       if (previousClients.size === 0) {
         channels.delete(previousChannelId);
         channelMeta.delete(previousChannelId);
+        void clearChannelMetaPersistence(previousChannelId);
       }
     }
 
@@ -825,12 +993,16 @@ wss.on('connection', (ws, req) => {
   if (!channels.has(channelId)) {
     channels.set(channelId, new Set());
     const [type] = channelId.split(':');
-    channelMeta.set(channelId, {
-      organizationId,
-      type,
-      speakerId: null,
-      createdAt: new Date().toISOString(),
-    });
+    const hydratedMeta = await hydrateChannelMeta(channelId);
+    if (!hydratedMeta) {
+      channelMeta.set(channelId, {
+        organizationId,
+        type,
+        speakerId: null,
+        createdAt: new Date().toISOString(),
+      });
+      void persistChannelMeta(channelId);
+    }
   }
 
   // Add client to channel
@@ -858,6 +1030,7 @@ wss.on('connection', (ws, req) => {
 
   // Send current presence to new joiner
   const currentPresence = [];
+  await hydrateEmergencyBroadcastState(organizationId);
   for (const [uid, p] of userPresence.entries()) {
     if (p.channelId === channelId && uid !== userId) {
       currentPresence.push({ userId: uid, name: p.name, role: p.role, status: p.status });
@@ -868,12 +1041,7 @@ wss.on('connection', (ws, req) => {
     channelId,
     presence: currentPresence,
     speakerId: channelMeta.get(channelId)?.speakerId || null,
-    emergencyBroadcast: emergencyBroadcastState.get(organizationId) || {
-      active: false,
-      initiatedBy: null,
-      initiatedByName: null,
-      at: null,
-    },
+    emergencyBroadcast: getEmergencyBroadcastForSync(organizationId),
     transport: {
       turnConfigured: isTurnConfigured(),
       forceTurnRelay: FORCE_TURN_RELAY,
@@ -902,6 +1070,7 @@ wss.on('connection', (ws, req) => {
       if (clients.size === 0) {
         channels.delete(channelId);
         channelMeta.delete(channelId);
+        void clearChannelMetaPersistence(channelId);
       }
     }
 
@@ -1060,8 +1229,10 @@ function handleMessage(ws, userId, channelId, organizationId, name, role, messag
 
       if (active) {
         emergencyBroadcastState.set(organizationId, state);
+        void persistEmergencyBroadcastState(organizationId, state);
       } else {
         emergencyBroadcastState.delete(organizationId);
+        void clearEmergencyBroadcastPersistence(organizationId);
       }
 
       broadcastToOrganization(organizationId, {
@@ -1095,6 +1266,16 @@ server.listen(PORT, '0.0.0.0', () => {
   ║   Force TURN Relay: ${(FORCE_TURN_RELAY ? '✓ Enabled' : '○ Disabled').padEnd(17)}║
   ╚═══════════════════════════════════════╝
   `);
+});
+
+void initRedis();
+
+process.on('SIGTERM', () => {
+  void closeRedis();
+});
+
+process.on('SIGINT', () => {
+  void closeRedis();
 });
 
 // ---------------------------------------------------------------------------
