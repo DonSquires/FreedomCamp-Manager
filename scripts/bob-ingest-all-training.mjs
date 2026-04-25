@@ -28,6 +28,7 @@ let BOB_URL = String(process.env.BOB_SERVICE_URL || process.env.INFERENCE_SERVIC
 let API_KEY = String(process.env.BOB_INFERENCE_API_KEY || process.env.INFERENCE_API_KEY || '').trim()
 const DRY_RUN = process.argv.includes('--dry-run')
 const SKIP_TESTS = process.argv.includes('--skip-connectivity-test')
+const SKIP_VERIFY = process.argv.includes('--skip-verify')
 
 // Require explicit endpoint configuration to avoid stale hardcoded endpoint drift.
 
@@ -54,6 +55,7 @@ if (!BOB_URL || !API_KEY) {
 }
 
 const feeders = [
+  ...(SKIP_VERIFY ? [] : ['verify-bob-training-wiring.mjs']),
   'bob-feed-build-context.mjs',
   'bob-feed-railway-training.mjs',
   'bob-feed-specialized-training.mjs',

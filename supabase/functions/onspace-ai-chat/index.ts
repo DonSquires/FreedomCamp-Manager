@@ -348,6 +348,11 @@ function parseProviderPreference(raw: unknown): 'auto' | 'inference' | 'ollama' 
   return 'auto'
 }
 
+function isOpenAIReferenceProvider(raw: unknown): boolean {
+  const normalized = String(raw ?? '').trim().toLowerCase()
+  return normalized === 'openai' || normalized === 'chatgpt'
+}
+
 function parseBooleanEnv(raw: string | undefined, defaultValue: boolean): boolean {
   if (raw === undefined || raw === null) return defaultValue
   const normalized = String(raw).trim().toLowerCase()
@@ -529,6 +534,17 @@ Deno.serve(async (req: Request) => {
       return value
     }
     const inferenceModel = normalizeOllamaModel(model)
+
+    const openAIReferenceGateEnabled = parseBooleanEnv(Deno.env.get('OPENAI_REFERENCE_GATE_ENABLED'), true)
+    if (openAIReferenceGateEnabled && isOpenAIReferenceProvider(requestedProvider)) {
+      return new Response(
+        JSON.stringify({
+          error: 'OpenAI reference provider requests are disabled by policy on this endpoint. Use inference/ollama providers.',
+          provider: 'policy-enforcer',
+        }),
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
+      )
+    }
 
     // Build messages array — accept Format A (full array) or Format B (single message + context)
     let messages: Array<{ role: string; content: string }>

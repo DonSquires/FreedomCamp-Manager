@@ -3827,3 +3827,109 @@ After making changes, always verify:
 Trust these instructions. Only search the codebase if information here is incomplete or appears incorrect.
 ```
 
+
+---
+
+## [2026-04-25] ACCESS CONTROL REDESIGN ANALYSIS
+
+### New Artifact: INDEPENDENT_ANALYSIS_ACCESS_CONTROL.md
+
+**Purpose**: Comprehensive schema audit + comparison with NIST/industry best practices
+
+**Key Findings**:
+- **Current State**: 80% aligned with best practices; 7 roles, RLS at DB, multi-org hooks exist
+- **Gap 1: Menu Visibility** — All 60+ menu items visible to all authenticated users; access enforced at route level (silent redirects create UX friction)
+- **Gap 2: Org Context** — useOrganization hooks exist but NOT used in route guards; org filtering only in data layer
+- **Gap 3: Schema Fragmentation** — Access metadata scattered across App.tsx, AppLayout.tsx, AdminNavigationMenu.tsx
+- **Vulnerability**: Grand Master bypass IMPLICIT in AreaRoute (line 363), not documented/audited
+- **Test Gap**: Multi-org scenarios not tested (e.g., admin from org1 vs org2)
+
+**Strengths**:
+1. Route guards are solid (RoleRoute, AreaRoute layers)
+2. DB-level RLS enforced via Supabase
+3. Multi-org data isolation works at query level
+
+**Recommended Phases** (4-phase roadmap):
+- Phase 1 (THIS): Registry consolidation + multi-org routing + test isolation
+- Phase 2: Capability-based access (role → capabilities mapping)
+- Phase 3: Fine-grained org access (location-scoped, authorized_work_locations)
+- Phase 4: Access control visualization (role matrix dashboard)
+
+### New Artifact: ACCESS_NAV_HANDOFF_CHECKLIST_REVISED.md
+
+**Purpose**: Implementation checklist addressing Bob's 3 blockers + industry gaps
+
+**Blocker 1 Resolution**: Ground accessRegistry.ts in system_state.json
+- Prevents untracked drift
+- Enables audit tooling
+
+**Blocker 2 Resolution**: Robust test isolation
+- Gate Bob scoring with RUN_BOB_UI_ASSESS=1
+- Route access tests independent of Bob service
+
+**Blocker 3 Resolution**: Multi-org scope filtering
+- Add getAccessibleRoutes(user, userOrgs) helper
+- Filter routes by role + org BEFORE rendering
+- Add orgScoped?: boolean and requiredOrgCapability?: string fields to registry
+
+**New Addition** (from Bob's review): Audit logging for access decisions
+- Log entry point + exit decision for each route guard
+- Consider for Phase 2 alongside session management
+
+### New Artifact: COMPARISON_HUMAN_vs_BOB_ANALYSIS.md
+
+**Purpose**: Compare human deep-dive analysis vs Bob's independent review
+
+**Findings**:
+- **Alignment**: Both identified need for RBAC consolidation and phased approach
+- **Divergence**: Bob gave generic response (MFA, audit logs) without FieldOps-specific codebase context
+- **Quality Asymmetry**: Human analysis = specific (file paths, line numbers), Bob analysis = high-level
+- **Value**: Bob correctly flagged audit logging + session management as future phases
+
+**Integrated Roadmap** (combining both):
+1. Phase 1: Registry + multi-org scope + test isolation (Human + revised checklist)
+2. Phase 2: Audit logging + session management (Bob + Human)
+3. Phase 3: Capability-based access (Human Phase 2)
+4. Phase 4: Fine-grained org access (Human Phase 3)
+5. Phase 5: MFA integration (Bob Phase 4, deferred)
+
+### Access Control Redesign: Key Timeline
+
+| Phase | Focus | Dependencies | Priority |
+|---|---|---|---|
+| **Phase 1 (This task)** | Registry consolidation + multi-org + test isolation | None | CRITICAL |
+| **Phase 2** | Audit logging + session management | Phase 1 complete | HIGH |
+| **Phase 3** | Capability-based access + enhanced org scoping | Phase 1-2 complete | HIGH |
+| **Phase 4** | Access control dashboard + reporting | Phases 1-3 complete | MEDIUM |
+| **Phase 5 (Backlog)** | MFA + enhanced auth methods | All previous | LOW |
+
+### Critical Implementation Notes for Bob
+
+1. **Menu Filtering** (NOT in original checklist, added by analysis):
+   - Filter AdminNavigationMenu items by `visibleInMenuFor` + user role/org BEFORE render
+   - Add optional disabled state for unauthorized items (discoverable, not silent)
+
+2. **Grand Master Bypass** (Hidden Risk):
+   - Currently IMPLICIT in AreaRoute (line 363)
+   - Must become EXPLICIT with comment: "grand_master bypasses all org/role checks"
+   - Consider audit logging for every grand_master access
+
+3. **Org Fields Underutilized**:
+   - `authorized_work_locations` defined in DB schema but NOT enforced
+   - `extra_organization_ids` similar situation
+   - Phase 3 should activate these for fine-grained access
+
+4. **Test Matrix Minimum** (for acceptance gates):
+   - (grand_master, all_orgs) → sees all routes
+   - (master, org1) → sees org1 routes only
+   - (admin, org1) → sees admin + org1-scoped routes
+   - (admin, org2) → sees admin + org2-scoped routes (DIFFERENT visiblity)
+   - (officer, org1) → sees officer-only routes
+   - (officer, org2) → sees officer-only routes
+   - (client_viewer, portal) → sees portal routes only
+
+5. **Edge Cases to Test**:
+   - Master switching org via globalFiltersStore → menu updates correctly?
+   - Admin from multiple orgs → does route guard enforce single-org isolation?
+   - Direct URL access to org2 route while in org1 context → properly rejected?
+
