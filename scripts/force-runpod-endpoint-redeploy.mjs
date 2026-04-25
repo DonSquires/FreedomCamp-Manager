@@ -87,12 +87,14 @@ async function main() {
   }
 
   const bumpedWorkersMin = Math.max(1, workersMinBefore + 1);
+  const bumpedWorkersMax = Math.max(workersMaxBefore, bumpedWorkersMin);
 
   console.log(`Before: templateId=${templateId} workersMin=${workersMinBefore} workersMax=${workersMaxBefore} imageName=${before?.imageName || '?'}`);
-  console.log(`Patching endpoint with workersMin=${bumpedWorkersMin} to force refresh...`);
+  console.log(`Patching endpoint with workersMin=${bumpedWorkersMin} workersMax=${bumpedWorkersMax} to force refresh...`);
   await rest('PATCH', `endpoints/${endpointId}`, apiKey, {
     templateId,
     workersMin: bumpedWorkersMin,
+    workersMax: bumpedWorkersMax,
   });
 
   console.log(`Waiting ${waitSeconds}s for new worker spin-up...`);
@@ -105,6 +107,7 @@ async function main() {
   console.log(`Restoring workersMin=${workersMinBefore}...`);
   await rest('PATCH', `endpoints/${endpointId}`, apiKey, {
     workersMin: workersMinBefore,
+    workersMax: workersMaxBefore,
   });
 
   const after = await rest('GET', `endpoints/${endpointId}`, apiKey);
