@@ -1,5 +1,8 @@
 name: Deploy Voice & PTT Server
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   push:
     branches:
@@ -46,10 +49,13 @@ jobs:
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_IP }}
+          port: ${{ secrets.VPS_PORT || 22 }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           source: "ptt-server/*"
           target: "/opt/fieldops-voice/"
+          timeout: 90s
+          command_timeout: 20m
 
       - name: Build and Start PTT Server on VPS
         uses: appleboy/ssh-action@v1.0.3
@@ -64,9 +70,12 @@ jobs:
           PTT_PROXY_SECRET: ${{ secrets.PTT_PROXY_SECRET }}
         with:
           host: ${{ secrets.VPS_IP }}
+          port: ${{ secrets.VPS_PORT || 22 }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           envs: TURN_SERVER_URL,TURN_SECRET,TURN_USERNAME,TURN_CREDENTIAL,PTT_JWT_SECRET,PTT_PROXY_SECRET
+          timeout: 90s
+          command_timeout: 20m
           script: |
             cd /opt/fieldops-voice
             : "${TURN_SERVER_URL:?TURN_SERVER_URL secret is required}"
@@ -109,8 +118,11 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_IP }}
+          port: ${{ secrets.VPS_PORT || 22 }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 90s
+          command_timeout: 10m
           script: |
             echo "Waiting 10s for container to be ready..."
             sleep 10
