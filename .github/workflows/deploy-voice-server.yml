@@ -62,6 +62,7 @@ jobs:
         env:
           TURN_SERVER_URL: ${{ secrets.TURN_SERVER_URL }}
           TURN_SECRET: ${{ secrets.TURN_SECRET }}
+          PTT_TURN_PUBLIC_HOST: ${{ secrets.PTT_TURN_PUBLIC_HOST }}
           # ptt-server/server.js reads TURN_USERNAME + TURN_CREDENTIAL (not TURN_SECRET).
           # TURN_USERNAME defaults to the shared HMAC username; TURN_CREDENTIAL is the secret.
           TURN_USERNAME: ${{ secrets.TURN_USERNAME }}
@@ -73,22 +74,44 @@ jobs:
           port: ${{ secrets.VPS_PORT || 22 }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          envs: TURN_SERVER_URL,TURN_SECRET,TURN_USERNAME,TURN_CREDENTIAL,PTT_JWT_SECRET,PTT_PROXY_SECRET
+          envs: TURN_SERVER_URL,TURN_SECRET,PTT_TURN_PUBLIC_HOST,TURN_USERNAME,TURN_CREDENTIAL,PTT_JWT_SECRET,PTT_PROXY_SECRET
           timeout: 90s
           command_timeout: 20m
           script: |
             cd /opt/fieldops-voice
 
             existing_env=""
+            coturn_config=""
             if docker ps -a --format '{{.Names}}' | grep -qx 'fieldops-ptt'; then
               existing_env="$(docker inspect fieldops-ptt --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null || true)"
             fi
+            if [ -f /etc/coturn/turnserver.conf ]; then
+              coturn_config="$(cat /etc/coturn/turnserver.conf 2>/dev/null || true)"
+            fi
+
+            turn_public_host="${PTT_TURN_PUBLIC_HOST:-srv1601189.hstgr.cloud}"
+
+            coturn_user_line="$(printf '%s\n' "$coturn_config" | sed -n 's/^user=//p' | tail -n1)"
+            coturn_username="${coturn_user_line%%:*}"
+            coturn_password="${coturn_user_line#*:}"
+            [ "$coturn_username" = "$coturn_user_line" ] && coturn_username=""
+            [ "$coturn_password" = "$coturn_user_line" ] && coturn_password=""
+
+            coturn_port="$(printf '%s\n' "$coturn_config" | sed -n 's/^listening-port=//p' | tail -n1)"
+            coturn_tls_port="$(printf '%s\n' "$coturn_config" | sed -n 's/^tls-listening-port=//p' | tail -n1)"
 
             # Reuse the currently running container's TURN settings when GitHub
             # Actions secrets are incomplete. This keeps deploys reproducible even
             # while repo secrets are being normalized.
             if [ -z "${TURN_SERVER_URL:-}" ]; then
               TURN_SERVER_URL="$(printf '%s\n' "$existing_env" | sed -n 's/^TURN_URL=//p' | tail -n1)"
+            fi
+            if [ -z "${TURN_SERVER_URL:-}" ]; then
+              if [ -n "$coturn_tls_port" ]; then
+                TURN_SERVER_URL="turns:${turn_public_host}:${coturn_tls_port}?transport=tcp"
+              elif [ -n "$coturn_port" ]; then
+                TURN_SERVER_URL="turn:${turn_public_host}:${coturn_port}"
+              fi
             fi
 
             # Backward compatibility: allow old TURN_SECRET to satisfy TURN_CREDENTIAL
@@ -97,10 +120,16 @@ jobs:
             if [ -z "${TURN_CREDENTIAL:-}" ]; then
               TURN_CREDENTIAL="$(printf '%s\n' "$existing_env" | sed -n 's/^TURN_CREDENTIAL=//p' | tail -n1)"
             fi
+            if [ -z "${TURN_CREDENTIAL:-}" ]; then
+              TURN_CREDENTIAL="$coturn_password"
+            fi
             TURN_USERNAME="${TURN_USERNAME:-fieldops}"
             if [ "${TURN_USERNAME}" = "fieldops" ]; then
               TURN_USERNAME="$(printf '%s\n' "$existing_env" | sed -n 's/^TURN_USERNAME=//p' | tail -n1 || true)"
               TURN_USERNAME="${TURN_USERNAME:-fieldops}"
+            fi
+            if [ "${TURN_USERNAME}" = "fieldops" ] && [ -n "$coturn_username" ]; then
+              TURN_USERNAME="$coturn_username"
             fi
 
             : "${TURN_SERVER_URL:?TURN_SERVER_URL secret is required or must exist on current fieldops-ptt container}"
