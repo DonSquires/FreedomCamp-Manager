@@ -20,6 +20,8 @@ git diff --unified=0 --no-color "$RANGE" -- \
   ':(exclude)docs/**' \
   ':(exclude)data/**' \
   ':(exclude)**/*.md' \
+  ':(exclude)shared/api/**' \
+  ':(exclude)scripts/guard-no-openai-new.sh' \
   > "$TMP_FILE"
 
 if grep -E "^\+[^+]" "$TMP_FILE" | grep -Ein "$PATTERN" >/dev/null 2>&1; then

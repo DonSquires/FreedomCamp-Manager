@@ -51,8 +51,12 @@ function enforceBobOnlyProviderLock(inferenceUrl: string): void {
   const providerLockEnabled = !isTruthyEnv(Deno.env.get('BOB_PROVIDER_LOCK_DISABLED'))
   if (!providerLockEnabled) return
 
+  // Optional compatibility mode: allow provider env vars to exist for reference
+  // or migration metadata, while still forcing all runtime calls through Bob.
+  const allowReferenceProviderEnv = isTruthyEnv(Deno.env.get('BOB_ALLOW_PROVIDER_REFERENCE_ENV'))
+
   const forbiddenKeys = getForbiddenProviderEnvKeys()
-  if (forbiddenKeys.length > 0) {
+  if (!allowReferenceProviderEnv && forbiddenKeys.length > 0) {
     throw new Error(`BOB_PROVIDER_LOCK: forbidden provider env vars present (${forbiddenKeys.join(', ')})`)
   }
 
