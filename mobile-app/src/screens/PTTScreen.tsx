@@ -9,7 +9,8 @@
  *  - Clip upload to Supabase Storage → signed URL sent in stop_speaking
  *  - Playback of incoming clips from other speakers
  *  - Emergency broadcast display
- *  - Graceful disconnect on screen blur / app background
+ *  - Keep-alive reconnect loop for foreground recovery
+ *  - Background-friendly audio mode for receive continuity
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
