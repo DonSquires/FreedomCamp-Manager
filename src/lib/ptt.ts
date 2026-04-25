@@ -14,6 +14,7 @@
 import { supabase } from './supabase'
 import { edgeFunctions } from './edgeFunctions'
 import { usePTTStore, PTTPresence, PTTClip, PTTChannelType } from '@/stores/pttStore'
+import { useAuthStore } from '@/stores/authStore'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1639,6 +1640,7 @@ export async function startSpeaking(): Promise<void> {
  */
 export async function stopSpeaking(): Promise<{ clipUrl?: string; duration?: number }> {
   const store = usePTTStore.getState()
+  const currentUser = useAuthStore.getState().user
 
   if (!store.isSpeaking) return {}
 
@@ -1669,7 +1671,11 @@ export async function stopSpeaking(): Promise<{ clipUrl?: string; duration?: num
         : undefined
 
       try {
-        const result = await uploadClip(blob, store.channelId || 'unknown')
+        const result = await uploadClip(
+          blob,
+          store.channelId || 'unknown',
+          currentUser?.organization_id ?? null,
+        )
         clipUrl = result.url
       } catch (error) {
         console.error('🎤 PTT: Failed to upload clip', error)
@@ -1696,8 +1702,13 @@ export async function stopSpeaking(): Promise<{ clipUrl?: string; duration?: num
 /**
  * Upload audio clip to Supabase Storage
  */
-async function uploadClip(blob: Blob, channelId: string): Promise<{ url: string }> {
-  const filename = `${channelId}/${Date.now()}-${crypto.randomUUID()}.webm`
+async function uploadClip(blob: Blob, channelId: string, organizationId: string | null): Promise<{ url: string }> {
+  if (!organizationId) {
+    throw new Error('PTT clip upload blocked: user organization is required')
+  }
+
+  const safeChannelId = String(channelId || 'unknown').replace(/[^a-zA-Z0-9:_-]/g, '_')
+  const filename = `${organizationId}/${safeChannelId}/${Date.now()}-${crypto.randomUUID()}.webm`
 
   const { data, error } = await supabase.storage
     .from('ptt-clips')
