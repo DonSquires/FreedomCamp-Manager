@@ -1225,8 +1225,8 @@ export default function PTTRadio() {
       await startSpeaking()
       setIsTransmitting(true)
       playStatusTone('tx_start')
-      // Haptic feedback: double-buzz on TX start (field-usable with gloves)
-      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([80, 40, 80])
+      // Haptic feedback on TX start.
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(200)
 
       // Wake lock to keep screen on while transmitting
       if (!wakeLockRef.current) {
@@ -1255,8 +1255,8 @@ export default function PTTRadio() {
 
     setIsTransmitting(false)
     playStatusTone('tx_end')
-    // Short haptic on TX end
-    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(60)
+    // Haptic feedback on TX end.
+    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([100, 50, 100])
 
     if (wakeLockRef.current) {
       releaseWakeLock()
@@ -2119,10 +2119,16 @@ export default function PTTRadio() {
 
             {/* Speaker indicator (when someone else is talking) */}
             {someoneSpeaking && (
-              <div className="flex items-center gap-2 px-5 py-2 rounded-lg bg-green-950 border border-green-700 animate-pulse">
-                <Volume2 className="h-4 w-4 text-green-400" />
-                <span className="text-green-300 text-sm font-bold">{speakerName || 'Unknown'}</span>
-                <span className="text-green-500 text-xs">transmitting…</span>
+              <div className="w-full flex flex-col items-center gap-1 shrink-0 pointer-events-none select-none">
+                <div className="relative flex items-center justify-center">
+                  <div className="absolute w-44 h-44 rounded-full border-4 border-green-500/50 animate-ping" />
+                  <div className="w-32 h-32 rounded-full bg-green-600/15 border border-green-500/60 flex items-center justify-center">
+                    <Volume2 className="h-8 w-8 text-green-300" />
+                  </div>
+                </div>
+                <span className="text-green-300 font-black text-sm tracking-[0.16em] uppercase animate-pulse">
+                  RECEIVING - {(speakerName || 'Unknown').toUpperCase()}
+                </span>
               </div>
             )}
 
@@ -2140,71 +2146,72 @@ export default function PTTRadio() {
               </div>
             )}
 
-            {/* Main PTT Button — full-width on mobile, round on desktop */}
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    ref={pttButtonRef}
-                    className={[
-                      // Mobile: full-width tall bar; Desktop: round button
-                      'select-none touch-none flex items-center justify-center transition-all duration-100 border-4',
-                      'w-full min-h-[80px] rounded-2xl md:rounded-full md:min-h-0',
-                      'md:w-40 md:h-40',
-                      isTransmitting
-                        ? 'bg-red-600 border-red-400 shadow-[0_0_40px_#dc262680] scale-[1.02]'
-                        : emergencyMode
-                        ? 'bg-red-900 border-red-600 animate-pulse'
-                        : canSpeak && !isMuted
-                        ? 'bg-slate-800 border-slate-600 hover:bg-slate-700 hover:border-blue-500 hover:shadow-[0_0_20px_#3b82f633] active:scale-95'
-                        : 'bg-slate-900 border-slate-800 opacity-50 cursor-not-allowed',
-                    ].join(' ')}
-                    onPointerDown={(e) => {
-                      if (e.pointerType === 'mouse' && e.button !== 0) return
-                      e.preventDefault()
-                      void handlePTTPress()
-                    }}
-                    onPointerUp={(e) => {
-                      e.preventDefault()
-                      void handlePTTRelease()
-                    }}
-                    onPointerCancel={() => { void handlePTTRelease() }}
-                    onPointerLeave={() => {
-                      if (isTransmitting) {
+            {/* Main PTT Button — full-width bottom bar on mobile, round on desktop */}
+            <div className="fixed bottom-3 left-3 right-3 z-30 md:static md:bottom-auto md:left-auto md:right-auto md:z-auto">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      ref={pttButtonRef}
+                      className={[
+                        // Mobile: bottom full-width control; Desktop: round control.
+                        'select-none touch-none flex items-center justify-center transition-all duration-100 border-4 w-full',
+                        'min-h-[84px] rounded-2xl md:rounded-full md:min-h-0 md:w-40 md:h-40',
+                        isTransmitting
+                          ? 'bg-red-600 border-red-400 shadow-[0_0_40px_#dc262680] scale-[1.02]'
+                          : emergencyMode
+                          ? 'bg-red-900 border-red-600 animate-pulse'
+                          : canSpeak && !isMuted
+                          ? 'bg-slate-800 border-slate-600 hover:bg-slate-700 hover:border-blue-500 hover:shadow-[0_0_20px_#3b82f633] active:scale-95'
+                          : 'bg-slate-900 border-slate-800 opacity-50 cursor-not-allowed',
+                      ].join(' ')}
+                      onPointerDown={(e) => {
+                        if (e.pointerType === 'mouse' && e.button !== 0) return
+                        e.preventDefault()
+                        void handlePTTPress()
+                      }}
+                      onPointerUp={(e) => {
+                        e.preventDefault()
                         void handlePTTRelease()
-                      }
-                    }}
-                    onContextMenu={(e) => e.preventDefault()}
-                    disabled={!canSpeak && !isTransmitting}
-                    aria-label="Push to talk"
-                  >
-                    <div className="flex flex-col items-center gap-1.5">
-                      {isMuted ? (
-                        <MicOff className="h-10 w-10 text-red-400" />
-                      ) : isTransmitting ? (
-                        <Mic className="h-10 w-10 text-white" />
-                      ) : (
-                        <Mic className={`h-10 w-10 ${canSpeak ? 'text-slate-300' : 'text-slate-600'}`} />
-                      )}
-                      <span className={`text-xs font-bold tracking-widest uppercase ${
-                        isTransmitting ? 'text-white' : isMuted ? 'text-red-400' : 'text-slate-400'
-                      }`}>
-                        {isTransmitting
-                          ? `TX  ${formatDuration(liveTxSeconds)}`
-                          : isMuted
-                          ? 'MUTED'
-                          : connectionStatus !== 'connected'
-                          ? connectionStatus.toUpperCase()
-                          : 'HOLD TO TALK'}
-                      </span>
-                    </div>
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="text-xs">
-                  Hold to transmit · Spacebar shortcut
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+                      }}
+                      onPointerCancel={() => { void handlePTTRelease() }}
+                      onPointerLeave={() => {
+                        if (isTransmitting) {
+                          void handlePTTRelease()
+                        }
+                      }}
+                      onContextMenu={(e) => e.preventDefault()}
+                      disabled={!canSpeak && !isTransmitting}
+                      aria-label="Push to talk"
+                    >
+                      <div className="flex flex-col items-center gap-1.5">
+                        {isMuted ? (
+                          <MicOff className="h-10 w-10 text-red-400" />
+                        ) : isTransmitting ? (
+                          <Mic className="h-10 w-10 text-white" />
+                        ) : (
+                          <Mic className={`h-10 w-10 ${canSpeak ? 'text-slate-300' : 'text-slate-600'}`} />
+                        )}
+                        <span className={`text-xs font-bold tracking-widest uppercase ${
+                          isTransmitting ? 'text-white' : isMuted ? 'text-red-400' : 'text-slate-400'
+                        }`}>
+                          {isTransmitting
+                            ? `TX  ${formatDuration(liveTxSeconds)}`
+                            : isMuted
+                            ? 'MUTED'
+                            : connectionStatus !== 'connected'
+                            ? connectionStatus.toUpperCase()
+                            : 'HOLD TO TALK'}
+                        </span>
+                      </div>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-xs">
+                    Hold to transmit · Spacebar shortcut
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
 
             <div className="text-[10px] text-slate-600 uppercase tracking-widest">
               {inputMode === 'vox' ? 'VOX MODE ACTIVE' : 'Hold button or hold SPACEBAR to transmit'}
