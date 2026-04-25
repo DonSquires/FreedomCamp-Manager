@@ -1,8 +1,8 @@
 # Bob Failure Summary
 
-Generated: 2026-04-25T05:53:58.472Z
+Generated: 2026-04-25T07:42:03.905Z
 Window: last 24 hours
-Entries analyzed: 7
+Entries analyzed: 2
 Low-score entries: 0
 
 ## Top Failure Reasons
@@ -19,7 +19,7 @@ Low-score entries: 0
 
 ## Most-Flagged Artifacts
 
-- /workspaces/FreedomCamp-Manager/docs/PTT_ENTERPRISE_STACK_FIT_AND_BUILD.md (7)
+- /workspaces/FreedomCamp-Manager/docs/PTT_ENTERPRISE_STACK_FIT_AND_BUILD.md (2)
 
 ## Recommendations
 

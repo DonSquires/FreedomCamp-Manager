@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-04-25T05:53:58.472Z",
+  "generatedAt": "2026-04-25T07:42:03.905Z",
   "windowHours": 24,
-  "totalEntries": 7,
+  "totalEntries": 2,
   "lowScoreCount": 0,
   "topFailureReasons": [],
   "topHallucinationPatterns": [],
@@ -9,7 +9,7 @@
   "topFlaggedArtifacts": [
     {
       "name": "/workspaces/FreedomCamp-Manager/docs/PTT_ENTERPRISE_STACK_FIT_AND_BUILD.md",
-      "count": 7
+      "count": 2
     }
   ],
   "recommendations": [
