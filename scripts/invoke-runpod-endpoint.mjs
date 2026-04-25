@@ -21,6 +21,8 @@
  */
 
 import process from 'node:process';
+import fs from 'node:fs';
+import path from 'node:path';
 
 function getArg(name, fallback = '') {
   const key = `--${name}`;
@@ -36,6 +38,18 @@ function getArg(name, fallback = '') {
 function getBooleanArg(name, fallback = false) {
   const raw = String(getArg(name, String(fallback))).trim().toLowerCase();
   return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+}
+
+function resolveActivityFile() {
+  const configured = String(process.env.BOB_SUPERVISOR_ACTIVITY_FILE || '').trim();
+  const relative = configured || '.runtime/runpod-bob-activity.touch';
+  return path.resolve(process.cwd(), relative);
+}
+
+function touchActivity(reason) {
+  const activityFile = resolveActivityFile();
+  fs.mkdirSync(path.dirname(activityFile), { recursive: true });
+  fs.writeFileSync(activityFile, `${new Date().toISOString()} ${reason}\n`);
 }
 
 function requiredEnv(name) {
@@ -201,11 +215,16 @@ async function main() {
       timeoutMs,
     });
     const failed = String(finalStatus?.status || '').toUpperCase() === 'FAILED';
+    if (!failed) {
+      touchActivity('status-terminal-success');
+    }
     process.exit(failed ? 1 : 0);
   }
 
   const inputObject = normalizeInput(inputRaw, promptRaw);
   const payload = normalizePayload(payloadRaw, inputObject);
+
+  touchActivity('invoke-start');
 
   const invokeData = await httpJson(endpointUrl, apiKey, payload);
   console.log(JSON.stringify({ phase: 'invoke', url: endpointUrl, data: invokeData }, null, 2));
@@ -215,6 +234,9 @@ async function main() {
   const alreadyTerminal = isTerminalStatus(status);
 
   if (!poll || !jobId || alreadyTerminal) {
+    if (status !== 'FAILED') {
+      touchActivity('invoke-terminal-success');
+    }
     process.exit(status === 'FAILED' ? 1 : 0);
   }
 
@@ -229,6 +251,9 @@ async function main() {
   });
 
   const failed = String(finalStatus?.status || '').toUpperCase() === 'FAILED';
+  if (!failed) {
+    touchActivity('invoke-polled-success');
+  }
   process.exit(failed ? 1 : 0);
 }
 

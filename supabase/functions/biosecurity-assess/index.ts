@@ -22,8 +22,28 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { getCorsHeaders, withCors, jsonResponse, errorResponse } from '../_shared/withCors.ts'
 import { requireAuth } from '../_shared/requireAuth.ts'
 
-const BOB_SERVICE_URL   = Deno.env.get('BOB_SERVICE_URL') || Deno.env.get('INFERENCE_SERVICE_URL') || ''
-const BOB_API_KEY       = Deno.env.get('BOB_INFERENCE_API_KEY') ?? ''
+function isRunpodServerless(url: string): boolean {
+  return /api\.runpod\.ai\/v2\/[^/]+(?:\/(?:run|runsync))?\/?$/i.test(url)
+}
+
+function normalizeRunpodBase(url: string): string {
+  return url.replace(/\/(run|runsync)\/?$/i, '')
+}
+
+function normalizeBaseUrl(raw?: string | null): string {
+  const trimmed = String(raw ?? '').trim().replace(/\/+$/, '')
+  if (!trimmed) return ''
+  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+  return isRunpodServerless(withScheme) ? normalizeRunpodBase(withScheme) : withScheme
+}
+
+const BOB_SERVICE_URL = normalizeBaseUrl(Deno.env.get('BOB_SERVICE_URL') || Deno.env.get('INFERENCE_SERVICE_URL') || '')
+const BOB_API_KEY =
+  Deno.env.get('BOB_INFERENCE_API_KEY') ??
+  Deno.env.get('INFERENCE_API_KEY') ??
+  Deno.env.get('RUNPOD_ENDPOINT_API_KEY') ??
+  Deno.env.get('RUNPOD_API_KEY') ??
+  ''
 const SUPABASE_URL      = Deno.env.get('SUPABASE_URL') ?? ''
 const SERVICE_ROLE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 
@@ -88,17 +108,23 @@ Deno.serve(withCors(async (req: Request) => {
       if (gpsLat != null) formBody.gps_lat = String(gpsLat)
       if (gpsLng != null) formBody.gps_lng = String(gpsLng)
 
+      const runpodServerless = isRunpodServerless(BOB_SERVICE_URL)
       const inferResp = await fetch(
-        /api\.runpod\.ai\/v2\/[^/]+\/?$/.test(BOB_SERVICE_URL)
-          ? `${BOB_SERVICE_URL.replace(/\/+$/, '')}/runsync`
+        runpodServerless
+          ? `${BOB_SERVICE_URL}/runsync`
           : `${BOB_SERVICE_URL}/infer/biosecurity`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${BOB_API_KEY}`,
+            ...(BOB_API_KEY
+              ? {
+                  'Authorization': `Bearer ${BOB_API_KEY}`,
+                  'x-inference-api-key': BOB_API_KEY,
+                }
+              : {}),
           },
-          body: /api\.runpod\.ai\/v2\/[^/]+\/?$/.test(BOB_SERVICE_URL)
+          body: runpodServerless
             ? JSON.stringify({ input: { action: 'assess', type: 'biosecurity', image_description: imageBase64 ? 'image provided' : 'no image', ...formBody } })
             : JSON.stringify(formBody),
           signal: AbortSignal.timeout(90_000),

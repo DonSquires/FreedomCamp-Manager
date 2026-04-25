@@ -45,6 +45,7 @@ const BOB_SERVICE_URL = rawBobServiceUrlCandidates.find((url) => !isLocalhostUrl
 const BOB_API_KEY = readEnv('BOB_INFERENCE_API_KEY')
 const BOB_SCORE_THRESHOLD = parseInt(readEnv('BOB_UI_SCORE_THRESHOLD') || '60', 10)
 const BOB_HARD_FAIL = readEnv('BOB_UI_HARD_FAIL') === '1'
+const BOB_ASSESS_MAX_MS = parseInt(readEnv('BOB_UI_ASSESS_MAX_MS') || '8000', 10)
 const RUNPOD_URL = readEnv('RUNPOD_GATEWAY_URL', 'RUNPOD_SERVERLESS_URL', 'RUNPOD_URL')
 const RUNPOD_API_KEY = readEnv('RUNPOD_API_KEY', 'DR_BOB_API', 'BOB_INFERENCE_API_KEY', 'INFERENCE_API_KEY', 'VITE_INFERENCE_API_KEY')
 const ALLOW_SUPABASE_FALLBACK = readEnv('BOB_UI_ALLOW_SUPABASE_FALLBACK') === '1'
@@ -326,8 +327,33 @@ export async function bobAssessPage(
   testInfo: TestInfo,
   label: string
 ): Promise<BobAssessmentResult> {
-  // Take full-page screenshot
-  const screenshotBuffer = await page.screenshot({ fullPage: true })
+  // Take a bounded screenshot so heavy dashboards do not consume the full test timeout.
+  let screenshotBuffer: Buffer
+  try {
+    screenshotBuffer = await page.screenshot({ fullPage: true, timeout: 5000 })
+  } catch {
+    try {
+      screenshotBuffer = await page.screenshot({ fullPage: false, timeout: 3000 })
+    } catch {
+      const captureFailure: BobAssessmentResult = {
+        available: false,
+        skipped: true,
+        skipReason: 'Screenshot capture timed out',
+      }
+
+      await testInfo.attach(`bob-assessment-${label}`, {
+        body: Buffer.from(JSON.stringify(captureFailure, null, 2)),
+        contentType: 'application/json',
+      })
+
+      testInfo.annotations.push({
+        type: 'warning',
+        description: `Bob review skipped for "${label}": screenshot capture timed out`,
+      })
+
+      return captureFailure
+    }
+  }
 
   // Attach screenshot to report (always visible in the Playwright HTML report)
   await testInfo.attach(`bob-screenshot-${label}`, {
@@ -337,19 +363,34 @@ export async function bobAssessPage(
 
   let result: BobAssessmentResult
   try {
-    // Prefer direct assessment endpoint, then RunPod emulator ui_vision.
-    // Supabase fallback is opt-in only to avoid masking emulator wiring issues.
-    result =
-      (await assessViaDirectBob(screenshotBuffer, label)) ||
-      (await assessViaRunpodEmulator(screenshotBuffer, label)) ||
-      (ALLOW_SUPABASE_FALLBACK ? await assessViaSupabaseUiVision(page, screenshotBuffer, label) : null) ||
-      {
-        available: false,
-        skipped: true,
-        skipReason:
-          'No reachable Bob assessment path (direct endpoint and RunPod emulator unavailable' +
-          (ALLOW_SUPABASE_FALLBACK ? '; Supabase fallback also unavailable)' : ')'),
-      }
+    const assessmentWork = async (): Promise<BobAssessmentResult> => {
+      // Prefer direct assessment endpoint, then RunPod emulator ui_vision.
+      // Supabase fallback is opt-in only to avoid masking emulator wiring issues.
+      return (
+        (await assessViaDirectBob(screenshotBuffer, label)) ||
+        (await assessViaRunpodEmulator(screenshotBuffer, label)) ||
+        (ALLOW_SUPABASE_FALLBACK ? await assessViaSupabaseUiVision(page, screenshotBuffer, label) : null) ||
+        {
+          available: false,
+          skipped: true,
+          skipReason:
+            'No reachable Bob assessment path (direct endpoint and RunPod emulator unavailable' +
+            (ALLOW_SUPABASE_FALLBACK ? '; Supabase fallback also unavailable)' : ')'),
+        }
+      )
+    }
+
+    const timedOut = new Promise<BobAssessmentResult>((resolve) => {
+      setTimeout(() => {
+        resolve({
+          available: false,
+          skipped: true,
+          skipReason: `Bob assessment exceeded ${BOB_ASSESS_MAX_MS}ms budget`,
+        })
+      }, BOB_ASSESS_MAX_MS)
+    })
+
+    result = await Promise.race([assessmentWork(), timedOut])
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err)
     result = {

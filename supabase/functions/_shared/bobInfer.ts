@@ -6,6 +6,11 @@
  * requests are submitted as /runsync jobs.
  */
 
+import { fetchWithRetry } from './fetchWithRetry.ts'
+
+const BOB_INFERENCE_RETRIES = Math.max(0, Number(Deno.env.get('BOB_INFERENCE_RETRIES') ?? '2'))
+const BOB_INFERENCE_BACKOFF_MS = Math.max(0, Number(Deno.env.get('BOB_INFERENCE_BACKOFF_MS') ?? '600'))
+
 function isRunpodServerless(url: string): boolean {
   return /api\.runpod\.ai\/v2\/[^/]+(?:\/(?:run|runsync))?\/?$/i.test(url)
 }
@@ -73,7 +78,12 @@ function enforceBobOnlyProviderLock(inferenceUrl: string): void {
 
 function getInferenceConfig(): { inferenceUrl: string; apiKey: string } {
   const inferenceUrl = normalizeBaseUrl(Deno.env.get('INFERENCE_SERVICE_URL'))
-  const apiKey = Deno.env.get('INFERENCE_API_KEY') || Deno.env.get('RUNPOD_ENDPOINT_API_KEY') || ''
+  const apiKey =
+    Deno.env.get('INFERENCE_API_KEY') ||
+    Deno.env.get('RUNPOD_ENDPOINT_API_KEY') ||
+    Deno.env.get('RUNPOD_API_KEY') ||
+    Deno.env.get('BOB_INFERENCE_API_KEY') ||
+    ''
 
   if (!inferenceUrl) {
     throw new Error('INFERENCE_SERVICE_URL is not configured')
@@ -131,14 +141,12 @@ export async function bobChat(options: BobChatOptions): Promise<BobChatResult> {
   const { inferenceUrl, apiKey } = getInferenceConfig()
   const timeoutMs = options.timeoutMs ?? 130_000
 
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+  let res: Response
 
-  try {
-    let res: Response
-
-    if (isRunpodServerless(inferenceUrl)) {
-      res = await fetch(`${inferenceUrl}/runsync`, {
+  if (isRunpodServerless(inferenceUrl)) {
+    res = await fetchWithRetry(
+      `${inferenceUrl}/runsync`,
+      {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -156,14 +164,26 @@ export async function bobChat(options: BobChatOptions): Promise<BobChatResult> {
             context: options.context,
           },
         }),
-        signal: controller.signal,
-      })
-    } else {
-      res = await fetch(`${inferenceUrl}/chat`, {
+      },
+      {
+        retries: BOB_INFERENCE_RETRIES,
+        timeoutMs,
+        backoffMs: BOB_INFERENCE_BACKOFF_MS,
+      },
+    )
+  } else {
+    res = await fetchWithRetry(
+      `${inferenceUrl}/chat`,
+      {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(apiKey ? { 'x-inference-api-key': apiKey } : {}),
+          ...(apiKey
+            ? {
+                'x-inference-api-key': apiKey,
+                'Authorization': `Bearer ${apiKey}`,
+              }
+            : {}),
         },
         body: JSON.stringify({
           message: options.message,
@@ -172,30 +192,32 @@ export async function bobChat(options: BobChatOptions): Promise<BobChatResult> {
           temperature: options.temperature ?? 0.7,
           context: options.context,
         }),
-        signal: controller.signal,
-      })
-    }
+      },
+      {
+        retries: BOB_INFERENCE_RETRIES,
+        timeoutMs,
+        backoffMs: BOB_INFERENCE_BACKOFF_MS,
+      },
+    )
+  }
 
-    const text = await res.text()
-    if (!res.ok) throw new Error(`Bob inference HTTP ${res.status}: ${text.slice(0, 300)}`)
+  const text = await res.text()
+  if (!res.ok) throw new Error(`Bob inference HTTP ${res.status}: ${text.slice(0, 300)}`)
 
-    let data: any
-    try { data = JSON.parse(text) } catch { throw new Error(`Bob returned non-JSON: ${text.slice(0, 200)}`) }
+  let data: any
+  try { data = JSON.parse(text) } catch { throw new Error(`Bob returned non-JSON: ${text.slice(0, 200)}`) }
 
-    // Unwrap RunPod /runsync envelope: { status, output: { ... } }
-    const output = data?.output ?? data
-    if (output?.success === false) throw new Error(`Bob worker error: ${output?.error ?? 'unknown'}`)
+  // Unwrap RunPod /runsync envelope: { status, output: { ... } }
+  const output = data?.output ?? data
+  if (output?.success === false) throw new Error(`Bob worker error: ${output?.error ?? 'unknown'}`)
 
-    const responseText = output?.response || output?.message || output?.content || ''
-    if (!responseText) throw new Error('Bob returned empty response')
+  const responseText = output?.response || output?.message || output?.content || ''
+  if (!responseText) throw new Error('Bob returned empty response')
 
-    return {
-      response: responseText,
-      model: output?.model ?? 'ollama',
-      provider: output?.provider ?? 'ollama',
-    }
-  } finally {
-    clearTimeout(timeoutId)
+  return {
+    response: responseText,
+    model: output?.model ?? 'ollama',
+    provider: output?.provider ?? 'ollama',
   }
 }
 
@@ -206,14 +228,12 @@ export async function bobAssess(options: BobAssessOptions): Promise<BobAssessRes
   const { inferenceUrl, apiKey } = getInferenceConfig()
   const timeoutMs = options.timeoutMs ?? 130_000
 
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+  let res: Response
 
-  try {
-    let res: Response
-
-    if (isRunpodServerless(inferenceUrl)) {
-      res = await fetch(`${inferenceUrl}/runsync`, {
+  if (isRunpodServerless(inferenceUrl)) {
+    res = await fetchWithRetry(
+      `${inferenceUrl}/runsync`,
+      {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -231,41 +251,55 @@ export async function bobAssess(options: BobAssessOptions): Promise<BobAssessRes
             model: options.model,
           },
         }),
-        signal: controller.signal,
-      })
-    } else {
-      res = await fetch(`${inferenceUrl}/assess/${options.type}`, {
+      },
+      {
+        retries: BOB_INFERENCE_RETRIES,
+        timeoutMs,
+        backoffMs: BOB_INFERENCE_BACKOFF_MS,
+      },
+    )
+  } else {
+    res = await fetchWithRetry(
+      `${inferenceUrl}/assess/${options.type}`,
+      {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(apiKey ? { 'x-inference-api-key': apiKey } : {}),
+          ...(apiKey
+            ? {
+                'x-inference-api-key': apiKey,
+                'Authorization': `Bearer ${apiKey}`,
+              }
+            : {}),
         },
         body: JSON.stringify({
           symptom: options.symptom,
           description: options.description,
           context: options.context,
         }),
-        signal: controller.signal,
-      })
-    }
+      },
+      {
+        retries: BOB_INFERENCE_RETRIES,
+        timeoutMs,
+        backoffMs: BOB_INFERENCE_BACKOFF_MS,
+      },
+    )
+  }
 
-    const text = await res.text()
-    if (!res.ok) throw new Error(`Bob assess HTTP ${res.status}: ${text.slice(0, 300)}`)
+  const text = await res.text()
+  if (!res.ok) throw new Error(`Bob assess HTTP ${res.status}: ${text.slice(0, 300)}`)
 
-    let data: any
-    try { data = JSON.parse(text) } catch { throw new Error(`Bob returned non-JSON: ${text.slice(0, 200)}`) }
+  let data: any
+  try { data = JSON.parse(text) } catch { throw new Error(`Bob returned non-JSON: ${text.slice(0, 200)}`) }
 
-    const output = data?.output ?? data
-    if (output?.success === false) throw new Error(`Bob worker error: ${output?.error ?? 'unknown'}`)
+  const output = data?.output ?? data
+  if (output?.success === false) throw new Error(`Bob worker error: ${output?.error ?? 'unknown'}`)
 
-    return {
-      assessment: output?.assessment ?? output,
-      rawResponse: output?.raw_response ?? text,
-      model: output?.model ?? 'ollama',
-      provider: output?.provider ?? 'ollama',
-    }
-  } finally {
-    clearTimeout(timeoutId)
+  return {
+    assessment: output?.assessment ?? output,
+    rawResponse: output?.raw_response ?? text,
+    model: output?.model ?? 'ollama',
+    provider: output?.provider ?? 'ollama',
   }
 }
 
@@ -276,14 +310,12 @@ export async function bobTranslate(options: BobTranslateOptions): Promise<{ tran
   const { inferenceUrl, apiKey } = getInferenceConfig()
   const timeoutMs = options.timeoutMs ?? 60_000
 
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+  let res: Response
 
-  try {
-    let res: Response
-
-    if (isRunpodServerless(inferenceUrl)) {
-      res = await fetch(`${inferenceUrl}/runsync`, {
+  if (isRunpodServerless(inferenceUrl)) {
+    res = await fetchWithRetry(
+      `${inferenceUrl}/runsync`,
+      {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -298,32 +330,46 @@ export async function bobTranslate(options: BobTranslateOptions): Promise<{ tran
             source_language: options.sourceLanguage,
           },
         }),
-        signal: controller.signal,
-      })
-    } else {
-      res = await fetch(`${inferenceUrl}/translate`, {
+      },
+      {
+        retries: BOB_INFERENCE_RETRIES,
+        timeoutMs,
+        backoffMs: BOB_INFERENCE_BACKOFF_MS,
+      },
+    )
+  } else {
+    res = await fetchWithRetry(
+      `${inferenceUrl}/translate`,
+      {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(apiKey ? { 'x-inference-api-key': apiKey } : {}),
+          ...(apiKey
+            ? {
+                'x-inference-api-key': apiKey,
+                'Authorization': `Bearer ${apiKey}`,
+              }
+            : {}),
         },
         body: JSON.stringify({ text: options.text, target_language: options.targetLanguage }),
-        signal: controller.signal,
-      })
-    }
-
-    const text = await res.text()
-    if (!res.ok) throw new Error(`Bob translate HTTP ${res.status}: ${text.slice(0, 300)}`)
-
-    let data: any
-    try { data = JSON.parse(text) } catch { throw new Error(`Bob returned non-JSON: ${text.slice(0, 200)}`) }
-
-    const output = data?.output ?? data
-    const translation = output?.translation || output?.translated_text || ''
-    if (!translation) throw new Error('Bob translate returned empty result')
-
-    return { translation, model: output?.model ?? 'ollama' }
-  } finally {
-    clearTimeout(timeoutId)
+      },
+      {
+        retries: BOB_INFERENCE_RETRIES,
+        timeoutMs,
+        backoffMs: BOB_INFERENCE_BACKOFF_MS,
+      },
+    )
   }
+
+  const text = await res.text()
+  if (!res.ok) throw new Error(`Bob translate HTTP ${res.status}: ${text.slice(0, 300)}`)
+
+  let data: any
+  try { data = JSON.parse(text) } catch { throw new Error(`Bob returned non-JSON: ${text.slice(0, 200)}`) }
+
+  const output = data?.output ?? data
+  const translation = output?.translation || output?.translated_text || ''
+  if (!translation) throw new Error('Bob translate returned empty result')
+
+  return { translation, model: output?.model ?? 'ollama' }
 }

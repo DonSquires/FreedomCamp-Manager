@@ -393,13 +393,23 @@ async function handleResponseFeedback(req: Request, userId: string): Promise<Res
 
   let inferenceResult: Dict = { queued: false }
   const inferenceUrl = asStr(Deno.env.get('INFERENCE_SERVICE_URL'))
-  const inferenceApiKey = asStr(Deno.env.get('INFERENCE_API_KEY') || Deno.env.get('RUNPOD_ENDPOINT_API_KEY'))
+  const inferenceApiKey = asStr(
+    Deno.env.get('INFERENCE_API_KEY') ||
+    Deno.env.get('RUNPOD_ENDPOINT_API_KEY') ||
+    Deno.env.get('RUNPOD_API_KEY') ||
+    Deno.env.get('BOB_INFERENCE_API_KEY'),
+  )
   const learningEnabled = asStr(Deno.env.get('BOB_LEARNING_FEEDBACK_ENABLED'), 'true').toLowerCase() === 'true'
 
   if (learningEnabled && inferenceUrl) {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...(inferenceApiKey ? { 'x-inference-api-key': inferenceApiKey } : {}),
+      ...(inferenceApiKey
+        ? {
+            'x-inference-api-key': inferenceApiKey,
+            'Authorization': `Bearer ${inferenceApiKey}`,
+          }
+        : {}),
     }
 
     const ingestResp = await fetch(`${inferenceUrl.replace(/\/$/, '')}/learn/ingest-feedback`, {

@@ -8,8 +8,17 @@ import { withCors, jsonResponse, errorResponse } from '../_shared/withCors.ts'
 import { requireAuth } from '../_shared/requireAuth.ts'
 import { fetchWithRetry } from '../_shared/fetchWithRetry.ts'
 
-const BOB_SERVICE_URL = Deno.env.get('BOB_SERVICE_URL') || Deno.env.get('INFERENCE_SERVICE_URL') || ''
-const BOB_API_KEY = Deno.env.get('BOB_INFERENCE_API_KEY') ?? Deno.env.get('INFERENCE_API_KEY') ?? ''
+function normalizeBaseUrl(raw?: string | null): string {
+  return String(raw ?? '').trim().replace(/\/+$/, '')
+}
+
+const BOB_SERVICE_URL = normalizeBaseUrl(Deno.env.get('BOB_SERVICE_URL') || Deno.env.get('INFERENCE_SERVICE_URL') || '')
+const BOB_API_KEY =
+  Deno.env.get('BOB_INFERENCE_API_KEY') ??
+  Deno.env.get('INFERENCE_API_KEY') ??
+  Deno.env.get('RUNPOD_ENDPOINT_API_KEY') ??
+  Deno.env.get('RUNPOD_API_KEY') ??
+  ''
 
 Deno.serve(withCors(async (req: Request) => {
   const authResult = await requireAuth(req)
@@ -44,7 +53,12 @@ Deno.serve(withCors(async (req: Request) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(BOB_API_KEY ? { Authorization: `Bearer ${BOB_API_KEY}` } : {}),
+        ...(BOB_API_KEY
+          ? {
+              Authorization: `Bearer ${BOB_API_KEY}`,
+              'x-inference-api-key': BOB_API_KEY,
+            }
+          : {}),
       },
       body: JSON.stringify({
         text,

@@ -1,102 +1,15 @@
 # RunPod Serverless from Codespaces
 
-This workflow is for invoking RunPod Serverless endpoints from a GitHub Codespace.
-Use this when you want stateless HTTPS inference calls instead of managing GPU pods from the Codespace.
+The canonical Bob RunPod setup and day-to-day management guide now lives at the repo root:
 
-## Required secrets (Codespaces)
+- `README_RUNPOD.md`
 
-In repository settings, add these Codespaces secrets:
+Use that file as the source of truth for:
 
-- RUNPOD_ENDPOINT_API_KEY
-- RUNPOD_ENDPOINT_ID
+- Codespaces secrets
+- `INFERENCE_SERVICE_URL` and `INFERENCE_API_KEY` setup
+- `/runsync` smoke tests
+- Console-based worker management
+- Troubleshooting and operating defaults
 
-Alternative if you prefer storing the full invoke URL instead of the endpoint id:
-
-- RUNPOD_ENDPOINT_URL
-
-The client supports either of these configurations:
-
-- RUNPOD_ENDPOINT_ID + RUNPOD_ENDPOINT_API_KEY
-- RUNPOD_ENDPOINT_URL + RUNPOD_ENDPOINT_API_KEY
-- RUNPOD_ENDPOINT_ID + RUNPOD_ENDPOINT_URL + RUNPOD_ENDPOINT_API_KEY
-
-Optional for management automation (not required for endpoint invocation):
-
-- RUNPOD_API_KEY
-
-## Verify environment in Codespace
-
-Run this check in terminal:
-
-```bash
-for k in RUNPOD_ENDPOINT_URL RUNPOD_ENDPOINT_API_KEY RUNPOD_ENDPOINT_ID; do
-  if [ -n "${!k}" ]; then
-    echo "$k=present"
-  else
-    echo "$k=missing"
-  fi
-done
-```
-
-## Invoke endpoint (default payload)
-
-```bash
-npm run runpod:endpoint:invoke
-```
-
-If only `RUNPOD_ENDPOINT_ID` is set, the script will invoke:
-
-```text
-https://api.runpod.ai/v2/<endpointId>/run
-```
-
-Default payload:
-
-```json
-{
-  "input": {
-    "prompt": "Hello from Codespaces"
-  }
-}
-```
-
-## Invoke endpoint with custom input
-
-```bash
-npm run runpod:endpoint:invoke -- --input '{"prompt":"Summarize NZ freedom camping policy risks"}'
-```
-
-## Invoke endpoint with full payload
-
-```bash
-npm run runpod:endpoint:invoke -- --payload '{"input":{"prompt":"hello"},"webhook":null}'
-```
-
-## Async polling behavior
-
-The script auto-polls if the invoke response returns a job id and non-terminal status.
-
-Tunable polling parameters:
-
-```bash
-npm run runpod:endpoint:invoke -- --input '{"prompt":"hello"}' --poll true --intervalMs 3000 --timeoutMs 180000
-```
-
-To check an existing job id directly:
-
-```bash
-npm run runpod:endpoint:status -- <jobId>
-```
-
-You can also pass an explicit status URL template if needed:
-
-```bash
-npm run runpod:endpoint:invoke -- --statusJobId <jobId> --statusUrl 'https://api.runpod.ai/v2/<endpointId>/status/{id}'
-```
-
-## Notes
-
-- Do not commit endpoint API keys in code or docs.
-- Rotate any key that was ever pasted into chat or logs.
-- If workersMin is 0, expect occasional cold-start latency.
-- If low latency is critical, set workersMin to 1 in RunPod endpoint settings.
+This document previously described a more generic RunPod invocation workflow. For Bob in this repository, prefer the repo-standard base URL plus `/runsync` contract documented in `README_RUNPOD.md` and `docs/BOB_ENV_REFERENCE.md`.

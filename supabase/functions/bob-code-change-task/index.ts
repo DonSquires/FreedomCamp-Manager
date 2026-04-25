@@ -224,7 +224,12 @@ Deno.serve(async (req: Request) => {
     }
 
     const inferenceUrl = (Deno.env.get('INFERENCE_SERVICE_URL') ?? '').replace(/\/$/, '')
-    const inferenceApiKey = Deno.env.get('INFERENCE_API_KEY') ?? ''
+    const inferenceApiKey =
+      Deno.env.get('INFERENCE_API_KEY') ??
+      Deno.env.get('RUNPOD_ENDPOINT_API_KEY') ??
+      Deno.env.get('RUNPOD_API_KEY') ??
+      Deno.env.get('BOB_INFERENCE_API_KEY') ??
+      ''
 
     if (!inferenceUrl) {
       return new Response(
@@ -236,7 +241,10 @@ Deno.serve(async (req: Request) => {
     const preferGithubAssist = normalizedTaskType === 'self_heal_patch' && complexity === 'complex'
 
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (inferenceApiKey) headers['x-inference-api-key'] = inferenceApiKey
+    if (inferenceApiKey) {
+      headers['x-inference-api-key'] = inferenceApiKey
+      headers['Authorization'] = `Bearer ${inferenceApiKey}`
+    }
 
     const reportPayload = {
       summary,

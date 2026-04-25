@@ -6,12 +6,14 @@
  */
 
 import { getCorsHeaders, withCors, jsonResponse, errorResponse } from '../_shared/withCors.ts'
-import { fetchWithRetry } from '../_shared/fetchWithRetry.ts'
 import { requireAuth } from '../_shared/requireAuth.ts'
 import { bobAssess } from '../_shared/bobInfer.ts'
 
-const BOB_SERVICE_URL = Deno.env.get('BOB_SERVICE_URL') || Deno.env.get('INFERENCE_SERVICE_URL') || ''
-const BOB_API_KEY = Deno.env.get('BOB_INFERENCE_API_KEY') ?? ''
+function normalizeBaseUrl(raw?: string | null): string {
+  return String(raw ?? '').trim().replace(/\/+$/, '')
+}
+
+const BOB_SERVICE_URL = normalizeBaseUrl(Deno.env.get('BOB_SERVICE_URL') || Deno.env.get('INFERENCE_SERVICE_URL') || '')
 
 Deno.serve(withCors(async (req: Request) => {
   const authResult = await requireAuth(req)
