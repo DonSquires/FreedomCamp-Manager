@@ -16,11 +16,11 @@ import { getCorsHeaders } from '../_shared/withCors.ts'
 
 const HEALTH_CHECK_TIMEOUT_MS = 8_000
 
-const DEFAULT_PTT_SERVER_URL = 'http://72.61.123.97:8080'
+// Removed hardcoded IP fallback; rely on PTT_SERVER_URL environment variable
 const PTT_SERVER_URL = (
   Deno.env.get('PTT_SERVER_URL') ||
   Deno.env.get('PTT_SERVICE_URL') ||
-  DEFAULT_PTT_SERVER_URL
+  ''
 ).replace(/\/+$/, '')
 
 const RAW_WS = (Deno.env.get('PTT_WS_URL') || Deno.env.get('PTT_SIGNALING_WS_URL') || '').trim()

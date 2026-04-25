@@ -6,10 +6,16 @@
 set -euo pipefail
 
 DB_HOST="${SUPABASE_DB_HOST:-}"
+DB_HOSTADDR="${SUPABASE_DB_HOSTADDR:-}"
 DB_PORT="${SUPABASE_DB_PORT:-5432}"
 DB_USER="${SUPABASE_DB_USER:-}"
 DB_NAME="${SUPABASE_DB_NAME:-postgres}"
 DATABASE_URL="${DATABASE_URL:-}"
+
+PSQL_CONN="host=$DB_HOST port=$DB_PORT user=$DB_USER dbname=$DB_NAME"
+if [[ -n "$DB_HOSTADDR" ]]; then
+    PSQL_CONN="host=$DB_HOST hostaddr=$DB_HOSTADDR port=$DB_PORT user=$DB_USER dbname=$DB_NAME"
+fi
 
 TEST_RESULTS_FILE="post-deployment-test-results-$(date +%Y%m%d_%H%M%S).txt"
 
@@ -40,10 +46,9 @@ run_test() {
     
     echo -n "  [$name] " | tee -a "$TEST_RESULTS_FILE"
     
-    result=$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
-        -t -c "$query" 2>/dev/null || echo "ERROR")
+    result=$(psql "$PSQL_CONN" -X -A -t -c "$query" 2>/dev/null | xargs || echo "ERROR")
     
-    if [[ "$result" == "$expected" || "$result" =~ "$expected" ]]; then
+    if [[ "$result" == "$expected" || "$result" =~ $expected ]]; then
         echo "✓ PASS" | tee -a "$TEST_RESULTS_FILE"
         return 0
     else
@@ -62,25 +67,25 @@ echo "=================" | tee -a "$TEST_RESULTS_FILE"
 # Core tables exist
 if run_test "organizations table exists" \
     "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'organizations';" "1"; then
-    ((PASS_COUNT++))
+    PASS_COUNT=$((PASS_COUNT + 1))
 else
-    ((FAIL_COUNT++))
+    FAIL_COUNT=$((FAIL_COUNT + 1))
 fi
 
 # Auth users accessible
 if run_test "auth.users accessible" \
     "SELECT COUNT(*) FROM auth.users LIMIT 1;" "[0-9]"; then
-    ((PASS_COUNT++))
+    PASS_COUNT=$((PASS_COUNT + 1))
 else
-    ((FAIL_COUNT++))
+    FAIL_COUNT=$((FAIL_COUNT + 1))
 fi
 
 # RLS policies applied
 if run_test "RLS policies exist" \
     "SELECT COUNT(*) FROM pg_policies WHERE tablename IN ('organizations') LIMIT 1;" "[0-9]"; then
-    ((PASS_COUNT++))
+    PASS_COUNT=$((PASS_COUNT + 1))
 else
-    ((FAIL_COUNT++))
+    FAIL_COUNT=$((FAIL_COUNT + 1))
 fi
 
 echo "" | tee -a "$TEST_RESULTS_FILE"
@@ -92,33 +97,33 @@ echo "===================" | tee -a "$TEST_RESULTS_FILE"
 # CRM tables
 if run_test "CRM tables created" \
     "SELECT COUNT(*) FROM information_schema.tables WHERE table_name LIKE 'crm_%';" "[0-9]"; then
-    ((PASS_COUNT++))
+    PASS_COUNT=$((PASS_COUNT + 1))
 else
-    ((FAIL_COUNT++))
+    FAIL_COUNT=$((FAIL_COUNT + 1))
 fi
 
 # Patrol routes
 if run_test "Patrol route tables created" \
     "SELECT COUNT(*) FROM information_schema.tables WHERE table_name LIKE '%route%';" "[0-9]"; then
-    ((PASS_COUNT++))
+    PASS_COUNT=$((PASS_COUNT + 1))
 else
-    ((FAIL_COUNT++))
+    FAIL_COUNT=$((FAIL_COUNT + 1))
 fi
 
 # Rostering
 if run_test "Roster tables created" \
     "SELECT COUNT(*) FROM information_schema.tables WHERE table_name LIKE 'roster%';" "[0-9]"; then
-    ((PASS_COUNT++))
+    PASS_COUNT=$((PASS_COUNT + 1))
 else
-    ((FAIL_COUNT++))
+    FAIL_COUNT=$((FAIL_COUNT + 1))
 fi
 
 # Reporting
 if run_test "Reporting tables created" \
     "SELECT COUNT(*) FROM information_schema.tables WHERE table_name LIKE 'report%';" "[0-9]"; then
-    ((PASS_COUNT++))
+    PASS_COUNT=$((PASS_COUNT + 1))
 else
-    ((FAIL_COUNT++))
+    FAIL_COUNT=$((FAIL_COUNT + 1))
 fi
 
 echo "" | tee -a "$TEST_RESULTS_FILE"
@@ -130,25 +135,25 @@ echo "=====================" | tee -a "$TEST_RESULTS_FILE"
 # Observations not corrupted
 if run_test "observations table intact" \
     "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'observations';" "[0-9]"; then
-    ((PASS_COUNT++))
+    PASS_COUNT=$((PASS_COUNT + 1))
 else
-    ((FAIL_COUNT++))
+    FAIL_COUNT=$((FAIL_COUNT + 1))
 fi
 
 # Patrols not corrupted
 if run_test "patrols table intact" \
     "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'patrols';" "[0-9]"; then
-    ((PASS_COUNT++))
+    PASS_COUNT=$((PASS_COUNT + 1))
 else
-    ((FAIL_COUNT++))
+    FAIL_COUNT=$((FAIL_COUNT + 1))
 fi
 
 # Vehicles not corrupted
 if run_test "vehicles table intact" \
     "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'vehicles';" "[0-9]"; then
-    ((PASS_COUNT++))
+    PASS_COUNT=$((PASS_COUNT + 1))
 else
-    ((FAIL_COUNT++))
+    FAIL_COUNT=$((FAIL_COUNT + 1))
 fi
 
 echo "" | tee -a "$TEST_RESULTS_FILE"
@@ -160,17 +165,17 @@ echo "===============" | tee -a "$TEST_RESULTS_FILE"
 # RLS on observations (org-scoped)
 if run_test "observations RLS policies active" \
     "SELECT COUNT(*) FROM pg_policies WHERE tablename = 'observations';" "[0-9]"; then
-    ((PASS_COUNT++))
+    PASS_COUNT=$((PASS_COUNT + 1))
 else
-    ((FAIL_COUNT++))
+    FAIL_COUNT=$((FAIL_COUNT + 1))
 fi
 
-# ACL tables exist
-if run_test "access_controls table exists" \
-    "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'access_controls';" "1"; then
-    ((PASS_COUNT++))
+# ACL tables exist (legacy and current naming)
+if run_test "access control tables exist" \
+    "SELECT COUNT(*) FROM information_schema.tables WHERE table_name IN ('access_controls','access_permissions','access_control_incidents');" "[1-9]"; then
+    PASS_COUNT=$((PASS_COUNT + 1))
 else
-    ((FAIL_COUNT++))
+    FAIL_COUNT=$((FAIL_COUNT + 1))
 fi
 
 echo "" | tee -a "$TEST_RESULTS_FILE"
@@ -180,20 +185,20 @@ echo "Performance Tests" | tee -a "$TEST_RESULTS_FILE"
 echo "==================" | tee -a "$TEST_RESULTS_FILE"
 
 # Query performance baseline
-SLOW_COUNT=$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
+SLOW_COUNT=$(psql "$PSQL_CONN" -X -A -t \
     -t -c "SELECT COUNT(*) FROM pg_stat_statements WHERE mean_exec_time > 5000;" \
-    2>/dev/null || echo "0")
+    2>/dev/null | xargs || echo "0")
 
 if [[ "$SLOW_COUNT" -lt 5 ]]; then
     echo "  [Query Performance] ✓ PASS ($SLOW_COUNT queries > 5s)" | tee -a "$TEST_RESULTS_FILE"
-    ((PASS_COUNT++))
+    PASS_COUNT=$((PASS_COUNT + 1))
 else
     echo "  [Query Performance] ✗ FAIL ($SLOW_COUNT queries > 5s)" | tee -a "$TEST_RESULTS_FILE"
-    ((FAIL_COUNT++))
+    FAIL_COUNT=$((FAIL_COUNT + 1))
 fi
 
 # Index count
-INDEX_COUNT=$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
+INDEX_COUNT=$(psql "$PSQL_CONN" -X -A -t \
     -t -c "SELECT COUNT(*) FROM pg_indexes WHERE schemaname = 'public';" \
     | xargs)
 
