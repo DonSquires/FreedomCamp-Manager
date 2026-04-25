@@ -8,13 +8,14 @@
   "lockfiles": [
     "bun.lock"
   ],
-  "generated_at": "2026-04-25T19:06:09Z",
+  "generated_at": "2026-04-25T20:52:06Z",
   "source": "scripts/system-check.sh",
   "monitor": {
-    "checked_at": "2026-04-25T19:06:09.360Z",
+    "checked_at": "2026-04-25T20:52:06.313Z",
     "window_minutes": 15,
     "error_threshold": 5,
-    "recent_500_errors": 4,
-    "status": "healthy"
-  }
+    "recent_500_errors": 6,
+    "status": "warning"
+  },
+  "critical_warning": "Bob monitor detected 6 server-side 500 errors in the last 15 minutes."
 }
