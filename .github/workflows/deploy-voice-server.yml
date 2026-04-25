@@ -81,10 +81,18 @@ jobs:
             cd /opt/fieldops-voice
 
             existing_env=""
+            docker_env_dump=""
             coturn_config=""
             if docker ps -a --format '{{.Names}}' | grep -qx 'fieldops-ptt'; then
               existing_env="$(docker inspect fieldops-ptt --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null || true)"
             fi
+            while IFS= read -r container_name; do
+              [ -n "$container_name" ] || continue
+              docker_env_dump="${docker_env_dump}
+$(docker inspect "$container_name" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null || true)"
+            done <<EOF
+$(docker ps -a --format '{{.Names}}' 2>/dev/null || true)
+EOF
             if [ -f /etc/coturn/turnserver.conf ]; then
               coturn_config="$(cat /etc/coturn/turnserver.conf 2>/dev/null || true)"
             fi
@@ -107,10 +115,19 @@ jobs:
               TURN_SERVER_URL="$(printf '%s\n' "$existing_env" | sed -n 's/^TURN_URL=//p' | tail -n1)"
             fi
             if [ -z "${TURN_SERVER_URL:-}" ]; then
+              TURN_SERVER_URL="$(printf '%s\n' "$docker_env_dump" | sed -n 's/^TURN_URL=//p' | tail -n1)"
+            fi
+            if [ -z "${TURN_SERVER_URL:-}" ]; then
               if [ -n "$coturn_tls_port" ]; then
                 TURN_SERVER_URL="turns:${turn_public_host}:${coturn_tls_port}?transport=tcp"
               elif [ -n "$coturn_port" ]; then
                 TURN_SERVER_URL="turn:${turn_public_host}:${coturn_port}"
+              fi
+            fi
+            if [ -z "${TURN_SERVER_URL:-}" ]; then
+              docker_turn_port="$(printf '%s\n' "$docker_env_dump" | sed -n 's/^TURN_PORT=//p' | tail -n1)"
+              if [ -n "$docker_turn_port" ]; then
+                TURN_SERVER_URL="turn:${turn_public_host}:${docker_turn_port}"
               fi
             fi
 
@@ -121,11 +138,21 @@ jobs:
               TURN_CREDENTIAL="$(printf '%s\n' "$existing_env" | sed -n 's/^TURN_CREDENTIAL=//p' | tail -n1)"
             fi
             if [ -z "${TURN_CREDENTIAL:-}" ]; then
+              TURN_CREDENTIAL="$(printf '%s\n' "$docker_env_dump" | sed -n 's/^TURN_CREDENTIAL=//p' | tail -n1)"
+            fi
+            if [ -z "${TURN_CREDENTIAL:-}" ]; then
               TURN_CREDENTIAL="$coturn_password"
+            fi
+            if [ -z "${TURN_CREDENTIAL:-}" ]; then
+              TURN_CREDENTIAL="$(printf '%s\n' "$docker_env_dump" | sed -n 's/^TURN_PASSWORD=//p' | tail -n1)"
             fi
             TURN_USERNAME="${TURN_USERNAME:-fieldops}"
             if [ "${TURN_USERNAME}" = "fieldops" ]; then
               TURN_USERNAME="$(printf '%s\n' "$existing_env" | sed -n 's/^TURN_USERNAME=//p' | tail -n1 || true)"
+              TURN_USERNAME="${TURN_USERNAME:-fieldops}"
+            fi
+            if [ "${TURN_USERNAME}" = "fieldops" ]; then
+              TURN_USERNAME="$(printf '%s\n' "$docker_env_dump" | sed -n 's/^TURN_USERNAME=//p' | tail -n1 || true)"
               TURN_USERNAME="${TURN_USERNAME:-fieldops}"
             fi
             if [ "${TURN_USERNAME}" = "fieldops" ] && [ -n "$coturn_username" ]; then
