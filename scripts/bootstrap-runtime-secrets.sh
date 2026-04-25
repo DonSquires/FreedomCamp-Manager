@@ -15,6 +15,7 @@ set -euo pipefail
 #   export INFERENCE_SERVICE_URL="https://api.runpod.ai/v2/<RUNPOD_ENDPOINT_ID>/runsync"
 #   export PROXY_SERVER_URL="https://..."         # optional but recommended
 #   export PTT_SERVER_URL="https://..."           # optional but recommended
+#   export PTT_WS_URL="wss://.../ws"              # optional but recommended
 #   export INFERENCE_API_KEY="..."                # optional but recommended
 #   ./scripts/bootstrap-runtime-secrets.sh
 
@@ -88,6 +89,9 @@ fi
 if [ -z "${PTT_SERVER_URL:-}" ]; then
   warn "PTT_SERVER_URL not set; wiring audit can fail for PTT URL checks."
 fi
+if [ -z "${PTT_WS_URL:-}" ]; then
+  warn "PTT_WS_URL not set; websocket policy checks can fail for PTT URL checks."
+fi
 if [ -z "${INFERENCE_API_KEY:-}" ]; then
   warn "INFERENCE_API_KEY not set; edge-to-inference auth checks can fail."
 fi
@@ -108,12 +112,14 @@ set_gh_secret "INFERENCE_SERVICE_URL" "$INFERENCE_SERVICE_URL"
 [ -z "${RAILWAY_PTT_SERVICE_ID:-}" ] || set_gh_secret "RAILWAY_PTT_SERVICE_ID" "$RAILWAY_PTT_SERVICE_ID"
 [ -z "${PROXY_SERVER_URL:-}" ] || set_gh_secret "PROXY_SERVER_URL" "$PROXY_SERVER_URL"
 [ -z "${PTT_SERVER_URL:-}" ] || set_gh_secret "PTT_SERVER_URL" "$PTT_SERVER_URL"
+[ -z "${PTT_WS_URL:-}" ] || set_gh_secret "PTT_WS_URL" "$PTT_WS_URL"
 [ -z "${INFERENCE_API_KEY:-}" ] || set_gh_secret "INFERENCE_API_KEY" "$INFERENCE_API_KEY"
 
 echo "Applying Supabase Edge Function secrets..."
 set_supabase_secret "INFERENCE_SERVICE_URL" "$INFERENCE_SERVICE_URL"
 [ -z "${PROXY_SERVER_URL:-}" ] || set_supabase_secret "PROXY_SERVER_URL" "$PROXY_SERVER_URL"
 [ -z "${PTT_SERVER_URL:-}" ] || set_supabase_secret "PTT_SERVER_URL" "$PTT_SERVER_URL"
+[ -z "${PTT_WS_URL:-}" ] || set_supabase_secret "PTT_WS_URL" "$PTT_WS_URL"
 [ -z "${INFERENCE_API_KEY:-}" ] || set_supabase_secret "INFERENCE_API_KEY" "$INFERENCE_API_KEY"
 
 ok "Bootstrap complete."

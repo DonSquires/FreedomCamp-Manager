@@ -188,7 +188,8 @@ supabase secrets set \
   INFERENCE_SERVICE_URL="https://RUNPOD_API_URL" \
   INFERENCE_API_KEY="YOUR_SHARED_API_KEY" \
   PROXY_SERVER_URL="https://YOUR_RAILWAY_PROXY_URL" \
-  PTT_SERVER_URL="https://YOUR_RAILWAY_PTT_URL" \
+  PTT_SERVER_URL="https://ptt.<your-domain>" \
+  PTT_WS_URL="wss://ptt.<your-domain>/ws" \
   PTT_PROXY_SECRET="YOUR_PTT_SHARED_SECRET" \
   PLATERECOGNIZER_TOKEN="YOUR_PLATE_RECOGNIZER_API_KEY" \
   PARKPOW_API_TOKEN="YOUR_PARKPOW_TOKEN" \
@@ -327,7 +328,7 @@ NODE_ENV=production
 MAX_PARTICIPANTS_PER_CHANNEL=50
 ```
 
-3. Note the VPS public URL → add as GitHub Actions secret `PTT_SERVER_URL` (e.g. `http://72.61.123.97:3002`)
+3. Note the public PTT URL → add as GitHub Actions secret `PTT_SERVER_URL` (e.g. `https://ptt.<your-domain>`)
 4. Run the `set-ptt-secret.yml` workflow to automatically write `PTT_SERVER_URL` and `PTT_PROXY_SECRET`
    into the Supabase vault.
 
