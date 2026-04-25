@@ -47,9 +47,9 @@ jobs:
           GH_TOKEN: ${{ secrets.DEPLOY_GITHUB_TOKEN }}
           BOB_GATEWAY_KEY: ${{ secrets.BOB_GATEWAY_KEY }}
         with:
-          host: ${{ secrets.RUNPOD_POD_SSH_HOST }}
-          username: ${{ secrets.RUNPOD_POD_SSH_USER }}
-          key: ${{ secrets.RUNPOD_POD_SSH_KEY }}
+          host: ${{ secrets.RUNPOD_POD_SSH_HOST || secrets.VPS_IP }}
+          username: ${{ secrets.RUNPOD_POD_SSH_USER || secrets.VPS_USERNAME }}
+          key: ${{ secrets.RUNPOD_POD_SSH_KEY || secrets.VPS_SSH_KEY }}
           port: ${{ secrets.RUNPOD_POD_SSH_PORT || 22 }}
           request_pty: true
           command_timeout: 15m
