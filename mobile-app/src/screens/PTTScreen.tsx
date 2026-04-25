@@ -804,7 +804,7 @@ export default function PTTScreen() {
           </View>
         ) : (
           <Pressable
-            style={[styles.pttButton, transmitting && styles.pttButtonActive]}
+            style={[styles.pttButton, !transmitting && styles.pttButtonReady, transmitting && styles.pttButtonActive]}
             onPressIn={startTransmit}
             onPressOut={stopTransmit}
           >
@@ -1025,12 +1025,16 @@ const styles = StyleSheet.create({
     width: 180,
     height: 180,
     borderRadius: 90,
-    backgroundColor: highVis.colors.nightSurface,
+    backgroundColor: '#062513',
     borderWidth: 3,
-    borderColor: highVis.colors.nightTextSecondary,
+    borderColor: '#1f7a3f',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+  },
+  pttButtonReady: {
+    backgroundColor: '#0b3a1d',
+    borderColor: '#2fbf6a',
   },
   pttButtonActive: {
     backgroundColor: '#0e7a2e',
@@ -1051,7 +1055,7 @@ const styles = StyleSheet.create({
   pttLabel: {
     fontSize: 14,
     fontWeight: '700',
-    color: highVis.colors.nightTextPrimary,
+    color: '#c7f9d8',
   },
   pttLabelActive: {
     color: '#fff',

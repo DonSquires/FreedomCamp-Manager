@@ -2162,7 +2162,7 @@ export default function PTTRadio() {
                           : emergencyMode
                           ? 'bg-red-900 border-red-600 animate-pulse'
                           : canSpeak && !isMuted
-                          ? 'bg-slate-800 border-slate-600 hover:bg-slate-700 hover:border-blue-500 hover:shadow-[0_0_20px_#3b82f633] active:scale-95'
+                          ? 'bg-emerald-900/45 border-emerald-600 hover:bg-emerald-800/60 hover:border-emerald-400 hover:shadow-[0_0_20px_#34d39955] active:scale-95'
                           : 'bg-slate-900 border-slate-800 opacity-50 cursor-not-allowed',
                       ].join(' ')}
                       onPointerDown={(e) => {
@@ -2190,10 +2190,10 @@ export default function PTTRadio() {
                         ) : isTransmitting ? (
                           <Mic className="h-10 w-10 text-white" />
                         ) : (
-                          <Mic className={`h-10 w-10 ${canSpeak ? 'text-slate-300' : 'text-slate-600'}`} />
+                          <Mic className={`h-10 w-10 ${canSpeak ? 'text-emerald-200' : 'text-slate-600'}`} />
                         )}
                         <span className={`text-xs font-bold tracking-widest uppercase ${
-                          isTransmitting ? 'text-white' : isMuted ? 'text-red-400' : 'text-slate-400'
+                          isTransmitting ? 'text-white' : isMuted ? 'text-red-400' : 'text-emerald-200'
                         }`}>
                           {isTransmitting
                             ? `TX  ${formatDuration(liveTxSeconds)}`
