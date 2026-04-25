@@ -11,11 +11,10 @@
  *   - allowed mime types: audio/mp4, audio/m4a, audio/mpeg
  */
 
-import * as FileSystem from 'expo-file-system'
 import { supabase } from './supabase'
 
 const BUCKET = 'ptt-clips'
-const SIGNED_URL_EXPIRES_IN = 60 * 60 // 1 hour
+const SIGNED_URL_EXPIRES_IN = 60 * 60 * 24 // 24 hours
 
 export interface UploadResult {
   clipUrl: string   // signed URL valid for SIGNED_URL_EXPIRES_IN seconds
@@ -37,21 +36,16 @@ export async function uploadPTTClip(params: {
   const timestamp = Date.now()
   const storagePath = `${orgId}/${date}/${userId}_${timestamp}.m4a`
 
-  // Read file as base64
-  const base64 = await FileSystem.readAsStringAsync(localUri, {
-    encoding: FileSystem.EncodingType.Base64,
-  })
-
-  // Decode to ArrayBuffer for supabase upload
-  const binaryString = atob(base64)
-  const bytes = new Uint8Array(binaryString.length)
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i)
+  // Use blob upload from file URI for better Expo/Hermes compatibility.
+  const response = await fetch(localUri)
+  if (!response.ok) {
+    throw new Error(`PTT read failed: ${response.status} ${response.statusText}`)
   }
+  const clipBlob = await response.blob()
 
   const { error: uploadError } = await supabase.storage
     .from(BUCKET)
-    .upload(storagePath, bytes.buffer, {
+    .upload(storagePath, clipBlob, {
       contentType: 'audio/mp4',
       upsert: false,
     })

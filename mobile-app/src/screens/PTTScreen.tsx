@@ -87,13 +87,20 @@ interface SpeakingMessage {
   timestamp: string
 }
 
+interface ErrorMessage {
+  type: 'error'
+  code: string
+  message: string
+  speakerId?: string
+}
+
 interface EmergencyMessage {
   type: 'emergency_update'
   organizationId: string
   emergency: SyncMessage['emergencyBroadcast']
 }
 
-type ServerMessage = SyncMessage | PresenceMessage | SpeakerMessage | SpeakingMessage | EmergencyMessage
+type ServerMessage = SyncMessage | PresenceMessage | SpeakerMessage | SpeakingMessage | EmergencyMessage | ErrorMessage
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -260,6 +267,20 @@ export default function PTTScreen() {
 
     if (msg.type === 'emergency_update') {
       setEmergency(msg.emergency ?? null)
+      return
+    }
+
+    if (msg.type === 'error') {
+      if (msg.code === 'CHANNEL_BUSY') {
+        setAudioError('Channel busy: another officer is currently transmitting.')
+        setTransmitting(false)
+        if (recordingRef.current) {
+          recordingRef.current.stopAndUnloadAsync().catch(() => {})
+          recordingRef.current = null
+        }
+      } else {
+        setAudioError(msg.message || 'Radio error')
+      }
     }
   }, [user?.id, playClip])
 
