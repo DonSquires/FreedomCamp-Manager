@@ -4,6 +4,30 @@
 
 Keep the existing platform stack and reorganize into explicit domain contracts so each layer is independently testable and tenant-safe.
 
+This revision is additionally grounded in NZ council enforcement, service-provider/client operating requirements, and public-sector procurement/security expectations captured in:
+
+1. `docs/NZ_COUNCIL_ENFORCEMENT_ENTERPRISE_RESEARCH_2026-04-25.md`
+2. `docs/ENTERPRISE_STAKEHOLDER_REQUIREMENTS_MATRIX_2026-04-25.md`
+
+## 1.1 Stakeholder Requirements
+
+### Service Providers
+
+1. Run multiple councils/clients inside one platform with strict isolation.
+2. Support per-shift client jurisdiction and service-type routing.
+3. Give supervisors live patrol, breach, welfare, and dispatch visibility across contracts.
+
+### Councils and Clients
+
+1. View only their own sites, incidents, breaches, and service outcomes.
+2. Receive evidence-defensible exports, leadership packs, and SLA-style reporting.
+3. Configure legal and enforcement parameters without cross-client leakage.
+
+### Procurement and Governance Reviewers
+
+1. Require auditability, portability, and incident/rollback runbooks.
+2. Expect Privacy Act, OIA/Public Records, NZ Digital guidance, and NZISM-aligned security posture.
+
 ## 2. Backend Structure
 
 ### 2.1 Domainized Edge Function Families
@@ -33,6 +57,7 @@ Each family should use standardized wrappers from `supabase/functions/_shared` f
    - PTT channel ACL and clip storage path policies
    - organizations payment config routing safety
    - zone legal metadata and seasonal policy behavior
+5. Protect client-viewer, service-provider, and client-site access paths as first-class tenant boundaries.
 
 ### 2.3 Integration Boundaries
 
@@ -68,12 +93,14 @@ Each family should use standardized wrappers from `supabase/functions/_shared` f
 1. Align navigation to domain responsibilities, not historical page growth.
 2. Apply a consistent task hierarchy across patrol, compliance, evidence, reporting.
 3. Keep diagnostics and incident controls discoverable for master roles.
+4. Make client-facing visibility deliberate and contract-aligned rather than incidental admin reuse.
 
 ### 4.2 Experience Quality Objectives
 
 1. Reduce page-level cognitive load by consolidating duplicate controls.
 2. Enforce role-aware empty/error states that never reveal foreign-tenant data.
 3. Keep mobile parity for core patrol workflows and PTT status visibility.
+4. Reflect enforcement mode clearly for NZ workflows: warning, infringement, notice-to-vacate, escalation.
 
 ## 5. Wiring Harness and Contracts
 
@@ -92,6 +119,15 @@ Each family should use standardized wrappers from `supabase/functions/_shared` f
 
 ## 6. Pipelines and Release Governance
 
+### 6.0 NZ Procurement and Security Gate
+
+1. Evidence pack should support council/client review with:
+   - tenant isolation proof
+   - audit/export readiness
+   - DR and incident runbooks
+   - support/SLA posture
+2. Security posture should align with repo-grounded expectations for TLS, secret control, audit logging, and operational monitoring.
+
 ### 6.1 CI Gate Matrix
 
 1. Static quality: lint + build + type checks.
@@ -107,7 +143,13 @@ Each family should use standardized wrappers from `supabase/functions/_shared` f
 3. Railway proxy deploy health checks.
 4. PTT deploy post-checks on VPS runtime.
 
-## 7. Ticketized Delivery Plan
+## 7. Council and Client Delivery Outcomes
+
+1. Councils get contract visibility, defensible evidence, legal workflow support, and reporting.
+2. Service providers get multi-client operations, live workforce oversight, and jurisdiction-aware tooling.
+3. Clients get transparent but bounded visibility into services delivered on their sites.
+
+## 8. Ticketized Delivery Plan
 
 1. Ticket A1: edge-function family map and shared middleware baseline.
 2. Ticket A2: org-scope helper consolidation across hooks/lib.
@@ -116,8 +158,10 @@ Each family should use standardized wrappers from `supabase/functions/_shared` f
 5. Ticket A5: correlation ID propagation and operation tracing.
 6. Ticket A6: CI gate matrix codification and enforcement dashboard.
 7. Ticket A7: release runbook convergence across Vercel/Railway/Supabase/VPS.
+8. Ticket A8: client/council visibility model review against service-provider and client-viewer access boundaries.
+9. Ticket A9: procurement evidence bundle assembly from security, tenancy, reporting, and DR artifacts.
 
-## 8. Validation Gates
+## 9. Validation Gates
 
 1. `bun run lint`
 2. `bun run build`

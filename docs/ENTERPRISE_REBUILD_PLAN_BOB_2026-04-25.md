@@ -6,38 +6,45 @@ Generated from live RunPod endpoint invocation (`n0bp1ifmq01cx2`) using constrai
 
 ## Bob Output (verbatim content normalized)
 
-### Backend-Structure
+### Stakeholder Requirements
 
-1. Verify Supabase schema and roles against the latest migration baseline.
-2. Ensure services align with `20260613000001_organizations_payment_config.sql`.
-3. Review edge functions for performance and organizational clarity.
-4. Keep Railway proxy-server as API routing boundary.
+1. Support Freedom Camping Act workflows: warnings, infringements, and notices to vacate.
+2. Support multiple organisations acting as service providers with distinct client visibility requirements.
+3. Ensure clients can view their own data without seeing unrelated clients.
+4. Maintain evidence chain for enforcement actions.
+5. Address OIA and Privacy Act compliance expectations.
+6. Follow NZ Digital government guidance for accessibility and digital service quality.
+7. Meet NZISM-aligned security expectations.
+8. Remain on the verified current stack.
 
-### Frontend-Structure
+### Council Procurement
 
-1. Keep React 18 + TypeScript + Vite baseline current.
-2. Apply route chunking and lazy loading for large route surfaces.
+1. Ensure platform vendors and service model meet NZ public-sector procurement expectations.
+2. Make support, security, and compliance commitments explicit.
+3. Define SLAs for uptime, response, and maintenance.
 
-### UX-UI
+### Security Compliance
 
-1. Conduct user-flow audit for cross-role workflows.
-2. Improve consistency across major operational surfaces.
+1. Enforce data protection with RLS.
+2. Keep provider/client role boundaries explicit in existing access and RLS controls.
+3. Secure RunPod inference access and logging.
+4. Keep logging and monitoring across service layers.
+5. Keep regular security review and validation cycles.
 
-### Wiring-Harness
+### Architecture Changes
 
-1. Integrate RunPod serverless path for backend-heavy inference tasks.
-2. Keep backend service contracts documented and discoverable.
-
-### Pipelines
-
-1. Keep GitHub Actions pipeline enforcing lint, tests, and deploy checks.
-2. Include integration checks before production rollout.
+1. Keep current stack and deployment boundaries explicit.
+2. Improve consistency in application state and workflow handling.
+3. Keep schema alignment with existing multi-org and client-visibility evidence already present in repo migrations and tests.
+4. Strengthen GitHub Actions CI/CD checks.
+5. Optimize frontend production behavior.
 
 ### Rollout
 
-1. Run staged dry-runs before production cutover.
-2. Monitor operational signals post-release and adjust quickly.
-3. Keep training/runtime loops compliant with current policy constraints.
+1. Use staging before production cutover.
+2. Conduct UAT with stakeholders and providers.
+3. Hold release gates on build/review quality.
+4. Perform post-implementation review.
 
 ## Bob Build-Review Gate Suggestions
 
@@ -49,6 +56,6 @@ Generated from live RunPod endpoint invocation (`n0bp1ifmq01cx2`) using constrai
 
 ## Grounding Notes
 
-1. Bob output was constrained by explicit prompt grounding.
-2. Any Bob recommendation not present in repo or user-specified stack should be treated as non-binding.
-3. This artifact is intentionally kept independent and is merged selectively in the final plan.
+1. Bob output was constrained by explicit prompt grounding around NZ council/client/service-provider requirements.
+2. Future-state ideas were normalized here into repo-grounded statements only.
+3. This artifact stays independent and is not authoritative by itself.
