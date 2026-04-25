@@ -1,18 +1,31 @@
 {
-  "generatedAt": "2026-04-25T09:04:49.142Z",
+  "generatedAt": "2026-04-25T10:00:24.519Z",
   "windowHours": 24,
-  "totalEntries": 2,
-  "lowScoreCount": 0,
-  "topFailureReasons": [],
+  "totalEntries": 8,
+  "lowScoreCount": 3,
+  "topFailureReasons": [
+    {
+      "name": "quality_gate_failed",
+      "count": 3
+    }
+  ],
   "topHallucinationPatterns": [],
   "repeatedHallucinations": [],
   "topFlaggedArtifacts": [
     {
       "name": "/workspaces/FreedomCamp-Manager/docs/PTT_ENTERPRISE_STACK_FIT_AND_BUILD.md",
       "count": 2
+    },
+    {
+      "name": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-25T05-32-10-754Z/report.md",
+      "count": 2
+    },
+    {
+      "name": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-25T06-28-53-681Z/report.md",
+      "count": 1
     }
   ],
   "recommendations": [
-    "No repeated failure mode crossed the automatic threshold in this window."
+    "Re-read docs/BOB_TRAINING_TRUTH_PROTOCOL.md before the next redesign response."
   ]
 }
