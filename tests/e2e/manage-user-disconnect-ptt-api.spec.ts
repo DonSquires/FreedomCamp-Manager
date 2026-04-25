@@ -1,13 +1,10 @@
 import { test, expect } from '@playwright/test'
 import { getTestUser } from './auth'
 
-const DEFAULT_SUPABASE_URL = 'https://kxwjcupuxnnbnzcgmkoi.supabase.co'
-
 function getSupabaseUrl(): string {
   const candidates = [
     process.env.VITE_SUPABASE_URL,
     process.env.SUPABASE_URL,
-    DEFAULT_SUPABASE_URL,
   ]
 
   for (const candidate of candidates) {
@@ -17,7 +14,7 @@ function getSupabaseUrl(): string {
     }
   }
 
-  throw new Error('Unable to resolve Supabase URL for manage-user disconnect_ptt test.')
+  throw new Error('VITE_SUPABASE_URL or SUPABASE_URL is required for manage-user disconnect_ptt test.')
 }
 
 function getAnonKey(): string {

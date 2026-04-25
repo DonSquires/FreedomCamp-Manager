@@ -846,7 +846,9 @@ export default function PTTRadio() {
 
         const msg = normalizePTTErrorMessage(err)
         setError(msg)
-        toast.error(msg)
+        if (!options?.autoRetry) {
+          toast.error(msg)
+        }
       } finally {
         setIsConnecting(false)
       }
