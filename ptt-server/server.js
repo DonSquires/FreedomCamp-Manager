@@ -219,6 +219,11 @@ let tokenTrackerSweepInterval = null;
 let redisClient = null;
 let redisReady = false;
 
+function setRedisMockClientForTests(client) {
+  redisClient = client || null;
+  redisReady = !!client;
+}
+
 function getRedisChannelMetaKey(channelId) {
   return `ptt:channel-meta:${channelId}`;
 }
@@ -1540,52 +1545,100 @@ function handleMessage(ws, userId, channelId, organizationId, name, role, messag
 }
 
 // ---------------------------------------------------------------------------
-// Start server
+// Start / Shutdown
 // ---------------------------------------------------------------------------
-server.listen(PORT, '0.0.0.0', () => {
-  startTokenTrackerSweep();
+function logStartupBanner(port) {
   console.log(`
   ╔═══════════════════════════════════════╗
   ║   🎤 PTT Signaling Server            ║
   ╠═══════════════════════════════════════╣
-  ║   Port: ${PORT.toString().padEnd(29)}║
+  ║   Port: ${String(port).padEnd(29)}║
   ║   Environment: ${(process.env.NODE_ENV || 'development').padEnd(22)}║
   ║   JWT Secret: ${(PTT_JWT_SECRET ? '✓ Configured' : '✗ Not configured').padEnd(23)}║
   ║   TURN Server: ${(isTurnConfigured() ? '✓ Configured' : '✗ Not configured').padEnd(22)}║
   ║   Force TURN Relay: ${(FORCE_TURN_RELAY ? '✓ Enabled' : '○ Disabled').padEnd(17)}║
   ╚═══════════════════════════════════════╝
   `);
-});
+}
 
-void initRedis();
+function startServer(port = PORT, host = '0.0.0.0') {
+  if (server.listening) {
+    return Promise.resolve(server);
+  }
 
-process.on('SIGTERM', () => {
-  void closeRedis();
-});
+  return new Promise((resolve, reject) => {
+    const onError = (err) => {
+      server.off('listening', onListening);
+      reject(err);
+    };
 
-process.on('SIGINT', () => {
-  void closeRedis();
-});
+    const onListening = () => {
+      server.off('error', onError);
+      startTokenTrackerSweep();
+      logStartupBanner(port);
+      resolve(server);
+    };
 
-// ---------------------------------------------------------------------------
-// Graceful shutdown
-// ---------------------------------------------------------------------------
-process.on('SIGTERM', () => {
-  console.log('👋 SIGTERM received, shutting down gracefully...');
-  if (tokenTrackerSweepInterval) clearInterval(tokenTrackerSweepInterval);
-  wss.close(() => {
-    server.close(() => {
-      process.exit(0);
-    });
+    server.once('error', onError);
+    server.once('listening', onListening);
+    server.listen(port, host);
   });
-});
+}
 
-process.on('SIGINT', () => {
-  console.log('👋 SIGINT received, shutting down gracefully...');
-  if (tokenTrackerSweepInterval) clearInterval(tokenTrackerSweepInterval);
-  wss.close(() => {
-    server.close(() => {
-      process.exit(0);
-    });
+async function shutdownServer() {
+  if (tokenTrackerSweepInterval) {
+    clearInterval(tokenTrackerSweepInterval);
+    tokenTrackerSweepInterval = null;
+  }
+
+  await closeRedis();
+
+  await new Promise((resolve) => {
+    wss.close(() => resolve());
   });
-});
+
+  if (!server.listening) return;
+
+  await new Promise((resolve) => {
+    server.close(() => resolve());
+  });
+}
+
+function installGracefulShutdownHandlers() {
+  const handler = (signalName) => {
+    console.log(`👋 ${signalName} received, shutting down gracefully...`);
+    void shutdownServer().finally(() => process.exit(0));
+  };
+
+  process.on('SIGTERM', () => handler('SIGTERM'));
+  process.on('SIGINT', () => handler('SIGINT'));
+}
+
+if (require.main === module) {
+  void initRedis();
+  installGracefulShutdownHandlers();
+  startServer().catch((err) => {
+    console.error('Failed to start PTT signaling server:', err.message);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  app,
+  server,
+  startServer,
+  shutdownServer,
+  __test: {
+    disconnectUserSession,
+    getActiveDenyState,
+    markUserTemporarilyDenied,
+    forcedDisconnectDenyList,
+    userPresence,
+    setRedisMockClientForTests,
+    resetState: () => {
+      forcedDisconnectDenyList.clear();
+      userPresence.clear();
+      tokenMintTracker.clear();
+    },
+  },
+};
