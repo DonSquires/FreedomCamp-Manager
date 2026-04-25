@@ -697,7 +697,10 @@ export default function AiAnalysis() {
                   {isPttSupported ? 'Push-to-talk: hold the mic button while speaking.' : 'Push-to-talk works in Chrome/Edge.'}
                 </p>
                 {isPttRecording && (
-                  <p className="text-[10px] text-red-600 mt-1 px-0.5 font-medium">Recording now... release the mic button to stop.</p>
+                  <p className="text-[10px] text-red-700 mt-1 px-0.5 font-medium inline-flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-red-600 animate-pulse" />
+                    Recording now... release the mic button to stop.
+                  </p>
                 )}
                 {edgeOutageDetected && (
                   <div className="mt-2 px-0.5">

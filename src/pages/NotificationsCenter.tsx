@@ -285,6 +285,15 @@ export default function NotificationsCenter() {
                     <p className="text-sm">
                       {unreadOnly ? 'No unread notifications' : 'No notifications yet'}
                     </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-2"
+                      onClick={() => queryClient.invalidateQueries({ queryKey: ['notifications'] })}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                      Refresh Inbox
+                    </Button>
                   </div>
                 ) : (
                   <ul className="space-y-2">

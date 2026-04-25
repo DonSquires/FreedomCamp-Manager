@@ -970,6 +970,16 @@ export default function VehicleManagement() {
                 ? 'No vehicles have been observed for the current organisation / zone filters.'
                 : 'No canonical vehicle records exist yet.'}
             </p>
+            <Button
+              variant="outline"
+              className="mt-4"
+              onClick={() => {
+                setStatusFilter('all')
+                setSearchQuery('')
+              }}
+            >
+              Clear Local Filters
+            </Button>
             {vehicleQueryDebug && (
               <p className="text-xs text-gray-400 mt-3">
                 Debug: org {vehicleQueryDebug.rawOrgId || 'none'}{' -> '}
