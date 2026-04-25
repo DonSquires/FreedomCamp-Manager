@@ -5,8 +5,9 @@
  * Provides:
  *  - Channel join / leave
  *  - Presence roster (who's online)
- *  - Push-to-talk transmit indicator (signalling only – actual audio
- *    requires expo-av / react-native-webrtc which must be added separately)
+ *  - Real audio recording with expo-av (Audio.Recording)
+ *  - Clip upload to Supabase Storage → signed URL sent in stop_speaking
+ *  - Playback of incoming clips from other speakers
  *  - Emergency broadcast display
  *  - Graceful disconnect on screen blur / app background
  */
@@ -23,8 +24,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useFocusEffect } from '@react-navigation/native'
+import { Audio } from 'expo-av'
 
 import { supabase } from '../lib/supabase'
+import { uploadPTTClip } from '../lib/pttAudio'
 import { useAuthStore } from '../stores/authStore'
 import { highVis } from '../lib/highVisTheme'
 
@@ -74,13 +77,23 @@ interface SpeakerMessage {
   speakerId: string | null
 }
 
+interface SpeakingMessage {
+  type: 'speaking'
+  event: 'start' | 'stop'
+  userId: string
+  name: string
+  clipUrl?: string | null
+  duration?: number | null
+  timestamp: string
+}
+
 interface EmergencyMessage {
   type: 'emergency_update'
   organizationId: string
   emergency: SyncMessage['emergencyBroadcast']
 }
 
-type ServerMessage = SyncMessage | PresenceMessage | SpeakerMessage | EmergencyMessage
+type ServerMessage = SyncMessage | PresenceMessage | SpeakerMessage | SpeakingMessage | EmergencyMessage
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -114,7 +127,14 @@ export default function PTTScreen() {
   const [presence, setPresence] = useState<PresenceRecord[]>([])
   const [speakerId, setSpeakerId] = useState<string | null>(null)
   const [emergency, setEmergency] = useState<SyncMessage['emergencyBroadcast']>(null)
+
+  // Audio state
+  const recordingRef = useRef<Audio.Recording | null>(null)
+  const recordingStartRef = useRef<number>(0)
   const [transmitting, setTransmitting] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [audioError, setAudioError] = useState<string | null>(null)
+  const soundRef = useRef<Audio.Sound | null>(null)
 
   // ------------------------------------------------------------------
   // Connect to PTT server
@@ -169,9 +189,21 @@ export default function PTTScreen() {
   }, [channelId])
 
   const disconnect = useCallback(() => {
+    // Stop recording if active
+    if (recordingRef.current) {
+      recordingRef.current.stopAndUnloadAsync().catch(() => {})
+      recordingRef.current = null
+    }
+    // Unload any playing sound
+    if (soundRef.current) {
+      soundRef.current.unloadAsync().catch(() => {})
+      soundRef.current = null
+    }
     wsRef.current?.close()
     wsRef.current = null
     setWsStatus('disconnected')
+    setTransmitting(false)
+    setUploading(false)
     setPresence([])
     setSpeakerId(null)
     setEmergency(null)
@@ -201,6 +233,26 @@ export default function PTTScreen() {
       return
     }
 
+    if (msg.type === 'speaking') {
+      if (msg.event === 'start') {
+        setSpeakerId(msg.userId)
+        setPresence((prev) => prev.map((p) =>
+          p.userId === msg.userId ? { ...p, status: 'talking' as const } : p
+        ))
+      } else {
+        // stop
+        setSpeakerId((prev) => prev === msg.userId ? null : prev)
+        setPresence((prev) => prev.map((p) =>
+          p.userId === msg.userId ? { ...p, status: 'online' as const } : p
+        ))
+        // Play incoming clip if from another user
+        if (msg.clipUrl && msg.userId !== user?.id) {
+          playClip(msg.clipUrl)
+        }
+      }
+      return
+    }
+
     if (msg.type === 'speaker_update') {
       setSpeakerId(msg.speakerId)
       return
@@ -209,19 +261,126 @@ export default function PTTScreen() {
     if (msg.type === 'emergency_update') {
       setEmergency(msg.emergency ?? null)
     }
+  }, [user?.id, playClip])
+
+  // ------------------------------------------------------------------
+  // Audio permissions (requested once on first connect)
+  // ------------------------------------------------------------------
+  const requestAudioPermission = useCallback(async (): Promise<boolean> => {
+    const { status } = await Audio.requestPermissionsAsync()
+    if (status !== 'granted') {
+      setAudioError('Microphone permission denied.')
+      return false
+    }
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: true,
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+    })
+    return true
   }, [])
 
   // ------------------------------------------------------------------
-  // PTT button (signaling only – no audio in this slice)
+  // PTT start (press down)
   // ------------------------------------------------------------------
-  const sendPtt = useCallback((active: boolean) => {
+  const startTransmit = useCallback(async () => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
-    wsRef.current.send(JSON.stringify({
-      type: active ? 'ptt_start' : 'ptt_stop',
-      channelId,
-    }))
-    setTransmitting(active)
-  }, [channelId])
+    if (transmitting || uploading) return
+
+    setAudioError(null)
+
+    const granted = await requestAudioPermission()
+    if (!granted) return
+
+    // Tell server we're starting to speak
+    wsRef.current.send(JSON.stringify({ type: 'start_speaking', channelId }))
+
+    try {
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      )
+      recordingRef.current = recording
+      recordingStartRef.current = Date.now()
+      setTransmitting(true)
+    } catch (err: any) {
+      setAudioError(`Mic error: ${err?.message ?? 'unknown'}`)
+      // Retract start_speaking if recording setup failed
+      wsRef.current?.send(JSON.stringify({ type: 'stop_speaking', channelId }))
+    }
+  }, [channelId, transmitting, uploading, requestAudioPermission])
+
+  // ------------------------------------------------------------------
+  // PTT stop (release)
+  // ------------------------------------------------------------------
+  const stopTransmit = useCallback(async () => {
+    if (!transmitting) return
+
+    setTransmitting(false)
+    setUploading(true)
+
+    const recording = recordingRef.current
+    recordingRef.current = null
+    const duration = Math.round((Date.now() - recordingStartRef.current) / 1000)
+
+    let clipUrl: string | null = null
+
+    if (recording) {
+      try {
+        await recording.stopAndUnloadAsync()
+        const uri = recording.getURI()
+
+        if (uri && user?.id && orgId) {
+          const result = await uploadPTTClip({
+            localUri: uri,
+            userId: user.id,
+            orgId,
+          })
+          clipUrl = result.clipUrl
+        }
+      } catch (err: any) {
+        setAudioError(`Upload failed: ${err?.message ?? 'unknown'}`)
+      }
+    }
+
+    // Reset audio mode
+    await Audio.setAudioModeAsync({ allowsRecordingIOS: false })
+
+    // Notify server
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'stop_speaking',
+        channelId,
+        clipUrl,
+        duration,
+      }))
+    }
+
+    setUploading(false)
+  }, [transmitting, channelId, orgId, user?.id])
+
+  // ------------------------------------------------------------------
+  // Play incoming clip
+  // ------------------------------------------------------------------
+  const playClip = useCallback(async (url: string) => {
+    try {
+      // Unload any previous sound
+      if (soundRef.current) {
+        await soundRef.current.unloadAsync()
+        soundRef.current = null
+      }
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true })
+      const { sound } = await Audio.Sound.createAsync({ uri: url }, { shouldPlay: true })
+      soundRef.current = sound
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          sound.unloadAsync()
+          soundRef.current = null
+        }
+      })
+    } catch {
+      // Non-critical – clip may have expired
+    }
+  }, [])
 
   // ------------------------------------------------------------------
   // Lifecycle
@@ -326,11 +485,16 @@ export default function PTTScreen() {
             <Ionicons name="mic-off" size={40} color={highVis.colors.nightTextSecondary} />
             <Text style={styles.pttLabelDisabled}>Not connected</Text>
           </Pressable>
+        ) : uploading ? (
+          <View style={[styles.pttButton, styles.pttButtonUploading]}>
+            <ActivityIndicator size="large" color={highVis.colors.actionBlue} />
+            <Text style={styles.pttLabelUploading}>Sending…</Text>
+          </View>
         ) : (
           <Pressable
             style={[styles.pttButton, transmitting && styles.pttButtonActive]}
-            onPressIn={() => sendPtt(true)}
-            onPressOut={() => sendPtt(false)}
+            onPressIn={startTransmit}
+            onPressOut={stopTransmit}
           >
             <Ionicons
               name={transmitting ? 'mic' : 'mic-outline'}
@@ -341,6 +505,9 @@ export default function PTTScreen() {
               {transmitting ? 'Transmitting…' : 'Hold to Talk'}
             </Text>
           </Pressable>
+        )}
+        {audioError && (
+          <Text style={styles.audioErrorText}>{audioError}</Text>
         )}
       </View>
 
@@ -507,6 +674,10 @@ const styles = StyleSheet.create({
   pttButtonDisabled: {
     opacity: 0.4,
   },
+  pttButtonUploading: {
+    backgroundColor: '#0d1f3a',
+    borderColor: highVis.colors.actionBlue,
+  },
   pttLabel: {
     fontSize: 14,
     fontWeight: '700',
@@ -518,5 +689,16 @@ const styles = StyleSheet.create({
   pttLabelDisabled: {
     fontSize: 13,
     color: highVis.colors.nightTextSecondary,
+  },
+  pttLabelUploading: {
+    fontSize: 13,
+    color: highVis.colors.actionBlue,
+    fontWeight: '600',
+  },
+  audioErrorText: {
+    marginTop: 10,
+    fontSize: 12,
+    color: highVis.colors.infringementRed,
+    textAlign: 'center',
   },
 })
