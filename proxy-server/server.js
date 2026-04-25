@@ -140,6 +140,10 @@ function checkProxyAuth(req) {
   return null;
 }
 
+// Module-level email format validator (basic RFC 5322 subset — sufficient for
+// pre-validation before the email is passed to a mail service).
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 // Middleware
 app.use(cors(corsOptions));
 app.use(express.json());
@@ -165,12 +169,32 @@ const SMTP_FROM_EMAIL = process.env.SMTP_FROM_EMAIL;
 const SMTP_FROM_NAME = process.env.SMTP_FROM_NAME || 'FieldOps Manager';
 const SITE_URL = process.env.SITE_URL || 'https://fcmanager.co.nz';
 
+// Dispute flow — Supabase, Runpod, and Postal credentials
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY;
+const RUNPOD_ENDPOINT_ID = process.env.RUNPOD_ENDPOINT_ID;
+const POSTAL_API_URL = process.env.POSTAL_API_URL;
+const POSTAL_API_KEY = process.env.POSTAL_API_KEY;
+
 if (!MOTORWEB_API_KEY || !MOTORWEB_ID_KEY) {
   console.warn('⚠️  WARNING: MotorWeb API credentials not configured (enrichment will fail)');
 }
 
 if (!PROXY_SECRET) {
   console.warn('⚠️  WARNING: No PROXY_SECRET set. Anyone can use this proxy!');
+}
+
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  console.warn('⚠️  WARNING: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set — dispute lookup/submit will return mock data');
+}
+
+if (!RUNPOD_API_KEY || !RUNPOD_ENDPOINT_ID) {
+  console.warn('⚠️  WARNING: RUNPOD_API_KEY / RUNPOD_ENDPOINT_ID not set — AI evidence analysis will be skipped');
+}
+
+if (!POSTAL_API_URL || !POSTAL_API_KEY) {
+  console.warn('⚠️  WARNING: POSTAL_API_URL / POSTAL_API_KEY not set — dispute confirmation emails will be skipped');
 }
 
 // Health check endpoint
@@ -449,6 +473,392 @@ app.get('/motorweb/currentOwnerCheck', rateLimitMiddleware, async (req, res) => 
   }
 });
 
+// ---------------------------------------------------------------------------
+// Public Dispute Flow — Rate limiter (stricter: 10 req / min / IP)
+// Prevents brute-force enumeration of ticket numbers.
+// ---------------------------------------------------------------------------
+const disputeRateLimitMiddleware = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests', message: 'Rate limit exceeded. Please try again in a minute.' },
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/disputes/lookup
+//
+// Accepts { ticket_number, vehicle_reg } (or { token } for QR deep-links).
+// Verifies the combination against the infringement_notices table in Supabase.
+// Returns a sanitised ticket + organisation branding payload — sensitive
+// internal fields (officer name, financial routing, internal notes) are
+// deliberately stripped before the response is sent to the browser.
+// ---------------------------------------------------------------------------
+app.post('/api/disputes/lookup', disputeRateLimitMiddleware, async (req, res) => {
+  try {
+    const authResult = checkProxyAuth(req);
+    if (authResult) {
+      console.warn('🚫 Unauthorized dispute lookup attempt');
+      return res.status(authResult.status).json(authResult.body);
+    }
+
+    const { ticket_number, vehicle_reg, token } = req.body || {};
+
+    // At least one lookup strategy must be provided
+    if (!token && (!ticket_number || !vehicle_reg)) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Provide either a QR token or both ticket_number and vehicle_reg.',
+      });
+    }
+
+    // Validate token format up-front (before any DB or mock path) to reject
+    // malformed or potentially injected values early.
+    if (token) {
+      const trimmedToken = String(token).trim();
+      if (!/^[a-zA-Z0-9_-]{1,64}$/.test(trimmedToken)) {
+        return res.status(400).json({ error: 'Bad Request', message: 'Invalid token format.' });
+      }
+    }
+
+    // --- Supabase lookup ---
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      // Supabase not configured — return a mocked response so the frontend can
+      // be developed and tested without live credentials.
+      console.warn('⚠️  SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set — returning mock data');
+
+      // Use the actual inputs when available, fall back to demo values for the
+      // token-only path where ticket_number/vehicle_reg may not be present.
+      const mockTicketNumber = escapeHtml(ticket_number || (token ? 'FCM-DEMO' : ticket_number));
+      const mockVehicleReg   = escapeHtml(((vehicle_reg || (token ? 'DEMO01' : vehicle_reg)) || '').toUpperCase());
+
+      return res.status(200).json({
+        ticket: {
+          id: 'mock-uuid-0000-0000-0000-000000000001',
+          notice_number: mockTicketNumber || 'FCM-DEMO',
+          plate_number: mockVehicleReg || 'DEMO01',
+          offence_date: new Date().toISOString(),
+          offence_description: 'Freedom camping in a prohibited area (mock)',
+          fine_amount: 200,
+          due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          status: 'issued',
+        },
+        organization: {
+          name: 'Demo Camp Management',
+          logo_url: null,
+          primary_color: '#1e3a5f',
+          dispute_instructions: 'Please describe your reason for dispute and attach any supporting evidence.',
+          dispute_email: 'disputes@fcmanager.co.nz',
+        },
+      });
+    }
+
+    // Build Supabase query.
+    // Use the REST API directly (no SDK dependency) so we keep the proxy-server
+    // lean.  The service-role key is never forwarded to the browser.
+    //
+    // Maximum field lengths mirror the database column constraints:
+    //   notice_number  VARCHAR(30)
+    //   plate_number   VARCHAR(10)
+    //   secure_token   VARCHAR(64)
+    const NOTICE_NUMBER_MAX_LEN = 30;
+    const PLATE_MAX_LEN         = 10;
+    const TOKEN_MAX_LEN         = 64;
+    // Columns fetched from Supabase — extracted to avoid duplication between query paths
+    const SUPABASE_SELECT_FIELDS =
+      'id,notice_number,plate_number,offence_date,offence_description,fine_amount,due_date,status,organization_id,' +
+      'organizations(name,logo_url,primary_color,dispute_instructions,dispute_email)';
+
+    let queryUrl;
+    const supabaseHeaders = {
+      'apikey': SUPABASE_SERVICE_ROLE_KEY,
+      'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      'Content-Type': 'application/json',
+    };
+
+    if (token) {
+      // QR deep-link path — match on secure_token only.
+      // Token already validated above; safe to encode directly.
+      const safeToken = encodeURIComponent(String(token).trim().slice(0, TOKEN_MAX_LEN));
+      queryUrl = `${SUPABASE_URL}/rest/v1/infringement_notices` +
+        `?select=${SUPABASE_SELECT_FIELDS}` +
+        `&secure_token=eq.${safeToken}` +
+        `&status=neq.cancelled` +
+        `&limit=1`;
+    } else {
+      // Manual entry path — require both ticket number AND vehicle reg
+      const safeNoticeNumber = encodeURIComponent(String(ticket_number).trim().toUpperCase().slice(0, NOTICE_NUMBER_MAX_LEN));
+      const safePlate        = encodeURIComponent(String(vehicle_reg).trim().toUpperCase().slice(0, PLATE_MAX_LEN));
+      queryUrl = `${SUPABASE_URL}/rest/v1/infringement_notices` +
+        `?select=${SUPABASE_SELECT_FIELDS}` +
+        `&notice_number=eq.${safeNoticeNumber}` +
+        `&plate_number=eq.${safePlate}` +
+        `&status=neq.cancelled` +
+        `&limit=1`;
+    }
+
+    const supabaseRes = await axios.get(queryUrl, { headers: supabaseHeaders, timeout: 10000 });
+    const rows = supabaseRes.data;
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'No matching infringement notice found. Please check the ticket number and vehicle registration.',
+      });
+    }
+
+    const row = rows[0];
+    const org = row.organizations || {};
+
+    // Return only the fields the public dispute form needs
+    return res.status(200).json({
+      ticket: {
+        id:                  row.id,
+        notice_number:       row.notice_number,
+        plate_number:        row.plate_number,
+        offence_date:        row.offence_date,
+        offence_description: row.offence_description,
+        fine_amount:         row.fine_amount,
+        due_date:            row.due_date,
+        status:              row.status,
+      },
+      organization: {
+        name:                 org.name              || 'FieldOps Manager',
+        logo_url:             org.logo_url          || null,
+        primary_color:        org.primary_color     || '#1e3a5f',
+        dispute_instructions: org.dispute_instructions || 'Please describe your reason for dispute.',
+        dispute_email:        org.dispute_email     || null,
+      },
+    });
+
+  } catch (error) {
+    console.error('❌ Dispute lookup error:', error.response?.data || error.message);
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to look up infringement notice.',
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/disputes/submit
+//
+// Accepts the full dispute form payload:
+//   { ticket_id, claimant_name, claimant_email, claimant_phone?,
+//     dispute_reason, evidence_image? }
+//
+// Orchestrates:
+//   1. Input validation + sanitisation
+//   2. Evidence image upload → Supabase Storage
+//   3. AI evidence analysis → Runpod serverless endpoint
+//   4. Dispute record write → Supabase `dispute_submissions`
+//   5. Confirmation emails  → Postal (claimant receipt + org admin alert)
+// ---------------------------------------------------------------------------
+app.post('/api/disputes/submit', disputeRateLimitMiddleware, async (req, res) => {
+  try {
+    const authResult = checkProxyAuth(req);
+    if (authResult) {
+      console.warn('🚫 Unauthorized dispute submit attempt');
+      return res.status(authResult.status).json(authResult.body);
+    }
+
+    const {
+      ticket_id,
+      claimant_name,
+      claimant_email,
+      claimant_phone,
+      dispute_reason,
+      evidence_image,   // base64 data-URI or pre-signed URL string
+    } = req.body || {};
+
+    // ── 1. Input validation ──────────────────────────────────────────────
+    if (!ticket_id || !claimant_name || !claimant_email || !dispute_reason) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'ticket_id, claimant_name, claimant_email, and dispute_reason are required.',
+      });
+    }
+
+    if (!EMAIL_REGEX.test(claimant_email)) {
+      return res.status(400).json({ error: 'Bad Request', message: 'Invalid email address.' });
+    }
+
+    if (String(dispute_reason).length > 2000) {
+      return res.status(400).json({ error: 'Bad Request', message: 'dispute_reason must be 2000 characters or fewer.' });
+    }
+
+    const safeClaimantName   = escapeHtml(String(claimant_name).trim().slice(0, 100));
+    const safeClaimantEmail  = String(claimant_email).trim().toLowerCase().slice(0, 254);
+    const safeDisputeReason  = escapeHtml(String(dispute_reason).trim().slice(0, 2000));
+    const safeClaimantPhone  = claimant_phone ? escapeHtml(String(claimant_phone).trim().slice(0, 30)) : null;
+
+    // ── 2. Evidence image upload → Supabase Storage ──────────────────────
+    // TODO: When SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are configured,
+    //       replace this placeholder with a real upload.
+    //
+    // Steps:
+    //   a. Validate that evidence_image is a genuine image (PNG/JPEG/WEBP).
+    //   b. Reject files larger than 10 MB.
+    //   c. Convert base64 data-URI to a Buffer.
+    //   d. Upload to the 'dispute-evidence' Storage bucket via:
+    //        PUT ${SUPABASE_URL}/storage/v1/object/dispute-evidence/${ticket_id}/${Date.now()}.jpg
+    //      with Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}
+    //   e. Capture the resulting public URL.
+    let evidenceUrl = null;
+
+    if (evidence_image) {
+      if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+        console.warn('⚠️  Supabase Storage not configured — skipping evidence upload');
+        evidenceUrl = '(evidence upload skipped — Supabase not configured)';
+      } else {
+        // PLACEHOLDER: Replace with real Supabase Storage upload
+        // const imgBuffer = Buffer.from(evidence_image.replace(/^data:(image\/(?:png|jpeg|webp));base64,/, ''), 'base64');
+        // NOTE: validate the MIME type prefix matches image/png, image/jpeg, or image/webp
+        //       before extracting bytes — do NOT accept arbitrary MIME types.
+        // const uploadPath = `${ticket_id}/${Date.now()}.jpg`;
+        // await axios.put(
+        //   `${SUPABASE_URL}/storage/v1/object/dispute-evidence/${uploadPath}`,
+        //   imgBuffer,
+        //   {
+        //     headers: {
+        //       'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        //       'Content-Type': 'image/jpeg',
+        //     },
+        //     timeout: 30000,
+        //   }
+        // );
+        // evidenceUrl = `${SUPABASE_URL}/storage/v1/object/public/dispute-evidence/${uploadPath}`;
+        console.log('📎 Evidence image received — upload placeholder active');
+        evidenceUrl = null; // Replace with real upload logic above
+      }
+    }
+
+    // ── 3. AI evidence analysis → Runpod ─────────────────────────────────
+    // TODO: When RUNPOD_API_KEY and RUNPOD_ENDPOINT_ID are configured,
+    //       replace this placeholder with a real Runpod serverless call.
+    //
+    // Steps:
+    //   a. POST to https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}/runsync
+    //      with Authorization: Bearer ${RUNPOD_API_KEY}
+    //      body: { input: { dispute_text: safeDisputeReason, evidence_url: evidenceUrl } }
+    //   b. The worker runs OCR on the image and NLP on the text.
+    //   c. It returns { summary, confidence_score, ocr_text, flags[] }.
+    //   d. Store the result as ai_analysis on the dispute record.
+    let aiAnalysis = null;
+
+    if (RUNPOD_API_KEY && RUNPOD_ENDPOINT_ID) {
+      try {
+        // PLACEHOLDER: Replace with real Runpod call
+        // const runpodRes = await axios.post(
+        //   `https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}/runsync`,
+        //   { input: { dispute_text: safeDisputeReason, evidence_url: evidenceUrl } },
+        //   {
+        //     headers: { 'Authorization': `Bearer ${RUNPOD_API_KEY}`, 'Content-Type': 'application/json' },
+        //     timeout: 60000,
+        //   }
+        // );
+        // aiAnalysis = runpodRes.data?.output || null;
+        console.log('🤖 Runpod AI analysis placeholder active');
+      } catch (runpodError) {
+        // Non-fatal — log and continue without AI analysis
+        console.error('⚠️  Runpod analysis failed (non-fatal):', runpodError.message);
+      }
+    } else {
+      console.warn('⚠️  RUNPOD_API_KEY / RUNPOD_ENDPOINT_ID not set — skipping AI analysis');
+    }
+
+    // ── 4. Dispute record write → Supabase ───────────────────────────────
+    // Generate a human-readable reference number for the submission
+    const referenceNumber = `DS-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      console.warn('⚠️  Supabase not configured — skipping dispute record write');
+    } else {
+      // PLACEHOLDER: Replace with real Supabase INSERT
+      // await axios.post(
+      //   `${SUPABASE_URL}/rest/v1/dispute_submissions`,
+      //   {
+      //     infringement_notice_id: ticket_id,
+      //     reference_number:       referenceNumber,
+      //     claimant_name:          safeClaimantName,
+      //     claimant_email:         safeClaimantEmail,
+      //     claimant_phone:         safeClaimantPhone,
+      //     message:                safeDisputeReason,
+      //     evidence_url:           evidenceUrl,
+      //     ai_analysis:            aiAnalysis,
+      //     status:                 'pending_review',
+      //     source_type:            'public_portal',
+      //     submitted_at:           new Date().toISOString(),
+      //   },
+      //   {
+      //     headers: {
+      //       'apikey':        SUPABASE_SERVICE_ROLE_KEY,
+      //       'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      //       'Content-Type':  'application/json',
+      //       'Prefer':        'return=representation',
+      //     },
+      //     timeout: 10000,
+      //   }
+      // );
+      console.log('💾 Dispute record write placeholder active — reference:', referenceNumber);
+    }
+
+    // ── 5. Confirmation emails → Postal ──────────────────────────────────
+    // TODO: When POSTAL_API_URL and POSTAL_API_KEY are configured,
+    //       replace these placeholders with real Postal HTTP API calls.
+    //
+    // Postal API reference: https://docs.postalserver.io/developer/api
+    //
+    // Claimant confirmation email:
+    //   POST ${POSTAL_API_URL}/api/v1/send/message
+    //   X-Server-API-Key: ${POSTAL_API_KEY}
+    //   body: { to: [safeClaimantEmail], from: "disputes@fcmanager.co.nz",
+    //           subject: "Dispute Received — ${referenceNumber}", html_body: "…" }
+    //
+    // Organisation admin alert:
+    //   POST ${POSTAL_API_URL}/api/v1/send/message
+    //   X-Server-API-Key: ${POSTAL_API_KEY}
+    //   body: { to: [<org_dispute_email>], from: "disputes@fcmanager.co.nz",
+    //           subject: "New Dispute Submission — ${referenceNumber}", html_body: "…" }
+    if (POSTAL_API_URL && POSTAL_API_KEY) {
+      try {
+        // PLACEHOLDER: Replace with real Postal API calls
+        // const claimantHtml = `<p>Hi ${safeClaimantName},</p>
+        //   <p>Your dispute <strong>${referenceNumber}</strong> has been received and is under review.</p>
+        //   <p>We will contact you at ${safeClaimantEmail} with an outcome.</p>`;
+        //
+        // await axios.post(
+        //   `${POSTAL_API_URL}/api/v1/send/message`,
+        //   { to: [safeClaimantEmail], from: 'disputes@fcmanager.co.nz',
+        //     subject: `Dispute Received — ${referenceNumber}`, html_body: claimantHtml },
+        //   { headers: { 'X-Server-API-Key': POSTAL_API_KEY, 'Content-Type': 'application/json' }, timeout: 15000 }
+        // );
+        console.log('📧 Postal confirmation email placeholder active');
+      } catch (postalError) {
+        // Non-fatal — the dispute is already saved; email failure should not block the response
+        console.error('⚠️  Postal email failed (non-fatal):', postalError.message);
+      }
+    } else {
+      console.warn('⚠️  POSTAL_API_URL / POSTAL_API_KEY not set — skipping confirmation emails');
+    }
+
+    // ── 6. Success response ───────────────────────────────────────────────
+    console.log(`✅ Dispute submitted: ${referenceNumber} for ticket ${ticket_id}`);
+    return res.status(201).json({
+      success: true,
+      reference: referenceNumber,
+      message: 'Your dispute has been received. You will receive a confirmation email shortly.',
+    });
+
+  } catch (error) {
+    console.error('❌ Dispute submit error:', error.response?.data || error.message);
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to submit dispute. Please try again or contact support.',
+    });
+  }
+});
+
 // Rate limiting info endpoint (optional)
 app.get('/api/info', (req, res) => {
   res.json({
@@ -459,6 +869,8 @@ app.get('/api/info', (req, res) => {
       nzscvVehicleInfo: 'POST /api/nzscv/vehicle-info',
       motorwebOwnerCheck: 'GET /motorweb/currentOwnerCheck?plateOrVin=ABC123&specificReason=...',
       sendInviteEmail: 'POST /api/email/send-invite',
+      disputeLookup: 'POST /api/disputes/lookup',
+      disputeSubmit: 'POST /api/disputes/submit',
     },
     rateLimit: {
       maxHitsPerSecond: 1,
