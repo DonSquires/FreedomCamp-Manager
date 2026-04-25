@@ -78,6 +78,7 @@ const PTT_DISABLE_PUBLIC_STUN = String(process.env.PTT_DISABLE_PUBLIC_STUN || ''
 const TOKEN_TRACKER_RETENTION_MS = parseInt(process.env.PTT_TOKEN_TRACKER_RETENTION_MS || '300000', 10);
 const REDIS_URL = String(process.env.REDIS_URL || '').trim();
 const REDIS_CHANNEL_META_TTL_SECONDS = parseInt(process.env.PTT_REDIS_CHANNEL_META_TTL_SECONDS || '86400', 10);
+const REDIS_PRESENCE_TTL_SECONDS = parseInt(process.env.PTT_REDIS_PRESENCE_TTL_SECONDS || '86400', 10);
 const REDIS_EMERGENCY_TTL_SECONDS = parseInt(process.env.PTT_REDIS_EMERGENCY_TTL_SECONDS || '86400', 10);
 const PREVIEW_HOST_REGEX =
   process.env.PTT_ALLOWED_PREVIEW_ORIGIN_REGEX ||
@@ -215,6 +216,10 @@ function getRedisChannelMetaKey(channelId) {
   return `ptt:channel-meta:${channelId}`;
 }
 
+function getRedisChannelPresenceKey(channelId) {
+  return `ptt:presence:${channelId}`;
+}
+
 function getRedisEmergencyKey(organizationId) {
   return `ptt:emergency:${organizationId}`;
 }
@@ -310,6 +315,122 @@ async function clearChannelMetaPersistence(channelId) {
   } catch (err) {
     console.warn(`Failed to clear channel meta for ${channelId}:`, err.message);
   }
+}
+
+function serializePresenceRecord(userId, presence) {
+  if (!presence) return null;
+
+  return {
+    userId,
+    channelId: presence.channelId,
+    status: presence.status || 'online',
+    name: presence.name || null,
+    role: presence.role || null,
+    lastSeen: presence.lastSeen || new Date().toISOString(),
+  };
+}
+
+function getLocalChannelPresenceSnapshot(channelId) {
+  const snapshot = [];
+
+  for (const [userId, presence] of userPresence.entries()) {
+    if (presence.channelId !== channelId) continue;
+
+    const serialized = serializePresenceRecord(userId, presence);
+    if (serialized) {
+      snapshot.push(serialized);
+    }
+  }
+
+  return snapshot;
+}
+
+async function hydrateChannelPresence(channelId) {
+  if (!isRedisAvailable()) return [];
+
+  try {
+    const raw = await redisClient.get(getRedisChannelPresenceKey(channelId));
+    if (!raw) return [];
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return [];
+    }
+
+    return Object.entries(parsed)
+      .map(([userId, presence]) => serializePresenceRecord(userId, presence))
+      .filter(Boolean);
+  } catch (err) {
+    console.warn(`Failed to hydrate presence for ${channelId}:`, err.message);
+    return [];
+  }
+}
+
+async function upsertPersistedPresence(userId, presence) {
+  if (!isRedisAvailable() || !presence?.channelId) return;
+
+  const key = getRedisChannelPresenceKey(presence.channelId);
+
+  try {
+    const raw = await redisClient.get(key);
+    const snapshot = raw ? JSON.parse(raw) : {};
+    snapshot[userId] = serializePresenceRecord(userId, presence);
+    await redisClient.set(key, JSON.stringify(snapshot), {
+      EX: REDIS_PRESENCE_TTL_SECONDS,
+    });
+  } catch (err) {
+    console.warn(`Failed to persist presence for ${userId}:`, err.message);
+  }
+}
+
+async function removePersistedPresence(channelId, userId) {
+  if (!isRedisAvailable() || !channelId || !userId) return;
+
+  const key = getRedisChannelPresenceKey(channelId);
+
+  try {
+    const raw = await redisClient.get(key);
+    if (!raw) return;
+
+    const snapshot = JSON.parse(raw);
+    if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+      await redisClient.del(key);
+      return;
+    }
+
+    delete snapshot[userId];
+
+    if (Object.keys(snapshot).length === 0) {
+      await redisClient.del(key);
+      return;
+    }
+
+    await redisClient.set(key, JSON.stringify(snapshot), {
+      EX: REDIS_PRESENCE_TTL_SECONDS,
+    });
+  } catch (err) {
+    console.warn(`Failed to clear presence for ${userId}:`, err.message);
+  }
+}
+
+async function getChannelPresenceSnapshot(channelId, excludeUserId = null) {
+  const merged = new Map();
+
+  for (const presence of await hydrateChannelPresence(channelId)) {
+    if (presence?.userId) {
+      merged.set(presence.userId, presence);
+    }
+  }
+
+  for (const presence of getLocalChannelPresenceSnapshot(channelId)) {
+    merged.set(presence.userId, presence);
+  }
+
+  if (excludeUserId) {
+    merged.delete(excludeUserId);
+  }
+
+  return Array.from(merged.values());
 }
 
 async function persistEmergencyBroadcastState(organizationId, state) {
@@ -712,26 +833,14 @@ app.get('/api/channels', rateLimitMiddleware, (req, res) => {
 /**
  * Get presence for a specific channel
  */
-app.get('/api/presence/:channelId', rateLimitMiddleware, (req, res) => {
+app.get('/api/presence/:channelId', rateLimitMiddleware, async (req, res) => {
   const authResult = checkProxyAuth(req);
   if (authResult) {
     return res.status(authResult.status).json(authResult.body);
   }
 
   const { channelId } = req.params;
-  const result = [];
-
-  for (const [userId, presence] of userPresence.entries()) {
-    if (presence.channelId === channelId) {
-      result.push({
-        userId,
-        status: presence.status,
-        name: presence.name,
-        role: presence.role,
-        lastSeen: presence.lastSeen,
-      });
-    }
-  }
+  const result = await getChannelPresenceSnapshot(channelId);
 
   res.json({ presence: result });
 });
@@ -864,6 +973,7 @@ function disconnectUserSession(userId, reason = 'Disconnected by administrator')
 
   // If socket is already closed/stale, clean in-memory presence immediately.
   userPresence.delete(userId);
+  void removePersistedPresence(presence.channelId, userId);
   return {
     disconnected: true,
     channelId: presence.channelId,
@@ -1017,6 +1127,7 @@ wss.on('connection', async (ws, req) => {
     lastSeen: new Date().toISOString(),
     ws,
   });
+  void upsertPersistedPresence(userId, userPresence.get(userId));
 
   // Notify others of join
   broadcastToChannel(channelId, {
@@ -1029,13 +1140,8 @@ wss.on('connection', async (ws, req) => {
   }, ws);
 
   // Send current presence to new joiner
-  const currentPresence = [];
   await hydrateEmergencyBroadcastState(organizationId);
-  for (const [uid, p] of userPresence.entries()) {
-    if (p.channelId === channelId && uid !== userId) {
-      currentPresence.push({ userId: uid, name: p.name, role: p.role, status: p.status });
-    }
-  }
+  const currentPresence = await getChannelPresenceSnapshot(channelId, userId);
   ws.send(JSON.stringify({
     type: 'sync',
     channelId,
@@ -1084,6 +1190,7 @@ wss.on('connection', async (ws, req) => {
     const currentPresence = userPresence.get(userId);
     if (currentPresence?.ws === ws) {
       userPresence.delete(userId);
+      void removePersistedPresence(channelId, userId);
     }
 
     // Notify others
@@ -1199,7 +1306,10 @@ function handleMessage(ws, userId, channelId, organizationId, name, role, messag
       // Heartbeat/keepalive
       ws.send(JSON.stringify({ type: 'pong', timestamp: new Date().toISOString() }));
       const presence = userPresence.get(userId);
-      if (presence) presence.lastSeen = new Date().toISOString();
+      if (presence) {
+        presence.lastSeen = new Date().toISOString();
+        void upsertPersistedPresence(userId, presence);
+      }
       break;
 
     case 'status':
@@ -1207,6 +1317,8 @@ function handleMessage(ws, userId, channelId, organizationId, name, role, messag
       const userPres = userPresence.get(userId);
       if (userPres && ['online', 'busy', 'offshift'].includes(message.status)) {
         userPres.status = message.status;
+        userPres.lastSeen = new Date().toISOString();
+        void upsertPersistedPresence(userId, userPres);
         broadcastToChannel(channelId, {
           type: 'presence',
           event: 'status',
