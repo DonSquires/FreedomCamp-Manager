@@ -9,7 +9,7 @@ else
   RANGE="HEAD~1...HEAD"
 fi
 
-PATTERN="openai|@openai|from 'openai'|from \"openai\"|require\\('openai'\\)|OPENAI_API_KEY"
+PATTERN="@openai|from 'openai'|from \"openai\"|require\\('openai'\\)|\"openai\"[[:space:]]*:"
 
 TMP_FILE="$(mktemp)"
 trap 'rm -f "$TMP_FILE"' EXIT
