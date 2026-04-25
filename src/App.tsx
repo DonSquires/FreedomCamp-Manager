@@ -110,6 +110,7 @@ const SiteGuardPortal = lazy(() => import('@/pages/SiteGuardPortal'))
 const AccessControlPage = lazy(() => import('@/pages/AccessControlPage'))
 const TeamChat = lazy(() => import('@/pages/TeamChat'))
 const PTTRadio = lazy(() => import('@/pages/PTTRadio'))
+const PTTTransmissionLog = lazy(() => import('@/pages/PTTTransmissionLog').then((m) => ({ default: m.PTTTransmissionLog })))
 const MessagingPage = lazy(() => import('@/modules/messaging'))
 const IntelApprovalQueue = lazy(() => import('@/pages/IntelApprovalQueue'))
 const BobIntakeQueue = lazy(() => import('@/pages/BobIntakeQueue'))
@@ -952,6 +953,15 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <PTTRadio />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/radio/log"
+            element={
+              <ProtectedRoute>
+                <PTTTransmissionLog />
               </ProtectedRoute>
             }
           />

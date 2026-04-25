@@ -53,6 +53,7 @@ import {
   stopVoxMonitoring,
   setVoxThreshold,
   toggleMute,
+  sendEmergencyBroadcast,
   initBluetoothPTT,
   normalizePTTErrorMessage,
 } from '@/lib/ptt'
@@ -101,6 +102,7 @@ import {
   Menu,
   BrainCircuit,
   Languages,
+  History,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
@@ -136,6 +138,8 @@ interface TransmissionEntry {
   channelNumber: number
   durationSeconds: number
   createdAt: string
+  clipUrl?: string | null
+  transcript?: string | null
   isEmergency: boolean
   isLive: boolean
 }
@@ -400,6 +404,8 @@ export default function PTTRadio() {
   const inputMode = usePTTStore((s) => s.inputMode)
   const presence = usePTTStore((s) => s.presence)
   const lastClips = usePTTStore((s) => s.lastClips)
+  const emergencyBroadcastActive = usePTTStore((s) => s.emergencyBroadcastActive)
+  const emergencyBroadcastInitiatedByName = usePTTStore((s) => s.emergencyBroadcastInitiatedByName)
   const error = usePTTStore((s) => s.error)
   const setInputMode = usePTTStore((s) => s.setInputMode)
   const setVoxEnabled = usePTTStore((s) => s.setVoxEnabled)
@@ -442,7 +448,8 @@ export default function PTTRadio() {
     if (!wsUrl) return 'Signal URL unavailable'
     try {
       const parsed = new URL(wsUrl)
-      return `${parsed.protocol}//${parsed.host}`
+      const path = parsed.pathname && parsed.pathname !== '/' ? parsed.pathname : ''
+      return `${parsed.protocol}//${parsed.host}${path}`
     } catch {
       return wsUrl
     }
@@ -694,6 +701,8 @@ export default function PTTRadio() {
         channelNumber: r.channel_number,
         durationSeconds: parseFloat(r.duration_seconds ?? '0'),
         createdAt: r.created_at,
+        clipUrl: r.clip_url ?? null,
+        transcript: r.transcript ?? null,
         isEmergency: r.is_emergency ?? false,
         isLive: false,
       }))
@@ -982,7 +991,7 @@ export default function PTTRadio() {
     }, scanDwellMs)
 
     return () => { if (scanTimerRef.current) clearInterval(scanTimerRef.current) }
-  }, [scanMode, channels, speakerId, connectToChannel])
+  }, [scanMode, channels, speakerId, connectToChannel, scanDwellMs])
 
   // ── Cleanup on unmount ────────────────────────────────────
   useEffect(() => {
@@ -1156,10 +1165,13 @@ export default function PTTRadio() {
   const handlePTTRelease = useCallback(async () => {
     if (!isTransmitting) return
     const startTime = currentTxStart ?? new Date()
-    const durationSeconds = (Date.now() - startTime.getTime()) / 1000
+    let durationSeconds = (Date.now() - startTime.getTime()) / 1000
+    let clipUrl: string | null = null
 
     try {
-      await stopSpeaking()
+      const stopMeta = await stopSpeaking()
+      durationSeconds = typeof stopMeta?.duration === 'number' ? stopMeta.duration : durationSeconds
+      clipUrl = stopMeta?.clipUrl || null
     } catch {
       // ignore — still need to update UI
     }
@@ -1183,6 +1195,8 @@ export default function PTTRadio() {
       channelNumber: activeChannel?.channel_number ?? 0,
       durationSeconds,
       createdAt: startTime.toISOString(),
+      clipUrl,
+      transcript: null,
       isEmergency: emergencyMode,
       isLive: false,
     }
@@ -1190,9 +1204,8 @@ export default function PTTRadio() {
 
     // Persist to DB (best-effort)
     if (effectiveOrgId && user?.id && !txLogUnavailableRef.current) {
-      ;(supabase as any)
-        .from('ptt_transmission_log')
-        .insert({
+      void (async () => {
+        const basePayload = {
           organization_id: effectiveOrgId,
           channel_number: activeChannel?.channel_number ?? 0,
           channel_name: activeChannel?.name ?? '',
@@ -1201,19 +1214,66 @@ export default function PTTRadio() {
           speaker_callsign: callsign || '',
           duration_seconds: durationSeconds,
           is_emergency: emergencyMode,
-        })
-        .then(({ error: e }: any) => {
-          if (e) {
-            if (e.code === 'PGRST205' || e.code === '42P01') {
-              txLogUnavailableRef.current = true
-              return
-            }
-            console.error('PTT TX log persist error:', e)
+        }
+
+        let insertedId: string | null = null
+        let insertResult = await (supabase as any)
+          .from('ptt_transmission_log')
+          .insert({
+            ...basePayload,
+            clip_url: clipUrl,
+            transcript: null,
+          })
+          .select('id')
+          .single()
+
+        if (insertResult.error && (String(insertResult.error?.message || '').includes('clip_url') || insertResult.error?.code === '42703')) {
+          insertResult = await (supabase as any)
+            .from('ptt_transmission_log')
+            .insert(basePayload)
+            .select('id')
+            .single()
+        }
+
+        if (insertResult.error) {
+          const e = insertResult.error
+          if (e.code === 'PGRST205' || e.code === '42P01') {
+            txLogUnavailableRef.current = true
+            return
           }
-          else queryClient.invalidateQueries({ queryKey: ['ptt-tx-log', effectiveOrgId] })
-        })
+          console.error('PTT TX log persist error:', e)
+          return
+        }
+
+        insertedId = insertResult.data?.id || null
+        queryClient.invalidateQueries({ queryKey: ['ptt-tx-log', effectiveOrgId] })
+
+        if (!clipUrl) return
+
+        try {
+          const result = await edgeFunctions.transcribeAudio({ clip_url: clipUrl, language: 'en' })
+          const transcript = String((result as any)?.transcript ?? (result as any)?.text ?? '').trim()
+          if (!transcript) return
+
+          setTxLog((prev) => prev.map((item) => (item.id === entry.id ? { ...item, transcript } : item)))
+
+          if (insertedId) {
+            await (supabase as any)
+              .from('ptt_transmission_log')
+              .update({ transcript })
+              .eq('id', insertedId)
+          }
+
+          queryClient.invalidateQueries({ queryKey: ['ptt-tx-log', effectiveOrgId] })
+        } catch (transcribeErr) {
+          console.warn('PTT TX transcript unavailable:', transcribeErr)
+        }
+      })()
     }
 
+    if (emergencyMode) {
+      sendEmergencyBroadcast(false)
+    }
     setEmergencyMode(false)
   }, [isTransmitting, currentTxStart, callsign, user, activeChannel, emergencyMode, effectiveOrgId, queryClient])
 
@@ -1308,7 +1368,7 @@ export default function PTTRadio() {
     }, scanDwellMs)
 
     return () => { if (scanTimerRef.current) clearInterval(scanTimerRef.current) }
-  }, [scanMode, channels, speakerId, connectToChannel])
+  }, [scanMode, channels, speakerId, connectToChannel, scanDwellMs])
 
   // ── Degraded connection warning (15s stuck connecting → amber banner) ─────
   useEffect(() => {
@@ -1346,6 +1406,7 @@ export default function PTTRadio() {
     if (emergencyChannel) {
       await connectToChannel(emergencyChannel)
     }
+    sendEmergencyBroadcast(true)
     setEmergencyMode(true)
     playStatusTone('emergency')
     toast.warning('EMERGENCY MODE — transmitting on all channels', { duration: 5000 })
@@ -1804,6 +1865,18 @@ export default function PTTRadio() {
           </div>
         )}
 
+        {emergencyBroadcastActive && (
+          <>
+            <div className="pointer-events-none fixed inset-0 z-40 border-[10px] border-red-500/70 animate-pulse" />
+            <div className="pointer-events-none fixed top-20 left-1/2 -translate-x-1/2 z-40 rounded-xl border border-red-500 bg-red-950/95 px-4 py-2 text-center shadow-xl shadow-red-900/40">
+              <div className="text-[11px] font-black uppercase tracking-[0.2em] text-red-300">Emergency Broadcast Active</div>
+              <div className="text-xs text-red-100 mt-1">
+                {emergencyBroadcastInitiatedByName ? `Initiated by ${emergencyBroadcastInitiatedByName}` : 'All units acknowledge and respond'}
+              </div>
+            </div>
+          </>
+        )}
+
         {/* ── Main console body ────────────────────────────── */}
         <div className="flex-1 flex gap-0 overflow-hidden">
 
@@ -2074,6 +2147,20 @@ export default function PTTRadio() {
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>{scanMode ? 'Stop scanner' : 'Start scanner'}</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="hidden md:inline-flex h-11 w-11 rounded-xl border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300"
+                      onClick={() => navigate('/radio/log')}
+                    >
+                      <History className="h-5 w-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>View Transmission Log</TooltipContent>
                 </Tooltip>
 
                 <Tooltip>
@@ -2417,6 +2504,11 @@ export default function PTTRadio() {
                               })}
                             </span>
                           </div>
+                          {entry.transcript && (
+                            <div className="mt-1 text-[11px] text-slate-400 italic leading-snug break-words">
+                              "{entry.transcript}"
+                            </div>
+                          )}
                         </div>
                         {entry.isEmergency && (
                           <AlertTriangle className="h-3 w-3 text-red-500 shrink-0 mt-0.5" />

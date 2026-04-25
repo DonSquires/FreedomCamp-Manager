@@ -37,6 +37,8 @@ ALTER TABLE public.canonical_vehicles
   ADD COLUMN IF NOT EXISTS stolen_reported_at TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS stolen_source      TEXT
     CHECK (stolen_source IN ('nzpf', 'waka_kotahi', 'manual', 'lesa', 'other')),
+  ADD COLUMN IF NOT EXISTS risk_level         TEXT
+    CHECK (risk_level IN ('low', 'medium', 'high', 'critical', NULL)),
   ADD COLUMN IF NOT EXISTS risk_category      TEXT
     CHECK (risk_category IN ('violence', 'aggression', 'weapon', 'other_safety', NULL));
 
@@ -62,6 +64,8 @@ CREATE INDEX IF NOT EXISTS idx_canonical_vehicles_risk_category
 -- ── 2. person_records — add risk_category ────────────────────────────────────
 
 ALTER TABLE public.person_records
+  ADD COLUMN IF NOT EXISTS risk_level TEXT
+    CHECK (risk_level IN ('low', 'medium', 'high', 'critical', NULL)),
   ADD COLUMN IF NOT EXISTS risk_category TEXT
     CHECK (risk_category IN ('violence', 'aggression', 'weapon', 'other_safety', NULL));
 
@@ -129,15 +133,30 @@ GRANT SELECT ON public.v_person_safety_flags TO service_role;
 -- under service_role for process-officer-scan. Authenticated users only get
 -- the view columns, not the underlying tables directly.
 
-DO $$ BEGIN
+DO $$
+BEGIN
   DROP POLICY IF EXISTS "authenticated_read_person_vehicle_links" ON public.person_vehicle_links;
-  CREATE POLICY "authenticated_read_person_vehicle_links"
-    ON public.person_vehicle_links FOR SELECT
-    TO authenticated
-    USING (
-      organization_id = ANY(get_user_organization_ids())
-      OR get_user_role(auth.uid()) IN ('master', 'grand_master')
-    );
+
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'person_vehicle_links'
+      AND column_name = 'organization_id'
+  ) THEN
+    CREATE POLICY "authenticated_read_person_vehicle_links"
+      ON public.person_vehicle_links FOR SELECT
+      TO authenticated
+      USING (
+        organization_id = ANY(get_user_organization_ids())
+        OR get_user_role(auth.uid()) IN ('master', 'grand_master')
+      );
+  ELSE
+    CREATE POLICY "authenticated_read_person_vehicle_links"
+      ON public.person_vehicle_links FOR SELECT
+      TO authenticated
+      USING (get_user_role(auth.uid()) IN ('master', 'grand_master'));
+  END IF;
 EXCEPTION WHEN undefined_table THEN NULL;
          WHEN undefined_function THEN NULL;
 END $$;

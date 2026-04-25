@@ -1,0 +1,25 @@
+{
+  "createdAt": "2026-04-24T23:03:53.278Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/PTT_ENTERPRISE_STACK_FIT_AND_BUILD.md",
+  "outputPath": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/PTT_ENTERPRISE_STACK_FIT_AND_BUILD.md.2026-04-24T23-03-53-266Z.json",
+  "decision": "needs-revision",
+  "structured": true,
+  "escalationReason": "blocker-findings",
+  "review": {
+    "decision": "needs-revision",
+    "summary": "The artifact contains ungrounded references to future-state designs that are not yet in the current system_state.json.",
+    "findings": [
+      {
+        "severity": "blocker",
+        "title": "Unimplemented modules referenced as existing",
+        "evidence": "The artifact mentions 'voice-profile enrollment and explicit consent workflow', 'secure voice profile storage with org-scoped policy', and 'anti-abuse controls including watermarking, rate limits, and audit logs' without evidence of their existence in the repo.",
+        "requiredAction": "Remove references to unimplemented modules or mark them as proposed future-state designs."
+      }
+    ],
+    "verificationChecks": [
+      "Run system_state.json validation against artifact content"
+    ]
+  },
+  "basicFixResult": null,
+  "requiredAction": "Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope."
+}

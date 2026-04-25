@@ -807,6 +807,34 @@ export const edgeFunctions = {
     })
   },
 
+  /**
+   * Deactivate user and trigger server-side PTT session revocation.
+   */
+  deactivateUser: async (params: {
+    user_id: string
+  }) => {
+    return callEdgeFunction('manage-user', {
+      action: 'deactivate',
+      userId: params.user_id,
+    })
+  },
+
+  /**
+   * Set user active state via consolidated user management edge function.
+   */
+  setUserActiveStatus: async (params: {
+    user_id: string
+    is_active: boolean
+  }) => {
+    return callEdgeFunction('manage-user', {
+      action: 'update',
+      userId: params.user_id,
+      payload: {
+        is_active: params.is_active,
+      },
+    })
+  },
+
   // ============================================================================
   // DOCUMENT PROCESSING (3 functions)
   // ============================================================================

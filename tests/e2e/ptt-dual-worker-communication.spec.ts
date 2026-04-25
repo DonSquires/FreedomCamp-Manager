@@ -1,16 +1,33 @@
 import { test, expect } from './setup'
-import { loginAs } from './auth'
+import { getTestUser, loginAs } from './auth'
 
 // Shared message value supplied by command env so both workers assert the same payload.
 const COMM_MESSAGE = process.env.PTT_COMM_TEST_MESSAGE || `ptt-comm-${Date.now()}`
+const adminIdentity = getTestUser('adminOrg1').email.toLowerCase()
+const officerIdentity = getTestUser('officerOrg1').email.toLowerCase()
+const sharedIdentity = adminIdentity === officerIdentity
+
+async function openTeamChatWithRecovery(page: Parameters<typeof loginAs>[0], user: 'adminOrg1' | 'officerOrg1') {
+  await loginAs(page, user)
+  await page.goto('/team-chat', { waitUntil: 'networkidle' })
+
+  // Occasionally the app bounces to /login right after a successful auth redirect.
+  // Recover once by refreshing auth state and retrying route navigation.
+  if (page.url().includes('/login')) {
+    await loginAs(page, user)
+    await page.goto('/team-chat', { waitUntil: 'networkidle' })
+  }
+
+  await expect(page).toHaveURL(/\/team-chat/, { timeout: 15000 })
+}
 
 test.describe('PTT dual-worker communication', () => {
-  test.describe.configure({ mode: 'parallel' })
+  // Shared identities can invalidate each other's sessions under parallel sign-ins.
+  // Fall back to serial execution for deterministic coverage in shared-credential runs.
+  test.describe.configure({ mode: sharedIdentity ? 'serial' : 'parallel' })
 
   test('admin sender posts team chat message', async ({ page }) => {
-    await loginAs(page, 'adminOrg1')
-    await page.goto('/team-chat', { waitUntil: 'networkidle' })
-    await expect(page).toHaveURL(/\/team-chat/, { timeout: 15000 })
+    await openTeamChatWithRecovery(page, 'adminOrg1')
 
     const adminSupport = page.getByRole('button', { name: /admin support/i }).first()
     if (await adminSupport.count()) {
@@ -31,9 +48,7 @@ test.describe('PTT dual-worker communication', () => {
   test('officer receiver observes admin message', async ({ page }, testInfo) => {
     test.setTimeout(90_000)
 
-    await loginAs(page, 'officerOrg1')
-    await page.goto('/team-chat', { waitUntil: 'networkidle' })
-    await expect(page).toHaveURL(/\/team-chat/, { timeout: 15000 })
+    await openTeamChatWithRecovery(page, 'officerOrg1')
 
     const adminSupport = page.getByRole('button', { name: /admin support/i }).first()
     if (await adminSupport.count()) {

@@ -91,8 +91,17 @@ interface PTTState {
   lastClips: PTTClip[]
   maxClipsToKeep: number
 
+  // Emergency broadcast state (org-wide)
+  emergencyBroadcastActive: boolean
+  emergencyBroadcastInitiatedBy: string | null
+  emergencyBroadcastInitiatedByName: string | null
+  emergencyBroadcastAt: string | null
+
   // Error
   error: string | null
+
+  // Degraded mode — PTT server unreachable for >15s (P1-6)
+  degradedMode: boolean
 
   // Actions
   setConnection: (status: PTTConnectionStatus, wsUrl?: string, token?: string) => void
@@ -115,7 +124,9 @@ interface PTTState {
   setBluetoothDevice: (device: BluetoothDevice | null) => void
   setBluetoothPttButtonPressed: (pressed: boolean) => void
   addClip: (clip: PTTClip) => void
+  setEmergencyBroadcastState: (active: boolean, initiatedBy?: string | null, initiatedByName?: string | null, at?: string | null) => void
   setError: (error: string | null) => void
+  setDegradedMode: (degraded: boolean) => void
   reset: () => void
 }
 
@@ -143,7 +154,12 @@ const initialState = {
   bluetoothPttButtonPressed: false,
   lastClips: [],
   maxClipsToKeep: 10,
+  emergencyBroadcastActive: false,
+  emergencyBroadcastInitiatedBy: null,
+  emergencyBroadcastInitiatedByName: null,
+  emergencyBroadcastAt: null,
   error: null,
+  degradedMode: false,
 }
 
 export const usePTTStore = create<PTTState>()(
@@ -225,7 +241,17 @@ export const usePTTStore = create<PTTState>()(
           return { lastClips: clips }
         }),
 
+      setEmergencyBroadcastState: (active, initiatedBy, initiatedByName, at) =>
+        set({
+          emergencyBroadcastActive: active,
+          emergencyBroadcastInitiatedBy: initiatedBy ?? null,
+          emergencyBroadcastInitiatedByName: initiatedByName ?? null,
+          emergencyBroadcastAt: at ?? null,
+        }),
+
       setError: (error) => set({ error }),
+
+      setDegradedMode: (degraded) => set({ degradedMode: degraded }),
 
       reset: () => set(initialState),
     }),

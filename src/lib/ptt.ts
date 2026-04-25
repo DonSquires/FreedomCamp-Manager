@@ -383,9 +383,10 @@ function scheduleTokenRefresh(channelScope: string, channelName: string | undefi
     ? Number(expiresInSeconds)
     : DEFAULT_TOKEN_EXPIRY_SECONDS
 
-  // Refresh when ~60% of TTL remains (40% elapsed) to leave overlap for
-  // edge cold starts and transient network delays.
-  const delayMs = Math.max(MIN_TOKEN_REFRESH_DELAY_MS, Math.floor(ttlSeconds * 1000 * 0.4))
+  // Refresh when 50% of TTL remains (50% elapsed) — PTT is always-relay (no P2P
+  // fallback), so 100% of sessions are affected by credential rotation. The larger
+  // overlap window (vs the original 40%) covers Supabase cold-start latency (3–8s).
+  const delayMs = Math.max(MIN_TOKEN_REFRESH_DELAY_MS, Math.floor(ttlSeconds * 1000 * 0.5))
 
   tokenRefreshTimeout = setTimeout(() => {
     tokenRefreshTimeout = null
@@ -454,6 +455,100 @@ let lastIceCandidateError: string | null = null
 let customAudioSourceFactory: (() => Promise<PTTCustomAudioSource>) | null = null
 let activeCustomAudioSourceCleanup: (() => void | Promise<void>) | null = null
 let activeOutboundAudioSourceLabel = 'microphone'
+
+// P1-8: getStats() telemetry intervals keyed by peerId
+const statsIntervals: Map<string, ReturnType<typeof setInterval>> = new Map()
+
+const STATS_POLL_INTERVAL_MS = 5_000
+
+/**
+ * Poll RTCPeerConnection.getStats() every 5 s and ship the report to
+ * the ptt_diagnostic_events table.  Fire-and-forget; never throws.
+ */
+function startStatsTelemetry(peerId: string, pc: RTCPeerConnection): void {
+  if (statsIntervals.has(peerId)) return  // Already polling
+
+  const interval = setInterval(async () => {
+    if (pc.connectionState === 'closed') {
+      stopStatsTelemetry(peerId)
+      return
+    }
+    try {
+      const store = usePTTStore.getState()
+      const stats = await pc.getStats()
+      let rttMs: number | null = null
+      let packetsLost: number | null = null
+      let jitterMs: number | null = null
+      let iceType: string | null = null
+      let packetsSent: number | null = null
+      let packetsRecv: number | null = null
+
+      stats.forEach((report) => {
+        if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+          if (typeof report.currentRoundTripTime === 'number') {
+            rttMs = Math.round(report.currentRoundTripTime * 1000)
+          }
+        }
+        if (report.type === 'inbound-rtp' && report.kind === 'audio') {
+          if (typeof report.packetsLost === 'number') packetsLost = report.packetsLost
+          if (typeof report.jitter === 'number') jitterMs = Math.round(report.jitter * 1000)
+          if (typeof report.packetsReceived === 'number') packetsRecv = report.packetsReceived
+        }
+        if (report.type === 'outbound-rtp' && report.kind === 'audio') {
+          if (typeof report.packetsSent === 'number') packetsSent = report.packetsSent
+        }
+        if (report.type === 'local-candidate') {
+          if (report.candidateType) iceType = report.candidateType  // host | srflx | relay
+        }
+      })
+
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user || !store.channelId) return
+
+      // Resolve org_id from user_profiles (typed table name in this codebase)
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('organization_id')
+        .eq('id', user.id)
+        .single()
+      if (!profile?.organization_id) return
+
+      const packetLossPct = (packetsLost != null && packetsRecv != null && packetsRecv > 0)
+        ? Math.round((packetsLost / (packetsLost + packetsRecv)) * 10000) / 100
+        : null
+
+      // Table not yet in generated types — cast to any until migration is applied to Supabase
+      ;(supabase as any).from('ptt_diagnostic_events').insert({
+        org_id: profile.organization_id,
+        user_id: user.id,
+        channel_id: store.channelId,
+        rtt_ms: rttMs,
+        packet_loss: packetLossPct,
+        jitter_ms: jitterMs,
+        ice_type: iceType,
+        packets_sent: packetsSent,
+        packets_recv: packetsRecv,
+      }).then()  // fire-and-forget
+    } catch {
+      // Swallow — telemetry must never affect PTT audio path
+    }
+  }, STATS_POLL_INTERVAL_MS)
+
+  statsIntervals.set(peerId, interval)
+}
+
+function stopStatsTelemetry(peerId: string): void {
+  const interval = statsIntervals.get(peerId)
+  if (interval) {
+    clearInterval(interval)
+    statsIntervals.delete(peerId)
+  }
+}
+
+function stopAllStatsTelemetry(): void {
+  statsIntervals.forEach((interval) => clearInterval(interval))
+  statsIntervals.clear()
+}
 
 async function cleanupActiveLocalStream(): Promise<void> {
   if (localStream) {
@@ -699,19 +794,43 @@ export async function requestPTTToken(channelScope: string): Promise<PTTTokenRes
     const requestStartedAt = Date.now()
     writeLastTokenRequestAt(requestStartedAt)
 
-    const { data, error } = await edgeFunctions.pttSignalingToken({ channelScope })
+    // Retry up to 3× on transient 401 / cold-start failures.
+    // Supabase Edge Function cold boots (3–8s) can cause a 401 on the first attempt
+    // even with a valid session. A short backoff with retries prevents a false
+    // 'authorization failed' error surfacing to the field officer.
+    const MAX_TOKEN_MINT_RETRIES = 3
+    const TOKEN_MINT_RETRY_DELAY_MS = 2000
+    let lastError: unknown = null
 
-    if (error) {
+    for (let attempt = 1; attempt <= MAX_TOKEN_MINT_RETRIES; attempt++) {
+      const { data, error } = await edgeFunctions.pttSignalingToken({ channelScope })
+
+      if (!error && data) {
+        return data as PTTTokenResponse
+      }
+
+      lastError = error
       const retryAfterSec = extractPTTRetryAfterSeconds(error)
       if (retryAfterSec && Number.isFinite(retryAfterSec) && retryAfterSec > 0) {
+        // Rate limit — respect the server's Retry-After, don't burn retries
         localTokenCooldownUntilMs = Date.now() + retryAfterSec * 1000
+        break
       }
-      throw new Error(normalizePTTErrorMessage(error))
+
+      const errorStr = String((error as any)?.message ?? error ?? '')
+      const isTransient = (
+        errorStr.toLowerCase().includes('failed to fetch') ||
+        errorStr.toLowerCase().includes('network') ||
+        errorStr.toLowerCase().includes('401')
+      )
+
+      if (!isTransient || attempt === MAX_TOKEN_MINT_RETRIES) break
+
+      console.warn(`🎤 PTT: Token mint attempt ${attempt} failed — retrying in ${TOKEN_MINT_RETRY_DELAY_MS}ms`, error)
+      await delay(TOKEN_MINT_RETRY_DELAY_MS)
     }
 
-    if (!data) throw new Error('No token data received')
-
-    return data as PTTTokenResponse
+    throw new Error(normalizePTTErrorMessage(lastError))
   })()
 
   tokenRequestInFlight = requestPromise
@@ -737,6 +856,7 @@ export async function requestPTTToken(channelScope: string): Promise<PTTTokenRes
 export async function connectToPTT(channelScope: string, channelName?: string, forceReconnect = false): Promise<void> {
   const store = usePTTStore.getState()
   lastRequestedChannelScope = channelScope
+  let attemptedQueryFallback = false
 
   // If already connected (or connecting) to the same channel, avoid churn.
   const sameChannel = store.channelId === channelScope
@@ -795,93 +915,120 @@ export async function connectToPTT(channelScope: string, channelName?: string, f
       iceTransportPolicy: tokenData.iceTransportPolicy,
     })
 
-    // Connect WebSocket. Prefer subprotocol-carried auth token to reduce
-    // token leakage in URL logs/proxies; keep query fallback for compatibility.
-    let socket: WebSocket
-    try {
-      socket = new WebSocket(tokenData.wsUrl, [...PTT_WS_PROTOCOLS, `auth.${tokenData.token}`])
-    } catch {
-      socket = new WebSocket(`${tokenData.wsUrl}?token=${encodeURIComponent(tokenData.token)}`)
-    }
-    ws = socket
+    const openSocket = (authMode: 'subprotocol' | 'query') => {
+      const fallbackUrl = `${tokenData.wsUrl}?token=${encodeURIComponent(tokenData.token)}`
+      let socket: WebSocket
+      let socketOpened = false
 
-    socketConnectTimeout = setTimeout(() => {
-      if (ws !== socket || socket.readyState !== WebSocket.CONNECTING) return
-
-      console.warn('🎤 PTT: WebSocket connect timeout — forcing reconnect')
-      cleanupConnection()
-      store.setConnection('reconnecting')
-      scheduleReconnect(channelScope)
-    }, SOCKET_CONNECT_TIMEOUT_MS)
-
-    socket.onopen = () => {
-      if (ws !== socket) return
-      clearSocketConnectTimeout()
-      console.log('🎤 PTT: Connected to signaling server')
-      reconnectAttempts = 0
-      lastSocketCloseCode = null
-      lastSocketCloseReason = null
-      negotiatedWsProtocol = socket.protocol || 'ptt.v1'
-      negotiatedProtocolVersion = tokenData.signaling?.protocolVersion || null
-      negotiatedInteropProfile = tokenData.signaling?.interopProfile || null
-      store.setConnection('connected')
-      startPingInterval()
-      sendClientHello()
-      scheduleTokenRefresh(channelScope, channelName, tokenData.expiresIn)
-    }
-
-    socket.onclose = (event) => {
-      if (ws !== socket) return
-      clearSocketConnectTimeout()
-      console.log('🎤 PTT: Disconnected', event.code, event.reason)
-      lastSocketCloseCode = event.code
-      lastSocketCloseReason = event.reason || null
-      cleanupConnection()
-
-      if (event.code === 4000) {
-        // Older socket replaced by a newer session. Do not auto-reconnect.
-        store.setConnection('disconnected')
-        return
+      if (authMode === 'subprotocol') {
+        socket = new WebSocket(tokenData.wsUrl, [...PTT_WS_PROTOCOLS, `auth.${tokenData.token}`])
+      } else {
+        socket = new WebSocket(fallbackUrl)
       }
+      ws = socket
 
-      if (event.code === 4001 || event.code === 4002) {
-        // Token/auth failures are terminal until backend config or auth state is corrected.
-        store.setConnection('error')
-        store.setError('Push to Talk authorization failed. Please sign in again or contact support.')
-        return
-      }
+      socketConnectTimeout = setTimeout(() => {
+        if (ws !== socket || socket.readyState !== WebSocket.CONNECTING) return
 
-      if (event.code === 4003) {
-        store.setConnection('error')
-        store.setError('Push to Talk channel is full. Please try again shortly.')
-        return
-      }
-
-      if (event.code !== 1000) {
-        // Attempt reconnect for unexpected disconnects
-        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-          store.setConnection('error')
-          store.setError('Push to Talk connection lost. Please refresh the page to reconnect.')
-          return
-        }
+        console.warn(`🎤 PTT: WebSocket connect timeout (${authMode}) — forcing reconnect`)
+        cleanupConnection()
         store.setConnection('reconnecting')
         scheduleReconnect(channelScope)
-      } else {
+      }, SOCKET_CONNECT_TIMEOUT_MS)
+
+      socket.onopen = () => {
+        if (ws !== socket) return
+        socketOpened = true
+        clearSocketConnectTimeout()
+        console.log(`🎤 PTT: Connected to signaling server (${authMode})`)
         reconnectAttempts = 0
-        store.setConnection('disconnected')
+        lastSocketCloseCode = null
+        lastSocketCloseReason = null
+        negotiatedWsProtocol = socket.protocol || 'ptt.v1'
+        negotiatedProtocolVersion = tokenData.signaling?.protocolVersion || null
+        negotiatedInteropProfile = tokenData.signaling?.interopProfile || null
+        store.setConnection('connected')
+        startPingInterval()
+        sendClientHello()
+        scheduleTokenRefresh(channelScope, channelName, tokenData.expiresIn)
+      }
+
+      socket.onclose = (event) => {
+        if (ws !== socket) return
+        clearSocketConnectTimeout()
+
+        // Some proxy chains reject long Sec-WebSocket-Protocol auth headers.
+        // If the first handshake closes before OPEN, retry once via query token.
+        if (!socketOpened && authMode === 'subprotocol' && !attemptedQueryFallback) {
+          attemptedQueryFallback = true
+          console.warn('🎤 PTT: Subprotocol auth handshake failed, retrying with query-token auth')
+          try {
+            socket.close()
+          } catch {
+            // Ignore close errors while switching auth mode.
+          }
+          ws = null
+          openSocket('query')
+          return
+        }
+
+        console.log('🎤 PTT: Disconnected', event.code, event.reason)
+        lastSocketCloseCode = event.code
+        lastSocketCloseReason = event.reason || null
+        cleanupConnection()
+
+        if (event.code === 4000) {
+          // Older socket replaced by a newer session. Do not auto-reconnect.
+          store.setConnection('disconnected')
+          return
+        }
+
+        if (event.code === 4001 || event.code === 4002) {
+          // Token/auth failures are terminal until backend config or auth state is corrected.
+          store.setConnection('error')
+          store.setError('Push to Talk authorization failed. Please sign in again or contact support.')
+          return
+        }
+
+        if (event.code === 4003) {
+          store.setConnection('error')
+          store.setError('Push to Talk channel is full. Please try again shortly.')
+          return
+        }
+
+        if (event.code !== 1000) {
+          // Attempt reconnect for unexpected disconnects
+          if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            store.setConnection('error')
+            store.setError('Push to Talk connection lost. Please refresh the page to reconnect.')
+            return
+          }
+          store.setConnection('reconnecting')
+          scheduleReconnect(channelScope)
+        } else {
+          reconnectAttempts = 0
+          store.setConnection('disconnected')
+        }
+      }
+
+      socket.onerror = (_error) => {
+        if (ws !== socket) return
+        // onerror usually fires before onclose and carries little detail.
+        // onclose drives retry/fallback behavior.
+        console.warn(`🎤 PTT: WebSocket transport error (${authMode}) — waiting for close event`)
+      }
+
+      socket.onmessage = (event) => {
+        if (ws !== socket) return
+        handleServerMessage(JSON.parse(event.data))
       }
     }
 
-    socket.onerror = (_error) => {
-      if (ws !== socket) return
-      // onerror always fires before onclose and carries no useful message (isTrusted:true only).
-      // Let onclose drive state and reconnect logic.
-      console.warn('🎤 PTT: WebSocket transport error — waiting for close event')
-    }
-
-    socket.onmessage = (event) => {
-      if (ws !== socket) return
-      handleServerMessage(JSON.parse(event.data))
+    try {
+      openSocket('subprotocol')
+    } catch {
+      attemptedQueryFallback = true
+      openSocket('query')
     }
   } catch (error: any) {
     const normalizedMessage = normalizePTTErrorMessage(error)
@@ -929,6 +1076,7 @@ function cleanupConnection(): void {
   }
 
   // Clean up WebRTC
+  stopAllStatsTelemetry()  // P1-8: stop all getStats() polling before closing PCs
   peerConnections.forEach((pc) => pc.close())
   peerConnections.clear()
   peerConnectionStates.clear()
@@ -1044,10 +1192,12 @@ function handleServerMessage(message: PTTMessage): void {
       break
 
     case 'sync':
-      // Initial sync on connect — restore channelName if the store lost it during reconnect
-      if (!store.channelName && activeChannelScope) {
-        const restoredName = message.channelName || activeChannelName || null
-        if (restoredName) {
+      // P1-3: Always restore channelName from the server's authoritative sync payload.
+      // After reconnect the store may hold null (setChannel called with undefined name)
+      // or a stale name. Prefer server value, then in-memory activeChannelName fallback.
+      if (activeChannelScope) {
+        const restoredName = message.channelName || activeChannelName || store.channelName || null
+        if (restoredName && restoredName !== store.channelName) {
           const channelType = activeChannelScope.split(':')[0] as PTTChannelType
           store.setChannel(activeChannelScope, channelType, restoredName)
         }
@@ -1293,7 +1443,12 @@ function createPeerConnection(peerId: string): RTCPeerConnection {
       signalingState: pc.signalingState,
       iceGatheringState: current?.iceGatheringState || pc.iceGatheringState,
     })
+    if (pc.connectionState === 'connected') {
+      // P1-8: Begin getStats() telemetry once ICE+DTLS are fully up
+      startStatsTelemetry(peerId, pc)
+    }
     if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+      stopStatsTelemetry(peerId)
       peerConnections.delete(peerId)
       peerConnectionStates.delete(peerId)
       pc.close()

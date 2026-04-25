@@ -1,0 +1,25 @@
+{
+  "createdAt": "2026-04-24T23:22:27.178Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/PTT_ENTERPRISE_STACK_FIT_AND_BUILD.md",
+  "outputPath": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/PTT_ENTERPRISE_STACK_FIT_AND_BUILD.md.2026-04-24T23-22-27-166Z.json",
+  "decision": "needs-revision",
+  "structured": true,
+  "escalationReason": "blocker-findings",
+  "review": {
+    "decision": "needs-revision",
+    "summary": "The artifact contains ungrounded references to future-state designs that are not currently present in the system_state.json. These should be clearly labeled as proposed work.",
+    "findings": [
+      {
+        "severity": "blocker",
+        "title": "Unimplemented modules and services",
+        "evidence": "The artifact references voice cloning, voice emulation, and real-time pipeline stages which are not present in the current system_state.json.",
+        "requiredAction": "Remove or clearly label these as proposed future-state designs before implementation."
+      }
+    ],
+    "verificationChecks": [
+      "Ensure all referenced modules and services exist in system_state.json after revisions"
+    ]
+  },
+  "basicFixResult": null,
+  "requiredAction": "Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope."
+}

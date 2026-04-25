@@ -44,6 +44,7 @@ import {
 import { formatDateTime, formatDate } from '@/lib/utils'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
+import { PTTChannelAccessControl } from '@/components/features/PTTChannelAccessControl'
 import { uploadFile } from '@/lib/fileUpload'
 import { PORTAL_AREA_LABELS, type PortalAreaCode } from '@/hooks/usePermissions'
 
@@ -81,6 +82,7 @@ interface UserProfile {
   portal_access: string[]
   authorized_work_locations: string[]
   extra_organization_ids: string[]
+  ptt_channel_access: string[] | null
   // Joined data
   organization?: Organization | null
 }
@@ -311,14 +313,32 @@ export default function UserManagement() {
   // Toggle user active status mutation
   const toggleActiveMutation = useMutation({
     mutationFn: async ({ userId, isActive }: { userId: string; isActive: boolean }) => {
-      const { error } = await (supabase.from('user_profiles') as any)
-        .update({ is_active: !isActive })
-        .eq('id', userId)
+      const nextIsActive = !isActive
 
-      if (error) throw error
+      const invocation = isActive
+        ? edgeFunctions.deactivateUser({ user_id: userId })
+        : edgeFunctions.setUserActiveStatus({ user_id: userId, is_active: true })
+
+      const { data, error } = await withTimeout(
+        invocation,
+        30000,
+        'Request timed out after 30 seconds.',
+      )
+
+      if (error) throw new Error(error)
+
+      return {
+        nextIsActive,
+        pttRevoke: (data as any)?.pttRevoke,
+      }
     },
-    onSuccess: () => {
-      toast.success('User status updated')
+    onSuccess: (result) => {
+      const revocationWarning = result?.nextIsActive === false && result?.pttRevoke?.attempted && result?.pttRevoke?.ok === false
+      if (revocationWarning) {
+        toast.warning('User deactivated, but PTT revoke did not fully confirm. Check voice server logs.')
+      } else {
+        toast.success('User status updated')
+      }
       queryClient.invalidateQueries({ queryKey: ['users'] })
     },
     onError: (error: any) => {
@@ -1610,6 +1630,28 @@ export default function UserManagement() {
                 </SelectContent>
               </Select>
             </div>
+
+            {selectedUser && (role === 'officer' || role === 'admin_officer' || role === 'admin') && (
+              <PTTChannelAccessControl
+                userId={selectedUser.id}
+                organizationId={organizationId || selectedUser.organization_id || ''}
+                currentChannelAccess={selectedUser.ptt_channel_access}
+                onSave={async (channelAccess) => {
+                  const normalizedAccess = channelAccess.length ? channelAccess : null
+                  const { error } = await (supabase.from('user_profiles') as any)
+                    .update({ ptt_channel_access: normalizedAccess })
+                    .eq('id', selectedUser.id)
+
+                  if (error) throw error
+
+                  setSelectedUser({
+                    ...selectedUser,
+                    ptt_channel_access: normalizedAccess,
+                  })
+                  queryClient.invalidateQueries({ queryKey: ['users'] })
+                }}
+              />
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditDialog(false)}>

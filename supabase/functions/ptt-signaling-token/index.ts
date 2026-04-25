@@ -27,6 +27,9 @@ const PTT_WS_URL =
   Deno.env.get('PTT_SIGNALING_WS_URL') ||
   ''
 const PROXY_SECRET = Deno.env.get('PTT_PROXY_SECRET') || ''
+const PTT_ALLOW_INSECURE_HTTP = ['1', 'true', 'yes', 'on'].includes(
+  (Deno.env.get('PTT_ALLOW_INSECURE_HTTP') || '').toLowerCase(),
+)
 
 function normalizeBaseUrl(value: string): string {
   return value.trim().replace(/\/+$/, '')
@@ -47,6 +50,11 @@ function normalizeWsUrl(value: string): string {
   const normalized = normalizeBaseUrl(value)
   if (normalized.startsWith('ws://') || normalized.startsWith('wss://')) return normalized
   return ''
+}
+
+function isProductionRuntime(): boolean {
+  const nodeEnv = (Deno.env.get('NODE_ENV') || '').toLowerCase()
+  return nodeEnv === 'production' || !!Deno.env.get('DENO_DEPLOYMENT_ID')
 }
 
 const PTT_AUTHORIZATION_ERROR = 'Not authorized for this channel. PTT access is limited to your employer organization and explicitly authorized organizations.'
@@ -78,6 +86,12 @@ function canAccessChannelOrg(profile: {
   extra_organization_ids?: string[] | null
 }, channelOrgId: string): boolean {
   return buildAllowedOrgIds(profile).has(channelOrgId)
+}
+
+function hasExplicitChannelScopeAccess(profile: {
+  ptt_channel_access?: string[] | null
+}, channelScope: string): boolean {
+  return Array.isArray(profile.ptt_channel_access) && profile.ptt_channel_access.includes(channelScope)
 }
 
 Deno.serve(async (req) => {
@@ -147,7 +161,7 @@ Deno.serve(async (req) => {
     // Get user profile for role and org
     const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
-      .select('id, first_name, last_name, role, organization_id, employer_organization_id, authorized_work_locations, extra_organization_ids')
+      .select('id, first_name, last_name, role, organization_id, employer_organization_id, authorized_work_locations, extra_organization_ids, ptt_channel_access')
       .eq('id', user.id)
       .single()
 
@@ -183,8 +197,18 @@ Deno.serve(async (req) => {
     }
 
     const [scopeType, scopeId] = channelScope.split(':')
-    const userRole = profile.role
     const isPrivilegedRole = ['master', 'grand_master'].includes(profile.role)
+    const requiresExplicitScope = !isPrivilegedRole && scopeType !== 'org'
+
+    if (requiresExplicitScope && !hasExplicitChannelScopeAccess(profile, channelScope)) {
+      return new Response(
+        JSON.stringify({
+          error: 'PTT channel not assigned',
+          message: 'You are not assigned to this PTT channel scope.',
+        }),
+        { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      )
+    }
 
     // Resolve effective organization context. For master/grand_master users who
     // may have organization_id = null, derive org context from channel scope.
@@ -328,6 +352,16 @@ Deno.serve(async (req) => {
       )
     }
 
+    if (isProductionRuntime() && !PTT_ALLOW_INSECURE_HTTP && normalizedPttServerUrl.startsWith('http://')) {
+      return new Response(
+        JSON.stringify({
+          error: 'PTT server URL insecure',
+          message: 'PTT_SERVER_URL must use https:// in production. Set PTT_ALLOW_INSECURE_HTTP=true only for controlled local testing.',
+        }),
+        { status: 503, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      )
+    }
+
     let mintResponse: Response
     try {
       mintResponse = await fetchWithRetry(`${normalizedPttServerUrl}/api/token/mint`, {
@@ -441,6 +475,16 @@ Deno.serve(async (req) => {
         JSON.stringify({
           error: 'PTT websocket URL invalid',
           message: 'Resolved websocket URL must start with ws:// or wss://',
+        }),
+        { status: 503, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      )
+    }
+
+    if (isProductionRuntime() && !PTT_ALLOW_INSECURE_HTTP && resolvedWsUrl.startsWith('ws://')) {
+      return new Response(
+        JSON.stringify({
+          error: 'PTT websocket URL insecure',
+          message: 'Resolved websocket URL must use wss:// in production. Set PTT_ALLOW_INSECURE_HTTP=true only for controlled local testing.',
         }),
         { status: 503, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )

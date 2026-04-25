@@ -1,0 +1,11 @@
+Decision: needs-revision
+Summary: The artifact contains ungrounded references to future-state designs that are not currently in the system_state.json, but these are clearly labeled as proposed work. The artifact also mentions gaps and changes without validation steps.
+Findings:
+- [major] Un-grounded future-state design references
+  Evidence: The artifact includes proposed future-state designs such as 'voice-profile enrollment' and 'secure voice profile storage', which are not in the current system_state.json.
+  Required action: Remove or clearly label all un-grounded future-state designs. Ensure that any changes or gaps mentioned have explicit validation steps.
+Verification checks:
+- Run targeted build
+- Verify TLS and wss rollout checks
+- Check TURN credentials and relay policy
+Review artifact: /workspaces/FreedomCamp-Manager/data/dr-bob-reviews/PTT_ENTERPRISE_STACK_FIT_AND_BUILD.md.2026-04-24T07-30-15-752Z.json

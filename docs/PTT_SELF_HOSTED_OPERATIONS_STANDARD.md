@@ -120,7 +120,7 @@ Required smoke test:
 3. master can open /radio
 
 Recommended extension tests:
-1. token refresh after 10-minute expiry
+1. token refresh after 5-minute expiry (default) and proactive renewal before expiry
 2. reconnect after websocket interruption
 3. turn-enabled session under restrictive NAT
 4. emergency broadcast channel interaction

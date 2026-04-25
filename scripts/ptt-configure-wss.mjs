@@ -15,6 +15,7 @@
  *   node scripts/ptt-configure-wss.mjs
  *   node scripts/ptt-configure-wss.mjs --domain ptt.yourdomain.com
  *   node scripts/ptt-configure-wss.mjs --nginx-only
+ *   node scripts/ptt-configure-wss.mjs --apply --wss-url wss://ptt.example.com/ws --https-url https://ptt.example.com
  */
 
 import { execSync } from 'node:child_process';
@@ -32,6 +33,53 @@ function getArg(flag) {
 
 const domain = getArg('--domain') || process.env.PTT_DOMAIN || null;
 const nginxOnly = args.includes('--nginx-only');
+const applyMode = args.includes('--apply');
+const providedWssUrl = getArg('--wss-url') || process.env.PTT_PUBLIC_WSS_URL || null;
+const providedHttpsUrl = getArg('--https-url') || process.env.PTT_PUBLIC_HTTPS_URL || null;
+
+function run(command) {
+  return execSync(command, { stdio: 'inherit', env: process.env });
+}
+
+function maybeResolveProjectRefFromEnvFile() {
+  const viteUrl = process.env.VITE_SUPABASE_URL || '';
+  const match = viteUrl.match(/^https:\/\/([a-z0-9]+)\.supabase\.co\/?$/i);
+  return match ? match[1] : null;
+}
+
+function resolveProjectRef() {
+  return (
+    process.env.SUPABASE_PROJECT_REF ||
+    process.env.PROJECT_REF ||
+    maybeResolveProjectRefFromEnvFile() ||
+    null
+  );
+}
+
+function resolveSupabaseCliCommand() {
+  try {
+    execSync('supabase --version', { stdio: 'ignore', env: process.env });
+    return 'supabase';
+  } catch {
+    return 'npx -y supabase@latest';
+  }
+}
+
+function normalizePublicHttpsUrl(raw) {
+  const value = String(raw || '').trim().replace(/\/+$/, '');
+  if (!value) return null;
+  if (value.startsWith('https://')) return value;
+  if (value.startsWith('http://')) return null;
+  return `https://${value}`;
+}
+
+function normalizePublicWssUrl(raw) {
+  const value = String(raw || '').trim().replace(/\/+$/, '');
+  if (!value) return null;
+  if (value.startsWith('wss://')) return value;
+  if (value.startsWith('ws://')) return null;
+  return `wss://${value}`;
+}
 
 // ─── Read current PTT_SERVER_URL from system_state.json ─────────────────────
 async function readSystemState() {
@@ -104,13 +152,15 @@ server {
 }
 
 // ─── Build Supabase CLI commands ─────────────────────────────────────────────
-function buildSupabaseCommands(wssUrl) {
+function buildSupabaseCommands(wssUrl, httpsUrl) {
   return [
-    `# 1. Set PTT_WS_URL so the edge function returns wss:// to the client:`,
-    `supabase secrets set PTT_WS_URL="${wssUrl}" --project-ref <YOUR_PROJECT_REF>`,
+    `# 1. Set PTT URLs so edge functions return secure endpoints:`,
+    `supabase secrets set PTT_WS_URL="${wssUrl}" PTT_SERVER_URL="${httpsUrl}" --project-ref <YOUR_PROJECT_REF>`,
     ``,
-    `# 2. Redeploy the ptt-signaling-token edge function to pick up the new secret:`,
+    `# 2. Redeploy PTT edge functions to pick up secrets:`,
     `supabase functions deploy ptt-signaling-token --project-ref <YOUR_PROJECT_REF>`,
+    `supabase functions deploy check-railway-health --project-ref <YOUR_PROJECT_REF>`,
+    `supabase functions deploy check-ptt-health --project-ref <YOUR_PROJECT_REF>`,
     ``,
     `# 3. Verify the health check shows ptt_ws_url = "${wssUrl}":`,
     `curl -s https://<YOUR_PROJECT_REF>.supabase.co/functions/v1/check-ptt-health \\`,
@@ -118,9 +168,39 @@ function buildSupabaseCommands(wssUrl) {
   ].join('\n');
 }
 
+function applySupabaseConfig({ wssUrl, httpsUrl }) {
+  const projectRef = resolveProjectRef();
+  const cli = resolveSupabaseCliCommand();
+
+  if (!projectRef) {
+    throw new Error('Missing project ref. Set SUPABASE_PROJECT_REF or VITE_SUPABASE_URL in env before using --apply.');
+  }
+
+  if (!process.env.SUPABASE_ACCESS_TOKEN) {
+    throw new Error('Missing SUPABASE_ACCESS_TOKEN in environment; required for --apply.');
+  }
+
+  console.log('━━━ Applying Supabase PTT configuration ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log(`  Project  : ${projectRef}`);
+  console.log(`  PTT URL  : ${httpsUrl}`);
+  console.log(`  PTT WS   : ${wssUrl}`);
+
+  run(`${cli} secrets set PTT_WS_URL=\"${wssUrl}\" PTT_SERVER_URL=\"${httpsUrl}\" --project-ref \"${projectRef}\"
+  `);
+  run(`${cli} functions deploy ptt-signaling-token --project-ref \"${projectRef}\"`);
+  run(`${cli} functions deploy check-railway-health --project-ref \"${projectRef}\"`);
+  run(`${cli} functions deploy check-ptt-health --project-ref \"${projectRef}\"`);
+
+  console.log('  Supabase secrets and functions updated successfully.\n');
+}
+
 async function main() {
   const state = await readSystemState();
   const pttServerUrl = state?.ptt?.server_url || state?.ptt_server_url || 'http://72.61.123.97:8080';
+  const effectiveHttpsUrl = normalizePublicHttpsUrl(providedHttpsUrl || pttServerUrl);
+  const effectiveWssUrl = normalizePublicWssUrl(
+    providedWssUrl || (domain ? `wss://ptt.${domain}/ws` : null)
+  );
 
   console.log('\n╔══════════════════════════════════════════════════════════════════════╗');
   console.log('║  PTT wss:// Configuration Helper                                    ║');
@@ -149,7 +229,8 @@ async function main() {
       console.log('  Copy to your VPS and run certbot as shown in the comments.\n');
 
       console.log('━━━ Supabase secrets to set after nginx is live ━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log(buildSupabaseCommands(wssUrl));
+      const httpsUrl = `https://ptt.${domain}`;
+      console.log(buildSupabaseCommands(wssUrl, httpsUrl));
       console.log('');
     }
   }
@@ -161,7 +242,7 @@ async function main() {
   console.log('    chmod +x cloudflared && ./cloudflared tunnel --url http://localhost:8080');
   console.log('  Cloudflare assigns a *.trycloudflare.com URL with wss:// support.');
   console.log('  Set PTT_WS_URL to wss://<assigned-subdomain>.trycloudflare.com/ws\n');
-  console.log(buildSupabaseCommands('wss://<assigned-subdomain>.trycloudflare.com/ws'));
+  console.log(buildSupabaseCommands('wss://<assigned-subdomain>.trycloudflare.com/ws', 'https://<assigned-subdomain>.trycloudflare.com'));
   console.log('');
 
   // ── Option C: nginx on hPanel VPS ─────────────────────────────────────────
@@ -176,7 +257,7 @@ async function main() {
   console.log('    node scripts/ptt-configure-wss.mjs --verify --wss-url <your-wss-url>\n');
 
   if (args.includes('--verify')) {
-    const wssUrl = getArg('--wss-url');
+    const wssUrl = effectiveWssUrl;
     if (!wssUrl) {
       console.log('  Provide --wss-url wss://... to verify.\n');
     } else {
@@ -191,6 +272,23 @@ async function main() {
         console.log('  Ensure the PTT server /health endpoint is reachable via SSL.\n');
       }
     }
+  }
+
+  if (applyMode) {
+    if (!effectiveHttpsUrl) {
+      throw new Error('Invalid https URL for --apply. Provide --https-url https://<ptt-host>.');
+    }
+    if (!effectiveWssUrl) {
+      throw new Error('Invalid wss URL for --apply. Provide --wss-url wss://<ptt-host>/ws.');
+    }
+    if (!effectiveHttpsUrl.startsWith('https://')) {
+      throw new Error('Refusing to apply non-https PTT_SERVER_URL.');
+    }
+    if (!effectiveWssUrl.startsWith('wss://')) {
+      throw new Error('Refusing to apply non-wss PTT_WS_URL.');
+    }
+
+    applySupabaseConfig({ wssUrl: effectiveWssUrl, httpsUrl: effectiveHttpsUrl });
   }
 }
 

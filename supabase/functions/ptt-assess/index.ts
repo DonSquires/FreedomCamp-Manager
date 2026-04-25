@@ -52,6 +52,15 @@ Deno.serve(withCors(async (req: Request) => {
     return errorResponse('Bob inference service is not configured (INFERENCE_SERVICE_URL missing)', req, 503)
   }
 
+  // BOB_COST_SAVER: skip inference entirely when flag is set
+  const costSaverEnabled = ['1','true','yes','on'].includes(String(Deno.env.get('BOB_COST_SAVER') ?? '').trim().toLowerCase())
+  if (costSaverEnabled) {
+    return new Response(
+      JSON.stringify({ skipped: true, reason: 'BOB_COST_SAVER enabled — PTT inference paused to reduce spend' }),
+      { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+    )
+  }
+
   const bobUrl = BOB_SERVICE_URL.replace(/\/+$/, '')
 
   // RunPod serverless: use /runsync job API

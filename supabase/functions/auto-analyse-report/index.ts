@@ -271,6 +271,16 @@ Deno.serve(async (req: Request) => {
       )
     }
 
+    // BOB_COST_SAVER: skip inference entirely when flag is set
+    const costSaverEnabled = ['1','true','yes','on'].includes(String(Deno.env.get('BOB_COST_SAVER') ?? '').trim().toLowerCase())
+    if (costSaverEnabled) {
+      console.log(`[auto-analyse] BOB_COST_SAVER enabled — skipping inference for report ${report_id}`)
+      return new Response(
+        JSON.stringify({ skipped: true, reason: 'BOB_COST_SAVER enabled', report_id }),
+        { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      )
+    }
+
     const healPayload = {
       report: {
         summary: `${report.title ?? 'Untitled'}: ${report.description ?? ''}`.trim(),

@@ -14,86 +14,40 @@ jobs:
       contents: read
 
     steps:
-      - name: Validate required secret
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate required secrets
         env:
           PTT_SERVER_URL: ${{ secrets.PTT_SERVER_URL }}
+          PTT_WS_URL: ${{ secrets.PTT_WS_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
           set -euo pipefail
-          if [ -z "${PTT_SERVER_URL:-}" ]; then
-            echo "::error::PTT_SERVER_URL secret is required"
-            exit 1
-          fi
+          : "${PTT_SERVER_URL:?PTT_SERVER_URL secret is required}"
+          : "${PTT_WS_URL:?PTT_WS_URL secret is required}"
+          : "${SUPABASE_URL:?SUPABASE_URL secret is required}"
+          : "${SUPABASE_ANON_KEY:?SUPABASE_ANON_KEY secret is required}"
 
-      - name: Health check
+      - name: Enforce stable PTT URL policy
         env:
           PTT_SERVER_URL: ${{ secrets.PTT_SERVER_URL }}
+          PTT_WS_URL: ${{ secrets.PTT_WS_URL }}
+          PTT_ALLOWED_HOST_REGEX: '^(srv1601189\.hstgr\.cloud|ptt\.onspace\.build)$'
         run: |
           set -euo pipefail
-          STATUS=$(curl -sSL -o /dev/null -w "%{http_code}" --max-time 20 "${PTT_SERVER_URL}/health" || echo "000")
-          BODY=$(curl -sSL --max-time 20 "${PTT_SERVER_URL}/health" || true)
-          if [ "$STATUS" != "200" ]; then
-            echo "::error::Health endpoint failed with HTTP ${STATUS}"
-            echo "Body: ${BODY:0:300}"
-            exit 1
-          fi
-          echo "✅ Health endpoint is reachable"
+          bash scripts/ptt-url-policy-check.sh
 
-      - name: Validate interoperability capabilities
+      - name: Run strict Phase 0 audit
         env:
           PTT_SERVER_URL: ${{ secrets.PTT_SERVER_URL }}
+          VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          PTT_AUDIT_FAIL_ON_WARN: "true"
+          PTT_AUDIT_REQUIRE_STRICT_RELAY: "true"
+          PTT_AUDIT_REQUIRE_HTTPS: "true"
+          PTT_AUDIT_REQUIRE_SUPABASE_CHECK: "true"
         run: |
           set -euo pipefail
-          curl -sSL --max-time 20 "${PTT_SERVER_URL}/api/capabilities" -o /tmp/ptt-cap.json
-          python3 <<'PY'
-          import json, sys
-          with open('/tmp/ptt-cap.json') as f:
-              data = json.load(f)
-          ws = data.get('websocket', {})
-          protocols = ws.get('supportedProtocols', [])
-          msg_types = ws.get('messageTypes', [])
-          if 'ptt.v2' not in protocols:
-              raise SystemExit('Missing ptt.v2 support in capabilities')
-          required_msgs = {'server_hello', 'hello', 'hello_ack', 'signal'}
-          if not required_msgs.issubset(set(msg_types)):
-              raise SystemExit(f'Missing required message types: {required_msgs - set(msg_types)}')
-          print('✅ Capabilities endpoint reports professional interop profile')
-          PY
-
-      - name: Validate transport posture
-        env:
-          PTT_SERVER_URL: ${{ secrets.PTT_SERVER_URL }}
-        run: |
-          set -euo pipefail
-          curl -sSL --max-time 20 "${PTT_SERVER_URL}/api/diagnostics" -o /tmp/ptt-diag.json
-          python3 <<'PY'
-          import json, sys
-          with open('/tmp/ptt-diag.json') as f:
-              data = json.load(f)
-          t = data.get('transport', {})
-          turn = bool(t.get('turnConfigured'))
-          relay = bool(t.get('forceTurnRelay'))
-          policy = t.get('iceTransportPolicy')
-          print(f"TURN configured: {turn}")
-          print(f"Force relay: {relay}")
-          print(f"ICE policy: {policy}")
-          if relay and not turn:
-              raise SystemExit('FORCE_TURN_RELAY=true but TURN is not configured')
-          PY
-
-      - name: Validate mint endpoint wiring (auth expected)
-        env:
-          PTT_SERVER_URL: ${{ secrets.PTT_SERVER_URL }}
-        run: |
-          set -euo pipefail
-          STATUS=$(curl -sSL -o /dev/null -w "%{http_code}" --max-time 15 \
-            -X POST "${PTT_SERVER_URL}/api/token/mint" \
-            -H "Content-Type: application/json" \
-            -H "x-proxy-secret: ptt-audit-invalid" \
-            -d '{"userId":"probe","organizationId":"probe","channelScope":"org:00000000-0000-0000-0000-000000000000"}' || echo "000")
-
-          if [ "$STATUS" != "401" ]; then
-            echo "::error::Expected 401 from mint endpoint probe; got ${STATUS}"
-            exit 1
-          fi
-
-          echo "✅ Mint endpoint authentication path is enforced"
+          bash scripts/ptt-phase0-runtime-audit.sh

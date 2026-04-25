@@ -1,0 +1,44 @@
+### Task Analysis for Validating Latest PTT Websocket-Recovery + CSP Fixes
+
+#### 1. Risks:
+- **Integration Issues:** The new websocket recovery and Content Security Policy (CSP) fixes might not integrate seamlessly with existing code.
+- **Performance Degradation:** New changes could introduce performance bottlenecks or unexpected delays.
+- **User Experience Impact:** Incorrect implementation of the fixes could lead to usability issues for campers.
+
+#### 2. Root Cause Hypotheses:
+- The websocket recovery mechanism might be overly complex, leading to potential bugs.
+- CSP settings might be incorrectly configured, causing security warnings or blocking legitimate requests.
+- Incompatibility between new and old code segments might cause unexpected behavior.
+
+#### 3. Recommended Split (Bob-do vs Copilot-do):
+- **Bob-do:**
+  - Review `system_state.json` for current state before making assumptions.
+  - Verify the build logs to ensure successful builds.
+  - Check lint results to confirm zero lint errors.
+- **Copilot-do:**
+  - Conduct a code review of the websocket recovery and CSP fix implementations.
+  - Perform manual testing with DrBob Human Test scenarios.
+
+#### 4. Staged Plan:
+1. **Preparation Phase:**
+   - Review `system_state.json` for current state.
+   - Ensure all linting tools are up-to-date.
+2. **Build Verification:**
+   - Check build logs to ensure successful builds without errors.
+3. **Code Review:**
+   - Inspect the websocket recovery and CSP fix implementations.
+4. **Manual Testing:**
+   - Use DrBob Human Test scenarios to validate functionality.
+5. **Post-Testing Analysis:**
+   - Analyze test results for any issues or unexpected behavior.
+
+#### 5. Verification Checklist:
+1. Review `system_state.json` for current state.
+2. Confirm zero lint errors in the build.
+3. Verify successful builds without errors.
+4. Check websocket recovery mechanism functionality.
+5. Validate CSP settings and their impact on user experience.
+6. Run DrBob Human Test scenarios to ensure no unexpected behavior.
+7. Document any issues found during testing.
+
+By following this structured approach, we can ensure a thorough validation of the latest PTT websocket-recovery + CSP fixes while minimizing risks.

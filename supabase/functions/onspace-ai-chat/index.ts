@@ -581,6 +581,25 @@ Deno.serve(async (req: Request) => {
       )
     }
 
+    // ── Cost-saver mode ──────────────────────────────────────────────────────
+    // When BOB_COST_SAVER=true, skip RunPod/Ollama entirely and reply with the
+    // deterministic local-failsafe handler. Secrets remain intact; just flip
+    // the flag in Supabase Edge Function secrets to pause AI spend.
+    const costSaverEnabled = parseBooleanEnv(Deno.env.get('BOB_COST_SAVER'), false)
+    if (costSaverEnabled) {
+      const latestMsg = [...messages].reverse().find((m) => m.role === 'user')?.content?.trim() ?? (typeof message === 'string' ? message : '')
+      return new Response(
+        JSON.stringify({
+          response: buildLocalFailsafeResponse(latestMsg),
+          model: 'bob-cost-saver',
+          provider: 'local-failsafe',
+          usage: null,
+          diagnostics: 'BOB_COST_SAVER is enabled. AI inference is paused to reduce spend. Disable the flag to resume.',
+        }),
+        { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      )
+    }
+
     const latestUserMessage = [...messages].reverse().find((m) => m.role === 'user')?.content?.trim() ?? ''
     if (!latestUserMessage) {
       return new Response(

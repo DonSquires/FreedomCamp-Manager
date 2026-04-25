@@ -35,7 +35,7 @@ This handshake supports compatibility adapters and versioned evolution without b
 - Signaling types: offer, answer, candidate
 
 ## Security
-- JWT channel token expiry: 10 minutes
+- JWT channel token expiry: 5 minutes (default, configurable via `PTT_TOKEN_EXPIRY_SECONDS`)
 - Mint endpoint protected by PTT_PROXY_SECRET
 - Production HTTPS enforcement via x-forwarded-proto checks
 - Token mint cooldown to reduce abuse / flood

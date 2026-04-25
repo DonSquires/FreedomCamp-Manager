@@ -25,6 +25,7 @@ export function PTTBar({ className }: PTTBarProps) {
   const isSpeaking       = usePTTStore((s) => s.isSpeaking)
   const speakerId        = usePTTStore((s) => s.speakerId)
   const speakerName      = usePTTStore((s) => s.speakerName)
+  const degradedMode     = usePTTStore((s) => s.degradedMode)
 
   const dotClass = {
     connected:    'bg-green-400 shadow-[0_0_5px_#4ade80]',
@@ -38,7 +39,14 @@ export function PTTBar({ className }: PTTBarProps) {
   const iAmTransmitting  = isSpeaking
 
   return (
-    <div className={cn('flex items-center gap-2', className)}>
+    <div className={cn('flex flex-col gap-1', className)}>
+      {/* P1-6: Degraded-mode amber banner */}
+      {degradedMode && (
+        <div className="flex items-center gap-1.5 text-xs font-medium text-amber-800 bg-amber-100 dark:text-amber-200 dark:bg-amber-900/50 px-2 py-1 rounded">
+          ⚠ PTT server unreachable — use radio or direct call
+        </div>
+      )}
+      <div className="flex items-center gap-2">
       {/* Status dot + channel */}
       <div className="flex items-center gap-1.5 min-w-0">
         <span className={cn('w-2 h-2 rounded-full shrink-0', dotClass)} />
@@ -70,6 +78,7 @@ export function PTTBar({ className }: PTTBarProps) {
         <Radio className="h-3.5 w-3.5" />
         <span className="hidden sm:inline">Radio</span>
       </Button>
+      </div>
     </div>
   )
 }

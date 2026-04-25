@@ -10,6 +10,7 @@
     "review:evidence": "node scripts/generate-bob-build-review-evidence.mjs tools/bob-build-review-evidence.json",
     "bob:self-heal-bridge": "node scripts/generate-bob-self-heal-bridge.mjs",
     "bob:collab": "bash scripts/bob-collab.sh",
+    "ptt:team:train": "bash scripts/ptt-team-train-loop.sh",
     "bob:feed-context": "node scripts/bob-feed-build-context.mjs",
     "bob:autonomous-cycle": "bash scripts/run-autonomous-learning-cycle.sh",
     "bob:monitor": "bash scripts/monitor-bob.sh",

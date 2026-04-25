@@ -51,6 +51,10 @@ async function callTenderGenerate(
 }> {
   if (!INFERENCE_SERVICE_URL) throw new Error('INFERENCE_SERVICE_URL is not configured')
 
+  // BOB_COST_SAVER: skip inference entirely when flag is set
+  const costSaverEnabled = ['1','true','yes','on'].includes(String(Deno.env.get('BOB_COST_SAVER') ?? '').trim().toLowerCase())
+  if (costSaverEnabled) throw new Error('BOB_COST_SAVER enabled — tender AI generation paused to reduce spend')
+
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), INFERENCE_REQUEST_TIMEOUT_MS)
 

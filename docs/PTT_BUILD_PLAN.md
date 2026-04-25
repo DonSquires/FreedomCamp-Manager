@@ -1,7 +1,9 @@
 # PTT System Build Plan
 **FieldOps Manager — Push-to-Talk Radio**  
-**Version**: 1.0 · Date: 2026-04-23  
-**Authors**: GitHub Copilot (Architect), Bob (Operational Intelligence), Dr Bob (Adversarial Review), Human Test (Field Reality)
+**Version**: 2.0 · Date: 2026-04-25  
+**Authors**: GitHub Copilot (Architect), Bob (Operational Intelligence), Dr Bob (Adversarial Review), Human Test (Field Reality)  
+**Research Sources**: WebRTC Infrastructure Guide 2026 (rtcleague.com), 7 WebRTC Trends 2026 (dev.to), WebRTC Protocols 2026 (calmops.com), WebRtcPerf load testing, Coturn Prometheus monitoring docs  
+**Deployment Model**: 100% Self-Hosted — No managed media platform. All components (ptt-server, coturn TURN, future SFU) run on VPS infrastructure controlled by Iron Eagle Security / OnSpace AI.
 
 ---
 
@@ -13,6 +15,45 @@ This plan is the result of a joint session between four reviewers. Each section 
 - **[Bob]** — UX flow, operational correctness, what a field officer actually needs
 - **[Dr Bob]** — adversarial critique, blockers, security & reliability risks
 - **[Human Test]** — what breaks in a real field scenario with gloves, sun, adrenaline, patchy 4G
+
+---
+
+## 0. Self-Hosted Architecture Principles (New — v2.0)
+
+Research confirms the following for self-hosted WebRTC at this scale:
+
+### Protocol Stack (Confirmed Correct)
+- **Signaling**: WSS (WebSocket over TLS) — WSS is the industry-standard for browser clients. Plain WS is unacceptable.
+- **NAT traversal**: STUN for address discovery + TURN relay when direct fails (40–70% of enterprise/mobile connections). TURN must listen on **both UDP/3478 and TCP/443** — TCP/443 is what corporate and mobile firewalls always allow.
+- **Media transport**: WebRTC DTLS-SRTP mandatory — encryption cannot be disabled or bypassed.
+- **Auth**: Short-lived JWT token minted by Edge Function validated by ptt-server on every connection.
+
+### Deployment Model
+All components run on our own infrastructure — no Twilio, no Agora, no Daily.co:
+
+| Component | Host | Technology |
+|---|---|---|
+| Signaling server | VPS (ptt.onspace.build) | `ptt-server/server.js` (Node.js) behind nginx |
+| TURN relay | VPS (same or dedicated) | coturn with Prometheus metrics enabled |
+| STUN | Self-hosted (`stun.onspace.build:3478`) or public (stun.l.google.com fallback) |
+| SFU (Phase 4) | VPS or RunPod pod | LiveKit self-hosted (recommended, Go-based, lower ops overhead than mediasoup) |
+| Token broker | Supabase Edge Function | `ptt-signaling-token` |
+| Transmission storage | Supabase Storage | `ptt-clips` bucket |
+| DB | Supabase PostgreSQL | `ptt_transmission_log`, `ptt_channels` tables |
+| Observability | Self-hosted | Coturn + Prometheus + Grafana stack |
+
+### Session State Persistence (New requirement from research)
+> *"Storing room state only in process memory — when that server restarts, every active room disappears, and clients cannot rejoin. Redis costs almost nothing and eliminates this entire failure mode."*  
+> — WebRTC Infrastructure Guide 2026
+
+The ptt-server currently keeps `channelMeta` and `userPresence` in-process memory. This is a confirmed reliability gap. Redis must be added as the session store. This is **P2-X** in the plan below.
+
+### SFU Threshold (Refined)
+PTT is audio-only and half-duplex (only one sender at a time). This shifts the P2P degradation threshold:
+- **Video calls**: P2P fails above ~5 participants (bandwidth O(n²))
+- **PTT audio**: P2P handles up to ~15 officers per channel reliably at 32–64 kbps each
+- **SFU required**: when any channel regularly exceeds 15 concurrent users
+- **Recommended SFU**: LiveKit (self-hosted, Go, faster to operate than mediasoup at this scale)
 
 ---
 
@@ -119,9 +160,11 @@ This plan is the result of a joint session between four reviewers. Each section 
 
 ---
 
-**P0-1: Enable TLS on ptt-server + switch to wss://**  
+**P0-1: Enable TLS on ptt-server + switch to wss:// + TURN on TCP/443**  
 **Owner**: Ops  
 **Files**: VPS nginx config, `ptt-server/.env`, Supabase secret `PTT_SERVER_URL`
+
+Research confirms: *"Always TURN on TCP port 443 with TLS. Corporate firewalls frequently block UDP. This single change resolves most 'WebRTC doesn't work on our corporate network' issues."* — WebRTC Infrastructure Guide 2026.
 
 Steps:
 1. Install nginx on VPS (or caddy — simpler TLS)
@@ -129,7 +172,21 @@ Steps:
 3. Configure nginx reverse proxy: `wss://ptt.onspace.build → ws://127.0.0.1:8080`
 4. Update Supabase secret: `PTT_SERVER_URL=https://ptt.onspace.build`
 5. Update `VITE_PTT_SERVER_URL` in frontend env
-6. Test: `wscat -c "wss://ptt.onspace.build/ws"`
+6. **Add TURN TCP/443 listener to coturn config:**
+   ```
+   listening-port=3478
+   tls-listening-port=5349
+   alt-tls-listening-port=443
+   cert=/etc/letsencrypt/live/turn.onspace.build/fullchain.pem
+   pkey=/etc/letsencrypt/live/turn.onspace.build/privkey.pem
+   min-tls-version=1.2
+   ```
+7. Update ICE server config in Edge Function to include TCP/443 TURN entry:
+   ```json
+   { "urls": "turns:turn.onspace.build:443?transport=tcp", "username": "...", "credential": "..." }
+   ```
+8. Test: `wscat -c "wss://ptt.onspace.build/ws"`
+9. Test TURN TCP: `turnutils_uclient -t -p 443 -u ptt_turn_user -w <password> turn.onspace.build`
 
 ---
 
@@ -170,9 +227,11 @@ Steps:
 **Owner**: Dev  
 **Files**: `supabase/functions/ptt-signaling-token/index.ts`, `src/lib/ptt.ts`
 
+Research refinement: PTT is an always-relay workload (unlike video calls, 100% of PTT traffic goes through TURN — there is no P2P fallback for audio). This means credential rotation impacts every active session simultaneously, making the overlap window more critical than for video calls.
+
 - Reduce JWT `expiresIn` from `600` → `300` seconds
-- In `ptt.ts` refresh logic: start refresh at 60% TTL (180s remaining), not at expiry minus 10s
-- Prevents cold-start race condition flagged by Dr Bob
+- In `ptt.ts` refresh logic: start refresh at **50% TTL (150s remaining)**, not 60% (180s) — larger overlap window covers Supabase cold-start latency (3–8s confirmed in practice)
+- On cold-start 401: retry token mint up to 3× with 2s backoff before surfacing error to user
 
 ---
 
@@ -265,6 +324,54 @@ In the WebSocket `message` handler for `sync` event:
 
 ---
 
+**P1-8: Wire RTCPeerConnection.getStats() polling + telemetry (New — from research)**  
+**Owner**: Dev  
+**Files**: `src/lib/ptt.ts`, new `supabase/functions/ptt-diagnostics-ingest/index.ts`
+
+This is the most impactful observability gap found in research. The "radio stuck in connecting" failure was invisible because we had no instrument watching the ICE path. The WebRTC spec provides `RTCPeerConnection.getStats()` — every browser exposes this and it is the only source of per-session quality data.
+
+The research guidance: *"Poll this every 5 seconds and send it to your telemetry backend. This is per-session quality data that no server can give you."* — WebRTC Infrastructure Guide 2026.
+
+Key metrics to capture:
+| Metric | Alert threshold | Meaning |
+|---|---|---|
+| ICE establishment rate | < 97% → investigate TURN | STUN/TURN misconfiguration |
+| TURN relay ratio | Sudden spike → STUN broken | All connections falling to relay |
+| Packet loss p95 | > 3% → audio degraded | Network path issue |
+| Round-trip time | > 200ms → degraded feel; > 400ms → unusable | Relay geography wrong |
+| Call setup time | > 5s → users abandon | ICE gathering slow |
+| Active ICE candidate type | `relay` vs `srflx` vs `host` | Shows if TURN is being used unnecessarily |
+
+Implementation:
+```typescript
+// In ptt.ts — after RTCPeerConnection is created
+const statsInterval = setInterval(async () => {
+  if (!peerConnection || peerConnection.connectionState === 'closed') return
+  const stats = await peerConnection.getStats()
+  const report: PTTStatsSample = { timestamp: Date.now(), channelId, userId }
+  stats.forEach(s => {
+    if (s.type === 'candidate-pair' && s.state === 'succeeded') {
+      report.rtt = s.currentRoundTripTime * 1000
+      report.packetsSent = s.packetsSent
+      report.packetsReceived = s.packetsReceived
+    }
+    if (s.type === 'remote-candidate') {
+      report.iceType = s.candidateType // 'relay' | 'srflx' | 'host'
+    }
+    if (s.type === 'inbound-rtp') {
+      report.packetsLost = s.packetsLost
+      report.jitter = s.jitter
+    }
+  })
+  // Ship to Supabase (fire-and-forget, don't block PTT on this)
+  supabase.from('ptt_diagnostic_events').insert(report).then()
+}, 5000)
+```
+
+DB migration: `ptt_diagnostic_events` table with columns `(id, user_id, channel_id, org_id, rtt_ms, packet_loss, jitter, ice_type, created_at)` + 7-day TTL via pg_cron delete.
+
+---
+
 ### Phase 2 — Operational Completeness
 
 ---
@@ -353,6 +460,37 @@ create table if not exists ptt_transmission_log (
 
 ---
 
+**P2-6: Redis session store for ptt-server (New — from research)**  
+**Owner**: Dev  
+**File**: `ptt-server/server.js`, `ptt-server/package.json`
+
+> *"Storing room state only in process memory — when that server restarts, every active room disappears, and clients cannot rejoin. Redis costs almost nothing and eliminates this entire failure mode."* — WebRTC Infrastructure Guide 2026
+
+Currently `channelMeta` and `userPresence` are plain JS objects in the Node.js process. A server restart silently drops all active sessions and prevents rejoin until clients time out and reconnect (typically 30–60s of dead air for field officers).
+
+Steps:
+1. Add Redis to VPS: `apt install redis-server` (localhost-only, no external exposure)
+2. Add `ioredis` to `ptt-server/package.json`
+3. Replace in-memory maps:
+   ```js
+   // BEFORE
+   const channelMeta = new Map()
+   const userPresence = new Map()
+
+   // AFTER
+   import Redis from 'ioredis'
+   const redis = new Redis({ host: '127.0.0.1', port: 6379 })
+   // channelMeta key: `ptt:channel:<channelId>` (hash)
+   // userPresence key: `ptt:presence:<orgId>` (set of userId strings)
+   // TTL: 24h on all keys — auto-expiry prevents stale state build-up
+   ```
+4. Emergency broadcast state (`emergencyBroadcast`) also moves to Redis key `ptt:emergency:<orgId>`
+5. On server start: load existing state from Redis and re-broadcast `sync` to any reconnecting clients
+
+This also enables **horizontal scaling** of ptt-server behind a load balancer if needed in future (multiple Node processes share Redis state).
+
+---
+
 ### Phase 3 — Mobile PTT (Expo)
 
 This is the highest-impact user-facing gap. Scoped as a standalone module.
@@ -403,29 +541,63 @@ mobile-app/src/modules/ptt/
 
 ---
 
-### Phase 4 — SFU Path (Future / >10 users/channel)
+### Phase 4 — SFU Path (When channel > 15 concurrent users)
 
-Not required for MVP. Required when any single channel exceeds ~10 simultaneous users.
+Not required for MVP. Required when any single channel exceeds ~15 simultaneous audio users (research-revised from original estimate of 10 — audio-only half-duplex degrades later than video).
 
-- Evaluate: LiveKit (self-hosted), mediasoup, or ion-sfu
+**Self-hosted SFU options (ranked for this deployment):**
+
+| SFU | Language | Ops overhead | Best for |
+|---|---|---|---|
+| **LiveKit** (recommended) | Go | Low — single binary, Docker-friendly | Fast to stand up, broad SDK support including React Native |
+| **mediasoup** | Node.js + C++ | Medium — more config surface | Maximum flexibility for custom use cases |
+| **Janus** | C | High — battle-tested but complex | Legacy/SIP gateway scenarios |
+
+**Why LiveKit for PTT:**
+- Single Go binary, runs on the same VPS or a single RunPod pod
+- Native React Native SDK (`livekit-client`) — directly usable in mobile module (Phase 3)
+- Built-in support for audio-only rooms (lower resource use than video SFU)
+- Self-hosted docker deployment: `docker run --rm -p 7880:7880 -p 7881:7881 -p 7882:7882/udp livekit/livekit-server --dev`
+- Connects to existing coturn TURN relay — no additional TURN infrastructure
+
+**Architecture when SFU is active:**
+```
+Officer (browser/mobile) → WSS signaling → LiveKit SFU → audio forwarded to all subscribers
+                                ↓
+                         TURN (coturn) relay when direct fails
+                                ↓
+                         ptt-server handles presence/ACL/rate-limit events via LiveKit webhook
+```
+
+**Transition path:**
 - `PTT_MEDIA_MODE=sfu` env var already reserved in ptt-server
-- SFU server would live on the same VPS or a dedicated RunPod pod
-- Server routes audio through SFU instead of peer mesh
-- Client switches from `RTCPeerConnection` to SFU SDK (e.g., LiveKit JS SDK)
+- When set to `sfu`: ptt-server delegates WebRTC peer creation to LiveKit server
+- Client switches from raw `RTCPeerConnection` to LiveKit JS SDK (`connectToRoom()`)
+- Mobile client uses `@livekit/react-native` SDK (same API surface)
+- Presence and ACL events flow back to ptt-server via LiveKit room webhooks
+
+**Tickets:**
+- P4-1: Deploy LiveKit self-hosted on VPS (Docker Compose with coturn integration)
+- P4-2: Add LiveKit SDK to frontend (`ptt.ts` media-mode switch)
+- P4-3: Wire LiveKit webhooks back to ptt-server for presence/ACL enforcement
+- P4-4: Add LiveKit to mobile PTT module (replace raw WebRTC in `pttWebRTC.ts`)
+- P4-5: Load test LiveKit with Artillery + WebRtcPerf (validate 50+ concurrent audio users)
 
 ---
 
 ## 4. Execution Order
 
 ```
-Week 1:  P0-1 (TLS), P0-2 (remove hardcoded IP), P0-3 (TURN password)
-Week 1:  P0-4 (token TTL), P0-5 (force-disconnect)
+Week 1:  P0-1 (TLS + TURN TCP/443), P0-2 (remove hardcoded IP), P0-3 (TURN password)
+Week 1:  P0-4 (token TTL — refresh at 150s), P0-5 (force-disconnect)
 Week 2:  P1-1 through P1-7 (all UX fixes — can be done in parallel)
+Week 2:  P1-8 (getStats telemetry — do alongside UX fixes)
 Week 3:  P2-4 (DB migrations), P2-1 (emergency broadcast server), P2-2 (transcription)
+Week 3:  P2-6 (Redis session store — do before P2-1 so emergency state uses Redis)
 Week 4:  P2-3 (transmission log page), P2-5 (channel ACL)
 Sprint 2: P3-1 through P3-3 (mobile PTT core)
 Sprint 3: P3-4 through P3-6 (mobile Bluetooth + background)
-Sprint 4: P4 (SFU — only if needed)
+Sprint 4: P4 (LiveKit SFU — only if channel occupancy triggers threshold)
 ```
 
 ---
@@ -435,16 +607,22 @@ Sprint 4: P4 (SFU — only if needed)
 A PTT session is considered production-ready when:
 
 - [ ] TLS/wss enforced; no http:// fallback in any config
-- [ ] TURN password rotated; TURN relay verified with `turnutils_uclient`
+- [ ] TURN listening on both UDP/3478 and TCP/443 with TLS cert
+- [ ] TURN password rotated; TURN relay verified with `turnutils_uclient` (UDP + TCP)
 - [ ] Hardcoded VPS IP removed from all Edge Functions
-- [ ] Token refresh race condition resolved (300s TTL, 180s refresh start)
+- [ ] Token refresh starts at 150s remaining (50% of 300s TTL), not 10s before expiry
+- [ ] Cold-start 401 retried up to 3× with backoff before surfacing error
 - [ ] Force-disconnect endpoint live and wired to admin user offboarding
+- [ ] Redis installed on VPS; ptt-server channelMeta and userPresence persisted to Redis
+- [ ] Emergency broadcast state stored in Redis and survives server restart
 - [ ] PTT button minimum 80px height on mobile viewports
 - [ ] Pulsing TX ring indicator on all transmit states
 - [ ] channelName persists through reconnect
 - [ ] All timestamps display in Pacific/Auckland
 - [ ] Emergency broadcast persisted server-side and shown to all org clients
 - [ ] Audio transcription stored in ptt_transmission_log
+- [ ] `RTCPeerConnection.getStats()` polled every 5s; data in `ptt_diagnostic_events` table
+- [ ] Grafana dashboard showing ICE type, packet loss p95, RTT, TURN relay ratio
 - [ ] Mobile app (Expo) PTT functional: transmit, receive, background listen
 - [ ] Playwright smoke test: officer can join channel, transmit, and receive via second session
 
@@ -452,18 +630,51 @@ A PTT session is considered production-ready when:
 
 ## 6. Monitoring & Observability
 
-| Signal | Method | Alert threshold |
-|---|---|---|
-| ptt-server uptime | `curl http://72.61.123.97:8080/health` via cron | >30s unreachable → PagerDuty/Slack |
-| TURN relay health | `turnutils_uclient` in CI job | Failure = alert |
-| Token mint errors | Supabase Edge Function logs | 5xx spike → alert |
-| Active channels | `/api/channels` API endpoint | 0 channels when officers on shift → alert |
-| Transmission log gap | DB query: no entries >30min during active shift | Alert admin |
-| WebRTC ICE failure rate | `getPTTDiagnostics()` in client telemetry | >20% ICE failures → investigate TURN |
+### Self-Hosted Observability Stack
+All monitoring is self-hosted — no third-party APM:
+- **Coturn**: Native Prometheus metrics endpoint (enabled by default in official Docker image). Scrape at `/metrics` port 9641.
+- **ptt-server**: Expose `/metrics` endpoint with `prom-client` (add to `ptt-server/package.json`)
+- **Prometheus**: Scrape coturn + ptt-server + Node.js runtime metrics
+- **Grafana**: Dashboard visualising the signals below. Reference: `github.com/sj82516/coturn-with-prometheus-grafana-on-docker`
+- **Browser telemetry**: `RTCPeerConnection.getStats()` every 5s → `ptt_diagnostic_events` Supabase table (P1-8)
+
+### Signal Table
+
+| Signal | Source | Method | Alert threshold |
+|---|---|---|---|
+| ICE establishment rate | Browser (getStats) | `ptt_diagnostic_events` agg | < 97% → STUN/TURN issue |
+| TURN relay ratio | Browser (getStats) | ice_type = 'relay' % | Sudden spike → STUN broken |
+| Packet loss p95 | Browser (getStats) | packetsLost / packetsTotal | > 3% → audio degraded |
+| Round-trip time | Browser (getStats) | currentRoundTripTime | > 200ms → investigate relay geography |
+| Call setup time | Browser | time from connect() to 'connected' | > 5s → ICE gathering slow |
+| ptt-server uptime | Server | Prometheus + nginx healthcheck | > 30s down → Slack alert |
+| TURN relay health | Ops | `turnutils_uclient` in CI cron | Failure = immediate alert |
+| Active sessions | Redis | `ptt:presence:*` key count | 0 during active shift hours → alert |
+| Token mint errors | Supabase logs | Edge Function 5xx rate | > 5 in 5 min → alert |
+| Transmission log gap | DB | No entries > 30 min during shift | Alert admin |
+
+### Load Testing Tools (Self-Hosted)
+- **Artillery** (WebSocket engine): simulate 50+ officers joining channels simultaneously. YAML declarative, easiest CI integration. Use for signaling server load.
+- **WebRtcPerf**: Full WebRTC peer simulation with real audio tracks. Use for end-to-end quality validation at load. `npm install -g webrtcperf`
+- **k6 + xk6-browser**: Hybrid load testing when both WS and DOM behavior need testing together.
 
 ---
 
-## 7. Bob's Closing Note
+## 7. Future Considerations (Phase 5+)
+
+Grounded in [7 WebRTC Trends 2026](https://dev.to/alakkadshaw/7-webrtc-trends-shaping-real-time-communication-in-2026-1o07) — watch but do not implement until Phase 4 is stable:
+
+| Trend | Relevance to PTT | Action |
+|---|---|---|
+| **ML noise suppression (TensorFlow.js)** | High — replaces VOX threshold slider (P1-5) with always-on wind/ambient noise gate that runs in-browser without server round-trip | Evaluate after Phase 2 complete |
+| **Media over QUIC (MoQ)** | Medium — could replace WebSocket signaling for large all-call broadcasts (200+ officers) combining WebRTC latency with broadcast scale | Monitor IETF status; not production-ready until 2027+ |
+| **DTLS 1.3** | Low — coturn already configured for TLS 1.2 min; DTLS 1.3 improves handshake time slightly | Set `min-tls-version=1.3` in coturn when full browser support lands |
+| **SFrame E2EE** | Medium — for security operations requiring end-to-end encryption of audio even from SFU operators | Enables server-side recording only with explicit key escrow — evaluate when client mandates it |
+| **OpenAI Realtime API / WebRTC** | High — Bob voice agent could join PTT channels directly via WebRTC as a listener/transcriber | Design hook in ptt-server for service-role WebSocket clients (non-human participants) |
+
+---
+
+## 8. Bob's Closing Note
 
 > This plan gives us a radio system that actually works for the people who need it at 2am in a campsite with rain hitting their jacket and a difficult camper refusing to leave. The security hardening is non-negotiable — get that done before anything else. The mobile implementation is the user-facing priority after that. The transcription feature is where Bob becomes genuinely useful: officers talk, the system writes, patrol records fill themselves. That's the vision.
 

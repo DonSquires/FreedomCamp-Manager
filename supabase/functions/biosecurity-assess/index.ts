@@ -76,8 +76,9 @@ Deno.serve(withCors(async (req: Request) => {
   }
 
   // ── 1. Call Bob inference service ─────────────────────────────────────────
-  let aiResult: any = { success: false, reason: 'inference service not configured' }
-  if (BOB_SERVICE_URL) {
+  const costSaverEnabled = ['1','true','yes','on'].includes(String(Deno.env.get('BOB_COST_SAVER') ?? '').trim().toLowerCase())
+  let aiResult: any = { success: false, reason: costSaverEnabled ? 'BOB_COST_SAVER enabled — inference paused' : 'inference service not configured' }
+  if (BOB_SERVICE_URL && !costSaverEnabled) {
     try {
       const formBody: Record<string, string> = {
         image_base64:       imageBase64,

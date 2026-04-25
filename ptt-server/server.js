@@ -194,6 +194,11 @@ const userPresence = new Map();
 const channelMeta = new Map();
 
 /**
+ * Emergency broadcast state: Map<organizationId, { active, initiatedBy, initiatedByName, at }>
+ */
+const emergencyBroadcastState = new Map();
+
+/**
  * Token mint throttle: Map<userId, { mintedAt, channelScope }>
  */
 const tokenMintTracker = new Map();
@@ -206,6 +211,7 @@ let tokenTrackerSweepInterval = null;
 // PTT_RATE_LIMIT_PER_MIN controls requests per minute (default 120)
 const RATE_LIMIT_MAX = parseInt(process.env.PTT_RATE_LIMIT_PER_MIN || '120', 10);
 const TOKEN_MINT_COOLDOWN_MS = parseInt(process.env.PTT_TOKEN_MINT_COOLDOWN_MS || '3000', 10);
+const TOKEN_EXPIRY_SECONDS = parseInt(process.env.PTT_TOKEN_EXPIRY_SECONDS || '300', 10);
 const rateLimitMiddleware = rateLimit({
   windowMs: 60 * 1000,
   max: RATE_LIMIT_MAX,
@@ -463,10 +469,9 @@ app.post('/api/token/mint', rateLimitMiddleware, (req, res) => {
     });
   }
 
-  // Generate token with 10-minute expiry
-  // 10 minutes is long enough for channel connection establishment and reconnection,
-  // but short enough that leaked tokens have limited exposure window
-  const TOKEN_EXPIRY = '10m';
+  // Generate token with a short expiry (default 5 minutes).
+  // This limits risk from leaked tokens while still giving enough time for reconnect churn.
+  const TOKEN_EXPIRY = `${TOKEN_EXPIRY_SECONDS}s`;
   const token = jwt.sign(
     {
       sub: userId,
@@ -493,7 +498,7 @@ app.post('/api/token/mint', rateLimitMiddleware, (req, res) => {
   res.json({
     token,
     channelScope,
-    expiresIn: 600,
+    expiresIn: TOKEN_EXPIRY_SECONDS,
     iceServers,
     iceTransportPolicy: FORCE_TURN_RELAY ? 'relay' : 'all',
     transport: {
@@ -586,6 +591,25 @@ function broadcastToChannel(channelId, message, excludeWs = null) {
 }
 
 /**
+ * Broadcast a message to all clients in all channels for an organization.
+ */
+function broadcastToOrganization(organizationId, message, excludeWs = null) {
+  const data = JSON.stringify(message);
+
+  for (const [channelId, meta] of channelMeta.entries()) {
+    if (!meta || meta.organizationId !== organizationId) continue;
+    const clients = channels.get(channelId);
+    if (!clients) continue;
+
+    for (const client of clients) {
+      if (client !== excludeWs && client.readyState === 1) {
+        client.send(data);
+      }
+    }
+  }
+}
+
+/**
  * Remove non-open sockets from a channel set and clean empty channel metadata.
  */
 function pruneChannelClients(channelId) {
@@ -648,6 +672,77 @@ function startTokenTrackerSweep() {
     }
   }, 60_000);
 }
+
+function disconnectUserSession(userId, reason = 'Disconnected by administrator') {
+  const presence = userPresence.get(userId);
+  if (!presence) {
+    return { disconnected: false, reason: 'not_found' };
+  }
+
+  const activeWs = presence.ws;
+  if (activeWs && activeWs.readyState === 1) {
+    try {
+      activeWs.close(4008, reason.slice(0, 120));
+    } catch (_err) {
+      // Ignore close errors for sockets already shutting down.
+    }
+    return {
+      disconnected: true,
+      channelId: presence.channelId,
+      name: presence.name,
+      role: presence.role,
+      mode: 'ws_close',
+    };
+  }
+
+  // If socket is already closed/stale, clean in-memory presence immediately.
+  userPresence.delete(userId);
+  return {
+    disconnected: true,
+    channelId: presence.channelId,
+    name: presence.name,
+    role: presence.role,
+    mode: 'presence_cleanup',
+  };
+}
+
+app.delete('/api/connections/:userId', rateLimitMiddleware, (req, res) => {
+  const authResult = checkProxyAuth(req);
+  if (authResult) {
+    return res.status(authResult.status).json(authResult.body);
+  }
+
+  const { userId } = req.params;
+  if (!userId) {
+    return res.status(400).json({
+      error: 'Bad request',
+      message: 'userId is required',
+    });
+  }
+
+  const reasonRaw = typeof req.query.reason === 'string'
+    ? req.query.reason
+    : 'Disconnected by administrator';
+  const reason = reasonRaw.trim() || 'Disconnected by administrator';
+
+  const result = disconnectUserSession(userId, reason);
+  if (!result.disconnected) {
+    return res.status(404).json({
+      error: 'Not found',
+      message: 'No active connection found for this user',
+      userId,
+    });
+  }
+
+  return res.json({
+    success: true,
+    userId,
+    channelId: result.channelId || null,
+    mode: result.mode,
+    reason,
+    disconnectedAt: new Date().toISOString(),
+  });
+});
 
 /**
  * WebSocket connection handler
@@ -773,6 +868,12 @@ wss.on('connection', (ws, req) => {
     channelId,
     presence: currentPresence,
     speakerId: channelMeta.get(channelId)?.speakerId || null,
+    emergencyBroadcast: emergencyBroadcastState.get(organizationId) || {
+      active: false,
+      initiatedBy: null,
+      initiatedByName: null,
+      at: null,
+    },
     transport: {
       turnConfigured: isTurnConfigured(),
       forceTurnRelay: FORCE_TURN_RELAY,
@@ -786,7 +887,7 @@ wss.on('connection', (ws, req) => {
   ws.on('message', (data) => {
     try {
       const message = JSON.parse(data.toString());
-      handleMessage(ws, userId, channelId, name, role, message);
+      handleMessage(ws, userId, channelId, organizationId, name, role, message);
     } catch (err) {
       console.error('Invalid message:', err.message);
     }
@@ -836,7 +937,7 @@ wss.on('connection', (ws, req) => {
 /**
  * Handle incoming WebSocket messages
  */
-function handleMessage(ws, userId, channelId, name, role, message) {
+function handleMessage(ws, userId, channelId, organizationId, name, role, message) {
   const meta = channelMeta.get(channelId);
 
   switch (message.type) {
@@ -947,6 +1048,31 @@ function handleMessage(ws, userId, channelId, name, role, message) {
         }, ws);
       }
       break;
+
+    case 'emergency_broadcast': {
+      const active = message.active === true;
+      const state = {
+        active,
+        initiatedBy: userId,
+        initiatedByName: name,
+        at: new Date().toISOString(),
+      };
+
+      if (active) {
+        emergencyBroadcastState.set(organizationId, state);
+      } else {
+        emergencyBroadcastState.delete(organizationId);
+      }
+
+      broadcastToOrganization(organizationId, {
+        type: 'emergency_broadcast',
+        organizationId,
+        ...state,
+      });
+
+      console.log(`🚨 Emergency broadcast ${active ? 'enabled' : 'cleared'} for org ${organizationId} by ${name}`);
+      break;
+    }
 
     default:
       console.warn(`Unknown message type: ${message.type}`);

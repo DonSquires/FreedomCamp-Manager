@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 
 interface UserProfile {
@@ -68,6 +69,8 @@ export default function CleanUserManagement() {
   async function saveUser() {
     if (!selected) return
     setSaving(true)
+    const nextIsActive = form.is_active ?? selected.is_active
+
     const { error: err } = await supabase
       .from('user_profiles')
       .update({
@@ -75,11 +78,33 @@ export default function CleanUserManagement() {
         last_name: form.last_name || null,
         role: form.role,
         phone: form.phone || null,
-        is_active: form.is_active,
       })
       .eq('id', selected.id)
+
+    if (err) {
+      setSaving(false)
+      alert(err.message)
+      return
+    }
+
+    if (nextIsActive !== selected.is_active) {
+      const { data, error } = nextIsActive
+        ? await edgeFunctions.setUserActiveStatus({ user_id: selected.id, is_active: true })
+        : await edgeFunctions.deactivateUser({ user_id: selected.id })
+
+      if (error) {
+        setSaving(false)
+        alert(error)
+        return
+      }
+
+      const revocationWarning = !nextIsActive && (data as any)?.pttRevoke?.attempted && (data as any)?.pttRevoke?.ok === false
+      if (revocationWarning) {
+        alert('User deactivated, but PTT revoke did not fully confirm. Check voice server logs.')
+      }
+    }
+
     setSaving(false)
-    if (err) { alert(err.message); return }
     setSelected(null)
     fetchUsers()
   }
@@ -87,7 +112,18 @@ export default function CleanUserManagement() {
   async function deactivateUser(u: UserProfile) {
     const displayName = [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email
     if (!confirm(`Deactivate ${displayName}?`)) return
-    await supabase.from('user_profiles').update({ is_active: false }).eq('id', u.id)
+
+    const { data, error } = await edgeFunctions.deactivateUser({ user_id: u.id })
+    if (error) {
+      alert(error)
+      return
+    }
+
+    const revocationWarning = (data as any)?.pttRevoke?.attempted && (data as any)?.pttRevoke?.ok === false
+    if (revocationWarning) {
+      alert('User deactivated, but PTT revoke did not fully confirm. Check voice server logs.')
+    }
+
     fetchUsers()
   }
 

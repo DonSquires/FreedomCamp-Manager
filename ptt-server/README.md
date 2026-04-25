@@ -88,6 +88,7 @@ Canonical secret model:
 | POST | `/api/token/mint` | Mint channel access token |
 | GET | `/api/channels` | List active channels |
 | GET | `/api/presence/:channelId` | Get channel presence |
+| DELETE | `/api/connections/:userId` | Force-disconnect an active user session |
 
 ### WebSocket
 

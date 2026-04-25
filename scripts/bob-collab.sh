@@ -78,6 +78,53 @@ json_escape() {
   jq -Rs . <<<"$1"
 }
 
+is_json() {
+  local value="$1"
+  jq -e . >/dev/null 2>&1 <<<"$value"
+}
+
+extract_response_text() {
+  local payload="$1"
+  if ! is_json "$payload"; then
+    echo ""
+    return 0
+  fi
+
+  jq -r '
+    if type == "object" then
+      (
+        .text //
+        .message //
+        .response //
+        .translated_text //
+        .output?.response //
+        .output?.message //
+        .output?.translated_text //
+        .output?.choices?[0]?.message?.content //
+        .choices?[0]?.message?.content //
+        .error //
+        ""
+      )
+    else
+      ""
+    end
+  ' <<<"$payload"
+}
+
+normalize_runsync_url() {
+  local url="$1"
+  url="${url%/}"
+  if [[ "$url" == */run ]]; then
+    echo "${url%/run}/runsync"
+    return 0
+  fi
+  if [[ "$url" == */runsync ]]; then
+    echo "$url"
+  else
+    echo "$url/runsync"
+  fi
+}
+
 to_json_file_array() {
   local csv="$1"
   if [[ -z "$csv" ]]; then
@@ -93,12 +140,48 @@ to_json_file_array() {
 
 call_chat() {
   local message="$1"
-  curl -sS --max-time 120 \
+  local chat_resp=""
+  local chat_text=""
+
+  chat_resp=$(curl -sS --max-time 120 \
     -X POST "$BASE_URL/chat" \
     -H 'Content-Type: application/json' \
+    -H "Authorization: Bearer $API_KEY" \
     -H "x-inference-api-key: $API_KEY" \
-    -d "{\"message\":$(json_escape "$message")}" \
-    | jq -r '.text // .message // .error // "(no response text)"'
+    -d "{\"message\":$(json_escape "$message")}" 2>/dev/null || true)
+
+  chat_text=$(extract_response_text "$chat_resp")
+  if [[ -n "$chat_text" ]]; then
+    echo "$chat_text"
+    return 0
+  fi
+
+  local runpod_base="${RUNPOD_API_URL:-${RUNPOD_RUNSYNC_URL:-$BASE_URL}}"
+  local runpod_url
+  runpod_url=$(normalize_runsync_url "$runpod_base")
+
+  local runpod_resp=""
+  local runpod_text=""
+  runpod_resp=$(curl -sS --max-time 120 \
+    -X POST "$runpod_url" \
+    -H 'Content-Type: application/json' \
+    -H "Authorization: Bearer $API_KEY" \
+    -H "x-inference-api-key: $API_KEY" \
+    -d "{\"input\":{\"action\":\"chat\",\"stream\":false,\"message\":$(json_escape "$message"),\"messages\":[{\"role\":\"user\",\"content\":$(json_escape "$message")}]}}" 2>/dev/null || true)
+
+  runpod_text=$(extract_response_text "$runpod_resp")
+  if [[ -n "$runpod_text" ]]; then
+    echo "$runpod_text"
+    return 0
+  fi
+
+  if [[ -n "$chat_resp" ]]; then
+    echo "$chat_resp"
+  elif [[ -n "$runpod_resp" ]]; then
+    echo "$runpod_resp"
+  else
+    echo "(no response text)"
+  fi
 }
 
 copilot_restrictions() {

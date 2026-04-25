@@ -1,5 +1,27 @@
 -- Unified org-scope helper + standard org-scoped SELECT policies.
 
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_type t
+    JOIN pg_namespace n ON n.oid = t.typnamespace
+    WHERE n.nspname = 'public'
+      AND t.typname = 'provider_service_type'
+  ) THEN
+    CREATE TYPE public.provider_service_type AS ENUM (
+      'freedom_camping',
+      'ptt_access',
+      'site_guarding',
+      'parking_enforcement',
+      'noise_control',
+      'biosecurity_inspection',
+      'smoke_complaint_ooh',
+      'welfare_checks'
+    );
+  END IF;
+END $$;
+
 CREATE OR REPLACE FUNCTION public.get_user_effective_access_scope()
 RETURNS TABLE (organization_id uuid, access_reason text)
 LANGUAGE plpgsql

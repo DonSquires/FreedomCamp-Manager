@@ -8,6 +8,55 @@ interface ManageUserRequest {
   payload?: Record<string, unknown>
 }
 
+function normalizeBaseUrl(value: string): string {
+  return value.trim().replace(/\/+$/, '')
+}
+
+async function revokeActivePTTConnection(userId: string): Promise<{ attempted: boolean; ok: boolean; status?: number; message?: string }> {
+  const pttServerUrl =
+    Deno.env.get('PTT_SERVER_URL') ||
+    Deno.env.get('PTT_SERVICE_URL') ||
+    ''
+  const pttProxySecret = Deno.env.get('PTT_PROXY_SECRET') || ''
+
+  if (!pttServerUrl || !pttProxySecret) {
+    return { attempted: false, ok: true, message: 'PTT revoke skipped: missing PTT_SERVER_URL or PTT_PROXY_SECRET' }
+  }
+
+  const normalized = normalizeBaseUrl(pttServerUrl)
+  if (!normalized.startsWith('http://') && !normalized.startsWith('https://')) {
+    return { attempted: false, ok: false, message: 'PTT revoke skipped: invalid PTT server URL' }
+  }
+
+  const reason = encodeURIComponent('user_deactivated')
+  const endpoint = `${normalized}/api/connections/${encodeURIComponent(userId)}?reason=${reason}`
+
+  try {
+    const response = await fetch(endpoint, {
+      method: 'DELETE',
+      headers: {
+        'x-proxy-secret': pttProxySecret,
+      },
+      signal: AbortSignal.timeout(8000),
+    })
+
+    if (response.ok || response.status === 404) {
+      return { attempted: true, ok: true, status: response.status }
+    }
+
+    const text = await response.text().catch(() => '')
+    return {
+      attempted: true,
+      ok: false,
+      status: response.status,
+      message: text.slice(0, 200) || `PTT revoke failed with ${response.status}`,
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'PTT revoke request failed'
+    return { attempted: true, ok: false, message }
+  }
+}
+
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req)
   if (req.method === 'OPTIONS') {
@@ -165,7 +214,9 @@ Deno.serve(async (req) => {
         .eq('id', body.userId)
       if (error) throw new Error(error.message)
 
-      return new Response(JSON.stringify({ ok: true, message: 'User deactivated' }), {
+      const pttRevoke = await revokeActivePTTConnection(body.userId)
+
+      return new Response(JSON.stringify({ ok: true, message: 'User deactivated', pttRevoke }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
@@ -187,7 +238,12 @@ Deno.serve(async (req) => {
 
     if (updateError) throw new Error(updateError.message)
 
-    return new Response(JSON.stringify({ ok: true, data: updated }), {
+    const shouldRevokePtt = body.payload?.is_active === false
+    const pttRevoke = shouldRevokePtt
+      ? await revokeActivePTTConnection(body.userId)
+      : { attempted: false, ok: true, message: 'PTT revoke not required' }
+
+    return new Response(JSON.stringify({ ok: true, data: updated, pttRevoke }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (error) {

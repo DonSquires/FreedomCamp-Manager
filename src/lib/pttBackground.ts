@@ -31,6 +31,9 @@ let reconnectAttempts = 0
 const MAX_RECONNECT_ATTEMPTS = 10
 const RECONNECT_DELAY_MS = 3000
 const STEADY_STATE_RECONNECT_DELAY_MS = 30000
+// P1-6: After 15s of continuous connecting/reconnecting without success, set degradedMode.
+const DEGRADED_MODE_THRESHOLD_MS = 15_000
+let degradedModeTimeout: ReturnType<typeof setTimeout> | null = null
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
 let visibilityHandler: (() => void) | null = null
 let storeUnsubscribe: (() => void) | null = null
@@ -195,6 +198,27 @@ export async function startPTTBackgroundService(): Promise<void> {
       console.log('🎤 PTT Background: Connection lost, reconnecting')
       scheduleReconnect()
     }
+
+    // P1-6: Start degraded-mode countdown when entering connecting/reconnecting.
+    // Cancel it when successfully connected.
+    const wasStable = prevState.connectionStatus === 'connected' || prevState.connectionStatus === 'disconnected'
+    const nowUnstable = state.connectionStatus === 'connecting' || state.connectionStatus === 'reconnecting'
+    if (nowUnstable && wasStable && !degradedModeTimeout) {
+      degradedModeTimeout = setTimeout(() => {
+        degradedModeTimeout = null
+        const current = usePTTStore.getState()
+        if (current.connectionStatus !== 'connected') {
+          usePTTStore.getState().setDegradedMode(true)
+        }
+      }, DEGRADED_MODE_THRESHOLD_MS)
+    }
+    if (state.connectionStatus === 'connected') {
+      if (degradedModeTimeout) {
+        clearTimeout(degradedModeTimeout)
+        degradedModeTimeout = null
+      }
+      usePTTStore.getState().setDegradedMode(false)
+    }
   })
 
   console.log('🎤 PTT Background: Service started')
@@ -213,6 +237,11 @@ export function stopPTTBackgroundService(): void {
   if (reconnectTimeout) {
     clearTimeout(reconnectTimeout)
     reconnectTimeout = null
+  }
+
+  if (degradedModeTimeout) {
+    clearTimeout(degradedModeTimeout)
+    degradedModeTimeout = null
   }
 
   if (visibilityHandler) {

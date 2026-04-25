@@ -147,6 +147,8 @@ CREATE TRIGGER trg_stamp_person_obs_minor
 --     backward compatibility with existing callers.
 -- ─────────────────────────────────────────────────────────────────────────────
 
+DROP FUNCTION IF EXISTS public.get_person_observation_history(uuid);
+
 CREATE OR REPLACE FUNCTION public.get_person_observation_history(p_person_id uuid)
 RETURNS TABLE (
   id                    UUID,

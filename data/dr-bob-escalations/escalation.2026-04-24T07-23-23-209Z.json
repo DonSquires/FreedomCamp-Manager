@@ -1,0 +1,37 @@
+{
+  "createdAt": "2026-04-24T07:23:23.209Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/PTT_ENTERPRISE_STACK_FIT_AND_BUILD.md",
+  "outputPath": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/PTT_ENTERPRISE_STACK_FIT_AND_BUILD.md.2026-04-24T07-23-23-197Z.json",
+  "decision": "needs-revision",
+  "structured": true,
+  "escalationReason": "blocker-findings",
+  "review": {
+    "decision": "needs-revision",
+    "summary": "The artifact references several modules, services, and data models that are not currently grounded in the system_state.json or repo files. These include real-time pipeline stages, voice-profile enrollment, secure storage for voice profiles, and mobile-native PTT implementation. The changes proposed are future-state designs and should be marked as such.",
+    "findings": [
+      {
+        "severity": "blocker",
+        "title": "Ungrounded Real-Time Pipeline Stages",
+        "evidence": "The artifact describes real-time pipeline stages like receive audio, ASR, translation, and synthesized playback without evidence of existing implementation.",
+        "requiredAction": "Mark these as proposed future-state designs in the artifact."
+      },
+      {
+        "severity": "blocker",
+        "title": "Voice-Profile Enrollment and Secure Storage",
+        "evidence": "The artifact mentions voice-profile enrollment and secure storage with org-scoped policy without evidence of existing implementation.",
+        "requiredAction": "Mark these as proposed future-state designs in the artifact."
+      },
+      {
+        "severity": "blocker",
+        "title": "Mobile-Native PTT Implementation",
+        "evidence": "The artifact describes a mobile-app native PTT module with background receive without evidence of existing implementation.",
+        "requiredAction": "Mark this as proposed future-state design in the artifact."
+      }
+    ],
+    "verificationChecks": [
+      "Run system-check.sh to ensure all current modules and services are functioning correctly"
+    ]
+  },
+  "basicFixResult": null,
+  "requiredAction": "Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope."
+}
