@@ -159,21 +159,20 @@ function useHubMetrics(orgId: string | null) {
 function ModuleCard({ card }: { card: HubCard }) {
   const navigate = useNavigate()
   return (
-    <Card className={`relative overflow-hidden border-0 shadow-md hover:shadow-lg transition-shadow ${card.bgGradient}`}>
-      {/* Top accent bar */}
-      <div className={`h-1 w-full ${card.accentColor}`} />
+    <Card className={`group relative overflow-hidden border border-white/70 shadow-[0_12px_34px_rgba(15,23,42,0.12)] hover:shadow-[0_20px_44px_rgba(15,23,42,0.18)] transition-all duration-200 ${card.bgGradient}`}>
+      <div className={`h-1.5 w-full ${card.accentColor}`} />
 
       <CardHeader className="pb-2 pt-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className={`p-2.5 rounded-xl ${card.iconBg} shrink-0`}>
+            <div className={`p-2.5 rounded-xl ${card.iconBg} shrink-0 shadow-md`}>
               <card.Icon className="h-5 w-5 text-white" />
             </div>
             <div>
               <CardTitle className="text-base font-semibold text-gray-900 dark:text-white leading-tight">
                 {card.title}
               </CardTitle>
-              <CardDescription className="text-xs mt-0.5 text-gray-500 dark:text-gray-400">
+              <CardDescription className="text-xs mt-0.5 text-gray-600 dark:text-gray-300">
                 {card.description}
               </CardDescription>
             </div>
@@ -190,27 +189,25 @@ function ModuleCard({ card }: { card: HubCard }) {
       </CardHeader>
 
       <CardContent className="pt-0 space-y-3">
-        {/* Quick link grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
           {card.quickLinks.map(({ path, label, Icon }) => (
             <button
               key={path}
               onClick={(e) => { e.stopPropagation(); navigate(path) }}
-              className="flex flex-col items-center gap-1 rounded-lg px-1.5 py-2 text-center bg-white/60 dark:bg-white/5 hover:bg-white/90 dark:hover:bg-white/10 border border-white/50 dark:border-white/10 hover:border-white/80 dark:hover:border-white/20 transition-all group"
+              className="flex flex-col items-center gap-1 rounded-lg px-1.5 py-2 text-center bg-white/70 dark:bg-white/10 hover:bg-white dark:hover:bg-white/20 border border-white/80 dark:border-white/20 hover:border-white/95 dark:hover:border-white/30 transition-all group/link"
             >
-              <Icon className="h-4 w-4 text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white" />
-              <span className="text-[10px] font-medium text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white leading-tight">
+              <Icon className="h-4 w-4 text-gray-600 dark:text-gray-300 group-hover/link:text-gray-900 dark:group-hover/link:text-white" />
+              <span className="text-[10px] font-medium text-gray-600 dark:text-gray-300 group-hover/link:text-gray-900 dark:group-hover/link:text-white leading-tight">
                 {label}
               </span>
             </button>
           ))}
         </div>
 
-        {/* Open full section button */}
         <Button
           variant="ghost"
           size="sm"
-          className="w-full h-8 text-xs font-medium bg-white/50 dark:bg-white/5 hover:bg-white/80 dark:hover:bg-white/10 border border-white/40 dark:border-white/10"
+          className="w-full h-8 text-xs font-medium bg-white/65 dark:bg-white/10 hover:bg-white dark:hover:bg-white/20 border border-white/70 dark:border-white/20"
           onClick={() => navigate(card.primaryPath)}
         >
           Open {card.title}
@@ -426,42 +423,61 @@ export default function AdminHub() {
     >
       <div className="space-y-5">
 
-        {/* ── Header ─────────────────────────────────────────────────────── */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Admin Hub</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Select a module to get started — or use the navigation sidebar.
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {(metrics?.welfareAlerts ?? 0) > 0 && (
-              <button
-                onClick={() => navigate('/officer-welfare')}
-                className="flex items-center gap-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3 py-1.5 transition-colors animate-pulse"
-              >
-                <Heart className="h-3.5 w-3.5" />
-                {metrics!.welfareAlerts} Welfare Alert{metrics!.welfareAlerts > 1 ? 's' : ''}
-              </button>
-            )}
-            {(metrics?.openBreaches ?? 0) > 0 && (
-              <Badge
-                variant="destructive"
-                className="cursor-pointer"
-                onClick={() => navigate('/breaches')}
-              >
-                <AlertTriangle className="h-3 w-3 mr-1" />
-                {metrics!.openBreaches} Open Breach{metrics!.openBreaches !== 1 ? 'es' : ''}
-              </Badge>
-            )}
-            <Badge variant="outline" className="text-xs">
-              <CheckCircle2 className="h-3 w-3 mr-1 text-green-500" />
-              {metrics?.todayShifts ?? 0} shift{(metrics?.todayShifts ?? 0) !== 1 ? 's' : ''} today
-            </Badge>
-          </div>
-        </div>
+        <section className="relative overflow-hidden rounded-3xl border border-slate-200/70 bg-[linear-gradient(140deg,#ffffff_0%,#f7fafc_45%,#edf4fb_100%)] px-5 py-5 sm:px-6 sm:py-6 shadow-[0_16px_40px_rgba(15,23,42,0.1)]">
+          <div className="pointer-events-none absolute -top-10 -right-12 h-40 w-40 rounded-full bg-sky-200/40 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-14 left-10 h-40 w-40 rounded-full bg-emerald-200/35 blur-3xl" />
 
-        {/* ── Card grid ──────────────────────────────────────────────────── */}
+          <div className="relative flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900">Admin Hub</h1>
+              <p className="text-sm text-slate-600 mt-1 max-w-2xl">
+                Run operations, enforce compliance, and manage service delivery from one command surface.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {(metrics?.welfareAlerts ?? 0) > 0 && (
+                <button
+                  onClick={() => navigate('/officer-welfare')}
+                  className="flex items-center gap-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3 py-1.5 transition-colors"
+                >
+                  <Heart className="h-3.5 w-3.5" />
+                  {metrics!.welfareAlerts} Welfare Alert{metrics!.welfareAlerts > 1 ? 's' : ''}
+                </button>
+              )}
+              {(metrics?.openBreaches ?? 0) > 0 && (
+                <Badge
+                  variant="destructive"
+                  className="cursor-pointer"
+                  onClick={() => navigate('/breaches')}
+                >
+                  <AlertTriangle className="h-3 w-3 mr-1" />
+                  {metrics!.openBreaches} Open Breach{metrics!.openBreaches !== 1 ? 'es' : ''}
+                </Badge>
+              )}
+              <Badge variant="outline" className="text-xs bg-white/70 border-slate-300 text-slate-700">
+                <CheckCircle2 className="h-3 w-3 mr-1 text-green-600" />
+                {metrics?.todayShifts ?? 0} shift{(metrics?.todayShifts ?? 0) !== 1 ? 's' : ''} today
+              </Badge>
+            </div>
+          </div>
+
+          <div className="relative mt-5 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div className="rounded-xl border border-slate-200 bg-white/80 px-3 py-2.5">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500">Dispatch Load</p>
+              <p className="text-lg font-semibold text-slate-900">{metrics?.activeJobs ?? 0}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white/80 px-3 py-2.5">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500">Active Patrols</p>
+              <p className="text-lg font-semibold text-slate-900">{metrics?.activePatrols ?? 0}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white/80 px-3 py-2.5">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500">Client Accounts</p>
+              <p className="text-lg font-semibold text-slate-900">{metrics?.activeClients ?? 0}</p>
+            </div>
+          </div>
+        </section>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {cards.map((card) => (
             <ModuleCard key={card.id} card={card} />
