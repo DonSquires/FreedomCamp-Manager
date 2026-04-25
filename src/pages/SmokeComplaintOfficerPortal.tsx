@@ -480,49 +480,50 @@ export default function SmokeComplaintOfficerPortal() {
   // ── Render helpers ─────────────────────────────────────────────────────────
 
   const renderJobCard = (job: SmokeJob) => (
-    <Card key={job.id} className="border-amber-200 hover:border-amber-400 transition-colors">
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-2 mb-1">
-              <span className="font-semibold text-sm text-amber-900">{job.job_number}</span>
-              <Badge className={STATUS_BADGE[job.status] ?? 'bg-gray-100 text-gray-700'}>
-                {job.status.replace('_', ' ')}
-              </Badge>
-              <Badge className={PRIORITY_BADGE[job.priority] ?? 'bg-gray-100 text-gray-700'}>
-                {job.priority}
-              </Badge>
-              {job.is_out_of_hours && (
-                <Badge className="bg-amber-500 text-white font-bold text-xs">OUT OF HOURS</Badge>
-              )}
-              {job.has_repeat_offender && (
-                <Badge className="bg-red-100 text-red-800 text-xs">REPEAT</Badge>
-              )}
-            </div>
-            <p className="text-sm font-medium truncate">{job.title}</p>
-            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-              <MapPin className="w-3 h-3" />
-              {job.address}{job.suburb ? `, ${job.suburb}` : ''}
-            </p>
-            {job.safety_notes && (
-              <p className="text-xs text-red-700 mt-1 flex items-center gap-1">
-                <AlertTriangle className="w-3 h-3" /> {job.safety_notes}
-              </p>
-            )}
-            <p className="text-xs text-muted-foreground mt-1">
-              Received: {formatDateTime(job.created_at)}
-            </p>
-          </div>
-          <Button
-            size="sm"
-            className="bg-amber-600 hover:bg-amber-700 text-white shrink-0"
-            onClick={() => openAssessment(job)}
-          >
-            Assess <ChevronRight className="w-3 h-3 ml-1" />
-          </Button>
+    <button
+      key={job.id}
+      onClick={() => openAssessment(job)}
+      className="w-full text-left rounded-2xl border-2 border-amber-200 bg-amber-50/40 p-4 hover:border-amber-400 hover:shadow-md active:scale-[0.99] transition-all"
+    >
+      <div className="flex items-start gap-3">
+        <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shrink-0">
+          <Flame className="w-6 h-6 text-white" />
         </div>
-      </CardContent>
-    </Card>
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2 mb-1">
+            <span className="font-semibold text-sm text-amber-900">{job.job_number}</span>
+            <Badge className={STATUS_BADGE[job.status] ?? 'bg-gray-100 text-gray-700'}>
+              {job.status.replace('_', ' ')}
+            </Badge>
+            <Badge className={PRIORITY_BADGE[job.priority] ?? 'bg-gray-100 text-gray-700'}>
+              {job.priority}
+            </Badge>
+            {job.is_out_of_hours && (
+              <Badge className="bg-amber-500 text-white font-bold text-xs">OUT OF HOURS</Badge>
+            )}
+            {job.has_repeat_offender && (
+              <Badge className="bg-red-100 text-red-800 text-xs">REPEAT</Badge>
+            )}
+          </div>
+          <p className="text-sm font-medium truncate">{job.title}</p>
+          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+            <MapPin className="w-3 h-3" />
+            {job.address}{job.suburb ? `, ${job.suburb}` : ''}
+          </p>
+          {job.safety_notes && (
+            <p className="text-xs text-red-700 mt-1 flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3" /> {job.safety_notes}
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground mt-1">
+            Received: {formatDateTime(job.created_at)}
+          </p>
+        </div>
+        <div className="inline-flex items-center text-xs font-medium rounded-lg bg-amber-600 text-white px-2.5 py-1.5 shrink-0">
+          Assess <ChevronRight className="w-3 h-3 ml-1" />
+        </div>
+      </div>
+    </button>
   )
 
   // ── Step renderer ──────────────────────────────────────────────────────────
@@ -951,17 +952,17 @@ export default function SmokeComplaintOfficerPortal() {
 
         {/* Tabs */}
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="jobs" className="flex items-center gap-1">
+          <TabsList className="grid w-full grid-cols-3 h-auto gap-2 bg-transparent p-0">
+            <TabsTrigger value="jobs" className="flex items-center gap-1 rounded-xl border data-[state=active]:bg-white data-[state=active]:shadow-sm py-2.5">
               <Flame className="w-4 h-4" /> Active Jobs
               {myJobs.length > 0 && (
                 <Badge className="ml-1 bg-amber-500 text-white text-xs px-1.5">{myJobs.length}</Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="new" className="flex items-center gap-1">
+            <TabsTrigger value="new" className="flex items-center gap-1 rounded-xl border data-[state=active]:bg-white data-[state=active]:shadow-sm py-2.5">
               <Plus className="w-4 h-4" /> New Job
             </TabsTrigger>
-            <TabsTrigger value="completed" className="flex items-center gap-1">
+            <TabsTrigger value="completed" className="flex items-center gap-1 rounded-xl border data-[state=active]:bg-white data-[state=active]:shadow-sm py-2.5">
               <CheckCircle className="w-4 h-4" /> Completed
             </TabsTrigger>
           </TabsList>
@@ -1012,36 +1013,34 @@ export default function SmokeComplaintOfficerPortal() {
               </Card>
             ) : (
               completedJobs.map(job => (
-                <Card key={job.id} className="border-gray-200">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-semibold text-sm">{job.job_number}</span>
-                          <Badge className={STATUS_BADGE[job.status] ?? 'bg-gray-100 text-gray-700'}>
-                            {job.status.replace('_', ' ')}
-                          </Badge>
-                        </div>
-                        <p className="text-sm">{job.title}</p>
-                        <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                          <MapPin className="w-3 h-3" /> {job.address}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {formatDateTime(job.created_at)}
-                        </p>
+                <div key={job.id} className="rounded-2xl border-2 border-slate-200 bg-white p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-semibold text-sm">{job.job_number}</span>
+                        <Badge className={STATUS_BADGE[job.status] ?? 'bg-gray-100 text-gray-700'}>
+                          {job.status.replace('_', ' ')}
+                        </Badge>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={!!printingId}
-                        onClick={() => setPrintingId(job.id)}
-                        className="flex items-center gap-1 text-xs"
-                      >
-                        <FileText className="w-3 h-3" /> Report
-                      </Button>
+                      <p className="text-sm">{job.title}</p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                        <MapPin className="w-3 h-3" /> {job.address}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {formatDateTime(job.created_at)}
+                      </p>
                     </div>
-                  </CardContent>
-                </Card>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={!!printingId}
+                      onClick={() => setPrintingId(job.id)}
+                      className="flex items-center gap-1 text-xs rounded-lg"
+                    >
+                      <FileText className="w-3 h-3" /> Report
+                    </Button>
+                  </div>
+                </div>
               ))
             )}
           </TabsContent>
