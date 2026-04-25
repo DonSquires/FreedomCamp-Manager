@@ -86,13 +86,10 @@ jobs:
             if docker ps -a --format '{{.Names}}' | grep -qx 'fieldops-ptt'; then
               existing_env="$(docker inspect fieldops-ptt --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null || true)"
             fi
-            while IFS= read -r container_name; do
+            docker_env_dump="$({ docker ps -a --format '{{.Names}}' 2>/dev/null || true; } | while IFS= read -r container_name; do
               [ -n "$container_name" ] || continue
-              docker_env_dump="${docker_env_dump}
-$(docker inspect "$container_name" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null || true)"
-            done <<EOF
-$(docker ps -a --format '{{.Names}}' 2>/dev/null || true)
-EOF
+              docker inspect "$container_name" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null || true
+            done)"
             if [ -f /etc/coturn/turnserver.conf ]; then
               coturn_config="$(cat /etc/coturn/turnserver.conf 2>/dev/null || true)"
             fi
