@@ -57,7 +57,10 @@ Enterprise Readiness and Operations closeout evidence for:
 3b. High-memory CI gate added
 	- Workflow: `.github/workflows/ci-build-high-memory.yml`
 	- Runner config: `ubuntu-latest` with `NODE_OPTIONS=--max-old-space-size=8192`
-	- Status: defined and ready to run
+	- Status: executed and passed on push to `main`
+	- Run: `https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/24937493337`
+	- Head SHA: `fd25bc0f6c56cef213157c2512c53fe4367b200b`
+	- Completed: `2026-04-25T18:21:44Z`
 
 4. API tests
 	- Command: `bun run test:api`
@@ -72,4 +75,4 @@ Enterprise Readiness and Operations closeout evidence for:
 
 ## Gate Decision
 
-Phase 4 artifacts are complete and governance tests are green, but full phase close is blocked pending a successful run of the new high-memory CI build gate.
+Phase 4 is fully closed. Artifacts, governance checks, and the high-memory CI build gate are all green.
