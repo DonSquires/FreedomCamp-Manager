@@ -128,7 +128,6 @@ export default function Settings() {
   return (
     <AppLayout title="Settings" description="Manage notification and application preferences">
 
-      <div className="max-w-2xl space-y-6">
       <div className="max-w-2xl space-y-5">
 
         {/* ── Settings hero ──────────────────────────────────────────── */}

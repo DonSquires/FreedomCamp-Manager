@@ -131,143 +131,8 @@ export default function PortalSelection() {
         {/* Roster banner */}
         {rosterBanner}
 
-        {/* 2-column portal grid */}
-        <div className="grid grid-cols-2 gap-3">
-
-          {/* Admin */}
-          <div
-            className="flex items-center gap-3 rounded-xl border border-blue-500/30 bg-white/5 backdrop-blur px-4 py-3 cursor-pointer hover:bg-white/10 hover:border-blue-400/50 transition-all group"
-            onClick={() => selectPortal('/admin')}
-          >
-            <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center shrink-0">
-              <Shield className="h-5 w-5 text-white" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-white leading-tight">Admin Portal</p>
-              <p className="text-xs text-blue-300 truncate">Compliance, enforcement & reports</p>
-            </div>
-            <span className="text-xs text-blue-400 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">Open →</span>
-          </div>
-
-          {/* Field Officer */}
-          <div
-            className="flex items-center gap-3 rounded-xl border border-green-500/30 bg-white/5 backdrop-blur px-4 py-3 cursor-pointer hover:bg-white/10 hover:border-green-400/50 transition-all group"
-            onClick={() => selectPortal('/field-officer')}
-          >
-            <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center shrink-0">
-              <Radio className="h-5 w-5 text-white" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-white leading-tight">Field Officer</p>
-              <p className="text-xs text-green-300 truncate">Scanning, patrol & compliance</p>
-            </div>
-            <span className="text-xs text-green-400 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">Open →</span>
-          </div>
-
-          {/* Freedom Camping */}
-          <div
-            className="flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-white/5 backdrop-blur px-4 py-3 cursor-pointer hover:bg-white/10 hover:border-emerald-400/50 transition-all group"
-            onClick={() => selectPortal('/field-officer?service=freedom_camping')}
-          >
-            <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center shrink-0">
-              <Tent className="h-5 w-5 text-white" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-white leading-tight">Freedom Camping</p>
-              <p className="text-xs text-emerald-300 truncate">Zone-based enforcement & self-contained rules</p>
-            </div>
-            <span className="text-xs text-emerald-400 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">Open →</span>
-          </div>
-
-          {/* Site Guard */}
-          <div
-            className="flex items-center gap-3 rounded-xl border border-teal-500/30 bg-white/5 backdrop-blur px-4 py-3 cursor-pointer hover:bg-white/10 hover:border-teal-400/50 transition-all group"
-            onClick={() => {
-              if (rosteredShift?.service_type === 'guarding' && rosteredShift.client_site_id) {
-                navigate(`/site-guard?site=${rosteredShift.client_site_id}&roster=${rosteredShift.id}`)
-              } else {
-                navigate('/site-guard')
-              }
-            }}
-          >
-            <div className="w-10 h-10 rounded-full bg-teal-600 flex items-center justify-center shrink-0">
-              <Lock className="h-5 w-5 text-white" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-white leading-tight flex items-center gap-1.5">
-                Site Guard
-                {rosteredShift?.service_type === 'guarding' && (
-                  <Badge className="bg-green-600 text-white text-[10px] py-0 px-1.5">Rostered</Badge>
-                )}
-              </p>
-              <p className="text-xs text-teal-300 truncate">POI, incidents & camera review</p>
-            </div>
-            <span className="text-xs text-teal-400 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">Open →</span>
-          </div>
-
-          {/* Parking */}
-          <div
-            className="flex items-center gap-3 rounded-xl border border-orange-500/30 bg-white/5 backdrop-blur px-4 py-3 cursor-pointer hover:bg-white/10 hover:border-orange-400/50 transition-all group"
-            onClick={() => navigate('/parking-officer')}
-          >
-            <div className="w-10 h-10 rounded-full bg-orange-600 flex items-center justify-center shrink-0">
-              <ParkingSquare className="h-5 w-5 text-white" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-white leading-tight">Parking Enforcement</p>
-              <p className="text-xs text-orange-300 truncate">Zone-based permits, chalk pass & notices</p>
-            </div>
-            <span className="text-xs text-orange-400 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">Open →</span>
-          </div>
-
-          {/* Noise Control */}
-          <div
-            className="flex items-center gap-3 rounded-xl border border-yellow-500/30 bg-white/5 backdrop-blur px-4 py-3 cursor-pointer hover:bg-white/10 hover:border-yellow-400/50 transition-all group"
-            onClick={() => navigate('/noise-officer')}
-          >
-            <div className="w-10 h-10 rounded-full bg-yellow-600 flex items-center justify-center shrink-0">
-              <Volume2 className="h-5 w-5 text-white" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-white leading-tight">Noise Control</p>
-              <p className="text-xs text-yellow-300 truncate">Jurisdiction-wide RMA assessments & notices</p>
-            </div>
-            <span className="text-xs text-yellow-400 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">Open →</span>
-          </div>
-
-          {/* EMS */}
-          <div
-            className="flex items-center gap-3 rounded-xl border border-red-500/30 bg-white/5 backdrop-blur px-4 py-3 cursor-pointer hover:bg-white/10 hover:border-red-400/50 transition-all group"
-            onClick={() => navigate('/ems')}
-          >
-            <div className="w-10 h-10 rounded-full bg-red-700 flex items-center justify-center shrink-0">
-              <Zap className="h-5 w-5 text-white" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-white leading-tight flex items-center gap-1.5">
-                EMS
-                <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-red-400 text-red-300">Electronic Monitoring</Badge>
-              </p>
-              <p className="text-xs text-red-300 truncate">Device fit, removal & checks</p>
-            </div>
-            <span className="text-xs text-red-400 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">Open →</span>
-          </div>
-
-          {/* Client Portal — full width */}
-          <div
-            className="col-span-2 flex items-center gap-3 rounded-xl border border-purple-500/30 bg-white/5 backdrop-blur px-4 py-3 cursor-pointer hover:bg-white/10 hover:border-purple-400/50 transition-all group"
-            onClick={() => navigate('/client-portal')}
-          >
-            <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center shrink-0">
-              <Building2 className="h-5 w-5 text-white" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-white leading-tight">Client Organisation Portal</p>
-              <p className="text-xs text-purple-300 truncate">Guard activity, KPIs, risk assessments & infringements for your organisation</p>
-            </div>
-            <span className="text-xs text-purple-400 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">Open →</span>
-                  {/* 2-column portal grid — data-driven */}
-                  {(() => {
+        {/* 2-column portal grid — data-driven */}
+        {(() => {
                     type PortalCard = {
                       label: string
                       description: string
@@ -406,13 +271,6 @@ export default function PortalSelection() {
                       </div>
                     )
                   })()}
-                </div>
-              </div>
-            )
-          }
-          </div>
-
-        </div>
       </div>
     </div>
   )

@@ -442,6 +442,7 @@ export function AccessControlPanel({
       currentLocation.lng,
       {
         id: zone.id,
+        organization_id: zone.organization_id,
         name: zone.name,
         location_lat: zone.location_lat,
         location_lng: zone.location_lng,

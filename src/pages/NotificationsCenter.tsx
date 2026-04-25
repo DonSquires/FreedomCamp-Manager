@@ -224,8 +224,6 @@ export default function NotificationsCenter() {
         </div>
 
         <Tabs defaultValue="inbox">
-
-        <Tabs defaultValue="inbox">
           <TabsList className="mb-4">
             <TabsTrigger value="inbox" className="flex items-center gap-2">
               <Bell className="h-4 w-4" />
