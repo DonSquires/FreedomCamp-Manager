@@ -42,6 +42,7 @@ import {
 import { toast } from 'sonner'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
+import { useBobAssistantStore } from '@/stores/bobAssistantStore'
 import { supabase } from '@/lib/supabase'
 import { TERMINAL_BUG_REPORT_STATUSES } from '@/lib/bugReportStatus'
 
@@ -216,6 +217,7 @@ function renderInline(text: string): React.ReactNode {
 export default function AiAnalysis() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
+  const { expressUserDataPermission } = useBobAssistantStore()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -372,6 +374,27 @@ export default function AiAnalysis() {
         timestamp: new Date(),
       }
       setMessages(prev => [...prev, assistantMsg])
+
+      if (expressUserDataPermission) {
+        void edgeFunctions.bobResponseFeedback({
+          session_id: assistantMsg.id,
+          source: 'ai-analysis',
+          source_provider: String(result.data?.provider || '').toLowerCase().includes('openai')
+            ? 'openai-reference'
+            : 'internal',
+          interaction: {
+            prompt: userMsg.content,
+            response: assistantMsg.content,
+            outcome: 'accepted',
+            rating: 4,
+          },
+          privacy: {
+            consent_provided: true,
+            data_sharing: 'minimal',
+            redact_pii: true,
+          },
+        })
+      }
     } catch (err: any) {
       const rawError = String(err?.message || '')
       const isEdgeOutage =
@@ -394,6 +417,25 @@ export default function AiAnalysis() {
         isError: true,
       }
       setMessages(prev => [...prev, errorMsg])
+
+      if (expressUserDataPermission) {
+        void edgeFunctions.bobResponseFeedback({
+          session_id: errorMsg.id,
+          source: 'ai-analysis',
+          source_provider: 'internal',
+          interaction: {
+            prompt: userMsg.content,
+            response: errorMsg.content,
+            outcome: isEdgeOutage ? 'degraded_fallback' : 'error',
+            rating: isEdgeOutage ? 3 : 2,
+          },
+          privacy: {
+            consent_provided: true,
+            data_sharing: 'minimal',
+            redact_pii: true,
+          },
+        })
+      }
       toast.error('Bob request failed', { description: err.message })
     } finally {
       setIsLoading(false)

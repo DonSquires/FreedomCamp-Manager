@@ -26,6 +26,7 @@ import { Bot, Send, Loader2, CheckCircle2, Mic2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { useBobAssistantStore } from '@/stores/bobAssistantStore'
 import { getFeedbackSnapshot } from '@/hooks/useFeedbackCapture'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { publishBobCollaborationPacket } from '@/lib/bobCollaboration'
@@ -181,6 +182,7 @@ function renderInline(text: string): React.ReactNode {
 
 export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
   const { user } = useAuthStore()
+  const { expressUserDataPermission } = useBobAssistantStore()
   const navigate = useNavigate()
   const [messages, setMessages] = useState<ChatMsg[]>([])
   const [input, setInput] = useState('')
@@ -330,22 +332,65 @@ export function AiFeedbackChat({ onSubmitted, onCancel }: AiFeedbackChatProps) {
       const updatedMsgs = [...currentMsgs, assistantMsg]
       setMessages(updatedMsgs)
 
+      if (expressUserDataPermission) {
+        const latestUserPrompt = [...currentMsgs].reverse().find((m) => m.role === 'user')?.content ?? ''
+        void edgeFunctions.bobResponseFeedback({
+          session_id: assistantMsg.id,
+          source: 'feedback-ai',
+          source_provider: String(result.data?.provider || '').toLowerCase().includes('openai')
+            ? 'openai-reference'
+            : 'internal',
+          interaction: {
+            prompt: latestUserPrompt,
+            response: visibleText,
+            outcome: reportData ? 'accepted_auto_submit' : 'accepted',
+            rating: reportData ? 5 : 4,
+          },
+          privacy: {
+            consent_provided: true,
+            data_sharing: 'minimal',
+            redact_pii: true,
+          },
+        })
+      }
+
       // Auto-submit immediately if Bob provided structured data
       if (reportData) {
         await autoSubmit(reportData, updatedMsgs)
       }
     } catch (err: any) {
+      const fallbackText = `⚠️ ${err.message || 'Something went wrong.'}\n\nBob Assistant is available to continue this report with full build context.`
       setBobHandoffPrompt(buildBobHandoffPrompt(currentMsgs, input))
       setMessages(prev => [...prev, {
         id: `e-${Date.now()}`,
         role: 'assistant',
-        content: `⚠️ ${err.message || 'Something went wrong.'}\n\nBob Assistant is available to continue this report with full build context.`,
+        content: fallbackText,
         timestamp: new Date(),
       }])
+
+      if (expressUserDataPermission) {
+        const latestUserPrompt = [...currentMsgs].reverse().find((m) => m.role === 'user')?.content ?? ''
+        void edgeFunctions.bobResponseFeedback({
+          session_id: `feedback-error-${Date.now()}`,
+          source: 'feedback-ai',
+          source_provider: 'internal',
+          interaction: {
+            prompt: latestUserPrompt,
+            response: fallbackText,
+            outcome: 'degraded_fallback',
+            rating: 3,
+          },
+          privacy: {
+            consent_provided: true,
+            data_sharing: 'minimal',
+            redact_pii: true,
+          },
+        })
+      }
     } finally {
       setLoading(false)
     }
-  }, [buildHistory, autoSubmit, input])
+  }, [buildHistory, autoSubmit, input, expressUserDataPermission])
 
   // Fire the opening greeting once on mount, using a ref guard so it fires
   // exactly once even if sendAiMessage changes identity after mount.
