@@ -8,10 +8,10 @@
   "lockfiles": [
     "bun.lock"
   ],
-  "generated_at": "2026-04-25T13:24:10Z",
+  "generated_at": "2026-04-25T14:53:52Z",
   "source": "scripts/system-check.sh",
   "monitor": {
-    "checked_at": "2026-04-25T13:24:10.270Z",
+    "checked_at": "2026-04-25T14:53:52.227Z",
     "window_minutes": 15,
     "error_threshold": 5,
     "recent_500_errors": 4,
