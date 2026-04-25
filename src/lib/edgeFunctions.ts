@@ -313,6 +313,77 @@ async function callEdgeFunction<T = any>(
   }
 }
 
+/**
+ * Call a sub-route under an Edge Function using direct HTTP fetch.
+ * Example routePath: "bob-multimodal-gateway/v1/bob/response"
+ */
+async function callEdgeFunctionRoute<T = any>(
+  routePath: string,
+  body?: any,
+  options: {
+    showToast?: boolean
+    timeoutMs?: number
+    extraHeaders?: Record<string, string>
+  } = {},
+): Promise<{ data: T | null; error: string | null }> {
+  const { showToast = false, timeoutMs = EDGE_FUNCTION_TIMEOUT_MS, extraHeaders = {} } = options
+
+  try {
+    const accessToken = await getValidAccessToken()
+    if (!accessToken) {
+      return { data: null, error: 'No active session found. Please sign in again and retry.' }
+    }
+
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+    if (!supabaseUrl || !anonKey) {
+      return { data: null, error: 'Supabase URL or anon key is missing' }
+    }
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
+    try {
+      const response = await fetch(`${supabaseUrl}/functions/v1/${routePath}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          apikey: anonKey,
+          'Content-Type': 'application/json',
+          ...extraHeaders,
+        },
+        body: JSON.stringify(body || {}),
+        signal: controller.signal,
+      })
+
+      const text = await response.text()
+      const parsed = (() => {
+        try {
+          return JSON.parse(text)
+        } catch {
+          return null
+        }
+      })()
+
+      if (!response.ok) {
+        const message = parsed?.error || parsed?.message || text || `Edge function returned ${response.status}`
+        if (showToast) toast.error(String(message))
+        return { data: null, error: String(message) }
+      }
+
+      return { data: (parsed as T) ?? ({} as T), error: null }
+    } finally {
+      clearTimeout(timeoutId)
+    }
+  } catch (error: any) {
+    const message = error instanceof DOMException && error.name === 'AbortError'
+      ? `Edge function request timed out after ${Math.round(timeoutMs / 1000)}s`
+      : await getErrorMessage(error)
+    if (showToast) toast.error(message)
+    return { data: null, error: message }
+  }
+}
+
 // ============================================================================
 // COMPLIANCE & BREACH MANAGEMENT (9 functions)
 // ============================================================================
@@ -945,6 +1016,35 @@ export const edgeFunctions = {
     // AiAnalysis.tsx renders errors in the chat and shows its own toast, so
     // suppress the automatic toast here to avoid duplicate error notifications.
     return callEdgeFunction('onspace-ai-chat', params, { showToast: false, useDirectFetch: true })
+  },
+
+  bobResponseFeedback: async (params: {
+    session_id: string
+    source?: string
+    source_provider?: string
+    interaction: {
+      prompt: string
+      response: string
+      outcome?: string
+      rating?: number
+    }
+    privacy: {
+      consent_provided: boolean
+      data_sharing: 'minimal'
+      redact_pii?: boolean
+    }
+  }) => {
+    const idempotencyKey = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+
+    return callEdgeFunctionRoute('bob-multimodal-gateway/v1/bob/response', params, {
+      showToast: false,
+      extraHeaders: {
+        'idempotency-key': idempotencyKey,
+        'x-bob-scopes': 'bob:response',
+      },
+    })
   },
 
   /**

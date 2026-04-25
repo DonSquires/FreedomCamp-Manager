@@ -1241,6 +1241,30 @@ export default function BobAssistantStudio() {
         destinationHint: destination || null,
       })
 
+      // Gateway-side learning ingest (privacy-first): only when explicit
+      // permission has been granted for user-data-aware processing.
+      if (expressUserDataPermission) {
+        void edgeFunctions.bobResponseFeedback({
+          session_id: collaborationPacket?.id || userMsg.id,
+          source: collaborationPacket?.source || 'bob-studio',
+          source_provider: (() => {
+            const src = String(collaborationPacket?.source || '').toLowerCase()
+            return src.includes('openai') ? 'openai-reference' : 'internal'
+          })(),
+          interaction: {
+            prompt: message,
+            response: replyText,
+            outcome: 'accepted',
+            rating: 4,
+          },
+          privacy: {
+            consent_provided: true,
+            data_sharing: 'minimal',
+            redact_pii: true,
+          },
+        })
+      }
+
       // Refresh remote context opportunistically after successful persistence.
       if (learningUserId !== 'anonymous') {
         const [refreshedRemote, refreshedContinuation] = await Promise.all([
@@ -1307,6 +1331,25 @@ export default function BobAssistantStudio() {
         currentRoute: window.location.pathname,
         destinationHint: destination || null,
       })
+
+      if (expressUserDataPermission) {
+        void edgeFunctions.bobResponseFeedback({
+          session_id: collaborationPacket?.id || userMsg.id,
+          source: collaborationPacket?.source || 'bob-ollama-unavailable',
+          source_provider: 'internal',
+          interaction: {
+            prompt: message,
+            response: replyText,
+            outcome: 'degraded_fallback',
+            rating: 3,
+          },
+          privacy: {
+            consent_provided: true,
+            data_sharing: 'minimal',
+            redact_pii: true,
+          },
+        })
+      }
 
       if (learningUserId !== 'anonymous') {
         const refreshedContinuation = await buildConversationContinuationContextRemote(learningUserId, 16)
