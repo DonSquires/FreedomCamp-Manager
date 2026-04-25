@@ -63,6 +63,8 @@
  * - GET  /health     - Health check
  */
 
+require('dotenv').config();
+
 const express = require('express');
 const multer = require('multer');
 const sharp = require('sharp');
@@ -682,6 +684,9 @@ const DOCTOR_AUDIT_MAX_ENTRIES = Number(process.env.DOCTOR_AUDIT_MAX_ENTRIES || 
 const DOCTOR_AUTO_HEAL_ENABLED = envFlag(process.env.DOCTOR_AUTO_HEAL_ENABLED, true);
 const DOCTOR_AUTO_HEAL_INTERVAL_MS = Math.max(30_000, Number(process.env.DOCTOR_AUTO_HEAL_INTERVAL_MS || 120_000));
 const DOCTOR_AUTO_HEAL_COOLDOWN_MS = Math.max(60_000, Number(process.env.DOCTOR_AUTO_HEAL_COOLDOWN_MS || 300_000));
+const DOCTOR_OLLAMA_PROBE_TIMEOUT_MS = Math.max(5000, Number(process.env.DOCTOR_OLLAMA_PROBE_TIMEOUT_MS || 12000));
+const DOCTOR_OLLAMA_PROBE_RETRIES = Math.max(1, Number(process.env.DOCTOR_OLLAMA_PROBE_RETRIES || 2));
+const DOCTOR_REQUIRE_ONNX_MODELS = envFlag(process.env.DOCTOR_REQUIRE_ONNX_MODELS, ORT_RUNTIME_AVAILABLE);
 const SIMILARITY_THRESHOLD = Number(process.env.SIMILARITY_THRESHOLD || 0.85);
 const SIMILARITY_THRESHOLD_MIN = Number(process.env.SIMILARITY_THRESHOLD_MIN || 0.65);
 const SIMILARITY_THRESHOLD_MAX = Number(process.env.SIMILARITY_THRESHOLD_MAX || 0.95);
@@ -6856,6 +6861,17 @@ async function probeOllamaTags(timeoutMs = 8000, options = {}) {
   }
 }
 
+async function probeOllamaTagsWithRetry(timeoutMs = 8000, retries = 1, options = {}) {
+  let lastResult = null;
+  const attempts = Math.max(1, Number(retries) || 1);
+  for (let i = 0; i < attempts; i += 1) {
+    const result = await probeOllamaTags(timeoutMs, options);
+    lastResult = result;
+    if (result?.ok) return result;
+  }
+  return lastResult;
+}
+
 async function probePttHealth(timeoutMs = 5000) {
   if (!PTT_SERVER_URL) {
     return { ok: false, configured: false, status: null, latency_ms: null, error: 'PTT_SERVER_URL not configured' };
@@ -7109,17 +7125,20 @@ async function runDoctorAutoHealCycle() {
 
 async function buildDoctorHealthSnapshot() {
   const modelsLoaded = !!(yoloSession && embeddingSession);
-  const ollamaProbe = OLLAMA_ENABLED ? await probeOllamaTags(7000) : null;
+  const ollamaProbe = OLLAMA_ENABLED
+    ? await probeOllamaTagsWithRetry(DOCTOR_OLLAMA_PROBE_TIMEOUT_MS, DOCTOR_OLLAMA_PROBE_RETRIES)
+    : null;
   const ollamaProbes = OLLAMA_ENABLED
     ? {
-      default: await probeOllamaTags(7000, { workload: 'default', baseUrl: OLLAMA_BASE_URL }),
-      chat: await probeOllamaTags(7000, { workload: 'chat', baseUrl: OLLAMA_CHAT_BASE_URL }),
-      tabular: await probeOllamaTags(7000, { workload: 'tabular', baseUrl: OLLAMA_TABULAR_BASE_URL }),
-      ptt: await probeOllamaTags(7000, { workload: 'ptt', baseUrl: OLLAMA_PTT_BASE_URL }),
+      default: await probeOllamaTagsWithRetry(DOCTOR_OLLAMA_PROBE_TIMEOUT_MS, DOCTOR_OLLAMA_PROBE_RETRIES, { workload: 'default', baseUrl: OLLAMA_BASE_URL }),
+      chat: await probeOllamaTagsWithRetry(DOCTOR_OLLAMA_PROBE_TIMEOUT_MS, DOCTOR_OLLAMA_PROBE_RETRIES, { workload: 'chat', baseUrl: OLLAMA_CHAT_BASE_URL }),
+      tabular: await probeOllamaTagsWithRetry(DOCTOR_OLLAMA_PROBE_TIMEOUT_MS, DOCTOR_OLLAMA_PROBE_RETRIES, { workload: 'tabular', baseUrl: OLLAMA_TABULAR_BASE_URL }),
+      ptt: await probeOllamaTagsWithRetry(DOCTOR_OLLAMA_PROBE_TIMEOUT_MS, DOCTOR_OLLAMA_PROBE_RETRIES, { workload: 'ptt', baseUrl: OLLAMA_PTT_BASE_URL }),
     }
     : null;
   const pttProbe = await probePttHealth(5000);
   const breaker = OLLAMA_ENABLED ? ollamaCircuitBreaker.toJSON() : null;
+  const anyOllamaProbeHealthy = !!(ollamaProbes && Object.values(ollamaProbes).some((probe) => probe?.ok));
   const crossArea = {
     supabase: {
       configured: !!SUPABASE_URL,
@@ -7146,7 +7165,7 @@ async function buildDoctorHealthSnapshot() {
   };
 
   const risks = [];
-  if (!modelsLoaded) {
+  if (!modelsLoaded && (DOCTOR_REQUIRE_ONNX_MODELS || ORT_RUNTIME_AVAILABLE)) {
     risks.push({
       id: 'inference_models_not_loaded',
       severity: 'high',
@@ -7155,7 +7174,7 @@ async function buildDoctorHealthSnapshot() {
       runbook: 'Investigate model files and startup logs. Restart inference service after model restore.',
     });
   }
-  if (OLLAMA_ENABLED && (!ollamaProbe?.ok || breaker?.state === 'open')) {
+  if (OLLAMA_ENABLED && (breaker?.state === 'open' || (!ollamaProbe?.ok && !anyOllamaProbeHealthy))) {
     risks.push({
       id: 'ollama_connectivity_unstable',
       severity: 'critical',
