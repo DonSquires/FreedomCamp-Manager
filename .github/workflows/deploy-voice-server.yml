@@ -63,6 +63,9 @@ jobs:
           TURN_SERVER_URL: ${{ secrets.TURN_SERVER_URL }}
           TURN_SECRET: ${{ secrets.TURN_SECRET }}
           PTT_TURN_PUBLIC_HOST: ${{ secrets.PTT_TURN_PUBLIC_HOST }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          PTT_REDIS_CHANNEL_META_TTL_SECONDS: ${{ secrets.PTT_REDIS_CHANNEL_META_TTL_SECONDS }}
+          PTT_REDIS_EMERGENCY_TTL_SECONDS: ${{ secrets.PTT_REDIS_EMERGENCY_TTL_SECONDS }}
           # ptt-server/server.js reads TURN_USERNAME + TURN_CREDENTIAL (not TURN_SECRET).
           # TURN_USERNAME defaults to the shared HMAC username; TURN_CREDENTIAL is the secret.
           TURN_USERNAME: ${{ secrets.TURN_USERNAME }}
@@ -74,7 +77,7 @@ jobs:
           port: ${{ secrets.VPS_PORT || 22 }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          envs: TURN_SERVER_URL,TURN_SECRET,PTT_TURN_PUBLIC_HOST,TURN_USERNAME,TURN_CREDENTIAL,PTT_JWT_SECRET,PTT_PROXY_SECRET
+          envs: TURN_SERVER_URL,TURN_SECRET,PTT_TURN_PUBLIC_HOST,REDIS_URL,PTT_REDIS_CHANNEL_META_TTL_SECONDS,PTT_REDIS_EMERGENCY_TTL_SECONDS,TURN_USERNAME,TURN_CREDENTIAL,PTT_JWT_SECRET,PTT_PROXY_SECRET
           timeout: 90s
           command_timeout: 20m
           script: |
@@ -92,6 +95,27 @@ jobs:
             done)"
             if [ -f /etc/coturn/turnserver.conf ]; then
               coturn_config="$(cat /etc/coturn/turnserver.conf 2>/dev/null || true)"
+            fi
+
+            if [ -z "${REDIS_URL:-}" ]; then
+              REDIS_URL="$(printf '%s\n' "$existing_env" | sed -n 's/^REDIS_URL=//p' | tail -n1)"
+            fi
+            if [ -z "${REDIS_URL:-}" ]; then
+              REDIS_URL="$(printf '%s\n' "$docker_env_dump" | sed -n 's/^REDIS_URL=//p' | tail -n1)"
+            fi
+
+            if [ -z "${PTT_REDIS_CHANNEL_META_TTL_SECONDS:-}" ]; then
+              PTT_REDIS_CHANNEL_META_TTL_SECONDS="$(printf '%s\n' "$existing_env" | sed -n 's/^PTT_REDIS_CHANNEL_META_TTL_SECONDS=//p' | tail -n1)"
+            fi
+            if [ -z "${PTT_REDIS_CHANNEL_META_TTL_SECONDS:-}" ]; then
+              PTT_REDIS_CHANNEL_META_TTL_SECONDS="$(printf '%s\n' "$docker_env_dump" | sed -n 's/^PTT_REDIS_CHANNEL_META_TTL_SECONDS=//p' | tail -n1)"
+            fi
+
+            if [ -z "${PTT_REDIS_EMERGENCY_TTL_SECONDS:-}" ]; then
+              PTT_REDIS_EMERGENCY_TTL_SECONDS="$(printf '%s\n' "$existing_env" | sed -n 's/^PTT_REDIS_EMERGENCY_TTL_SECONDS=//p' | tail -n1)"
+            fi
+            if [ -z "${PTT_REDIS_EMERGENCY_TTL_SECONDS:-}" ]; then
+              PTT_REDIS_EMERGENCY_TTL_SECONDS="$(printf '%s\n' "$docker_env_dump" | sed -n 's/^PTT_REDIS_EMERGENCY_TTL_SECONDS=//p' | tail -n1)"
             fi
 
             turn_public_host="${PTT_TURN_PUBLIC_HOST:-srv1601189.hstgr.cloud}"
@@ -186,6 +210,9 @@ jobs:
                   - TURN_URL=${TURN_SERVER_URL}
                   - TURN_USERNAME=${TURN_USERNAME}
                   - TURN_CREDENTIAL=${TURN_CREDENTIAL}
+                  - REDIS_URL=${REDIS_URL}
+                  - PTT_REDIS_CHANNEL_META_TTL_SECONDS=${PTT_REDIS_CHANNEL_META_TTL_SECONDS}
+                  - PTT_REDIS_EMERGENCY_TTL_SECONDS=${PTT_REDIS_EMERGENCY_TTL_SECONDS}
                   - FORCE_TURN_RELAY=true
                   - PTT_DISABLE_PUBLIC_STUN=true
                 restart: unless-stopped
