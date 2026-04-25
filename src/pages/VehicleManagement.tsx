@@ -115,7 +115,7 @@ export default function VehicleManagement() {
   // ─── Vehicle List Query ───────────────────────────────────────────────────
   // Queries canonical_vehicles, scoped by org/zone via observations lookup.
   // Counts are recalculated from observations scoped to current org/zone/date filters.
-  const { data: vehicles, isLoading, error: vehiclesError } = useQuery({
+  const { data: vehicles, isLoading, error: vehiclesError, refetch: refetchVehicles } = useQuery({
     queryKey: ['vehicles', effectiveOrganizationId, zoneId, dateFrom, dateTo, statusFilter, searchQuery],
     queryFn: async () => {
       const debug: VehicleQueryDebug = {
@@ -954,6 +954,10 @@ export default function VehicleManagement() {
             <p className="text-sm text-gray-500 mt-1">
               {vehiclesError instanceof Error ? vehiclesError.message : 'Unknown error'}
             </p>
+            <Button variant="outline" className="mt-4" onClick={() => refetchVehicles()}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Retry
+            </Button>
           </CardContent>
         </Card>
       ) : !vehicles || vehicles.length === 0 ? (

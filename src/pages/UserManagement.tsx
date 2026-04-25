@@ -115,6 +115,10 @@ export default function UserManagement() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showSetPasswordDialog, setShowSetPasswordDialog] = useState(false)
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  const normalizedEmail = email.trim()
+  const hasEmailInput = normalizedEmail.length > 0
+  const isEmailValid = !hasEmailInput || emailRegex.test(normalizedEmail)
   const [showBulkCallsignDialog, setShowBulkCallsignDialog] = useState(false)
   const [setPasswordUserId, setSetPasswordUserId] = useState<string | null>(null)
   const [setPasswordUserName, setSetPasswordUserName] = useState('')
@@ -224,6 +228,9 @@ export default function UserManagement() {
   // Create user mutation
   const createUserMutation = useMutation({
     mutationFn: async () => {
+      if (!emailRegex.test(email.trim())) {
+        throw new Error('Enter a valid email address (for example user@example.com)')
+      }
       if (password !== confirmPassword) {
         throw new Error('Passwords do not match')
       }
@@ -231,7 +238,7 @@ export default function UserManagement() {
         throw new Error('Password must be at least 8 characters')
       }
       const payload = {
-        email,
+        email: email.trim(),
         password,
         role,
         first_name: firstName,
@@ -998,6 +1005,9 @@ export default function UserManagement() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="user@example.com"
               />
+              {hasEmailInput && !isEmailValid && (
+                <p className="text-xs text-red-500 mt-1">Enter a valid email address (for example user@example.com)</p>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -1169,7 +1179,7 @@ export default function UserManagement() {
             </Button>
             <Button 
               onClick={() => createUserMutation.mutate()}
-              disabled={!email || !firstName || !lastName || !password || !confirmPassword || createUserMutation.isPending}
+              disabled={!normalizedEmail || !isEmailValid || !firstName || !lastName || !password || !confirmPassword || createUserMutation.isPending}
             >
               {createUserMutation.isPending ? 'Creating...' : 'Create User'}
             </Button>
