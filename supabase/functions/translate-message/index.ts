@@ -52,6 +52,21 @@ function resolveLangName(code: string): string {
   return LANGUAGE_NAMES[code] ?? code
 }
 
+function isRunpodServerless(url: string): boolean {
+  return /api\.runpod\.ai\/v2\/[^/]+(?:\/(?:run|runsync))?\/?$/i.test(url)
+}
+
+function normalizeRunpodBase(url: string): string {
+  return url.replace(/\/(run|runsync)\/?$/i, '')
+}
+
+function normalizeBaseUrl(raw?: string | null): string {
+  const trimmed = String(raw ?? '').trim().replace(/\/+$/, '')
+  if (!trimmed) return ''
+  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+  return isRunpodServerless(withScheme) ? normalizeRunpodBase(withScheme) : withScheme
+}
+
 Deno.serve(withCors(async (req: Request) => {
   const body = await req.json().catch(() => null)
   if (!body) {
@@ -71,8 +86,13 @@ Deno.serve(withCors(async (req: Request) => {
     return errorResponse('target_language is required (e.g. "en-NZ")', req, 400)
   }
 
-  const inferenceUrl = Deno.env.get('INFERENCE_SERVICE_URL')
-  const inferenceKey = Deno.env.get('INFERENCE_API_KEY')
+  const inferenceUrl = normalizeBaseUrl(Deno.env.get('INFERENCE_SERVICE_URL'))
+  const inferenceKey =
+    Deno.env.get('INFERENCE_API_KEY') ??
+    Deno.env.get('RUNPOD_ENDPOINT_API_KEY') ??
+    Deno.env.get('RUNPOD_API_KEY') ??
+    Deno.env.get('BOB_INFERENCE_API_KEY') ??
+    ''
 
   if (!inferenceUrl) {
     return errorResponse('Inference service not configured (INFERENCE_SERVICE_URL missing)', req, 503)
@@ -98,7 +118,12 @@ Deno.serve(withCors(async (req: Request) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(inferenceKey ? { Authorization: `Bearer ${inferenceKey}` } : {}),
+        ...(inferenceKey
+          ? {
+              Authorization: `Bearer ${inferenceKey}`,
+              'x-inference-api-key': inferenceKey,
+            }
+          : {}),
       },
       body: JSON.stringify({
         text,
@@ -127,7 +152,12 @@ Deno.serve(withCors(async (req: Request) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(inferenceKey ? { Authorization: `Bearer ${inferenceKey}` } : {}),
+          ...(inferenceKey
+            ? {
+                Authorization: `Bearer ${inferenceKey}`,
+                'x-inference-api-key': inferenceKey,
+              }
+            : {}),
         },
         body: JSON.stringify({
           messages: [
@@ -146,13 +176,18 @@ Deno.serve(withCors(async (req: Request) => {
     }
 
     // If /chat also returns 404 (e.g. RunPod endpoint), try RunPod /runsync format
-    if (response.status === 404 && inferenceUrl.includes('runpod.ai')) {
+    if (response.status === 404 && isRunpodServerless(inferenceUrl)) {
       try {
-        response = await fetchWithRetry(`${inferenceUrl}/runsync`, {
+        response = await fetchWithRetry(`${normalizeRunpodBase(inferenceUrl)}/runsync`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...(inferenceKey ? { Authorization: `Bearer ${inferenceKey}` } : {}),
+            ...(inferenceKey
+              ? {
+                  Authorization: `Bearer ${inferenceKey}`,
+                  'x-inference-api-key': inferenceKey,
+                }
+              : {}),
           },
           body: JSON.stringify({
             input: {

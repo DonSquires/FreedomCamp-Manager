@@ -65,6 +65,31 @@ interface ImportBatchRow {
   created_at: string
 }
 
+interface BobAutomationStatus {
+  ok: boolean
+  checkedAt: string
+  inference?: {
+    baseUrl?: string
+    health?: {
+      ok?: boolean
+      status?: number
+    }
+    doctor?: {
+      ok?: boolean
+      status?: number
+      data?: {
+        checks?: Array<{ status?: string }>
+      }
+    }
+  }
+  runpodDollars?: {
+    available?: boolean
+    formatted?: string
+    usdRemaining?: number
+    reason?: string
+  }
+}
+
 // Map an import_batches row to ImportHistoryRecord
 function mapBatchRow(row: ImportBatchRow): ImportHistoryRecord {
   return {
@@ -83,12 +108,31 @@ function mapBatchRow(row: ImportBatchRow): ImportHistoryRecord {
 export default function DataManagementHub() {
   const { user } = useAuthStore()
   const { organizationId } = useGlobalFiltersStore()
+  const hasBobAutomationAccess = user?.role === 'master' || user?.role === 'grand_master'
   const [isExporting, setIsExporting] = useState(false)
   const [isSyncingScv, setIsSyncingScv] = useState(false)
   const [scvDryRun, setScvDryRun] = useState(false)
   const [scvLastRunDryRun, setScvLastRunDryRun] = useState(false)
   const [scvProgress, setScvProgress] = useState<ScvSyncProgress | null>(null)
   const [scvResult, setScvResult] = useState<ScvSyncResult | null>(null)
+
+  const {
+    data: bobAutomationStatus,
+    isLoading: bobAutomationLoading,
+    isFetching: bobAutomationFetching,
+    error: bobAutomationError,
+    refetch: refetchBobAutomation,
+  } = useQuery({
+    queryKey: ['bob-automation-status', user?.id],
+    queryFn: async () => {
+      const { data, error } = await edgeFunctions.grandmasterStudio({ action: 'bob_automation_status' })
+      if (error) throw new Error(String(error))
+      return data as BobAutomationStatus
+    },
+    enabled: !!user && hasBobAutomationAccess,
+    retry: false,
+    refetchInterval: 120000,
+  })
 
   // Fetch data statistics
   const { data: stats, isLoading } = useQuery({
@@ -314,6 +358,95 @@ export default function DataManagementHub() {
                 <span className="text-sm text-muted-foreground">Estimated Storage</span>
                 <span className="font-medium">{stats?.estimatedStorageGB?.toFixed(2) || 0} GB</span>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5" />
+              Bob Automation Health
+            </CardTitle>
+            <CardDescription>
+              Read-only status for Bob runtime health and RunPod dollars remaining.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {!hasBobAutomationAccess && (
+              <div className="rounded-md border p-3 text-sm text-muted-foreground">
+                Requires Master or Grand Master role.
+              </div>
+            )}
+
+            {hasBobAutomationAccess && bobAutomationError && (
+              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {(bobAutomationError as Error).message || 'Failed to load Bob automation status'}
+              </div>
+            )}
+
+            {hasBobAutomationAccess && !bobAutomationError && (
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-md border p-3">
+                  <div className="text-xs text-muted-foreground">Overall</div>
+                  <div className="mt-1">
+                    <Badge variant={bobAutomationStatus?.ok ? 'default' : 'destructive'}>
+                      {bobAutomationLoading ? 'Checking...' : bobAutomationStatus?.ok ? 'Healthy' : 'Degraded'}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="rounded-md border p-3">
+                  <div className="text-xs text-muted-foreground">Inference Health</div>
+                  <div className="mt-1">
+                    <Badge variant={bobAutomationStatus?.inference?.health?.ok ? 'default' : 'destructive'}>
+                      {bobAutomationStatus?.inference?.health?.ok ? 'Online' : 'Offline'}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="rounded-md border p-3">
+                  <div className="text-xs text-muted-foreground">Doctor Checks</div>
+                  <div className="mt-1 text-sm font-medium">
+                    {(() => {
+                      const checks = bobAutomationStatus?.inference?.doctor?.data?.checks || []
+                      const failing = checks.filter((item) => item?.status !== 'ok').length
+                      if (checks.length === 0) return 'No checks returned'
+                      return failing === 0 ? 'All checks passed' : `${failing} check(s) failing`
+                    })()}
+                  </div>
+                </div>
+
+                <div className="rounded-md border p-3">
+                  <div className="text-xs text-muted-foreground">RunPod $ Remaining</div>
+                  <div className="mt-1 text-sm font-medium">
+                    {bobAutomationStatus?.runpodDollars?.available
+                      ? (bobAutomationStatus.runpodDollars.formatted || `$${Number(bobAutomationStatus.runpodDollars.usdRemaining || 0).toFixed(2)}`)
+                      : 'Unavailable'}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => void refetchBobAutomation()}
+                disabled={!hasBobAutomationAccess || bobAutomationFetching}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${bobAutomationFetching ? 'animate-spin' : ''}`} />
+                Refresh Bob Status
+              </Button>
+              <Link to="/grandmaster-code-studio">
+                <Button variant="outline" disabled={!hasBobAutomationAccess}>
+                  Open Grand Master Controls
+                </Button>
+              </Link>
+              {hasBobAutomationAccess && bobAutomationStatus?.checkedAt && (
+                <span className="text-xs text-muted-foreground">
+                  Last checked: {formatDateTime(bobAutomationStatus.checkedAt)}
+                </span>
+              )}
             </div>
           </CardContent>
         </Card>

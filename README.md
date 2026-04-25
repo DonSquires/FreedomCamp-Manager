@@ -20,6 +20,7 @@ bun run dev                   # http://localhost:5173
 
 For the original full from-zero baseline, use [docs/NEW_PROJECT_SETUP.md](docs/NEW_PROJECT_SETUP.md).
 For browser-only deployment steps, use [ONLINE_DEPLOYMENT_GUIDE.md](ONLINE_DEPLOYMENT_GUIDE.md).
+For Bob RunPod setup and daily Codespaces operations, use [README_RUNPOD.md](README_RUNPOD.md).
 
 ### Codespaces startup logs
 

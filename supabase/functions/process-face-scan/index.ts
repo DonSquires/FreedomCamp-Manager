@@ -31,13 +31,21 @@ import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_share
 const SUPABASE_URL              = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const INFERENCE_SERVICE_URL     = Deno.env.get('INFERENCE_SERVICE_URL');
-const INFERENCE_API_KEY         = Deno.env.get('INFERENCE_API_KEY') || '';
+const INFERENCE_API_KEY         =
+  Deno.env.get('INFERENCE_API_KEY') ||
+  Deno.env.get('RUNPOD_ENDPOINT_API_KEY') ||
+  Deno.env.get('RUNPOD_API_KEY') ||
+  Deno.env.get('BOB_INFERENCE_API_KEY') ||
+  '';
 const INFERENCE_TIMEOUT_MS      = Number(Deno.env.get('INFERENCE_TIMEOUT_MS') ?? '10000');
 
 /** Build authentication headers for outbound inference service calls. */
 function inferenceAuthHeaders(): Record<string, string> {
   if (INFERENCE_API_KEY) {
-    return { 'x-inference-api-key': INFERENCE_API_KEY };
+    return {
+      'x-inference-api-key': INFERENCE_API_KEY,
+      'Authorization': `Bearer ${INFERENCE_API_KEY}`,
+    };
   }
   if (SUPABASE_SERVICE_ROLE_KEY) {
     return { 'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` };

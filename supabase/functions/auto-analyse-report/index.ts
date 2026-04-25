@@ -261,7 +261,12 @@ Deno.serve(async (req: Request) => {
 
     // ── Inference-service self-heal provider ────────────────────────────────
     const inferenceUrl = normalizeServiceBaseUrl(Deno.env.get('INFERENCE_SERVICE_URL') ?? '')
-    const inferenceApiKey = Deno.env.get('INFERENCE_API_KEY') ?? ''
+    const inferenceApiKey =
+      Deno.env.get('INFERENCE_API_KEY') ??
+      Deno.env.get('RUNPOD_ENDPOINT_API_KEY') ??
+      Deno.env.get('RUNPOD_API_KEY') ??
+      Deno.env.get('BOB_INFERENCE_API_KEY') ??
+      ''
 
     if (!inferenceUrl) {
       console.warn(`[auto-analyse] INFERENCE_SERVICE_URL not configured — skipping analysis for report ${report_id}`)
@@ -299,7 +304,10 @@ Deno.serve(async (req: Request) => {
     }
 
     const healHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (inferenceApiKey) healHeaders['x-inference-api-key'] = inferenceApiKey
+    if (inferenceApiKey) {
+      healHeaders['x-inference-api-key'] = inferenceApiKey
+      healHeaders['Authorization'] = `Bearer ${inferenceApiKey}`
+    }
 
     const healResp = await fetch(`${inferenceUrl}/self-heal/bug-report`, {
       method: 'POST',

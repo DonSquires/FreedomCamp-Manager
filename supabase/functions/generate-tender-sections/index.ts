@@ -25,7 +25,12 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { withCors, getCorsHeaders } from '../_shared/withCors.ts'
 
 const INFERENCE_SERVICE_URL = (Deno.env.get('INFERENCE_SERVICE_URL') || '').replace(/\/$/, '')
-const INFERENCE_API_KEY = Deno.env.get('INFERENCE_API_KEY') || ''
+const INFERENCE_API_KEY =
+  Deno.env.get('INFERENCE_API_KEY') ||
+  Deno.env.get('RUNPOD_ENDPOINT_API_KEY') ||
+  Deno.env.get('RUNPOD_API_KEY') ||
+  Deno.env.get('BOB_INFERENCE_API_KEY') ||
+  ''
 const INFERENCE_REQUEST_TIMEOUT_MS = 90_000
 
 function inferenceHeaders(): Record<string, string> {

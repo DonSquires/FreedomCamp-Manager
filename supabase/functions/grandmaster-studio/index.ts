@@ -19,12 +19,14 @@ type Action =
   | 'doctor_playbook_run'
   | 'intel_bulletin_submit'
   | 'intel_state'
+  | 'bob_automation_status'
 
 const MASTER_ALLOWED_ACTIONS = new Set<Action>([
   'health_check',
   'doctor_health',
   'doctor_timeline',
   'doctor_playbook_run',
+  'bob_automation_status',
 ])
 
 const GRANDMASTER_OWNER_EMAIL = (Deno.env.get('GRANDMASTER_OWNER_EMAIL') || 'squires.don@live.com').toLowerCase().trim()
@@ -60,6 +62,97 @@ function json400(message: string, req: Request): Response {
     JSON.stringify({ error: message }),
     { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
   )
+}
+
+function normalizeBaseUrl(raw?: string | null): string {
+  return String(raw ?? '').trim().replace(/\/+$/, '')
+}
+
+async function runpodGraphql(apiKey: string, query: string) {
+  const response = await fetch('https://api.runpod.io/graphql', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ query }),
+  })
+
+  const text = await response.text()
+  return {
+    ok: response.ok,
+    status: response.status,
+    body: tryParse(text) as any,
+  }
+}
+
+function numericFromObject(obj: any, keys: string[]): number | null {
+  for (const key of keys) {
+    const value = obj?.[key]
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+    if (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))) {
+      return Number(value)
+    }
+  }
+  return null
+}
+
+async function getRunpodDollarRemaining() {
+  const apiKey =
+    (Deno.env.get('RUNPOD_API_KEY') ?? Deno.env.get('RUNPOD_ENDPOINT_API_KEY') ?? '').trim()
+  if (!apiKey) {
+    return { available: false, reason: 'missing-runpod-api-key' }
+  }
+
+  const attempts = [
+    {
+      label: 'myself-clientBalance',
+      query: 'query { myself { clientBalance } }',
+      extract: (body: any) => numericFromObject(body?.data?.myself, ['clientBalance']),
+    },
+    {
+      label: 'myself-creditBalance',
+      query: 'query { myself { creditBalance } }',
+      extract: (body: any) => numericFromObject(body?.data?.myself, ['creditBalance']),
+    },
+    {
+      label: 'myself-balance',
+      query: 'query { myself { balance } }',
+      extract: (body: any) => numericFromObject(body?.data?.myself, ['balance']),
+    },
+    {
+      label: 'myself-accountBalance',
+      query: 'query { myself { accountBalance } }',
+      extract: (body: any) => numericFromObject(body?.data?.myself, ['accountBalance']),
+    },
+  ]
+
+  const errors: string[] = []
+  for (const attempt of attempts) {
+    try {
+      const result = await runpodGraphql(apiKey, attempt.query)
+      const value = attempt.extract(result.body)
+      if (value !== null) {
+        return {
+          available: true,
+          source: attempt.label,
+          usdRemaining: value,
+          formatted: `$${value.toFixed(2)}`,
+        }
+      }
+
+      const errorText = JSON.stringify((result.body as any)?.errors ?? result.body ?? {}).slice(0, 240)
+      errors.push(`${attempt.label}: HTTP ${result.status} ${errorText}`)
+    } catch (error: any) {
+      errors.push(`${attempt.label}: ${String(error?.message || error)}`)
+    }
+  }
+
+  return {
+    available: false,
+    reason: 'balance-field-not-accessible',
+    attempts: errors,
+  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -119,8 +212,12 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    const inferenceUrl = (Deno.env.get('INFERENCE_SERVICE_URL') ?? '').replace(/\/$/, '')
-    const inferenceApiKey = Deno.env.get('INFERENCE_API_KEY') ?? ''
+    const inferenceUrl = normalizeBaseUrl(Deno.env.get('INFERENCE_SERVICE_URL'))
+    const inferenceApiKey =
+      Deno.env.get('INFERENCE_API_KEY') ??
+      Deno.env.get('RUNPOD_ENDPOINT_API_KEY') ??
+      Deno.env.get('RUNPOD_API_KEY') ??
+      ''
 
     if (!inferenceUrl) {
       return new Response(
@@ -130,7 +227,10 @@ Deno.serve(async (req: Request) => {
     }
 
     const bobHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (inferenceApiKey) bobHeaders['x-inference-api-key'] = inferenceApiKey
+    if (inferenceApiKey) {
+      bobHeaders['x-inference-api-key'] = inferenceApiKey
+      bobHeaders['Authorization'] = `Bearer ${inferenceApiKey}`
+    }
 
     async function bobGet(path: string) {
       const resp = await fetch(`${inferenceUrl}${path}`, { headers: bobHeaders })
@@ -308,6 +408,34 @@ Deno.serve(async (req: Request) => {
       return proxyResponse(result, req)
     }
 
+    if (action === 'bob_automation_status') {
+      const health = await bobGet('/health')
+      const doctor = await bobGet('/doctor/health')
+      const runpodDollars = await getRunpodDollarRemaining()
+
+      return new Response(
+        JSON.stringify({
+          ok: health.ok || doctor.ok,
+          checkedAt: new Date().toISOString(),
+          inference: {
+            baseUrl: inferenceUrl,
+            health: {
+              ok: health.ok,
+              status: health.status,
+              data: health.data,
+            },
+            doctor: {
+              ok: doctor.ok,
+              status: doctor.status,
+              data: doctor.data,
+            },
+          },
+          runpodDollars,
+        }),
+        { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
+      )
+    }
+
     return new Response(
       JSON.stringify({
         error: 'Unknown action',
@@ -317,7 +445,7 @@ Deno.serve(async (req: Request) => {
           'code_patterns', 'code_conventions', 'code_tech_stack', 'code_assist',
           'ask_copilot_submit', 'ask_copilot_list', 'health_check',
           'doctor_health', 'doctor_timeline', 'doctor_playbook_run',
-          'intel_bulletin_submit', 'intel_state',
+          'intel_bulletin_submit', 'intel_state', 'bob_automation_status',
         ],
       }),
       { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },

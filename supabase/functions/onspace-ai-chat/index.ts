@@ -23,6 +23,25 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
 
+const BOB_RUNPOD_RETRIES = Math.max(0, Number(Deno.env.get('BOB_RUNPOD_RETRIES') ?? '2'))
+const BOB_RUNPOD_BACKOFF_MS = Math.max(100, Number(Deno.env.get('BOB_RUNPOD_BACKOFF_MS') ?? '700'))
+const BOB_RUNPOD_MAX_BACKOFF_MS = Math.max(BOB_RUNPOD_BACKOFF_MS, Number(Deno.env.get('BOB_RUNPOD_MAX_BACKOFF_MS') ?? '5000'))
+const BOB_RUNPOD_TIMEOUT_MS = Math.max(5000, Number(Deno.env.get('BOB_RUNPOD_TIMEOUT_MS') ?? '90000'))
+const BOB_INFERENCE_CHAT_RETRIES = Math.max(0, Number(Deno.env.get('BOB_INFERENCE_CHAT_RETRIES') ?? '2'))
+const BOB_INFERENCE_CHAT_BACKOFF_MS = Math.max(100, Number(Deno.env.get('BOB_INFERENCE_CHAT_BACKOFF_MS') ?? '500'))
+const BOB_INFERENCE_CHAT_MAX_BACKOFF_MS = Math.max(
+  BOB_INFERENCE_CHAT_BACKOFF_MS,
+  Number(Deno.env.get('BOB_INFERENCE_CHAT_MAX_BACKOFF_MS') ?? '4000'),
+)
+const BOB_INFERENCE_CHAT_TIMEOUT_MS = Math.max(5000, Number(Deno.env.get('BOB_INFERENCE_CHAT_TIMEOUT_MS') ?? '60000'))
+const BOB_OLLAMA_CHAT_RETRIES = Math.max(0, Number(Deno.env.get('BOB_OLLAMA_CHAT_RETRIES') ?? '2'))
+const BOB_OLLAMA_CHAT_BACKOFF_MS = Math.max(100, Number(Deno.env.get('BOB_OLLAMA_CHAT_BACKOFF_MS') ?? '500'))
+const BOB_OLLAMA_CHAT_MAX_BACKOFF_MS = Math.max(
+  BOB_OLLAMA_CHAT_BACKOFF_MS,
+  Number(Deno.env.get('BOB_OLLAMA_CHAT_MAX_BACKOFF_MS') ?? '4000'),
+)
+const BOB_OLLAMA_CHAT_TIMEOUT_MS = Math.max(5000, Number(Deno.env.get('BOB_OLLAMA_CHAT_TIMEOUT_MS') ?? '60000'))
+
 const SYSTEM_PROMPT = `You are Bob, the inference agent and assistant for FieldOps Manager — a freedom camping enforcement system used by councils and security contractors in New Zealand.
 
 ==============================================================================
@@ -361,6 +380,35 @@ function parseBooleanEnv(raw: string | undefined, defaultValue: boolean): boolea
   return defaultValue
 }
 
+function isRetryableStatus(status: number): boolean {
+  return status === 408 || status === 409 || status === 425 || status === 429 || status >= 500
+}
+
+function backoffDelayMs(attempt: number): number {
+  const base = BOB_RUNPOD_BACKOFF_MS * Math.pow(2, attempt)
+  const capped = Math.min(BOB_RUNPOD_MAX_BACKOFF_MS, base)
+  const jitter = Math.floor(Math.random() * 250)
+  return capped + jitter
+}
+
+function inferenceBackoffDelayMs(attempt: number): number {
+  const base = BOB_INFERENCE_CHAT_BACKOFF_MS * Math.pow(2, attempt)
+  const capped = Math.min(BOB_INFERENCE_CHAT_MAX_BACKOFF_MS, base)
+  const jitter = Math.floor(Math.random() * 200)
+  return capped + jitter
+}
+
+function ollamaBackoffDelayMs(attempt: number): number {
+  const base = BOB_OLLAMA_CHAT_BACKOFF_MS * Math.pow(2, attempt)
+  const capped = Math.min(BOB_OLLAMA_CHAT_MAX_BACKOFF_MS, base)
+  const jitter = Math.floor(Math.random() * 200)
+  return capped + jitter
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 function buildLocalFailsafeResponse(userMessage: string): string {
   const text = userMessage.toLowerCase()
 
@@ -575,7 +623,12 @@ Deno.serve(async (req: Request) => {
 
     // ── Provider configuration ──────────────────────────────────────────────
     const inferenceUrl = normalizeBaseUrl(Deno.env.get('INFERENCE_SERVICE_URL'))
-    const inferenceApiKey = Deno.env.get('INFERENCE_API_KEY') ?? ''
+    const inferenceApiKey =
+      Deno.env.get('INFERENCE_API_KEY') ??
+      Deno.env.get('RUNPOD_ENDPOINT_API_KEY') ??
+      Deno.env.get('RUNPOD_API_KEY') ??
+      Deno.env.get('BOB_INFERENCE_API_KEY') ??
+      ''
     // Ollama defaults to the same base URL and credential as Bob inference when not configured separately.
     const ollamaBaseUrl = normalizeBaseUrl(Deno.env.get('OLLAMA_BASE_URL') ?? inferenceUrl)
     const ollamaModel = normalizeOllamaModel(Deno.env.get('OLLAMA_MODEL') ?? model)
@@ -709,74 +762,99 @@ Deno.serve(async (req: Request) => {
 
     // Detect RunPod serverless endpoint (api.runpod.ai/v2/<id>)
     function isRunpodServerless(url: string): boolean {
-      return /api\.runpod\.ai\/v2\/[^/]+\/?$/.test(url)
+      return /api\.runpod\.ai\/v2\/[^/]+(?:\/(?:run|runsync))?\/?$/i.test(url)
     }
 
     // Call RunPod /runsync and unwrap the output
     async function callRunpodServerless(baseUrl: string): Promise<{ responseText: string; provider: string; model: string }> {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 90_000)
+      const apiKey = inferenceApiKey
+      if (!apiKey) throw new Error('RunPod API key not configured (INFERENCE_API_KEY / RUNPOD_ENDPOINT_API_KEY / RUNPOD_API_KEY / BOB_INFERENCE_API_KEY)')
 
-      const apiKey = inferenceApiKey || Deno.env.get('RUNPOD_ENDPOINT_API_KEY') || ''
-      if (!apiKey) throw new Error('RunPod API key not configured (INFERENCE_API_KEY or RUNPOD_ENDPOINT_API_KEY)')
+      const runSyncUrl = `${baseUrl.replace(/\/(?:run|runsync)\/?$/i, '')}/runsync`
 
-      const runSyncUrl = `${baseUrl.replace(/\/run\/?$/, '')}/runsync`
+      let lastError: Error | null = null
 
-      try {
-        const runRes = await fetch(runSyncUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({
-            input: {
-              action: 'chat',
-              message: latestUserMessage,
-              history,
-              system_prompt: messages.find((m) => m.role === 'system')?.content,
-              model: inferenceModel,
-              temperature,
-              context: {
-                user_email: user.email,
-                requested_model: model,
-                resolved_model: inferenceModel,
-                source: 'onspace-ai-chat',
-              },
+      for (let attempt = 0; attempt <= BOB_RUNPOD_RETRIES; attempt += 1) {
+        const isLastAttempt = attempt === BOB_RUNPOD_RETRIES
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), BOB_RUNPOD_TIMEOUT_MS)
+
+        try {
+          const runRes = await fetch(runSyncUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey}`,
+              'x-inference-api-key': apiKey,
             },
-          }),
-          signal: controller.signal,
-        })
+            body: JSON.stringify({
+              input: {
+                action: 'chat',
+                message: latestUserMessage,
+                history,
+                system_prompt: messages.find((m) => m.role === 'system')?.content,
+                model: inferenceModel,
+                temperature,
+                context: {
+                  user_email: user.email,
+                  requested_model: model,
+                  resolved_model: inferenceModel,
+                  source: 'onspace-ai-chat',
+                },
+              },
+            }),
+            signal: controller.signal,
+          })
 
-        const runText = await runRes.text()
-        if (!runRes.ok) throw new Error(`RunPod runsync HTTP ${runRes.status}: ${runText.slice(0, 300)}`)
+          const runText = await runRes.text()
+          if (!runRes.ok) {
+            const runError = new Error(`RunPod runsync HTTP ${runRes.status}: ${runText.slice(0, 300)}`)
+            if (!isLastAttempt && isRetryableStatus(runRes.status)) {
+              lastError = runError
+              await sleep(backoffDelayMs(attempt))
+              continue
+            }
+            throw runError
+          }
 
-        const runData = (() => { try { return JSON.parse(runText) } catch { return null } })()
-        if (!runData) throw new Error(`RunPod returned non-JSON: ${runText.slice(0, 200)}`)
+          const runData = (() => { try { return JSON.parse(runText) } catch { return null } })()
+          if (!runData) throw new Error(`RunPod returned non-JSON: ${runText.slice(0, 200)}`)
 
-        if (runData.status === 'FAILED') {
-          const workerId = runData?.workerId ?? runData?.executionTime?.workerId ?? runData?.output?.metadata?.workerId ?? 'unknown'
-          const runpodError = JSON.stringify(runData.error ?? runData.output).slice(0, 300)
-          throw new Error(`RunPod job failed [endpoint=${baseUrl} job=${runData?.id ?? 'unknown'} worker=${workerId}]: ${runpodError}`)
+          if (runData.status === 'FAILED') {
+            const workerId = runData?.workerId ?? runData?.executionTime?.workerId ?? runData?.output?.metadata?.workerId ?? 'unknown'
+            const runpodError = JSON.stringify(runData.error ?? runData.output).slice(0, 300)
+            throw new Error(`RunPod job failed [endpoint=${baseUrl} job=${runData?.id ?? 'unknown'} worker=${workerId}]: ${runpodError}`)
+          }
+
+          const output = runData.output
+          if (!output?.success) {
+            const workerId = runData?.workerId ?? runData?.executionTime?.workerId ?? output?.metadata?.workerId ?? 'unknown'
+            throw new Error(`RunPod worker error [endpoint=${baseUrl} job=${runData?.id ?? 'unknown'} worker=${workerId}]: ${String(output?.error ?? 'unknown').slice(0, 300)}`)
+          }
+
+          const responseText = output.response || output.message || output.content || ''
+          if (!responseText) throw new Error('RunPod worker returned empty response')
+
+          return {
+            responseText,
+            provider: `runpod-serverless-${output.provider ?? 'openai'}`,
+            model: output.model ?? model,
+          }
+        } catch (err: any) {
+          const message = String(err?.message ?? err)
+          const retryableError = message.includes('AbortError') || message.includes('timed out') || message.includes('fetch failed')
+          if (!isLastAttempt && retryableError) {
+            lastError = err instanceof Error ? err : new Error(message)
+            await sleep(backoffDelayMs(attempt))
+            continue
+          }
+          throw err
+        } finally {
+          clearTimeout(timeoutId)
         }
-
-        const output = runData.output
-        if (!output?.success) {
-          const workerId = runData?.workerId ?? runData?.executionTime?.workerId ?? output?.metadata?.workerId ?? 'unknown'
-          throw new Error(`RunPod worker error [endpoint=${baseUrl} job=${runData?.id ?? 'unknown'} worker=${workerId}]: ${String(output?.error ?? 'unknown').slice(0, 300)}`)
-        }
-
-        const responseText = output.response || output.message || output.content || ''
-        if (!responseText) throw new Error('RunPod worker returned empty response')
-
-        return {
-          responseText,
-          provider: `runpod-serverless-${output.provider ?? 'openai'}`,
-          model: output.model ?? model,
-        }
-      } finally {
-        clearTimeout(timeoutId)
       }
+
+      throw lastError ?? new Error(`RunPod runsync failed after ${BOB_RUNPOD_RETRIES + 1} attempts`)
     }
 
     async function callInferenceProvider() {
@@ -817,52 +895,68 @@ Deno.serve(async (req: Request) => {
           authStrategies.push({})
         }
         for (const authHeaders of authStrategies) {
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 60_000)
-        try {
-          const headers: Record<string, string> = { 'Content-Type': 'application/json', ...authHeaders }
+          for (let attempt = 0; attempt <= BOB_INFERENCE_CHAT_RETRIES; attempt += 1) {
+            const isLastAttempt = attempt === BOB_INFERENCE_CHAT_RETRIES
+            const controller = new AbortController()
+            const timeoutId = setTimeout(() => controller.abort(), BOB_INFERENCE_CHAT_TIMEOUT_MS)
+            try {
+              const headers: Record<string, string> = { 'Content-Type': 'application/json', ...authHeaders }
 
-          const inferResponse = await fetch(`${candidateUrl}/chat`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({
-              message: latestUserMessage,
-              history,
-              provider: providerPreference === 'inference' ? 'inference' : providerPreference === 'ollama' ? 'ollama' : undefined,
-              context: {
-                user_email: user.email,
-                requested_model: model,
-                temperature,
-                source: 'onspace-ai-chat',
-              },
-            }),
-            signal: controller.signal,
-          })
+              const inferResponse = await fetch(`${candidateUrl}/chat`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                  message: latestUserMessage,
+                  history,
+                  provider: providerPreference === 'inference' ? 'inference' : providerPreference === 'ollama' ? 'ollama' : undefined,
+                  context: {
+                    user_email: user.email,
+                    requested_model: model,
+                    temperature,
+                    source: 'onspace-ai-chat',
+                  },
+                }),
+                signal: controller.signal,
+              })
 
-          const inferText = await inferResponse.text()
-          if (!inferResponse.ok) {
-            throw new Error(`Inference chat returned ${inferResponse.status}: ${inferText.slice(0, 300)} (${candidateUrl})`)
+              const inferText = await inferResponse.text()
+              if (!inferResponse.ok) {
+                const inferError = new Error(`Inference chat returned ${inferResponse.status}: ${inferText.slice(0, 300)} (${candidateUrl})`)
+                if (!isLastAttempt && isRetryableStatus(inferResponse.status)) {
+                  lastError = inferError
+                  await sleep(inferenceBackoffDelayMs(attempt))
+                  continue
+                }
+                throw inferError
+              }
+
+              const inferData = (() => {
+                try { return JSON.parse(inferText) } catch { return null }
+              })()
+
+              const responseText = normalizeProviderText(inferText, inferData)
+              if (!responseText) throw new Error(`Inference chat returned an empty response (${candidateUrl})`)
+
+              return {
+                responseText,
+                provider: `inference-${inferData?.provider ?? 'heuristic'}`,
+                model: 'inference-chat',
+                degraded: inferData?.fallback === true,
+              }
+            } catch (err: any) {
+              const message = String(err?.message ?? err)
+              const retryableError = message.includes('AbortError') || message.includes('timed out') || message.includes('fetch failed')
+              if (!isLastAttempt && retryableError) {
+                lastError = err instanceof Error ? err : new Error(message)
+                await sleep(inferenceBackoffDelayMs(attempt))
+                continue
+              }
+              lastError = err instanceof Error ? err : new Error(message)
+              break
+            } finally {
+              clearTimeout(timeoutId)
+            }
           }
-
-          const inferData = (() => {
-            try { return JSON.parse(inferText) } catch { return null }
-          })()
-
-          const responseText = normalizeProviderText(inferText, inferData)
-          if (!responseText) throw new Error(`Inference chat returned an empty response (${candidateUrl})`)
-
-          return {
-            responseText,
-            provider: `inference-${inferData?.provider ?? 'heuristic'}`,
-            model: 'inference-chat',
-            degraded: inferData?.fallback === true,
-          }
-        } catch (err: any) {
-          lastError = err instanceof Error ? err : new Error(String(err?.message ?? err))
-          // Store error and continue to next auth strategy or candidate URL
-        } finally {
-          clearTimeout(timeoutId)
-        }
         } // end authStrategies loop
       } // end candidates loop
 
@@ -874,46 +968,67 @@ Deno.serve(async (req: Request) => {
         throw new Error('OLLAMA_BASE_URL is not configured')
       }
 
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 60_000)
-      try {
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-        if (ollamaApiKey) headers['Authorization'] = `Bearer ${ollamaApiKey}`
+      const ollamaMessages = messages.map((m) => ({ role: m.role, content: m.content }))
+      let lastError: Error | null = null
 
-        const ollamaMessages = messages.map((m) => ({ role: m.role, content: m.content }))
+      for (let attempt = 0; attempt <= BOB_OLLAMA_CHAT_RETRIES; attempt += 1) {
+        const isLastAttempt = attempt === BOB_OLLAMA_CHAT_RETRIES
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), BOB_OLLAMA_CHAT_TIMEOUT_MS)
+        try {
+          const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+          if (ollamaApiKey) headers['Authorization'] = `Bearer ${ollamaApiKey}`
 
-        const ollamaResponse = await fetch(`${ollamaBaseUrl}/api/chat`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
+          const ollamaResponse = await fetch(`${ollamaBaseUrl}/api/chat`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              model: ollamaModel,
+              messages: ollamaMessages,
+              stream: false,
+              options: { temperature },
+            }),
+            signal: controller.signal,
+          })
+
+          const ollamaText = await ollamaResponse.text()
+          if (!ollamaResponse.ok) {
+            const ollamaError = new Error(`Ollama chat returned ${ollamaResponse.status}: ${ollamaText.slice(0, 300)}`)
+            if (!isLastAttempt && isRetryableStatus(ollamaResponse.status)) {
+              lastError = ollamaError
+              await sleep(ollamaBackoffDelayMs(attempt))
+              continue
+            }
+            throw ollamaError
+          }
+
+          const ollamaData = (() => {
+            try { return JSON.parse(ollamaText) } catch { return null }
+          })()
+
+          const responseText = normalizeProviderText(ollamaText, ollamaData)
+          if (!responseText) throw new Error('Ollama chat returned an empty response')
+
+          return {
+            responseText,
+            provider: 'ollama',
             model: ollamaModel,
-            messages: ollamaMessages,
-            stream: false,
-            options: { temperature },
-          }),
-          signal: controller.signal,
-        })
-
-        const ollamaText = await ollamaResponse.text()
-        if (!ollamaResponse.ok) {
-          throw new Error(`Ollama chat returned ${ollamaResponse.status}: ${ollamaText.slice(0, 300)}`)
+          }
+        } catch (err: any) {
+          const message = String(err?.message ?? err)
+          const retryableError = message.includes('AbortError') || message.includes('timed out') || message.includes('fetch failed')
+          if (!isLastAttempt && retryableError) {
+            lastError = err instanceof Error ? err : new Error(message)
+            await sleep(ollamaBackoffDelayMs(attempt))
+            continue
+          }
+          throw err
+        } finally {
+          clearTimeout(timeoutId)
         }
-
-        const ollamaData = (() => {
-          try { return JSON.parse(ollamaText) } catch { return null }
-        })()
-
-        const responseText = normalizeProviderText(ollamaText, ollamaData)
-        if (!responseText) throw new Error('Ollama chat returned an empty response')
-
-        return {
-          responseText,
-          provider: 'ollama',
-          model: ollamaModel,
-        }
-      } finally {
-        clearTimeout(timeoutId)
       }
+
+      throw lastError ?? new Error(`Ollama chat failed after ${BOB_OLLAMA_CHAT_RETRIES + 1} attempts`)
     }
 
     const providerOrder = (() => {

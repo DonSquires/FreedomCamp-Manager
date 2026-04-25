@@ -54,6 +54,7 @@ const mobileSafariProject = canUseWebkitOnHost
     }
 
 const playwrightBaseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173'
+const webServerRunner = existsSync('/home/vscode/.bun/bin/bun') ? 'bun' : 'npm'
 
 function buildWebServerCommand(baseURL: string): string {
   try {
@@ -62,12 +63,12 @@ function buildWebServerCommand(baseURL: string): string {
     const port = parsed.port || '5173'
 
     if (!isLocalHost || parsed.protocol !== 'http:') {
-      return "sh -c 'set -a; [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; [ -f .env.playwright.local ] && . ./.env.playwright.local; set +a; npm run dev'"
+      return `sh -c 'set -a; [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; [ -f .env.playwright.local ] && . ./.env.playwright.local; set +a; ${webServerRunner} run dev'`
     }
 
-    return `sh -c 'set -a; [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; [ -f .env.playwright.local ] && . ./.env.playwright.local; set +a; npm run dev -- --port ${port} --strictPort'`
+    return `sh -c 'set -a; [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; [ -f .env.playwright.local ] && . ./.env.playwright.local; set +a; ${webServerRunner} run dev -- --port ${port} --strictPort'`
   } catch {
-    return "sh -c 'set -a; [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; [ -f .env.playwright.local ] && . ./.env.playwright.local; set +a; npm run dev -- --port 5173 --strictPort'"
+    return `sh -c 'set -a; [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; [ -f .env.playwright.local ] && . ./.env.playwright.local; set +a; ${webServerRunner} run dev -- --port 5173 --strictPort'`
   }
 }
 
@@ -88,8 +89,14 @@ export default defineConfig({
   // Retry on CI only
   retries: process.env.CI ? 2 : 0,
   
-  // Opt out of parallel tests on CI
-  workers: process.env.CI ? 1 : (process.env.PLAYWRIGHT_AUTO_SET_TEST_ROLE === '1' ? 1 : undefined),
+  // Opt out of parallel tests on CI and when role/session state is shared.
+  workers:
+    process.env.CI
+      ? 1
+      : (process.env.PLAYWRIGHT_AUTO_SET_TEST_ROLE === '1' ||
+          process.env.PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK === '1')
+        ? 1
+        : undefined,
   
   // Reporter to use
   reporter: [
