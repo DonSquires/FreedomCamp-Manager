@@ -22,6 +22,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  Vibration,
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -35,6 +36,9 @@ import { useAuthStore } from '../stores/authStore'
 import { highVis } from '../lib/highVisTheme'
 
 const MIN_TOKEN_REFRESH_DELAY_MS = 15_000
+const MAX_TOKEN_MINT_RETRIES = 3
+const TOKEN_MINT_RETRY_DELAY_MS = 2000
+const MAX_WS_RECONNECT_ATTEMPTS = 8
 
 // ---------------------------------------------------------------------------
 // Types
@@ -107,6 +111,17 @@ interface PTTTokenResponse {
 
 type ServerMessage = SyncMessage | PresenceMessage | SpeakerMessage | SpeakingMessage | EmergencyMessage | ErrorMessage
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)))
+}
+
+function parseRetryAfterSeconds(raw: string): number | null {
+  const match = raw.match(/retryAfter["']?\s*[:=]\s*(\d+)/i) || raw.match(/retry in\s+(\d+)\s*s/i)
+  if (!match?.[1]) return null
+  const parsed = Number.parseInt(match[1], 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -146,9 +161,15 @@ export default function PTTScreen() {
   const appStateRef = useRef<AppStateStatus>(AppState.currentState)
   const reconnectTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const tokenRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const tokenRefreshTargetAtRef = useRef<number | null>(null)
   const mountedRef = useRef(true)
   const connectionStartedAtRef = useRef<number | null>(null)
   const [degradedMode, setDegradedMode] = useState(false)
+  const [showDiagnostics, setShowDiagnostics] = useState(false)
+  const [reconnectAttempts, setReconnectAttempts] = useState(0)
+  const [lastCloseCode, setLastCloseCode] = useState<number | null>(null)
+  const [lastCloseReason, setLastCloseReason] = useState<string | null>(null)
+  const [tokenRefreshInSeconds, setTokenRefreshInSeconds] = useState<number | null>(null)
 
   // ------------------------------------------------------------------
   // Play incoming clip
@@ -247,6 +268,8 @@ export default function PTTScreen() {
       clearTimeout(tokenRefreshTimerRef.current)
       tokenRefreshTimerRef.current = null
     }
+    tokenRefreshTargetAtRef.current = null
+    setTokenRefreshInSeconds(null)
   }, [])
 
   const scheduleTokenRefresh = useCallback((expiresInSeconds?: number) => {
@@ -256,9 +279,13 @@ export default function PTTScreen() {
       ? Number(expiresInSeconds)
       : 300
     const delayMs = Math.max(MIN_TOKEN_REFRESH_DELAY_MS, Math.floor(ttl * 1000 * 0.5))
+    tokenRefreshTargetAtRef.current = Date.now() + delayMs
+    setTokenRefreshInSeconds(Math.ceil(delayMs / 1000))
 
     tokenRefreshTimerRef.current = setTimeout(() => {
       tokenRefreshTimerRef.current = null
+      tokenRefreshTargetAtRef.current = null
+      setTokenRefreshInSeconds(null)
       if (!mountedRef.current) return
       if (appStateRef.current !== 'active') return
       connect().catch(() => {})
@@ -336,14 +363,42 @@ export default function PTTScreen() {
     setDegradedMode(false)
 
     try {
-      const { data, error } = await edgeFunctions.pttSignalingToken({ channelScope: channelId })
-      if (error || !data?.token || !data?.wsUrl) {
+      let tokenData: PTTTokenResponse | null = null
+      let mintError: string | null = null
+
+      for (let attempt = 1; attempt <= MAX_TOKEN_MINT_RETRIES; attempt++) {
+        const { data, error } = await edgeFunctions.pttSignalingToken({ channelScope: channelId })
+
+        if (!error && data?.token && data?.wsUrl) {
+          tokenData = data as PTTTokenResponse
+          mintError = null
+          break
+        }
+
+        mintError = error || 'Unable to mint PTT token.'
+        const retryAfter = parseRetryAfterSeconds(mintError)
+        if (retryAfter && retryAfter > 0) {
+          await delay(retryAfter * 1000)
+          continue
+        }
+
+        const lower = mintError.toLowerCase()
+        const isTransient =
+          lower.includes('failed to fetch') ||
+          lower.includes('network') ||
+          lower.includes('timeout') ||
+          lower.includes('401')
+
+        if (!isTransient || attempt === MAX_TOKEN_MINT_RETRIES) break
+        await delay(TOKEN_MINT_RETRY_DELAY_MS)
+      }
+
+      if (!tokenData) {
         setWsStatus('error')
-        setWsError(error || 'Unable to mint PTT token.')
+        setWsError(mintError || 'Unable to mint PTT token.')
         return
       }
 
-      const tokenData = data as PTTTokenResponse
       if (!tokenData.wsUrl.startsWith('ws://') && !tokenData.wsUrl.startsWith('wss://')) {
         setWsStatus('error')
         setWsError('PTT websocket URL is invalid.')
@@ -360,6 +415,9 @@ export default function PTTScreen() {
         ws.onopen = () => {
           if (!mountedRef.current) return
           setWsStatus('connected')
+          setReconnectAttempts(0)
+          setLastCloseCode(null)
+          setLastCloseReason(null)
           setWsError(null)
           setDegradedMode(false)
           connectionStartedAtRef.current = null
@@ -375,6 +433,8 @@ export default function PTTScreen() {
         ws.onclose = (event) => {
           if (!mountedRef.current) return
           wsRef.current = null
+          setLastCloseCode(event.code)
+          setLastCloseReason(event.reason || null)
 
           // Proxy chains may reject long subprotocol headers; retry once with query-token auth.
           if (!attemptedFallback && mode === 'subprotocol' && event.code !== 1000) {
@@ -383,6 +443,9 @@ export default function PTTScreen() {
           }
 
           setWsStatus('disconnected')
+          if (event.code !== 1000) {
+            setReconnectAttempts((prev) => prev + 1)
+          }
         }
 
         ws.onmessage = (event) => {
@@ -463,6 +526,7 @@ export default function PTTScreen() {
       recordingRef.current = recording
       recordingStartRef.current = Date.now()
       setTransmitting(true)
+      Vibration.vibrate(200)
     } catch (err: any) {
       setAudioError(`Mic error: ${err?.message ?? 'unknown'}`)
       // Retract start_speaking if recording setup failed
@@ -478,6 +542,7 @@ export default function PTTScreen() {
 
     setTransmitting(false)
     setUploading(true)
+    Vibration.vibrate([100, 50, 100])
 
     const recording = recordingRef.current
     recordingRef.current = null
@@ -545,10 +610,25 @@ export default function PTTScreen() {
     reconnectTimerRef.current = setInterval(() => {
       if (!mountedRef.current) return
       if (appStateRef.current !== 'active') return
+      if (reconnectAttempts >= MAX_WS_RECONNECT_ATTEMPTS) return
       if (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) {
         connect().catch(() => {})
       }
     }, 8000)
+
+    const tokenRefreshCountdown = setInterval(() => {
+      const target = tokenRefreshTargetAtRef.current
+      if (!target) {
+        setTokenRefreshInSeconds(null)
+        return
+      }
+      const remaining = Math.ceil((target - Date.now()) / 1000)
+      if (remaining <= 0) {
+        setTokenRefreshInSeconds(0)
+        return
+      }
+      setTokenRefreshInSeconds(remaining)
+    }, 1000)
 
     const degradedTimer = setInterval(() => {
       if (!mountedRef.current) return
@@ -572,10 +652,11 @@ export default function PTTScreen() {
         clearInterval(reconnectTimerRef.current)
         reconnectTimerRef.current = null
       }
+      clearInterval(tokenRefreshCountdown)
       clearInterval(degradedTimer)
       disconnect()
     }
-  }, [connect, disconnect, wsStatus])
+  }, [connect, disconnect, reconnectAttempts, wsStatus])
 
   // ------------------------------------------------------------------
   // Render helpers
@@ -617,8 +698,44 @@ export default function PTTScreen() {
               : wsStatus === 'error' ? 'Error'
               : 'Off'}
           </Text>
+          <Pressable
+            style={styles.diagToggle}
+            onPress={() => setShowDiagnostics((prev) => !prev)}
+          >
+            <Ionicons name="information-circle-outline" size={16} color={highVis.colors.nightTextSecondary} />
+          </Pressable>
         </View>
       </View>
+
+      {showDiagnostics && (
+        <View style={styles.diagPanel}>
+          <Text style={styles.diagHeading}>PTT Diagnostics</Text>
+          <View style={styles.diagRow}>
+            <Text style={styles.diagKey}>WS</Text>
+            <Text style={styles.diagValue}>{wsStatus.toUpperCase()}</Text>
+          </View>
+          <View style={styles.diagRow}>
+            <Text style={styles.diagKey}>Reconnects</Text>
+            <Text style={styles.diagValue}>{reconnectAttempts}</Text>
+          </View>
+          <View style={styles.diagRow}>
+            <Text style={styles.diagKey}>Last Close</Text>
+            <Text style={styles.diagValue}>{lastCloseCode ?? 'none'}</Text>
+          </View>
+          <View style={styles.diagRow}>
+            <Text style={styles.diagKey}>Reason</Text>
+            <Text style={styles.diagValue} numberOfLines={1}>{lastCloseReason || 'none'}</Text>
+          </View>
+          <View style={styles.diagRow}>
+            <Text style={styles.diagKey}>Token Refresh</Text>
+            <Text style={styles.diagValue}>{tokenRefreshInSeconds == null ? 'n/a' : `${tokenRefreshInSeconds}s`}</Text>
+          </View>
+          <View style={styles.diagRow}>
+            <Text style={styles.diagKey}>Presence</Text>
+            <Text style={styles.diagValue}>{presence.length}</Text>
+          </View>
+        </View>
+      )}
 
       {/* ── Channel label ── */}
       <View style={styles.channelBar}>
@@ -735,6 +852,43 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+  },
+  diagToggle: {
+    marginLeft: 4,
+  },
+  diagPanel: {
+    marginHorizontal: highVis.spacing.md,
+    marginBottom: highVis.spacing.sm,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: highVis.colors.nightTextSecondary,
+    backgroundColor: highVis.colors.nightSurface,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 4,
+  },
+  diagHeading: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: highVis.colors.nightTextSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  diagRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  diagKey: {
+    fontSize: 11,
+    color: highVis.colors.nightTextSecondary,
+  },
+  diagValue: {
+    fontSize: 11,
+    color: highVis.colors.nightTextPrimary,
+    maxWidth: '65%',
+    textAlign: 'right',
   },
   statusText: {
     fontSize: 13,
