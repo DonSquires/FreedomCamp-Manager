@@ -63,6 +63,32 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '502': { $ref: '#/components/responses/UpstreamError' }
+  /v1/bob/response:
+    post:
+      summary: Ingest interaction feedback for Bob learning
+      operationId: bobResponseFeedback
+      tags: [Bob, Learning]
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+        - $ref: '#/components/parameters/BobScopesHeader'
+        - $ref: '#/components/parameters/IdempotencyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResponseFeedbackRequest'
+      responses:
+        '202':
+          description: Feedback accepted and optionally ingested
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseFeedbackResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '502': { $ref: '#/components/responses/UpstreamError' }
   /v1/bob/execution:
     post:
       summary: Execute approved actions with provenance metadata
@@ -254,6 +280,48 @@ components:
           type: string
           enum: [in_progress, completed, failed]
         result:
+          type: object
+          additionalProperties: true
+    ResponseFeedbackRequest:
+      type: object
+      required: [session_id, interaction, privacy]
+      properties:
+        session_id: { type: string }
+        source:
+          type: string
+          description: Logical source label for feedback stream
+        source_provider:
+          type: string
+          description: External reference provider label (reference-only)
+        interaction:
+          type: object
+          required: [prompt, response]
+          properties:
+            prompt: { type: string }
+            response: { type: string }
+            outcome: { type: string }
+            rating:
+              type: integer
+              minimum: 1
+              maximum: 5
+        privacy:
+          type: object
+          required: [consent_provided, data_sharing]
+          properties:
+            consent_provided: { type: boolean }
+            data_sharing:
+              type: string
+              enum: [minimal]
+            redact_pii: { type: boolean }
+    ResponseFeedbackResponse:
+      type: object
+      properties:
+        session_id: { type: string }
+        status: { type: string }
+        idempotency_key: { type: string }
+        learned: { type: boolean }
+        source_provider: { type: string }
+        ingest_result:
           type: object
           additionalProperties: true
     ExecutionRequest:

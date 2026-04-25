@@ -8,6 +8,7 @@ type Dict = Record<string, unknown>
 const FUNCTION_SEGMENT = '/bob-multimodal-gateway'
 const DEFAULT_REDACT = true
 const DEFAULT_RETENTION_DAYS = 30
+const DEFAULT_FEEDBACK_SOURCE = 'bob-multimodal-gateway'
 
 const EMAIL_RE = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi
 const PHONE_RE = /\b(?:\+?\d{1,3}[\s-]?)?(?:\(?\d{2,4}\)?[\s-]?)?\d{3,4}[\s-]?\d{3,4}\b/g
@@ -337,6 +338,123 @@ async function handlePrivacyDelete(req: Request, userId: string): Promise<Respon
   return jsonResponse(response, req, 202)
 }
 
+async function handleResponseFeedback(req: Request, userId: string): Promise<Response> {
+  const scopeError = enforceScope(req, 'bob:response')
+  if (scopeError) return errorResponse(scopeError, req, 403)
+
+  const idem = requireIdempotencyKey(req)
+  if (!idem) return errorResponse('idempotency-key header is required', req, 400)
+
+  const body = asObj(await req.json().catch(() => ({})))
+  const sessionId = asStr(body.session_id)
+  const interaction = asObj(body.interaction)
+  const sourceProvider = asStr(body.source_provider, 'internal').toLowerCase()
+  const privacy = asObj(body.privacy)
+  const consentProvided = privacy.consent_provided === true
+  const dataSharing = asStr(privacy.data_sharing, 'minimal')
+  const redactPII = privacy.redact_pii !== false ? DEFAULT_REDACT : false
+
+  if (!sessionId) return errorResponse('session_id is required', req, 400)
+  if (!consentProvided) {
+    return errorResponse('privacy.consent_provided=true is required to ingest interaction feedback', req, 400)
+  }
+  if (dataSharing !== 'minimal') {
+    return errorResponse('privacy.data_sharing must be "minimal"', req, 400)
+  }
+
+  const prompt = asStr(interaction.prompt).slice(0, 6000)
+  const responseText = asStr(interaction.response).slice(0, 12000)
+  const outcome = asStr(interaction.outcome, 'review').slice(0, 60)
+  const rating = Number(interaction.rating)
+  const clampedRating = Number.isFinite(rating) ? Math.max(1, Math.min(5, Math.round(rating))) : 3
+
+  if (!prompt || !responseText) {
+    return errorResponse('interaction.prompt and interaction.response are required', req, 400)
+  }
+
+  const sanitizedPrompt = redactPII ? redactText(prompt) : prompt
+  const sanitizedResponse = redactPII ? redactText(responseText) : responseText
+
+  const event = {
+    event_key: `${sessionId}:${idem}`,
+    pipeline: 'conversation_feedback',
+    note: outcome,
+    source_provider: sourceProvider,
+    user_id: userId,
+    context: {
+      session_id: sessionId,
+      rating: clampedRating,
+      privacy_mode: dataSharing,
+      timestamp: new Date().toISOString(),
+    },
+    prompt: sanitizedPrompt,
+    response: sanitizedResponse,
+  }
+
+  let inferenceResult: Dict = { queued: false }
+  const inferenceUrl = asStr(Deno.env.get('INFERENCE_SERVICE_URL'))
+  const inferenceApiKey = asStr(Deno.env.get('INFERENCE_API_KEY') || Deno.env.get('RUNPOD_ENDPOINT_API_KEY'))
+  const learningEnabled = asStr(Deno.env.get('BOB_LEARNING_FEEDBACK_ENABLED'), 'true').toLowerCase() === 'true'
+
+  if (learningEnabled && inferenceUrl) {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(inferenceApiKey ? { 'x-inference-api-key': inferenceApiKey } : {}),
+    }
+
+    const ingestResp = await fetch(`${inferenceUrl.replace(/\/$/, '')}/learn/ingest-feedback`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        source: asStr(body.source, DEFAULT_FEEDBACK_SOURCE).slice(0, 80),
+        events: [event],
+      }),
+      signal: AbortSignal.timeout(30_000),
+    })
+
+    const ingestText = await ingestResp.text()
+    if (!ingestResp.ok) {
+      return errorResponse(
+        `Feedback ingest failed (${ingestResp.status})`,
+        req,
+        502,
+        { details: ingestText.slice(0, 500) },
+      )
+    }
+
+    try {
+      inferenceResult = asObj(JSON.parse(ingestText))
+    } catch {
+      inferenceResult = { raw: ingestText.slice(0, 500) }
+    }
+  }
+
+  const response = {
+    session_id: sessionId,
+    status: 'accepted',
+    idempotency_key: idem,
+    learned: Boolean(learningEnabled && inferenceUrl),
+    source_provider: sourceProvider,
+    ingest_result: inferenceResult,
+  }
+
+  await writeAudit({
+    req,
+    userId,
+    endpoint: '/v1/bob/response',
+    status: 202,
+    requestSummary: {
+      session_id: sessionId,
+      source_provider: sourceProvider,
+      rating: clampedRating,
+      learned: response.learned,
+    },
+    responseSummary: { accepted: true, learned: response.learned },
+  })
+
+  return jsonResponse(response, req, 202)
+}
+
 Deno.serve(withCors(async (req: Request) => {
   const authResult = await requireAuth(req)
   if (!authResult.user) {
@@ -355,6 +473,9 @@ Deno.serve(withCors(async (req: Request) => {
     }
     if (suffix === '/v1/bob/request_ai' || suffix === '/request_ai') {
       return await handleRequestAi(req, authResult.user.id)
+    }
+    if (suffix === '/v1/bob/response' || suffix === '/response') {
+      return await handleResponseFeedback(req, authResult.user.id)
     }
     if (suffix === '/v1/bob/execution' || suffix === '/execution') {
       return await handleExecution(req, authResult.user.id)
