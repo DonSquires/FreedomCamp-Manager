@@ -48,6 +48,17 @@ Enterprise Readiness and Operations closeout evidence for:
 	- Result: terminated with exit code 143 in this dev container
 	- Last observed stage: `vite ... rendering chunks (83)... Terminated`
 
+3a. Build diagnostics
+	- Command: `npm run build:diagnostics`
+	- Result: terminated by signal 15 during Vite chunk rendering
+	- Peak RSS observed: 1,457,148 KB
+	- Artifact directory: `tools/build-diagnostics/2026-04-25T18-11-52Z` (local run output)
+
+3b. High-memory CI gate added
+	- Workflow: `.github/workflows/ci-build-high-memory.yml`
+	- Runner config: `ubuntu-latest` with `NODE_OPTIONS=--max-old-space-size=8192`
+	- Status: defined and ready to run
+
 4. API tests
 	- Command: `bun run test:api`
 	- Result: 8 passed, 1 skipped
@@ -61,4 +72,4 @@ Enterprise Readiness and Operations closeout evidence for:
 
 ## Gate Decision
 
-Phase 4 artifacts are complete and governance tests are green, but full phase close is blocked by non-deterministic build termination (exit 143) in this container session.
+Phase 4 artifacts are complete and governance tests are green, but full phase close is blocked pending a successful run of the new high-memory CI build gate.

@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:diagnostics": "sh scripts/build-diagnostics.sh",
     "typecheck": "tsc -b",
     "lint": "eslint .",
     "review:evidence": "node scripts/generate-bob-build-review-evidence.mjs tools/bob-build-review-evidence.json",
