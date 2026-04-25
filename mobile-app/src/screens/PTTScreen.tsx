@@ -15,6 +15,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator,
+  AppState,
+  AppStateStatus,
   FlatList,
   Pressable,
   StyleSheet,
@@ -23,7 +25,6 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { useFocusEffect } from '@react-navigation/native'
 import { Audio } from 'expo-av'
 
 import { supabase } from '../lib/supabase'
@@ -142,78 +143,32 @@ export default function PTTScreen() {
   const [uploading, setUploading] = useState(false)
   const [audioError, setAudioError] = useState<string | null>(null)
   const soundRef = useRef<Audio.Sound | null>(null)
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState)
+  const reconnectTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const mountedRef = useRef(true)
 
   // ------------------------------------------------------------------
-  // Connect to PTT server
+  // Play incoming clip
   // ------------------------------------------------------------------
-  const connect = useCallback(async () => {
-    if (wsRef.current) {
-      wsRef.current.close()
-      wsRef.current = null
-    }
-
-    setWsStatus('connecting')
-    setWsError(null)
-
+  const playClip = useCallback(async (url: string) => {
     try {
-      const { data: sessionData } = await supabase.auth.getSession()
-      const token = sessionData.session?.access_token
-      if (!token) {
-        setWsStatus('error')
-        setWsError('Not authenticated – please log in again.')
-        return
+      // Unload any previous sound
+      if (soundRef.current) {
+        await soundRef.current.unloadAsync()
+        soundRef.current = null
       }
-
-      const url = buildWsUrl(channelId, token)
-      const ws = new WebSocket(url, ['ptt.v2'])
-      wsRef.current = ws
-
-      ws.onopen = () => setWsStatus('connected')
-
-      ws.onerror = () => {
-        setWsStatus('error')
-        setWsError('Connection failed. Tap to retry.')
-      }
-
-      ws.onclose = () => {
-        if (wsStatus !== 'error') setWsStatus('disconnected')
-        wsRef.current = null
-      }
-
-      ws.onmessage = (event) => {
-        try {
-          const msg: ServerMessage = JSON.parse(event.data as string)
-          handleMessage(msg)
-        } catch {
-          // ignore malformed frames
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true, staysActiveInBackground: true })
+      const { sound } = await Audio.Sound.createAsync({ uri: url }, { shouldPlay: true })
+      soundRef.current = sound
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          sound.unloadAsync()
+          soundRef.current = null
         }
-      }
-    } catch (err: any) {
-      setWsStatus('error')
-      setWsError(err?.message ?? 'Unknown error')
+      })
+    } catch {
+      // Non-critical – clip may have expired
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channelId])
-
-  const disconnect = useCallback(() => {
-    // Stop recording if active
-    if (recordingRef.current) {
-      recordingRef.current.stopAndUnloadAsync().catch(() => {})
-      recordingRef.current = null
-    }
-    // Unload any playing sound
-    if (soundRef.current) {
-      soundRef.current.unloadAsync().catch(() => {})
-      soundRef.current = null
-    }
-    wsRef.current?.close()
-    wsRef.current = null
-    setWsStatus('disconnected')
-    setTransmitting(false)
-    setUploading(false)
-    setPresence([])
-    setSpeakerId(null)
-    setEmergency(null)
   }, [])
 
   // ------------------------------------------------------------------
@@ -282,7 +237,80 @@ export default function PTTScreen() {
         setAudioError(msg.message || 'Radio error')
       }
     }
-  }, [user?.id, playClip])
+  }, [playClip, user?.id])
+
+  // ------------------------------------------------------------------
+  // Connect to PTT server
+  // ------------------------------------------------------------------
+  const connect = useCallback(async () => {
+    if (wsRef.current) {
+      wsRef.current.close()
+      wsRef.current = null
+    }
+
+    setWsStatus('connecting')
+    setWsError(null)
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
+      if (!token) {
+        setWsStatus('error')
+        setWsError('Not authenticated – please log in again.')
+        return
+      }
+
+      const url = buildWsUrl(channelId, token)
+      const ws = new WebSocket(url, ['ptt.v2'])
+      wsRef.current = ws
+
+      ws.onopen = () => setWsStatus('connected')
+
+      ws.onerror = () => {
+        setWsStatus('error')
+        setWsError('Connection failed. Tap to retry.')
+      }
+
+      ws.onclose = () => {
+        if (!mountedRef.current) return
+        setWsStatus('disconnected')
+        wsRef.current = null
+      }
+
+      ws.onmessage = (event) => {
+        try {
+          const msg: ServerMessage = JSON.parse(event.data as string)
+          handleMessage(msg)
+        } catch {
+          // ignore malformed frames
+        }
+      }
+    } catch (err: any) {
+      setWsStatus('error')
+      setWsError(err?.message ?? 'Unknown error')
+    }
+  }, [channelId, handleMessage])
+
+  const disconnect = useCallback(() => {
+    // Stop recording if active
+    if (recordingRef.current) {
+      recordingRef.current.stopAndUnloadAsync().catch(() => {})
+      recordingRef.current = null
+    }
+    // Unload any playing sound
+    if (soundRef.current) {
+      soundRef.current.unloadAsync().catch(() => {})
+      soundRef.current = null
+    }
+    wsRef.current?.close(1000, 'screen_cleanup')
+    wsRef.current = null
+    setWsStatus('disconnected')
+    setTransmitting(false)
+    setUploading(false)
+    setPresence([])
+    setSpeakerId(null)
+    setEmergency(null)
+  }, [])
 
   // ------------------------------------------------------------------
   // Audio permissions (requested once on first connect)
@@ -296,7 +324,7 @@ export default function PTTScreen() {
     await Audio.setAudioModeAsync({
       allowsRecordingIOS: true,
       playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
+      staysActiveInBackground: true,
     })
     return true
   }, [])
@@ -380,38 +408,43 @@ export default function PTTScreen() {
   }, [transmitting, channelId, orgId, user?.id])
 
   // ------------------------------------------------------------------
-  // Play incoming clip
-  // ------------------------------------------------------------------
-  const playClip = useCallback(async (url: string) => {
-    try {
-      // Unload any previous sound
-      if (soundRef.current) {
-        await soundRef.current.unloadAsync()
-        soundRef.current = null
-      }
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true })
-      const { sound } = await Audio.Sound.createAsync({ uri: url }, { shouldPlay: true })
-      soundRef.current = sound
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
-          sound.unloadAsync()
-          soundRef.current = null
-        }
-      })
-    } catch {
-      // Non-critical – clip may have expired
-    }
-  }, [])
-
-  // ------------------------------------------------------------------
   // Lifecycle
   // ------------------------------------------------------------------
-  useFocusEffect(
-    useCallback(() => {
-      connect()
-      return () => disconnect()
-    }, [connect, disconnect])
-  )
+  useEffect(() => {
+    mountedRef.current = true
+    connect()
+
+    const appStateSub = AppState.addEventListener('change', (nextState) => {
+      const prev = appStateRef.current
+      appStateRef.current = nextState
+
+      // When returning to foreground, aggressively reconnect if needed.
+      if ((prev === 'background' || prev === 'inactive') && nextState === 'active') {
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+          connect().catch(() => {})
+        }
+      }
+    })
+
+    // Keep-alive reconnect loop while app is active.
+    reconnectTimerRef.current = setInterval(() => {
+      if (!mountedRef.current) return
+      if (appStateRef.current !== 'active') return
+      if (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) {
+        connect().catch(() => {})
+      }
+    }, 8000)
+
+    return () => {
+      mountedRef.current = false
+      appStateSub.remove()
+      if (reconnectTimerRef.current) {
+        clearInterval(reconnectTimerRef.current)
+        reconnectTimerRef.current = null
+      }
+      disconnect()
+    }
+  }, [connect, disconnect])
 
   // ------------------------------------------------------------------
   // Render helpers
