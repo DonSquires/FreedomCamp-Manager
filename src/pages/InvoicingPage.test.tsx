@@ -333,4 +333,27 @@ describe('InvoicingPage payment dialog', () => {
       },
     })
   })
+
+  it('marks a single invoice overdue from row action with expected eq payload', async () => {
+    renderPage()
+
+    const markOverdueButtons = await screen.findAllByRole('button', { name: /mark overdue/i })
+    expect(markOverdueButtons.length).toBeGreaterThan(0)
+
+    fireEvent.click(markOverdueButtons[0])
+
+    await waitFor(() => {
+      expect(updatedInvoices).toHaveLength(1)
+    })
+
+    expect(updatedInvoices[0]).toMatchObject({
+      filter: 'eq',
+      idColumn: 'id',
+      id: 'inv-1',
+      payload: {
+        status: 'overdue',
+        updated_by: 'user-1',
+      },
+    })
+  })
 })
