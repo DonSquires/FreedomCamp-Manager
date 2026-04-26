@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildInvoiceDraftFromContractLines,
   deriveInvoicePaymentUpdate,
+  deriveInvoicePaymentUpdateFromPaidTotal,
   getRemainingBalancePreviewCents,
   getInvoiceDueDate,
   getOverdueCandidateIds,
@@ -189,6 +190,34 @@ describe('deriveInvoicePaymentUpdate', () => {
       amount_paid_cents: 8500,
       balance_cents: 1500,
       status: 'partially_paid',
+    })
+  })
+})
+
+describe('deriveInvoicePaymentUpdateFromPaidTotal', () => {
+  it('derives partially paid state from persisted paid total', () => {
+    expect(
+      deriveInvoicePaymentUpdateFromPaidTotal(
+        { total_cents: 10000 },
+        4500
+      )
+    ).toEqual({
+      amount_paid_cents: 4500,
+      balance_cents: 5500,
+      status: 'partially_paid',
+    })
+  })
+
+  it('clamps persisted paid total to invoice total', () => {
+    expect(
+      deriveInvoicePaymentUpdateFromPaidTotal(
+        { total_cents: 10000 },
+        25000
+      )
+    ).toEqual({
+      amount_paid_cents: 10000,
+      balance_cents: 0,
+      status: 'paid',
     })
   })
 })

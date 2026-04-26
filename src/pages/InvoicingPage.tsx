@@ -56,7 +56,7 @@ import { format, parseISO } from 'date-fns'
 import { toast } from 'sonner'
 import {
   buildInvoiceDraftFromContractLines,
-  deriveInvoicePaymentUpdate,
+  deriveInvoicePaymentUpdateFromPaidTotal,
   getRemainingBalancePreviewCents,
   getInvoiceDueDate,
   getOverdueCandidateIds,
@@ -583,7 +583,22 @@ export default function InvoicingPage() {
 
       if (error) throw error
 
-      const invoicePaymentUpdate = deriveInvoicePaymentUpdate(invoice, amountCents)
+      const { data: payments, error: paymentsError } = await (supabase as any)
+        .from('crm_payments')
+        .select('amount_cents, status')
+        .eq('invoice_id', invoice.id)
+
+      if (paymentsError) throw paymentsError
+
+      const completedPaidCents = (payments ?? []).reduce((sum: number, payment: any) => {
+        const status = String(payment?.status ?? 'completed').toLowerCase()
+        if (status === 'failed' || status === 'voided' || status === 'refunded') {
+          return sum
+        }
+        return sum + Math.max(0, Number(payment?.amount_cents ?? 0))
+      }, 0)
+
+      const invoicePaymentUpdate = deriveInvoicePaymentUpdateFromPaidTotal(invoice, completedPaidCents)
       const { error: invoiceUpdateError } = await (supabase as any)
         .from('crm_invoices')
         .update({

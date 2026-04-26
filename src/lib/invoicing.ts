@@ -189,3 +189,23 @@ export function deriveInvoicePaymentUpdate(
     status: nextBalanceCents === 0 ? 'paid' : 'partially_paid',
   }
 }
+
+export function deriveInvoicePaymentUpdateFromPaidTotal(
+  invoice: InvoicePaymentLike,
+  totalPaidCents: number
+): {
+  amount_paid_cents: number
+  balance_cents: number
+  status: 'paid' | 'partially_paid'
+} {
+  const totalCents = Math.max(0, Math.round(Number(invoice.total_cents ?? 0)))
+  const normalizedPaid = Math.max(0, Math.round(Number(totalPaidCents) || 0))
+  const clampedPaid = Math.min(totalCents, normalizedPaid)
+  const balanceCents = Math.max(0, totalCents - clampedPaid)
+
+  return {
+    amount_paid_cents: clampedPaid,
+    balance_cents: balanceCents,
+    status: balanceCents === 0 ? 'paid' : 'partially_paid',
+  }
+}

@@ -41,6 +41,7 @@ const invoicesFixture = [
 const contractsFixture: any[] = []
 const insertedPayments: any[] = []
 const updatedInvoices: any[] = []
+const existingPaymentsFixture: any[] = []
 const toastSuccess = vi.fn()
 const toastError = vi.fn()
 const mockFailures = {
@@ -108,7 +109,16 @@ const fromMock = vi.fn((table: string) => {
   }
 
   if (table === 'crm_payments') {
+    const selectBuilder: any = {
+      eq: async (_column: string, invoiceId: string) => {
+        const allPayments = [...existingPaymentsFixture, ...insertedPayments]
+        const filtered = allPayments.filter((payment) => payment.invoice_id === invoiceId)
+        return { data: filtered, error: null }
+      },
+    }
+
     return {
+      select: () => selectBuilder,
       insert: async (payload: any) => {
         if (mockFailures.crmPaymentsInsertError) {
           return { error: { message: mockFailures.crmPaymentsInsertError } }
@@ -179,6 +189,7 @@ describe('InvoicingPage payment dialog', () => {
 
     insertedPayments.length = 0
     updatedInvoices.length = 0
+    existingPaymentsFixture.length = 0
     toastSuccess.mockClear()
     toastError.mockClear()
     mockFailures.crmInvoiceEqError = null
@@ -258,6 +269,35 @@ describe('InvoicingPage payment dialog', () => {
       },
     })
     expect(toastSuccess).toHaveBeenCalledWith('Payment recorded for INV-1001')
+  })
+
+  it('reconciles invoice amount paid from persisted payment history', async () => {
+    existingPaymentsFixture.push({
+      invoice_id: 'inv-1',
+      amount_cents: 2000,
+      status: 'completed',
+    })
+
+    renderPage()
+
+    const recordPaymentButton = await screen.findByRole('button', { name: /record payment/i })
+    fireEvent.click(recordPaymentButton)
+
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: /25\.00/ }))
+    fireEvent.click(within(dialog).getByRole('button', { name: /record payment/i }))
+
+    await waitFor(() => {
+      expect(updatedInvoices).toHaveLength(1)
+    })
+
+    expect(updatedInvoices[0]).toMatchObject({
+      payload: {
+        amount_paid_cents: 4500,
+        balance_cents: 5500,
+        status: 'partially_paid',
+      },
+    })
   })
 
   it('uses full-balance quick action to preview zero remaining and submit full amount', async () => {
