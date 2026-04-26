@@ -373,4 +373,60 @@ describe('InvoicingPage payment dialog', () => {
 
     invoicesFixture[0].due_date = originalDueDate
   })
+
+  it('sends a draft invoice from row action with expected status payload', async () => {
+    const originalStatus = invoicesFixture[0].status
+    invoicesFixture[0].status = 'draft'
+
+    renderPage()
+
+    const sendButton = await screen.findByRole('button', { name: /^send$/i })
+    fireEvent.click(sendButton)
+
+    await waitFor(() => {
+      expect(updatedInvoices).toHaveLength(1)
+    })
+
+    expect(updatedInvoices[0]).toMatchObject({
+      filter: 'eq',
+      idColumn: 'id',
+      id: 'inv-1',
+      payload: {
+        status: 'sent',
+        updated_by: 'user-1',
+      },
+    })
+    expect(typeof updatedInvoices[0].payload.updated_at).toBe('string')
+    expect(typeof updatedInvoices[0].payload.sent_at).toBe('string')
+
+    invoicesFixture[0].status = originalStatus
+  })
+
+  it('cancels a draft invoice from row action with expected status payload', async () => {
+    const originalStatus = invoicesFixture[0].status
+    invoicesFixture[0].status = 'draft'
+
+    renderPage()
+
+    const cancelButton = await screen.findByRole('button', { name: /^cancel$/i })
+    fireEvent.click(cancelButton)
+
+    await waitFor(() => {
+      expect(updatedInvoices).toHaveLength(1)
+    })
+
+    expect(updatedInvoices[0]).toMatchObject({
+      filter: 'eq',
+      idColumn: 'id',
+      id: 'inv-1',
+      payload: {
+        status: 'cancelled',
+        updated_by: 'user-1',
+      },
+    })
+    expect(typeof updatedInvoices[0].payload.updated_at).toBe('string')
+    expect(updatedInvoices[0].payload.sent_at).toBeUndefined()
+
+    invoicesFixture[0].status = originalStatus
+  })
 })
