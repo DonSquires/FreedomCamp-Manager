@@ -165,4 +165,30 @@ describe('deriveInvoicePaymentUpdate', () => {
       status: 'paid',
     })
   })
+
+  it('clamps overpayment to outstanding balance', () => {
+    expect(
+      deriveInvoicePaymentUpdate(
+        { total_cents: 10000, amount_paid_cents: 9000, balance_cents: 1000 },
+        5000
+      )
+    ).toEqual({
+      amount_paid_cents: 10000,
+      balance_cents: 0,
+      status: 'paid',
+    })
+  })
+
+  it('derives prior paid from total minus outstanding when amount_paid is missing', () => {
+    expect(
+      deriveInvoicePaymentUpdate(
+        { total_cents: 10000, balance_cents: 2500 },
+        1000
+      )
+    ).toEqual({
+      amount_paid_cents: 8500,
+      balance_cents: 1500,
+      status: 'partially_paid',
+    })
+  })
 })
