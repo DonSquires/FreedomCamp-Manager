@@ -257,6 +257,7 @@ describe('InvoicingPage payment dialog', () => {
         updated_by: 'user-1',
       },
     })
+    expect(toastSuccess).toHaveBeenCalledWith('Payment recorded for INV-1001')
   })
 
   it('uses full-balance quick action to preview zero remaining and submit full amount', async () => {
@@ -353,6 +354,7 @@ describe('InvoicingPage payment dialog', () => {
         updated_by: 'user-1',
       },
     })
+    expect(toastSuccess).toHaveBeenCalledWith('Marked 1 invoice overdue')
   })
 
   it('marks a single invoice overdue from row action with expected eq payload', async () => {
@@ -376,6 +378,7 @@ describe('InvoicingPage payment dialog', () => {
         updated_by: 'user-1',
       },
     })
+    expect(toastSuccess).toHaveBeenCalledWith('Invoice INV-1001 marked overdue')
   })
 
   it('keeps batch overdue action disabled when there are no due candidates', async () => {
