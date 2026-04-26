@@ -34,6 +34,7 @@ const EvidencePhotoLinker = lazy(() => import('@/pages/EvidencePhotoLinker'))
 const LiveOfficerTracking = lazy(() => import('@/pages/LiveOfficerTracking'))
 const OrganizationProfile = lazy(() => import('@/pages/OrganizationProfile'))
 const AuditLog = lazy(() => import('@/pages/AuditLog'))
+const ComplianceRecalculation = lazy(() => import('@/pages/ComplianceRecalculation'))
 const InfringementNotices = lazy(() => import('@/pages/InfringementNotices'))
 const PrivacyCurtain = lazy(() => import('@/pages/PrivacyCurtain'))
 const PatrolCheckpointManagement = lazy(() => import('@/pages/PatrolCheckpointManagement'))
@@ -312,9 +313,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/platform" replace />
   }
 
-  // Client viewer users are limited to their organisation's client portal.
+  // Client persona users are limited to their organisation's client portal.
   if (
-    user.role === 'client_viewer' &&
+    ['client_viewer', 'client_officer', 'client_admin'].includes(user.role) &&
     !['/client-portal', '/profile', '/settings'].includes(location.pathname)
   ) {
     return <Navigate to="/client-portal" replace />
@@ -690,7 +691,7 @@ export default function App() {
             path="/client-portal"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['client_viewer', 'admin', 'admin_officer', 'master', 'grand_master']}>
+                <RoleRoute allowedRoles={['client_viewer', 'client_officer', 'client_admin', 'admin', 'admin_officer', 'master', 'grand_master']}>
                   <ClientOrganisationPortal />
                 </RoleRoute>
               </ProtectedRoute>
@@ -723,9 +724,27 @@ export default function App() {
 
           {/* --- NEW ROUTES ADDED BELOW --- */}
 
-          <Route path="/compliance-recalculation" element={<Navigate to="/" replace />} />
+          <Route
+            path="/compliance-recalculation"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <ComplianceRecalculation />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
 
-          <Route path="/photo-reingest" element={<Navigate to="/" replace />} />
+          <Route
+            path="/photo-reingest"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <PhotoReingest />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
 
           <Route path="/evidence-photo-linker" element={<Navigate to="/" replace />} />
 
@@ -834,7 +853,16 @@ export default function App() {
 
           <Route path="/admin/data-cleanup" element={<Navigate to="/" replace />} />
 
-          <Route path="/admin/cleanup-recalculate" element={<Navigate to="/" replace />} />
+          <Route
+            path="/admin/cleanup-recalculate"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'master']}>
+                  <CleanupAndRecalculate />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
 
           <Route path="/admin/data-integrity" element={<Navigate to="/" replace />} />
 
