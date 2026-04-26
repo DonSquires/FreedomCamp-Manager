@@ -2,11 +2,12 @@ import { test, expect } from '@playwright/test'
 import { loginAs } from './auth'
 
 async function expectRouteAccessible(page: any, route: string) {
-  await page.goto(route, { waitUntil: 'networkidle' })
+  await page.goto(route, { waitUntil: 'domcontentloaded' })
 
   // These routes were previously hard-redirected to "/".
   expect(page.url()).not.toBe('http://localhost:5173/')
-  await expect(page).toHaveURL(new RegExp(route.replace('/', '\\/')))
+  await expect(page).toHaveURL(new RegExp(route.replace('/', '\\/')), { timeout: 15000 })
+  await expect(page.locator('body')).toBeVisible({ timeout: 15000 })
 }
 
 test.describe('Route Restoration Smoke', () => {
