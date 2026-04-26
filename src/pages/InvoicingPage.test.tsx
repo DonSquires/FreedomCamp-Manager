@@ -356,4 +356,21 @@ describe('InvoicingPage payment dialog', () => {
       },
     })
   })
+
+  it('keeps batch overdue action disabled when there are no due candidates', async () => {
+    const originalDueDate = invoicesFixture[0].due_date
+    invoicesFixture[0].due_date = '2099-12-31'
+
+    renderPage()
+
+    const markDueButton = await screen.findByRole('button', { name: /mark due invoices overdue/i })
+    await waitFor(() => {
+      expect(markDueButton).toBeDisabled()
+    })
+
+    fireEvent.click(markDueButton)
+    expect(updatedInvoices).toHaveLength(0)
+
+    invoicesFixture[0].due_date = originalDueDate
+  })
 })
