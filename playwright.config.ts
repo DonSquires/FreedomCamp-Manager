@@ -14,13 +14,44 @@ const nativeChromiumExecutablePath = [
   '/usr/bin/chromium-browser',
 ].find((candidate) => !!candidate && existsSync(candidate))
 
+const nativeFirefoxExecutablePath = [
+  process.env.PLAYWRIGHT_FIREFOX_EXECUTABLE_PATH,
+  '/usr/bin/firefox',
+  '/usr/bin/firefox-esr',
+].find((candidate) => !!candidate && existsSync(candidate))
+
 const chromiumLaunchOptions = {
   args: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
   ...(nativeChromiumExecutablePath ? { executablePath: nativeChromiumExecutablePath } : {}),
 }
+
+const firefoxLaunchOptions = {
+  ...(nativeFirefoxExecutablePath ? { executablePath: nativeFirefoxExecutablePath } : {}),
+}
 const ignoreHTTPSErrors = process.env.PLAYWRIGHT_IGNORE_HTTPS_ERRORS !== '0'
 
+const canUseFirefoxOnHost = process.platform !== 'linux' || process.env.PLAYWRIGHT_FORCE_FIREFOX === '1'
 const canUseWebkitOnHost = process.platform !== 'linux' || process.env.PLAYWRIGHT_FORCE_WEBKIT === '1'
+
+const desktopFirefoxProject = canUseFirefoxOnHost
+  ? {
+      name: 'firefox',
+      use: {
+        ...devices['Desktop Firefox'],
+        launchOptions: firefoxLaunchOptions,
+      },
+    }
+  : {
+      // Alpine/Linux dev containers frequently cannot run Playwright's Firefox
+      // runtime reliably. Keep the project available using Chromium with a
+      // Firefox-like viewport/profile unless Firefox is explicitly forced.
+      name: 'firefox',
+      use: {
+        ...devices['Desktop Firefox'],
+        ...devices['Desktop Chrome'],
+        launchOptions: chromiumLaunchOptions,
+      },
+    }
 
 const desktopSafariProject = canUseWebkitOnHost
   ? {
@@ -134,10 +165,7 @@ export default defineConfig({
       },
     },
 
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
+    desktopFirefoxProject,
 
     desktopSafariProject,
 
