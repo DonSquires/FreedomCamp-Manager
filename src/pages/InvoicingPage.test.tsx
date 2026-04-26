@@ -41,6 +41,8 @@ const invoicesFixture = [
 const contractsFixture: any[] = []
 const insertedPayments: any[] = []
 const updatedInvoices: any[] = []
+const toastSuccess = vi.fn()
+const toastError = vi.fn()
 
 const fromMock = vi.fn((table: string) => {
   if (table === 'organizations') {
@@ -129,8 +131,8 @@ vi.mock('@/components/features/AppLayout', () => ({
 
 vi.mock('sonner', () => ({
   toast: {
-    success: vi.fn(),
-    error: vi.fn(),
+    success: (...args: any[]) => toastSuccess(...args),
+    error: (...args: any[]) => toastError(...args),
   },
 }))
 
@@ -163,6 +165,8 @@ describe('InvoicingPage payment dialog', () => {
 
     insertedPayments.length = 0
     updatedInvoices.length = 0
+    toastSuccess.mockClear()
+    toastError.mockClear()
     fromMock.mockClear()
   })
 
@@ -398,6 +402,7 @@ describe('InvoicingPage payment dialog', () => {
     })
     expect(typeof updatedInvoices[0].payload.updated_at).toBe('string')
     expect(typeof updatedInvoices[0].payload.sent_at).toBe('string')
+    expect(toastSuccess).toHaveBeenCalledWith('Invoice sent')
 
     invoicesFixture[0].status = originalStatus
   })
@@ -426,6 +431,7 @@ describe('InvoicingPage payment dialog', () => {
     })
     expect(typeof updatedInvoices[0].payload.updated_at).toBe('string')
     expect(updatedInvoices[0].payload.sent_at).toBeUndefined()
+    expect(toastSuccess).toHaveBeenCalledWith('Invoice cancelled')
 
     invoicesFixture[0].status = originalStatus
   })
