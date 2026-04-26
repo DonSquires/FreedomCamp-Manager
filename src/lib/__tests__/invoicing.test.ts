@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildInvoiceDraftFromContractLines,
+  deriveInvoicePaymentUpdate,
+  deriveInvoicePaymentUpdateFromPaidTotal,
+  getEffectiveCompletedPaymentCents,
   getRemainingBalancePreviewCents,
   getInvoiceDueDate,
   getOverdueCandidateIds,
@@ -135,5 +138,110 @@ describe('getRemainingBalancePreviewCents', () => {
 
   it('returns projected remaining balance for valid amount', () => {
     expect(getRemainingBalancePreviewCents('12.34', 5000)).toBe(3766)
+  })
+})
+
+describe('deriveInvoicePaymentUpdate', () => {
+  it('marks invoice partially paid when balance remains', () => {
+    expect(
+      deriveInvoicePaymentUpdate(
+        { total_cents: 10000, amount_paid_cents: 0, balance_cents: 10000 },
+        2500
+      )
+    ).toEqual({
+      amount_paid_cents: 2500,
+      balance_cents: 7500,
+      status: 'partially_paid',
+    })
+  })
+
+  it('marks invoice paid when payment clears balance', () => {
+    expect(
+      deriveInvoicePaymentUpdate(
+        { total_cents: 10000, amount_paid_cents: 2500, balance_cents: 7500 },
+        7500
+      )
+    ).toEqual({
+      amount_paid_cents: 10000,
+      balance_cents: 0,
+      status: 'paid',
+    })
+  })
+
+  it('clamps overpayment to outstanding balance', () => {
+    expect(
+      deriveInvoicePaymentUpdate(
+        { total_cents: 10000, amount_paid_cents: 9000, balance_cents: 1000 },
+        5000
+      )
+    ).toEqual({
+      amount_paid_cents: 10000,
+      balance_cents: 0,
+      status: 'paid',
+    })
+  })
+
+  it('derives prior paid from total minus outstanding when amount_paid is missing', () => {
+    expect(
+      deriveInvoicePaymentUpdate(
+        { total_cents: 10000, balance_cents: 2500 },
+        1000
+      )
+    ).toEqual({
+      amount_paid_cents: 8500,
+      balance_cents: 1500,
+      status: 'partially_paid',
+    })
+  })
+})
+
+describe('deriveInvoicePaymentUpdateFromPaidTotal', () => {
+  it('derives partially paid state from persisted paid total', () => {
+    expect(
+      deriveInvoicePaymentUpdateFromPaidTotal(
+        { total_cents: 10000 },
+        4500
+      )
+    ).toEqual({
+      amount_paid_cents: 4500,
+      balance_cents: 5500,
+      status: 'partially_paid',
+    })
+  })
+
+  it('clamps persisted paid total to invoice total', () => {
+    expect(
+      deriveInvoicePaymentUpdateFromPaidTotal(
+        { total_cents: 10000 },
+        25000
+      )
+    ).toEqual({
+      amount_paid_cents: 10000,
+      balance_cents: 0,
+      status: 'paid',
+    })
+  })
+})
+
+describe('getEffectiveCompletedPaymentCents', () => {
+  it('sums completed and unknown statuses while excluding failed/voided/refunded', () => {
+    expect(
+      getEffectiveCompletedPaymentCents([
+        { amount_cents: 2000, status: 'completed' },
+        { amount_cents: 500, status: 'failed' },
+        { amount_cents: 700, status: 'voided' },
+        { amount_cents: 300, status: 'refunded' },
+        { amount_cents: 1200, status: null },
+      ])
+    ).toBe(3200)
+  })
+
+  it('never subtracts from malformed negative amounts', () => {
+    expect(
+      getEffectiveCompletedPaymentCents([
+        { amount_cents: -1000, status: 'completed' },
+        { amount_cents: 600, status: 'completed' },
+      ])
+    ).toBe(600)
   })
 })

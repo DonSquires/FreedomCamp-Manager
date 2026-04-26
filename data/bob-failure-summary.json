@@ -1,16 +1,16 @@
 {
-  "generatedAt": "2026-04-25T19:06:09.407Z",
+  "generatedAt": "2026-04-25T21:48:01.558Z",
   "windowHours": 24,
-  "totalEntries": 10,
-  "lowScoreCount": 5,
+  "totalEntries": 16,
+  "lowScoreCount": 8,
   "topFailureReasons": [
+    {
+      "name": "delivery_failed",
+      "count": 5
+    },
     {
       "name": "quality_gate_failed",
       "count": 3
-    },
-    {
-      "name": "delivery_failed",
-      "count": 2
     }
   ],
   "topHallucinationPatterns": [],
@@ -18,6 +18,14 @@
   "topFlaggedArtifacts": [
     {
       "name": "/workspaces/FreedomCamp-Manager/docs/PHASE0_OBSERVABILITY_SLO_BASELINE_2026-04-25.md",
+      "count": 4
+    },
+    {
+      "name": "/workspaces/FreedomCamp-Manager/docs/APP_ENTERPRISE_EXECUTION_TRACKER_2026-04-25.md",
+      "count": 2
+    },
+    {
+      "name": "/workspaces/FreedomCamp-Manager/docs/PHASE4_GATE_EVIDENCE_2026-04-25.md",
       "count": 2
     },
     {
@@ -27,10 +35,6 @@
     {
       "name": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-25T05-32-10-754Z/report.md",
       "count": 2
-    },
-    {
-      "name": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-25T06-28-53-681Z/report.md",
-      "count": 1
     }
   ],
   "recommendations": [
