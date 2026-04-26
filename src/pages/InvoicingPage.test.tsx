@@ -43,6 +43,11 @@ const insertedPayments: any[] = []
 const updatedInvoices: any[] = []
 const toastSuccess = vi.fn()
 const toastError = vi.fn()
+const mockFailures = {
+  crmInvoiceEqError: null as string | null,
+  crmInvoiceInError: null as string | null,
+  crmPaymentsInsertError: null as string | null,
+}
 
 const fromMock = vi.fn((table: string) => {
   if (table === 'organizations') {
@@ -70,10 +75,16 @@ const fromMock = vi.fn((table: string) => {
       update: (payload: any) => {
         const updateBuilder: any = {
           eq: async (idColumn: string, id: string) => {
+            if (mockFailures.crmInvoiceEqError) {
+              return { error: { message: mockFailures.crmInvoiceEqError } }
+            }
             updatedInvoices.push({ payload, filter: 'eq', idColumn, id })
             return { error: null }
           },
           in: async (idColumn: string, ids: string[]) => {
+            if (mockFailures.crmInvoiceInError) {
+              return { error: { message: mockFailures.crmInvoiceInError } }
+            }
             updatedInvoices.push({ payload, filter: 'in', idColumn, ids })
             return { error: null }
           },
@@ -99,6 +110,9 @@ const fromMock = vi.fn((table: string) => {
   if (table === 'crm_payments') {
     return {
       insert: async (payload: any) => {
+        if (mockFailures.crmPaymentsInsertError) {
+          return { error: { message: mockFailures.crmPaymentsInsertError } }
+        }
         insertedPayments.push(payload)
         return { error: null }
       },
@@ -167,6 +181,9 @@ describe('InvoicingPage payment dialog', () => {
     updatedInvoices.length = 0
     toastSuccess.mockClear()
     toastError.mockClear()
+    mockFailures.crmInvoiceEqError = null
+    mockFailures.crmInvoiceInError = null
+    mockFailures.crmPaymentsInsertError = null
     fromMock.mockClear()
   })
 
@@ -434,5 +451,65 @@ describe('InvoicingPage payment dialog', () => {
     expect(toastSuccess).toHaveBeenCalledWith('Invoice cancelled')
 
     invoicesFixture[0].status = originalStatus
+  })
+
+  it('shows error toast and skips invoice update when payment insert fails', async () => {
+    mockFailures.crmPaymentsInsertError = 'payment insert failed'
+
+    renderPage()
+
+    const recordPaymentButton = await screen.findByRole('button', { name: /record payment/i })
+    fireEvent.click(recordPaymentButton)
+
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: /record payment/i }))
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith('payment insert failed')
+    })
+
+    expect(insertedPayments).toHaveLength(0)
+    expect(updatedInvoices).toHaveLength(0)
+    expect(toastSuccess).not.toHaveBeenCalled()
+  })
+
+  it('shows error toast when sending draft invoice fails', async () => {
+    const originalStatus = invoicesFixture[0].status
+    invoicesFixture[0].status = 'draft'
+    mockFailures.crmInvoiceEqError = 'status update failed'
+
+    renderPage()
+
+    const sendButton = await screen.findByRole('button', { name: /^send$/i })
+    fireEvent.click(sendButton)
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith('status update failed')
+    })
+
+    expect(updatedInvoices).toHaveLength(0)
+    expect(toastSuccess).not.toHaveBeenCalled()
+
+    invoicesFixture[0].status = originalStatus
+  })
+
+  it('shows error toast when batch overdue update fails', async () => {
+    mockFailures.crmInvoiceInError = 'batch overdue failed'
+
+    renderPage()
+
+    const markDueButton = await screen.findByRole('button', { name: /mark due invoices overdue/i })
+    await waitFor(() => {
+      expect(markDueButton).toBeEnabled()
+    })
+
+    fireEvent.click(markDueButton)
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith('batch overdue failed')
+    })
+
+    expect(updatedInvoices).toHaveLength(0)
+    expect(toastSuccess).not.toHaveBeenCalled()
   })
 })
