@@ -512,4 +512,41 @@ describe('InvoicingPage payment dialog', () => {
     expect(updatedInvoices).toHaveLength(0)
     expect(toastSuccess).not.toHaveBeenCalled()
   })
+
+  it('shows error toast when payment succeeds but invoice balance update fails', async () => {
+    mockFailures.crmInvoiceEqError = 'invoice accounting update failed'
+
+    renderPage()
+
+    const recordPaymentButton = await screen.findByRole('button', { name: /record payment/i })
+    fireEvent.click(recordPaymentButton)
+
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: /record payment/i }))
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith('invoice accounting update failed')
+    })
+
+    expect(insertedPayments).toHaveLength(1)
+    expect(updatedInvoices).toHaveLength(0)
+    expect(screen.getByText('Record Manual Payment')).toBeInTheDocument()
+    expect(toastSuccess).not.toHaveBeenCalled()
+  })
+
+  it('shows error toast when single-row overdue action fails', async () => {
+    mockFailures.crmInvoiceEqError = 'single overdue failed'
+
+    renderPage()
+
+    const markOverdueButtons = await screen.findAllByRole('button', { name: /mark overdue/i })
+    fireEvent.click(markOverdueButtons[0])
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith('single overdue failed')
+    })
+
+    expect(updatedInvoices).toHaveLength(0)
+    expect(toastSuccess).not.toHaveBeenCalled()
+  })
 })
