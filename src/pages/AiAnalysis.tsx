@@ -441,7 +441,7 @@ export default function AiAnalysis() {
       setIsLoading(false)
       textareaRef.current?.focus()
     }
-  }, [messages, isLoading])
+  }, [expressUserDataPermission, messages, isLoading])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
