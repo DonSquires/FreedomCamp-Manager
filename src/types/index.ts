@@ -9,6 +9,8 @@ export type UserRole =
   | 'nzscv_monitor'
   | 'grand_master'
   | 'client_viewer'
+  | 'client_officer'
+  | 'client_admin'
 
 export interface User {
   id: string

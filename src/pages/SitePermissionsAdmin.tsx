@@ -62,7 +62,7 @@ interface UserProfile {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const BUILT_IN_ROLES = ['grand_master', 'master', 'admin', 'admin_officer', 'officer', 'nzscv_monitor', 'client_viewer']
+const BUILT_IN_ROLES = ['grand_master', 'master', 'admin', 'admin_officer', 'officer', 'nzscv_monitor', 'client_admin', 'client_officer', 'client_viewer']
 
 const ROLE_LABELS: Record<string, string> = {
   grand_master:  'Grand Master',
@@ -71,6 +71,8 @@ const ROLE_LABELS: Record<string, string> = {
   admin_officer: 'Ops Manager',
   officer:       'Field Officer',
   nzscv_monitor: 'NZSCV Monitor',
+  client_admin:  'Client Admin',
+  client_officer:'Client Officer',
   client_viewer: 'Client Viewer',
 }
 
