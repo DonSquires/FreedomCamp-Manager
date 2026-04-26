@@ -1,19 +1,19 @@
 /**
- * InvoicingPage – Read-only invoicing and contract viewer.
+ * InvoicingPage – Billing operations workspace for contracts and invoices.
  *
- * Shows contracts and invoices per client, with line items and payment status.
- * Admin-only view — no editing (billing system to be built later).
+ * Supports contract-backed draft generation, status transitions, and
+ * manual payment recording for invoice balances.
  *
  * Data sources:
- *   • crm_contracts      — service agreements
+ *   • crm_contracts       — service agreements
  *   • crm_invoices        — billing records
  *   • crm_invoice_lines   — line items per invoice
  *   • crm_payments        — payment records
  *   • organizations       — client names
  */
 
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMemo, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -21,6 +21,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -32,16 +40,30 @@ import {
   Building2,
   Receipt,
   FileText,
-  DollarSign,
   Search,
   CheckCircle2,
   Clock,
   AlertCircle,
   ChevronDown,
   ChevronUp,
+  PlusCircle,
+  Send,
+  XCircle,
   CreditCard,
+  ArrowDownWideNarrow,
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
+import { toast } from 'sonner'
+import {
+  buildInvoiceDraftFromContractLines,
+  getRemainingBalancePreviewCents,
+  getInvoiceDueDate,
+  getOverdueCandidateIds,
+  getOutstandingInvoiceCents,
+  getSuggestedPaymentAmountsCents,
+  isInvoicePastDue,
+  validatePaymentAmountInput,
+} from '@/lib/invoicing'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -59,6 +81,7 @@ const INVOICE_STATUS_STYLE: Record<string, string> = {
   draft:     'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
   sent:      'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
   viewed:    'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
+  partially_paid: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
   paid:      'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
   overdue:   'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
   voided:    'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500',
@@ -77,14 +100,104 @@ const CONTRACT_STATUS_STYLE: Record<string, string> = {
 
 function InvoiceStatusIcon({ status }: { status: string }) {
   if (status === 'paid') return <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+  if (status === 'partially_paid') return <CreditCard className="h-4 w-4 text-amber-500" />
   if (status === 'overdue') return <AlertCircle className="h-4 w-4 text-red-500" />
   if (status === 'sent' || status === 'viewed') return <Clock className="h-4 w-4 text-blue-500" />
   return <FileText className="h-4 w-4 text-gray-400" />
 }
 
-function InvoiceRow({ invoice }: { invoice: any }) {
+function InvoiceRow({
+  invoice,
+  onUpdateStatus,
+  onRecordPayment,
+  onMarkOverdue,
+  isUpdating,
+}: {
+  invoice: any
+  onUpdateStatus: (invoice: any, status: 'sent' | 'cancelled') => void
+  onRecordPayment: (invoice: any) => void
+  onMarkOverdue: (invoice: any) => void
+  isUpdating: boolean
+}) {
   const [expanded, setExpanded] = useState(false)
   const lines: any[] = invoice.lines ?? []
+
+  const actionButtons = useMemo(() => {
+    if (invoice.status === 'draft') {
+      return (
+        <div className="flex items-center gap-1 justify-end">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 px-2 text-[11px]"
+            disabled={isUpdating}
+            onClick={(e) => {
+              e.stopPropagation()
+              onUpdateStatus(invoice, 'cancelled')
+            }}
+          >
+            <XCircle className="h-3.5 w-3.5 mr-1" />
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            className="h-7 px-2 text-[11px]"
+            disabled={isUpdating}
+            onClick={(e) => {
+              e.stopPropagation()
+              onUpdateStatus(invoice, 'sent')
+            }}
+          >
+            <Send className="h-3.5 w-3.5 mr-1" />
+            Send
+          </Button>
+        </div>
+      )
+    }
+
+    const canRecordPayment = getOutstandingInvoiceCents(invoice) > 0 && !['draft', 'cancelled', 'paid'].includes(invoice.status)
+    const canMarkOverdue = invoice.status !== 'overdue' && isInvoicePastDue(invoice)
+
+    if (canMarkOverdue || canRecordPayment) {
+      return (
+        <div className="flex items-center gap-1 justify-end">
+          {canMarkOverdue && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 text-[11px]"
+              disabled={isUpdating}
+              onClick={(e) => {
+                e.stopPropagation()
+                onMarkOverdue(invoice)
+              }}
+            >
+              <AlertCircle className="h-3.5 w-3.5 mr-1" />
+              Mark overdue
+            </Button>
+          )}
+
+          {canRecordPayment && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 text-[11px]"
+              disabled={isUpdating}
+              onClick={(e) => {
+                e.stopPropagation()
+                onRecordPayment(invoice)
+              }}
+            >
+              <CreditCard className="h-3.5 w-3.5 mr-1" />
+              Record payment
+            </Button>
+          )}
+        </div>
+      )
+    }
+
+    return <span className="text-[11px] text-muted-foreground">No actions</span>
+  }, [invoice, isUpdating, onMarkOverdue, onRecordPayment, onUpdateStatus])
 
   return (
     <>
@@ -97,6 +210,8 @@ function InvoiceRow({ invoice }: { invoice: any }) {
         <TableCell className="text-xs text-muted-foreground">{formatDate(invoice.invoice_date)}</TableCell>
         <TableCell className="text-xs text-muted-foreground">{formatDate(invoice.due_date)}</TableCell>
         <TableCell className="text-sm font-semibold">{formatCents(invoice.total_cents)}</TableCell>
+        <TableCell className="text-xs text-muted-foreground">{formatCents(invoice.amount_paid_cents)}</TableCell>
+        <TableCell className="text-xs font-medium">{formatCents(invoice.balance_cents ?? invoice.total_cents)}</TableCell>
         <TableCell>
           <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium capitalize ${INVOICE_STATUS_STYLE[invoice.status] ?? INVOICE_STATUS_STYLE.draft}`}>
             {invoice.status}
@@ -104,6 +219,9 @@ function InvoiceRow({ invoice }: { invoice: any }) {
         </TableCell>
         <TableCell>
           <InvoiceStatusIcon status={invoice.status} />
+        </TableCell>
+        <TableCell className="text-right">
+          {actionButtons}
         </TableCell>
         <TableCell>
           {lines.length > 0 && (
@@ -116,7 +234,7 @@ function InvoiceRow({ invoice }: { invoice: any }) {
 
       {expanded && lines.length > 0 && (
         <TableRow className="bg-gray-50/80 dark:bg-gray-800/30">
-          <TableCell colSpan={8} className="py-3 px-6">
+          <TableCell colSpan={11} className="py-3 px-6">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Line Items</p>
             <div className="space-y-1">
               {lines.map((line: any) => (
@@ -142,9 +260,17 @@ function InvoiceRow({ invoice }: { invoice: any }) {
 
 export default function InvoicingPage() {
   const { user } = useAuthStore()
+  const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [clientFilter, setClientFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [paymentStateFilter, setPaymentStateFilter] = useState('all')
+  const [invoiceSort, setInvoiceSort] = useState('date_desc')
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
+  const [paymentInvoice, setPaymentInvoice] = useState<any | null>(null)
+  const [paymentAmount, setPaymentAmount] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState('bank_transfer')
+  const [paymentReference, setPaymentReference] = useState('')
 
   // Load client orgs
   const { data: clients = [] } = useQuery({
@@ -169,7 +295,7 @@ export default function InvoicingPage() {
         .from('crm_invoices')
         .select(`
           id, invoice_number, invoice_date, due_date, total_cents, subtotal_cents,
-          tax_cents, status, billing_period_start, billing_period_end, currency,
+          tax_cents, amount_paid_cents, balance_cents, status, billing_period_start, billing_period_end, currency,
           reference,
           client:organizations!crm_invoices_client_organization_id_fkey(id, name),
           provider:organizations!crm_invoices_provider_organization_id_fkey(name),
@@ -215,12 +341,12 @@ export default function InvoicingPage() {
 
   // Summary metrics
   const totalOutstanding = invoices
-    .filter((inv: any) => ['sent', 'viewed', 'overdue'].includes(inv.status))
-    .reduce((sum: number, inv: any) => sum + (inv.total_cents ?? 0), 0)
+    .filter((inv: any) => ['sent', 'viewed', 'overdue', 'partially_paid'].includes(inv.status))
+    .reduce((sum: number, inv: any) => sum + getOutstandingInvoiceCents(inv), 0)
 
   const totalPaid = invoices
     .filter((inv: any) => inv.status === 'paid')
-    .reduce((sum: number, inv: any) => sum + (inv.total_cents ?? 0), 0)
+    .reduce((sum: number, inv: any) => sum + (inv.amount_paid_cents ?? inv.total_cents ?? 0), 0)
 
   const overdueCount = invoices.filter((inv: any) => inv.status === 'overdue').length
 
@@ -232,8 +358,30 @@ export default function InvoicingPage() {
       inv.reference?.toLowerCase().includes(search.toLowerCase())
     )
     const matchStatus = statusFilter === 'all' || inv.status === statusFilter
-    return matchSearch && matchStatus
+    const outstanding = getOutstandingInvoiceCents(inv)
+    const matchPaymentState =
+      paymentStateFilter === 'all' ||
+      (paymentStateFilter === 'outstanding' && outstanding > 0 && inv.status !== 'draft' && inv.status !== 'cancelled') ||
+      (paymentStateFilter === 'paid' && inv.status === 'paid') ||
+      (paymentStateFilter === 'overdue' && (inv.status === 'overdue' || isInvoicePastDue(inv)))
+
+    return matchSearch && matchStatus && matchPaymentState
   })
+
+  const sortedInvoices = [...filteredInvoices].sort((a: any, b: any) => {
+    if (invoiceSort === 'date_asc') {
+      return String(a.invoice_date ?? '').localeCompare(String(b.invoice_date ?? ''))
+    }
+    if (invoiceSort === 'balance_desc') {
+      return getOutstandingInvoiceCents(b) - getOutstandingInvoiceCents(a)
+    }
+    return String(b.invoice_date ?? '').localeCompare(String(a.invoice_date ?? ''))
+  })
+
+  const overdueCandidateIds = useMemo(
+    () => getOverdueCandidateIds(sortedInvoices),
+    [sortedInvoices]
+  )
 
   const filteredContracts = contracts.filter((c: any) => {
     return !search || (
@@ -243,8 +391,260 @@ export default function InvoicingPage() {
     )
   })
 
+  const refreshBillingData = () => {
+    qc.invalidateQueries({ queryKey: ['crm-invoices'] })
+    qc.invalidateQueries({ queryKey: ['crm-contracts'] })
+  }
+
+  const createInvoiceMutation = useMutation({
+    mutationFn: async (contract: any) => {
+      const draft = buildInvoiceDraftFromContractLines(contract.lines ?? [])
+      if (draft.lines.length === 0) {
+        throw new Error('This contract has no active billable lines to invoice.')
+      }
+
+      const { data: existingDraft, error: existingDraftError } = await (supabase as any)
+        .from('crm_invoices')
+        .select('id, invoice_number')
+        .eq('contract_id', contract.id)
+        .eq('status', 'draft')
+        .limit(1)
+        .maybeSingle()
+
+      if (existingDraftError) throw existingDraftError
+      if (existingDraft?.id) {
+        throw new Error(`Draft invoice ${existingDraft.invoice_number ?? ''} already exists for this contract.`)
+      }
+
+      const invoiceDate = new Date()
+      const insertPayload = {
+        contract_id: contract.id,
+        provider_organization_id: user?.organization_id,
+        client_organization_id: contract.client?.id,
+        invoice_date: invoiceDate.toISOString().slice(0, 10),
+        due_date: getInvoiceDueDate(invoiceDate),
+        billing_period_start: contract.start_date ?? null,
+        billing_period_end: contract.end_date ?? null,
+        subtotal_cents: draft.subtotal_cents,
+        tax_cents: draft.tax_cents,
+        total_cents: draft.total_cents,
+        currency: contract.currency ?? 'NZD',
+        status: 'draft',
+        notes: `Generated from contract ${contract.contract_number ?? contract.name}`,
+        created_by: user?.id,
+        updated_by: user?.id,
+      }
+
+      const { data: invoice, error: invoiceError } = await (supabase as any)
+        .from('crm_invoices')
+        .insert(insertPayload)
+        .select('id, invoice_number')
+        .single()
+
+      if (invoiceError) throw invoiceError
+
+      const { error: lineError } = await (supabase as any)
+        .from('crm_invoice_lines')
+        .insert(
+          draft.lines.map((line) => ({
+            invoice_id: invoice.id,
+            contract_line_id: line.contract_line_id,
+            description: line.description,
+            quantity: line.quantity,
+            unit_price_cents: line.unit_price_cents,
+            discount_percent: line.discount_percent,
+            tax_rate: line.tax_rate,
+            line_subtotal_cents: line.line_subtotal_cents,
+            line_tax_cents: line.line_tax_cents,
+            line_total_cents: line.line_total_cents,
+            sort_order: line.sort_order,
+          }))
+        )
+
+      if (lineError) throw lineError
+
+      return invoice
+    },
+    onSuccess: (invoice: any) => {
+      refreshBillingData()
+      toast.success(`Draft invoice ${invoice.invoice_number ?? 'created'}`)
+    },
+    onError: (error: any) => {
+      toast.error(error?.message ?? 'Failed to generate draft invoice')
+    },
+  })
+
+  const updateInvoiceStatusMutation = useMutation({
+    mutationFn: async ({ invoiceId, status }: { invoiceId: string; status: 'sent' | 'cancelled' }) => {
+      const patch: Record<string, string> = {
+        status,
+        updated_at: new Date().toISOString(),
+      }
+      if (status === 'sent') {
+        patch.sent_at = new Date().toISOString()
+      }
+
+      const { error } = await (supabase as any)
+        .from('crm_invoices')
+        .update({ ...patch, updated_by: user?.id })
+        .eq('id', invoiceId)
+
+      if (error) throw error
+    },
+    onSuccess: (_data, variables) => {
+      refreshBillingData()
+      toast.success(variables.status === 'sent' ? 'Invoice sent' : 'Invoice cancelled')
+    },
+    onError: (error: any) => {
+      toast.error(error?.message ?? 'Failed to update invoice status')
+    },
+  })
+
+  const markOverdueMutation = useMutation({
+    mutationFn: async (invoice: any) => {
+      const { error } = await (supabase as any)
+        .from('crm_invoices')
+        .update({ status: 'overdue', updated_at: new Date().toISOString(), updated_by: user?.id })
+        .eq('id', invoice.id)
+
+      if (error) throw error
+      return invoice
+    },
+    onSuccess: (invoice: any) => {
+      refreshBillingData()
+      toast.success(`Invoice ${invoice.invoice_number} marked overdue`)
+    },
+    onError: (error: any) => {
+      toast.error(error?.message ?? 'Failed to mark invoice overdue')
+    },
+  })
+
+  const markAllOverdueMutation = useMutation({
+    mutationFn: async (invoiceIds: string[]) => {
+      if (!invoiceIds.length) return 0
+
+      const { error } = await (supabase as any)
+        .from('crm_invoices')
+        .update({ status: 'overdue', updated_at: new Date().toISOString(), updated_by: user?.id })
+        .in('id', invoiceIds)
+
+      if (error) throw error
+      return invoiceIds.length
+    },
+    onSuccess: (count: number) => {
+      if (!count) return
+      refreshBillingData()
+      toast.success(`Marked ${count} invoice${count === 1 ? '' : 's'} overdue`)
+    },
+    onError: (error: any) => {
+      toast.error(error?.message ?? 'Failed to mark invoices overdue')
+    },
+  })
+
+  const recordPaymentMutation = useMutation({
+    mutationFn: async ({
+      invoice,
+      amountCents,
+      method,
+      reference,
+    }: {
+      invoice: any
+      amountCents: number
+      method: string
+      reference: string
+    }) => {
+      const balanceCents = Number(invoice.balance_cents ?? invoice.total_cents ?? 0)
+      if (balanceCents <= 0) {
+        throw new Error('Invoice has no outstanding balance.')
+      }
+
+      if (!amountCents || amountCents <= 0) {
+        throw new Error('Payment amount must be greater than zero.')
+      }
+
+      if (amountCents > balanceCents) {
+        throw new Error('Payment amount cannot exceed outstanding balance.')
+      }
+
+      const { error } = await (supabase as any)
+        .from('crm_payments')
+        .insert({
+          invoice_id: invoice.id,
+          organization_id: invoice.client?.id,
+          amount_cents: amountCents,
+          currency: invoice.currency ?? 'NZD',
+          payment_method: method,
+          payment_reference: reference || `manual-${invoice.invoice_number}`,
+          status: 'completed',
+          notes: 'Manual payment recorded from Invoicing page',
+          processed_by: user?.id,
+        })
+
+      if (error) throw error
+      return invoice
+    },
+    onSuccess: (invoice) => {
+      refreshBillingData()
+      toast.success(`Payment recorded for ${invoice.invoice_number}`)
+      setPaymentDialogOpen(false)
+      setPaymentInvoice(null)
+      setPaymentAmount('')
+      setPaymentMethod('bank_transfer')
+      setPaymentReference('')
+    },
+    onError: (error: any) => {
+      toast.error(error?.message ?? 'Failed to record payment')
+    },
+  })
+
+  const openPaymentDialog = (invoice: any) => {
+    const balanceCents = Number(invoice.balance_cents ?? invoice.total_cents ?? 0)
+    if (balanceCents <= 0) {
+      toast.error('Invoice has no outstanding balance.')
+      return
+    }
+
+    setPaymentInvoice(invoice)
+    setPaymentAmount((balanceCents / 100).toFixed(2))
+    setPaymentMethod('bank_transfer')
+    setPaymentReference(`manual-${invoice.invoice_number}`)
+    setPaymentDialogOpen(true)
+  }
+
+  const submitPayment = () => {
+    if (!paymentInvoice) return
+
+    const balanceCents = Math.max(0, Number(paymentInvoice.balance_cents ?? paymentInvoice.total_cents ?? 0))
+    const validation = validatePaymentAmountInput(paymentAmount, balanceCents)
+    if (validation.error || validation.amountCents == null) {
+      toast.error(validation.error ?? 'Enter a valid payment amount.')
+      return
+    }
+
+    recordPaymentMutation.mutate({
+      invoice: paymentInvoice,
+      amountCents: validation.amountCents,
+      method: paymentMethod,
+      reference: paymentReference.trim(),
+    })
+  }
+
+  const paymentBalanceCents = Math.max(0, Number(paymentInvoice?.balance_cents ?? paymentInvoice?.total_cents ?? 0))
+  const quickPaymentAmounts = useMemo(
+    () => getSuggestedPaymentAmountsCents(paymentBalanceCents),
+    [paymentBalanceCents]
+  )
+  const paymentValidation = useMemo(
+    () => validatePaymentAmountInput(paymentAmount, paymentBalanceCents),
+    [paymentAmount, paymentBalanceCents]
+  )
+  const remainingBalancePreviewCents = useMemo(
+    () => getRemainingBalancePreviewCents(paymentAmount, paymentBalanceCents),
+    [paymentAmount, paymentBalanceCents]
+  )
+
   return (
-    <AppLayout title="Invoicing" description="Read-only — contracts and invoice history">
+    <AppLayout title="Invoicing" description="Draft invoice generation and status management">
       <div className="space-y-5">
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
@@ -256,12 +656,12 @@ export default function InvoicingPage() {
             <div>
               <h1 className="text-xl font-bold text-gray-900 dark:text-white">Invoicing</h1>
               <p className="text-sm text-muted-foreground">
-                Contracts and invoice history — read only
+                Contracts, draft invoice generation, and invoice status management
               </p>
             </div>
           </div>
           <Badge variant="outline" className="text-xs self-start sm:self-auto">
-            Read Only — Billing module coming soon
+            Billing operations enabled
           </Badge>
         </div>
 
@@ -316,11 +716,37 @@ export default function InvoicingPage() {
               <SelectItem value="draft">Draft</SelectItem>
               <SelectItem value="sent">Sent</SelectItem>
               <SelectItem value="viewed">Viewed</SelectItem>
+              <SelectItem value="partially_paid">Partially Paid</SelectItem>
               <SelectItem value="paid">Paid</SelectItem>
               <SelectItem value="overdue">Overdue</SelectItem>
               <SelectItem value="voided">Voided</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={paymentStateFilter} onValueChange={setPaymentStateFilter}>
+            <SelectTrigger className="h-9 w-44">
+              <SelectValue placeholder="All payment states" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All payment states</SelectItem>
+              <SelectItem value="outstanding">Outstanding</SelectItem>
+              <SelectItem value="paid">Paid</SelectItem>
+              <SelectItem value="overdue">Overdue</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={invoiceSort} onValueChange={setInvoiceSort}>
+            <SelectTrigger className="h-9 w-44">
+              <SelectValue placeholder="Sort invoices" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="date_desc">Newest first</SelectItem>
+              <SelectItem value="date_asc">Oldest first</SelectItem>
+              <SelectItem value="balance_desc">Highest balance</SelectItem>
+            </SelectContent>
+          </Select>
+          <Badge variant="secondary" className="h-9 px-2 flex items-center gap-1 text-xs">
+            <ArrowDownWideNarrow className="h-3.5 w-3.5" />
+            {sortedInvoices.length} results
+          </Badge>
         </div>
 
         {/* ── Tabs ────────────────────────────────────────────────────────── */}
@@ -350,18 +776,31 @@ export default function InvoicingPage() {
           <TabsContent value="invoices" className="mt-4">
             <Card className="bg-white dark:bg-gray-900 shadow-sm">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Receipt className="h-4 w-4 text-amber-600" />
-                  Invoice History
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Click a row to expand line items. Read-only view.
-                </CardDescription>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Receipt className="h-4 w-4 text-amber-600" />
+                      Invoice History
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      Click a row to expand line items. Draft invoices can be sent or cancelled.
+                    </CardDescription>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={overdueCandidateIds.length === 0 || markAllOverdueMutation.isPending}
+                    onClick={() => markAllOverdueMutation.mutate(overdueCandidateIds)}
+                  >
+                    <AlertCircle className="h-3.5 w-3.5 mr-1" />
+                    Mark Due Invoices Overdue
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="pt-0">
                 {invoicesLoading ? (
                   <div className="py-8 text-center text-sm text-muted-foreground">Loading invoices…</div>
-                ) : filteredInvoices.length === 0 ? (
+                ) : sortedInvoices.length === 0 ? (
                   <div className="py-10 text-center">
                     <Receipt className="h-8 w-8 text-gray-300 mx-auto mb-2" />
                     <p className="text-sm text-muted-foreground">
@@ -380,14 +819,28 @@ export default function InvoicingPage() {
                           <TableHead className="text-xs">Date</TableHead>
                           <TableHead className="text-xs">Due</TableHead>
                           <TableHead className="text-xs">Total</TableHead>
+                          <TableHead className="text-xs">Paid</TableHead>
+                          <TableHead className="text-xs">Balance</TableHead>
                           <TableHead className="text-xs">Status</TableHead>
                           <TableHead className="w-8" />
+                          <TableHead className="text-xs text-right">Actions</TableHead>
                           <TableHead className="w-8" />
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredInvoices.map((inv: any) => (
-                          <InvoiceRow key={inv.id} invoice={inv} />
+                        {sortedInvoices.map((inv: any) => (
+                          <InvoiceRow
+                            key={inv.id}
+                            invoice={inv}
+                            onUpdateStatus={(invoice, status) => updateInvoiceStatusMutation.mutate({ invoiceId: invoice.id, status })}
+                            onRecordPayment={openPaymentDialog}
+                            onMarkOverdue={(invoice) => markOverdueMutation.mutate(invoice)}
+                            isUpdating={
+                              updateInvoiceStatusMutation.isPending ||
+                              recordPaymentMutation.isPending ||
+                              markOverdueMutation.isPending
+                            }
+                          />
                         ))}
                       </TableBody>
                     </Table>
@@ -455,6 +908,15 @@ export default function InvoicingPage() {
                               {contract.total_value_cents && (
                                 <p className="font-bold text-sm text-gray-900 dark:text-white">{formatCents(contract.total_value_cents)}</p>
                               )}
+                              <Button
+                                size="sm"
+                                className="mt-2 h-8 text-xs"
+                                disabled={createInvoiceMutation.isPending || contract.status !== 'active'}
+                                onClick={() => createInvoiceMutation.mutate(contract)}
+                              >
+                                <PlusCircle className="h-3.5 w-3.5 mr-1" />
+                                Generate Draft
+                              </Button>
                             </div>
                           </div>
 
@@ -491,6 +953,107 @@ export default function InvoicingPage() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Record Manual Payment</DialogTitle>
+              <DialogDescription>
+                {paymentInvoice
+                  ? `Invoice ${paymentInvoice.invoice_number} • Balance ${formatCents(paymentInvoice.balance_cents ?? paymentInvoice.total_cents)}`
+                  : 'Record a completed payment against this invoice.'}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Amount (NZD)</p>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(e.target.value)}
+                />
+                {paymentAmount.trim().length > 0 && paymentValidation.error && (
+                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">{paymentValidation.error}</p>
+                )}
+                {quickPaymentAmounts.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {quickPaymentAmounts.map((amountCents) => (
+                      <Button
+                        key={amountCents}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-[11px]"
+                        disabled={recordPaymentMutation.isPending}
+                        onClick={() => setPaymentAmount((amountCents / 100).toFixed(2))}
+                      >
+                        {formatCents(amountCents)}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                    <p className="text-[11px] text-muted-foreground">Outstanding</p>
+                    <p className="text-xs font-semibold">{formatCents(paymentBalanceCents)}</p>
+                  </div>
+                  <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                    <p className="text-[11px] text-muted-foreground">Remaining After Payment</p>
+                    <p className="text-xs font-semibold">{formatCents(remainingBalancePreviewCents)}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Payment Method</p>
+                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                    <SelectItem value="credit_card">Credit Card</SelectItem>
+                    <SelectItem value="direct_debit">Direct Debit</SelectItem>
+                    <SelectItem value="stripe">Stripe</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Reference</p>
+                <Input
+                  value={paymentReference}
+                  onChange={(e) => setPaymentReference(e.target.value)}
+                  placeholder="Bank or provider reference"
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setPaymentDialogOpen(false)}
+                disabled={recordPaymentMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={submitPayment}
+                disabled={
+                  recordPaymentMutation.isPending ||
+                  !paymentInvoice ||
+                  paymentValidation.amountCents == null
+                }
+              >
+                Record Payment
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
       </div>
     </AppLayout>
