@@ -3,6 +3,7 @@ import {
   buildInvoiceDraftFromContractLines,
   deriveInvoicePaymentUpdate,
   deriveInvoicePaymentUpdateFromPaidTotal,
+  getEffectiveCompletedPaymentCents,
   getRemainingBalancePreviewCents,
   getInvoiceDueDate,
   getOverdueCandidateIds,
@@ -219,5 +220,28 @@ describe('deriveInvoicePaymentUpdateFromPaidTotal', () => {
       balance_cents: 0,
       status: 'paid',
     })
+  })
+})
+
+describe('getEffectiveCompletedPaymentCents', () => {
+  it('sums completed and unknown statuses while excluding failed/voided/refunded', () => {
+    expect(
+      getEffectiveCompletedPaymentCents([
+        { amount_cents: 2000, status: 'completed' },
+        { amount_cents: 500, status: 'failed' },
+        { amount_cents: 700, status: 'voided' },
+        { amount_cents: 300, status: 'refunded' },
+        { amount_cents: 1200, status: null },
+      ])
+    ).toBe(3200)
+  })
+
+  it('never subtracts from malformed negative amounts', () => {
+    expect(
+      getEffectiveCompletedPaymentCents([
+        { amount_cents: -1000, status: 'completed' },
+        { amount_cents: 600, status: 'completed' },
+      ])
+    ).toBe(600)
   })
 })

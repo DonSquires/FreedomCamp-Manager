@@ -277,6 +277,11 @@ describe('InvoicingPage payment dialog', () => {
       amount_cents: 2000,
       status: 'completed',
     })
+    existingPaymentsFixture.push({
+      invoice_id: 'inv-1',
+      amount_cents: 900,
+      status: 'failed',
+    })
 
     renderPage()
 

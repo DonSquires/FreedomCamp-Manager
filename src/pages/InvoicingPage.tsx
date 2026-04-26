@@ -57,6 +57,7 @@ import { toast } from 'sonner'
 import {
   buildInvoiceDraftFromContractLines,
   deriveInvoicePaymentUpdateFromPaidTotal,
+  getEffectiveCompletedPaymentCents,
   getRemainingBalancePreviewCents,
   getInvoiceDueDate,
   getOverdueCandidateIds,
@@ -590,13 +591,7 @@ export default function InvoicingPage() {
 
       if (paymentsError) throw paymentsError
 
-      const completedPaidCents = (payments ?? []).reduce((sum: number, payment: any) => {
-        const status = String(payment?.status ?? 'completed').toLowerCase()
-        if (status === 'failed' || status === 'voided' || status === 'refunded') {
-          return sum
-        }
-        return sum + Math.max(0, Number(payment?.amount_cents ?? 0))
-      }, 0)
+      const completedPaidCents = getEffectiveCompletedPaymentCents(payments ?? [])
 
       const invoicePaymentUpdate = deriveInvoicePaymentUpdateFromPaidTotal(invoice, completedPaidCents)
       const { error: invoiceUpdateError } = await (supabase as any)

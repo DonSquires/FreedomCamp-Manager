@@ -37,6 +37,11 @@ export interface InvoicePaymentLike extends InvoiceLike {
   amount_paid_cents?: number | null
 }
 
+export interface PaymentHistoryLike {
+  amount_cents?: number | null
+  status?: string | null
+}
+
 const DEFAULT_TAX_RATE = 0.15
 
 export function buildInvoiceDraftFromContractLines(lines: ContractLineForInvoice[]): InvoiceDraftTotals {
@@ -208,4 +213,14 @@ export function deriveInvoicePaymentUpdateFromPaidTotal(
     balance_cents: balanceCents,
     status: balanceCents === 0 ? 'paid' : 'partially_paid',
   }
+}
+
+export function getEffectiveCompletedPaymentCents(payments: PaymentHistoryLike[]): number {
+  return payments.reduce((sum, payment) => {
+    const status = String(payment?.status ?? 'completed').toLowerCase()
+    if (status === 'failed' || status === 'voided' || status === 'refunded') {
+      return sum
+    }
+    return sum + Math.max(0, Number(payment?.amount_cents ?? 0))
+  }, 0)
 }
