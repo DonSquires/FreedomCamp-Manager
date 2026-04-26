@@ -759,6 +759,8 @@ export default function UserManagement() {
                 <SelectContent>
                   <SelectItem value="all">All Roles</SelectItem>
                   <SelectItem value="officer">Officers</SelectItem>
+                  <SelectItem value="client_officer">Client Officers</SelectItem>
+                  <SelectItem value="client_admin">Client Admins</SelectItem>
                   <SelectItem value="nzscv_monitor">NZSCV Monitors</SelectItem>
                   <SelectItem value="admin_officer">Admin Officers</SelectItem>
                   <SelectItem value="admin">Admins</SelectItem>
@@ -1078,6 +1080,8 @@ export default function UserManagement() {
                   <SelectItem value="nzscv_monitor">NZSCV Monitor</SelectItem>
                   <SelectItem value="admin_officer">Admin Officer</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="client_officer">Client Officer</SelectItem>
+                  <SelectItem value="client_admin">Client Admin</SelectItem>
                   <SelectItem value="client_viewer">Client Viewer</SelectItem>
                   {(user?.role === 'master' || user?.role === 'grand_master') && (
                     <SelectItem value="master">Master</SelectItem>
@@ -1320,6 +1324,18 @@ export default function UserManagement() {
                     <div className="flex flex-col items-start">
                       <span className="font-medium text-gray-900 dark:text-gray-100">Admin</span>
                       <span className="text-xs text-gray-500">Full organisational management</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="client_officer">
+                    <div className="flex flex-col items-start">
+                      <span className="font-medium text-gray-900 dark:text-gray-100">Client Officer</span>
+                      <span className="text-xs text-gray-500">Client portal operations</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="client_admin">
+                    <div className="flex flex-col items-start">
+                      <span className="font-medium text-gray-900 dark:text-gray-100">Client Admin</span>
+                      <span className="text-xs text-gray-500">Client portal administration</span>
                     </div>
                   </SelectItem>
                   <SelectItem value="client_viewer">
@@ -1572,6 +1588,8 @@ export default function UserManagement() {
                   <SelectItem value="officer">Officer</SelectItem>
                   <SelectItem value="admin_officer">Admin Officer</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="client_officer">Client Officer</SelectItem>
+                  <SelectItem value="client_admin">Client Admin</SelectItem>
                   <SelectItem value="client_viewer">Client Viewer</SelectItem>
                   {(user?.role === 'master' || user?.role === 'grand_master') && (
                     <SelectItem value="master">Master</SelectItem>

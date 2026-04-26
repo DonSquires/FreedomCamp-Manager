@@ -39,7 +39,7 @@ export default function PortalSelection() {
       navigate('/platform', { replace: true })
     } else if (user.role === 'admin' || user.role === 'master') {
       navigate('/admin', { replace: true })
-    } else if (user.role === 'client_viewer') {
+    } else if (['client_viewer', 'client_officer', 'client_admin'].includes(user.role)) {
       navigate('/client-portal', { replace: true })
     }
     // officer + admin_officer fall through to show the chooser below

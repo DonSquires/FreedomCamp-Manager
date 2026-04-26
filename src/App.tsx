@@ -52,6 +52,8 @@ const ObservationsView = lazy(() => import('@/pages/ObservationsView'))
 const ObservationRecords = lazy(() => import('@/pages/ObservationRecords'))
 const UniversalSearch = lazy(() => import('@/pages/UniversalSearch'))
 const NoticeToVacate = lazy(() => import('@/pages/NoticeToVacate'))
+const EnforcementActions = lazy(() => import('@/pages/EnforcementActions'))
+const EnforcementCommandCenter = lazy(() => import('@/pages/EnforcementCommandCenter'))
 const OfficerWelfareSettings = lazy(() => import('@/pages/OfficerWelfareSettings'))
 const EnforcementReview = lazy(() => import('@/pages/EnforcementReview'))
 const InvestigationJobsPage = lazy(() => import('@/pages/InvestigationJobsPage'))
@@ -823,9 +825,27 @@ export default function App() {
             }
           />
 
-          <Route path="/enforcement-actions" element={<Navigate to="/enforcement-review" replace />} />
+          <Route
+            path="/enforcement-actions"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <EnforcementActions />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
 
-          <Route path="/enforcement-command-center" element={<Navigate to="/enforcement-review" replace />} />
+          <Route
+            path="/enforcement-command-center"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <EnforcementCommandCenter />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
 
           <Route
             path="/infringements"

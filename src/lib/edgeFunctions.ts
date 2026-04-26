@@ -1027,7 +1027,40 @@ export const edgeFunctions = {
   }) => {
     // AiAnalysis.tsx renders errors in the chat and shows its own toast, so
     // suppress the automatic toast here to avoid duplicate error notifications.
-    return callEdgeFunction('onspace-ai-chat', params, { showToast: false, useDirectFetch: true })
+    const result = await callEdgeFunction<any>('onspace-ai-chat', params, {
+      showToast: false,
+      useDirectFetch: true,
+    })
+
+    if (result.error || !result.data) {
+      return result
+    }
+
+    const data = result.data as any
+    const normalizedResponse = [
+      data?.response,
+      data?.message,
+      data?.output?.response,
+      data?.output?.message,
+      data?.output?.message?.content,
+      data?.output?.choices?.[0]?.message?.content,
+      typeof data === 'string' ? data : null,
+    ].find((candidate) => typeof candidate === 'string' && candidate.trim().length > 0) as string | undefined
+
+    if (!normalizedResponse) {
+      return {
+        data: null,
+        error: 'Bob returned no usable response content. Please retry in a moment.',
+      }
+    }
+
+    return {
+      data: {
+        ...data,
+        response: normalizedResponse,
+      },
+      error: null,
+    }
   },
 
   bobResponseFeedback: async (params: {

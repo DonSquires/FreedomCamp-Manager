@@ -3,13 +3,15 @@
  * All datetimes in the system use Pacific/Auckland timezone
  */
 
+import { fromZonedTime, formatInTimeZone, toZonedTime } from 'date-fns-tz'
+
 const NZ_TIMEZONE = 'Pacific/Auckland'
 
 /**
  * Get current NZ date/time
  */
 export function nzNow(): Date {
-  return new Date(new Date().toLocaleString('en-US', { timeZone: NZ_TIMEZONE }))
+  return toZonedTime(new Date(), NZ_TIMEZONE)
 }
 
 /**
@@ -51,8 +53,8 @@ export function formatNZTime(date: string | Date): string {
  */
 export function nzStartOfDay(date?: Date): Date {
   const d = date || nzNow()
-  const nzDateStr = d.toLocaleDateString('en-CA', { timeZone: NZ_TIMEZONE })
-  return new Date(`${nzDateStr}T00:00:00+12:00`)
+  const nzDateStr = formatInTimeZone(d, NZ_TIMEZONE, 'yyyy-MM-dd')
+  return fromZonedTime(`${nzDateStr}T00:00:00`, NZ_TIMEZONE)
 }
 
 /**
@@ -60,22 +62,22 @@ export function nzStartOfDay(date?: Date): Date {
  */
 export function nzEndOfDay(date?: Date): Date {
   const d = date || nzNow()
-  const nzDateStr = d.toLocaleDateString('en-CA', { timeZone: NZ_TIMEZONE })
-  return new Date(`${nzDateStr}T23:59:59+12:00`)
+  const nzDateStr = formatInTimeZone(d, NZ_TIMEZONE, 'yyyy-MM-dd')
+  return fromZonedTime(`${nzDateStr}T23:59:59`, NZ_TIMEZONE)
 }
 
 /**
  * Convert to ISO string with NZ timezone
  */
 export function toNZISOString(date: Date): string {
-  return date.toLocaleString('sv-SE', { timeZone: NZ_TIMEZONE }).replace(' ', 'T')
+  return formatInTimeZone(date, NZ_TIMEZONE, "yyyy-MM-dd'T'HH:mm:ss")
 }
 
 /**
  * Parse date string as NZ timezone
  */
 export function parseNZDate(dateStr: string): Date {
-  return new Date(dateStr + 'T00:00:00+12:00')
+  return fromZonedTime(`${dateStr}T00:00:00`, NZ_TIMEZONE)
 }
 
 /**

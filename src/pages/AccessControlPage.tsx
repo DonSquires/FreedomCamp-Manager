@@ -96,6 +96,8 @@ const ROLE_COLOUR: Record<string, string> = {
   admin:         'bg-blue-100   text-blue-700   border-blue-200',
   admin_officer: 'bg-indigo-100 text-indigo-700 border-indigo-200',
   officer:       'bg-green-100  text-green-700  border-green-200',
+  client_admin:  'bg-violet-100 text-violet-700 border-violet-200',
+  client_officer:'bg-cyan-100   text-cyan-700   border-cyan-200',
   client_viewer: 'bg-gray-100   text-gray-700   border-gray-200',
   nzscv_monitor: 'bg-pink-100   text-pink-700   border-pink-200',
 }
@@ -319,7 +321,7 @@ export default function AccessControlPage() {
                 onChange={e => setFilterRole(e.target.value)}
               >
                 <option value="all">All roles</option>
-                {['grand_master','master','admin','admin_officer','officer','client_viewer','nzscv_monitor'].map(r => (
+                {['grand_master','master','admin','admin_officer','officer','client_admin','client_officer','client_viewer','nzscv_monitor'].map(r => (
                   <option key={r} value={r}>{r.replace('_', ' ')}</option>
                 ))}
               </select>

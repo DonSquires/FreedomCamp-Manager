@@ -16,7 +16,7 @@
 
 import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useModuleEnabled } from '@/hooks/useEnabledModules'
+import { useEnabledModules } from '@/hooks/useEnabledModules'
 import { getModule, type ModuleId } from '@/modules/registry'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -165,11 +165,14 @@ function ModuleLoadingState() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function ModuleRoute({ moduleId, children, fallback }: ModuleRouteProps) {
-  const isEnabled = useModuleEnabled(moduleId)
-  
-  // Note: useModuleEnabled returns true while loading (optimistic)
-  // This prevents flickering for most users who have the module enabled
-  
+  const { isModuleEnabled, isLoading } = useEnabledModules()
+
+  if (moduleId !== 'core' && isLoading) {
+    return <ModuleLoadingState />
+  }
+
+  const isEnabled = isModuleEnabled(moduleId)
+
   if (!isEnabled) {
     return fallback ?? <ModuleNotEnabledPage moduleId={moduleId} />
   }

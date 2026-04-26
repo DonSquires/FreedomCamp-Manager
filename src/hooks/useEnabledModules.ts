@@ -50,18 +50,20 @@ export function useEnabledModules(): UseEnabledModulesResult {
   const { user } = useAuthStore()
   const organizationId = user?.organization_id
 
+  const coreOnlyModules: EnabledModule[] = [{
+    moduleId: 'core',
+    moduleName: SERVICE_MODULES.core.name,
+    status: 'active',
+    licensedSeats: null,
+    currentSeats: 0,
+  }]
+
   const { data, isLoading, error, refetch } = useQuery<EnabledModule[]>({
     queryKey: ['enabled-modules', organizationId],
     queryFn: async (): Promise<EnabledModule[]> => {
       if (!organizationId) {
         // If no organization, return only core module
-        return [{
-          moduleId: 'core',
-          moduleName: SERVICE_MODULES.core.name,
-          status: 'active',
-          licensedSeats: null,
-          currentSeats: 0,
-        }]
+        return coreOnlyModules
       }
 
       // Try calling the RPC function if it exists
@@ -105,17 +107,8 @@ export function useEnabledModules(): UseEnabledModulesResult {
         // Table doesn't exist yet
       }
 
-      // If nothing works, return all modules as enabled (for backwards compatibility)
-      // This allows the app to work before the migration is run
-      return Object.entries(SERVICE_MODULES)
-        .filter(([_, m]) => !m.isCore)
-        .map(([id, m]) => ({
-          moduleId: id as ModuleId,
-          moduleName: m.name,
-          status: 'active' as const,
-          licensedSeats: null,
-          currentSeats: 0,
-        }))
+      console.warn('Unable to verify organization module subscriptions; falling back to core-only access')
+      return coreOnlyModules
     },
     enabled: true, // Always run, even without org (will return core only)
     staleTime: 5 * 60 * 1000, // 5 minutes - modules don't change often
@@ -166,10 +159,10 @@ export function useEnabledModules(): UseEnabledModulesResult {
  */
 export function useModuleEnabled(moduleId: ModuleId): boolean {
   const { isModuleEnabled, isLoading } = useEnabledModules()
-  
-  // While loading, assume enabled to avoid flickering (optimistic)
-  if (isLoading) return true
-  
+
+  if (moduleId === 'core') return true
+  if (isLoading) return false
+
   return isModuleEnabled(moduleId)
 }
 

@@ -21,6 +21,8 @@ const ROLE_HIERARCHY = {
   admin_officer: 4,  // Same level as admin
   officer: 2,
   nzscv_monitor: 1,
+  client_admin: 1,
+  client_officer: 1,
   client_viewer: 1,
   viewer: 1,
 }
@@ -71,6 +73,17 @@ const PERMISSION_MATRIX = {
   client_viewer: [
     'view_own_data',
     'view_reports',
+  ],
+  client_officer: [
+    'view_own_data',
+    'view_reports',
+    'edit_own_incidents',
+    'create_incidents',
+  ],
+  client_admin: [
+    'view_own_data',
+    'view_reports',
+    'manage_users',
   ],
   viewer: [
     'view_own_data',
@@ -252,6 +265,8 @@ export function usePermissions() {
     isAdmin: user?.role === 'admin' || user?.role === 'admin_officer',
     isOfficer: user?.role === 'officer' || user?.role === 'admin_officer',
     isClientViewer: user?.role === 'client_viewer',
+    isClientOfficer: user?.role === 'client_officer',
+    isClientAdmin: user?.role === 'client_admin',
     currentRole: user?.role,
   }
 }
