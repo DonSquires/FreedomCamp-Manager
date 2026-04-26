@@ -123,6 +123,8 @@ const TenderWorkspace = lazy(() => import('@/pages/TenderWorkspace'))
 const TenderWorkspaceDetail = lazy(() => import('@/pages/TenderWorkspaceDetail'))
 const TenderReferenceLibrary = lazy(() => import('@/pages/TenderReferenceLibrary'))
 const ServiceProviderAccessSettings = lazy(() => import('@/pages/admin/ServiceProviderAccessSettings'))
+const GrandmasterCodingStudio = lazy(() => import('@/pages/GrandmasterCodingStudio'))
+const SystemDiagnostics = lazy(() => import('@/pages/SystemDiagnostics'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -674,7 +676,16 @@ export default function App() {
             }
           />
 
-          <Route path="/grandmaster-code-studio" element={<Navigate to="/" replace />} />
+          <Route
+            path="/grandmaster-code-studio"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['grand_master']}>
+                  <GrandmasterCodingStudio />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
 
           <Route
             path="/compliance-escalations"
@@ -718,7 +729,16 @@ export default function App() {
             }
           />
 
-          <Route path="/diagnostics" element={<Navigate to="/" replace />} />
+          <Route
+            path="/diagnostics"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['master', 'grand_master']}>
+                  <SystemDiagnostics />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
 
           <Route path="/test-dashboard" element={<Navigate to="/" replace />} />
 
