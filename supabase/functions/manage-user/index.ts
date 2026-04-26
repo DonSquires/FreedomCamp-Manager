@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
       .eq('id', user.id)
       .single()
 
-    const isAdminLike = caller && ['admin', 'master', 'grand_master'].includes(caller.role)
+    const isAdminLike = caller && ['admin', 'admin_officer', 'master', 'grand_master'].includes(caller.role)
     if (!isAdminLike) {
       return new Response(JSON.stringify({ error: 'Forbidden' }), {
         status: 403,
