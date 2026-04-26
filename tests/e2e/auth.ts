@@ -34,7 +34,7 @@ type ResolvedProfile = {
   employerOrganizationName: string | null
 }
 
-type DesiredRole = 'master' | 'grand_master' | 'admin' | 'admin_officer' | 'officer' | 'client_viewer'
+type DesiredRole = 'master' | 'grand_master' | 'admin' | 'admin_officer' | 'officer' | 'client_viewer' | 'client_officer' | 'client_admin'
 
 function readEnv(...names: string[]): string {
   for (const name of names) {
@@ -61,7 +61,9 @@ const defaultLivePassword = sharedPassword(
 const allowSharedFallback = readEnv('PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK') === '1'
 const skipRoleAssertions = readEnv('PLAYWRIGHT_SKIP_ROLE_ASSERTIONS') === '1'
 const roleAssertionMode = readEnv('PLAYWRIGHT_ROLE_ASSERTION_MODE') || 'strict'
-const autoSetTestRole = readEnv('PLAYWRIGHT_AUTO_SET_TEST_ROLE') === '1'
+// Default to enabled to keep role-matrix tests deterministic when credentials
+// point at reusable sandbox accounts; set PLAYWRIGHT_AUTO_SET_TEST_ROLE=0 to opt out.
+const autoSetTestRole = readEnv('PLAYWRIGHT_AUTO_SET_TEST_ROLE') !== '0'
 
 const roleCapabilities: Record<string, string[]> = {
   grand_master: ['master_ops', 'admin_screen', 'field_ops', 'client_portal_view', 'client_portal_manage'],
@@ -70,6 +72,8 @@ const roleCapabilities: Record<string, string[]> = {
   admin_officer: ['admin_screen', 'field_ops', 'client_portal_view', 'client_portal_manage'],
   officer: ['field_ops', 'client_portal_manage'],
   client_viewer: ['client_portal_view'],
+  client_officer: ['client_portal_manage'],
+  client_admin: ['client_portal_view', 'client_portal_manage'],
 }
 
 function mergeExpectedOrgNames(...orgSets: Array<string | undefined>): string {
@@ -158,7 +162,7 @@ const expectedProfileConfig: Record<TestUserKey, ExpectedProfileConfig> = {
     ),
   },
   clientStaff: {
-    allowedRoles: ['admin', 'admin_officer', 'officer'],
+    allowedRoles: ['client_officer', 'client_admin', 'admin', 'admin_officer', 'officer'],
     requiredCapability: 'client_portal_manage',
     expectedOrgName: mergeExpectedOrgNames(
       readEnv('PLAYWRIGHT_CLIENT_STAFF_NAME'),
@@ -173,7 +177,10 @@ const desiredRoleByTestUser: Record<TestUserKey, DesiredRole> = {
   adminOrg2: 'admin_officer',
   officerOrg1: 'officer',
   clientViewer: 'client_viewer',
-  clientStaff: 'admin',
+  // Compatibility default: many shared test DBs still enforce legacy
+  // user_profiles_role_check without client_officer/client_admin.
+  // Use admin_officer so role-matrix smoke can still validate route access.
+  clientStaff: 'admin_officer',
 }
 
 export function getRequiredTestUsersFromEnv(
@@ -415,6 +422,10 @@ async function assertExpectedLoginProfile(page: Page, user: TestUserKey): Promis
   }
 
   if (!expected.expectedOrgName) return
+
+  // Shared credential fallback intentionally reuses one account across
+  // multiple logical test personas; enforce capability/role assertions only.
+  if (allowSharedFallback) return
 
   const expectedOrgs = expected.expectedOrgName
     .split('|')
