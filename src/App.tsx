@@ -1358,11 +1358,38 @@ export default function App() {
             }
           />
 
-          <Route path="/import-historical" element={<Navigate to="/import-data" replace />} />
+          <Route
+            path="/import-historical"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'master']}>
+                  <ImportHistoricalData />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
 
-          <Route path="/breach-notices" element={<Navigate to="/breaches" replace />} />
+          <Route
+            path="/breach-notices"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <BreachNotices />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
 
-          <Route path="/observations-report" element={<Navigate to="/observations" replace />} />
+          <Route
+            path="/observations-report"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <ObservationsReport />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
 
           <Route
             path="/settings"
