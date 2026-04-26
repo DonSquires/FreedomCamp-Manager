@@ -106,7 +106,20 @@ async function createObservationFallback(plateNumber: string) {
 async function openVehicleScanner(page: any) {
   const startShiftBtn = page.getByRole('button', { name: /start shift/i }).first()
   if (await startShiftBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await startShiftBtn.click()
+     // Retry on DOM detachment (button may be re-rendering)
+     try {
+       await startShiftBtn.click({ timeout: 5000 })
+     } catch (e) {
+       if ((e as Error).message?.includes('element was detached')) {
+         await page.waitForTimeout(300)
+         const retryBtn = page.getByRole('button', { name: /start shift/i }).first()
+         if (await retryBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+           await retryBtn.click()
+         }
+       } else {
+         throw e
+       }
+     }
     await page.waitForTimeout(800)
   }
 
