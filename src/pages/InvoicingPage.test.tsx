@@ -21,7 +21,7 @@ const invoicesFixture = [
     id: 'inv-1',
     invoice_number: 'INV-1001',
     invoice_date: '2026-04-10',
-    due_date: '2026-04-20',
+    due_date: '2020-04-20',
     total_cents: 10000,
     subtotal_cents: 8696,
     tax_cents: 1304,
@@ -65,12 +65,19 @@ const fromMock = vi.fn((table: string) => {
         }
         return builder
       },
-      update: (payload: any) => ({
-        eq: async (idColumn: string, id: string) => {
-          updatedInvoices.push({ payload, idColumn, id })
-          return { error: null }
-        },
-      }),
+      update: (payload: any) => {
+        const updateBuilder: any = {
+          eq: async (idColumn: string, id: string) => {
+            updatedInvoices.push({ payload, filter: 'eq', idColumn, id })
+            return { error: null }
+          },
+          in: async (idColumn: string, ids: string[]) => {
+            updatedInvoices.push({ payload, filter: 'in', idColumn, ids })
+            return { error: null }
+          },
+        }
+        return updateBuilder
+      },
     }
   }
 
@@ -298,6 +305,31 @@ describe('InvoicingPage payment dialog', () => {
         amount_paid_cents: 10000,
         balance_cents: 0,
         status: 'paid',
+      },
+    })
+  })
+
+  it('marks due invoices overdue in batch with expected ID filter payload', async () => {
+    renderPage()
+
+    const markDueButton = await screen.findByRole('button', { name: /mark due invoices overdue/i })
+    await waitFor(() => {
+      expect(markDueButton).toBeEnabled()
+    })
+
+    fireEvent.click(markDueButton)
+
+    await waitFor(() => {
+      expect(updatedInvoices).toHaveLength(1)
+    })
+
+    expect(updatedInvoices[0]).toMatchObject({
+      filter: 'in',
+      idColumn: 'id',
+      ids: ['inv-1'],
+      payload: {
+        status: 'overdue',
+        updated_by: 'user-1',
       },
     })
   })
