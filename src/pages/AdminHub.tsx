@@ -47,6 +47,7 @@ import {
   MapPin,
   Navigation,
   ParkingSquare,
+  Package,
   PieChart,
   Radio,
   Receipt,
@@ -321,6 +322,7 @@ export default function AdminHub() {
       iconBg: 'bg-amber-600',
       metric: { value: metrics?.activeContracts ?? '—', label: 'active contracts' },
       quickLinks: [
+        { path: '/asset-management', label: 'Assets',         Icon: Package },
         { path: '/pricing',   label: 'Service Rates',  Icon: DollarSign },
         { path: '/invoicing', label: 'Invoices',       Icon: Receipt },
         { path: '/crm',       label: 'Contracts',      Icon: FileText },

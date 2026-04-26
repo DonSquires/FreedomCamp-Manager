@@ -45,6 +45,7 @@ import {
   MapPin,
   Navigation,
   ParkingSquare,
+  Package,
   PieChart,
   Printer,
   Radio,
@@ -1187,6 +1188,7 @@ export default function AdminPortal() {
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
                   {[
                     { path: '/vehicles',               label: 'Vehicles',          Icon: Car,           color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
+                    { path: '/asset-management',       label: 'Assets',            Icon: Package,       color: 'text-amber-700',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
                     { path: '/vehicle-registry',       label: 'Registry',          Icon: Database,      color: 'text-gray-600',   bg: 'bg-gray-100 dark:bg-gray-800/30' },
                     { path: '/zones',                  label: 'Zones',             Icon: MapPin,        color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20' },
                     { path: '/hotspots',               label: 'Hotspots',          Icon: Map,           color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20' },
