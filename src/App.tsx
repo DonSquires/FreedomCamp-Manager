@@ -125,6 +125,9 @@ const TenderReferenceLibrary = lazy(() => import('@/pages/TenderReferenceLibrary
 const ServiceProviderAccessSettings = lazy(() => import('@/pages/admin/ServiceProviderAccessSettings'))
 const GrandmasterCodingStudio = lazy(() => import('@/pages/GrandmasterCodingStudio'))
 const SystemDiagnostics = lazy(() => import('@/pages/SystemDiagnostics'))
+const DataCleanupUtility = lazy(() => import('@/pages/DataCleanupUtility'))
+const DataIntegrityDashboard = lazy(() => import('@/pages/DataIntegrityDashboard'))
+const CleanDashboard = lazy(() => import('@/pages/CleanDashboard'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -766,7 +769,16 @@ export default function App() {
             }
           />
 
-          <Route path="/evidence-photo-linker" element={<Navigate to="/" replace />} />
+          <Route
+            path="/evidence-photo-linker"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <EvidencePhotoLinker />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
 
           <Route
             path="/live-tracking"
@@ -871,7 +883,16 @@ export default function App() {
             }
           />
 
-          <Route path="/admin/data-cleanup" element={<Navigate to="/" replace />} />
+          <Route
+            path="/admin/data-cleanup"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <DataCleanupUtility />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
 
           <Route
             path="/admin/cleanup-recalculate"
@@ -884,7 +905,16 @@ export default function App() {
             }
           />
 
-          <Route path="/admin/data-integrity" element={<Navigate to="/" replace />} />
+          <Route
+            path="/admin/data-integrity"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <DataIntegrityDashboard />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
 
           <Route
             path="/live-patrol"
@@ -1384,7 +1414,16 @@ export default function App() {
             }
           />
           <Route path="/compliance-dashboard" element={<Navigate to="/compliance" replace />} />
-          <Route path="/clean-dashboard" element={<Navigate to="/" replace />} />
+          <Route
+            path="/clean-dashboard"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <CleanDashboard />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
 
           {/* Asset Management — equipment, stock, stocktake, keys */}
           <Route
