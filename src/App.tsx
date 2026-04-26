@@ -128,6 +128,7 @@ const SystemDiagnostics = lazy(() => import('@/pages/SystemDiagnostics'))
 const DataCleanupUtility = lazy(() => import('@/pages/DataCleanupUtility'))
 const DataIntegrityDashboard = lazy(() => import('@/pages/DataIntegrityDashboard'))
 const CleanDashboard = lazy(() => import('@/pages/CleanDashboard'))
+const TestDashboard = lazy(() => import('@/pages/TestDashboard'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -743,7 +744,16 @@ export default function App() {
             }
           />
 
-          <Route path="/test-dashboard" element={<Navigate to="/" replace />} />
+          <Route
+            path="/test-dashboard"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
+                  <TestDashboard />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
 
           {/* --- NEW ROUTES ADDED BELOW --- */}
 
