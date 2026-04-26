@@ -207,12 +207,12 @@ test.describe('System Integration - Complete Enforcement Workflow', () => {
     await page.context().setGeolocation({ latitude: -41.3366, longitude: 173.1830 })
 
     await page.goto('/field')
-    // Some deployments redirect /field to officer-home or portal selection
-    if (page.url().includes('/login') || page.url().includes('/portal-select')) {
+    // Some deployments redirect /field to officer-home/field-officer or portal selection
+    if (page.url().includes('/login') || page.url().includes('/portal-selection')) {
       test.skip(true, 'Officer portal route redirects—likely deployment variant without field module enabled')
     }
     // Verify step completed (heading optional, route-level validation sufficient)
-    if (!page.url().includes('/field') && !page.url().includes('/officer-home')) {
+    if (!page.url().includes('/field') && !page.url().includes('/field-officer') && !page.url().includes('/officer-home')) {
       test.skip(true, 'Cannot reach officer module in this deployment')
     }
 
