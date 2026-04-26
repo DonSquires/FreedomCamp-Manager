@@ -56,6 +56,7 @@ import { format, parseISO } from 'date-fns'
 import { toast } from 'sonner'
 import {
   buildInvoiceDraftFromContractLines,
+  deriveInvoicePaymentUpdate,
   getRemainingBalancePreviewCents,
   getInvoiceDueDate,
   getOverdueCandidateIds,
@@ -581,6 +582,19 @@ export default function InvoicingPage() {
         })
 
       if (error) throw error
+
+      const invoicePaymentUpdate = deriveInvoicePaymentUpdate(invoice, amountCents)
+      const { error: invoiceUpdateError } = await (supabase as any)
+        .from('crm_invoices')
+        .update({
+          ...invoicePaymentUpdate,
+          updated_at: new Date().toISOString(),
+          updated_by: user?.id,
+        })
+        .eq('id', invoice.id)
+
+      if (invoiceUpdateError) throw invoiceUpdateError
+
       return invoice
     },
     onSuccess: (invoice) => {

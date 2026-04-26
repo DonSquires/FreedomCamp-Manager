@@ -40,6 +40,7 @@ const invoicesFixture = [
 
 const contractsFixture: any[] = []
 const insertedPayments: any[] = []
+const updatedInvoices: any[] = []
 
 const fromMock = vi.fn((table: string) => {
   if (table === 'organizations') {
@@ -64,6 +65,12 @@ const fromMock = vi.fn((table: string) => {
         }
         return builder
       },
+      update: (payload: any) => ({
+        eq: async (idColumn: string, id: string) => {
+          updatedInvoices.push({ payload, idColumn, id })
+          return { error: null }
+        },
+      }),
     }
   }
 
@@ -148,6 +155,7 @@ describe('InvoicingPage payment dialog', () => {
     }
 
     insertedPayments.length = 0
+    updatedInvoices.length = 0
     fromMock.mockClear()
   })
 
@@ -209,6 +217,18 @@ describe('InvoicingPage payment dialog', () => {
       status: 'completed',
       processed_by: 'user-1',
     })
+
+    expect(updatedInvoices).toHaveLength(1)
+    expect(updatedInvoices[0]).toMatchObject({
+      idColumn: 'id',
+      id: 'inv-1',
+      payload: {
+        amount_paid_cents: 2500,
+        balance_cents: 7500,
+        status: 'partially_paid',
+        updated_by: 'user-1',
+      },
+    })
   })
 
   it('uses full-balance quick action to preview zero remaining and submit full amount', async () => {
@@ -234,6 +254,15 @@ describe('InvoicingPage payment dialog', () => {
       amount_cents: 10000,
       payment_reference: 'manual-INV-1001',
       payment_method: 'bank_transfer',
+    })
+
+    expect(updatedInvoices).toHaveLength(1)
+    expect(updatedInvoices[0]).toMatchObject({
+      payload: {
+        amount_paid_cents: 10000,
+        balance_cents: 0,
+        status: 'paid',
+      },
     })
   })
 
@@ -261,6 +290,15 @@ describe('InvoicingPage payment dialog', () => {
       amount_cents: 10000,
       payment_method: 'credit_card',
       payment_reference: 'manual-INV-1001',
+    })
+
+    expect(updatedInvoices).toHaveLength(1)
+    expect(updatedInvoices[0]).toMatchObject({
+      payload: {
+        amount_paid_cents: 10000,
+        balance_cents: 0,
+        status: 'paid',
+      },
     })
   })
 })

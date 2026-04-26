@@ -33,6 +33,10 @@ export interface InvoiceLike {
   balance_cents?: number | null
 }
 
+export interface InvoicePaymentLike extends InvoiceLike {
+  amount_paid_cents?: number | null
+}
+
 const DEFAULT_TAX_RATE = 0.15
 
 export function buildInvoiceDraftFromContractLines(lines: ContractLineForInvoice[]): InvoiceDraftTotals {
@@ -159,4 +163,29 @@ export function getRemainingBalancePreviewCents(
   }
 
   return Math.max(0, safeOutstanding - validation.amountCents)
+}
+
+export function deriveInvoicePaymentUpdate(
+  invoice: InvoicePaymentLike,
+  paymentAmountCents: number
+): {
+  amount_paid_cents: number
+  balance_cents: number
+  status: 'paid' | 'partially_paid'
+} {
+  const totalCents = Math.max(0, Math.round(Number(invoice.total_cents ?? 0)))
+  const outstandingCents = getOutstandingInvoiceCents(invoice)
+  const priorPaidCents = Math.max(0, Math.round(Number(invoice.amount_paid_cents ?? (totalCents - outstandingCents))))
+
+  const normalizedPayment = Math.max(0, Math.round(Number(paymentAmountCents) || 0))
+  const appliedPayment = Math.min(outstandingCents, normalizedPayment)
+
+  const nextPaidCents = Math.min(totalCents, priorPaidCents + appliedPayment)
+  const nextBalanceCents = Math.max(0, totalCents - nextPaidCents)
+
+  return {
+    amount_paid_cents: nextPaidCents,
+    balance_cents: nextBalanceCents,
+    status: nextBalanceCents === 0 ? 'paid' : 'partially_paid',
+  }
 }

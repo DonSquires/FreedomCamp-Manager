@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildInvoiceDraftFromContractLines,
+  deriveInvoicePaymentUpdate,
   getRemainingBalancePreviewCents,
   getInvoiceDueDate,
   getOverdueCandidateIds,
@@ -135,5 +136,33 @@ describe('getRemainingBalancePreviewCents', () => {
 
   it('returns projected remaining balance for valid amount', () => {
     expect(getRemainingBalancePreviewCents('12.34', 5000)).toBe(3766)
+  })
+})
+
+describe('deriveInvoicePaymentUpdate', () => {
+  it('marks invoice partially paid when balance remains', () => {
+    expect(
+      deriveInvoicePaymentUpdate(
+        { total_cents: 10000, amount_paid_cents: 0, balance_cents: 10000 },
+        2500
+      )
+    ).toEqual({
+      amount_paid_cents: 2500,
+      balance_cents: 7500,
+      status: 'partially_paid',
+    })
+  })
+
+  it('marks invoice paid when payment clears balance', () => {
+    expect(
+      deriveInvoicePaymentUpdate(
+        { total_cents: 10000, amount_paid_cents: 2500, balance_cents: 7500 },
+        7500
+      )
+    ).toEqual({
+      amount_paid_cents: 10000,
+      balance_cents: 0,
+      status: 'paid',
+    })
   })
 })
