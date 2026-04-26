@@ -1,0 +1,25 @@
+{
+  "createdAt": "2026-04-26T05:07:36.529Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/CLIENT_ACCESS_REBUILD_SPEC_2026-04-26.md",
+  "outputPath": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/CLIENT_ACCESS_REBUILD_SPEC_2026-04-26.md.2026-04-26T05-07-36-528Z.json",
+  "decision": "needs-revision",
+  "structured": true,
+  "escalationReason": "blocker-findings",
+  "review": {
+    "decision": "needs-revision",
+    "summary": "The spec contains proposed future-state designs that are not grounded in the current system_state.json. The artifact should focus on the current state and explicitly mark all proposed changes as such.",
+    "findings": [
+      {
+        "severity": "blocker",
+        "title": "Ungrounded Future-State Design",
+        "evidence": "The spec presents a target access model, authorization rules, data model strategy, frontend changes, backend/RLS direction, migration safety, testing requirements, and non-goals as current production state.",
+        "requiredAction": "Mark all proposed future-state designs with clear labels indicating they are not part of the current system_state.json."
+      }
+    ],
+    "verificationChecks": [
+      "Ensure all proposed future-state changes are clearly labeled"
+    ]
+  },
+  "basicFixResult": null,
+  "requiredAction": "Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope."
+}

@@ -1,0 +1,38 @@
+{
+  "createdAt": "2026-04-25T20:09:05.756Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/ENTERPRISE_REBUILD_PLAN_BOB_2026-04-25.md",
+  "outputPath": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/ENTERPRISE_REBUILD_PLAN_BOB_2026-04-25.md.2026-04-25T20-09-05-743Z.json",
+  "decision": "needs-revision",
+  "structured": true,
+  "escalationReason": "blocker-findings",
+  "review": {
+    "decision": "needs-revision",
+    "summary": "The plan references several modules, services, and data models that are not currently grounded in the system_state.json or repo files.",
+    "findings": [
+      {
+        "severity": "blocker",
+        "title": "Ungrounded module reference: messaging",
+        "evidence": "The artifact references 'messaging' as a supported module without evidence of its existence in the current system_state.json.",
+        "requiredAction": "Remove or ground the 'messaging' module reference to existing repo files."
+      },
+      {
+        "severity": "blocker",
+        "title": "Future-state data models not grounded: RLS, multi-org, client-visibility evidence",
+        "evidence": "The artifact references future-state data models like Role-Based Access Control (RLS) and multi-org/client-visibility without grounding them in current repo files.",
+        "requiredAction": "Ground the referenced data models to existing or proposed repo migrations and tests."
+      },
+      {
+        "severity": "blocker",
+        "title": "Future-state services not grounded: RunPod inference access, logging, security review cycles",
+        "evidence": "The artifact references future services like RunPod inference access and logging without grounding them in current repo files.",
+        "requiredAction": "Ground the referenced services to existing or proposed repo files."
+      }
+    ],
+    "verificationChecks": [
+      "Run targeted build",
+      "Review system_state.json for all grounded modules, data models, and services"
+    ]
+  },
+  "basicFixResult": null,
+  "requiredAction": "Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope."
+}

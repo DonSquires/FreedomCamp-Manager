@@ -1,0 +1,38 @@
+{
+  "createdAt": "2026-04-25T19:57:01.706Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/ENTERPRISE_REBUILD_PLAN_BOB_2026-04-25.md",
+  "outputPath": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/ENTERPRISE_REBUILD_PLAN_BOB_2026-04-25.md.2026-04-25T19-57-01-690Z.json",
+  "decision": "needs-revision",
+  "structured": true,
+  "escalationReason": "blocker-findings",
+  "review": {
+    "decision": "needs-revision",
+    "summary": "The plan references several modules and services that are not currently grounded in system_state.json or repo files, which requires revisions.",
+    "findings": [
+      {
+        "severity": "blocker",
+        "title": "Ungrounded Supabase schema verification",
+        "evidence": "Plan mentions verifying Supabase schema against a migration baseline without evidence of such a module existing in the current system_state.json or repo files.",
+        "requiredAction": "Remove or ground references to Supabase schema and migrations before implementation."
+      },
+      {
+        "severity": "blocker",
+        "title": "Ungrounded edge functions review",
+        "evidence": "Plan calls for reviewing edge functions without evidence of such a module existing in the current system_state.json or repo files.",
+        "requiredAction": "Remove or ground references to edge functions before implementation."
+      },
+      {
+        "severity": "blocker",
+        "title": "Ungrounded RunPod serverless path integration",
+        "evidence": "Plan suggests integrating a RunPod serverless path without evidence of such a module existing in the current system_state.json or repo files.",
+        "requiredAction": "Remove or ground references to RunPod serverless paths before implementation."
+      }
+    ],
+    "verificationChecks": [
+      "Run targeted build",
+      "Validate grounding against system_state.json"
+    ]
+  },
+  "basicFixResult": null,
+  "requiredAction": "Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope."
+}

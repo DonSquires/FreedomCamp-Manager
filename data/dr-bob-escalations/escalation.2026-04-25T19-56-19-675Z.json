@@ -1,0 +1,25 @@
+{
+  "createdAt": "2026-04-25T19:56:19.674Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/ENTERPRISE_REBUILD_SPEC_2026-04-25.md",
+  "outputPath": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/ENTERPRISE_REBUILD_SPEC_2026-04-25.md.2026-04-25T19-56-19-662Z.json",
+  "decision": "needs-revision",
+  "structured": true,
+  "escalationReason": "blocker-findings",
+  "review": {
+    "decision": "needs-revision",
+    "summary": "The artifact references future modules and services that are not grounded in the current system_state.json, which could lead to unverifiable implementation efforts.",
+    "findings": [
+      {
+        "severity": "blocker",
+        "title": "Ungrounded Future Modules",
+        "evidence": "The plan mentions 'Copilot-authored plan' and 'Bob-generated independent plan', which are not referenced in the current system_state.json or any other grounded repo files.",
+        "requiredAction": "Remove references to future plans and focus on concrete, verifiable steps that align with existing modules and services."
+      }
+    ],
+    "verificationChecks": [
+      "Ensure all implementation steps reference existing modules and services"
+    ]
+  },
+  "basicFixResult": null,
+  "requiredAction": "Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope."
+}

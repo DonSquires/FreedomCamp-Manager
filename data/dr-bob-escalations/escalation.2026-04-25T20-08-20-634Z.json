@@ -1,0 +1,38 @@
+{
+  "createdAt": "2026-04-25T20:08:20.633Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/ENTERPRISE_REBUILD_PLAN_BOB_2026-04-25.md",
+  "outputPath": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/ENTERPRISE_REBUILD_PLAN_BOB_2026-04-25.md.2026-04-25T20-08-20-621Z.json",
+  "decision": "needs-revision",
+  "structured": true,
+  "escalationReason": "blocker-findings",
+  "review": {
+    "decision": "needs-revision",
+    "summary": "The plan references several modules, services, and data models that are not currently grounded in the system_state.json or repo files.",
+    "findings": [
+      {
+        "severity": "blocker",
+        "title": "Ungrounded module reference: messaging",
+        "evidence": "The artifact references 'messaging' as a supported module without evidence it exists in the current system_state.json.",
+        "requiredAction": "Remove or ground the 'messaging' module reference to existing repo files."
+      },
+      {
+        "severity": "blocker",
+        "title": "Future-state services not grounded: enforcement, workflow areas",
+        "evidence": "The artifact mentions moving towards modular separation for enforcement and workflow areas without evidence of these modules in system_state.json.",
+        "requiredAction": "Define concrete implementation details or remove references to future services that are not yet grounded."
+      },
+      {
+        "severity": "blocker",
+        "title": "Future-state data models not grounded: multi-org, client-visibility requirements",
+        "evidence": "The artifact mentions schema alignment with multi-org and client-visibility requirements without evidence of these data models in system_state.json.",
+        "requiredAction": "Define concrete implementation details or remove references to future data models that are not yet grounded."
+      }
+    ],
+    "verificationChecks": [
+      "Run targeted build",
+      "Validate module and service existence against repo files"
+    ]
+  },
+  "basicFixResult": null,
+  "requiredAction": "Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope."
+}

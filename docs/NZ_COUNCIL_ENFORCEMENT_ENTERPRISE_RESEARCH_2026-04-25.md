@@ -93,6 +93,57 @@ The product should be presented not just as a scan-and-breach app, but as an ent
 4. Multi-org service-provider controls
 5. Security and evidence defensibility
 
+## Commercialization Model (Owner + Service Provider)
+
+### 1. Platform Owner Sell Motion
+
+The owner should sell this as a council-ready enforcement operating platform with a clear risk-reduction and auditability message:
+
+1. Outcome-led value proposition:
+   - defensible enforcement evidence
+   - reduced manual workload
+   - multi-council operational consistency
+2. Procurement-ready packaging:
+   - security/tenancy evidence pack
+   - runbooks and incident posture
+   - export and portability assurances
+3. Land-and-expand strategy:
+   - pilot with one council or one contract zone
+   - prove breach workflow and reporting outcomes
+   - expand to additional councils, services, and modules
+
+### 2. Service Provider Sell Motion
+
+Service providers should sell managed enforcement outcomes enabled by the app:
+
+1. Service bundle:
+   - patrol execution
+   - breach handling and document issuance
+   - monthly reporting and audit support
+2. Client trust narrative:
+   - client-only visibility boundaries
+   - real-time operational transparency
+   - legally aligned evidence chain
+3. Commercial packaging:
+   - per-client service tiers
+   - per-service-type operations (freedom camping, guarding, parking, noise, biosecurity)
+   - SLA-backed response and reporting commitments
+
+### 3. Shared Sales Assets (Owner + Providers)
+
+1. Council procurement one-pager:
+   - compliance/security posture
+   - data sovereignty and portability
+   - support model and SLA metrics
+2. Evidence demonstration pack:
+   - sample enforcement chain from scan to notice/report
+   - tenant isolation proof summary
+   - incident and rollback readiness summary
+3. Stakeholder-tailored demos:
+   - executive/commercial demo
+   - operations supervisor demo
+   - officer workflow demo
+
 ## Research Verdict
 
 FreedomCamp Manager should provide a combined service-delivery and governance platform for NZ councils and contracted providers: operational enforcement tooling, client visibility, evidence defensibility, tenancy guarantees, and public-sector procurement/security readiness.

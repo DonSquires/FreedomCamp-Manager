@@ -1,0 +1,26 @@
+{
+  "createdAt": "2026-04-25T19:56:57.741Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/ENTERPRISE_REBUILD_PLAN_COPILOT_2026-04-25.md",
+  "outputPath": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/ENTERPRISE_REBUILD_PLAN_COPILOT_2026-04-25.md.2026-04-25T19-56-57-726Z.json",
+  "decision": "needs-revision",
+  "structured": true,
+  "escalationReason": "blocker-findings",
+  "review": {
+    "decision": "needs-revision",
+    "summary": "The plan references several modules, services, and data models that are not currently grounded in the system_state.json file. These include domainized edge function families, database RLS hardening, integration boundaries, and more. The plan should be revised to only reference existing or proposed future-state items.",
+    "findings": [
+      {
+        "severity": "blocker",
+        "title": "Ungrounded modules in current state",
+        "evidence": "The plan references domainized edge function families, database RLS hardening, integration boundaries, and other services that are not currently in the system_state.json.",
+        "requiredAction": "Remove or ground all unlisted modules, services, and data models before implementation."
+      }
+    ],
+    "verificationChecks": [
+      "Run targeted build",
+      "Run org-isolation validation"
+    ]
+  },
+  "basicFixResult": null,
+  "requiredAction": "Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope."
+}

@@ -1,0 +1,25 @@
+{
+  "createdAt": "2026-04-26T05:06:55.274Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/CLIENT_ACCESS_REBUILD_SPEC_2026-04-26.md",
+  "outputPath": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/CLIENT_ACCESS_REBUILD_SPEC_2026-04-26.md.2026-04-26T05-06-55-262Z.json",
+  "decision": "needs-revision",
+  "structured": true,
+  "escalationReason": "blocker-findings",
+  "review": {
+    "decision": "needs-revision",
+    "summary": "The spec introduces new roles and data models that are not currently grounded in the system_state.json. While these are proposed future-state designs, they should be clearly labeled as such to avoid confusion.",
+    "findings": [
+      {
+        "severity": "blocker",
+        "title": "Ungrounded Future-State Roles and Data Models",
+        "evidence": "The spec introduces new roles (`client_officer`, `client_admin`) and data models (normalized membership table) that are not present in the current system_state.json.",
+        "requiredAction": "Label all proposed future-state designs as such and ensure they do not falsely claim existing implementation."
+      }
+    ],
+    "verificationChecks": [
+      "Ensure all new roles and data models are clearly labeled as proposed future work"
+    ]
+  },
+  "basicFixResult": null,
+  "requiredAction": "Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope."
+}

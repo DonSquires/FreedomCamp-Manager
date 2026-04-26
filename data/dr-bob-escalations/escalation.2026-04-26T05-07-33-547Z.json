@@ -1,0 +1,25 @@
+{
+  "createdAt": "2026-04-26T05:07:33.547Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/CLIENT_ACCESS_REBUILD_SPEC_2026-04-26.md",
+  "outputPath": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/CLIENT_ACCESS_REBUILD_SPEC_2026-04-26.md.2026-04-26T05-07-33-535Z.json",
+  "decision": "needs-revision",
+  "structured": true,
+  "escalationReason": "blocker-findings",
+  "review": {
+    "decision": "needs-revision",
+    "summary": "The artifact presents future-state designs as current implementation, which is not allowed under the repo truth protocol.",
+    "findings": [
+      {
+        "severity": "blocker",
+        "title": "Future-state design presented as current implementation",
+        "evidence": "The artifact claims that new roles and data models are part of the current state, such as 'Phase 1 (compatible, in-scope): - Keep existing role column and legacy org fields. - Add support for two new role values: `client_officer`, `client_admin`. - Preserve `portal_access` enforcement where already implemented.'",
+        "requiredAction": "Remove all references to future-state designs from the current implementation spec."
+      }
+    ],
+    "verificationChecks": [
+      "Ensure all proposed changes are marked as future work and not included in the current system_state.json"
+    ]
+  },
+  "basicFixResult": null,
+  "requiredAction": "Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope."
+}

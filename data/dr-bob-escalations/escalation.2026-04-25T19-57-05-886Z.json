@@ -1,0 +1,38 @@
+{
+  "createdAt": "2026-04-25T19:57:05.886Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/ENTERPRISE_REBUILD_PLAN_FINAL_2026-04-25.md",
+  "outputPath": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/ENTERPRISE_REBUILD_PLAN_FINAL_2026-04-25.md.2026-04-25T19-57-05-872Z.json",
+  "decision": "needs-revision",
+  "structured": true,
+  "escalationReason": "blocker-findings",
+  "review": {
+    "decision": "needs-revision",
+    "summary": "The plan references several modules, services, and data models that are not currently grounded in the system_state.json or repo files.",
+    "findings": [
+      {
+        "severity": "blocker",
+        "title": "Ungrounded module reference: shared authorization middleware",
+        "evidence": "Artifact mentions 'shared authorization middleware' without evidence of its existence in the current system_state.json or repo files.",
+        "requiredAction": "Define and implement 'shared authorization middleware' before proceeding."
+      },
+      {
+        "severity": "blocker",
+        "title": "Ungrounded module reference: correlation ID propagation",
+        "evidence": "Artifact mentions 'correlation ID propagation through UI -> edge -> DB -> inference' without evidence of its existence in the current system_state.json or repo files.",
+        "requiredAction": "Define and implement 'correlation ID propagation' before proceeding."
+      },
+      {
+        "severity": "blocker",
+        "title": "Ungrounded service reference: unified release runbooks",
+        "evidence": "Artifact mentions 'unified release runbooks for Vercel, Supabase, Railway, VPS/PTT' without evidence of their existence in the current system_state.json or repo files.",
+        "requiredAction": "Define and implement 'unified release runbooks' before proceeding."
+      }
+    ],
+    "verificationChecks": [
+      "Run targeted build",
+      "Run org-isolation validation"
+    ]
+  },
+  "basicFixResult": null,
+  "requiredAction": "Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope."
+}

@@ -1,0 +1,32 @@
+{
+  "createdAt": "2026-04-25T19:55:53.410Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/ENTERPRISE_REBUILD_SPEC_2026-04-25.md",
+  "outputPath": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/ENTERPRISE_REBUILD_SPEC_2026-04-25.md.2026-04-25T19-55-53-395Z.json",
+  "decision": "needs-revision",
+  "structured": true,
+  "escalationReason": "blocker-findings",
+  "review": {
+    "decision": "needs-revision",
+    "summary": "The plan references several modules and services that are not currently grounded in the system_state.json or repo files, which must be addressed before implementation can proceed.",
+    "findings": [
+      {
+        "severity": "blocker",
+        "title": "Unverified backend structure",
+        "evidence": "The plan mentions a 'wiring harness and integration contracts' without any grounding in existing modules or services.",
+        "requiredAction": "Define concrete backend components and their relationships based on current system_state.json and repo files."
+      },
+      {
+        "severity": "blocker",
+        "title": "Unverified frontend structure",
+        "evidence": "The plan references 'UX/UI and information architecture' without any grounding in existing modules or services.",
+        "requiredAction": "Define concrete frontend components and their relationships based on current system_state.json and repo files."
+      }
+    ],
+    "verificationChecks": [
+      "Review and update system_state.json with new backend and frontend structures",
+      "Ensure all referenced services exist in the repo"
+    ]
+  },
+  "basicFixResult": null,
+  "requiredAction": "Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope."
+}

@@ -1,5 +1,21 @@
 # Enterprise Stakeholder Requirements Matrix (2026-04-25)
 
+## Platform Owner (OnSpace/Iron Eagle)
+
+Needs:
+
+1. A clear NZ council procurement narrative with proof-ready security and governance artifacts.
+2. A repeatable pilot-to-scale sales model for councils and multi-service contracts.
+3. Packaging that supports both software-only and managed-service go-to-market options.
+4. Commercial evidence that the platform reduces operational risk and improves enforcement defensibility.
+
+Grounding:
+
+1. `docs/BOB_NZ_COUNCILS_PROCUREMENT_TRAINING.md`
+2. `docs/CAPABILITY_OVERVIEW.md`
+3. `docs/REBUILD_CROSSOVER_VERCEL_EXPO_SECURITY_CHECKLIST.md`
+4. `docs/NZ_COUNCIL_ENFORCEMENT_ENTERPRISE_RESEARCH_2026-04-25.md`
+
 ## Service Providers
 
 Needs:
@@ -8,6 +24,7 @@ Needs:
 2. Shift-time selection of client jurisdiction and service type.
 3. Live patrol, welfare, breach, and dispatch visibility across contracts.
 4. Billing/reporting visibility per client and service line.
+5. Service-tier packaging and SLA-backed performance reporting to help win and renew client contracts.
 
 Grounding:
 

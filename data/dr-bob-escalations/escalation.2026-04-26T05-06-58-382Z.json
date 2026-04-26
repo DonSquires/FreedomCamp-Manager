@@ -1,0 +1,25 @@
+{
+  "createdAt": "2026-04-26T05:06:58.382Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/CLIENT_ACCESS_REBUILD_SPEC_2026-04-26.md",
+  "outputPath": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/CLIENT_ACCESS_REBUILD_SPEC_2026-04-26.md.2026-04-26T05-06-58-381Z.json",
+  "decision": "needs-revision",
+  "structured": true,
+  "escalationReason": "blocker-findings",
+  "review": {
+    "decision": "needs-revision",
+    "summary": "The artifact references future modules and services that are not yet grounded in the current system_state.json, which requires revision before implementation.",
+    "findings": [
+      {
+        "severity": "blocker",
+        "title": "Future Modules Not Grounded",
+        "evidence": "The spec mentions 'user_org_memberships' as a new table and 'normalized membership table', but these are not present in the current system_state.json.",
+        "requiredAction": "Remove references to future modules and services until they are grounded in the repo."
+      }
+    ],
+    "verificationChecks": [
+      "Ensure all referenced modules and tables exist in system_state.json before implementation"
+    ]
+  },
+  "basicFixResult": null,
+  "requiredAction": "Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope."
+}

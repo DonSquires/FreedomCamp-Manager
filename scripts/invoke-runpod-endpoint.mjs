@@ -24,6 +24,16 @@ import process from 'node:process';
 import fs from 'node:fs';
 import path from 'node:path';
 
+function normalizeRunpodInvokeUrl(rawUrl) {
+  const value = String(rawUrl || '').trim().replace(/\/+$/, '');
+  if (!value) return '';
+  if (/\/runsync$/i.test(value)) return value;
+  if (/\/run-sync$/i.test(value)) return value.replace(/\/run-sync$/i, '/runsync');
+  if (/\/run$/i.test(value)) return value.replace(/\/run$/i, '/runsync');
+  if (/\/v2\/[^/]+$/i.test(value)) return `${value}/runsync`;
+  return value;
+}
+
 function getArg(name, fallback = '') {
   const key = `--${name}`;
   const args = process.argv.slice(2);
@@ -90,12 +100,12 @@ function normalizePayload(payloadRaw, inputObject) {
 function deriveInvokeUrl(endpointUrl, endpointId) {
   const explicitUrl = String(endpointUrl || '').trim();
   if (explicitUrl) {
-    return explicitUrl;
+    return normalizeRunpodInvokeUrl(explicitUrl);
   }
 
   const id = String(endpointId || '').trim();
   if (id) {
-    return `https://api.runpod.ai/v2/${id}/run`;
+    return normalizeRunpodInvokeUrl(`https://api.runpod.ai/v2/${id}`);
   }
 
   throw new Error('RUNPOD_ENDPOINT_URL or RUNPOD_ENDPOINT_ID is required');

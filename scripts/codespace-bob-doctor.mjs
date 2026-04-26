@@ -5,18 +5,26 @@ import { loadLocalEnv } from './load-local-env.mjs';
 
 loadLocalEnv();
 
+function normalizeRunpodInvokeUrl(rawUrl) {
+  const value = String(rawUrl || '').trim().replace(/\/+$/, '');
+  if (!value) return '';
+  if (/\/runsync$/i.test(value)) return value;
+  if (/\/run-sync$/i.test(value)) return value.replace(/\/run-sync$/i, '/runsync');
+  if (/\/run$/i.test(value)) return value.replace(/\/run$/i, '/runsync');
+  if (/\/v2\/[^/]+$/i.test(value)) return `${value}/runsync`;
+  return value;
+}
+
 const isCodespaces = String(process.env.CODESPACES || '').toLowerCase() === 'true';
 const runpodEndpointId = String(process.env.RUNPOD_ENDPOINT_ID || '').trim();
 
-const runpodUrl = String(
+const runpodUrl = normalizeRunpodInvokeUrl(String(
   process.env.RUNPOD_GATEWAY_URL ||
     process.env.RUNPOD_SERVERLESS_URL ||
     process.env.RUNPOD_URL ||
     process.env.RUNPOD_RUNSYNC_URL ||
-    (runpodEndpointId ? `https://api.runpod.ai/v2/${runpodEndpointId}/runsync` : '')
-)
-  .trim()
-  .replace(/\/+$/, '');
+    (runpodEndpointId ? `https://api.runpod.ai/v2/${runpodEndpointId}` : '')
+));
 
 const runpodApiKey = String(process.env.RUNPOD_API_KEY || process.env.DR_BOB_API || '').trim();
 

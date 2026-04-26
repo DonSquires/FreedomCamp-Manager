@@ -8,6 +8,16 @@ import { loadLocalEnv } from './load-local-env.mjs';
 
 loadLocalEnv();
 
+function normalizeRunpodInvokeUrl(rawUrl) {
+  const value = String(rawUrl || '').trim().replace(/\/+$/, '');
+  if (!value) return '';
+  if (/\/runsync$/i.test(value)) return value;
+  if (/\/run-sync$/i.test(value)) return value.replace(/\/run-sync$/i, '/runsync');
+  if (/\/run$/i.test(value)) return value.replace(/\/run$/i, '/runsync');
+  if (/\/v2\/[^/]+$/i.test(value)) return `${value}/runsync`;
+  return value;
+}
+
 function resolveBaseUrl() {
   const raw =
     process.env.BOB_SERVICE_URL || process.env.INFERENCE_SERVICE_URL || '';
@@ -20,6 +30,32 @@ function resolveApiKey() {
       process.env.INFERENCE_API_KEY ||
       ''
   ).trim();
+}
+
+function resolveRunpodApiKey() {
+  return String(
+    process.env.RUNPOD_ENDPOINT_API_KEY ||
+      process.env.RUNPOD_API_KEY ||
+      process.env.DR_BOB_API ||
+      ''
+  ).trim();
+}
+
+function resolveRunpodInvokeUrl() {
+  const explicit = String(
+    process.env.RUNPOD_ENDPOINT_URL ||
+      process.env.RUNPOD_RUNSYNC_URL ||
+      process.env.RUNPOD_GATEWAY_URL ||
+      process.env.RUNPOD_SERVERLESS_URL ||
+      process.env.RUNPOD_URL ||
+      ''
+  ).trim();
+
+  if (explicit) return normalizeRunpodInvokeUrl(explicit);
+
+  const endpointId = String(process.env.RUNPOD_ENDPOINT_ID || '').trim();
+  if (!endpointId) return '';
+  return normalizeRunpodInvokeUrl(`https://api.runpod.ai/v2/${endpointId}`);
 }
 
 function resolveOrgId() {
@@ -42,6 +78,84 @@ function buildScoreMetadata(payload = {}) {
       payload.quality_gate?.fallback_applied === true ||
       payload.fallback === true,
   };
+}
+
+function extractBobMessage(payload = {}) {
+  return (
+    payload.message ||
+    payload.response ||
+    payload.output?.message ||
+    payload.output?.response ||
+    payload.output?.output ||
+    (typeof payload.output === 'string' ? payload.output : '') ||
+    JSON.stringify(payload).slice(0, 500)
+  );
+}
+
+function shouldFallbackToRunpod(statusCode) {
+  return statusCode === 404 || statusCode === 405 || statusCode >= 500;
+}
+
+async function tryRunpodFallback(message, context, timeoutMs) {
+  const runpodUrl = resolveRunpodInvokeUrl();
+  const runpodApiKey = resolveRunpodApiKey();
+
+  if (!runpodUrl || !runpodApiKey) {
+    return null;
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(runpodUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${runpodApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        message,
+        context: context || {},
+        input: {
+          message,
+          prompt: message,
+          context: context || {},
+        },
+      }),
+    });
+
+    const bodyText = await response.text().catch(() => '');
+    let payload = {};
+    try {
+      payload = bodyText ? JSON.parse(bodyText) : {};
+    } catch {
+      payload = { response: bodyText };
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        `RunPod fallback failed (${response.status}): ${bodyText.slice(0, 300)}`
+      );
+    }
+
+    const runStatus = String(payload?.status || '').toUpperCase();
+    if (runStatus === 'FAILED') {
+      throw new Error(
+        `RunPod fallback job failed: ${JSON.stringify(payload).slice(0, 300)}`
+      );
+    }
+
+    return {
+      payload,
+      message: extractBobMessage(payload),
+      status: response.status,
+      provider: 'runpod-fallback',
+    };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**
@@ -93,6 +207,26 @@ export async function consultBob(message, options = {}) {
     });
 
     if (!response.ok) {
+      if (shouldFallbackToRunpod(response.status)) {
+        const fallback = await tryRunpodFallback(message, options.context, timeoutMs);
+        if (fallback) {
+          await recordScoredResponse({
+            target: 'Bob',
+            channel: 'bob-chat',
+            prompt: message,
+            response: fallback.message,
+            delivery: { sent: true, status: fallback.status, channel: 'bob-chat' },
+            metadata: {
+              provider: fallback.provider,
+              fallback: true,
+              qualityGateFailed: false,
+              fallbackApplied: true,
+            },
+          });
+          return fallback.message;
+        }
+      }
+
       const body = await response.text().catch(() => '');
       throw new Error(
         `Bob /chat failed (${response.status}): ${body.slice(0, 300)}`
@@ -100,10 +234,7 @@ export async function consultBob(message, options = {}) {
     }
 
     const payload = await response.json().catch(() => ({}));
-    const bobMessage =
-      payload.message ||
-      payload.response ||
-      JSON.stringify(payload).slice(0, 500);
+    const bobMessage = extractBobMessage(payload);
 
     await recordScoredResponse({
       target: 'Bob',
@@ -173,6 +304,36 @@ export class BobSession {
       });
 
       if (!response.ok) {
+        if (shouldFallbackToRunpod(response.status)) {
+          const fallback = await tryRunpodFallback(message, this.context, this.timeoutMs);
+          if (fallback) {
+            await recordScoredResponse({
+              target: 'Bob',
+              channel: 'bob-chat',
+              prompt: message,
+              response: fallback.message,
+              delivery: { sent: true, status: fallback.status, channel: 'bob-chat' },
+              metadata: {
+                provider: fallback.provider,
+                fallback: true,
+                qualityGateFailed: false,
+                fallbackApplied: true,
+              },
+            });
+
+            this.history.push(
+              { role, message },
+              {
+                role: 'bob',
+                message: fallback.message,
+                metadata: { provider: fallback.provider, fallback: true },
+              }
+            );
+
+            return fallback.message;
+          }
+        }
+
         const body = await response.text().catch(() => '');
         throw new Error(
           `Bob /chat failed (${response.status}): ${body.slice(0, 300)}`
@@ -180,10 +341,7 @@ export class BobSession {
       }
 
       const payload = await response.json().catch(() => ({}));
-      const bobMessage =
-        payload.message ||
-        payload.response ||
-        JSON.stringify(payload).slice(0, 500);
+      const bobMessage = extractBobMessage(payload);
 
       await recordScoredResponse({
         target: 'Bob',

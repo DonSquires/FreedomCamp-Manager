@@ -1,0 +1,50 @@
+{
+  "createdAt": "2026-04-25T19:56:54.741Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/ENTERPRISE_REBUILD_SPEC_2026-04-25.md",
+  "outputPath": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/ENTERPRISE_REBUILD_SPEC_2026-04-25.md.2026-04-25T19-56-54-724Z.json",
+  "decision": "needs-revision",
+  "structured": true,
+  "escalationReason": "blocker-findings",
+  "review": {
+    "decision": "needs-revision",
+    "summary": "The artifact references several modules and services that are not currently grounded in the system_state.json, including future plans. It also lacks explicit validation steps and concrete milestones.",
+    "findings": [
+      {
+        "severity": "blocker",
+        "title": "Ungrounded backend structure",
+        "evidence": "The artifact references backend modules without grounding them in `system_state.json` or repo files.",
+        "requiredAction": "Ground all backend module references in `system_state.json` and provide evidence from repo files."
+      },
+      {
+        "severity": "blocker",
+        "title": "Unverifiable frontend structure",
+        "evidence": "The artifact mentions future plans for the frontend without grounding them in existing repo evidence.",
+        "requiredAction": "Ground all frontend module references in `system_state.json` and provide evidence from repo files."
+      },
+      {
+        "severity": "blocker",
+        "title": "Unspecified UX/UI and information architecture",
+        "evidence": "The artifact does not reference any specific UI or IA modules or services.",
+        "requiredAction": "Identify and ground all relevant UI and IA components in `system_state.json`."
+      },
+      {
+        "severity": "blocker",
+        "title": "Unverifiable wiring harness and integration contracts",
+        "evidence": "The artifact does not reference any specific integration services or contracts.",
+        "requiredAction": "Identify and ground all relevant integration services in `system_state.json`."
+      },
+      {
+        "severity": "blocker",
+        "title": "Unspecified delivery pipelines and release governance",
+        "evidence": "The artifact does not reference any CI/CD pipeline configurations or release governance.",
+        "requiredAction": "Identify and ground all relevant CI/CD and release governance components in `system_state.json`."
+      }
+    ],
+    "verificationChecks": [
+      "Run targeted build",
+      "Validate stack compatibility with existing repo state"
+    ]
+  },
+  "basicFixResult": null,
+  "requiredAction": "Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope."
+}
