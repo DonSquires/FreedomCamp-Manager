@@ -25,7 +25,7 @@ Do not claim completion until all release gates in this checklist are green.
 
 ## Current Confidence
 
-- Confidence: 78%
+- Confidence: 84%
 - Why not 100% yet:
 	1. Navigation registry migration is only partially applied.
 	2. Parity tests for route-to-nav mapping are not implemented.
@@ -59,10 +59,14 @@ Do not claim completion until all release gates in this checklist are green.
 ## Plan Execution Checklist
 
 ### Phase 0 - Baseline and Instrumentation
-- [ ] Route inventory generated from `src/App.tsx`
-- [ ] Module inventory generated from `src/modules/registry.ts`
-- [ ] Schema-to-IA reconciliation completed against `docs/LIVE_SCHEMA.md`
-- [ ] UX telemetry event set defined (`nav_click`, `route_entry`, `route_backtrack`, `time_to_first_action`, `portal_switch`)
+- [x] Route inventory generated from `src/App.tsx`
+	- Evidence: `docs/uiux-master-redesign/artifacts/route-inventory-2026-04-27.md`
+- [x] Module inventory generated from `src/modules/registry.ts`
+	- Evidence: `docs/uiux-master-redesign/artifacts/module-inventory-2026-04-27.md`
+- [x] Schema-to-IA reconciliation completed against `docs/LIVE_SCHEMA.md`
+	- Evidence: `docs/uiux-master-redesign/artifacts/schema-ia-reconciliation-2026-04-27.md`
+- [x] UX telemetry event set defined (`nav_click`, `route_entry`, `route_backtrack`, `time_to_first_action`, `portal_switch`)
+	- Evidence: `docs/uiux-master-redesign/artifacts/ux-telemetry-events-v1-2026-04-27.md`
 - [ ] Coverage report generated (zero unmapped route families/modules)
 
 Exit gate:
@@ -139,6 +143,9 @@ Latest known CI root-cause fix applied:
 
 ## Next Execution Block (Immediate)
 
+- [ ] Generate and validate route-family/module coverage report (zero unmapped required).
+	- Owner: platform/frontend
+	- Deliverable: `docs/uiux-master-redesign/artifacts/coverage-report-<date>.md` with explicit mapped/unmapped sections.
 - [ ] Implement parity tests for route/nav coverage and wire into CI.
 	- Owner: platform/frontend
 	- Deliverable: deterministic test suite for registry coverage and nav rendering parity.
