@@ -289,7 +289,7 @@ test.describe('Observations & Incidents', () => {
 
   test('breaches page loads', async ({ page }, testInfo) => {
     await loginAs(page, 'adminOrg1')
-    await page.goto('/breaches', { waitUntil: 'networkidle' })
+    await page.goto('/breaches', { waitUntil: 'domcontentloaded' })
     await expect(page.locator('h1, h2').filter({ visible: true }).first()).toBeVisible({ timeout: 15000 })
     await bobAssessPage(page, testInfo, 'breaches')
   })
@@ -309,7 +309,7 @@ test.describe('Zones & Maps', () => {
 
   test('hotspots map loads', async ({ page }, testInfo) => {
     await loginAs(page, 'adminOrg1')
-    await page.goto('/hotspots', { waitUntil: 'networkidle' })
+    await page.goto('/hotspots', { waitUntil: 'domcontentloaded' })
     await expectPageContentVisible(page)
     await bobAssessPage(page, testInfo, 'hotspots-map')
   })

@@ -1,44 +1,39 @@
 {
-  "generatedAt": "2026-04-25T21:48:01.558Z",
+  "generatedAt": "2026-04-26T23:57:48.793Z",
   "windowHours": 24,
-  "totalEntries": 16,
-  "lowScoreCount": 8,
+  "totalEntries": 26,
+  "lowScoreCount": 4,
   "topFailureReasons": [
     {
-      "name": "delivery_failed",
-      "count": 5
-    },
-    {
-      "name": "quality_gate_failed",
-      "count": 3
+      "name": "fallback_applied",
+      "count": 4
     }
   ],
   "topHallucinationPatterns": [],
   "repeatedHallucinations": [],
   "topFlaggedArtifacts": [
     {
-      "name": "/workspaces/FreedomCamp-Manager/docs/PHASE0_OBSERVABILITY_SLO_BASELINE_2026-04-25.md",
+      "name": "/workspaces/FreedomCamp-Manager/docs/CLIENT_ACCESS_REBUILD_SPEC_2026-04-26.md",
       "count": 4
     },
     {
-      "name": "/workspaces/FreedomCamp-Manager/docs/APP_ENTERPRISE_EXECUTION_TRACKER_2026-04-25.md",
-      "count": 2
+      "name": "/workspaces/FreedomCamp-Manager/docs/ENTERPRISE_REBUILD_PLAN_ACTUAL_RESEARCH_V2_2026-04-26.md",
+      "count": 4
     },
     {
-      "name": "/workspaces/FreedomCamp-Manager/docs/PHASE4_GATE_EVIDENCE_2026-04-25.md",
-      "count": 2
+      "name": "/workspaces/FreedomCamp-Manager/docs/uiux-master-redesign/execution-todo.md",
+      "count": 4
     },
     {
-      "name": "/workspaces/FreedomCamp-Manager/docs/PTT_ENTERPRISE_STACK_FIT_AND_BUILD.md",
-      "count": 2
+      "name": "/workspaces/FreedomCamp-Manager/docs/uiux-master-redesign/plan.md",
+      "count": 4
     },
     {
-      "name": "/workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-25T05-32-10-754Z/report.md",
-      "count": 2
+      "name": "/workspaces/FreedomCamp-Manager/docs/uiux-master-redesign/spec.md",
+      "count": 3
     }
   ],
   "recommendations": [
-    "Re-read docs/BOB_TRAINING_TRUTH_PROTOCOL.md before the next redesign response.",
-    "Prefer the proven RunPod delivery path when Bob local /chat is unavailable."
+    "No repeated failure mode crossed the automatic threshold in this window."
   ]
 }

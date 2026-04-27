@@ -21,20 +21,34 @@ test.use({ screenshot: 'on' })
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 async function assertRouteLoads(page: any, route: string, headingPattern?: RegExp) {
-  await page.goto(route, { waitUntil: 'networkidle' })
+  await page.goto(route, { waitUntil: 'domcontentloaded' })
+
+  // Shared/fallback role sessions can occasionally land on portal selection
+  // after auth role synchronization; re-apply selection and retry once.
+  if (page.url().includes('/portal-selection')) {
+    await page.evaluate(() => {
+      window.sessionStorage.setItem('adminOfficerPortalChoice', 'selected')
+    })
+    await page.goto(route, { waitUntil: 'domcontentloaded' })
+  }
+
   // URL should stay on (or redirect within) the intended path
   await expect(page).toHaveURL(new RegExp(route.replace(/\//g, '\\/').replace(/:/g, '\\:')), { timeout: 12000 })
   // At minimum, something meaningful renders – no blank white page
   if (headingPattern) {
     await expect(page.locator('h1, h2').filter({ visible: true }).first()).toContainText(headingPattern, { timeout: 12000 })
   } else {
-    // Check that meaningful page content is visible (main element or a visible heading)
+    // Some officer pages intentionally render body content without h1/h2,
+    // so treat either a visible <main> OR a visible heading as a loaded state.
     const main = page.locator('main').first()
     const heading = page.locator('h1, h2').filter({ visible: true }).first()
-    const mainVisible = await main.isVisible().catch(() => false)
-    if (!mainVisible) {
-      await expect(heading).toBeVisible({ timeout: 12000 })
-    }
+
+    const loadedByMainOrHeading = await Promise.race([
+      main.waitFor({ state: 'visible', timeout: 12000 }).then(() => true).catch(() => false),
+      heading.waitFor({ state: 'visible', timeout: 12000 }).then(() => true).catch(() => false),
+    ])
+
+    expect(loadedByMainOrHeading).toBeTruthy()
   }
 }
 

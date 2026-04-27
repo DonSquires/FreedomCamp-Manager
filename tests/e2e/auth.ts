@@ -566,6 +566,20 @@ async function ensureWorkAreaPermission(page: Page): Promise<void> {
   }
 }
 
+async function resolvePortalSelectionIfNeeded(page: Page, user: TestUserKey): Promise<void> {
+  if (!page.url().includes('/portal-selection')) return
+
+  const targetPortalPath = user === 'officerOrg1' ? '/field-officer' : '/admin'
+  await page.evaluate(() => {
+    window.sessionStorage.setItem('adminOfficerPortalChoice', 'selected')
+  })
+  await page.goto(targetPortalPath)
+  await page.waitForURL(
+    (url) => !url.pathname.startsWith('/portal-selection'),
+    { timeout: 20000 }
+  )
+}
+
 export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
   const credentials = getTestUser(user)
 
@@ -593,22 +607,14 @@ export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
 
   // Some roles (for example admin_officer) are redirected to portal selection
   // and must choose a portal before route access is unlocked.
-  if (page.url().includes('/portal-selection')) {
-    const targetPortalPath = user === 'officerOrg1' ? '/field-officer' : '/admin'
-    await page.evaluate(() => {
-      window.sessionStorage.setItem('adminOfficerPortalChoice', 'selected')
-    })
-    await page.goto(targetPortalPath)
-    await page.waitForURL(
-      (url) => !url.pathname.startsWith('/portal-selection'),
-      { timeout: 20000 }
-    )
-  }
+  await resolvePortalSelectionIfNeeded(page, user)
 
   // Best-effort: ensure the user can work in the configured council area
   // (defaults to Nelson City Council for location-based test flows).
   await ensureWorkAreaPermission(page)
   await autoSetRoleForTestUser(page, user)
+  // Role auto-set reload can return the user to portal-selection.
+  await resolvePortalSelectionIfNeeded(page, user)
   await assertExpectedLoginProfile(page, user)
 
   await page.waitForLoadState('networkidle').catch(() => undefined)
