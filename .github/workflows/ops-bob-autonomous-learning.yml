@@ -76,11 +76,31 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
 
-          git add \
-            system_state.json \
-            data/bob-failure-summary.json \
-            docs/BOB_FAILURE_SUMMARY.md \
-            docs/BOB_BRAIN_DUMP.md
+          # docs/BOB_BRAIN_DUMP.md can grow beyond GitHub's 100 MB hard limit.
+          # Check the size and skip it if it exceeds 90 MB to leave a safety margin.
+          BRAIN_DUMP_FILE="docs/BOB_BRAIN_DUMP.md"
+          BRAIN_DUMP_SIZE_LIMIT=$((90 * 1024 * 1024))  # 90 MB in bytes
+          if [ -f "$BRAIN_DUMP_FILE" ]; then
+            FILE_SIZE=$(stat -c%s "$BRAIN_DUMP_FILE" 2>/dev/null || stat -f%z "$BRAIN_DUMP_FILE" 2>/dev/null || echo "0")
+            if [ "$FILE_SIZE" -gt "$BRAIN_DUMP_SIZE_LIMIT" ]; then
+              echo "::warning::$BRAIN_DUMP_FILE is ${FILE_SIZE} bytes (limit: ${BRAIN_DUMP_SIZE_LIMIT}) — skipping to avoid GitHub's 100 MB file size limit"
+              git add \
+                system_state.json \
+                data/bob-failure-summary.json \
+                docs/BOB_FAILURE_SUMMARY.md
+            else
+              git add \
+                system_state.json \
+                data/bob-failure-summary.json \
+                docs/BOB_FAILURE_SUMMARY.md \
+                "$BRAIN_DUMP_FILE"
+            fi
+          else
+            git add \
+              system_state.json \
+              data/bob-failure-summary.json \
+              docs/BOB_FAILURE_SUMMARY.md
+          fi
 
           if git diff --staged --quiet; then
             echo "ℹ️ No autonomous-learning artifact changes to commit."
