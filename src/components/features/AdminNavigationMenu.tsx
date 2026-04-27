@@ -13,6 +13,7 @@ import {
   ScanFace,
 } from 'lucide-react'
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const primaryLinks = [
   { to: '/admin',       label: 'Dashboard', icon: Home },
   { to: '/compliance',  label: 'Compliance', icon: BarChart3 },
@@ -21,6 +22,7 @@ export const primaryLinks = [
   { to: '/search',      label: 'Search',     icon: Search },
 ]
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const moreGroups = [
   {
     label: 'Compliance',

@@ -103,6 +103,7 @@ interface AppLayoutProps {
 type NavItem = { path: string; icon: React.FC<{ className?: string }>; label: string; roles: string[] }
 
 // Pinned items always visible at the top of the sidebar
+// eslint-disable-next-line react-refresh/only-export-components
 export const pinnedItems: NavItem[] = [
   { path: '/platform', icon: Globe, label: 'Platform Overview', roles: ['grand_master'] },
   { path: '/admin', icon: LayoutDashboard, label: 'Command Centre', roles: ['grand_master'] },
@@ -116,6 +117,7 @@ export const pinnedItems: NavItem[] = [
 ]
 
 // Grouped navigation — collapsed by default, each bucket holds related items
+// eslint-disable-next-line react-refresh/only-export-components
 export const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: string }>; items: NavItem[] }> = [
   {
     label: 'Operations',
