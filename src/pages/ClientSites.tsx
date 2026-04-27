@@ -12,6 +12,7 @@ import { useZones } from '@/hooks/useZones'
 import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { useOrganizations } from '@/hooks/useOrganizations'
 import { useSitePermissions } from '@/hooks/useSitePermissions'
+import { forwardGeocode } from '@/lib/geocoding'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -203,19 +204,75 @@ export default function ClientSites() {
   // ── Save mutation (create + edit) ────────────────────────────────────────
   const saveMutation = useMutation({
     mutationFn: async ({ f, id }: { f: SiteForm; id?: string }) => {
+      const targetOrgId = id
+        ? (editTarget?.organization_id || selectedOrgId || orgId)
+        : (selectedOrgId || orgId)
+
+      const parsedLat = f.gps_lat ? Number.parseFloat(f.gps_lat) : null
+      const parsedLng = f.gps_lng ? Number.parseFloat(f.gps_lng) : null
+
+      const addressChanged = id
+        ? ((editTarget?.address ?? '').trim() !== f.address.trim())
+        : !!f.address.trim()
+      const cityChanged = id
+        ? ((editTarget?.city ?? '').trim() !== f.city.trim())
+        : !!f.city.trim()
+
+      let resolvedLat = Number.isFinite(parsedLat) ? parsedLat : null
+      let resolvedLng = Number.isFinite(parsedLng) ? parsedLng : null
+      let geocodeSource: string | null = null
+
+      const hasAddress = !!(f.address.trim() || f.city.trim())
+      const shouldLookupAddress = hasAddress && (addressChanged || cityChanged || resolvedLat === null || resolvedLng === null)
+      if (canEdit('location') && shouldLookupAddress) {
+        const geocoded = await forwardGeocode(f.address, f.city)
+        if (geocoded) {
+          resolvedLat = geocoded.latitude
+          resolvedLng = geocoded.longitude
+          geocodeSource = geocoded.source ?? 'lookup'
+        }
+      }
+
+      let resolvedZoneId = f.zone_id || null
+      const shouldSyncGeofence = canEdit('identity') && canEdit('location') && !!targetOrgId && resolvedLat !== null && resolvedLng !== null && (addressChanged || cityChanged || !id)
+      if (shouldSyncGeofence) {
+        if (resolvedZoneId) {
+          const { error: zoneUpdateError } = await (supabase as any)
+            .from('zones')
+            .update({ location_lat: resolvedLat, location_lng: resolvedLng, is_active: true })
+            .eq('id', resolvedZoneId)
+          if (zoneUpdateError) throw zoneUpdateError
+        } else {
+          const { data: createdZone, error: zoneInsertError } = await (supabase as any)
+            .from('zones')
+            .insert({
+              organization_id: targetOrgId,
+              name: `${f.name.trim() || 'Client Site'} Geofence`,
+              zone_type: 'general',
+              location_lat: resolvedLat,
+              location_lng: resolvedLng,
+              is_active: true,
+            })
+            .select('id')
+            .single()
+          if (zoneInsertError) throw zoneInsertError
+          resolvedZoneId = createdZone?.id ?? null
+        }
+      }
+
       // Build full payload, then strip field groups the user cannot edit.
       // This prevents bypassing UI restrictions through dev-tool tricks.
       const full: any = {
-        organization_id:        selectedOrgId || orgId,
+        organization_id:        targetOrgId,
         created_by:             user?.id,
         name:                   f.name,
         site_code:              f.site_code || null,
         site_type:              f.site_type,
-        zone_id:                f.zone_id || null,
+        zone_id:                resolvedZoneId,
         address:                f.address || null,
         city:                   f.city || null,
-        gps_lat:                f.gps_lat ? parseFloat(f.gps_lat) : null,
-        gps_lng:                f.gps_lng ? parseFloat(f.gps_lng) : null,
+        gps_lat:                resolvedLat,
+        gps_lng:                resolvedLng,
         access_instructions:    f.access_instructions || null,
         hazards:                f.hazards || null,
         special_instructions:   f.special_instructions || null,
@@ -253,7 +310,7 @@ export default function ClientSites() {
 
       const payload: any = id
         ? {} // on edit: only include fields the user can change
-        : { organization_id: selectedOrgId || orgId, created_by: user?.id } // on create: always include org fields
+        : { organization_id: targetOrgId, created_by: user?.id } // on create: always include org fields
 
       for (const [group, fields] of Object.entries(groupFields)) {
         if (canEdit(group as any)) {
@@ -271,11 +328,20 @@ export default function ClientSites() {
         const { error } = await (supabase as any).from('client_sites').insert(payload)
         if (error) throw error
       }
+
+      return { geocodeSource, resolvedZoneId }
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       toast.success(dialogMode === 'create' ? 'Site created' : 'Site updated')
+      if (result?.geocodeSource) {
+        toast.success(`Address lookup resolved geofence coordinates (${result.geocodeSource})`)
+      }
+      if (result?.resolvedZoneId && !form.zone_id) {
+        toast.success('Auto-created and linked a zone geofence for this site')
+      }
       qc.invalidateQueries({ queryKey: ['client-sites'] })
       qc.invalidateQueries({ queryKey: ['client-sites-lookup'] })
+      qc.invalidateQueries({ queryKey: ['zones'] })
       setDialogMode(null)
     },
     onError: (err: any) => toast.error(err.message ?? 'Save failed'),

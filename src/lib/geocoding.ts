@@ -19,6 +19,11 @@ interface GeocodingResult {
   source?: 'google' | 'nominatim'
 }
 
+export interface ForwardGeocodingResult extends GeocodingResult {
+  latitude: number
+  longitude: number
+}
+
 // ── Google Maps Geocoding ──────────────────────────────────────────────────
 
 /**
@@ -108,6 +113,95 @@ async function reverseGeocodeNominatim(
   }
 }
 
+// ── Forward geocoding (address -> coordinates) ─────────────────────────────
+
+async function forwardGeocodeGoogle(query: string): Promise<ForwardGeocodingResult | null> {
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined
+  if (!apiKey) return null
+
+  try {
+    const url =
+      `https://maps.googleapis.com/maps/api/geocode/json` +
+      `?address=${encodeURIComponent(query)}&key=${encodeURIComponent(apiKey)}&components=country:NZ`
+
+    const response = await fetch(url)
+    if (!response.ok) throw new Error(`Google geocode HTTP ${response.status}`)
+
+    const json = await response.json()
+    if (json.status !== 'OK' || !json.results?.length) return null
+
+    const result = json.results[0]
+    const components: Record<string, string> = {}
+    for (const c of result.address_components ?? []) {
+      for (const type of c.types ?? []) {
+        components[type] = c.long_name
+      }
+    }
+
+    return {
+      formatted_address: result.formatted_address ?? query,
+      street_number: components['street_number'],
+      street_name: components['route'],
+      suburb: components['sublocality_level_1'] ?? components['sublocality'] ?? components['neighborhood'],
+      city: components['locality'] ?? components['postal_town'],
+      region: components['administrative_area_level_1'],
+      postal_code: components['postal_code'],
+      country: components['country'],
+      confidence: 1,
+      source: 'google',
+      latitude: result.geometry?.location?.lat ?? null,
+      longitude: result.geometry?.location?.lng ?? null,
+    }
+  } catch (error) {
+    console.warn('Google forward geocoding failed:', error)
+    return null
+  }
+}
+
+async function forwardGeocodeNominatim(query: string): Promise<ForwardGeocodingResult | null> {
+  try {
+    const url =
+      `https://nominatim.openstreetmap.org/search` +
+      `?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=1&countrycodes=nz`
+
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'FieldOps-Manager/1.0' },
+    })
+
+    if (!response.ok) throw new Error(`Nominatim HTTP ${response.status}`)
+
+    const data = await response.json()
+    if (!Array.isArray(data) || data.length === 0) return null
+
+    const result = data[0]
+    const addr = result.address || {}
+    const latitude = Number.parseFloat(result.lat)
+    const longitude = Number.parseFloat(result.lon)
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return null
+    }
+
+    return {
+      formatted_address: result.display_name || query,
+      street_number: addr.house_number,
+      street_name: addr.road || addr.street,
+      suburb: addr.suburb || addr.neighbourhood,
+      city: addr.city || addr.town || addr.village,
+      region: addr.state || addr.region,
+      postal_code: addr.postcode,
+      country: addr.country,
+      confidence: typeof result.importance === 'number' ? result.importance : 0,
+      source: 'nominatim',
+      latitude,
+      longitude,
+    }
+  } catch (error) {
+    console.warn('Nominatim forward geocoding failed:', error)
+    return null
+  }
+}
+
 // ── Public API ─────────────────────────────────────────────────────────────
 
 /**
@@ -123,6 +217,28 @@ export async function reverseGeocode(
   if (googleResult) return googleResult
 
   return reverseGeocodeNominatim(latitude, longitude)
+}
+
+/**
+ * Forward geocode an address to GPS coordinates.
+ * Tries Google Maps first (if VITE_GOOGLE_MAPS_API_KEY is set),
+ * then falls back to Nominatim (OpenStreetMap).
+ */
+export async function forwardGeocode(
+  address: string,
+  city?: string,
+): Promise<ForwardGeocodingResult | null> {
+  const query = [address, city, 'New Zealand']
+    .map(part => (part ?? '').trim())
+    .filter(Boolean)
+    .join(', ')
+
+  if (!query) return null
+
+  const googleResult = await forwardGeocodeGoogle(query)
+  if (googleResult) return googleResult
+
+  return forwardGeocodeNominatim(query)
 }
 
 /**
