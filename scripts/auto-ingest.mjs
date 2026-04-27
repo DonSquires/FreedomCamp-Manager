@@ -10,7 +10,23 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const workspaceRoot = path.resolve(__dirname, '..');
 const outputPath = path.join(workspaceRoot, 'docs', 'BOB_BRAIN_DUMP.md');
-const maxOutputBytes = Number(process.env.BOB_BRAIN_DUMP_MAX_BYTES || 90 * 1024 * 1024);
+const defaultMaxOutputBytes = 90 * 1024 * 1024;
+
+function parsePositiveIntegerEnv(value, fallback) {
+  if (value == null || value === '') return fallback;
+
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) {
+    return fallback;
+  }
+
+  return parsed;
+}
+
+const maxOutputBytes = parsePositiveIntegerEnv(
+  process.env.BOB_BRAIN_DUMP_MAX_BYTES,
+  defaultMaxOutputBytes,
+);
 
 const preferredSources = buildCanonicalTrainingSources(workspaceRoot, { includeContext: true });
 

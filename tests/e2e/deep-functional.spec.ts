@@ -631,6 +631,78 @@ test.describe('Field Officer Portal — welfare and SOS', () => {
     await expect(page.getByText(/Stop marked as arrived/i)).toBeVisible({ timeout: 10000 })
     await expect(page.getByRole('button', { name: /Complete Stop/i })).toBeVisible({ timeout: 10000 })
   })
+
+  test('Active route panel updates completion progress across multi-stop manual flow', async ({ page }) => {
+    const nowIso = new Date().toISOString()
+    await seedFieldOfficerRouteOverride(page, {
+      disableGeofenceMonitoring: true,
+      forceOperationalView: true,
+      currentPatrolZone: null,
+      activeRouteInstance: {
+        id: 'route-fixture-3',
+        organization_id: 'org-fixture-1',
+        roster_shift_id: 'shift-fixture-3',
+        patrol_id: null,
+        patrol_route_id: 'route-template-3',
+        patrol_route_name: 'Central Loop',
+        officer_id: 'officer-fixture-1',
+        planning_mode: 'baseline',
+        plan_status: 'planned',
+        planned_start_time: nowIso,
+        planned_end_time: null,
+        predicted_duration_minutes: 45,
+        created_at: nowIso,
+        updated_at: nowIso,
+      },
+      activeRouteStops: [
+        {
+          id: 'route-stop-fixture-3a',
+          route_instance_id: 'route-fixture-3',
+          checkpoint_id: null,
+          zone_id: null,
+          stop_name: 'Hardy Street',
+          is_mandatory: true,
+          sequence_no: 1,
+          planned_arrival_window_start: null,
+          planned_arrival_window_end: null,
+          planned_dwell_minutes: null,
+          actual_arrival_at: null,
+          actual_departure_at: null,
+          visit_status: 'pending',
+        },
+        {
+          id: 'route-stop-fixture-3b',
+          route_instance_id: 'route-fixture-3',
+          checkpoint_id: null,
+          zone_id: null,
+          stop_name: 'Rutherford Street',
+          is_mandatory: true,
+          sequence_no: 2,
+          planned_arrival_window_start: null,
+          planned_arrival_window_end: null,
+          planned_dwell_minutes: null,
+          actual_arrival_at: null,
+          actual_departure_at: null,
+          visit_status: 'pending',
+        },
+      ],
+    })
+
+    await loginAs(page, 'officerOrg1')
+    await page.goto('/field-officer', { waitUntil: 'networkidle' })
+
+    await expect(page.getByText(/0\/2 complete/i)).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText(/Stop #1: Hardy Street/i)).toBeVisible({ timeout: 10000 })
+
+    await page.getByRole('button', { name: /Complete Stop/i }).first().click()
+    await expect(page.getByText(/Stop completed/i)).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText(/1\/2 complete/i)).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText(/Stop #2: Rutherford Street/i)).toBeVisible({ timeout: 10000 })
+
+    await page.getByRole('button', { name: /Complete Stop/i }).first().click()
+    await expect(page.getByText(/2\/2 complete/i)).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText(/No pending stops remain on this route instance\./i)).toBeVisible({ timeout: 10000 })
+  })
 })
 
 // ── Field Officer Portal — Plate Scanner ─────────────────────────────────────

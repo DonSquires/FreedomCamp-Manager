@@ -120,6 +120,16 @@ jobs:
             TARGET_URL="http://127.0.0.1:4173"
           fi
 
+          if printf '%s' "$TARGET_URL" | grep -q '[[:cntrl:]]'; then
+            echo "::error::Resolved PLAYWRIGHT_BASE_URL contains invalid control characters."
+            exit 1
+          fi
+
+          if ! printf '%s' "$TARGET_URL" | grep -Eq '^https?://[A-Za-z0-9.-]+(:[0-9]+)?(/.*)?$'; then
+            echo "::error::Resolved PLAYWRIGHT_BASE_URL must be a valid http/https URL."
+            exit 1
+          fi
+
           # Validate the selected target can actually serve the login route.
           for i in $(seq 1 40); do
             if curl -fsS --max-time 5 "${TARGET_URL}/login" >/dev/null 2>&1; then
@@ -136,7 +146,11 @@ jobs:
             sleep 2
           done
 
-          echo "PLAYWRIGHT_BASE_URL=$TARGET_URL" >> "$GITHUB_ENV"
+          {
+            echo "PLAYWRIGHT_BASE_URL<<EOF"
+            echo "$TARGET_URL"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
           echo "Resolved PLAYWRIGHT_BASE_URL=$TARGET_URL"
 
       - name: Run deep functional suite

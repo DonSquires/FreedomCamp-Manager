@@ -1,8 +1,7 @@
 /**
  * FieldOps Navigation Registry v1
  *
- * Grounded in: system_state.json::ia_redesign_config
- * Source files: src/App.tsx and current navigation surfaces
+ * Grounded in: src/App.tsx and current navigation surfaces
  *
  * This scaffold is intentionally non-breaking and can be incrementally adopted.
  */
