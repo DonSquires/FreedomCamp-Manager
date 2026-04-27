@@ -78,6 +78,8 @@
     "test:focused:headed": "node scripts/run-test-with-bob-assist.mjs -- playwright test -c playwright.focused.config.ts --headed",
     "test:api": "node scripts/run-test-with-bob-assist.mjs -- playwright test -c playwright.api.config.ts",
     "test:human-engine": "node scripts/human-test-engine.mjs",
+    "test:agentic:bob": "node scripts/bob-agentic-test-orchestrator.mjs --scope full",
+    "test:agentic:bob:quick": "node scripts/bob-agentic-test-orchestrator.mjs --scope quick",
     "install:playwright": "playwright install"
   },
   "dependencies": {

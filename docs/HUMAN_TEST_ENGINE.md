@@ -100,6 +100,27 @@ Override profile:
 node scripts/human-test-engine.mjs --profile tools/human-test-engine/profiles/default.json
 ```
 
+## Bob Agentic Test Orchestrator
+
+For full autonomous Bob-driven validation across workflows, supporting functions,
+desktop/mobile emulation modes, and visual suites:
+
+```bash
+bun run test:agentic:bob
+```
+
+Quick mode (faster, still multi-project + visual):
+
+```bash
+bun run test:agentic:bob:quick
+```
+
+Notes:
+
+- Uses Bob pre/post assist per stage via `scripts/run-test-with-bob-assist.mjs`.
+- Mobile coverage uses Playwright emulation projects (`Mobile Chrome`, `Mobile Safari`).
+- Reports are written to `tools/bob-agentic-test-runs/<run-id>/`.
+
 ## Bob Collaboration Loop
 
 Recommended daily loop:
