@@ -87,8 +87,7 @@ const NZSCVMonitor = lazy(() => import('@/pages/NZSCVMonitor'))
 const NotificationsCenter = lazy(() => import('@/pages/NotificationsCenter'))
 const FaceRecognitionPage = lazy(() => import('@/pages/FaceRecognitionPage'))
 const IdentityVerificationPage = lazy(() => import('@/pages/IdentityVerificationPage'))
-const TimesheetReview = lazy(() => import('@/pages/TimesheetReview'))
-const OpenShifts = lazy(() => import('@/pages/OpenShifts'))
+const RebuildBusinessManagementPage = lazy(() => import('@/rebuild/pages/BusinessManagement'))
 const DispatchConsole = lazy(() => import('@/pages/DispatchConsole'))
 const JobMap = lazy(() => import('@/pages/JobMap'))
 const ClientSites = lazy(() => import('@/pages/ClientSites'))
@@ -97,15 +96,12 @@ const ClientMasterList = lazy(() => import('@/pages/ClientMasterList'))
 const DispatchMonitor = lazy(() => import('@/pages/DispatchMonitor'))
 const DispatchWizard = lazy(() => import('@/pages/DispatchWizard'))
 const DispatchedJobsList = lazy(() => import('@/pages/DispatchedJobsList'))
-const RosterPlanner = lazy(() => import('@/pages/RosterPlanner'))
-const OfficerSkills = lazy(() => import('@/pages/OfficerSkills'))
-const OfficerAvailability = lazy(() => import('@/pages/OfficerAvailability'))
-const ClientOrganisationPortal = lazy(() => import('@/pages/ClientOrganisationPortal'))
+const RebuildClientPortalPage = lazy(() => import('@/rebuild/pages/ClientPortal'))
 const InvoicingPage = lazy(() => import('@/pages/InvoicingPage'))
 const AssetManagement = lazy(() => import('@/pages/AssetManagement'))
 const PricingPage = lazy(() => import('@/pages/PricingPage'))
 const OperationsMap = lazy(() => import('@/pages/OperationsMap'))
-const CRMModule = lazy(() => import('@/pages/CRMModule'))
+const RebuildCRMPage = lazy(() => import('@/rebuild/pages/CRM'))
 const ContractorAccountPage = lazy(() => import('@/pages/ContractorAccountPage'))
 const ClientAccountPage = lazy(() => import('@/pages/ClientAccountPage'))
 const EMSPortal = lazy(() => import('@/pages/EMSPortal'))
@@ -709,7 +705,7 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['client_viewer', 'client_officer', 'client_admin', 'admin', 'admin_officer', 'master', 'grand_master']}>
-                  <ClientOrganisationPortal />
+                  <RebuildClientPortalPage />
                 </RoleRoute>
               </ProtectedRoute>
             }
@@ -1527,7 +1523,7 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <TimesheetReview />
+                  <RebuildBusinessManagementPage />
                 </RoleRoute>
               </ProtectedRoute>
             }
@@ -1537,7 +1533,7 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
-                  <OpenShifts />
+                  <RebuildBusinessManagementPage />
                 </RoleRoute>
               </ProtectedRoute>
             }
@@ -1637,7 +1633,7 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <RosterPlanner />
+                  <RebuildBusinessManagementPage />
                 </RoleRoute>
               </ProtectedRoute>
             }
@@ -1647,7 +1643,7 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <OfficerSkills />
+                  <RebuildBusinessManagementPage />
                 </RoleRoute>
               </ProtectedRoute>
             }
@@ -1656,7 +1652,9 @@ export default function App() {
             path="/availability"
             element={
               <ProtectedRoute>
-                <OfficerAvailability />
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <RebuildBusinessManagementPage />
+                </RoleRoute>
               </ProtectedRoute>
             }
           />
@@ -1667,7 +1665,7 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
-                  <CRMModule />
+                  <RebuildCRMPage />
                 </RoleRoute>
               </ProtectedRoute>
             }
