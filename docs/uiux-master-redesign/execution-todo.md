@@ -3,6 +3,22 @@
 Status: active tracker
 Date: 2026-04-26
 
+## Review Basis (Last 12 Hours)
+
+- Schema references reviewed:
+	- `docs/LIVE_SCHEMA.md`
+	- `docs/SCHEMA6_TABLE_RECONCILIATION.md`
+	- `docs/LIVE_FUNCTIONS.md`
+	- `docs/LIVE_TRIGGERS.md`
+- UI/UX artifact set reviewed:
+	- `docs/uiux-master-redesign/spec.md`
+	- `docs/uiux-master-redesign/plan.md`
+	- `docs/uiux-master-redesign/self-critique.md`
+- Recent change history reviewed (last 12h):
+	- `be18bfc6` docs/uiux tracker + scaffold loader update
+	- `f9e10c43` clean dashboard UX navigation/refresh improvements
+	- `ff8d6ae6` deep-functional CI matrix serialization root-cause fix
+
 ## Confidence Rule
 
 Do not claim completion until all release gates in this checklist are green.
@@ -33,8 +49,11 @@ Do not claim completion until all release gates in this checklist are green.
 ## Tooling Baseline
 
 - [x] Node and npm available
+	- Evidence: local CLI baseline validated in current branch setup session.
 - [x] bun and bunx available
+	- Evidence: bun/bunx installed and used in workflow and local commands; non-zero exits were app/runtime failures, not missing binaries.
 - [x] ripgrep (`rg`) installed
+	- Evidence: `rg` used across recent CI/debug sessions and this document review pass.
 - [ ] Playwright role credentials fully configured (no fallback required)
 
 ## Plan Execution Checklist
@@ -51,13 +70,18 @@ Exit gate:
 
 ### Phase 0.5 - Human-Test Harness Stabilization
 - [x] Add base URL readiness gate for agentic packs
+	- Evidence: implemented in `scripts/human-test-engine.mjs` and reflected by tracker update commit `be18bfc6`.
 - [ ] Re-run human-test with standard credentials
 - [x] Re-run human-test with fallback mode for comparison
+	- Evidence: `tools/human-test-engine/reports/2026-04-26T15-07-18-264Z/report.md`.
 - [x] Confirm no harness bootstrap failures remain
+	- Evidence: fallback-mode report above plus latest harness notes in this tracker.
 
 ### Phase 1 - Canonical IA Registry
 - [x] `ia_redesign_config` grounded in `system_state.json`
+	- Evidence: completed prior to tracker hardening; marked in active execution stream artifacts.
 - [x] `src/config/navigationRegistry.ts` scaffold added
+	- Evidence: registry scaffold exists at `src/config/navigationRegistry.ts`.
 - [ ] Migrate primary sidebar nav rendering to registry source
 - [ ] Migrate primary admin top-nav rendering to registry source
 - [ ] Add route/nav parity tests
@@ -102,7 +126,7 @@ Exit gate:
 
 Latest re-validation attempt:
 - `tools/human-test-engine/reports/2026-04-26T21-09-51-047Z/report.md`
-- Result is environment-blocked in this container (`bunx` missing and no reachable local app base URL), so functional regression status could not be re-confirmed from this run.
+- Result is environment-blocked in this container (no reachable local app base URL at time of run), so functional regression status could not be re-confirmed from this run.
 
 Latest known CI root-cause fix applied:
 - Deep-functional cross-browser session invalidation fixed by serializing workflow matrix (`max-parallel: 1`) in `.github/workflows/playwright-deep-functional-cross-browser.yml`.
@@ -116,9 +140,25 @@ Latest known CI root-cause fix applied:
 ## Next Execution Block (Immediate)
 
 - [ ] Implement parity tests for route/nav coverage and wire into CI.
+	- Owner: platform/frontend
+	- Deliverable: deterministic test suite for registry coverage and nav rendering parity.
 - [ ] Complete sidebar and admin top-nav registry migration.
+	- Owner: frontend/navigation
+	- Deliverable: no primary nav surface using hardcoded route arrays.
 - [ ] Re-run human-test with standard credentials and attach report artifact.
+	- Owner: QA/automation
+	- Deliverable: new report under `tools/human-test-engine/reports/` with standard credentials.
 - [ ] Re-baseline KPI timings for top 10 admin/officer journeys.
+	- Owner: product/analytics
+	- Deliverable: baseline snapshot with timestamp and method section.
+
+## Action-Ready Sequence (Strict)
+
+1. Complete Phase 0 remaining items and publish artifacts.
+2. Close Hard Blockers B1-B2 before any Phase 2 shell rollout work.
+3. Run standard-credential human-test and update blocker B3 status.
+4. Run deep-functional role-critical routes after nav migration and update blocker B4.
+5. Only then proceed to Phase 2 visual shell expansion.
 
 ## Validation Commands (Executable)
 

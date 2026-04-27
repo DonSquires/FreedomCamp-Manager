@@ -4,6 +4,27 @@ Status: execution plan
 Date: 2026-04-26
 Depends on: spec.md, self-critique.md
 
+## Execution Order and Readiness Rules
+
+Execution order is strict:
+1. Phase 0.5 (harness stabilization)
+2. Phase 0 (baseline and instrumentation)
+3. Phase 1 (canonical IA registry)
+4. Phase 2 (section shells)
+5. Phase 3 (officer hardening)
+6. Phase 4 (admin consolidation)
+7. Phase 5 (QA and rollout)
+
+Entry rule for each phase:
+- Previous phase exit criteria must be met and recorded with artifact evidence.
+
+Evidence rule for each phase handoff:
+- Include a short handoff note with:
+	- completed tasks
+	- unresolved risks
+	- evidence artifact paths
+	- explicit go/no-go decision
+
 ## Phase 0.5: Human-Test Harness Stabilization (1-2 days)
 
 Objectives:
@@ -18,6 +39,11 @@ Tasks:
 Exit criteria:
 - Human-test report has no harness bootstrap failures.
 - Agentic pack failures, if any, are actionable UX behavior defects.
+
+Required evidence artifacts:
+- latest standard-credential report path
+- latest fallback-mode report path
+- harness readiness check output
 
 ## Phase 0: Baseline and Instrumentation (3-4 days)
 
@@ -42,6 +68,12 @@ Exit criteria:
 - Baseline dashboard published.
 - Current IA drift list complete.
 - Coverage report has zero unmapped modules or route families.
+
+Required evidence artifacts:
+- route inventory artifact
+- module inventory artifact
+- schema-to-IA reconciliation artifact
+- telemetry event definition artifact
 
 ## Phase 1: Canonical IA Registry (4-6 days)
 
@@ -75,6 +107,11 @@ Exit criteria:
 - No hardcoded duplicate role arrays in key nav files.
 - Navigation parity test suite green.
 
+Required evidence artifacts:
+- registry schema file
+- nav migration diff references
+- parity test results
+
 ## Phase 2: Mission Control and Section Shells (5-7 days)
 
 Objectives:
@@ -98,6 +135,11 @@ Tasks:
 Exit criteria:
 - New shell navigation available for admin and master roles.
 - No workflow loss for existing deep links.
+
+Required evidence artifacts:
+- section shell adoption matrix
+- deep link compatibility checks
+- org context indicator validation notes
 
 ## Phase 3: Officer-First Workflow Hardening (4-6 days)
 
@@ -153,6 +195,12 @@ Tasks:
 Exit criteria:
 - QA signoff completed.
 - KPI movement report generated at 7 and 30 days.
+
+Required evidence artifacts:
+- accessibility report
+- theme and responsive validation report
+- role journey E2E pass report
+- rollout and rollback runbook
 
 ## Governance and Collaboration
 
