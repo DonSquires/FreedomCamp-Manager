@@ -86,6 +86,7 @@ interface RosterShift {
   officer_id: string | null
   client_site_id: string | null
   zone_id: string | null
+  patrol_route_id: string | null
   shift_date: string
   shift_type: ShiftType
   start_time: string | null
@@ -135,6 +136,12 @@ interface Zone {
   name: string
 }
 
+interface PatrolRoute {
+  id: string
+  route_name: string
+  default_shift: string | null
+}
+
 interface OfficerAvailability {
   id: string
   officer_id: string
@@ -154,6 +161,7 @@ interface ShiftFormData {
   position_title: string
   client_site_id: string
   zone_id: string
+  patrol_route_id: string
   required_skills: string[]
   notes: string
   internal_notes: string
@@ -175,6 +183,7 @@ const emptyForm = (officerId = '', date = ''): ShiftFormData => ({
   position_title: '',
   client_site_id: '',
   zone_id: '',
+  patrol_route_id: '',
   required_skills: [],
   notes: '',
   internal_notes: '',
@@ -395,6 +404,7 @@ interface ShiftDialogProps {
   officers: Officer[]
   sites: ClientSite[]
   zones: Zone[]
+  patrolRoutes: PatrolRoute[]
   allShifts: RosterShift[]
   availability: OfficerAvailability[]
   isAdmin: boolean
@@ -413,6 +423,7 @@ function ShiftDialog({
   officers,
   sites,
   zones,
+  patrolRoutes,
   allShifts,
   availability,
   isAdmin,
@@ -433,6 +444,7 @@ function ShiftDialog({
           position_title: editShift.position_title || '',
           client_site_id: editShift.client_site_id || '',
           zone_id: editShift.zone_id || '',
+          patrol_route_id: editShift.patrol_route_id || '',
           required_skills: editShift.required_skills || [],
           notes: editShift.notes || '',
           internal_notes: editShift.internal_notes || '',
@@ -480,6 +492,8 @@ function ShiftDialog({
     if (!form.end_time)   { toast.error('Please enter an end time'); return }
     onSave(form)
   }
+
+  const showPatrolRoutePicker = ['patrol', 'alarm_response', 'freedom_camping'].includes(form.service_type)
 
   return (
     <>
@@ -617,6 +631,32 @@ function ShiftDialog({
                 Controls which portal the officer is routed to on login.
               </p>
             </div>
+
+            {/* Patrol Route (pilot, additive) */}
+            {showPatrolRoutePicker && (
+              <div>
+                <Label>Patrol Route</Label>
+                <Select
+                  value={form.patrol_route_id || '__none__'}
+                  onValueChange={(v) => set('patrol_route_id', v === '__none__' ? '' : v)}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select patrol route…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— None —</SelectItem>
+                    {patrolRoutes.map((route) => (
+                      <SelectItem key={route.id} value={route.id}>
+                        {route.route_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Optional pilot field. Route-aware planning is additive and does not alter existing shift behavior.
+                </p>
+              </div>
+            )}
 
             {/* Position Title */}
             <div>
@@ -980,6 +1020,21 @@ export default function RosterPlanner() {
     enabled: !!user?.organization_id && !clientOrgIdsLoading,
   })
 
+  const { data: patrolRoutes = [] } = useQuery<PatrolRoute[]>({
+    queryKey: ['roster_patrol_routes', user?.organization_id],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('patrol_routes')
+        .select('id, route_name, default_shift')
+        .eq('organization_id', user!.organization_id!)
+        .eq('is_active', true)
+        .order('route_name')
+      if (error) throw error
+      return (data || []) as PatrolRoute[]
+    },
+    enabled: !!user?.organization_id,
+  })
+
   const { data: availability = [] } = useQuery<OfficerAvailability[]>({
     queryKey: ['officer_availability', user?.organization_id],
     queryFn: async () => {
@@ -1011,6 +1066,7 @@ export default function RosterPlanner() {
         position_title: data.position_title || null,
         client_site_id: data.client_site_id || null,
         zone_id: data.zone_id || null,
+        patrol_route_id: data.patrol_route_id || null,
         required_skills: data.required_skills,
         notes: data.notes || null,
         internal_notes: data.internal_notes || null,
@@ -1047,6 +1103,7 @@ export default function RosterPlanner() {
         position_title: data.position_title || null,
         client_site_id: data.client_site_id || null,
         zone_id: data.zone_id || null,
+        patrol_route_id: data.patrol_route_id || null,
         required_skills: data.required_skills,
         notes: data.notes || null,
         internal_notes: data.internal_notes || null,
@@ -1502,6 +1559,7 @@ export default function RosterPlanner() {
           officers={officers}
           sites={sites}
           zones={zones}
+          patrolRoutes={patrolRoutes}
           allShifts={shifts}
           availability={availability}
           isAdmin={isAdmin}
