@@ -67,8 +67,11 @@ migrations and 60+ edge functions:
 
 > **One job, done perfectly. Nothing else.**
 
-The app has one core job: **field officers scan plates → admins review breaches →
-councils enforce freedom camping rules**. Everything else is supporting infrastructure.
+The app has one core job: **run site and zone based field operations cleanly**.
+For freedom camping that means officers scan plates and admins enforce rules, but the
+same operating model also covers patrols, alarm responses, welfare, parking, smoke,
+noise, and other contract work. CRM, sites, zones, dispatch, and patrol execution are
+therefore core product surfaces, not side modules.
 
 ### Guiding principles
 
@@ -87,10 +90,15 @@ councils enforce freedom camping rules**. Everything else is supporting infrastr
    officers who scan, admins who review, managers (master) who run the contract, and
    platform owners (grand master) who sell and support new clients.
 
-5. **Schema tells a story.** A new developer should be able to read the 20 core tables
+5. **Sites and zones are the operational anchor.** Organisations are the account and
+billing container, but work is configured and executed at the site/zone level. The
+rebuild must treat CRM account -> site -> zone -> patrol/dispatch as the primary
+workflow hierarchy.
+
+6. **Schema tells a story.** A new developer should be able to read the 20 core tables
    and understand the entire system in an afternoon. Not 40+ tables with 200 migrations.
 
-6. **Build for the sales pitch.** Every feature visible to a client demo should be
+7. **Build for the sales pitch.** Every feature visible to a client demo should be
    polished. Internal tooling should be hidden or removed from the UI entirely.
 
 ---
@@ -733,6 +741,16 @@ MANAGING AN ACTIVE BREACH
   └── Issue infringement notice → enter amount, due date → generate PDF
   └── Log contact attempt → notes field
 
+ACCOUNT AND SITE OPERATIONS
+  └── Open client account → see contacts, rates, access, sites, zones, patrol setup
+  └── Add a site address → auto-resolve coordinates → link or create geofence zone
+  └── Review which sites have rates configured and which zones are active
+
+DISPATCH AND PATROL CONTROL
+  └── Create or replan a patrol/dispatch job from the operational account context
+  └── See whether route stops were manually progressed or auto-progressed by geofence
+  └── Complete dispatch and resume route execution without losing audit trail
+
 PATROL OVERVIEW
   └── Live Map: where are officers right now?
   └── Did they complete their scheduled zones?
@@ -754,8 +772,56 @@ USER MANAGEMENT
 - **Sidebar navigation** with clear section labels
 - **Dashboard is the home page** — always shows today's summary first
 - **Inline actions** — admin should action a breach without leaving the breach list
+- **CRM is the operational control surface** — account detail should expose sites,
+  zones, contacts, rates, access, and patrol readiness in one place
+- **Business management is a separate control surface** — workforce, fleet, assets,
+  maintenance checks, and staff audit should not be scattered across unrelated pages
 - **Keyboard shortcuts** for power users (acknowledge alert: A, assign: S, dismiss: D)
 - **No developer tools** — no cleanup utility, no recalculation triggers, no diagnostic pages
+
+### Admin information architecture: two-part model
+
+The rebuilt admin side should be treated as two connected but distinct surfaces.
+
+**Part 1 — CRM / Client Operations**
+- Account records for service providers and clients
+- Contacts, commercial settings, rates, and access
+- Sites and zones as the operational hierarchy
+- Patrol and dispatch readiness from the account context
+- Client-facing configuration and contract visibility
+
+**Part 2 — Business Management**
+- Staff and user lifecycle: onboarding, roles, credentials, skills, availability
+- Workforce operations: roster, open shifts, timesheets, approvals
+- Fleet and asset management: vehicles, equipment, inspections, servicing, maintenance state
+- Daily operational checks: vehicle checklists, asset readiness, defect logging
+- Internal governance: audit log, staff activity, compliance evidence, internal safety controls
+
+This split matters because CRM answers **who we serve and where work happens**, while
+Business Management answers **who will do the work, with what equipment, and with what
+internal controls**.
+
+### Required crossover between CRM and Business Management
+
+The two surfaces must be linked by design, not by ad-hoc navigation.
+
+- CRM account and site setup must expose staffing readiness (assigned staff count, skills coverage, roster status)
+- Business Management staffing and roster flows must be context-aware of client account, site, and zone
+- Dispatch and patrol scheduling must be able to start from CRM account/site context and continue in Business Management workflows
+- Daily checks for staff, vehicles, and assets must roll up to account-level service health visible in CRM
+- Audit history must preserve both account context and staff/equipment context for every operational transition
+
+### Client-side portal surface
+
+The rebuild must include a dedicated client-side portal for organisations that consume services.
+
+Client-side portal outcomes:
+
+- View contracted sites and linked zones
+- View patrol and dispatch completion summaries for their sites
+- View incidents, compliance outcomes, and service-level reports for their contract scope
+- View named contacts, support pathways, and dispute/objection links relevant to their account
+- No access to provider internal controls such as staff records, internal audit trails, or fleet maintenance internals
 
 ---
 
@@ -854,13 +920,16 @@ security companies to create two separate accounts for the same person.
 
 ## 8. Clean Frontend Structure
 
-### Pages (18 total)
+### Pages (21 total)
 
 ```
 Public (no auth)
 ├── /login                 Login.tsx
 ├── /portal-selection      PortalSelection.tsx
 └── /dispute               PublicDisputePortal.tsx
+
+Client (client-scoped authenticated users)
+└── /client-portal         ClientPortal.tsx    ← sites, zones, service status, reports, disputes
 
 Field Officer (officer, admin_officer)
 └── /field                 FieldOfficerPortal.tsx
@@ -870,15 +939,16 @@ Field Officer (officer, admin_officer)
 
 Admin (admin, admin_officer, master)
 ├── /dashboard             Dashboard.tsx       ← today's KPIs
+├── /crm                   CRM.tsx             ← accounts, sites, contacts, rates, access
+├── /business              Business.tsx        ← staff, roster, fleet, assets, checks, audit
 ├── /live                  LiveMap.tsx         ← officer locations + zones
 ├── /breaches              Breaches.tsx        ← alerts tab + notices tab
 ├── /vehicles              Vehicles.tsx        ← search + detail
 ├── /observations          Observations.tsx    ← searchable history
-├── /zones                 Zones.tsx           ← map + compliance rules
-├── /patrols               Patrols.tsx         ← schedule + KPIs
+├── /zones                 Zones.tsx           ← map + compliance rules + site-linked geofences
+├── /patrols               Patrols.tsx         ← schedule + KPIs + dispatch/route execution
 ├── /enforcement           Enforcement.tsx     ← cases + infringement notices
 ├── /reports               Reports.tsx         ← generate + export
-├── /users                 Users.tsx
 └── /compliance            Compliance.tsx      ← analytics + breakdown
 
 Master (master + above)
@@ -900,6 +970,14 @@ Shared (all authenticated)
 - `PHASE_*.md` files in `src/pages/` — deleted (they're markdown notes, not pages)
 - Duplicate compliance pages (`CompliancePage`, `ComplianceAnalytics`,
   `ComplianceDashboard`) → merged into one `Compliance.tsx`
+- `CRMModule`, `ClientAccountPage`, `ClientSites`, and client account fragments
+  → merged into one `CRM.tsx` surface with account overview and embedded site operations
+- `UserManagement`, `OfficerAvailability`, `OfficerSkills`, `OpenShifts`,
+  `TimesheetReview`, `AssetManagement`, and internal audit/fleet fragments
+  → merged into one `Business.tsx` surface with tabs for people, roster, fleet,
+  assets, daily checks, and audit
+- legacy client-facing fragments and one-off account report pages
+  → merged into `ClientPortal.tsx` with strict contract-scope visibility
 
 ---
 
@@ -1011,13 +1089,23 @@ These must be deployed before the scan pipeline because `process-officer-scan` c
 ### Phase C — Admin Operations (2–3 days)
 
 1. Implement `Dashboard.tsx` (today's KPIs from `get_admin_dashboard_stats()` RPC)
-2. Implement `Breaches.tsx` (alert queue with inline actions)
-3. Implement `LiveMap.tsx` (officer positions + zone polygons)
-4. Implement `Zones.tsx` (zone CRUD + compliance rules)
+2. Implement `CRM.tsx` (account overview, contacts, rates, access, sites, zones)
+3. Implement `Business.tsx` (staff, roster, fleet, assets, maintenance, audit)
+4. Implement `Breaches.tsx` (alert queue with inline actions)
+5. Implement `LiveMap.tsx` (officer positions + zone polygons)
+6. Implement `Zones.tsx` (zone CRUD + compliance rules + address-driven geofence defaults)
 5. Deploy `generate-notice-to-vacate` + `generate-infringement`
 6. Implement `Enforcement.tsx` (NTV + infringement notice generation)
 
 **Done**: An admin can manage their full daily workflow.
+
+### Phase C.5 — Client Portal (1 day)
+
+1. Implement `ClientPortal.tsx` (site and zone service visibility, summaries, reports, dispute links)
+2. Enforce client-scope route guards and account-level visibility boundaries
+3. Add CRM -> ClientPortal handoff from account view for role-appropriate users
+
+**Done**: Client organisations can self-serve service visibility without accessing provider internals.
 
 ---
 
@@ -1026,7 +1114,7 @@ These must be deployed before the scan pipeline because `process-officer-scan` c
 1. Implement `Compliance.tsx` (breakdown by zone, chart over time)
 2. Implement `Reports.tsx` (date range → generate → email or download)
 3. Implement `Vehicles.tsx` (search by plate, show history)
-4. Implement `Patrols.tsx` (schedule + KPI dashboard)
+4. Implement `Patrols.tsx` (schedule + KPI dashboard + dispatch completion + route execution)
 
 **Done**: Admin can produce council reports.
 
