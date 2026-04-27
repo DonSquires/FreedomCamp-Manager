@@ -33,7 +33,7 @@ name: Ops Bob Code Task
 
 on:
   schedule:
-    - cron: '30 * * * *'   # every hour at :30
+    - cron: '0 0 * * *'   # once a day at midnight UTC
   workflow_dispatch:
     inputs:
       task:

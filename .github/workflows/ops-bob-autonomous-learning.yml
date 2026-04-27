@@ -23,7 +23,7 @@ name: Ops Bob Autonomous Learning
       - 'src/modules/**'
       - 'system_state.json'
   schedule:
-    - cron: '5 * * * *'
+    - cron: '0 0 * * *'   # once a day at midnight UTC
   workflow_dispatch:
 
 env:

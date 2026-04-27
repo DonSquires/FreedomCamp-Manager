@@ -10,7 +10,7 @@ on:
       - 'docs/ENVIRONMENT_VARIABLES.md'
       - 'docs/DEPLOYMENT_GUIDE.md'
   schedule:
-    - cron: '11 * * * *'
+    - cron: '0 0 * * *'   # once a day at midnight UTC
   workflow_dispatch:
     inputs:
       vite_supabase_url_override:

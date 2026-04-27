@@ -2,8 +2,7 @@ name: Ops Intel Feed Sync
 
 on:
   schedule:
-    - cron: '17 */6 * * *'
-    - cron: '41 5 * * *'
+    - cron: '0 0 * * *'   # once a day at midnight UTC
   workflow_dispatch:
 
 env:

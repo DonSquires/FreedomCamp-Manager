@@ -20,7 +20,7 @@ name: Ops Bob Ask Copilot
 
 on:
   schedule:
-    - cron: '0 * * * *'   # every hour
+    - cron: '0 0 * * *'   # once a day at midnight UTC
   workflow_dispatch:
     inputs:
       question:
@@ -143,9 +143,10 @@ jobs:
           fi
 
           if [ "$HTTP_STATUS" != "200" ]; then
-            echo "::error::Bob /ask-copilot/pending returned HTTP $HTTP_STATUS"
+            echo "::warning::Bob /ask-copilot/pending returned HTTP $HTTP_STATUS — Bob service may be unavailable or the URL is no longer valid."
             cat /tmp/pending.json
-            exit 1
+            echo "pending_count=0" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
           COUNT=$(jq '.pending_count' /tmp/pending.json)
