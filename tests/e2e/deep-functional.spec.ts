@@ -26,6 +26,8 @@ import { loginAs } from './auth'
 
 const FIELD_OFFICER_ROUTE_TEST_OVERRIDE_KEY = 'fieldOfficerRouteTestOverride.v1'
 const FIELD_OFFICER_ROUTE_TEST_OVERRIDE_EVENT = 'copilot:test-route-override-updated'
+const FIELD_OFFICER_ROUTE_AUTOMATION_EVENT = 'copilot:patrol-route-stop-status'
+const FIELD_OFFICER_ROUTE_AUTOMATION_EVENTS_KEY = 'fieldOfficerRouteAutomationEvents.v1'
 
 async function seedFieldOfficerRouteOverride(page: Page, override: Record<string, unknown>) {
   await page.addInitScript(
@@ -34,6 +36,48 @@ async function seedFieldOfficerRouteOverride(page: Page, override: Record<string
     },
     { key: FIELD_OFFICER_ROUTE_TEST_OVERRIDE_KEY, value: override }
   )
+}
+
+async function installRouteAutomationEventCollector(page: Page) {
+  await page.addInitScript(
+    ({ eventName, storageKey }) => {
+      try {
+        window.sessionStorage.removeItem(storageKey)
+      } catch {
+        // Ignore storage cleanup failure for restrictive browser states.
+      }
+
+      window.addEventListener(eventName, (event) => {
+        try {
+          const detail = (event as CustomEvent).detail
+          const raw = window.sessionStorage.getItem(storageKey)
+          const parsed = raw ? JSON.parse(raw) : []
+          const events = Array.isArray(parsed) ? parsed : []
+          events.push(detail)
+          window.sessionStorage.setItem(storageKey, JSON.stringify(events.slice(-50)))
+        } catch {
+          // Route automation events are auxiliary test telemetry.
+        }
+      })
+    },
+    {
+      eventName: FIELD_OFFICER_ROUTE_AUTOMATION_EVENT,
+      storageKey: FIELD_OFFICER_ROUTE_AUTOMATION_EVENTS_KEY,
+    }
+  )
+}
+
+async function readRouteAutomationEvents(page: Page) {
+  return page.evaluate((storageKey) => {
+    try {
+      const raw = window.sessionStorage.getItem(storageKey)
+      if (!raw) return []
+      const parsed = JSON.parse(raw)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }, FIELD_OFFICER_ROUTE_AUTOMATION_EVENTS_KEY)
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -508,6 +552,7 @@ test.describe('Field Officer Portal — welfare and SOS', () => {
 
   test('Active route panel auto-routes on zone entry and exit with deterministic fixture', async ({ page }) => {
     const nowIso = new Date().toISOString()
+    await installRouteAutomationEventCollector(page)
     await seedFieldOfficerRouteOverride(page, {
       disableGeofenceMonitoring: true,
       forceOperationalView: true,
@@ -555,6 +600,17 @@ test.describe('Field Officer Portal — welfare and SOS', () => {
 
     await expect(page.getByRole('button', { name: /Complete Stop/i })).toBeVisible({ timeout: 10000 })
     await expect(page.getByText(/Stop auto-marked as arrived from zone entry/i)).toBeVisible({ timeout: 10000 })
+    await expect
+      .poll(async () => {
+        const events = await readRouteAutomationEvents(page)
+        return events.some(
+          (entry: any) =>
+            entry?.status === 'arrived'
+            && entry?.source === 'zone_enter_auto'
+            && entry?.stopId === 'route-stop-fixture-1'
+        )
+      }, { timeout: 10000 })
+      .toBe(true)
 
     await page.evaluate(({ key, eventName }) => {
       const raw = window.sessionStorage.getItem(key)
@@ -575,10 +631,23 @@ test.describe('Field Officer Portal — welfare and SOS', () => {
 
     await expect(page.getByText(/Stop auto-completed after zone exit and dwell/i)).toBeVisible({ timeout: 10000 })
     await expect(page.getByText(/No pending stops remain on this route instance\./i)).toBeVisible({ timeout: 10000 })
+    await expect
+      .poll(async () => {
+        const events = await readRouteAutomationEvents(page)
+        return events.some(
+          (entry: any) =>
+            entry?.status === 'completed'
+            && entry?.source === 'zone_exit_auto'
+            && entry?.stopId === 'route-stop-fixture-1'
+            && entry?.planStatus === 'completed'
+        )
+      }, { timeout: 10000 })
+      .toBe(true)
   })
 
   test('Active route panel retains manual stop actions as fallback with deterministic fixture', async ({ page }) => {
     const nowIso = new Date().toISOString()
+    await installRouteAutomationEventCollector(page)
     await seedFieldOfficerRouteOverride(page, {
       disableGeofenceMonitoring: true,
       forceOperationalView: true,
@@ -630,10 +699,23 @@ test.describe('Field Officer Portal — welfare and SOS', () => {
     await arrivedBtn.click()
     await expect(page.getByText(/Stop marked as arrived/i)).toBeVisible({ timeout: 10000 })
     await expect(page.getByRole('button', { name: /Complete Stop/i })).toBeVisible({ timeout: 10000 })
+    await expect
+      .poll(async () => {
+        const events = await readRouteAutomationEvents(page)
+        return events.some(
+          (entry: any) =>
+            entry?.status === 'arrived'
+            && entry?.source === 'manual'
+            && entry?.stopId === 'route-stop-fixture-2'
+            && entry?.mode === 'test_override'
+        )
+      }, { timeout: 10000 })
+      .toBe(true)
   })
 
   test('Active route panel updates completion progress across multi-stop manual flow', async ({ page }) => {
     const nowIso = new Date().toISOString()
+    await installRouteAutomationEventCollector(page)
     await seedFieldOfficerRouteOverride(page, {
       disableGeofenceMonitoring: true,
       forceOperationalView: true,
@@ -702,6 +784,15 @@ test.describe('Field Officer Portal — welfare and SOS', () => {
     await page.getByRole('button', { name: /Complete Stop/i }).first().click()
     await expect(page.getByText(/2\/2 complete/i)).toBeVisible({ timeout: 10000 })
     await expect(page.getByText(/No pending stops remain on this route instance\./i)).toBeVisible({ timeout: 10000 })
+    await expect
+      .poll(async () => {
+        const events = await readRouteAutomationEvents(page)
+        const completedManualEvents = events.filter(
+          (entry: any) => entry?.status === 'completed' && entry?.source === 'manual'
+        )
+        return completedManualEvents.length
+      }, { timeout: 10000 })
+      .toBeGreaterThanOrEqual(2)
   })
 })
 

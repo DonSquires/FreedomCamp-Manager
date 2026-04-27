@@ -6,6 +6,20 @@ import { toast } from 'sonner'
 
 export const FIELD_OFFICER_ROUTE_TEST_OVERRIDE_KEY = 'fieldOfficerRouteTestOverride.v1'
 export const FIELD_OFFICER_ROUTE_TEST_OVERRIDE_EVENT = 'copilot:test-route-override-updated'
+export const PATROL_ROUTE_STOP_STATUS_EVENT = 'copilot:patrol-route-stop-status'
+
+type RouteStopUpdateSource = 'manual' | 'zone_enter_auto' | 'zone_exit_auto'
+
+interface PatrolRouteStopStatusEventDetail {
+  routeInstanceId: string
+  stopId: string
+  status: 'arrived' | 'completed'
+  previousStatus: PatrolRouteInstanceStop['visit_status'] | null
+  source: RouteStopUpdateSource
+  planStatus: 'in_progress' | 'completed'
+  recordedAt: string
+  mode: 'test_override' | 'database'
+}
 
 export interface PatrolRouteInstance {
   id: string
@@ -69,6 +83,11 @@ function writeFieldOfficerRouteTestOverride(override: FieldOfficerRouteTestOverr
 
   window.sessionStorage.setItem(FIELD_OFFICER_ROUTE_TEST_OVERRIDE_KEY, JSON.stringify(override))
   window.dispatchEvent(new CustomEvent(FIELD_OFFICER_ROUTE_TEST_OVERRIDE_EVENT))
+}
+
+function emitRouteStopStatusEvent(detail: PatrolRouteStopStatusEventDetail) {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new CustomEvent(PATROL_ROUTE_STOP_STATUS_EVENT, { detail }))
 }
 
 function useFieldOfficerRouteTestOverrideVersion() {
@@ -223,12 +242,13 @@ export function useUpdatePatrolRouteStopStatus() {
       stopId: string
       routeInstanceId: string
       status: 'arrived' | 'completed'
-      source?: 'manual' | 'zone_enter_auto' | 'zone_exit_auto'
+      source?: RouteStopUpdateSource
     }) => {
       const now = new Date().toISOString()
       const testOverride = readFieldOfficerRouteTestOverride()
 
       if (testOverride?.activeRouteInstance?.id === routeInstanceId && testOverride.activeRouteStops) {
+        const previousStop = testOverride.activeRouteStops.find((stop) => stop.id === stopId)
         const nextStops = testOverride.activeRouteStops.map((stop) => {
           if (stop.id !== stopId) return stop
 
@@ -241,16 +261,28 @@ export function useUpdatePatrolRouteStopStatus() {
         })
 
         const hasOpenStops = nextStops.some((row) => ['pending', 'arrived'].includes(row.visit_status))
+        const nextPlanStatus = hasOpenStops ? 'in_progress' : 'completed'
         writeFieldOfficerRouteTestOverride({
           ...testOverride,
           activeRouteInstance: testOverride.activeRouteInstance
             ? {
                 ...testOverride.activeRouteInstance,
-                plan_status: hasOpenStops ? 'in_progress' : 'completed',
+                plan_status: nextPlanStatus,
                 updated_at: now,
               }
             : testOverride.activeRouteInstance,
           activeRouteStops: nextStops,
+        })
+
+        emitRouteStopStatusEvent({
+          routeInstanceId,
+          stopId,
+          status,
+          previousStatus: previousStop?.visit_status ?? null,
+          source,
+          planStatus: nextPlanStatus,
+          recordedAt: now,
+          mode: 'test_override',
         })
 
         return { status, source }
@@ -323,11 +355,12 @@ export function useUpdatePatrolRouteStopStatus() {
 
       const stopRows = (stops ?? []) as Array<{ visit_status: string }>
       const hasOpenStops = stopRows.some((row) => ['pending', 'arrived'].includes(row.visit_status))
+      const nextPlanStatus = hasOpenStops ? 'in_progress' : 'completed'
 
       if (hasOpenStops) {
         const { error: progressError } = await (supabase as any)
           .from('patrol_route_instances')
-          .update({ plan_status: 'in_progress' })
+          .update({ plan_status: nextPlanStatus })
           .eq('id', routeInstanceId)
           .in('plan_status', ['planned', 'paused', 'in_progress'])
 
@@ -343,6 +376,17 @@ export function useUpdatePatrolRouteStopStatus() {
 
         if (completeError) throw completeError
       }
+
+      emitRouteStopStatusEvent({
+        routeInstanceId,
+        stopId,
+        status,
+        previousStatus: stopRow.visit_status,
+        source,
+        planStatus: nextPlanStatus,
+        recordedAt: now,
+        mode: 'database',
+      })
 
       return { status, source }
     },
