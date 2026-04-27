@@ -80,6 +80,11 @@
     "test:human-engine": "node scripts/human-test-engine.mjs",
     "test:agentic:bob": "node scripts/bob-agentic-test-orchestrator.mjs --scope full",
     "test:agentic:bob:quick": "node scripts/bob-agentic-test-orchestrator.mjs --scope quick",
+    "test:agentic:bob:core": "node scripts/bob-agentic-test-orchestrator.mjs --scope full --batch core",
+    "test:agentic:bob:workflows": "node scripts/bob-agentic-test-orchestrator.mjs --scope full --batch workflows",
+    "test:agentic:bob:visual": "node scripts/bob-agentic-test-orchestrator.mjs --scope full --batch visual",
+    "test:agentic:bob:human": "node scripts/bob-agentic-test-orchestrator.mjs --scope full --batch human",
+    "test:agentic:bob:resume": "node scripts/bob-agentic-test-orchestrator.mjs --resume",
     "install:playwright": "playwright install"
   },
   "dependencies": {

@@ -115,6 +115,29 @@ Quick mode (faster, still multi-project + visual):
 bun run test:agentic:bob:quick
 ```
 
+Batch runs (split long campaigns into resumable chunks):
+
+```bash
+bun run test:agentic:bob:core
+bun run test:agentic:bob:workflows
+bun run test:agentic:bob:visual
+bun run test:agentic:bob:human
+```
+
+Resume the latest run (skips stages that already passed):
+
+```bash
+bun run test:agentic:bob:resume
+```
+
+Advanced CLI examples:
+
+```bash
+node scripts/bob-agentic-test-orchestrator.mjs --list-batches
+node scripts/bob-agentic-test-orchestrator.mjs --batch workflows --from-stage workflow-e2e-all-projects
+node scripts/bob-agentic-test-orchestrator.mjs --resume-run <run-id>
+```
+
 Notes:
 
 - Uses Bob pre/post assist per stage via `scripts/run-test-with-bob-assist.mjs`.

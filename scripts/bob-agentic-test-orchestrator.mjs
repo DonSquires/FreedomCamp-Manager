@@ -8,6 +8,100 @@ import { loadLocalEnv } from './load-local-env.mjs'
 
 loadLocalEnv()
 
+const SHARED_PROJECTS = ['chromium', 'firefox', 'webkit', 'Mobile Chrome', 'Mobile Safari']
+
+const STAGE_CATALOG = {
+  lint: {
+    id: 'lint',
+    description: 'Lint codebase',
+    command: 'bun',
+    args: ['run', 'lint'],
+    bobAssist: true,
+  },
+  build: {
+    id: 'build',
+    description: 'Build app',
+    command: 'bun',
+    args: ['run', 'build'],
+    bobAssist: true,
+  },
+  'nav-parity': {
+    id: 'nav-parity',
+    description: 'Run navigation parity tests',
+    command: 'bun',
+    args: ['run', 'test:nav-parity'],
+    bobAssist: true,
+  },
+  unit: {
+    id: 'unit',
+    description: 'Run unit tests',
+    command: 'bun',
+    args: ['run', 'test:unit'],
+    bobAssist: true,
+  },
+  api: {
+    id: 'api',
+    description: 'Run API supporting-function tests',
+    command: 'bun',
+    args: ['run', 'test:api'],
+    bobAssist: true,
+  },
+  'workflow-e2e-all-projects': {
+    id: 'workflow-e2e-all-projects',
+    description: 'Run end-to-end workflow tests across desktop/mobile projects',
+    command: 'bunx',
+    args: [
+      'playwright',
+      'test',
+      'tests/e2e/deep-functional.spec.ts',
+      'tests/e2e/module-route-access.spec.ts',
+      'tests/e2e/module-e2e-comprehensive.spec.ts',
+      'tests/e2e/ui-comprehensive.spec.ts',
+      'tests/e2e/officer-portal-walkthrough.spec.ts',
+      'tests/e2e/crm-business-crossover.spec.ts',
+      'tests/e2e/client-portal-isolation.spec.ts',
+      'tests/e2e/asset-management-scan.spec.ts',
+      'tests/e2e/report-generation.spec.ts',
+      'tests/e2e/capability-overview.spec.ts',
+      ...SHARED_PROJECTS.flatMap((project) => ['--project', project]),
+      '--reporter=list,html,json',
+    ],
+    bobAssist: true,
+  },
+  'visual-e2e-emulation': {
+    id: 'visual-e2e-emulation',
+    description: 'Run visual regression-style sweeps on desktop and mobile emulation',
+    command: 'bunx',
+    args: [
+      'playwright',
+      'test',
+      'tests/e2e/crm-service-provider-visual.spec.ts',
+      '--project',
+      'chromium',
+      '--project',
+      'Mobile Chrome',
+      '--project',
+      'Mobile Safari',
+      '--reporter=list,html,json',
+    ],
+    bobAssist: true,
+  },
+  'human-engine': {
+    id: 'human-engine',
+    description: 'Run agentic human-test engine for broad UI workflow probing',
+    command: 'node',
+    args: ['scripts/human-test-engine.mjs'],
+    bobAssist: true,
+  },
+}
+
+const BATCHES = {
+  core: ['lint', 'build', 'nav-parity', 'unit', 'api'],
+  workflows: ['workflow-e2e-all-projects'],
+  visual: ['visual-e2e-emulation'],
+  human: ['human-engine'],
+}
+
 function nowStamp() {
   return new Date().toISOString().replace(/[:.]/g, '-')
 }
@@ -19,13 +113,25 @@ function parseArgs(argv) {
     continueOnFailure: true,
     outRoot: 'tools/bob-agentic-test-runs',
     fallbackCreds: true,
+    batch: 'all',
+    resume: false,
+    resumeRunId: '',
+    fromStage: '',
   }
 
   for (let i = 0; i < argv.length; i += 1) {
     const token = argv[i]
     if (token === '--help') args.help = true
+    else if (token === '--list-batches') args.listBatches = true
     else if (token === '--scope') args.scope = String(argv[i + 1] || 'full')
     else if (token.startsWith('--scope=')) args.scope = token.slice('--scope='.length)
+    else if (token === '--batch') args.batch = String(argv[i + 1] || 'all')
+    else if (token.startsWith('--batch=')) args.batch = token.slice('--batch='.length)
+    else if (token === '--resume') args.resume = true
+    else if (token === '--resume-run') args.resumeRunId = String(argv[i + 1] || '')
+    else if (token.startsWith('--resume-run=')) args.resumeRunId = token.slice('--resume-run='.length)
+    else if (token === '--from-stage') args.fromStage = String(argv[i + 1] || '')
+    else if (token.startsWith('--from-stage=')) args.fromStage = token.slice('--from-stage='.length)
     else if (token === '--skip-install-browsers') args.installBrowsers = false
     else if (token === '--fail-fast') args.continueOnFailure = false
     else if (token === '--no-fallback-creds') args.fallbackCreds = false
@@ -36,103 +142,95 @@ function parseArgs(argv) {
   return args
 }
 
-function stageList(scope) {
-  const sharedProjects = ['chromium', 'firefox', 'webkit', 'Mobile Chrome', 'Mobile Safari']
-
-  const workflowSpecs = [
-    'tests/e2e/deep-functional.spec.ts',
-    'tests/e2e/module-route-access.spec.ts',
-    'tests/e2e/module-e2e-comprehensive.spec.ts',
-    'tests/e2e/ui-comprehensive.spec.ts',
-    'tests/e2e/officer-portal-walkthrough.spec.ts',
-    'tests/e2e/crm-business-crossover.spec.ts',
-    'tests/e2e/client-portal-isolation.spec.ts',
-    'tests/e2e/asset-management-scan.spec.ts',
-    'tests/e2e/report-generation.spec.ts',
-    'tests/e2e/capability-overview.spec.ts',
-  ]
-
-  const stageDefs = [
-    {
-      id: 'lint',
-      description: 'Lint codebase',
-      command: 'bun',
-      args: ['run', 'lint'],
-      bobAssist: true,
-    },
-    {
-      id: 'build',
-      description: 'Build app',
-      command: 'bun',
-      args: ['run', 'build'],
-      bobAssist: true,
-    },
-    {
-      id: 'nav-parity',
-      description: 'Run navigation parity tests',
-      command: 'bun',
-      args: ['run', 'test:nav-parity'],
-      bobAssist: true,
-    },
-    {
-      id: 'unit',
-      description: 'Run unit tests',
-      command: 'bun',
-      args: ['run', 'test:unit'],
-      bobAssist: true,
-    },
-    {
-      id: 'api',
-      description: 'Run API supporting-function tests',
-      command: 'bun',
-      args: ['run', 'test:api'],
-      bobAssist: true,
-    },
-    {
-      id: 'workflow-e2e-all-projects',
-      description: 'Run end-to-end workflow tests across desktop/mobile projects',
-      command: 'bunx',
-      args: [
-        'playwright',
-        'test',
-        ...workflowSpecs,
-        ...sharedProjects.flatMap((project) => ['--project', project]),
-        '--reporter=list,html,json',
-      ],
-      bobAssist: true,
-    },
-    {
-      id: 'visual-e2e-emulation',
-      description: 'Run visual regression-style sweeps on desktop and mobile emulation',
-      command: 'bunx',
-      args: [
-        'playwright',
-        'test',
-        'tests/e2e/crm-service-provider-visual.spec.ts',
-        '--project',
-        'chromium',
-        '--project',
-        'Mobile Chrome',
-        '--project',
-        'Mobile Safari',
-        '--reporter=list,html,json',
-      ],
-      bobAssist: true,
-    },
-    {
-      id: 'human-engine',
-      description: 'Run agentic human-test engine for broad UI workflow probing',
-      command: 'node',
-      args: ['scripts/human-test-engine.mjs'],
-      bobAssist: true,
-    },
-  ]
-
+function stageIdsForScope(scope) {
   if (scope === 'quick') {
-    return stageDefs.filter((s) => ['lint', 'build', 'nav-parity', 'workflow-e2e-all-projects', 'visual-e2e-emulation'].includes(s.id))
+    return ['lint', 'build', 'nav-parity', 'workflow-e2e-all-projects', 'visual-e2e-emulation']
   }
 
-  return stageDefs
+  return [
+    ...BATCHES.core,
+    ...BATCHES.workflows,
+    ...BATCHES.visual,
+    ...BATCHES.human,
+  ]
+}
+
+function selectStageIds(args) {
+  const scopeIds = stageIdsForScope(args.scope)
+  if (args.batch === 'all') return scopeIds
+
+  if (!Object.prototype.hasOwnProperty.call(BATCHES, args.batch)) {
+    throw new Error(`Unknown batch "${args.batch}". Use --list-batches to view valid values.`)
+  }
+
+  const batchSet = new Set(BATCHES[args.batch])
+  return scopeIds.filter((id) => batchSet.has(id))
+}
+
+function applyFromStage(stageIds, fromStage) {
+  if (!fromStage) return stageIds
+  const index = stageIds.indexOf(fromStage)
+  if (index < 0) {
+    throw new Error(`--from-stage value "${fromStage}" was not found in the selected stage set.`)
+  }
+  return stageIds.slice(index)
+}
+
+function stageList(args) {
+  const ids = applyFromStage(selectStageIds(args), args.fromStage)
+  return ids.map((id) => {
+    const stage = STAGE_CATALOG[id]
+    if (!stage) throw new Error(`Stage "${id}" is not defined in STAGE_CATALOG.`)
+    return stage
+  })
+}
+
+async function findLatestRunId(outRoot) {
+  const root = path.resolve(outRoot)
+  const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => [])
+  const dirs = []
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue
+    const dirPath = path.join(root, entry.name)
+    const stat = await fs.stat(dirPath).catch(() => null)
+    if (stat) dirs.push({ name: entry.name, mtimeMs: stat.mtimeMs })
+  }
+
+  dirs.sort((a, b) => b.mtimeMs - a.mtimeMs)
+  return dirs[0]?.name || ''
+}
+
+async function loadExistingReport(outRoot, runId) {
+  const reportPath = path.join(path.resolve(outRoot), runId, 'report.json')
+  const raw = await fs.readFile(reportPath, 'utf8').catch(() => '')
+  if (!raw) return null
+  return JSON.parse(raw)
+}
+
+async function saveReport(outDir, report) {
+  const reportJsonPath = path.join(outDir, 'report.json')
+  const reportMdPath = path.join(outDir, 'report.md')
+  await fs.writeFile(reportJsonPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8')
+  await fs.writeFile(reportMdPath, `${toMd(report)}\n`, 'utf8')
+}
+
+function recalcSummary(report) {
+  report.summary = report.stages.reduce(
+    (acc, stage) => {
+      if (stage.status === 'pass') acc.passed += 1
+      if (stage.status === 'fail') acc.failed += 1
+      return acc
+    },
+    { passed: 0, failed: 0 }
+  )
+}
+
+function upsertStage(report, stageEntry) {
+  const existingIndex = report.stages.findIndex((stage) => stage.id === stageEntry.id)
+  if (existingIndex >= 0) report.stages[existingIndex] = stageEntry
+  else report.stages.push(stageEntry)
+  recalcSummary(report)
 }
 
 function runCommand(command, args, env = process.env) {
@@ -164,9 +262,11 @@ function toMd(report) {
     '# Bob Agentic Test Orchestrator Report',
     '',
     `- Run ID: ${report.runId}`,
+    `- Batch: ${report.batch}`,
     `- Scope: ${report.scope}`,
     `- Started: ${report.startedAt}`,
     `- Ended: ${report.endedAt}`,
+    `- Resume Mode: ${report.resumeMode}`,
     `- Continue On Failure: ${report.continueOnFailure}`,
     `- Browser Install Attempted: ${report.browserInstallAttempted}`,
     `- Browser Install Exit Code: ${report.browserInstallExitCode}`,
@@ -183,12 +283,34 @@ function toMd(report) {
 async function main() {
   const args = parseArgs(process.argv.slice(2))
 
-  if (args.help) {
-    console.log(`Bob Agentic Test Orchestrator\n\nUsage:\n  node scripts/bob-agentic-test-orchestrator.mjs [--scope full|quick] [--skip-install-browsers] [--fail-fast] [--no-fallback-creds] [--out <path>]\n\nNotes:\n  - Runs desktop + mobile emulation projects for full workflow/visual coverage.\n  - Uses Bob pre/post assist on each stage via scripts/run-test-with-bob-assist.mjs.\n  - Mobile testing uses Playwright emulation projects (Mobile Chrome + Mobile Safari).`) 
+  if (args.listBatches) {
+    console.log('Available batches:')
+    for (const [batchName, ids] of Object.entries(BATCHES)) {
+      console.log(`- ${batchName}: ${ids.join(', ')}`)
+    }
     process.exit(0)
   }
 
-  const runId = nowStamp()
+  if (args.help) {
+    console.log(`Bob Agentic Test Orchestrator\n\nUsage:\n  node scripts/bob-agentic-test-orchestrator.mjs [--scope full|quick] [--batch all|core|workflows|visual|human] [--from-stage <id>] [--resume] [--resume-run <id>] [--skip-install-browsers] [--fail-fast] [--no-fallback-creds] [--out <path>]\n\nNotes:\n  - Runs desktop + mobile emulation projects for full workflow/visual coverage.\n  - Uses Bob pre/post assist on each stage via scripts/run-test-with-bob-assist.mjs.\n  - Mobile testing uses Playwright emulation projects (Mobile Chrome + Mobile Safari).\n  - Use --list-batches to inspect available batch definitions.`)
+    process.exit(0)
+  }
+
+  let runId = nowStamp()
+  let resumeMode = false
+
+  if (args.resumeRunId) {
+    runId = args.resumeRunId
+    resumeMode = true
+  } else if (args.resume) {
+    const latest = await findLatestRunId(args.outRoot)
+    if (!latest) {
+      throw new Error('No previous run found to resume. Run once without --resume first.')
+    }
+    runId = latest
+    resumeMode = true
+  }
+
   const outDir = path.resolve(args.outRoot, runId)
   await fs.mkdir(outDir, { recursive: true })
 
@@ -197,11 +319,15 @@ async function main() {
     env.PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK = '1'
   }
 
-  const report = {
+  const existingReport = resumeMode ? await loadExistingReport(args.outRoot, runId) : null
+
+  const report = existingReport || {
     runId,
+    batch: args.batch,
     scope: args.scope,
     startedAt: new Date().toISOString(),
     endedAt: null,
+    resumeMode,
     continueOnFailure: args.continueOnFailure,
     browserInstallAttempted: args.installBrowsers,
     browserInstallExitCode: null,
@@ -212,13 +338,27 @@ async function main() {
     },
   }
 
-  if (args.installBrowsers) {
+  report.batch = args.batch
+  report.scope = args.scope
+  report.resumeMode = resumeMode
+  report.continueOnFailure = args.continueOnFailure
+  recalcSummary(report)
+
+  if (args.installBrowsers && !resumeMode) {
     report.browserInstallExitCode = await runCommand('bun', ['run', 'install:playwright'], env)
+    await saveReport(outDir, report)
   }
 
-  const stages = stageList(args.scope)
+  const stages = stageList(args)
+  const completedPassStageIds = new Set(
+    report.stages.filter((stage) => stage.status === 'pass').map((stage) => stage.id)
+  )
 
   for (const stage of stages) {
+    if (completedPassStageIds.has(stage.id)) {
+      continue
+    }
+
     const started = Date.now()
 
     const invocation = stage.bobAssist
@@ -228,7 +368,7 @@ async function main() {
     const exitCode = await runCommand(invocation.command, invocation.args, env)
     const status = exitCode === 0 ? 'pass' : 'fail'
 
-    report.stages.push({
+    upsertStage(report, {
       id: stage.id,
       description: stage.description,
       command: invocation.command,
@@ -238,8 +378,7 @@ async function main() {
       durationMs: Date.now() - started,
     })
 
-    if (status === 'pass') report.summary.passed += 1
-    else report.summary.failed += 1
+    await saveReport(outDir, report)
 
     if (status === 'fail' && !args.continueOnFailure) {
       break
@@ -247,11 +386,10 @@ async function main() {
   }
 
   report.endedAt = new Date().toISOString()
+  await saveReport(outDir, report)
 
   const reportJsonPath = path.join(outDir, 'report.json')
   const reportMdPath = path.join(outDir, 'report.md')
-  await fs.writeFile(reportJsonPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8')
-  await fs.writeFile(reportMdPath, `${toMd(report)}\n`, 'utf8')
 
   console.log(`\nBob agentic orchestrator complete.\nReport: ${reportJsonPath}\nSummary: ${reportMdPath}`)
 
