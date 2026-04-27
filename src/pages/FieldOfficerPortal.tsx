@@ -551,6 +551,7 @@ export default function FieldOfficerPortal() {
         stopId: activeRouteCurrentStop.id,
         routeInstanceId: activeRouteCurrentStop.route_instance_id,
         status: 'arrived',
+        source: 'zone_enter_auto',
       },
       {
         onError: () => {
@@ -597,6 +598,7 @@ export default function FieldOfficerPortal() {
         stopId: activeRouteCurrentStop.id,
         routeInstanceId: activeRouteCurrentStop.route_instance_id,
         status: 'completed',
+        source: 'zone_exit_auto',
       },
       {
         onError: () => {
@@ -2467,6 +2469,7 @@ export default function FieldOfficerPortal() {
                                     stopId: activeRouteCurrentStop.id,
                                     routeInstanceId: activeRouteCurrentStop.route_instance_id,
                                     status: 'arrived',
+                                    source: 'manual',
                                   })}
                                   disabled={updateRouteStopStatus.isPending}
                                 >
@@ -2482,6 +2485,7 @@ export default function FieldOfficerPortal() {
                                     stopId: activeRouteCurrentStop.id,
                                     routeInstanceId: activeRouteCurrentStop.route_instance_id,
                                     status: 'completed',
+                                    source: 'manual',
                                   })}
                                   disabled={updateRouteStopStatus.isPending}
                                 >

@@ -139,25 +139,38 @@ export function useOfficerActiveRouteInstance() {
 
 export function useUpdatePatrolRouteStopStatus() {
   const queryClient = useQueryClient()
+  const { user } = useAuthStore()
 
   return useMutation({
     mutationFn: async ({
       stopId,
       routeInstanceId,
       status,
+      source = 'manual',
     }: {
       stopId: string
       routeInstanceId: string
       status: 'arrived' | 'completed'
+      source?: 'manual' | 'zone_enter_auto' | 'zone_exit_auto'
     }) => {
       const now = new Date().toISOString()
       const updatePayload: Record<string, unknown> = { visit_status: status }
+
+      const { data: stopRow, error: fetchStopError } = await (supabase as any)
+        .from('patrol_route_instance_stops')
+        .select('id, route_instance_id, zone_id, checkpoint_id, stop_name, sequence_no, visit_status, actual_arrival_at, actual_departure_at, planned_dwell_minutes, organization_id')
+        .eq('id', stopId)
+        .eq('route_instance_id', routeInstanceId)
+        .maybeSingle()
+
+      if (fetchStopError) throw fetchStopError
+      if (!stopRow) throw new Error('Patrol route stop not found')
 
       if (status === 'arrived') {
         updatePayload.actual_arrival_at = now
       }
       if (status === 'completed') {
-        updatePayload.actual_arrival_at = now
+        updatePayload.actual_arrival_at = stopRow.actual_arrival_at ?? now
         updatePayload.actual_departure_at = now
       }
 
@@ -168,6 +181,36 @@ export function useUpdatePatrolRouteStopStatus() {
         .eq('route_instance_id', routeInstanceId)
 
       if (updateStopError) throw updateStopError
+
+      const auditPayload = {
+        action: `patrol_route_stop_${status}`,
+        entity_type: 'operational_route_stop',
+        entity_id: stopId,
+        performed_by: user?.id ?? null,
+        organization_id: user?.organization_id ?? stopRow.organization_id ?? null,
+        new_values: {
+          route_instance_id: routeInstanceId,
+          stop_id: stopId,
+          stop_name: stopRow.stop_name,
+          sequence_no: stopRow.sequence_no,
+          zone_id: stopRow.zone_id,
+          checkpoint_id: stopRow.checkpoint_id,
+          previous_status: stopRow.visit_status,
+          current_status: status,
+          automation_source: source,
+          operational_surface: stopRow.zone_id ? 'zone' : 'checkpoint_or_site',
+          planned_dwell_minutes: stopRow.planned_dwell_minutes,
+          actual_arrival_at: status === 'arrived' ? now : (stopRow.actual_arrival_at ?? now),
+          actual_departure_at: status === 'completed' ? now : stopRow.actual_departure_at,
+          recorded_at: now,
+        },
+      }
+
+      const { error: auditError } = await (supabase as any)
+        .from('audit_log')
+        .insert(auditPayload)
+
+      if (auditError) throw auditError
 
       const { data: stops, error: fetchStopsError } = await (supabase as any)
         .from('patrol_route_instance_stops')
@@ -199,12 +242,20 @@ export function useUpdatePatrolRouteStopStatus() {
         if (completeError) throw completeError
       }
 
-      return { status }
+      return { status, source }
     },
-    onSuccess: ({ status }) => {
+    onSuccess: ({ status, source }) => {
       queryClient.invalidateQueries({ queryKey: ['officer-active-patrol-route-instance'] })
       queryClient.invalidateQueries({ queryKey: ['patrol-route-instances'] })
       queryClient.invalidateQueries({ queryKey: ['patrol-route-instance-stops'] })
+      if (source === 'zone_enter_auto') {
+        toast.success('Stop auto-marked as arrived from zone entry')
+        return
+      }
+      if (source === 'zone_exit_auto') {
+        toast.success('Stop auto-completed after zone exit and dwell')
+        return
+      }
       toast.success(status === 'arrived' ? 'Stop marked as arrived' : 'Stop completed')
     },
     onError: (error: any) => {

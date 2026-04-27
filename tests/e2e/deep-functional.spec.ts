@@ -493,6 +493,48 @@ test.describe('Field Officer Portal — welfare and SOS', () => {
         .or(page.locator('text=/shift|patrol/i').nth(2))
     ).toBeVisible({ timeout: 15000 })
   })
+
+  test('Active route panel shows zone-enter and zone-exit automation guidance when rendered', async ({ page }) => {
+    await loginAs(page, 'officerOrg1')
+    await page.goto('/field-officer', { waitUntil: 'networkidle' })
+
+    const unrosteredBanner = page.locator('text=You are not rostered today').first()
+    if (await unrosteredBanner.isVisible({ timeout: 3000 }).catch(() => false)) {
+      test.skip(true, 'Officer is not rostered in this environment; route execution panel is not available.')
+    }
+
+    const routeAutomationText = page.getByText(/Auto-routing active: entering stop zone marks Arrived, and exiting after dwell marks Complete\./i)
+    if (!(await routeAutomationText.isVisible({ timeout: 5000 }).catch(() => false))) {
+      test.skip(true, 'No active zoned route stop is available in this environment for automation guidance validation.')
+    }
+
+    await expect(routeAutomationText).toBeVisible({ timeout: 10000 })
+  })
+
+  test('Active route panel retains manual stop actions as fallback', async ({ page }) => {
+    await loginAs(page, 'officerOrg1')
+    await page.goto('/field-officer', { waitUntil: 'networkidle' })
+
+    const unrosteredBanner = page.locator('text=You are not rostered today').first()
+    if (await unrosteredBanner.isVisible({ timeout: 3000 }).catch(() => false)) {
+      test.skip(true, 'Officer is not rostered in this environment; route execution panel is not available.')
+    }
+
+    const routeCard = page.getByText(/Patrol Route|Stop #/i).first()
+    if (!(await routeCard.isVisible({ timeout: 5000 }).catch(() => false))) {
+      test.skip(true, 'No active route execution card is available in this environment.')
+    }
+
+    const completeBtn = page.getByRole('button', { name: /Complete Stop/i }).first()
+    const arrivedBtn = page.getByRole('button', { name: /^Arrived$/i }).first()
+
+    const hasComplete = await completeBtn.isVisible({ timeout: 3000 }).catch(() => false)
+    const hasArrived = await arrivedBtn.isVisible({ timeout: 3000 }).catch(() => false)
+
+    expect(hasComplete || hasArrived).toBeTruthy()
+    if (hasComplete) await expect(completeBtn).toBeVisible({ timeout: 10000 })
+    if (hasArrived) await expect(arrivedBtn).toBeVisible({ timeout: 10000 })
+  })
 })
 
 // ── Field Officer Portal — Plate Scanner ─────────────────────────────────────
