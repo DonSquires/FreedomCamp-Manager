@@ -110,15 +110,43 @@ export function CleanAppScaffold() {
             <Route path="/field" element={<FieldOfficerPortal />} />
             <Route path="/platform" element={<PlatformPage />} />
             <Route path="/compliance" element={<CompliancePage />} />
+            <Route path="/compliance-dashboard" element={<CompliancePage />} />
+            <Route path="/compliance-analytics" element={<CompliancePage />} />
+            <Route path="/compliance-recalculation" element={<CompliancePage />} />
+            <Route path="/spatial-compliance" element={<CompliancePage />} />
             <Route path="/observations" element={<ObservationsPage />} />
+            <Route path="/observation-records" element={<ObservationsPage />} />
+            <Route path="/observations-report" element={<ObservationsPage />} />
             <Route path="/breaches" element={<BreachesPage />} />
+            <Route path="/breach-notices" element={<BreachesPage />} />
             <Route path="/enforcement" element={<EnforcementPage />} />
+            <Route path="/enforcement-actions" element={<EnforcementPage />} />
+            <Route path="/enforcement-review" element={<EnforcementPage />} />
+            <Route path="/enforcement-command-center" element={<EnforcementPage />} />
+            <Route path="/infringements" element={<EnforcementPage />} />
             <Route path="/vehicles" element={<VehiclesPage />} />
+            <Route path="/vehicle-registry" element={<VehiclesPage />} />
             <Route path="/zones" element={<ZonesPage />} />
             <Route path="/live-map" element={<LiveMapPage />} />
+            <Route path="/live-tracking" element={<LiveMapPage />} />
+            <Route path="/live-patrol" element={<LiveMapPage />} />
+            <Route path="/operations-map" element={<LiveMapPage />} />
+            <Route path="/hotspots" element={<LiveMapPage />} />
             <Route path="/patrols" element={<PatrolsPage />} />
+            <Route path="/patrol-schedule" element={<PatrolsPage />} />
+            <Route path="/patrol-kpis" element={<PatrolsPage />} />
+            <Route path="/patrol-checkpoints" element={<PatrolsPage />} />
+            <Route path="/dispatch" element={<PatrolsPage />} />
+            <Route path="/dispatch-monitor" element={<PatrolsPage />} />
+            <Route path="/dispatch-wizard" element={<PatrolsPage />} />
+            <Route path="/dispatched-jobs" element={<PatrolsPage />} />
             <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/reports-hub" element={<ReportsPage />} />
             <Route path="/data-import" element={<DataImportPage />} />
+            <Route path="/import-data" element={<DataImportPage />} />
+            <Route path="/import-historical" element={<DataImportPage />} />
+            <Route path="/data" element={<DataImportPage />} />
+            <Route path="/admin/data-hub" element={<DataImportPage />} />
             <Route path="/disputes" element={<DisputesPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/users" element={<UserManagementPage />} />
