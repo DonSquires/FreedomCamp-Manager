@@ -18,6 +18,7 @@ import { insertDispatchJobWithAlarmTypeFallback } from '@/lib/dispatchJobs'
 import { formatDistance } from '@/lib/geo'
 import { useAuthStore } from '@/stores/authStore'
 import { useClientOrgIds } from '@/hooks/useClientOrgIds'
+import { useDispatchReplan } from '@/hooks/useDispatchReplan'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -212,6 +213,7 @@ function emptyForm(): JobForm {
 
 export default function DispatchConsole() {
   const { user } = useAuthStore()
+  const isAdmin = user?.role === 'admin' || user?.role === 'master' || user?.role === 'admin_officer'
   const { organizationId: filterOrgId } = useGlobalFiltersStore()
   const qc = useQueryClient()
   const navigate = useNavigate()
@@ -389,6 +391,8 @@ export default function DispatchConsole() {
   })
 
   // ── Status update mutation (cancel) ────────────────────────────────────────
+  const replanMutation = useDispatchReplan()
+
   const cancelMutation = useMutation({
     mutationFn: async (jobId: string) => {
       const { error } = await (supabase as any).from('dispatch_jobs')
@@ -823,6 +827,23 @@ export default function DispatchConsole() {
                   disabled={cancelMutation.isPending}
                 >
                   <XCircle className="h-4 w-4 mr-1.5" /> Cancel Job
+                </Button>
+              )}
+              {/* Replan Route — visible when job is active and officer has a route instance */}
+              {['dispatched', 'acknowledged', 'en_route'].includes(selectedJob.status) && selectedJob.assigned_officer && isAdmin && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    replanMutation.mutate({
+                      dispatchJobId: selectedJob.id,
+                      replannedBy:   user?.id,
+                    })
+                  }
+                  disabled={replanMutation.isPending}
+                  title="Pause active patrol route and replan remaining stops around this job"
+                >
+                  {replanMutation.isPending ? 'Replanning…' : '🔀 Replan Route'}
                 </Button>
               )}
               <Button variant="outline" onClick={() => setSelectedJob(null)}>Close</Button>
