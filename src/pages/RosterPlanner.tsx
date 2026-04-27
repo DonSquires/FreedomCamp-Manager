@@ -3,7 +3,7 @@
  * security companies. Officers as rows, days as columns, shift cards in cells.
  */
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -60,6 +60,11 @@ import {
   Loader2,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import {
+  useGeneratePatrolRouteInstance,
+  usePatrolRouteInstanceStops,
+  usePatrolRouteInstances,
+} from '@/hooks/usePatrolRouteInstances'
 import {
   format,
   addDays,
@@ -458,6 +463,7 @@ function ShiftDialog({
 
   const [skillInput, setSkillInput] = useState('')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [selectedRouteInstanceId, setSelectedRouteInstanceId] = useState<string>('')
 
   const set = useCallback(
     <K extends keyof ShiftFormData>(key: K, value: ShiftFormData[K]) =>
@@ -472,6 +478,20 @@ function ShiftDialog({
     allShifts,
     availability
   )
+
+  const routeInstanceFilters = editShift?.id ? { rosterShiftId: editShift.id } : undefined
+  const { data: routeInstances = [], isLoading: routeInstancesLoading } = usePatrolRouteInstances(routeInstanceFilters)
+  const { data: routeStops = [], isLoading: routeStopsLoading } = usePatrolRouteInstanceStops(selectedRouteInstanceId)
+  const generateRouteInstanceMutation = useGeneratePatrolRouteInstance()
+
+  useEffect(() => {
+    if (routeInstances.length > 0 && !selectedRouteInstanceId) {
+      setSelectedRouteInstanceId(routeInstances[0].id)
+    }
+    if (routeInstances.length === 0 && selectedRouteInstanceId) {
+      setSelectedRouteInstanceId('')
+    }
+  }, [routeInstances, selectedRouteInstanceId])
 
   function addSkill() {
     const trimmed = skillInput.trim()
@@ -491,6 +511,35 @@ function ShiftDialog({
     if (!form.start_time) { toast.error('Please enter a start time'); return }
     if (!form.end_time)   { toast.error('Please enter an end time'); return }
     onSave(form)
+  }
+
+  function handleGenerateRoutePlan(forceRegenerate = false) {
+    if (!editShift?.id) {
+      toast.error('Save this shift before generating a route plan')
+      return
+    }
+
+    const effectiveRouteId = form.patrol_route_id || editShift.patrol_route_id
+    if (!effectiveRouteId) {
+      toast.error('Select a patrol route before generating a plan')
+      return
+    }
+
+    if (form.patrol_route_id !== (editShift.patrol_route_id || '')) {
+      toast.error('Save patrol route changes first, then generate plan')
+      return
+    }
+
+    generateRouteInstanceMutation.mutate(
+      { rosterShiftId: editShift.id, forceRegenerate },
+      {
+        onSuccess: (result) => {
+          if (result?.route_instance_id) {
+            setSelectedRouteInstanceId(result.route_instance_id)
+          }
+        },
+      }
+    )
   }
 
   const showPatrolRoutePicker = ['patrol', 'alarm_response', 'freedom_camping'].includes(form.service_type)
@@ -655,6 +704,100 @@ function ShiftDialog({
                 <p className="text-xs text-gray-400 mt-0.5">
                   Optional pilot field. Route-aware planning is additive and does not alter existing shift behavior.
                 </p>
+              </div>
+            )}
+
+            {isAdmin && editShift && showPatrolRoutePicker && (
+              <div className="col-span-2 rounded-md border p-3 bg-slate-50">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">Patrol Plan</p>
+                    <p className="text-xs text-slate-500">Generate and review route-instance stops for this shift.</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleGenerateRoutePlan(false)}
+                      disabled={generateRouteInstanceMutation.isPending || !form.patrol_route_id}
+                    >
+                      {generateRouteInstanceMutation.isPending ? 'Generating…' : 'Generate Plan'}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => handleGenerateRoutePlan(true)}
+                      disabled={generateRouteInstanceMutation.isPending || !form.patrol_route_id}
+                    >
+                      Regenerate
+                    </Button>
+                  </div>
+                </div>
+
+                <Separator className="my-3" />
+
+                {routeInstancesLoading ? (
+                  <p className="text-xs text-slate-500">Loading plan instances…</p>
+                ) : routeInstances.length === 0 ? (
+                  <p className="text-xs text-slate-500">No route plan generated for this shift yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs">Plan Instance</Label>
+                        <Select value={selectedRouteInstanceId} onValueChange={setSelectedRouteInstanceId}>
+                          <SelectTrigger className="mt-1 h-8">
+                            <SelectValue placeholder="Select plan instance" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {routeInstances.map((instance) => (
+                              <SelectItem key={instance.id} value={instance.id}>
+                                {format(parseISO(instance.created_at), 'd MMM HH:mm')} · {instance.plan_status}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-end">
+                        {(() => {
+                          const selectedInstance = routeInstances.find((r) => r.id === selectedRouteInstanceId)
+                          if (!selectedInstance) return null
+                          return (
+                            <Badge variant="outline" className="capitalize">
+                              {selectedInstance.plan_status.replace('_', ' ')}
+                            </Badge>
+                          )
+                        })()}
+                      </div>
+                    </div>
+
+                    <div className="rounded border bg-white p-2 max-h-48 overflow-y-auto space-y-1">
+                      {routeStopsLoading ? (
+                        <p className="text-xs text-slate-500">Loading stops…</p>
+                      ) : routeStops.length === 0 ? (
+                        <p className="text-xs text-slate-500">No stops found for this plan instance.</p>
+                      ) : (
+                        routeStops.map((stop) => (
+                          <div key={stop.id} className="flex items-center justify-between gap-2 text-xs border rounded px-2 py-1">
+                            <div className="min-w-0">
+                              <p className="font-medium text-slate-700 truncate">
+                                {stop.sequence_no}. {stop.stop_name}
+                                {stop.is_mandatory ? ' • mandatory' : ''}
+                              </p>
+                              <p className="text-slate-500 capitalize">{stop.visit_status}</p>
+                            </div>
+                            <div className="shrink-0 text-slate-500">
+                              {stop.planned_arrival_window_start && stop.planned_arrival_window_end
+                                ? `${format(parseISO(stop.planned_arrival_window_start), 'HH:mm')}–${format(parseISO(stop.planned_arrival_window_end), 'HH:mm')}`
+                                : 'No window'}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
