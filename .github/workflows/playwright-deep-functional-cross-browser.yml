@@ -99,35 +99,42 @@ jobs:
             echo "creds_available=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Build local app for CI test target
+        if: steps.creds-check.outputs.creds_available == 'true'
+        run: |
+          bun run build
+
+      - name: Start local preview server
+        if: steps.creds-check.outputs.creds_available == 'true'
+        run: |
+          bun run preview -- --host 127.0.0.1 --port 4173 > /tmp/deep-functional-preview.log 2>&1 &
+          echo $! > /tmp/deep-functional-preview.pid
+
       - name: Resolve base URL
         if: steps.creds-check.outputs.creds_available == 'true'
         run: |
           TARGET_URL=""
-          SAFE_FALLBACK_URL="https://freedom-camp-manager.vercel.app"
-
           if [ -n "${{ github.event.inputs.base_url }}" ]; then
             TARGET_URL="${{ github.event.inputs.base_url }}"
-          elif [ -n "$DEFAULT_PLAYWRIGHT_BASE_URL" ]; then
-            TARGET_URL="$DEFAULT_PLAYWRIGHT_BASE_URL"
           else
-            TARGET_URL="$SAFE_FALLBACK_URL"
+            TARGET_URL="http://127.0.0.1:4173"
           fi
 
-          # Vercel preview domains may present SSO walls in CI and break login flows.
-          # Fall back to a known app host unless user explicitly overrides with workflow input.
-          if [ -z "${{ github.event.inputs.base_url }}" ] && echo "$TARGET_URL" | grep -Eiq 'https?://[^/]*\.vercel\.app'; then
-            echo "::warning::DEFAULT_PLAYWRIGHT_BASE_URL points to a vercel.app host (${TARGET_URL}); falling back to ${SAFE_FALLBACK_URL} for deep-functional CI."
-            TARGET_URL="$SAFE_FALLBACK_URL"
-          fi
-
-          # Guard against misrouted domains that serve GitHub Pages 404 instead of the app.
-          if [ -z "${{ github.event.inputs.base_url }}" ]; then
-            PAGE_HEAD=$(curl -Ls --max-time 20 "${TARGET_URL}/login" | head -n 20 || true)
-            if echo "$PAGE_HEAD" | grep -Eq "There isn't a GitHub Pages site here|<h1>404</h1>"; then
-              echo "::warning::Resolved PLAYWRIGHT_BASE_URL (${TARGET_URL}) returned a GitHub Pages 404 page; falling back to ${SAFE_FALLBACK_URL}."
-              TARGET_URL="$SAFE_FALLBACK_URL"
+          # Validate the selected target can actually serve the login route.
+          for i in $(seq 1 40); do
+            if curl -fsS --max-time 5 "${TARGET_URL}/login" >/dev/null 2>&1; then
+              break
             fi
-          fi
+            if [ "$i" -eq 40 ]; then
+              echo "::error::PLAYWRIGHT_BASE_URL (${TARGET_URL}) is unreachable after waiting for startup."
+              if [ -f /tmp/deep-functional-preview.log ]; then
+                echo "--- preview log ---"
+                tail -n 120 /tmp/deep-functional-preview.log || true
+              fi
+              exit 1
+            fi
+            sleep 2
+          done
 
           echo "PLAYWRIGHT_BASE_URL=$TARGET_URL" >> "$GITHUB_ENV"
           echo "Resolved PLAYWRIGHT_BASE_URL=$TARGET_URL"
