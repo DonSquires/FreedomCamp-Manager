@@ -13,7 +13,7 @@ import {
   ScanFace,
 } from 'lucide-react'
 
-const primaryLinks = [
+export const primaryLinks = [
   { to: '/admin',       label: 'Dashboard', icon: Home },
   { to: '/compliance',  label: 'Compliance', icon: BarChart3 },
   { to: '/vehicles',    label: 'Vehicles',   icon: Car },
@@ -21,7 +21,7 @@ const primaryLinks = [
   { to: '/search',      label: 'Search',     icon: Search },
 ]
 
-const moreGroups = [
+export const moreGroups = [
   {
     label: 'Compliance',
     links: [

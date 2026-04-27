@@ -25,16 +25,16 @@ Do not claim completion until all release gates in this checklist are green.
 
 ## Current Confidence
 
-- Confidence: 84%
+- Confidence: 88%
 - Why not 100% yet:
 	1. Navigation registry migration is only partially applied.
-	2. Parity tests for route-to-nav mapping are not implemented.
+	2. Parity tests exist locally but are not yet wired as a CI-required gate.
 	3. Human-test standard-credential rerun is still outstanding.
 	4. Phase 2 shell rollout is not validated on top-priority officer/admin journeys.
 
 ## Hard Blockers (Must Close)
 
-- [ ] B1: Route/nav parity test suite implemented and green (`ux`)
+- [ ] B1: Route/nav parity test suite implemented, green, and CI-enforced (`ux`)
 - [ ] B2: Primary sidebar and primary admin top-nav fully registry-driven (`ux`)
 - [ ] B3: Human-test standard-credential run completed with actionable-only failures (`harness` or `ux`)
 - [ ] B4: Officer/admin critical route pass on deep-functional journeys after nav changes (`ux`)
@@ -146,9 +146,10 @@ Latest known CI root-cause fix applied:
 - [ ] Generate and validate route-family/module coverage report (zero unmapped required).
 	- Owner: platform/frontend
 	- Deliverable: `docs/uiux-master-redesign/artifacts/coverage-report-<date>.md` with explicit mapped/unmapped sections.
-- [ ] Implement parity tests for route/nav coverage and wire into CI.
+- [ ] Wire parity tests for route/nav coverage into CI.
 	- Owner: platform/frontend
 	- Deliverable: deterministic test suite for registry coverage and nav rendering parity.
+	- Evidence (implemented locally): `src/config/navigationRegistry.parity.test.ts` and local pass via `bunx vitest run src/config/navigationRegistry.parity.test.ts`.
 - [ ] Complete sidebar and admin top-nav registry migration.
 	- Owner: frontend/navigation
 	- Deliverable: no primary nav surface using hardcoded route arrays.

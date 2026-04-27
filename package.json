@@ -63,6 +63,7 @@
     "start": "sh -c 'vite preview --host 0.0.0.0 --port ${PORT:-4173}'",
     "test": "node scripts/run-test-with-bob-assist.mjs -- playwright test",
     "test:unit": "node scripts/run-test-with-bob-assist.mjs -- vitest run",
+    "test:nav-parity": "vitest run src/config/navigationRegistry.parity.test.ts",
     "test:unit:watch": "node scripts/run-test-with-bob-assist.mjs -- vitest",
     "test:e2e": "node scripts/run-test-with-bob-assist.mjs -- playwright test",
     "test:ui": "node scripts/run-test-with-bob-assist.mjs -- playwright test --ui",

@@ -49,6 +49,9 @@ jobs:
       - name: Lint
         run: bun run lint
 
+      - name: Navigation parity tests
+        run: bun run test:nav-parity
+
       - name: Build
         run: bun run build
 
