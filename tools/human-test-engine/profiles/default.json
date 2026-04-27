@@ -20,7 +20,9 @@
     "agenticPacks": [
       "login-health",
       "tender-shadow",
-      "ptt-zindex"
+      "ptt-zindex",
+      "crm-business-crossover",
+      "client-portal-isolation"
     ],
     "agenticNoPlanner": true,
     "agenticMaxSteps": 14,

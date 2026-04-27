@@ -98,6 +98,8 @@
     "OLLAMA_MODEL": "${localEnv:OLLAMA_MODEL}",
     "RUNPOD_API_KEY": "${localEnv:RUNPOD_API_KEY}",
     "DR_BOB_API": "${localEnv:DR_BOB_API}",
+    "RUNPOD_ENDPOINT_ID": "${localEnv:RUNPOD_ENDPOINT_ID}",
+    "RUNPOD_RUNSYNC_URL": "${localEnv:RUNPOD_RUNSYNC_URL}",
     "RUNPOD_GATEWAY_URL": "${localEnv:RUNPOD_GATEWAY_URL}",
     "RUNPOD_POD_ID": "${localEnv:RUNPOD_POD_ID}",
     "BOB_VEHICLE_MODEL_URL": "${localEnv:BOB_VEHICLE_MODEL_URL}",

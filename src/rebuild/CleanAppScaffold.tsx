@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/stores/authStore'
 import Login from '@/pages/Login'
 import PortalSelection from '@/pages/PortalSelection'
 import AdminPortal from '@/pages/AdminPortal'
@@ -20,6 +21,9 @@ import SettingsPage from './pages/Settings'
 import UserManagementPage from './pages/UserManagement'
 import ProfilePage from './pages/Profile'
 import PlatformPage from './pages/Platform'
+import CRMPage from './pages/CRM'
+import BusinessManagementPage from './pages/BusinessManagement'
+import ClientPortalPage from './pages/ClientPortal'
 
 /**
  * CleanAppScaffold — isolated router for the clean rebuild surface.
@@ -28,7 +32,25 @@ import PlatformPage from './pages/Platform'
  * All routes except /login require an active Supabase session. Unauthenticated
  * visitors are redirected to /login automatically.
  */
+
+function CleanRoleRoute({
+  children,
+  allowedRoles,
+}: {
+  children: React.ReactNode
+  allowedRoles: string[]
+}) {
+  const { user } = useAuthStore()
+
+  if (!user) return <Navigate to="/login" replace />
+  if (user.role === 'grand_master') return <>{children}</>
+  if (!allowedRoles.includes(user.role)) return <Navigate to="/" replace />
+
+  return <>{children}</>
+}
+
 export function CleanAppScaffold() {
+  const { user } = useAuthStore()
   const [sessionChecked, setSessionChecked] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
 
@@ -73,7 +95,18 @@ export function CleanAppScaffold() {
         {isAuthenticated ? (
           <>
             <Route path="/portal-selection" element={<PortalSelection />} />
-            <Route path="/" element={<AdminPortal />} />
+            <Route
+              path="/"
+              element={
+                user?.role === 'officer'
+                  ? <Navigate to="/field" replace />
+                  : user?.role === 'grand_master'
+                    ? <Navigate to="/platform" replace />
+                    : ['client_viewer', 'client_officer', 'client_admin'].includes(user?.role ?? '')
+                      ? <Navigate to="/client-portal" replace />
+                      : <AdminPortal />
+              }
+            />
             <Route path="/field" element={<FieldOfficerPortal />} />
             <Route path="/platform" element={<PlatformPage />} />
             <Route path="/compliance" element={<CompliancePage />} />
@@ -90,6 +123,70 @@ export function CleanAppScaffold() {
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/users" element={<UserManagementPage />} />
             <Route path="/profile" element={<ProfilePage />} />
+            <Route
+              path="/crm"
+              element={
+                <CleanRoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <CRMPage />
+                </CleanRoleRoute>
+              }
+            />
+            <Route
+              path="/business"
+              element={
+                <CleanRoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <BusinessManagementPage />
+                </CleanRoleRoute>
+              }
+            />
+            <Route
+              path="/roster"
+              element={
+                <CleanRoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <BusinessManagementPage />
+                </CleanRoleRoute>
+              }
+            />
+            <Route
+              path="/open-shifts"
+              element={
+                <CleanRoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <BusinessManagementPage />
+                </CleanRoleRoute>
+              }
+            />
+            <Route
+              path="/availability"
+              element={
+                <CleanRoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <BusinessManagementPage />
+                </CleanRoleRoute>
+              }
+            />
+            <Route
+              path="/officer-skills"
+              element={
+                <CleanRoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <BusinessManagementPage />
+                </CleanRoleRoute>
+              }
+            />
+            <Route
+              path="/timesheets"
+              element={
+                <CleanRoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <BusinessManagementPage />
+                </CleanRoleRoute>
+              }
+            />
+            <Route
+              path="/client-portal"
+              element={
+                <CleanRoleRoute allowedRoles={['client_viewer', 'client_officer', 'client_admin', 'admin', 'admin_officer', 'master']}>
+                  <ClientPortalPage />
+                </CleanRoleRoute>
+              }
+            />
             <Route path="*" element={<Navigate to="/" replace />} />
           </>
         ) : (
