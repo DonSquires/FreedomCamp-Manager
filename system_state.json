@@ -5,60 +5,13 @@
   "modules": [
     "messaging"
   ],
-  "service_modules": [
-    "core",
-    "freedom_camping",
-    "parking",
-    "noise",
-    "guarding",
-    "patrol",
-    "rostering",
-    "ptt_chat",
-    "ems",
-    "dispatch",
-    "ticketing",
-    "incidents"
-  ],
-  "ui_surfaces": [
-    "src/components/features/AppLayout.tsx",
-    "src/components/features/AdminNavigationMenu.tsx",
-    "src/pages/AdminHub.tsx",
-    "src/pages/AdminPortal.tsx",
-    "src/pages/FieldOfficerPortal.tsx",
-    "src/pages/PortalSelection.tsx"
-  ],
-  "ia_redesign_config": {
-    "registry_path": "src/config/navigationRegistry.ts",
-    "source_routes_file": "src/App.tsx",
-    "source_nav_files": [
-      "src/components/features/AppLayout.tsx",
-      "src/components/features/AdminNavigationMenu.tsx",
-      "src/pages/AdminHub.tsx",
-      "src/pages/AdminPortal.tsx",
-      "src/pages/PortalSelection.tsx",
-      "src/pages/FieldOfficerPortal.tsx"
-    ],
-    "schema_source": "docs/LIVE_SCHEMA.md",
-    "sections": [
-      "Mission Control",
-      "Field Operations",
-      "Compliance and Enforcement",
-      "Intelligence and Records",
-      "Workforce and Scheduling",
-      "Clients and Commercial",
-      "Reports and Analytics",
-      "Platform and Settings"
-    ],
-    "status": "planned",
-    "approved_on": "2026-04-26"
-  },
   "lockfiles": [
     "bun.lock"
   ],
-  "generated_at": "2026-04-25T21:48:01Z",
+  "generated_at": "2026-04-27T01:16:12Z",
   "source": "scripts/system-check.sh",
   "monitor": {
-    "checked_at": "2026-04-25T21:48:01.507Z",
+    "checked_at": "2026-04-27T01:16:12.115Z",
     "window_minutes": 15,
     "error_threshold": 5,
     "recent_500_errors": 4,

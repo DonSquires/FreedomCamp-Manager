@@ -1,12 +1,12 @@
 {
-  "generatedAt": "2026-04-26T23:57:48.793Z",
+  "generatedAt": "2026-04-27T01:16:12.164Z",
   "windowHours": 24,
-  "totalEntries": 26,
-  "lowScoreCount": 4,
+  "totalEntries": 19,
+  "lowScoreCount": 2,
   "topFailureReasons": [
     {
       "name": "fallback_applied",
-      "count": 4
+      "count": 2
     }
   ],
   "topHallucinationPatterns": [],
@@ -14,10 +14,6 @@
   "topFlaggedArtifacts": [
     {
       "name": "/workspaces/FreedomCamp-Manager/docs/CLIENT_ACCESS_REBUILD_SPEC_2026-04-26.md",
-      "count": 4
-    },
-    {
-      "name": "/workspaces/FreedomCamp-Manager/docs/ENTERPRISE_REBUILD_PLAN_ACTUAL_RESEARCH_V2_2026-04-26.md",
       "count": 4
     },
     {
@@ -31,6 +27,10 @@
     {
       "name": "/workspaces/FreedomCamp-Manager/docs/uiux-master-redesign/spec.md",
       "count": 3
+    },
+    {
+      "name": "/workspaces/FreedomCamp-Manager/docs/ENTERPRISE_REBUILD_PLAN_ACTUAL_RESEARCH_V2_2026-04-26.md",
+      "count": 1
     }
   ],
   "recommendations": [
