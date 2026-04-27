@@ -23,7 +23,42 @@ function resolveBaseUrl() {
   return String(raw).trim().replace(/\/+$/, '');
 }
 
-function resolveRunsyncUrl() {
+function deriveRunpodBaseFromUrl(rawUrl) {
+  if (!isHttpUrl(rawUrl)) return '';
+
+  try {
+    const url = new URL(String(rawUrl).trim());
+    const segments = url.pathname.split('/').filter(Boolean);
+    const v2Index = segments.findIndex((segment) => segment === 'v2');
+    if (v2Index < 0) return '';
+
+    const endpointId = segments[v2Index + 1];
+    if (!endpointId) return '';
+
+    return `${url.origin}/v2/${endpointId}`;
+  } catch {
+    return '';
+  }
+}
+
+function resolveRunpodBaseUrl(baseUrl) {
+  const fromExplicitUrl = [
+    process.env.RUNPOD_RUNSYNC_URL,
+    process.env.RUNPOD_SERVERLESS_URL,
+    process.env.RUNPOD_GATEWAY_URL,
+  ]
+    .map((value) => deriveRunpodBaseFromUrl(value))
+    .find(Boolean);
+
+  if (fromExplicitUrl) return fromExplicitUrl;
+
+  const endpointId = String(process.env.RUNPOD_ENDPOINT_ID || '').trim();
+  if (endpointId) return `https://api.runpod.ai/v2/${endpointId}`;
+
+  return deriveRunpodBaseFromUrl(baseUrl);
+}
+
+function resolveLegacyRunsyncUrl(baseUrl) {
   const direct = [
     process.env.RUNPOD_RUNSYNC_URL,
     process.env.RUNPOD_SERVERLESS_URL,
@@ -31,9 +66,62 @@ function resolveRunsyncUrl() {
 
   if (direct) return String(direct).trim().replace(/\/+$/, '');
 
-  const endpointId = String(process.env.RUNPOD_ENDPOINT_ID || '').trim();
-  if (!endpointId) return '';
-  return `https://api.runpod.ai/v2/${endpointId}/runsync`;
+  const runpodBase = resolveRunpodBaseUrl(baseUrl);
+  if (!runpodBase) return '';
+  return `${runpodBase}/runsync`;
+}
+
+async function invokeRunpodAsync(runpodBaseUrl, headers, body, signal, maxWaitMs) {
+  const runResponse = await fetch(`${runpodBaseUrl}/run`, {
+    method: 'POST',
+    headers,
+    signal,
+    body: JSON.stringify(body),
+  });
+
+  if (!runResponse.ok) {
+    const bodyText = await runResponse.text().catch(() => '');
+    throw new Error(`runpod-run (${runResponse.status}): ${bodyText.slice(0, 240)}`);
+  }
+
+  const runPayload = await runResponse.json().catch(() => ({}));
+  const jobId = String(runPayload?.id || '').trim();
+  if (!jobId) {
+    throw new Error('runpod-run: missing job id in response');
+  }
+
+  const startedAt = Date.now();
+
+  while (true) {
+    if (signal?.aborted) throw new Error('This operation was aborted');
+    if (Date.now() - startedAt > maxWaitMs) {
+      throw new Error(`runpod-status timeout after ${maxWaitMs}ms`);
+    }
+
+    const statusResponse = await fetch(`${runpodBaseUrl}/status/${jobId}`, {
+      method: 'GET',
+      headers,
+      signal,
+    });
+
+    if (!statusResponse.ok) {
+      const bodyText = await statusResponse.text().catch(() => '');
+      throw new Error(`runpod-status (${statusResponse.status}): ${bodyText.slice(0, 240)}`);
+    }
+
+    const statusPayload = await statusResponse.json().catch(() => ({}));
+    const status = String(statusPayload?.status || '').toUpperCase();
+
+    if (status === 'COMPLETED' || status === 'SUCCESS') {
+      return statusPayload?.output || statusPayload;
+    }
+
+    if (status === 'FAILED' || status === 'CANCELLED' || status === 'TIMED_OUT') {
+      throw new Error(`runpod-status ${status}: ${JSON.stringify(statusPayload).slice(0, 240)}`);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
 }
 
 function resolveApiKey() {
@@ -104,17 +192,19 @@ function buildBobMessage(stage, command, exitCode = null) {
 
 async function pingBob(stage, command, exitCode = null) {
   const baseUrl = resolveBaseUrl();
-  const runsyncUrl = resolveRunsyncUrl();
+  const runpodBaseUrl = resolveRunpodBaseUrl(baseUrl);
+  const legacyRunsyncUrl = resolveLegacyRunsyncUrl(baseUrl);
   const apiKey = resolveApiKey();
   const inferenceApiKey = resolveInferenceApiKey();
   const runpodApiKey = resolveRunpodApiKey();
   const orgId = resolveOrgId();
   const preferredLanguage = String(process.env.BOB_ASSIST_LANGUAGE || 'en-NZ').trim();
   const timeoutMs = Number(process.env.BOB_TEST_ASSIST_TIMEOUT_MS || 180000);
+  const runpodAsyncMaxWaitMs = Number(process.env.BOB_TEST_ASSIST_RUNPOD_ASYNC_WAIT_MS || 45000);
   const message = buildBobMessage(stage, command, exitCode);
   const isRunpodBase = /api\.runpod\.ai\//i.test(baseUrl);
 
-  if ((!baseUrl && !runsyncUrl) || !apiKey) {
+  if ((!baseUrl && !runpodBaseUrl && !legacyRunsyncUrl) || !apiKey) {
     console.warn('[bob-test-assist] Credentials missing, running underlying test without AI assist');
     return;
   }
@@ -146,12 +236,13 @@ async function pingBob(stage, command, exitCode = null) {
       });
     }
 
-    const effectiveRunsyncUrl = runsyncUrl || (isRunpodBase ? `${baseUrl}/runsync` : '');
-    if (effectiveRunsyncUrl) {
+    const effectiveRunpodBaseUrl = runpodBaseUrl || (isRunpodBase ? deriveRunpodBaseFromUrl(baseUrl) : '');
+    if (effectiveRunpodBaseUrl) {
       attempts.push({
-        label: 'runpod-runsync-message',
-        url: effectiveRunsyncUrl,
+        label: 'runpod-run-sync-message',
+        url: `${effectiveRunpodBaseUrl}/run-sync`,
         key: runpodApiKey,
+        mode: 'direct',
         body: {
           message,
           language: preferredLanguage,
@@ -159,9 +250,10 @@ async function pingBob(stage, command, exitCode = null) {
       });
 
       attempts.push({
-        label: 'runpod-runsync-prompt',
-        url: effectiveRunsyncUrl,
+        label: 'runpod-run-sync-prompt',
+        url: `${effectiveRunpodBaseUrl}/run-sync`,
         key: runpodApiKey,
+        mode: 'direct',
         body: {
           prompt: message,
           language: preferredLanguage,
@@ -169,12 +261,47 @@ async function pingBob(stage, command, exitCode = null) {
       });
 
       attempts.push({
-        label: 'runpod-runsync-training-note',
-        url: effectiveRunsyncUrl,
+        label: 'runpod-run-sync-prompt',
+        url: `${effectiveRunpodBaseUrl}/run-sync`,
         key: runpodApiKey,
+        mode: 'direct',
         body: {
-          action: 'training_note',
+          prompt: message,
+          language: preferredLanguage,
+        },
+      });
+
+      attempts.push({
+        label: 'runpod-run-async-message',
+        url: effectiveRunpodBaseUrl,
+        key: runpodApiKey,
+        mode: 'async',
+        body: {
           message,
+          language: preferredLanguage,
+        },
+      });
+
+      attempts.push({
+        label: 'runpod-run-async-prompt',
+        url: effectiveRunpodBaseUrl,
+        key: runpodApiKey,
+        mode: 'async',
+        body: {
+          prompt: message,
+          language: preferredLanguage,
+          message,
+          language: preferredLanguage,
+        },
+      });
+
+      attempts.push({
+        label: 'runpod-legacy-runsync-prompt',
+        url: legacyRunsyncUrl,
+        key: runpodApiKey,
+        mode: 'direct',
+        body: {
+          prompt: message,
           language: preferredLanguage,
         },
       });
@@ -197,27 +324,39 @@ async function pingBob(stage, command, exitCode = null) {
       }
       if (orgId) headers['x-org-id'] = orgId;
 
-      const response = await fetch(attempt.url, {
-        method: 'POST',
-        headers,
-        signal: controller.signal,
-        body: JSON.stringify(attempt.body),
-      });
+      try {
+        let payload = {};
+        if (attempt.mode === 'async') {
+          payload = await invokeRunpodAsync(attempt.url, headers, attempt.body, controller.signal, runpodAsyncMaxWaitMs);
+        } else {
+          const response = await fetch(attempt.url, {
+            method: 'POST',
+            headers,
+            signal: controller.signal,
+            body: JSON.stringify(attempt.body),
+          });
 
-      if (!response.ok) {
-        const body = await response.text().catch(() => '');
-        lastError = `${attempt.label} (${response.status}): ${body.slice(0, 240)}`;
-        continue;
+          if (!response.ok) {
+            const body = await response.text().catch(() => '');
+            lastError = `${attempt.label} (${response.status}): ${body.slice(0, 240)}`;
+            continue;
+          }
+
+          payload = await response.json().catch(() => ({}));
+        }
+
+        const provider = payload?.provider || 'unknown';
+        const fallback = payload?.fallback === true ? 'yes' : 'no';
+        console.log(`[bob-test-assist] ${stage} assist completed (provider=${provider}, fallback=${fallback}, channel=${attempt.label})`);
+        return;
+      } catch (error) {
+        lastError = `${attempt.label}: ${String(error?.message || error).slice(0, 240)}`;
       }
-
-      const payload = await response.json().catch(() => ({}));
-      const provider = payload?.provider || 'unknown';
-      const fallback = payload?.fallback === true ? 'yes' : 'no';
-      console.log(`[bob-test-assist] ${stage} assist completed (provider=${provider}, fallback=${fallback}, channel=${attempt.label})`);
-      return;
     }
 
-    throw new Error(`[bob-test-assist] All assist endpoints failed: ${lastError || 'no endpoints attempted'}`);
+    if (lastError) {
+      throw new Error(`[bob-test-assist] All assist endpoints failed: ${lastError || 'no endpoints attempted'}`);
+    }
   } finally {
     clearTimeout(timer);
   }
