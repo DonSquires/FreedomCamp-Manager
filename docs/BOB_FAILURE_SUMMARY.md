@@ -1,13 +1,13 @@
 # Bob Failure Summary
 
-Generated: 2026-04-25T21:48:01.558Z
+Generated: 2026-04-26T23:57:48.793Z
 Window: last 24 hours
-Entries analyzed: 16
-Low-score entries: 8
+Entries analyzed: 26
+Low-score entries: 4
 
 ## Top Failure Reasons
 
-- delivery_failed (5), quality_gate_failed (3)
+- fallback_applied (4)
 
 ## Top Hallucination Patterns
 
@@ -19,9 +19,8 @@ Low-score entries: 8
 
 ## Most-Flagged Artifacts
 
-- /workspaces/FreedomCamp-Manager/docs/PHASE0_OBSERVABILITY_SLO_BASELINE_2026-04-25.md (4), /workspaces/FreedomCamp-Manager/docs/APP_ENTERPRISE_EXECUTION_TRACKER_2026-04-25.md (2), /workspaces/FreedomCamp-Manager/docs/PHASE4_GATE_EVIDENCE_2026-04-25.md (2), /workspaces/FreedomCamp-Manager/docs/PTT_ENTERPRISE_STACK_FIT_AND_BUILD.md (2), /workspaces/FreedomCamp-Manager/tools/human-test-engine/reports/2026-04-25T05-32-10-754Z/report.md (2)
+- /workspaces/FreedomCamp-Manager/docs/CLIENT_ACCESS_REBUILD_SPEC_2026-04-26.md (4), /workspaces/FreedomCamp-Manager/docs/ENTERPRISE_REBUILD_PLAN_ACTUAL_RESEARCH_V2_2026-04-26.md (4), /workspaces/FreedomCamp-Manager/docs/uiux-master-redesign/execution-todo.md (4), /workspaces/FreedomCamp-Manager/docs/uiux-master-redesign/plan.md (4), /workspaces/FreedomCamp-Manager/docs/uiux-master-redesign/spec.md (3)
 
 ## Recommendations
 
-- Re-read docs/BOB_TRAINING_TRUTH_PROTOCOL.md before the next redesign response.
-- Prefer the proven RunPod delivery path when Bob local /chat is unavailable.
+- No repeated failure mode crossed the automatic threshold in this window.

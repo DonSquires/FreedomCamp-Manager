@@ -134,6 +134,77 @@ async function runCommand(command, args, cwd, envOverrides = {}) {
   })
 }
 
+async function sleep(ms) {
+  await new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function isHttpReachable(url, timeoutMs = 2500) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      signal: controller.signal,
+      redirect: 'follow',
+    })
+    return res.status > 0
+  } catch {
+    return false
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function waitForBaseUrlReady(baseUrl, totalWaitMs = 30000, pollMs = 1000) {
+  const deadline = Date.now() + Math.max(1000, totalWaitMs)
+  const loginUrl = `${baseUrl.replace(/\/$/, '')}/login`
+  while (Date.now() < deadline) {
+    if (await isHttpReachable(loginUrl)) return true
+    if (await isHttpReachable(baseUrl)) return true
+    await sleep(pollMs)
+  }
+  return false
+}
+
+function startBackgroundCommand(command, cwd, envOverrides = {}) {
+  const mergedEnv = { ...process.env, ...envOverrides }
+  const child = spawn(command, {
+    cwd,
+    env: mergedEnv,
+    shell: true,
+    stdio: 'pipe',
+  })
+
+  let output = ''
+  child.stdout.on('data', (buf) => {
+    const text = buf.toString()
+    output += text
+    process.stdout.write(text)
+  })
+  child.stderr.on('data', (buf) => {
+    const text = buf.toString()
+    output += text
+    process.stderr.write(text)
+  })
+
+  const stop = async () => {
+    if (child.exitCode != null) return child.exitCode
+    await new Promise((resolve) => {
+      const hardKill = setTimeout(() => {
+        try { child.kill('SIGKILL') } catch {}
+      }, 5000)
+      child.once('close', () => {
+        clearTimeout(hardKill)
+        resolve(null)
+      })
+      try { child.kill('SIGTERM') } catch { resolve(null) }
+    })
+    return child.exitCode ?? 0
+  }
+
+  return { child, stop, getOutput: () => output }
+}
+
 function buildScore(tests) {
   const totals = {
     pass: 0,
@@ -771,56 +842,87 @@ async function main() {
   }
 
   if (!toBool(args['skip-ui'], false) && toBool(profile.stages?.uiChecks, true)) {
+    const agenticBaseUrl = String(profile.ui?.agenticBaseUrl || process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173').replace(/\/$/, '')
+    const agenticBaseUrlWaitMs = toNumber(profile.ui?.agenticBaseUrlWaitMs, 30000)
+    const autoStartAgenticWebServer = toBool(profile.ui?.autoStartAgenticWebServer, true)
+    const agenticWebServerCommand = String(profile.ui?.agenticWebServerCommand || 'bunx vite --port 5173 --strictPort')
+    let managedUiServer = null
+    let baseReady = await waitForBaseUrlReady(agenticBaseUrl, agenticBaseUrlWaitMs)
+
+    if (!baseReady && autoStartAgenticWebServer) {
+      managedUiServer = startBackgroundCommand(agenticWebServerCommand, repoRoot, profileEnv)
+      baseReady = await waitForBaseUrlReady(agenticBaseUrl, agenticBaseUrlWaitMs)
+    }
+
     const agenticPacks = Array.isArray(profile.ui?.agenticPacks) ? profile.ui.agenticPacks : []
-    for (const pack of agenticPacks) {
-      const start = Date.now()
-      const evidenceDir = path.join(runDir, 'agentic', pack)
-      await ensureDir(evidenceDir)
-      const cmd = await runCommand('node', [
-        'scripts/agentic-ui-shadow-user.mjs',
-        '--pack',
-        pack,
-        '--email',
-        API_TEST_EMAIL,
-        '--password',
-        API_TEST_PASSWORD,
-        '--evidence-dir',
-        evidenceDir,
-        '--max-steps',
-        String(toNumber(profile.ui?.agenticMaxSteps, 14)),
-        '--timeout-ms',
-        String(toNumber(profile.ui?.agenticTimeoutMs, 15000)),
-        ...(toBool(profile.ui?.agenticNoPlanner, true) ? ['--no-planner'] : []),
-      ], repoRoot, profileEnv)
-
-      let packStatus = 'fail'
-      let packDetail = `exit=${cmd.exitCode}`
-      try {
-        const packReport = await readJson(path.join(evidenceDir, 'report.json'))
-        const result = String(packReport.result || 'unknown')
-        const actionViolations = (packReport.actions || []).reduce((sum, a) => {
-          const count = Array.isArray(a.execution?.a11y?.violations) ? a.execution.a11y.violations.length : 0
-          return sum + count
-        }, 0)
-        report.ux.a11yViolations += actionViolations
-        if (result === 'blocked_auth') report.ux.blockedAuthCount += 1
-        if (['failed', 'failed_launch'].includes(result)) report.ux.flowBreaks += 1
-
-        if (['completed', 'max-steps-reached'].includes(result) && cmd.exitCode === 0) {
-          packStatus = 'pass'
-          packDetail = `result=${result}, a11y_violations=${actionViolations}`
-        } else if (result === 'blocked_auth') {
-          packStatus = 'infra'
-          packDetail = 'flow blocked by authentication credentials'
-        } else {
-          packStatus = 'fail'
-          packDetail = `result=${result}, exit=${cmd.exitCode}, a11y_violations=${actionViolations}`
+    try {
+      if (!baseReady) {
+        for (const pack of agenticPacks) {
+          report.ux.flowBreaks += 1
+          record(`ui.agentic.${pack}`, 'infra', `Agentic base URL unreachable: ${agenticBaseUrl}`, { durationMs: 0 })
         }
-      } catch {
-        packStatus = cmd.exitCode === 0 ? 'pass' : 'fail'
-      }
+      } else {
+        for (const pack of agenticPacks) {
+          const start = Date.now()
+          const evidenceDir = path.join(runDir, 'agentic', pack)
+          await ensureDir(evidenceDir)
+          const cmd = await runCommand('node', [
+            'scripts/agentic-ui-shadow-user.mjs',
+            '--pack',
+            pack,
+            '--base-url',
+            agenticBaseUrl,
+            '--email',
+            API_TEST_EMAIL,
+            '--password',
+            API_TEST_PASSWORD,
+            '--evidence-dir',
+            evidenceDir,
+            '--max-steps',
+            String(toNumber(profile.ui?.agenticMaxSteps, 14)),
+            '--timeout-ms',
+            String(toNumber(profile.ui?.agenticTimeoutMs, 15000)),
+            ...(toBool(profile.ui?.agenticNoPlanner, true) ? ['--no-planner'] : []),
+          ], repoRoot, profileEnv)
 
-      record(`ui.agentic.${pack}`, packStatus, packDetail, { durationMs: Date.now() - start })
+          let packStatus = 'fail'
+          let packDetail = `exit=${cmd.exitCode}`
+          try {
+            const packReport = await readJson(path.join(evidenceDir, 'report.json'))
+            const result = String(packReport.result || 'unknown')
+            const actionViolations = (packReport.actions || []).reduce((sum, a) => {
+              const count = Array.isArray(a.execution?.a11y?.violations) ? a.execution.a11y.violations.length : 0
+              return sum + count
+            }, 0)
+            report.ux.a11yViolations += actionViolations
+            if (result === 'blocked_auth') report.ux.blockedAuthCount += 1
+            if (['failed', 'failed_launch'].includes(result)) report.ux.flowBreaks += 1
+
+            const executionError = String(packReport.actions?.[0]?.execution?.error || '')
+            if (executionError.includes('ERR_CONNECTION_REFUSED')) {
+              packStatus = 'infra'
+              packDetail = `result=${result}, startup connectivity error`
+            } else if (['completed', 'max-steps-reached'].includes(result) && cmd.exitCode === 0) {
+              packStatus = 'pass'
+              packDetail = `result=${result}, a11y_violations=${actionViolations}`
+            } else if (result === 'blocked_auth') {
+              packStatus = 'infra'
+              packDetail = 'flow blocked by authentication credentials'
+            } else {
+              packStatus = 'fail'
+              packDetail = `result=${result}, exit=${cmd.exitCode}, a11y_violations=${actionViolations}`
+            }
+          } catch {
+            packStatus = cmd.exitCode === 0 ? 'pass' : 'fail'
+          }
+
+          record(`ui.agentic.${pack}`, packStatus, packDetail, { durationMs: Date.now() - start })
+        }
+      }
+    } finally {
+      if (managedUiServer) {
+        await managedUiServer.stop()
+      }
     }
 
     if (toBool(profile.ui?.runPlaywrightSweep, true)) {

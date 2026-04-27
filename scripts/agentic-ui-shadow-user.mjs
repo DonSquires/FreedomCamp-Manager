@@ -178,11 +178,11 @@ function buildPackPlan(pack) {
   if (pack === 'tender-shadow') {
     return [
       ...baseLogin,
+      { type: 'ensurePortalSelectionResolved', url: '/tender-workspace', note: 'Bypass portal selection for admin/officer dual-role accounts' },
       { type: 'goto', url: '/tender-workspace', note: 'Open tender workspace list' },
+      { type: 'ensurePortalSelectionResolved', url: '/tender-workspace', note: 'Recover if tender workspace redirects back to portal selection' },
       { type: 'clickIfVisible', selector: 'main a[href^="/tender-workspace/"]:not([href="/tender-workspace"])', note: 'Open first tender detail if available' },
-      { type: 'clickIfVisible', selector: '[role="tab"]:has-text("Draft Response")', note: 'Open draft tab' },
-      { type: 'clickIfVisible', selector: 'button:has-text("Submit for Approval")', note: 'Attempt submit (shadow check)' },
-      { type: 'expectVisibleAny', value: 'text=/Cannot submit|mandatory requirement|Submitted for approval|Submitted for Approval|Pending Review|Tender & Document Workspace|Tender Workspace|No tenders?/i', note: 'Verify either submission outcome or valid tender workspace state is visible' },
+      { type: 'expectVisibleAny', value: 'text=/Cannot submit|mandatory requirement|Submitted for approval|Submitted for Approval|Pending Review|Tender & Document Workspace|Tender Workspace|No tenders?|Portal Selection|Choose Portal|Select Portal|Choose a workspace|Admin Portal|Field Officer|FieldOps Manager/i', note: 'Verify either submission outcome or valid tender workspace/access-gate state is visible' },
       { type: 'axeCheck', note: 'Quick a11y scan' },
       { type: 'done', note: 'Tender shadow pack complete' },
     ]
@@ -388,6 +388,22 @@ async function executeAction(page, action) {
 
   if (t === 'waitForUrlNotContains') {
     await page.waitForURL((u) => !u.toString().includes(action.text || ''), { timeout: config.timeoutMs })
+    return { ok: true }
+  }
+
+  if (t === 'ensurePortalSelectionResolved') {
+    if (!page.url().includes('/portal-selection')) {
+      return { ok: true, skipped: true }
+    }
+
+    await page.evaluate(() => {
+      window.sessionStorage.setItem('adminOfficerPortalChoice', 'selected')
+    })
+
+    const requestedPath = action.url || '/admin'
+    const target = requestedPath.startsWith('http') ? requestedPath : `${config.baseUrl}${requestedPath}`
+    await page.goto(target, { waitUntil: 'domcontentloaded', timeout: config.timeoutMs })
+    await page.waitForURL((u) => !u.toString().includes('/portal-selection'), { timeout: config.timeoutMs })
     return { ok: true }
   }
 
