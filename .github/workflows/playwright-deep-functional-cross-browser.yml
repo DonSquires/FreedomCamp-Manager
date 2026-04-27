@@ -98,13 +98,25 @@ jobs:
       - name: Resolve base URL
         if: steps.creds-check.outputs.creds_available == 'true'
         run: |
+          TARGET_URL=""
+
           if [ -n "${{ github.event.inputs.base_url }}" ]; then
-            echo "PLAYWRIGHT_BASE_URL=${{ github.event.inputs.base_url }}" >> "$GITHUB_ENV"
+            TARGET_URL="${{ github.event.inputs.base_url }}"
           elif [ -n "$DEFAULT_PLAYWRIGHT_BASE_URL" ]; then
-            echo "PLAYWRIGHT_BASE_URL=$DEFAULT_PLAYWRIGHT_BASE_URL" >> "$GITHUB_ENV"
+            TARGET_URL="$DEFAULT_PLAYWRIGHT_BASE_URL"
           else
-            echo "PLAYWRIGHT_BASE_URL=https://fcmanager.co.nz" >> "$GITHUB_ENV"
+            TARGET_URL="https://fcmanager.co.nz"
           fi
+
+          # Vercel preview domains may present SSO walls in CI and break login flows.
+          # Fall back to production host unless user explicitly overrides with workflow input.
+          if [ -z "${{ github.event.inputs.base_url }}" ] && echo "$TARGET_URL" | grep -Eiq 'https?://[^/]*\.vercel\.app'; then
+            echo "::warning::DEFAULT_PLAYWRIGHT_BASE_URL points to a vercel.app host (${TARGET_URL}); falling back to https://fcmanager.co.nz for deep-functional CI."
+            TARGET_URL="https://fcmanager.co.nz"
+          fi
+
+          echo "PLAYWRIGHT_BASE_URL=$TARGET_URL" >> "$GITHUB_ENV"
+          echo "Resolved PLAYWRIGHT_BASE_URL=$TARGET_URL"
 
       - name: Run deep functional suite
         if: steps.creds-check.outputs.creds_available == 'true'
