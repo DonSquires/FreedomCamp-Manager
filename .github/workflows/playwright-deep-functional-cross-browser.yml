@@ -48,6 +48,10 @@ jobs:
     timeout-minutes: 45
     strategy:
       fail-fast: false
+      # App login revokes other active sessions for the same user.
+      # Running browser projects concurrently with shared CI identities causes
+      # cross-job auth invalidation and mid-suite redirects to /login.
+      max-parallel: 1
       matrix:
         project:
           - webkit
