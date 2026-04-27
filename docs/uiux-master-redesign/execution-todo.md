@@ -34,7 +34,8 @@ Do not claim completion until all release gates in this checklist are green.
 
 ## Hard Blockers (Must Close)
 
-- [ ] B1: Route/nav parity test suite implemented, green, and CI-enforced (`ux`)
+- [x] B1: Route/nav parity test suite implemented, green, and CI-enforced (`ux`)
+	- Evidence: `src/config/navigationRegistry.parity.test.ts`, `bun run test:nav-parity`, and CI step in `.github/workflows/ci-build-high-memory.yml`.
 - [ ] B2: Primary sidebar and primary admin top-nav fully registry-driven (`ux`)
 - [ ] B3: Human-test standard-credential run completed with actionable-only failures (`harness` or `ux`)
 - [ ] B4: Officer/admin critical route pass on deep-functional journeys after nav changes (`ux`)
