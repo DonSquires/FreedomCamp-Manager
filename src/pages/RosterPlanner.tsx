@@ -145,6 +145,9 @@ interface PatrolRoute {
   id: string
   route_name: string
   default_shift: string | null
+  randomization_enabled: boolean | null
+  jitter_window_minutes: number | null
+  mandatory_first_stop: boolean | null
 }
 
 interface OfficerAvailability {
@@ -735,6 +738,26 @@ function ShiftDialog({
                   </div>
                 </div>
 
+                {(() => {
+                  const selectedRoute = patrolRoutes.find(r => r.id === form.patrol_route_id)
+                  if (!selectedRoute) return null
+                  return (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      <Badge variant="outline" className="text-[10px]">
+                        {selectedRoute.randomization_enabled ? '🔀 Randomized' : '⏩ Sequential'}
+                      </Badge>
+                      {selectedRoute.randomization_enabled && selectedRoute.jitter_window_minutes != null && (
+                        <Badge variant="outline" className="text-[10px]">
+                          ±{selectedRoute.jitter_window_minutes}min jitter
+                        </Badge>
+                      )}
+                      {selectedRoute.mandatory_first_stop && (
+                        <Badge variant="outline" className="text-[10px]">First stop locked</Badge>
+                      )}
+                    </div>
+                  )
+                })()}
+
                 <Separator className="my-3" />
 
                 {routeInstancesLoading ? (
@@ -1168,7 +1191,7 @@ export default function RosterPlanner() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('patrol_routes')
-        .select('id, route_name, default_shift')
+        .select('id, route_name, default_shift, randomization_enabled, jitter_window_minutes, mandatory_first_stop')
         .eq('organization_id', user!.organization_id!)
         .eq('is_active', true)
         .order('route_name')
