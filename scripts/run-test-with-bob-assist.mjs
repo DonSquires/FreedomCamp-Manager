@@ -23,12 +23,46 @@ function resolveBaseUrl() {
   return String(raw).trim().replace(/\/+$/, '');
 }
 
+function resolveRunsyncUrl() {
+  const direct = [
+    process.env.RUNPOD_RUNSYNC_URL,
+    process.env.RUNPOD_SERVERLESS_URL,
+  ].find((value) => isHttpUrl(value));
+
+  if (direct) return String(direct).trim().replace(/\/+$/, '');
+
+  const endpointId = String(process.env.RUNPOD_ENDPOINT_ID || '').trim();
+  if (!endpointId) return '';
+  return `https://api.runpod.ai/v2/${endpointId}/runsync`;
+}
+
 function resolveApiKey() {
   return String(
     process.env.BOB_INFERENCE_API_KEY ||
     process.env.INFERENCE_API_KEY ||
     process.env.RUNPOD_API_KEY ||
     process.env.DR_BOB_API ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    ''
+  ).trim();
+}
+
+function resolveInferenceApiKey() {
+  return String(
+    process.env.BOB_INFERENCE_API_KEY ||
+    process.env.INFERENCE_API_KEY ||
+    process.env.DR_BOB_API ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    ''
+  ).trim();
+}
+
+function resolveRunpodApiKey() {
+  return String(
+    process.env.RUNPOD_API_KEY ||
+    process.env.DR_BOB_API ||
+    process.env.BOB_INFERENCE_API_KEY ||
+    process.env.INFERENCE_API_KEY ||
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     ''
   ).trim();
@@ -44,11 +78,14 @@ function resolveOrgId() {
 }
 
 function buildBobMessage(stage, command, exitCode = null) {
+  const preferredLanguage = String(process.env.BOB_ASSIST_LANGUAGE || 'en-NZ').trim();
+
   if (stage === 'pre') {
     return [
       'Bob, assist this automated test run.',
       `Stage: pre-run`,
       `Command: ${command}`,
+      `Respond in ${preferredLanguage}.`,
       'Provide concise risk focus areas and expected failure hotspots for this stack.',
     ].join('\n');
   }
@@ -58,6 +95,7 @@ function buildBobMessage(stage, command, exitCode = null) {
     `Stage: post-run`,
     `Command: ${command}`,
     `Exit code: ${exitCode}`,
+    `Respond in ${preferredLanguage}.`,
     exitCode === 0
       ? 'Tests passed. Provide quick verification checks for regressions we should still watch.'
       : 'Tests failed. Provide likely root causes and first 3 concrete remediation steps.',
@@ -66,11 +104,17 @@ function buildBobMessage(stage, command, exitCode = null) {
 
 async function pingBob(stage, command, exitCode = null) {
   const baseUrl = resolveBaseUrl();
+  const runsyncUrl = resolveRunsyncUrl();
   const apiKey = resolveApiKey();
+  const inferenceApiKey = resolveInferenceApiKey();
+  const runpodApiKey = resolveRunpodApiKey();
   const orgId = resolveOrgId();
-  const timeoutMs = Number(process.env.BOB_TEST_ASSIST_TIMEOUT_MS || 15000);
+  const preferredLanguage = String(process.env.BOB_ASSIST_LANGUAGE || 'en-NZ').trim();
+  const timeoutMs = Number(process.env.BOB_TEST_ASSIST_TIMEOUT_MS || 180000);
+  const message = buildBobMessage(stage, command, exitCode);
+  const isRunpodBase = /api\.runpod\.ai\//i.test(baseUrl);
 
-  if (!baseUrl || !apiKey) {
+  if ((!baseUrl && !runsyncUrl) || !apiKey) {
     console.warn('[bob-test-assist] Credentials missing, running underlying test without AI assist');
     return;
   }
@@ -78,31 +122,102 @@ async function pingBob(stage, command, exitCode = null) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const headers = {
-      'Content-Type': 'application/json',
-      'x-inference-api-key': apiKey,
-      Authorization: `Bearer ${apiKey}`,
-    };
-    if (orgId) headers['x-org-id'] = orgId;
+    const attempts = [];
 
-    const response = await fetch(`${baseUrl}/chat`, {
-      method: 'POST',
-      headers,
-      signal: controller.signal,
-      body: JSON.stringify({
-        message: buildBobMessage(stage, command, exitCode),
-      }),
-    });
+    if (baseUrl && !isRunpodBase) {
+      attempts.push({
+        label: 'bob-chat-message',
+        url: `${baseUrl}/chat`,
+        key: inferenceApiKey,
+        body: {
+          message,
+          language: preferredLanguage,
+        },
+      });
 
-    if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      throw new Error(`[bob-test-assist] Bob /chat failed (${response.status}): ${body.slice(0, 240)}`);
+      attempts.push({
+        label: 'bob-chat-prompt',
+        url: `${baseUrl}/chat`,
+        key: inferenceApiKey,
+        body: {
+          prompt: message,
+          language: preferredLanguage,
+        },
+      });
     }
 
-    const payload = await response.json().catch(() => ({}));
-    const provider = payload?.provider || 'unknown';
-    const fallback = payload?.fallback === true ? 'yes' : 'no';
-    console.log(`[bob-test-assist] ${stage} assist completed (provider=${provider}, fallback=${fallback})`);
+    const effectiveRunsyncUrl = runsyncUrl || (isRunpodBase ? `${baseUrl}/runsync` : '');
+    if (effectiveRunsyncUrl) {
+      attempts.push({
+        label: 'runpod-runsync-message',
+        url: effectiveRunsyncUrl,
+        key: runpodApiKey,
+        body: {
+          message,
+          language: preferredLanguage,
+        },
+      });
+
+      attempts.push({
+        label: 'runpod-runsync-prompt',
+        url: effectiveRunsyncUrl,
+        key: runpodApiKey,
+        body: {
+          prompt: message,
+          language: preferredLanguage,
+        },
+      });
+
+      attempts.push({
+        label: 'runpod-runsync-training-note',
+        url: effectiveRunsyncUrl,
+        key: runpodApiKey,
+        body: {
+          action: 'training_note',
+          message,
+          language: preferredLanguage,
+        },
+      });
+    }
+
+    let lastError = '';
+    for (const attempt of attempts) {
+      if (!attempt.key) {
+        lastError = `${attempt.label}: missing API key`;
+        continue;
+      }
+
+      const headers = {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${attempt.key}`,
+        'Accept-Language': preferredLanguage,
+      };
+      if (attempt.label.startsWith('bob-chat')) {
+        headers['x-inference-api-key'] = attempt.key;
+      }
+      if (orgId) headers['x-org-id'] = orgId;
+
+      const response = await fetch(attempt.url, {
+        method: 'POST',
+        headers,
+        signal: controller.signal,
+        body: JSON.stringify(attempt.body),
+      });
+
+      if (!response.ok) {
+        const body = await response.text().catch(() => '');
+        lastError = `${attempt.label} (${response.status}): ${body.slice(0, 240)}`;
+        continue;
+      }
+
+      const payload = await response.json().catch(() => ({}));
+      const provider = payload?.provider || 'unknown';
+      const fallback = payload?.fallback === true ? 'yes' : 'no';
+      console.log(`[bob-test-assist] ${stage} assist completed (provider=${provider}, fallback=${fallback}, channel=${attempt.label})`);
+      return;
+    }
+
+    throw new Error(`[bob-test-assist] All assist endpoints failed: ${lastError || 'no endpoints attempted'}`);
   } finally {
     clearTimeout(timer);
   }
