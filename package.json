@@ -74,6 +74,8 @@
     "test:rls": "node scripts/run-test-with-bob-assist.mjs -- playwright test tests/e2e/multi-org-rls.spec.ts",
     "test:reports": "node scripts/run-test-with-bob-assist.mjs -- playwright test tests/e2e/report-generation.spec.ts",
     "test:smoke": "node scripts/run-test-with-bob-assist.mjs -- playwright test --grep @smoke",
+    "test:focused": "node scripts/run-test-with-bob-assist.mjs -- playwright test -c playwright.focused.config.ts",
+    "test:focused:headed": "node scripts/run-test-with-bob-assist.mjs -- playwright test -c playwright.focused.config.ts --headed",
     "test:api": "node scripts/run-test-with-bob-assist.mjs -- playwright test -c playwright.api.config.ts",
     "test:human-engine": "node scripts/human-test-engine.mjs",
     "install:playwright": "playwright install"
