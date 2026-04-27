@@ -2,7 +2,7 @@ name: Ops Nightly Self-Learning Pretrain
 
 on:
   schedule:
-    - cron: '21 16 * * *' # 04:21 NZST (approximately)
+    - cron: '0 0 * * *'   # once a day at midnight UTC
   workflow_dispatch:
 
 env:

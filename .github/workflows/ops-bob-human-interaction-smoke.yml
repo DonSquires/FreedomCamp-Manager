@@ -8,7 +8,7 @@ on:
       - '.github/workflows/ops-bob-human-interaction-smoke.yml'
       - 'inference-service/server.js'
   schedule:
-    - cron: '17 * * * *'
+    - cron: '0 0 * * *'   # once a day at midnight UTC
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'

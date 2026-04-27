@@ -3,7 +3,7 @@ name: Escalate Stale Bug Reports
 on:
   schedule:
     # Every 10 minutes
-    - cron: '*/10 * * * *'
+    - cron: '0 0 * * *'   # once a day at midnight UTC
   workflow_dispatch:
     inputs:
       stale_minutes:

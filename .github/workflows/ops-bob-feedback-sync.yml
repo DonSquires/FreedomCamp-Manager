@@ -2,7 +2,7 @@ name: Ops Bob Feedback Sync
 
 on:
   schedule:
-    - cron: '47 15 * * *' # daily near 03:47 NZST/NZDT
+    - cron: '0 0 * * *'   # once a day at midnight UTC
   workflow_dispatch:
 
 env:

@@ -3,7 +3,7 @@ name: Ops RunPod Training Memory Drift Check
 on:
   workflow_dispatch:
   schedule:
-    - cron: '17 */6 * * *'
+    - cron: '0 0 * * *'   # once a day at midnight UTC
   push:
     paths:
       - 'runpod-worker/training_memory.json'
