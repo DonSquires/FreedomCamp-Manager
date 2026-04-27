@@ -527,6 +527,8 @@ export default function FieldOfficerPortal() {
   const { data: activeRouteStops = [], isLoading: activeRouteStopsLoading } = usePatrolRouteInstanceStops(activeRouteInstance?.id)
   const updateRouteStopStatus = useUpdatePatrolRouteStopStatus()
   const lastAutoArrivedStopIdRef = useRef<string | null>(null)
+  const lastAutoCompletedStopIdRef = useRef<string | null>(null)
+  const stopSeenInZoneRef = useRef<Record<string, boolean>>({})
 
   const activeRouteTotalStops = activeRouteStops.length
   const activeRouteCompletedStops = activeRouteStops.filter((stop) => stop.visit_status === 'completed').length
@@ -553,6 +555,52 @@ export default function FieldOfficerPortal() {
       {
         onError: () => {
           lastAutoArrivedStopIdRef.current = null
+        },
+      }
+    )
+  }, [activeRouteCurrentStop, currentPatrolZone, updateRouteStopStatus])
+
+  // Mark stop as eligible for auto-complete once officer has been seen in that stop zone.
+  useEffect(() => {
+    if (!activeRouteCurrentStop?.id || !activeRouteCurrentStop.zone_id || !currentPatrolZone) return
+    if (activeRouteCurrentStop.visit_status !== 'arrived') return
+    if (activeRouteCurrentStop.zone_id !== currentPatrolZone) return
+
+    stopSeenInZoneRef.current[activeRouteCurrentStop.id] = true
+  }, [activeRouteCurrentStop, currentPatrolZone])
+
+  // Auto-complete the current arrived stop when officer exits the stop zone after minimum dwell.
+  useEffect(() => {
+    if (!activeRouteCurrentStop) return
+    if (activeRouteCurrentStop.visit_status !== 'arrived') return
+    if (!activeRouteCurrentStop.zone_id) return
+    if (!currentPatrolZone) return
+    if (activeRouteCurrentStop.zone_id === currentPatrolZone) return
+    if (updateRouteStopStatus.isPending) return
+    if (!stopSeenInZoneRef.current[activeRouteCurrentStop.id]) return
+    if (lastAutoCompletedStopIdRef.current === activeRouteCurrentStop.id) return
+
+    const arrivalTs = activeRouteCurrentStop.actual_arrival_at
+      ? new Date(activeRouteCurrentStop.actual_arrival_at).getTime()
+      : 0
+    if (!arrivalTs) return
+
+    const dwellMs = Date.now() - arrivalTs
+    const minDwellMs = activeRouteCurrentStop.planned_dwell_minutes && activeRouteCurrentStop.planned_dwell_minutes > 0
+      ? activeRouteCurrentStop.planned_dwell_minutes * 60 * 1000
+      : 30 * 1000
+    if (dwellMs < minDwellMs) return
+
+    lastAutoCompletedStopIdRef.current = activeRouteCurrentStop.id
+    updateRouteStopStatus.mutate(
+      {
+        stopId: activeRouteCurrentStop.id,
+        routeInstanceId: activeRouteCurrentStop.route_instance_id,
+        status: 'completed',
+      },
+      {
+        onError: () => {
+          lastAutoCompletedStopIdRef.current = null
         },
       }
     )
@@ -2444,7 +2492,7 @@ export default function FieldOfficerPortal() {
 
                             {activeRouteCurrentStop.zone_id && (
                               <p className="text-[11px] text-muted-foreground">
-                                Auto-arrival active: entering the assigned stop zone marks Arrived automatically.
+                                Auto-routing active: entering stop zone marks Arrived, and exiting after dwell marks Complete.
                               </p>
                             )}
                           </div>

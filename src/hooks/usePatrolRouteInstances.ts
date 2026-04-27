@@ -30,6 +30,9 @@ export interface PatrolRouteInstanceStop {
   sequence_no: number
   planned_arrival_window_start: string | null
   planned_arrival_window_end: string | null
+  planned_dwell_minutes: number | null
+  actual_arrival_at: string | null
+  actual_departure_at: string | null
   visit_status: 'pending' | 'arrived' | 'completed' | 'skipped' | 'failed'
 }
 
@@ -65,7 +68,7 @@ export function usePatrolRouteInstanceStops(routeInstanceId?: string) {
       if (!routeInstanceId) return []
       const { data, error } = await (supabase as any)
         .from('patrol_route_instance_stops')
-        .select('id, route_instance_id, checkpoint_id, zone_id, stop_name, is_mandatory, sequence_no, planned_arrival_window_start, planned_arrival_window_end, visit_status')
+        .select('id, route_instance_id, checkpoint_id, zone_id, stop_name, is_mandatory, sequence_no, planned_arrival_window_start, planned_arrival_window_end, planned_dwell_minutes, actual_arrival_at, actual_departure_at, visit_status')
         .eq('route_instance_id', routeInstanceId)
         .order('sequence_no')
       if (error) throw error
