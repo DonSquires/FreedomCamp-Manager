@@ -566,6 +566,130 @@ async function ensureWorkAreaPermission(page: Page): Promise<void> {
   }
 }
 
+async function ensureOfficerRosterForNelson(page: Page, user: TestUserKey): Promise<void> {
+  if (user !== 'officerOrg1') return
+
+  const supabaseUrl = readEnv('VITE_SUPABASE_URL')
+  const anonKey = readEnv('VITE_SUPABASE_ANON_KEY')
+  if (!supabaseUrl || !anonKey) return
+
+  const accessToken = await getAccessTokenFromBrowser(page)
+  if (!accessToken) return
+
+  const headers = {
+    apikey: anonKey,
+    Authorization: `Bearer ${accessToken}`,
+    'Content-Type': 'application/json',
+  }
+
+  try {
+    const authRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: {
+        apikey: anonKey,
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
+    if (!authRes.ok) return
+
+    const authUser = await authRes.json() as { id?: string }
+    if (!authUser?.id) return
+
+    const profileRes = await fetch(
+      `${supabaseUrl}/rest/v1/user_profiles?select=id,organization_id,employer_organization_id&id=eq.${authUser.id}&limit=1`,
+      { headers }
+    )
+    if (!profileRes.ok) return
+
+    const profiles = await profileRes.json() as Array<{
+      id: string
+      organization_id?: string | null
+      employer_organization_id?: string | null
+    }>
+    const profile = profiles[0]
+    if (!profile?.id) return
+
+    const targetOrgName = readEnv('PLAYWRIGHT_WORK_AREA_ORG', 'E2E_WORK_AREA_ORG') || 'Nelson City Council'
+    let rosterOrgId: string | null = null
+
+    const orgRes = await fetch(
+      `${supabaseUrl}/rest/v1/organizations?select=id,name&name=ilike.${encodeURIComponent(targetOrgName)}&limit=1`,
+      { headers }
+    )
+    if (orgRes.ok) {
+      const orgs = await orgRes.json() as Array<{ id: string }>
+      rosterOrgId = orgs[0]?.id ?? null
+    }
+
+    if (!rosterOrgId) {
+      rosterOrgId = profile.employer_organization_id || profile.organization_id || null
+    }
+    if (!rosterOrgId) return
+
+    const today = new Date().toISOString().slice(0, 10)
+
+    const existingRosterRes = await fetch(
+      `${supabaseUrl}/rest/v1/roster_shifts?select=id,service_type,status&officer_id=eq.${profile.id}&shift_date=eq.${today}&status=in.(published,confirmed)&limit=1`,
+      { headers }
+    )
+    const existingRoster = existingRosterRes.ok
+      ? (await existingRosterRes.json() as Array<{ id: string }>)[0]
+      : null
+
+    let rosterShiftId = existingRoster?.id ?? null
+
+    if (!rosterShiftId) {
+      const insertRosterRes = await fetch(`${supabaseUrl}/rest/v1/roster_shifts`, {
+        method: 'POST',
+        headers: {
+          ...headers,
+          Prefer: 'return=representation',
+        },
+        body: JSON.stringify({
+          organization_id: rosterOrgId,
+          officer_id: profile.id,
+          shift_date: today,
+          start_time: '08:00:00',
+          end_time: '17:00:00',
+          shift_type: 'day',
+          service_type: 'freedom_camping',
+          status: 'published',
+          notes: 'Playwright seeded officer roster',
+          is_template: false,
+        }),
+      })
+
+      if (insertRosterRes.ok) {
+        const created = await insertRosterRes.json() as Array<{ id: string }>
+        rosterShiftId = created[0]?.id ?? null
+      }
+    }
+
+    const activeShiftRes = await fetch(
+      `${supabaseUrl}/rest/v1/officer_shifts?select=id&officer_id=eq.${profile.id}&ended_at=is.null&limit=1`,
+      { headers }
+    )
+    const activeShift = activeShiftRes.ok
+      ? (await activeShiftRes.json() as Array<{ id: string }>)[0]
+      : null
+
+    if (!activeShift) {
+      await fetch(`${supabaseUrl}/rest/v1/officer_shifts`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          officer_id: profile.id,
+          organization_id: rosterOrgId,
+          roster_shift_id: rosterShiftId,
+          service_type: 'freedom_camping',
+          started_at: new Date().toISOString(),
+        }),
+      })
+    }
+  } catch {
+    // Best-effort only: tests can still validate fallback states when seeding is blocked.
+  }
+}
+
 async function resolvePortalSelectionIfNeeded(page: Page, user: TestUserKey): Promise<void> {
   if (!page.url().includes('/portal-selection')) return
 
@@ -612,6 +736,7 @@ export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
   // Best-effort: ensure the user can work in the configured council area
   // (defaults to Nelson City Council for location-based test flows).
   await ensureWorkAreaPermission(page)
+  await ensureOfficerRosterForNelson(page, user)
   await autoSetRoleForTestUser(page, user)
   // Role auto-set reload can return the user to portal-selection.
   await resolvePortalSelectionIfNeeded(page, user)

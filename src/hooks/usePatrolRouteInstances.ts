@@ -1,7 +1,11 @@
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { toast } from 'sonner'
+
+export const FIELD_OFFICER_ROUTE_TEST_OVERRIDE_KEY = 'fieldOfficerRouteTestOverride.v1'
+export const FIELD_OFFICER_ROUTE_TEST_OVERRIDE_EVENT = 'copilot:test-route-override-updated'
 
 export interface PatrolRouteInstance {
   id: string
@@ -36,6 +40,60 @@ export interface PatrolRouteInstanceStop {
   visit_status: 'pending' | 'arrived' | 'completed' | 'skipped' | 'failed'
 }
 
+export interface FieldOfficerRouteTestOverride {
+  activeRouteInstance?: PatrolRouteInstance | null
+  activeRouteStops?: PatrolRouteInstanceStop[]
+  currentPatrolZone?: string | null
+  disableGeofenceMonitoring?: boolean
+  forceOperationalView?: boolean
+}
+
+function canUseWindowStorage() {
+  return typeof window !== 'undefined' && !!window.sessionStorage
+}
+
+export function readFieldOfficerRouteTestOverride(): FieldOfficerRouteTestOverride | null {
+  if (!canUseWindowStorage()) return null
+
+  try {
+    const raw = window.sessionStorage.getItem(FIELD_OFFICER_ROUTE_TEST_OVERRIDE_KEY)
+    if (!raw) return null
+    return JSON.parse(raw) as FieldOfficerRouteTestOverride
+  } catch {
+    return null
+  }
+}
+
+function writeFieldOfficerRouteTestOverride(override: FieldOfficerRouteTestOverride) {
+  if (!canUseWindowStorage()) return
+
+  window.sessionStorage.setItem(FIELD_OFFICER_ROUTE_TEST_OVERRIDE_KEY, JSON.stringify(override))
+  window.dispatchEvent(new CustomEvent(FIELD_OFFICER_ROUTE_TEST_OVERRIDE_EVENT))
+}
+
+function useFieldOfficerRouteTestOverrideVersion() {
+  const [version, setVersion] = useState(0)
+
+  useEffect(() => {
+    if (!canUseWindowStorage()) return
+
+    const bump = () => setVersion((value) => value + 1)
+    window.addEventListener(FIELD_OFFICER_ROUTE_TEST_OVERRIDE_EVENT, bump)
+    window.addEventListener('storage', bump)
+    return () => {
+      window.removeEventListener(FIELD_OFFICER_ROUTE_TEST_OVERRIDE_EVENT, bump)
+      window.removeEventListener('storage', bump)
+    }
+  }, [])
+
+  return version
+}
+
+export function useFieldOfficerRouteTestOverride() {
+  useFieldOfficerRouteTestOverrideVersion()
+  return readFieldOfficerRouteTestOverride()
+}
+
 export function usePatrolRouteInstances(filters?: { rosterShiftId?: string; patrolId?: string }) {
   const { user } = useAuthStore()
 
@@ -62,10 +120,18 @@ export function usePatrolRouteInstances(filters?: { rosterShiftId?: string; patr
 }
 
 export function usePatrolRouteInstanceStops(routeInstanceId?: string) {
+  const overrideVersion = useFieldOfficerRouteTestOverrideVersion()
+
   return useQuery({
-    queryKey: ['patrol-route-instance-stops', routeInstanceId],
+    queryKey: ['patrol-route-instance-stops', routeInstanceId, overrideVersion],
     queryFn: async () => {
       if (!routeInstanceId) return []
+
+      const testOverride = readFieldOfficerRouteTestOverride()
+      if (testOverride?.activeRouteInstance?.id === routeInstanceId && testOverride.activeRouteStops) {
+        return testOverride.activeRouteStops
+      }
+
       const { data, error } = await (supabase as any)
         .from('patrol_route_instance_stops')
         .select('id, route_instance_id, checkpoint_id, zone_id, stop_name, is_mandatory, sequence_no, planned_arrival_window_start, planned_arrival_window_end, planned_dwell_minutes, actual_arrival_at, actual_departure_at, visit_status')
@@ -80,11 +146,17 @@ export function usePatrolRouteInstanceStops(routeInstanceId?: string) {
 
 export function useOfficerActiveRouteInstance() {
   const { user } = useAuthStore()
+  const overrideVersion = useFieldOfficerRouteTestOverrideVersion()
 
   return useQuery({
-    queryKey: ['officer-active-patrol-route-instance', user?.id, user?.organization_id],
+    queryKey: ['officer-active-patrol-route-instance', user?.id, user?.organization_id, overrideVersion],
     queryFn: async () => {
       if (!user?.id || !user?.organization_id) return null
+
+      const testOverride = readFieldOfficerRouteTestOverride()
+      if (testOverride?.activeRouteInstance !== undefined) {
+        return testOverride.activeRouteInstance
+      }
 
       const { data, error } = await (supabase as any)
         .from('patrol_route_instances')
@@ -154,6 +226,36 @@ export function useUpdatePatrolRouteStopStatus() {
       source?: 'manual' | 'zone_enter_auto' | 'zone_exit_auto'
     }) => {
       const now = new Date().toISOString()
+      const testOverride = readFieldOfficerRouteTestOverride()
+
+      if (testOverride?.activeRouteInstance?.id === routeInstanceId && testOverride.activeRouteStops) {
+        const nextStops = testOverride.activeRouteStops.map((stop) => {
+          if (stop.id !== stopId) return stop
+
+          return {
+            ...stop,
+            visit_status: status,
+            actual_arrival_at: status === 'arrived' ? now : (stop.actual_arrival_at ?? now),
+            actual_departure_at: status === 'completed' ? now : stop.actual_departure_at,
+          }
+        })
+
+        const hasOpenStops = nextStops.some((row) => ['pending', 'arrived'].includes(row.visit_status))
+        writeFieldOfficerRouteTestOverride({
+          ...testOverride,
+          activeRouteInstance: testOverride.activeRouteInstance
+            ? {
+                ...testOverride.activeRouteInstance,
+                plan_status: hasOpenStops ? 'in_progress' : 'completed',
+                updated_at: now,
+              }
+            : testOverride.activeRouteInstance,
+          activeRouteStops: nextStops,
+        })
+
+        return { status, source }
+      }
+
       const updatePayload: Record<string, unknown> = { visit_status: status }
 
       const { data: stopRow, error: fetchStopError } = await (supabase as any)

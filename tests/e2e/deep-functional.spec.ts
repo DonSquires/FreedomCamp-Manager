@@ -24,6 +24,18 @@
 import { test, expect, Page } from '@playwright/test'
 import { loginAs } from './auth'
 
+const FIELD_OFFICER_ROUTE_TEST_OVERRIDE_KEY = 'fieldOfficerRouteTestOverride.v1'
+const FIELD_OFFICER_ROUTE_TEST_OVERRIDE_EVENT = 'copilot:test-route-override-updated'
+
+async function seedFieldOfficerRouteOverride(page: Page, override: Record<string, unknown>) {
+  await page.addInitScript(
+    ({ key, value }) => {
+      window.sessionStorage.setItem(key, JSON.stringify(value))
+    },
+    { key: FIELD_OFFICER_ROUTE_TEST_OVERRIDE_KEY, value: override }
+  )
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 async function openFeedbackModal(page: Page) {
@@ -494,46 +506,130 @@ test.describe('Field Officer Portal — welfare and SOS', () => {
     ).toBeVisible({ timeout: 15000 })
   })
 
-  test('Active route panel shows zone-enter and zone-exit automation guidance when rendered', async ({ page }) => {
+  test('Active route panel auto-routes on zone entry and exit with deterministic fixture', async ({ page }) => {
+    const nowIso = new Date().toISOString()
+    await seedFieldOfficerRouteOverride(page, {
+      disableGeofenceMonitoring: true,
+      forceOperationalView: true,
+      currentPatrolZone: 'zone-fixture-1',
+      activeRouteInstance: {
+        id: 'route-fixture-1',
+        organization_id: 'org-fixture-1',
+        roster_shift_id: 'shift-fixture-1',
+        patrol_id: null,
+        patrol_route_id: 'route-template-1',
+        patrol_route_name: 'Waterfront Patrol',
+        officer_id: 'officer-fixture-1',
+        planning_mode: 'baseline',
+        plan_status: 'planned',
+        planned_start_time: nowIso,
+        planned_end_time: null,
+        predicted_duration_minutes: 45,
+        created_at: nowIso,
+        updated_at: nowIso,
+      },
+      activeRouteStops: [
+        {
+          id: 'route-stop-fixture-1',
+          route_instance_id: 'route-fixture-1',
+          checkpoint_id: null,
+          zone_id: 'zone-fixture-1',
+          stop_name: 'Tahuna Foreshore',
+          is_mandatory: true,
+          sequence_no: 1,
+          planned_arrival_window_start: null,
+          planned_arrival_window_end: null,
+          planned_dwell_minutes: null,
+          actual_arrival_at: null,
+          actual_departure_at: null,
+          visit_status: 'pending',
+        },
+      ],
+    })
+
     await loginAs(page, 'officerOrg1')
     await page.goto('/field-officer', { waitUntil: 'networkidle' })
-
-    const unrosteredBanner = page.locator('text=You are not rostered today').first()
-    if (await unrosteredBanner.isVisible({ timeout: 3000 }).catch(() => false)) {
-      test.skip(true, 'Officer is not rostered in this environment; route execution panel is not available.')
-    }
 
     const routeAutomationText = page.getByText(/Auto-routing active: entering stop zone marks Arrived, and exiting after dwell marks Complete\./i)
-    if (!(await routeAutomationText.isVisible({ timeout: 5000 }).catch(() => false))) {
-      test.skip(true, 'No active zoned route stop is available in this environment for automation guidance validation.')
-    }
-
     await expect(routeAutomationText).toBeVisible({ timeout: 10000 })
+
+    await expect(page.getByRole('button', { name: /Complete Stop/i })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText(/Stop auto-marked as arrived from zone entry/i)).toBeVisible({ timeout: 10000 })
+
+    await page.evaluate(({ key, eventName }) => {
+      const raw = window.sessionStorage.getItem(key)
+      if (!raw) return
+
+      const current = JSON.parse(raw)
+      if (Array.isArray(current.activeRouteStops) && current.activeRouteStops[0]) {
+        current.currentPatrolZone = 'zone-fixture-2'
+        current.activeRouteStops[0].visit_status = 'arrived'
+        current.activeRouteStops[0].actual_arrival_at = new Date(Date.now() - 61_000).toISOString()
+        window.sessionStorage.setItem(key, JSON.stringify(current))
+        window.dispatchEvent(new CustomEvent(eventName))
+      }
+    }, {
+      key: FIELD_OFFICER_ROUTE_TEST_OVERRIDE_KEY,
+      eventName: FIELD_OFFICER_ROUTE_TEST_OVERRIDE_EVENT,
+    })
+
+    await expect(page.getByText(/Stop auto-completed after zone exit and dwell/i)).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText(/No pending stops remain on this route instance\./i)).toBeVisible({ timeout: 10000 })
   })
 
-  test('Active route panel retains manual stop actions as fallback', async ({ page }) => {
+  test('Active route panel retains manual stop actions as fallback with deterministic fixture', async ({ page }) => {
+    const nowIso = new Date().toISOString()
+    await seedFieldOfficerRouteOverride(page, {
+      disableGeofenceMonitoring: true,
+      forceOperationalView: true,
+      currentPatrolZone: null,
+      activeRouteInstance: {
+        id: 'route-fixture-2',
+        organization_id: 'org-fixture-1',
+        roster_shift_id: 'shift-fixture-2',
+        patrol_id: null,
+        patrol_route_id: 'route-template-2',
+        patrol_route_name: 'CBD Patrol',
+        officer_id: 'officer-fixture-1',
+        planning_mode: 'baseline',
+        plan_status: 'planned',
+        planned_start_time: nowIso,
+        planned_end_time: null,
+        predicted_duration_minutes: 30,
+        created_at: nowIso,
+        updated_at: nowIso,
+      },
+      activeRouteStops: [
+        {
+          id: 'route-stop-fixture-2',
+          route_instance_id: 'route-fixture-2',
+          checkpoint_id: null,
+          zone_id: 'zone-fixture-manual',
+          stop_name: 'Bridge Street',
+          is_mandatory: true,
+          sequence_no: 1,
+          planned_arrival_window_start: null,
+          planned_arrival_window_end: null,
+          planned_dwell_minutes: null,
+          actual_arrival_at: null,
+          actual_departure_at: null,
+          visit_status: 'pending',
+        },
+      ],
+    })
+
     await loginAs(page, 'officerOrg1')
     await page.goto('/field-officer', { waitUntil: 'networkidle' })
-
-    const unrosteredBanner = page.locator('text=You are not rostered today').first()
-    if (await unrosteredBanner.isVisible({ timeout: 3000 }).catch(() => false)) {
-      test.skip(true, 'Officer is not rostered in this environment; route execution panel is not available.')
-    }
-
-    const routeCard = page.getByText(/Patrol Route|Stop #/i).first()
-    if (!(await routeCard.isVisible({ timeout: 5000 }).catch(() => false))) {
-      test.skip(true, 'No active route execution card is available in this environment.')
-    }
 
     const completeBtn = page.getByRole('button', { name: /Complete Stop/i }).first()
     const arrivedBtn = page.getByRole('button', { name: /^Arrived$/i }).first()
 
-    const hasComplete = await completeBtn.isVisible({ timeout: 3000 }).catch(() => false)
-    const hasArrived = await arrivedBtn.isVisible({ timeout: 3000 }).catch(() => false)
+    await expect(arrivedBtn).toBeVisible({ timeout: 10000 })
+    await expect(completeBtn).toBeVisible({ timeout: 10000 })
 
-    expect(hasComplete || hasArrived).toBeTruthy()
-    if (hasComplete) await expect(completeBtn).toBeVisible({ timeout: 10000 })
-    if (hasArrived) await expect(arrivedBtn).toBeVisible({ timeout: 10000 })
+    await arrivedBtn.click()
+    await expect(page.getByText(/Stop marked as arrived/i)).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('button', { name: /Complete Stop/i })).toBeVisible({ timeout: 10000 })
   })
 })
 

@@ -27,6 +27,7 @@ import { useWelfareCheckin } from '@/hooks/useWelfareCheckin'
 import { useRosteredShift } from '@/hooks/useRosteredShift'
 import { useShiftGate } from '@/hooks/useShiftGate'
 import {
+  useFieldOfficerRouteTestOverride,
   useOfficerActiveRouteInstance,
   usePatrolRouteInstanceStops,
   useUpdatePatrolRouteStopStatus,
@@ -259,6 +260,7 @@ export default function FieldOfficerPortal() {
   const { themeMode, setThemeMode } = useThemePreferencesStore()
   const isNightPatrol = themeMode === 'night-patrol'
   const employerOrganizationId = user?.employer_organization_id || user?.organization_id || null
+  const routeTestOverride = useFieldOfficerRouteTestOverride()
 
   // ── Roster context ────────────────────────────────────────────────────────
   const { rosteredShift } = useRosteredShift()
@@ -266,10 +268,11 @@ export default function FieldOfficerPortal() {
   // ── Shift gate: redirect to /officer-home if not rostered ─────────────────
   const { gateApplies, canAccessPortal, canUseFeature, geofenceViolation, isLoading: gateLoading } = useShiftGate()
   useEffect(() => {
+    if (routeTestOverride?.forceOperationalView) return
     if (!gateLoading && gateApplies && (!canAccessPortal || !canUseFeature('freedom_camping'))) {
       navigate('/officer-home', { replace: true })
     }
-  }, [gateApplies, canAccessPortal, canUseFeature, gateLoading, navigate])
+  }, [gateApplies, canAccessPortal, canUseFeature, gateLoading, navigate, routeTestOverride?.forceOperationalView])
 
   // ── Service type selection — pre-fill from URL param or roster ────────────
   const [activeService, setActiveService] = useState<ServiceType | null>(() => {
@@ -534,14 +537,15 @@ export default function FieldOfficerPortal() {
   const activeRouteCompletedStops = activeRouteStops.filter((stop) => stop.visit_status === 'completed').length
   const activeRouteCurrentStop = activeRouteStops.find((stop) => stop.visit_status === 'arrived')
     ?? activeRouteStops.find((stop) => stop.visit_status === 'pending')
+  const effectivePatrolZone = routeTestOverride?.currentPatrolZone ?? currentPatrolZone
 
   // Auto-mark stop as arrived once when geofence indicates officer is in the stop's zone.
   useEffect(() => {
     if (!activeRouteCurrentStop) return
     if (activeRouteCurrentStop.visit_status !== 'pending') return
     if (!activeRouteCurrentStop.zone_id) return
-    if (!currentPatrolZone) return
-    if (activeRouteCurrentStop.zone_id !== currentPatrolZone) return
+    if (!effectivePatrolZone) return
+    if (activeRouteCurrentStop.zone_id !== effectivePatrolZone) return
     if (updateRouteStopStatus.isPending) return
     if (lastAutoArrivedStopIdRef.current === activeRouteCurrentStop.id) return
 
@@ -559,24 +563,24 @@ export default function FieldOfficerPortal() {
         },
       }
     )
-  }, [activeRouteCurrentStop, currentPatrolZone, updateRouteStopStatus])
+  }, [activeRouteCurrentStop, effectivePatrolZone, updateRouteStopStatus])
 
   // Mark stop as eligible for auto-complete once officer has been seen in that stop zone.
   useEffect(() => {
-    if (!activeRouteCurrentStop?.id || !activeRouteCurrentStop.zone_id || !currentPatrolZone) return
+    if (!activeRouteCurrentStop?.id || !activeRouteCurrentStop.zone_id || !effectivePatrolZone) return
     if (activeRouteCurrentStop.visit_status !== 'arrived') return
-    if (activeRouteCurrentStop.zone_id !== currentPatrolZone) return
+    if (activeRouteCurrentStop.zone_id !== effectivePatrolZone) return
 
     stopSeenInZoneRef.current[activeRouteCurrentStop.id] = true
-  }, [activeRouteCurrentStop, currentPatrolZone])
+  }, [activeRouteCurrentStop, effectivePatrolZone])
 
   // Auto-complete the current arrived stop when officer exits the stop zone after minimum dwell.
   useEffect(() => {
     if (!activeRouteCurrentStop) return
     if (activeRouteCurrentStop.visit_status !== 'arrived') return
     if (!activeRouteCurrentStop.zone_id) return
-    if (!currentPatrolZone) return
-    if (activeRouteCurrentStop.zone_id === currentPatrolZone) return
+    if (!effectivePatrolZone) return
+    if (activeRouteCurrentStop.zone_id === effectivePatrolZone) return
     if (updateRouteStopStatus.isPending) return
     if (!stopSeenInZoneRef.current[activeRouteCurrentStop.id]) return
     if (lastAutoCompletedStopIdRef.current === activeRouteCurrentStop.id) return
@@ -606,7 +610,7 @@ export default function FieldOfficerPortal() {
         },
       }
     )
-  }, [activeRouteCurrentStop, currentPatrolZone, updateRouteStopStatus])
+  }, [activeRouteCurrentStop, effectivePatrolZone, updateRouteStopStatus])
 
   // Display-friendly zone label for the officer status card
   const displayZone = zoneName || (zoneId ? `${zoneId.substring(0, 8)}...` : 'Scanning Geofence...')
@@ -783,6 +787,7 @@ export default function FieldOfficerPortal() {
   // Auto-monitor geofence and manage patrol
   useEffect(() => {
     if (!user?.id || !employerOrganizationId) return
+    if (routeTestOverride?.disableGeofenceMonitoring) return
 
     const geofenceOrgId =
       isServiceProviderMember
@@ -820,7 +825,7 @@ export default function FieldOfficerPortal() {
       clearInterval(interval)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, employerOrganizationId, isServiceProviderMember, shiftOrgId, currentPatrolZone, setZone, recordGPSUpdate, zoneName, shareLiveLocationWithClient])
+  }, [user, employerOrganizationId, isServiceProviderMember, shiftOrgId, currentPatrolZone, setZone, recordGPSUpdate, zoneName, shareLiveLocationWithClient, routeTestOverride?.disableGeofenceMonitoring])
 
   // ── Shift management — explicit Start/End (not auto-start) ──────────────
   // Fetch active shift for current officer
