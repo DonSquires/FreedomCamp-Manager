@@ -526,11 +526,37 @@ export default function FieldOfficerPortal() {
   const { data: activeRouteInstance, isLoading: activeRouteLoading } = useOfficerActiveRouteInstance()
   const { data: activeRouteStops = [], isLoading: activeRouteStopsLoading } = usePatrolRouteInstanceStops(activeRouteInstance?.id)
   const updateRouteStopStatus = useUpdatePatrolRouteStopStatus()
+  const lastAutoArrivedStopIdRef = useRef<string | null>(null)
 
   const activeRouteTotalStops = activeRouteStops.length
   const activeRouteCompletedStops = activeRouteStops.filter((stop) => stop.visit_status === 'completed').length
   const activeRouteCurrentStop = activeRouteStops.find((stop) => stop.visit_status === 'arrived')
     ?? activeRouteStops.find((stop) => stop.visit_status === 'pending')
+
+  // Auto-mark stop as arrived once when geofence indicates officer is in the stop's zone.
+  useEffect(() => {
+    if (!activeRouteCurrentStop) return
+    if (activeRouteCurrentStop.visit_status !== 'pending') return
+    if (!activeRouteCurrentStop.zone_id) return
+    if (!currentPatrolZone) return
+    if (activeRouteCurrentStop.zone_id !== currentPatrolZone) return
+    if (updateRouteStopStatus.isPending) return
+    if (lastAutoArrivedStopIdRef.current === activeRouteCurrentStop.id) return
+
+    lastAutoArrivedStopIdRef.current = activeRouteCurrentStop.id
+    updateRouteStopStatus.mutate(
+      {
+        stopId: activeRouteCurrentStop.id,
+        routeInstanceId: activeRouteCurrentStop.route_instance_id,
+        status: 'arrived',
+      },
+      {
+        onError: () => {
+          lastAutoArrivedStopIdRef.current = null
+        },
+      }
+    )
+  }, [activeRouteCurrentStop, currentPatrolZone, updateRouteStopStatus])
 
   // Display-friendly zone label for the officer status card
   const displayZone = zoneName || (zoneId ? `${zoneId.substring(0, 8)}...` : 'Scanning Geofence...')
@@ -2415,6 +2441,12 @@ export default function FieldOfficerPortal() {
                                 </Button>
                               )}
                             </div>
+
+                            {activeRouteCurrentStop.zone_id && (
+                              <p className="text-[11px] text-muted-foreground">
+                                Auto-arrival active: entering the assigned stop zone marks Arrived automatically.
+                              </p>
+                            )}
                           </div>
                         ) : (
                           <p className="text-sm text-muted-foreground">No pending stops remain on this route instance.</p>
