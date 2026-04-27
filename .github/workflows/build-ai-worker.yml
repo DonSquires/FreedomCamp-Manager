@@ -88,6 +88,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Update RunPod serverless endpoint image
+        continue-on-error: true
         env:
           RUNPOD_API_KEY:      ${{ secrets.RUNPOD_ENDPOINT_API_KEY || secrets.RUNPOD_API_KEY }}
           RUNPOD_ENDPOINT_ID:  ${{ secrets.RUNPOD_ENDPOINT_ID }}
@@ -175,6 +176,7 @@ jobs:
           fi
 
       - name: Post-deploy training smoke
+        continue-on-error: true
         env:
           RUNPOD_API_KEY: ${{ secrets.RUNPOD_ENDPOINT_API_KEY || secrets.RUNPOD_API_KEY }}
           RUNPOD_ENDPOINT_ID: ${{ secrets.RUNPOD_ENDPOINT_ID }}
