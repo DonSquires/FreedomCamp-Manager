@@ -26,6 +26,11 @@ import { useManDownDetection } from '@/hooks/useManDownDetection'
 import { useWelfareCheckin } from '@/hooks/useWelfareCheckin'
 import { useRosteredShift } from '@/hooks/useRosteredShift'
 import { useShiftGate } from '@/hooks/useShiftGate'
+import {
+  useOfficerActiveRouteInstance,
+  usePatrolRouteInstanceStops,
+  useUpdatePatrolRouteStopStatus,
+} from '@/hooks/usePatrolRouteInstances'
 import { GeofenceWarningBanner } from '@/components/features/GeofenceWarningBanner'
 import { reverseGeocode } from '@/lib/geocoding'
 import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
@@ -34,7 +39,7 @@ import {
   ShieldAlert, CheckCircle, Shield, Megaphone, FileWarning, XCircle,
   Clock, Home, X, Car, Zap, Search, Printer, PlusCircle, Wrench, Heart, Users,
   Moon, Sun, ParkingSquare, Volume2, Video, Eye, Tent, Timer,
-  ScanFace, CalendarPlus, Siren, Bell, PhoneCall, Lock, Leaf, Wind,
+  ScanFace, CalendarPlus, Siren, Bell, PhoneCall, Lock, Leaf, Wind, Loader2,
 } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Badge } from '@/components/ui/badge'
@@ -516,6 +521,15 @@ export default function FieldOfficerPortal() {
     onSuccess: () => { qcHook.invalidateQueries({ queryKey: ['my-dispatch-jobs'] }) },
     onError: (err: any) => toast.error(err?.message ?? 'Update failed'),
   })
+
+  const { data: activeRouteInstance, isLoading: activeRouteLoading } = useOfficerActiveRouteInstance()
+  const { data: activeRouteStops = [], isLoading: activeRouteStopsLoading } = usePatrolRouteInstanceStops(activeRouteInstance?.id)
+  const updateRouteStopStatus = useUpdatePatrolRouteStopStatus()
+
+  const activeRouteTotalStops = activeRouteStops.length
+  const activeRouteCompletedStops = activeRouteStops.filter((stop) => stop.visit_status === 'completed').length
+  const activeRouteCurrentStop = activeRouteStops.find((stop) => stop.visit_status === 'arrived')
+    ?? activeRouteStops.find((stop) => stop.visit_status === 'pending')
 
   // Display-friendly zone label for the officer status card
   const displayZone = zoneName || (zoneId ? `${zoneId.substring(0, 8)}...` : 'Scanning Geofence...')
@@ -2314,6 +2328,106 @@ export default function FieldOfficerPortal() {
               </button>
             </div>
           )}
+
+            {/* ── Active Route Execution (officer-side) ─────────────── */}
+            {(activeRouteLoading || activeRouteInstance) && (
+              <div className="mb-6 space-y-3">
+                <h2 className="text-sm font-semibold flex items-center gap-2 text-foreground">
+                  <Map className="h-4 w-4 text-green-600" />
+                  Route Execution
+                  {activeRouteInstance && (
+                    <Badge variant="outline" className="ml-1 text-xs capitalize">
+                      {activeRouteInstance.plan_status.replace(/_/g, ' ')}
+                    </Badge>
+                  )}
+                </h2>
+
+                <Card className="border-green-200 dark:border-green-900/60">
+                  <CardContent className="p-4 space-y-3">
+                    {activeRouteLoading && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading your active route...
+                      </div>
+                    )}
+
+                    {!activeRouteLoading && activeRouteInstance && (
+                      <>
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold">
+                              {activeRouteInstance.patrol_route_name || 'Patrol Route'}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Mode: {activeRouteInstance.planning_mode.replace(/_/g, ' ')}
+                            </p>
+                          </div>
+                          <Badge className="text-xs" variant="secondary">
+                            {activeRouteCompletedStops}/{activeRouteTotalStops} complete
+                          </Badge>
+                        </div>
+
+                        {activeRouteCurrentStop ? (
+                          <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm font-medium">
+                                Stop #{activeRouteCurrentStop.sequence_no}: {activeRouteCurrentStop.stop_name}
+                              </p>
+                              {activeRouteCurrentStop.is_mandatory && (
+                                <Badge variant="outline" className="text-[10px]">Mandatory</Badge>
+                              )}
+                            </div>
+
+                            {activeRouteCurrentStop.planned_arrival_window_start && (
+                              <p className="text-xs text-muted-foreground">
+                                Window: {formatDateTime(activeRouteCurrentStop.planned_arrival_window_start)}
+                              </p>
+                            )}
+
+                            <div className="flex flex-wrap gap-2">
+                              {activeRouteCurrentStop.visit_status === 'pending' && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => updateRouteStopStatus.mutate({
+                                    stopId: activeRouteCurrentStop.id,
+                                    routeInstanceId: activeRouteCurrentStop.route_instance_id,
+                                    status: 'arrived',
+                                  })}
+                                  disabled={updateRouteStopStatus.isPending}
+                                >
+                                  Arrived
+                                </Button>
+                              )}
+
+                              {(activeRouteCurrentStop.visit_status === 'pending' || activeRouteCurrentStop.visit_status === 'arrived') && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => updateRouteStopStatus.mutate({
+                                    stopId: activeRouteCurrentStop.id,
+                                    routeInstanceId: activeRouteCurrentStop.route_instance_id,
+                                    status: 'completed',
+                                  })}
+                                  disabled={updateRouteStopStatus.isPending}
+                                >
+                                  Complete Stop
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">No pending stops remain on this route instance.</p>
+                        )}
+
+                        {activeRouteStopsLoading && (
+                          <p className="text-xs text-muted-foreground">Refreshing stop list...</p>
+                        )}
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
 
             {/* ── Dispatched Job Queue (GDS CATS-style) ──────────────── */}
             {myDispatchJobs.length > 0 && (
