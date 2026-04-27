@@ -47,7 +47,22 @@ export function CleanAppScaffold() {
 
   // Wait for the session check to complete before rendering routes to avoid
   // a flash of the login page for authenticated users.
-  if (!sessionChecked) return null
+  if (!sessionChecked) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-6">
+        <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/70 shadow-2xl backdrop-blur-sm p-6">
+          <div className="h-1.5 w-full rounded-full bg-gradient-to-r from-sky-500 via-cyan-400 to-emerald-400 mb-5" />
+          <div className="flex items-center gap-3 mb-3">
+            <div className="h-3 w-3 rounded-full bg-cyan-400 animate-pulse" />
+            <p className="text-sm font-semibold tracking-wide text-slate-200">Preparing clean rebuild workspace</p>
+          </div>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            Verifying your session and loading protected routes.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <BrowserRouter>
