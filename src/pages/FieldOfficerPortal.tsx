@@ -31,6 +31,7 @@ import {
   usePatrolRouteInstanceStops,
   useUpdatePatrolRouteStopStatus,
 } from '@/hooks/usePatrolRouteInstances'
+import { useDispatchCompletion } from '@/hooks/useDispatchCompletion'
 import { GeofenceWarningBanner } from '@/components/features/GeofenceWarningBanner'
 import { reverseGeocode } from '@/lib/geocoding'
 import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
@@ -514,13 +515,13 @@ export default function FieldOfficerPortal() {
       if (newStatus === 'acknowledged') update.acknowledged_at = new Date().toISOString()
       if (newStatus === 'en_route')     update.en_route_at     = new Date().toISOString()
       if (newStatus === 'on_scene')     update.on_scene_at     = new Date().toISOString()
-      if (newStatus === 'completed')    update.completed_at    = new Date().toISOString()
       const { error } = await (supabase as any).from('dispatch_jobs').update(update).eq('id', jobId)
       if (error) throw error
     },
     onSuccess: () => { qcHook.invalidateQueries({ queryKey: ['my-dispatch-jobs'] }) },
     onError: (err: any) => toast.error(err?.message ?? 'Update failed'),
   })
+  const completeDispatchJob = useDispatchCompletion()
 
   const { data: activeRouteInstance, isLoading: activeRouteLoading } = useOfficerActiveRouteInstance()
   const { data: activeRouteStops = [], isLoading: activeRouteStopsLoading } = usePatrolRouteInstanceStops(activeRouteInstance?.id)
@@ -2474,8 +2475,14 @@ export default function FieldOfficerPortal() {
                             <Button
                               size="sm"
                               className="shrink-0"
-                              onClick={() => advanceJobStatus.mutate({ jobId: job.id, newStatus: action.next })}
-                              disabled={advanceJobStatus.isPending}
+                              onClick={() => {
+                                if (action.next === 'completed') {
+                                  completeDispatchJob.mutate({ dispatchJobId: job.id })
+                                  return
+                                }
+                                advanceJobStatus.mutate({ jobId: job.id, newStatus: action.next })
+                              }}
+                              disabled={advanceJobStatus.isPending || completeDispatchJob.isPending}
                             >
                               {action.label}
                             </Button>
