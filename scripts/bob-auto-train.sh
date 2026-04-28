@@ -48,7 +48,7 @@ else
   
   # 4. Inject training
   echo -e "${BLUE}[BOB TRAINING]${NC} Injecting Copilot reasoning framework..."
-  node "$REPO_ROOT/scripts/bob-inject-training.mjs" --coding 2>/dev/null || true
+  node "$REPO_ROOT/scripts/bob-inject-training.mjs" --autonomous 2>/dev/null || true
   
   echo -e "${GREEN}✓${NC} Training loaded into Bob's context"
 fi

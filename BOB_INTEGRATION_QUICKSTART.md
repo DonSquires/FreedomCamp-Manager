@@ -363,6 +363,22 @@ export BOB_RUNPOD_SCALE_DOWN_CMD="runpod api scale --endpoint n0bp1ifmq01cx2 --w
 5. `node scripts/dr-bob-review.mjs --file spec.md`
 6. Publish scorecard + escalation summary before merge.
 
+### Autonomous Level Addendum (Human-Like but Bounded)
+
+1. Meta-cognition: Require Bob to run an intent decode + self-critique pass before final response.
+2. Recursive reflection: Draft -> Editor critique -> Rewrite before presenting major plans.
+3. Epistemic agency: Allow Bob to challenge flawed premises and propose safer alternatives.
+4. Proactive reasoning: Include "next three likely needs" in major outputs.
+5. Memory integration: Keep RAG/memory refresh from architecture, decisions, and lessons files.
+6. Safety boundary: Keep hidden reasoning private; output concise rationale, risks, and options.
+
+### Practical Enablement in This Repo
+
+1. Load autonomous training profile with `node scripts/bob-inject-training.mjs --autonomous`.
+2. Keep Dr Bob review mandatory for major artifacts.
+3. Keep human-test and orchestrator passes as release gates.
+4. Keep GitHub Actions checks for training drift and autonomous-learning health.
+
 ---
 
 ## Reference

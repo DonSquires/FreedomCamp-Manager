@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Bob Knowledge Injector — Push Copilot Reasoning Framework + Project Knowledge to Bob
- * Usage: node scripts/bob-inject-training.mjs [--full|--coding|--architecture|--security]
+ * Usage: node scripts/bob-inject-training.mjs [--full|--coding|--autonomous|--architecture|--security]
  */
 
 import fs from 'node:fs';
@@ -100,6 +100,11 @@ async function listAvailableTraining() {
       'docs/BOB_CODING_LOGIC_TRAINING.md',
       '.github/copilot-instructions.md',
     ],
+    'autonomous': [
+      'docs/BOB_CODING_LOGIC_TRAINING.md',
+      'BOB_INTEGRATION_QUICKSTART.md',
+      '.github/copilot-instructions.md',
+    ],
     'architecture': [
       'docs/adr/001-*.md',
       'docs/ARCHITECTURE_PLAN.md',
@@ -141,6 +146,14 @@ async function main() {
     ]);
   }
 
+  if (mode === '--full' || mode === '--autonomous') {
+    trainingFiles.push(...[
+      'docs/BOB_CODING_LOGIC_TRAINING.md',
+      'BOB_INTEGRATION_QUICKSTART.md',
+      '.github/copilot-instructions.md',
+    ]);
+  }
+
   if (mode === '--full' || mode === '--architecture') {
     trainingFiles.push(...[
       'docs/DECISIONS.md',
@@ -154,6 +167,8 @@ async function main() {
       'docs/BOB_TRAINING_TRUTH_PROTOCOL.md',
     ]);
   }
+
+  trainingFiles = [...new Set(trainingFiles)];
 
   // Load files
   log('info', `Loading training files (mode: ${mode})...`);
