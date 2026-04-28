@@ -103,6 +103,7 @@ async function listAvailableTraining() {
     'autonomous': [
       'docs/BOB_CODING_LOGIC_TRAINING.md',
       'BOB_INTEGRATION_QUICKSTART.md',
+      'BOB_INSTRUCTIONS.md',
       '.github/copilot-instructions.md',
     ],
     'architecture': [
@@ -150,6 +151,7 @@ async function main() {
     trainingFiles.push(...[
       'docs/BOB_CODING_LOGIC_TRAINING.md',
       'BOB_INTEGRATION_QUICKSTART.md',
+      'BOB_INSTRUCTIONS.md',
       '.github/copilot-instructions.md',
     ]);
   }
