@@ -33,8 +33,11 @@
     "bob:setup:hooks": "bash scripts/setup-git-hooks.sh",
     "bob:optional:all": "npm run bob:load:geofences && npm run bob:geofence:production && npm run bob:test:spatial && npm run bob:setup:hooks && echo '✅ All optional features configured'",
     "bob:feed-railway-training": "node scripts/bob-feed-railway-training.mjs",
+    "bob:grant:all-tools": "bun scripts/bob-grant-all-tools.mjs",
     "bob:feed-web-research": "node scripts/bob-feed-web-research.mjs",
     "bob:feed-specialized": "node scripts/bob-feed-specialized-training.mjs",
+    "bob:screenshots:init": "node scripts/bob-screenshot-scorecard.mjs init",
+    "bob:screenshots:score": "node scripts/bob-screenshot-scorecard.mjs score",
     "bob:feed-all": "node scripts/bob-feed-build-context.mjs && node scripts/bob-feed-railway-training.mjs && node scripts/bob-feed-web-research.mjs && node scripts/bob-feed-specialized-training.mjs",
     "bob:auto-ingest": "node scripts/auto-ingest.mjs",
     "bob:review:artifacts": "node scripts/review-architecture-artifacts.mjs",
@@ -85,6 +88,8 @@
     "test:agentic:bob:visual": "node scripts/bob-agentic-test-orchestrator.mjs --scope full --batch visual",
     "test:agentic:bob:human": "node scripts/bob-agentic-test-orchestrator.mjs --scope full --batch human",
     "test:agentic:bob:resume": "node scripts/bob-agentic-test-orchestrator.mjs --resume",
+    "test:release:all-in-one": "node scripts/bob-release-gate-all-in-one.mjs",
+    "test:release:all-in-one:dry": "node scripts/bob-release-gate-all-in-one.mjs --dry-run",
     "install:playwright": "playwright install"
   },
   "dependencies": {
