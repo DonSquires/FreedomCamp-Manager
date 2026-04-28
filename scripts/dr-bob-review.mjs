@@ -737,7 +737,14 @@ async function main() {
   if (result.shouldFail) process.exit(1);
 }
 
-main().catch((error) => {
-  console.error(error?.message || String(error));
-  process.exit(1);
-});
+const isDirectExecution = (() => {
+  const entry = process.argv[1] ? path.resolve(process.argv[1]) : '';
+  return entry === __filename;
+})();
+
+if (isDirectExecution) {
+  main().catch((error) => {
+    console.error(error?.message || String(error));
+    process.exit(1);
+  });
+}
