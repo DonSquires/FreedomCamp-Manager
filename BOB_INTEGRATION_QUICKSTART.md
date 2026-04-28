@@ -1,0 +1,304 @@
+# Bob RunPod Integration — Unified Setup Guide
+
+**Date**: April 28, 2026  
+**Status**: Integration complete — ready for configuration  
+**Integration with**: Existing Bob inference-service + RunPod Serverless
+
+---
+
+## What We've Set Up
+
+You now have **three deployment options** for Bob, working together seamlessly:
+
+### 1. **Local Bob** (inference-service/)
+- Running on your machine or Codespace
+- Port: `http://localhost:3000`
+- Models: Qwen2.5 7B, Llama3.2-Vision 11B
+- Latency: ~200-500ms
+- Cost: $0 (your hardware)
+
+### 2. **RunPod Serverless Bob**
+- Endpoint: `https://api.runpod.ai/v2/n0bp1ifmq01cx2`
+- Autoscaling: 0 → N workers
+- Latency: ~2-5s (includes queue time)
+- Cost: $0.0001 per second active + network
+- Use case: High throughput, burst workloads
+
+### 3. **Hybrid Bob** (Automatic)
+- Tries local first → Falls back to RunPod
+- Best of both: low latency + unlimited scale
+- Recommended for production
+
+---
+
+## Quick Start (5 minutes)
+
+### Step 1: Add RunPod Credentials to GitHub Codespace
+
+1. Go to **GitHub** → Your repo → **Settings** → **Secrets and Variables** → **Codespaces**
+2. Add these secrets:
+   ```
+   INFERENCE_SERVICE_URL = https://api.runpod.ai/v2/n0bp1ifmq01cx2
+   INFERENCE_API_KEY = rpa_<your-runpod-api-key>
+   RUNPOD_ENDPOINT_ID = n0bp1ifmq01cx2
+   ```
+
+3. Restart your Codespace (or create a new one)
+
+### Step 2: Initialize Bob Integration
+
+```bash
+cd /workspaces/FreedomCamp-Manager
+
+# Load your RunPod credentials (auto-injected from GitHub Secrets in Codespace)
+echo "INFERENCE_SERVICE_URL=$INFERENCE_SERVICE_URL"
+echo "INFERENCE_API_KEY=${INFERENCE_API_KEY:0:15}... (masked)"
+
+# Run the bootstrap (hybrid mode by default)
+bash scripts/bob-bootstrap-runpod.sh --full
+```
+
+### Step 3: Load Bob Configuration
+
+```bash
+# Load the unified configuration
+source .runtime/bob-unified.env
+
+# Test RunPod connection
+curl -X POST "${INFERENCE_SERVICE_URL_RUNPOD}/runsync" \
+  -H "Authorization: Bearer ${INFERENCE_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{"input":{"action":"chat","message":"hi"}}'
+```
+
+### Step 4: Chat with Bob
+
+```bash
+# Easy: Interactive mode
+node scripts/bob-direct-chat.mjs
+
+# Or: One-off question
+node scripts/bob-direct-chat.mjs "What is the /admin route?"
+
+# Or: Use local Bob directly (if running)
+npm --prefix ./inference-service start
+curl http://localhost:3000/health
+```
+
+---
+
+## Backend Configuration
+
+### Switch to Pure Local (Low Latency)
+```bash
+# Edit .runtime/bob-unified.env and set:
+export BOB_INFERENCE_BACKEND="local-inference-service"
+export INFERENCE_SERVICE_URL="http://localhost:3000"
+
+# Start local Bob:
+npm --prefix ./inference-service start
+```
+
+### Switch to Pure RunPod (Scalable)
+```bash
+# Edit .runtime/bob-unified.env and set:
+export BOB_INFERENCE_BACKEND="runpod-serverless"
+export INFERENCE_SERVICE_URL="https://api.runpod.ai/v2/n0bp1ifmq01cx2"
+
+# Make sure INFERENCE_API_KEY is set
+```
+
+### Stay in Hybrid (Recommended)
+```bash
+# .runtime/bob-unified.env already configured:
+export BOB_INFERENCE_BACKEND="local-inference-service"  # Try local first
+export BOB_FALLBACK_TO_RUNPOD="1"                       # Fall back if local unavailable
+
+# Both endpoints need to be reachable
+```
+
+---
+
+## Files Created
+
+| File | Purpose |
+|---|---|
+| `.runtime/bob-unified.env` | Master configuration (use this) |
+| `.runtime/bob-local-backend.env` | Local-only config |
+| `.runtime/bob-runpod-backend.env` | RunPod-only config |
+| `.runtime/bob-hybrid-backend.env` | Hybrid with fallback |
+| `scripts/bob-bootstrap-runpod.sh` | One-command setup |
+| `scripts/bob-direct-chat.mjs` | Interactive Bob chat |
+| `docs/BOB_RUNPOD_FULL_SETUP.md` | Detailed reference |
+
+---
+
+## Using Bob in Tests
+
+### Run Tests with Bob's Help
+
+```bash
+# Bob will analyze test failures and suggest fixes
+npm run test
+
+# Or specific test suite:
+PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser \
+node node_modules/playwright/cli.js test tests/e2e/visual-regression.spec.ts
+```
+
+Bob's training will:
+- ✓ Understand the codebase structure
+- ✓ Map routes to components
+- ✓ Check auth flow logic
+- ✓ Validate DB schema
+- ✓ Suggest fixes for failures
+
+---
+
+## Bob's Knowledge Base
+
+Bob is trained on:
+
+1. **Architecture** (docs/adr/)
+   - All design decisions documented
+   - Tech stack specifications
+   - Multi-org architecture
+
+2. **Code Conventions**
+   - TypeScript strict/lenient rules
+   - Component patterns (page, hook, feature)
+   - Database migrations (70+ files)
+   - Route permissions by role
+
+3. **Domain Knowledge**
+   - FieldOps patrol workflow
+   - NZ legal framework (3 acts)
+   - Biosecurity plant ID system
+   - Smoke/noise RMA compliance
+
+4. **Self-Healing**
+   - Failure pattern detection
+   - Response quality scoring
+   - Adversarial self-review
+
+---
+
+## Troubleshooting
+
+### RunPod Endpoint Not Responding
+
+```bash
+# 1. Check pod is running
+#    → RunPod Dashboard → n0bp1ifmq01cx2 → Status should be "Running"
+
+# 2. Verify API key
+echo "Key prefix: ${INFERENCE_API_KEY:0:4}"  # Should be "rpa_"
+
+# 3. Test with curl
+curl -X POST "https://api.runpod.ai/v2/n0bp1ifmq01cx2/runsync" \
+  -H "Authorization: Bearer ${INFERENCE_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{"input":{"action":"chat","message":"ping"}}'
+
+# 4. If still down: Restart pod from dashboard
+```
+
+### Local Bob Won't Start
+
+```bash
+# Check prerequisites
+node --version  # Should be v22+
+npm --version   # Should be 10+
+
+# Install dependencies
+npm --prefix ./inference-service install
+
+# Check OLLAMA_BASE_URL
+grep "^OLLAMA_BASE_URL=" ./inference-service/.env
+
+# Start in debug mode
+NODE_ENV=development npm --prefix ./inference-service start
+```
+
+### Backend Switch Not Working
+
+```bash
+# Verify env var is loaded
+echo "BOB_INFERENCE_BACKEND=$BOB_INFERENCE_BACKEND"
+
+# Reload config
+source .runtime/bob-unified.env
+echo "BOB_INFERENCE_BACKEND=$BOB_INFERENCE_BACKEND"
+
+# Test both endpoints
+curl http://localhost:3000/health
+curl -X POST "${INFERENCE_SERVICE_URL_RUNPOD}/runsync" \
+  -H "Authorization: Bearer ${INFERENCE_API_KEY}" \
+  -d '{"input":{"action":"chat","message":"test"}}'
+```
+
+---
+
+## Advanced: Multi-Bob Setup
+
+### Run Local + RunPod Hybrid (Recommended Production)
+
+```bash
+# Terminal 1: Start local Bob
+npm --prefix ./inference-service start
+
+# Terminal 2: Codespace running tests
+source .runtime/bob-unified.env
+npm run test
+
+# Bob will:
+# 1. Try local first (fast, no queue)
+# 2. Fall back to RunPod if local unavailable
+# 3. Load-balance automatically
+```
+
+### Monitor Bob Health
+
+```bash
+# Watch local inference-service
+curl -s http://localhost:3000/health | jq .
+
+# Watch RunPod endpoint (via Supervisor)
+bash scripts/bob-health-monitor.sh
+
+# Check failure patterns
+node scripts/summarize-failures.mjs
+```
+
+### Scale RunPod
+
+```bash
+# Pod metrics (from RunPod dashboard)
+# - Workers active: n0bp1ifmq01cx2 → Workers
+# - Queue length: Dashboard → Endpoint → Queued
+# - Latency: Dashboard → Performance
+
+# Auto-scale via environment (see Copilot instructions):
+export BOB_RUNPOD_SCALE_UP_CMD="runpod api scale --endpoint n0bp1ifmq01cx2 --workers 5"
+export BOB_RUNPOD_SCALE_DOWN_CMD="runpod api scale --endpoint n0bp1ifmq01cx2 --workers 1"
+```
+
+---
+
+## Next Steps
+
+1. ✅ **Today**: Add Codespace secrets + run bootstrap
+2. ✅ **Tomorrow**: Run full test suite with Bob assist
+3. ✅ **This week**: Create PR with Bob's code quality checks
+4. ✅ **Production**: Deploy with hybrid fallback enabled
+
+---
+
+## Reference
+
+- **RunPod Endpoint**: https://api.runpod.ai/v2/n0bp1ifmq01cx2
+- **Local Endpoint**: http://localhost:3000
+- **Bootstrap Script**: `scripts/bob-bootstrap-runpod.sh`
+- **Chat Script**: `scripts/bob-direct-chat.mjs`
+- **Unified Config**: `.runtime/bob-unified.env`
+- **Full Docs**: `docs/BOB_RUNPOD_FULL_SETUP.md`

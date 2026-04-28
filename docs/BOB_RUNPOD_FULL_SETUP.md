@@ -1,0 +1,307 @@
+# Bob RunPod Full Setup — Complete Installation & Training
+
+**Version**: 2026-04-28  
+**Target**: RunPod Serverless (n0bp1ifmq01cx2)  
+**Models**: Qwen2.5 7B (primary) + Llama3.2-Vision 11B (vision)  
+**Training**: Full FieldOps AI suite + NZ domain + autonomy rules
+
+---
+
+## 1. Prerequisites
+
+### RunPod Account & Endpoint
+- **Endpoint ID**: `n0bp1ifmq01cx2`
+- **Endpoint Name**: `fieldops-ai-engine`
+- **Base URL**: `https://api.runpod.ai/v2/n0bp1ifmq01cx2`
+- **API Key**: Get from RunPod dashboard (starts with `rpa_`)
+
+### Codespace Secrets
+Add these to GitHub → Repository → Settings → Secrets and Variables → Codespaces:
+
+```
+INFERENCE_SERVICE_URL=https://api.runpod.ai/v2/n0bp1ifmq01cx2
+INFERENCE_API_KEY=rpa_<your-runpod-api-key>
+RUNPOD_ENDPOINT_ID=n0bp1ifmq01cx2
+RUNPOD_API_KEY=<your-runpod-api-key>
+```
+
+---
+
+## 2. Local Codespace Setup
+
+### Step 1: Load Credentials
+```bash
+cd /workspaces/FreedomCamp-Manager
+
+# Create local runtime env file (NOT committed to git)
+mkdir -p .runtime
+cat > .runtime/bob.env << 'EOF'
+export INFERENCE_SERVICE_URL="https://api.runpod.ai/v2/n0bp1ifmq01cx2"
+export INFERENCE_API_KEY="rpa_<your-key>"
+export RUNPOD_ENDPOINT_ID="n0bp1ifmq01cx2"
+export BOB_OPERATING_MODE="build-training"
+export SELF_CONTAINED_MODE="false"
+EOF
+
+chmod 600 .runtime/bob.env
+source .runtime/bob.env
+```
+
+### Step 2: Verify Connection
+```bash
+# Smoke test: Is RunPod responsive?
+curl -i "${INFERENCE_SERVICE_URL}/runsync" \
+  -H "Authorization: Bearer ${INFERENCE_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{"input":{"action":"chat","message":"ping"}}'
+
+# Expected: HTTP 200, JSON response with status: "COMPLETED"
+```
+
+---
+
+## 3. Model & Tool Suite Installation
+
+### Step 1: Verify Models on RunPod Pod
+SSH into your RunPod pod and run:
+```bash
+ollama list
+# Should show:
+#   qwen2.5:7b         (primary chat model)
+#   llama3.2-vision:11b (vision model for biosecurity)
+```
+
+### Step 2: Load Training Configuration
+```bash
+node scripts/bob-load-training.mjs
+```
+
+This loads:
+- **Bob Autonomy Rules** (`docs/BOB_TRAINING_TRUTH_PROTOCOL.md`)
+- **FieldOps Domain** (patrol, compliance, vehicle management)
+- **NZ Business Rules** (councils procurement, regulatory compliance)
+- **Self-Evaluation Loop** (adversarial review, fail-fast diagnostics)
+- **Architecture Decisions** (`docs/adr/`)
+
+### Step 3: Deploy Full Tool Suite
+```bash
+# Bob now has access to:
+
+# 1. Code introspection tools
+#    - Repository analysis via semantic_search
+#    - Codebase indexing via file discovery
+#    - Type system analysis (TypeScript)
+
+# 2. AI reasoning tools
+#    - Adversarial self-review (dr-bob-review.mjs)
+#    - Response scoring (data/bob-response-scores.jsonl)
+#    - Failure pattern detection (summarize-failures.mjs)
+
+# 3. Knowledge base management
+#    - Schema ingestion (auto-ingest.mjs)
+#    - Architecture decision records (docs/adr/)
+#    - Lessons learned repository (docs/LESSONS_LEARNED.md)
+
+# 4. Testing & validation
+#    - Playwright E2E test suite
+#    - Visual regression snapshots
+#    - Deep-functional tests
+
+# Verify tool availability:
+node scripts/validate-bob-tools.mjs
+```
+
+---
+
+## 4. Training Bootstrap
+
+### Step 1: Ingest Core Training Data
+```bash
+# Run the auto-ingestor to populate Bob's brain with latest codebase knowledge
+node scripts/auto-ingest.mjs
+# This generates: docs/BOB_BRAIN_DUMP.md
+```
+
+### Step 2: Load Architecture Decisions
+```bash
+# ADRs are Bob's permanent memory for design patterns
+# They live in docs/adr/ and are loaded at startup
+# Key ADRs for Bob to know:
+ls docs/adr/
+```
+
+### Step 3: Activate Self-Healing System
+```bash
+# Bob's self-correction loop keeps her aligned with repo state
+bash scripts/bob-health-monitor.sh --enable-auto-heal
+```
+
+---
+
+## 5. Daily Operations
+
+### Health Check
+```bash
+# Verify Bob is healthy and models are loaded
+curl -s "${INFERENCE_SERVICE_URL}/runsync" \
+  -H "Authorization: Bearer ${INFERENCE_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{"input":{"action":"chat","message":"status check"}}' | jq '.status'
+```
+
+### Chat with Bob (Direct Mode)
+```bash
+# For manual testing
+node scripts/bob-direct-chat.mjs "What are the key Routes in this app?"
+```
+
+### Run Bob-Assisted Tests
+```bash
+# Bob evaluates test failures and suggests fixes
+npm run test
+
+# Or run specific test suite:
+PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser \
+node node_modules/playwright/cli.js test tests/e2e/visual-regression.spec.ts
+```
+
+### Knowledge Base Updates
+```bash
+# When schema changes, push knowledge to Bob
+node scripts/push-schema-knowledge.mjs <table-name>
+```
+
+---
+
+## 6. Advanced: Model Selection & Fine-Tuning
+
+### Available Models on Pod
+- **Primary**: `qwen2.5:7b` (reasoning, chat, code analysis)
+- **Vision**: `llama3.2-vision:11b` (biosecurity plant ID, smoke assessment)
+- **Optional**: `mistral:7b` (faster, lower VRAM)
+- **Optional**: `neural-chat:7b` (instruction-following)
+
+### Switch Model (Advanced)
+```bash
+# On RunPod pod:
+ollama pull mistral:7b
+export OLLAMA_MODEL=mistral:7b
+
+# Or in Codespace, set at request time:
+curl "${INFERENCE_SERVICE_URL}/runsync" \
+  -H "Authorization: Bearer ${INFERENCE_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{"input":{"model":"mistral:7b","action":"chat","message":"test"}}'
+```
+
+---
+
+## 7. Integration Checklist
+
+- [ ] Codespace secrets configured
+- [ ] `INFERENCE_SERVICE_URL` and `INFERENCE_API_KEY` in environment
+- [ ] RunPod pod is running (check dashboard)
+- [ ] Ollama `/api/tags` responds with models
+- [ ] Smoke test: `/runsync` returns HTTP 200
+- [ ] Training data loaded: `docs/BOB_BRAIN_DUMP.md` exists
+- [ ] ADRs indexed: `docs/adr/` folder populated
+- [ ] Bob health monitor running
+- [ ] Tests can call Bob for assist (optional but recommended)
+
+---
+
+## 8. Troubleshooting
+
+### RunPod Endpoint Not Responding
+```bash
+# Check RunPod dashboard for pod status (should be "Running")
+# If pod crashed:
+#   1. Restart pod from RunPod web UI
+#   2. Wait 60s for Ollama to warm up
+#   3. Retry smoke test
+```
+
+### Models Not Loaded
+```bash
+# SSH into pod and verify:
+ollama list
+ollama show qwen2.5:7b
+
+# If missing, manually pull:
+ollama pull qwen2.5:7b
+```
+
+### Auth Errors (Bearer Token)
+```bash
+# Verify API key format:
+echo "${INFERENCE_API_KEY:0:4}" # Should be "rpa_"
+
+# Check authorization header:
+curl -i "${INFERENCE_SERVICE_URL}/runsync" \
+  -H "Authorization: Bearer ${INFERENCE_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+### Slow Responses
+- Check RunPod pod utilization (may need GPU upgrade)
+- Try switching to faster model: `mistral:7b`
+- Increase timeout: `BOB_RUNPOD_TIMEOUT_MS=180000`
+
+---
+
+## 9. Scaling & Production
+
+### Multi-Endpoint Setup
+```bash
+# For high-volume workloads, deploy multiple RunPod endpoints
+# and load-balance across them via:
+INFERENCE_ENDPOINTS="https://api.runpod.io/v2/endpoint1|https://api.runpod.io/v2/endpoint2"
+BOB_LOAD_BALANCER_MODE="round-robin"
+```
+
+### Monitoring & Alerts
+```bash
+# Enable Bob's supervision system:
+export BOB_SUPERVISOR_STATE_FILE=.runtime/bob-supervisor.json
+export BOB_SUPERVISOR_ACTIVITY_FILE=.runtime/bob-activity.touch
+
+bash scripts/bob-health-monitor.sh --enable-monitoring
+```
+
+### Persisting State
+```bash
+# Bob maintains state in:
+#   - data/bob-response-scores.jsonl (training scores)
+#   - data/bob-failure-summary.json (recent failures)
+#   - docs/DECISIONS.md (architecture decisions)
+#   - .runtime/bob-supervisor-state.json (supervision state)
+
+# Back these up regularly:
+tar -czf bob-state-backup-$(date +%s).tar.gz data/ docs/ .runtime/
+```
+
+---
+
+## 10. Success Criteria
+
+After setup, verify:
+1. ✅ Endpoint responds to `/runsync` in < 5s
+2. ✅ Models (`qwen2.5:7b`, `llama3.2-vision:11b`) are loaded
+3. ✅ Chat works: `{"input":{"action":"chat","message":"hello"}}`
+4. ✅ Training data visible: `docs/BOB_BRAIN_DUMP.md` > 50KB
+5. ✅ ADRs indexed: `find docs/adr -type f | wc -l` > 3
+6. ✅ Tests pass: `npm run test` exits 0
+7. ✅ Bob assists on failures: response_scores logged
+
+**Bob is ready for production.** 🚀
+
+---
+
+## References
+
+- **RunPod Endpoint**: https://api.runpod.ai/v2/n0bp1ifmq01cx2/runsync
+- **Bot Config**: `docs/BOB_CONFIGURATION.md`
+- **Gateway Docs**: `runpod-gateway/README.md`
+- **Training Suite**: `docs/BOB_TRAINING_*.md` (15+ modules)
+- **Architecture**: `docs/adr/`
