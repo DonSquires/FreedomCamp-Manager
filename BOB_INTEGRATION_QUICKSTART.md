@@ -345,6 +345,24 @@ export BOB_RUNPOD_SCALE_DOWN_CMD="runpod api scale --endpoint n0bp1ifmq01cx2 --w
 3. Bi-weekly: review hallucination/failure patterns and update guardrails.
 4. Monthly: review roadmap completion and promote next iteration tasks to active sprint.
 
+### All-in-One System Integration (Self-Heal + Dr Bob + Human Test)
+
+1. Enable self-healing bridge generation with `node scripts/generate-bob-self-heal-bridge.mjs`.
+2. Require adversarial review for major artifacts with `node scripts/dr-bob-review.mjs --file <artifact>`.
+3. Run human-simulation testing with `node scripts/human-test-engine.mjs`.
+4. Execute full orchestrated runs with `node scripts/bob-agentic-test-orchestrator.mjs`.
+5. Log and inspect escalations using `node scripts/dr-bob-escalation-log.mjs` and `node scripts/dr-bob-escalation-read.mjs`.
+6. Treat any unresolved Dr Bob blocker or repeated human-test failure as a release gate stop.
+
+### Suggested Execution Order Per Release
+
+1. `node scripts/generate-bob-self-heal-bridge.mjs`
+2. `node scripts/bob-agentic-test-orchestrator.mjs`
+3. `node scripts/human-test-engine.mjs`
+4. `node scripts/dr-bob-review.mjs --file plan.md`
+5. `node scripts/dr-bob-review.mjs --file spec.md`
+6. Publish scorecard + escalation summary before merge.
+
 ---
 
 ## Reference
