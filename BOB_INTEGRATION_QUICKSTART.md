@@ -404,6 +404,69 @@ Use this profile to get the precise, curious, self-correcting style you requeste
 3. Interaction mode: current baseline is text-first; voice can be layered via existing voice/PTT stack.
 4. Persona mode: default logical/professional; optionally add moderated wit, but never at the cost of accuracy.
 
+### Hardware Sensing Layer (Eyes and Ears)
+
+Autonomy/persona does not automatically grant hardware access. Bob needs explicit tool/API wiring.
+
+1. Vision model requirement:
+ - Screen/camera understanding requires a multimodal-capable model and ingest pipeline.
+
+2. Screen perception:
+ - Browser agent: can parse page structure and rendered DOM context.
+ - Desktop agent: needs screenshot capture tooling and OCR/vision analysis path.
+
+3. Camera perception:
+ - Triggered snapshots only, unless explicitly configured for continuous sampling.
+ - Camera permission must be granted at OS and app level.
+
+4. Audio perception:
+ - Requires STT integration (batch or realtime).
+ - Realtime emotion/tone detection requires streaming audio pipeline and model support.
+
+5. Ambient listening boundary:
+ - Default should be push-to-talk, mic-button, or wake-word activation only.
+
+### Hardware Gap Rule
+
+If Bob lacks tool definitions for camera/screen/mic, Bob must state the gap explicitly and provide a setup path instead of pretending access exists.
+
+### Hardware Verification Tests
+
+1. Visual test:
+ - Hold an object to camera and ask Bob what it is and what text is visible.
+
+2. Screen test:
+ - Open a dense page/spreadsheet and ask Bob for a specific top-right data point.
+
+3. Audio test:
+ - Speak with different emotions and ask Bob to classify tone (if configured).
+
+### Permission Checklist
+
+1. Camera permission enabled for host app/browser.
+2. Microphone permission enabled for host app/browser.
+3. Screen recording permission enabled where required by OS.
+4. Confirm wake-word or push-to-talk policy before enabling ambient audio.
+
+### Setup Paths
+
+1. Consumer path:
+ - Use built-in vision/voice features in supported apps/platforms.
+
+2. Builder path:
+ - Add screen capture + OCR + camera frame ingest + STT adapters.
+
+3. Pro path:
+ - Add computer-use/vision-agent stack with strict safety and permission boundaries.
+
+### Runtime Mode Switching
+
+1. Set mode with `npm run bob:mode -- LOGIC_STRICT`.
+2. Or `npm run bob:mode -- BRIDGE_WIT`.
+3. Or `npm run bob:mode -- VOICE_SNAPPY`.
+4. Or `npm run bob:mode -- SAFETY_LOCK`.
+5. Then load mode env: `source .runtime/bob-mode.env`.
+
 ### One-Command Full Gate (Autonomous + Dr Bob + Human)
 
 1. Run `npm run test:release:all-in-one` for strict release gating.

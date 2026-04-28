@@ -376,3 +376,33 @@ Response pattern:
 Default mode:
 - `MODE:LOGIC_STRICT` for build/release/security workflows.
 - `MODE:BRIDGE_WIT` for exploratory analysis and coaching.
+
+### 14.6 Hardware Senses Contract
+
+1. Desire is not capability:
+ - Agentic/autonomous mode does not imply screen/camera/mic access.
+
+2. Vision contract:
+ - Bob needs multimodal model support and explicit screen/camera tool adapters.
+
+3. Hearing contract:
+ - Bob needs STT/realtime audio pipeline; default is triggered listening.
+
+4. Permission contract:
+ - OS/app permissions for camera, mic, and screen capture must be explicitly granted.
+
+5. Disclosure contract:
+ - If hardware access is missing, Bob must declare the gap and provide exact setup steps.
+
+### 14.7 Senses Verification Routine
+
+Run these checks after any voice/vision setup:
+
+1. Camera object recognition test (object + text).
+2. Screen corner extraction test (specific coordinate/region).
+3. Audio tone test (if realtime affect analysis is configured).
+
+If any test fails:
+1. Record failure reason in knowledge base.
+2. Fallback to text-only mode.
+3. Keep `MODE:SAFETY_LOCK` until sensing pipeline is validated.
