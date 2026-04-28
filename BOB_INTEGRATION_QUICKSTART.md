@@ -505,16 +505,30 @@ Computer Use requires an agentic environment that bridges Bob's model to OS inpu
 1. Run `npm run bob:computer-use:check`.
 2. Fix warnings before enabling computer-use on host desktop.
 
+### Live Senses Smoke Harness
+
+1. Mock run (always available): `npm run bob:senses:smoke`.
+2. Auto run (real commands if configured): `npm run bob:senses:smoke:auto`.
+3. Configure command adapters via env:
+ - `BOB_SCREEN_CAPTURE_CMD`
+ - `BOB_CAMERA_SNAPSHOT_CMD`
+ - `BOB_STT_CHECK_CMD`
+4. Output artifacts:
+ - `senses-report.json`
+ - `senses-report.md`
+
 ### One-Command Full Gate (Autonomous + Dr Bob + Human)
 
 1. Run `npm run test:release:all-in-one` for strict release gating.
 2. Run `npm run test:release:all-in-one:dry` to validate configuration wiring without long execution.
+3. Add senses stage when needed: `node scripts/bob-release-gate-all-in-one.mjs --senses-mode mock|auto|strict`.
 
 Gate outcome:
 1. Passes only if autonomous profile load passes.
 2. Passes only if all required Dr Bob reviews pass.
 3. Passes only if human-test pass criteria and readiness threshold are met.
 4. Emits one combined scorecard artifact under `tools/bob-release-gates/<run-id>/`.
+5. When senses stage is enabled, emits `senses-report.json` and `senses-report.md` in the same run folder.
 
 ---
 

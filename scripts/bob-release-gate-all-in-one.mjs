@@ -19,6 +19,9 @@ function parseArgs(argv) {
     outRoot: 'tools/bob-release-gates',
     autonomousCmd: 'node scripts/bob-inject-training.mjs --autonomous',
     humanCmd: 'node scripts/human-test-engine.mjs',
+    sensesCmd: 'node scripts/bob-senses-smoke.mjs',
+    sensesMode: 'off',
+    skipSenses: false,
     humanReportRoot: 'tools/human-test-engine/reports',
     drBobFiles: ['plan.md', 'spec.md'],
     minHumanReadiness: 85,
@@ -36,12 +39,17 @@ function parseArgs(argv) {
     else if (t === '--skip-autonomous') args.skipAutonomous = true
     else if (t === '--skip-dr-bob') args.skipDrBob = true
     else if (t === '--skip-human') args.skipHuman = true
+    else if (t === '--skip-senses') args.skipSenses = true
     else if (t === '--out') args.outRoot = String(argv[i + 1] || args.outRoot)
     else if (t.startsWith('--out=')) args.outRoot = t.slice('--out='.length)
     else if (t === '--autonomous-cmd') args.autonomousCmd = String(argv[i + 1] || args.autonomousCmd)
     else if (t.startsWith('--autonomous-cmd=')) args.autonomousCmd = t.slice('--autonomous-cmd='.length)
     else if (t === '--human-cmd') args.humanCmd = String(argv[i + 1] || args.humanCmd)
     else if (t.startsWith('--human-cmd=')) args.humanCmd = t.slice('--human-cmd='.length)
+    else if (t === '--senses-cmd') args.sensesCmd = String(argv[i + 1] || args.sensesCmd)
+    else if (t.startsWith('--senses-cmd=')) args.sensesCmd = t.slice('--senses-cmd='.length)
+    else if (t === '--senses-mode') args.sensesMode = String(argv[i + 1] || args.sensesMode)
+    else if (t.startsWith('--senses-mode=')) args.sensesMode = t.slice('--senses-mode='.length)
     else if (t === '--human-report-root') args.humanReportRoot = String(argv[i + 1] || args.humanReportRoot)
     else if (t.startsWith('--human-report-root=')) args.humanReportRoot = t.slice('--human-report-root='.length)
     else if (t === '--dr-bob-files') {
@@ -126,6 +134,7 @@ function toMd(scorecard) {
     `- Autonomous Profile: ${scorecard.stages.autonomous.status.toUpperCase()} (${scorecard.stages.autonomous.detail})`,
     `- Dr Bob Review: ${scorecard.stages.drBob.status.toUpperCase()} (${scorecard.stages.drBob.detail})`,
     `- Human Test: ${scorecard.stages.human.status.toUpperCase()} (${scorecard.stages.human.detail})`,
+    `- Senses Smoke: ${scorecard.stages.senses.status.toUpperCase()} (${scorecard.stages.senses.detail})`,
     '',
     '## Notes',
     '',
@@ -139,7 +148,7 @@ async function main() {
   const args = parseArgs(process.argv.slice(2))
 
   if (args.help) {
-    console.log('Bob All-in-One Release Gate\n\nUsage:\n  node scripts/bob-release-gate-all-in-one.mjs [--out tools/bob-release-gates] [--dr-bob-files plan.md,spec.md] [--min-human-readiness 85] [--dry-run]\n\nGates:\n  1) Autonomous profile load pass\n  2) Dr Bob review pass for required artifacts\n  3) Human-test engine pass with minimum readiness\n')
+    console.log('Bob All-in-One Release Gate\n\nUsage:\n  node scripts/bob-release-gate-all-in-one.mjs [--out tools/bob-release-gates] [--dr-bob-files plan.md,spec.md] [--min-human-readiness 85] [--senses-mode off|mock|auto|strict] [--dry-run]\n\nGates:\n  1) Autonomous profile load pass\n  2) Dr Bob review pass for required artifacts\n  3) Human-test engine pass with minimum readiness\n  4) Optional senses smoke pass with artifact output\n')
     process.exit(0)
   }
 
@@ -157,12 +166,14 @@ async function main() {
       minHumanReadiness: args.minHumanReadiness,
       drBobFiles: args.drBobFiles,
       drBobFailOnRevision: args.drBobFailOnRevision,
+      sensesMode: args.sensesMode,
       dryRun: args.dryRun,
     },
     stages: {
       autonomous: { status: 'skipped', detail: 'not executed' },
       drBob: { status: 'skipped', detail: 'not executed', results: [] },
       human: { status: 'skipped', detail: 'not executed', reportPath: '', readiness: null },
+      senses: { status: 'skipped', detail: 'not executed', reportPath: '' },
     },
     finalDecision: 'fail',
     notes: [],
@@ -262,7 +273,34 @@ async function main() {
     }
   }
 
-  const allStages = [scorecard.stages.autonomous, scorecard.stages.drBob, scorecard.stages.human]
+  if (!args.skipSenses && String(args.sensesMode || 'off').toLowerCase() !== 'off') {
+    if (args.dryRun) {
+      scorecard.stages.senses = {
+        status: 'pass',
+        detail: `dry-run: simulated pass (mode ${args.sensesMode})`,
+        reportPath: path.join(outDir, 'senses-report.json'),
+      }
+    } else {
+      const required = String(args.sensesMode).toLowerCase() === 'strict' ? 'screen,camera,audio' : 'screen'
+      const command = `${args.sensesCmd} --mode ${args.sensesMode} --required ${required} --out-dir "${outDir}"`
+      const r = await runShell(command, repoRoot)
+      const reportPath = path.join(outDir, 'senses-report.json')
+      let decision = 'fail'
+      if (await exists(reportPath)) {
+        const report = await readJson(reportPath)
+        decision = String(report?.finalDecision || 'fail').toLowerCase()
+      }
+
+      const passes = r.exitCode === 0 && decision === 'pass'
+      scorecard.stages.senses = {
+        status: passes ? 'pass' : 'fail',
+        detail: `command exit=${r.exitCode}, decision=${decision}, mode=${args.sensesMode}`,
+        reportPath,
+      }
+    }
+  }
+
+  const allStages = [scorecard.stages.autonomous, scorecard.stages.drBob, scorecard.stages.human, scorecard.stages.senses]
     .filter((s) => s.status !== 'skipped')
   const hasFailure = allStages.some((s) => s.status !== 'pass')
 
@@ -274,6 +312,9 @@ async function main() {
   }
   if (scorecard.stages.human.status !== 'pass') {
     scorecard.notes.push('Human-test gate failed. Address failing flows or increase readiness via fixes, not threshold relaxation.')
+  }
+  if (scorecard.stages.senses.status !== 'pass' && scorecard.stages.senses.status !== 'skipped') {
+    scorecard.notes.push('Senses gate failed. Check senses-report.json and fix hardware/tool wiring or switch senses mode.')
   }
 
   scorecard.finalDecision = hasFailure ? 'fail' : 'pass'
