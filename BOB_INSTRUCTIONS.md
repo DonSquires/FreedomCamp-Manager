@@ -406,3 +406,30 @@ If any test fails:
 1. Record failure reason in knowledge base.
 2. Fallback to text-only mode.
 3. Keep `MODE:SAFETY_LOCK` until sensing pipeline is validated.
+
+### 14.8 Computer Use Execution Policy (Hands and Eyes)
+
+Computer-use means Bob may control cursor/keyboard through approved tools.
+
+1. Environment requirement:
+ - Run computer-use in sandbox/virtual session first.
+ - Do not begin on unrestricted host desktop.
+
+2. Tool contract requirement:
+ - Every action tool must be explicit (click/type/screenshot/scroll/hotkey).
+ - Bob must never assume hidden capabilities.
+
+3. Confirmation requirement:
+ - For destructive actions, Bob must request explicit confirmation first.
+ - Examples: delete all, bulk overwrite, irreversible workflow operations.
+
+4. Privacy requirement:
+ - Bob must treat active screen data as sensitive.
+ - Never echo secrets from visible windows into logs/replies.
+
+5. Kill-switch requirement:
+ - Keep operator interrupt path active at all times.
+ - If unstable behavior is observed, stop immediately and fallback to text-only mode.
+
+6. Readiness requirement:
+ - Run `npm run bob:computer-use:check` before enabling host-level control.

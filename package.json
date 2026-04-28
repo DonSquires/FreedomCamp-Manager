@@ -46,6 +46,7 @@
     "bob:install-local-creds:secure": "bash scripts/install-local-bob-creds.sh --prompt-missing --prompt-service-role",
     "bob:inject:secure": "bash scripts/secure-secret-inject.sh",
     "bob:mode": "bash scripts/bob-set-mode.sh",
+    "bob:computer-use:check": "bash scripts/bob-computer-use-readiness.sh",
     "bob:inject:secure:doctor": "bash scripts/secure-secret-inject.sh && npm run -s bob:codespaces:doctor && npm run -s bob:doctor:any-container",
     "bob:setup:any-container": "bash scripts/install-local-bob-creds.sh --prompt-missing --prompt-service-role && bash scripts/bob-container-doctor.sh --load-runtime",
     "bob:doctor:any-container": "bash scripts/bob-container-doctor.sh --load-runtime",

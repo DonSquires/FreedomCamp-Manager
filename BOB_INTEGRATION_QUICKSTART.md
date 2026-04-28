@@ -467,6 +467,44 @@ If Bob lacks tool definitions for camera/screen/mic, Bob must state the gap expl
 4. Or `npm run bob:mode -- SAFETY_LOCK`.
 5. Then load mode env: `source .runtime/bob-mode.env`.
 
+### Computer Use (Hands and Eyes) Setup
+
+Computer Use requires an agentic environment that bridges Bob's model to OS input/output controls.
+
+#### Option 1: No-Code Path (Fastest)
+
+1. Use a desktop client/platform that supports multimodal + computer-use plugins.
+2. Enable host permissions:
+ - macOS: Accessibility, Camera, Microphone, Screen Recording
+ - Windows: run trusted app with elevated permissions only when required
+3. Enable vision/screen capture plugin in app settings.
+
+#### Option 2: Pro Path (Containerized)
+
+1. Install Docker Desktop.
+2. Run a containerized computer-use environment as a safety sandbox.
+3. Provide a multimodal API key through environment secrets.
+4. Execute tasks in virtual desktop/session first, not on unrestricted host desktop.
+
+#### Option 3: Custom Path (Python Tools)
+
+1. Install automation library stack (example: mouse/keyboard automation + OCR/vision + STT).
+2. Define explicit tool contracts for click/type/snapshot operations.
+3. Add confirmation hooks for high-risk actions (delete, bulk-update, credential screens).
+
+### Safety Precautions (Mandatory)
+
+1. Manual confirmation required for destructive operations.
+2. Start in sandbox/virtual desktop before granting host control.
+3. Keep a kill switch ready (Ctrl+C / emergency stop routine).
+4. Hide sensitive windows and secrets before screen-driven tasks.
+5. Restrict mic listening to wake-word, push-to-talk, or explicit trigger.
+
+### Quick Readiness Command
+
+1. Run `npm run bob:computer-use:check`.
+2. Fix warnings before enabling computer-use on host desktop.
+
 ### One-Command Full Gate (Autonomous + Dr Bob + Human)
 
 1. Run `npm run test:release:all-in-one` for strict release gating.
