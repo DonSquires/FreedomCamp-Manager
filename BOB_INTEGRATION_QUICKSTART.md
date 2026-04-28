@@ -294,6 +294,59 @@ export BOB_RUNPOD_SCALE_DOWN_CMD="runpod api scale --endpoint n0bp1ifmq01cx2 --w
 
 ---
 
+## Future Iterations
+
+### Iteration 1: Reliability Hardening (Week 1)
+
+1. Add automatic failover policy: local -> RunPod -> retry queue with capped backoff.
+2. Add request correlation IDs in Bob chat/test scripts for traceability across logs.
+3. Add health SLOs for Bob endpoints (availability, p95 latency, error-rate budgets).
+4. Add a startup preflight script to validate env, endpoint reachability, and model readiness.
+
+### Iteration 2: Evaluation and Guardrails (Week 2)
+
+1. Expand response scoring to include groundedness, security safety, and actionability fields.
+2. Add red-team prompts to `data/bob-response-scores.jsonl` for hallucination regression checks.
+3. Add CI gate to fail PRs if Bob quality score drops below threshold (for changed prompts/training files).
+4. Add strict policy checks for multi-org leakage in generated code suggestions.
+
+### Iteration 3: Coding Assistant Depth (Week 3)
+
+1. Add route-to-component verifier script to auto-check `App.tsx` mappings before merge.
+2. Add schema-aware assistant mode that validates table/column usage against `src/types/database.ts`.
+3. Add test-plan generation mode that outputs unit/integration/E2E cases per change request.
+4. Add edge-function guardrail checker for CORS/OPTIONS/auth patterns in `supabase/functions`.
+
+### Iteration 4: Ops Automation (Week 4)
+
+1. Add RunPod autoscaling hooks based on queue depth and latency bands.
+2. Add periodic model warm-up jobs to reduce first-token latency.
+3. Add supervisor recovery commands with cooldown windows and audit trail logging.
+4. Add daily summary report: failures, recoveries, latency, and test pass/fail trends.
+
+### Iteration 5: Product Intelligence (Month 2)
+
+1. Add tenant-aware prompt routing using org metadata and role context.
+2. Add feature-flag-aware assistant responses to reduce stale guidance.
+3. Add compliance pack mode for NZ policy workflows (biosecurity, smoke/noise, patrol escalation).
+4. Add decision-memory synchronization from `docs/adr/` and `docs/DECISIONS.md` to training refresh.
+
+### Iteration 6: Enterprise Readiness (Month 3)
+
+1. Add audit-grade change ledger for assistant suggestions and accepted patches.
+2. Add SOC2-style operational controls checklist (secrets handling, retention, incident response).
+3. Add disaster recovery drills for Bob services (RunPod outage simulation + local fallback verification).
+4. Add controlled rollout mode with canary users and staged policy enforcement.
+
+### Ongoing Cadence
+
+1. Weekly: rerun full Bob-assisted visual + deep-functional suites and publish scorecard.
+2. Weekly: refresh training with `node scripts/bob-inject-training.mjs --full` after architecture changes.
+3. Bi-weekly: review hallucination/failure patterns and update guardrails.
+4. Monthly: review roadmap completion and promote next iteration tasks to active sprint.
+
+---
+
 ## Reference
 
 - **RunPod Endpoint**: https://api.runpod.ai/v2/n0bp1ifmq01cx2
