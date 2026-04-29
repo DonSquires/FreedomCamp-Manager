@@ -67,6 +67,19 @@ jobs:
         with:
           version: latest
 
+      - name: Verify workflow ref and migration content
+        run: |
+          set -euo pipefail
+          echo "GITHUB_REF=${GITHUB_REF}"
+          echo "GITHUB_SHA=${GITHUB_SHA}"
+          echo "Checked out commit: $(git rev-parse HEAD)"
+          echo "Migration file checksum: $(sha256sum supabase/migrations/20260605000005_ptt_channels_log.sql | awk '{print $1}')"
+
+          if grep -q "ON public.ptt_channels (organization_id, channel_number)" supabase/migrations/20260605000005_ptt_channels_log.sql; then
+            echo "::error::Stale migration detected in checkout: static channel_number index is present. Re-run using the branch that includes commit 7fa8c099 or newer."
+            exit 1
+          fi
+
       - name: Validate required secrets
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
