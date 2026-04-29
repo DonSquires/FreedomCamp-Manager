@@ -7,7 +7,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, XCircle, RefreshCw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { checkRailwayServicesHealth } from '@/lib/railway'
+import { checkRailwayServicesHealth } from '@/lib/inferenceService'
 import { supabase } from '@/lib/supabase'
 
 type HealthStatus = 'operational' | 'degraded' | 'down'

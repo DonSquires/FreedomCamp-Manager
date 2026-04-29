@@ -15,7 +15,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { checkRailwayServicesHealth } from '@/lib/railway'
+import { checkRailwayServicesHealth } from '@/lib/inferenceService'
 import { supabase } from '@/lib/supabase'
 import { useNavigate } from 'react-router-dom'
 import { Shield, WifiOff, Wifi, ChevronLeft, AlertTriangle, ServerCrash } from 'lucide-react'

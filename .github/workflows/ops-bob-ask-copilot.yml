@@ -8,7 +8,7 @@ name: Ops Bob Ask Copilot
 # Bob auto-ingests every answer into his intel feed so future queries benefit.
 #
 # Triggers:
-#   - Scheduled: every hour
+#   - Scheduled: once per day at midnight UTC
 #   - Manual:    workflow_dispatch (with optional single-question override)
 #
 # Required repository secrets (either alias in each pair):
