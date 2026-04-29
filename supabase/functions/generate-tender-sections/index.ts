@@ -174,11 +174,18 @@ Deno.serve(withCors(async (req: Request) => {
   // Verify the user belongs to the same organisation
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('organization_id, role')
+    .select('organization_id, role, employer_organization_id, extra_organization_ids, authorized_work_locations')
     .eq('id', user.id)
     .single()
 
-  if (!profile || profile.organization_id !== doc.organization_id) {
+  const allowedOrganizationIds = new Set<string>([
+    (profile as any)?.organization_id,
+    (profile as any)?.employer_organization_id,
+    ...((((profile as any)?.extra_organization_ids) ?? []) as string[]),
+    ...((((profile as any)?.authorized_work_locations) ?? []) as string[]),
+  ].filter((id): id is string => typeof id === 'string' && id.length > 0))
+
+  if (!profile || (profile.role !== 'master' && !allowedOrganizationIds.has(doc.organization_id as string))) {
     return json({ error: 'Forbidden' }, 403)
   }
 

@@ -98,6 +98,10 @@ export interface ScanSaveResult {
   gpsLongitude: number | null
 }
 
+type CaptureAndSaveOptions = {
+  plateHint?: string | null
+}
+
 type ScanProgressHandler = (stage: ScanProgressStage, label: string) => void
 
 function emitScanProgress(onStageChange: ScanProgressHandler | undefined, stage: ScanProgressStage) {
@@ -118,6 +122,7 @@ export async function captureAndSave(
   preferredZoneId: string | null,
   onGPSFix?: (lat: number, lon: number) => void,
   onStageChange?: ScanProgressHandler,
+  options?: CaptureAndSaveOptions,
 ): Promise<ScanSaveResult> {
   // ── Step 1: GPS ───────────────────────────────────────────────────────────
   // Try high-accuracy first, fall back to low-accuracy, then proceed with null coords.
@@ -237,6 +242,7 @@ export async function captureAndSave(
         edgeFunctions.ingestVehicleObservation({
           photo_url: photoUrl,
           photo_hash: photoHash,
+          plate: options?.plateHint ?? undefined,
           gpsLatitude: latitude,
           gpsLongitude: longitude,
           gpsAccuracy: accuracy,

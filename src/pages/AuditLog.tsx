@@ -322,6 +322,21 @@ export default function AuditLog() {
               </Button>
             </div>
 
+            <select
+              className="flex h-10 w-full md:w-[220px] rounded-md border border-input bg-background px-3 py-2 text-sm"
+              value={entityFilter}
+              onChange={(e) => setEntityFilter(e.target.value)}
+            >
+              <option value="all">All Entities</option>
+              <option value="user_profiles">Users</option>
+              <option value="organizations">Organisations</option>
+              <option value="site_role_permissions">Site Role Permissions</option>
+              <option value="site_user_permissions">Site User Permissions</option>
+              <option value="ops_live_plan">Live Plans</option>
+              <option value="code_patch_task">Code Patch Tasks</option>
+              <option value="bob_recommendation">Bob Recommendations</option>
+            </select>
+
             <Button variant="outline" size="sm">
               <Download className="h-4 w-4 mr-2" />
               Export

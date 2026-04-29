@@ -301,7 +301,7 @@ Deno.serve(async (req) => {
 
     const { data: profile, error: profileError } = await supabase
       .from("user_profiles")
-      .select("id, role, organization_id")
+      .select("id, role, organization_id, employer_organization_id, extra_organization_ids, authorized_work_locations")
       .eq("id", authUserId)
       .maybeSingle();
 
@@ -425,6 +425,13 @@ Deno.serve(async (req) => {
       has_gps: gpsLatitude !== null && gpsLongitude !== null,
     });
 
+    const allowedOrganizationIds = new Set<string>([
+      (profile as any).organization_id,
+      (profile as any).employer_organization_id,
+      ...(((profile as any).extra_organization_ids ?? []) as string[]),
+      ...(((profile as any).authorized_work_locations ?? []) as string[]),
+    ].filter((id): id is string => typeof id === "string" && id.length > 0));
+
     if (isUpdateExistingMode && photoUrlInput) {
       const canonicalPhotoRef = canonicalizePhotoReference(photoUrlInput);
       let existingObs: Record<string, unknown> | null = null;
@@ -455,7 +462,7 @@ Deno.serve(async (req) => {
 
       const canonicalObservationId = (existingObs as any).observation_id ?? (existingObs as any).id;
 
-      if (profile.role !== "master" && (existingObs as any).organization_id !== profile.organization_id) {
+      if (profile.role !== "master" && !allowedOrganizationIds.has((existingObs as any).organization_id as string)) {
         return new Response(JSON.stringify({ error: "Observation does not belong to your organization" }), {
           status: 403,
           headers: { ...getCorsHeaders(req), "content-type": "application/json" },
@@ -656,14 +663,14 @@ Deno.serve(async (req) => {
 
     // Non-master users must only write observations in their own organization.
     if (profile.role !== "master") {
-      if (!profile.organization_id) {
+      if (allowedOrganizationIds.size === 0) {
         return new Response(JSON.stringify({ error: "User profile is missing organization assignment" }), {
           status: 403,
           headers: { ...getCorsHeaders(req), "content-type": "application/json" },
         });
       }
 
-      if (zoneRow.organization_id !== profile.organization_id) {
+      if (!allowedOrganizationIds.has(zoneRow.organization_id as string)) {
         return new Response(JSON.stringify({ error: "Zone does not belong to your organization" }), {
           status: 403,
           headers: { ...getCorsHeaders(req), "content-type": "application/json" },
@@ -1007,7 +1014,7 @@ Deno.serve(async (req) => {
 
       const canonicalObservationId = (existingObs as any).observation_id ?? (existingObs as any).id;
 
-      if (profile.role !== "master" && (existingObs as any).organization_id !== profile.organization_id) {
+      if (profile.role !== "master" && !allowedOrganizationIds.has((existingObs as any).organization_id as string)) {
         return new Response(JSON.stringify({ error: "Observation does not belong to your organization" }), {
           status: 403,
           headers: { ...getCorsHeaders(req), "content-type": "application/json" },
@@ -1045,10 +1052,31 @@ Deno.serve(async (req) => {
       };
       console.log("✅ Observation updated for re-ingest:", newObservationId);
     } else {
-      const { data: observation, error: obsError } = await supabase.rpc(
+      let observation: Record<string, unknown> | null = null;
+      let obsError: { message?: string } | null = null;
+
+      const rpcResult = await supabase.rpc(
         "safe_insert_observation",
         { p_data: insertPayload }
       );
+      observation = (rpcResult.data as Record<string, unknown> | null) ?? null;
+      obsError = (rpcResult.error as { message?: string } | null) ?? null;
+
+      const shouldFallbackToDirectInsert = !!obsError?.message && obsError.message.includes("session_replication_role");
+      if (shouldFallbackToDirectInsert) {
+        console.warn("⚠️ safe_insert_observation unavailable, falling back to direct observations insert", {
+          reason: obsError?.message,
+        });
+
+        const directInsert = await supabase
+          .from("observations")
+          .insert(insertPayload)
+          .select("observation_id, id, is_compliant, breach_type")
+          .single();
+
+        observation = (directInsert.data as Record<string, unknown> | null) ?? null;
+        obsError = (directInsert.error as { message?: string } | null) ?? null;
+      }
 
       if (obsError || !observation) {
         console.error("❌ Failed to create observation:", obsError);

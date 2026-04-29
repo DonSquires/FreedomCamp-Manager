@@ -11,6 +11,7 @@ import { useSessionPreferencesStore } from '@/stores/sessionPreferencesStore'
 import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
 import { PublicSafetyBanner } from '@/components/features/PublicSafetyBanner'
 import { Button } from '@/components/ui/button'
+import { HealthBanner } from '@/components/features/HealthBanner'
 import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import {
@@ -85,6 +86,8 @@ import {
   ListChecks,
   LayoutList,
   Mic,
+  Tent,
+  Package2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -100,7 +103,13 @@ interface AppLayoutProps {
   showBackButton?: boolean
 }
 
-type NavItem = { path: string; icon: React.FC<{ className?: string }>; label: string; roles: string[] }
+type NavItem = {
+  path: string
+  icon: React.FC<{ className?: string }>
+  label: string
+  roles: string[]
+  scopeHint?: string
+}
 
 // Pinned items always visible at the top of the sidebar
 const pinnedItems: NavItem[] = [
@@ -164,7 +173,7 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
       { path: '/zones', icon: MapPin, label: 'Zones', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/client-master-list', icon: ListChecks, label: 'Client Master List', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/client-sites', icon: Building2, label: 'Client Sites', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/admin/site-permissions', icon: ShieldCheck, label: 'Site Permissions', roles: ['admin', 'master'] },
+      { path: '/site-permissions', icon: ShieldCheck, label: 'Site Permissions', roles: ['admin', 'master'] },
       { path: '/crm', icon: Building2, label: 'CRM / Accounts', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/tender-workspace', icon: Gavel, label: 'Tenders & Contracts', roles: ['admin', 'master', 'grand_master'] },
       { path: '/tender-reference-library', icon: BookOpen, label: 'Reference Library', roles: ['admin', 'master', 'grand_master'] },
@@ -194,12 +203,13 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
     label: 'Specialist Portals',
     icon: Layers,
     items: [
-      { path: '/noise-control', icon: Volume2, label: 'Noise Control', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/biosecurity-control', icon: Leaf, label: 'Biosecurity (CNG)', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/smoke-control', icon: Wind, label: 'Smoke Complaints (OOH)', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/parking', icon: ParkingSquare, label: 'Parking Enforcement', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/officer-welfare', icon: HeartPulse, label: 'Officer Welfare', roles: ['admin', 'admin_officer', 'master'] },
-      { path: '/identity-verification', icon: ShieldCheck, label: 'ID Verification', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/field-officer?service=freedom_camping', icon: Tent, label: 'Freedom Camping', roles: ['officer', 'admin_officer'], scopeHint: 'Zone-based' },
+      { path: '/parking-officer', icon: ParkingSquare, label: 'Parking Enforcement', roles: ['officer', 'admin_officer', 'admin', 'master'], scopeHint: 'Zone-based' },
+      { path: '/noise-officer', icon: Volume2, label: 'Noise Control', roles: ['officer', 'admin_officer', 'admin', 'master'], scopeHint: 'Jurisdiction-wide' },
+      { path: '/biosecurity-officer', icon: Leaf, label: 'Biosecurity (CNG)', roles: ['officer', 'admin_officer', 'admin', 'master'], scopeHint: 'Jurisdiction-wide' },
+      { path: '/smoke-officer', icon: Wind, label: 'Smoke Complaints (OOH)', roles: ['officer', 'admin_officer', 'admin', 'master'], scopeHint: 'Jurisdiction-wide' },
+      { path: '/identity-verification', icon: ShieldCheck, label: 'ID Verification', roles: ['admin', 'admin_officer', 'master'], scopeHint: 'Client/Site driven' },
+      { path: '/officer-welfare', icon: HeartPulse, label: 'Officer Welfare', roles: ['admin', 'admin_officer', 'master'], scopeHint: 'Officer-based' },
     ],
   },
   {
@@ -211,6 +221,7 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
       { path: '/availability', icon: CalendarDays, label: 'My Availability', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/officer-skills', icon: GraduationCap, label: 'Skills & Licences', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/timesheets', icon: ClipboardCopy, label: 'Timesheets', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/asset-management', icon: Package2, label: 'Asset Management', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -284,7 +295,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
   const visiblePinned = pinnedItems.filter(item => user && item.roles.includes(user.role))
 
   return (
-    <nav className="space-y-1">
+    <nav className="space-y-2">
       {/* Pinned items */}
       {visiblePinned.map((item) => {
         const Icon = item.icon
@@ -295,9 +306,9 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
             to={item.path}
             onClick={onClick}
             className={cn(
-              'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-150',
+              'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150',
               isActive
-                ? 'bg-primary/10 text-primary shadow-[inset_3px_0_0_hsl(var(--primary))] dark:bg-primary/15'
+                ? 'bg-primary/10 text-primary shadow-[inset_3px_0_0_hsl(var(--primary))] dark:bg-primary/15 ring-1 ring-primary/20'
                 : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700/60 dark:hover:text-gray-100'
             )}
           >
@@ -307,7 +318,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
         )
       })}
 
-      <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
+      <div className="my-2 border-t border-gray-200/90 dark:border-gray-700/80" />
 
       {/* Grouped navigation with accordion */}
       {navigationGroups.map((group) => {
@@ -319,14 +330,20 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
         const hasActiveChild = visibleItems.some(item => location.pathname === item.path)
 
         return (
-          <div key={group.label}>
+          <div
+            key={group.label}
+            className={cn(
+              'rounded-xl p-1 transition-colors',
+              hasActiveChild ? 'bg-primary/5 dark:bg-primary/10' : 'bg-transparent'
+            )}
+          >
             <button
               onClick={() => toggleGroup(group.label)}
               className={cn(
-                'flex w-full items-center justify-between px-3 py-2 rounded-md text-sm font-medium transition-all duration-150',
+                'flex w-full items-center justify-between px-3 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150',
                 hasActiveChild
-                  ? 'text-primary bg-primary/5 dark:bg-primary/10'
-                  : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700/60 dark:hover:text-gray-200'
+                  ? 'text-primary bg-primary/5 dark:bg-primary/15'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700/60 dark:hover:text-gray-100'
               )}
             >
               <span className="flex items-center gap-3">
@@ -337,7 +354,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
             </button>
 
             {isOpen && (
-              <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-200 dark:border-gray-700 pl-3">
+              <div className="ml-4 mt-1 space-y-1 border-l border-gray-200 dark:border-gray-700 pl-3">
                 {visibleItems.map((item) => {
                   const Icon = item.icon
                   const isActive = location.pathname === item.path
@@ -347,14 +364,21 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
                       to={item.path}
                       onClick={onClick}
                       className={cn(
-                        'flex items-center gap-3 px-2 py-1.5 rounded-md text-sm transition-all duration-150',
+                        'flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm transition-all duration-150',
                         isActive
-                          ? 'bg-primary/10 text-primary font-medium dark:bg-primary/15'
+                          ? 'bg-primary/10 text-primary font-medium dark:bg-primary/15 ring-1 ring-primary/20'
                           : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700/60 dark:hover:text-gray-100'
                       )}
                     >
                       <Icon className={cn('h-3.5 w-3.5 shrink-0', isActive ? 'text-primary' : 'text-gray-400 dark:text-gray-500')} />
-                      <span>{item.label}</span>
+                      <span className="min-w-0">
+                        <span className="block truncate">{item.label}</span>
+                        {item.scopeHint && (
+                          <span className="block text-[10px] leading-tight text-gray-500 dark:text-gray-400">
+                            {item.scopeHint}
+                          </span>
+                        )}
+                      </span>
                     </Link>
                   )
                 })}
@@ -622,9 +646,9 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-cyan-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900">
       {/* Mobile Header */}
-      <header className="lg:hidden bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-40">
+      <header className="lg:hidden bg-white/95 dark:bg-gray-800/95 backdrop-blur shadow-sm sticky top-0 z-40 border-b border-gray-200/60 dark:border-gray-700/60">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
             <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
@@ -697,12 +721,12 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
       {/* Desktop Sidebar */}
       <aside
         className={cn(
-          'hidden lg:block fixed inset-y-0 left-0 w-64 bg-white dark:bg-gray-800 border-r dark:border-gray-700 z-30 transition-transform duration-200 shadow-[2px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[2px_0_12px_-2px_rgba(0,0,0,0.4)]',
+          'hidden lg:block fixed inset-y-0 left-0 w-64 bg-white/95 dark:bg-gray-800/95 backdrop-blur border-r dark:border-gray-700 z-30 transition-transform duration-200 shadow-[2px_0_14px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_14px_-2px_rgba(0,0,0,0.45)]',
           desktopNavOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         <div className="flex flex-col h-full">
-          <div className="p-5 border-b dark:border-gray-700 bg-gradient-to-br from-cyan-700 to-cyan-800 dark:from-cyan-900 dark:to-cyan-950">
+          <div className="p-5 border-b dark:border-gray-700 bg-gradient-to-br from-cyan-700 via-cyan-800 to-slate-900 dark:from-cyan-900 dark:via-cyan-950 dark:to-slate-950">
             <div className="flex items-start justify-between">
               <div className="min-w-0">
                 <h2 className="font-bold text-xl text-white">FieldOps</h2>
@@ -715,6 +739,9 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
                    user?.role === 'admin' ? 'Administrator' :
                   user?.role === 'admin_officer' ? 'Admin Officer' :
                   user?.role === 'nzscv_monitor' ? 'NZSCV Monitor' : 'Field Officer'}
+                </p>
+                <p className="mt-2 inline-flex rounded-full border border-cyan-200/30 bg-cyan-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cyan-100">
+                  Operations Console
                 </p>
               </div>
               <button
@@ -747,7 +774,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
       {/* Main Content */}
       <div className={cn('transition-[padding] duration-200', desktopNavOpen ? 'lg:pl-64' : 'lg:pl-0')}>
         {/* Desktop Header */}
-        <header className="hidden lg:block bg-white dark:bg-gray-800 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.4)] sticky top-0 z-20 border-b border-gray-100 dark:border-gray-700/50">
+        <header className="hidden lg:block bg-white/95 dark:bg-gray-800/90 backdrop-blur shadow-[0_2px_8px_-2px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.4)] sticky top-0 z-20 border-b border-gray-100/90 dark:border-gray-700/60">
           <div className="px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-start gap-3">
@@ -808,6 +835,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
         {/* Page Content */}
         <main className="p-4 lg:p-6 relative">
           <PublicSafetyBanner />
+          {(user?.role === 'admin' || user?.role === 'master' || user?.role === 'grand_master') && <HealthBanner />}
           {children}
 
           {/* Global feedback button — visible to all authenticated users */}

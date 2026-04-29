@@ -31,6 +31,7 @@ import { FieldSafetyBar } from '@/components/features/FieldSafetyBar'
 import { VOILookup } from '@/components/features/VOILookup'
 import { ParkingPhotoCapture } from '@/components/features/ParkingPhotoCapture'
 import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
+import { useGeofenceOrgTransition } from '@/hooks/useGeofenceOrgTransition'
 import { useShiftGate } from '@/hooks/useShiftGate'
 import { GeofenceWarningBanner } from '@/components/features/GeofenceWarningBanner'
 import type { ParkingPhotoCaptureResult } from '@/components/features/ParkingPhotoCapture'
@@ -155,6 +156,7 @@ const STATUS_COLOURS: Record<string, string> = {
 
 export default function ParkingOfficerPortal() {
   const { user } = useAuthStore()
+  useGeofenceOrgTransition({ enabled: true })
   const { operationalOrganizationId } = useOperationalOrganization()
   const navigate  = useNavigate()
   const qc        = useQueryClient()
@@ -1101,7 +1103,7 @@ export default function ParkingOfficerPortal() {
       {mode === 'permit_check' && (
         <PermitCheckPanel
           zones={zones}
-          organizationId={user!.organization_id}
+          organizationId={operationalOrganizationId ?? user!.organization_id}
           onClose={() => setMode(null)}
         />
       )}

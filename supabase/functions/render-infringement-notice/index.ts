@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
 
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('user_profiles')
-      .select('id, organization_id, role')
+      .select('id, organization_id, role, employer_organization_id, extra_organization_ids, authorized_work_locations')
       .eq('id', user.id)
       .single()
 
@@ -144,7 +144,14 @@ Deno.serve(async (req) => {
       notice = noticeWithArtifact
     }
 
-    if (profile.role !== 'master' && notice.organization_id !== profile.organization_id) {
+    const allowedOrganizationIds = new Set<string>([
+      (profile as any).organization_id,
+      (profile as any).employer_organization_id,
+      ...(((profile as any).extra_organization_ids ?? []) as string[]),
+      ...(((profile as any).authorized_work_locations ?? []) as string[]),
+    ].filter((id): id is string => typeof id === 'string' && id.length > 0))
+
+    if (profile.role !== 'master' && !allowedOrganizationIds.has(notice.organization_id as string)) {
       return new Response(JSON.stringify({ success: false, error: 'Forbidden' }), {
         status: 403,
         headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },

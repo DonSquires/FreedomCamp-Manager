@@ -81,11 +81,12 @@ function safeJsonParse(raw, fieldName) {
 function normalizeInput(inputRaw, promptTextRaw) {
   const promptText = String(promptTextRaw || '').trim();
   if (promptText) {
-    return { prompt: promptText };
+    // Some serverless runtimes expect input.message rather than input.prompt.
+    return { message: promptText, prompt: promptText };
   }
 
   if (!String(inputRaw || '').trim()) {
-    return { prompt: 'Hello from Codespaces' };
+    return { message: 'Hello from Codespaces', prompt: 'Hello from Codespaces' };
   }
   return safeJsonParse(inputRaw, 'input');
 }

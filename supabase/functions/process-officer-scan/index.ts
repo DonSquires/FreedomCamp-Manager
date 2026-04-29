@@ -761,7 +761,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: profile } = await supabase
       .from('user_profiles')
-      .select('id, role, organization_id')
+      .select('id, role, organization_id, employer_organization_id, extra_organization_ids, authorized_work_locations')
       .eq('id', authUserId)
       .maybeSingle();
 
@@ -808,15 +808,23 @@ Deno.serve(async (req: Request) => {
       return jsonResp({ success: true, skipped: true, reason: 'already_enriched' });
     }
 
+    // Build set of authorized organizations from profile
+    const allowedOrganizationIds = new Set<string>([
+      (profile as any).organization_id,
+      (profile as any).employer_organization_id,
+      ...(((profile as any).extra_organization_ids ?? []) as string[]),
+      ...(((profile as any).authorized_work_locations ?? []) as string[]),
+    ].filter((id): id is string => typeof id === 'string' && id.length > 0));
+
     // Verify officer owns this observation, unless explicit admin override is enabled.
     // Reingest uses this override so admin/admin_officer can reprocess historical
     // observations without changing original recorded_by metadata.
     const isAdminRole = ['admin', 'admin_officer', 'master'].includes(profile.role);
-    const sameOrg = obs.organization_id === profile.organization_id;
-    if (profile.role !== 'master' && obs.recorded_by !== profile.id) {
-      if (!(allowAdminOverride && isAdminRole && sameOrg)) {
-        return jsonResp({ error: 'Forbidden: observation belongs to another officer' }, 403);
-      }
+    const authorizationFailed = profile.role !== 'master' && obs.recorded_by !== profile.id &&
+      !(allowAdminOverride && isAdminRole && allowedOrganizationIds.has(obs.organization_id as string));
+    
+    if (authorizationFailed) {
+      return jsonResp({ error: 'Forbidden: observation belongs to another officer' }, 403);
     }
 
     const zoneId         = obs.zone_id as string;

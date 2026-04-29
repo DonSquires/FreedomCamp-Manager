@@ -1,17 +1,30 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
+import { getMissingManifestPaths, projectLegacyNavItems, routeManifest, type AppRole } from '@/navigation'
 import {
   Home, Car, MapPin, Users, BarChart3, FileText,
   LogOut, Settings, ChevronLeft, AlertTriangle, ChevronDown,
   Activity, Database, Search, Heart, ScrollText, Lock, Gavel,
-  Navigation, BookOpen, LayoutGrid, Map, Bell, Upload, Shield, Camera, Link2,
+  Navigation, BookOpen, LayoutGrid, Map as MapIcon, Bell, Upload, Shield, Camera, Link2,
   CalendarDays, TrendingUp, Wrench, ParkingSquare, Volume2, Radio, Sparkles,
   ClipboardCheck, Ban,
   ScanFace,
+  type LucideIcon,
 } from 'lucide-react'
+
+type AdminNavLink = {
+  to: string
+  label: string
+  icon: LucideIcon
+}
+
+type AdminNavGroup = {
+  label: string
+  links: AdminNavLink[]
+}
 
 const primaryLinks = [
   { to: '/admin',       label: 'Dashboard', icon: Home },
@@ -21,92 +34,436 @@ const primaryLinks = [
   { to: '/search',      label: 'Search',     icon: Search },
 ]
 
-const moreGroups = [
+const enforcementLegacyLinks: AdminNavLink[] = [
+  { to: '/enforcement-command-center', label: 'Command Centre', icon: Gavel },
+  { to: '/enforcement-review', label: 'Review', icon: ScrollText },
+  { to: '/disputes', label: 'Disputes', icon: AlertTriangle },
+  { to: '/notice-to-vacate', label: 'Notice to Vacate', icon: FileText },
+  { to: '/infringements', label: 'Infringements', icon: Gavel },
+  { to: '/breach-notices', label: 'Breach Notices', icon: Bell },
+]
+
+const vehiclesZonesLegacyLinks: AdminNavLink[] = [
+  { to: '/vehicle-registry', label: 'Vehicle Registry', icon: BookOpen },
+  { to: '/admin/canonical-records', label: 'Canonical Records', icon: Database },
+  { to: '/zones', label: 'Zones', icon: MapPin },
+  { to: '/hotspots', label: 'Hotspots Map', icon: MapIcon },
+]
+
+const reportsLegacyLinks: AdminNavLink[] = [
+  { to: '/reports-hub', label: 'Reports Hub', icon: BarChart3 },
+  { to: '/observations-report', label: 'Observations', icon: LayoutGrid },
+  { to: '/observations', label: 'Observation Map', icon: MapIcon },
+  { to: '/ai-analysis', label: 'Bob', icon: Sparkles },
+]
+
+const specialistServicesLegacyLinks: AdminNavLink[] = [
+  { to: '/parking', label: 'Parking Enforcement', icon: ParkingSquare },
+  { to: '/parking-officer', label: 'Parking Officer', icon: Car },
+  { to: '/noise-control', label: 'Noise Control', icon: Volume2 },
+  { to: '/noise-officer', label: 'Noise Officer', icon: Radio },
+]
+
+const officersPatrolsLegacyLinks: AdminNavLink[] = [
+  { to: '/live-patrol', label: 'Live Patrol', icon: Activity },
+  { to: '/live-tracking', label: 'Officer Tracking', icon: Navigation },
+  { to: '/officer-welfare', label: 'Officer Welfare', icon: Heart },
+  { to: '/patrol-schedule', label: 'Patrol Schedule', icon: CalendarDays },
+  { to: '/patrol-kpis', label: 'Patrol KPIs', icon: TrendingUp },
+  { to: '/patrol-checkpoints', label: 'Checkpoints', icon: MapPin },
+]
+
+const adminLegacyLinks: AdminNavLink[] = [
+  { to: '/users', label: 'Users', icon: Users },
+  { to: '/audit-log', label: 'Audit Log', icon: ScrollText },
+  { to: '/privacy-curtain', label: 'Privacy', icon: Lock },
+  { to: '/import-data', label: 'Import Data', icon: Upload },
+  { to: '/import-historical', label: 'Import Excel', icon: Upload },
+  { to: '/data', label: 'Data Tools', icon: Database },
+  { to: '/photo-reingest', label: 'Photo Reingest', icon: Camera },
+  { to: '/evidence-photo-linker', label: 'Evidence Linker', icon: Link2 },
+  { to: '/settings', label: 'Settings', icon: Settings },
+]
+
+const complianceLegacyLinks: AdminNavLink[] = [
+  { to: '/compliance-dashboard', label: 'Compliance Dashboard', icon: BarChart3 },
+  { to: '/compliance-analytics', label: 'Analytics', icon: BarChart3 },
+  { to: '/compliance-recalculation', label: 'Recalculation', icon: Shield },
+  { to: '/spatial-compliance', label: 'Spatial Compliance', icon: MapIcon },
+]
+
+const peopleIncidentsLegacyLinks: AdminNavLink[] = [
+  { to: '/person-records', label: 'Person Records', icon: Users },
+  { to: '/face-recognition', label: 'Face Recognition', icon: ScanFace },
+  { to: '/points-of-interest', label: 'Points of Interest', icon: Ban },
+  { to: '/incidents', label: 'Incidents & Maintenance', icon: Activity },
+  { to: '/incident-reports', label: 'Incident Reports', icon: FileText },
+  { to: '/investigations', label: 'Investigations', icon: Search },
+  { to: '/site-risk-assessment', label: 'Site Risk Assessment', icon: ClipboardCheck },
+]
+
+const moreGroups: AdminNavGroup[] = [
   {
     label: 'Compliance',
-    links: [
-      { to: '/compliance-dashboard',    label: 'Compliance Dashboard',   icon: BarChart3 },
-      { to: '/compliance-analytics',    label: 'Analytics',              icon: BarChart3 },
-      { to: '/compliance-recalculation',label: 'Recalculation',          icon: Shield },
-      { to: '/spatial-compliance',      label: 'Spatial Compliance',     icon: Map },
-    ],
+    links: complianceLegacyLinks,
   },
   {
     label: 'Enforcement',
-    links: [
-      { to: '/enforcement-command-center', label: 'Command Centre',   icon: Gavel },
-      { to: '/enforcement-review',         label: 'Review',           icon: ScrollText },
-      { to: '/disputes',                   label: 'Disputes',         icon: AlertTriangle },
-      { to: '/notice-to-vacate',           label: 'Notice to Vacate', icon: FileText },
-      { to: '/infringements',              label: 'Infringements',    icon: Gavel },
-      { to: '/breach-notices',             label: 'Breach Notices',   icon: Bell },
-    ],
+    links: enforcementLegacyLinks,
   },
   {
     label: 'Vehicles & Zones',
-    links: [
-      { to: '/vehicle-registry',           label: 'Vehicle Registry',   icon: BookOpen },
-      { to: '/admin/canonical-records',    label: 'Canonical Records',  icon: Database },
-      { to: '/zones',                       label: 'Zones',              icon: MapPin },
-      { to: '/hotspots',                    label: 'Hotspots Map',       icon: Map },
-    ],
+    links: vehiclesZonesLegacyLinks,
   },
   {
     label: 'Officers & Patrols',
-    links: [
-      { to: '/live-patrol',        label: 'Live Patrol',          icon: Activity },
-      { to: '/live-tracking',      label: 'Officer Tracking',     icon: Navigation },
-      { to: '/officer-welfare',    label: 'Officer Welfare',      icon: Heart },
-      { to: '/patrol-schedule',    label: 'Patrol Schedule',      icon: CalendarDays },
-      { to: '/patrol-kpis',        label: 'Patrol KPIs',          icon: TrendingUp },
-      { to: '/patrol-checkpoints', label: 'Checkpoints',          icon: MapPin },
-    ],
+    links: officersPatrolsLegacyLinks,
   },
   {
     label: 'People & Incidents',
-    links: [
-      { to: '/person-records',      label: 'Person Records',      icon: Users },
-      { to: '/face-recognition',    label: 'Face Recognition',    icon: ScanFace },
-      { to: '/points-of-interest',  label: 'Points of Interest',  icon: Ban },
-      { to: '/incidents',           label: 'Incidents & Maintenance', icon: Activity },
-      { to: '/incident-reports',    label: 'Incident Reports',    icon: FileText },
-      { to: '/investigations',      label: 'Investigations',      icon: Search },
-      { to: '/site-risk-assessment',label: 'Site Risk Assessment', icon: ClipboardCheck },
-    ],
+    links: peopleIncidentsLegacyLinks,
   },
   {
     label: 'Specialist Services',
-    links: [
-      { to: '/parking',         label: 'Parking Enforcement', icon: ParkingSquare },
-      { to: '/parking-officer', label: 'Parking Officer',     icon: Car },
-      { to: '/noise-control',   label: 'Noise Control',       icon: Volume2 },
-      { to: '/noise-officer',   label: 'Noise Officer',       icon: Radio },
-    ],
+    links: specialistServicesLegacyLinks,
   },
   {
     label: 'Reports',
-    links: [
-      { to: '/reports-hub',         label: 'Reports Hub',   icon: BarChart3 },
-      { to: '/observations-report', label: 'Observations',  icon: LayoutGrid },
-      { to: '/observations',        label: 'Observation Map',icon: Map },
-      { to: '/ai-analysis',         label: 'Bob',           icon: Sparkles },
-    ],
+    links: reportsLegacyLinks,
   },
   {
     label: 'Admin',
-    links: [
-      { to: '/users',       label: 'Users',        icon: Users },
-      { to: '/audit-log',   label: 'Audit Log',    icon: ScrollText },
-      { to: '/privacy-curtain', label: 'Privacy',  icon: Lock },
-      { to: '/import-data',     label: 'Import Data',  icon: Upload },
-      { to: '/import-historical', label: 'Import Excel', icon: Upload },
-      { to: '/data',            label: 'Data Tools',   icon: Database },
-      { to: '/photo-reingest',  label: 'Photo Reingest', icon: Camera },
-      { to: '/evidence-photo-linker', label: 'Evidence Linker', icon: Link2 },
-      { to: '/settings',        label: 'Settings',     icon: Settings },
-    ],
+    links: adminLegacyLinks,
   },
 ]
+
+function buildEnforcementPilotGroup(role?: AppRole): AdminNavGroup {
+  const manifestSubset = routeManifest.filter((entry) =>
+    enforcementLegacyLinks.some((link) => link.to === entry.path),
+  )
+
+  const missingPaths = getMissingManifestPaths(
+    enforcementLegacyLinks.map((link) => link.to),
+    manifestSubset,
+  )
+
+  if (missingPaths.length > 0) {
+    return {
+      label: 'Enforcement',
+      links: enforcementLegacyLinks,
+    }
+  }
+
+  const projected = projectLegacyNavItems(manifestSubset, {
+    role,
+    shell: 'admin',
+  })
+
+  if (projected.length !== enforcementLegacyLinks.length) {
+    return {
+      label: 'Enforcement',
+      links: enforcementLegacyLinks,
+    }
+  }
+
+  const projectedByPath = new globalThis.Map(projected.map((item) => [item.path, item]))
+
+  return {
+    label: 'Enforcement',
+    links: enforcementLegacyLinks.map((legacy) => ({
+      to: legacy.to,
+      label: legacy.label,
+      icon: legacy.icon,
+    })).filter((legacy) => projectedByPath.has(legacy.to)),
+  }
+}
+
+function buildVehiclesZonesPilotGroup(role?: AppRole): AdminNavGroup {
+  const manifestSubset = routeManifest.filter((entry) =>
+    vehiclesZonesLegacyLinks.some((link) => link.to === entry.path),
+  )
+
+  const missingPaths = getMissingManifestPaths(
+    vehiclesZonesLegacyLinks.map((link) => link.to),
+    manifestSubset,
+  )
+
+  if (missingPaths.length > 0) {
+    return {
+      label: 'Vehicles & Zones',
+      links: vehiclesZonesLegacyLinks,
+    }
+  }
+
+  const projected = projectLegacyNavItems(manifestSubset, {
+    role,
+    shell: 'admin',
+  })
+
+  if (projected.length !== vehiclesZonesLegacyLinks.length) {
+    return {
+      label: 'Vehicles & Zones',
+      links: vehiclesZonesLegacyLinks,
+    }
+  }
+
+  const projectedByPath = new globalThis.Map(projected.map((item) => [item.path, item]))
+
+  return {
+    label: 'Vehicles & Zones',
+    links: vehiclesZonesLegacyLinks.map((legacy) => ({
+      to: legacy.to,
+      label: legacy.label,
+      icon: legacy.icon,
+    })).filter((legacy) => projectedByPath.has(legacy.to)),
+  }
+}
+
+function buildReportsPilotGroup(role?: AppRole): AdminNavGroup {
+  const manifestSubset = routeManifest.filter((entry) =>
+    reportsLegacyLinks.some((link) => link.to === entry.path),
+  )
+
+  const missingPaths = getMissingManifestPaths(
+    reportsLegacyLinks.map((link) => link.to),
+    manifestSubset,
+  )
+
+  if (missingPaths.length > 0) {
+    return {
+      label: 'Reports',
+      links: reportsLegacyLinks,
+    }
+  }
+
+  const projected = projectLegacyNavItems(manifestSubset, {
+    role,
+    shell: 'admin',
+  })
+
+  if (projected.length !== reportsLegacyLinks.length) {
+    return {
+      label: 'Reports',
+      links: reportsLegacyLinks,
+    }
+  }
+
+  const projectedByPath = new globalThis.Map(projected.map((item) => [item.path, item]))
+
+  return {
+    label: 'Reports',
+    links: reportsLegacyLinks.map((legacy) => ({
+      to: legacy.to,
+      label: legacy.label,
+      icon: legacy.icon,
+    })).filter((legacy) => projectedByPath.has(legacy.to)),
+  }
+}
+
+function buildSpecialistServicesPilotGroup(role?: AppRole): AdminNavGroup {
+  const manifestSubset = routeManifest.filter((entry) =>
+    specialistServicesLegacyLinks.some((link) => link.to === entry.path),
+  )
+
+  const missingPaths = getMissingManifestPaths(
+    specialistServicesLegacyLinks.map((link) => link.to),
+    manifestSubset,
+  )
+
+  if (missingPaths.length > 0) {
+    return {
+      label: 'Specialist Services',
+      links: specialistServicesLegacyLinks,
+    }
+  }
+
+  const projected = projectLegacyNavItems(manifestSubset, {
+    role,
+    shell: 'admin',
+  })
+
+  if (projected.length !== specialistServicesLegacyLinks.length) {
+    return {
+      label: 'Specialist Services',
+      links: specialistServicesLegacyLinks,
+    }
+  }
+
+  const projectedByPath = new globalThis.Map(projected.map((item) => [item.path, item]))
+
+  return {
+    label: 'Specialist Services',
+    links: specialistServicesLegacyLinks.map((legacy) => ({
+      to: legacy.to,
+      label: legacy.label,
+      icon: legacy.icon,
+    })).filter((legacy) => projectedByPath.has(legacy.to)),
+  }
+}
+
+function buildOfficersPatrolsPilotGroup(role?: AppRole): AdminNavGroup {
+  const manifestSubset = routeManifest.filter((entry) =>
+    officersPatrolsLegacyLinks.some((link) => link.to === entry.path),
+  )
+
+  const missingPaths = getMissingManifestPaths(
+    officersPatrolsLegacyLinks.map((link) => link.to),
+    manifestSubset,
+  )
+
+  if (missingPaths.length > 0) {
+    return {
+      label: 'Officers & Patrols',
+      links: officersPatrolsLegacyLinks,
+    }
+  }
+
+  const projected = projectLegacyNavItems(manifestSubset, {
+    role,
+    shell: 'admin',
+  })
+
+  if (projected.length !== officersPatrolsLegacyLinks.length) {
+    return {
+      label: 'Officers & Patrols',
+      links: officersPatrolsLegacyLinks,
+    }
+  }
+
+  const projectedByPath = new globalThis.Map(projected.map((item) => [item.path, item]))
+
+  return {
+    label: 'Officers & Patrols',
+    links: officersPatrolsLegacyLinks.map((legacy) => ({
+      to: legacy.to,
+      label: legacy.label,
+      icon: legacy.icon,
+    })).filter((legacy) => projectedByPath.has(legacy.to)),
+  }
+}
+
+function buildAdminPilotGroup(role?: AppRole): AdminNavGroup {
+  const manifestSubset = routeManifest.filter((entry) =>
+    adminLegacyLinks.some((link) => link.to === entry.path),
+  )
+
+  const missingPaths = getMissingManifestPaths(
+    adminLegacyLinks.map((link) => link.to),
+    manifestSubset,
+  )
+
+  if (missingPaths.length > 0) {
+    return {
+      label: 'Admin',
+      links: adminLegacyLinks,
+    }
+  }
+
+  const projected = projectLegacyNavItems(manifestSubset, {
+    role,
+    shell: 'admin',
+  })
+
+  if (projected.length !== adminLegacyLinks.length) {
+    return {
+      label: 'Admin',
+      links: adminLegacyLinks,
+    }
+  }
+
+  const projectedByPath = new globalThis.Map(projected.map((item) => [item.path, item]))
+
+  return {
+    label: 'Admin',
+    links: adminLegacyLinks.map((legacy) => ({
+      to: legacy.to,
+      label: legacy.label,
+      icon: legacy.icon,
+    })).filter((legacy) => projectedByPath.has(legacy.to)),
+  }
+}
+
+function buildCompliancePilotGroup(role?: AppRole): AdminNavGroup {
+  const manifestSubset = routeManifest.filter((entry) =>
+    complianceLegacyLinks.some((link) => link.to === entry.path),
+  )
+
+  const missingPaths = getMissingManifestPaths(
+    complianceLegacyLinks.map((link) => link.to),
+    manifestSubset,
+  )
+
+  if (missingPaths.length > 0) {
+    return {
+      label: 'Compliance',
+      links: complianceLegacyLinks,
+    }
+  }
+
+  const projected = projectLegacyNavItems(manifestSubset, {
+    role,
+    shell: 'admin',
+  })
+
+  if (projected.length !== complianceLegacyLinks.length) {
+    return {
+      label: 'Compliance',
+      links: complianceLegacyLinks,
+    }
+  }
+
+  const projectedByPath = new globalThis.Map(projected.map((item) => [item.path, item]))
+
+  return {
+    label: 'Compliance',
+    links: complianceLegacyLinks.map((legacy) => ({
+      to: legacy.to,
+      label: legacy.label,
+      icon: legacy.icon,
+    })).filter((legacy) => projectedByPath.has(legacy.to)),
+  }
+}
+
+function buildPeopleIncidentsPilotGroup(role?: AppRole): AdminNavGroup {
+  const manifestSubset = routeManifest.filter((entry) =>
+    peopleIncidentsLegacyLinks.some((link) => link.to === entry.path),
+  )
+
+  const missingPaths = getMissingManifestPaths(
+    peopleIncidentsLegacyLinks.map((link) => link.to),
+    manifestSubset,
+  )
+
+  if (missingPaths.length > 0) {
+    return {
+      label: 'People & Incidents',
+      links: peopleIncidentsLegacyLinks,
+    }
+  }
+
+  const projected = projectLegacyNavItems(manifestSubset, {
+    role,
+    shell: 'admin',
+  })
+
+  if (projected.length !== peopleIncidentsLegacyLinks.length) {
+    return {
+      label: 'People & Incidents',
+      links: peopleIncidentsLegacyLinks,
+    }
+  }
+
+  const projectedByPath = new globalThis.Map(projected.map((item) => [item.path, item]))
+
+  return {
+    label: 'People & Incidents',
+    links: peopleIncidentsLegacyLinks.map((legacy) => ({
+      to: legacy.to,
+      label: legacy.label,
+      icon: legacy.icon,
+    })).filter((legacy) => projectedByPath.has(legacy.to)),
+  }
+}
 
 // Dropdown panel: responsive grid, scrollable on narrow screens
 const MORE_DROPDOWN_CLS =
@@ -134,6 +491,31 @@ export function AdminNavigationMenu() {
 
   // Close on route change
   useEffect(() => { setMoreOpen(false) }, [location.pathname])
+
+  const effectiveRole = (user?.role === 'grand_master' ? 'master' : user?.role) as AppRole | undefined
+
+  const resolvedMoreGroups = useMemo(() => {
+    const enforcementPilotGroup = buildEnforcementPilotGroup(effectiveRole)
+    const vehiclesZonesPilotGroup = buildVehiclesZonesPilotGroup(effectiveRole)
+    const officersPatrolsPilotGroup = buildOfficersPatrolsPilotGroup(effectiveRole)
+    const compliancePilotGroup = buildCompliancePilotGroup(effectiveRole)
+    const peopleIncidentsPilotGroup = buildPeopleIncidentsPilotGroup(effectiveRole)
+    const reportsPilotGroup = buildReportsPilotGroup(effectiveRole)
+    const specialistServicesPilotGroup = buildSpecialistServicesPilotGroup(effectiveRole)
+    const adminPilotGroup = buildAdminPilotGroup(effectiveRole)
+
+    return moreGroups.map((group) => {
+      if (group.label === 'Compliance') return compliancePilotGroup
+      if (group.label === 'Enforcement') return enforcementPilotGroup
+      if (group.label === 'Vehicles & Zones') return vehiclesZonesPilotGroup
+      if (group.label === 'Officers & Patrols') return officersPatrolsPilotGroup
+      if (group.label === 'People & Incidents') return peopleIncidentsPilotGroup
+      if (group.label === 'Reports') return reportsPilotGroup
+      if (group.label === 'Specialist Services') return specialistServicesPilotGroup
+      if (group.label === 'Admin') return adminPilotGroup
+      return group
+    })
+  }, [effectiveRole])
 
   const handleLogout = async () => {
     await logout()
@@ -203,7 +585,7 @@ export function AdminNavigationMenu() {
 
               {moreOpen && (
                 <div className={MORE_DROPDOWN_CLS}>
-                  {moreGroups.map((group) => (
+                  {resolvedMoreGroups.map((group) => (
                     <div key={group.label} className="min-w-0">
                       <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide px-2 py-1 mt-1">
                         {group.label}

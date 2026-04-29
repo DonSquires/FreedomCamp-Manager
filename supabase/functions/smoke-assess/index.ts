@@ -72,7 +72,7 @@ Deno.serve(withCors(async (req: Request) => {
 
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('organization_id')
+    .select('organization_id, role, employer_organization_id, extra_organization_ids, authorized_work_locations')
     .eq('id', authResult.user.id)
     .single()
 
@@ -81,6 +81,24 @@ Deno.serve(withCors(async (req: Request) => {
   }
 
   const body = await req.json()
+
+  const allowedOrganizationIds = new Set<string>([
+    (profile as any).organization_id,
+    (profile as any).employer_organization_id,
+    ...(((profile as any).extra_organization_ids ?? []) as string[]),
+    ...(((profile as any).authorized_work_locations ?? []) as string[]),
+  ].filter((id): id is string => typeof id === 'string' && id.length > 0))
+
+  const requestedOrganizationId =
+    typeof body.organization_id === 'string' && body.organization_id.trim().length > 0
+      ? body.organization_id.trim()
+      : null
+
+  if (requestedOrganizationId && !allowedOrganizationIds.has(requestedOrganizationId)) {
+    return errorResponse('Requested organization is outside your authorized scope', req, 403)
+  }
+
+  const effectiveOrganizationId = requestedOrganizationId ?? profile.organization_id
 
   const imageBase64         = body.image_base64 ?? null
   const videoFrames         = Array.isArray(body.video_frames) ? body.video_frames : []
@@ -161,7 +179,7 @@ Deno.serve(withCors(async (req: Request) => {
 
   // ── 2. Persist assessment row ─────────────────────────────────────────────
   const assessData: Record<string, any> = {
-    organization_id:               profile.organization_id,
+    organization_id:               effectiveOrganizationId,
     officer_id:                    authResult.user.id,
     smoke_job_id:                  jobId,
     address:                       address || '',

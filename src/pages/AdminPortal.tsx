@@ -5,11 +5,13 @@ import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { ComplianceTrendChart, type TrendDataPoint } from '@/components/features/ComplianceTrendChart'
+import { SystemHealthIndicator } from '@/components/features/SystemHealthIndicator'
 import { nzDateToUTCStart, nzDateToUTCEnd, parseNZDate } from '@/lib/timezone'
 import { format } from 'date-fns'
 import { HOMELESS_UI_STATUSES } from '@/lib/homelessStatus'
@@ -61,6 +63,7 @@ import {
   Volume2,
   Zap,
   AlertCircle,
+  Package2,
 } from 'lucide-react'
 
 type DrillConfig = {
@@ -927,6 +930,57 @@ export default function AdminPortal() {
     },
   ]
 
+  if (isError) {
+    return (
+      <AppLayout
+        title="Command Centre"
+        description="Dashboard KPI query failed"
+      >
+        <div className="max-w-2xl mx-auto mt-16 px-4">
+          <Card className="border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950/20">
+            <CardHeader>
+              <CardTitle className="text-red-800 dark:text-red-200 flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5" />
+                Dashboard failed to load
+              </CardTitle>
+              <CardDescription className="text-red-700 dark:text-red-300">
+                {(error as any)?.message ?? 'KPI query returned an unexpected error. Try refreshing.'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button variant="outline" onClick={() => queryClient.invalidateQueries({ queryKey: ['admin-primary-dashboard'] })}>
+                Retry
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </AppLayout>
+    )
+  }
+
+  if (isLoading && !data) {
+    return (
+      <AppLayout
+        title="Command Centre"
+        description="Loading…"
+      >
+        <div className="space-y-4 p-4">
+          <Skeleton className="h-14 w-full rounded-xl" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-20 rounded-lg" />
+            ))}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-40 rounded-xl" />
+            ))}
+          </div>
+        </div>
+      </AppLayout>
+    )
+  }
+
   return (
     <AppLayout
       title="Command Centre"
@@ -935,6 +989,16 @@ export default function AdminPortal() {
       <GlobalFilterRibbon />
 
       <div className="space-y-4">
+
+        {/* ── Scope model strip ───────────────────────────────────────────── */}
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/60 px-4 py-3">
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">Operational Scope Model</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="text-[11px]">Zone-based: Parking, Freedom Camping</Badge>
+            <Badge variant="outline" className="text-[11px]">Jurisdiction-wide: Noise, Smoke, Biosecurity</Badge>
+            <Badge variant="outline" className="text-[11px]">Client/Site driven: ID Verification</Badge>
+          </div>
+        </div>
 
         {/* ── RAG OPERATIONAL STATUS BANNER — Rapid Global / Lighthouse IO inspired ── */}
         <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors ${
@@ -972,7 +1036,7 @@ export default function AdminPortal() {
           {welfareAlertCount > 0 && (
             <button
               onClick={() => navigate('/officer-welfare')}
-              className="flex items-center gap-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3 py-1.5 transition-colors shrink-0"
+              className="min-h-10 flex items-center gap-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3 py-1.5 transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
             >
               <Heart className="h-3.5 w-3.5" />
               {welfareAlertCount} Welfare Alert{welfareAlertCount > 1 ? 's' : ''}
@@ -993,16 +1057,25 @@ export default function AdminPortal() {
               key={label}
               onClick={() => path && navigate(path)}
               disabled={!path}
-              className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-all ${bgClass} ${path ? 'cursor-pointer hover:shadow-sm active:scale-[0.98]' : 'cursor-default'}`}
+              className={`min-h-16 flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${bgClass} ${path ? 'cursor-pointer hover:shadow-sm active:scale-[0.98]' : 'cursor-default'}`}
             >
               <Icon className={`h-4 w-4 shrink-0 ${colorClass}`} />
               <div className="min-w-0">
                 <p className={`text-xl font-bold leading-tight ${colorClass}`}>{isLoading ? '—' : value}</p>
-                <p className="text-[11px] text-muted-foreground truncate">{label}</p>
+                <p className="text-xs text-muted-foreground truncate">{label}</p>
               </div>
             </button>
           ))}
         </section>
+
+        {/* ── SYSTEM HEALTH ────────────────────────────────────────────────────────── */}
+        <details className="group">
+          <summary className="flex items-center gap-2 cursor-pointer text-xs text-muted-foreground hover:text-foreground transition-colors list-none mb-2 select-none">
+            <span className="font-medium">System Health</span>
+            <span className="text-[10px] text-gray-400 group-open:hidden">(click to expand)</span>
+          </summary>
+          <SystemHealthIndicator />
+        </details>
 
         {/* ── PRIMARY KPIs — Big Three ──────────────────────────────────────────────── */}
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -1011,24 +1084,28 @@ export default function AdminPortal() {
             return (
               <Card
                 key={kpi.title}
-                className="cursor-pointer overflow-hidden group bg-white dark:bg-gray-900 shadow-sm hover:shadow-md transition-shadow"
+                className="cursor-pointer overflow-hidden group border border-white/60 dark:border-white/10 bg-white/80 dark:bg-slate-900/70 backdrop-blur-sm shadow-sm hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200"
                 onClick={() => openDrilldown(kpi.config)}
               >
                 <div className={`h-1 w-full bg-gradient-to-r ${kpi.accentColor}`} />
                 <CardHeader className="pb-2 pt-4">
-                  <CardDescription className="flex items-center justify-between text-xs font-medium uppercase tracking-wide">
+                  <CardDescription className="flex items-center justify-between text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                     {kpi.title}
                     <ArrowRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                   </CardDescription>
                   <div className="flex items-end justify-between mt-1">
-                    <CardTitle className="text-4xl font-bold tracking-tight">{kpi.value}</CardTitle>
-                    <div className={`rounded-xl p-2.5 ${kpi.iconBg}`}>
+                    <CardTitle className="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-white">{kpi.value}</CardTitle>
+                    <div className={`rounded-xl p-2.5 shadow-sm ring-1 ring-black/10 ${kpi.iconBg}`}>
                       <Icon className={`h-5 w-5 ${kpi.iconColor}`} />
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0 pb-3">
-                  {kpi.subtitle && <p className="text-xs text-muted-foreground">{kpi.subtitle}</p>}
+                  {kpi.subtitle && (
+                    <p className="inline-flex rounded-md border border-white/70 dark:border-white/10 bg-white/70 dark:bg-black/20 px-2 py-1 text-[11px] text-muted-foreground leading-tight">
+                      {kpi.subtitle}
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             )
@@ -1036,19 +1113,19 @@ export default function AdminPortal() {
         </section>
 
         {/* ── SECONDARY KPIs — attention items ─────────────────────────────────────── */}
-        <section className="grid gap-2 grid-cols-2 sm:grid-cols-4 lg:grid-cols-7">
+        <section className="grid gap-2.5 grid-cols-2 sm:grid-cols-4 lg:grid-cols-7">
           {secondaryKPIs.map((kpi) => {
             const Icon = kpi.icon
             return (
               <button
                 key={kpi.title}
                 onClick={() => openDrilldown(kpi.config)}
-                className="flex items-center gap-2 rounded-lg border bg-white dark:bg-gray-900 px-3 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm"
+                className="min-h-14 flex items-center gap-2.5 rounded-lg border border-white/60 dark:border-white/10 bg-white/80 dark:bg-slate-900/70 px-3 py-2.5 text-left hover:bg-white dark:hover:bg-slate-900 transition-colors shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
               >
-                <Icon className={`h-3.5 w-3.5 shrink-0 ${kpi.iconColor}`} />
+                <Icon className={`h-4 w-4 shrink-0 ${kpi.iconColor}`} />
                 <div className="min-w-0">
-                  <p className="text-base font-semibold text-gray-900 dark:text-white leading-tight">{kpi.value}</p>
-                  <p className="text-[11px] text-muted-foreground truncate">{kpi.title}</p>
+                  <p className="text-lg font-semibold text-gray-900 dark:text-white leading-tight">{kpi.value}</p>
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground truncate">{kpi.title}</p>
                 </div>
               </button>
             )
@@ -1088,7 +1165,7 @@ export default function AdminPortal() {
                     return (
                       <div
                         key={shift.id}
-                        className={`rounded-lg border p-2.5 text-sm ${
+                        className={`min-h-20 rounded-lg border p-2.5 text-sm ${
                           isActive
                             ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950/20'
                             : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40'
@@ -1098,8 +1175,8 @@ export default function AdminPortal() {
                           {isActive && <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse shrink-0" />}
                           <span className="font-medium text-xs truncate">{officerName}</span>
                         </div>
-                        <p className="text-[11px] text-muted-foreground">{startTime} – {endTime}</p>
-                        <p className="text-[11px] text-muted-foreground truncate">{serviceLabel}</p>
+                        <p className="text-xs text-muted-foreground">{startTime} – {endTime}</p>
+                        <p className="text-xs text-muted-foreground truncate">{serviceLabel}</p>
                       </div>
                     )
                   })}
@@ -1120,11 +1197,17 @@ export default function AdminPortal() {
               </CardTitle>
               <CardDescription className="text-xs">Every operational module — click any tile to navigate</CardDescription>
             </CardHeader>
-            <CardContent className="pt-0 space-y-5">
+            <CardContent className="pt-0 space-y-4">
+
+              <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 px-3 py-2.5">
+                <p className="text-xs text-muted-foreground">
+                  Module groups are organised by operational function. Specialist services include scope context to reduce cross-jurisdiction mistakes.
+                </p>
+              </div>
 
               {/* Compliance & Enforcement */}
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+              <div className="rounded-xl border border-blue-100 dark:border-blue-900/40 bg-blue-50/40 dark:bg-blue-950/10 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
                   <BarChart3 className="h-3 w-3 text-blue-500" /> Compliance & Enforcement
                 </p>
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
@@ -1141,21 +1224,21 @@ export default function AdminPortal() {
                     { path: '/spatial-compliance',         label: 'Spatial',          Icon: Map,           color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)}
-                      className={`relative flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all`}
+                      className={`relative min-h-20 flex flex-col items-center justify-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`}
                     >
                       {badge !== undefined && (
                         <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">{badge > 99 ? '99+' : badge}</span>
                       )}
                       <Icon className={`h-5 w-5 ${color}`} />
-                      <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
                     </button>
                   ))}
                 </div>
               </div>
 
               {/* Patrol & Officers */}
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+              <div className="rounded-xl border border-green-100 dark:border-green-900/40 bg-green-50/40 dark:bg-green-950/10 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
                   <Navigation className="h-3 w-3 text-green-500" /> Patrol & Officers
                 </p>
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
@@ -1168,21 +1251,21 @@ export default function AdminPortal() {
                     { path: '/patrol-checkpoints', label: 'Checkpoints',     Icon: ScanLine,      color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)}
-                      className={`relative flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all`}
+                      className={`relative min-h-20 flex flex-col items-center justify-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`}
                     >
                       {badge !== undefined && (
                         <span className={`absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full ${path === '/officer-welfare' ? 'bg-red-500' : 'bg-green-500'} text-[9px] font-bold text-white`}>{badge > 99 ? '99+' : badge}</span>
                       )}
                       <Icon className={`h-5 w-5 ${color}`} />
-                      <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
                     </button>
                   ))}
                 </div>
               </div>
 
               {/* Vehicles & Zones */}
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
                   <Car className="h-3 w-3 text-slate-500" /> Vehicles & Zones
                 </p>
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
@@ -1197,21 +1280,21 @@ export default function AdminPortal() {
                     { path: '/admin/canonical-records',label: 'Canonical Records', Icon: Database,      color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)}
-                      className={`relative flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all`}
+                      className={`relative min-h-20 flex flex-col items-center justify-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`}
                     >
                       {badge !== undefined && (
                         <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-white">{badge > 99 ? '99+' : badge}</span>
                       )}
                       <Icon className={`h-5 w-5 ${color}`} />
-                      <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
                     </button>
                   ))}
                 </div>
               </div>
 
               {/* People & Records */}
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+              <div className="rounded-xl border border-orange-100 dark:border-orange-900/40 bg-orange-50/40 dark:bg-orange-950/10 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
                   <Users className="h-3 w-3 text-orange-500" /> People & Records
                 </p>
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
@@ -1225,68 +1308,73 @@ export default function AdminPortal() {
                     { path: '/site-risk-assessment',label: 'Risk Assessment',   Icon: ClipboardCheck,color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)}
-                      className={`relative flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all`}
+                      className={`relative min-h-20 flex flex-col items-center justify-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`}
                     >
                       {badge !== undefined && (
                         <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500 text-[9px] font-bold text-white">{badge}</span>
                       )}
                       <Icon className={`h-5 w-5 ${color}`} />
-                      <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
                     </button>
                   ))}
                 </div>
               </div>
 
               {/* Specialist Services */}
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+              <div className="rounded-xl border border-teal-100 dark:border-teal-900/40 bg-teal-50/40 dark:bg-teal-950/10 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
                   <Lock className="h-3 w-3 text-teal-500" /> Specialist Services
                 </p>
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
                   {[
-                    { path: '/parking',      label: 'Parking',      Icon: ParkingSquare, color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
-                    { path: '/noise-control',label: 'Noise Control', Icon: Volume2,       color: 'text-yellow-700', bg: 'bg-yellow-50 dark:bg-yellow-900/20' },
+                    { path: '/field-officer?service=freedom_camping', label: 'Freedom Camping', Icon: MapPin, color: 'text-emerald-700', bg: 'bg-emerald-50 dark:bg-emerald-900/20', scopeHint: 'Zone-based' },
+                    { path: '/parking-officer', label: 'Parking',      Icon: ParkingSquare, color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20', scopeHint: 'Zone-based' },
+                    { path: '/noise-officer', label: 'Noise Control', Icon: Volume2,       color: 'text-yellow-700', bg: 'bg-yellow-50 dark:bg-yellow-900/20', scopeHint: 'Jurisdiction' },
+                    { path: '/biosecurity-officer', label: 'Biosecurity', Icon: Search,    color: 'text-emerald-700', bg: 'bg-emerald-50 dark:bg-emerald-900/20', scopeHint: 'Jurisdiction' },
+                    { path: '/smoke-officer', label: 'Smoke (OOH)', Icon: AlertTriangle, color: 'text-amber-700', bg: 'bg-amber-50 dark:bg-amber-900/20', scopeHint: 'Jurisdiction' },
                     { path: '/ems',          label: 'EMS',           Icon: Zap,           color: 'text-red-700',    bg: 'bg-red-50 dark:bg-red-900/20' },
                     { path: '/site-guard',   label: 'Site Guard',    Icon: Lock,          color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
                     { path: '/client-sites', label: 'Client Sites',  Icon: Building2,     color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
                     { path: '/dispatch',     label: 'Dispatch',      Icon: Radio,         color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
-                  ].map(({ path, label, Icon, color, bg }) => (
+                  ].map(({ path, label, Icon, color, bg, scopeHint }) => (
                     <button key={path} onClick={() => navigate(path)}
-                      className={`flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all`}
+                      className={`min-h-20 flex flex-col items-center justify-center gap-0.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`}
                     >
                       <Icon className={`h-5 w-5 ${color}`} />
-                      <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                      {scopeHint && <span className="text-[10px] text-muted-foreground leading-tight">{scopeHint}</span>}
                     </button>
                   ))}
                 </div>
               </div>
 
               {/* Workforce */}
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+              <div className="rounded-xl border border-violet-100 dark:border-violet-900/40 bg-violet-50/40 dark:bg-violet-950/10 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
                   <CalendarDays className="h-3 w-3 text-violet-500" /> Workforce
                 </p>
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
                   {[
-                    { path: '/roster',        label: 'Roster Planner',   Icon: CalendarDays,  color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
-                    { path: '/timesheets',    label: 'Timesheets',       Icon: Clock,         color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
-                    { path: '/open-shifts',   label: 'Open Shifts',      Icon: CalendarCheck2,color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20' },
-                    { path: '/officer-skills',label: 'Skills & Licences',Icon: GraduationCap, color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
-                    { path: '/availability',  label: 'Availability',     Icon: CalendarDays,  color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/roster',            label: 'Roster Planner',   Icon: CalendarDays,  color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    { path: '/timesheets',        label: 'Timesheets',       Icon: Clock,         color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
+                    { path: '/open-shifts',       label: 'Open Shifts',      Icon: CalendarCheck2,color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20' },
+                    { path: '/officer-skills',    label: 'Skills & Licences',Icon: GraduationCap, color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
+                    { path: '/availability',      label: 'Availability',     Icon: CalendarDays,  color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/asset-management',  label: 'Assets',           Icon: Package2,      color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)}
-                      className={`flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all`}
+                      className={`min-h-20 flex flex-col items-center justify-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`}
                     >
                       <Icon className={`h-5 w-5 ${color}`} />
-                      <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
                     </button>
                   ))}
                 </div>
               </div>
 
               {/* Reports & Analytics */}
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
                   <FileBarChart className="h-3 w-3 text-gray-500" /> Reports & Analytics
                 </p>
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
@@ -1299,10 +1387,10 @@ export default function AdminPortal() {
                     { path: '/users',                label: 'Users',               Icon: Users,         color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)}
-                      className={`flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all`}
+                      className={`min-h-20 flex flex-col items-center justify-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`}
                     >
                       <Icon className={`h-5 w-5 ${color}`} />
-                      <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
                     </button>
                   ))}
                 </div>
@@ -1334,8 +1422,9 @@ export default function AdminPortal() {
             title="Compliance Performance"
             description="Rolling compliance vs breach signal for current filter scope"
           />
-          <Card className="bg-white dark:bg-gray-900 shadow-sm">
-            <CardHeader className="pb-3">
+          <Card className="border border-white/60 dark:border-white/10 bg-white/80 dark:bg-slate-900/70 backdrop-blur-sm shadow-sm overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-cyan-500 to-blue-600" />
+            <CardHeader className="pb-3 pt-4">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Radio className="h-4 w-4 text-cyan-600" />
                 Quick Actions
@@ -1346,7 +1435,7 @@ export default function AdminPortal() {
               {drilldowns.map(({ title, to, icon: Icon, metric, config }) => (
                 <button
                   key={to}
-                  className="flex w-full items-center justify-between rounded-lg border bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group"
+                  className="flex w-full items-center justify-between rounded-lg border border-white/60 dark:border-white/10 bg-white/70 dark:bg-slate-800/50 px-3 py-2.5 text-left hover:bg-white dark:hover:bg-slate-800 transition-colors group"
                   onClick={() => openDrilldown(config)}
                 >
                   <span className="flex items-center gap-2 min-w-0">
@@ -1365,8 +1454,9 @@ export default function AdminPortal() {
 
         {/* ── RECENT OBSERVATIONS ──────────────────────────────────────────────────── */}
         <section>
-          <Card className="bg-white dark:bg-gray-900 shadow-sm">
-            <CardHeader className="pb-3">
+          <Card className="border border-white/60 dark:border-white/10 bg-white/80 dark:bg-slate-900/70 backdrop-blur-sm shadow-sm overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-blue-500 to-indigo-600" />
+            <CardHeader className="pb-3 pt-4">
               <CardTitle className="flex items-center justify-between text-base">
                 <span>Recent Observations</span>
                 <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => navigate('/observation-records')}>
@@ -1379,7 +1469,7 @@ export default function AdminPortal() {
               {recentHistoricalObservations.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No recent observations found.</p>
               ) : recentHistoricalObservations.map((obs: any) => (
-                <div key={obs.observation_id} className="flex items-center justify-between gap-3 rounded-lg border bg-gray-50 dark:bg-gray-800 px-3 py-2">
+                <div key={obs.observation_id} className="flex items-center justify-between gap-3 rounded-lg border border-white/60 dark:border-white/10 bg-white/70 dark:bg-slate-800/50 px-3 py-2">
                   <div className="min-w-0">
                     <p className="font-mono text-sm font-semibold truncate">{obs.plate_number || 'UNKNOWN'}</p>
                     <p className="text-xs text-muted-foreground truncate">

@@ -248,110 +248,63 @@ export default function OrganizationProfile() {
           <p className="mt-4 text-gray-600">Loading organisation...</p>
         </div>
       ) : organization ? (
-        <div className="space-y-6">
-          {/* Organization Header Card */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                    <Building2 className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-xl">{organization.name}</CardTitle>
-                    <CardDescription className="mt-1">
-                      <Badge variant="outline" className="mr-2">
-                        {getOrgTypeLabel(organization.organization_type)}
-                      </Badge>
-                      <Badge variant={organization.is_active ? 'default' : 'secondary'}>
-                        {organization.is_active ? 'Active' : 'Inactive'}
-                      </Badge>
-                    </CardDescription>
-                  </div>
+        <div className="space-y-5">
+          {/* ── Organisation hero ───────────────────────────────────── */}
+          <div className="relative overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-gradient-to-br from-slate-50 via-white to-blue-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 p-4 sm:p-5 shadow-sm">
+            <div className="absolute -top-16 -right-12 h-40 w-40 rounded-full bg-blue-200/40 blur-2xl dark:bg-blue-500/10 pointer-events-none" />
+            <div className="relative flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-xl bg-blue-100 dark:bg-blue-900/40 shadow-sm ring-1 ring-black/10 shrink-0">
+                  <Building2 className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                 </div>
-                {(user?.role === 'admin' || user?.role === 'master') && (
-                  <Button variant="outline" size="sm" onClick={() => navigate('/organizations')}>
-                    <Settings className="h-4 w-4 mr-2" />
-                    Settings
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                {/* Users */}
-                <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
-                  <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                    <Users className="h-5 w-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-blue-600">{stats?.users || 0}</div>
-                    <div className="text-sm text-gray-600">Officers</div>
-                  </div>
-                </div>
-
-                {/* Zones */}
-                <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-950 rounded-lg">
-                  <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
-                    <MapPin className="h-5 w-5 text-green-600" />
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-green-600">{stats?.zones || 0}</div>
-                    <div className="text-sm text-gray-600">Active Zones</div>
-                  </div>
-                </div>
-
-                {/* Workflow */}
-                <div className="flex items-center gap-3 p-3 bg-purple-50 dark:bg-purple-950 rounded-lg">
-                  <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
-                    <Settings className="h-5 w-5 text-purple-600" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-purple-600">
-                      {organization.enforcement_workflow?.replace('_', ' ').toUpperCase() || 'DEFAULT'}
-                    </div>
-                    <div className="text-xs text-gray-600">Workflow</div>
-                  </div>
-                </div>
-
-                {/* Stay Verification */}
-                <div className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-950 rounded-lg">
-                  <div className="p-2 bg-amber-100 dark:bg-amber-900 rounded-lg">
-                    <CheckCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-amber-700 dark:text-amber-300">
-                      {getOvernightVerificationModeLabel(organization.overnight_verification_mode || 'two_photo_verification')}
-                    </div>
-                    <div className="text-xs text-gray-600">Stay Verification</div>
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">{organization.name}</h1>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge variant="outline" className="text-xs">{getOrgTypeLabel(organization.organization_type)}</Badge>
+                    <Badge variant={organization.is_active ? 'default' : 'secondary'} className="text-xs">{organization.is_active ? 'Active' : 'Inactive'}</Badge>
+                    {(organization.contact_email || organization.contact_phone) && (
+                      <span className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
+                        {organization.contact_email && <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{organization.contact_email}</span>}
+                        {organization.contact_phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{organization.contact_phone}</span>}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
-
-              {/* Contact Info */}
-              {(organization.contact_email || organization.contact_phone) && (
-                <div className="mt-4 pt-4 border-t flex flex-wrap gap-4">
-                  {organization.contact_email && (
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Mail className="h-4 w-4" />
-                      <span>{organization.contact_email}</span>
-                    </div>
-                  )}
-                  {organization.contact_phone && (
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Phone className="h-4 w-4" />
-                      <span>{organization.contact_phone}</span>
-                    </div>
-                  )}
-                </div>
+              {(user?.role === 'admin' || user?.role === 'master') && (
+                <Button variant="outline" size="sm" className="shrink-0" onClick={() => navigate('/organizations')}>
+                  <Settings className="h-4 w-4 mr-2" />
+                  Settings
+                </Button>
               )}
-            </CardContent>
-          </Card>
+            </div>
+
+            {/* Stat strip */}
+            <div className="relative mt-3 grid grid-cols-2 md:grid-cols-4 gap-2">
+              <div className="rounded-lg border border-white/70 dark:border-white/10 bg-white/70 dark:bg-black/20 px-3 py-2">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Officers</p>
+                <p className="text-xl font-bold text-blue-700 dark:text-blue-400">{stats?.users ?? '—'}</p>
+              </div>
+              <div className="rounded-lg border border-white/70 dark:border-white/10 bg-white/70 dark:bg-black/20 px-3 py-2">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Active Zones</p>
+                <p className="text-xl font-bold text-green-700 dark:text-green-400">{stats?.zones ?? '—'}</p>
+              </div>
+              <div className="rounded-lg border border-white/70 dark:border-white/10 bg-white/70 dark:bg-black/20 px-3 py-2">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Workflow</p>
+                <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 leading-tight mt-0.5">{organization.enforcement_workflow?.replace('_', ' ').toUpperCase() || 'DEFAULT'}</p>
+              </div>
+              <div className="rounded-lg border border-white/70 dark:border-white/10 bg-white/70 dark:bg-black/20 px-3 py-2">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Stay Verification</p>
+                <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 leading-tight mt-0.5">{getOvernightVerificationModeLabel(organization.overnight_verification_mode || 'two_photo_verification')}</p>
+              </div>
+            </div>
+          </div>
 
           {/* WILSAR Bureau Details */}
           {((organization as any).bureau_id || (organization as any).bureau_debtor_no || (organization as any).original_source) && (
-            <Card>
-              <CardHeader>
+            <Card className="border border-white/60 dark:border-white/10 bg-white/80 dark:bg-slate-900/70 shadow-sm overflow-hidden">
+              <div className="h-1 w-full bg-gradient-to-r from-slate-400 to-slate-600" />
+              <CardHeader className="pt-4">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Settings className="h-5 w-5 text-blue-600" />
                   Bureau Details
@@ -392,8 +345,9 @@ export default function OrganizationProfile() {
           )}
 
           {/* Jurisdiction Zone (Parent) */}
-          <Card>
-            <CardHeader>
+          <Card className="border border-white/60 dark:border-white/10 bg-white/80 dark:bg-slate-900/70 shadow-sm overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-purple-500 to-violet-600" />
+            <CardHeader className="pt-4">
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2">
@@ -490,8 +444,9 @@ export default function OrganizationProfile() {
           </Card>
 
           {/* Child Zones (Enforcement Areas) */}
-          <Card>
-            <CardHeader>
+          <Card className="border border-white/60 dark:border-white/10 bg-white/80 dark:bg-slate-900/70 shadow-sm overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-blue-500 to-cyan-600" />
+            <CardHeader className="pt-4">
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2">

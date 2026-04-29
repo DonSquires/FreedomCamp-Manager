@@ -45,7 +45,8 @@ interface OfflineStats {
 // IndexedDB utilities
 const DB_NAME = 'FieldOpsOfflineDB'
 const STORE_NAME = 'observations_queue'
-const DB_VERSION = 1
+// Version must match offlineStorage.ts (v2) to avoid IDBVersionChangeEvent conflicts
+const DB_VERSION = 2
 
 let dbInstance: IDBDatabase | null = null
 
@@ -66,10 +67,22 @@ const openDB = (): Promise<IDBDatabase> => {
 
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result
+      // Observations queue (v1 + v2)
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' })
         store.createIndex('status', 'status', { unique: false })
         store.createIndex('created_at', 'created_at', { unique: false })
+      }
+      // Additional stores introduced in v2 (mirrors offlineStorage.ts)
+      if (!db.objectStoreNames.contains('photos_cache')) {
+        db.createObjectStore('photos_cache', { keyPath: 'id' })
+      }
+      if (!db.objectStoreNames.contains('metadata')) {
+        db.createObjectStore('metadata', { keyPath: 'key' })
+      }
+      if (!db.objectStoreNames.contains('sync_log')) {
+        const syncLog = db.createObjectStore('sync_log', { keyPath: 'id' })
+        syncLog.createIndex('timestamp', 'timestamp', { unique: false })
       }
     }
   })

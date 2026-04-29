@@ -206,7 +206,7 @@ Deno.serve(async (req) => {
     // Get issuing officer profile + org
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('user_profiles')
-      .select('id, first_name, last_name, organization_id, role, warrant_number, warrant_expiry, issuing_authority')
+      .select('id, first_name, last_name, organization_id, role, warrant_number, warrant_expiry, issuing_authority, employer_organization_id, extra_organization_ids, authorized_work_locations')
       .eq('id', user.id)
       .single()
 
@@ -267,7 +267,14 @@ Deno.serve(async (req) => {
       )
     }
 
-    if (profile.role !== 'master' && profile.organization_id && zoneOrgId && profile.organization_id !== zoneOrgId) {
+    const allowedOrganizationIds = new Set<string>([
+      (profile as any).organization_id,
+      (profile as any).employer_organization_id,
+      ...(((profile as any).extra_organization_ids ?? []) as string[]),
+      ...(((profile as any).authorized_work_locations ?? []) as string[]),
+    ].filter((id): id is string => typeof id === 'string' && id.length > 0))
+
+    if (profile.role !== 'master' && zoneOrgId && !allowedOrganizationIds.has(zoneOrgId)) {
       return new Response(
         JSON.stringify({ success: false, error: 'Selected zone is outside your organization scope.' }),
         { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }

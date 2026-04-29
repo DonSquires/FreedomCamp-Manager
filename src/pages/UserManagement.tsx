@@ -40,6 +40,7 @@ import {
   Globe,
   Lock,
   Radio,
+  Settings,
 } from 'lucide-react'
 import { formatDateTime, formatDate } from '@/lib/utils'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -657,6 +658,41 @@ export default function UserManagement() {
   return (
     <AppLayout title="User Management" description="Manage user accounts and permissions" showBackButton>
       <GlobalFilterRibbon showDateFilter={false} />
+
+      <Card className="mb-6 border-blue-200 bg-blue-50/60 dark:bg-blue-950/20 dark:border-blue-900">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-blue-600" />
+            Governance Quick Actions
+          </CardTitle>
+          <CardDescription>
+            Jump between user governance, organisation scope, access rules, and audit traceability.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-5">
+            {[
+              { label: 'Organisations', path: '/organizations', Icon: Building2 },
+              { label: 'Access Control', path: '/access-control', Icon: ShieldCheck },
+              { label: 'Site Permissions', path: '/site-permissions', Icon: Settings },
+              { label: 'Audit Log', path: '/audit-log', Icon: FileText },
+              { label: 'Command Centre', path: '/admin', Icon: ShieldCheck },
+            ].map(({ label, path, Icon }) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => navigate(path)}
+                className="text-left rounded-lg border bg-white dark:bg-gray-900 px-3 py-3 transition-colors hover:bg-blue-100/60 dark:hover:bg-blue-900/20"
+              >
+                <div className="flex items-center gap-1.5 text-sm font-medium text-gray-900 dark:text-gray-100">
+                  <Icon className="h-4 w-4 text-blue-600" />
+                  {label}
+                </div>
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Stats Grid */}
       {stats && (
@@ -1293,6 +1329,16 @@ export default function UserManagement() {
             <DialogDescription>
               Change user role and permissions for {selectedUser?.first_name} {selectedUser?.last_name}
             </DialogDescription>
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" size="sm" onClick={() => navigate('/access-control')}>
+                <ShieldCheck className="h-3.5 w-3.5 mr-1" />
+                Access Control
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => navigate('/audit-log')}>
+                <FileText className="h-3.5 w-3.5 mr-1" />
+                Audit Log
+              </Button>
+            </div>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>

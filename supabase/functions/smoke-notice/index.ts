@@ -39,6 +39,30 @@ Deno.serve(withCors(async (req: Request) => {
   if (!smoke_notice_id) return errorResponse('smoke_notice_id is required', req, 400)
   if (!issued_by) return errorResponse('issued_by is required', req, 400)
 
+  const { data: profile, error: profileErr } = await supabase
+    .from('user_profiles')
+    .select('id, role, organization_id, employer_organization_id, extra_organization_ids, authorized_work_locations')
+    .eq('id', authResult.user.id)
+    .single()
+
+  if (profileErr || !profile) return errorResponse('User profile not found', req, 403)
+
+  if (!['admin', 'admin_officer', 'master', 'officer'].includes(profile.role)) {
+    return errorResponse('Insufficient permissions', req, 403)
+  }
+
+  const allowedOrganizationIds = new Set<string>([
+    (profile as any).organization_id,
+    (profile as any).employer_organization_id,
+    ...(((profile as any).extra_organization_ids ?? []) as string[]),
+    ...(((profile as any).authorized_work_locations ?? []) as string[]),
+  ].filter((id): id is string => typeof id === 'string' && id.length > 0))
+
+  const canOverrideIssuedBy = ['admin', 'admin_officer', 'master'].includes(profile.role)
+  if (!canOverrideIssuedBy && issued_by !== authResult.user.id) {
+    return errorResponse('issued_by must match the authenticated user', req, 403)
+  }
+
   // ── Fetch notice ───────────────────────────────────────────────────────────
   const { data: notice, error: noticeErr } = await supabase
     .from('smoke_notices')
@@ -54,6 +78,10 @@ Deno.serve(withCors(async (req: Request) => {
     .single()
 
   if (noticeErr || !notice) return errorResponse('Notice not found', req, 404)
+
+  if (profile.role !== 'master' && !allowedOrganizationIds.has(notice.organization_id as string)) {
+    return errorResponse('Forbidden', req, 403)
+  }
 
   const { data: officer } = await supabase
     .from('user_profiles')

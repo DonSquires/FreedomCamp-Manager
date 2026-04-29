@@ -41,6 +41,7 @@ import { formatDateTime } from '@/lib/utils'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { FieldSafetyBar } from '@/components/features/FieldSafetyBar'
 import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
+import { useGeofenceOrgTransition } from '@/hooks/useGeofenceOrgTransition'
 import { useShiftGate } from '@/hooks/useShiftGate'
 import { GeofenceWarningBanner } from '@/components/features/GeofenceWarningBanner'
 import {
@@ -141,6 +142,7 @@ const REC_STYLES: Record<string, string> = {
 
 export default function NoiseOfficerPortal() {
   const { user } = useAuthStore()
+  useGeofenceOrgTransition({ enabled: true })
   const { operationalOrganizationId } = useOperationalOrganization()
   const orgId = operationalOrganizationId
   const navigate = useNavigate()

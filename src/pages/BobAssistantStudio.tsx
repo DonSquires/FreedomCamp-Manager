@@ -10,9 +10,11 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { BobActionApprovalDialog, type BobRecommendation } from '@/components/features/BobActionApprovalDialog'
 import { useBobAssistantStore } from '@/stores/bobAssistantStore'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
+import { useBobActionApproval } from '@/hooks/useBobActionApproval'
 import { usePTTStore } from '@/stores/pttStore'
 import { supabase } from '@/lib/supabase'
 import { BrainCircuit, CheckCircle2, ClipboardList, FlaskConical, Loader2, MapPinned, Mic, MicOff, Paintbrush2, Play, Radio, Route, Send, Volume2, VolumeX, Wrench, Github, ShieldAlert, PhoneOff, SignalHigh, Stethoscope, XCircle } from 'lucide-react'
@@ -465,6 +467,7 @@ export default function BobAssistantStudio() {
   const user = useAuthStore((state) => state.user)
   const { organizationId } = useGlobalFiltersStore()
   const isGrandMaster = user?.role === 'grand_master'
+  const bobActionApproval = useBobActionApproval()
   const pttConnectionStatus = usePTTStore((state) => state.connectionStatus)
   const pttChannelId = usePTTStore((state) => state.channelId)
   const pttIsSpeaking = usePTTStore((state) => state.isSpeaking)
@@ -2232,7 +2235,7 @@ export default function BobAssistantStudio() {
     toast.success('Draft plan generated')
   }
 
-  const saveLivePlan = async () => {
+  const executeSaveLivePlan = async () => {
     const orgId = user?.organization_id
     if (!orgId) {
       toast.error('Your user profile is missing organization context')
@@ -2322,6 +2325,37 @@ export default function BobAssistantStudio() {
     }
   }
 
+  const requestSaveLivePlanApproval = () => {
+    if (!generatedPlan.trim()) {
+      toast.error('Generate a draft before requesting approval')
+      return
+    }
+
+    const recommendation: BobRecommendation = {
+      id: `bob-live-plan-${Date.now()}`,
+      actionType: 'create_live_plan',
+      title: 'Approve Bob live plan save',
+      description: 'Bob wants to save the generated live operational plan to CRM and activate it for operational use.',
+      entityType: 'ops_live_plan',
+      entityId: planForm.planTitle.trim() || PLAN_TYPE_LABELS[planForm.planType],
+      confidence: 92,
+      riskLevel: 'medium',
+      evidence: [
+        `Plan type: ${PLAN_TYPE_LABELS[planForm.planType]}`,
+        `Assignment scope: ${planForm.assignmentScope}`,
+        `Generated plan length: ${generatedPlan.length} characters`,
+        `Field staff visibility: ${planForm.fieldStaffCanView ? 'enabled' : 'disabled'}`,
+      ],
+      suggestedPayload: {
+        planType: planForm.planType,
+        assignmentScope: planForm.assignmentScope,
+        fieldStaffCanView: planForm.fieldStaffCanView,
+      },
+    }
+
+    bobActionApproval.showDialog(recommendation)
+  }
+
   const copyPlan = async () => {
     if (!generatedPlan.trim()) {
       toast.error('Generate a plan first')
@@ -2329,6 +2363,77 @@ export default function BobAssistantStudio() {
     }
     await navigator.clipboard.writeText(generatedPlan)
     toast.success('Plan copied to clipboard')
+  }
+
+  const executeGenerateCodeChangeTask = async () => {
+    const targetPaths = codeChangeRequest.targetPaths
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean)
+
+    const { data, error } = await edgeFunctions.bobCodeChangeTask({
+      summary: codeChangeRequest.summary.trim(),
+      details: codeChangeRequest.details.trim() || undefined,
+      stack_trace: codeChangeRequest.stackTrace.trim() || undefined,
+      severity: codeChangeRequest.severity,
+      complexity: codeChangeRequest.complexity,
+      target_paths: targetPaths.length ? targetPaths : undefined,
+    })
+
+    if (error) throw new Error(String(error) || 'Could not generate code patch task')
+
+    const payload = {
+      execution_mode: data?.execution_mode,
+      github_assist_required: data?.github_assist_required,
+      note: data?.note,
+      patch_task: data?.patch_task,
+    }
+
+    setCodeTaskResult(JSON.stringify(payload, null, 2))
+
+    if (data?.github_assist_required) {
+      toast.success('Complex issue routed to GitHub-assist mode')
+    } else {
+      toast.success('Self-healing patch task generated')
+    }
+  }
+
+  const requestCodeChangeTaskApproval = () => {
+    const summary = codeChangeRequest.summary.trim()
+    const targetPathCount = codeChangeRequest.targetPaths
+      .split(',')
+      .map((path) => path.trim())
+      .filter(Boolean).length
+
+    const recommendation: BobRecommendation = {
+      id: `bob-code-task-${Date.now()}`,
+      actionType: 'generate_code_patch_task',
+      title: 'Approve Bob code patch task generation',
+      description: 'Bob wants to generate a code patch task from the supplied issue summary and diagnostics.',
+      entityType: 'code_patch_task',
+      entityId: summary,
+      confidence: 88,
+      riskLevel: codeChangeRequest.severity === 'critical' || codeChangeRequest.severity === 'high' ? 'high' : 'medium',
+      evidence: [
+        `Summary: ${summary}`,
+        `Severity: ${codeChangeRequest.severity}`,
+        `Complexity: ${codeChangeRequest.complexity}`,
+        `Target paths supplied: ${targetPathCount || 0}`,
+      ],
+      suggestedPayload: {
+        severity: codeChangeRequest.severity,
+        complexity: codeChangeRequest.complexity,
+        targetPaths: codeChangeRequest.targetPaths,
+      },
+    }
+
+    bobActionApproval.showDialog(recommendation)
+  }
+
+  const resolveRecommendationExecutor = (actionType?: string) => {
+    if (actionType === 'create_live_plan') return executeSaveLivePlan
+    if (actionType === 'generate_code_patch_task') return executeGenerateCodeChangeTask
+    return undefined
   }
 
   const submitCodeChangeRequest = async () => {
@@ -2389,6 +2494,21 @@ export default function BobAssistantStudio() {
         const { error: notifyError } = await (supabase.from('notifications') as any).insert(rows)
         if (notifyError) throw notifyError
 
+        await bobActionApproval.logBobAction(
+          'recommendation_approved',
+          {
+            id: `bob-code-change-${Date.now()}`,
+            actionType: 'request_code_change_approval',
+            title: 'Bob code-change approval request',
+            description: summary,
+            entityType: 'code_change_request',
+            entityId: summary,
+            riskLevel: codeChangeRequest.severity === 'critical' || codeChangeRequest.severity === 'high' ? 'high' : 'medium',
+          },
+          'approved',
+          `Approval request sent to ${rows.length} Grand Master approver(s).`,
+        )
+
         setCodeTaskResult(JSON.stringify({
           status: 'approval_requested',
           approvers_notified: rows.length,
@@ -2399,36 +2519,7 @@ export default function BobAssistantStudio() {
         return
       }
 
-      const targetPaths = codeChangeRequest.targetPaths
-        .split(',')
-        .map((p) => p.trim())
-        .filter(Boolean)
-
-      const { data, error } = await edgeFunctions.bobCodeChangeTask({
-        summary: codeChangeRequest.summary.trim(),
-        details: codeChangeRequest.details.trim() || undefined,
-        stack_trace: codeChangeRequest.stackTrace.trim() || undefined,
-        severity: codeChangeRequest.severity,
-        complexity: codeChangeRequest.complexity,
-        target_paths: targetPaths.length ? targetPaths : undefined,
-      })
-
-      if (error) throw new Error(String(error) || 'Could not generate code patch task')
-
-      const payload = {
-        execution_mode: data?.execution_mode,
-        github_assist_required: data?.github_assist_required,
-        note: data?.note,
-        patch_task: data?.patch_task,
-      }
-
-      setCodeTaskResult(JSON.stringify(payload, null, 2))
-
-      if (data?.github_assist_required) {
-        toast.success('Complex issue routed to GitHub-assist mode')
-      } else {
-        toast.success('Self-healing patch task generated')
-      }
+      requestCodeChangeTaskApproval()
     } catch (err: any) {
       toast.error(err?.message || 'Failed to generate code patch task')
     } finally {
@@ -2567,6 +2658,18 @@ export default function BobAssistantStudio() {
   return (
     <AppLayout title="Bob Assistant Studio" description="Personality, voice, mapping, and drawing controls for Bob.">
       <GlobalFilterRibbon />
+
+      <BobActionApprovalDialog
+        open={bobActionApproval.isOpen}
+        recommendation={bobActionApproval.recommendation}
+        isLoading={bobActionApproval.isLoading}
+        onApprove={(recommendation, notes) => bobActionApproval.approve(
+          recommendation,
+          notes,
+          resolveRecommendationExecutor(recommendation.actionType),
+        )}
+        onReject={bobActionApproval.reject}
+      />
 
       <div className="grid grid-cols-1 xl:grid-cols-[360px_1fr] gap-4">
         <div className="space-y-4">
@@ -3400,7 +3503,7 @@ export default function BobAssistantStudio() {
               <div className="flex gap-2">
                 <Button onClick={generatePlan}>Generate Draft</Button>
                 <Button variant="outline" onClick={copyPlan}>Copy Draft</Button>
-                <Button variant="secondary" onClick={saveLivePlan} disabled={savingPlan}>{savingPlan ? 'Saving…' : 'Save Live Plan'}</Button>
+                <Button variant="secondary" onClick={requestSaveLivePlanApproval} disabled={savingPlan}>{savingPlan ? 'Saving…' : 'Approve & Save Live Plan'}</Button>
               </div>
 
               <Textarea

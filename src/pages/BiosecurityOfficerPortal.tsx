@@ -32,6 +32,7 @@ import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
 import { FieldSafetyBar } from '@/components/features/FieldSafetyBar'
 import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
+import { useGeofenceOrgTransition } from '@/hooks/useGeofenceOrgTransition'
 import { useShiftGate } from '@/hooks/useShiftGate'
 import { GeofenceWarningBanner } from '@/components/features/GeofenceWarningBanner'
 import {
@@ -137,6 +138,7 @@ function pickKeys<T extends Record<string, any>>(obj: T, keys: Array<keyof T>): 
 
 export default function BiosecurityOfficerPortal() {
   const { user } = useAuthStore()
+  useGeofenceOrgTransition({ enabled: true })
   const { operationalOrganizationId } = useOperationalOrganization()
   const orgId = operationalOrganizationId
   const navigate = useNavigate()

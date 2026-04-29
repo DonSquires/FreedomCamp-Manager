@@ -30,6 +30,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
 import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
+import { useGeofenceOrgTransition } from '@/hooks/useGeofenceOrgTransition'
 import { useShiftGate } from '@/hooks/useShiftGate'
 import {
   Wind, Flame, AlertTriangle, MapPin, Camera, FileText,
@@ -182,6 +183,7 @@ function initAssessment(job: SmokeJob): AssessmentState {
 
 export default function SmokeComplaintOfficerPortal() {
   const { user } = useAuthStore()
+  useGeofenceOrgTransition({ enabled: true })
   const { operationalOrganizationId } = useOperationalOrganization()
   const orgId = operationalOrganizationId
   const navigate = useNavigate()

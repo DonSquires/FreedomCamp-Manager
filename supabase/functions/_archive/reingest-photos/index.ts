@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
     // Verify user is admin or master
     const { data: profile, error: profileError } = await supabase
       .from("user_profiles")
-      .select("id, role, organization_id")
+      .select("id, role, organization_id, employer_organization_id, extra_organization_ids, authorized_work_locations")
       .eq("id", authUserId)
       .maybeSingle();
 
@@ -146,7 +146,26 @@ Deno.serve(async (req) => {
     const beforeRecordedAt = typeof body.before_recorded_at === "string" && body.before_recorded_at.trim().length > 0
       ? body.before_recorded_at.trim()
       : null;
-    const organizationId = body.organization_id ?? (profile.role !== "master" ? profile.organization_id : null);
+    const allowedOrganizationIds = new Set<string>([
+      (profile as any).organization_id,
+      (profile as any).employer_organization_id,
+      ...(((profile as any).extra_organization_ids ?? []) as string[]),
+      ...(((profile as any).authorized_work_locations ?? []) as string[]),
+    ].filter((id): id is string => typeof id === "string" && id.length > 0));
+
+    const requestedOrganizationId =
+      typeof body.organization_id === "string" && body.organization_id.trim().length > 0
+        ? body.organization_id.trim()
+        : null;
+
+    if (profile.role !== "master" && requestedOrganizationId && !allowedOrganizationIds.has(requestedOrganizationId)) {
+      return new Response(
+        JSON.stringify({ error: "Requested organization is outside your authorized scope." }),
+        { status: 403, headers: { ...getCorsHeaders(req), "content-type": "application/json" } },
+      );
+    }
+
+    const organizationId = requestedOrganizationId ?? (profile.role !== "master" ? (profile.organization_id as string | null) : null);
     const dateFrom = body.date_from ?? null;
     const dateTo = body.date_to ?? null;
 

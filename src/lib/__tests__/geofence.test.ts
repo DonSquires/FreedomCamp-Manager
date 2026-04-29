@@ -38,6 +38,7 @@ describe('calculateDistance', () => {
 describe('isInsideGeofence', () => {
   const zone: GeofenceZone = {
     id: 'zone-1',
+    organization_id: 'org-test',
     name: 'Test Zone',
     location_lat: -41.2865,
     location_lng: 174.7762,
@@ -59,6 +60,7 @@ describe('isInsideGeofence', () => {
   it('uses default 500m radius when radius_meters is not set', () => {
     const zoneNoRadius: GeofenceZone = {
       id: 'zone-2',
+      organization_id: 'org-test',
       name: 'No Radius Zone',
       location_lat: -41.2865,
       location_lng: 174.7762,
@@ -70,6 +72,7 @@ describe('isInsideGeofence', () => {
   it('respects custom radius', () => {
     const smallZone: GeofenceZone = {
       id: 'zone-3',
+      organization_id: 'org-test',
       name: 'Small Zone',
       location_lat: -41.2865,
       location_lng: 174.7762,
@@ -81,6 +84,7 @@ describe('isInsideGeofence', () => {
   it('returns true for a point exactly at center', () => {
     const testZone: GeofenceZone = {
       id: 'zone-4',
+      organization_id: 'org-test',
       name: 'Boundary Zone',
       location_lat: 0,
       location_lng: 0,

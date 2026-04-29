@@ -357,6 +357,7 @@ export default function BreachAlerts() {
   const endDate = dateTo ? nzDateToUTCEnd(dateTo) : null
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [breachTypeFilter, setBreachTypeFilter] = useState<string>('all')
   const [enrichingVehicle, setEnrichingVehicle] = useState<string | null>(null)
   const [resolveNotes, setResolveNotes] = useState('')
   const [rejectionReason, setRejectionReason] = useState('')
@@ -447,7 +448,7 @@ export default function BreachAlerts() {
 
   // Fetch breach alerts (use created_at, not detected_at)
   const { data: breaches, isLoading, isError: breachesIsError, error: breachesError } = useQuery({
-    queryKey: ['breach-alerts', effectiveOrganizationId, zoneId, statusFilter, searchQuery, dateFrom, dateTo],
+    queryKey: ['breach-alerts', effectiveOrganizationId, zoneId, statusFilter, breachTypeFilter, searchQuery, dateFrom, dateTo],
     queryFn: async ({ signal }) => {
       const applyFilters = (query: any) => {
         if (effectiveOrganizationId) query = query.eq('organization_id', effectiveOrganizationId)
@@ -455,6 +456,7 @@ export default function BreachAlerts() {
         if (startDate) query = query.gte('created_at', startDate)
         if (endDate) query = query.lte('created_at', endDate)
         if (statusFilter !== 'all') query = query.eq('status', statusFilter)
+        if (breachTypeFilter !== 'all') query = query.eq('breach_type', breachTypeFilter)
         if (searchQuery) query = query.ilike('plate_number', `%${searchQuery}%`)
         return query
       }
@@ -1233,6 +1235,30 @@ export default function BreachAlerts() {
                   className={`text-xs px-2 py-1 rounded-full transition-colors ${
                     statusFilter === key
                       ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {/* Breach Type Filter */}
+            <div className="flex gap-1 flex-wrap mt-1.5">
+              {[
+                { key: 'all', label: 'All Types' },
+                { key: 'consecutive_nights', label: 'Consec. Nights' },
+                { key: 'monthly_limit', label: 'Monthly Limit' },
+                { key: 'self_contained', label: 'Self-Contained' },
+                { key: 'after_hours', label: 'After Hours' },
+                { key: 'day_visit_violation', label: 'Day Visit' },
+                { key: 'allowed_days_violation', label: 'Allowed Days' },
+              ].map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setBreachTypeFilter(key)}
+                  className={`text-xs px-2 py-1 rounded-full transition-colors ${
+                    breachTypeFilter === key
+                      ? 'bg-orange-600 text-white'
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                   }`}
                 >

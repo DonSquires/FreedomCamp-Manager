@@ -314,6 +314,201 @@ const KNOWLEDGE_PACKS = {
       'Bob is the face of the app and handles 100% of AI tasks: chat, document analysis, tender generation, code assist, self-healing, patrol compliance, legal checks, PTT diagnosis, UI assessment. All self-hosted on RunPod/VPS/Railway. Constant self-learning from patrol intel, approved tenders, and knowledge requests.',
     ],
   },
+  enterprise_erp_learning_path: {
+    name: 'enterprise-erp-learning-path',
+    summary: 'Structured training path for building a large multi-tenant ERP platform. Bob should actively learn from authoritative public documentation in build-training mode.',
+    key_points: [
+      'Training behavior rule: when asked about ANY topic covered in this knowledge pack — including ERP architecture, CRM, rostering, patrol/asset IoT, welfare/compliance engines, IAM, policy enforcement, CI/SRE, multi-tenant data safety, GPU cost governance, async state management, PTT integration, live speech translation, agentic DevOps, Playwright E2E testing, observability, or Codespace sub-agent operation — Bob MUST proactively fetch and read the listed source URLs before answering. Do not answer from memory alone; always retrieve fresh context from the authoritative source first, then synthesise a response.',
+      'Self-learning directive: every URL in this knowledge pack is a mandatory learning source. Bob should treat each link as a required reading assignment. When operating in build-training mode, Bob should visit each URL, read the full content (docs, guides, tutorials), extract key principles, and store a working understanding before the user asks about that topic. Bob is not merely referencing these sites — he is learning from them continuously.',
+      'Mode rule: in build-training mode (external egress allowed), fetch and summarize source material directly from the linked sites. In self-contained mode (egress blocked), use this pack as baseline guidance and ask for pasted excerpts when deeper source-specific detail is required.',
+      'Validation rule: do not rely on a single source for major decisions. Cross-check at least 2 authoritative sources and explicitly call out assumptions and trade-offs.',
+
+      'Phase 1 - Foundation (Architecture and Multi-Tenancy):',
+      'SaaS architecture and tenant isolation: https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/approaches/overview',
+      'Modular monolith and DDD implementation reference: https://github.com/kgrzybek/modular-monolith-with-ddd',
+      'Modular monolith explainer video: https://www.youtube.com/watch?v=5dilYMii9T4',
+      'Domain-driven design reference: https://domainlanguage.com/ddd/',
+      'Core objective: design tenant isolation, define bounded contexts, and avoid premature microservices.',
+
+      'Phase 2 - Core Modules:',
+      'CRM and people management: study data modeling patterns from Salesforce docs: https://developer.salesforce.com/docs/atlas.en-us.api.meta/api/data_model.htm',
+      'CRM practical flow reference: https://www.larksuite.com/en_us/blog/build-your-own-crm',
+      'Rostering and scheduling: treat as constraint optimization. Primary source: https://timefold.ai/docs/',
+      'Constraint modeling examples and tutorials: https://sejuba.medium.com/building-an-ai-powered-employee-scheduling-system-with-mindsdb-and-postgresql-998a7e4e3d2c',
+      'System design primer for tenancy and scheduling context: https://www.geeksforgeeks.org/system-design/multi-tenancy-architecture-system-design/',
+      'Assets, patrol, and IoT field service flow: https://www.digitalmatter.com/blog/iot-asset-tracking-solutions',
+      'Map and route visualization baseline: https://leafletjs.com/',
+      'GPS tracking protocol/telemetry reference: https://www.traccar.org/documentation/',
+      'Welfare and enforcement form engine concept: dynamic JSON schema forms with SurveyJS docs: https://surveyjs.io/',
+
+      'Phase 3 - Security, Policy, and Operations:',
+      'Authentication and tenant IAM baseline: https://www.keycloak.org/documentation',
+      'Authorization policy as code baseline: https://www.openpolicyagent.org/',
+      'CI/CD operations baseline: GitLab CI/CD docs (official docs site) for pipeline design patterns.',
+      'Reliability and incident response baseline: Google SRE book and distributed monitoring references.',
+
+      'Master reference ERP projects for architecture patterns:',
+      'Odoo: https://github.com/odoo',
+      'ERPNext: https://github.com/frappe/erpnext',
+      'Apache OFBiz user docs: https://nightlies.apache.org/ofbiz/trunk/ofbiz/html5/user-manual.html',
+
+      'Execution roadmap for implementation coaching:',
+      'Weeks 1-2: establish tenant-aware identity and access plus Postgres RLS baseline.',
+      'Weeks 3-6: build asset manager module (CRUD, status lifecycles, org scoping).',
+      'Weeks 7-10: implement rostering engine with hard and soft constraints.',
+      'Week 11+: integrate cross-module dependencies (for example roster to vehicle availability for patrol execution).',
+
+      'When coaching build order, Bob should ask one question first: which module is highest priority right now, then provide a concrete schema-first implementation plan for that module.',
+
+      'Stack framing: this platform is a modern serverless powerhouse using Supabase as source of truth, Railway/RunPod for heavy processing, and Vercel for frontend and preview flows.',
+
+      'Specialized wiring resources Bob should actively study and reference:',
+      'Supabase SaaS starter guide: https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs',
+      'Supabase Edge Functions docs: https://supabase.com/docs/guides/functions',
+      'RunPod Serverless overview: https://docs.runpod.io/serverless/overview',
+      'Railway monorepo deployment guide: https://docs.railway.app/guides/monorepo',
+      'Axiom observability platform: https://axiom.co/',
+      'Turborepo docs for multi-service monorepos: https://turbo.build/repo/docs',
+
+      'Core stack mastery guidance:',
+      'Supabase is the single source of truth for auth, tenant data, and policies. Bob must emphasize Row Level Security design first for all multi-organization features.',
+      'RunPod and Railway are the compute muscle for heavy jobs (AI analysis, optimization, batch constraints, image processing).',
+      'Vercel and GitHub Actions are the delivery interface and pipeline glue for module preview, validation, and deployment.',
+
+      'Webhook wiring pattern Bob should teach by default:',
+      'User action writes to Supabase -> event trigger/webhook -> RunPod or Railway worker executes heavy processing -> result persists back into Supabase -> UI updates via realtime/query refresh.',
+
+      'Reference architecture mapping:',
+      'Identity and auth: Supabase Auth for tenant-aware login and module access.',
+      'UI and light serverless logic: Vercel-hosted frontend and edge handlers where appropriate.',
+      'Complex compute: RunPod Serverless for AI inference or optimization workloads.',
+      'Persistent scheduled jobs: Railway services for cron/background workers.',
+      'Optional auxiliary hosting: hPanel/Hostinger can host static landing pages or simple legacy PHP helpers only, not core multi-tenant logic.',
+
+      'Module-specific training directives for Bob:',
+      'Rostering and people module: prioritize tenant-safe roster visibility and permissions using Supabase RLS patterns for teams.',
+      'Asset and patrol tracking module: prioritize Supabase Realtime patterns for live map updates and patrol checkpoint streams.',
+      'Fault finding and logging: recommend unified observability across Vercel and Railway with Axiom or equivalent central log aggregation.',
+
+      'Monorepo recommendation: Bob should prefer Turborepo for this multi-platform stack and propose package boundaries per module (crm, rostering, assets, patrol, shared-ui, shared-schema, workers).',
+
+        'AI self-installation reality Bob must state clearly: AI cannot install Python or software on user machines without explicit setup, permissions, and execution environment. In this stack, installation is automated via containers and deployment pipelines, not autonomous host-level installs.',
+        'Container-first setup model: on RunPod, dependencies are defined in Dockerfile layers (for example python:3.11-slim plus pinned libraries). Every new worker reproduces that environment automatically.',
+        'IaC model: use Terraform or Pulumi to define infrastructure declaratively (runtime size, memory, env vars, networking, secrets). The platform provisions from code, not ad hoc dashboard clicks.',
+
+        'Dynamic code execution guidance for Bob:',
+        'Agentic tools can write and execute temporary scripts in sandboxed runtimes to solve tasks (for example scheduling optimization) and then return structured results.',
+        'Default safety posture: execution must occur in ephemeral sandbox containers, never directly on host machines.',
+
+        'Risk controls Bob must always include when discussing self-executing agents:',
+        'Security isolation: sandbox all generated code and container tasks; destroy environment after completion.',
+        'Dependency pinning: require explicit versions (for example pandas==2.1.0) to avoid breakage across CRM, rostering, and patrol modules.',
+        'Resource and cost limits: enforce GPU class allowlists, execution timeouts, and concurrency caps to prevent runaway spend.',
+
+        'Recommended implementation pattern for this project:',
+        'Create a hardened base image with Python, core SDKs, Supabase client libraries, and security patches preinstalled.',
+        'Use webhooks/events so model requests trigger Railway or RunPod workers asynchronously rather than blocking the user UI.',
+        'Use human-in-the-loop approvals for first-generation install/deploy plans in CI before execution.',
+
+        'Self-provisioning agent architecture Bob should teach:',
+        'Toolbelt APIs: GitHub API (branch/commit/PR), container build pipeline (GitHub Actions + GHCR), and RunPod/Railway deployment APIs.',
+        'Flow step A - generation: agent outputs task code (for example main.py/handler.py) plus Dockerfile and requirements.',
+        'Flow step B - build: CI pipeline builds and publishes image to GHCR or Docker Hub.',
+        'Flow step C - deploy: agent calls RunPod or Railway API to deploy image as endpoint or worker service.',
+
+        'Prompt/SOP pattern for infra agents:',
+        'Use a strict system prompt with ordered tool-use constraints: generate code, generate Dockerfile from approved template, push branch, wait for successful build, then deploy.',
+        'Require explicit approval checkpoint before deploy in production-like environments.',
+
+        'RunPod serverless architecture blueprint Bob should reference:',
+        'Request path: app sends JSON payload to RunPod endpoint.',
+        'Processing path: RunPod starts worker container on GPU and runs Python inference or optimization handler.',
+        'Delivery path: worker returns sync response for short jobs or posts webhook back to Supabase/Railway for async completion.',
+
+        'RunPod performance and scaling principles:',
+        'Cold starts are expected for large GPU images; keep at least one worker warm during business hours for latency-sensitive endpoints.',
+        'Prefer queued async design for long jobs: return job_id immediately, complete via webhook, and update UI using Supabase Realtime.',
+        'Use execution timeout and max job duration limits to contain stuck tasks and spend.',
+
+        'RunPod cost and capacity guidance:',
+        'Use smaller GPUs (A4000/A5000 class) for general inference and optimization; reserve A100/H100 class only for clearly justified heavy workloads.',
+        'Enable scale-to-zero outside operating windows where acceptable.',
+
+        'In-house AI security guidance:',
+        'Use API key auth and signed webhooks between services; restrict who can invoke expensive inference routes.',
+        'Avoid writing sensitive welfare/people payloads to plain logs; send sanitized telemetry to controlled observability backends.',
+
+        'Suggested monorepo layout for this stack:',
+        '/apps/web (Vercel frontend), /apps/backend (Railway API/cron), /packages/database (Supabase schema/migrations/types), /ai-engine (RunPod worker with Dockerfile + handler.py + requirements.txt).',
+
+        'Website learning order Bob should recommend for agentic infrastructure mastery:',
+        'LangGraph Academy: https://academy.langchain.com/',
+        'CrewAI docs: https://www.crewai.com/',
+        'GitHub Skills/Actions docs: https://skills.github.com/ and https://docs.github.com/en/actions',
+        'Docker build docs: https://docs.docker.com/build/cloud/',
+        'Terraform tutorials: https://developer.hashicorp.com/terraform/tutorials',
+        'Vercel AI SDK docs: https://sdk.vercel.ai/docs',
+        'RunPod serverless and API docs: https://docs.runpod.io/serverless/overview',
+        'Docker fundamentals: https://docker-curriculum.com/',
+        'LangGraph intro tutorials: https://langchain-ai.github.io/langgraph/tutorials/introduction/',
+        'Aider reference implementation: https://aider.chat/',
+
+        'Execution discipline Bob should enforce: project-first learning, fast prototype in sandbox, instrument with observability, then harden via policy gates and reproducible IaC.',
+
+        // ── Bob as Agentic Sub-Agent in Codespaces ───────────────────────────
+        'Bob agentic evolution: once Bob operates as a sub-agent within Codespaces he moves from "AI as chatbox" to "AI as Operator." Optimise Bob by shifting from generic observation to context-aware debugging.',
+
+        'Observer pattern for Playwright tests: create a system_telemetry.log in the Codespace. Pipe Vercel, Supabase, and RunPod logs into this single file via a tail/aggregation script. Tell Bob: "Run the Playwright test. If the visual check fails, cross-reference the timestamp in system_telemetry.log." Bob can then produce specific diagnoses such as "The translation did not appear because RunPod returned a 504 timeout at 10:04:22" instead of guessing.',
+
+        'Domain schema file for Bob: maintain a SCHEMA.md in the repo root containing exported Supabase table structures and RLS policies. When Bob writes or fixes code for CRM, Rostering, or PTT, he reads SCHEMA.md instead of querying the DB each time. This prevents Bob from generating code that violates multi-tenant organization_id constraints.',
+
+        'Mock-first test strategy: add a NEXT_PUBLIC_API_MOCK=true flag. When active, the PTT system returns a static hardwired response instead of calling RunPod. Instruct Bob: run mock tests for UI/logic changes and live tests only for wiring changes. This saves ~90% in RunPod GPU costs during development.',
+
+        'PTT audio emulation for Bob: maintain a soundboard folder with 5–10 .wav sample files (Hindi, English, Hinglish). Provide Bob a Playwright inject-audio command. Example instruction: "Bob, test the Hinglish translation module. Use audio/hinglish_sample_1.wav and verify that the English CRM entry is created in ptt_logs within 5 seconds."',
+
+        'Agentic Codespace tooling: Axiom Vercel Integration (https://axiom.co/docs/integrations/vercel) for structured log streams Bob can parse. Mock Service Worker MSW (https://mswjs.io/) to let Bob mock RunPod translation responses for faster test cycles. Prisma Studio (https://www.prisma.io/studio) as a DB visualizer to surface cross-tenant data leakage.',
+
+        'How to talk to Bob for better results: (1) define success state explicitly — not "test the PTT" but "success = HTTP 200, transcription row present in ptt_logs, UI toast visible"; (2) after failure ask Bob for the delta between expected and actual JSON; (3) give Bob a sandbox branch policy — if he finds a wiring bug, create branch fix/bug-name, apply the fix, and re-run the emulator.',
+
+        // ── Agentic DevOps Training Resources ───────────────────────────────
+        'AI agent orchestration resources: LangGraph / LangChain Academy (https://academy.langchain.com/) — gold standard for agentic workflows, teaches the run → fail → read log → fix loop. GitHub Copilot Extensions Docs — explains how to wire an AI into the GitHub / Codespaces environment. OpenHands (OpenDevin) architecture section — study how they enforce sandbox safety for AI terminal access.',
+
+        'Advanced E2E testing for AI-readable output: Playwright Trace Viewer (https://playwright.dev/docs/trace-viewer) — teach Bob to parse trace files containing network logs, console output, and screenshots in one artifact. Checkly Playwright guides for testing complex multi-step flows (PTT, CRM entry chains). Applitools Automated Visual Testing (https://applitools.com/tutorials/) — teaches ignoring cosmetic pixel changes while catching structural UI bugs.',
+
+        'Observability and telemetry for Bob: Axiom docs (https://axiom.co/) for high-volume structured log streams optimized for AI parsing. OpenTelemetry OTel Observatory (https://opentelemetry.io/docs/concepts/) — industry standard for end-to-end tracing (mobile → Vercel → RunPod → Supabase); use this to give Bob a full call trace for every PTT request.',
+
+        'Agentic coding pattern study: Aider.chat "How Aider Works" and Repository Map docs — explains how AI understands a large folder structure (CRM, assets, PTT modules). AutoGPT / BabyAGI Tools folder on GitHub (https://github.com/Significant-Gravitas/AutoGPT) — Python implementations of file-read and shell-execute tools for AI agents.',
+
+        'Bob optimization checklist: teach Bob the exact JSON payload to trigger a Playwright run (OpenAI function-calling pattern). Use Lost Pixel for visual regression so Bob detects UI drift. Use JSON-structured logs throughout so Bob parses errors without format ambiguity. Integrate MSW (https://mswjs.io/) to mock RunPod for isolated UI/logic test runs.',
+
+        // ── Final-Boss: Self-Healing Agentic E2E ─────────────────────────────
+        'State machine vs script for E2E tests: most brittle tests are linear scripts (Step 1 → Step 2 → Step 3). In an async PTT/AI system, 1-second lag breaks the script. Fix: use XState (https://stately.ai/docs/xstate) to model test flows as state machines. Bob checks "Is the system in TRANSLATION_SUCCESS state?" not "Is the button there yet?". Event-driven — Bob waits for state transitions, not timers.',
+        'Synthetic data injection for multi-tenant tests: never clone the production DB for testing. Bob must create a fresh unique Organization in Supabase at test start (via Snaplet https://www.snaplet.dev/ or Prisma Seed), run tests, then garbage-collect (delete) that org. Zero cross-contamination: any failure is a code bug, never dirty leftover data.',
+        'Shadow AI proxy / cheap mode: running every test against live RunPod GPU burns credits. Two-mode routing: (1) Cheap Mode — Llama 3 8B on Ollama for logic and wiring tests; (2) Production Mode — SeamlessM4T and Whisper-v3-Large only for accuracy validation. Use Helicone (https://www.helicone.ai/) as LLM proxy to gate routing and log per-request cost.',
+        'Final-tier agentic DevOps resources: LangGraph Docs (https://langchain-ai.github.io/langgraph/) for agentic test loops. Argos CI (https://argos-ci.com/) for visual regression. Pulumi (https://www.pulumi.com/) for Bob to provision RunPod containers via code. Honeycomb.io (https://www.honeycomb.io/) for high-cardinality observability — surfaces bugs affecting only one user in one specific org.',
+        'Bob memory management directive: maintain a knowledge_base/ folder in the repo. Every time Bob fixes a brittle test or recurring bug, write a concise .md file: what broke, root cause, fix applied. Bob reads knowledge_base/ before every new test cycle — builds compounding institutional memory.',
+        'Rubber duck escalation rule: if Bob cannot resolve an issue after 3 attempts, Bob must escalate the full error context to a Senior Architect AI instance (Claude or GPT-4o secondary endpoint) for a fresh perspective. Bob must never loop indefinitely — escalate at attempt 3.',
+        'PTT latency emulation directive: Bob must run Playwright Network Throttling (Slow 3G) on all PTT tests before any PTT release. Bugs invisible on fast Wi-Fi appear reliably under throttled conditions.',
+        'Health check JSON — Bob pre-test rule: before any PTT or translation test run, Bob fetches GET /health. If supabase shows degraded, Bob must abort the test suite, surface the status to the user, and wait for recovery before proceeding.',
+
+        // ── Resilience and Offline Protocols ─────────────────────────────────
+        'OFFLINE-FIRST protocol: all Patrol and Asset updates must be persisted locally (AsyncStorage or SQLite on mobile, equivalent offline cache on web) BEFORE attempting sync to Supabase. Remote sync is second step, never first.',
+        'BATCHED UPLOADS protocol: AI transcriptions from PTT must be queued when network/API status is unstable (status < 200 or transport errors). Drain queue in order when service health recovers.',
+        'BATTERY OPTIMIZATION protocol: GPS High Accuracy mode is allowed only during active Patrols. For routine Welfare monitoring use Balanced mode to reduce battery drain and background OS throttling risk.',
+        'RETRY LOGIC protocol: all RunPod API calls must use exponential backoff. Minimum schedule: 1s, 2s, 4s before reporting failure; include jitter where possible to avoid retry storms.',
+        'CRITICAL ALERTS protocol: Welfare breach notifications must be sent as high-priority push alerts so urgent safety messages are not silently deferred by device notification policies.',
+
+        // ── Cross-Platform Compatibility Rules ───────────────────────────────
+        'PLATFORM CHECK rule: always use Platform.OS from react-native to branch behavior for web, ios, and android, especially for PTT audio permissions and media capabilities.',
+        'WEBVIEW BRIDGING rule: when using WebViews, send AI transcription events to native via window.ReactNativeWebView.postMessage and validate payload schema at the receiver.',
+        'ADAPTIVE LAYOUTS rule: use Flexbox-first responsive design; avoid fixed pixel widths and prefer percentage/vh/vw constraints so CRM modules render correctly on iPad and desktop.',
+        'STORAGE ABSTRACTION rule: use a storage wrapper. Use LocalStorage on web and SecureStore (Expo) on mobile for organization-scoped auth/session tokens.',
+        'ZERO BROWSER-ONLY CODE rule: never access window/document without Platform.OS === "web" or equivalent runtime guard; unguarded browser globals must be treated as mobile crash risks.',
+
+        // ── Foundation Layer Reinforcement ───────────────────────────────────
+        'Foundation learning reminder: architecture and multi-tenancy are layer-one prerequisites. Reinforce with SaaS isolation references (https://microsoft.com), modular design references (https://github.com), and domain mapping references (https://domainlanguage.com) before module-level feature implementation.',
+    ],
+  },
 };
 
 function classifyBugType(report) {

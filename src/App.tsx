@@ -100,6 +100,7 @@ const DispatchedJobsList = lazy(() => import('@/pages/DispatchedJobsList'))
 const RosterPlanner = lazy(() => import('@/pages/RosterPlanner'))
 const OfficerSkills = lazy(() => import('@/pages/OfficerSkills'))
 const OfficerAvailability = lazy(() => import('@/pages/OfficerAvailability'))
+const AssetManagement = lazy(() => import('@/pages/AssetManagement'))
 const ClientOrganisationPortal = lazy(() => import('@/pages/ClientOrganisationPortal'))
 const InvoicingPage = lazy(() => import('@/pages/InvoicingPage'))
 const AssetManagement = lazy(() => import('@/pages/AssetManagement'))
@@ -499,7 +500,7 @@ export default function App() {
         <Routes>
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
-          <Route path="/public/dispute" element={<PublicDisputePortal />} />
+          <Route path="/dispute" element={<PublicDisputePortal />} />
           <Route
             path="/portal-selection"
             element={
@@ -534,10 +535,10 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          {/* Legacy deep-link support */}
+          {/* Backward-compatibility redirect for legacy deep-links */}
           <Route
             path="/field"
-            element={<Navigate to="/field-officer" replace />}
+            element={<Navigate to="/field-officer?service=freedom_camping" replace />}
           />
           {/* Protected routes */}
           <Route
@@ -611,13 +612,6 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-
-          {/* /compliance-unified is a legacy alias — redirect to the canonical /compliance */}
-          <Route
-            path="/compliance-unified"
-            element={<Navigate to="/compliance" replace />}
-          />
-
           <Route
             path="/breaches"
             element={
@@ -1613,7 +1607,7 @@ export default function App() {
             }
           />
           <Route
-            path="/admin/site-permissions"
+            path="/site-permissions"
             element={
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'master', 'grand_master']}>
@@ -1648,6 +1642,16 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <OfficerSkills />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/asset-management"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <AssetManagement />
                 </RoleRoute>
               </ProtectedRoute>
             }

@@ -1692,7 +1692,7 @@ test.describe('Client Organisation Portal', () => {
 
 test.describe('Public Dispute Portal — full submission flow', () => {
   test('notice lookup with invalid reference shows error', async ({ page }) => {
-    await page.goto('/public/dispute')
+    await page.goto('/dispute')
     await page.waitForLoadState('networkidle')
 
     const refInput = page.locator('input[placeholder*="reference" i], input[placeholder*="INF" i]').first()
@@ -1707,7 +1707,7 @@ test.describe('Public Dispute Portal — full submission flow', () => {
       await page.waitForTimeout(3000)
     }
     // No crash = pass
-    expect(page.url()).toContain('/public/dispute')
+    expect(page.url()).toContain('/dispute')
   })
 })
 

@@ -8,13 +8,14 @@
  * Tab 2 – User Overrides: search users and set individual field-group overrides
  *          that take precedence over role defaults.
  *
- * Route: /admin/site-permissions  (admin / master / grand_master only)
+ * Route: /site-permissions  (admin / master / grand_master only)
  */
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { useNavigate } from 'react-router-dom'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -29,7 +30,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog'
-import { ShieldCheck, Plus, Trash2, Save, UserCog, Eye, Pencil, Info } from 'lucide-react'
+import { ShieldCheck, Plus, Trash2, Save, UserCog, Eye, Pencil, Info, Building2, Users, FileText, Settings } from 'lucide-react'
 import { toast } from 'sonner'
 import { SITE_FIELD_GROUPS, SITE_FIELD_GROUP_LABELS, type SiteFieldGroup } from '@/hooks/useSitePermissions'
 
@@ -81,6 +82,7 @@ const ROLE_LABELS: Record<string, string> = {
 export default function SitePermissionsAdmin() {
   const { user } = useAuthStore()
   const qc = useQueryClient()
+  const navigate = useNavigate()
 
   const [newRoleName, setNewRoleName] = useState('')
   const [userSearch, setUserSearch]   = useState('')
@@ -332,6 +334,41 @@ export default function SitePermissionsAdmin() {
     <AppLayout>
       <div className="p-4 md:p-6 space-y-6 max-w-screen-xl mx-auto">
 
+        <Card className="border-blue-200 bg-blue-50/60 dark:bg-blue-950/20 dark:border-blue-900">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-blue-600" />
+              Governance Quick Actions
+            </CardTitle>
+            <CardDescription>
+              Jump between governance policy, user scope, organisation management, and audit traceability.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-5">
+              {[
+                { label: 'Organisations', path: '/organizations', Icon: Building2 },
+                { label: 'Users', path: '/users', Icon: Users },
+                { label: 'Access Control', path: '/access-control', Icon: ShieldCheck },
+                { label: 'Audit Log', path: '/audit-log', Icon: FileText },
+                { label: 'Command Centre', path: '/admin', Icon: Settings },
+              ].map(({ label, path, Icon }) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => navigate(path)}
+                  className="text-left rounded-lg border bg-white dark:bg-gray-900 px-3 py-3 transition-colors hover:bg-blue-100/60 dark:hover:bg-blue-900/20"
+                >
+                  <div className="flex items-center gap-1.5 text-sm font-medium text-gray-900 dark:text-gray-100">
+                    <Icon className="h-4 w-4 text-blue-600" />
+                    {label}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Header */}
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -499,6 +536,16 @@ export default function SitePermissionsAdmin() {
                         <CardDescription className="text-xs">
                           {selectedUser.email} · Role: <span className="font-medium">{ROLE_LABELS[selectedUser.role] ?? selectedUser.role}</span>
                         </CardDescription>
+                        <div className="flex gap-2 pt-2">
+                          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => navigate('/users')}>
+                            <Users className="h-3.5 w-3.5 mr-1" />
+                            User Management
+                          </Button>
+                          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => navigate('/audit-log')}>
+                            <FileText className="h-3.5 w-3.5 mr-1" />
+                            Audit Log
+                          </Button>
+                        </div>
                       </div>
                       {userPerms.length > 0 && (
                         <Button

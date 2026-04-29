@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Building2, Users, MapPin, Settings, Plus, Search, FileText, ChevronRight } from 'lucide-react'
+import { Building2, Users, MapPin, Settings, Plus, Search, FileText, ChevronRight, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
@@ -215,6 +215,61 @@ export default function OrganizationManagement() {
   return (
     <AppLayout title="Organisation Management" description="Manage organisational hierarchy and settings" showBackButton>
       <GlobalFilterRibbon showDateFilter={false} />
+
+      <Card className="mb-4 mt-2 border-blue-200 bg-blue-50/60 dark:bg-blue-950/20 dark:border-blue-900">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-blue-600" />
+            Governance Quick Actions
+          </CardTitle>
+          <CardDescription>
+            Master tools for organisation setup, user access, permission overrides, and audit traceability.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              {
+                label: 'User Management',
+                description: 'Manage cross-org users and role assignments',
+                icon: Users,
+                path: '/users',
+              },
+              {
+                label: 'Access Control',
+                description: 'Control portal areas and organisation scope',
+                icon: ShieldCheck,
+                path: '/access-control',
+              },
+              {
+                label: 'Site Permissions',
+                description: 'Review field-group role permissions and overrides',
+                icon: Settings,
+                path: '/site-permissions',
+              },
+              {
+                label: 'Audit Log',
+                description: 'Trace governance and Bob-assisted actions',
+                icon: FileText,
+                path: '/audit-log',
+              },
+            ].map(({ label, description, icon: Icon, path }) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => navigate(path)}
+                className="text-left rounded-lg border bg-white dark:bg-gray-900 px-3 py-3 transition-colors hover:bg-blue-100/60 dark:hover:bg-blue-900/20"
+              >
+                <div className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
+                  <Icon className="h-4 w-4 text-blue-600" />
+                  {label}
+                </div>
+                <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">{description}</p>
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4 mt-2">
         {/* Search */}
