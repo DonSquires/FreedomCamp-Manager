@@ -36,6 +36,9 @@ Sources:
 - UserManagement
 - Profile
 - Platform (Grand Master)
+- **CRM** (new clean build — replaces legacy CRMModule; covers org accounts, client sites, contacts, rates, access)
+- **BusinessManagement** (new clean build — covers staff/users, roster, fleet, assets, daily checks, audit)
+- **ClientPortal** (new clean build — client-scoped site visibility, service summaries, contract reports, dispute links)
 
 ### 1.2 Merge (Current pages mapped to clean targets)
 

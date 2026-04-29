@@ -115,19 +115,22 @@ type NavItem = {
 }
 
 // Pinned items always visible at the top of the sidebar
-const pinnedItems: NavItem[] = [
+// eslint-disable-next-line react-refresh/only-export-components
+export const pinnedItems: NavItem[] = [
   { path: '/platform', icon: Globe, label: 'Platform Overview', roles: ['grand_master'] },
   { path: '/admin', icon: LayoutDashboard, label: 'Command Centre', roles: ['grand_master'] },
   { path: '/compliance-escalations', icon: ShieldAlert, label: 'Escalations', roles: ['grand_master'] },
   { path: '/grandmaster-code-studio', icon: Code2, label: 'Coding Studio', roles: ['grand_master'] },
   { path: '/', icon: Home, label: 'Admin Hub', roles: ['admin', 'admin_officer', 'master'] },
+  { path: '/field-officer', icon: MonitorPlay, label: 'Field Portal', roles: ['officer'] },
   { path: '/', icon: Home, label: 'Home', roles: ['officer', 'nzscv_monitor'] },
   { path: '/bob-assistant', icon: BrainCircuit, label: 'Bob Assistant', roles: ['officer'] },
   { path: '/search', icon: Search, label: 'Search', roles: ['admin', 'admin_officer', 'master', 'officer', 'nzscv_monitor', 'grand_master'] },
 ]
 
 // Grouped navigation — collapsed by default, each bucket holds related items
-const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: string }>; items: NavItem[] }> = [
+// eslint-disable-next-line react-refresh/only-export-components
+export const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: string }>; items: NavItem[] }> = [
   {
     label: 'Operations',
     icon: BarChart3,

@@ -210,15 +210,21 @@ Implementation order:
 
 1. auth and portal routing
 2. field officer scan flow
-3. admin command centre
-4. observations, breaches, enforcement
-5. vehicles, zones, patrols
-6. reports, disputes, settings
+3. CRM and account operations surface
+4. admin command centre
+5. observations, breaches, enforcement
+6. vehicles, zones, patrols, and dispatch automation
+7. business management crossover and client portal
+8. reports, disputes, settings
 
 Rules:
 
 - mobile-first officer flow
 - desktop-first admin flow
+- CRM owns account context, with organisation -> site -> zone -> patrol/dispatch as the canonical admin hierarchy
+- Business Management owns internal capability, with staff -> roster -> fleet/assets -> checks -> audit as the canonical provider-side hierarchy
+- staff crossover between CRM and Business Management is mandatory for scheduling, dispatch, readiness, and audit traceability
+- client portal is a first-class product surface, not a reporting afterthought
 - no debug tooling in production navigation
 - merged pages replace duplicated variants
 
@@ -273,6 +279,10 @@ Deletion rule:
 
 - replace route sprawl with a small route tree
 - rebuild pages around feature modules instead of one page per variation
+- make CRM the canonical account surface for contacts, rates, access, sites, zones, and patrol readiness
+- make Business Management the canonical internal surface for users, workforce, fleet, assets, maintenance, and audit
+- preserve geofence-aware patrol execution as a first-class workflow, not a hidden field detail
+- deliver a dedicated client portal with account-scoped visibility for sites, zones, service status, and contract reports
 - remove production links to diagnostics and migration tooling
 
 ### Migration Track
@@ -354,17 +364,28 @@ Objectives:
 
 - deliver clean route tree in functional blocks
 - replace duplicated legacy variants with one canonical page per capability
+- keep account configuration and live operations connected, so admins move from client account -> site -> zone -> patrol/dispatch without changing mental model
+- keep client-facing operations and provider-side business management separate enough to stay understandable, but connected enough to share org context and auditability
 
 Implementation order:
 
 1. auth and portal routing
 2. officer workflow (`Scan`, `LiveMap`, `Patrols`, `Observations`)
-3. admin workflow (`Breaches`, `Enforcement`, `Vehicles`, `Zones`)
-4. governance workflow (`Disputes`, `Reports`, `Settings`, `UserManagement`, `Profile`)
+3. CRM/account workflow (`CRM`, `client accounts`, `sites`, `contacts`, `rates`, `access`)
+4. business management workflow (`Business`, `staff/users`, `roster`, `fleet`, `assets`, `daily checks`, `audit`)
+5. admin workflow (`Breaches`, `Enforcement`, `Vehicles`, `Zones`)
+6. patrol/dispatch workflow (`Patrols`, route execution, dispatch completion/resume, geofence auto-progress)
+7. client workflow (`ClientPortal`, `site visibility`, `service summaries`, `contract reports`, `dispute links`)
+8. governance workflow (`Disputes`, `Reports`, `Settings`, `Profile`)
 
 Exit criteria:
 
 - each block passes role-based route guards and core smoke tests
+- address entry can resolve coordinates and establish site-linked geofence defaults in the rebuilt admin flow
+- business management can trace staff, vehicle, and asset readiness from one org-scoped surface with audit history
+- patrol automation events are auditable and covered by deterministic role-based tests
+- crossover flows are validated end-to-end: CRM account/site context -> staffing/dispatch execution -> client-visible service outcome
+- client portal access is provably constrained to contract scope and excludes provider internal workforce/fleet internals
 - removed routes are archived, not left dangling in navigation
 
 ### Section D — Vercel Web Track (Required for Cutover)

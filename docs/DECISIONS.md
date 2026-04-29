@@ -14,6 +14,12 @@ When a pattern, platform, or architectural decision changes, append a dated note
 
 ## Current Standing Decisions
 
+- Date: 2026-04-28
+- Decision: Bob must run a Change Intent Validation Gate before editing code.
+- Scope: all bug fixes, test updates, route changes, and feature work.
+- Reason: prevent logical mismatches between route intent, rendered component, role access, expected outcome, and follow-on user flow.
+- Consequences: each change must verify: (1) should this item exist here, (2) how it should work, (3) expected visible result, (4) where it goes next, and (5) next behavior on success and failure.
+
 - Date: 2026-04-23
 - Decision: Bob must read `system_state.json` before making redesign or new-module claims.
 - Scope: architecture advice, `/chat`, `/code/task`, Dr Bob review, truth broadcaster.

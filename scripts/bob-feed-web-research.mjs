@@ -25,7 +25,17 @@ function clip(text, max = 1900) {
   return s.length > max ? `${s.slice(0, max)}...` : s
 }
 
-async function postBulletin(bulletin) {
+function isRunpodServerlessUrl(url) {
+  return /api\.runpod\.ai\/v2\//i.test(String(url || ''))
+}
+
+function normalizeRunpodBaseUrl(url) {
+  return String(url || '').trim().replace(/\/+$/, '').replace(/\/(?:run|run-sync|runsync)\/?$/i, '')
+}
+
+const FEED_MODE = isRunpodServerlessUrl(BOB_URL) ? 'runpod-runsync-chat-fallback' : 'intel-ingest-bulletin'
+
+async function postBulletinViaIntel(bulletin) {
   const response = await fetch(`${BOB_URL}/intel/ingest-bulletin`, {
     method: 'POST',
     headers: {
@@ -39,6 +49,37 @@ async function postBulletin(bulletin) {
     const text = await response.text().catch(() => '')
     throw new Error(`HTTP ${response.status}: ${text}`)
   }
+}
+
+async function postBulletinViaRunpodRunsync(bulletin) {
+  const runpodBase = normalizeRunpodBaseUrl(BOB_URL)
+  const prompt = [
+    'System training bulletin for Bob web research behavior.',
+    'Store this guidance in active session context for subsequent responses.',
+    JSON.stringify(bulletin),
+  ].join('\n\n')
+
+  const response = await fetch(`${runpodBase}/runsync`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${API_KEY}`,
+    },
+    body: JSON.stringify({ input: { message: prompt } }),
+  })
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    throw new Error(`HTTP ${response.status}: ${text}`)
+  }
+}
+
+async function postBulletin(bulletin) {
+  if (FEED_MODE === 'runpod-runsync-chat-fallback') {
+    return postBulletinViaRunpodRunsync(bulletin)
+  }
+
+  return postBulletinViaIntel(bulletin)
 }
 
 const bulletins = [
@@ -509,6 +550,10 @@ const bulletins = [
 
 console.log('\n🔎 Bob Web Research Training Feed')
 console.log(`Target: ${BOB_URL}`)
+console.log(`Mode: ${FEED_MODE}`)
+if (FEED_MODE === 'runpod-runsync-chat-fallback') {
+  console.log('Note: endpoint does not expose /intel/ingest-bulletin; feeding via /runsync session-context fallback.')
+}
 console.log(`Bulletins to push: ${bulletins.length}\n`)
 
 let passed = 0

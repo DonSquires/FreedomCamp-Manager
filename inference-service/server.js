@@ -95,6 +95,7 @@ const { traceUIElement, getStackMap, findRoute, getDebuggingSteps, ROUTE_MAP, DE
 const { checkLegalCompliance, getLegalFramework, getLegalDetail, AI_LEGAL_GUARDRAILS } = require('./lib/nz-legal-framework');
 const { getPlatformKnowledge, diagnosePlatformIssue, getHybridStackOverview, RAILWAY_SERVICES_AUDIT } = require('./lib/platform-knowledge');
 const { createKnowledgeRequestStore } = require('./lib/knowledge-requests');
+const { resolveBobProfile, buildProfileSystemPromptSection, hasPermission, invalidateBobProfileCache } = require('./lib/bob-profile');
 const { createCodeTaskStore } = require('./lib/code-tasks');
 const { recordResponseFeedback } = require('./lib/response-feedback');
 const { identifyPlants, getWeatherForLocation: getBioWeather } = require('./lib/biosecurity-inference');
@@ -201,6 +202,13 @@ function normalizeProvider(value, fallback) {
 
 function getSafetyCapabilitySummary() {
   return {
+    computer_use: {
+      enabled: BOB_COMPUTER_USE_ENABLED,
+      require_confirmation: BOB_COMPUTER_USE_REQUIRE_CONFIRMATION,
+      kill_switch_default: BOB_COMPUTER_USE_KILL_SWITCH_DEFAULT,
+      kill_switch_runtime: BOB_COMPUTER_USE_KILL_SWITCH_RUNTIME,
+      implemented_runtime: true,
+    },
     audio_classifier: {
       enabled: SAFETY_AUDIO_CLASSIFIER_ENABLED,
       provider: SAFETY_AUDIO_CLASSIFIER_PROVIDER,
@@ -745,6 +753,10 @@ const DOCTOR_AUDIT_MAX_ENTRIES = Number(process.env.DOCTOR_AUDIT_MAX_ENTRIES || 
 const DOCTOR_AUTO_HEAL_ENABLED = envFlag(process.env.DOCTOR_AUTO_HEAL_ENABLED, true);
 const DOCTOR_AUTO_HEAL_INTERVAL_MS = Math.max(30_000, Number(process.env.DOCTOR_AUTO_HEAL_INTERVAL_MS || 120_000));
 const DOCTOR_AUTO_HEAL_COOLDOWN_MS = Math.max(60_000, Number(process.env.DOCTOR_AUTO_HEAL_COOLDOWN_MS || 300_000));
+const BOB_COMPUTER_USE_ENABLED = envFlag(process.env.BOB_COMPUTER_USE_ENABLED, false);
+const BOB_COMPUTER_USE_REQUIRE_CONFIRMATION = envFlag(process.env.BOB_COMPUTER_USE_REQUIRE_CONFIRMATION, true);
+const BOB_COMPUTER_USE_KILL_SWITCH_DEFAULT = envFlag(process.env.BOB_COMPUTER_USE_KILL_SWITCH, false);
+let BOB_COMPUTER_USE_KILL_SWITCH_RUNTIME = BOB_COMPUTER_USE_KILL_SWITCH_DEFAULT;
 const BOB_INTERNAL_CODE_TASK_EXECUTOR_ENABLED = envFlag(process.env.BOB_INTERNAL_CODE_TASK_EXECUTOR_ENABLED, false);
 const BOB_INTERNAL_CODE_TASK_EXECUTOR_AUTORUN = envFlag(process.env.BOB_INTERNAL_CODE_TASK_EXECUTOR_AUTORUN, false);
 const BOB_INTERNAL_CODE_TASK_EXECUTOR_INTERVAL_MS = Math.max(15_000, Number(process.env.BOB_INTERNAL_CODE_TASK_EXECUTOR_INTERVAL_MS || 60_000));
@@ -1051,6 +1063,34 @@ const selfLearningService = createSelfLearningService({
   learningRate: SELF_LEARNING_RATE,
 });
 
+const scopedSelfLearningServices = new Map();
+
+function getScopedSelfLearningService(req, context = {}) {
+  const scope = resolveBobScope(req, context);
+  if (!scope.scoped) return selfLearningService;
+
+  const safeScopeKey = scope.scopeKey.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const cacheKey = safeScopeKey.slice(0, 180);
+  const existing = scopedSelfLearningServices.get(cacheKey);
+  if (existing) return existing;
+
+  const baseDir = path.dirname(SELF_LEARNING_STATE_PATH);
+  const scopedDir = path.join(baseDir, 'self-learning-scopes');
+  const scopedStatePath = path.join(scopedDir, `${cacheKey}.json`);
+
+  const service = createSelfLearningService({
+    enabled: SELF_LEARNING_ENABLED,
+    statePath: scopedStatePath,
+    initialThreshold: SIMILARITY_THRESHOLD,
+    minThreshold: SIMILARITY_THRESHOLD_MIN,
+    maxThreshold: SIMILARITY_THRESHOLD_MAX,
+    learningRate: SELF_LEARNING_RATE,
+  });
+
+  scopedSelfLearningServices.set(cacheKey, service);
+  return service;
+}
+
 const intelStore = createIntelStore({
   statePath: INTEL_STATE_PATH,
   hmacKey: INTEL_HMAC_KEY,
@@ -1143,11 +1183,11 @@ function answerFromTrainingIntel(message) {
   return bulletins.map((bulletin) => `${bulletin.title}: ${bulletin.summary}`).join('\n\n');
 }
 
-function buildChatHeuristicFallback(message, context = {}) {
+function buildChatHeuristicFallback(message, context = {}, scope = null) {
   if (CHAT_HEURISTIC_ENABLED) {
     return {
       provider: 'heuristic',
-      text: generateHeuristicChatReply(message, context),
+      text: generateHeuristicChatReply(message, context, scope),
       fallback: true,
     };
   }
@@ -1166,6 +1206,20 @@ const knowledgeRequestsStore = createKnowledgeRequestStore(
 const codeTaskStore = createCodeTaskStore(
   process.env.CODE_TASKS_PATH || path.join(__dirname, 'data', 'code-tasks.json')
 );
+
+function getKnowledgeCountsForScope(scope = null) {
+  if (!scope) return knowledgeRequestsStore.getCounts();
+  const requests = knowledgeRequestsStore.listRequests({ scope, limit: 500 });
+  const counts = { total: 0, pending: 0, answered: 0, skipped: 0, expired: 0 };
+  for (const request of requests) {
+    counts.total += 1;
+    if (request.status === 'pending') counts.pending += 1;
+    if (request.status === 'answered') counts.answered += 1;
+    if (request.status === 'skipped') counts.skipped += 1;
+    if (request.status === 'expired') counts.expired += 1;
+  }
+  return counts;
+}
 
 let internalCodeExecutorInFlight = false;
 const internalCodeExecutorState = {
@@ -1434,7 +1488,7 @@ const corsOptions = {
     callback(new Error('Not allowed by CORS'));
   },
   methods: ['POST', 'GET', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-inference-api-key', 'x-client-info', 'apikey'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-inference-api-key', 'x-client-info', 'apikey', 'x-user-id', 'x-org-id', 'x-user-role', 'x-user-email'],
   maxAge: 86400, // 24 hours
 };
 
@@ -1497,10 +1551,17 @@ async function requireInferenceAuth(req, res, next) {
     const bearerToken = getBearerToken(req);
     if (bearerToken && SUPABASE_JWKS_URL) {
       const jwtPayload = await verifySupabaseJwt(bearerToken);
+      const claimOrgId =
+        jwtPayload?.organization_id
+        || jwtPayload?.org_id
+        || jwtPayload?.app_metadata?.organization_id
+        || jwtPayload?.user_metadata?.organization_id
+        || null;
       req.inferenceAuth = {
         method: 'supabase_jwt',
         sub: jwtPayload?.sub || null,
         role: jwtPayload?.role || jwtPayload?.user_role || null,
+        organization_id: claimOrgId ? String(claimOrgId) : null,
       };
       return next();
     }
@@ -1514,6 +1575,142 @@ async function requireInferenceAuth(req, res, next) {
   } catch (error) {
     return res.status(401).json({ error: 'Unauthorized inference request', details: error.message });
   }
+}
+
+function cleanScopeId(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  return raw.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 120) || null;
+}
+
+function resolveBobScope(req, context = {}) {
+  const auth = req?.inferenceAuth || {};
+  const trustedHeaders = auth.method === 'service_role' || auth.method === 'api_key';
+
+  const headerUserId = trustedHeaders ? req.get('x-user-id') : null;
+  const headerOrgId = trustedHeaders ? req.get('x-org-id') : null;
+
+  const contextUserId = context?.user_id || context?.userId || null;
+  const contextOrgId = context?.organization_id || context?.organizationId || context?.org_id || context?.orgId || null;
+
+  const userId = cleanScopeId(auth.sub || headerUserId || contextUserId || null);
+  const orgId = cleanScopeId(auth.organization_id || headerOrgId || contextOrgId || null);
+
+  const scopeKey = `org:${orgId || 'shared'}|user:${userId || 'shared'}`;
+  return {
+    userId,
+    orgId,
+    scopeKey,
+    scoped: Boolean(userId || orgId),
+  };
+}
+
+function getKnowledgeRequestScope(req, context = {}) {
+  const scope = resolveBobScope(req, context);
+  if (!scope.scoped) return null;
+  return {
+    org_id: scope.orgId,
+    user_id: scope.userId,
+  };
+}
+
+function commandExists(command) {
+  try {
+    const paths = String(process.env.PATH || '').split(path.delimiter).filter(Boolean);
+    for (const p of paths) {
+      const candidate = path.join(p, command);
+      if (fs.existsSync(candidate)) return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function checkPythonModule(moduleName) {
+  try {
+    const result = require('child_process').spawnSync('python3', ['-c', `import importlib.util; raise SystemExit(0 if importlib.util.find_spec('${moduleName}') else 1)`], {
+      stdio: 'ignore',
+      timeout: 2000,
+    });
+    return result.status === 0;
+  } catch {
+    return false;
+  }
+}
+
+function getComputerUseReadinessSummary() {
+  const checks = {
+    api_key_present: Boolean(process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || process.env.GOOGLE_API_KEY),
+    docker_installed: commandExists('docker'),
+    python3_installed: commandExists('python3'),
+    pyautogui_installed: false,
+    ffmpeg_installed: commandExists('ffmpeg'),
+    computer_use_enabled_flag: BOB_COMPUTER_USE_ENABLED,
+    kill_switch_active: BOB_COMPUTER_USE_KILL_SWITCH_RUNTIME,
+  };
+
+  if (checks.python3_installed) {
+    checks.pyautogui_installed = checkPythonModule('pyautogui');
+  }
+
+  const warnings = [];
+  if (!checks.api_key_present) warnings.push('No multimodal API key detected (ANTHROPIC_API_KEY / OPENAI_API_KEY / GOOGLE_API_KEY).');
+  if (!checks.docker_installed) warnings.push('Docker not detected; containerized computer-use mode unavailable.');
+  if (!checks.python3_installed) warnings.push('python3 not detected; custom automation toolchain unavailable.');
+  if (checks.python3_installed && !checks.pyautogui_installed) warnings.push('pyautogui not installed; custom Python computer-use path unavailable.');
+  if (checks.kill_switch_active) warnings.push('Computer-use kill switch is currently active.');
+
+  return {
+    os: os.platform(),
+    checks,
+    warnings,
+    recommended_path: checks.api_key_present && checks.docker_installed
+      ? 'pro-containerized'
+      : checks.api_key_present
+        ? 'api-assisted'
+        : 'configure-api-keys-first',
+  };
+}
+
+function isComputerUseActionDestructive(action = {}) {
+  const text = `${action?.name || ''} ${action?.description || ''} ${action?.target || ''}`.toLowerCase();
+  return /(delete|remove|drop|purge|wipe|terminate|destroy|overwrite|bulk\s+update|disable)/.test(text);
+}
+
+function isAdminLikeRole(role) {
+  return ['master', 'admin'].includes(String(role || '').toLowerCase());
+}
+
+async function resolveComputerUsePolicy(req, context = {}, action = {}) {
+  const bobProfile = await resolveBobProfile(
+    req.inferenceAuth?.sub || context?.user_id || null,
+    req.inferenceAuth?.organization_id || context?.organization_id || null,
+    req.inferenceAuth?.role || context?.user_role || null,
+  );
+
+  const allowedByProfile = hasPermission(bobProfile, 'computer_use') && !!bobProfile.computer_use_enabled;
+  const destructive = isComputerUseActionDestructive(action) || !!action?.destructive;
+  const manualConfirmationRequired = BOB_COMPUTER_USE_REQUIRE_CONFIRMATION && destructive;
+  const confirmationAccepted = !!action?.confirmed;
+
+  const violations = [];
+  if (!BOB_COMPUTER_USE_ENABLED) violations.push('computer_use_disabled_global');
+  if (BOB_COMPUTER_USE_KILL_SWITCH_RUNTIME) violations.push('kill_switch_active');
+  if (!allowedByProfile) violations.push('profile_lacks_computer_use_permission');
+  if (manualConfirmationRequired && !confirmationAccepted) violations.push('manual_confirmation_required');
+
+  return {
+    allowed: violations.length === 0,
+    destructive,
+    manual_confirmation_required: manualConfirmationRequired,
+    confirmation_accepted: confirmationAccepted,
+    violations,
+    profile: {
+      bob_tier: bobProfile?.bob_tier || 'guest',
+      computer_use_enabled: !!bobProfile?.computer_use_enabled,
+    },
+  };
 }
 
 // Configure multer for image uploads
@@ -2227,7 +2424,7 @@ function buildGoldStandardFallbackPlan(moduleName, qualityReport) {
   ].join('\n').slice(0, 8000);
 }
 
-function generateHeuristicChatReply(message, context = {}) {
+function generateHeuristicChatReply(message, context = {}, scope = null) {
   const text = String(message || '').trim();
   if (!text) {
     return 'Please share a question or instruction so I can help.';
@@ -2305,7 +2502,7 @@ function generateHeuristicChatReply(message, context = {}) {
   // re-enable the full historical rulebook below.
   if (!useLegacyPlaybook) {
     try {
-      knowledgeRequestsStore.queueRequest(text, { source: 'heuristic-chat-fallback', context: context?.page || null });
+      knowledgeRequestsStore.queueRequest(text, { source: 'heuristic-chat-fallback', context: context?.page || null, scope });
     } catch (err) {
       console.warn('Failed to queue knowledge request:', err.message);
     }
@@ -2525,7 +2722,7 @@ function generateHeuristicChatReply(message, context = {}) {
   const tone = context?.tone === 'brief' ? 'briefly' : 'clearly';
   // Auto-queue unknown questions for Copilot research
   try {
-    knowledgeRequestsStore.queueRequest(text, { source: 'heuristic-chat-fallback', context: context?.page || null });
+    knowledgeRequestsStore.queueRequest(text, { source: 'heuristic-chat-fallback', context: context?.page || null, scope });
   } catch (err) {
     // Non-blocking — queue failure should not affect chat response
     console.warn('Failed to queue knowledge request:', err.message);
@@ -2533,18 +2730,18 @@ function generateHeuristicChatReply(message, context = {}) {
   return `I don't have a specific answer for that in my current knowledge. I've queued this question for Copilot research — it will be answered and added to my intel feed via the ops-bob-ask-copilot workflow. Check GET /ask-copilot/pending to monitor status. In the meantime, I will respond ${tone} with what I know and keep recommendations aligned with local enforcement policy and NZ legal requirements.`;
 }
 
-async function generateChatReplyWithOllama(message, history = [], context = {}, systemPromptOverride = null) {
+async function generateChatReplyWithOllama(message, history = [], context = {}, systemPromptOverride = null, scope = null) {
   const complex = isComplexChatTask(message, history);
   const ollamaBaseUrl = getOllamaBaseUrlForWorkload('chat', complex);
   // Track RunPod activity so the idle-stop timer fires correctly.
   if (ollamaBaseUrl !== SIMPLE_OLLAMA_URL) runpodPodManager.recordActivity();
   if (!OLLAMA_ENABLED) {
     recordEgressEvent('ollama', 'blocked', 'Chat requested ollama but local ollama is unavailable');
-    return buildChatHeuristicFallback(message, context);
+    return buildChatHeuristicFallback(message, context, scope);
   }
 
   if (!ollamaCircuitBreaker.allowRequest()) {
-    return buildChatHeuristicFallback(message, context);
+    return buildChatHeuristicFallback(message, context, scope);
   }
 
   const controller = new AbortController();
@@ -2593,18 +2790,18 @@ async function generateChatReplyWithOllama(message, history = [], context = {}, 
 
     if (!response.ok) {
       ollamaCircuitBreaker.recordFailure(new Error(`HTTP ${response.status}`));
-      return buildChatHeuristicFallback(message, context);
+      return buildChatHeuristicFallback(message, context, scope);
     }
 
     const payload = await response.json();
     const content = payload?.message?.content;
     if (!content || typeof content !== 'string') {
-      return buildChatHeuristicFallback(message, context);
+      return buildChatHeuristicFallback(message, context, scope);
     }
 
     const trimmed = content.trim();
     if (!trimmed) {
-      return buildChatHeuristicFallback(message, context);
+      return buildChatHeuristicFallback(message, context, scope);
     }
 
     let quality_gate = null;
@@ -2659,7 +2856,7 @@ async function generateChatReplyWithOllama(message, history = [], context = {}, 
     } else {
       console.warn(`⚠️ Local chat via Ollama failed (${ollamaBaseUrl}):`, error.message);
     }
-    return buildChatHeuristicFallback(message, context);
+    return buildChatHeuristicFallback(message, context, scope);
   } finally {
     clearTimeout(timeout);
   }
@@ -2856,8 +3053,24 @@ app.post('/chat', inferenceRateLimit, requireInferenceAuth, async (req, res) => 
       }
     }
 
+    const requestScope = getKnowledgeRequestScope(req, context);
+
+    // Resolve Bob persona profile for this user
+    const bobProfile = await resolveBobProfile(
+      req.inferenceAuth?.sub || context?.user_id || null,
+      req.inferenceAuth?.organization_id || context?.organization_id || null,
+      req.inferenceAuth?.role || context?.user_role || null,
+    );
+
+    // Build personalized system prompt suffix from profile
+    const profilePromptSection = buildProfileSystemPromptSection(bobProfile);
+    // Append profile section to any existing system prompt override; if none, it becomes the override overlay
+    const effectiveSystemPromptOverride = systemPromptOverride
+      ? systemPromptOverride + profilePromptSection
+      : profilePromptSection;
+
     if (CHAT_PROVIDER === 'ollama') {
-      const reply = await generateChatReplyWithOllama(message, history, context, systemPromptOverride);
+      const reply = await generateChatReplyWithOllama(message, history, context, effectiveSystemPromptOverride, requestScope);
       logBobResponse({
         target: 'Bob',
         channel: reply.provider || 'ollama',
@@ -2884,7 +3097,7 @@ app.post('/chat', inferenceRateLimit, requireInferenceAuth, async (req, res) => 
       });
     }
 
-    const heuristicReply = generateHeuristicChatReply(message, context);
+    const heuristicReply = generateHeuristicChatReply(message, context, requestScope);
     logBobResponse({
       target: 'Bob',
       channel: 'heuristic',
@@ -2898,7 +3111,7 @@ app.post('/chat', inferenceRateLimit, requireInferenceAuth, async (req, res) => 
       provider: 'heuristic',
       fallback: false,
       message: heuristicReply,
-      text: generateHeuristicChatReply(message, context),
+      text: heuristicReply,
     });
   } catch (error) {
     console.error('Chat endpoint error:', error);
@@ -3686,6 +3899,69 @@ app.post('/self-heal/patch-task', inferenceRateLimit, requireInferenceAuth, asyn
   }
 });
 
+app.get('/self-heal/computer-use/readiness', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  try {
+    return res.json({
+      success: true,
+      self_healing_enabled: SELF_HEALING_ENABLED,
+      readiness: getComputerUseReadinessSummary(),
+      safety_checklist: [
+        'Manual confirmation enabled for destructive actions',
+        'Kill switch known and tested (Ctrl+C / emergency stop)',
+        'Sensitive windows hidden before screen-sharing tasks',
+        'Accessibility/screen permissions restricted to trusted host app',
+      ],
+    });
+  } catch (error) {
+    return res.status(500).json({ error: 'Computer-use readiness check failed', message: error.message });
+  }
+});
+
+app.post('/self-heal/computer-use/preflight', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    if (!SELF_HEALING_ENABLED) {
+      return res.status(503).json({ error: 'Self-healing assistant is disabled' });
+    }
+
+    const action = req.body?.action && typeof req.body.action === 'object' ? req.body.action : {};
+    const context = req.body?.context && typeof req.body.context === 'object' ? req.body.context : {};
+    const policy = await resolveComputerUsePolicy(req, context, action);
+
+    return res.json({
+      success: true,
+      computer_use_allowed: policy.allowed,
+      policy,
+      recommendation: policy.allowed
+        ? 'Proceed with cautious execution and audit logging.'
+        : 'Block execution and request manual operator review.',
+    });
+  } catch (error) {
+    return res.status(500).json({ error: 'Computer-use preflight failed', message: error.message });
+  }
+});
+
+app.post('/self-heal/computer-use/kill-switch', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    if (!isAdminLikeRole(req.inferenceAuth?.role)) {
+      return res.status(403).json({ error: 'Forbidden', message: 'Admin role required.' });
+    }
+
+    const enabled = req.body?.enabled;
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'enabled boolean is required' });
+    }
+
+    BOB_COMPUTER_USE_KILL_SWITCH_RUNTIME = enabled;
+    return res.json({
+      success: true,
+      kill_switch_active: BOB_COMPUTER_USE_KILL_SWITCH_RUNTIME,
+      note: 'Runtime-only toggle applied. Persist with BOB_COMPUTER_USE_KILL_SWITCH env var if required.',
+    });
+  } catch (error) {
+    return res.status(500).json({ error: 'Kill switch update failed', message: error.message });
+  }
+});
+
 app.post('/intel/ingest-bulletin', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
   try {
     const rawBody = JSON.stringify(req.body || {});
@@ -4196,11 +4472,13 @@ app.post('/ask-copilot', inferenceRateLimit, requireInferenceAuth, async (req, r
       });
     }
 
+    const requestScope = getKnowledgeRequestScope(req, req.body?.context || {});
     const request = knowledgeRequestsStore.queueRequest(question, {
       category: req.body?.category,
       context: req.body?.context,
       source: req.body?.source || 'api',
       priority: req.body?.priority,
+      scope: requestScope,
     });
 
     return res.status(201).json({
@@ -4221,11 +4499,12 @@ app.get('/ask-copilot', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: 
     const category = req.query.category;
     const limit = req.query.limit ? parseInt(req.query.limit, 10) : 50;
 
-    const requests = knowledgeRequestsStore.listRequests({ status, category, limit });
+    const requestScope = getKnowledgeRequestScope(req, {});
+    const requests = knowledgeRequestsStore.listRequests({ status, category, limit, scope: requestScope });
     return res.json({
       success: true,
       requests,
-      counts: knowledgeRequestsStore.getCounts(),
+      counts: getKnowledgeCountsForScope(requestScope),
     });
   } catch (error) {
     console.error('Ask-copilot list error:', error);
@@ -4239,17 +4518,19 @@ app.get('/ask-copilot/pending', rateLimit({ windowMs: 60_000, max: 120, standard
     const limit = req.query.limit ? parseInt(req.query.limit, 10) : 20;
     const priority = req.query.priority;
 
+    const requestScope = getKnowledgeRequestScope(req, {});
     const requests = knowledgeRequestsStore.listRequests({
       status: 'pending',
       priority: priority || undefined,
       limit,
+      scope: requestScope,
     });
 
     return res.json({
       success: true,
       pending_count: requests.length,
       requests,
-      counts: knowledgeRequestsStore.getCounts(),
+      counts: getKnowledgeCountsForScope(requestScope),
       tip: 'POST /ask-copilot/:id/answer to send a researched answer. POST /ask-copilot/:id/skip to mark unanswerable.',
     });
   } catch (error) {
@@ -4271,9 +4552,11 @@ app.post('/ask-copilot/:id/answer', inferenceRateLimit, requireInferenceAuth, as
     const githubIssueUrl = req.body?.github_issue_url ? String(req.body.github_issue_url) : undefined;
 
     // Update the knowledge request record
+    const requestScope = getKnowledgeRequestScope(req, req.body?.context || {});
     const request = knowledgeRequestsStore.answerRequest(id, answer, {
       source: answerSource,
       github_issue_url: githubIssueUrl,
+      scope: requestScope,
     });
 
     // Auto-ingest into Bob's intel feed so all future queries benefit
@@ -4315,7 +4598,8 @@ app.post('/ask-copilot/:id/skip', inferenceRateLimit, requireInferenceAuth, asyn
   try {
     const { id } = req.params;
     const reason = req.body?.reason;
-    const request = knowledgeRequestsStore.skipRequest(id, reason);
+    const requestScope = getKnowledgeRequestScope(req, req.body?.context || {});
+    const request = knowledgeRequestsStore.skipRequest(id, reason, { scope: requestScope });
     return res.json({ success: true, request });
   } catch (error) {
     const status = error.message.includes('not found') ? 404 : 500;
@@ -4326,7 +4610,8 @@ app.post('/ask-copilot/:id/skip', inferenceRateLimit, requireInferenceAuth, asyn
 // Delete a knowledge request
 app.delete('/ask-copilot/:id', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
   try {
-    knowledgeRequestsStore.deleteRequest(req.params.id);
+    const requestScope = getKnowledgeRequestScope(req, req.body?.context || {});
+    knowledgeRequestsStore.deleteRequest(req.params.id, { scope: requestScope });
     return res.json({ success: true });
   } catch (error) {
     const status = error.message.includes('not found') ? 404 : 500;
@@ -6134,7 +6419,8 @@ app.post('/infer/compare', inferenceRateLimit, requireInferenceAuth, async (req,
       ? dot / (Math.sqrt(norm1) * Math.sqrt(norm2))
       : 0;
 
-    const activeThreshold = selfLearningService.getThreshold();
+    const scopedLearningService = getScopedSelfLearningService(req, req.body?.context || {});
+    const activeThreshold = scopedLearningService.getThreshold();
     const same_vehicle = similarity >= activeThreshold;
     const confidence   = similarity >= (activeThreshold + 0.07) ? 'high'
                         : similarity >= activeThreshold ? 'medium'
@@ -6153,7 +6439,7 @@ app.post('/infer/compare', inferenceRateLimit, requireInferenceAuth, async (req,
       same_vehicle,
       confidence,
       threshold_used: round4(activeThreshold),
-      self_learning_enabled: selfLearningService.enabled,
+      self_learning_enabled: scopedLearningService.enabled,
       interpretation:
         same_vehicle
           ? `Same vehicle detected (similarity ${(similarity * 100).toFixed(1)}%)`
@@ -6182,13 +6468,15 @@ app.post('/learn/compare-feedback', inferenceRateLimit, requireInferenceAuth, as
       return res.status(400).json({ error: 'actual_same_vehicle must be a boolean' });
     }
 
-    const learningResult = selfLearningService.applyCompareFeedback({
+    const scopedLearningService = getScopedSelfLearningService(req, context);
+
+    const learningResult = scopedLearningService.applyCompareFeedback({
       similarity,
       actual_same_vehicle: actualSameVehicle,
       context,
     });
 
-    const operational = selfLearningService.applyOperationalFeedback({
+    const operational = scopedLearningService.applyOperationalFeedback({
       pipeline: 'compare',
       confidence: similarity,
       was_correct: learningResult.predicted_same_vehicle === learningResult.actual_same_vehicle,
@@ -6214,6 +6502,8 @@ app.post('/learn/ingest-feedback', inferenceRateLimit, requireInferenceAuth, asy
       return res.status(400).json({ error: 'events must be a non-empty array' });
     }
 
+    const scopedLearningService = getScopedSelfLearningService(req, req.body?.context || {});
+
     const maxEvents = Math.min(events.length, 200);
     let compareFeedbackApplied = 0;
     let operationalFeedbackApplied = 0;
@@ -6225,7 +6515,7 @@ app.post('/learn/ingest-feedback', inferenceRateLimit, requireInferenceAuth, asy
       const pipeline = String(event.pipeline || 'unknown').toLowerCase();
       const incomingKey = safeEventKey(event.event_key);
       const derivedKey = incomingKey || safeEventKey(`${source}|${pipeline}|${event.similarity ?? ''}|${event.actual_same_vehicle ?? ''}|${event.confidence ?? ''}|${event.was_correct ?? ''}|${event.note ?? ''}`);
-      if (derivedKey && selfLearningService.hasProcessedEventKey(derivedKey)) {
+      if (derivedKey && scopedLearningService.hasProcessedEventKey(derivedKey)) {
         duplicateEventsSkipped += 1;
         continue;
       }
@@ -6241,7 +6531,7 @@ app.post('/learn/ingest-feedback', inferenceRateLimit, requireInferenceAuth, asy
 
       if (Number.isFinite(Number(event.similarity)) && typeof event.actual_same_vehicle === 'boolean') {
         try {
-          selfLearningService.applyCompareFeedback({
+          scopedLearningService.applyCompareFeedback({
             similarity: Number(event.similarity),
             actual_same_vehicle: event.actual_same_vehicle,
             context,
@@ -6254,7 +6544,7 @@ app.post('/learn/ingest-feedback', inferenceRateLimit, requireInferenceAuth, asy
       }
 
       try {
-        const result = selfLearningService.applyOperationalFeedback({
+        const result = scopedLearningService.applyOperationalFeedback({
           pipeline,
           confidence: Number(event.confidence),
           was_correct: typeof event.was_correct === 'boolean' ? event.was_correct : null,
@@ -6269,7 +6559,7 @@ app.post('/learn/ingest-feedback', inferenceRateLimit, requireInferenceAuth, asy
       }
 
       if (eventApplied && derivedKey) {
-        selfLearningService.markProcessedEventKey(derivedKey);
+        scopedLearningService.markProcessedEventKey(derivedKey);
       }
     }
 
@@ -6282,7 +6572,7 @@ app.post('/learn/ingest-feedback', inferenceRateLimit, requireInferenceAuth, asy
       operational_feedback_applied: operationalFeedbackApplied,
       duplicate_events_skipped: duplicateEventsSkipped,
       warnings: warnings.slice(0, 20),
-      learning: selfLearningService.getState(),
+      learning: scopedLearningService.getState(),
     });
   } catch (error) {
     return res.status(500).json({ error: 'Failed to ingest feedback', message: error.message });
@@ -6291,7 +6581,8 @@ app.post('/learn/ingest-feedback', inferenceRateLimit, requireInferenceAuth, asy
 
 app.post('/learn/pretrain', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
   try {
-    if (!selfLearningService.enabled) {
+    const scopedLearningService = getScopedSelfLearningService(req, req.body?.context || {});
+    if (!scopedLearningService.enabled) {
       return res.status(503).json({ error: 'Self-learning is disabled' });
     }
 
@@ -6301,11 +6592,11 @@ app.post('/learn/pretrain', inferenceRateLimit, requireInferenceAuth, async (req
       ? clamp(Math.floor(requestedMultiplier), 1, 50)
       : SELF_LEARNING_PRETRAIN_MULTIPLIER;
     const examples = profileExamples(profile);
-    const thresholdBefore = selfLearningService.getThreshold();
+    const thresholdBefore = scopedLearningService.getThreshold();
 
     for (let i = 0; i < multiplier; i++) {
       for (const ex of examples) {
-        selfLearningService.applyCompareFeedback({
+        scopedLearningService.applyCompareFeedback({
           similarity: ex.similarity,
           actual_same_vehicle: ex.actual,
           context: {
@@ -6316,7 +6607,7 @@ app.post('/learn/pretrain', inferenceRateLimit, requireInferenceAuth, async (req
       }
     }
 
-    const thresholdAfter = selfLearningService.getThreshold();
+    const thresholdAfter = scopedLearningService.getThreshold();
     return res.json({
       success: true,
       profile,
@@ -6324,7 +6615,7 @@ app.post('/learn/pretrain', inferenceRateLimit, requireInferenceAuth, async (req
       samples_applied: examples.length * multiplier,
       threshold_before: round4(thresholdBefore),
       threshold_after: round4(thresholdAfter),
-      learning: selfLearningService.getState(),
+      learning: scopedLearningService.getState(),
     });
   } catch (error) {
     return res.status(500).json({ error: 'Pretraining run failed', message: error.message });
@@ -6334,7 +6625,8 @@ app.post('/learn/pretrain', inferenceRateLimit, requireInferenceAuth, async (req
 app.get('/learn/dedup-state', rateLimit({ windowMs: 60_000, max: 30, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
   const limitRaw = Number(req.query?.limit || 200);
   const limit = Number.isFinite(limitRaw) ? clamp(Math.floor(limitRaw), 1, 1000) : 200;
-  const keys = selfLearningService.listProcessedEventKeys(limit);
+  const scopedLearningService = getScopedSelfLearningService(req, req.body?.context || {});
+  const keys = scopedLearningService.listProcessedEventKeys(limit);
 
   return res.json({
     success: true,
@@ -6347,12 +6639,13 @@ app.get('/learn/dedup-state', rateLimit({ windowMs: 60_000, max: 30, standardHea
 app.post('/learn/dedup-reset', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
   try {
     const prefix = cleanText(req.body?.prefix || '') || '';
-    const resetResult = selfLearningService.clearProcessedEventKeys({ prefix });
+    const scopedLearningService = getScopedSelfLearningService(req, req.body?.context || {});
+    const resetResult = scopedLearningService.clearProcessedEventKeys({ prefix });
 
     return res.json({
       success: true,
       reset: resetResult,
-      learning: selfLearningService.getState(),
+      learning: scopedLearningService.getState(),
     });
   } catch (error) {
     return res.status(500).json({ error: 'Failed to reset dedup cache', message: error.message });
@@ -6360,9 +6653,10 @@ app.post('/learn/dedup-reset', inferenceRateLimit, requireInferenceAuth, async (
 });
 
 app.get('/learn/state', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, (req, res) => {
+  const scopedLearningService = getScopedSelfLearningService(req, req.body?.context || {});
   return res.json({
     success: true,
-    learning: selfLearningService.getState(),
+    learning: scopedLearningService.getState(),
   });
 });
 
@@ -7326,6 +7620,40 @@ app.post('/infer/speak', inferenceRateLimit, requireInferenceAuth, async (req, r
     console.error('❌ /infer/speak error:', error);
     return res.status(500).json({ error: 'Speech synthesis failed', message: error.message });
   }
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Bob User Profile endpoints
+// ──────────────────────────────────────────────────────────────────────────────
+
+// GET /bob-profile — return the resolved Bob profile for the authenticated caller
+app.get('/bob-profile', requireInferenceAuth, async (req, res) => {
+  try {
+    const profile = await resolveBobProfile(
+      req.inferenceAuth?.sub || null,
+      req.inferenceAuth?.organization_id || null,
+      req.inferenceAuth?.role || null,
+    );
+    return res.json({ success: true, profile });
+  } catch (err) {
+    return res.status(500).json({ error: 'Profile fetch failed', message: err.message });
+  }
+});
+
+// POST /bob-profile/invalidate-cache — force cache eviction for a user (admin only)
+app.post('/bob-profile/invalidate-cache', requireInferenceAuth, (req, res) => {
+  const callerTier = resolveBobScope(req, {}).tier;
+  const isAdmin = ['captain', 'commander'].includes(callerTier) ||
+    ['admin', 'master'].includes(req.inferenceAuth?.role || '');
+  if (!isAdmin) {
+    return res.status(403).json({ error: 'Forbidden', message: 'Admin tier required to invalidate profile cache.' });
+  }
+  const { user_id } = req.body || {};
+  if (user_id && typeof user_id === 'string') {
+    invalidateBobProfileCache(user_id);
+    return res.json({ success: true, invalidated: user_id });
+  }
+  return res.status(400).json({ error: 'user_id required' });
 });
 
 // Health check

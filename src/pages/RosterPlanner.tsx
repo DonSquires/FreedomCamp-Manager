@@ -3,7 +3,7 @@
  * security companies. Officers as rows, days as columns, shift cards in cells.
  */
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -61,6 +61,11 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
+  useGeneratePatrolRouteInstance,
+  usePatrolRouteInstanceStops,
+  usePatrolRouteInstances,
+} from '@/hooks/usePatrolRouteInstances'
+import {
   format,
   addDays,
   startOfWeek,
@@ -86,6 +91,7 @@ interface RosterShift {
   officer_id: string | null
   client_site_id: string | null
   zone_id: string | null
+  patrol_route_id: string | null
   shift_date: string
   shift_type: ShiftType
   start_time: string | null
@@ -135,6 +141,15 @@ interface Zone {
   name: string
 }
 
+interface PatrolRoute {
+  id: string
+  route_name: string
+  default_shift: string | null
+  randomization_enabled: boolean | null
+  jitter_window_minutes: number | null
+  mandatory_first_stop: boolean | null
+}
+
 interface OfficerAvailability {
   id: string
   officer_id: string
@@ -154,6 +169,7 @@ interface ShiftFormData {
   position_title: string
   client_site_id: string
   zone_id: string
+  patrol_route_id: string
   required_skills: string[]
   notes: string
   internal_notes: string
@@ -175,6 +191,7 @@ const emptyForm = (officerId = '', date = ''): ShiftFormData => ({
   position_title: '',
   client_site_id: '',
   zone_id: '',
+  patrol_route_id: '',
   required_skills: [],
   notes: '',
   internal_notes: '',
@@ -395,6 +412,7 @@ interface ShiftDialogProps {
   officers: Officer[]
   sites: ClientSite[]
   zones: Zone[]
+  patrolRoutes: PatrolRoute[]
   allShifts: RosterShift[]
   availability: OfficerAvailability[]
   isAdmin: boolean
@@ -413,6 +431,7 @@ function ShiftDialog({
   officers,
   sites,
   zones,
+  patrolRoutes,
   allShifts,
   availability,
   isAdmin,
@@ -433,6 +452,7 @@ function ShiftDialog({
           position_title: editShift.position_title || '',
           client_site_id: editShift.client_site_id || '',
           zone_id: editShift.zone_id || '',
+          patrol_route_id: editShift.patrol_route_id || '',
           required_skills: editShift.required_skills || [],
           notes: editShift.notes || '',
           internal_notes: editShift.internal_notes || '',
@@ -446,6 +466,7 @@ function ShiftDialog({
 
   const [skillInput, setSkillInput] = useState('')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [selectedRouteInstanceId, setSelectedRouteInstanceId] = useState<string>('')
 
   const set = useCallback(
     <K extends keyof ShiftFormData>(key: K, value: ShiftFormData[K]) =>
@@ -460,6 +481,20 @@ function ShiftDialog({
     allShifts,
     availability
   )
+
+  const routeInstanceFilters = editShift?.id ? { rosterShiftId: editShift.id } : undefined
+  const { data: routeInstances = [], isLoading: routeInstancesLoading } = usePatrolRouteInstances(routeInstanceFilters)
+  const { data: routeStops = [], isLoading: routeStopsLoading } = usePatrolRouteInstanceStops(selectedRouteInstanceId)
+  const generateRouteInstanceMutation = useGeneratePatrolRouteInstance()
+
+  useEffect(() => {
+    if (routeInstances.length > 0 && !selectedRouteInstanceId) {
+      setSelectedRouteInstanceId(routeInstances[0].id)
+    }
+    if (routeInstances.length === 0 && selectedRouteInstanceId) {
+      setSelectedRouteInstanceId('')
+    }
+  }, [routeInstances, selectedRouteInstanceId])
 
   function addSkill() {
     const trimmed = skillInput.trim()
@@ -480,6 +515,37 @@ function ShiftDialog({
     if (!form.end_time)   { toast.error('Please enter an end time'); return }
     onSave(form)
   }
+
+  function handleGenerateRoutePlan(forceRegenerate = false) {
+    if (!editShift?.id) {
+      toast.error('Save this shift before generating a route plan')
+      return
+    }
+
+    const effectiveRouteId = form.patrol_route_id || editShift.patrol_route_id
+    if (!effectiveRouteId) {
+      toast.error('Select a patrol route before generating a plan')
+      return
+    }
+
+    if (form.patrol_route_id !== (editShift.patrol_route_id || '')) {
+      toast.error('Save patrol route changes first, then generate plan')
+      return
+    }
+
+    generateRouteInstanceMutation.mutate(
+      { rosterShiftId: editShift.id, forceRegenerate },
+      {
+        onSuccess: (result) => {
+          if (result?.route_instance_id) {
+            setSelectedRouteInstanceId(result.route_instance_id)
+          }
+        },
+      }
+    )
+  }
+
+  const showPatrolRoutePicker = ['patrol', 'alarm_response', 'freedom_camping'].includes(form.service_type)
 
   return (
     <>
@@ -617,6 +683,146 @@ function ShiftDialog({
                 Controls which portal the officer is routed to on login.
               </p>
             </div>
+
+            {/* Patrol Route (pilot, additive) */}
+            {showPatrolRoutePicker && (
+              <div>
+                <Label>Patrol Route</Label>
+                <Select
+                  value={form.patrol_route_id || '__none__'}
+                  onValueChange={(v) => set('patrol_route_id', v === '__none__' ? '' : v)}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select patrol route…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— None —</SelectItem>
+                    {patrolRoutes.map((route) => (
+                      <SelectItem key={route.id} value={route.id}>
+                        {route.route_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Optional pilot field. Route-aware planning is additive and does not alter existing shift behavior.
+                </p>
+              </div>
+            )}
+
+            {isAdmin && editShift && showPatrolRoutePicker && (
+              <div className="col-span-2 rounded-md border p-3 bg-slate-50">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">Patrol Plan</p>
+                    <p className="text-xs text-slate-500">Generate and review route-instance stops for this shift.</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleGenerateRoutePlan(false)}
+                      disabled={generateRouteInstanceMutation.isPending || !form.patrol_route_id}
+                    >
+                      {generateRouteInstanceMutation.isPending ? 'Generating…' : 'Generate Plan'}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => handleGenerateRoutePlan(true)}
+                      disabled={generateRouteInstanceMutation.isPending || !form.patrol_route_id}
+                    >
+                      Regenerate
+                    </Button>
+                  </div>
+                </div>
+
+                {(() => {
+                  const selectedRoute = patrolRoutes.find(r => r.id === form.patrol_route_id)
+                  if (!selectedRoute) return null
+                  return (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      <Badge variant="outline" className="text-[10px]">
+                        {selectedRoute.randomization_enabled ? '🔀 Randomized' : '⏩ Sequential'}
+                      </Badge>
+                      {selectedRoute.randomization_enabled && selectedRoute.jitter_window_minutes != null && (
+                        <Badge variant="outline" className="text-[10px]">
+                          ±{selectedRoute.jitter_window_minutes}min jitter
+                        </Badge>
+                      )}
+                      {selectedRoute.mandatory_first_stop && (
+                        <Badge variant="outline" className="text-[10px]">First stop locked</Badge>
+                      )}
+                    </div>
+                  )
+                })()}
+
+                <Separator className="my-3" />
+
+                {routeInstancesLoading ? (
+                  <p className="text-xs text-slate-500">Loading plan instances…</p>
+                ) : routeInstances.length === 0 ? (
+                  <p className="text-xs text-slate-500">No route plan generated for this shift yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs">Plan Instance</Label>
+                        <Select value={selectedRouteInstanceId} onValueChange={setSelectedRouteInstanceId}>
+                          <SelectTrigger className="mt-1 h-8">
+                            <SelectValue placeholder="Select plan instance" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {routeInstances.map((instance) => (
+                              <SelectItem key={instance.id} value={instance.id}>
+                                {format(parseISO(instance.created_at), 'd MMM HH:mm')} · {instance.plan_status}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-end">
+                        {(() => {
+                          const selectedInstance = routeInstances.find((r) => r.id === selectedRouteInstanceId)
+                          if (!selectedInstance) return null
+                          return (
+                            <Badge variant="outline" className="capitalize">
+                              {selectedInstance.plan_status.replace('_', ' ')}
+                            </Badge>
+                          )
+                        })()}
+                      </div>
+                    </div>
+
+                    <div className="rounded border bg-white p-2 max-h-48 overflow-y-auto space-y-1">
+                      {routeStopsLoading ? (
+                        <p className="text-xs text-slate-500">Loading stops…</p>
+                      ) : routeStops.length === 0 ? (
+                        <p className="text-xs text-slate-500">No stops found for this plan instance.</p>
+                      ) : (
+                        routeStops.map((stop) => (
+                          <div key={stop.id} className="flex items-center justify-between gap-2 text-xs border rounded px-2 py-1">
+                            <div className="min-w-0">
+                              <p className="font-medium text-slate-700 truncate">
+                                {stop.sequence_no}. {stop.stop_name}
+                                {stop.is_mandatory ? ' • mandatory' : ''}
+                              </p>
+                              <p className="text-slate-500 capitalize">{stop.visit_status}</p>
+                            </div>
+                            <div className="shrink-0 text-slate-500">
+                              {stop.planned_arrival_window_start && stop.planned_arrival_window_end
+                                ? `${format(parseISO(stop.planned_arrival_window_start), 'HH:mm')}–${format(parseISO(stop.planned_arrival_window_end), 'HH:mm')}`
+                                : 'No window'}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Position Title */}
             <div>
@@ -980,6 +1186,21 @@ export default function RosterPlanner() {
     enabled: !!user?.organization_id && !clientOrgIdsLoading,
   })
 
+  const { data: patrolRoutes = [] } = useQuery<PatrolRoute[]>({
+    queryKey: ['roster_patrol_routes', user?.organization_id],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('patrol_routes')
+        .select('id, route_name, default_shift, randomization_enabled, jitter_window_minutes, mandatory_first_stop')
+        .eq('organization_id', user!.organization_id!)
+        .eq('is_active', true)
+        .order('route_name')
+      if (error) throw error
+      return (data || []) as PatrolRoute[]
+    },
+    enabled: !!user?.organization_id,
+  })
+
   const { data: availability = [] } = useQuery<OfficerAvailability[]>({
     queryKey: ['officer_availability', user?.organization_id],
     queryFn: async () => {
@@ -1011,6 +1232,7 @@ export default function RosterPlanner() {
         position_title: data.position_title || null,
         client_site_id: data.client_site_id || null,
         zone_id: data.zone_id || null,
+        patrol_route_id: data.patrol_route_id || null,
         required_skills: data.required_skills,
         notes: data.notes || null,
         internal_notes: data.internal_notes || null,
@@ -1047,6 +1269,7 @@ export default function RosterPlanner() {
         position_title: data.position_title || null,
         client_site_id: data.client_site_id || null,
         zone_id: data.zone_id || null,
+        patrol_route_id: data.patrol_route_id || null,
         required_skills: data.required_skills,
         notes: data.notes || null,
         internal_notes: data.internal_notes || null,
@@ -1502,6 +1725,7 @@ export default function RosterPlanner() {
           officers={officers}
           sites={sites}
           zones={zones}
+          patrolRoutes={patrolRoutes}
           allShifts={shifts}
           availability={availability}
           isAdmin={isAdmin}

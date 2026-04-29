@@ -55,9 +55,21 @@ RUN ollama serve & \
 # Install runpod Python SDK
 RUN pip3 install --no-cache-dir runpod requests
 
+# ---------------------------------------------------------------------------
+# Node.js 20 + npm — required for autonomous Playwright test execution
+# (run_playwright action in handler.py)
+# ---------------------------------------------------------------------------
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-COPY handler.py start.sh training_memory.json ./
+COPY handler.py start.sh training_memory.json package.json ./
+
+# Install Playwright + its browser dependencies so run_playwright works offline
+RUN npm install --save-dev @playwright/test && \
+    npx playwright install --with-deps chromium
 RUN chmod +x start.sh
 
 CMD ["./start.sh"]

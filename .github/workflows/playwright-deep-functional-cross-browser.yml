@@ -48,6 +48,10 @@ jobs:
     timeout-minutes: 45
     strategy:
       fail-fast: false
+      # App login revokes other active sessions for the same user.
+      # Running browser projects concurrently with shared CI identities causes
+      # cross-job auth invalidation and mid-suite redirects to /login.
+      max-parallel: 1
       matrix:
         project:
           - webkit
@@ -55,6 +59,7 @@ jobs:
 
     env:
       CI: true
+      PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK: '1'
       PLAYWRIGHT_ADMIN_EMAIL: ${{ secrets.PLAYWRIGHT_ADMIN_EMAIL }}
       PLAYWRIGHT_ADMIN_PASSWORD: ${{ secrets.PLAYWRIGHT_ADMIN_PASSWORD }}
       PLAYWRIGHT_MASTER_EMAIL: ${{ secrets.PLAYWRIGHT_MASTER_EMAIL }}
@@ -94,16 +99,59 @@ jobs:
             echo "creds_available=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Build local app for CI test target
+        if: steps.creds-check.outputs.creds_available == 'true'
+        run: |
+          bun run build
+
+      - name: Start local preview server
+        if: steps.creds-check.outputs.creds_available == 'true'
+        run: |
+          bun run preview -- --host 127.0.0.1 --port 4173 > /tmp/deep-functional-preview.log 2>&1 &
+          echo $! > /tmp/deep-functional-preview.pid
+
       - name: Resolve base URL
         if: steps.creds-check.outputs.creds_available == 'true'
         run: |
+          TARGET_URL=""
           if [ -n "${{ github.event.inputs.base_url }}" ]; then
-            echo "PLAYWRIGHT_BASE_URL=${{ github.event.inputs.base_url }}" >> "$GITHUB_ENV"
-          elif [ -n "$DEFAULT_PLAYWRIGHT_BASE_URL" ]; then
-            echo "PLAYWRIGHT_BASE_URL=$DEFAULT_PLAYWRIGHT_BASE_URL" >> "$GITHUB_ENV"
+            TARGET_URL="${{ github.event.inputs.base_url }}"
           else
-            echo "PLAYWRIGHT_BASE_URL=https://fcmanager.co.nz" >> "$GITHUB_ENV"
+            TARGET_URL="http://127.0.0.1:4173"
           fi
+
+          if printf '%s' "$TARGET_URL" | grep -q '[[:cntrl:]]'; then
+            echo "::error::Resolved PLAYWRIGHT_BASE_URL contains invalid control characters."
+            exit 1
+          fi
+
+          if ! printf '%s' "$TARGET_URL" | grep -Eq '^https?://[A-Za-z0-9.-]+(:[0-9]+)?(/.*)?$'; then
+            echo "::error::Resolved PLAYWRIGHT_BASE_URL must be a valid http/https URL."
+            exit 1
+          fi
+
+          # Validate the selected target can actually serve the login route.
+          for i in $(seq 1 40); do
+            if curl -fsS --max-time 5 "${TARGET_URL}/login" >/dev/null 2>&1; then
+              break
+            fi
+            if [ "$i" -eq 40 ]; then
+              echo "::error::PLAYWRIGHT_BASE_URL (${TARGET_URL}) is unreachable after waiting for startup."
+              if [ -f /tmp/deep-functional-preview.log ]; then
+                echo "--- preview log ---"
+                tail -n 120 /tmp/deep-functional-preview.log || true
+              fi
+              exit 1
+            fi
+            sleep 2
+          done
+
+          {
+            echo "PLAYWRIGHT_BASE_URL<<EOF"
+            echo "$TARGET_URL"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+          echo "Resolved PLAYWRIGHT_BASE_URL=$TARGET_URL"
 
       - name: Run deep functional suite
         if: steps.creds-check.outputs.creds_available == 'true'

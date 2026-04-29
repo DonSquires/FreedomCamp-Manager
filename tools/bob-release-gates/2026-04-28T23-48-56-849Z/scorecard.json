@@ -1,0 +1,43 @@
+{
+  "runId": "2026-04-28T23-48-56-849Z",
+  "startedAt": "2026-04-28T23:48:56.863Z",
+  "endedAt": "2026-04-28T23:48:56.961Z",
+  "config": {
+    "minHumanReadiness": 85,
+    "drBobFiles": [
+      "plan.md",
+      "spec.md"
+    ],
+    "drBobFailOnRevision": true,
+    "sensesMode": "mock",
+    "dryRun": false
+  },
+  "stages": {
+    "autonomous": {
+      "status": "skipped",
+      "detail": "not executed"
+    },
+    "drBob": {
+      "status": "skipped",
+      "detail": "not executed",
+      "results": []
+    },
+    "human": {
+      "status": "skipped",
+      "detail": "not executed",
+      "reportPath": "",
+      "readiness": null
+    },
+    "senses": {
+      "status": "pass",
+      "detail": "command exit=0, decision=pass, mode=mock",
+      "reportPath": "/workspaces/FreedomCamp-Manager/tools/bob-release-gates/2026-04-28T23-48-56-849Z/senses-report.json"
+    }
+  },
+  "finalDecision": "pass",
+  "notes": [
+    "Autonomous profile gate failed. Ensure --autonomous training injection succeeds.",
+    "Dr Bob gate failed. Resolve blockers or needs-revision findings before release.",
+    "Human-test gate failed. Address failing flows or increase readiness via fixes, not threshold relaxation."
+  ]
+}

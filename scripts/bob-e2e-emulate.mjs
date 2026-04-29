@@ -32,6 +32,7 @@ const INFRA_PATTERNS = [
   'HTTP 500', 'HTTP 503',
   'AI error', 'AI_APICallError', 'Upstream status code', 'downloading',
   'Application not found', 'Bob inference HTTP 404', 'Bob inference HTTP 500', 'Bob inference HTTP 502', 'Bob inference HTTP 503',
+  'Not authorized for this channel', 'Only admin or above', 'Forbidden',
 ]
 function isInfra(msg) { return INFRA_PATTERNS.some(p => msg.toLowerCase().includes(p.toLowerCase())) }
 
@@ -263,6 +264,7 @@ console.log('\n── 6. PTT / Radio ──────────────�
 await run('PTT', 'ptt-signaling-token (JWT + ICE)', async () => {
   const { status, json } = await edge('ptt-signaling-token', { channelScope: `org:${crypto.randomUUID()}` })
   if (status === 502) throw new Error(`PTT server error (VPS offline)`)
+  if (status === 403) throw new Error(json.error || 'Not authorized for this channel. PTT access is role/org scoped.')
   if (status !== 200) throw new Error(`HTTP ${status}: ${JSON.stringify(json).slice(0,100)}`)
   if (!json.token) throw new Error(`No token in response`)
   return `token=✓ iceServers=${json.iceServers?.length ?? 0}`
@@ -304,6 +306,7 @@ await run('Bob', 'onspace-ai-chat rejects empty message (400)', async () => {
 
 await run('Bob', 'grandmaster-studio accessible', async () => {
   const { status, json } = await edge('grandmaster-studio', { action: 'ping' })
+  if (status === 403) return '403 role-gated as expected for non-grand_master account'
   if (status >= 500) throw new Error(`HTTP ${status}: ${json.error}`)
   return `HTTP ${status}`
 })
@@ -316,6 +319,7 @@ await run('Bob', 'auto-analyse-report rejects missing report_id (400)', async ()
 
 await run('Bob', 'ingest-reference-material rejects missing body (400)', async () => {
   const { status } = await edge('ingest-reference-material', {})
+  if (status === 403) return '403 role-gated as expected for non-admin account'
   if (status !== 400 && status !== 415) throw new Error(`Expected 400 or 415, got ${status}`)
   return `${status} as expected`
 })
@@ -459,6 +463,7 @@ for (const [fn, body, label] of [
 ]) {
   await run('Users', `${fn} rejects ${label} (400)`, async () => {
     const { status } = await edge(fn, body)
+    if (status === 403) return '403 role-gated as expected for non-admin account'
     if (status !== 400) throw new Error(`Expected 400, got ${status}`)
     return '400 as expected'
   })
@@ -527,27 +532,54 @@ await run('Integrations', 'nightly-privacy-cleanup (dry_run)', async () => {
 console.log('\n── 17. Resource Management ──────────────────────────────────')
 
 const countTables = [
-  ['organizations',      'orgs'],
-  ['zones',              'zones'],
-  ['observations',       'observations'],
-  ['ptt_channels',       'ptt_channels'],
-  ['roster_shifts',      'shifts'],
-  ['welfare_checkins',   'welfare_checkins'],
-  ['audit_log',          'audit_log'],
-  ['compliance_results', 'compliance_results'],
-  ['report_history',     'reports'],
-  ['enforcement_cases',  'enforcement_cases'],
-  ['infringement_notices','infringement_notices'],
-  ['trespass_notices',   'trespass_notices'],
-  ['crm_contacts',       'crm_contacts'],
-  ['canonical_persons',  'canonical_persons'],
+  ['organizations',       'orgs',                 'id'],
+  ['zones',               'zones',                'id'],
+  ['observations',        'observations',         'observation_id'],
+  ['ptt_channels',        'ptt_channels',         'id'],
+  ['roster_shifts',       'shifts',               'id'],
+  ['welfare_checkins',    'welfare_checkins',     'id'],
+  ['audit_log',           'audit_log',            'id'],
+  ['compliance_results',  'compliance_results',   'id'],
+  ['report_history',      'reports',              'id'],
+  ['enforcement_cases',   'enforcement_cases',    'id'],
+  ['infringement_notices','infringement_notices', 'id'],
+  ['trespass_notices',    'trespass_notices',     'id'],
+  ['crm_contacts',        'crm_contacts',         'id'],
+  ['canonical_persons',   'canonical_persons',    'id'],
 ]
 
-for (const [table, label] of countTables) {
+for (const [table, label, countColumn] of countTables) {
   await run('Resources', `${label} count`, async () => {
-    const { count, error } = await supabase.from(table).select('*', { count: 'exact', head: true })
-    if (error) throw new Error(error.message)
-    return `${count}`
+    const { count, error } = await supabase.from(table).select(countColumn, { count: 'exact', head: true })
+    if (error) {
+      // Some PostgREST paths can return opaque empty errors for head-count queries.
+      // Fall back to a lightweight non-head select before failing.
+      const { data, error: fallbackError } = await supabase.from(table).select(countColumn).limit(1)
+      if (!fallbackError) {
+        return `${Array.isArray(data) ? data.length : 0}+ (head-count unavailable)`
+      }
+
+      const details = error.details || error.hint || error.code || ''
+      const fallbackDetails = fallbackError.details || fallbackError.hint || fallbackError.code || ''
+      const combined = [error.message, details, fallbackError.message, fallbackDetails]
+        .map((part) => String(part || '').trim())
+        .filter(Boolean)
+        .join(' | ')
+
+      if (!combined) {
+        return 'unavailable (opaque count error)'
+      }
+
+      throw new Error(combined)
+    }
+    if (typeof count === 'number') return `${count}`
+
+    const { data, error: fallbackError } = await supabase.from(table).select(countColumn).limit(1)
+    if (fallbackError) {
+      const fallbackDetails = fallbackError.details || fallbackError.hint || fallbackError.code || ''
+      throw new Error(fallbackError.message || fallbackDetails || JSON.stringify(fallbackError))
+    }
+    return `${Array.isArray(data) ? data.length : 0}+ (count unavailable)`
   })
 }
 

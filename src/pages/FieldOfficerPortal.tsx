@@ -26,6 +26,13 @@ import { useManDownDetection } from '@/hooks/useManDownDetection'
 import { useWelfareCheckin } from '@/hooks/useWelfareCheckin'
 import { useRosteredShift } from '@/hooks/useRosteredShift'
 import { useShiftGate } from '@/hooks/useShiftGate'
+import {
+  useFieldOfficerRouteTestOverride,
+  useOfficerActiveRouteInstance,
+  usePatrolRouteInstanceStops,
+  useUpdatePatrolRouteStopStatus,
+} from '@/hooks/usePatrolRouteInstances'
+import { useDispatchCompletion } from '@/hooks/useDispatchCompletion'
 import { GeofenceWarningBanner } from '@/components/features/GeofenceWarningBanner'
 import { reverseGeocode } from '@/lib/geocoding'
 import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
@@ -34,7 +41,7 @@ import {
   ShieldAlert, CheckCircle, Shield, Megaphone, FileWarning, XCircle,
   Clock, Home, X, Car, Zap, Search, Printer, PlusCircle, Wrench, Heart, Users,
   Moon, Sun, ParkingSquare, Volume2, Video, Eye, Tent, Timer,
-  ScanFace, CalendarPlus, Siren, Bell, PhoneCall, Lock, Leaf, Wind,
+  ScanFace, CalendarPlus, Siren, Bell, PhoneCall, Lock, Leaf, Wind, Loader2,
 } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Badge } from '@/components/ui/badge'
@@ -253,6 +260,7 @@ export default function FieldOfficerPortal() {
   const { themeMode, setThemeMode } = useThemePreferencesStore()
   const isNightPatrol = themeMode === 'night-patrol'
   const employerOrganizationId = user?.employer_organization_id || user?.organization_id || null
+  const routeTestOverride = useFieldOfficerRouteTestOverride()
 
   // ── Roster context ────────────────────────────────────────────────────────
   const { rosteredShift } = useRosteredShift()
@@ -260,10 +268,11 @@ export default function FieldOfficerPortal() {
   // ── Shift gate: redirect to /officer-home if not rostered ─────────────────
   const { gateApplies, canAccessPortal, canUseFeature, geofenceViolation, isLoading: gateLoading } = useShiftGate()
   useEffect(() => {
+    if (routeTestOverride?.forceOperationalView) return
     if (!gateLoading && gateApplies && (!canAccessPortal || !canUseFeature('freedom_camping'))) {
       navigate('/officer-home', { replace: true })
     }
-  }, [gateApplies, canAccessPortal, canUseFeature, gateLoading, navigate])
+  }, [gateApplies, canAccessPortal, canUseFeature, gateLoading, navigate, routeTestOverride?.forceOperationalView])
 
   // ── Service type selection — pre-fill from URL param or roster ────────────
   const [activeService, setActiveService] = useState<ServiceType | null>(() => {
@@ -509,13 +518,99 @@ export default function FieldOfficerPortal() {
       if (newStatus === 'acknowledged') update.acknowledged_at = new Date().toISOString()
       if (newStatus === 'en_route')     update.en_route_at     = new Date().toISOString()
       if (newStatus === 'on_scene')     update.on_scene_at     = new Date().toISOString()
-      if (newStatus === 'completed')    update.completed_at    = new Date().toISOString()
       const { error } = await (supabase as any).from('dispatch_jobs').update(update).eq('id', jobId)
       if (error) throw error
     },
     onSuccess: () => { qcHook.invalidateQueries({ queryKey: ['my-dispatch-jobs'] }) },
     onError: (err: any) => toast.error(err?.message ?? 'Update failed'),
   })
+  const completeDispatchJob = useDispatchCompletion()
+
+  const { data: activeRouteInstance, isLoading: activeRouteLoading } = useOfficerActiveRouteInstance()
+  const { data: activeRouteStops = [], isLoading: activeRouteStopsLoading } = usePatrolRouteInstanceStops(activeRouteInstance?.id)
+  const updateRouteStopStatus = useUpdatePatrolRouteStopStatus()
+  const lastAutoArrivedStopIdRef = useRef<string | null>(null)
+  const lastAutoCompletedStopIdRef = useRef<string | null>(null)
+  const stopSeenInZoneRef = useRef<Record<string, boolean>>({})
+
+  const activeRouteTotalStops = activeRouteStops.length
+  const activeRouteCompletedStops = activeRouteStops.filter((stop) => stop.visit_status === 'completed').length
+  const activeRouteCurrentStop = activeRouteStops.find((stop) => stop.visit_status === 'arrived')
+    ?? activeRouteStops.find((stop) => stop.visit_status === 'pending')
+  const effectivePatrolZone = routeTestOverride?.currentPatrolZone ?? currentPatrolZone
+
+  // Auto-mark stop as arrived once when geofence indicates officer is in the stop's zone.
+  useEffect(() => {
+    if (!activeRouteCurrentStop) return
+    if (activeRouteCurrentStop.visit_status !== 'pending') return
+    if (!activeRouteCurrentStop.zone_id) return
+    if (!effectivePatrolZone) return
+    if (activeRouteCurrentStop.zone_id !== effectivePatrolZone) return
+    if (updateRouteStopStatus.isPending) return
+    if (lastAutoArrivedStopIdRef.current === activeRouteCurrentStop.id) return
+
+    lastAutoArrivedStopIdRef.current = activeRouteCurrentStop.id
+    updateRouteStopStatus.mutate(
+      {
+        stopId: activeRouteCurrentStop.id,
+        routeInstanceId: activeRouteCurrentStop.route_instance_id,
+        status: 'arrived',
+        source: 'zone_enter_auto',
+      },
+      {
+        onError: () => {
+          lastAutoArrivedStopIdRef.current = null
+        },
+      }
+    )
+  }, [activeRouteCurrentStop, effectivePatrolZone, updateRouteStopStatus])
+
+  // Mark stop as eligible for auto-complete once officer has been seen in that stop zone.
+  useEffect(() => {
+    if (!activeRouteCurrentStop?.id || !activeRouteCurrentStop.zone_id || !effectivePatrolZone) return
+    if (activeRouteCurrentStop.visit_status !== 'arrived') return
+    if (activeRouteCurrentStop.zone_id !== effectivePatrolZone) return
+
+    stopSeenInZoneRef.current[activeRouteCurrentStop.id] = true
+  }, [activeRouteCurrentStop, effectivePatrolZone])
+
+  // Auto-complete the current arrived stop when officer exits the stop zone after minimum dwell.
+  useEffect(() => {
+    if (!activeRouteCurrentStop) return
+    if (activeRouteCurrentStop.visit_status !== 'arrived') return
+    if (!activeRouteCurrentStop.zone_id) return
+    if (!effectivePatrolZone) return
+    if (activeRouteCurrentStop.zone_id === effectivePatrolZone) return
+    if (updateRouteStopStatus.isPending) return
+    if (!stopSeenInZoneRef.current[activeRouteCurrentStop.id]) return
+    if (lastAutoCompletedStopIdRef.current === activeRouteCurrentStop.id) return
+
+    const arrivalTs = activeRouteCurrentStop.actual_arrival_at
+      ? new Date(activeRouteCurrentStop.actual_arrival_at).getTime()
+      : 0
+    if (!arrivalTs) return
+
+    const dwellMs = Date.now() - arrivalTs
+    const minDwellMs = activeRouteCurrentStop.planned_dwell_minutes && activeRouteCurrentStop.planned_dwell_minutes > 0
+      ? activeRouteCurrentStop.planned_dwell_minutes * 60 * 1000
+      : 30 * 1000
+    if (dwellMs < minDwellMs) return
+
+    lastAutoCompletedStopIdRef.current = activeRouteCurrentStop.id
+    updateRouteStopStatus.mutate(
+      {
+        stopId: activeRouteCurrentStop.id,
+        routeInstanceId: activeRouteCurrentStop.route_instance_id,
+        status: 'completed',
+        source: 'zone_exit_auto',
+      },
+      {
+        onError: () => {
+          lastAutoCompletedStopIdRef.current = null
+        },
+      }
+    )
+  }, [activeRouteCurrentStop, effectivePatrolZone, updateRouteStopStatus])
 
   // Display-friendly zone label for the officer status card
   const displayZone = zoneName || (zoneId ? `${zoneId.substring(0, 8)}...` : 'Scanning Geofence...')
@@ -692,6 +787,7 @@ export default function FieldOfficerPortal() {
   // Auto-monitor geofence and manage patrol
   useEffect(() => {
     if (!user?.id || !employerOrganizationId) return
+    if (routeTestOverride?.disableGeofenceMonitoring) return
 
     const geofenceOrgId =
       isServiceProviderMember
@@ -729,7 +825,7 @@ export default function FieldOfficerPortal() {
       clearInterval(interval)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, employerOrganizationId, isServiceProviderMember, shiftOrgId, currentPatrolZone, setZone, recordGPSUpdate, zoneName, shareLiveLocationWithClient])
+  }, [user, employerOrganizationId, isServiceProviderMember, shiftOrgId, currentPatrolZone, setZone, recordGPSUpdate, zoneName, shareLiveLocationWithClient, routeTestOverride?.disableGeofenceMonitoring])
 
   // ── Shift management — explicit Start/End (not auto-start) ──────────────
   // Fetch active shift for current officer
@@ -2315,6 +2411,114 @@ export default function FieldOfficerPortal() {
             </div>
           )}
 
+            {/* ── Active Route Execution (officer-side) ─────────────── */}
+            {(activeRouteLoading || activeRouteInstance) && (
+              <div className="mb-6 space-y-3">
+                <h2 className="text-sm font-semibold flex items-center gap-2 text-foreground">
+                  <Map className="h-4 w-4 text-green-600" />
+                  Route Execution
+                  {activeRouteInstance && (
+                    <Badge variant="outline" className="ml-1 text-xs capitalize">
+                      {activeRouteInstance.plan_status.replace(/_/g, ' ')}
+                    </Badge>
+                  )}
+                </h2>
+
+                <Card className="border-green-200 dark:border-green-900/60">
+                  <CardContent className="p-4 space-y-3">
+                    {activeRouteLoading && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading your active route...
+                      </div>
+                    )}
+
+                    {!activeRouteLoading && activeRouteInstance && (
+                      <>
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold">
+                              {activeRouteInstance.patrol_route_name || 'Patrol Route'}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Mode: {activeRouteInstance.planning_mode.replace(/_/g, ' ')}
+                            </p>
+                          </div>
+                          <Badge className="text-xs" variant="secondary">
+                            {activeRouteCompletedStops}/{activeRouteTotalStops} complete
+                          </Badge>
+                        </div>
+
+                        {activeRouteCurrentStop ? (
+                          <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm font-medium">
+                                Stop #{activeRouteCurrentStop.sequence_no}: {activeRouteCurrentStop.stop_name}
+                              </p>
+                              {activeRouteCurrentStop.is_mandatory && (
+                                <Badge variant="outline" className="text-[10px]">Mandatory</Badge>
+                              )}
+                            </div>
+
+                            {activeRouteCurrentStop.planned_arrival_window_start && (
+                              <p className="text-xs text-muted-foreground">
+                                Window: {formatDateTime(activeRouteCurrentStop.planned_arrival_window_start)}
+                              </p>
+                            )}
+
+                            <div className="flex flex-wrap gap-2">
+                              {activeRouteCurrentStop.visit_status === 'pending' && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => updateRouteStopStatus.mutate({
+                                    stopId: activeRouteCurrentStop.id,
+                                    routeInstanceId: activeRouteCurrentStop.route_instance_id,
+                                    status: 'arrived',
+                                    source: 'manual',
+                                  })}
+                                  disabled={updateRouteStopStatus.isPending}
+                                >
+                                  Arrived
+                                </Button>
+                              )}
+
+                              {(activeRouteCurrentStop.visit_status === 'pending' || activeRouteCurrentStop.visit_status === 'arrived') && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => updateRouteStopStatus.mutate({
+                                    stopId: activeRouteCurrentStop.id,
+                                    routeInstanceId: activeRouteCurrentStop.route_instance_id,
+                                    status: 'completed',
+                                    source: 'manual',
+                                  })}
+                                  disabled={updateRouteStopStatus.isPending}
+                                >
+                                  Complete Stop
+                                </Button>
+                              )}
+                            </div>
+
+                            {activeRouteCurrentStop.zone_id && (
+                              <p className="text-[11px] text-muted-foreground">
+                                Auto-routing active: entering stop zone marks Arrived, and exiting after dwell marks Complete.
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">No pending stops remain on this route instance.</p>
+                        )}
+
+                        {activeRouteStopsLoading && (
+                          <p className="text-xs text-muted-foreground">Refreshing stop list...</p>
+                        )}
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
             {/* ── Dispatched Job Queue (GDS CATS-style) ──────────────── */}
             {myDispatchJobs.length > 0 && (
               <div className="mb-6 space-y-3">
@@ -2360,8 +2564,14 @@ export default function FieldOfficerPortal() {
                             <Button
                               size="sm"
                               className="shrink-0"
-                              onClick={() => advanceJobStatus.mutate({ jobId: job.id, newStatus: action.next })}
-                              disabled={advanceJobStatus.isPending}
+                              onClick={() => {
+                                if (action.next === 'completed') {
+                                  completeDispatchJob.mutate({ dispatchJobId: job.id })
+                                  return
+                                }
+                                advanceJobStatus.mutate({ jobId: job.id, newStatus: action.next })
+                              }}
+                              disabled={advanceJobStatus.isPending || completeDispatchJob.isPending}
                             >
                               {action.label}
                             </Button>

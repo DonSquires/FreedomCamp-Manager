@@ -55,13 +55,32 @@
   "lockfiles": [
     "bun.lock"
   ],
-  "generated_at": "2026-04-25T21:48:01Z",
+  "generated_at": "2026-04-27T01:16:12Z",
   "source": "scripts/system-check.sh",
   "monitor": {
-    "checked_at": "2026-04-25T21:48:01.507Z",
+    "checked_at": "2026-04-27T01:16:12.115Z",
     "window_minutes": 15,
     "error_threshold": 5,
     "recent_500_errors": 4,
     "status": "healthy"
+  },
+  "ai": {
+    "bob": {
+      "runpod_endpoint_env": "RUNPOD_API_URL",
+      "runpod_endpoint_id": "n0bp1ifmq01cx2",
+      "runpod_endpoint_url": "https://api.runpod.ai/v2/n0bp1ifmq01cx2",
+      "primary_handler": "runpod-worker/handler.py",
+      "legacy_handler_note": "runpod-worker/handler.js is obsolete — handler.py is the Dockerfile CMD",
+      "chat_model": "qwen2.5:7b",
+      "vision_model": "llama3.2-vision:11b",
+      "training_memory": "runpod-worker/training_memory.json",
+      "supported_actions": ["ping", "chat", "review", "assess", "translate", "ui_vision", "training_note", "run_playwright"],
+      "run_playwright_note": "Requires Node.js 20 + Playwright browsers in worker image (added 2026-04-29)",
+      "api_key_env": "RUNPOD_API_KEY",
+      "inference_url_env_frontend": "VITE_INFERENCE_SERVICE_URL",
+      "inference_url_env_edge_functions": "INFERENCE_SERVICE_URL",
+      "provider_lock_env": "BOB_PROVIDER_LOCK_DISABLED",
+      "allowed_hosts_env": "BOB_ALLOWED_INFERENCE_HOSTS"
+    }
   }
 }

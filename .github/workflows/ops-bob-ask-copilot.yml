@@ -142,6 +142,16 @@ jobs:
             exit 0
           fi
 
+          if [ "$HTTP_STATUS" = "404" ]; then
+            echo "::warning::Bob /ask-copilot/pending returned HTTP 404 (Application not found)"
+            echo "::warning::The configured BOB_SERVICE_URL/INFERENCE_SERVICE_URL may be incorrect"
+            echo "::warning::or Bob may not be deployed/reachable at that endpoint."
+            echo "::warning::Check URL, app deployment state, and route availability before retrying."
+            cat /tmp/pending.json
+            echo "pending_count=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           if [ "$HTTP_STATUS" != "200" ]; then
             echo "::warning::Bob /ask-copilot/pending returned HTTP $HTTP_STATUS — Bob service may be unavailable or the URL is no longer valid."
             cat /tmp/pending.json

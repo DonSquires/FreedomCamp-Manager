@@ -1,0 +1,62 @@
+{
+  "runId": "2026-04-29T03-59-19-584Z",
+  "batch": "all",
+  "scope": "quick",
+  "startedAt": "2026-04-29T03:59:19.599Z",
+  "endedAt": null,
+  "resumeMode": false,
+  "continueOnFailure": true,
+  "browserInstallAttempted": true,
+  "browserInstallExitCode": 0,
+  "stages": [
+    {
+      "id": "lint",
+      "description": "Lint codebase",
+      "command": "/vscode/bin/linux-alpine/41dd792b5e652393e7787322889ed5fdc58bd75b/node",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "npm",
+        "run",
+        "lint"
+      ],
+      "exitCode": 0,
+      "status": "pass",
+      "durationMs": 287603
+    },
+    {
+      "id": "build",
+      "description": "Build app",
+      "command": "/vscode/bin/linux-alpine/41dd792b5e652393e7787322889ed5fdc58bd75b/node",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "npm",
+        "run",
+        "build"
+      ],
+      "exitCode": 2,
+      "status": "fail",
+      "durationMs": 214693
+    },
+    {
+      "id": "nav-parity",
+      "description": "Run navigation parity tests",
+      "command": "/vscode/bin/linux-alpine/41dd792b5e652393e7787322889ed5fdc58bd75b/node",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "npm",
+        "run",
+        "test:nav-parity"
+      ],
+      "exitCode": 0,
+      "status": "pass",
+      "durationMs": 11095
+    }
+  ],
+  "summary": {
+    "passed": 2,
+    "failed": 1
+  }
+}

@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/stores/authStore'
 import Login from '@/pages/Login'
 import PortalSelection from '@/pages/PortalSelection'
 import AdminPortal from '@/pages/AdminPortal'
@@ -20,6 +21,9 @@ import SettingsPage from './pages/Settings'
 import UserManagementPage from './pages/UserManagement'
 import ProfilePage from './pages/Profile'
 import PlatformPage from './pages/Platform'
+import CRMPage from './pages/CRM'
+import BusinessManagementPage from './pages/BusinessManagement'
+import ClientPortalPage from './pages/ClientPortal'
 
 /**
  * CleanAppScaffold — isolated router for the clean rebuild surface.
@@ -28,7 +32,25 @@ import PlatformPage from './pages/Platform'
  * All routes except /login require an active Supabase session. Unauthenticated
  * visitors are redirected to /login automatically.
  */
+
+function CleanRoleRoute({
+  children,
+  allowedRoles,
+}: {
+  children: React.ReactNode
+  allowedRoles: string[]
+}) {
+  const { user } = useAuthStore()
+
+  if (!user) return <Navigate to="/login" replace />
+  if (user.role === 'grand_master') return <>{children}</>
+  if (!allowedRoles.includes(user.role)) return <Navigate to="/" replace />
+
+  return <>{children}</>
+}
+
 export function CleanAppScaffold() {
+  const { user } = useAuthStore()
   const [sessionChecked, setSessionChecked] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
 
@@ -47,7 +69,22 @@ export function CleanAppScaffold() {
 
   // Wait for the session check to complete before rendering routes to avoid
   // a flash of the login page for authenticated users.
-  if (!sessionChecked) return null
+  if (!sessionChecked) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-6">
+        <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/70 shadow-2xl backdrop-blur-sm p-6">
+          <div className="h-1.5 w-full rounded-full bg-gradient-to-r from-sky-500 via-cyan-400 to-emerald-400 mb-5" />
+          <div className="flex items-center gap-3 mb-3">
+            <div className="h-3 w-3 rounded-full bg-cyan-400 animate-pulse" />
+            <p className="text-sm font-semibold tracking-wide text-slate-200">Preparing clean rebuild workspace</p>
+          </div>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            Verifying your session and loading protected routes.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <BrowserRouter>
@@ -58,23 +95,126 @@ export function CleanAppScaffold() {
         {isAuthenticated ? (
           <>
             <Route path="/portal-selection" element={<PortalSelection />} />
-            <Route path="/" element={<AdminPortal />} />
+            <Route
+              path="/"
+              element={
+                user?.role === 'officer'
+                  ? <Navigate to="/field" replace />
+                  : user?.role === 'grand_master'
+                    ? <Navigate to="/platform" replace />
+                    : ['client_viewer', 'client_officer', 'client_admin'].includes(user?.role ?? '')
+                      ? <Navigate to="/client-portal" replace />
+                      : <AdminPortal />
+              }
+            />
             <Route path="/field" element={<FieldOfficerPortal />} />
             <Route path="/platform" element={<PlatformPage />} />
             <Route path="/compliance" element={<CompliancePage />} />
+            <Route path="/compliance-dashboard" element={<CompliancePage />} />
+            <Route path="/compliance-analytics" element={<CompliancePage />} />
+            <Route path="/compliance-recalculation" element={<CompliancePage />} />
+            <Route path="/spatial-compliance" element={<CompliancePage />} />
             <Route path="/observations" element={<ObservationsPage />} />
+            <Route path="/observation-records" element={<ObservationsPage />} />
+            <Route path="/observations-report" element={<ObservationsPage />} />
             <Route path="/breaches" element={<BreachesPage />} />
+            <Route path="/breach-notices" element={<BreachesPage />} />
             <Route path="/enforcement" element={<EnforcementPage />} />
+            <Route path="/enforcement-actions" element={<EnforcementPage />} />
+            <Route path="/enforcement-review" element={<EnforcementPage />} />
+            <Route path="/enforcement-command-center" element={<EnforcementPage />} />
+            <Route path="/infringements" element={<EnforcementPage />} />
             <Route path="/vehicles" element={<VehiclesPage />} />
+            <Route path="/vehicle-registry" element={<VehiclesPage />} />
             <Route path="/zones" element={<ZonesPage />} />
             <Route path="/live-map" element={<LiveMapPage />} />
+            <Route path="/live-tracking" element={<LiveMapPage />} />
+            <Route path="/live-patrol" element={<LiveMapPage />} />
+            <Route path="/operations-map" element={<LiveMapPage />} />
+            <Route path="/hotspots" element={<LiveMapPage />} />
             <Route path="/patrols" element={<PatrolsPage />} />
+            <Route path="/patrol-schedule" element={<PatrolsPage />} />
+            <Route path="/patrol-kpis" element={<PatrolsPage />} />
+            <Route path="/patrol-checkpoints" element={<PatrolsPage />} />
+            <Route path="/dispatch" element={<PatrolsPage />} />
+            <Route path="/dispatch-monitor" element={<PatrolsPage />} />
+            <Route path="/dispatch-wizard" element={<PatrolsPage />} />
+            <Route path="/dispatched-jobs" element={<PatrolsPage />} />
             <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/reports-hub" element={<ReportsPage />} />
             <Route path="/data-import" element={<DataImportPage />} />
+            <Route path="/import-data" element={<DataImportPage />} />
+            <Route path="/import-historical" element={<DataImportPage />} />
+            <Route path="/data" element={<DataImportPage />} />
+            <Route path="/admin/data-hub" element={<DataImportPage />} />
             <Route path="/disputes" element={<DisputesPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/users" element={<UserManagementPage />} />
             <Route path="/profile" element={<ProfilePage />} />
+            <Route
+              path="/crm"
+              element={
+                <CleanRoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <CRMPage />
+                </CleanRoleRoute>
+              }
+            />
+            <Route
+              path="/business"
+              element={
+                <CleanRoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <BusinessManagementPage />
+                </CleanRoleRoute>
+              }
+            />
+            <Route
+              path="/roster"
+              element={
+                <CleanRoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <BusinessManagementPage />
+                </CleanRoleRoute>
+              }
+            />
+            <Route
+              path="/open-shifts"
+              element={
+                <CleanRoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <BusinessManagementPage />
+                </CleanRoleRoute>
+              }
+            />
+            <Route
+              path="/availability"
+              element={
+                <CleanRoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <BusinessManagementPage />
+                </CleanRoleRoute>
+              }
+            />
+            <Route
+              path="/officer-skills"
+              element={
+                <CleanRoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <BusinessManagementPage />
+                </CleanRoleRoute>
+              }
+            />
+            <Route
+              path="/timesheets"
+              element={
+                <CleanRoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <BusinessManagementPage />
+                </CleanRoleRoute>
+              }
+            />
+            <Route
+              path="/client-portal"
+              element={
+                <CleanRoleRoute allowedRoles={['client_viewer', 'client_officer', 'client_admin', 'admin', 'admin_officer', 'master']}>
+                  <ClientPortalPage />
+                </CleanRoleRoute>
+              }
+            />
             <Route path="*" element={<Navigate to="/" replace />} />
           </>
         ) : (

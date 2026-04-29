@@ -459,6 +459,106 @@ def handler(job):
         except Exception as e:
             return {"success": False, "error": f"Vision analysis failed: {str(e)}", "provider": "ollama_vision"}
 
+    if action == "run_playwright":
+        import subprocess
+        import tempfile
+
+        specs = inp.get("specs") or []
+        scope = inp.get("scope", "quick")
+        timeout_ms = int(inp.get("timeout_ms", 120000))
+        reporter = inp.get("reporter", "json")
+        working_dir = inp.get("working_dir", "/app")
+
+        # Build playwright command
+        cmd = ["npx", "playwright", "test", "--reporter", reporter]
+        if specs:
+            cmd += specs
+        else:
+            # scope presets
+            scope_map = {
+                "quick":     ["--grep", "@smoke", "--timeout", "30000"],
+                "core":      ["tests/"],
+                "workflows": ["tests/workflows/"],
+                "visual":    ["tests/visual/"],
+                "human":     ["tests/human/"],
+                "full":      [],
+            }
+            cmd += scope_map.get(scope, [])
+
+        cmd += ["--timeout", str(timeout_ms)]
+
+        print(f"[worker] run_playwright scope={scope} cmd={' '.join(cmd)}")
+
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
+            output_path = tmp.name
+
+        try:
+            result_proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                cwd=working_dir,
+                timeout=timeout_ms // 1000 + 60,
+                env={**os.environ, "PLAYWRIGHT_JSON_OUTPUT_NAME": output_path},
+            )
+            stdout = result_proc.stdout[-8000:] if len(result_proc.stdout) > 8000 else result_proc.stdout
+            stderr = result_proc.stderr[-4000:] if len(result_proc.stderr) > 4000 else result_proc.stderr
+            exit_code = result_proc.returncode
+
+            # Parse JSON report if available
+            report_data = None
+            try:
+                with open(output_path, "r") as f:
+                    report_data = json.load(f)
+            except Exception:
+                pass
+
+            # Summarise for response
+            passed = failed = skipped = 0
+            failures = []
+            if report_data and isinstance(report_data, dict):
+                stats = report_data.get("stats", {})
+                passed = stats.get("expected", 0)
+                failed = stats.get("unexpected", 0)
+                skipped = stats.get("skipped", 0)
+                for suite in report_data.get("suites", []):
+                    for spec in suite.get("specs", []):
+                        for test in spec.get("tests", []):
+                            if test.get("status") in ("unexpected", "failed"):
+                                failures.append({
+                                    "title": spec.get("title", ""),
+                                    "file": spec.get("file", ""),
+                                    "error": (test.get("results") or [{}])[-1].get("error", {}).get("message", ""),
+                                })
+                failures = failures[:20]  # cap at 20
+
+            success = exit_code == 0
+            print(f"[worker] run_playwright done — exit={exit_code} passed={passed} failed={failed}")
+
+            return {
+                "success": success,
+                "exit_code": exit_code,
+                "scope": scope,
+                "stats": {"passed": passed, "failed": failed, "skipped": skipped},
+                "failures": failures,
+                "stdout_tail": stdout,
+                "stderr_tail": stderr,
+                "provider": "playwright-runner",
+            }
+
+        except subprocess.TimeoutExpired:
+            return {"success": False, "error": f"Playwright run timed out after {timeout_ms}ms", "provider": "playwright-runner"}
+        except FileNotFoundError:
+            return {"success": False, "error": "npx/playwright not found in PATH — Node.js not installed in this worker image", "provider": "playwright-runner"}
+        except Exception as exc:
+            return {"success": False, "error": str(exc), "provider": "playwright-runner"}
+        finally:
+            try:
+                import os as _os
+                _os.unlink(output_path)
+            except Exception:
+                pass
+
     return {"success": False, "error": f"Unknown action: {action}"}
 
 

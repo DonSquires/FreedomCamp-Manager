@@ -1,0 +1,58 @@
+{
+  "meta": {
+    "reviewer": "",
+    "date": "YYYY-MM-DD",
+    "targetFeature": "",
+    "targetPersona": "",
+    "notes": ""
+  },
+  "criteriaScale": "1-5 (1=weak, 3=acceptable, 5=excellent)",
+  "weights": {
+    "clarity": 0.2,
+    "taskFlow": 0.2,
+    "dataTransparency": 0.15,
+    "auditability": 0.15,
+    "mobileFieldFit": 0.2,
+    "informationDensity": 0.1
+  },
+  "screenshots": [
+    {
+      "name": "",
+      "product": "",
+      "sourceUrl": "",
+      "localImagePath": "",
+      "observations": [
+        ""
+      ],
+      "scores": {
+        "clarity": 3,
+        "taskFlow": 3,
+        "dataTransparency": 3,
+        "auditability": 3,
+        "mobileFieldFit": 3,
+        "informationDensity": 3
+      },
+      "evidenceTags": [
+        ""
+      ],
+      "candidateActions": [
+        {
+          "action": "",
+          "impact": "low|medium|high",
+          "risk": "low|medium|high"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "adoptNow": [
+      ""
+    ],
+    "investigate": [
+      ""
+    ],
+    "avoid": [
+      ""
+    ]
+  }
+}

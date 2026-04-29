@@ -75,6 +75,8 @@ jobs:
   auto-ingest:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -92,10 +94,19 @@ jobs:
 
       - name: Commit brain dump if changed
         run: |
+          set -euo pipefail
           git config --local user.email "bob@automated.local"
           git config --local user.name "Bob CI Agent"
+
+          MAX_GITHUB_SAFE_BYTES=95000000
+
           if [[ -n "$(git status --porcelain docs/BOB_BRAIN_DUMP.md)" ]]; then
-            git add docs/BOB_BRAIN_DUMP.md
-            git commit -m "chore(bob): auto-ingest spatial intelligence artifacts"
-            git push
+            BRAIN_DUMP_SIZE=$(wc -c < docs/BOB_BRAIN_DUMP.md)
+            if (( BRAIN_DUMP_SIZE <= MAX_GITHUB_SAFE_BYTES )); then
+              git add docs/BOB_BRAIN_DUMP.md
+              git commit -m "chore(bob): auto-ingest spatial intelligence artifacts"
+              git push
+            else
+              echo "::warning::Skipping docs/BOB_BRAIN_DUMP.md commit because file size (${BRAIN_DUMP_SIZE}) exceeds safe push size (${MAX_GITHUB_SAFE_BYTES})."
+            fi
           fi

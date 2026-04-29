@@ -1,5 +1,5 @@
 {
-  "version": "2026-04-23T22:26:27.079Z",
+  "version": "2026-04-29T11:45:00.000Z",
   "generated_from": [
     "docs/BOB_AUTONOMOUS_LEARNING.md",
     "docs/BOB_TRAINING_ADVANCED_ARCHITECT_2026.md",
@@ -19,7 +19,8 @@
       "Check system_state.json before making architecture assumptions.",
       "Do not invent modules, routes, tables, services, migrations, or package-manager choices.",
       "Use internal evidence only for build-review and self-contained training tasks: build logs, lint logs, repository code context, and stored intel.",
-      "When asked about build review or go-live gates, answer with the exact acceptance gate from training memory rather than generic best practice."
+      "When asked about build review or go-live gates, answer with the exact acceptance gate from training memory rather than generic best practice.",
+      "For autonomous test execution, prefer RunPod action run_playwright before suggesting local execution."
     ],
     "recent_training": [],
     "architect_rules": [
@@ -163,7 +164,8 @@
       "Internal training loop: run build and lint, feed evidence into Bob, score against the rubric, coach with blocker-only triage and reliability prompts if score is below 9, and repeat after each fix batch. Go-live acceptance requires zero lint errors, successful builds, a chunk strategy for large routes, review scores of at least 9 across three consecutive runs, and no outbound dependency in the training loop."
     ],
     "live_recommendations": [
-      "Prefer the proven RunPod delivery path when Bob local /chat is unavailable."
+      "Prefer the proven RunPod delivery path when Bob local /chat is unavailable.",
+      "When run_playwright is available in handler.py, Bob should execute Playwright directly on GPU and return structured stats and failures."
     ],
     "top_flagged_artifacts": [
       "/workspaces/FreedomCamp-Manager/docs/BOB_AUTONOMOUS_LEARNING.md",

@@ -159,6 +159,13 @@ After making changes, always verify:
 - For major architecture work, follow this order: `spec.md` → self-critique with at least 3 flaws → `plan.md` → implementation ticket by ticket → validation → final completion claim.
 - If an artifact references module paths or features that are not grounded in the repo or `system_state.json`, treat that as a blocker.
 - Read `docs/DECISIONS.md` when a pattern seems ambiguous or historically driven.
+- Before making any change, run an intent validation gate and state the answers explicitly in your working notes:
+  - Should this item exist in this area of the product and codebase?
+  - How should it work from a user and role perspective?
+  - What exact result should be visible after the change?
+  - Where should the flow navigate or persist data next?
+  - What should happen immediately after success and after failure?
+- If any answer is unclear or contradicted by existing routes/components/policies, stop and resolve the mismatch before editing code.
 
 ## Final Ecosystem Checklist
 
@@ -199,6 +206,7 @@ After making changes, always verify:
 - Lessons learned memory: when Dr Bob finds a real blocker or security flaw, append the resolved lesson to `docs/LESSONS_LEARNED.md`.
 - Historical memory: use `docs/DECISIONS.md` for durable architecture choices; do not invent a parallel `docs/architecture-drivers/DECISIONS.md` path unless that folder is created in the repo.
 - Self-healing monitor: use `bash scripts/monitor-bob.sh` to detect 500-error spikes and append a `critical_warning` into `system_state.json` when Bob's runtime health degrades.
+- Change intent discipline: before any code edit, verify route-to-component mapping, role access, expected UI result, and post-action flow; treat assumptions as blockers until verified in files.
 
 ## External Learning References
 

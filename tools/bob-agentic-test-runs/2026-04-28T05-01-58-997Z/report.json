@@ -1,0 +1,53 @@
+{
+  "runId": "2026-04-28T05-01-58-997Z",
+  "batch": "workflows",
+  "scope": "quick",
+  "startedAt": "2026-04-28T05:01:59.007Z",
+  "endedAt": "2026-04-28T09:02:45.207Z",
+  "resumeMode": false,
+  "continueOnFailure": false,
+  "browserInstallAttempted": false,
+  "browserInstallExitCode": null,
+  "stages": [
+    {
+      "id": "workflow-e2e-all-projects",
+      "description": "Run end-to-end workflow tests across desktop/mobile projects",
+      "command": "/home/vscode/.bun/bin/bun",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "bunx",
+        "playwright",
+        "test",
+        "tests/e2e/deep-functional.spec.ts",
+        "tests/e2e/module-route-access.spec.ts",
+        "tests/e2e/module-e2e-comprehensive.spec.ts",
+        "tests/e2e/ui-comprehensive.spec.ts",
+        "tests/e2e/officer-portal-walkthrough.spec.ts",
+        "tests/e2e/crm-business-crossover.spec.ts",
+        "tests/e2e/client-portal-isolation.spec.ts",
+        "tests/e2e/asset-management-scan.spec.ts",
+        "tests/e2e/report-generation.spec.ts",
+        "tests/e2e/capability-overview.spec.ts",
+        "--project",
+        "chromium",
+        "--project",
+        "firefox",
+        "--project",
+        "webkit",
+        "--project",
+        "Mobile Chrome",
+        "--project",
+        "Mobile Safari",
+        "--reporter=list,json"
+      ],
+      "exitCode": 1,
+      "status": "fail",
+      "durationMs": 14446192
+    }
+  ],
+  "summary": {
+    "passed": 0,
+    "failed": 1
+  }
+}

@@ -1,0 +1,203 @@
+{
+  "updatedAt": "2026-04-29T10:19:09.533Z",
+  "runId": "2026-04-29T10-08-07-372Z",
+  "batch": "workflows",
+  "scope": "quick",
+  "resumeMode": false,
+  "continueOnFailure": true,
+  "startedAt": "2026-04-29T10:08:07.386Z",
+  "endedAt": "2026-04-29T10:19:09.511Z",
+  "summary": {
+    "passed": 0,
+    "failed": 1
+  },
+  "failedStages": [
+    {
+      "id": "workflow-e2e-all-projects",
+      "exitCode": 1,
+      "durationMs": 662101
+    }
+  ],
+  "failureContexts": [
+    {
+      "folder": "asset-management-scan-Asse-03bce-ooth-triggers-scan-on-Enter-chromium",
+      "testName": "asset-management-scan.spec.ts >> Asset Management - Scanner Flows >> keyboard wedge scan (USB/Bluetooth) triggers scan on Enter",
+      "location": "tests/e2e/asset-management-scan.spec.ts:28:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "asset-management-scan-Asse-03bce-ooth-triggers-scan-on-Enter-firefox",
+      "testName": "asset-management-scan.spec.ts >> Asset Management - Scanner Flows >> keyboard wedge scan (USB/Bluetooth) triggers scan on Enter",
+      "location": "tests/e2e/asset-management-scan.spec.ts:28:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "asset-management-scan-Asse-89f38-eDetector-and-resolves-code-chromium",
+      "testName": "asset-management-scan.spec.ts >> Asset Management - Scanner Flows >> camera scan uses mocked BarcodeDetector and resolves code",
+      "location": "tests/e2e/asset-management-scan.spec.ts:55:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "asset-management-scan-Asse-89f38-eDetector-and-resolves-code-firefox",
+      "testName": "asset-management-scan.spec.ts >> Asset Management - Scanner Flows >> camera scan uses mocked BarcodeDetector and resolves code",
+      "location": "tests/e2e/asset-management-scan.spec.ts:55:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "asset-management-scan-Asse-e1325-log-and-pre-fills-asset-tag-chromium",
+      "testName": "asset-management-scan.spec.ts >> Asset Management - Scanner Flows >> manual scan entry opens issue dialog and pre-fills asset tag",
+      "location": "tests/e2e/asset-management-scan.spec.ts:17:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "asset-management-scan-Asse-e1325-log-and-pre-fills-asset-tag-firefox",
+      "testName": "asset-management-scan.spec.ts >> Asset Management - Scanner Flows >> manual scan entry opens issue dialog and pre-fills asset tag",
+      "location": "tests/e2e/asset-management-scan.spec.ts:17:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "capability-overview-Admin--afd26-uthenticated-users-to-login-chromium",
+      "testName": "capability-overview.spec.ts >> Admin Dashboard / Command Centre route >> /admin route exists and redirects unauthenticated users to login",
+      "location": "tests/e2e/capability-overview.spec.ts:190:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "capability-overview-Admin--afd26-uthenticated-users-to-login-firefox",
+      "testName": "capability-overview.spec.ts >> Admin Dashboard / Command Centre route >> /admin route exists and redirects unauthenticated users to login",
+      "location": "tests/e2e/capability-overview.spec.ts:190:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "capability-overview-App-sh-2de16-cal-JS-errors-on-login-page-chromium",
+      "testName": "capability-overview.spec.ts >> App shell >> loads without critical JS errors on login page",
+      "location": "tests/e2e/capability-overview.spec.ts:387:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "capability-overview-App-sh-2de16-cal-JS-errors-on-login-page-firefox",
+      "testName": "capability-overview.spec.ts >> App shell >> loads without critical JS errors on login page",
+      "location": "tests/e2e/capability-overview.spec.ts:387:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "capability-overview-App-sh-e271b-—-root-element-is-populated-chromium",
+      "testName": "capability-overview.spec.ts >> App shell >> React app mounts — root element is populated",
+      "location": "tests/e2e/capability-overview.spec.ts:412:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "capability-overview-App-sh-e271b-—-root-element-is-populated-firefox",
+      "testName": "capability-overview.spec.ts >> App shell >> React app mounts — root element is populated",
+      "location": "tests/e2e/capability-overview.spec.ts:412:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "capability-overview-Breach-834ec-rects-unauthenticated-users-chromium",
+      "testName": "capability-overview.spec.ts >> Breach Alerts route >> /breaches route exists and redirects unauthenticated users",
+      "location": "tests/e2e/capability-overview.spec.ts:214:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "capability-overview-Breach-834ec-rects-unauthenticated-users-firefox",
+      "testName": "capability-overview.spec.ts >> Breach Alerts route >> /breaches route exists and redirects unauthenticated users",
+      "location": "tests/e2e/capability-overview.spec.ts:214:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "capability-overview-Client-f1c7b-rects-unauthenticated-users-chromium",
+      "testName": "capability-overview.spec.ts >> Client Organisation Portal route >> /client-portal redirects unauthenticated users",
+      "location": "tests/e2e/capability-overview.spec.ts:334:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "capability-overview-Client-f1c7b-rects-unauthenticated-users-firefox",
+      "testName": "capability-overview.spec.ts >> Client Organisation Portal route >> /client-portal redirects unauthenticated users",
+      "location": "tests/e2e/capability-overview.spec.ts:334:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "capability-overview-Compli-e4f99-rects-unauthenticated-users-chromium",
+      "testName": "capability-overview.spec.ts >> Compliance Dashboard route >> /compliance route exists and redirects unauthenticated users",
+      "location": "tests/e2e/capability-overview.spec.ts:198:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "capability-overview-Compli-e4f99-rects-unauthenticated-users-firefox",
+      "testName": "capability-overview.spec.ts >> Compliance Dashboard route >> /compliance route exists and redirects unauthenticated users",
+      "location": "tests/e2e/capability-overview.spec.ts:198:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "capability-overview-Data-M-66ee1-rects-unauthenticated-users-chromium",
+      "testName": "capability-overview.spec.ts >> Data Management routes >> /admin/data-hub redirects unauthenticated users",
+      "location": "tests/e2e/capability-overview.spec.ts:306:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "capability-overview-Data-M-66ee1-rects-unauthenticated-users-firefox",
+      "testName": "capability-overview.spec.ts >> Data Management routes >> /admin/data-hub redirects unauthenticated users",
+      "location": "tests/e2e/capability-overview.spec.ts:306:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "capability-overview-Data-M-8da86-rects-unauthenticated-users-chromium",
+      "testName": "capability-overview.spec.ts >> Data Management routes >> /audit-log redirects unauthenticated users",
+      "location": "tests/e2e/capability-overview.spec.ts:298:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "capability-overview-Data-M-8da86-rects-unauthenticated-users-firefox",
+      "testName": "capability-overview.spec.ts >> Data Management routes >> /audit-log redirects unauthenticated users",
+      "location": "tests/e2e/capability-overview.spec.ts:298:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "capability-overview-Data-M-ad4f8-rects-unauthenticated-users-chromium",
+      "testName": "capability-overview.spec.ts >> Data Management routes >> /data redirects unauthenticated users",
+      "location": "tests/e2e/capability-overview.spec.ts:294:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "capability-overview-Data-M-ad4f8-rects-unauthenticated-users-firefox",
+      "testName": "capability-overview.spec.ts >> Data Management routes >> /data redirects unauthenticated users",
+      "location": "tests/e2e/capability-overview.spec.ts:294:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "capability-overview-Data-M-b5309-rects-unauthenticated-users-chromium",
+      "testName": "capability-overview.spec.ts >> Data Management routes >> /admin/data-integrity redirects unauthenticated users",
+      "location": "tests/e2e/capability-overview.spec.ts:302:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "capability-overview-Data-M-b5309-rects-unauthenticated-users-firefox",
+      "testName": "capability-overview.spec.ts >> Data Management routes >> /admin/data-integrity redirects unauthenticated users",
+      "location": "tests/e2e/capability-overview.spec.ts:302:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "capability-overview-Enforc-2b056-rects-unauthenticated-users-chromium",
+      "testName": "capability-overview.spec.ts >> Enforcement routes >> /enforcement-actions redirects unauthenticated users",
+      "location": "tests/e2e/capability-overview.spec.ts:342:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "capability-overview-Enforc-2b056-rects-unauthenticated-users-firefox",
+      "testName": "capability-overview.spec.ts >> Enforcement routes >> /enforcement-actions redirects unauthenticated users",
+      "location": "tests/e2e/capability-overview.spec.ts:342:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "capability-overview-Enforc-843f1--route-exists-and-redirects-chromium",
+      "testName": "capability-overview.spec.ts >> Enforcement Command Centre route >> /enforcement-command-center route exists and redirects",
+      "location": "tests/e2e/capability-overview.spec.ts:222:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    },
+    {
+      "folder": "capability-overview-Enforc-843f1--route-exists-and-redirects-firefox",
+      "testName": "capability-overview.spec.ts >> Enforcement Command Centre route >> /enforcement-command-center route exists and redirects",
+      "location": "tests/e2e/capability-overview.spec.ts:222:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
+    }
+  ]
+}

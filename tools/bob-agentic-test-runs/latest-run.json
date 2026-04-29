@@ -1,0 +1,22 @@
+{
+  "updatedAt": "2026-04-29T04:07:53.904Z",
+  "runId": "2026-04-29T03-59-19-584Z",
+  "batch": "all",
+  "scope": "quick",
+  "resumeMode": false,
+  "continueOnFailure": true,
+  "startedAt": "2026-04-29T03:59:19.599Z",
+  "endedAt": null,
+  "summary": {
+    "passed": 2,
+    "failed": 1
+  },
+  "failedStages": [
+    {
+      "id": "build",
+      "exitCode": 2,
+      "durationMs": 214693
+    }
+  ],
+  "failureContexts": []
+}

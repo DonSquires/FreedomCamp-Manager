@@ -1,6 +1,10 @@
 import { test, expect } from '@playwright/test';
 
-const BASE = 'http://localhost:5173';
+const BASE =
+  process.env.PLAYWRIGHT_FOCUSED_BASE_URL ||
+  process.env.PLAYWRIGHT_BASE_URL ||
+  process.env.DEFAULT_PLAYWRIGHT_BASE_URL ||
+  'http://localhost:5173';
 const EMAIL = 'squires.don@live.com';
 const PASS = 'Run2thesun??';
 

@@ -6,8 +6,8 @@
 > from the repository owner (@DonSquires) via a reviewed and approved Pull Request.**
 > See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for the full governance policy.
 
-**Last verified:** 2026-04-20  
-**Verified by:** Migration file analysis (not live DB query) — full table inventory across 303 migration files through 20260425000001  
+**Last verified:** 2026-04-27  
+**Verified by:** Migration file analysis (not live DB query) — full table inventory across 303 migration files through 20260425000001 — Business Management section added 2026-04-27  
 **Live row counts at verification:** observations 30,789 · canonical_vehicles 61,535 · zones 3,731 · breach_alerts 1,484 · user_profiles 7 · compliance_results 1,959 (from last live query 2026-04-25)
 
 > 📋 **Source note:** This document was updated via static analysis of `supabase/migrations/*.sql` files, not a live database query. Column definitions reflect the CREATE TABLE statements in the migration files. Run the information_schema query above to verify against the live DB.
@@ -728,8 +728,241 @@ Columns: `id`, `batch_id`, `raw_data`, `enriched_data`, `status` (default 'pendi
 
 ---
 
+## Business Management & CRM Tables
+
+The following tables support the **two-lane admin architecture**:
+- **CRM Layer**: Client site management, contracts, service delivery locations
+- **Business Management Layer**: Officer availability, skills tracking, roster scheduling, shift marketplace
+
+### public.client_sites
+
+**Primary key:** `id` (uuid, NOT NULL)  
+**Organization scoping:** `organization_id` (one-to-many)  
+**Zone linking:** `zone_id` (nullable FK to zones.id)  
+**Contract tracking:** `contract_start_date`, `contract_end_date`, `m365_customer_id`, `m365_contract_ref`, `purchase_order_number`
+
+| Column | Type | Nullable | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() | Site UUID |
+| organization_id | uuid | NO | — | Parent organization (CRM account) |
+| name | string | NO | — | Site name / location identifier |
+| site_code | text | YES | — | Customer-facing site reference code |
+| site_type | text | NO | — | Type: campus, warehouse, retail, event, other |
+| zone_id | uuid | YES | — | Linked enforcement zone (if applicable) |
+| address | text | YES | — | Street address |
+| city | text | YES | — | City/suburb |
+| gps_lat | numeric | YES | — | Geofence center latitude |
+| gps_lng | numeric | YES | — | Geofence center longitude |
+| geofence_radius_metres | numeric | NO | 500 | Geofence boundary (meters) |
+| contact_name | text | YES | — | Primary site contact name |
+| contact_phone | text | YES | — | Primary site contact phone |
+| contact_email | text | YES | — | Primary site contact email |
+| emergency_contact_name | text | YES | — | Emergency contact name |
+| emergency_contact_phone | text | YES | — | Emergency contact phone |
+| access_instructions | text | YES | — | Gate codes, access procedures |
+| special_instructions | text | YES | — | Site-specific operational notes |
+| hazards | text | YES | — | Known hazards (vehicle types, biosecurity, etc.) |
+| default_pay_rate | numeric | YES | — | Default guard hourly rate (NZD) |
+| default_charge_rate | numeric | YES | — | Default charge-out rate (NZD) |
+| overtime_pay_multiplier | numeric | YES | — | OT multiplier (1.5x, 2x, etc.) |
+| default_response_minutes | integer | YES | — | SLA response time in minutes |
+| invoice_frequency | text | YES | — | Invoice cycle: weekly, fortnightly, monthly |
+| currency_code | text | YES | 'NZD' | Currency (NZD primary) |
+| m365_customer_id | text | YES | — | Microsoft 365 customer ID for invoicing |
+| m365_cost_centre | text | YES | — | Microsoft 365 cost centre for P&L |
+| m365_contract_ref | text | YES | — | Microsoft 365 contract reference |
+| contract_start_date | text | YES | — | Contract commencement (ISO date) |
+| contract_end_date | text | YES | — | Contract termination (ISO date) |
+| priority_override | text | YES | — | Priority rank for dispatch (high/normal/low) |
+| is_active | boolean | NO | true | Site operational flag |
+| notes | text | YES | — | Admin notes |
+| created_by | uuid | YES | — | FK: user_profiles.id (creator) |
+| created_at | timestamptz | NO | now() | Creation timestamp |
+| updated_at | timestamptz | NO | now() | Last update timestamp |
+
+**Relationships:**
+- FK `organization_id` → `organizations.id` (one-to-many)
+- FK `zone_id` → `zones.id` (optional link to enforcement zone)
+- FK `created_by` → `user_profiles.id` (creator audit)
+- Reverse FK: `roster_shifts.client_site_id` (shifts assigned to this site)
+
+---
+
+### public.officer_availability
+
+**Primary key:** `id` (uuid, NOT NULL)  
+**Officer scoping:** `officer_id` (one-to-many)  
+**Organization scoping:** `organization_id` (one-to-many)  
+**Granularity:** Daily pattern or specific date overrides
+
+| Column | Type | Nullable | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() | Availability record UUID |
+| officer_id | uuid | NO | — | FK: user_profiles.id (officer being tracked) |
+| organization_id | uuid | NO | — | Parent organization |
+| is_available | boolean | NO | true | Officer can be scheduled (true/false) |
+| day_of_week | integer | YES | — | Recurring pattern: 0 (Mon) – 6 (Sun), NULL for specific dates |
+| specific_date | text | YES | — | Non-recurring override (ISO date): "2026-04-28" |
+| available_from | text | YES | — | Start time (HH:MM, e.g. "06:30") |
+| available_to | text | YES | — | End time (HH:MM, e.g. "18:00") |
+| unavailability_reason | text | YES | — | Flag (sick, holiday, training, unavailable, other) |
+| notes | text | YES | — | Admin notes on unavailability |
+| created_at | timestamptz | NO | now() | Creation timestamp |
+| updated_at | timestamptz | NO | now() | Last update timestamp |
+
+**Relationships:**
+- FK `officer_id` → `user_profiles.id` (one-to-many per officer)
+- FK `organization_id` → `organizations.id` (org scoping)
+
+**Query patterns:**
+- Get officer availability for today: `WHERE officer_id = ?, specific_date IS NULL AND day_of_week = EXTRACT(DOW FROM NOW())`
+- Get officer availability overrides: `WHERE officer_id = ? AND specific_date >= TODAY()`
+
+---
+
+### public.officer_skills
+
+**Primary key:** `id` (uuid, NOT NULL)  
+**Officer scoping:** `officer_id` (one-to-many)  
+**Organization scoping:** `organization_id` (one-to-many)  
+**Verification chain:** `verified_by` (audit trail)
+
+| Column | Type | Nullable | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() | Skill record UUID |
+| officer_id | uuid | NO | — | FK: user_profiles.id (officer) |
+| organization_id | uuid | NO | — | Parent organization |
+| skill_name | text | NO | — | Skill category (SIA, First Aid, Dog Handler, ALPR, Conflict de-escalation, etc.) |
+| skill_category | text | YES | — | Broader category (security, medical, enforcement, tech, other) |
+| is_verified | boolean | NO | false | Skill has been certified/verified |
+| verified_by | uuid | YES | — | FK: user_profiles.id (verifier, typically admin) |
+| verified_at | timestamptz | YES | — | Verification timestamp |
+| issued_at | timestamptz | YES | — | Original certificate issue date |
+| expires_at | timestamptz | YES | — | Certificate expiration date (if applicable) |
+| certification_number | text | YES | — | Certificate reference code |
+| document_url | text | YES | — | Storage URL for certificate scan/PDF |
+| notes | text | YES | — | Verification notes or qualification details |
+| created_at | timestamptz | NO | now() | Record creation timestamp |
+| updated_at | timestamptz | NO | now() | Last update timestamp |
+
+**Relationships:**
+- FK `officer_id` → `user_profiles.id` (one-to-many per officer)
+- FK `organization_id` → `organizations.id` (org scoping)
+- FK `verified_by` → `user_profiles.id` (admin who verified)
+
+---
+
+### public.open_shifts
+
+**Primary key:** `id` (uuid, NOT NULL)  
+**Organization scoping:** `organization_id` (one-to-many)  
+**Marketplace model:** Officers claim shifts; `claimed_by` tracks claim owner  
+**Zone linking:** `zone_id` (optional, may be NULL if site-specific)
+
+| Column | Type | Nullable | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() | Shift UUID |
+| organization_id | uuid | NO | — | Parent organization |
+| title | text | NO | — | Shift title ("Tower Guard - Mon", "Mobile Patrol", etc.) |
+| description | text | YES | — | Shift description / duties |
+| shift_date | text | NO | — | Shift date (ISO date, e.g. "2026-04-28") |
+| start_time | text | YES | — | Shift start time (HH:MM, e.g. "06:00") |
+| end_time | text | YES | — | Shift end time (HH:MM, e.g. "18:00") |
+| shift_type | text | YES | — | Shift category (patrol, static, event, training, other) |
+| status | text | NO | 'open' | Shift status: open, claimed, confirmed, cancelled, completed |
+| priority | text | YES | 'normal' | Shift priority: high, normal, low |
+| requirements | text | YES | — | Comma-separated required skills |
+| zone_id | uuid | YES | — | FK: zones.id (optional zone context) |
+| officer_shift_id | uuid | YES | — | FK: officer_shifts.id (if confirmed against live shift) |
+| created_by | uuid | NO | — | FK: user_profiles.id (shift creator/dispatcher) |
+| claimed_by | uuid | YES | — | FK: user_profiles.id (officer who claimed shift) |
+| claimed_at | timestamptz | YES | — | Timestamp when claimed |
+| created_at | timestamptz | NO | now() | Creation timestamp |
+| updated_at | timestamptz | NO | now() | Last update timestamp |
+
+**Relationships:**
+- FK `organization_id` → `organizations.id` (org scoping)
+- FK `created_by` → `user_profiles.id` (dispatcher)
+- FK `claimed_by` → `user_profiles.id` (officer who claimed)
+- FK `officer_shift_id` → `officer_shifts.id` (live shift instance)
+- FK `zone_id` → `zones.id` (optional zone context)
+
+---
+
+### public.roster_shifts
+
+**Primary key:** `id` (uuid, NOT NULL)  
+**Site-centric model:** Shifts assigned to specific `client_sites`  
+**Officer assignment:** `officer_id` (nullable until confirmed)  
+**Contract scoping:** `contractor_org_id` (multi-org staffing contractor)
+
+| Column | Type | Nullable | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() | Shift UUID |
+| organization_id | uuid | NO | — | Primary organization (site owner) |
+| contractor_org_id | uuid | YES | — | FK: organizations.id (staffing contractor, if outsourced) |
+| client_site_id | uuid | YES | — | FK: client_sites.id (site this shift is for) |
+| officer_id | uuid | YES | — | FK: user_profiles.id (assigned officer, NULL if unassigned) |
+| officer_shift_id | uuid | YES | — | FK: officer_shifts.id (live shift lifecycle link) |
+| shift_date | text | NO | — | Shift date (ISO date, e.g. "2026-04-28") |
+| start_time | text | YES | — | Scheduled start (HH:MM, e.g. "06:00") |
+| end_time | text | YES | — | Scheduled end (HH:MM, e.g. "18:00") |
+| break_minutes | integer | NO | 0 | Paid break duration (minutes) |
+| shift_type | text | YES | — | Type: patrol, static, training, incident_response, other |
+| position_title | text | YES | — | Role title if different from officer's role |
+| service_type | text | YES | — | Service category (security, cleaning, maintenance, event, other) |
+| status | text | NO | 'draft' | Shift status: draft, published, confirmed, in_progress, completed, cancelled |
+| is_template | boolean | NO | false | If true, shift is a recurrence template; `parent_template_id` is NULL |
+| parent_template_id | uuid | YES | — | FK: roster_shifts.id (if shift is instance of recurring template) |
+| recurrence_rule | text | YES | — | iCal RRULE for recurring shifts (e.g. "FREQ=WEEKLY;UNTIL=2026-12-31") |
+| has_conflict | boolean | NO | false | Officer has scheduling conflict |
+| conflict_reason | text | YES | — | Reason for conflict (already assigned, unavailable, etc.) |
+| required_skills | text[] | YES | — | Array of skill names required |
+| notes | text | YES | — | Internal operational notes |
+| internal_notes | text | YES | — | Private admin notes |
+| officer_notes | text | YES | — | Officer's notes on shift completion |
+| guard_cost_rate | numeric | YES | — | Cost to client (NZD/hour) |
+| client_charge_rate | numeric | YES | — | Charge to client (NZD/hour) |
+| rate_type | text | YES | — | Rate category (standard, overtime, weekend, holiday, on-call) |
+| published_at | timestamptz | YES | — | Timestamp when roster was published to officers |
+| confirmed_at | timestamptz | YES | — | Timestamp when officer confirmed acceptance |
+| officer_response | text | YES | — | Officer response: accepted, tentative, declined |
+| officer_response_at | timestamptz | YES | — | Timestamp of officer response |
+| cancelled_at | timestamptz | YES | — | Cancellation timestamp (if cancelled) |
+| cancel_reason | text | YES | — | Reason for cancellation |
+| created_by | uuid | YES | — | FK: user_profiles.id (creator/scheduler) |
+| created_at | timestamptz | NO | now() | Creation timestamp |
+| updated_at | timestamptz | NO | now() | Last update timestamp |
+| zone_id | uuid | YES | — | FK: zones.id (optional enforcement zone context) |
+
+**Relationships:**
+- FK `organization_id` → `organizations.id` (primary org)
+- FK `contractor_org_id` → `organizations.id` (staffing agency, if multi-org)
+- FK `client_site_id` → `client_sites.id` (site where shift occurs)
+- FK `officer_id` → `user_profiles.id` (assigned officer)
+- FK `officer_shift_id` → `officer_shifts.id` (live shift tracking)
+- FK `parent_template_id` → `roster_shifts.id` (recursive: template relationship)
+- FK `created_by` → `user_profiles.id` (creator audit)
+- FK `zone_id` → `zones.id` (optional zone context)
+
+**Key patterns:**
+- **Template shifts:** `is_template = true`, `recurrence_rule` is set; `parent_template_id = NULL`
+- **Instance shifts:** `is_template = false`, `parent_template_id` points to template
+- **Unscheduled:** `officer_id = NULL`, `status = 'published'` (waiting for assignment)
+- **Conflict detection:** `has_conflict = true` → operator needs to resolve (assign different officer, reschedule, etc.)
+
+---
+
 ## Other Public Tables (summary)
 
+### Compliance & Canonical Data
+| Table | PK | Notes |
+|---|---|---|
+| canonical_scv | plate_number | **Authoritative SCV source:** `is_self_contained`, `certificate_expiry`, `source`, `verified_at`, `notes` — replaces `canonical_vehicles.self_contained` — added `20260421000001` |
+| canonical_homeless | plate_number | **Authoritative homeless source:** `status` (confirmed/claimed/suspected/declined/none), `confirmed_by`, `confirmed_at`, `source`, `notes` — replaces `canonical_vehicles.homeless_status` — added `20260421000001` |
+| dispute_intake | id | Public/staff-submitted disputes: `organization_id`, `zone_id`, `source_type` (notice_to_vacate/infringement/homeless_status/other), `source_reference`, `plate_number`, `claimant_name/email/phone`, `message`, `request_homeless_review`, `hardship_context`, `evidence_statement`, `submitted_via`, `status` (received/under_review/info_requested/upheld/varied/rejected/closed), `assigned_to`, `admin_notes`, `submitted_at` — added `20260418000006`, extended `20260418000007` |
+
+### Audit & Operations
 | Table | PK | Notes |
 |---|---|---|
 | patrol_checkpoints | id | QR/NFC scan checkpoints per zone — see full section above |
@@ -742,9 +975,6 @@ Columns: `id`, `batch_id`, `raw_data`, `enriched_data`, `status` (default 'pendi
 | enforcement_case_events | id | Audit events per enforcement case — see full section above |
 | incident_attachments | id | File attachments for incidents — see full section above |
 | retention_policies | id | Data retention rules per record type — see full section above |
-| canonical_scv | plate_number | Canonical SCV certification per plate: `is_self_contained`, `certificate_expiry`, `source`, `verified_at`, `notes` — **authoritative source for all SCV lookups** (replaces `canonical_vehicles.self_contained`) — added `20260421000001` |
-| canonical_homeless | plate_number | Canonical homeless designation per plate: `status` (confirmed/claimed/suspected/declined/none), `confirmed_by`, `confirmed_at`, `source`, `notes` — **authoritative source for all homeless lookups** (replaces `canonical_vehicles.homeless_status`) — added `20260421000001` |
-| dispute_intake | id | Public/staff-submitted disputes: `organization_id`, `zone_id`, `source_type` (notice_to_vacate/infringement/homeless_status/other), `source_reference`, `plate_number`, `claimant_name/email/phone`, `message`, `request_homeless_review`, `hardship_context`, `evidence_statement`, `submitted_via`, `status` (received/under_review/info_requested/upheld/varied/rejected/closed), `assigned_to`, `admin_notes`, `submitted_at` — added `20260418000006`, extended `20260418000007` |
 | spatial_ref_sys | srid | PostGIS reference |
 | vehicle_records_deprecated_20250131 | id | Deprecated — do not use |
 | photo_metadata | id | Evidence photo audit log |

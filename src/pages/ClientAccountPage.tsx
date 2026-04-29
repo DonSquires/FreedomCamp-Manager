@@ -48,6 +48,7 @@ interface ClientOrg {
 
 interface ClientSite {
   id: string
+  zone_id: string | null
   name: string
   site_code: string | null
   site_type: string
@@ -76,6 +77,18 @@ interface RecentShift {
   client_charge_rate: number | null
   officer: { first_name: string; last_name: string } | null
   site: { name: string } | null
+}
+
+interface OperationsSnapshot {
+  activeSites: number
+  inactiveSites: number
+  linkedZones: number
+  activeZones: number
+  configuredRateSites: number
+  contacts: number
+  activePatrolRoutes: number
+  scheduledPatrols: number
+  upcomingRosterShifts: number
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -130,6 +143,7 @@ export default function ClientAccountPage() {
 
   const [secAccount, setSecAccount] = useState(true)
   const [secSites,   setSecSites]   = useState(true)
+  const [secOperations, setSecOperations] = useState(true)
   const [secShifts,  setSecShifts]  = useState(false)
 
   const [editingContact, setEditingContact] = useState(false)
@@ -164,7 +178,7 @@ export default function ClientAccountPage() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('client_sites')
-        .select('id, name, site_code, site_type, address, city, contact_name, contact_phone, contact_email, contract_start_date, contract_end_date, default_response_minutes, default_pay_rate, default_charge_rate, is_active, zone:zones!zone_id(name)')
+        .select('id, zone_id, name, site_code, site_type, address, city, contact_name, contact_phone, contact_email, contract_start_date, contract_end_date, default_response_minutes, default_pay_rate, default_charge_rate, is_active, zone:zones!zone_id(name)')
         .eq('organization_id', orgId)
         .order('name')
       if (error) throw error
@@ -209,6 +223,72 @@ export default function ClientAccountPage() {
       })) as RecentShift[]
     },
     enabled: !!orgId && secShifts,
+  })
+
+  // ── Unified account operations snapshot ─────────────────────────────────
+
+  const { data: operationsSnapshot } = useQuery<OperationsSnapshot>({
+    queryKey: ['crm_client_operations_snapshot', orgId, sites.map(s => s.id).join(',')],
+    queryFn: async () => {
+      const activeSites = sites.filter(s => s.is_active).length
+      const inactiveSites = sites.length - activeSites
+      const configuredRateSites = sites.filter(s => s.default_pay_rate != null || s.default_charge_rate != null).length
+      const zoneIds = Array.from(new Set(sites.map(s => s.zone_id).filter(Boolean) as string[]))
+
+      const [directContactsRes, employerContactsRes, activeZonesRes, activeRoutesRes, scheduledPatrolsRes, rosterShiftsRes] = await Promise.all([
+        (supabase as any)
+          .from('user_profiles')
+          .select('id')
+          .eq('organization_id', orgId),
+        (supabase as any)
+          .from('user_profiles')
+          .select('id')
+          .eq('employer_organization_id', orgId),
+        zoneIds.length > 0
+          ? (supabase as any)
+              .from('zones')
+              .select('id', { count: 'exact', head: true })
+              .in('id', zoneIds)
+              .eq('is_active', true)
+          : Promise.resolve({ count: 0 }),
+        (supabase as any)
+          .from('patrol_routes')
+          .select('id', { count: 'exact', head: true })
+          .eq('organization_id', orgId)
+          .eq('is_active', true),
+        zoneIds.length > 0
+          ? (supabase as any)
+              .from('patrols')
+              .select('id', { count: 'exact', head: true })
+              .in('zone_id', zoneIds)
+              .in('status', ['scheduled', 'in_progress'])
+          : Promise.resolve({ count: 0 }),
+        sites.length > 0
+          ? (supabase as any)
+              .from('roster_shifts')
+              .select('id', { count: 'exact', head: true })
+              .in('client_site_id', sites.map(s => s.id))
+              .in('status', ['published', 'confirmed'])
+          : Promise.resolve({ count: 0 }),
+      ])
+
+      const uniqueContactIds = new Set<string>()
+      for (const row of directContactsRes.data ?? []) uniqueContactIds.add(row.id)
+      for (const row of employerContactsRes.data ?? []) uniqueContactIds.add(row.id)
+
+      return {
+        activeSites,
+        inactiveSites,
+        linkedZones: zoneIds.length,
+        activeZones: activeZonesRes.count ?? 0,
+        configuredRateSites,
+        contacts: uniqueContactIds.size,
+        activePatrolRoutes: activeRoutesRes.count ?? 0,
+        scheduledPatrols: scheduledPatrolsRes.count ?? 0,
+        upcomingRosterShifts: rosterShiftsRes.count ?? 0,
+      }
+    },
+    enabled: !!orgId && sites.length >= 0,
   })
 
   // ── Save contact mutation ─────────────────────────────────────────────────
@@ -402,7 +482,55 @@ export default function ClientAccountPage() {
         </div>
       </Section>
 
-      {/* ── Section 3: Recent Shifts ────────────────────────────────────── */}
+      {/* ── Section 3: Operations & Settings ───────────────────────────── */}
+      <Section
+        title="Operations & Settings"
+        open={secOperations}
+        toggle={() => setSecOperations(v => !v)}
+      >
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+          <div className="rounded border p-2.5">
+            <p className="text-muted-foreground">Sites</p>
+            <p className="font-semibold">{operationsSnapshot?.activeSites ?? 0} active / {operationsSnapshot?.inactiveSites ?? 0} inactive</p>
+          </div>
+          <div className="rounded border p-2.5">
+            <p className="text-muted-foreground">Zones</p>
+            <p className="font-semibold">{operationsSnapshot?.activeZones ?? 0} active of {operationsSnapshot?.linkedZones ?? 0} linked</p>
+          </div>
+          <div className="rounded border p-2.5">
+            <p className="text-muted-foreground">Patrol Setup</p>
+            <p className="font-semibold">{operationsSnapshot?.activePatrolRoutes ?? 0} routes · {operationsSnapshot?.scheduledPatrols ?? 0} scheduled/in progress</p>
+          </div>
+          <div className="rounded border p-2.5">
+            <p className="text-muted-foreground">Contacts</p>
+            <p className="font-semibold">{operationsSnapshot?.contacts ?? 0} account contacts</p>
+          </div>
+          <div className="rounded border p-2.5">
+            <p className="text-muted-foreground">Rates</p>
+            <p className="font-semibold">{operationsSnapshot?.configuredRateSites ?? 0} sites with pay/charge rates</p>
+          </div>
+          <div className="rounded border p-2.5">
+            <p className="text-muted-foreground">Roster Access</p>
+            <p className="font-semibold">{operationsSnapshot?.upcomingRosterShifts ?? 0} published/confirmed shifts</p>
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" className="text-xs" onClick={() => navigate('/client-sites')}>
+            Manage Sites
+          </Button>
+          <Button size="sm" variant="outline" className="text-xs" onClick={() => navigate('/zones')}>
+            Manage Zones
+          </Button>
+          <Button size="sm" variant="outline" className="text-xs" onClick={() => navigate('/patrol-schedule')}>
+            Patrol Setup
+          </Button>
+          <Button size="sm" variant="outline" className="text-xs" onClick={() => navigate('/admin/site-permissions')}>
+            Site Access Rules
+          </Button>
+        </div>
+      </Section>
+
+      {/* ── Section 4: Recent Shifts ────────────────────────────────────── */}
       <Section
         title="Recent Shifts"
         open={secShifts}
