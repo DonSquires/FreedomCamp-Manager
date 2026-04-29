@@ -4,6 +4,33 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+# Guard: this script is for VPS/production monitoring only.
+# In CI environments (e.g. GitHub Actions) journalctl contains runner system
+# logs that produce false-positive 500-error matches unrelated to the
+# application.  Skip log scanning, mark the monitor healthy, and exit.
+if [[ "${CI:-false}" == "true" ]]; then
+  echo "Bob monitor: CI environment detected — skipping log scan (monitor is for VPS/production only)."
+
+  if [[ -f system_state.json ]]; then
+    node - "$ROOT_DIR/system_state.json" <<'EOF_CI_CLEAR'
+const fs = require('fs');
+const filePath = process.argv[2];
+const raw = fs.readFileSync(filePath, 'utf8');
+const state = JSON.parse(raw);
+state.monitor = {
+  ...(state.monitor || {}),
+  checked_at: new Date().toISOString(),
+  status: 'healthy',
+  note: 'CI environment — log scan skipped',
+};
+delete state.critical_warning;
+fs.writeFileSync(filePath, `${JSON.stringify(state, null, 2)}\n`);
+EOF_CI_CLEAR
+  fi
+
+  exit 0
+fi
+
 WINDOW_MINUTES="${BOB_MONITOR_WINDOW_MINUTES:-15}"
 ERROR_THRESHOLD="${BOB_MONITOR_ERROR_THRESHOLD:-5}"
 ESCALATE_TO_DR_BOB="${BOB_ESCALATE_TO_DR_BOB:-true}"
