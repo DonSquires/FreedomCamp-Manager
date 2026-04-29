@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { SMTPClient } from 'https://deno.land/x/denomailer@1.0.0/mod.ts';
-import { corsHeaders } from '../_shared/cors.ts';
+import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts';
 
 const safeErrorText = (value: unknown) => String(value ?? '').replace(/[\r\n]+/g, ' ').slice(0, 500);
 
@@ -103,7 +103,7 @@ async function sendInviteDirectSmtp(params: { email: string; firstName?: string;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: getCorsHeaders(req) });
   }
 
   let proxyBaseUrl: string | undefined;
@@ -120,7 +120,7 @@ serve(async (req) => {
     if (!email || !invite_url) {
       return new Response(
         JSON.stringify({ error: 'email and invite_url are required', code: 'INVALID_PAYLOAD' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -148,7 +148,7 @@ serve(async (req) => {
         });
         return new Response(
           JSON.stringify({ message: 'Invite email sent' }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         );
       }
 
@@ -169,7 +169,7 @@ serve(async (req) => {
           });
           return new Response(
             JSON.stringify({ message: 'Invite email sent' }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
           );
         }
 
@@ -181,7 +181,7 @@ serve(async (req) => {
           });
           return new Response(
             JSON.stringify({ message: 'Invite email sent' }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
           );
         } catch {
           // Keep original relay error details if direct SMTP fallback is unavailable.
@@ -204,14 +204,14 @@ serve(async (req) => {
             relayStatus: relayResponse.status,
             relayHost: proxyBaseUrl,
           }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         );
       }
 
       console.log(`Invite email relayed successfully for ${email}`);
       return new Response(
         JSON.stringify({ message: 'Invite email sent' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -220,7 +220,7 @@ serve(async (req) => {
     console.log(`Invite email sent directly for ${email}`);
     return new Response(
       JSON.stringify({ message: 'Invite email sent' }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   } catch (error: any) {
     const rawMessage = safeErrorText(error?.message || error);
@@ -239,7 +239,7 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ error: message, code, relayHost: proxyBaseUrl ?? 'missing' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 });
