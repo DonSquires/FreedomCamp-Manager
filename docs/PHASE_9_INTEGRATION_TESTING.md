@@ -711,7 +711,7 @@ Use this checklist to track testing progress:
 - [ ] Error handling works (500, 503)
 - [ ] Cold start recovery works
 - [ ] Supabase secrets configured
-- [ ] check-railway-health function works
+- [ ] check-services-health function works (legacy alias: check-railway-health)
 
 ### Data Integrity
 - [ ] RLS policies enforce org isolation

@@ -204,6 +204,9 @@ verify_jwt = false
 [functions.check-railway-health]
 verify_jwt = false
 
+[functions.check-services-health]
+verify_jwt = false
+
 [functions.check-zone-corrections]
 verify_jwt = false
 

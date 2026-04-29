@@ -1,11 +1,11 @@
 /**
- * check-railway-health (legacy alias)
+ * check-services-health
  *
- * Canonical implementation now lives at check-services-health.
- * Keep this function for backward compatibility with older callers.
+ * Canonical health endpoint for proxy, RunPod inference, and PTT services.
+ * Legacy alias: check-railway-health (kept for backward compatibility).
  */
 
-import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
+import { getCorsHeaders } from '../_shared/withCors.ts'
 import { validateServiceUrl, buildEndpointUrl } from '../_shared/urlUtils.ts'
 
 const HEALTH_CHECK_TIMEOUT_MS = 8_000
@@ -17,10 +17,9 @@ const INFERENCE_API_KEY =
   ''
 const PTT_WS_URL = Deno.env.get('PTT_WS_URL') || Deno.env.get('PTT_SIGNALING_WS_URL') || ''
 
-// Validate and normalize URLs at startup
 const proxyValidation = validateServiceUrl(
   Deno.env.get('PROXY_SERVER_URL') || Deno.env.get('NZSCV_PROXY_URL'),
-  'PROXY_SERVER_URL'
+  'PROXY_SERVER_URL',
 )
 const RUNPOD_ENDPOINT_ID = String(Deno.env.get('RUNPOD_ENDPOINT_ID') || '').trim()
 const derivedRunpodUrl = RUNPOD_ENDPOINT_ID ? `https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}` : ''
@@ -30,11 +29,11 @@ const inferenceValidation = validateServiceUrl(
     Deno.env.get('RUNPOD_ENDPOINT_URL') ||
     Deno.env.get('INFERENCE_SERVICE_URL_RUNPOD') ||
     derivedRunpodUrl,
-  'INFERENCE_SERVICE_URL'
+  'INFERENCE_SERVICE_URL',
 )
 const pttValidation = validateServiceUrl(
   Deno.env.get('PTT_SERVER_URL') || Deno.env.get('PTT_SERVICE_URL') || '',
-  'PTT_SERVER_URL'
+  'PTT_SERVER_URL',
 )
 
 function validateWsUrl(value: string): { valid: boolean; warning?: string; error?: string; normalized: string | null } {
@@ -65,7 +64,6 @@ function normalizeRunpodRunSyncUrl(url: string): string {
   return `${url.replace(/\/(?:run|runsync)\/?$/i, '')}/runsync`
 }
 
-/** Safely parse a fetch Response as JSON, falling back to a status object. */
 async function safeJson(response: Response): Promise<Record<string, unknown>> {
   try {
     return await response.json()
@@ -74,7 +72,6 @@ async function safeJson(response: Response): Promise<Record<string, unknown>> {
   }
 }
 
-/** Convert an unknown rejection reason to a plain string. */
 function reasonToString(reason: unknown): string {
   if (reason instanceof Error) return reason.message
   if (typeof reason === 'string') return reason
@@ -82,7 +79,6 @@ function reasonToString(reason: unknown): string {
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: getCorsHeaders(req) })
   }

@@ -151,7 +151,7 @@ Create a GitHub issue to track migration:
 ## CORS Migration Tracker
 
 ### Completed
-- [ ] check-railway-health
+- [ ] check-services-health
 - [ ] ... (add as completed)
 
 ### In Progress

@@ -87,7 +87,7 @@ No external cloud AI provider secrets are required under this policy.
 supabase secrets list --project-ref kxwjcupuxnnbnzcgmkoi
 
 # Test the health endpoint
-curl https://kxwjcupuxnnbnzcgmkoi.supabase.co/functions/v1/check-railway-health
+curl https://kxwjcupuxnnbnzcgmkoi.supabase.co/functions/v1/check-services-health
 ```
 
 ### Expected Response
