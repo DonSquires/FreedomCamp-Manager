@@ -55,19 +55,24 @@ jobs:
           RUNPOD_POD_ID: ${{ secrets.RUNPOD_POD_ID }}
         run: |
           if [ -z "${RUNPOD_API_KEY:-}" ]; then
-            echo "::error::RUNPOD_API_KEY secret is not set"
-            exit 1
+            echo "::warning::RUNPOD_API_KEY secret is not set — skipping RunPod pod lifecycle workflow"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           if [ -z "${RUNPOD_POD_ID:-}" ]; then
-            echo "::error::RUNPOD_POD_ID secret is not set"
-            exit 1
+            echo "::warning::RUNPOD_POD_ID secret is not set — skipping RunPod pod lifecycle workflow"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
           echo "✅ Required secrets present"
 
       - name: Checkout repository
+        if: steps.check-secrets.outputs.skip != 'true'
         uses: actions/checkout@v5
 
       - name: Resolve pod ID and action
+        if: steps.check-secrets.outputs.skip != 'true'
         id: resolve
         env:
           RUNPOD_POD_ID: ${{ secrets.RUNPOD_POD_ID }}

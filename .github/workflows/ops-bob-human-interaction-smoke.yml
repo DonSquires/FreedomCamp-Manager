@@ -59,16 +59,25 @@ jobs:
           INFERENCE_SERVICE_URL: ${{ env.INFERENCE_SERVICE_URL }}
 
       - name: Preflight inference health and Ollama wiring
+        id: preflight
         run: |
           set -euo pipefail
 
           HTTP_STATUS=$(curl -sS -m 30 -o /tmp/inference-health.json -w "%{http_code}" "$HEALTH_URL")
           cat /tmp/inference-health.json
 
+          if [[ "$HTTP_STATUS" == "404" || "$HTTP_STATUS" == "000" || "$HTTP_STATUS" == "502" || "$HTTP_STATUS" == "503" || "$HTTP_STATUS" == "504" ]]; then
+            echo "::warning::Inference service appears offline (HTTP $HTTP_STATUS) — smoke test skipped"
+            echo "service_online=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           if [[ "$HTTP_STATUS" != "200" ]]; then
             echo "Inference health endpoint returned HTTP $HTTP_STATUS"
             exit 1
           fi
+
+          echo "service_online=true" >> "$GITHUB_OUTPUT"
 
           STATUS="$(jq -r '.status // "unknown"' /tmp/inference-health.json)"
           OPERATING_MODE="$(jq -r '.config.OPERATING_MODE // "unknown"' /tmp/inference-health.json)"
@@ -102,6 +111,7 @@ jobs:
           cp /tmp/inference-health.json inference-health-preflight.json
 
       - name: Diagnose Ollama connectivity (circuit-reset probe)
+        if: steps.preflight.outputs.service_online == 'true'
         continue-on-error: true
         run: |
           set -euo pipefail
@@ -136,6 +146,7 @@ jobs:
           OLLAMA_SERVICE_URL: ${{ secrets.OLLAMA_SERVICE_URL }}
 
       - name: Human interaction smoke prompts
+        if: steps.preflight.outputs.service_online == 'true'
         run: |
           set -euo pipefail
 

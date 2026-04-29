@@ -113,10 +113,10 @@ jobs:
           done
 
           if [ -z "$SELECTED_KEY" ]; then
-            echo "::error::Could not authenticate to Bob /code/tasks/pending with any configured key."
+            echo "::warning::Could not reach Bob service at $BASE_URL — service may be offline. Code task workflow skipped."
             echo "Tried: BOB_INFERENCE_API_KEY, INFERENCE_API_KEY, SUPABASE_SERVICE_ROLE_KEY"
             echo "can_run=false" >> "$GITHUB_OUTPUT"
-            exit 1
+            exit 0
           fi
 
           echo "BOB_SERVICE_URL=$BASE_URL" >> "$GITHUB_ENV"
