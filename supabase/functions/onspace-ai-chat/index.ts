@@ -559,6 +559,20 @@ Deno.serve(async (req: Request) => {
     const userRole = (profile?.role ?? 'officer') as string
     const isGrandMaster = userRole === 'grand_master'
 
+    // Fetch Bob user profile for tier/tone metadata (non-blocking; fail gracefully)
+    let bobTier: string | null = null
+    let bobTone: string | null = null
+    try {
+      const { data: bobProfile } = await (supabaseAdmin.from('bob_user_profiles') as any)
+        .select('bob_tier, tone')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (bobProfile) {
+        bobTier = bobProfile.bob_tier ?? null
+        bobTone = bobProfile.tone ?? null
+      }
+    } catch (_) { /* Bob profile unavailable — continue without it */ }
+
     // ── Parse body ───────────────────────────────────────────────────────────
     const body = await req.json()
     const {
@@ -786,6 +800,12 @@ Deno.serve(async (req: Request) => {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${apiKey}`,
               'x-inference-api-key': apiKey,
+              'x-user-id': user.id,
+              'x-org-id': profile?.organization_id ? String(profile.organization_id) : '',
+              'x-user-role': userRole,
+              'x-user-email': user.email || '',
+              ...(bobTier ? { 'x-bob-tier': bobTier } : {}),
+              ...(bobTone ? { 'x-bob-tone': bobTone } : {}),
             },
             body: JSON.stringify({
               input: {
@@ -796,7 +816,12 @@ Deno.serve(async (req: Request) => {
                 model: inferenceModel,
                 temperature,
                 context: {
+                  user_id: user.id,
                   user_email: user.email,
+                  user_role: userRole,
+                  organization_id: profile?.organization_id ?? null,
+                  bob_tier: bobTier ?? undefined,
+                  bob_tone: bobTone ?? undefined,
                   requested_model: model,
                   resolved_model: inferenceModel,
                   source: 'onspace-ai-chat',
@@ -900,7 +925,16 @@ Deno.serve(async (req: Request) => {
             const controller = new AbortController()
             const timeoutId = setTimeout(() => controller.abort(), BOB_INFERENCE_CHAT_TIMEOUT_MS)
             try {
-              const headers: Record<string, string> = { 'Content-Type': 'application/json', ...authHeaders }
+              const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+                'x-user-id': user.id,
+                'x-org-id': profile?.organization_id ? String(profile.organization_id) : '',
+                'x-user-role': userRole,
+                'x-user-email': user.email || '',
+                ...(bobTier ? { 'x-bob-tier': bobTier } : {}),
+                ...(bobTone ? { 'x-bob-tone': bobTone } : {}),
+                ...authHeaders,
+              }
 
               const inferResponse = await fetch(`${candidateUrl}/chat`, {
                 method: 'POST',
@@ -910,7 +944,12 @@ Deno.serve(async (req: Request) => {
                   history,
                   provider: providerPreference === 'inference' ? 'inference' : providerPreference === 'ollama' ? 'ollama' : undefined,
                   context: {
+                    user_id: user.id,
                     user_email: user.email,
+                    user_role: userRole,
+                    organization_id: profile?.organization_id ?? null,
+                    bob_tier: bobTier ?? undefined,
+                    bob_tone: bobTone ?? undefined,
                     requested_model: model,
                     temperature,
                     source: 'onspace-ai-chat',

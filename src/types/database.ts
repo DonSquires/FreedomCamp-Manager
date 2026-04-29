@@ -14,6 +14,71 @@ export type Database = {
   }
   public: {
     Tables: {
+      bob_user_profiles: {
+        Row: {
+          id: string
+          user_id: string
+          organization_id: string | null
+          bob_tier: 'captain' | 'commander' | 'officer' | 'ensign' | 'guest'
+          tone: 'professional' | 'technical' | 'casual' | 'brief' | 'verbose' | 'sarcastic'
+          language: string
+          permissions: Json | null
+          memory_seeds: Json | null
+          memory_namespace: string | null
+          ui_theme: 'system' | 'dark' | 'light' | 'lcars'
+          computer_use_enabled: boolean
+          entry_code: string | null
+          system_prompt_suffix: string | null
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          organization_id?: string | null
+          bob_tier?: 'captain' | 'commander' | 'officer' | 'ensign' | 'guest'
+          tone?: 'professional' | 'technical' | 'casual' | 'brief' | 'verbose' | 'sarcastic'
+          language?: string
+          permissions?: Json | null
+          memory_seeds?: Json | null
+          memory_namespace?: string | null
+          ui_theme?: 'system' | 'dark' | 'light' | 'lcars'
+          computer_use_enabled?: boolean
+          entry_code?: string | null
+          system_prompt_suffix?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          organization_id?: string | null
+          bob_tier?: 'captain' | 'commander' | 'officer' | 'ensign' | 'guest'
+          tone?: 'professional' | 'technical' | 'casual' | 'brief' | 'verbose' | 'sarcastic'
+          language?: string
+          permissions?: Json | null
+          memory_seeds?: Json | null
+          memory_namespace?: string | null
+          ui_theme?: 'system' | 'dark' | 'light' | 'lcars'
+          computer_use_enabled?: boolean
+          entry_code?: string | null
+          system_prompt_suffix?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'bob_user_profiles_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: true
+            referencedRelation: 'user_profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       admin_recalculation_actions: {
         Row: {
           completed_at: string | null

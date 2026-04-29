@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'runpod-worker/**'
+      - 'inference-service/**'
       - 'docs/BOB_AUTONOMOUS_LEARNING.md'
       - 'docs/BOB_TRAINING_ADVANCED_ARCHITECT_2026.md'
       - 'docs/DECISIONS.md'

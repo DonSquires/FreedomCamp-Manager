@@ -90,6 +90,34 @@ function inferCategory(question) {
   return 'general';
 }
 
+function normalizeScopePart(value, fallback = 'unknown') {
+  const text = String(value || '').trim().toLowerCase();
+  if (!text) return fallback;
+  return text.replace(/[^a-z0-9_-]/g, '_').slice(0, 120) || fallback;
+}
+
+function normalizeScope(scope = {}) {
+  const orgId = scope.org_id ? String(scope.org_id).trim() : null;
+  const userId = scope.user_id ? String(scope.user_id).trim() : null;
+  const scopeKey = `${normalizeScopePart(orgId || 'org-shared', 'org-shared')}::${normalizeScopePart(userId || 'user-shared', 'user-shared')}`;
+  return {
+    org_id: orgId,
+    user_id: userId,
+    scope_key: scopeKey,
+  };
+}
+
+function requestInScope(request, scope) {
+  if (!scope) return true;
+  const normalized = normalizeScope(scope);
+  const requestScopeKey = String(request?.scope_key || normalizeScope({ org_id: request?.org_id || null, user_id: request?.user_id || null }).scope_key);
+  return requestScopeKey === normalized.scope_key;
+}
+
+function buildPendingIndexKey(scopeKey, question) {
+  return `${scopeKey}::${String(question || '').toLowerCase()}`;
+}
+
 // ---------------------------------------------------------------------------
 // Knowledge Request Store
 // ---------------------------------------------------------------------------
@@ -97,11 +125,14 @@ function inferCategory(question) {
 function createKnowledgeRequestStore(statePath = DEFAULT_PATH) {
   let state = readState(statePath);
 
-  // O(1) dedup index: maps normalized question text → request id for pending requests
+  // O(1) dedup index: maps scope_key + normalized question text → request id for pending requests
   const pendingIndex = new Map(
     state.requests
       .filter(r => r.status === 'pending')
-      .map(r => [r.question.toLowerCase(), r.id])
+      .map((r) => {
+        const scope = normalizeScope({ org_id: r.org_id || null, user_id: r.user_id || null });
+        return [buildPendingIndexKey(scope.scope_key, r.question), r.id];
+      })
   );
 
   function save() {
@@ -129,7 +160,8 @@ function createKnowledgeRequestStore(statePath = DEFAULT_PATH) {
       if (r.status === 'pending' && now - new Date(r.asked_at).getTime() > cutoff) {
         r.status = 'expired';
         r.expired_at = new Date().toISOString();
-        pendingIndex.delete(r.question.toLowerCase());
+        const expiredScope = normalizeScope({ org_id: r.org_id || null, user_id: r.user_id || null });
+        pendingIndex.delete(buildPendingIndexKey(expiredScope.scope_key, r.question));
         changed = true;
       }
     }
@@ -157,10 +189,11 @@ function createKnowledgeRequestStore(statePath = DEFAULT_PATH) {
     }
 
     const trimmed = question.trim().slice(0, 2000);
-    const key = trimmed.toLowerCase();
+    const scope = normalizeScope(options.scope || {});
+    const dedupKey = buildPendingIndexKey(scope.scope_key, trimmed);
 
-    // O(1) dedup: if an identical pending question already exists, return it
-    const existingId = pendingIndex.get(key);
+    // O(1) dedup: if an identical pending question already exists in the same scope, return it
+    const existingId = pendingIndex.get(dedupKey);
     if (existingId) {
       const existing = state.requests.find(r => r.id === existingId);
       if (existing) return existing;
@@ -175,6 +208,9 @@ function createKnowledgeRequestStore(statePath = DEFAULT_PATH) {
       context: options.context ? String(options.context).slice(0, 500) : null,
       source: options.source ? String(options.source).slice(0, 100) : 'manual',
       priority: options.priority === 'high' ? 'high' : 'normal',
+      org_id: scope.org_id,
+      user_id: scope.user_id,
+      scope_key: scope.scope_key,
       status: 'pending',
       asked_at: new Date().toISOString(),
       answered_at: null,
@@ -183,7 +219,7 @@ function createKnowledgeRequestStore(statePath = DEFAULT_PATH) {
       github_issue_url: null,
     };
 
-    pendingIndex.set(key, request.id);
+    pendingIndex.set(dedupKey, request.id);
     state.requests.push(request);
     pruneToLimit();
     rebuildCounts();
@@ -199,13 +235,13 @@ function createKnowledgeRequestStore(statePath = DEFAULT_PATH) {
    */
   function answerRequest(id, answer, options = {}) {
     const request = state.requests.find(r => r.id === id);
-    if (!request) throw new Error(`Knowledge request not found: ${id}`);
+    if (!request || !requestInScope(request, options.scope)) throw new Error(`Knowledge request not found: ${id}`);
     if (request.status === 'answered') return request; // idempotent
 
     const trimmedAnswer = String(answer || '').trim().slice(0, 10000);
     if (!trimmedAnswer) throw new Error('answer must be a non-empty string');
 
-    pendingIndex.delete(request.question.toLowerCase());
+    pendingIndex.delete(buildPendingIndexKey(String(request.scope_key || normalizeScope({ org_id: request.org_id || null, user_id: request.user_id || null }).scope_key), request.question));
     request.status = 'answered';
     request.answer = trimmedAnswer;
     request.answer_source = options.source ? String(options.source).slice(0, 100) : 'copilot';
@@ -224,12 +260,12 @@ function createKnowledgeRequestStore(statePath = DEFAULT_PATH) {
   /**
    * Mark a request as skipped (Copilot could not research an answer).
    */
-  function skipRequest(id, reason) {
+  function skipRequest(id, reason, options = {}) {
     const request = state.requests.find(r => r.id === id);
-    if (!request) throw new Error(`Knowledge request not found: ${id}`);
+    if (!request || !requestInScope(request, options.scope)) throw new Error(`Knowledge request not found: ${id}`);
     if (request.status !== 'pending') return request;
 
-    pendingIndex.delete(request.question.toLowerCase());
+    pendingIndex.delete(buildPendingIndexKey(String(request.scope_key || normalizeScope({ org_id: request.org_id || null, user_id: request.user_id || null }).scope_key), request.question));
     request.status = 'skipped';
     request.skip_reason = reason ? String(reason).slice(0, 500) : 'No answer available';
     request.skipped_at = new Date().toISOString();
@@ -242,9 +278,9 @@ function createKnowledgeRequestStore(statePath = DEFAULT_PATH) {
   /**
    * Delete a request by ID.
    */
-  function deleteRequest(id) {
+  function deleteRequest(id, options = {}) {
     const before = state.requests.length;
-    state.requests = state.requests.filter(r => r.id !== id);
+    state.requests = state.requests.filter(r => !(r.id === id && requestInScope(r, options.scope)));
     if (state.requests.length === before) throw new Error(`Knowledge request not found: ${id}`);
     rebuildCounts();
     save();
@@ -267,19 +303,29 @@ function createKnowledgeRequestStore(statePath = DEFAULT_PATH) {
     if (filter.priority) {
       results = results.filter(r => r.priority === filter.priority);
     }
+    if (filter.scope) {
+      const scope = normalizeScope(filter.scope);
+      results = results.filter((r) => String(r.scope_key || normalizeScope({ org_id: r.org_id || null, user_id: r.user_id || null }).scope_key) === scope.scope_key);
+    }
+    if (filter.org_id) {
+      results = results.filter((r) => (r.org_id || null) === String(filter.org_id));
+    }
+    if (filter.user_id) {
+      results = results.filter((r) => (r.user_id || null) === String(filter.user_id));
+    }
 
     // Most recently asked first
     results.sort((a, b) => new Date(b.asked_at) - new Date(a.asked_at));
 
-    const limit = Math.min(Number(filter.limit) || 100, 200);
+    const limit = Math.min(Number(filter.limit) || 100, MAX_REQUESTS);
     return results.slice(0, limit);
   }
 
   /**
    * Get a single request by ID.
    */
-  function getRequest(id) {
-    return state.requests.find(r => r.id === id) || null;
+  function getRequest(id, options = {}) {
+    return state.requests.find((r) => r.id === id && requestInScope(r, options.scope)) || null;
   }
 
   /**
