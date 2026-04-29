@@ -8,13 +8,10 @@
   "lockfiles": [
     "bun.lock"
   ],
-  "generated_at": "2026-04-29T12:57:19Z",
+  "generated_at": "2026-04-29T15:11:32Z",
   "source": "scripts/system-check.sh",
   "monitor": {
-    "checked_at": "2026-04-29T13:51:03.820Z",
-    "window_minutes": 15,
-    "error_threshold": 5,
-    "recent_500_errors": 0,
+    "checked_at": "2026-04-29T15:11:32.579Z",
     "status": "healthy",
     "note": "CI environment — log scan skipped"
   }
