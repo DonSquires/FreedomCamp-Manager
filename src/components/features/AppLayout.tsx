@@ -7,7 +7,6 @@ import { useFeedbackCapture } from '@/hooks/useFeedbackCapture'
 import { useAutoErrorReporter } from '@/hooks/useAutoErrorReporter'
 import { FeedbackModal } from '@/components/features/FeedbackModal'
 import { PTTBar } from '@/components/features/PTTBar'
-import { usePTTStore } from '@/stores/pttStore'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useNotificationCount } from '@/hooks/useNotifications'
 import { useSessionPreferencesStore } from '@/stores/sessionPreferencesStore'
@@ -402,7 +401,6 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [pttFabOpen, setPttFabOpen] = useState(false)
-  const pttConnectionStatus = usePTTStore((s) => s.connectionStatus)
   const [desktopNavOpen, setDesktopNavOpen] = useState(() => {
     // Default to open (true). Only closes if the user has explicitly set it to 'false'.
     try { return localStorage.getItem('fc_sidebar_open') !== 'false' } catch { return true }

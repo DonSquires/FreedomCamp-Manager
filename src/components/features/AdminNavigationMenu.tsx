@@ -26,7 +26,7 @@ type AdminNavGroup = {
   links: AdminNavLink[]
 }
 
-const primaryLinks = [
+export const primaryLinks = [
   { to: '/admin',       label: 'Dashboard', icon: Home },
   { to: '/compliance',  label: 'Compliance', icon: BarChart3 },
   { to: '/vehicles',    label: 'Vehicles',   icon: Car },
@@ -102,7 +102,7 @@ const peopleIncidentsLegacyLinks: AdminNavLink[] = [
   { to: '/site-risk-assessment', label: 'Site Risk Assessment', icon: ClipboardCheck },
 ]
 
-const moreGroups: AdminNavGroup[] = [
+export const moreGroups: AdminNavGroup[] = [
   {
     label: 'Compliance',
     links: complianceLegacyLinks,
