@@ -7,7 +7,7 @@
 CREATE TABLE IF NOT EXISTS ptt_messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  channel TEXT NOT NULL,  -- org:<uuid>, incident:<uuid>, direct:<uuid>
+  channel TEXT NOT NULL,  -- org:<uuid>, incident:<uuid>, direct:<uuidA>:<uuidB>
   sender_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   sender_role TEXT,
   sender_name TEXT,
@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS ptt_channels (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   channel_key TEXT NOT NULL UNIQUE,  -- org:<uuid>, incident:<uuid>, etc.
   organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  channel_type TEXT NOT NULL CHECK (channel_type IN ('org', 'incident', 'direct', 'zone')),
+  channel_type TEXT NOT NULL CHECK (channel_type IN ('org', 'incident', 'direct', 'team', 'deployment', 'zone')),
   name TEXT,  -- Human-readable name
   description TEXT,
   is_active BOOLEAN NOT NULL DEFAULT true,
