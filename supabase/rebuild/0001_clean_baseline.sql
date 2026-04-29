@@ -1,4 +1,4 @@
--- FreedomCamp Manager clean rebuild baseline
+-- FieldOps Manager clean rebuild baseline
 -- Date: 2026-04-01
 -- Purpose: standalone baseline for clean rebuild track.
 -- Safety: this file is intentionally outside supabase/migrations until cutover planning is approved.

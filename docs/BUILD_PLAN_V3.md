@@ -1,6 +1,6 @@
-# FreedomCamp Manager — Complete Build Plan (v3)
+# FieldOps Manager — Complete Build Plan (v3)
 
-> **Purpose**: This is the updated single source of truth for rebuilding FreedomCamp
+> **Purpose**: This is the updated single source of truth for rebuilding FieldOps
 > Manager from scratch. It supersedes v2 (`BUILD_PLAN.md`) and reflects the **current,
 > live schema as of 2026-04-24**, incorporating every architectural decision, database
 > table, Edge Function, frontend page, external integration, and deployment step made

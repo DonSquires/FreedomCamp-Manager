@@ -1,6 +1,6 @@
-# FreedomCamp Manager — Complete Build Plan (v2)
+# FieldOps Manager — Complete Build Plan (v2)
 
-> **Purpose**: This is the single source of truth for rebuilding FreedomCamp Manager from
+> **Purpose**: This is the single source of truth for rebuilding FieldOps Manager from
 > scratch. It reflects the **current, live schema** (as of 2026-03-10) including every
 > architectural decision, database table, Edge Function, frontend page, external
 > integration, and deployment step.
@@ -44,7 +44,7 @@
 
 ### 1.1 What This System Is For
 
-FreedomCamp Manager is a **digital enforcement platform** built for New Zealand councils
+FieldOps Manager is a **digital enforcement platform** built for New Zealand councils
 and contracted security companies (such as Iron Eagle Security) to manage and enforce
 freedom camping rules under the **Freedom Camping Act 2011** and local bylaws.
 
@@ -55,7 +55,7 @@ how long, or whether the same vehicle had exceeded the legal stay limits. Counci
 way to prove compliance history in court, no way to share data between patrol teams, and
 no way to detect repeat offenders automatically.
 
-FreedomCamp Manager replaces that manual process end-to-end:
+FieldOps Manager replaces that manual process end-to-end:
 
 - A field officer **photographs a vehicle's number plate** on their phone.
 - The system **automatically identifies the plate**, checks the vehicle's stay history,
@@ -283,7 +283,7 @@ complete catalogue of outputs.
 
 ## 2. Executive Summary
 
-FreedomCamp Manager is a web-based admin control centre for freedom camping
+FieldOps Manager is a web-based admin control centre for freedom camping
 enforcement in New Zealand, operated by Iron Eagle Security / OnSpace AI. It provides:
 
 | Capability | Description |
@@ -1630,8 +1630,8 @@ Deploy the `dist/` folder to any static host:
 
 1. **Create Vite + React + TypeScript project**
    ```bash
-   bun create vite freedomcamp-manager --template react-ts
-   cd freedomcamp-manager
+   bun create vite fieldops-manager --template react-ts
+   cd fieldops-manager
    ```
 
 2. **Install core dependencies**

@@ -1,4 +1,4 @@
--- FreedomCamp Manager clean rebuild triggers and jobs
+-- FieldOps Manager clean rebuild triggers and jobs
 -- Date: 2026-04-01
 -- Depends on: 0001_clean_baseline.sql, 0003_clean_rpcs.sql
 

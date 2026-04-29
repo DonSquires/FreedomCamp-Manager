@@ -1,10 +1,10 @@
 # SSL/TLS Compliance Guide
 
-This document outlines the SSL/TLS security measures implemented in FreedomCamp Manager to ensure compliance with security best practices and industry standards.
+This document outlines the SSL/TLS security measures implemented in FieldOps Manager to ensure compliance with security best practices and industry standards.
 
 ## Overview
 
-FreedomCamp Manager implements comprehensive SSL/TLS security across all components:
+FieldOps Manager implements comprehensive SSL/TLS security across all components:
 
 - **Frontend**: Hosted on Vercel with automatic HTTPS and security headers
 - **Backend Services**: Express.js servers with Helmet.js security middleware

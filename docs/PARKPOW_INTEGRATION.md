@@ -6,13 +6,13 @@
 
 ParkPow turns raw plate-recognition scans into a complete **enforcement workflow**:
 
-| ParkPow Feature | What it does for FreedomCamp Manager |
+| ParkPow Feature | What it does for FieldOps Manager |
 |---|---|
 | **Watchlists (block list)** | Flag a vehicle's plate → every future scan instantly returns `is_flagged: true`. No need to manually check a separate database. |
 | **Permit management (allow list)** | Mark an exempt vehicle → every future scan returns `is_permitted: true`, so the officer knows not to issue a notice. |
 | **Session tracking** | Records exactly when a vehicle was observed in a zone (entry timestamp). Gives you *duration* data for overstay calculations. |
 | **Violation records** | When a breach is detected, push a formal violation to ParkPow. This triggers ParkPow's enforcement workflow: dashboards, reports, email/SMS alerts. |
-| **Webhooks** | ParkPow can push real-time events back to FreedomCamp when plates are detected by CCTV or fixed cameras. |
+| **Webhooks** | ParkPow can push real-time events back to FieldOps when plates are detected by CCTV or fixed cameras. |
 
 ---
 
@@ -73,7 +73,7 @@ supabase secrets list
 
 ## One-Time Setup: Sync Zones to ParkPow Lots
 
-ParkPow organises vehicles by **"lot"** (equivalent to a FreedomCamp zone). Before sessions and violations can be created, each zone needs a `parkpow_lot_id`.
+ParkPow organises vehicles by **"lot"** (equivalent to a FieldOps zone). Before sessions and violations can be created, each zone needs a `parkpow_lot_id`.
 
 Run once after deployment:
 ```bash

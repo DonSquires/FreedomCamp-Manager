@@ -3,7 +3,7 @@
  *
  * Provides three synchronisation operations, invoked manually or on schedule:
  *
- *   action: "sync-lots"       — Create/update ParkPow lots for each FreedomCamp zone
+ *   action: "sync-lots"       — Create/update ParkPow lots for each FieldOps zone
  *   action: "sync-watchlist"  — Push flagged/exempt canonical_vehicles to ParkPow
  *   action: "push-violations" — Push unsynced compliance breaches to ParkPow violations
  *

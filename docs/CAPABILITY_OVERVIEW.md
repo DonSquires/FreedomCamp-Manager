@@ -1,7 +1,7 @@
-# FreedomCamp Manager — Capability Overview
+# FieldOps Manager — Capability Overview
 
 > **Who is this for?**
-> This document is written for people who are considering using FreedomCamp Manager and want to understand exactly what the platform can do before they commit to it. It is split into two parts because the platform serves two distinct audiences who each interact with it in very different ways.
+> This document is written for people who are considering using FieldOps Manager and want to understand exactly what the platform can do before they commit to it. It is split into two parts because the platform serves two distinct audiences who each interact with it in very different ways.
 >
 > - **Part 1 — Service Providers**: Councils, security contractors, and enforcement teams who run patrols, issue notices, and manage the day-to-day operation of freedom camping zones.
 > - **Part 2 — Clients**: Property owners, parks managers, or local bodies who have contracted a service provider to manage their sites and want visibility into what is happening on the ground.
@@ -10,9 +10,9 @@
 
 # Part 1 — The Service Provider
 
-## What is FreedomCamp Manager?
+## What is FieldOps Manager?
 
-FreedomCamp Manager is an end-to-end digital enforcement platform built specifically for freedom camping management in New Zealand. It replaces paper-based patrol processes, spreadsheet record-keeping, and phone-based communication with a single web application that connects your field officers, admin team, and clients in real time.
+FieldOps Manager is an end-to-end digital enforcement platform built specifically for freedom camping management in New Zealand. It replaces paper-based patrol processes, spreadsheet record-keeping, and phone-based communication with a single web application that connects your field officers, admin team, and clients in real time.
 
 At its core the platform does five things:
 
@@ -402,7 +402,7 @@ The main table lists every user with name, email, role badge, zone assignment, w
 
 ## Specialised Portals for Other Enforcement Types
 
-FreedomCamp Manager is not limited to freedom camping. The same platform infrastructure powers four additional enforcement portals:
+FieldOps Manager is not limited to freedom camping. The same platform infrastructure powers four additional enforcement portals:
 
 ### Parking Enforcement Portal
 Full parking violation workflow — plate scanning, infringement notices with fine amounts, payment tracking, and dispute management.
@@ -450,7 +450,7 @@ The **Settings** page covers application-level preferences: default zone view, d
 
 ## Who is the Client?
 
-The client in FreedomCamp Manager is the organisation that has contracted a service provider to manage freedom camping enforcement on their land or within their jurisdiction. This is typically:
+The client in FieldOps Manager is the organisation that has contracted a service provider to manage freedom camping enforcement on their land or within their jurisdiction. This is typically:
 - A district or city **council** that has engaged a security company to patrol their freedom camping zones
 - A **Department of Conservation** site manager monitoring a specific reserve
 - A **private property owner** or events company that has contracted enforcement for their site
@@ -629,4 +629,4 @@ If you notice a discrepancy between what you see in the portal and what you expe
 
 ---
 
-*FreedomCamp Manager is developed and operated by Iron Eagle Security / OnSpace AI. For enquiries about the platform contact your account manager or visit the support portal.*
+*FieldOps Manager is developed and operated by Iron Eagle Security / OnSpace AI. For enquiries about the platform contact your account manager or visit the support portal.*

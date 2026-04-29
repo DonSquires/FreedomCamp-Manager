@@ -1,4 +1,4 @@
--- FreedomCamp Manager clean rebuild RPCs
+-- FieldOps Manager clean rebuild RPCs
 -- Date: 2026-04-01
 -- Depends on: 0001_clean_baseline.sql, 0002_clean_rls.sql
 

@@ -52,7 +52,7 @@ test.describe('PWA - Service Worker Cache', () => {
     // Check cache storage
     const cacheExists = await page.evaluate(async () => {
       const cacheNames = await caches.keys()
-      return cacheNames.some(name => name.includes('freedomcamp'))
+      return cacheNames.some(name => name.includes('fieldops'))
     })
 
     expect(cacheExists).toBeTruthy()

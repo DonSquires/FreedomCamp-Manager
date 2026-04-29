@@ -1,6 +1,6 @@
 name: Synthetic UI Monitor
 
-# Scheduled health check for the FreedomCamp Manager admin portal.
+# Scheduled health check for the FieldOps Manager admin portal.
 #
 # Runs every 30 minutes and after every production deployment to verify:
 #   1. The frontend URL returns HTTP 200 and renders the expected content.

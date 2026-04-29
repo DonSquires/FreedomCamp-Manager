@@ -334,7 +334,7 @@ COMMENT ON FUNCTION public.get_admin_dashboard_stats IS
 
 DO $$
 BEGIN
-  RAISE NOTICE '✅  FreedomCamp migration complete!';
+  RAISE NOTICE '✅  FieldOps migration complete!';
   RAISE NOTICE '    Step 1: pgvector extension enabled';
   RAISE NOTICE '    Step 2: observations — vehicle_embedding, embedding_*, vehicle_year, deleted_at, parkpow_* columns added';
   RAISE NOTICE '    Step 3: canonical_vehicles — parkpow_vehicle_id, is_exempt columns added';

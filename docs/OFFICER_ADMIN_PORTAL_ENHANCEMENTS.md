@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-Based on analysis of Wilson Security's WILSAR system, their mobile app "Wilson: OnTime", and industry leaders like TrackTik, PatrolX, QR-Patrol, and GuardTrack, this document outlines enhancements to elevate FreedomCamp Manager's officer and admin portals to enterprise-grade standards.
+Based on analysis of Wilson Security's WILSAR system, their mobile app "Wilson: OnTime", and industry leaders like TrackTik, PatrolX, QR-Patrol, and GuardTrack, this document outlines enhancements to elevate FieldOps Manager's officer and admin portals to enterprise-grade standards.
 
 ---
 
@@ -10,7 +10,7 @@ Based on analysis of Wilson Security's WILSAR system, their mobile app "Wilson: 
 
 ### 1.1 Current Features vs. Wilson: OnTime
 
-| Feature | FreedomCamp Manager | Wilson: OnTime | Gap |
+| Feature | FieldOps Manager | Wilson: OnTime | Gap |
 |---------|---------------------|----------------|-----|
 | View Rosters | ✅ RosterPlanner | ✅ | — |
 | Shift Sign On/Off | ✅ Clock in/out | ✅ | — |

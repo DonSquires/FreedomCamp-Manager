@@ -1,6 +1,6 @@
 # Railway Services Integration Guide
 
-This document describes how the FreedomCamp Manager application integrates with Railway-deployed backend services.
+This document describes how the FieldOps Manager application integrates with Railway-deployed backend services.
 
 ---
 

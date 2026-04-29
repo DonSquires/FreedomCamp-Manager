@@ -2,7 +2,7 @@
 
 ## Background
 
-The FreedomCamp Manager project has two CORS implementations:
+The FieldOps Manager project has two CORS implementations:
 
 1. **`_shared/cors.ts`** (LEGACY - NOT SECURE)
    - Uses `Access-Control-Allow-Origin: *` (wildcard)

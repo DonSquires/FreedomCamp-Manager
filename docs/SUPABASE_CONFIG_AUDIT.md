@@ -8,7 +8,7 @@
 
 ## 1. Executive Summary
 
-The canonical Supabase project for FreedomCamp Manager is **`kxwjcupuxnnbnzcgmkoi`**
+The canonical Supabase project for FieldOps Manager is **`kxwjcupuxnnbnzcgmkoi`**
 (URL: `https://kxwjcupuxnnbnzcgmkoi.supabase.co`).  
 This is confirmed by `supabase/config.toml` (`project_id = "kxwjcupuxnnbnzcgmkoi"`).
 

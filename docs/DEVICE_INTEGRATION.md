@@ -2,7 +2,7 @@
 
 ## Overview
 
-FreedomCamp Manager supports comprehensive integration with Bluetooth and wireless devices to enhance officer safety. This includes:
+FieldOps Manager supports comprehensive integration with Bluetooth and wireless devices to enhance officer safety. This includes:
 
 1. **Bluetooth Panic Buttons** — Dedicated BLE panic button devices
 2. **Fall Detection** — Accelerometer-based fall detection using phone/smartwatch sensors

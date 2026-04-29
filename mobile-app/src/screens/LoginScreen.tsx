@@ -37,7 +37,7 @@ export default function LoginScreen() {
         {/* Logo / Title */}
         <View style={styles.header}>
           <View style={styles.iconBadge}>
-            <Text style={styles.iconText}>FC</Text>
+            <Text style={styles.iconText}>FO</Text>
           </View>
           <Text style={styles.title}>FieldOps Officer</Text>
           <Text style={styles.subtitle}>Iron Eagle Security — Field App</Text>

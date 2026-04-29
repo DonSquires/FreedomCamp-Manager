@@ -1,5 +1,5 @@
 -- ============================================================================
--- INITIAL SCHEMA — FreedomCamp Manager
+-- INITIAL SCHEMA — FieldOps Manager
 -- ============================================================================
 -- Purpose: Establish all base tables, extensions, and helper functions
 --          so that every subsequent incremental migration can run cleanly

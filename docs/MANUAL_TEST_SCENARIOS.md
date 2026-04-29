@@ -1,6 +1,6 @@
 # Manual Test Scenarios
 
-**FreedomCamp Manager - User Acceptance Testing**
+**FieldOps Manager - User Acceptance Testing**
 
 Step-by-step test scenarios for manual validation of all features.
 
@@ -385,7 +385,7 @@ Create 4 test users with different roles:
 - ✅ Install banner appears
 - ✅ App installs to home screen
 - ✅ Icon matches manifest
-- ✅ Name: "FreedomCamp Manager"
+- ✅ Name: "FieldOps Manager"
 
 ### Launch from Home Screen
 1. Close browser

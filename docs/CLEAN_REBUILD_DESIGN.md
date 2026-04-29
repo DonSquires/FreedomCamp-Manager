@@ -1,4 +1,4 @@
-# FreedomCamp Manager — Clean Rebuild Design & Sales Strategy
+# FieldOps Manager — Clean Rebuild Design & Sales Strategy
 
 > **Purpose**: A candid assessment of what to keep, cut, and redesign in a clean rebuild.
 > Covers simplified architecture, role-focused UX, a practical implementation plan, and
@@ -561,7 +561,7 @@ Changing this IP means re-applying to NZSCV — avoid if possible.
 ```
 ┌──────────────────────────────────────────────────────────┐
 │                   Officer's Phone                        │
-│         FreedomCamp Manager PWA (React/Vite)             │
+│           FieldOps Manager PWA (React/Vite)              │
 └────────────────────────┬─────────────────────────────────┘
                          │ HTTPS
                          ▼
@@ -1168,7 +1168,7 @@ These must be deployed before the scan pipeline because `process-officer-scan` c
 
 ### 10.2 The Two-Sentence Pitch
 
-> *"FreedomCamp Manager is a digital enforcement platform that lets patrol officers scan
+> *"FieldOps Manager is a digital enforcement platform that lets patrol officers scan
 > a vehicle's number plate with their phone and know within 5 seconds whether they're
 > legally camping. Every scan is GPS-stamped, photo-evidenced, and court-ready — and
 > your council gets a monthly compliance report without any manual data entry."*
@@ -1243,7 +1243,7 @@ import, officer training).
 
 ### 10.6 Differentiators vs Competitors
 
-| Feature | FreedomCamp Manager | Generic ALPR / ParkPow | Paper/Spreadsheet |
+| Feature | FieldOps Manager | Generic ALPR / ParkPow | Paper/Spreadsheet |
 |---|---|---|---|
 | Freedom Camping Act compliance engine | ✓ (built-in) | ✗ | ✗ |
 | Offline-first mobile scanning | ✓ | ✓ (some) | N/A |

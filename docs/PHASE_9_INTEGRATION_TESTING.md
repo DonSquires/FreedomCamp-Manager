@@ -1,6 +1,6 @@
 # Phase 9 — Integration Testing
 
-**FreedomCamp Manager - End-to-End Testing & Validation**
+**FieldOps Manager - End-to-End Testing & Validation**
 
 Comprehensive integration testing for all system components before production deployment.
 
@@ -575,8 +575,8 @@ import { saveOfflineObservation, syncOfflineQueue } from '@/lib/offlineStorage'
 ```json
 // public/manifest.json
 {
-  "name": "FreedomCamp Manager",
-  "short_name": "FreedomCamp",
+  "name": "FieldOps Manager",
+  "short_name": "FieldOps",
   "start_url": "/",
   "display": "standalone",
   "theme_color": "#1e40af",
@@ -628,7 +628,7 @@ import { registerBiometric, authenticateWithBiometric } from '@/lib/biometric'
 **Cache Verification:**
 ```javascript
 // DevTools → Application → Cache Storage
-// Should see: 'freedomcamp-cache-v1' with assets
+// Should see: 'fieldops-cache-v1' with assets
 ```
 
 ---
