@@ -31,7 +31,7 @@ This baseline defines critical-flow observability and service SLO anchors using 
    - Availability objective: no unresolved hourly synthetic-monitor failures.
 
 2. Core service dependency health
-   - Signal: Railway wiring audit and check-railway-health status.
+   - Signal: Railway wiring audit and check-services-health status.
    - Reliability objective: proxy and inference report healthy during audit/smoke runs.
 
 3. Inference request path readiness

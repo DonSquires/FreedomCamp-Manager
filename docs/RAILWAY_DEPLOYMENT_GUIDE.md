@@ -256,16 +256,16 @@ supabase secrets set PROXY_SERVER_URL=https://your-proxy.railway.app
 supabase secrets list
 ```
 
-### Update check-railway-health Edge Function
+### Update check-services-health Edge Function
 
-The `check-railway-health` Edge Function needs to return the Railway URLs. Make sure it's deployed:
+The `check-services-health` Edge Function needs to return the service URLs. Make sure it's deployed:
 
 ```bash
 # Deploy the Edge Function
-supabase functions deploy check-railway-health
+supabase functions deploy check-services-health
 
 # Test it
-curl -X POST https://your-project.supabase.co/functions/v1/check-railway-health \
+curl -X POST https://your-project.supabase.co/functions/v1/check-services-health \
   -H "Authorization: Bearer YOUR_ANON_KEY"
 
 # Expected response:
@@ -402,7 +402,7 @@ supabase secrets set INFERENCE_SERVICE_URL=https://correct-url.railway.app
 supabase secrets set PROXY_SERVER_URL=https://correct-url.railway.app
 
 # Redeploy Edge Functions
-supabase functions deploy check-railway-health
+supabase functions deploy check-services-health
 ```
 
 ---
@@ -414,7 +414,7 @@ Before going live:
 - [ ] Both Railway services deployed and accessible
 - [ ] Health endpoints returning 200 OK
 - [ ] Supabase secrets configured correctly
-- [ ] check-railway-health Edge Function deployed
+- [ ] check-services-health Edge Function deployed (legacy alias `check-railway-health` optional)
 - [ ] All 5 test flows pass successfully
 - [ ] Console shows no errors
 - [ ] Railway services have proper environment variables

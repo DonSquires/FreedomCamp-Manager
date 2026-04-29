@@ -1,7 +1,7 @@
 /**
  * External Services Integration
  *
- * Client-side wrappers for proxy (NZSCV/MotorWeb — Railway) and
+ * Client-side wrappers for proxy (NZSCV/MotorWeb) and
  * Bob inference service (RunPod — ORC/AI vehicle detection).
  * All network calls go through Supabase Edge Functions.
  */
@@ -16,7 +16,7 @@ interface InferenceServiceConfig {
 }
 
 /**
- * Response type from the check-railway-health Edge Function.
+ * Response type from the check-services-health Edge Function.
  */
 interface ServicesHealthResponse {
   proxy: { status: string; error?: string; [key: string]: unknown }
@@ -28,7 +28,7 @@ interface ServicesHealthResponse {
 }
 
 /**
- * Get service URLs and health status from the check-railway-health Edge Function.
+ * Get service URLs and health status from the check-services-health Edge Function.
  */
 async function getServiceURLs(): Promise<{
   proxyUrl: string | null
@@ -39,7 +39,7 @@ async function getServiceURLs(): Promise<{
   error: string | null
 }> {
   try {
-    const { data, error } = await edgeFunctions.checkRailwayHealth()
+    const { data, error } = await edgeFunctions.checkServicesHealth()
 
     if (error) {
       return {
@@ -602,9 +602,9 @@ export interface ServiceHealthStatus {
 /**
  * Check proxy server health.
  *
- * Health is determined by the check-railway-health Edge Function rather than a
- * direct browser-to-Railway fetch.  Direct fetches would fail with CORS errors
- * because the Railway services whitelist only the Supabase project origin.
+ * Health is determined by the check-services-health Edge Function rather than a
+ * direct browser-to-service fetch. Direct fetches would fail with CORS errors
+ * because upstream services typically whitelist only trusted origins.
  */
 export async function checkProxyHealth(): Promise<ServiceHealthStatus> {
   const { proxyUrl, proxyHealth, error: urlError } = await getServiceURLs()
@@ -632,8 +632,8 @@ export async function checkProxyHealth(): Promise<ServiceHealthStatus> {
 /**
  * Check inference service health.
  *
- * Health is determined by the check-railway-health Edge Function rather than a
- * direct browser-to-Railway fetch (CORS would block that).
+ * Health is determined by the check-services-health Edge Function rather than a
+ * direct browser-to-service fetch (CORS would block that).
  * 
  * Also returns API key configuration status to help diagnose authentication issues.
  */

@@ -142,7 +142,7 @@ workflow hierarchy.
 | `zone-correction` | **Fold into `cleanup-and-recalculate`** Phase 1 |
 | `check-zone-corrections` | Dev/diagnostic tool — move to internal admin |
 | `check-data-integrity` | Dev/diagnostic tool — move to internal admin |
-| `check-railway-health` | Dev/diagnostic tool — keep internal only; now called by Railway diagnostics |
+| `check-services-health` | Dev/diagnostic tool — keep internal only; legacy alias `check-railway-health` remains for compatibility |
 | `check-almost-breaches` | **Fold into `cleanup-and-recalculate`** as overnight prediction phase |
 | `get-compliance-statistics` | Frontend can query the DB directly via RPC |
 | `observations-list` | Frontend queries Supabase directly |

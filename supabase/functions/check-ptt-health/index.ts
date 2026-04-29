@@ -1,11 +1,11 @@
 /**
  * check-ptt-health — PTT transport health endpoint
  *
- * Thin proxy that forwards to check-railway-health and normalises the response
+ * Thin proxy that forwards to check-services-health and normalises the response
  * so the audit script / monitoring tools that call `check-ptt-health` receive a
  * consistent `{ ptt_ws_url, ptt_url, ptt }` envelope without a 404.
  *
- * Required Supabase secrets (inherited from check-railway-health):
+ * Required Supabase secrets (inherited from check-services-health):
  *   PTT_SERVER_URL   — base HTTP URL of the PTT signalling server
  *   PTT_WS_URL       — wss:// URL returned to clients (set once TLS proxy is live)
  *

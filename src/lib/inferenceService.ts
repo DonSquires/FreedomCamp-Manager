@@ -1,7 +1,7 @@
 /**
  * External Services Integration
  *
- * Typed clients for proxy (NZSCV/MotorWeb, hosted on Railway) and
+ * Typed clients for proxy (NZSCV/MotorWeb) and
  * Bob inference service (RunPod — vehicle ALPR + embeddings).
  * All calls route through Supabase Edge Functions; secrets stay server-side.
  */
@@ -75,11 +75,11 @@ export async function selectBestVehiclePhoto(photoUrls: string[]) {
 
 /**
  * Health check for external services (proxy + Bob inference)
- * Calls the check-railway-health Edge Function which has access to service URLs.
+ * Calls the check-services-health Edge Function which has access to service URLs.
  */
 export async function checkServicesHealth() {
   try {
-    const { data, error } = await edgeFunctions.checkRailwayHealth()
+    const { data, error } = await edgeFunctions.checkServicesHealth()
 
     if (error) {
       console.error('Services health check failed:', error)

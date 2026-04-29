@@ -11,14 +11,14 @@ This checklist is tied directly to audit warnings produced by [scripts/ptt-phase
 2. HTTPS probe to the PTT host times out, which indicates no public TLS listener/reverse proxy is active on port 443.
 3. Transport diagnostics report `forceTurnRelay=false` and `iceTransportPolicy=all`, so strict relay posture is not enabled.
 4. `check-ptt-health` is not deployed, and previous checks that only used this endpoint returned 404.
-5. Existing deployed health function appears to be [supabase/functions/check-railway-health/index.ts](supabase/functions/check-railway-health/index.ts), which includes `ptt_ws_url` validation.
+5. Existing deployed health function is [supabase/functions/check-services-health/index.ts](supabase/functions/check-services-health/index.ts), which includes `ptt_ws_url` validation (legacy alias: [supabase/functions/check-railway-health/index.ts](supabase/functions/check-railway-health/index.ts)).
 
 ## Required Fixes
 
 1. Enable TLS termination for PTT signaling.
 2. Set `PTT_WS_URL` to `wss://.../ws` in Supabase secrets.
 3. Enable strict relay posture (`FORCE_TURN_RELAY=true`, `PTT_DISABLE_PUBLIC_STUN=true`) only after TURN credentials are confirmed valid.
-4. Ensure CI audits use fallback health endpoint logic (`check-ptt-health` then `check-railway-health`).
+4. Ensure CI audits use fallback health endpoint logic (`check-ptt-health` then `check-services-health`, with `check-railway-health` as legacy alias).
 
 ## Step-by-Step Remediation
 
@@ -30,7 +30,7 @@ This checklist is tied directly to audit warnings produced by [scripts/ptt-phase
    - `PTT_WS_URL=wss://<ptt-host>/ws`
 3. Redeploy edge functions that mint/validate signaling URLs:
    - [supabase/functions/ptt-signaling-token/index.ts](supabase/functions/ptt-signaling-token/index.ts)
-   - [supabase/functions/check-railway-health/index.ts](supabase/functions/check-railway-health/index.ts)
+   - [supabase/functions/check-services-health/index.ts](supabase/functions/check-services-health/index.ts)
 4. Verify TURN and strict relay:
    - Confirm `TURN_URL`, `TURN_USERNAME`, `TURN_CREDENTIAL` are set on PTT runtime.
    - Set `FORCE_TURN_RELAY=true` and `PTT_DISABLE_PUBLIC_STUN=true`.
@@ -51,6 +51,6 @@ This checklist is tied directly to audit warnings produced by [scripts/ptt-phase
 ## Troubleshooting Hints
 
 1. If strict relay fails while TURN appears configured, verify credentials are named exactly `TURN_USERNAME` and `TURN_CREDENTIAL` in the PTT runtime.
-2. If Supabase check returns 404, deploy `check-ptt-health` or ensure `check-railway-health` remains deployed and reachable.
+2. If Supabase check returns 404, deploy `check-ptt-health` or ensure `check-services-health` (or legacy alias `check-railway-health`) is deployed and reachable.
 3. If HTTPS probe returns 000/timeouts, confirm firewall allows TCP 443 and reverse proxy virtual host is bound to the public hostname/IP.
 4. If HTTPS probe reports TLS SAN mismatch, set `PTT_SERVER_HOSTNAME` to the certificate hostname and ensure the certificate includes that exact DNS name.

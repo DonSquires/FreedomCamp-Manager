@@ -142,7 +142,7 @@ All 9 "deferred" wrappers audited and confirmed as actively used in production w
 - `selectBestVehiclePhoto` / `select-best-vehicle-photo` → Railway photo selection (useVehicleProfilePhoto.ts, railway.ts) ✅ KEEP
 - `checkNZSCVStatus` / `check-nzscv-status` → NZSCV validation (PlateScanner.tsx, railway.ts) ✅ KEEP
 - `enrichFromMotorWeb` / `enrich-from-motorweb` → MotorWeb enrichment (PlateScanner.tsx, railway.ts) ✅ KEEP
-- `checkRailwayHealth` / `check-railway-health` → Service health checks (railway.ts, railwayServices.ts) ✅ KEEP
+- `checkServicesHealth` / `check-services-health` (legacy alias: `checkRailwayHealth` / `check-railway-health`) → Service health checks (railway.ts, railwayServices.ts) ✅ KEEP
 - `syncSpatialLayers` / `sync-spatial-layers` → GIS/spatial data sync (SpatialComplianceAdmin.tsx) ✅ KEEP
 - `scrapeVehiclePhotos` / `scrape-vehicle-photos` → Trade Me / cars.co.nz photo scraping (VehicleManagement.tsx) ✅ KEEP
 - `renderInfringementNotice` / `render-infringement-notice` → Reprint existing notices (InfringementNotices.tsx) — differs from generateInfringement (create new) ✅ KEEP

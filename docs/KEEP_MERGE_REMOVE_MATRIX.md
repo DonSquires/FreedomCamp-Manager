@@ -189,7 +189,7 @@ Sources:
 
 - check-data-integrity
 - check-zone-corrections
-- check-railway-health
+- check-services-health (legacy alias: check-railway-health)
 - test-compliance-matrix
 - suggest-new-zone
 - get-weather

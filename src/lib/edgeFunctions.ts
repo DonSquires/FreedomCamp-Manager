@@ -612,8 +612,13 @@ export const edgeFunctions = {
   /**
    * Check health of proxy and Bob inference services.
    */
+  checkServicesHealth: async () => {
+    return callEdgeFunction('check-services-health')
+  },
+
+  /** @deprecated Use checkServicesHealth() */
   checkRailwayHealth: async () => {
-    return callEdgeFunction('check-railway-health')
+    return callEdgeFunction('check-services-health')
   },
 
   /**
