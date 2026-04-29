@@ -1,0 +1,89 @@
+{
+  "meta": {
+    "reviewer": "copilot",
+    "date": "2026-04-28",
+    "targetFeature": "field operations cockpit and mobile rapid actions",
+    "targetPersona": "officer + dispatcher",
+    "notes": "sample filled from competitor screenshot pass"
+  },
+  "criteriaScale": "1-5 (1=weak, 3=acceptable, 5=excellent)",
+  "weights": {
+    "clarity": 0.2,
+    "taskFlow": 0.2,
+    "dataTransparency": 0.15,
+    "auditability": 0.15,
+    "mobileFieldFit": 0.2,
+    "informationDensity": 0.1
+  },
+  "screenshots": [
+    {
+      "name": "single task mobile payment",
+      "product": "T2",
+      "sourceUrl": "https://www.t2systems.com/",
+      "localImagePath": "tmp/benchmark/images/t2-mobilepay.png",
+      "observations": [
+        "single screen with one primary CTA",
+        "explicit fee breakdown and expiry time"
+      ],
+      "scores": {
+        "clarity": 5,
+        "taskFlow": 5,
+        "dataTransparency": 5,
+        "auditability": 3,
+        "mobileFieldFit": 5,
+        "informationDensity": 4
+      },
+      "evidenceTags": [
+        "single-task-flow",
+        "decision-transparency"
+      ],
+      "candidateActions": [
+        {
+          "action": "introduce single-task officer action cards",
+          "impact": "high",
+          "risk": "low"
+        }
+      ]
+    },
+    {
+      "name": "ops dashboard + mobile panel",
+      "product": "Silvertrac",
+      "sourceUrl": "https://www.silvertracsoftware.com/",
+      "localImagePath": "tmp/benchmark/images/silvertrac-ops.png",
+      "observations": [
+        "kpi strip + live map + activity feed",
+        "mobile quick action grid for field workflows"
+      ],
+      "scores": {
+        "clarity": 4,
+        "taskFlow": 4,
+        "dataTransparency": 4,
+        "auditability": 4,
+        "mobileFieldFit": 5,
+        "informationDensity": 3
+      },
+      "evidenceTags": [
+        "ops-cockpit",
+        "mobile-quick-actions"
+      ],
+      "candidateActions": [
+        {
+          "action": "build field ops cockpit with map/feed/kpi strip",
+          "impact": "high",
+          "risk": "medium"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "adoptNow": [
+      "single-task mobile flow"
+    ],
+    "investigate": [
+      "dual-surface desktop-mobile continuity"
+    ],
+    "avoid": [
+      "dense, unlabeled multi-step forms in field mode"
+    ]
+  }
+}

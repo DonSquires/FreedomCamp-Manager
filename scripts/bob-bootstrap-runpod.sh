@@ -449,6 +449,14 @@ main() {
     --full|*) setup_backend_config "hybrid" ;;
   esac
   
+  # Load training (optional, non-blocking)
+  if command -v node &> /dev/null; then
+    log_info "Loading Copilot reasoning framework into Bob..."
+    node "$REPO_ROOT/scripts/bob-inject-training.mjs" --coding 2>/dev/null || log_warn "Training injection skipped"
+  else
+    log_warn "Node not found; skipping training injection"
+  fi
+  
   print_summary
 }
 

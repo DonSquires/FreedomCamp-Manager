@@ -244,30 +244,7 @@ async function pingBob(stage, command, exitCode = null) {
         key: runpodApiKey,
         mode: 'direct',
         body: {
-          message,
-          language: preferredLanguage,
-        },
-      });
-
-      attempts.push({
-        label: 'runpod-run-sync-prompt',
-        url: `${effectiveRunpodBaseUrl}/run-sync`,
-        key: runpodApiKey,
-        mode: 'direct',
-        body: {
-          prompt: message,
-          language: preferredLanguage,
-        },
-      });
-
-      attempts.push({
-        label: 'runpod-run-sync-prompt',
-        url: `${effectiveRunpodBaseUrl}/run-sync`,
-        key: runpodApiKey,
-        mode: 'direct',
-        body: {
-          prompt: message,
-          language: preferredLanguage,
+          input: { message, language: preferredLanguage },
         },
       });
 
@@ -277,32 +254,17 @@ async function pingBob(stage, command, exitCode = null) {
         key: runpodApiKey,
         mode: 'async',
         body: {
-          message,
-          language: preferredLanguage,
+          input: { message, language: preferredLanguage },
         },
       });
 
       attempts.push({
-        label: 'runpod-run-async-prompt',
-        url: effectiveRunpodBaseUrl,
-        key: runpodApiKey,
-        mode: 'async',
-        body: {
-          prompt: message,
-          language: preferredLanguage,
-          message,
-          language: preferredLanguage,
-        },
-      });
-
-      attempts.push({
-        label: 'runpod-legacy-runsync-prompt',
+        label: 'runpod-legacy-runsync-message',
         url: legacyRunsyncUrl,
         key: runpodApiKey,
         mode: 'direct',
         body: {
-          prompt: message,
-          language: preferredLanguage,
+          input: { message, language: preferredLanguage },
         },
       });
     }

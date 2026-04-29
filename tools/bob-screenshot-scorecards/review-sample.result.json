@@ -1,0 +1,39 @@
+{
+  "reviewedAt": "2026-04-28T01:52:28.326Z",
+  "inputPath": "/workspaces/FreedomCamp-Manager/tools/bob-screenshot-scorecards/review-sample.json",
+  "averageScorePercent": 87,
+  "averageMaturity": "adopt",
+  "screenshotCount": 2,
+  "scored": [
+    {
+      "name": "single task mobile payment",
+      "product": "T2",
+      "scorePercent": 92,
+      "maturity": "adopt",
+      "coveragePercent": 100,
+      "missingCriteria": [],
+      "candidateActions": [
+        {
+          "action": "introduce single-task officer action cards",
+          "impact": "high",
+          "risk": "low"
+        }
+      ]
+    },
+    {
+      "name": "ops dashboard + mobile panel",
+      "product": "Silvertrac",
+      "scorePercent": 82,
+      "maturity": "pilot",
+      "coveragePercent": 100,
+      "missingCriteria": [],
+      "candidateActions": [
+        {
+          "action": "build field ops cockpit with map/feed/kpi strip",
+          "impact": "high",
+          "risk": "medium"
+        }
+      ]
+    }
+  ]
+}

@@ -72,6 +72,15 @@
   },
   "trainingPacks": [
     {
+      "name": "all-in-one-training-bundle",
+      "path": "docs/BOB_TRAINING_ALL_IN_ONE.md",
+      "requiredSnippets": [
+        "Unified Training Bundle",
+        "Required Output Evidence Block",
+        "Unified Acceptance Gate"
+      ]
+    },
+    {
       "name": "stack-schema-fidelity",
       "path": "docs/BOB_TRAINING_STACK_SCHEMA_FIDELITY.md",
       "requiredSnippets": [
@@ -95,6 +104,24 @@
         "Self-Eval Gates (8)",
         "Auto-Revision Rule",
         "Blocker Declaration"
+      ]
+    },
+    {
+      "name": "cinematic-ui-interaction",
+      "path": "docs/BOB_TRAINING_CINEMATIC_UI_INTERACTION.md",
+      "requiredSnippets": [
+        "Cinematic Interaction Contract",
+        "Multimodal UX Modules (Required)",
+        "Required Output Evidence Block"
+      ]
+    },
+    {
+      "name": "autonomous-debugger",
+      "path": "docs/BOB_TRAINING_AUTONOMOUS_DEBUGGER.md",
+      "requiredSnippets": [
+        "The Autonomous Debug Loop (ADL)",
+        "Pattern Library: Known Failure Signatures",
+        "Acceptance Gate"
       ]
     }
   ]

@@ -110,7 +110,11 @@ function buildWebServerCommand(baseURL: string): string {
 export default defineConfig({
   testDir: './tests/e2e',
   globalSetup: './tests/e2e/global-setup.ts',
-  
+
+  // Visual regression snapshots live alongside the spec files so they are committed to git
+  snapshotDir: './tests/e2e/__snapshots__',
+  snapshotPathTemplate: '{snapshotDir}/{testFilePath}/{arg}-{projectName}{ext}',
+
   // Run tests in files in parallel
   fullyParallel: true,
   
@@ -153,6 +157,14 @@ export default defineConfig({
     
     // Maximum time each action can take
     actionTimeout: 10000,
+
+    expect: {
+      // Tight threshold — 1% of pixels may differ (anti-aliasing tolerance only)
+      toHaveScreenshot: {
+        maxDiffPixelRatio: 0.01,
+        animations: 'disabled',
+      },
+    },
   },
 
   // Configure projects for major browsers

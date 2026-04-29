@@ -426,6 +426,11 @@ async function main() {
       ? configuredPacks
       : [
           {
+            name: 'all-in-one-training-bundle',
+            path: 'docs/BOB_TRAINING_ALL_IN_ONE.md',
+            requiredSnippets: ['Unified Training Bundle', 'Required Output Evidence Block', 'Unified Acceptance Gate'],
+          },
+          {
             name: 'stack-schema-fidelity',
             path: 'docs/BOB_TRAINING_STACK_SCHEMA_FIDELITY.md',
             requiredSnippets: ['Stack Lock (Non-Negotiable)', 'Schema Truth Protocol', 'Required Output Evidence Block'],
@@ -439,6 +444,16 @@ async function main() {
             name: 'self-eval-loop',
             path: 'docs/BOB_TRAINING_SELF_EVAL_LOOP.md',
             requiredSnippets: ['Self-Eval Gates (8)', 'Auto-Revision Rule', 'Blocker Declaration'],
+          },
+          {
+            name: 'cinematic-ui-interaction',
+            path: 'docs/BOB_TRAINING_CINEMATIC_UI_INTERACTION.md',
+            requiredSnippets: ['Cinematic Interaction Contract', 'Multimodal UX Modules (Required)', 'Required Output Evidence Block'],
+          },
+          {
+            name: 'autonomous-debugger',
+            path: 'docs/BOB_TRAINING_AUTONOMOUS_DEBUGGER.md',
+            requiredSnippets: ['The Autonomous Debug Loop (ADL)', 'Pattern Library: Known Failure Signatures', 'Acceptance Gate'],
           },
         ]
 
@@ -474,15 +489,18 @@ async function main() {
 
     const instructionsPath = path.resolve(path.join(repoRoot, 'BOB_INSTRUCTIONS.md'))
     const instructionsOk = await fileContainsAll(instructionsPath, [
+      'docs/BOB_TRAINING_ALL_IN_ONE.md',
       'docs/BOB_TRAINING_STACK_SCHEMA_FIDELITY.md',
       'docs/BOB_TRAINING_TENANT_ISOLATION_PROOF.md',
       'docs/BOB_TRAINING_SELF_EVAL_LOOP.md',
+      'docs/BOB_TRAINING_CINEMATIC_UI_INTERACTION.md',
+      'docs/BOB_TRAINING_AUTONOMOUS_DEBUGGER.md',
     ])
     record(
       'training-pack.instructions-wiring',
       instructionsOk ? 'pass' : 'fail',
       instructionsOk
-        ? 'BOB_INSTRUCTIONS references all three training packs'
+        ? 'BOB_INSTRUCTIONS references all required training packs'
         : 'BOB_INSTRUCTIONS missing one or more training pack references',
     )
   }

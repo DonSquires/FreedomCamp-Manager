@@ -64,7 +64,7 @@ const STAGE_CATALOG = {
       'tests/e2e/report-generation.spec.ts',
       'tests/e2e/capability-overview.spec.ts',
       ...SHARED_PROJECTS.flatMap((project) => ['--project', project]),
-      '--reporter=list,html,json',
+      '--reporter=list,json',
     ],
     bobAssist: true,
   },
@@ -82,7 +82,7 @@ const STAGE_CATALOG = {
       'Mobile Chrome',
       '--project',
       'Mobile Safari',
-      '--reporter=list,html,json',
+      '--reporter=list,json',
     ],
     bobAssist: true,
   },
@@ -101,6 +101,9 @@ const BATCHES = {
   visual: ['visual-e2e-emulation'],
   human: ['human-engine'],
 }
+
+const RETENTION_LATEST_FILE = 'latest-run.json'
+const RETENTION_HISTORY_FILE = 'history.jsonl'
 
 function nowStamp() {
   return new Date().toISOString().replace(/[:.]/g, '-')
@@ -251,8 +254,9 @@ function runCommand(command, args, env = process.env) {
 }
 
 function withBobAssist(command, args) {
+  const runtime = process.execPath || 'node'
   return {
-    command: 'node',
+    command: runtime,
     args: ['scripts/run-test-with-bob-assist.mjs', '--', command, ...args],
   }
 }
@@ -278,6 +282,78 @@ function toMd(report) {
     ...report.stages.map((stage) => `- ${stage.status.toUpperCase()} ${stage.id}: ${stage.description} (exit=${stage.exitCode}, durationMs=${stage.durationMs})`),
     '',
   ].join('\n')
+}
+
+function parseFailureContext(raw, folderName) {
+  const text = String(raw || '')
+  const testName = text.match(/^- Name:\s*(.+)$/m)?.[1]?.trim() || 'unknown'
+  const location = text.match(/^- Location:\s*(.+)$/m)?.[1]?.trim() || ''
+  const errorBlock = text.match(/# Error details\s+[\s\S]*?```([\s\S]*?)```/m)?.[1] || ''
+  const firstErrorLine = errorBlock
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => line.length > 0) || ''
+
+  return {
+    folder: folderName,
+    testName,
+    location,
+    error: firstErrorLine,
+  }
+}
+
+async function collectFailureContexts(maxItems = 20) {
+  const testResultsRoot = path.resolve('test-results')
+  const entries = await fs.readdir(testResultsRoot, { withFileTypes: true }).catch(() => [])
+  const contexts = []
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue
+    const contextPath = path.join(testResultsRoot, entry.name, 'error-context.md')
+    const raw = await fs.readFile(contextPath, 'utf8').catch(() => '')
+    if (!raw) continue
+    contexts.push(parseFailureContext(raw, entry.name))
+    if (contexts.length >= maxItems) break
+  }
+
+  return contexts
+}
+
+async function saveKnowledgeRetention(rootDir, report) {
+  const root = path.resolve(rootDir)
+  const latestPath = path.join(root, RETENTION_LATEST_FILE)
+  const historyPath = path.join(root, RETENTION_HISTORY_FILE)
+
+  const failureContexts = await collectFailureContexts(30)
+  const latestPayload = {
+    updatedAt: new Date().toISOString(),
+    runId: report.runId,
+    batch: report.batch,
+    scope: report.scope,
+    resumeMode: report.resumeMode,
+    continueOnFailure: report.continueOnFailure,
+    startedAt: report.startedAt,
+    endedAt: report.endedAt,
+    summary: report.summary,
+    failedStages: report.stages
+      .filter((stage) => stage.status === 'fail')
+      .map((stage) => ({ id: stage.id, exitCode: stage.exitCode, durationMs: stage.durationMs })),
+    failureContexts,
+  }
+
+  await fs.writeFile(latestPath, `${JSON.stringify(latestPayload, null, 2)}\n`, 'utf8')
+
+  const historyEntry = {
+    timestamp: new Date().toISOString(),
+    runId: report.runId,
+    batch: report.batch,
+    scope: report.scope,
+    endedAt: report.endedAt,
+    summary: report.summary,
+    failedStageIds: latestPayload.failedStages.map((stage) => stage.id),
+    topFailureTests: failureContexts.slice(0, 8).map((item) => item.testName),
+  }
+  await fs.appendFile(historyPath, `${JSON.stringify(historyEntry)}\n`, 'utf8')
 }
 
 async function main() {
@@ -347,6 +423,7 @@ async function main() {
   if (args.installBrowsers && !resumeMode) {
     report.browserInstallExitCode = await runCommand('bun', ['run', 'install:playwright'], env)
     await saveReport(outDir, report)
+    await saveKnowledgeRetention(args.outRoot, report)
   }
 
   const stages = stageList(args)
@@ -379,6 +456,7 @@ async function main() {
     })
 
     await saveReport(outDir, report)
+    await saveKnowledgeRetention(args.outRoot, report)
 
     if (status === 'fail' && !args.continueOnFailure) {
       break
@@ -387,6 +465,7 @@ async function main() {
 
   report.endedAt = new Date().toISOString()
   await saveReport(outDir, report)
+  await saveKnowledgeRetention(args.outRoot, report)
 
   const reportJsonPath = path.join(outDir, 'report.json')
   const reportMdPath = path.join(outDir, 'report.md')
