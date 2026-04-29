@@ -1,0 +1,165 @@
+{
+  "runId": "2026-04-28T03-50-35-641Z",
+  "batch": "all",
+  "scope": "full",
+  "startedAt": "2026-04-28T03:50:35.642Z",
+  "endedAt": "2026-04-28T08:12:32.224Z",
+  "resumeMode": false,
+  "continueOnFailure": true,
+  "browserInstallAttempted": true,
+  "browserInstallExitCode": 0,
+  "stages": [
+    {
+      "id": "lint",
+      "description": "Lint codebase",
+      "command": "node",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "bun",
+        "run",
+        "lint"
+      ],
+      "exitCode": 0,
+      "status": "pass",
+      "durationMs": 49737
+    },
+    {
+      "id": "build",
+      "description": "Build app",
+      "command": "node",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "bun",
+        "run",
+        "build"
+      ],
+      "exitCode": 0,
+      "status": "pass",
+      "durationMs": 89264
+    },
+    {
+      "id": "nav-parity",
+      "description": "Run navigation parity tests",
+      "command": "node",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "bun",
+        "run",
+        "test:nav-parity"
+      ],
+      "exitCode": 0,
+      "status": "pass",
+      "durationMs": 12158
+    },
+    {
+      "id": "unit",
+      "description": "Run unit tests",
+      "command": "node",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "bun",
+        "run",
+        "test:unit"
+      ],
+      "exitCode": 0,
+      "status": "pass",
+      "durationMs": 34431
+    },
+    {
+      "id": "api",
+      "description": "Run API supporting-function tests",
+      "command": "node",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "bun",
+        "run",
+        "test:api"
+      ],
+      "exitCode": 0,
+      "status": "pass",
+      "durationMs": 18440
+    },
+    {
+      "id": "workflow-e2e-all-projects",
+      "description": "Run end-to-end workflow tests across desktop/mobile projects",
+      "command": "node",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "bunx",
+        "playwright",
+        "test",
+        "tests/e2e/deep-functional.spec.ts",
+        "tests/e2e/module-route-access.spec.ts",
+        "tests/e2e/module-e2e-comprehensive.spec.ts",
+        "tests/e2e/ui-comprehensive.spec.ts",
+        "tests/e2e/officer-portal-walkthrough.spec.ts",
+        "tests/e2e/crm-business-crossover.spec.ts",
+        "tests/e2e/client-portal-isolation.spec.ts",
+        "tests/e2e/asset-management-scan.spec.ts",
+        "tests/e2e/report-generation.spec.ts",
+        "tests/e2e/capability-overview.spec.ts",
+        "--project",
+        "chromium",
+        "--project",
+        "firefox",
+        "--project",
+        "webkit",
+        "--project",
+        "Mobile Chrome",
+        "--project",
+        "Mobile Safari",
+        "--reporter=list,html,json"
+      ],
+      "exitCode": 1,
+      "status": "fail",
+      "durationMs": 12957842
+    },
+    {
+      "id": "visual-e2e-emulation",
+      "description": "Run visual regression-style sweeps on desktop and mobile emulation",
+      "command": "node",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "bunx",
+        "playwright",
+        "test",
+        "tests/e2e/crm-service-provider-visual.spec.ts",
+        "--project",
+        "chromium",
+        "--project",
+        "Mobile Chrome",
+        "--project",
+        "Mobile Safari",
+        "--reporter=list,html,json"
+      ],
+      "exitCode": 1,
+      "status": "fail",
+      "durationMs": 452674
+    },
+    {
+      "id": "human-engine",
+      "description": "Run agentic human-test engine for broad UI workflow probing",
+      "command": "node",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "node",
+        "scripts/human-test-engine.mjs"
+      ],
+      "exitCode": 1,
+      "status": "fail",
+      "durationMs": 2101252
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 3
+  }
+}

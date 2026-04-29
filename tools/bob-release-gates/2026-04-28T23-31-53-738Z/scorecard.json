@@ -1,0 +1,44 @@
+{
+  "runId": "2026-04-28T23-31-53-738Z",
+  "startedAt": "2026-04-28T23:31:53.754Z",
+  "endedAt": "2026-04-28T23:31:53.755Z",
+  "config": {
+    "minHumanReadiness": 85,
+    "drBobFiles": [
+      "plan.md",
+      "spec.md"
+    ],
+    "drBobFailOnRevision": true,
+    "dryRun": true
+  },
+  "stages": {
+    "autonomous": {
+      "status": "pass",
+      "detail": "dry-run: simulated pass"
+    },
+    "drBob": {
+      "status": "pass",
+      "detail": "dry-run: simulated pass",
+      "results": [
+        {
+          "file": "plan.md",
+          "decision": "approve",
+          "shouldFail": false
+        },
+        {
+          "file": "spec.md",
+          "decision": "approve",
+          "shouldFail": false
+        }
+      ]
+    },
+    "human": {
+      "status": "pass",
+      "detail": "dry-run: simulated pass (readiness 85%)",
+      "reportPath": "",
+      "readiness": 85
+    }
+  },
+  "finalDecision": "pass",
+  "notes": []
+}

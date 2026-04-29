@@ -1,0 +1,20 @@
+{
+  "conductorRunId": "2026-04-29T04-17-19-627Z",
+  "startedAt": "2026-04-29T04:17:19.641Z",
+  "endedAt": "2026-04-29T04:30:19.582Z",
+  "scope": "quick",
+  "movements": [
+    {
+      "movement": "visual",
+      "attempts": 1,
+      "exitCode": 0,
+      "status": "pass",
+      "runId": "2026-04-29T04-17-19-719Z",
+      "reportSummary": {
+        "passed": 1,
+        "failed": 0
+      },
+      "reportPath": "/workspaces/FreedomCamp-Manager/tools/bob-agentic-test-runs/conductor/2026-04-29T04-17-19-627Z/visual/2026-04-29T04-17-19-719Z/report.json"
+    }
+  ]
+}

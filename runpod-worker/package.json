@@ -2,6 +2,7 @@
   "name": "freedomcamp-ai-worker",
   "version": "1.0.0",
   "main": "handler.js",
+  "_note": "handler.py is the production entry point (Dockerfile CMD). handler.js is a legacy Node.js fallback with limited capability — do not set as CMD.",
   "engines": {
     "node": ">=20"
   },

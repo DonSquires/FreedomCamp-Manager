@@ -584,7 +584,7 @@ Deno.serve(async (req: Request) => {
       temperature = 0.7,
     } = body
 
-    const defaultModel = Deno.env.get('AI_DEFAULT_MODEL') ?? 'gpt-4o'
+    const defaultModel = Deno.env.get('AI_DEFAULT_MODEL') ?? Deno.env.get('OLLAMA_MODEL') ?? 'qwen2.5:7b'
     const model = requestedModel ?? defaultModel
 
     // RunPod worker and direct Ollama backends require an Ollama model tag, not OpenAI-style names.

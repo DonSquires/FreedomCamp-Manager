@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { AppLayout } from '@/components/features/AppLayout'
+import { arrayToCSV, downloadCSV, type CSVColumn } from '@/lib/csvExport'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -186,6 +187,37 @@ export default function AuditLog() {
     }
   }
 
+  const handleExport = () => {
+    const columns: CSVColumn[] = [
+      { key: 'created_at', label: 'Timestamp', format: (value) => formatDateTime(value) },
+      { key: 'action', label: 'Action', format: (value) => String(value || '').toUpperCase() },
+      { key: 'entity_type', label: 'Entity Type', format: (value) => String(value || '').replace(/_/g, ' ') },
+      { key: 'entity_id', label: 'Entity ID' },
+      {
+        key: 'performed_by_name',
+        label: 'Performed By',
+        format: (_value, row: AuditLogEntry) => {
+          const first = row.user_profile?.first_name || ''
+          const last = row.user_profile?.last_name || ''
+          return `${first} ${last}`.trim() || row.performed_by || 'Unknown'
+        },
+      },
+      {
+        key: 'role',
+        label: 'Role',
+        format: (_value, row: AuditLogEntry) => row.user_profile?.role || '',
+      },
+      {
+        key: 'changes',
+        label: 'Changes',
+        format: (_value, row: AuditLogEntry) => JSON.stringify(row.new_values ?? row.old_values ?? {}),
+      },
+    ]
+
+    const csv = arrayToCSV((entries || []) as Array<Record<string, unknown>>, columns)
+    downloadCSV(csv, `audit-log-${new Date().toISOString().slice(0, 10)}.csv`)
+  }
+
   if (!isAuthorized) {
     return (
       <AppLayout
@@ -322,7 +354,7 @@ export default function AuditLog() {
               </Button>
             </div>
 
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={handleExport}>
               <Download className="h-4 w-4 mr-2" />
               Export
             </Button>

@@ -85,7 +85,7 @@ export default function SystemDiagnostics() {
   const [doctorPlaybookRunning, setDoctorPlaybookRunning] = useState<'ollama_recovery' | 'ptt_token_path_repair' | 'edge_auth_alignment' | null>(null)
 
   // Check user role
-  const isMaster = user?.role === 'master'
+  const isMaster = user?.role === 'master' || user?.role === 'grand_master'
 
   // Bob Integration: Check Proxy Server Health
   const { data: proxyHealth, isLoading: proxyLoading, refetch: refetchProxy } = useQuery({

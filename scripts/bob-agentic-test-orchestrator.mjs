@@ -2,7 +2,7 @@
 
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import process from 'node:process'
 import { loadLocalEnv } from './load-local-env.mjs'
 
@@ -253,6 +253,56 @@ function runCommand(command, args, env = process.env) {
   })
 }
 
+function commandExists(command) {
+  const probe = spawnSync('sh', ['-lc', `command -v ${command}`], {
+    stdio: 'ignore',
+    shell: false,
+  })
+
+  return !probe.error && probe.status === 0
+}
+
+function resolveToolchain() {
+  const hasBun = commandExists('bun')
+  const hasNpm = commandExists('npm')
+  const hasBunx = commandExists('bunx')
+  const hasNpx = commandExists('npx')
+
+  if (!hasBun && !hasNpm) {
+    throw new Error('Neither bun nor npm is available in PATH. Cannot run orchestrator stages.')
+  }
+
+  if (!hasBunx && !hasNpx) {
+    throw new Error('Neither bunx nor npx is available in PATH. Cannot run Playwright stages.')
+  }
+
+  return {
+    scriptRunner: hasBun ? 'bun' : 'npm',
+    packageExecutor: hasBunx ? 'bunx' : 'npx',
+  }
+}
+
+function resolveStageInvocation(stage, toolchain) {
+  if (stage.command === 'bun') {
+    return {
+      command: toolchain.scriptRunner,
+      args: stage.args,
+    }
+  }
+
+  if (stage.command === 'bunx') {
+    return {
+      command: toolchain.packageExecutor,
+      args: stage.args,
+    }
+  }
+
+  return {
+    command: stage.command,
+    args: stage.args,
+  }
+}
+
 function withBobAssist(command, args) {
   const runtime = process.execPath || 'node'
   return {
@@ -358,6 +408,7 @@ async function saveKnowledgeRetention(rootDir, report) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2))
+  const toolchain = resolveToolchain()
 
   if (args.listBatches) {
     console.log('Available batches:')
@@ -421,7 +472,7 @@ async function main() {
   recalcSummary(report)
 
   if (args.installBrowsers && !resumeMode) {
-    report.browserInstallExitCode = await runCommand('bun', ['run', 'install:playwright'], env)
+    report.browserInstallExitCode = await runCommand(toolchain.scriptRunner, ['run', 'install:playwright'], env)
     await saveReport(outDir, report)
     await saveKnowledgeRetention(args.outRoot, report)
   }
@@ -438,9 +489,11 @@ async function main() {
 
     const started = Date.now()
 
+    const stageInvocation = resolveStageInvocation(stage, toolchain)
+
     const invocation = stage.bobAssist
-      ? withBobAssist(stage.command, stage.args)
-      : { command: stage.command, args: stage.args }
+      ? withBobAssist(stageInvocation.command, stageInvocation.args)
+      : stageInvocation
 
     const exitCode = await runCommand(invocation.command, invocation.args, env)
     const status = exitCode === 0 ? 'pass' : 'fail'

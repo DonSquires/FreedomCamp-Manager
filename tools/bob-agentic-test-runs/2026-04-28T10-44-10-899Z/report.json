@@ -1,0 +1,92 @@
+{
+  "runId": "2026-04-28T10-44-10-899Z",
+  "batch": "all",
+  "scope": "full",
+  "startedAt": "2026-04-28T10:44:10.901Z",
+  "endedAt": null,
+  "resumeMode": false,
+  "continueOnFailure": true,
+  "browserInstallAttempted": true,
+  "browserInstallExitCode": 0,
+  "stages": [
+    {
+      "id": "lint",
+      "description": "Lint codebase",
+      "command": "/home/vscode/.bun/bin/bun",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "bun",
+        "run",
+        "lint"
+      ],
+      "exitCode": 0,
+      "status": "pass",
+      "durationMs": 33450
+    },
+    {
+      "id": "build",
+      "description": "Build app",
+      "command": "/home/vscode/.bun/bin/bun",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "bun",
+        "run",
+        "build"
+      ],
+      "exitCode": 2,
+      "status": "fail",
+      "durationMs": 57214
+    },
+    {
+      "id": "nav-parity",
+      "description": "Run navigation parity tests",
+      "command": "/home/vscode/.bun/bin/bun",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "bun",
+        "run",
+        "test:nav-parity"
+      ],
+      "exitCode": 0,
+      "status": "pass",
+      "durationMs": 9111
+    },
+    {
+      "id": "unit",
+      "description": "Run unit tests",
+      "command": "/home/vscode/.bun/bin/bun",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "bun",
+        "run",
+        "test:unit"
+      ],
+      "exitCode": 0,
+      "status": "pass",
+      "durationMs": 32618
+    },
+    {
+      "id": "api",
+      "description": "Run API supporting-function tests",
+      "command": "/home/vscode/.bun/bin/bun",
+      "args": [
+        "scripts/run-test-with-bob-assist.mjs",
+        "--",
+        "bun",
+        "run",
+        "test:api"
+      ],
+      "exitCode": 0,
+      "status": "pass",
+      "durationMs": 25963
+    }
+  ],
+  "summary": {
+    "passed": 4,
+    "failed": 1
+  }
+}
