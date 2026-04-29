@@ -1,13 +1,13 @@
 # Bob Failure Summary
 
-Generated: 2026-04-26T23:57:48.793Z
+Generated: 2026-04-29T12:57:19.643Z
 Window: last 24 hours
-Entries analyzed: 26
-Low-score entries: 4
+Entries analyzed: 0
+Low-score entries: 0
 
 ## Top Failure Reasons
 
-- fallback_applied (4)
+- none
 
 ## Top Hallucination Patterns
 
@@ -19,7 +19,7 @@ Low-score entries: 4
 
 ## Most-Flagged Artifacts
 
-- /workspaces/FreedomCamp-Manager/docs/CLIENT_ACCESS_REBUILD_SPEC_2026-04-26.md (4), /workspaces/FreedomCamp-Manager/docs/ENTERPRISE_REBUILD_PLAN_ACTUAL_RESEARCH_V2_2026-04-26.md (4), /workspaces/FreedomCamp-Manager/docs/uiux-master-redesign/execution-todo.md (4), /workspaces/FreedomCamp-Manager/docs/uiux-master-redesign/plan.md (4), /workspaces/FreedomCamp-Manager/docs/uiux-master-redesign/spec.md (3)
+- none
 
 ## Recommendations
 

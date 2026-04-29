@@ -1,38 +1,12 @@
 {
-  "generatedAt": "2026-04-26T23:57:48.793Z",
+  "generatedAt": "2026-04-29T12:57:19.643Z",
   "windowHours": 24,
-  "totalEntries": 26,
-  "lowScoreCount": 4,
-  "topFailureReasons": [
-    {
-      "name": "fallback_applied",
-      "count": 4
-    }
-  ],
+  "totalEntries": 0,
+  "lowScoreCount": 0,
+  "topFailureReasons": [],
   "topHallucinationPatterns": [],
   "repeatedHallucinations": [],
-  "topFlaggedArtifacts": [
-    {
-      "name": "/workspaces/FreedomCamp-Manager/docs/CLIENT_ACCESS_REBUILD_SPEC_2026-04-26.md",
-      "count": 4
-    },
-    {
-      "name": "/workspaces/FreedomCamp-Manager/docs/ENTERPRISE_REBUILD_PLAN_ACTUAL_RESEARCH_V2_2026-04-26.md",
-      "count": 4
-    },
-    {
-      "name": "/workspaces/FreedomCamp-Manager/docs/uiux-master-redesign/execution-todo.md",
-      "count": 4
-    },
-    {
-      "name": "/workspaces/FreedomCamp-Manager/docs/uiux-master-redesign/plan.md",
-      "count": 4
-    },
-    {
-      "name": "/workspaces/FreedomCamp-Manager/docs/uiux-master-redesign/spec.md",
-      "count": 3
-    }
-  ],
+  "topFlaggedArtifacts": [],
   "recommendations": [
     "No repeated failure mode crossed the automatic threshold in this window."
   ]
