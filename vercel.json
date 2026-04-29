@@ -2,6 +2,17 @@
   "installCommand": "bun install",
   "buildCommand": "bun run build",
   "outputDirectory": "dist",
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        { "type": "header", "key": "x-forwarded-proto", "value": "http" },
+        { "type": "header", "key": "host", "value": "(?<host>.*)" }
+      ],
+      "destination": "https://:host/:path*",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ],
