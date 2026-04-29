@@ -24,6 +24,16 @@ loadLocalEnv()
 const BOB_URL = String(process.env.BOB_SERVICE_URL || process.env.INFERENCE_SERVICE_URL || '').trim().replace(/\/$/, '')
 const API_KEY = String(process.env.BOB_INFERENCE_API_KEY || process.env.INFERENCE_API_KEY || '').trim()
 
+function isRunpodServerlessUrl(url) {
+  return /api\.runpod\.ai\/v2\//i.test(String(url || ''))
+}
+
+function normalizeRunpodBaseUrl(url) {
+  return String(url || '').trim().replace(/\/+$/, '').replace(/\/(?:run|run-sync|runsync)\/?$/i, '')
+}
+
+const FEED_MODE = isRunpodServerlessUrl(BOB_URL) ? 'runpod-runsync-chat-fallback' : 'intel-ingest-bulletin'
+
 if (!BOB_URL || !API_KEY) {
   console.error('Error: Missing BOB_SERVICE_URL and BOB_INFERENCE_API_KEY')
   process.exit(1)
@@ -168,14 +178,31 @@ async function ingestBulletins() {
 
   for (const bulletin of bulletins) {
     try {
-      const response = await fetch(`${BOB_URL}/intel/ingest-bulletin`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${API_KEY}`,
-        },
-        body: JSON.stringify({ bulletin }),
-      })
+      const response = FEED_MODE === 'runpod-runsync-chat-fallback'
+        ? await fetch(`${normalizeRunpodBaseUrl(BOB_URL)}/runsync`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${API_KEY}`,
+            },
+            body: JSON.stringify({
+              input: {
+                message: [
+                  'System training bulletin for Bob research methodology behavior.',
+                  'Store this guidance in active session context for subsequent responses.',
+                  JSON.stringify(bulletin),
+                ].join('\n\n'),
+              },
+            }),
+          })
+        : await fetch(`${BOB_URL}/intel/ingest-bulletin`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${API_KEY}`,
+            },
+            body: JSON.stringify({ bulletin }),
+          })
 
       if (response.ok) {
         console.log(`✅ ${bulletin.title}`)

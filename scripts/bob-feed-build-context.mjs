@@ -30,7 +30,19 @@ function normalizeBaseUrl(url) {
   return /^https?:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
-async function postBulletin(baseUrl, apiKey, bulletin) {
+function isRunpodServerlessUrl(url) {
+  return /api\.runpod\.ai\/v2\//i.test(String(url || ''));
+}
+
+function normalizeRunpodBaseUrl(url) {
+  return String(url || '').trim().replace(/\/+$/, '').replace(/\/(?:run|run-sync|runsync)\/?$/i, '');
+}
+
+const FEED_MODE = isRunpodServerlessUrl(process.env.BOB_SERVICE_URL || process.env.INFERENCE_SERVICE_URL)
+  ? 'runpod-runsync-chat-fallback'
+  : 'intel-ingest-bulletin';
+
+async function postBulletinViaIntel(baseUrl, apiKey, bulletin) {
   const response = await fetch(`${baseUrl}/intel/ingest-bulletin`, {
     method: 'POST',
     headers: {
@@ -46,6 +58,39 @@ async function postBulletin(baseUrl, apiKey, bulletin) {
   }
 
   return text;
+}
+
+async function postBulletinViaRunpodRunsync(baseUrl, apiKey, bulletin) {
+  const runpodBase = normalizeRunpodBaseUrl(baseUrl);
+  const prompt = [
+    'System training bulletin for Bob build context behavior.',
+    'Store this guidance in active session context for subsequent responses.',
+    JSON.stringify(bulletin),
+  ].join('\n\n');
+
+  const response = await fetch(`${runpodBase}/runsync`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({ input: { message: prompt } }),
+  });
+
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`RunPod runsync ingest failed (${response.status}): ${text}`);
+  }
+
+  return text;
+}
+
+async function postBulletin(baseUrl, apiKey, bulletin) {
+  if (FEED_MODE === 'runpod-runsync-chat-fallback') {
+    return postBulletinViaRunpodRunsync(baseUrl, apiKey, bulletin);
+  }
+
+  return postBulletinViaIntel(baseUrl, apiKey, bulletin);
 }
 
 const focus = getArg('focus', 'general');
