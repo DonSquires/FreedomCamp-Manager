@@ -4,7 +4,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Install dependencies including zstd required by Ollama installer
 RUN apt-get update && apt-get install -y \
-    curl ca-certificates zstd \
+    curl ca-certificates zstd git \
     python3 python3-pip \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
