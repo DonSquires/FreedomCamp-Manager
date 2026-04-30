@@ -24,11 +24,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Loader2, MessageCircle, Zap, Mic, BarChart3, AlertCircle } from 'lucide-react'
 import { useBobStore, type BobTask } from '@/stores/bobStore'
 import { useBobConversation } from '@/hooks/useBobConversation'
-import { useOrganization } from '@/hooks/useOrganization'
+import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 
 type BobStudioTab = 'chat' | 'planning' | 'voice' | 'testing' | 'diagnostics'
 
-export function BobStudio() {
+export default function BobStudio() {
   const [activeTab, setActiveTab] = useState<BobStudioTab>('chat')
   const [recordingAudio, setRecordingAudio] = useState(false)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -37,7 +37,6 @@ export function BobStudio() {
   const {
     activeConversationId,
     setActiveConversation,
-    addMessage,
     activeTask,
     setActiveTask,
     currentReasoning,
@@ -46,46 +45,44 @@ export function BobStudio() {
   } = useBobStore()
 
   // Organization context
-  const { organization } = useOrganization()
+  const { operationalOrganizationId } = useOperationalOrganization()
 
   // Conversation DB layer
   const {
-    conversation,
     messages,
     loading: conversationLoading,
-    error: conversationError,
     createConversation,
     loadConversation,
     sendMessage,
     scoreMessage,
   } = useBobConversation({
     conversationId: activeConversationId ?? undefined,
-    organizationId: organization?.id,
+    organizationId: operationalOrganizationId ?? undefined,
   })
 
   // On mount: load existing conversation or start new
   useEffect(() => {
-    const restored = sessionStorage.getItem(`bob-conversation-${organization?.id}`)
+    const restored = sessionStorage.getItem(`bob-conversation-${operationalOrganizationId}`)
     if (restored) {
       loadConversation(restored)
     }
-  }, [organization?.id, loadConversation])
+  }, [operationalOrganizationId, loadConversation])
 
   const handleSendMessage = async (content: string) => {
-    if (!organization?.id) return
+    if (!operationalOrganizationId) return
 
     let convId = activeConversationId
     if (!convId) {
-      const newConv = await createConversation('Bob Chat', organization.id)
+      const newConv = await createConversation('Bob Chat', operationalOrganizationId)
       if (newConv) {
         convId = newConv.conversation_id
         setActiveConversation(convId, newConv)
-        sessionStorage.setItem(`bob-conversation-${organization.id}`, convId)
+        sessionStorage.setItem(`bob-conversation-${operationalOrganizationId}`, convId)
       }
     }
 
     if (convId) {
-      await sendMessage(content, organization.id)
+      await sendMessage('user', content)
     }
   }
 
@@ -122,7 +119,7 @@ export function BobStudio() {
       <div className="space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">Bob Studio</h1>
         <p className="text-muted-foreground">
-          Operational AI for compliance workflows | Org: {organization?.name}
+          Operational AI for compliance workflows | Org: {operationalOrganizationId || 'N/A'}
         </p>
       </div>
 
@@ -407,7 +404,7 @@ function BobVoiceTab({ recording, onToggleRecording }: BobVoiceTabProps) {
  */
 interface BobTestingTabProps {
   messages: any[]
-  onScoreMessage: (messageId: string, convId: string, score: number, lessonKey: string, orgId: string, feedback?: string) => Promise<void>
+  onScoreMessage: (messageId: string, score: number, lessonKey: string, feedback?: string) => Promise<void>
 }
 
 function BobTestingTab({ messages, onScoreMessage }: BobTestingTabProps) {

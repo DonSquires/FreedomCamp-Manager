@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import { ReasoningService, type ReasoningHypothesis, type ApprovalGate } from '@/lib/bobReasoningService'
-import { useOrganization } from './useOrganization'
+import { useOperationalOrganization } from './useOperationalOrganization'
 
 /**
  * useAutonomousReasoning Hook
@@ -22,8 +22,8 @@ export interface UseAutonomousReasoningOptions {
 }
 
 export function useAutonomousReasoning(options: UseAutonomousReasoningOptions) {
-  const { organization } = useOrganization()
-  const orgId = options.organizationId || organization?.id
+  const { operationalOrganizationId } = useOperationalOrganization()
+  const orgId = options.organizationId || operationalOrganizationId || undefined
   const service = orgId ? new ReasoningService(orgId) : null
 
   const [activeReasoning, setActiveReasoning] = useState<ReasoningHypothesis | null>(null)

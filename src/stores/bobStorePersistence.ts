@@ -1,5 +1,7 @@
-import { PersistOptions, persist } from 'zustand/middleware'
+import { createJSONStorage, type PersistOptions, persist } from 'zustand/middleware'
 import type { BobStore } from './bobStore'
+
+type BobPersistedState = Pick<BobStore, 'tone' | 'organizationId'>
 
 /**
  * Zustand localStorage middleware for Bob's persistent settings
@@ -16,9 +18,9 @@ import type { BobStore } from './bobStore'
  * - reasoning (ephemeral)
  */
 
-export const bobPersistConfig: PersistOptions<BobStore> = {
+export const bobPersistConfig: PersistOptions<BobStore, BobPersistedState> = {
   name: 'bob-store',
-  storage: typeof window !== 'undefined' ? localStorage : undefined,
+  storage: createJSONStorage(() => localStorage),
   partialize: (state) => ({
     tone: state.tone,
     organizationId: state.organizationId,

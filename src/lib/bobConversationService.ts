@@ -8,7 +8,8 @@
  */
 
 import { supabase } from './supabase'
-import type { Database } from '@/types/database'
+
+const sb = supabase as any
 
 export interface BobMessage {
   message_id?: string
@@ -58,7 +59,7 @@ export async function createConversation(
   summary?: string,
   tags?: string[]
 ): Promise<BobConversation> {
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('bob_conversations')
     .insert({
       title,
@@ -83,7 +84,7 @@ export async function loadConversation(
   conversationId: string,
   organizationId: string
 ): Promise<BobConversation | null> {
-  const { data: conversation, error: convError } = await supabase
+  const { data: conversation, error: convError } = await sb
     .from('bob_conversations')
     .select()
     .eq('conversation_id', conversationId)
@@ -95,7 +96,7 @@ export async function loadConversation(
     throw new Error(`Failed to load conversation: ${convError.message}`)
   }
 
-  const { data: messages, error: messError } = await supabase
+  const { data: messages, error: messError } = await sb
     .from('bob_messages')
     .select()
     .eq('conversation_id', conversationId)
@@ -120,7 +121,7 @@ export async function appendMessage(
   message: BobMessage,
   organizationId: string
 ): Promise<BobMessage> {
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('bob_messages')
     .insert({
       conversation_id: conversationId,
@@ -155,7 +156,7 @@ export async function scoreMessage(
     throw new Error('Score must be between 0 and 1')
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('bob_learning_log')
     .insert({
       message_id: messageId,
@@ -185,7 +186,7 @@ export async function listConversations(
   offset: number = 0,
   includeArchived: boolean = false
 ): Promise<BobConversation[]> {
-  let query = supabase
+  let query = sb
     .from('bob_conversations')
     .select()
     .eq('organization_id', organizationId)
@@ -219,7 +220,7 @@ export async function getLessonPatterns(
     sample_feedback: string | null
   }>
 > {
-  const { data, error } = await supabase.rpc('get_bob_lesson_summary', {
+  const { data, error } = await sb.rpc('get_bob_lesson_summary', {
     p_organization_id: organizationId,
     p_hours: hoursBack,
   })
@@ -238,7 +239,7 @@ export async function archiveConversation(
   conversationId: string,
   organizationId: string
 ): Promise<void> {
-  const { error } = await supabase
+  const { error } = await sb
     .from('bob_conversations')
     .update({ is_archived: true, updated_at: new Date().toISOString() })
     .eq('conversation_id', conversationId)
@@ -256,7 +257,7 @@ export async function deleteConversation(
   conversationId: string,
   organizationId: string
 ): Promise<void> {
-  const { error } = await supabase
+  const { error } = await sb
     .from('bob_conversations')
     .delete()
     .eq('conversation_id', conversationId)
@@ -282,7 +283,7 @@ export async function getConversationContext(
     message_order: number
   }>
 > {
-  const { data, error } = await supabase.rpc('get_bob_conversation_context', {
+  const { data, error } = await sb.rpc('get_bob_conversation_context', {
     p_conversation_id: conversationId,
     p_limit: limitMessages,
   })
@@ -306,7 +307,7 @@ export async function updateConversation(
     tags: string[]
   }>
 ): Promise<BobConversation> {
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('bob_conversations')
     .update({
       ...updates,
@@ -332,7 +333,7 @@ export async function searchConversations(
   query: string,
   tags?: string[]
 ): Promise<BobConversation[]> {
-  let search = supabase
+  let search = sb
     .from('bob_conversations')
     .select()
     .eq('organization_id', organizationId)

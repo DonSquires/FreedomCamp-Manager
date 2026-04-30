@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { createJSONStorage, persist } from 'zustand/middleware'
 import type { BobConversation, BobMessage } from '@/lib/bobConversationService'
 
 /**
@@ -124,140 +124,136 @@ export interface BobStore {
 export const useBobStore = create<BobStore>()(
   persist(
     (set, get) => ({
-      }),
-      {
-        name: 'bob-store',
-        storage: typeof window !== 'undefined' ? localStorage : undefined,
-        partialize: (state) => ({
-          tone: state.tone,
-          organizationId: state.organizationId,
-        }),
-        version: 1,
-      }
-    )
-  )
-  // Conversation state
-  activeConversationId: null,
-  activeConversation: null,
-  messages: [],
-  setActiveConversation: (id, conv) => set({ activeConversationId: id, activeConversation: conv }),
-  addMessage: (msg) => set((state) => ({ messages: [...state.messages, msg] })),
-  clearMessages: () => set({ messages: [] }),
-
-  // Tone & personality (persisted via localStorage adapter)
-  tone: {
-    formal: 0.6,
-    verbose: 0.5,
-    proactive: 0.7,
-    cautious: 0.65,
-  },
-  updateTone: (partial) =>
-    set((state) => ({
-      tone: { ...state.tone, ...partial },
-    })),
-
-  // Learning patterns
-  learningPatterns: [],
-  addLearningPattern: (pattern) =>
-    set((state) => {
-      // Deduplicate by key
-      const existing = state.learningPatterns.findIndex((p) => p.key === pattern.key)
-      if (existing >= 0) {
-        const updated = [...state.learningPatterns]
-        updated[existing] = pattern
-        return { learningPatterns: updated }
-      }
-      return { learningPatterns: [...state.learningPatterns, pattern] }
-    }),
-  updateLearningPattern: (key, confidence) =>
-    set((state) => {
-      const idx = state.learningPatterns.findIndex((p) => p.key === key)
-      if (idx < 0) return state
-      const updated = [...state.learningPatterns]
-      updated[idx] = {
-        ...updated[idx],
-        confidence: Math.max(0, Math.min(1, confidence)), // Clamp [0, 1]
-        lastObserved: new Date(),
-        timesApplied: updated[idx].timesApplied + 1,
-      }
-      return { learningPatterns: updated }
-    }),
-  clearLearningPatterns: () => set({ learningPatterns: [] }),
-
-  // Active task
-  activeTask: null,
-  setActiveTask: (task) => set({ activeTask: task }),
-  updateTaskStatus: (taskId, status) =>
-    set((state) => {
-      if (state.activeTask?.id === taskId) {
-        return {
-          activeTask: { ...state.activeTask, status, updatedAt: new Date() },
-        }
-      }
-      return state
-    }),
-  taskHistory: [],
-  addTaskToHistory: (task) =>
-    set((state) => ({ taskHistory: [...state.taskHistory, task] })),
-
-  // Reasoning
-  currentReasoning: null,
-  setCurrentReasoning: (reasoning) => set({ currentReasoning: reasoning }),
-  clearReasoning: () => set({ currentReasoning: null }),
-
-  // Approval gates
-  approvalGates: [],
-  addApprovalGate: (gate) =>
-    set((state) => ({ approvalGates: [...state.approvalGates, gate] })),
-  resolveApprovalGate: (gateId, approved, reason) =>
-    set((state) => ({
-      approvalGates: state.approvalGates.map((g) =>
-        g.id === gateId
-          ? {
-              ...g,
-              status: approved ? 'approved' : 'rejected',
-              reason: reason || g.reason,
-            }
-          : g
-      ),
-    })),
-  pendingApprovals: () =>
-    get().approvalGates.filter((g) => g.status === 'pending'),
-
-  // Response scoring
-  lastScoreAction: null,
-  recordScoreFeedback: (messageId, score, feedback) =>
-    set({
-      lastScoreAction: {
-        messageId,
-        score: Math.max(0, Math.min(1, score)), // Clamp [0, 1]
-        feedback,
-        timestamp: new Date(),
-      },
-    }),
-
-  // Context
-  organizationId: null,
-  setOrganizationId: (id) => set({ organizationId: id }),
-  sessionStartedAt: new Date(),
-  messageCount: 0,
-
-  reset: () =>
-    set({
+      // Conversation state
       activeConversationId: null,
       activeConversation: null,
       messages: [],
-      tone: { formal: 0.6, verbose: 0.5, proactive: 0.7, cautious: 0.65 },
+      setActiveConversation: (id, conv) => set({ activeConversationId: id, activeConversation: conv }),
+      addMessage: (msg) => set((state) => ({ messages: [...state.messages, msg], messageCount: state.messageCount + 1 })),
+      clearMessages: () => set({ messages: [], messageCount: 0 }),
+
+      // Tone & personality (persisted via localStorage adapter)
+      tone: {
+        formal: 0.6,
+        verbose: 0.5,
+        proactive: 0.7,
+        cautious: 0.65,
+      },
+      updateTone: (partial) =>
+        set((state) => ({
+          tone: { ...state.tone, ...partial },
+        })),
+
+      // Learning patterns
       learningPatterns: [],
+      addLearningPattern: (pattern) =>
+        set((state) => {
+          const existing = state.learningPatterns.findIndex((p) => p.key === pattern.key)
+          if (existing >= 0) {
+            const updated = [...state.learningPatterns]
+            updated[existing] = pattern
+            return { learningPatterns: updated }
+          }
+          return { learningPatterns: [...state.learningPatterns, pattern] }
+        }),
+      updateLearningPattern: (key, confidence) =>
+        set((state) => {
+          const idx = state.learningPatterns.findIndex((p) => p.key === key)
+          if (idx < 0) return state
+          const updated = [...state.learningPatterns]
+          updated[idx] = {
+            ...updated[idx],
+            confidence: Math.max(0, Math.min(1, confidence)),
+            lastObserved: new Date(),
+            timesApplied: updated[idx].timesApplied + 1,
+          }
+          return { learningPatterns: updated }
+        }),
+      clearLearningPatterns: () => set({ learningPatterns: [] }),
+
+      // Active task
       activeTask: null,
+      setActiveTask: (task) => set({ activeTask: task }),
+      updateTaskStatus: (taskId, status) =>
+        set((state) => {
+          if (state.activeTask?.id === taskId) {
+            return {
+              activeTask: { ...state.activeTask, status, updatedAt: new Date() },
+            }
+          }
+          return state
+        }),
       taskHistory: [],
+      addTaskToHistory: (task) => set((state) => ({ taskHistory: [...state.taskHistory, task] })),
+
+      // Reasoning
       currentReasoning: null,
+      setCurrentReasoning: (reasoning) => set({ currentReasoning: reasoning }),
+      clearReasoning: () => set({ currentReasoning: null }),
+
+      // Approval gates
       approvalGates: [],
+      addApprovalGate: (gate) => set((state) => ({ approvalGates: [...state.approvalGates, gate] })),
+      resolveApprovalGate: (gateId, approved, reason) =>
+        set((state) => ({
+          approvalGates: state.approvalGates.map((g) =>
+            g.id === gateId
+              ? {
+                  ...g,
+                  status: approved ? 'approved' : 'rejected',
+                  reason: reason || g.reason,
+                }
+              : g
+          ),
+        })),
+      pendingApprovals: () => get().approvalGates.filter((g) => g.status === 'pending'),
+
+      // Response scoring
       lastScoreAction: null,
+      recordScoreFeedback: (messageId, score, feedback) =>
+        set({
+          lastScoreAction: {
+            messageId,
+            score: Math.max(0, Math.min(1, score)),
+            feedback,
+            timestamp: new Date(),
+          },
+        }),
+
+      // Context
       organizationId: null,
+      setOrganizationId: (id) => set({ organizationId: id }),
       sessionStartedAt: new Date(),
+      messageCount: 0,
+
+      reset: () =>
+        set({
+          activeConversationId: null,
+          activeConversation: null,
+          messages: [],
+          tone: { formal: 0.6, verbose: 0.5, proactive: 0.7, cautious: 0.65 },
+          learningPatterns: [],
+          activeTask: null,
+          taskHistory: [],
+          currentReasoning: null,
+          approvalGates: [],
+          lastScoreAction: null,
+          organizationId: null,
+          sessionStartedAt: new Date(),
+          messageCount: 0,
+        }),
     }),
-}))
+    {
+      name: 'bob-store',
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        tone: state.tone,
+        organizationId: state.organizationId,
+      }),
+      version: 1,
+    }
+  )
+)
 
 /**
  * Selectors for common Bob store queries
@@ -276,8 +272,8 @@ export const selectBobOrganization = (state: BobStore) => state.organizationId
  * Hook for accessing Bob's tone settings (tone affects response format)
  */
 export const useBobTone = () => {
-  const tone = useBobStore.use.tone?.()
-  const updateTone = useBobStore.use.updateTone?.()
+  const tone = useBobStore((state) => state.tone)
+  const updateTone = useBobStore((state) => state.updateTone)
   return { tone, updateTone }
 }
 
@@ -285,9 +281,9 @@ export const useBobTone = () => {
  * Hook for managing Bob's current reasoning context
  */
 export const useBobReasoning = () => {
-  const reasoning = useBobStore.use.currentReasoning?.()
-  const setReasoning = useBobStore.use.setCurrentReasoning?.()
-  const clearReasoning = useBobStore.use.clearReasoning?.()
+  const reasoning = useBobStore((state) => state.currentReasoning)
+  const setReasoning = useBobStore((state) => state.setCurrentReasoning)
+  const clearReasoning = useBobStore((state) => state.clearReasoning)
   return { reasoning, setReasoning, clearReasoning }
 }
 
@@ -295,9 +291,9 @@ export const useBobReasoning = () => {
  * Hook for Bob's approval gates (multi-step workflows)
  */
 export const useBobApprovals = () => {
-  const gates = useBobStore.use.approvalGates?.()
-  const pending = useBobStore.use.pendingApprovals?.()
-  const addGate = useBobStore.use.addApprovalGate?.()
-  const resolve = useBobStore.use.resolveApprovalGate?.()
+  const gates = useBobStore((state) => state.approvalGates)
+  const pending = useBobStore((state) => state.pendingApprovals)
+  const addGate = useBobStore((state) => state.addApprovalGate)
+  const resolve = useBobStore((state) => state.resolveApprovalGate)
   return { gates, pending, addGate, resolve }
 }

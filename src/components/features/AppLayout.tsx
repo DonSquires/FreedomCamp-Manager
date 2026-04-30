@@ -234,6 +234,7 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
     icon: BrainCircuit,
     items: [
       { path: '/bob-assistant', icon: BrainCircuit, label: 'Bob Assistant', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/bob-studio', icon: BrainCircuit, label: 'Bob Studio', roles: ['admin', 'admin_officer', 'master', 'grand_master'] },
       { path: '/bob-intake-queue', icon: ClipboardList, label: 'Bob Intake Queue', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/ai-analysis', icon: BrainCircuit, label: 'Bob Analysis', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/live-plan-reviews', icon: ShieldCheck, label: 'Live Plan Reviews', roles: ['admin', 'admin_officer', 'master'] },
