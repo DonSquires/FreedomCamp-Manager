@@ -6,6 +6,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y \
     curl ca-certificates zstd git \
     python3 python3-pip \
+    espeak-ng ffmpeg \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # ----------------------------------------------------------------------------
@@ -63,9 +64,13 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y nodejs && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Bun runtime for Bun-first repositories (this repo includes bun.lock)
+RUN curl -fsSL https://bun.sh/install | bash && \
+  ln -sf /root/.bun/bin/bun /usr/local/bin/bun
+
 WORKDIR /app
 
-COPY handler.py start.sh training_memory.json package.json ./
+COPY handler.py start.sh pod_start.sh training_memory.json package.json ./
 
 # Fail fast during image build if handler.py has syntax issues.
 RUN python3 -m py_compile /app/handler.py
@@ -73,6 +78,6 @@ RUN python3 -m py_compile /app/handler.py
 # Install Playwright + its browser dependencies so run_playwright works offline
 RUN npm install --save-dev @playwright/test && \
     npx playwright install --with-deps chromium
-RUN chmod +x start.sh
+RUN chmod +x start.sh pod_start.sh
 
 CMD ["./start.sh"]
