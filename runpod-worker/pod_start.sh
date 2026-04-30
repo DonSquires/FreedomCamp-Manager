@@ -119,4 +119,8 @@ echo "[pod_start] .env written"
 # ---------------------------------------------------------------------------
 echo "[pod_start] Starting inference-service on port 3000..."
 cd "$INFERENCE_DIR"
+# Override image-baked defaults for this process so dotenv does not keep
+# stale values such as OLLAMA_VISION_MODEL=llama3.2-vision:11b.
+export OLLAMA_VISION_MODEL="$VISION_MODEL"
+export OLLAMA_AUTO_PULL_MODELS=false
 exec node server.js
