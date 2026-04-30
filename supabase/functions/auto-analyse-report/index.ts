@@ -175,6 +175,60 @@ function normalizeServiceBaseUrl(value: string): string {
   return withScheme.replace(/\/+$/, '')
 }
 
+async function fallbackAnalyseWithOnspaceChat(
+  report: any,
+  navHistory: any[],
+  consoleErrors: any[],
+  ciStatus: string,
+): Promise<{ text: string; model: string; provider: string } | null> {
+  const supabaseUrl = (Deno.env.get('SUPABASE_URL') ?? '').replace(/\/+$/, '')
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  if (!supabaseUrl || !serviceRoleKey) return null
+
+  const prompt = `You are analysing a bug report for FieldOps Manager (NZ freedom camping operations platform).\n\n`
+    + `Type: ${report.issue_type ?? 'bug'}\n`
+    + `Severity: ${report.severity ?? 'medium'}\n`
+    + `Title: ${report.title ?? 'Untitled'}\n`
+    + `Description: ${report.description ?? 'No description'}\n`
+    + `Page: ${report.current_page ?? 'unknown'}\n`
+    + `Role: ${report.user_role ?? 'unknown'}\n`
+    + `App Version: ${report.app_version ?? 'unknown'}\n\n`
+    + `Steps: ${report.steps_to_reproduce ?? 'n/a'}\n`
+    + `Expected: ${report.expected_behavior ?? 'n/a'}\n`
+    + `Actual: ${report.actual_behavior ?? 'n/a'}\n\n`
+    + `Recent Navigation:\n${navHistory.slice(-10).map((n: any) => `- ${n?.path ?? 'unknown'} @ ${n?.timestamp ?? 'unknown'}`).join('\n') || '- none'}\n\n`
+    + `Recent Console Errors:\n${consoleErrors.slice(-10).map((e: any) => `- [${e?.level ?? 'error'}] ${e?.message ?? 'unknown error'}`).join('\n') || '- none'}\n\n`
+    + `Recent CI Status:\n${ciStatus}\n\n`
+    + `Return sections titled: Root Cause, Suggested Fix, Severity Confirmation, Effort, PR Plan, Build Impact.`
+
+  const resp = await fetch(`${supabaseUrl}/functions/v1/onspace-ai-chat`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+    },
+    body: JSON.stringify({
+      message: prompt,
+      provider: 'auto',
+      model: 'qwen2.5:7b',
+      temperature: 0.2,
+    }),
+    signal: AbortSignal.timeout(45_000),
+  })
+
+  if (!resp.ok) return null
+  const chatJson = await resp.json()
+  const text = String(chatJson?.response ?? '').trim()
+  if (!text) return null
+
+  return {
+    text,
+    model: String(chatJson?.model ?? 'onspace-ai-chat-fallback'),
+    provider: String(chatJson?.provider ?? 'onspace-ai-chat-fallback'),
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: getCorsHeaders(req) })
@@ -316,21 +370,53 @@ Deno.serve(async (req: Request) => {
       signal: AbortSignal.timeout(55_000),
     })
 
-    if (!healResp.ok) {
-      const details = await healResp.text()
-      return new Response(
-        JSON.stringify({ error: `Inference self-heal returned ${healResp.status}`, details: details.slice(0, 300) }),
-        { status: healResp.status, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
-      )
-    }
+    let healJson: any = null
+    let responseText = ''
+    let analysisModel = 'self-healing-plan-v1'
+    let analysisProvider = 'inference-self-heal'
+    let fallbackReason: string | null = null
 
-    const healJson = await healResp.json()
-    const responseText: string = planToText(healJson?.plan)
+    if (healResp.ok) {
+      healJson = await healResp.json()
+      responseText = planToText(healJson?.plan)
+    } else {
+      const details = await healResp.text()
+      fallbackReason = `Inference self-heal returned ${healResp.status}: ${details.slice(0, 300)}`
+      console.warn(`[auto-analyse] ${fallbackReason} — trying onspace-ai-chat fallback for report ${report_id}`)
+
+      const fallback = await fallbackAnalyseWithOnspaceChat(report, navHistory, consoleErrors, ciStatus)
+      if (!fallback) {
+        responseText = [
+          '## Self-Healing Analysis',
+          `Severity: ${report.severity ?? 'medium'}`,
+          `Bug Type: ${report.issue_type ?? 'bug'}`,
+          '',
+          '### Root Cause',
+          'Primary inference providers were unavailable during automatic analysis. Manual engineering triage is required using captured report details and logs.',
+          '',
+          '### Suggested Fix',
+          '- Verify INFERENCE_SERVICE_URL points to a live service and supports /self-heal/bug-report.',
+          '- Validate inference API key rotation and worker deployment health.',
+          '- Re-run automated analysis after service recovery.',
+          '',
+          '### Build Impact',
+          '- No direct code patch generated in fallback mode.',
+          '- Incident should be tracked as platform reliability debt if repeated.',
+        ].join('\n')
+        analysisModel = 'deterministic-fallback-v1'
+        analysisProvider = 'auto-analyse-emergency-fallback'
+        fallbackReason = `${fallbackReason}; onspace-ai-chat fallback unavailable`
+      } else {
+        responseText = fallback.text
+        analysisModel = fallback.model
+        analysisProvider = fallback.provider
+      }
+    }
 
     // ── Stage 2: GitHub-assist escalation for non-design bug fixes ─────────
     const designChange = isDesignChangeIssueType(report.issue_type)
     const complexity = deriveComplexity(report.severity)
-    const shouldEscalateToGithubAssist = !designChange
+    const shouldEscalateToGithubAssist = !designChange && analysisProvider === 'inference-self-heal' && !!healJson?.plan
 
     interface PatchTask {
       risk_score?: number
@@ -427,12 +513,13 @@ Deno.serve(async (req: Request) => {
         ai_suggested_fix: responseText,
         ai_analysis: {
           analyzed_at: new Date().toISOString(),
-          model: 'self-healing-plan-v1',
-          provider: 'inference-self-heal',
+          model: analysisModel,
+          provider: analysisProvider,
           auto: true,
           ci_status_included: githubToken ? true : false,
           design_change: designChange,
           github_assist_escalation: escalationResult,
+          fallback_reason: fallbackReason,
         },
         status: nextStatus,
         requires_human_review: requiresHumanReview,
