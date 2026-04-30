@@ -524,7 +524,7 @@ export default function ClientAccountPage() {
           <Button size="sm" variant="outline" className="text-xs" onClick={() => navigate('/patrol-schedule')}>
             Patrol Setup
           </Button>
-          <Button size="sm" variant="outline" className="text-xs" onClick={() => navigate('/admin/site-permissions')}>
+          <Button size="sm" variant="outline" className="text-xs" onClick={() => navigate('/site-permissions')}>
             Site Access Rules
           </Button>
         </div>

@@ -139,6 +139,10 @@ export function usePlateScans(options?: {
           ai_vehicle_model: input.ai_vehicle_model,
           ai_vehicle_color: input.ai_vehicle_color,
           scanned_at: new Date().toISOString(),
+    onError: (err: any) => {
+      console.error(err)
+      toast.error(err?.message || 'Operation failed')
+    },
         })
         .select()
         .single()
@@ -164,6 +168,10 @@ export function usePlateScans(options?: {
           reviewed: true,
           review_action: action,
           violation_summary: notes,
+    onError: (err: any) => {
+      console.error(err)
+      toast.error(err?.message || 'Operation failed')
+    },
         })
         .eq('id', id)
 
@@ -194,6 +202,10 @@ export function usePlateScans(options?: {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['plate-scans'] })
       toast.success('Scan deleted')
+    },
+    onError: (err: any) => {
+      console.error(err)
+      toast.error(err?.message || 'Operation failed')
     },
   })
 

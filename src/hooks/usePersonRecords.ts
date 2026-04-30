@@ -125,6 +125,10 @@ export function usePersonRecords(options?: {
           last_name: input.last_name || null,
           date_of_birth: input.date_of_birth || null,
           notes: input.notes || null,
+    onError: (err: any) => {
+      console.error(err)
+      toast.error(err?.message || 'Operation failed')
+    },
         })
         .select()
         .single()
@@ -160,6 +164,10 @@ export function usePersonRecords(options?: {
       queryClient.invalidateQueries({ queryKey: ['person-records'] })
       toast.success('Homeless status updated')
     },
+    onError: (err: any) => {
+      console.error(err)
+      toast.error(err?.message || 'Operation failed')
+    },
   })
 
   // Update person record mutation
@@ -177,6 +185,10 @@ export function usePersonRecords(options?: {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['person-records'] })
       toast.success('Person record updated')
+    },
+    onError: (err: any) => {
+      console.error(err)
+      toast.error(err?.message || 'Operation failed')
     },
   })
 
@@ -196,6 +208,10 @@ export function usePersonRecords(options?: {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['person-records'] })
       toast.success('Person record deleted')
+    },
+    onError: (err: any) => {
+      console.error(err)
+      toast.error(err?.message || 'Operation failed')
     },
   })
 
@@ -304,6 +320,10 @@ export function usePersonObservations(
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['person-observations'] })
       toast.success('Observation recorded')
+    },
+    onError: (err: any) => {
+      console.error(err)
+      toast.error(err?.message || 'Operation failed')
     },
   })
 

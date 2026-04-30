@@ -407,13 +407,16 @@ Deno.serve(async (req) => {
       .single();
 
     // Parse body early so we can validate required fields before role check
-    // (missing org_id → 400 before the caller learns they'd need admin role)
+    // Accept both org_id and organization_id for flexibility
     const reqBody = await req.json().catch(() => ({})) as Record<string, unknown>;
-    const org_id: string | undefined = typeof reqBody.org_id === 'string' ? reqBody.org_id : undefined;
+    const org_id: string | undefined = 
+      (typeof reqBody.org_id === 'string' ? reqBody.org_id : null) ||
+      (typeof reqBody.organization_id === 'string' ? reqBody.organization_id : null) ||
+      undefined;
 
     if (!org_id) {
       return new Response(
-        JSON.stringify({ error: 'Missing required field: org_id' }),
+        JSON.stringify({ error: 'Missing required field: org_id or organization_id' }),
         { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
@@ -468,6 +471,9 @@ Deno.serve(async (req) => {
     // Apply filters
     if (normalizedZoneIds && normalizedZoneIds.length > 0) {
       query = query.in('zone_id', normalizedZoneIds);
+    }
+    if (org_id) {
+      query = query.eq('organization_id', org_id);
     }
     if (normalizedDateStart) {
       query = query.gte('recorded_at', normalizedDateStart);

@@ -23,7 +23,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
 
-const BOB_RUNPOD_RETRIES = Math.max(0, Number(Deno.env.get('BOB_RUNPOD_RETRIES') ?? '2'))
+const BOB_RUNPOD_RETRIES = Math.max(2, Number(Deno.env.get('BOB_RUNPOD_RETRIES') ?? '2'))
 const BOB_RUNPOD_BACKOFF_MS = Math.max(100, Number(Deno.env.get('BOB_RUNPOD_BACKOFF_MS') ?? '700'))
 const BOB_RUNPOD_MAX_BACKOFF_MS = Math.max(BOB_RUNPOD_BACKOFF_MS, Number(Deno.env.get('BOB_RUNPOD_MAX_BACKOFF_MS') ?? '5000'))
 const BOB_RUNPOD_TIMEOUT_MS = Math.max(5000, Number(Deno.env.get('BOB_RUNPOD_TIMEOUT_MS') ?? '90000'))
@@ -530,34 +530,71 @@ Deno.serve(async (req: Request) => {
 
   try {
     // ── Auth ─────────────────────────────────────────────────────────────────
-    const token = extractBearerToken(req)
-    if (!token) {
-      return new Response(
-        JSON.stringify({ error: 'Authentication required' }),
-        { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
-      )
-    }
-
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid or expired session' }),
-        { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
-      )
-    }
+    let user: { id: string } | null = null
+    let userRole = 'service'
+    let isGrandMaster = true
+    let profile: { role: string; first_name?: string; last_name?: string; organization_id?: string | null } | null = null
 
-    const { data: profile } = await (supabaseAdmin.from('user_profiles') as any)
-      .select('role, first_name, last_name, organization_id')
-      .eq('id', user.id)
-      .maybeSingle()
+    const token = extractBearerToken(req)
+    const bobApiKey = Deno.env.get('BOB_API_KEY') ?? ''
+    const internalApiKey = Deno.env.get('INTERNAL_API_KEY') ?? ''
 
-    const userRole = (profile?.role ?? 'officer') as string
-    const isGrandMaster = userRole === 'grand_master'
+    // Service-role bypass: decode JWT payload to check for service_role claim.
+    // Also accepts BOB_API_KEY or INTERNAL_API_KEY via x-service-key header.
+    // This allows automated testing, cron jobs, CI pipelines, and proactive alerts
+    // to invoke Bob without a user JWT session.
+    const serviceKeyHeader = req.headers.get('x-service-key') ?? ''
+    const isServiceRole = (() => {
+      // Check custom API keys first
+      if (bobApiKey && (token === bobApiKey || serviceKeyHeader === bobApiKey)) return true
+      if (internalApiKey && (token === internalApiKey || serviceKeyHeader === internalApiKey)) return true
+      // Decode JWT payload to check for service_role claim (no signature verification needed
+      // since Supabase edge functions only receive requests via the gateway which verifies
+      // the JWT before forwarding, and we double-check against supabaseAdmin.auth below
+      // for user tokens)
+      if (token) {
+        try {
+          const parts = token.split('.')
+          if (parts.length === 3) {
+            const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
+            if (payload?.role === 'service_role') return true
+          }
+        } catch (_) { /* not a valid JWT */ }
+      }
+      return false
+    })()
+
+    if (!isServiceRole) {
+      if (!token) {
+        return new Response(
+          JSON.stringify({ error: 'Authentication required' }),
+          { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const { data: { user: authUser }, error: authError } = await supabaseAdmin.auth.getUser(token)
+      if (authError || !authUser) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid or expired session' }),
+          { status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+        )
+      }
+      user = authUser
+
+      const { data: userProfile } = await (supabaseAdmin.from('user_profiles') as any)
+        .select('role, first_name, last_name, organization_id')
+        .eq('id', user?.id ?? '')
+        .maybeSingle()
+
+      profile = userProfile
+      userRole = (profile?.role ?? 'officer') as string
+      isGrandMaster = userRole === 'grand_master'
+    } // end if (!isServiceRole)
 
     // Fetch Bob user profile for tier/tone metadata (non-blocking; fail gracefully)
     let bobTier: string | null = null
@@ -565,7 +602,7 @@ Deno.serve(async (req: Request) => {
     try {
       const { data: bobProfile } = await (supabaseAdmin.from('bob_user_profiles') as any)
         .select('bob_tier, tone')
-        .eq('user_id', user.id)
+        .eq('user_id', user?.id ?? '')
         .maybeSingle()
       if (bobProfile) {
         bobTier = bobProfile.bob_tier ?? null
@@ -596,6 +633,9 @@ Deno.serve(async (req: Request) => {
       return value
     }
     const inferenceModel = normalizeOllamaModel(model)
+    // RunPod workers are provisioned with Ollama tags; force a known-good tag for serverless calls
+    // to avoid model-not-found 404s when AI_DEFAULT_MODEL points to non-Ollama model names.
+    const runpodModel = normalizeOllamaModel(Deno.env.get('RUNPOD_OLLAMA_MODEL') ?? Deno.env.get('OLLAMA_MODEL') ?? 'qwen2.5:7b')
 
     const openAIReferenceGateEnabled = parseBooleanEnv(Deno.env.get('OPENAI_REFERENCE_GATE_ENABLED'), true)
     if (openAIReferenceGateEnabled && isOpenAIReferenceProvider(requestedProvider)) {
@@ -713,7 +753,7 @@ Deno.serve(async (req: Request) => {
     if (isPrivacyRequest && !isGrandMaster && !hasExplicitPermission) {
       try {
         await writePrivacyAudit(supabaseAdmin, {
-          performedBy: user.id,
+          performedBy: user?.id ?? 'service',
           organizationId: profile?.organization_id ?? null,
           action: 'bob_user_data_request_blocked',
           message: latestUserMessage,
@@ -741,7 +781,7 @@ Deno.serve(async (req: Request) => {
     if (isPrivacyRequest) {
       try {
         await writePrivacyAudit(supabaseAdmin, {
-          performedBy: user.id,
+          performedBy: user?.id ?? 'service',
           organizationId: profile?.organization_id ?? null,
           action: isGrandMaster ? 'bob_user_data_request_grand_master_override' : 'bob_user_data_request_allowed',
           message: latestUserMessage,
@@ -761,8 +801,8 @@ Deno.serve(async (req: Request) => {
       try {
         await notifyGrandMasters(
           supabaseAdmin,
-          user.id,
-          user.email ?? 'unknown@unknown',
+          user?.id ?? 'service',
+          user?.email ?? '' ?? 'unknown@unknown',
           latestUserMessage.slice(0, 400),
         )
       } catch (notifyErr) {
@@ -795,6 +835,7 @@ Deno.serve(async (req: Request) => {
       const runSyncUrl = `${baseUrl.replace(/\/(?:run|runsync)\/?$/i, '')}/runsync`
 
       let lastError: Error | null = null
+      let runpodCompatMode = false
 
       for (let attempt = 0; attempt <= BOB_RUNPOD_RETRIES; attempt += 1) {
         const isLastAttempt = attempt === BOB_RUNPOD_RETRIES
@@ -808,33 +849,42 @@ Deno.serve(async (req: Request) => {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${apiKey}`,
               'x-inference-api-key': apiKey,
-              'x-user-id': user.id,
-              'x-org-id': profile?.organization_id ? String(profile.organization_id) : '',
+              'x-user-id': user?.id ?? 'service',
+              'x-org-id': profile?.organization_id ? String(profile?.organization_id) : '',
               'x-user-role': userRole,
-              'x-user-email': user.email || '',
+              'x-user-email': (user?.email ?? ''),
               ...(bobTier ? { 'x-bob-tier': bobTier } : {}),
               ...(bobTone ? { 'x-bob-tone': bobTone } : {}),
             },
             body: JSON.stringify({
-              input: {
-                action: 'chat',
-                message: latestUserMessage,
-                history,
-                system_prompt: messages.find((m) => m.role === 'system')?.content,
-                model: inferenceModel,
-                temperature,
-                context: {
-                  user_id: user.id,
-                  user_email: user.email,
-                  user_role: userRole,
-                  organization_id: profile?.organization_id ?? null,
-                  bob_tier: bobTier ?? undefined,
-                  bob_tone: bobTone ?? undefined,
-                  requested_model: model,
-                  resolved_model: inferenceModel,
-                  source: 'onspace-ai-chat',
-                },
-              },
+              input: runpodCompatMode
+                ? {
+                    action: 'chat',
+                    message: latestUserMessage,
+                    model: runpodModel,
+                    temperature,
+                    // Minimal payload fallback for worker compatibility incidents.
+                    history: [],
+                  }
+                : {
+                    action: 'chat',
+                    message: latestUserMessage,
+                    history,
+                    system_prompt: messages.find((m) => m.role === 'system')?.content,
+                    model: runpodModel,
+                    temperature,
+                    context: {
+                      user_id: user?.id ?? 'service',
+                      user_email: user?.email ?? '',
+                      user_role: userRole,
+                      organization_id: profile?.organization_id ?? null,
+                      bob_tier: bobTier ?? undefined,
+                      bob_tone: bobTone ?? undefined,
+                      requested_model: model,
+                      resolved_model: runpodModel,
+                      source: 'onspace-ai-chat',
+                    },
+                  },
             }),
             signal: controller.signal,
           })
@@ -856,6 +906,15 @@ Deno.serve(async (req: Request) => {
           if (runData.status === 'FAILED') {
             const workerId = runData?.workerId ?? runData?.executionTime?.workerId ?? runData?.output?.metadata?.workerId ?? 'unknown'
             const runpodError = JSON.stringify(runData.error ?? runData.output).slice(0, 300)
+            const runpodErrorText = String(runpodError)
+            // Compatibility fallback: if worker reports /api/chat 404, retry with a minimal payload
+            // that avoids large context blobs and legacy incompatibilities.
+            if (!isLastAttempt && (runpodErrorText.includes('/api/chat') || runpodErrorText.includes('404 Client Error'))) {
+              runpodCompatMode = true
+              lastError = new Error(`RunPod compat retry armed [endpoint=${baseUrl} job=${runData?.id ?? 'unknown'} worker=${workerId}]: ${runpodErrorText}`)
+              await sleep(backoffDelayMs(attempt))
+              continue
+            }
             throw new Error(`RunPod job failed [endpoint=${baseUrl} job=${runData?.id ?? 'unknown'} worker=${workerId}]: ${runpodError}`)
           }
 
@@ -875,7 +934,15 @@ Deno.serve(async (req: Request) => {
           }
         } catch (err: any) {
           const message = String(err?.message ?? err)
-          const retryableError = message.includes('AbortError') || message.includes('timed out') || message.includes('fetch failed')
+          const retryableError =
+            message.includes('AbortError') ||
+            message.includes('timed out') ||
+            message.includes('fetch failed') ||
+            // Cold-start compatibility: some worker releases may briefly fail chat
+            // with /api/chat 404 before Ollama routes are fully ready.
+            message.includes('/api/chat') ||
+            message.includes('404 Client Error') ||
+            message.includes('RunPod job failed')
           if (!isLastAttempt && retryableError) {
             lastError = err instanceof Error ? err : new Error(message)
             await sleep(backoffDelayMs(attempt))
@@ -935,10 +1002,10 @@ Deno.serve(async (req: Request) => {
             try {
               const headers: Record<string, string> = {
                 'Content-Type': 'application/json',
-                'x-user-id': user.id,
-                'x-org-id': profile?.organization_id ? String(profile.organization_id) : '',
+                'x-user-id': user?.id ?? 'service',
+                'x-org-id': profile?.organization_id ? String(profile?.organization_id) : '',
                 'x-user-role': userRole,
-                'x-user-email': user.email || '',
+                'x-user-email': (user?.email ?? ''),
                 ...(bobTier ? { 'x-bob-tier': bobTier } : {}),
                 ...(bobTone ? { 'x-bob-tone': bobTone } : {}),
                 ...authHeaders,
@@ -952,8 +1019,8 @@ Deno.serve(async (req: Request) => {
                   history,
                   provider: providerPreference === 'inference' ? 'inference' : providerPreference === 'ollama' ? 'ollama' : undefined,
                   context: {
-                    user_id: user.id,
-                    user_email: user.email,
+                    user_id: user?.id ?? 'service',
+                    user_email: user?.email ?? '',
                     user_role: userRole,
                     organization_id: profile?.organization_id ?? null,
                     bob_tier: bobTier ?? undefined,

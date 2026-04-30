@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 
 import process from 'node:process';
+import { loadLocalEnv } from './load-local-env.mjs';
+
+loadLocalEnv();
 
 const API_BASE = 'https://rest.runpod.io/v1';
 

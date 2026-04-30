@@ -260,39 +260,101 @@ BOB_SYSTEM = (
 )
 
 
+def _messages_to_prompt(messages):
+    """Flatten chat messages for Ollama /api/generate fallback."""
+    chunks = []
+    for m in messages or []:
+        role = str(m.get("role", "user")).upper()
+        content = str(m.get("content", "")).strip()
+        if content:
+            chunks.append(f"{role}: {content}")
+    chunks.append("ASSISTANT:")
+    return "\n\n".join(chunks)
+
+
 def ollama_chat(messages, model=None, temperature=0.7):
+    # Prefer /api/chat, but fall back to /api/generate for older Ollama builds.
+    chat_payload = {
+        "model": model or OLLAMA_MODEL,
+        "messages": messages,
+        "stream": False,
+        "options": {"temperature": temperature},
+    }
+
     resp = requests.post(
         f"{OLLAMA_BASE}/api/chat",
-        json={"model": model or OLLAMA_MODEL, "messages": messages, "stream": False,
-              "options": {"temperature": temperature}},
+        json=chat_payload,
         timeout=TIMEOUT_S,
     )
+
+    if resp.status_code == 404:
+        generate_payload = {
+            "model": model or OLLAMA_MODEL,
+            "prompt": _messages_to_prompt(messages),
+            "stream": False,
+            "options": {"temperature": temperature},
+        }
+        gen_resp = requests.post(
+            f"{OLLAMA_BASE}/api/generate",
+            json=generate_payload,
+            timeout=TIMEOUT_S,
+        )
+        gen_resp.raise_for_status()
+        gen_data = gen_resp.json()
+        gen_content = gen_data.get("response", "")
+        if not gen_content:
+            raise ValueError("Ollama /api/generate returned empty content")
+        return {"content": gen_content, "model": gen_data.get("model", model or OLLAMA_MODEL)}
+
     resp.raise_for_status()
     data = resp.json()
     content = data.get("message", {}).get("content", "")
     if not content:
         raise ValueError("Ollama returned empty content")
-    return {"content": content, "model": data.get("model", OLLAMA_MODEL)}
+    return {"content": content, "model": data.get("model", model or OLLAMA_MODEL)}
 
 
 def ollama_vision_chat(prompt, image_b64, model=None, temperature=0.2):
     """Send an image + prompt to the vision model. image_b64 is a base64-encoded image string."""
+    chat_payload = {
+        "model": model or OLLAMA_VISION_MODEL,
+        "messages": [{"role": "user", "content": prompt, "images": [image_b64]}],
+        "stream": False,
+        "options": {"temperature": temperature},
+    }
+
     resp = requests.post(
         f"{OLLAMA_BASE}/api/chat",
-        json={
-            "model": model or OLLAMA_VISION_MODEL,
-            "messages": [{"role": "user", "content": prompt, "images": [image_b64]}],
-            "stream": False,
-            "options": {"temperature": temperature},
-        },
+        json=chat_payload,
         timeout=TIMEOUT_S,
     )
+
+    if resp.status_code == 404:
+        generate_payload = {
+            "model": model or OLLAMA_VISION_MODEL,
+            "prompt": prompt,
+            "images": [image_b64],
+            "stream": False,
+            "options": {"temperature": temperature},
+        }
+        gen_resp = requests.post(
+            f"{OLLAMA_BASE}/api/generate",
+            json=generate_payload,
+            timeout=TIMEOUT_S,
+        )
+        gen_resp.raise_for_status()
+        gen_data = gen_resp.json()
+        gen_content = gen_data.get("response", "")
+        if not gen_content:
+            raise ValueError("Vision /api/generate returned empty content")
+        return {"content": gen_content, "model": gen_data.get("model", model or OLLAMA_VISION_MODEL)}
+
     resp.raise_for_status()
     data = resp.json()
     content = data.get("message", {}).get("content", "")
     if not content:
         raise ValueError("Vision model returned empty content")
-    return {"content": content, "model": data.get("model", OLLAMA_VISION_MODEL)}
+    return {"content": content, "model": data.get("model", model or OLLAMA_VISION_MODEL)}
 
 
 def handler(job):

@@ -25,11 +25,12 @@ const proxyValidation = validateServiceUrl(
 const RUNPOD_ENDPOINT_ID = String(Deno.env.get('RUNPOD_ENDPOINT_ID') || '').trim()
 const derivedRunpodUrl = RUNPOD_ENDPOINT_ID ? `https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}` : ''
 const inferenceValidation = validateServiceUrl(
-  Deno.env.get('INFERENCE_SERVICE_URL') ||
-    Deno.env.get('BOB_SERVICE_URL') ||
-    Deno.env.get('RUNPOD_ENDPOINT_URL') ||
+  Deno.env.get('RUNPOD_ENDPOINT_URL') ||
     Deno.env.get('INFERENCE_SERVICE_URL_RUNPOD') ||
-    derivedRunpodUrl,
+    derivedRunpodUrl ||
+    Deno.env.get('INFERENCE_SERVICE_URL') ||
+    Deno.env.get('BOB_SERVICE_URL') ||
+    '',
   'INFERENCE_SERVICE_URL'
 )
 const pttValidation = validateServiceUrl(

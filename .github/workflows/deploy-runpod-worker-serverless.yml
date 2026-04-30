@@ -1,0 +1,101 @@
+name: Deploy RunPod Worker Serverless
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - runpod-worker/**
+      - scripts/promote-runpod-worker.mjs
+      - scripts/force-runpod-endpoint-redeploy.mjs
+      - scripts/load-local-env.mjs
+      - .github/workflows/deploy-runpod-worker-serverless.yml
+  workflow_dispatch:
+    inputs:
+      wait_seconds:
+        description: Seconds to wait during forced endpoint refresh
+        required: false
+        default: '15'
+      model:
+        description: Ollama model tag to pin during promotion
+        required: false
+        default: 'qwen2.5:7b'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runpod-worker-serverless-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  promote-worker:
+    name: Promote RunPod worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY != '' && secrets.RUNPOD_API_KEY || secrets.RUNPOD_ENDPOINT_API_KEY }}
+      RUNPOD_ENDPOINT_API_KEY: ${{ secrets.RUNPOD_ENDPOINT_API_KEY != '' && secrets.RUNPOD_ENDPOINT_API_KEY || secrets.RUNPOD_API_KEY }}
+      RUNPOD_ENDPOINT_ID: ${{ secrets.RUNPOD_ENDPOINT_ID }}
+      RUNPOD_ENDPOINT_URL: ${{ secrets.RUNPOD_ENDPOINT_URL }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPERBASE_SURVICE_ROLE_KEY: ${{ secrets.SUPERBASE_SURVICE_ROLE_KEY }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Validate required secrets
+        run: |
+          set -euo pipefail
+          if [ -z "${RUNPOD_API_KEY:-}" ]; then
+            echo "::error::Missing RUNPOD_API_KEY or RUNPOD_ENDPOINT_API_KEY"
+            exit 1
+          fi
+          if [ -z "${RUNPOD_ENDPOINT_ID:-}" ] && [ -z "${RUNPOD_ENDPOINT_URL:-}" ]; then
+            echo "::error::Missing RUNPOD_ENDPOINT_ID or RUNPOD_ENDPOINT_URL"
+            exit 1
+          fi
+          if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ]; then
+            echo "::error::Missing SUPABASE_ACCESS_TOKEN"
+            exit 1
+          fi
+          if [ -z "${SUPABASE_PROJECT_REF:-}" ]; then
+            echo "::error::Missing SUPABASE_PROJECT_REF"
+            exit 1
+          fi
+          echo "Secrets validation passed"
+
+      - name: Promote RunPod worker and smoke test
+        run: |
+          set -euo pipefail
+          WAIT_SECONDS='${{ github.event.inputs.wait_seconds || '15' }}'
+          MODEL_TAG='${{ github.event.inputs.model || 'qwen2.5:7b' }}'
+          npm run -s runpod:endpoint:promote -- --waitSeconds "$WAIT_SECONDS" --model "$MODEL_TAG" --projectRef "$SUPABASE_PROJECT_REF"
+
+      - name: Summarize promotion
+        if: always()
+        run: |
+          {
+            echo "## RunPod Worker Promotion"
+            echo ""
+            echo "- Endpoint ID: ${RUNPOD_ENDPOINT_ID:-derived-from-url}"
+            echo "- Supabase project ref: ${SUPABASE_PROJECT_REF}"
+            echo "- Model: ${{ github.event.inputs.model || 'qwen2.5:7b' }}"
+            echo "- Wait seconds: ${{ github.event.inputs.wait_seconds || '15' }}"
+          } >> "$GITHUB_STEP_SUMMARY"

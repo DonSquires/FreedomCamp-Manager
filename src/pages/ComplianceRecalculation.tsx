@@ -106,11 +106,17 @@ export default function ComplianceRecalculation() {
 
   // Recent recalculation actions log
   const { data: recentActions, refetch: refetchActions } = useQuery<RecalcAction[]>({
-    queryKey: ['recalculation-actions'],
+    queryKey: ['recalculation-actions', effectiveOrgId],
     queryFn: async () => {
-      const { data, error } = await (supabase
+      let query = (supabase
         .from('admin_recalculation_actions' as any) as any)
         .select('id, scope_type, observations_processed, compliance_changed, status, started_at, completed_at, duration_seconds, error_message')
+      
+      if (effectiveOrgId) {
+        query = query.eq('organization_id', effectiveOrgId)
+      }
+      
+      const { data, error } = await query
         .order('started_at', { ascending: false })
         .limit(10)
       if (error) throw error
@@ -182,7 +188,8 @@ export default function ComplianceRecalculation() {
       const { data: batchData, error: batchError } = await edgeFunctions.cleanupAndRecalculate({
         zone_ids: params.zone_ids,
         date_range_start: params.date_from,
-        date_range_end: params.date_to,
+         organization_id: effectiveOrgId,
+         date_range_end: params.date_to,
         offset,
         batch_size: batchSize,
         phase: 'compliance',
