@@ -39,28 +39,36 @@ function parseEndpointId(url) {
 }
 
 async function graphql(apiKey, query) {
-  const response = await fetch('https://api.runpod.io/graphql', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ query }),
-  });
+  const abortController = new AbortController();
+  const timeout = setTimeout(() => abortController.abort(), 30000); // 30s timeout
 
-  const text = await response.text();
-  let json;
   try {
-    json = text ? JSON.parse(text) : {};
-  } catch {
-    throw new Error(`RunPod GraphQL returned non-JSON (${response.status}): ${text.slice(0, 300)}`);
-  }
+    const response = await fetch('https://api.runpod.io/graphql', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query }),
+      signal: abortController.signal,
+    });
 
-  if (!response.ok || json?.errors?.length) {
-    throw new Error(`RunPod GraphQL failed: ${JSON.stringify(json).slice(0, 500)}`);
-  }
+    const text = await response.text();
+    let json;
+    try {
+      json = text ? JSON.parse(text) : {};
+    } catch {
+      throw new Error(`RunPod GraphQL returned non-JSON (${response.status}): ${text.slice(0, 300)}`);
+    }
 
-  return json.data;
+    if (!response.ok || json?.errors?.length) {
+      throw new Error(`RunPod GraphQL failed: ${JSON.stringify(json).slice(0, 500)}`);
+    }
+
+    return json.data;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function runNodeScript(scriptPath, args = []) {
@@ -222,8 +230,19 @@ async function main() {
     }
   }
 
-  console.log('Forcing endpoint refresh...');
-  await runNodeScript('scripts/force-runpod-endpoint-redeploy.mjs', ['--endpoint', endpointId, '--waitSeconds', String(waitSeconds)]);
+  // Force endpoint refresh using GraphQL (REST API may have auth scoping issues)
+  console.log('Forcing endpoint refresh via GraphQL...');
+  try {
+    console.log('Updating endpoint worker counts to trigger redeploy...');
+    await graphql(apiKey, `mutation { updateEndpointWorkersMin(input:{ endpointId:"${endpointId}", workerCount: 0 }) { id name workersMin workersMax idleTimeout } }`);
+    // Wait a moment before scaling back up
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    await graphql(apiKey, `mutation { updateEndpointWorkersMax(input:{ endpointId:"${endpointId}", workerCount: 2 }) { id name workersMin workersMax idleTimeout } }`);
+    console.log('Endpoint refresh via GraphQL completed.');
+  } catch (error) {
+    console.warn(`Endpoint refresh via GraphQL failed: ${error?.message || String(error)}`);
+    console.warn(`Skipping REST endpoint refresh. Will validate with smoke tests instead.`);
+  }
 
   console.log('Running direct RunPod smoke test...');
   await smokeDirectRunsync(endpointId, apiKey, modelTag);
