@@ -36,23 +36,56 @@ jobs:
 
       - name: Validate required serverless secrets
         run: |
-          missing=""
-          [ -z "$RUNPOD_ENDPOINT_ID" ] && missing="$missing RUNPOD_ENDPOINT_ID"
           if [ -z "$RUNPOD_ENDPOINT_API_KEY" ] && [ -z "$INFERENCE_API_KEY" ] && [ -z "$RUNPOD_API_KEY" ]; then
-            missing="$missing RUNPOD_ENDPOINT_API_KEY|INFERENCE_API_KEY|RUNPOD_API_KEY"
-          fi
-          if [ -n "$missing" ]; then
-            echo "::error::Missing serverless secrets:$missing"
+            echo "::error::Missing serverless secret: set RUNPOD_API_KEY (or INFERENCE_API_KEY / RUNPOD_ENDPOINT_API_KEY)"
             exit 1
           fi
-          echo "✅ Serverless secrets present"
+          echo "✅ Serverless API key present"
         env:
           RUNPOD_ENDPOINT_API_KEY: ${{ secrets.RUNPOD_ENDPOINT_API_KEY }}
           INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
           RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
-          RUNPOD_ENDPOINT_ID: ${{ secrets.RUNPOD_ENDPOINT_ID }}
 
-      - name: Run strict serverless capability gate
+      - name: Resolve RunPod endpoint ID
+        id: resolve_endpoint
+        run: |
+          set -euo pipefail
+
+          # Use explicit secret if provided
+          if [ -n "${RUNPOD_ENDPOINT_ID:-}" ]; then
+            echo "endpoint_id=${RUNPOD_ENDPOINT_ID}" >> "$GITHUB_OUTPUT"
+            echo "✅ Using RUNPOD_ENDPOINT_ID secret: ${RUNPOD_ENDPOINT_ID}"
+            exit 0
+          fi
+
+          # Resolve via RunPod GraphQL API using the API key
+          API_KEY="${RUNPOD_API_KEY:-${INFERENCE_API_KEY:-${RUNPOD_ENDPOINT_API_KEY}}}"
+          echo "RUNPOD_ENDPOINT_ID not set — querying RunPod GraphQL API..."
+          RESPONSE=$(curl -s --max-time 15 \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${API_KEY}" \
+            -d '{"query":"{ myself { endpoints { id name } } }"}' \
+            "https://api.runpod.io/graphql")
+
+          # Pick the first non-public endpoint or match by known name
+          ENDPOINT_ID=$(echo "$RESPONSE" | node -e "
+            const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
+            const eps = d?.data?.myself?.endpoints || [];
+            if (!eps.length) { console.error('No endpoints found'); process.exit(1); }
+            // Prefer fieldops-ai-engine, otherwise use first
+            const match = eps.find(e => e.name === 'fieldops-ai-engine') || eps[0];
+            console.log(match.id);
+          ")
+
+          echo "✅ Resolved endpoint ID: ${ENDPOINT_ID}"
+          echo "endpoint_id=${ENDPOINT_ID}" >> "$GITHUB_OUTPUT"
+        env:
+          RUNPOD_ENDPOINT_ID: ${{ secrets.RUNPOD_ENDPOINT_ID }}
+          RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+          INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
+          RUNPOD_ENDPOINT_API_KEY: ${{ secrets.RUNPOD_ENDPOINT_API_KEY }}
+
+      - name: Authenticate against serverless endpoint
         id: serverless_auth
         run: |
           set -euo pipefail
@@ -83,7 +116,7 @@ jobs:
             || try_key "RUNPOD_API_KEY" "${RUNPOD_API_KEY}" \
             || { echo "::error::No valid serverless API key resolved"; exit 1; }
         env:
-          RUNPOD_ENDPOINT_ID: ${{ secrets.RUNPOD_ENDPOINT_ID }}
+          RUNPOD_ENDPOINT_ID: ${{ steps.resolve_endpoint.outputs.endpoint_id }}
           RUNPOD_ENDPOINT_API_KEY: ${{ secrets.RUNPOD_ENDPOINT_API_KEY }}
           INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
           RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
@@ -94,7 +127,7 @@ jobs:
           echo "Checking serverless capabilities: $REQUIRED"
           node scripts/bob-capability-gate.mjs --mode serverless --required "$REQUIRED" --strict
         env:
-          INFERENCE_SERVICE_URL: https://api.runpod.ai/v2/${{ secrets.RUNPOD_ENDPOINT_ID }}
+          INFERENCE_SERVICE_URL: https://api.runpod.ai/v2/${{ steps.resolve_endpoint.outputs.endpoint_id }}
           INFERENCE_API_KEY: ${{ steps.serverless_auth.outputs.resolved_key }}
           BOB_CAPABILITY_STRICT: 'true'
           BOB_WATCHDOG_SERVERLESS_REQUIRED: ${{ vars.BOB_WATCHDOG_SERVERLESS_REQUIRED }}
