@@ -5,8 +5,19 @@ name: Ops Bob Assess Failed Actions
 
 on:
   workflow_run:
-    workflows: ["Deploy Admin Portal to Vercel", "Deploy Ollama to Railway", "Deploy Inference Service to Railway", "Database - Migration Check"]
+    workflows:
+      - "Deploy Admin Portal to Vercel"
+      - "Deploy RunPod Worker Serverless"
+      - "Build and Publish AI Worker"
+      - "Deploy Supabase Edge Functions"
+      - "Playwright Deep Functional Cross-Browser"
+      - "CI Build High Memory"
+      - "CI Org Isolation API"
+      - "Database - Migration Check"
+      - "Database — Migration Check"
     types: [completed]
+  schedule:
+    - cron: '*/30 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -18,11 +29,37 @@ env:
 
 jobs:
   report-failures-to-bob:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure')
     runs-on: ubuntu-latest
     steps:
+      - name: Decide whether to process this event
+        id: decide
+        run: |
+          SHOULD_PROCESS="false"
+          REASON="not-applicable"
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            SHOULD_PROCESS="true"
+            REASON="manual-dispatch"
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
+            SHOULD_PROCESS="true"
+            REASON="scheduled-sweep"
+          elif [ "${{ github.event_name }}" = "workflow_run" ] && [ "${{ github.event.workflow_run.conclusion }}" = "failure" ]; then
+            SHOULD_PROCESS="true"
+            REASON="failed-workflow-run"
+          fi
+
+          echo "should_process=$SHOULD_PROCESS" >> "$GITHUB_OUTPUT"
+          echo "reason=$REASON" >> "$GITHUB_OUTPUT"
+          echo "Decision: $REASON (should_process=$SHOULD_PROCESS)"
+
+      - name: No-op when no failure context exists
+        if: steps.decide.outputs.should_process != 'true'
+        run: |
+          echo "No failure context to forward on this event (reason=${{ steps.decide.outputs.reason }})."
+
       - name: Validate Bob connection secrets
         id: validate
+        if: steps.decide.outputs.should_process == 'true'
         run: |
           BASE_URL="${BOB_SERVICE_URL:-${INFERENCE_SERVICE_URL:-}}"
           API_KEY="${BOB_INFERENCE_API_KEY:-${INFERENCE_API_KEY:-}}"
@@ -48,11 +85,14 @@ jobs:
           INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
 
       - name: Build failure report payload
-        if: steps.validate.outputs.can_run == 'true'
+        if: steps.decide.outputs.should_process == 'true' && steps.validate.outputs.can_run == 'true'
         run: |
           if [ "${{ github.event_name }}" = "workflow_run" ]; then
             TITLE="Workflow failed: ${{ github.event.workflow_run.name }}"
             QUESTION="A workflow failed and needs triage.\nWorkflow: ${{ github.event.workflow_run.name }}\nRun URL: ${{ github.event.workflow_run.html_url }}\nBranch: ${{ github.event.workflow_run.head_branch }}\nHead SHA: ${{ github.event.workflow_run.head_sha }}\nConclusion: ${{ github.event.workflow_run.conclusion }}\nPlease provide likely root cause, immediate checks, and concrete FieldOps fixes."
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
+            TITLE="Scheduled failed-actions triage sweep"
+            QUESTION="Scheduled trigger: inspect recent failed GitHub Actions runs in FieldOps (especially deploy/build/test workflows) and provide prioritized root-cause analysis with concrete remediation actions."
           else
             TITLE="Manual failure triage request"
             QUESTION="Manual trigger: review recent failed GitHub Actions in FieldOps and provide prioritized root-cause analysis and fixes."
@@ -66,7 +106,7 @@ jobs:
           cat /tmp/bob-failure-question.json
 
       - name: Queue question in Bob ask-copilot
-        if: steps.validate.outputs.can_run == 'true'
+        if: steps.decide.outputs.should_process == 'true' && steps.validate.outputs.can_run == 'true'
         env:
           BOB_SERVICE_URL: ${{ env.BOB_SERVICE_URL }}
           BOB_INFERENCE_API_KEY: ${{ env.BOB_INFERENCE_API_KEY }}
