@@ -9,6 +9,7 @@ import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_share
 import { validateServiceUrl, buildEndpointUrl } from '../_shared/urlUtils.ts'
 
 const HEALTH_CHECK_TIMEOUT_MS = 8_000
+const RUNPOD_PING_TIMEOUT_MS = 60_000
 const INFERENCE_API_KEY =
   Deno.env.get('INFERENCE_API_KEY') ||
   Deno.env.get('RUNPOD_ENDPOINT_API_KEY') ||
@@ -59,11 +60,11 @@ const INFERENCE_SERVICE_URL = inferenceValidation.url
 const PTT_SERVER_URL = pttValidation.url
 
 function isRunpodServerlessUrl(url: string): boolean {
-  return /api\.runpod\.ai\/v2\/[^/]+(?:\/(?:run|runsync))?\/?$/i.test(url)
+  return /api\.runpod\.ai\/v2\/[^/]+(?:\/(?:run|runsync|health))?\/?$/i.test(url)
 }
 
-function normalizeRunpodRunSyncUrl(url: string): string {
-  return `${url.replace(/\/(?:run|runsync)\/?$/i, '')}/runsync`
+function normalizeRunpodBaseUrl(url: string): string {
+  return url.replace(/\/(run|runsync|health)\/?$/i, '').replace(/\/$/, '')
 }
 
 /** Safely parse a fetch Response as JSON, falling back to a status object. */
@@ -134,38 +135,23 @@ Deno.serve(async (req) => {
               }
             }
 
-            const runSyncUrl = normalizeRunpodRunSyncUrl(INFERENCE_SERVICE_URL)
-            const response = await fetch(runSyncUrl, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${INFERENCE_API_KEY}`,
-                'x-inference-api-key': INFERENCE_API_KEY,
-              },
-              body: JSON.stringify({ input: { action: 'ping' } }),
+            // Use /health endpoint — returns worker info instantly without running a job.
+            const healthUrl = `${normalizeRunpodBaseUrl(INFERENCE_SERVICE_URL)}/health`
+            const response = await fetch(healthUrl, {
+              method: 'GET',
+              headers: { 'Authorization': `Bearer ${INFERENCE_API_KEY}` },
               signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT_MS),
             })
 
-            const rawText = await response.text()
-            const parsed = (() => {
-              try { return JSON.parse(rawText) } catch { return null }
-            })()
-
             if (!response.ok) {
-              return { status: 'offline', error: `HTTP ${response.status}` }
+              return { status: 'offline', error: `HTTP ${response.status}`, ...(inferenceValidation.warning ? { warning: inferenceValidation.warning } : {}) }
             }
 
-            const runPodSuccess =
-              parsed?.status === 'COMPLETED' &&
-              (parsed?.output?.success === true || parsed?.output?.status === 'ok' || parsed?.output?.status === 'healthy')
-
-            if (!runPodSuccess) {
-              return { status: 'degraded', error: 'RunPod ping did not return a healthy completion state' }
-            }
-
+            const parsed = await safeJson(response)
             return {
               status: 'ok',
               provider: 'runpod-serverless',
+              workers: parsed?.workers ?? null,
               ...(inferenceValidation.warning ? { warning: inferenceValidation.warning } : {}),
             }
           }
