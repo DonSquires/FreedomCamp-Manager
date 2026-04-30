@@ -111,4 +111,5 @@ echo "[pod_start] .env written"
 # 5. Start inference-service (foreground — keeps container alive)
 # ---------------------------------------------------------------------------
 echo "[pod_start] Starting inference-service on port 3000..."
-exec node "$INFERENCE_DIR/server.js"
+cd "$INFERENCE_DIR"
+exec node server.js
