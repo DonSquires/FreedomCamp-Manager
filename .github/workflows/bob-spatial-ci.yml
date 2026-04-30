@@ -105,7 +105,9 @@ jobs:
             if (( BRAIN_DUMP_SIZE <= MAX_GITHUB_SAFE_BYTES )); then
               git add docs/BOB_BRAIN_DUMP.md
               git commit -m "chore(bob): auto-ingest spatial intelligence artifacts"
-              git push
+              # Main can move while this job runs; rebase then push to avoid non-fast-forward failures.
+              git pull --rebase origin "$GITHUB_REF_NAME"
+              git push origin "$GITHUB_REF_NAME"
             else
               echo "::warning::Skipping docs/BOB_BRAIN_DUMP.md commit because file size (${BRAIN_DUMP_SIZE}) exceeds safe push size (${MAX_GITHUB_SAFE_BYTES})."
             fi

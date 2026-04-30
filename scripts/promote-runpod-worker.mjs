@@ -213,8 +213,13 @@ async function main() {
 
   if (keepWarm) {
     console.log('Setting RunPod workersMin/workersMax to 1...');
-    await graphql(apiKey, `mutation { updateEndpointWorkersMin(input:{ endpointId:"${endpointId}", workerCount: 1 }) { id name workersMin workersMax idleTimeout } }`);
-    await graphql(apiKey, `mutation { updateEndpointWorkersMax(input:{ endpointId:"${endpointId}", workerCount: 1 }) { id name workersMin workersMax idleTimeout } }`);
+    try {
+      await graphql(apiKey, `mutation { updateEndpointWorkersMin(input:{ endpointId:"${endpointId}", workerCount: 1 }) { id name workersMin workersMax idleTimeout } }`);
+      await graphql(apiKey, `mutation { updateEndpointWorkersMax(input:{ endpointId:"${endpointId}", workerCount: 1 }) { id name workersMin workersMax idleTimeout } }`);
+    } catch (error) {
+      console.warn(`RunPod worker-count warmup mutation skipped: ${error?.message || String(error)}`);
+      console.warn('Continuing with endpoint refresh + smoke tests.');
+    }
   }
 
   console.log('Forcing endpoint refresh...');
