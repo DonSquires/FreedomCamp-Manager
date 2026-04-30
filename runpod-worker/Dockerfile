@@ -67,6 +67,9 @@ WORKDIR /app
 
 COPY handler.py start.sh training_memory.json package.json ./
 
+# Fail fast during image build if handler.py has syntax issues.
+RUN python3 -m py_compile /app/handler.py
+
 # Install Playwright + its browser dependencies so run_playwright works offline
 RUN npm install --save-dev @playwright/test && \
     npx playwright install --with-deps chromium

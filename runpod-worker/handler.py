@@ -529,69 +529,82 @@ def handler(job):
         scope = inp.get("scope", "quick")
         timeout_ms = int(inp.get("timeout_ms", 120000))
         reporter = inp.get("reporter", "json")
+        # Optional repo clone/pull from job input — allows CI to trigger fresh tests
+        # without rebuilding the worker image.
+        repo_url = inp.get("repo_url") or os.environ.get("GITHUB_REPO_URL", "")
+        repo_branch = inp.get("repo_branch") or os.environ.get("GITHUB_REPO_BRANCH", "main")
+        repo_token = inp.get("repo_token") or os.environ.get("GITHUB_TOKEN", "")
+        repo_dir = "/app/repo"
+
+        if repo_url:
+            auth_url = repo_url
+            if repo_token:
+                auth_url = repo_url.replace("https://", f"https://{repo_token}@")
+            try:
+                if os.path.isdir(os.path.join(repo_dir, ".git")):
+                    print(f"[worker] Updating repo at {repo_dir} branch={repo_branch}")
+                    subprocess.run(
+                        ["git", "-C", repo_dir, "fetch", "origin", repo_branch, "--depth=1"],
+                        check=True,
+                        capture_output=True,
+                        timeout=120,
+                        env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+                    )
+                    subprocess.run(
+                        ["git", "-C", repo_dir, "reset", "--hard", f"origin/{repo_branch}"],
+                        check=True,
+                        capture_output=True,
+                        timeout=30,
+                    )
+                else:
+                    print(f"[worker] Cloning repo into {repo_dir} branch={repo_branch}")
+                    subprocess.run(
+                        ["git", "clone", "--depth=1", "--branch", repo_branch, auth_url, repo_dir],
+                        check=True,
+                        capture_output=True,
+                        timeout=300,
+                        env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+                    )
+
+                pkg_json = os.path.join(repo_dir, "package.json")
+                node_mod = os.path.join(repo_dir, "node_modules")
+                if os.path.exists(pkg_json) and not os.path.isdir(node_mod):
+                    print("[worker] Installing repo Node deps...")
+                    subprocess.run(
+                        ["npm", "install", "--legacy-peer-deps", "--silent"],
+                        cwd=repo_dir,
+                        check=False,
+                        capture_output=True,
+                        timeout=300,
+                    )
+
+                # Write .env for tests
+                env_lines = []
+                for k in [
+                    "VITE_SUPABASE_URL",
+                    "VITE_SUPABASE_ANON_KEY",
+                    "SUPABASE_SERVICE_ROLE_KEY",
+                    "INFERENCE_SERVICE_URL",
+                    "INFERENCE_API_KEY",
+                ]:
+                    v = inp.get(k) or os.environ.get(k, "")
+                    if v:
+                        env_lines.append(f"{k}={v}")
+                if env_lines:
+                    with open(os.path.join(repo_dir, ".env"), "w") as ef:
+                        ef.write("\n".join(env_lines) + "\n")
+
+                print(f"[worker] Repo ready at {repo_dir}")
+            except subprocess.CalledProcessError as ce:
+                err = (ce.stderr or b"").decode()[-500:]
+                print(f"[worker] Repo clone/pull failed: {err}")
+                return {"success": False, "error": f"Repo clone failed: {err}", "provider": "playwright-runner"}
+            except Exception as re_exc:
+                print(f"[worker] Repo setup error: {re_exc}")
+                return {"success": False, "error": str(re_exc), "provider": "playwright-runner"}
+
         working_dir = inp.get("working_dir") or (
-            "/app/repo" if os.path.isdir("/app/repo") else "/app"
-
-                # Optional repo clone/pull from job input — allows CI to trigger fresh tests
-                # without rebuilding the worker image.
-                repo_url    = inp.get("repo_url") or os.environ.get("GITHUB_REPO_URL", "")
-                repo_branch = inp.get("repo_branch") or os.environ.get("GITHUB_REPO_BRANCH", "main")
-                repo_token  = inp.get("repo_token") or os.environ.get("GITHUB_TOKEN", "")
-                repo_dir    = "/app/repo"
-
-                if repo_url:
-                    auth_url = repo_url
-                    if repo_token:
-                        auth_url = repo_url.replace("https://", f"https://{repo_token}@")
-                    try:
-                        if os.path.isdir(os.path.join(repo_dir, ".git")):
-                            print(f"[worker] Updating repo at {repo_dir} branch={repo_branch}")
-                            subprocess.run(
-                                ["git", "-C", repo_dir, "fetch", "origin", repo_branch, "--depth=1"],
-                                check=True, capture_output=True, timeout=120,
-                                env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
-                            )
-                            subprocess.run(
-                                ["git", "-C", repo_dir, "reset", "--hard", f"origin/{repo_branch}"],
-                                check=True, capture_output=True, timeout=30,
-                            )
-                        else:
-                            print(f"[worker] Cloning repo into {repo_dir} branch={repo_branch}")
-                            subprocess.run(
-                                ["git", "clone", "--depth=1", "--branch", repo_branch, auth_url, repo_dir],
-                                check=True, capture_output=True, timeout=300,
-                                env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
-                            )
-                        pkg_json = os.path.join(repo_dir, "package.json")
-                        node_mod = os.path.join(repo_dir, "node_modules")
-                        if os.path.exists(pkg_json) and not os.path.isdir(node_mod):
-                            print("[worker] Installing repo Node deps...")
-                            subprocess.run(
-                                ["npm", "install", "--legacy-peer-deps", "--silent"],
-                                cwd=repo_dir, check=False, capture_output=True, timeout=300,
-                            )
-                        # Write .env for tests
-                        env_lines = []
-                        for k in ["VITE_SUPABASE_URL","VITE_SUPABASE_ANON_KEY","SUPABASE_SERVICE_ROLE_KEY",
-                                  "INFERENCE_SERVICE_URL","INFERENCE_API_KEY"]:
-                            v = inp.get(k) or os.environ.get(k, "")
-                            if v:
-                                env_lines.append(f"{k}={v}")
-                        if env_lines:
-                            with open(os.path.join(repo_dir, ".env"), "w") as ef:
-                                ef.write("\n".join(env_lines) + "\n")
-                        print(f"[worker] Repo ready at {repo_dir}")
-                    except subprocess.CalledProcessError as ce:
-                        err = (ce.stderr or b"").decode()[-500:]
-                        print(f"[worker] Repo clone/pull failed: {err}")
-                        return {"success": False, "error": f"Repo clone failed: {err}", "provider": "playwright-runner"}
-                    except Exception as re_exc:
-                        print(f"[worker] Repo setup error: {re_exc}")
-                        return {"success": False, "error": str(re_exc), "provider": "playwright-runner"}
-
-                working_dir = inp.get("working_dir") or (
-                    repo_dir if os.path.isdir(repo_dir) else "/app"
-                )
+            repo_dir if os.path.isdir(repo_dir) else "/app"
         )
 
         # Build playwright command
