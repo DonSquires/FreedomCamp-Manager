@@ -23,7 +23,7 @@ name: Ops – RunPod Pod Lifecycle
 on:
   schedule:
     # Run every 30 minutes — checks idle status and stops if threshold exceeded.
-    - cron: '0 0 * * *'   # once a day at midnight UTC
+    - cron: '*/30 * * * *'
   workflow_dispatch:
     inputs:
       action:
