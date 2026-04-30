@@ -64,6 +64,22 @@ INFERENCE_DIR="$REPO_DIR/inference-service"
 echo "[pod_start] Installing inference-service deps..."
 cd "$INFERENCE_DIR"
 npm ci --omit=dev 2>/dev/null || npm install --production
+
+# Download required ONNX models so /infer does not run in degraded mode.
+echo "[pod_start] Downloading ONNX models..."
+node scripts/download-models.js
+
+# Ensure a vision model exists; if the requested model is unsupported by the
+# bundled Ollama version, fall back to a broadly compatible multimodal model.
+VISION_MODEL="${OLLAMA_VISION_MODEL:-llama3.2-vision:11b}"
+echo "[pod_start] Ensuring vision model is available: ${VISION_MODEL}"
+if ! ollama list 2>/dev/null | grep -q "${VISION_MODEL}"; then
+  if ! ollama pull "${VISION_MODEL}"; then
+    echo "[pod_start] WARNING: Failed to pull ${VISION_MODEL}; falling back to llava:7b"
+    VISION_MODEL="llava:7b"
+    ollama pull "${VISION_MODEL}"
+  fi
+fi
 cd /app
 
 # ---------------------------------------------------------------------------
@@ -76,9 +92,11 @@ BOB_OPERATING_MODE=${BOB_OPERATING_MODE:-build-training}
 OLLAMA_BASE_URL=http://127.0.0.1:11434
 CHAT_PROVIDER=${CHAT_PROVIDER:-ollama}
 TABULAR_NLP_PROVIDER=${TABULAR_NLP_PROVIDER:-heuristic}
+OLLAMA_VISION_MODEL=${VISION_MODEL}
 SELF_CONTAINED_MODE=false
 SELF_CONTAINED_STRICT_EGRESS=false
 REQUIRE_SELF_CONTAINED_MODE=false
+OLLAMA_AUTO_PULL_MODELS=false
 DOCTOR_REQUIRE_ONNX_MODELS=false
 DOCTOR_OLLAMA_PROBE_TIMEOUT_MS=12000
 ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://kxwjcupuxnnbnzcgmkoi.supabase.co}
