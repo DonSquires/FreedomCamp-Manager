@@ -17,6 +17,51 @@ REPO_DIR="/workspace/repo"
 BRANCH="${GITHUB_REPO_BRANCH:-main}"
 REPO_URL="${GITHUB_REPO_URL:-https://github.com/DonSquires/FreedomCamp-Manager.git}"
 
+strip_github_credentials() {
+  printf '%s' "$1" | sed -E 's#https://[^/@]+@github.com/#https://github.com/#I'
+}
+
+sync_repo() {
+  local repo_url="$1"
+  local branch="$2"
+  local repo_dir="$3"
+  local public_url
+  local auth_url
+
+  public_url="$(strip_github_credentials "$repo_url")"
+  auth_url="$public_url"
+  if [ -n "$GITHUB_TOKEN" ]; then
+    auth_url="${public_url/https:\/\/github.com\//https:\/\/x-access-token:${GITHUB_TOKEN}@github.com/}"
+  fi
+
+  if [ -d "$repo_dir/.git" ]; then
+    echo "[pod_start] Updating repo (branch: $branch)..."
+    git -C "$repo_dir" remote set-url origin "$auth_url" || git -C "$repo_dir" remote set-url origin "$public_url" || true
+    if ! git -C "$repo_dir" fetch origin "$branch" --depth=1 2>&1 | head -5; then
+      if [ "$auth_url" != "$public_url" ]; then
+        echo "[pod_start] Auth fetch failed; retrying with public GitHub URL"
+        git -C "$repo_dir" remote set-url origin "$public_url" || true
+        git -C "$repo_dir" fetch origin "$branch" --depth=1 2>&1 | head -5
+      else
+        return 1
+      fi
+    fi
+    git -C "$repo_dir" reset --hard "origin/$branch"
+    echo "[pod_start] Updated to $(git -C $repo_dir rev-parse --short HEAD)"
+  else
+    echo "[pod_start] Cloning repo (branch: $branch)..."
+    if ! git clone --depth=1 --branch "$branch" "$auth_url" "$repo_dir"; then
+      if [ "$auth_url" != "$public_url" ]; then
+        echo "[pod_start] Auth clone failed; retrying with public GitHub URL"
+        git clone --depth=1 --branch "$branch" "$public_url" "$repo_dir"
+      else
+        return 1
+      fi
+    fi
+    echo "[pod_start] Cloned: $(git -C $repo_dir rev-parse --short HEAD)"
+  fi
+}
+
 mkdir -p /workspace/logs
 
 # ---------------------------------------------------------------------------
@@ -40,22 +85,7 @@ fi
 # ---------------------------------------------------------------------------
 # 2. Repo clone / update
 # ---------------------------------------------------------------------------
-if [ -n "$GITHUB_TOKEN" ]; then
-  AUTH_URL="${REPO_URL/https:\/\//https:\/\/${GITHUB_TOKEN}@}"
-else
-  AUTH_URL="$REPO_URL"
-fi
-
-if [ -d "$REPO_DIR/.git" ]; then
-  echo "[pod_start] Updating repo (branch: $BRANCH)..."
-  git -C "$REPO_DIR" fetch origin "$BRANCH" --depth=1 2>&1 | head -5
-  git -C "$REPO_DIR" reset --hard "origin/$BRANCH"
-  echo "[pod_start] Updated to $(git -C $REPO_DIR rev-parse --short HEAD)"
-else
-  echo "[pod_start] Cloning repo (branch: $BRANCH)..."
-  git clone --depth=1 --branch "$BRANCH" "$AUTH_URL" "$REPO_DIR"
-  echo "[pod_start] Cloned: $(git -C $REPO_DIR rev-parse --short HEAD)"
-fi
+sync_repo "$REPO_URL" "$BRANCH" "$REPO_DIR"
 
 # ---------------------------------------------------------------------------
 # 3. Install inference-service deps
@@ -96,12 +126,22 @@ fi
 
 # Download required ONNX models so /infer does not run in degraded mode.
 echo "[pod_start] Downloading ONNX models..."
-node scripts/download-models.js
+if ! node scripts/download-models.js; then
+  echo "[pod_start] WARNING: model download failed; continuing with any preloaded models"
+fi
 
 # Compatibility fallback: some runtime paths still reference /app/models.
 mkdir -p /app/models
-cp -f "$INFERENCE_DIR/models/yolov8n.onnx" /app/models/yolov8n.onnx
-cp -f "$INFERENCE_DIR/models/mobilenet_v3.onnx" /app/models/mobilenet_v3.onnx
+if [ -f "$INFERENCE_DIR/models/yolov8n.onnx" ]; then
+  cp -f "$INFERENCE_DIR/models/yolov8n.onnx" /app/models/yolov8n.onnx
+else
+  echo "[pod_start] WARNING: missing $INFERENCE_DIR/models/yolov8n.onnx"
+fi
+if [ -f "$INFERENCE_DIR/models/mobilenet_v3.onnx" ]; then
+  cp -f "$INFERENCE_DIR/models/mobilenet_v3.onnx" /app/models/mobilenet_v3.onnx
+else
+  echo "[pod_start] WARNING: missing $INFERENCE_DIR/models/mobilenet_v3.onnx"
+fi
 
 # Ensure a vision model exists; if the requested model is unsupported by the
 # bundled Ollama version, fall back to a broadly compatible multimodal model.

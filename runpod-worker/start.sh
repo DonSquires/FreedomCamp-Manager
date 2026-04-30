@@ -14,29 +14,67 @@ REPO_URL="${GITHUB_REPO_URL:-}"
 REPO_BRANCH="${GITHUB_REPO_BRANCH:-main}"
 REPO_DIR="/app/repo"
 
-if [ -n "$REPO_URL" ]; then
-  # Inject token into URL for private repo access
+strip_github_credentials() {
+  printf '%s' "$1" | sed -E 's#https://[^/@]+@github.com/#https://github.com/#I'
+}
+
+sync_repo() {
+  local repo_url="$1"
+  local branch="$2"
+  local repo_dir="$3"
+  local public_url
+  local auth_url
+
+  public_url="$(strip_github_credentials "$repo_url")"
+  auth_url="$public_url"
   if [ -n "$GITHUB_TOKEN" ]; then
-    AUTH_URL="${REPO_URL/https:\/\//https:\/\/${GITHUB_TOKEN}@}"
-  else
-    AUTH_URL="$REPO_URL"
+    auth_url="${public_url/https:\/\/github.com\//https:\/\/x-access-token:${GITHUB_TOKEN}@github.com/}"
   fi
 
-  if [ -d "$REPO_DIR/.git" ]; then
-    echo "[start] Updating repo at $REPO_DIR (branch: $REPO_BRANCH)..."
-    git -C "$REPO_DIR" fetch origin "$REPO_BRANCH" --depth=1 2>&1 | head -5
-    git -C "$REPO_DIR" reset --hard "origin/$REPO_BRANCH"
-    echo "[start] Repo updated to $(git -C $REPO_DIR rev-parse --short HEAD)"
+  if [ -d "$repo_dir/.git" ]; then
+    echo "[start] Updating repo at $repo_dir (branch: $branch)..."
+    if ! git -C "$repo_dir" remote set-url origin "$auth_url"; then
+      git -C "$repo_dir" remote set-url origin "$public_url" || true
+    fi
+
+    if ! git -C "$repo_dir" fetch origin "$branch" --depth=1 2>&1 | head -5; then
+      if [ "$auth_url" != "$public_url" ]; then
+        echo "[start] Auth fetch failed; retrying with public GitHub URL"
+        git -C "$repo_dir" remote set-url origin "$public_url" || true
+        git -C "$repo_dir" fetch origin "$branch" --depth=1 2>&1 | head -5
+      else
+        return 1
+      fi
+    fi
+
+    git -C "$repo_dir" reset --hard "origin/$branch"
+    echo "[start] Repo updated to $(git -C $repo_dir rev-parse --short HEAD)"
   else
-    echo "[start] Cloning repo into $REPO_DIR (branch: $REPO_BRANCH)..."
-    git clone --depth=1 --branch "$REPO_BRANCH" "$AUTH_URL" "$REPO_DIR"
-    echo "[start] Clone complete: $(git -C $REPO_DIR rev-parse --short HEAD)"
+    echo "[start] Cloning repo into $repo_dir (branch: $branch)..."
+    if ! git clone --depth=1 --branch "$branch" "$auth_url" "$repo_dir"; then
+      if [ "$auth_url" != "$public_url" ]; then
+        echo "[start] Auth clone failed; retrying with public GitHub URL"
+        git clone --depth=1 --branch "$branch" "$public_url" "$repo_dir"
+      else
+        return 1
+      fi
+    fi
+    echo "[start] Clone complete: $(git -C $repo_dir rev-parse --short HEAD)"
+  fi
+}
+
+if [ -n "$REPO_URL" ]; then
+  if ! sync_repo "$REPO_URL" "$REPO_BRANCH" "$REPO_DIR"; then
+    echo "[start] WARNING: repo sync failed; continuing without repo-dependent setup"
   fi
 
   # Install Node deps + Playwright config for the repo
   if [ -f "$REPO_DIR/package.json" ]; then
     echo "[start] Installing repo Node deps..."
-    cd "$REPO_DIR" && npm install --legacy-peer-deps --silent 2>&1 | tail -3 && cd /app
+    if ! (cd "$REPO_DIR" && npm install --legacy-peer-deps --silent 2>&1 | tail -3); then
+      echo "[start] WARNING: npm install failed in $REPO_DIR"
+    fi
+    cd /app
   fi
 
   # Write .env for tests — inject required Supabase + inference vars
