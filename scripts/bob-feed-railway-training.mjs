@@ -22,12 +22,24 @@ const ROOT = path.resolve(__dirname, '..');
 const BOB_URL = String(process.env.BOB_SERVICE_URL || process.env.INFERENCE_SERVICE_URL || '').trim().replace(/\/$/, '');
 const API_KEY = String(process.env.BOB_INFERENCE_API_KEY || process.env.INFERENCE_API_KEY || '').trim();
 
+function isRunpodServerlessUrl(url) {
+  return /api\.runpod\.ai\/v2\//i.test(String(url || ''));
+}
+
+function normalizeRunpodBaseUrl(url) {
+  return String(url || '').trim().replace(/\/+$/, '').replace(/\/(?:run|run-sync|runsync)\/?$/i, '');
+}
+
+const FEED_MODE = isRunpodServerlessUrl(BOB_URL)
+  ? 'runpod-runsync-chat-fallback'
+  : 'intel-ingest-bulletin';
+
 if (!BOB_URL || !API_KEY) {
   console.error('[Error] Missing required env vars: BOB_SERVICE_URL (or INFERENCE_SERVICE_URL) and BOB_INFERENCE_API_KEY (or INFERENCE_API_KEY).');
   process.exit(2);
 }
 
-async function postBulletin(bulletin) {
+async function postBulletinViaIntel(bulletin) {
   const res = await fetch(`${BOB_URL}/intel/ingest-bulletin`, {
     method: 'POST',
     headers: {
@@ -41,6 +53,39 @@ async function postBulletin(bulletin) {
     throw new Error(`HTTP ${res.status}: ${text}`);
   }
   return res.json().catch(() => ({}));
+}
+
+async function postBulletinViaRunpodRunsync(bulletin) {
+  const runpodBase = normalizeRunpodBaseUrl(BOB_URL);
+  const prompt = [
+    'System training bulletin for Bob platform and railway context behavior.',
+    'Store this guidance in active session context for subsequent responses.',
+    JSON.stringify(bulletin),
+  ].join('\n\n');
+
+  const res = await fetch(`${runpodBase}/runsync`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${API_KEY}`,
+    },
+    body: JSON.stringify({ input: { message: prompt } }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`RunPod runsync ingest failed (${res.status}): ${text}`);
+  }
+
+  return res.json().catch(() => ({}));
+}
+
+async function postBulletin(bulletin) {
+  if (FEED_MODE === 'runpod-runsync-chat-fallback') {
+    return postBulletinViaRunpodRunsync(bulletin);
+  }
+
+  return postBulletinViaIntel(bulletin);
 }
 
 function clip(text, max = 2000) {

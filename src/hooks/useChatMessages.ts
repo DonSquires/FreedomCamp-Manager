@@ -113,6 +113,10 @@ export function useChatMessages(threadId: string | null) {
           attachments: input.attachments ?? [],
           is_bob_message: input.is_bob_message ?? false,
           bob_spoken: input.bob_spoken ?? false,
+    onError: (err: any) => {
+      console.error(err)
+      console.error('Operation failed:', err)
+    },
         })
         .select()
         .single()

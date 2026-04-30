@@ -118,6 +118,10 @@ export function useFlaggedVehicles(options?: {
           priority: input.priority || 'medium',
           notes: input.notes,
           is_active: true,
+    onError: (err: any) => {
+      console.error(err)
+      toast.error(err?.message || 'Operation failed')
+    },
         })
         .select()
         .single()
@@ -151,6 +155,10 @@ export function useFlaggedVehicles(options?: {
       queryClient.invalidateQueries({ queryKey: ['flagged-vehicles'] })
       toast.success('Flagged vehicle updated')
     },
+    onError: (err: any) => {
+      console.error(err)
+      toast.error(err?.message || 'Operation failed')
+    },
   })
 
   // Soft-delete: set is_active = false instead of hard delete
@@ -168,6 +176,10 @@ export function useFlaggedVehicles(options?: {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['flagged-vehicles'] })
       toast.success('Flagged vehicle removed')
+    },
+    onError: (err: any) => {
+      console.error(err)
+      toast.error(err?.message || 'Operation failed')
     },
   })
 

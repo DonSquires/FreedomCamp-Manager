@@ -160,6 +160,7 @@ export default function CleanupAndRecalculate() {
     }) => ({
       zoneIds: params.zoneIds,
       zone_ids: params.zoneIds,
+      organization_id: effectiveOrgId,
       dateRangeStart: params.dateRangeStart,
       date_range_start: params.dateRangeStart,
       dateRangeEnd: params.dateRangeEnd,

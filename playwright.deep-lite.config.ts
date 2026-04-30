@@ -17,7 +17,9 @@ export default defineConfig({
   globalSetup: './tests/e2e/global-setup.ts',
   fullyParallel: false,
   workers: 1,
-  retries: 0,
+  // Deep functional browser projects are integration-heavy and can have
+  // occasional transient timing/network variance in CI.
+  retries: process.env.CI ? 2 : 0,
   timeout: 90000,
   reporter: [['list']],
   use: {

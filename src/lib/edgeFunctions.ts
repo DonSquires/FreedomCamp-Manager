@@ -469,7 +469,9 @@ export const edgeFunctions = {
     zoneIds?: string[]
     zone_ids?: string[]
     dateRangeStart?: string
-    date_range_start?: string
+     organization_id?: string
+      organizationId?: string
+     date_range_start?: string
     dateRangeEnd?: string
     date_range_end?: string
     offset?: number

@@ -1,0 +1,235 @@
+#!/usr/bin/env node
+
+import process from 'node:process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { loadLocalEnv } from './load-local-env.mjs';
+
+loadLocalEnv();
+
+const execFileAsync = promisify(execFile);
+
+function getArg(name, fallback = '') {
+  const key = `--${name}`;
+  const args = process.argv.slice(2);
+  for (let i = 0; i < args.length; i += 1) {
+    const token = String(args[i] || '');
+    if (token === key) return String(args[i + 1] || fallback);
+    if (token.startsWith(`${key}=`)) return token.slice(key.length + 1) || fallback;
+  }
+  return fallback;
+}
+
+function getBooleanArg(name, fallback = false) {
+  const raw = String(getArg(name, String(fallback))).trim().toLowerCase();
+  return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+}
+
+function firstNonEmpty(...values) {
+  for (const value of values) {
+    const trimmed = String(value || '').trim();
+    if (trimmed) return trimmed;
+  }
+  return '';
+}
+
+function parseEndpointId(url) {
+  const match = String(url || '').match(/api\.runpod\.ai\/v2\/([^/]+)/i);
+  return match?.[1] || '';
+}
+
+async function graphql(apiKey, query) {
+  const response = await fetch('https://api.runpod.io/graphql', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ query }),
+  });
+
+  const text = await response.text();
+  let json;
+  try {
+    json = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(`RunPod GraphQL returned non-JSON (${response.status}): ${text.slice(0, 300)}`);
+  }
+
+  if (!response.ok || json?.errors?.length) {
+    throw new Error(`RunPod GraphQL failed: ${JSON.stringify(json).slice(0, 500)}`);
+  }
+
+  return json.data;
+}
+
+async function runNodeScript(scriptPath, args = []) {
+  const { stdout, stderr } = await execFileAsync(process.execPath, [scriptPath, ...args], {
+    cwd: process.cwd(),
+    env: process.env,
+    maxBuffer: 1024 * 1024,
+  });
+
+  if (stdout.trim()) process.stdout.write(stdout);
+  if (stderr.trim()) process.stderr.write(stderr);
+}
+
+async function setSupabaseModelSecrets(modelTag) {
+  const projectRef = firstNonEmpty(getArg('projectRef', ''), process.env.SUPABASE_PROJECT_REF);
+  const args = [
+    'secrets',
+    'set',
+    `OLLAMA_MODEL=${modelTag}`,
+    `RUNPOD_OLLAMA_MODEL=${modelTag}`,
+    `AI_DEFAULT_MODEL=${modelTag}`,
+  ];
+
+  if (projectRef) {
+    args.push('--project-ref', projectRef);
+  }
+
+  const { stdout, stderr } = await execFileAsync(
+    'supabase',
+    args,
+    {
+      cwd: process.cwd(),
+      env: process.env,
+      maxBuffer: 1024 * 1024,
+    },
+  );
+
+  if (stdout.trim()) process.stdout.write(stdout);
+  if (stderr.trim()) process.stderr.write(stderr);
+}
+
+async function smokeDirectRunsync(endpointId, apiKey, modelTag) {
+  const response = await fetch(`https://api.runpod.ai/v2/${endpointId}/runsync`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      input: {
+        action: 'chat',
+        message: 'Promotion smoke test. Reply with one short sentence.',
+        history: [],
+        model: modelTag,
+        temperature: 0.2,
+      },
+    }),
+  });
+
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`RunPod smoke failed (${response.status}): ${text.slice(0, 300)}`);
+  }
+
+  const payload = JSON.parse(text);
+  const ok = payload?.status === 'COMPLETED' && payload?.output?.success === true;
+  if (!ok) {
+    throw new Error(`RunPod smoke returned unexpected payload: ${JSON.stringify(payload).slice(0, 500)}`);
+  }
+
+  console.log(`RunPod smoke ok: workerId=${payload?.workerId || '?'} model=${payload?.output?.model || modelTag}`);
+}
+
+async function smokeOnspace(serviceRoleKey) {
+  if (!serviceRoleKey) {
+    console.log('Skipping onspace-ai-chat smoke: no SUPABASE_SERVICE_ROLE_KEY available in env.');
+    return;
+  }
+
+  const response = await fetch('https://kxwjcupuxnnbnzcgmkoi.supabase.co/functions/v1/onspace-ai-chat', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${serviceRoleKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      message: 'Promotion smoke test. Reply with provider and model in one short line.',
+      provider: 'inference',
+    }),
+  });
+
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`onspace-ai-chat smoke failed (${response.status}): ${text.slice(0, 300)}`);
+  }
+
+  const payload = JSON.parse(text);
+  if (payload?.provider === 'local-fallback' || payload?.model === 'bob-failsafe') {
+    throw new Error(`onspace-ai-chat still in fallback mode: ${JSON.stringify(payload).slice(0, 500)}`);
+  }
+
+  console.log(`onspace-ai-chat smoke ok: provider=${payload?.provider || '?'} model=${payload?.model || '?'}`);
+}
+
+async function main() {
+  const endpointBaseUrl = firstNonEmpty(
+    getArg('endpointUrl', ''),
+    process.env.RUNPOD_ENDPOINT_URL,
+    process.env.RUNPOD_API_URL,
+    process.env.RUNPOD_RUNSYNC_URL,
+    process.env.BOB_SERVICE_URL,
+    process.env.INFERENCE_SERVICE_URL,
+  );
+  const endpointId = firstNonEmpty(
+    getArg('endpoint', ''),
+    process.env.RUNPOD_ENDPOINT_ID,
+    parseEndpointId(endpointBaseUrl),
+  );
+  const apiKey = firstNonEmpty(
+    process.env.RUNPOD_API_KEY,
+    process.env.RUNPOD_ENDPOINT_API_KEY,
+    process.env.INFERENCE_API_KEY,
+  );
+  const serviceRoleKey = firstNonEmpty(
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    process.env.SUPERBASE_SURVICE_ROLE_KEY,
+  );
+  const projectRef = firstNonEmpty(getArg('projectRef', ''), process.env.SUPABASE_PROJECT_REF);
+  const modelTag = firstNonEmpty(getArg('model', ''), process.env.RUNPOD_OLLAMA_MODEL, process.env.OLLAMA_MODEL, 'qwen2.5:7b');
+  const keepWarm = getBooleanArg('keepWarm', true);
+  const pinModelSecrets = getBooleanArg('pinModelSecrets', true);
+  const waitSeconds = Number(getArg('waitSeconds', '45'));
+
+  if (!endpointId) {
+    throw new Error('RUNPOD_ENDPOINT_ID or --endpoint is required.');
+  }
+  if (!apiKey) {
+    throw new Error('RUNPOD_API_KEY / RUNPOD_ENDPOINT_API_KEY / INFERENCE_API_KEY is required.');
+  }
+
+  console.log(`RunPod promote: endpoint=${endpointId} model=${modelTag}`);
+  if (projectRef) {
+    console.log(`Supabase project ref: ${projectRef}`);
+  }
+
+  if (pinModelSecrets) {
+    console.log('Pinning Supabase model secrets...');
+    await setSupabaseModelSecrets(modelTag);
+  }
+
+  if (keepWarm) {
+    console.log('Setting RunPod workersMin/workersMax to 1...');
+    await graphql(apiKey, `mutation { updateEndpointWorkersMin(input:{ endpointId:"${endpointId}", workerCount: 1 }) { id name workersMin workersMax idleTimeout } }`);
+    await graphql(apiKey, `mutation { updateEndpointWorkersMax(input:{ endpointId:"${endpointId}", workerCount: 1 }) { id name workersMin workersMax idleTimeout } }`);
+  }
+
+  console.log('Forcing endpoint refresh...');
+  await runNodeScript('scripts/force-runpod-endpoint-redeploy.mjs', ['--endpoint', endpointId, '--waitSeconds', String(waitSeconds)]);
+
+  console.log('Running direct RunPod smoke test...');
+  await smokeDirectRunsync(endpointId, apiKey, modelTag);
+
+  console.log('Running onspace-ai-chat smoke test...');
+  await smokeOnspace(serviceRoleKey);
+
+  console.log('RunPod promotion completed successfully.');
+}
+
+main().catch((error) => {
+  console.error(error?.message || String(error));
+  process.exit(1);
+});

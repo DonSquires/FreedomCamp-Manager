@@ -135,6 +135,10 @@ export function useIncidents(options?: {
           location_lat: input.location_lat,
           location_lng: input.location_lng,
           status: 'new',
+    onError: (err: any) => {
+      console.error(err)
+      toast.error(err?.message || 'Operation failed')
+    },
         })
         .select()
         .single()
@@ -168,6 +172,10 @@ export function useIncidents(options?: {
       queryClient.invalidateQueries({ queryKey: ['incidents'] })
       toast.success('Incident updated successfully')
     },
+    onError: (err: any) => {
+      console.error(err)
+      toast.error(err?.message || 'Operation failed')
+    },
   })
 
   // Set legal hold mutation
@@ -181,6 +189,10 @@ export function useIncidents(options?: {
         .update({
           retention_hold: enable,
           retention_until: retentionDate,
+    onError: (err: any) => {
+      console.error(err)
+      toast.error(err?.message || 'Operation failed')
+    },
         })
         .eq('id', id)
 

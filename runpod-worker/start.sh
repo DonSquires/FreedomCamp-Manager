@@ -20,16 +20,23 @@ if ! ollama list 2>/dev/null | grep -q "$MODEL"; then
   echo "[start] Model not found, pulling..."
   ollama pull "$MODEL"
 fi
-echo "[start] Warming up model $MODEL (first chat loads weights into VRAM)..."
+echo "[start] Warming up model $MODEL (first request loads weights into VRAM)..."
 WARMUP_ATTEMPTS=0
 until python3 -c "
 import requests, sys
 try:
+    # Prefer /api/chat, fallback to /api/generate for older Ollama builds.
     r = requests.post('http://127.0.0.1:11434/api/chat',
         json={'model': '${MODEL}', 'messages': [{'role':'user','content':'hi'}], 'stream': False},
         timeout=120)
+    if r.status_code == 404:
+        r = requests.post('http://127.0.0.1:11434/api/generate',
+            json={'model': '${MODEL}', 'prompt': 'hi', 'stream': False},
+            timeout=120)
     r.raise_for_status()
-    print('[start] Warm-up OK:', r.json().get('message',{}).get('content','?')[:40])
+    data = r.json()
+    preview = (data.get('message', {}) or {}).get('content') or data.get('response') or '?'
+    print('[start] Warm-up OK:', str(preview)[:40])
     sys.exit(0)
 except Exception as e:
     print('[start] Warm-up not ready:', e)

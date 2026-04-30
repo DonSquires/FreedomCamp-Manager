@@ -126,6 +126,10 @@ export function useEnforcementActions(options?: {
           observation_id: input.observation_id,
           notes: input.notes,
           status: 'pending',
+    onError: (err: any) => {
+      console.error(err)
+      toast.error(err?.message || 'Operation failed')
+    },
         })
         .select()
         .single()
@@ -152,6 +156,10 @@ export function useEnforcementActions(options?: {
           assigned_at: new Date().toISOString(),
           assigned_by: user?.id,
           status: 'assigned',
+    onError: (err: any) => {
+      console.error(err)
+      toast.error(err?.message || 'Operation failed')
+    },
         })
         .eq('id', id)
 
@@ -177,6 +185,10 @@ export function useEnforcementActions(options?: {
           assigned_at: new Date().toISOString(),
           assigned_by: user.id,
           status: 'assigned',
+    onError: (err: any) => {
+      console.error(err)
+      toast.error(err?.message || 'Operation failed')
+    },
         })
         .eq('id', id)
 
@@ -201,6 +213,10 @@ export function useEnforcementActions(options?: {
           completion_notes: notes,
           completed_by: user?.id,
           completed_at: new Date().toISOString(),
+    onError: (err: any) => {
+      console.error(err)
+      toast.error(err?.message || 'Operation failed')
+    },
         })
         .eq('id', id)
 

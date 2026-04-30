@@ -92,15 +92,42 @@ function httpReq(urlStr, opts) {
 
 // ─── Ollama helper ────────────────────────────────────────────────────────────
 
+function messagesToPrompt(messages) {
+  var lines = [];
+  (Array.isArray(messages) ? messages : []).forEach(function(m) {
+    var role = String((m && m.role) || 'user').toUpperCase();
+    var content = String((m && m.content) || '').trim();
+    if (content) lines.push(role + ': ' + content);
+  });
+  lines.push('ASSISTANT:');
+  return lines.join('\n\n');
+}
+
 async function ollamaChat(messages, model, temperature) {
+  var resolvedModel = model || OLLAMA_MODEL;
+  var resolvedTemp = temperature || 0.7;
+
+  // Prefer /api/chat, but support older Ollama with /api/generate.
   var res = await httpReq(OLLAMA_BASE + '/api/chat', {
-    json: { model: model || OLLAMA_MODEL, messages: messages, stream: false, options: { temperature: temperature || 0.7 } },
+    json: { model: resolvedModel, messages: messages, stream: false, options: { temperature: resolvedTemp } },
     timeout: OLLAMA_TIMEOUT,
   });
+
+  if (res.status === 404) {
+    var gen = await httpReq(OLLAMA_BASE + '/api/generate', {
+      json: { model: resolvedModel, prompt: messagesToPrompt(messages), stream: false, options: { temperature: resolvedTemp } },
+      timeout: OLLAMA_TIMEOUT,
+    });
+    if (gen.status !== 200) throw new Error('Ollama /api/generate ' + gen.status + ': ' + String(gen.text).slice(0, 200));
+    var genContent = gen.body && gen.body.response;
+    if (!genContent) throw new Error('Ollama /api/generate empty response');
+    return { content: genContent, model: (gen.body && gen.body.model) || resolvedModel };
+  }
+
   if (res.status !== 200) throw new Error('Ollama ' + res.status + ': ' + String(res.text).slice(0, 200));
   var content = res.body && res.body.message && res.body.message.content;
   if (!content) throw new Error('Ollama empty response');
-  return { content: content, model: (res.body && res.body.model) || OLLAMA_MODEL };
+  return { content: content, model: (res.body && res.body.model) || resolvedModel };
 }
 
 // ─── Bob system prompt ────────────────────────────────────────────────────────
