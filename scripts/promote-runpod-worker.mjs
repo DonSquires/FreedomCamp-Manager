@@ -142,6 +142,42 @@ async function smokeDirectRunsync(endpointId, apiKey, modelTag) {
   console.log(`RunPod smoke ok: workerId=${payload?.workerId || '?'} model=${payload?.output?.model || modelTag}`);
 }
 
+async function smokeDirectRunsyncWithCandidates(endpointId, modelTag, keyCandidates) {
+  let lastError = null;
+  for (const candidate of keyCandidates) {
+    const apiKey = String(candidate?.value || '').trim();
+    if (!apiKey) continue;
+    try {
+      await smokeDirectRunsync(endpointId, apiKey, modelTag);
+      console.log(`RunPod smoke auth key: ${candidate.label}`);
+      return apiKey;
+    } catch (error) {
+      lastError = error;
+      console.warn(`RunPod smoke failed with ${candidate.label}; trying next key...`);
+    }
+  }
+
+  if (lastError) throw lastError;
+  throw new Error('No RunPod API key candidates were provided for smoke test.');
+}
+
+async function graphqlWithCandidates(query, keyCandidates) {
+  let lastError = null;
+  for (const candidate of keyCandidates) {
+    const apiKey = String(candidate?.value || '').trim();
+    if (!apiKey) continue;
+    try {
+      return await graphql(apiKey, query);
+    } catch (error) {
+      lastError = error;
+      console.warn(`RunPod GraphQL failed with ${candidate.label}; trying next key...`);
+    }
+  }
+
+  if (lastError) throw lastError;
+  throw new Error('No RunPod API key candidates were provided for GraphQL operations.');
+}
+
 async function smokeOnspace(serviceRoleKey) {
   if (!serviceRoleKey) {
     console.log('Skipping onspace-ai-chat smoke: no SUPABASE_SERVICE_ROLE_KEY available in env.');
@@ -187,10 +223,26 @@ async function main() {
     process.env.RUNPOD_ENDPOINT_ID,
     parseEndpointId(endpointBaseUrl),
   );
+  const runpodApiKey = String(process.env.RUNPOD_API_KEY || '').trim();
+  const runpodEndpointApiKey = String(process.env.RUNPOD_ENDPOINT_API_KEY || '').trim();
+  const inferenceApiKey = String(process.env.INFERENCE_API_KEY || '').trim();
+
+  const graphqlKeyCandidates = [
+    { label: 'RUNPOD_API_KEY', value: runpodApiKey },
+    { label: 'RUNPOD_ENDPOINT_API_KEY', value: runpodEndpointApiKey },
+    { label: 'INFERENCE_API_KEY', value: inferenceApiKey },
+  ];
+
+  const runsyncKeyCandidates = [
+    { label: 'RUNPOD_ENDPOINT_API_KEY', value: runpodEndpointApiKey },
+    { label: 'INFERENCE_API_KEY', value: inferenceApiKey },
+    { label: 'RUNPOD_API_KEY', value: runpodApiKey },
+  ];
+
   const apiKey = firstNonEmpty(
-    process.env.RUNPOD_API_KEY,
-    process.env.RUNPOD_ENDPOINT_API_KEY,
-    process.env.INFERENCE_API_KEY,
+    runpodApiKey,
+    runpodEndpointApiKey,
+    inferenceApiKey,
   );
   const serviceRoleKey = firstNonEmpty(
     process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -221,8 +273,8 @@ async function main() {
   if (keepWarm) {
     console.log('Setting RunPod workersMin/workersMax to 1...');
     try {
-      await graphql(apiKey, `mutation { updateEndpointWorkersMin(input:{ endpointId:"${endpointId}", workerCount: 1 }) { id name workersMin workersMax idleTimeout } }`);
-      await graphql(apiKey, `mutation { updateEndpointWorkersMax(input:{ endpointId:"${endpointId}", workerCount: 1 }) { id name workersMin workersMax idleTimeout } }`);
+      await graphqlWithCandidates(`mutation { updateEndpointWorkersMin(input:{ endpointId:"${endpointId}", workerCount: 1 }) { id name workersMin workersMax idleTimeout } }`, graphqlKeyCandidates);
+      await graphqlWithCandidates(`mutation { updateEndpointWorkersMax(input:{ endpointId:"${endpointId}", workerCount: 1 }) { id name workersMin workersMax idleTimeout } }`, graphqlKeyCandidates);
     } catch (error) {
       console.warn(`RunPod worker-count warmup mutation skipped: ${error?.message || String(error)}`);
       console.warn('Continuing with endpoint refresh + smoke tests.');
@@ -233,10 +285,10 @@ async function main() {
   console.log('Forcing endpoint refresh via GraphQL...');
   try {
     console.log('Updating endpoint worker counts to trigger redeploy...');
-    await graphql(apiKey, `mutation { updateEndpointWorkersMin(input:{ endpointId:"${endpointId}", workerCount: 0 }) { id name workersMin workersMax idleTimeout } }`);
+    await graphqlWithCandidates(`mutation { updateEndpointWorkersMin(input:{ endpointId:"${endpointId}", workerCount: 0 }) { id name workersMin workersMax idleTimeout } }`, graphqlKeyCandidates);
     // Wait a moment before scaling back up
     await new Promise(resolve => setTimeout(resolve, 2000));
-    await graphql(apiKey, `mutation { updateEndpointWorkersMax(input:{ endpointId:"${endpointId}", workerCount: 2 }) { id name workersMin workersMax idleTimeout } }`);
+    await graphqlWithCandidates(`mutation { updateEndpointWorkersMax(input:{ endpointId:"${endpointId}", workerCount: 2 }) { id name workersMin workersMax idleTimeout } }`, graphqlKeyCandidates);
     console.log('Endpoint refresh via GraphQL completed.');
   } catch (error) {
     console.warn(`Endpoint refresh via GraphQL failed: ${error?.message || String(error)}`);
@@ -244,7 +296,7 @@ async function main() {
   }
 
   console.log('Running direct RunPod smoke test...');
-  await smokeDirectRunsync(endpointId, apiKey, modelTag);
+  await smokeDirectRunsyncWithCandidates(endpointId, modelTag, runsyncKeyCandidates);
 
   console.log('Running onspace-ai-chat smoke test...');
   await smokeOnspace(serviceRoleKey);
