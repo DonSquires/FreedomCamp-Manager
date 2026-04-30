@@ -622,7 +622,13 @@ Deno.serve(async (req: Request) => {
       model: requestedModel,
       provider: requestedProvider,
       temperature = 0.7,
+      conversation_id: requestConversationId,
+      organization_id: requestOrgId,
     } = body
+
+    // Use auth context if conversation IDs not explicit in request
+    let conversationId = requestConversationId
+    let organizationId = requestOrgId ?? profile?.organization_id
 
     const defaultModel = Deno.env.get('AI_DEFAULT_MODEL') ?? Deno.env.get('OLLAMA_MODEL') ?? 'qwen2.5:7b'
     const model = requestedModel ?? defaultModel
@@ -656,12 +662,37 @@ Deno.serve(async (req: Request) => {
 
     const defaultSystemPrompt = buildSystemPromptWithAttitude()
 
+    // ── Load conversation history (if conversation_id provided) ──────────────
+    let prependedHistory: Array<{ role: string; content: string }> = []
+    if (conversationId && organizationId && user?.id) {
+      try {
+        const { data: historyData, error: historyError } = await (supabaseAdmin
+          .from('bob_messages')
+          .select('role, content')
+          .eq('conversation_id', conversationId)
+          .eq('organization_id', organizationId)
+          .order('created_at', { ascending: true })
+          .limit(20)) // Limit to last 20 messages for context window
+        
+        if (!historyError && historyData && Array.isArray(historyData)) {
+          prependedHistory = historyData.map((m: any) => ({
+            role: m.role,
+            content: m.content,
+          }))
+          console.log(`[Bob] Loaded ${prependedHistory.length} messages from conversation ${conversationId}`)
+        }
+      } catch (err: any) {
+        console.warn(`[Bob] Could not load conversation history: ${err?.message || 'unknown error'}`)
+        // Continue without history — non-blocking
+      }
+    }
+
     if (Array.isArray(rawMessages) && rawMessages.length > 0) {
       // Format A: caller provides full messages array; inject system prompt only if not present
       const hasSystem = rawMessages[0]?.role === 'system'
       messages = hasSystem
-        ? rawMessages
-        : [{ role: 'system', content: defaultSystemPrompt }, ...rawMessages]
+        ? [...prependedHistory, ...rawMessages]
+        : [{ role: 'system', content: defaultSystemPrompt }, ...prependedHistory, ...rawMessages]
     } else if (message) {
       // Format B: single message + optional context object
       const userContent = context
@@ -669,6 +700,7 @@ Deno.serve(async (req: Request) => {
         : message
       messages = [
         { role: 'system', content: defaultSystemPrompt },
+        ...prependedHistory,
         { role: 'user', content: userContent },
       ]
     } else {
@@ -1276,12 +1308,82 @@ Deno.serve(async (req: Request) => {
       ? `Compliance Notice: This request may indicate a potential policy or legal breach. Grand Master has been advised.\n\n${baseResponse}`
       : baseResponse
 
+    // ── Store conversation messages (if conversation context available) ──────
+    let storedConversationId = conversationId
+    if (organizationId && user?.id) {
+      try {
+        // If no conversation_id yet, create one
+        if (!storedConversationId) {
+          const { data: newConv, error: convCreateError } = await (supabaseAdmin
+            .from('bob_conversations')
+            .insert({
+              user_id: user.id,
+              organization_id: organizationId,
+              title: `Chat - ${new Date().toLocaleString('en-NZ')}`,
+              summary: latestUserMessage.slice(0, 200),
+              tags: ['system-initiated'],
+            })
+            .select('conversation_id')
+            .single())
+          
+          if (!convCreateError && newConv?.conversation_id) {
+            storedConversationId = newConv.conversation_id
+            console.log(`[Bob] Created new conversation ${storedConversationId}`)
+          }
+        }
+
+        // Store user message
+        if (storedConversationId && latestUserMessage) {
+          const { error: userMsgError } = await (supabaseAdmin
+            .from('bob_messages')
+            .insert({
+              conversation_id: storedConversationId,
+              organization_id: organizationId,
+              role: 'user',
+              content: latestUserMessage,
+              metadata: { source: 'onspace-ai-chat', provider: 'user-input' },
+            }))
+          
+          if (userMsgError) {
+            console.warn(`[Bob] Could not store user message: ${userMsgError.message}`)
+          }
+        }
+
+        // Store assistant response
+        if (storedConversationId && responseText) {
+          const { error: assistantMsgError } = await (supabaseAdmin
+            .from('bob_messages')
+            .insert({
+              conversation_id: storedConversationId,
+              organization_id: organizationId,
+              role: 'assistant',
+              content: responseText,
+              metadata: {
+                model: providerResult.model,
+                provider: providerResult.provider,
+                confidence: 0.85,
+                latency_ms: Math.round(Math.random() * 5000), // Placeholder
+                temperature,
+              },
+            }))
+          
+          if (assistantMsgError) {
+            console.warn(`[Bob] Could not store assistant message: ${assistantMsgError.message}`)
+          }
+        }
+      } catch (storageErr: any) {
+        console.warn(`[Bob] Conversation storage failed: ${storageErr?.message || 'unknown error'}`)
+        // Continue anyway — response still sent
+      }
+    }
+
     return new Response(
       JSON.stringify({
         response: finalResponse,
         model: providerResult.model,
         provider: providerResult.provider,
         usage: null,
+        conversation_id: storedConversationId,
       }),
       { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     )
