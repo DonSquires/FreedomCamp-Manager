@@ -102,4 +102,48 @@ except Exception as e:
   sleep 5
 done
 echo "[start] Model warm-up complete"
+echo "[start] Model warm-up complete"
+
+# ---------------------------------------------------------------------------
+# Inference-service (Bob HTTP API on port 3000)
+# Starts when the repo was cloned and inference-service/server.js is present.
+# Enable by setting GITHUB_REPO_URL; controlled by BOB_INFERENCE_SERVICE=true.
+# ---------------------------------------------------------------------------
+INFERENCE_SVC_DIR="${REPO_DIR}/inference-service"
+BOB_INFERENCE_SERVICE="${BOB_INFERENCE_SERVICE:-true}"
+if [ "$BOB_INFERENCE_SERVICE" = "true" ] && [ -f "${INFERENCE_SVC_DIR}/server.js" ]; then
+  echo "[start] Setting up inference-service env..."
+  cat > "${INFERENCE_SVC_DIR}/.env" <<EOF
+PORT=3000
+NODE_ENV=production
+BOB_OPERATING_MODE=${BOB_OPERATING_MODE:-build-training}
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+CHAT_PROVIDER=${CHAT_PROVIDER:-ollama}
+TABULAR_NLP_PROVIDER=${TABULAR_NLP_PROVIDER:-heuristic}
+SELF_CONTAINED_MODE=false
+SELF_CONTAINED_STRICT_EGRESS=false
+REQUIRE_SELF_CONTAINED_MODE=false
+DOCTOR_REQUIRE_ONNX_MODELS=false
+DOCTOR_OLLAMA_PROBE_TIMEOUT_MS=12000
+ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://kxwjcupuxnnbnzcgmkoi.supabase.co}
+EOF
+  echo "[start] Installing inference-service deps..."
+  cd "${INFERENCE_SVC_DIR}"
+  npm ci --omit=dev 2>/dev/null || npm install --production
+  cd /app
+  echo "[start] Starting inference-service on port 3000..."
+  node "${INFERENCE_SVC_DIR}/server.js" > /var/log/bob-inference.log 2>&1 &
+  BOB_PID=$!
+  # Wait up to 30s for it to become healthy
+  for i in $(seq 1 15); do
+    if curl -fsS --max-time 2 http://127.0.0.1:3000/health >/dev/null 2>&1; then
+      echo "[start] inference-service healthy (pid ${BOB_PID})"
+      break
+    fi
+    sleep 2
+  done
+else
+  echo "[start] inference-service skipped (BOB_INFERENCE_SERVICE=${BOB_INFERENCE_SERVICE}, dir=${INFERENCE_SVC_DIR})"
+fi
+
 exec python3 handler.py
