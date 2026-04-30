@@ -814,6 +814,7 @@ export async function requestPTTToken(channelScope: string): Promise<PTTTokenRes
     const MAX_TOKEN_MINT_RETRIES = 3
     const TOKEN_MINT_RETRY_DELAY_MS = 2000
     let lastError: unknown = null
+    let refreshedSessionAfterAuthError = false
 
     for (let attempt = 1; attempt <= MAX_TOKEN_MINT_RETRIES; attempt++) {
       const { data, error } = await edgeFunctions.pttSignalingToken({ channelScope })
@@ -831,6 +832,23 @@ export async function requestPTTToken(channelScope: string): Promise<PTTTokenRes
       }
 
       const errorStr = String((error as any)?.message ?? error ?? '')
+
+      // Some gateway responses surface auth failures as plain text instead of a
+      // structured 401 error type. Force a session refresh once, then retry.
+      if (!refreshedSessionAfterAuthError) {
+        const authLikeFailure = /invalid\s+jwt|jwt\s+expired|invalid\s+user\s+token|unauthorized|\[code:\s*401\]/i.test(errorStr)
+        if (authLikeFailure) {
+          refreshedSessionAfterAuthError = true
+          try {
+            await supabase.auth.refreshSession()
+          } catch {
+            // Ignore refresh errors here; normal retry/error flow handles fallback UX.
+          }
+          await delay(350)
+          continue
+        }
+      }
+
       const loweredError = errorStr.toLowerCase()
       const isTransient = (
         loweredError.includes('failed to fetch') ||
