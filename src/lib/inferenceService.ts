@@ -105,6 +105,3 @@ export async function checkServicesHealth() {
     return { proxy: false, inference: false }
   }
 }
-
-/** @deprecated Use checkServicesHealth() */
-export const checkRailwayServicesHealth = checkServicesHealth

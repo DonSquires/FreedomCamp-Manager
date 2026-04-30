@@ -82,7 +82,7 @@ const checks = [
   ),
   checkContains(
     '.github/workflows/ops-railway-wiring-audit.yml',
-    'check-railway-health',
+    'check-services-health',
     'Railway wiring audit checks edge health function',
   ),
 ]

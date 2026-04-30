@@ -273,7 +273,7 @@ fi
 
 supabase_checked=false
 if [[ -n "${VITE_SUPABASE_URL:-}" && -n "${VITE_SUPABASE_ANON_KEY:-}" ]]; then
-  for endpoint in check-ptt-health check-railway-health; do
+  for endpoint in check-ptt-health check-services-health; do
     sb_code="$(curl -sS -o /tmp/ptt_audit_supabase_health.json -w '%{http_code}' --max-time 15 \
       "${VITE_SUPABASE_URL%/}/functions/v1/${endpoint}" \
       -H "Authorization: Bearer ${VITE_SUPABASE_ANON_KEY}" || true)"
@@ -294,9 +294,9 @@ if [[ -n "${VITE_SUPABASE_URL:-}" && -n "${VITE_SUPABASE_ANON_KEY:-}" ]]; then
 
   if [[ "${supabase_checked}" != "true" ]]; then
     if [[ "${REQUIRE_SUPABASE_CHECK}" == "true" ]]; then
-      check_fail "Supabase PTT health check unavailable (both check-ptt-health and check-railway-health were non-200)."
+      check_fail "Supabase PTT health check unavailable (both check-ptt-health and check-services-health were non-200)."
     else
-      check_warn_or_fail "Supabase PTT health check unavailable (both check-ptt-health and check-railway-health were non-200)."
+      check_warn_or_fail "Supabase PTT health check unavailable (both check-ptt-health and check-services-health were non-200)."
     fi
   fi
 else

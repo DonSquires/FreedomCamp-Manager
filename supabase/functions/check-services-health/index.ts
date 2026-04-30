@@ -2,7 +2,6 @@
  * check-services-health
  *
  * Canonical health endpoint for proxy, RunPod inference, and PTT services.
- * Legacy alias: check-railway-health (kept for backward compatibility).
  */
 
 import { getCorsHeaders } from '../_shared/withCors.ts'

@@ -30,7 +30,9 @@ import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_share
 
 const SUPABASE_URL              = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const INFERENCE_SERVICE_URL     = Deno.env.get('INFERENCE_SERVICE_URL');
+const FACE_INFERENCE_SERVICE_URL =
+  Deno.env.get('FACE_INFERENCE_SERVICE_URL') ||
+  Deno.env.get('INFERENCE_SERVICE_URL');
 const INFERENCE_API_KEY         =
   Deno.env.get('INFERENCE_API_KEY') ||
   Deno.env.get('RUNPOD_ENDPOINT_API_KEY') ||
@@ -38,6 +40,29 @@ const INFERENCE_API_KEY         =
   Deno.env.get('BOB_INFERENCE_API_KEY') ||
   '';
 const INFERENCE_TIMEOUT_MS      = Number(Deno.env.get('INFERENCE_TIMEOUT_MS') ?? '10000');
+
+function isRunpodServerlessUrl(url: string): boolean {
+  return /api\.runpod\.ai\/v2\/[^/]+(?:\/(?:run|runsync|health))?\/?$/i.test(url)
+}
+
+function fallbackFaceResult(reason: string, hint?: string, configuredUrl?: string | null) {
+  return {
+    face_count: 0,
+    faces: [],
+    embedding: null,
+    embedding_quality: null,
+    metadata: {
+      detection_method: 'fallback',
+      processing_time_ms: 0,
+      onnx_available: false,
+      ai_available: false,
+      embedding_available: false,
+      warning: reason,
+      ...(hint ? { hint } : {}),
+      ...(configuredUrl ? { configured_url: configuredUrl } : {}),
+    },
+  }
+}
 
 /** Build authentication headers for outbound inference service calls. */
 function inferenceAuthHeaders(): Record<string, string> {
@@ -168,7 +193,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      if (!INFERENCE_SERVICE_URL) {
+      if (!FACE_INFERENCE_SERVICE_URL) {
         // Local cosine similarity fallback
         let dot = 0, n1 = 0, n2 = 0;
         for (let i = 0; i < embedding1.length; i++) {
@@ -197,7 +222,7 @@ Deno.serve(async (req) => {
       }
 
       // Route to inference service
-      const cmpResp = await fetch(`${INFERENCE_SERVICE_URL}/infer/compare`, {
+      const cmpResp = await fetch(`${FACE_INFERENCE_SERVICE_URL}/infer/compare`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...inferenceAuthHeaders() },
         body: JSON.stringify({ embedding1, embedding2 }),
@@ -384,23 +409,24 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!INFERENCE_SERVICE_URL) {
+    if (!FACE_INFERENCE_SERVICE_URL) {
       return new Response(
-        JSON.stringify({
-          error: 'Inference service not configured',
-          face_count: 0,
-          faces: [],
-          embedding: null,
-          embedding_quality: null,
-          metadata: {
-            detection_method: 'none',
-            processing_time_ms: 0,
-            onnx_available: false,
-            ai_available: false,
-            embedding_available: false,
-          },
-        }),
-        { status: 503, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+        JSON.stringify(fallbackFaceResult(
+          'Face inference service is not configured',
+          'Set FACE_INFERENCE_SERVICE_URL to a service exposing /infer/face',
+        )),
+        { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (isRunpodServerlessUrl(FACE_INFERENCE_SERVICE_URL)) {
+      return new Response(
+        JSON.stringify(fallbackFaceResult(
+          'Configured face inference URL is RunPod serverless and does not expose /infer endpoints',
+          'Set FACE_INFERENCE_SERVICE_URL to your inference-service base URL for process-face-scan',
+          FACE_INFERENCE_SERVICE_URL,
+        )),
+        { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -419,7 +445,7 @@ Deno.serve(async (req) => {
     form.append('photo', blob, 'face.jpg');
 
     // Call inference service /infer/face
-    const inferResp = await fetch(`${INFERENCE_SERVICE_URL}/infer/face`, {
+    const inferResp = await fetch(`${FACE_INFERENCE_SERVICE_URL}/infer/face`, {
       method: 'POST',
       headers: inferenceAuthHeaders(),
       body: form,
@@ -428,6 +454,17 @@ Deno.serve(async (req) => {
 
     if (!inferResp.ok) {
       const errText = await inferResp.text().catch(() => '');
+      const lowered = String(errText || '').toLowerCase();
+      if (inferResp.status === 404 && lowered.includes('application not found')) {
+        return new Response(
+          JSON.stringify(fallbackFaceResult(
+            'Face inference endpoint is not available at the configured service URL',
+            'Set FACE_INFERENCE_SERVICE_URL to the inference-service base URL that exposes /infer/face',
+            FACE_INFERENCE_SERVICE_URL,
+          )),
+          { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+        );
+      }
       throw new Error(`Face inference failed: ${inferResp.status} ${errText}`);
     }
 

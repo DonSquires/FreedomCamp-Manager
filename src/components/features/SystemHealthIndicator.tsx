@@ -18,7 +18,7 @@ import {
   Server,
   Zap,
 } from 'lucide-react'
-import { checkRailwayServicesHealth } from '@/lib/inferenceService'
+import { checkServicesHealth } from '@/lib/inferenceService'
 
 interface ServiceStatus {
   name: string
@@ -29,10 +29,10 @@ interface ServiceStatus {
 }
 
 export function SystemHealthIndicator() {
-  // Check Railway services health
-  const { data: railwayHealth, isLoading: railwayLoading, refetch } = useQuery({
-    queryKey: ['railway-health'],
-    queryFn: checkRailwayServicesHealth,
+  // Check backend services health
+  const { data: servicesHealth, isLoading: servicesHealthLoading, refetch } = useQuery({
+    queryKey: ['services-health'],
+    queryFn: checkServicesHealth,
     refetchInterval: 60000, // Check every minute
   })
 
@@ -74,7 +74,7 @@ export function SystemHealthIndicator() {
     },
     {
       name: 'Inference (RunPod)',
-      status: railwayHealth?.inference ? 'operational' : 'degraded',
+      status: servicesHealth?.inference ? 'operational' : 'degraded',
       icon: <Server className="h-5 w-5" />,
     },
     {
@@ -223,10 +223,10 @@ export function SystemHealthIndicator() {
         )}
 
         {/* Inference service detail */}
-        {railwayHealth && !railwayHealth.inference && (
+        {servicesHealth && !servicesHealth.inference && (
           <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg text-sm">
             <div className="font-medium mb-2">Service Issues</div>
-            {!railwayHealth.inference && (
+            {!servicesHealth.inference && (
               <div className="text-yellow-900 dark:text-yellow-100">
                 • RunPod inference service unavailable
               </div>

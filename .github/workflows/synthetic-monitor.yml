@@ -22,8 +22,7 @@ name: Synthetic UI Monitor
 
 on:
   schedule:
-    # Hourly
-    - cron: '0 0 * * *'   # once a day at midnight UTC
+    - cron: '0 * * * *'   # every hour — includes Bob AI health check
   workflow_run:
     # Also run after a successful frontend deployment
     workflows: ['Deploy Admin Portal to Vercel']
@@ -270,6 +269,34 @@ jobs:
         env:
           FRONTEND_URL: ${{ steps.resolve-url.outputs.url }}
 
+      # ── Check 4: Bob AI chat endpoint ─────────────────────────────────────
+      - name: Check — Bob AI chat (RunPod inference)
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        id: check-bob
+        run: |
+          BOB_URL="${VITE_SUPABASE_URL}/functions/v1/onspace-ai-chat"
+          HTTP_CODE=$(curl -sSo /tmp/bob_resp.json -w "%{http_code}" --max-time 90 \
+            -X POST "$BOB_URL" \
+            -H "apikey: ${VITE_SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{"message":"ping — respond in five words or fewer","provider":"inference"}')
+          PROVIDER=$(jq -r '.provider // "unknown"' /tmp/bob_resp.json 2>/dev/null || echo "unknown")
+          echo "http_code=$HTTP_CODE" >> "$GITHUB_OUTPUT"
+          echo "provider=$PROVIDER" >> "$GITHUB_OUTPUT"
+          if [ "$HTTP_CODE" = "200" ] && [ "$PROVIDER" != "local-fallback" ] && [ "$PROVIDER" != "unknown" ]; then
+            echo "✅ Bob AI chat HTTP $HTTP_CODE provider=$PROVIDER"
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Bob AI chat check failed — HTTP $HTTP_CODE provider=$PROVIDER"
+            cat /tmp/bob_resp.json || true
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          VITE_SUPABASE_URL:        ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY:   ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
       # ── Report failures as bug reports ───────────────────────────────────
       - name: Evaluate overall health
         if: steps.check-secrets.outputs.secrets_present == 'true'
@@ -278,6 +305,7 @@ jobs:
           frontend_ok="${{ steps.check-frontend.outputs.passed }}"
           supabase_ok="${{ steps.check-supabase.outputs.passed }}"
           playwright_ok="${{ steps.check-playwright.outputs.passed }}"
+          bob_ok="${{ steps.check-bob.outputs.passed }}"
           playwright_vercel="${{ steps.check-playwright.outputs.vercel_protection }}"
           frontend_code="${{ steps.check-frontend.outputs.http_code }}"
           supabase_code="${{ steps.check-supabase.outputs.http_code }}"
@@ -348,12 +376,12 @@ jobs:
           echo "supabase_effective=$supabase_ok" >> "$GITHUB_OUTPUT"
           echo "playwright_effective=$playwright_ok" >> "$GITHUB_OUTPUT"
 
-          if [ "$frontend_ok" != "true" ] || [ "$supabase_ok" != "true" ] || [ "$playwright_ok" != "true" ]; then
+          if [ "$frontend_ok" != "true" ] || [ "$supabase_ok" != "true" ] || [ "$playwright_ok" != "true" ] || [ "$bob_ok" != "true" ]; then
             echo "healthy=false" >> "$GITHUB_OUTPUT"
-            echo "::error::Health check FAILED — frontend=$frontend_ok supabase=$supabase_ok playwright=$playwright_ok"
+            echo "::error::Health check FAILED — frontend=$frontend_ok supabase=$supabase_ok playwright=$playwright_ok bob=$bob_ok"
           else
             echo "healthy=true" >> "$GITHUB_OUTPUT"
-            echo "✅ All checks passed"
+            echo "✅ All checks passed (including Bob AI)"
           fi
 
       - name: File auto bug report on failure
@@ -372,9 +400,12 @@ jobs:
 
           TITLE="Synthetic monitor: health check failed at ${TIMESTAMP}"
           DESCRIPTION="The GitHub Actions synthetic monitor detected a health issue:\n\n"
+          BOB_OK="${{ steps.check-bob.outputs.passed }}"
+          BOB_PROVIDER="${{ steps.check-bob.outputs.provider }}"
           DESCRIPTION="${DESCRIPTION}- Frontend HTTP: ${FRONTEND_CODE} (${FRONTEND_OK})\n"
           DESCRIPTION="${DESCRIPTION}- Supabase REST: ${SUPABASE_OK}\n"
-          DESCRIPTION="${DESCRIPTION}- Playwright page render: ${PLAYWRIGHT_OK}\n\n"
+          DESCRIPTION="${DESCRIPTION}- Playwright page render: ${PLAYWRIGHT_OK}\n"
+          DESCRIPTION="${DESCRIPTION}- Bob AI chat (provider=${BOB_PROVIDER}): ${BOB_OK}\n\n"
           DESCRIPTION="${DESCRIPTION}Checked URL: ${APP_URL}\n"
           DESCRIPTION="${DESCRIPTION}Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
@@ -403,7 +434,9 @@ jobs:
                 \"checks\": {
                   \"frontend_http\": \"${FRONTEND_OK}\",
                   \"supabase_rest\": \"${SUPABASE_OK}\",
-                  \"playwright_render\": \"${PLAYWRIGHT_OK}\"
+                  \"playwright_render\": \"${PLAYWRIGHT_OK}\",
+                  \"bob_ai_chat\": \"${BOB_OK}\",
+                  \"bob_provider\": \"${BOB_PROVIDER}\"
                 }
               }
             }" \

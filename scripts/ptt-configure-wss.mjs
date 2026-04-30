@@ -161,7 +161,7 @@ function buildSupabaseCommands(wssUrl, httpsUrl) {
     ``,
     `# 2. Redeploy PTT edge functions to pick up secrets:`,
     `supabase functions deploy ptt-signaling-token --project-ref <YOUR_PROJECT_REF>`,
-    `supabase functions deploy check-railway-health --project-ref <YOUR_PROJECT_REF>`,
+    `supabase functions deploy check-services-health --project-ref <YOUR_PROJECT_REF>`,
     `supabase functions deploy check-ptt-health --project-ref <YOUR_PROJECT_REF>`,
     ``,
     `# 3. Verify the health check shows ptt_ws_url = "${wssUrl}":`,
@@ -190,7 +190,7 @@ function applySupabaseConfig({ wssUrl, httpsUrl }) {
   run(`${cli} secrets set PTT_WS_URL=\"${wssUrl}\" PTT_SERVER_URL=\"${httpsUrl}\" --project-ref \"${projectRef}\"
   `);
   run(`${cli} functions deploy ptt-signaling-token --project-ref \"${projectRef}\"`);
-  run(`${cli} functions deploy check-railway-health --project-ref \"${projectRef}\"`);
+  run(`${cli} functions deploy check-services-health --project-ref \"${projectRef}\"`);
   run(`${cli} functions deploy check-ptt-health --project-ref \"${projectRef}\"`);
 
   console.log('  Supabase secrets and functions updated successfully.\n');

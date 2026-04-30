@@ -726,7 +726,7 @@ async function main() {
   if (!toBool(args['skip-external'], false) && toBool(profile.stages?.externalServiceChecks, true)) {
     const start = Date.now()
     try {
-      const health = await fetch(`${SUPABASE_URL}/functions/v1/check-railway-health`, {
+      const health = await fetch(`${SUPABASE_URL}/functions/v1/check-services-health`, {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` },
       })
       const payload = await health.json().catch(() => ({}))

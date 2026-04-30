@@ -6,7 +6,7 @@ on:
     paths:
       - '.github/workflows/ops-railway-wiring-audit.yml'
       - '.github/workflows/deploy-*.yml'
-      - 'supabase/functions/check-railway-health/**'
+      - 'supabase/functions/check-services-health/**'
       - 'docs/ENVIRONMENT_VARIABLES.md'
       - 'docs/DEPLOYMENT_GUIDE.md'
   schedule:
@@ -98,7 +98,7 @@ jobs:
             exit 1
           fi
 
-      - name: Query and validate check-railway-health
+      - name: Query and validate check-services-health
         run: |
           set -euo pipefail
 
@@ -113,11 +113,11 @@ jobs:
           EXPECT_INFERENCE_URL="$(normalize_url "${BOB_SERVICE_URL:-$INFERENCE_SERVICE_URL}")"
           EXPECT_PROXY_URL="$(normalize_url "$PROXY_SERVER_URL")"
           EXPECT_PTT_URL="$(normalize_url "$PTT_SERVER_URL")"
-          FN_URL="${VITE_SUPABASE_URL%/}/functions/v1/check-railway-health"
+          FN_URL="${VITE_SUPABASE_URL%/}/functions/v1/check-services-health"
 
           HTTP_STATUS=$(curl -sS -o /tmp/railway-health.json -w "%{http_code}" --max-time 30 "$FN_URL")
           cat /tmp/railway-health.json
-          [ "$HTTP_STATUS" = "200" ] || { echo "::error::check-railway-health returned HTTP $HTTP_STATUS"; exit 1; }
+          [ "$HTTP_STATUS" = "200" ] || { echo "::error::check-services-health returned HTTP $HTTP_STATUS"; exit 1; }
 
           ACTUAL_PROXY_URL="$(jq -r '.proxy_url // ""' /tmp/railway-health.json)"
           ACTUAL_INFERENCE_URL="$(jq -r '.inference_url // ""' /tmp/railway-health.json)"

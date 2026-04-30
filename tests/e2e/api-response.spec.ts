@@ -149,11 +149,11 @@ test.describe('API Response Tests – Supabase Edge Functions', () => {
   })
 
   // --------------------------------------------------------------------------
-  // check-railway-health
+  // check-services-health
   // --------------------------------------------------------------------------
-  test('check-railway-health returns a JSON response', async () => {
+  test('check-services-health returns a JSON response', async () => {
     const token = await requireBearerToken()
-    const url = edgeFunctionUrl('check-railway-health')
+    const url = edgeFunctionUrl('check-services-health')
 
     const response = await fetch(url, {
       method: 'GET',

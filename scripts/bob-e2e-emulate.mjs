@@ -170,8 +170,8 @@ for (const [table, sel] of coreTables) {
 // ── 3. SERVICES HEALTH ───────────────────────────────────────────
 console.log('\n── 3. Services Health ───────────────────────────────────────')
 
-await run('Health', 'check-railway-health (all services)', async () => {
-  const res = await fetch(`${EDGE_BASE}/check-railway-health`, {
+await run('Health', 'check-services-health (all services)', async () => {
+  const res = await fetch(`${EDGE_BASE}/check-services-health`, {
     headers: { 'apikey': SUPABASE_ANON_KEY },
     signal: AbortSignal.timeout(10000),
   })

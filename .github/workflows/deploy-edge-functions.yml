@@ -47,7 +47,7 @@ env:
     auto-analyse-report
     bob-learning-feedback-sync
     check-almost-breaches check-data-integrity check-nzscv-status
-    check-railway-health check-zone-corrections cleanup-and-recalculate
+    check-services-health check-zone-corrections cleanup-and-recalculate
     correct-zone-assignments create-user create_auth_and_profiles
     daily-photo-reconciler duplicate-detection enrich-from-motorweb
     generate-dashboard-report generate-incident-pdf generate-infringement

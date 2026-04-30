@@ -15,7 +15,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { checkRailwayServicesHealth } from '@/lib/inferenceService'
+import { checkServicesHealth } from '@/lib/inferenceService'
 import { supabase } from '@/lib/supabase'
 import { useNavigate } from 'react-router-dom'
 import { Shield, WifiOff, Wifi, ChevronLeft, AlertTriangle, ServerCrash } from 'lucide-react'
@@ -87,9 +87,9 @@ function ReconnectBanner({ isOnline }: { isOnline: boolean }) {
  * Visible only when status is degraded or down. No-op when everything is operational.
  */
 function ServiceStatusDot() {
-  const { data: railwayHealth } = useQuery({
-    queryKey: ['officer-shell-railway-health'],
-    queryFn: checkRailwayServicesHealth,
+  const { data: serviceHealth } = useQuery({
+    queryKey: ['officer-shell-services-health'],
+    queryFn: checkServicesHealth,
     refetchInterval: 90_000,
     staleTime: 60_000,
   })
@@ -103,7 +103,7 @@ function ServiceStatusDot() {
     staleTime: 60_000,
   })
 
-  const inferenceOk = railwayHealth ? railwayHealth.inference : true
+  const inferenceOk = serviceHealth ? serviceHealth.inference : true
   const dbOk = dbPing ? dbPing.ok !== false : true
 
   if (inferenceOk && dbOk) return null

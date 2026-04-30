@@ -47,8 +47,8 @@ else
 fi
 echo
 
-echo "[1/2] check-railway-health"
-health_resp="$(call_edge "check-railway-health" '{}')"
+echo "[1/2] check-services-health"
+health_resp="$(call_edge "check-services-health" '{}')"
 echo "$health_resp"
 
 if command -v jq >/dev/null 2>&1; then

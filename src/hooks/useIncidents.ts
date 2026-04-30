@@ -6,6 +6,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 import { toast } from 'sonner'
 
 interface Incident {
@@ -52,13 +53,20 @@ export function useIncidents(options?: {
   dateTo?: string
 }) {
   const { user } = useAuthStore()
+  const { operationalOrganizationId } = useOperationalOrganization()
   const queryClient = useQueryClient()
+
+  const effectiveOrganizationId =
+    options?.organizationId ||
+    operationalOrganizationId ||
+    user?.organization_id ||
+    null
 
   // Fetch incidents
   const query = useQuery({
-    queryKey: ['incidents', options],
+    queryKey: ['incidents', { ...options, organizationId: effectiveOrganizationId }],
     queryFn: async () => {
-      let query = supabase
+      let incidentsQuery = supabase
         .from('incidents')
         .select(`
           id,
@@ -81,34 +89,29 @@ export function useIncidents(options?: {
           zone:zones(name),
           user_profile:user_profiles!incidents_user_id_fkey(first_name, last_name)
         `)
-        
         .order('created_at', { ascending: false })
 
-      // Organization scoping
-      if (user?.role !== 'master' && user?.organization_id) {
-        query = query.eq('organization_id', user.organization_id)
-      } else if (options?.organizationId) {
-        query = query.eq('organization_id', options.organizationId)
+      if (effectiveOrganizationId) {
+        incidentsQuery = incidentsQuery.eq('organization_id', effectiveOrganizationId)
       }
 
-      // Filters
       if (options?.zoneId) {
-        query = query.eq('zone_id', options.zoneId)
+        incidentsQuery = incidentsQuery.eq('zone_id', options.zoneId)
       }
       if (options?.severity) {
-        query = query.eq('severity', options.severity)
+        incidentsQuery = incidentsQuery.eq('severity', options.severity)
       }
       if (options?.status) {
-        query = query.eq('status', options.status)
+        incidentsQuery = incidentsQuery.eq('status', options.status)
       }
       if (options?.dateFrom) {
-        query = query.gte('created_at', options.dateFrom)
+        incidentsQuery = incidentsQuery.gte('created_at', options.dateFrom)
       }
       if (options?.dateTo) {
-        query = query.lte('created_at', options.dateTo)
+        incidentsQuery = incidentsQuery.lte('created_at', options.dateTo)
       }
 
-      const { data, error } = await query
+      const { data, error } = await incidentsQuery
 
       if (error) {
         toast.error('Failed to load incidents')
@@ -122,10 +125,14 @@ export function useIncidents(options?: {
   // Create incident mutation
   const createIncident = useMutation({
     mutationFn: async (input: CreateIncidentInput) => {
+      if (!effectiveOrganizationId) {
+        throw new Error('No organization scope available')
+      }
+
       const { data, error } = await (supabase
         .from('incidents') as any)
         .insert({
-          organization_id: user?.organization_id,
+          organization_id: effectiveOrganizationId,
           user_id: user?.id,
           zone_id: input.zone_id,
           plate_number: input.plate_number,
@@ -135,10 +142,6 @@ export function useIncidents(options?: {
           location_lat: input.location_lat,
           location_lng: input.location_lng,
           status: 'new',
-    onError: (err: any) => {
-      console.error(err)
-      toast.error(err?.message || 'Operation failed')
-    },
         })
         .select()
         .single()
@@ -154,14 +157,24 @@ export function useIncidents(options?: {
       queryClient.invalidateQueries({ queryKey: ['incidents'] })
       toast.success('Incident created successfully')
     },
+    onError: (err: any) => {
+      console.error(err)
+      toast.error(err?.message || 'Operation failed')
+    },
   })
 
   // Update incident mutation
   const updateIncident = useMutation({
     mutationFn: async ({ id, ...updates }: UpdateIncidentInput & { id: string }) => {
-      const { error } = await supabase.from('incidents')
+      let updateQuery = supabase.from('incidents')
         .update(updates)
         .eq('id', id)
+
+      if (effectiveOrganizationId) {
+        updateQuery = updateQuery.eq('organization_id', effectiveOrganizationId)
+      }
+
+      const { error } = await updateQuery
 
       if (error) {
         toast.error('Failed to update incident')
@@ -185,16 +198,18 @@ export function useIncidents(options?: {
         ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
         : null
 
-      const { error } = await supabase.from('incidents')
+      let holdQuery = supabase.from('incidents')
         .update({
           retention_hold: enable,
           retention_until: retentionDate,
-    onError: (err: any) => {
-      console.error(err)
-      toast.error(err?.message || 'Operation failed')
-    },
         })
         .eq('id', id)
+
+      if (effectiveOrganizationId) {
+        holdQuery = holdQuery.eq('organization_id', effectiveOrganizationId)
+      }
+
+      const { error } = await holdQuery
 
       if (error) {
         toast.error('Failed to update legal hold')
@@ -204,6 +219,10 @@ export function useIncidents(options?: {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['incidents'] })
       toast.success(variables.enable ? 'Legal hold enabled' : 'Legal hold removed')
+    },
+    onError: (err: any) => {
+      console.error(err)
+      toast.error(err?.message || 'Operation failed')
     },
   })
 
@@ -219,12 +238,14 @@ export function useIncidents(options?: {
 
 // Hook for single incident
 export function useIncident(id: string | null) {
+  const { operationalOrganizationId } = useOperationalOrganization()
+
   return useQuery({
-    queryKey: ['incident', id],
+    queryKey: ['incident', id, operationalOrganizationId],
     queryFn: async () => {
       if (!id) return null
 
-      const { data, error } = await (supabase
+      let query = (supabase
         .from('incidents') as any)
         .select(`
           *,
@@ -232,7 +253,12 @@ export function useIncident(id: string | null) {
           user_profile:user_profiles!incidents_user_id_fkey(first_name, last_name)
         `)
         .eq('id', id)
-        .single()
+
+      if (operationalOrganizationId) {
+        query = query.eq('organization_id', operationalOrganizationId)
+      }
+
+      const { data, error } = await query.single()
 
       if (error) {
         toast.error('Failed to load incident')

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
+import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 import type { Zone } from '@/types'
 
 interface UseZonesOptions {
@@ -11,9 +12,11 @@ interface UseZonesOptions {
 
 export function useZones(options: UseZonesOptions = {}) {
   const { organizationId, showInactive = false, searchQuery = '' } = options
+  const { operationalOrganizationId } = useOperationalOrganization()
+  const effectiveOrganizationId = organizationId ?? operationalOrganizationId
 
   return useQuery({
-    queryKey: ['zones', organizationId, showInactive, searchQuery],
+    queryKey: ['zones', effectiveOrganizationId, showInactive, searchQuery],
     queryFn: async () => {
       let query = supabase
         .from('zones')
@@ -24,8 +27,8 @@ export function useZones(options: UseZonesOptions = {}) {
         `)
         .order('name', { ascending: true })
 
-      if (organizationId) {
-        query = query.eq('organization_id', organizationId)
+      if (effectiveOrganizationId) {
+        query = query.eq('organization_id', effectiveOrganizationId)
       }
 
       if (!showInactive) {
@@ -55,14 +58,21 @@ export function useZones(options: UseZonesOptions = {}) {
 }
 
 export function useZone(zoneId: string) {
+  const { operationalOrganizationId } = useOperationalOrganization()
+
   return useQuery({
-    queryKey: ['zone', zoneId],
+    queryKey: ['zone', zoneId, operationalOrganizationId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('zones')
         .select('*')
         .eq('id', zoneId)
-        .single()
+
+      if (operationalOrganizationId) {
+        query = query.eq('organization_id', operationalOrganizationId)
+      }
+
+      const { data, error } = await query.single()
 
       if (error) throw error
       return data as unknown as Zone
@@ -142,14 +152,17 @@ export function useToggleZoneActive() {
 }
 
 export function useZoneStats(organizationId?: string | null) {
+  const { operationalOrganizationId } = useOperationalOrganization()
+  const effectiveOrganizationId = organizationId ?? operationalOrganizationId
+
   return useQuery({
-    queryKey: ['zone-stats', organizationId],
+    queryKey: ['zone-stats', effectiveOrganizationId],
     queryFn: async () => {
       let query = supabase.from('zones')
         .select('is_active, day_visit_only, self_contained_required', { count: 'exact' })
 
-      if (organizationId) {
-        query = query.eq('organization_id', organizationId)
+      if (effectiveOrganizationId) {
+        query = query.eq('organization_id', effectiveOrganizationId)
       }
 
       const { data, error, count } = await query

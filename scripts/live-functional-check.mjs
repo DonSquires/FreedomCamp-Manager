@@ -20,6 +20,10 @@ if (!SUPABASE_URL || !ANON || !EMAIL || !PASSWORD) {
 const results = []
 const add = (name, ok, details) => results.push({ name, ok, details })
 
+function isRunpodServerlessUrl(url) {
+  return /api\.runpod\.ai\/v2\/[^/]+(?:\/(?:run|runsync|health))?\/?$/i.test(String(url || ''))
+}
+
 const jsonHeaders = {
   apikey: ANON,
   'Content-Type': 'application/json',
@@ -42,14 +46,14 @@ async function run() {
   const token = await getToken()
   const authHeaders = { ...jsonHeaders, Authorization: `Bearer ${token}` }
 
-  // 1) Railway health (source of live service URLs)
-  const health = await fetch(`${SUPABASE_URL}/functions/v1/check-railway-health`, {
+  // 1) Services health (source of live service URLs)
+  const health = await fetch(`${SUPABASE_URL}/functions/v1/check-services-health`, {
     method: 'GET',
     headers: authHeaders,
   })
   const healthBody = await health.json().catch(() => ({}))
   const inferenceUrl = (healthBody?.inference_url || healthBody?.inference?.url || '').replace(/\/$/, '')
-  add('edge:check-railway-health', health.ok, {
+  add('edge:check-services-health', health.ok, {
     status: health.status,
     inference_url_present: Boolean(inferenceUrl),
     proxy_status: healthBody?.proxy?.status || null,
@@ -67,11 +71,15 @@ async function run() {
   })
   const aiBody = await ai.json().catch(() => ({}))
   const aiMessage = aiBody?.response || aiBody?.message || aiBody?.reply || ''
-  add('edge:onspace-ai-chat', ai.ok && typeof aiMessage === 'string' && aiMessage.length > 10, {
+  const aiProvider = String(aiBody?.provider || '').toLowerCase()
+  add('edge:onspace-ai-chat', ai.ok && typeof aiMessage === 'string' && aiMessage.length > 10 && aiProvider !== 'local-fallback', {
     status: ai.status,
+    provider: aiBody?.provider || null,
+    model: aiBody?.model || null,
     response_excerpt: String(aiMessage).slice(0, 120),
     error: aiBody?.error || null,
     details: aiBody?.details || null,
+    diagnostics: aiBody?.diagnostics || null,
   })
 
   // 3) PTT token mint endpoint
@@ -122,39 +130,47 @@ async function run() {
     error: faceScanBody?.error || null,
   })
 
-  // 5) Inference service endpoints
+  // 5) Inference provider endpoint checks
   if (inferenceUrl) {
-    const inferHealth = await fetch(`${inferenceUrl}/health`)
-    const inferHealthBody = await inferHealth.json().catch(() => ({}))
-    add('inference:/health', inferHealth.ok, {
-      status: inferHealth.status,
-      model_status: inferHealthBody?.models || null,
-      capabilities: inferHealthBody?.capabilities || null,
-    })
+    if (isRunpodServerlessUrl(inferenceUrl)) {
+      add('inference:provider-shape', true, {
+        provider: 'runpod-serverless',
+        skipped_direct_infer_checks: true,
+        reason: 'RunPod serverless does not expose /infer REST endpoints',
+      })
+    } else {
+      const inferHealth = await fetch(`${inferenceUrl}/health`)
+      const inferHealthBody = await inferHealth.json().catch(() => ({}))
+      add('inference:/health', inferHealth.ok, {
+        status: inferHealth.status,
+        model_status: inferHealthBody?.models || null,
+        capabilities: inferHealthBody?.capabilities || null,
+      })
 
-    const imageUrl = 'https://images.unsplash.com/photo-1493238792000-8113da705763?w=1200'
-    const imageResponse = await fetch(imageUrl)
-    const imageBuffer = Buffer.from(await imageResponse.arrayBuffer())
-    const tmpImage = join(tmpdir(), 'fcm-live-infer.jpg')
-    writeFileSync(tmpImage, imageBuffer)
+      const imageUrl = 'https://images.unsplash.com/photo-1493238792000-8113da705763?w=1200'
+      const imageResponse = await fetch(imageUrl)
+      const imageBuffer = Buffer.from(await imageResponse.arrayBuffer())
+      const tmpImage = join(tmpdir(), 'fcm-live-infer.jpg')
+      writeFileSync(tmpImage, imageBuffer)
 
-    const form = new FormData()
-    form.append('photo', new Blob([imageBuffer], { type: 'image/jpeg' }), 'fcm-live-infer.jpg')
+      const form = new FormData()
+      form.append('photo', new Blob([imageBuffer], { type: 'image/jpeg' }), 'fcm-live-infer.jpg')
 
-    const infer = await fetch(`${inferenceUrl}/infer`, {
-      method: 'POST',
-      body: form,
-    })
-    const inferBody = await infer.json().catch(() => ({}))
-    add('inference:/infer', infer.ok, {
-      status: infer.status,
-      success: inferBody?.success ?? null,
-      plate_number: inferBody?.plate_number ?? inferBody?.data?.plate_number ?? null,
-      vehicle_detected: inferBody?.vehicle_detected ?? inferBody?.data?.vehicle_detected ?? null,
-      error: inferBody?.error || null,
-    })
+      const infer = await fetch(`${inferenceUrl}/infer`, {
+        method: 'POST',
+        body: form,
+      })
+      const inferBody = await infer.json().catch(() => ({}))
+      add('inference:/infer', infer.ok, {
+        status: infer.status,
+        success: inferBody?.success ?? null,
+        plate_number: inferBody?.plate_number ?? inferBody?.data?.plate_number ?? null,
+        vehicle_detected: inferBody?.vehicle_detected ?? inferBody?.data?.vehicle_detected ?? null,
+        error: inferBody?.error || null,
+      })
+    }
   } else {
-    add('inference:url', false, { error: 'No inference URL available from check-railway-health' })
+    add('inference:url', false, { error: 'No inference URL available from check-services-health' })
   }
 
   console.log('=== LIVE FUNCTIONAL CHECK REPORT ===')
