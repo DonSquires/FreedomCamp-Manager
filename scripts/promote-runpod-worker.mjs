@@ -194,7 +194,6 @@ async function main() {
   );
   const serviceRoleKey = firstNonEmpty(
     process.env.SUPABASE_SERVICE_ROLE_KEY,
-    process.env.SUPERBASE_SURVICE_ROLE_KEY,
   );
   const projectRef = firstNonEmpty(getArg('projectRef', ''), process.env.SUPABASE_PROJECT_REF);
   const modelTag = firstNonEmpty(getArg('model', ''), process.env.RUNPOD_OLLAMA_MODEL, process.env.OLLAMA_MODEL, 'qwen2.5:7b');

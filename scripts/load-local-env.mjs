@@ -103,7 +103,6 @@ export function loadLocalEnv() {
 
   const supabaseServiceRole = firstNonEmptyEnv([
     'SUPABASE_SERVICE_ROLE_KEY',
-    'SUPERBASE_SURVICE_ROLE_KEY',
   ]);
   setEnvIfMissing('SUPABASE_SERVICE_ROLE_KEY', supabaseServiceRole);
 }
