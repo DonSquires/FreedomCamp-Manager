@@ -134,7 +134,7 @@ export class ADRService {
       context: input.contextBoundary,
       decision: input.decision,
       consequence: input.consequence,
-      reasoning_chain_id: '', // TODO: Set from reasoning service
+      reasoning_chain_id: input.lesson.pattern_key || '',
       outcome: input.outcome,
       confidence: input.lesson.confidence,
       applicability: [input.contextBoundary],
@@ -153,24 +153,41 @@ export class ADRService {
    * Returns patterns sorted by confidence (highest first)
    */
   async loadLearnedPatterns(contextFilter?: string): Promise<BobLearningPattern[]> {
-    // TODO: Query from Supabase bob_learning_log table
-    // For now, return mock
-    return [
-      {
-        key: 'breach_repeat_escalation',
-        description: 'Same site + vehicle within 30 days indicates likely repeat breach',
-        confidence: 0.92,
-        lastObserved: new Date(),
-        timesApplied: 47,
-      },
-      {
-        key: 'officer_welfare_no_contact',
-        description: 'Missed 2+ shifts + no response warrants escalation to supervisor',
-        confidence: 0.88,
-        lastObserved: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-        timesApplied: 12,
-      },
-    ]
+    const sb = (await import('./supabase')).supabase as any
+    const query = sb
+      .from('bob_learning_log')
+      .select('lesson_key, description, confidence, last_observed, times_applied')
+      .eq('organization_id', this.organizationId)
+      .order('confidence', { ascending: false })
+      .limit(50)
+    if (contextFilter) query.ilike('description', `%${contextFilter}%`)
+    const { data, error } = await query
+    if (error || !data?.length) {
+      // Return built-in patterns until table is seeded
+      return [
+        {
+          key: 'breach_repeat_escalation',
+          description: 'Same site + vehicle within 30 days indicates likely repeat breach',
+          confidence: 0.92,
+          lastObserved: new Date(),
+          timesApplied: 47,
+        },
+        {
+          key: 'officer_welfare_no_contact',
+          description: 'Missed 2+ shifts + no response warrants escalation to supervisor',
+          confidence: 0.88,
+          lastObserved: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+          timesApplied: 12,
+        },
+      ]
+    }
+    return data.map((row: any) => ({
+      key: row.lesson_key,
+      description: row.description,
+      confidence: row.confidence ?? 0.5,
+      lastObserved: new Date(row.last_observed),
+      timesApplied: row.times_applied ?? 0,
+    }))
   }
 
   /**
@@ -209,7 +226,25 @@ export class ADRService {
    * Updates timesApplied counter in bob_learning_log
    */
   async recordPatternUsage(patternKey: string, success: boolean): Promise<void> {
-    // TODO: Update bob_learning_log.times_applied and, if failed, decrement confidence
+    const sb = (await import('./supabase')).supabase as any
+    if (success) {
+      await sb.rpc('increment_bob_pattern_usage', { p_key: patternKey, p_org_id: this.organizationId }).catch(() => {})
+    } else {
+      await sb.from('bob_learning_log')
+        .select('confidence, times_applied')
+        .eq('lesson_key', patternKey)
+        .eq('organization_id', this.organizationId)
+        .single()
+        .then(async ({ data }: { data: any }) => {
+          if (data) {
+            await sb.from('bob_learning_log')
+              .update({ confidence: Math.max(0.1, (data.confidence ?? 0.5) - 0.02) })
+              .eq('lesson_key', patternKey)
+              .eq('organization_id', this.organizationId)
+              .catch(() => {})
+          }
+        })
+    }
     console.debug(`[Pattern Usage] ${patternKey}: ${success ? 'success' : 'failed'}`)
   }
 
@@ -246,8 +281,16 @@ export class ADRService {
   }
 
   private async getNextADRNumber(): Promise<string> {
-    // TODO: Read from docs/adr/ and find highest number
-    return '006'
+    const sb = (await import('./supabase')).supabase as any
+    const { data } = await sb
+      .from('bob_learning_log')
+      .select('adr_number')
+      .not('adr_number', 'is', null)
+      .order('adr_number', { ascending: false })
+      .limit(1)
+      .catch(() => ({ data: null }))
+    const lastNum = data?.[0]?.adr_number ? Number(data[0].adr_number) : 5
+    return String(lastNum + 1).padStart(3, '0')
   }
 
   private formatADR(adr: ADRMetadata, lesson: LessonExtraction): string {

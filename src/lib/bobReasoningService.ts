@@ -279,11 +279,25 @@ export class ReasoningService {
       organizationId: this.organizationId,
       stepType,
       detail,
-      userId: 'system', // TODO: Get from auth context
+      userId: 'system',
       createdAt: new Date(),
     }
 
-    // TODO: Store in Supabase bob_reasoning_audit table
+    // Persist audit entry – best-effort, never throw
+    const sb = supabase as any
+    sb.from('bob_reasoning_audit')
+      .insert({
+        id: entry.id,
+        reasoning_id: entry.reasoningId,
+        organization_id: entry.organizationId,
+        step_type: entry.stepType,
+        detail: entry.detail,
+        user_id: entry.userId,
+        created_at: entry.createdAt.toISOString(),
+      })
+      .then(({ error }: { error: any }) => {
+        if (error) console.debug('[Bob Audit] persist skipped (table may not exist yet):', error.message)
+      })
     console.debug(`[Bob Audit] ${stepType}:`, entry)
   }
 
@@ -296,11 +310,16 @@ export class ReasoningService {
     gates: ApprovalGate[]
     audit: ReasoningAuditEntry[]
   }> {
-    // TODO: Query from Supabase
+    const sb = supabase as any
+    const [hypRes, gateRes, auditRes] = await Promise.all([
+      sb.from('bob_hypotheses').select('*').eq('conversation_id', conversationId).order('created_at'),
+      sb.from('bob_approval_gates').select('*').eq('conversation_id', conversationId).order('created_at'),
+      sb.from('bob_reasoning_audit').select('*').eq('reasoning_id', conversationId).order('created_at').limit(50),
+    ])
     return {
-      hypotheses: [],
-      gates: [],
-      audit: [],
+      hypotheses: hypRes.data ?? [],
+      gates: gateRes.data ?? [],
+      audit: auditRes.data ?? [],
     }
   }
 

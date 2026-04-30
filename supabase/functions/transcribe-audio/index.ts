@@ -78,27 +78,46 @@ Deno.serve(withCors(async (req: Request) => {
   }
 
   try {
-    const inferResp = await fetchWithRetry(`${BOB_SERVICE_URL}/infer/transcribe`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(BOB_API_KEY
-          ? {
-              Authorization: `Bearer ${BOB_API_KEY}`,
-              'x-inference-api-key': BOB_API_KEY,
-            }
-          : {}),
-      },
-      body: JSON.stringify({
-        audio_base64: audioBase64,
-        audio_mime_type: audioMimeType,
-        language: typeof body.language === 'string' && body.language.trim() ? body.language.trim() : 'en',
-      }),
-    }, {
-      retries: 1,
-      timeoutMs: 30_000,
-      backoffMs: 600,
-    })
+    const language = typeof body.language === 'string' && body.language.trim() ? body.language.trim() : 'en'
+
+    // Detect RunPod serverless URL and use action-based /runsync protocol
+    const isRunpod = BOB_SERVICE_URL.includes('api.runpod.ai/v2') ||
+      BOB_SERVICE_URL.includes('runpod.io')
+
+    let inferResp: Response
+    if (isRunpod) {
+      const runpodBase = BOB_SERVICE_URL.replace(/\/(runsync|run|status.*)$/i, '')
+      inferResp = await fetchWithRetry(`${runpodBase}/runsync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(BOB_API_KEY ? { Authorization: `Bearer ${BOB_API_KEY}` } : {}),
+        },
+        body: JSON.stringify({
+          input: {
+            action: 'transcribe',
+            audio_base64: audioBase64,
+            audio_mime_type: audioMimeType,
+            language,
+          },
+        }),
+      }, { retries: 1, timeoutMs: 35_000, backoffMs: 600 })
+    } else {
+      inferResp = await fetchWithRetry(`${BOB_SERVICE_URL}/infer/transcribe`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(BOB_API_KEY
+            ? { Authorization: `Bearer ${BOB_API_KEY}`, 'x-inference-api-key': BOB_API_KEY }
+            : {}),
+        },
+        body: JSON.stringify({
+          audio_base64: audioBase64,
+          audio_mime_type: audioMimeType,
+          language,
+        }),
+      }, { retries: 1, timeoutMs: 30_000, backoffMs: 600 })
+    }
 
     if (!inferResp.ok) {
       const errText = await inferResp.text().catch(() => '')
@@ -106,7 +125,28 @@ Deno.serve(withCors(async (req: Request) => {
       return errorResponse(`Transcription failed (${inferResp.status})`, req, 502)
     }
 
-    const payload = await inferResp.json().catch(() => ({}))
+    const rawPayload = await inferResp.json().catch(() => ({})) as Record<string, unknown>
+
+    // RunPod wraps results in { output: { ... } }
+    const payload = (rawPayload.output && typeof rawPayload.output === 'object')
+      ? rawPayload.output as Record<string, unknown>
+      : rawPayload
+
+    const payloadSuccess = payload.success
+    if (payloadSuccess === false) {
+      // RunPod worker may not support `transcribe` action yet.
+      // Return a browser STT directive to preserve Bob's ears in production.
+      return jsonResponse({
+        transcript: null,
+        language,
+        provider: 'browser_fallback',
+        client_action: 'web_speech_recognition',
+        message: 'Inference transcribe action unavailable; use browser speech recognition fallback.',
+      }, req)
+    }
+
+    // If inference returns browser_fallback directive, pass it through so the
+    // client can activate Web Speech API transcription.
     return jsonResponse(payload, req)
   } catch (err: any) {
     console.error('transcribe-audio: inference fetch exception', err?.message || String(err))

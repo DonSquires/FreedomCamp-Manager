@@ -17,21 +17,21 @@
  * Permission: Admin role required (enforced via App.tsx route guard)
  */
 
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2, MessageCircle, Zap, Mic, BarChart3, AlertCircle } from 'lucide-react'
+import { Loader2, MessageCircle, Zap, Mic, MicOff, BarChart3, AlertCircle, Volume2, Languages } from 'lucide-react'
 import { useBobStore, type BobTask } from '@/stores/bobStore'
 import { useBobConversation } from '@/hooks/useBobConversation'
 import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
+import { supabase } from '@/lib/supabase'
 
 type BobStudioTab = 'chat' | 'planning' | 'voice' | 'testing' | 'diagnostics'
 
 export default function BobStudio() {
   const [activeTab, setActiveTab] = useState<BobStudioTab>('chat')
   const [recordingAudio, setRecordingAudio] = useState(false)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
 
   // Global Bob state
   const {
@@ -86,32 +86,8 @@ export default function BobStudio() {
     }
   }
 
-  const handleRecordAudio = async () => {
-    if (recordingAudio && mediaRecorderRef.current) {
-      // Stop and process
-      mediaRecorderRef.current.stop()
-      setRecordingAudio(false)
-      // TODO: Send audio to speech-to-text service, then to Bob
-    } else {
-      // Start recording
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-        const recorder = new MediaRecorder(stream)
-        mediaRecorderRef.current = recorder
-
-        const chunks: Blob[] = []
-        recorder.ondataavailable = (e) => chunks.push(e.data)
-        recorder.onstop = () => {
-          const audioBlob = new Blob(chunks, { type: 'audio/webm' })
-          // TODO: Send audioBlob to inference service for STT
-        }
-
-        recorder.start()
-        setRecordingAudio(true)
-      } catch (error) {
-        console.error('Failed to start audio recording:', error)
-      }
-    }
+  const handleRecordAudio = () => {
+    setRecordingAudio((prev) => !prev)
   }
 
   return (
@@ -371,31 +347,466 @@ function BobPlanningTab({ activeTask, reasoning }: BobPlanningTabProps) {
 }
 
 /**
- * Voice/PTT interface
+ * Voice/PTT interface with real STT, TTS, translation, and voice profile matching.
+ *
+ * Flow:
+ *  1. Officer presses PTT → MediaRecorder captures audio (webm)
+ *  2. Audio base64 sent to transcribe-audio edge function (Whisper/browser-STT fallback)
+ *  3. Transcript optionally translated via Bob AI (onspace-ai-chat action=translate)
+ *  4. TTS via synthesize-speech edge function → voice_params returned
+ *  5. Web Speech SpeechSynthesis renders audio with captured/default voice profile
+ *
+ * Voice profile matching:
+ *  - Officer enrollment: capture pitch + rate + voice_name preferences
+ *  - Persisted in localStorage under 'bob-voice-profile'
+ *  - Applied to all TTS output so translated speech mirrors the officer's style
  */
+interface VoiceProfile {
+  pitch: number       // 0.5–2.0 (1.0 = default)
+  rate: number        // 0.5–2.0 (1.0 = default)
+  volume: number      // 0.0–1.0
+  voice_name: string  // Web Speech API voice name, blank = browser default
+  lang: string        // BCP-47 e.g. 'en-NZ'
+}
+
+const DEFAULT_VOICE_PROFILE: VoiceProfile = {
+  pitch: 1.0,
+  rate: 1.0,
+  volume: 1.0,
+  voice_name: '',
+  lang: 'en-NZ',
+}
+
+const TRANSLATE_LANGUAGES: Record<string, string> = {
+  off: 'No Translation',
+  zh: '中文 (Chinese)',
+  ja: '日本語 (Japanese)',
+  ko: '한국어 (Korean)',
+  mi: 'Te Reo Māori',
+  fr: 'Français',
+  de: 'Deutsch',
+  es: 'Español',
+}
+
 interface BobVoiceTabProps {
   recording: boolean
   onToggleRecording: () => void
 }
 
 function BobVoiceTab({ recording, onToggleRecording }: BobVoiceTabProps) {
+  const [transcript, setTranscript] = useState('')
+  const [translatedText, setTranslatedText] = useState('')
+  const [targetLang, setTargetLang] = useState('off')
+  const [statusMsg, setStatusMsg] = useState('')
+  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [voiceProfile, setVoiceProfile] = useState<VoiceProfile>(() => {
+    try {
+      const stored = localStorage.getItem('bob-voice-profile')
+      return stored ? { ...DEFAULT_VOICE_PROFILE, ...JSON.parse(stored) } : DEFAULT_VOICE_PROFILE
+    } catch { return DEFAULT_VOICE_PROFILE }
+  })
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([])
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+
+  // Load available Web Speech API voices
+  useEffect(() => {
+    const load = () => {
+      const voices = window.speechSynthesis?.getVoices() ?? []
+      if (voices.length) setAvailableVoices(voices)
+    }
+    load()
+    window.speechSynthesis?.addEventListener('voiceschanged', load)
+    return () => window.speechSynthesis?.removeEventListener('voiceschanged', load)
+  }, [])
+
+  const saveVoiceProfile = useCallback((updated: VoiceProfile) => {
+    setVoiceProfile(updated)
+    localStorage.setItem('bob-voice-profile', JSON.stringify(updated))
+  }, [])
+
+  /** Speak text using Web Speech API with voice profile matching */
+  const speakText = useCallback((text: string, params?: Partial<VoiceProfile>) => {
+    if (!window.speechSynthesis || !text.trim()) return
+    window.speechSynthesis.cancel()
+    const utter = new SpeechSynthesisUtterance(text)
+    const profile = { ...voiceProfile, ...params }
+    utter.pitch = profile.pitch
+    utter.rate = profile.rate
+    utter.volume = profile.volume
+    utter.lang = profile.lang
+    if (profile.voice_name) {
+      const match = availableVoices.find(v => v.name === profile.voice_name)
+      if (match) utter.voice = match
+    }
+    utter.onstart = () => setIsSpeaking(true)
+    utter.onend = () => setIsSpeaking(false)
+    utter.onerror = () => setIsSpeaking(false)
+    window.speechSynthesis.speak(utter)
+  }, [voiceProfile, availableVoices])
+
+  /** Use browser Web Speech API for real-time transcription */
+  const startBrowserSTT = useCallback((lang: string, onResult: (text: string) => void) => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SR) return null
+    const recognition = new SR()
+    recognition.lang = lang || voiceProfile.lang || 'en-NZ'
+    recognition.interimResults = false
+    recognition.maxAlternatives = 1
+    recognition.onresult = (event: any) => {
+      const text = event.results[0]?.[0]?.transcript || ''
+      onResult(text)
+    }
+    recognition.start()
+    return recognition
+  }, [voiceProfile.lang])
+
+  /** Handle PTT button - record audio then transcribe */
+  const handlePTT = async () => {
+    if (recording) {
+      // Stop and process
+      if (mediaRecorderRef.current) {
+        mediaRecorderRef.current.stop()
+      }
+      onToggleRecording()
+      return
+    }
+
+    // Start recording
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' })
+      mediaRecorderRef.current = recorder
+      chunksRef.current = []
+
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        setStatusMsg('Transcribing...')
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+
+        // Convert Blob to base64
+        const arrayBuffer = await blob.arrayBuffer()
+        const bytes = new Uint8Array(arrayBuffer)
+        let binary = ''
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+        const audioBase64 = btoa(binary)
+
+        try {
+          const { data: { session } } = await supabase.auth.getSession()
+          const token = session?.access_token
+          if (!token) throw new Error('Not authenticated')
+
+          const resp = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/transcribe-audio`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+                apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+              },
+              body: JSON.stringify({
+                audio_base64: audioBase64,
+                audio_mime_type: 'audio/webm',
+                language: voiceProfile.lang.split('-')[0],
+              }),
+            }
+          )
+          const result = await resp.json()
+
+          let finalTranscript = result.transcript as string
+
+          // If inference returned browser_fallback, use browser Web Speech API
+          if (!finalTranscript && result.client_action === 'web_speech_recognition') {
+            setStatusMsg('Using browser speech recognition...')
+            await new Promise<void>((resolve) => {
+              const recognition = startBrowserSTT(voiceProfile.lang, (text) => {
+                finalTranscript = text
+                resolve()
+              })
+              if (!recognition) resolve()
+              setTimeout(resolve, 10000)
+            })
+          }
+
+          if (finalTranscript) {
+            setTranscript(finalTranscript)
+            // Translate if language target selected
+            if (targetLang !== 'off') {
+              await handleTranslate(finalTranscript, targetLang)
+            } else {
+              setStatusMsg('Ready')
+            }
+          } else {
+            setStatusMsg('Could not transcribe audio')
+          }
+        } catch (err: any) {
+          setStatusMsg('Transcription error: ' + (err.message || 'Unknown'))
+        }
+      }
+
+      recorder.start()
+      onToggleRecording()
+      setStatusMsg('Recording...')
+    } catch (err: any) {
+      setStatusMsg('Microphone access denied: ' + (err.message || ''))
+    }
+  }
+
+  /** Translate text and play TTS with voice matching */
+  const handleTranslate = async (text: string, lang: string) => {
+    if (!text.trim() || lang === 'off') return
+    setStatusMsg('Translating...')
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (!token) { setStatusMsg('Not authenticated'); return }
+
+      // Translate via Bob
+      const transResp = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/onspace-ai-chat`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({
+            action: 'translate',
+            text,
+            target_language: lang,
+            provider: 'inference',
+          }),
+        }
+      )
+      const transResult = await transResp.json()
+      const translated = transResult.translation || transResult.translated_text || ''
+      if (!translated) { setStatusMsg('Translation failed'); return }
+      setTranslatedText(translated)
+
+      // Synthesize speech with voice profile matching
+      setStatusMsg('Synthesizing speech...')
+      const synthResp = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/synthesize-speech`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({
+            text: translated,
+            style: 'default',
+            voice: voiceProfile.voice_name || undefined,
+            rate: Math.round(voiceProfile.rate * 160),
+            pitch: Math.round((voiceProfile.pitch - 0.5) * 60),
+            voice_profile: voiceProfile,
+          }),
+        }
+      )
+      const synthResult = await synthResp.json()
+
+      if (synthResult.audio_base64) {
+        // Server synthesized audio — play as audio element
+        const audioData = `data:audio/wav;base64,${synthResult.audio_base64}`
+        const audio = new Audio(audioData)
+        setIsSpeaking(true)
+        audio.onended = () => setIsSpeaking(false)
+        await audio.play()
+      } else {
+        // Use Web Speech API with returned voice_params (or stored profile)
+        const params = synthResult.voice_params || {}
+        speakText(synthResult.spoken_text || translated, {
+          pitch: params.pitch ?? voiceProfile.pitch,
+          rate: params.rate ? params.rate / 160 : voiceProfile.rate,
+          volume: params.volume ?? voiceProfile.volume,
+          voice_name: params.voice_name || voiceProfile.voice_name,
+          lang: params.lang || voiceProfile.lang,
+        })
+      }
+      setStatusMsg('Done')
+    } catch (err: any) {
+      setStatusMsg('Error: ' + (err.message || 'Unknown'))
+      // Fallback: speak original text
+      speakText(text)
+    }
+  }
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Voice Input (PTT)</CardTitle>
-        <CardDescription>Press and hold to record audio commands</CardDescription>
-      </CardHeader>
-      <CardContent className="flex justify-center py-12">
-        <Button
-          size="lg"
-          onClick={onToggleRecording}
-          variant={recording ? 'destructive' : 'default'}
-        >
-          <Mic className="mr-2 h-4 w-4" />
-          {recording ? 'Stop Recording' : 'Start Recording'}
-        </Button>
-      </CardContent>
-    </Card>
+    <div className="space-y-4">
+      {/* PTT Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mic className="h-5 w-5" />
+            Voice Input (PTT) + Translation
+          </CardTitle>
+          <CardDescription>
+            Press to record, select target language for voice-matched translation
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Language selector */}
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-sm text-muted-foreground">Translate to:</span>
+            {Object.entries(TRANSLATE_LANGUAGES).map(([code, label]) => (
+              <Button
+                key={code}
+                size="sm"
+                variant={targetLang === code ? 'default' : 'outline'}
+                onClick={() => setTargetLang(code)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+
+          {/* PTT button */}
+          <div className="flex justify-center py-6">
+            <Button
+              size="lg"
+              onClick={handlePTT}
+              variant={recording ? 'destructive' : 'default'}
+              className="w-40 h-16 text-lg"
+            >
+              {recording
+                ? <><MicOff className="mr-2 h-6 w-6" /> Stop</>
+                : <><Mic className="mr-2 h-6 w-6" /> PTT</>
+              }
+            </Button>
+          </div>
+
+          {/* Status */}
+          {statusMsg && (
+            <p className="text-center text-sm text-muted-foreground">{statusMsg}</p>
+          )}
+
+          {/* Transcript */}
+          {transcript && (
+            <div className="rounded-lg bg-muted p-3">
+              <p className="text-xs font-semibold mb-1">Transcript</p>
+              <p className="text-sm">{transcript}</p>
+            </div>
+          )}
+
+          {/* Translation */}
+          {translatedText && (
+            <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
+              <div className="flex justify-between items-start mb-1">
+                <p className="text-xs font-semibold text-blue-700">
+                  Translation ({TRANSLATE_LANGUAGES[targetLang] || targetLang})
+                </p>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => speakText(translatedText)}
+                  disabled={isSpeaking}
+                  className="h-6 px-2"
+                >
+                  <Volume2 className="h-3 w-3 mr-1" />
+                  {isSpeaking ? 'Speaking...' : 'Replay'}
+                </Button>
+              </div>
+              <p className="text-sm">{translatedText}</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Voice Profile Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Volume2 className="h-4 w-4" />
+            Voice Profile (Emulator Matching)
+          </CardTitle>
+          <CardDescription>
+            Tune these to match the officer's natural voice for translated speech output
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium block mb-1">Pitch ({voiceProfile.pitch.toFixed(1)})</label>
+              <input
+                type="range" min="0.5" max="2.0" step="0.05"
+                value={voiceProfile.pitch}
+                onChange={e => saveVoiceProfile({ ...voiceProfile, pitch: Number(e.target.value) })}
+                className="w-full"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium block mb-1">Rate ({voiceProfile.rate.toFixed(1)})</label>
+              <input
+                type="range" min="0.5" max="2.0" step="0.05"
+                value={voiceProfile.rate}
+                onChange={e => saveVoiceProfile({ ...voiceProfile, rate: Number(e.target.value) })}
+                className="w-full"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium block mb-1">Volume ({voiceProfile.volume.toFixed(1)})</label>
+              <input
+                type="range" min="0.0" max="1.0" step="0.05"
+                value={voiceProfile.volume}
+                onChange={e => saveVoiceProfile({ ...voiceProfile, volume: Number(e.target.value) })}
+                className="w-full"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium block mb-1">Language</label>
+              <select
+                value={voiceProfile.lang}
+                onChange={e => saveVoiceProfile({ ...voiceProfile, lang: e.target.value })}
+                className="w-full border rounded px-2 py-1 text-sm bg-background"
+              >
+                <option value="en-NZ">English (NZ)</option>
+                <option value="en-AU">English (AU)</option>
+                <option value="en-US">English (US)</option>
+                <option value="zh-CN">Chinese (Simplified)</option>
+                <option value="ja-JP">Japanese</option>
+                <option value="ko-KR">Korean</option>
+                <option value="mi">Te Reo Māori</option>
+                <option value="fr-FR">French</option>
+                <option value="de-DE">German</option>
+                <option value="es-ES">Spanish</option>
+              </select>
+            </div>
+          </div>
+          {availableVoices.length > 0 && (
+            <div>
+              <label className="text-sm font-medium block mb-1">Voice Engine</label>
+              <select
+                value={voiceProfile.voice_name}
+                onChange={e => saveVoiceProfile({ ...voiceProfile, voice_name: e.target.value })}
+                className="w-full border rounded px-2 py-1 text-sm bg-background"
+              >
+                <option value="">Browser Default</option>
+                {availableVoices
+                  .filter(v => v.lang.startsWith(voiceProfile.lang.split('-')[0]))
+                  .map(v => (
+                    <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>
+                  ))
+                }
+              </select>
+            </div>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => speakText('Voice profile test. This is how Bob will sound when translating.')}
+            disabled={isSpeaking}
+          >
+            <Volume2 className="mr-2 h-3 w-3" />
+            Test Voice Profile
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
   )
 }
 

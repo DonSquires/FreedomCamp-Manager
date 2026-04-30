@@ -173,6 +173,53 @@ async function run() {
     add('inference:url', false, { error: 'No inference URL available from check-services-health' })
   }
 
+  // 6) synthesize-speech (Bob's mouth)
+  const synthResp = await fetch(`${SUPABASE_URL}/functions/v1/synthesize-speech`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({ text: 'Operational check. Bob online.', style: 'default' }),
+  })
+  const synthBody = await synthResp.json().catch(() => ({}))
+  const synthOk = synthResp.ok && (
+    Boolean(synthBody?.audio_base64) ||
+    Boolean(synthBody?.spoken_text) ||        // RunPod speech proxy response
+    synthBody?.client_action === 'web_speech_synthesis'
+  )
+  add('edge:synthesize-speech', synthOk, {
+    status: synthResp.status,
+    provider: synthBody?.provider || null,
+    has_audio: Boolean(synthBody?.audio_base64),
+    has_spoken_text: Boolean(synthBody?.spoken_text),
+    client_action: synthBody?.client_action || null,
+    error: synthBody?.error || null,
+  })
+
+  // 7) transcribe-audio (Bob's ears) — sends a minimal silent WAV
+  // WAV header only (44 bytes, 0 samples) — enough to hit the route
+  const silentWav = 'UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA='
+  const transcribeResp = await fetch(`${SUPABASE_URL}/functions/v1/transcribe-audio`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({
+      audio_base64: silentWav,
+      audio_mime_type: 'audio/wav',
+      language: 'en',
+    }),
+  })
+  const transcribeBody = await transcribeResp.json().catch(() => ({}))
+  // Acceptable: transcript present, OR browser_fallback directive returned (Whisper unavailable)
+  const transcribeOk = transcribeResp.ok && (
+    typeof transcribeBody?.transcript !== 'undefined' ||
+    transcribeBody?.client_action === 'web_speech_recognition'
+  )
+  add('edge:transcribe-audio', transcribeOk, {
+    status: transcribeResp.status,
+    provider: transcribeBody?.provider || null,
+    has_transcript: typeof transcribeBody?.transcript !== 'undefined',
+    browser_fallback: transcribeBody?.client_action === 'web_speech_recognition',
+    error: transcribeBody?.error || null,
+  })
+
   console.log('=== LIVE FUNCTIONAL CHECK REPORT ===')
   let failed = 0
   for (const row of results) {

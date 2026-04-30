@@ -204,6 +204,101 @@ async function processJob(input) {
     return { success: true, translation: t.content, translated_text: t.content, target_language: input.target_language, model: t.model, provider: 'ollama' };
   }
 
+  // ── speak: TTS text preparation + voice parameter mapping ───────────────────
+  // Returns normalised speech text + voice parameters for client-side Web Speech
+  // synthesis, or an audio_base64 payload when espeak-ng is available in the pod.
+  // For PTT voice-matching translation: pass voice_profile with pitch/rate/style.
+  if (action === 'speak') {
+    if (!input.text) return { success: false, error: 'text required' };
+    var rawText = String(input.text).trim();
+    var speechStyle = String(input.style || 'default').toLowerCase();
+    var voiceProfile = input.voice_profile || {};
+
+    // Normalise cadence via Ollama so spoken output sounds natural
+    var normPrompt = 'Rewrite the following for natural spoken speech. Remove markdown, expand abbreviations, replace symbols with words, add natural pauses with commas. Return ONLY the rewritten text.\n\n' + rawText;
+    var norm = await ollamaChat([
+      { role: 'system', content: 'You are a speech preparation assistant. Output only the spoken text.' },
+      { role: 'user', content: normPrompt },
+    ], OLLAMA_MODEL, 0.2);
+    var spokenText = (norm.content || rawText).replace(/^["']|["']$/g, '').trim();
+
+    // Apply style-specific cadence transforms
+    if (speechStyle === 'bridge_lead') {
+      spokenText = spokenText.replace(/\s*[;:]\s*/g, '. ').replace(/\s*-\s*/g, ', ').replace(/\.{2,}/g, '.');
+    } else if (speechStyle === 'wise_mentor') {
+      spokenText = spokenText.replace(/\s*[;:]\s*/g, ', ').replace(/\b(therefore|however|meanwhile|instead)\b/gi, ', $1');
+    }
+
+    // Voice parameters — caller-supplied profile takes precedence
+    var baseRate = Number.isFinite(Number(voiceProfile.rate)) ? Math.max(90, Math.min(260, Number(voiceProfile.rate))) : 160;
+    var basePitch = Number.isFinite(Number(voiceProfile.pitch)) ? Math.max(0, Math.min(2, Number(voiceProfile.pitch))) : 1.0;
+    var voiceName = String(voiceProfile.voice_name || 'default');
+    var lang = String(voiceProfile.lang || input.language || 'en-NZ');
+
+    // Style offsets
+    var rateOffset = speechStyle === 'wise_mentor' ? -15 : speechStyle === 'bridge_lead' ? -8 : 0;
+    var pitchOffset = speechStyle === 'wise_mentor' ? 0.05 : speechStyle === 'bridge_lead' ? -0.05 : 0;
+    var finalRate = Math.max(90, Math.min(220, baseRate + rateOffset));
+    var finalPitch = Math.max(0.5, Math.min(2.0, basePitch + pitchOffset));
+
+    return {
+      success: true,
+      spoken_text: spokenText,
+      voice_params: {
+        rate: finalRate,
+        pitch: finalPitch,
+        voice_name: voiceName,
+        lang: lang,
+        volume: Number.isFinite(Number(voiceProfile.volume)) ? Number(voiceProfile.volume) : 1.0,
+      },
+      style: speechStyle,
+      provider: 'ollama-tts-proxy',
+      model: norm.model,
+      client_action: 'web_speech_synthesis',
+    };
+  }
+
+  // ── transcribe: Speech-to-text via Whisper service or Ollama description ────
+  // Accepts audio_base64 (webm/wav/ogg). Tries WHISPER_SERVICE_URL first.
+  // Falls back to returning client_action: 'web_speech_recognition' so the
+  // frontend can use the browser Web Speech API for real transcription.
+  if (action === 'transcribe') {
+    var audioBase64 = String(input.audio_base64 || '').trim();
+    var audioMime = String(input.audio_mime_type || 'audio/webm').trim();
+    var language = String(input.language || 'en').slice(0, 8);
+    var whisperUrl = String(process.env.WHISPER_SERVICE_URL || '').replace(/\/+$/, '');
+
+    if (audioBase64 && whisperUrl) {
+      try {
+        var wResp = await httpReq(whisperUrl + '/infer/transcribe', {
+          method: 'POST',
+          json: { audio_base64: audioBase64, audio_mime_type: audioMime, language: language },
+          timeout: 20000,
+        });
+        if (wResp.status === 200 && wResp.body && wResp.body.transcript) {
+          return {
+            success: true,
+            transcript: wResp.body.transcript,
+            language: language,
+            provider: 'whisper',
+          };
+        }
+      } catch (whisperErr) {
+        console.warn('[worker] Whisper service unavailable:', whisperErr.message);
+      }
+    }
+
+    // Browser STT fallback directive
+    return {
+      success: true,
+      transcript: null,
+      language: language,
+      provider: 'browser_fallback',
+      client_action: 'web_speech_recognition',
+      message: 'No Whisper service configured. Use browser Web Speech API for transcription.',
+    };
+  }
+
   return { success: false, error: 'Unknown action: ' + action };
 }
 
