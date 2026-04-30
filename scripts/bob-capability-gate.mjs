@@ -1,0 +1,356 @@
+#!/usr/bin/env node
+
+import process from 'node:process';
+import { loadLocalEnv } from './load-local-env.mjs';
+
+loadLocalEnv();
+
+const SILENT_WAV_BASE64 = 'UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=';
+
+function getArg(name, fallback = '') {
+  const key = `--${name}`;
+  const args = process.argv.slice(2);
+  for (let i = 0; i < args.length; i += 1) {
+    const token = String(args[i] || '');
+    if (token === key) return String(args[i + 1] || fallback);
+    if (token.startsWith(`${key}=`)) return token.slice(key.length + 1) || fallback;
+  }
+  return fallback;
+}
+
+function getBoolArg(name, fallback = false) {
+  const raw = String(getArg(name, String(fallback))).trim().toLowerCase();
+  if (process.argv.includes(`--${name}`)) return true;
+  return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+}
+
+function normalizeUrl(raw, defaultScheme = 'https') {
+  const trimmed = String(raw || '').trim().replace(/\/+$/, '');
+  if (!trimmed) return '';
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `${defaultScheme}://${trimmed}`;
+}
+
+export function resolveBobTargets() {
+  const podBaseUrl = normalizeUrl(
+    process.env.BOB_SERVICE_URL || process.env.INFERENCE_SERVICE_URL || '',
+    'http'
+  );
+
+  const explicitRunpod = normalizeUrl(
+    process.env.RUNPOD_ENDPOINT_URL ||
+      process.env.RUNPOD_RUNSYNC_URL ||
+      process.env.RUNPOD_SERVERLESS_URL ||
+      process.env.RUNPOD_GATEWAY_URL ||
+      process.env.RUNPOD_URL ||
+      '',
+    'https'
+  );
+
+  const endpointId = String(process.env.RUNPOD_ENDPOINT_ID || '').trim();
+  const runpodBaseUrl = explicitRunpod
+    ? explicitRunpod.replace(/\/(runsync|run|run-sync)\/?$/i, '')
+    : endpointId
+      ? `https://api.runpod.ai/v2/${endpointId}`
+      : '';
+
+  const apiKey = String(
+    process.env.BOB_INFERENCE_API_KEY ||
+      process.env.INFERENCE_API_KEY ||
+      process.env.RUNPOD_ENDPOINT_API_KEY ||
+      process.env.RUNPOD_API_KEY ||
+      ''
+  ).trim();
+
+  return { podBaseUrl, runpodBaseUrl, apiKey };
+}
+
+export function resolveBobMode(targets = resolveBobTargets()) {
+  const forced = String(process.env.BOB_EXECUTION_MODE || 'auto').trim().toLowerCase();
+  if (forced === 'pod' || forced === 'serverless' || forced === 'hybrid') return forced;
+
+  const podLooksRunpod = /api\.runpod\.ai\/v2\//i.test(targets.podBaseUrl || '');
+  if (podLooksRunpod || targets.runpodBaseUrl) return 'serverless';
+  if (targets.podBaseUrl) return 'pod';
+  return 'serverless';
+}
+
+async function fetchJson(url, options = {}, timeoutMs = 30000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    const text = await response.text();
+    let data = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = { raw: text };
+    }
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 0, data: { error: String(error?.message || error) } };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function parseRequiredCapabilities(input) {
+  const raw = String(input || process.env.BOB_REQUIRED_CAPABILITIES || 'chat').trim();
+  return raw
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+async function checkServerlessCapability(capability, targets, timeoutMs) {
+  const endpoint = `${targets.runpodBaseUrl.replace(/\/+$/, '')}/runsync`;
+  const headers = {
+    Authorization: `Bearer ${targets.apiKey}`,
+    'Content-Type': 'application/json',
+  };
+
+  const actionMap = {
+    chat: { action: 'chat', message: 'capability check ping', history: [] },
+    speak: { action: 'speak', text: 'capability check', style: 'default' },
+    transcribe: {
+      action: 'transcribe',
+      audio_base64: SILENT_WAV_BASE64,
+      audio_mime_type: 'audio/wav',
+      language: 'en',
+    },
+    run_playwright: { action: 'run_playwright', scope: 'quick', dry_run: true, timeout_ms: 15000 },
+  };
+
+  const input = actionMap[capability];
+  if (!input) {
+    return { capability, ok: false, reason: 'unsupported-capability' };
+  }
+
+  const result = await fetchJson(
+    endpoint,
+    {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ input }),
+    },
+    timeoutMs
+  );
+
+  const status = String(result.data?.status || '').toUpperCase();
+  const output = result.data?.output;
+
+  const ok = result.ok &&
+    status !== 'FAILED' &&
+    output?.success !== false &&
+    (capability !== 'transcribe' || typeof output?.transcript !== 'undefined' || output?.client_action === 'web_speech_recognition') &&
+    (capability !== 'speak' || Boolean(output?.audio_base64 || output?.spoken_text || output?.client_action));
+
+  return {
+    capability,
+    ok,
+    httpStatus: result.status,
+    status,
+    detail: ok ? 'ok' : String(result.data?.error || output?.error || 'failed'),
+  };
+}
+
+async function checkPodCapability(capability, targets, timeoutMs) {
+  const base = targets.podBaseUrl.replace(/\/+$/, '');
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(targets.apiKey
+      ? {
+          Authorization: `Bearer ${targets.apiKey}`,
+          'x-inference-api-key': targets.apiKey,
+        }
+      : {}),
+  };
+
+  if (capability === 'chat') {
+    const result = await fetchJson(`${base}/chat`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ message: 'capability check ping' }),
+    }, timeoutMs);
+    const msg = result.data?.message || result.data?.response || result.data?.output?.message;
+    return {
+      capability,
+      ok: result.ok && Boolean(msg),
+      httpStatus: result.status,
+      detail: result.ok ? 'ok' : String(result.data?.error || 'failed'),
+    };
+  }
+
+  if (capability === 'health') {
+    const result = await fetchJson(`${base}/health`, { method: 'GET' }, timeoutMs);
+    const state = String(result.data?.status || '').toLowerCase();
+    return {
+      capability,
+      ok: result.ok && (state === 'healthy' || state === 'ok' || result.status === 200),
+      httpStatus: result.status,
+      detail: state || 'unknown',
+    };
+  }
+
+  if (capability === 'speak') {
+    const result = await fetchJson(`${base}/infer/speak`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ text: 'capability check', style: 'default' }),
+    }, timeoutMs);
+    return {
+      capability,
+      ok: result.ok && Boolean(result.data?.audio_base64 || result.data?.spoken_text || result.data?.client_action),
+      httpStatus: result.status,
+      detail: result.ok ? 'ok' : String(result.data?.error || 'failed'),
+    };
+  }
+
+  if (capability === 'transcribe') {
+    const result = await fetchJson(`${base}/infer/transcribe`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        audio_base64: SILENT_WAV_BASE64,
+        audio_mime_type: 'audio/wav',
+        language: 'en',
+      }),
+    }, timeoutMs);
+    return {
+      capability,
+      ok: result.ok && (typeof result.data?.transcript !== 'undefined' || result.data?.client_action === 'web_speech_recognition'),
+      httpStatus: result.status,
+      detail: result.ok ? 'ok' : String(result.data?.error || 'failed'),
+    };
+  }
+
+  if (capability === 'self_heal') {
+    const result = await fetchJson(`${base}/self-heal/bug-report`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        report: {
+          summary: 'Capability gate synthetic check',
+          description: 'Synthetic check',
+          severity: 'low',
+          issue_type: 'bug',
+        },
+      }),
+    }, timeoutMs);
+    return {
+      capability,
+      ok: result.ok && result.data?.success === true && Boolean(result.data?.plan),
+      httpStatus: result.status,
+      detail: result.ok ? 'ok' : String(result.data?.error || 'failed'),
+    };
+  }
+
+  if (capability === 'executor') {
+    const result = await fetchJson(`${base}/code/executor/run`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ limit: 1 }),
+    }, timeoutMs);
+    return {
+      capability,
+      ok: result.ok && result.data?.success !== false,
+      httpStatus: result.status,
+      detail: result.ok ? 'ok' : String(result.data?.error || 'failed'),
+    };
+  }
+
+  return { capability, ok: false, reason: 'unsupported-capability' };
+}
+
+export async function checkBobCapabilities(options = {}) {
+  const targets = options.targets || resolveBobTargets();
+  const mode = options.mode || resolveBobMode(targets);
+  const required = options.required || parseRequiredCapabilities(options.requiredRaw);
+  const timeoutMs = Number(options.timeoutMs || process.env.BOB_CAPABILITY_TIMEOUT_MS || 30000);
+
+  if (!required.length) {
+    return { ok: true, mode, required: [], checks: [] };
+  }
+
+  if (!targets.apiKey) {
+    return {
+      ok: false,
+      mode,
+      required,
+      checks: required.map((capability) => ({ capability, ok: false, reason: 'missing-api-key' })),
+    };
+  }
+
+  if (mode === 'serverless' && !targets.runpodBaseUrl) {
+    return {
+      ok: false,
+      mode,
+      required,
+      checks: required.map((capability) => ({ capability, ok: false, reason: 'missing-runpod-endpoint' })),
+    };
+  }
+
+  if ((mode === 'pod' || mode === 'hybrid') && !targets.podBaseUrl) {
+    return {
+      ok: false,
+      mode,
+      required,
+      checks: required.map((capability) => ({ capability, ok: false, reason: 'missing-pod-endpoint' })),
+    };
+  }
+
+  const checks = [];
+  for (const capability of required) {
+    if (mode === 'serverless') {
+      checks.push(await checkServerlessCapability(capability, targets, timeoutMs));
+    } else {
+      checks.push(await checkPodCapability(capability, targets, timeoutMs));
+    }
+  }
+
+  return {
+    ok: checks.every((entry) => entry.ok),
+    mode,
+    required,
+    checks,
+    checkedAt: new Date().toISOString(),
+  };
+}
+
+export async function ensureBobCapabilities(options = {}) {
+  const strict = typeof options.strict === 'boolean'
+    ? options.strict
+    : String(process.env.BOB_CAPABILITY_STRICT || 'true').trim().toLowerCase() !== 'false';
+
+  const report = await checkBobCapabilities(options);
+  if (strict && !report.ok) {
+    const failed = report.checks.filter((entry) => !entry.ok).map((entry) => entry.capability).join(', ');
+    const reason = report.checks.filter((entry) => !entry.ok).map((entry) => `${entry.capability}:${entry.detail || entry.reason || 'failed'}`).join('; ');
+    throw new Error(`[Bob Capability Gate] Missing required capabilities (${failed}) in mode=${report.mode}. ${reason}`);
+  }
+  return report;
+}
+
+async function main() {
+  const requiredRaw = getArg('required', process.env.BOB_REQUIRED_CAPABILITIES || 'chat');
+  const mode = getArg('mode', process.env.BOB_EXECUTION_MODE || 'auto');
+  const strict = getBoolArg('strict', String(process.env.BOB_CAPABILITY_STRICT || 'true').toLowerCase() !== 'false');
+  const timeoutMs = Number(getArg('timeoutMs', process.env.BOB_CAPABILITY_TIMEOUT_MS || '30000'));
+
+  const report = await checkBobCapabilities({
+    requiredRaw,
+    mode: mode === 'auto' ? undefined : mode,
+    timeoutMs,
+  });
+
+  console.log(JSON.stringify(report, null, 2));
+  if (strict && !report.ok) process.exit(1);
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((error) => {
+    console.error(error?.message || String(error));
+    process.exit(1);
+  });
+}

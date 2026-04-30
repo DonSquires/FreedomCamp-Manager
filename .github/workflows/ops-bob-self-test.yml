@@ -81,6 +81,13 @@ jobs:
           echo "TEST_SCOPE=${{ github.event.inputs.scope || 'quick' }}" >> "$GITHUB_ENV"
           echo "DRY_RUN=${{ github.event.inputs.dry_run || 'false' }}" >> "$GITHUB_ENV"
 
+      - name: Validate Bob capability gate (serverless)
+        run: node scripts/bob-capability-gate.mjs --mode serverless --required chat,run_playwright --strict
+        env:
+          INFERENCE_SERVICE_URL:  https://api.runpod.ai/v2/${{ secrets.RUNPOD_ENDPOINT_ID }}
+          INFERENCE_API_KEY:      ${{ secrets.RUNPOD_ENDPOINT_API_KEY }}
+          BOB_CAPABILITY_STRICT:  'true'
+
       - name: Trigger Bob self-test on RunPod
         run: node scripts/trigger-bob-self-test.mjs --scope "$TEST_SCOPE" $( [ "$DRY_RUN" = "true" ] && echo "--dryRun" )
         env:

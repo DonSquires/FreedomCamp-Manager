@@ -1,0 +1,57 @@
+name: Ops - Bob Pod Self-Test
+
+on:
+  schedule:
+    - cron: '30 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      skip_executor:
+        description: Skip internal code executor check
+        required: false
+        default: true
+        type: boolean
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  bob-pod-self-test:
+    name: Bob Pod Self-Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+
+      - name: Validate required pod secrets
+        run: |
+          missing=""
+          [ -z "$BOB_SERVICE_URL" ] && missing="$missing BOB_SERVICE_URL"
+          [ -z "$INFERENCE_API_KEY" ] && missing="$missing INFERENCE_API_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing secrets:$missing"
+            exit 1
+          fi
+          echo "✅ Pod self-test secrets present"
+        env:
+          BOB_SERVICE_URL:  ${{ secrets.BOB_SERVICE_URL }}
+          INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
+
+      - name: Validate Bob capability gate (pod)
+        run: node scripts/bob-capability-gate.mjs --mode pod --required chat,health,self_heal --strict
+        env:
+          INFERENCE_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
+          INFERENCE_API_KEY:     ${{ secrets.INFERENCE_API_KEY }}
+          BOB_CAPABILITY_STRICT: 'true'
+
+      - name: Run Bob pod self-test
+        run: node scripts/trigger-bob-pod-self-test.mjs --skipExecutor=${{ github.event.inputs.skip_executor || 'true' }} --timeoutMs=60000
+        env:
+          INFERENCE_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
+          INFERENCE_API_KEY:     ${{ secrets.INFERENCE_API_KEY }}

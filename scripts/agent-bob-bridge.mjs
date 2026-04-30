@@ -5,8 +5,14 @@
 import process from 'node:process';
 import { recordScoredResponse } from './bob-response-log.mjs';
 import { loadLocalEnv } from './load-local-env.mjs';
+import { ensureBobCapabilities, resolveBobMode } from './bob-capability-gate.mjs';
 
 loadLocalEnv();
+
+const capabilityCache = {
+  untilMs: 0,
+  key: '',
+};
 
 function normalizeRunpodInvokeUrl(rawUrl) {
   const value = String(rawUrl || '').trim().replace(/\/+$/, '');
@@ -28,6 +34,8 @@ function resolveApiKey() {
   return String(
     process.env.BOB_INFERENCE_API_KEY ||
       process.env.INFERENCE_API_KEY ||
+      process.env.RUNPOD_ENDPOINT_API_KEY ||
+      process.env.RUNPOD_API_KEY ||
       ''
   ).trim();
 }
@@ -116,11 +124,10 @@ async function tryRunpodFallback(message, context, timeoutMs) {
       },
       signal: controller.signal,
       body: JSON.stringify({
-        message,
-        context: context || {},
         input: {
+          action: 'chat',
           message,
-          prompt: message,
+          history: [],
           context: context || {},
         },
       }),
@@ -158,33 +165,27 @@ async function tryRunpodFallback(message, context, timeoutMs) {
   }
 }
 
-/**
- * Consult Bob with a single message.
- * @param {string} message - The question or prompt for Bob
- * @param {object} options - Configuration options
- * @returns {Promise<string>} Bob's response
- */
-export async function consultBob(message, options = {}) {
-  const baseUrl = resolveBaseUrl();
-  const apiKey = resolveApiKey();
-  const orgId = resolveOrgId();
-  const timeoutMs = Number(process.env.BOB_CHAT_TIMEOUT_MS || 30000);
+async function ensureBridgeCapabilities() {
+  const requiredRaw = String(process.env.BOB_REQUIRED_CAPABILITIES || 'chat').trim();
+  const modeRaw = String(process.env.BOB_EXECUTION_MODE || 'auto').trim().toLowerCase();
+  const cacheMs = Number(process.env.BOB_CAPABILITY_CACHE_MS || 60000);
+  const key = `${requiredRaw}|${modeRaw}`;
 
-  if (!baseUrl || !apiKey) {
-    const missing = [
-      !baseUrl
-        ? 'BOB_SERVICE_URL-or-INFERENCE_SERVICE_URL'
-        : null,
-      !apiKey
-        ? 'BOB_INFERENCE_API_KEY-or-INFERENCE_API_KEY'
-        : null,
-    ]
-      .filter(Boolean)
-      .join(', ');
-
-    throw new Error(`[Bob Bridge] Missing config: ${missing}`);
+  if (Date.now() < capabilityCache.untilMs && capabilityCache.key === key) {
+    return;
   }
 
+  await ensureBobCapabilities({
+    requiredRaw,
+    mode: modeRaw === 'auto' ? undefined : modeRaw,
+    strict: String(process.env.BOB_CAPABILITY_STRICT || 'true').trim().toLowerCase() !== 'false',
+  });
+
+  capabilityCache.key = key;
+  capabilityCache.untilMs = Date.now() + Math.max(5000, cacheMs);
+}
+
+async function sendPodChat({ baseUrl, apiKey, orgId, timeoutMs, message, context, history }) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -202,38 +203,104 @@ export async function consultBob(message, options = {}) {
       signal: controller.signal,
       body: JSON.stringify({
         message,
-        context: options.context || {},
+        context: context || {},
+        ...(Array.isArray(history) ? { history } : {}),
       }),
     });
 
-    if (!response.ok) {
-      if (shouldFallbackToRunpod(response.status)) {
-        const fallback = await tryRunpodFallback(message, options.context, timeoutMs);
-        if (fallback) {
-          await recordScoredResponse({
-            target: 'Bob',
-            channel: 'bob-chat',
-            prompt: message,
-            response: fallback.message,
-            delivery: { sent: true, status: fallback.status, channel: 'bob-chat' },
-            metadata: {
-              provider: fallback.provider,
-              fallback: true,
-              qualityGateFailed: false,
-              fallbackApplied: true,
-            },
-          });
-          return fallback.message;
+    const payload = await response.json().catch(() => ({}));
+    return { response, payload };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function sendServerlessChat({ timeoutMs, message, context }) {
+  return tryRunpodFallback(message, context, timeoutMs);
+}
+
+/**
+ * Consult Bob with a single message.
+ * @param {string} message - The question or prompt for Bob
+ * @param {object} options - Configuration options
+ * @returns {Promise<string>} Bob's response
+ */
+export async function consultBob(message, options = {}) {
+  await ensureBridgeCapabilities();
+
+  const baseUrl = resolveBaseUrl();
+  const apiKey = resolveApiKey();
+  const mode = resolveBobMode({ podBaseUrl: baseUrl, runpodBaseUrl: resolveRunpodInvokeUrl().replace(/\/runsync$/i, ''), apiKey });
+  const orgId = resolveOrgId();
+  const timeoutMs = Number(process.env.BOB_CHAT_TIMEOUT_MS || 30000);
+
+  if (mode !== 'serverless' && (!baseUrl || !apiKey)) {
+    const missing = [
+      !baseUrl
+        ? 'BOB_SERVICE_URL-or-INFERENCE_SERVICE_URL'
+        : null,
+      !apiKey
+        ? 'BOB_INFERENCE_API_KEY-or-INFERENCE_API_KEY'
+        : null,
+    ]
+      .filter(Boolean)
+      .join(', ');
+
+    throw new Error(`[Bob Bridge] Missing config: ${missing}`);
+  }
+
+  let payload = {};
+  let status = 200;
+
+    if (mode === 'serverless') {
+      const result = await sendServerlessChat({
+        timeoutMs,
+        message,
+        context: options.context || {},
+      });
+      if (!result) {
+        throw new Error('Serverless mode selected but RunPod endpoint/key are unavailable');
+      }
+      payload = result.payload || {};
+      status = result.status || 200;
+    } else {
+      const { response, payload: podPayload } = await sendPodChat({
+        baseUrl,
+        apiKey,
+        orgId,
+        timeoutMs,
+        message,
+        context: options.context || {},
+      });
+
+      if (!response.ok) {
+        if (shouldFallbackToRunpod(response.status)) {
+          const fallback = await tryRunpodFallback(message, options.context, timeoutMs);
+          if (fallback) {
+            await recordScoredResponse({
+              target: 'Bob',
+              channel: 'bob-chat',
+              prompt: message,
+              response: fallback.message,
+              delivery: { sent: true, status: fallback.status, channel: 'bob-chat' },
+              metadata: {
+                provider: fallback.provider,
+                fallback: true,
+                qualityGateFailed: false,
+                fallbackApplied: true,
+              },
+            });
+            return fallback.message;
+          }
         }
+
+        throw new Error(`Bob /chat failed (${response.status}): ${JSON.stringify(podPayload).slice(0, 300)}`);
       }
 
-      const body = await response.text().catch(() => '');
-      throw new Error(
-        `Bob /chat failed (${response.status}): ${body.slice(0, 300)}`
-      );
+      payload = podPayload || {};
+      status = response.status;
     }
 
-    const payload = await response.json().catch(() => ({}));
     const bobMessage = extractBobMessage(payload);
 
     await recordScoredResponse({
@@ -241,14 +308,11 @@ export async function consultBob(message, options = {}) {
       channel: 'bob-chat',
       prompt: message,
       response: bobMessage,
-      delivery: { sent: true, status: response.status, channel: 'bob-chat' },
+      delivery: { sent: true, status, channel: 'bob-chat' },
       metadata: buildScoreMetadata(payload),
     });
 
-    return bobMessage;
-  } finally {
-    clearTimeout(timer);
-  }
+  return bobMessage;
 }
 
 /**
@@ -259,12 +323,17 @@ export class BobSession {
   constructor(options = {}) {
     this.baseUrl = resolveBaseUrl();
     this.apiKey = resolveApiKey();
+    this.mode = resolveBobMode({
+      podBaseUrl: this.baseUrl,
+      runpodBaseUrl: resolveRunpodInvokeUrl().replace(/\/runsync$/i, ''),
+      apiKey: this.apiKey,
+    });
     this.orgId = resolveOrgId();
     this.timeoutMs = Number(process.env.BOB_CHAT_TIMEOUT_MS || 30000);
     this.history = [];
     this.context = options.context || {};
 
-    if (!this.baseUrl || !this.apiKey) {
+    if (this.mode !== 'serverless' && (!this.baseUrl || !this.apiKey)) {
       const missing = [
         !this.baseUrl
           ? 'BOB_SERVICE_URL-or-INFERENCE_SERVICE_URL'
@@ -281,66 +350,71 @@ export class BobSession {
   }
 
   async send(message, role = 'agent') {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    await ensureBridgeCapabilities();
 
-    try {
-      const headers = {
-        'Content-Type': 'application/json',
-        'x-inference-api-key': this.apiKey,
-        Authorization: `Bearer ${this.apiKey}`,
-      };
-      if (this.orgId) headers['x-org-id'] = this.orgId;
+    let payload = {};
+    let status = 200;
 
-      const response = await fetch(`${this.baseUrl}/chat`, {
-        method: 'POST',
-        headers,
-        signal: controller.signal,
-        body: JSON.stringify({
+      if (this.mode === 'serverless') {
+        const result = await sendServerlessChat({
+          timeoutMs: this.timeoutMs,
+          message,
+          context: this.context,
+        });
+        if (!result) {
+          throw new Error('Serverless mode selected but RunPod endpoint/key are unavailable');
+        }
+        payload = result.payload || {};
+        status = result.status || 200;
+      } else {
+        const { response, payload: podPayload } = await sendPodChat({
+          baseUrl: this.baseUrl,
+          apiKey: this.apiKey,
+          orgId: this.orgId,
+          timeoutMs: this.timeoutMs,
           message,
           context: this.context,
           history: this.history,
-        }),
-      });
+        });
 
-      if (!response.ok) {
-        if (shouldFallbackToRunpod(response.status)) {
-          const fallback = await tryRunpodFallback(message, this.context, this.timeoutMs);
-          if (fallback) {
-            await recordScoredResponse({
-              target: 'Bob',
-              channel: 'bob-chat',
-              prompt: message,
-              response: fallback.message,
-              delivery: { sent: true, status: fallback.status, channel: 'bob-chat' },
-              metadata: {
-                provider: fallback.provider,
-                fallback: true,
-                qualityGateFailed: false,
-                fallbackApplied: true,
-              },
-            });
+        if (!response.ok) {
+          if (shouldFallbackToRunpod(response.status)) {
+            const fallback = await tryRunpodFallback(message, this.context, this.timeoutMs);
+            if (fallback) {
+              await recordScoredResponse({
+                target: 'Bob',
+                channel: 'bob-chat',
+                prompt: message,
+                response: fallback.message,
+                delivery: { sent: true, status: fallback.status, channel: 'bob-chat' },
+                metadata: {
+                  provider: fallback.provider,
+                  fallback: true,
+                  qualityGateFailed: false,
+                  fallbackApplied: true,
+                },
+              });
 
-            this.history.push(
-              { role, message },
-              {
-                role: 'bob',
-                message: fallback.message,
-                metadata: { provider: fallback.provider, fallback: true },
-              }
-            );
+              this.history.push(
+                { role, message },
+                {
+                  role: 'bob',
+                  message: fallback.message,
+                  metadata: { provider: fallback.provider, fallback: true },
+                }
+              );
 
-            return fallback.message;
+              return fallback.message;
+            }
           }
+
+          throw new Error(`Bob /chat failed (${response.status}): ${JSON.stringify(podPayload).slice(0, 300)}`);
         }
 
-        const body = await response.text().catch(() => '');
-        throw new Error(
-          `Bob /chat failed (${response.status}): ${body.slice(0, 300)}`
-        );
+        payload = podPayload || {};
+        status = response.status;
       }
 
-      const payload = await response.json().catch(() => ({}));
       const bobMessage = extractBobMessage(payload);
 
       await recordScoredResponse({
@@ -348,7 +422,7 @@ export class BobSession {
         channel: 'bob-chat',
         prompt: message,
         response: bobMessage,
-        delivery: { sent: true, status: response.status, channel: 'bob-chat' },
+        delivery: { sent: true, status, channel: 'bob-chat' },
         metadata: buildScoreMetadata(payload),
       });
 
@@ -362,10 +436,7 @@ export class BobSession {
         }
       );
 
-      return bobMessage;
-    } finally {
-      clearTimeout(timer);
-    }
+    return bobMessage;
   }
 
   async exchange(message) {
