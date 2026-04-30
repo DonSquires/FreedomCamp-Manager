@@ -11,6 +11,7 @@ Requires Ollama >= 0.3.x for /api/chat support (pinned in Dockerfile via OLLAMA_
 
 import os
 import json
+import shutil
 import requests
 import runpod
 
@@ -570,26 +571,64 @@ def handler(job):
                 node_mod = os.path.join(repo_dir, "node_modules")
                 if os.path.exists(pkg_json) and not os.path.isdir(node_mod):
                     print("[worker] Installing repo Node deps...")
-                    subprocess.run(
-                        ["npm", "install", "--legacy-peer-deps", "--silent"],
-                        cwd=repo_dir,
-                        check=False,
-                        capture_output=True,
-                        timeout=300,
-                    )
+                    has_bun_lock = os.path.exists(os.path.join(repo_dir, "bun.lock")) or os.path.exists(os.path.join(repo_dir, "bun.lockb"))
+                    has_pkg_lock = os.path.exists(os.path.join(repo_dir, "package-lock.json"))
+                    if has_bun_lock and shutil.which("bun"):
+                        # Respect Bun-first repos to avoid npm peer resolution drift.
+                        subprocess.run(
+                            ["bun", "install", "--frozen-lockfile"],
+                            cwd=repo_dir,
+                            check=False,
+                            capture_output=True,
+                            timeout=420,
+                        )
+                    elif has_pkg_lock:
+                        subprocess.run(
+                            ["npm", "ci", "--legacy-peer-deps", "--silent"],
+                            cwd=repo_dir,
+                            check=False,
+                            capture_output=True,
+                            timeout=420,
+                        )
+                    else:
+                        subprocess.run(
+                            ["npm", "install", "--legacy-peer-deps", "--silent"],
+                            cwd=repo_dir,
+                            check=False,
+                            capture_output=True,
+                            timeout=420,
+                        )
 
-                # Write .env for tests
+                # Write .env for tests. Include fixed runtime keys plus prefixed
+                # role credentials so Playwright auth preflight can pass.
                 env_lines = []
-                for k in [
+                env_values = {}
+                fixed_keys = [
                     "VITE_SUPABASE_URL",
                     "VITE_SUPABASE_ANON_KEY",
                     "SUPABASE_SERVICE_ROLE_KEY",
                     "INFERENCE_SERVICE_URL",
                     "INFERENCE_API_KEY",
-                ]:
+                    "DEFAULT_PLAYWRIGHT_BASE_URL",
+                    "PLAYWRIGHT_BASE_URL",
+                ]
+                for k in fixed_keys:
                     v = inp.get(k) or os.environ.get(k, "")
                     if v:
-                        env_lines.append(f"{k}={v}")
+                        env_values[k] = v
+
+                for k, v in inp.items():
+                    if not isinstance(k, str):
+                        continue
+                    if not isinstance(v, str):
+                        continue
+                    if not v:
+                        continue
+                    if k.startswith("PLAYWRIGHT_") or k.startswith("E2E_") or k.startswith("API_TEST_"):
+                        env_values[k] = v
+
+                for k, v in env_values.items():
+                    env_lines.append(f"{k}={v}")
                 if env_lines:
                     with open(os.path.join(repo_dir, ".env"), "w") as ef:
                         ef.write("\n".join(env_lines) + "\n")
@@ -630,15 +669,33 @@ def handler(job):
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
             output_path = tmp.name
 
-        try:
-            result_proc = subprocess.run(
-                cmd,
+        def _run_playwright(run_cmd):
+            return subprocess.run(
+                run_cmd,
                 capture_output=True,
                 text=True,
                 cwd=working_dir,
                 timeout=timeout_ms // 1000 + 60,
                 env={**os.environ, "PLAYWRIGHT_JSON_OUTPUT_NAME": output_path},
             )
+
+        try:
+            result_proc = _run_playwright(cmd)
+
+            no_tests_msg = "No tests found"
+            stdout_probe = result_proc.stdout or ""
+            stderr_probe = result_proc.stderr or ""
+            if (
+                result_proc.returncode != 0
+                and not specs
+                and scope == "quick"
+                and (no_tests_msg in stdout_probe or no_tests_msg in stderr_probe)
+            ):
+                # Fallback for repos that do not tag smoke tests with @smoke.
+                fallback_cmd = ["npx", "playwright", "test", "tests/", "--reporter", reporter, "--timeout", str(timeout_ms)]
+                print("[worker] quick scope found no tagged tests, retrying with tests/")
+                result_proc = _run_playwright(fallback_cmd)
+
             stdout = result_proc.stdout[-8000:] if len(result_proc.stdout) > 8000 else result_proc.stdout
             stderr = result_proc.stderr[-4000:] if len(result_proc.stderr) > 4000 else result_proc.stderr
             exit_code = result_proc.returncode

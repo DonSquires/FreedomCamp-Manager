@@ -33,9 +33,10 @@ import process from 'node:process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-// ─── Load local .env ─────────────────────────────────────────────────────────
-const envPath = path.resolve(process.cwd(), '.env');
-if (fs.existsSync(envPath)) {
+// ─── Load local env files (.env first, then .env.playwright.local) ─────────
+function loadEnvFile(fileName) {
+  const envPath = path.resolve(process.cwd(), fileName);
+  if (!fs.existsSync(envPath)) return;
   for (const line of fs.readFileSync(envPath, 'utf8').split('\n')) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;
@@ -45,6 +46,43 @@ if (fs.existsSync(envPath)) {
     const val = trimmed.slice(eq + 1).trim();
     if (!process.env[key]) process.env[key] = val;
   }
+}
+
+loadEnvFile('.env');
+loadEnvFile('.env.playwright.local');
+
+function collectForwardedTestEnv() {
+  const out = {};
+  const prefixes = ['PLAYWRIGHT_', 'E2E_', 'API_TEST_'];
+  const exact = new Set([
+    'DEFAULT_PLAYWRIGHT_BASE_URL',
+    'PLAYWRIGHT_BASE_URL',
+    'VITE_SUPABASE_URL',
+    'VITE_SUPABASE_ANON_KEY',
+    'SUPABASE_SERVICE_ROLE_KEY',
+    'INFERENCE_SERVICE_URL',
+    'INFERENCE_API_KEY',
+  ]);
+
+  for (const [key, value] of Object.entries(process.env)) {
+    if (!value) continue;
+    const prefixed = prefixes.some((prefix) => key.startsWith(prefix));
+    if (prefixed || exact.has(key)) out[key] = value;
+  }
+
+  const aliases = [
+    ['PLAYWRIGHT_OFFICER_ORG1_EMAIL', 'PLAYWRIGHT_OFFICER_EMAIL'],
+    ['PLAYWRIGHT_OFFICER_ORG1_PASSWORD', 'PLAYWRIGHT_OFFICER_PASSWORD'],
+    ['PLAYWRIGHT_CLIENT_VIEWER_EMAIL', 'PLAYWRIGHT_CLIENT_EMAIL'],
+    ['PLAYWRIGHT_CLIENT_VIEWER_PASSWORD', 'PLAYWRIGHT_CLIENT_PASSWORD'],
+    ['PLAYWRIGHT_CLIENT_STAFF_EMAIL', 'PLAYWRIGHT_CLIENT_OFFICER_EMAIL'],
+    ['PLAYWRIGHT_CLIENT_STAFF_PASSWORD', 'PLAYWRIGHT_CLIENT_OFFICER_PASSWORD'],
+  ];
+  for (const [target, source] of aliases) {
+    if (!out[target] && out[source]) out[target] = out[source];
+  }
+
+  return out;
 }
 
 // ─── CLI args ─────────────────────────────────────────────────────────────────
@@ -158,6 +196,22 @@ function supabasePost(path, body, key) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+function withGithubAuth(url, token) {
+  const rawUrl = String(url || '').trim();
+  const rawToken = String(token || '').trim();
+  if (!rawUrl || !rawToken) return rawUrl;
+  if (!/^https:\/\/github\.com\//i.test(rawUrl)) return rawUrl;
+  if (rawUrl.includes('@github.com/')) return rawUrl;
+  const encodedToken = encodeURIComponent(rawToken);
+  return rawUrl.replace(/^https:\/\/github\.com\//i, `https://x-access-token:${encodedToken}@github.com/`);
+}
+
+function envBool(name, fallback = false) {
+  const raw = String(process.env[name] || '').trim().toLowerCase();
+  if (!raw) return fallback;
+  return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 async function run() {
   const startedAt = new Date().toISOString();
@@ -165,9 +219,13 @@ async function run() {
 
   // 1. Submit job
   const submitUrl = `${rawBase}/run`;
-  const REPO_URL    = process.env.GITHUB_REPO_URL    || 'https://github.com/DonSquires/FreedomCamp-Manager.git';
+  const REPO_URL_RAW = process.env.GITHUB_REPO_URL    || 'https://github.com/DonSquires/FreedomCamp-Manager.git';
   const REPO_BRANCH = process.env.GITHUB_REPO_BRANCH || 'main';
-  const REPO_TOKEN  = process.env.BOB_WORKER_GITHUB_TOKEN || process.env.GITHUB_TOKEN || '';
+  const REPO_TOKEN  = process.env.BOB_WORKER_GITHUB_TOKEN || process.env.GITHUB_TOKEN || process.env.GH_API || '';
+  const EMBED_REPO_TOKEN_IN_URL = envBool('BOB_SELF_TEST_EMBED_REPO_TOKEN_IN_URL', false);
+  const REPO_URL    = EMBED_REPO_TOKEN_IN_URL ? withGithubAuth(REPO_URL_RAW, REPO_TOKEN) : REPO_URL_RAW;
+
+  const forwardedTestEnv = collectForwardedTestEnv();
 
   const payload = {
     input: {
@@ -179,9 +237,8 @@ async function run() {
       repo_url:    REPO_URL,
       repo_branch: REPO_BRANCH,
       ...(REPO_TOKEN ? { repo_token: REPO_TOKEN } : {}),
-      // Pass Supabase creds so Bob can write .env for tests
-      ...(process.env.VITE_SUPABASE_URL        ? { VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL }           : {}),
-      ...(process.env.VITE_SUPABASE_ANON_KEY   ? { VITE_SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY } : {}),
+      // Pass test/runtime env so worker can build a complete .env for Playwright.
+      ...forwardedTestEnv,
     },
   };
   console.log(`[bob-self-test] Submitting run_playwright job to ${submitUrl}...`);
@@ -248,7 +305,7 @@ async function run() {
   console.log('══════════════════════════════════════════════\n');
 
   // 4. Post bug report to Supabase if failures found
-  if (!success && SUPABASE_URL && SERVICE_ROLE) {
+  if (!success && SUPABASE_URL && SERVICE_ROLE && REPORTER_USER) {
     const timestamp = startedAt;
     const title     = `Bob self-test failed [scope=${SCOPE}] at ${timestamp}`;
     const failureLines = failures.map(f => `- ${f.title}: ${String(f.error || '').slice(0, 150)}`).join('\n');
@@ -298,7 +355,7 @@ async function run() {
       }
     }
   } else if (!success) {
-    console.warn('[bob-self-test] Tests failed but VITE_SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY not set — skipping bug report');
+    console.warn('[bob-self-test] Tests failed but bug reporter context is incomplete (need VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SYNTHETIC_MONITOR_USER_ID) — skipping bug report');
   }
 
   // 5. Exit code

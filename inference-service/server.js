@@ -84,6 +84,7 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const { randomUUID } = require('crypto');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
 const { createSelfLearningService } = require('./lib/self-learning');
@@ -108,6 +109,261 @@ const {
 } = require('./lib/coding-knowledge');
 
 const execFileAsync = promisify(execFile);
+const podAsyncJobs = new Map();
+
+function createPodJobRecord() {
+  const now = Date.now();
+  return {
+    id: randomUUID(),
+    status: 'IN_QUEUE',
+    createdAt: now,
+    updatedAt: now,
+    output: null,
+    error: null,
+  };
+}
+
+function updatePodJob(jobId, patch) {
+  const current = podAsyncJobs.get(jobId);
+  if (!current) return null;
+  const next = {
+    ...current,
+    ...patch,
+    updatedAt: Date.now(),
+  };
+  podAsyncJobs.set(jobId, next);
+  return next;
+}
+
+function collectForwardedRunEnv(input = {}) {
+  const envValues = {};
+  const fixedKeys = [
+    'VITE_SUPABASE_URL',
+    'VITE_SUPABASE_ANON_KEY',
+    'SUPABASE_SERVICE_ROLE_KEY',
+    'INFERENCE_SERVICE_URL',
+    'INFERENCE_API_KEY',
+    'DEFAULT_PLAYWRIGHT_BASE_URL',
+    'PLAYWRIGHT_BASE_URL',
+  ];
+
+  for (const key of fixedKeys) {
+    const value = String(input?.[key] || process.env[key] || '').trim();
+    if (value) envValues[key] = value;
+  }
+
+  for (const [key, rawValue] of Object.entries(input || {})) {
+    if (typeof rawValue !== 'string') continue;
+    const value = rawValue.trim();
+    if (!value) continue;
+    if (key.startsWith('PLAYWRIGHT_') || key.startsWith('E2E_') || key.startsWith('API_TEST_')) {
+      envValues[key] = value;
+    }
+  }
+
+  return envValues;
+}
+
+function parsePlaywrightReport(reportData) {
+  let passed = 0;
+  let failed = 0;
+  let skipped = 0;
+  const failures = [];
+
+  if (reportData && typeof reportData === 'object') {
+    const stats = reportData.stats || {};
+    passed = Number(stats.expected || 0);
+    failed = Number(stats.unexpected || 0);
+    skipped = Number(stats.skipped || 0);
+
+    for (const suite of reportData.suites || []) {
+      for (const spec of suite.specs || []) {
+        for (const test of spec.tests || []) {
+          if (test.status === 'unexpected' || test.status === 'failed') {
+            failures.push({
+              title: spec.title || '',
+              file: spec.file || '',
+              error: ((test.results || [{}]).slice(-1)[0] || {}).error?.message || '',
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return {
+    stats: { passed, failed, skipped },
+    failures: failures.slice(0, 20),
+  };
+}
+
+async function runPlaywrightOnPod(input = {}) {
+  const repoDir = String(input.repo_dir || process.env.BOB_POD_REPO_DIR || '/workspace/repo').trim();
+  const workingDir = String(input.working_dir || repoDir).trim();
+  const repoBranch = String(input.repo_branch || process.env.GITHUB_REPO_BRANCH || 'main').trim();
+  const timeoutMs = Math.max(60_000, Number(input.timeout_ms || 120_000));
+  const reporter = String(input.reporter || 'json').trim() || 'json';
+  const scope = String(input.scope || 'quick').trim() || 'quick';
+  const specs = Array.isArray(input.specs) ? input.specs.filter((item) => typeof item === 'string' && item.trim()) : [];
+
+  if (!fs.existsSync(workingDir)) {
+    return { success: false, error: `working_dir not found: ${workingDir}`, provider: 'pod-playwright-runner' };
+  }
+
+  if (repoBranch && fs.existsSync(path.join(repoDir, '.git'))) {
+    try {
+      await execFileAsync('git', ['-C', repoDir, 'fetch', 'origin', repoBranch, '--depth=1'], {
+        timeout: 120_000,
+        env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+        maxBuffer: 1024 * 1024,
+      });
+      await execFileAsync('git', ['-C', repoDir, 'reset', '--hard', `origin/${repoBranch}`], {
+        timeout: 60_000,
+        maxBuffer: 1024 * 1024,
+      });
+    } catch (error) {
+      console.warn(`Pod repo refresh failed: ${error.message}`);
+    }
+  }
+
+  const pkgJson = path.join(repoDir, 'package.json');
+  const nodeModules = path.join(repoDir, 'node_modules');
+  if (fs.existsSync(pkgJson) && !fs.existsSync(nodeModules)) {
+    try {
+      if (fs.existsSync(path.join(repoDir, 'bun.lock')) || fs.existsSync(path.join(repoDir, 'bun.lockb'))) {
+        await execFileAsync('bun', ['install', '--frozen-lockfile'], {
+          cwd: repoDir,
+          timeout: 420_000,
+          maxBuffer: 1024 * 1024,
+        });
+      } else if (fs.existsSync(path.join(repoDir, 'package-lock.json'))) {
+        await execFileAsync('npm', ['ci', '--legacy-peer-deps', '--silent'], {
+          cwd: repoDir,
+          timeout: 420_000,
+          maxBuffer: 1024 * 1024,
+        });
+      } else {
+        await execFileAsync('npm', ['install', '--legacy-peer-deps', '--silent'], {
+          cwd: repoDir,
+          timeout: 420_000,
+          maxBuffer: 1024 * 1024,
+        });
+      }
+    } catch (error) {
+      return { success: false, error: `Dependency install failed: ${error.message}`, provider: 'pod-playwright-runner' };
+    }
+  }
+
+  const forwardedEnv = collectForwardedRunEnv(input);
+  if (Object.keys(forwardedEnv).length > 0) {
+    const envFile = path.join(repoDir, '.env');
+    fs.writeFileSync(envFile, Object.entries(forwardedEnv).map(([key, value]) => `${key}=${value}`).join('\n') + '\n');
+  }
+
+  const cmd = ['playwright', 'test', '--reporter', reporter];
+  if (specs.length > 0) {
+    cmd.push(...specs);
+  } else {
+    const scopeMap = {
+      quick: ['--grep', '@smoke', '--timeout', '30000'],
+      core: ['tests/'],
+      workflows: ['tests/workflows/'],
+      visual: ['tests/visual/'],
+      human: ['tests/human/'],
+      full: [],
+    };
+    cmd.push(...(scopeMap[scope] || []));
+  }
+  cmd.push('--timeout', String(timeoutMs));
+
+  const outputPath = path.join(os.tmpdir(), `pod-playwright-${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
+  const execEnv = {
+    ...process.env,
+    ...forwardedEnv,
+    PLAYWRIGHT_JSON_OUTPUT_NAME: outputPath,
+    INFERENCE_SERVICE_URL: forwardedEnv.INFERENCE_SERVICE_URL || process.env.INFERENCE_SERVICE_URL || `http://127.0.0.1:${PORT}`,
+    INFERENCE_API_KEY: forwardedEnv.INFERENCE_API_KEY || process.env.INFERENCE_API_KEY || '',
+  };
+
+  try {
+    let runResult = await execFileAsync('npx', cmd, {
+      cwd: workingDir,
+      env: execEnv,
+      timeout: timeoutMs + 60_000,
+      maxBuffer: 1024 * 1024 * 16,
+    }).then((result) => ({ ...result, exitCode: 0 })).catch((error) => ({
+      stdout: error.stdout || '',
+      stderr: error.stderr || error.message || '',
+      exitCode: typeof error.code === 'number' ? error.code : 1,
+    }));
+
+    const noTestsFound = String(runResult.stdout || '').includes('No tests found') || String(runResult.stderr || '').includes('No tests found');
+    if (runResult.exitCode !== 0 && specs.length === 0 && scope === 'quick' && noTestsFound) {
+      runResult = await execFileAsync('npx', ['playwright', 'test', 'tests/', '--reporter', reporter, '--timeout', String(timeoutMs)], {
+        cwd: workingDir,
+        env: execEnv,
+        timeout: timeoutMs + 60_000,
+        maxBuffer: 1024 * 1024 * 16,
+      }).then((result) => ({ ...result, exitCode: 0 })).catch((error) => ({
+        stdout: error.stdout || '',
+        stderr: error.stderr || error.message || '',
+        exitCode: typeof error.code === 'number' ? error.code : 1,
+      }));
+    }
+
+    let reportData = null;
+    try {
+      if (fs.existsSync(outputPath)) {
+        reportData = JSON.parse(fs.readFileSync(outputPath, 'utf8'));
+      }
+    } catch (error) {
+      console.warn(`Failed to parse Playwright report: ${error.message}`);
+    }
+    const parsed = parsePlaywrightReport(reportData);
+    return {
+      success: runResult.exitCode === 0,
+      exit_code: runResult.exitCode,
+      scope,
+      ...parsed,
+      stdout_tail: String(runResult.stdout || '').slice(-8000),
+      stderr_tail: String(runResult.stderr || '').slice(-4000),
+      provider: 'pod-playwright-runner',
+    };
+  } catch (error) {
+    return { success: false, error: error.message, provider: 'pod-playwright-runner' };
+  } finally {
+    try {
+      if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+    } catch {}
+  }
+}
+
+async function executePodAsyncJob(jobId, input = {}) {
+  updatePodJob(jobId, { status: 'IN_PROGRESS' });
+  try {
+    let output;
+    const action = String(input.action || '').trim();
+    if (action === 'run_playwright') {
+      output = await runPlaywrightOnPod(input);
+    } else if (action === 'ping') {
+      output = { success: true, provider: 'pod-helper', message: 'pong' };
+    } else {
+      output = { success: false, error: `Unsupported async pod action: ${action}`, provider: 'pod-helper' };
+    }
+
+    updatePodJob(jobId, {
+      status: output?.success === false ? 'FAILED' : 'COMPLETED',
+      output,
+      error: output?.success === false ? output?.error || null : null,
+    });
+  } catch (error) {
+    updatePodJob(jobId, {
+      status: 'FAILED',
+      output: { success: false, error: error.message, provider: 'pod-helper' },
+      error: error.message,
+    });
+  }
+}
 
 function logBobResponse(options = {}) {
   try {
@@ -4926,6 +5182,44 @@ app.post('/code/executor/run', codeTaskRateLimit, requireInferenceAuth, async (r
   } catch (error) {
     return res.status(500).json({ error: 'Failed to run internal code executor', message: error.message });
   }
+});
+
+// POST /run — lightweight async job surface for pod-hosted Bob helper work.
+app.post('/run', codeTaskRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const input = req.body?.input && typeof req.body.input === 'object' ? req.body.input : {};
+    const action = String(input.action || '').trim();
+    if (!action) {
+      return res.status(400).json({ error: 'input.action is required' });
+    }
+
+    const job = createPodJobRecord();
+    podAsyncJobs.set(job.id, job);
+    void executePodAsyncJob(job.id, input);
+
+    return res.json({
+      id: job.id,
+      status: 'IN_QUEUE',
+    });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to queue pod job', message: error.message });
+  }
+});
+
+// GET /status/:id — retrieve pod async job state for /run jobs.
+app.get('/status/:id', codeTaskRateLimit, requireInferenceAuth, (req, res) => {
+  const job = podAsyncJobs.get(String(req.params.id || '').trim());
+  if (!job) {
+    return res.status(404).json({ error: 'Pod job not found' });
+  }
+
+  return res.json({
+    id: job.id,
+    status: job.status,
+    output: job.output,
+    error: job.error,
+    delayTime: Math.max(0, job.updatedAt - job.createdAt),
+  });
 });
 
 // POST /code/tasks/:id/execute-internal — execute a specific task immediately
