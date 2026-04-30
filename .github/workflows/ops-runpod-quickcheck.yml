@@ -1,0 +1,180 @@
+name: Ops - RunPod Quickcheck
+
+on:
+  workflow_dispatch:
+    inputs:
+      endpoint_id:
+        description: RunPod serverless endpoint ID
+        required: false
+        default: n0bp1ifmq01cx2
+      pod_id:
+        description: Optional pod ID to probe
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  quickcheck:
+    name: RunPod quickcheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ENDPOINT_ID: ${{ github.event.inputs.endpoint_id }}
+      POD_ID_INPUT: ${{ github.event.inputs.pod_id }}
+      RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY != '' && secrets.RUNPOD_API_KEY || secrets.RUNPOD_ENDPOINT_API_KEY }}
+      INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
+      RUNPOD_POD_ID: ${{ secrets.RUNPOD_POD_ID }}
+
+    steps:
+      - name: Resolve inputs
+        id: resolve
+        run: |
+          set -euo pipefail
+          POD_ID="${POD_ID_INPUT:-}"
+          if [ -z "$POD_ID" ]; then
+            POD_ID="${RUNPOD_POD_ID:-}"
+          fi
+          echo "pod_id=$POD_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Validate secrets
+        id: validate
+        run: |
+          set -euo pipefail
+          if [ -z "${ENDPOINT_ID:-}" ]; then
+            echo "::error::Missing endpoint ID"
+            exit 1
+          fi
+          if [ -z "${INFERENCE_API_KEY:-}" ]; then
+            echo "::warning::INFERENCE_API_KEY is missing; serverless ping will be skipped"
+            echo "skip_serverless=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip_serverless=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -z "${RUNPOD_API_KEY:-}" ]; then
+            echo "::warning::RUNPOD_API_KEY/RUNPOD_ENDPOINT_API_KEY missing; control-plane checks will be skipped"
+            echo "skip_control=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip_control=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Serverless ping (/runsync)
+        id: serverless
+        if: steps.validate.outputs.skip_serverless != 'true'
+        run: |
+          set -euo pipefail
+          BODY='{"input":{"action":"ping"}}'
+          HTTP_CODE=$(curl -sS -o /tmp/serverless_ping.json -w "%{http_code}" --max-time 20 \
+            -X POST "https://api.runpod.ai/v2/${ENDPOINT_ID}/runsync" \
+            -H "Authorization: Bearer ${INFERENCE_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "$BODY" || true)
+          echo "http_code=$HTTP_CODE" >> "$GITHUB_OUTPUT"
+          jq -c '.' /tmp/serverless_ping.json > /tmp/serverless_ping_min.json || true
+
+      - name: Pod checks
+        id: pod
+        if: steps.resolve.outputs.pod_id != ''
+        run: |
+          set -euo pipefail
+          POD_ID="${{ steps.resolve.outputs.pod_id }}"
+
+          HCODE=$(curl -sS -o /tmp/pod_health.json -w "%{http_code}" --max-time 12 \
+            "https://${POD_ID}-3000.proxy.runpod.net/health" || true)
+
+          RCODE=$(curl -sS -o /tmp/pod_run.json -w "%{http_code}" --max-time 12 \
+            -X POST "https://${POD_ID}-3000.proxy.runpod.net/run" \
+            -H "Content-Type: application/json" \
+            -d '{"input":{"action":"ping"}}' || true)
+
+          echo "health_code=$HCODE" >> "$GITHUB_OUTPUT"
+          echo "run_code=$RCODE" >> "$GITHUB_OUTPUT"
+
+      - name: Control-plane checks
+        id: control
+        if: steps.validate.outputs.skip_control != 'true'
+        run: |
+          set -euo pipefail
+          ENDPOINT_JSON=$(curl -sS -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
+            "https://rest.runpod.io/v1/endpoints/${ENDPOINT_ID}")
+          echo "$ENDPOINT_JSON" > /tmp/endpoint.json
+          TEMPLATE_ID=$(jq -r '.templateId // ""' /tmp/endpoint.json)
+          echo "template_id=$TEMPLATE_ID" >> "$GITHUB_OUTPUT"
+
+          if [ -n "$TEMPLATE_ID" ]; then
+            curl -sS -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
+              "https://rest.runpod.io/v1/templates/${TEMPLATE_ID}" > /tmp/template.json
+          fi
+
+          POD_ID="${{ steps.resolve.outputs.pod_id }}"
+          if [ -n "$POD_ID" ]; then
+            curl -sS -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
+              "https://rest.runpod.io/v1/pods/${POD_ID}" > /tmp/pod_control.json
+          fi
+
+      - name: Build summary
+        if: always()
+        run: |
+          {
+            echo "## RunPod Quickcheck"
+            echo ""
+            echo "- Endpoint ID: ${ENDPOINT_ID}"
+            echo "- Pod ID: ${{ steps.resolve.outputs.pod_id || 'not-set' }}"
+            echo ""
+
+            echo "### Serverless"
+            if [ "${{ steps.validate.outputs.skip_serverless }}" = "true" ]; then
+              echo "- Status: skipped (missing INFERENCE_API_KEY)"
+            else
+              echo "- /runsync HTTP: ${{ steps.serverless.outputs.http_code }}"
+              echo "- Body (truncated):"
+              echo '```json'
+              head -c 500 /tmp/serverless_ping.json 2>/dev/null || true
+              echo
+              echo '```'
+            fi
+
+            echo "### Pod"
+            if [ -z "${{ steps.resolve.outputs.pod_id }}" ]; then
+              echo "- Status: skipped (no pod ID)"
+            else
+              echo "- /health HTTP: ${{ steps.pod.outputs.health_code }}"
+              echo "- /run HTTP: ${{ steps.pod.outputs.run_code }}"
+            fi
+
+            echo "### Control-plane"
+            if [ "${{ steps.validate.outputs.skip_control }}" = "true" ]; then
+              echo "- Status: skipped (missing RUNPOD API key)"
+            else
+              echo "- Template ID: ${{ steps.control.outputs.template_id }}"
+              echo "- Endpoint snapshot:"
+              echo '```json'
+              jq '{id,name,templateId,workersMin,workersMax,scalerType,scalerValue,idleTimeout,executionTimeoutMs}' /tmp/endpoint.json 2>/dev/null || true
+              echo '```'
+              if [ -f /tmp/template.json ]; then
+                echo "- Template snapshot:"
+                echo '```json'
+                jq '{id,name,imageName}' /tmp/template.json 2>/dev/null || true
+                echo '```'
+              fi
+              if [ -f /tmp/pod_control.json ]; then
+                echo "- Pod snapshot:"
+                echo '```json'
+                jq '{id,name,desiredStatus,lastStatusChange,imageName}' /tmp/pod_control.json 2>/dev/null || true
+                echo '```'
+              fi
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail on critical serverless check failure
+        if: steps.validate.outputs.skip_serverless != 'true'
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.serverless.outputs.http_code }}" != "200" ]; then
+            echo "Serverless check failed: /runsync HTTP ${{ steps.serverless.outputs.http_code }}"
+            exit 1
+          fi
