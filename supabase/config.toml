@@ -201,9 +201,6 @@ verify_jwt = false
 [functions.check-nzscv-status]
 verify_jwt = false
 
-[functions.check-railway-health]
-verify_jwt = false
-
 [functions.check-services-health]
 verify_jwt = false
 

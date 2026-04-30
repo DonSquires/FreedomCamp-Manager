@@ -86,8 +86,18 @@ export async function checkServicesHealth() {
       return { proxy: false, inference: false }
     }
 
-    // Proxy returns { status: 'ok' }; inference returns { status: 'healthy' }.
-    const proxyOk = data?.proxy?.status === 'ok' || data?.proxy?.status === 'healthy'
+    // Proxy is optional in RunPod-first deployments. Treat "not configured"
+    // as neutral so global health doesn't stay amber when proxy isn't used.
+    const proxyStatus = String(data?.proxy?.status || '').toLowerCase()
+    const proxyError = String(data?.proxy?.error || '').toLowerCase()
+    const proxyNotConfigured =
+      proxyStatus === 'not_configured' ||
+      proxyError.includes('not configured') ||
+      proxyError.includes('proxy_server_url')
+    const proxyOk =
+      proxyNotConfigured ||
+      proxyStatus === 'ok' ||
+      proxyStatus === 'healthy'
     const inferenceOk = data?.inference?.status === 'ok' || data?.inference?.status === 'healthy'
     return { proxy: proxyOk, inference: inferenceOk }
   } catch (error) {
@@ -95,6 +105,3 @@ export async function checkServicesHealth() {
     return { proxy: false, inference: false }
   }
 }
-
-/** @deprecated Use checkServicesHealth() */
-export const checkRailwayServicesHealth = checkServicesHealth

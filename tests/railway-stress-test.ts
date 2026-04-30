@@ -55,7 +55,7 @@ const testVehicles: TestVehicle[] = [
 
 async function getRailwayServiceURL(): Promise<string> {
   try {
-    const { data, error } = await supabase.functions.invoke('check-railway-health');
+    const { data, error } = await supabase.functions.invoke('check-services-health');
     
     if (error) {
       throw new Error(`Failed to get Railway URLs: ${error.message}`);

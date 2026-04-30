@@ -4,8 +4,9 @@
  * Bob-powered analysis and chat for FieldOps Manager admins.
  *
  * Self-contained policy:
- *   Primary provider is the Bob inference service (/chat endpoint, RunPod).
- *   Optional fallback provider is Ollama (/api/chat), controlled via env vars.
+ *   Primary provider is the Bob inference service (/chat endpoint or RunPod runsync).
+ *   Optional Ollama provider is only used when explicitly configured as a
+ *   distinct backend via OLLAMA_BASE_URL.
  *
  * Required secrets:
  *   INFERENCE_SERVICE_URL   Bob inference-service base URL (RunPod).
@@ -26,7 +27,9 @@ import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_share
 const BOB_RUNPOD_RETRIES = Math.max(2, Number(Deno.env.get('BOB_RUNPOD_RETRIES') ?? '2'))
 const BOB_RUNPOD_BACKOFF_MS = Math.max(100, Number(Deno.env.get('BOB_RUNPOD_BACKOFF_MS') ?? '700'))
 const BOB_RUNPOD_MAX_BACKOFF_MS = Math.max(BOB_RUNPOD_BACKOFF_MS, Number(Deno.env.get('BOB_RUNPOD_MAX_BACKOFF_MS') ?? '5000'))
-const BOB_RUNPOD_TIMEOUT_MS = Math.max(5000, Number(Deno.env.get('BOB_RUNPOD_TIMEOUT_MS') ?? '90000'))
+const BOB_RUNPOD_TIMEOUT_MS = Math.max(5000, Number(Deno.env.get('BOB_RUNPOD_TIMEOUT_MS') ?? '180000'))
+const BOB_RUNPOD_STATUS_TIMEOUT_MS = Math.max(5000, Number(Deno.env.get('BOB_RUNPOD_STATUS_TIMEOUT_MS') ?? '90000'))
+const BOB_RUNPOD_STATUS_POLL_MS = Math.max(500, Number(Deno.env.get('BOB_RUNPOD_STATUS_POLL_MS') ?? '1500'))
 const BOB_INFERENCE_CHAT_RETRIES = Math.max(0, Number(Deno.env.get('BOB_INFERENCE_CHAT_RETRIES') ?? '2'))
 const BOB_INFERENCE_CHAT_BACKOFF_MS = Math.max(100, Number(Deno.env.get('BOB_INFERENCE_CHAT_BACKOFF_MS') ?? '500'))
 const BOB_INFERENCE_CHAT_MAX_BACKOFF_MS = Math.max(
@@ -691,8 +694,9 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('RUNPOD_API_KEY') ??
       Deno.env.get('BOB_INFERENCE_API_KEY') ??
       ''
-    // Ollama defaults to the same base URL and credential as Bob inference when not configured separately.
-    const ollamaBaseUrl = normalizeBaseUrl(Deno.env.get('OLLAMA_BASE_URL') ?? inferenceUrl)
+    // Ollama provider is only active when explicitly configured as a distinct backend.
+    const explicitOllamaBaseUrl = normalizeBaseUrl(Deno.env.get('OLLAMA_BASE_URL') ?? '')
+    const ollamaBaseUrl = explicitOllamaBaseUrl
     const ollamaModel = normalizeOllamaModel(Deno.env.get('OLLAMA_MODEL') ?? model)
     const ollamaApiKey = Deno.env.get('OLLAMA_API_KEY') ?? inferenceApiKey
     const configuredProviderPreference = parseProviderPreference(Deno.env.get('BOB_CHAT_PROVIDER') ?? Deno.env.get('AI_CHAT_PROVIDER') ?? 'auto')
@@ -711,6 +715,12 @@ Deno.serve(async (req: Request) => {
         { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
       )
     }
+
+    const canUseOllamaProvider = Boolean(
+      ollamaBaseUrl &&
+      ollamaBaseUrl !== inferenceUrl &&
+      !isRunpodServerless(ollamaBaseUrl),
+    )
 
     // ── Cost-saver mode ──────────────────────────────────────────────────────
     // When BOB_COST_SAVER=true, skip RunPod/Ollama entirely and reply with the
@@ -821,6 +831,7 @@ Deno.serve(async (req: Request) => {
       .filter((m) => m.role === 'user' || m.role === 'assistant')
       .map((m) => ({ role: m.role, content: m.content }))
       .slice(0, -1) // exclude the current user message (sent separately as `message`)
+      .slice(-8) // keep recent turns only; helps RunPod runsync complete within timeout under load
 
     // Detect RunPod serverless endpoint (api.runpod.ai/v2/<id>)
     function isRunpodServerless(url: string): boolean {
@@ -833,6 +844,37 @@ Deno.serve(async (req: Request) => {
       if (!apiKey) throw new Error('RunPod API key not configured (INFERENCE_API_KEY / RUNPOD_ENDPOINT_API_KEY / RUNPOD_API_KEY / BOB_INFERENCE_API_KEY)')
 
       const runSyncUrl = `${baseUrl.replace(/\/(?:run|runsync)\/?$/i, '')}/runsync`
+      const runpodBaseUrl = baseUrl.replace(/\/(?:run|runsync|health)\/?$/i, '')
+
+      async function pollRunpodStatus(jobId: string): Promise<any> {
+        const statusUrl = `${runpodBaseUrl}/status/${jobId}`
+        const deadline = Date.now() + BOB_RUNPOD_STATUS_TIMEOUT_MS
+
+        while (Date.now() < deadline) {
+          const statusRes = await fetch(statusUrl, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${apiKey}` },
+            signal: AbortSignal.timeout(Math.min(10_000, BOB_RUNPOD_STATUS_TIMEOUT_MS)),
+          })
+
+          const statusText = await statusRes.text()
+          if (!statusRes.ok) {
+            throw new Error(`RunPod status HTTP ${statusRes.status}: ${statusText.slice(0, 300)}`)
+          }
+
+          const statusData = (() => { try { return JSON.parse(statusText) } catch { return null } })()
+          const state = String(statusData?.status ?? '').toUpperCase()
+
+          if (state === 'COMPLETED') return statusData
+          if (state === 'FAILED' || state === 'CANCELLED' || state === 'TIMED_OUT') {
+            throw new Error(`RunPod status ${state}: ${JSON.stringify(statusData?.error ?? statusData?.output ?? 'unknown').slice(0, 300)}`)
+          }
+
+          await sleep(BOB_RUNPOD_STATUS_POLL_MS)
+        }
+
+        throw new Error(`RunPod status polling timed out after ${BOB_RUNPOD_STATUS_TIMEOUT_MS}ms for job ${jobId}`)
+      }
 
       let lastError: Error | null = null
       let runpodCompatMode = false
@@ -900,8 +942,13 @@ Deno.serve(async (req: Request) => {
             throw runError
           }
 
-          const runData = (() => { try { return JSON.parse(runText) } catch { return null } })()
+          let runData = (() => { try { return JSON.parse(runText) } catch { return null } })()
           if (!runData) throw new Error(`RunPod returned non-JSON: ${runText.slice(0, 200)}`)
+
+          const initialState = String(runData?.status ?? '').toUpperCase()
+          if ((initialState === 'IN_QUEUE' || initialState === 'IN_PROGRESS') && runData?.id) {
+            runData = await pollRunpodStatus(String(runData.id))
+          }
 
           if (runData.status === 'FAILED') {
             const workerId = runData?.workerId ?? runData?.executionTime?.workerId ?? runData?.output?.metadata?.workerId ?? 'unknown'
@@ -919,12 +966,30 @@ Deno.serve(async (req: Request) => {
           }
 
           const output = runData.output
-          if (!output?.success) {
+          const responseText =
+            (typeof output === 'string' ? output : '') ||
+            output?.response ||
+            output?.message ||
+            output?.content ||
+            output?.text ||
+            output?.data?.response ||
+            output?.data?.message ||
+            ''
+
+          const hasUsableResponse = typeof responseText === 'string' && responseText.trim().length > 0
+          const runpodMarkedSuccess =
+            output?.success === true ||
+            output?.ok === true ||
+            output?.status === 'ok' ||
+            output?.status === 'success' ||
+            runData?.status === 'COMPLETED'
+
+          if (!runpodMarkedSuccess && !hasUsableResponse) {
             const workerId = runData?.workerId ?? runData?.executionTime?.workerId ?? output?.metadata?.workerId ?? 'unknown'
-            throw new Error(`RunPod worker error [endpoint=${baseUrl} job=${runData?.id ?? 'unknown'} worker=${workerId}]: ${String(output?.error ?? 'unknown').slice(0, 300)}`)
+            const errorDetail = JSON.stringify(output?.error ?? output ?? 'unknown').slice(0, 300)
+            throw new Error(`RunPod worker error [endpoint=${baseUrl} job=${runData?.id ?? 'unknown'} worker=${workerId}]: ${errorDetail}`)
           }
 
-          const responseText = output.response || output.message || output.content || ''
           if (!responseText) throw new Error('RunPod worker returned empty response')
 
           return {
@@ -934,6 +999,10 @@ Deno.serve(async (req: Request) => {
           }
         } catch (err: any) {
           const message = String(err?.message ?? err)
+          if (!isLastAttempt && (message.includes('AbortError') || message.includes('timed out') || message.includes('The signal has been aborted'))) {
+            // Under cold-start/high-load, retry with minimal payload mode.
+            runpodCompatMode = true
+          }
           const retryableError =
             message.includes('AbortError') ||
             message.includes('timed out') ||
@@ -1078,8 +1147,8 @@ Deno.serve(async (req: Request) => {
     }
 
     async function callOllamaProvider() {
-      if (!ollamaBaseUrl) {
-        throw new Error('OLLAMA_BASE_URL is not configured')
+      if (!canUseOllamaProvider || !ollamaBaseUrl) {
+        throw new Error('Ollama provider is disabled for unified backend configuration')
       }
 
       const ollamaMessages = messages.map((m) => ({ role: m.role, content: m.content }))
@@ -1147,12 +1216,16 @@ Deno.serve(async (req: Request) => {
 
     const providerOrder = (() => {
       if (providerPreference === 'ollama') {
+        if (!canUseOllamaProvider) {
+          // In unified deployments, coerce explicit ollama requests to inference.
+          return ['inference']
+        }
         return allowProviderFallback ? ['ollama', 'inference'] : ['ollama']
       }
       if (providerPreference === 'inference') {
-        return allowProviderFallback ? ['inference', 'ollama'] : ['inference']
+        return allowProviderFallback && canUseOllamaProvider ? ['inference', 'ollama'] : ['inference']
       }
-      return ['inference', 'ollama']
+      return canUseOllamaProvider ? ['inference', 'ollama'] : ['inference']
     })()
 
     let providerResult: { responseText: string; provider: string; model: string; degraded?: boolean } | null = null

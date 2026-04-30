@@ -1,6 +1,58 @@
 #!/bin/bash
 set -e
 
+# ---------------------------------------------------------------------------
+# Repo sync — clone or update FreedomCamp-Manager so Playwright tests,
+# scripts, and playwright.config.ts are available at /app/repo.
+# handler.py run_playwright uses working_dir=/app/repo.
+#
+# Required env: GITHUB_REPO_URL (e.g. https://github.com/DonSquires/FreedomCamp-Manager.git)
+# Optional env: GITHUB_REPO_BRANCH (default: main)
+#               GITHUB_TOKEN — set for private repo access
+# ---------------------------------------------------------------------------
+REPO_URL="${GITHUB_REPO_URL:-}"
+REPO_BRANCH="${GITHUB_REPO_BRANCH:-main}"
+REPO_DIR="/app/repo"
+
+if [ -n "$REPO_URL" ]; then
+  # Inject token into URL for private repo access
+  if [ -n "$GITHUB_TOKEN" ]; then
+    AUTH_URL="${REPO_URL/https:\/\//https:\/\/${GITHUB_TOKEN}@}"
+  else
+    AUTH_URL="$REPO_URL"
+  fi
+
+  if [ -d "$REPO_DIR/.git" ]; then
+    echo "[start] Updating repo at $REPO_DIR (branch: $REPO_BRANCH)..."
+    git -C "$REPO_DIR" fetch origin "$REPO_BRANCH" --depth=1 2>&1 | head -5
+    git -C "$REPO_DIR" reset --hard "origin/$REPO_BRANCH"
+    echo "[start] Repo updated to $(git -C $REPO_DIR rev-parse --short HEAD)"
+  else
+    echo "[start] Cloning repo into $REPO_DIR (branch: $REPO_BRANCH)..."
+    git clone --depth=1 --branch "$REPO_BRANCH" "$AUTH_URL" "$REPO_DIR"
+    echo "[start] Clone complete: $(git -C $REPO_DIR rev-parse --short HEAD)"
+  fi
+
+  # Install Node deps + Playwright config for the repo
+  if [ -f "$REPO_DIR/package.json" ]; then
+    echo "[start] Installing repo Node deps..."
+    cd "$REPO_DIR" && npm install --legacy-peer-deps --silent 2>&1 | tail -3 && cd /app
+  fi
+
+  # Write .env for tests — inject required Supabase + inference vars
+  ENV_FILE="$REPO_DIR/.env"
+  {
+    [ -n "$VITE_SUPABASE_URL" ]      && echo "VITE_SUPABASE_URL=$VITE_SUPABASE_URL"
+    [ -n "$VITE_SUPABASE_ANON_KEY" ] && echo "VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY"
+    [ -n "$SUPABASE_SERVICE_ROLE_KEY" ] && echo "SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY"
+    [ -n "$INFERENCE_SERVICE_URL" ]  && echo "INFERENCE_SERVICE_URL=$INFERENCE_SERVICE_URL"
+    [ -n "$INFERENCE_API_KEY" ]      && echo "INFERENCE_API_KEY=$INFERENCE_API_KEY"
+  } > "$ENV_FILE"
+  echo "[start] .env written to $ENV_FILE"
+else
+  echo "[start] GITHUB_REPO_URL not set — skipping repo clone (run_playwright will use /app only)"
+fi
+
 echo "[start] Starting Ollama..."
 ollama serve &
 OLLAMA_PID=$!

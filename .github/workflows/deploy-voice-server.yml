@@ -267,5 +267,5 @@ jobs:
             --project-ref "${SUPABASE_PROJECT_REF}"
 
           supabase functions deploy ptt-signaling-token --project-ref "${SUPABASE_PROJECT_REF}"
-          supabase functions deploy check-railway-health --project-ref "${SUPABASE_PROJECT_REF}"
+          supabase functions deploy check-services-health --project-ref "${SUPABASE_PROJECT_REF}"
           supabase functions deploy check-ptt-health --project-ref "${SUPABASE_PROJECT_REF}"

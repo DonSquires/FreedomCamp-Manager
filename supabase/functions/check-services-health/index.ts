@@ -2,7 +2,6 @@
  * check-services-health
  *
  * Canonical health endpoint for proxy, RunPod inference, and PTT services.
- * Legacy alias: check-railway-health (kept for backward compatibility).
  */
 
 import { getCorsHeaders } from '../_shared/withCors.ts'
@@ -60,11 +59,12 @@ const INFERENCE_SERVICE_URL = inferenceValidation.url
 const PTT_SERVER_URL = pttValidation.url
 
 function isRunpodServerlessUrl(url: string): boolean {
-  return /api\.runpod\.ai\/v2\/[^/]+(?:\/(?:run|runsync))?\/?$/i.test(url)
+  return /api\.runpod\.ai\/v2\/[^/]+(?:\/(?:run|runsync|health))?\/?$/i.test(url)
 }
 
-function normalizeRunpodRunSyncUrl(url: string): string {
-  return `${url.replace(/\/(?:run|runsync)\/?$/i, '')}/runsync`
+function normalizeRunpodBaseUrl(url: string): string {
+  // Strip any existing path suffix (/run, /runsync, /health, trailing slash)
+  return url.replace(/\/(run|runsync|health)\/?$/i, '').replace(/\/$/, '')
 }
 
 async function safeJson(response: Response): Promise<Record<string, unknown>> {
@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
       (async () => {
         if (!PROXY_SERVER_URL) {
           return {
-            status: 'offline',
+            status: 'not_configured',
             error: proxyValidation.error || 'PROXY_SERVER_URL not configured',
             ...(proxyValidation.warning ? { warning: proxyValidation.warning } : {}),
           }
@@ -132,38 +132,25 @@ Deno.serve(async (req) => {
               }
             }
 
-            const runSyncUrl = normalizeRunpodRunSyncUrl(INFERENCE_SERVICE_URL)
-            const response = await fetch(runSyncUrl, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${INFERENCE_API_KEY}`,
-                'x-inference-api-key': INFERENCE_API_KEY,
-              },
-              body: JSON.stringify({ input: { action: 'ping' } }),
+            // Use /health endpoint — returns worker info instantly without running a job.
+            const healthUrl = `${normalizeRunpodBaseUrl(INFERENCE_SERVICE_URL)}/health`
+            const response = await fetch(healthUrl, {
+              method: 'GET',
+              headers: { 'Authorization': `Bearer ${INFERENCE_API_KEY}` },
               signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT_MS),
             })
 
-            const rawText = await response.text()
-            const parsed = (() => {
-              try { return JSON.parse(rawText) } catch { return null }
-            })()
-
             if (!response.ok) {
-              return { status: 'offline', error: `HTTP ${response.status}` }
+              return { status: 'offline', error: `HTTP ${response.status}`, ...(inferenceValidation.warning ? { warning: inferenceValidation.warning } : {}) }
             }
 
-            const runPodSuccess =
-              parsed?.status === 'COMPLETED' &&
-              (parsed?.output?.success === true || parsed?.output?.status === 'ok' || parsed?.output?.status === 'healthy')
-
-            if (!runPodSuccess) {
-              return { status: 'degraded', error: 'RunPod ping did not return a healthy completion state' }
-            }
-
+            const parsed = await safeJson(response)
+            // /health returns { workers: { idle, running, ... } }
+            // Any 200 response means the endpoint is reachable and accepting requests.
             return {
               status: 'ok',
               provider: 'runpod-serverless',
+              workers: parsed?.workers ?? null,
               ...(inferenceValidation.warning ? { warning: inferenceValidation.warning } : {}),
             }
           }

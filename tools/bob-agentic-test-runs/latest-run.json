@@ -1,22 +1,23 @@
 {
-  "updatedAt": "2026-04-29T04:07:53.904Z",
-  "runId": "2026-04-29T03-59-19-584Z",
-  "batch": "all",
-  "scope": "quick",
+  "updatedAt": "2026-04-30T05:03:33.802Z",
+  "runId": "2026-04-30T05-02-31-163Z",
+  "batch": "visual",
+  "scope": "full",
   "resumeMode": false,
   "continueOnFailure": true,
-  "startedAt": "2026-04-29T03:59:19.599Z",
+  "startedAt": "2026-04-30T05:02:31.177Z",
   "endedAt": null,
   "summary": {
-    "passed": 2,
-    "failed": 1
+    "passed": 0,
+    "failed": 0
   },
-  "failedStages": [
+  "failedStages": [],
+  "failureContexts": [
     {
-      "id": "build",
-      "exitCode": 2,
-      "durationMs": 214693
+      "folder": "deep-functional-Field-Offi-9d4d9-report-submits-successfully-webkit",
+      "testName": "deep-functional.spec.ts >> Field Officer Portal — Quick Report >> Quick H&S report submits successfully",
+      "location": "tests/e2e/deep-functional.spec.ts:871:3",
+      "error": "Error: browserType.launch: Executable doesn't exist at /home/vscode/.cache/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-linux64/chrome-headless-shell"
     }
-  ],
-  "failureContexts": []
+  ]
 }

@@ -1,5 +1,5 @@
 {
-  "os": "Ubuntu 24.04.4 LTS",
+  "os": "Alpine Linux v3.23",
   "node_version": "v24.14.1",
   "bun_version": "not installed",
   "modules": [
@@ -8,11 +8,13 @@
   "lockfiles": [
     "bun.lock"
   ],
-  "generated_at": "2026-04-30T01:55:32Z",
+  "generated_at": "2026-04-30T05:24:34Z",
   "source": "scripts/system-check.sh",
   "monitor": {
-    "checked_at": "2026-04-30T01:55:32.874Z",
-    "status": "healthy",
-    "note": "CI environment — log scan skipped"
+    "checked_at": "2026-04-30T05:24:34.801Z",
+    "window_minutes": 15,
+    "error_threshold": 5,
+    "recent_500_errors": 0,
+    "status": "healthy"
   }
 }

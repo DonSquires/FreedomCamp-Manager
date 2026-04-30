@@ -1,0 +1,16 @@
+{
+  "runId": "2026-04-30T05-02-31-163Z",
+  "batch": "visual",
+  "scope": "full",
+  "startedAt": "2026-04-30T05:02:31.177Z",
+  "endedAt": null,
+  "resumeMode": false,
+  "continueOnFailure": true,
+  "browserInstallAttempted": true,
+  "browserInstallExitCode": 0,
+  "stages": [],
+  "summary": {
+    "passed": 0,
+    "failed": 0
+  }
+}

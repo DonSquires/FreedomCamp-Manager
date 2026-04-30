@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { toast } from 'sonner'
+import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 
 interface Patrol {
   id: string
@@ -51,9 +52,11 @@ interface UsePatrolsOptions {
 
 export function usePatrols(options: UsePatrolsOptions = {}) {
   const { organizationId, zoneId, officerId, status = 'all' } = options
+  const { operationalOrganizationId } = useOperationalOrganization()
+  const effectiveOrganizationId = organizationId ?? operationalOrganizationId
 
   return useQuery({
-    queryKey: ['patrols', organizationId, zoneId, officerId, status],
+    queryKey: ['patrols', effectiveOrganizationId, zoneId, officerId, status],
     queryFn: async () => {
       let query = (supabase
         .from('patrols') as any)
@@ -65,8 +68,8 @@ export function usePatrols(options: UsePatrolsOptions = {}) {
         `)
         .order('created_at', { ascending: false })
 
-      if (organizationId) {
-        query = query.eq('organization_id', organizationId)
+      if (effectiveOrganizationId) {
+        query = query.eq('organization_id', effectiveOrganizationId)
       }
 
       if (zoneId) {
@@ -90,10 +93,12 @@ export function usePatrols(options: UsePatrolsOptions = {}) {
 }
 
 export function usePatrol(patrolId: string) {
+  const { operationalOrganizationId } = useOperationalOrganization()
+
   return useQuery({
-    queryKey: ['patrol', patrolId],
+    queryKey: ['patrol', patrolId, operationalOrganizationId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('patrols')
         .select(`
           *,
@@ -101,7 +106,12 @@ export function usePatrol(patrolId: string) {
           officer:user_profiles!patrols_officer_id_fkey(first_name, last_name, email)
         `)
         .eq('id', patrolId)
-        .single()
+
+      if (operationalOrganizationId) {
+        query = query.eq('organization_id', operationalOrganizationId)
+      }
+
+      const { data, error } = await query.single()
 
       if (error) throw error
       return data as unknown as PatrolWithDetails
@@ -167,14 +177,17 @@ export function useCompletePatrol() {
 }
 
 export function usePatrolStats(organizationId?: string | null) {
+  const { operationalOrganizationId } = useOperationalOrganization()
+  const effectiveOrganizationId = organizationId ?? operationalOrganizationId
+
   return useQuery({
-    queryKey: ['patrol-stats', organizationId],
+    queryKey: ['patrol-stats', effectiveOrganizationId],
     queryFn: async () => {
       let query = supabase.from('patrols')
         .select('status, vehicles_checked, breaches_found', { count: 'exact' })
 
-      if (organizationId) {
-        query = query.eq('organization_id', organizationId)
+      if (effectiveOrganizationId) {
+        query = query.eq('organization_id', effectiveOrganizationId)
       }
 
       const { data, error, count } = await query

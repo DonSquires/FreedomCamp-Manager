@@ -618,11 +618,6 @@ export const edgeFunctions = {
     return callEdgeFunction('check-services-health')
   },
 
-  /** @deprecated Use checkServicesHealth() */
-  checkRailwayHealth: async () => {
-    return callEdgeFunction('check-services-health')
-  },
-
   /**
    * AI-powered file import
    */

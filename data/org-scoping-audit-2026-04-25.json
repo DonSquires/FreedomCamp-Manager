@@ -1,0 +1,2669 @@
+{
+  "generatedAt": "2026-04-30T03:45:22.695Z",
+  "scope": [
+    "src/hooks",
+    "src/lib"
+  ],
+  "policy": {
+    "requiresOrgScope": [
+      "observations",
+      "breach_alerts",
+      "patrols",
+      "patrol_checkpoints",
+      "zones",
+      "enforcement_actions",
+      "import_batches",
+      "audit_log",
+      "plate_scans",
+      "incidents",
+      "dispatch_jobs",
+      "chat_messages"
+    ],
+    "allowGlobal": [
+      "organizations",
+      "user_profiles",
+      "notifications",
+      "canonical_vehicles"
+    ]
+  },
+  "summary": {
+    "total": 225,
+    "ok": 84,
+    "known_exception": 2,
+    "missing_org_filter": 44,
+    "allowed_global_or_user_scoped": 38,
+    "review": 57
+  },
+  "missingOrgFilter": [
+    {
+      "file": "src/hooks/useAuditLogs.ts",
+      "line": 163,
+      "table": "audit_log",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useBreaches.ts",
+      "line": 102,
+      "table": "breach_alerts",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useBreaches.ts",
+      "line": 123,
+      "table": "breach_alerts",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useBreaches.ts",
+      "line": 151,
+      "table": "breach_alerts",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useChatMessages.ts",
+      "line": 71,
+      "table": "chat_messages",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useEnforcementActions.ts",
+      "line": 153,
+      "table": "enforcement_actions",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useEnforcementActions.ts",
+      "line": 182,
+      "table": "enforcement_actions",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useEnforcementActions.ts",
+      "line": 209,
+      "table": "enforcement_actions",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useImportHistory.ts",
+      "line": 222,
+      "table": "import_batches",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useIncidents.ts",
+      "line": 70,
+      "table": "incidents",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOfficerNotifications.ts",
+      "line": 124,
+      "table": "breach_alerts",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOfficerNotifications.ts",
+      "line": 225,
+      "table": "breach_alerts",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOfficerNotifications.ts",
+      "line": 230,
+      "table": "breach_alerts",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOfficerNotifications.ts",
+      "line": 250,
+      "table": "breach_alerts",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePatrolCheckpoints.ts",
+      "line": 140,
+      "table": "patrol_checkpoints",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePatrolRouteInstances.ts",
+      "line": 344,
+      "table": "audit_log",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePatrols.ts",
+      "line": 128,
+      "table": "patrols",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePatrols.ts",
+      "line": 157,
+      "table": "patrols",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePatrols.ts",
+      "line": 289,
+      "table": "patrols",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePlateScans.ts",
+      "line": 166,
+      "table": "plate_scans",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePlateScans.ts",
+      "line": 193,
+      "table": "plate_scans",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useShiftGate.ts",
+      "line": 97,
+      "table": "zones",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useVehicleAnalysis.ts",
+      "line": 41,
+      "table": "observations",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useVehicleAnalysis.ts",
+      "line": 145,
+      "table": "observations",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useVehicleCompliance.ts",
+      "line": 192,
+      "table": "observations",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useVehicleProfilePhoto.ts",
+      "line": 53,
+      "table": "observations",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useVehicleProfilePhoto.ts",
+      "line": 125,
+      "table": "observations",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useZones.ts",
+      "line": 90,
+      "table": "zones",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useZones.ts",
+      "line": 116,
+      "table": "zones",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useZones.ts",
+      "line": 138,
+      "table": "zones",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/dispatchJobs.ts",
+      "line": 25,
+      "table": "dispatch_jobs",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/dispatchJobs.ts",
+      "line": 36,
+      "table": "dispatch_jobs",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/fullExport.ts",
+      "line": 271,
+      "table": "observations",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/geofence.ts",
+      "line": 371,
+      "table": "patrols",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/geofence.ts",
+      "line": 386,
+      "table": "patrols",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/scanPipeline.ts",
+      "line": 71,
+      "table": "observations",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 151,
+      "table": "zones",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 178,
+      "table": "observations",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 207,
+      "table": "breach_alerts",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 360,
+      "table": "observations",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 400,
+      "table": "observations",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 465,
+      "table": "zones",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 468,
+      "table": "observations",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 471,
+      "table": "breach_alerts",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    }
+  ],
+  "reviewNeeded": [
+    {
+      "file": "src/hooks/useFlaggedVehicles.ts",
+      "line": 145,
+      "table": "flagged_vehicles",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useFlaggedVehicles.ts",
+      "line": 167,
+      "table": "flagged_vehicles",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useHealthSafety.ts",
+      "line": 154,
+      "table": "health_safety_reports",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useHealthSafety.ts",
+      "line": 173,
+      "table": "health_safety_reports",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useHealthSafety.ts",
+      "line": 216,
+      "table": "health_safety_reports",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useManDownDetection.ts",
+      "line": 89,
+      "table": "officer_welfare_alerts",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useManDownDetection.ts",
+      "line": 197,
+      "table": "officer_welfare_alerts",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOfficerNotifications.ts",
+      "line": 152,
+      "table": "flagged_vehicles",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOfficerNotifications.ts",
+      "line": 179,
+      "table": "investigation_jobs",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOfficerNotifications.ts",
+      "line": 258,
+      "table": "flagged_vehicles",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOfficerNotifications.ts",
+      "line": 266,
+      "table": "investigation_jobs",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOfficerWelfareMonitor.ts",
+      "line": 102,
+      "table": "officer_welfare_alerts",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOfficerWelfareMonitor.ts",
+      "line": 125,
+      "table": "officer_welfare_alerts",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOfficerWelfareMonitor.ts",
+      "line": 170,
+      "table": "officer_welfare_settings",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePatrolCheckpoints.ts",
+      "line": 113,
+      "table": "checkpoint_visits",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePatrolRouteInstances.ts",
+      "line": 155,
+      "table": "patrol_route_instance_stops",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePatrolRouteInstances.ts",
+      "line": 294,
+      "table": "patrol_route_instance_stops",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePatrolRouteInstances.ts",
+      "line": 312,
+      "table": "patrol_route_instance_stops",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePatrolRouteInstances.ts",
+      "line": 350,
+      "table": "patrol_route_instance_stops",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePatrolRouteInstances.ts",
+      "line": 362,
+      "table": "patrol_route_instances",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePatrolRouteInstances.ts",
+      "line": 370,
+      "table": "patrol_route_instances",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePersonRecords.ts",
+      "line": 95,
+      "table": "person_records",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePersonRecords.ts",
+      "line": 122,
+      "table": "person_records",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePersonRecords.ts",
+      "line": 154,
+      "table": "person_records",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePersonRecords.ts",
+      "line": 176,
+      "table": "person_records",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePersonRecords.ts",
+      "line": 199,
+      "table": "person_records",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePersonRecords.ts",
+      "line": 265,
+      "table": "person_observations",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePointsOfInterest.ts",
+      "line": 142,
+      "table": "persons_of_interest",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePointsOfInterest.ts",
+      "line": 159,
+      "table": "persons_of_interest",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePointsOfInterest.ts",
+      "line": 224,
+      "table": "vehicles_of_interest",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePointsOfInterest.ts",
+      "line": 241,
+      "table": "vehicles_of_interest",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePointsOfInterest.ts",
+      "line": 314,
+      "table": "trespass_notices",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useRosteredShift.ts",
+      "line": 76,
+      "table": "roster_shifts",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useRosteredShift.ts",
+      "line": 131,
+      "table": "officer_activity_rates",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useShiftGate.ts",
+      "line": 113,
+      "table": "officer_shifts",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useSiteGuardDashboard.ts",
+      "line": 148,
+      "table": "client_sites",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useSiteGuardDashboard.ts",
+      "line": 232,
+      "table": "site_incidents",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useSiteGuardDashboard.ts",
+      "line": 283,
+      "table": "site_incidents",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useSiteRiskAssessment.ts",
+      "line": 168,
+      "table": "site_risk_assessments",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useSiteRiskAssessment.ts",
+      "line": 186,
+      "table": "site_risk_assessments",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useSiteRiskAssessment.ts",
+      "line": 204,
+      "table": "site_risk_assessments",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useWelfareCheckin.ts",
+      "line": 93,
+      "table": "officer_welfare_settings",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobLearningMemory.ts",
+      "line": 212,
+      "table": "bob_learning_memory",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobLearningMemory.ts",
+      "line": 222,
+      "table": "bob_learning_memory",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobLearningMemory.ts",
+      "line": 231,
+      "table": "bob_learning_memory",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobLearningMemory.ts",
+      "line": 239,
+      "table": "bob_learning_memory",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobLearningMemory.ts",
+      "line": 291,
+      "table": "bob_conversation_memory",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobLearningMemory.ts",
+      "line": 299,
+      "table": "bob_conversation_memory",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobLearningMemory.ts",
+      "line": 344,
+      "table": "bob_conversation_memory",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobLearningMemory.ts",
+      "line": 349,
+      "table": "bob_learning_memory",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobLearningMemory.ts",
+      "line": 386,
+      "table": "bob_conversation_memory",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobLearningMemory.ts",
+      "line": 397,
+      "table": "bob_conversation_memory",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobLearningMemory.ts",
+      "line": 403,
+      "table": "bob_learning_memory",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobLearningMemory.ts",
+      "line": 414,
+      "table": "bob_learning_memory",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobLearningMemory.ts",
+      "line": 430,
+      "table": "bob_conversation_memory",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobLearningMemory.ts",
+      "line": 433,
+      "table": "bob_learning_memory",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 513,
+      "table": "bug_reports",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    }
+  ],
+  "knownExceptions": [
+    {
+      "file": "src/hooks/useAuditLogs.ts",
+      "line": 90,
+      "table": "audit_log",
+      "status": "known_exception",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useAuditLogs.ts",
+      "line": 218,
+      "table": "audit_log",
+      "status": "known_exception",
+      "orgRequired": true,
+      "scoped": false
+    }
+  ],
+  "findings": [
+    {
+      "file": "src/hooks/useAuditLogs.ts",
+      "line": 48,
+      "table": "audit_log",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useAuditLogs.ts",
+      "line": 90,
+      "table": "audit_log",
+      "status": "known_exception",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useAuditLogs.ts",
+      "line": 163,
+      "table": "audit_log",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useAuditLogs.ts",
+      "line": 199,
+      "table": "audit_log",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useAuditLogs.ts",
+      "line": 218,
+      "table": "audit_log",
+      "status": "known_exception",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useAutoErrorReporter.ts",
+      "line": 112,
+      "table": "bug_reports",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useBobActionApproval.ts",
+      "line": 74,
+      "table": "audit_log",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useBreaches.ts",
+      "line": 55,
+      "table": "breach_alerts",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useBreaches.ts",
+      "line": 102,
+      "table": "breach_alerts",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useBreaches.ts",
+      "line": 123,
+      "table": "breach_alerts",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useBreaches.ts",
+      "line": 151,
+      "table": "breach_alerts",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useBreaches.ts",
+      "line": 175,
+      "table": "breach_alerts",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useChatMessages.ts",
+      "line": 71,
+      "table": "chat_messages",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useChatMessages.ts",
+      "line": 103,
+      "table": "chat_messages",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useChatMessages.ts",
+      "line": 150,
+      "table": "chat_read_receipts",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useDashboardStats.ts",
+      "line": 65,
+      "table": "observations",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useDashboardStats.ts",
+      "line": 66,
+      "table": "observations",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useDashboardStats.ts",
+      "line": 67,
+      "table": "breach_alerts",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useDashboardStats.ts",
+      "line": 68,
+      "table": "canonical_vehicles",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useDashboardStats.ts",
+      "line": 69,
+      "table": "patrols",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useDashboardStats.ts",
+      "line": 130,
+      "table": "observations",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useEnabledModules.ts",
+      "line": 92,
+      "table": "organization_modules",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useEnabledModules.ts",
+      "line": 203,
+      "table": "organization_modules",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useEnforcementActions.ts",
+      "line": 67,
+      "table": "enforcement_actions",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useEnforcementActions.ts",
+      "line": 119,
+      "table": "enforcement_actions",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useEnforcementActions.ts",
+      "line": 153,
+      "table": "enforcement_actions",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useEnforcementActions.ts",
+      "line": 182,
+      "table": "enforcement_actions",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useEnforcementActions.ts",
+      "line": 209,
+      "table": "enforcement_actions",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useFlaggedVehicles.ts",
+      "line": 68,
+      "table": "flagged_vehicles",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useFlaggedVehicles.ts",
+      "line": 111,
+      "table": "flagged_vehicles",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useFlaggedVehicles.ts",
+      "line": 145,
+      "table": "flagged_vehicles",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useFlaggedVehicles.ts",
+      "line": 167,
+      "table": "flagged_vehicles",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useHealthSafety.ts",
+      "line": 68,
+      "table": "health_safety_reports",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useHealthSafety.ts",
+      "line": 115,
+      "table": "health_safety_reports",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useHealthSafety.ts",
+      "line": 154,
+      "table": "health_safety_reports",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useHealthSafety.ts",
+      "line": 173,
+      "table": "health_safety_reports",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useHealthSafety.ts",
+      "line": 216,
+      "table": "health_safety_reports",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useImportHistory.ts",
+      "line": 98,
+      "table": "import_batches",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useImportHistory.ts",
+      "line": 163,
+      "table": "import_batches",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useImportHistory.ts",
+      "line": 222,
+      "table": "import_batches",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useIncidents.ts",
+      "line": 70,
+      "table": "incidents",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useIncidents.ts",
+      "line": 133,
+      "table": "incidents",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useIncidents.ts",
+      "line": 169,
+      "table": "incidents",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useIncidents.ts",
+      "line": 201,
+      "table": "incidents",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useIncidents.ts",
+      "line": 249,
+      "table": "incidents",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useManDownDetection.ts",
+      "line": 89,
+      "table": "officer_welfare_alerts",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useManDownDetection.ts",
+      "line": 116,
+      "table": "officer_welfare_alerts",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useManDownDetection.ts",
+      "line": 197,
+      "table": "officer_welfare_alerts",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useNotifications.ts",
+      "line": 53,
+      "table": "notifications",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useNotifications.ts",
+      "line": 82,
+      "table": "notifications",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useNotifications.ts",
+      "line": 105,
+      "table": "notifications",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useNotifications.ts",
+      "line": 128,
+      "table": "notifications",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useNotifications.ts",
+      "line": 193,
+      "table": "notifications",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useNotifications.ts",
+      "line": 219,
+      "table": "user_profiles",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOfficerNotifications.ts",
+      "line": 69,
+      "table": "user_profiles",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOfficerNotifications.ts",
+      "line": 98,
+      "table": "user_profiles",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOfficerNotifications.ts",
+      "line": 124,
+      "table": "breach_alerts",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOfficerNotifications.ts",
+      "line": 152,
+      "table": "flagged_vehicles",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOfficerNotifications.ts",
+      "line": 179,
+      "table": "investigation_jobs",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOfficerNotifications.ts",
+      "line": 225,
+      "table": "breach_alerts",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOfficerNotifications.ts",
+      "line": 230,
+      "table": "breach_alerts",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOfficerNotifications.ts",
+      "line": 250,
+      "table": "breach_alerts",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOfficerNotifications.ts",
+      "line": 258,
+      "table": "flagged_vehicles",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOfficerNotifications.ts",
+      "line": 266,
+      "table": "investigation_jobs",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOfficerWelfareMonitor.ts",
+      "line": 66,
+      "table": "officer_welfare_alerts",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useOfficerWelfareMonitor.ts",
+      "line": 102,
+      "table": "officer_welfare_alerts",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOfficerWelfareMonitor.ts",
+      "line": 125,
+      "table": "officer_welfare_alerts",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOfficerWelfareMonitor.ts",
+      "line": 170,
+      "table": "officer_welfare_settings",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOfficerWelfareMonitor.ts",
+      "line": 195,
+      "table": "officer_welfare_settings",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useOfficerWelfareMonitor.ts",
+      "line": 202,
+      "table": "officer_welfare_settings",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useOfficerWelfareMonitor.ts",
+      "line": 210,
+      "table": "officer_welfare_settings",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useOfficerWelfareMonitor.ts",
+      "line": 247,
+      "table": "officer_welfare_alerts",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useOrganizationBoundary.ts",
+      "line": 101,
+      "table": "organizations",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOrganizations.ts",
+      "line": 31,
+      "table": "organizations",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOrganizations.ts",
+      "line": 50,
+      "table": "organizations",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOrganizations.ts",
+      "line": 75,
+      "table": "organizations",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOrganizations.ts",
+      "line": 101,
+      "table": "organizations",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOrganizations.ts",
+      "line": 123,
+      "table": "organizations",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useOrganizations.ts",
+      "line": 146,
+      "table": "user_profiles",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useOrganizations.ts",
+      "line": 152,
+      "table": "zones",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useOrganizations.ts",
+      "line": 158,
+      "table": "observations",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useOrganizations.ts",
+      "line": 164,
+      "table": "breach_alerts",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/usePatrolCheckpoints.ts",
+      "line": 82,
+      "table": "patrol_checkpoints",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/usePatrolCheckpoints.ts",
+      "line": 113,
+      "table": "checkpoint_visits",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePatrolCheckpoints.ts",
+      "line": 140,
+      "table": "patrol_checkpoints",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePatrolCheckpoints.ts",
+      "line": 170,
+      "table": "checkpoint_visits",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/usePatrolRouteInstances.ts",
+      "line": 125,
+      "table": "patrol_route_instances",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/usePatrolRouteInstances.ts",
+      "line": 155,
+      "table": "patrol_route_instance_stops",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePatrolRouteInstances.ts",
+      "line": 181,
+      "table": "patrol_route_instances",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/usePatrolRouteInstances.ts",
+      "line": 294,
+      "table": "patrol_route_instance_stops",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePatrolRouteInstances.ts",
+      "line": 312,
+      "table": "patrol_route_instance_stops",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePatrolRouteInstances.ts",
+      "line": 344,
+      "table": "audit_log",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePatrolRouteInstances.ts",
+      "line": 350,
+      "table": "patrol_route_instance_stops",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePatrolRouteInstances.ts",
+      "line": 362,
+      "table": "patrol_route_instances",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePatrolRouteInstances.ts",
+      "line": 370,
+      "table": "patrol_route_instances",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePatrols.ts",
+      "line": 62,
+      "table": "patrols",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/usePatrols.ts",
+      "line": 102,
+      "table": "patrols",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/usePatrols.ts",
+      "line": 128,
+      "table": "patrols",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePatrols.ts",
+      "line": 157,
+      "table": "patrols",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePatrols.ts",
+      "line": 186,
+      "table": "patrols",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/usePatrols.ts",
+      "line": 237,
+      "table": "patrols",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/usePatrols.ts",
+      "line": 265,
+      "table": "patrol_schedule_zones",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePatrols.ts",
+      "line": 289,
+      "table": "patrols",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePatrols.ts",
+      "line": 474,
+      "table": "patrols",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/usePermissions.ts",
+      "line": 302,
+      "table": "user_profiles",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePermissions.ts",
+      "line": 328,
+      "table": "user_profiles",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePersonRecords.ts",
+      "line": 95,
+      "table": "person_records",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePersonRecords.ts",
+      "line": 122,
+      "table": "person_records",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePersonRecords.ts",
+      "line": 154,
+      "table": "person_records",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePersonRecords.ts",
+      "line": 176,
+      "table": "person_records",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePersonRecords.ts",
+      "line": 199,
+      "table": "person_records",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePersonRecords.ts",
+      "line": 265,
+      "table": "person_observations",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePersonRecords.ts",
+      "line": 288,
+      "table": "person_observations",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/usePlateScans.ts",
+      "line": 77,
+      "table": "plate_scans",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/usePlateScans.ts",
+      "line": 127,
+      "table": "plate_scans",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/usePlateScans.ts",
+      "line": 166,
+      "table": "plate_scans",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePlateScans.ts",
+      "line": 193,
+      "table": "plate_scans",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePointsOfInterest.ts",
+      "line": 105,
+      "table": "persons_of_interest",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/usePointsOfInterest.ts",
+      "line": 124,
+      "table": "persons_of_interest",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/usePointsOfInterest.ts",
+      "line": 142,
+      "table": "persons_of_interest",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePointsOfInterest.ts",
+      "line": 159,
+      "table": "persons_of_interest",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePointsOfInterest.ts",
+      "line": 187,
+      "table": "vehicles_of_interest",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/usePointsOfInterest.ts",
+      "line": 206,
+      "table": "vehicles_of_interest",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/usePointsOfInterest.ts",
+      "line": 224,
+      "table": "vehicles_of_interest",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePointsOfInterest.ts",
+      "line": 241,
+      "table": "vehicles_of_interest",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/usePointsOfInterest.ts",
+      "line": 269,
+      "table": "trespass_notices",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/usePointsOfInterest.ts",
+      "line": 291,
+      "table": "trespass_notices",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/usePointsOfInterest.ts",
+      "line": 314,
+      "table": "trespass_notices",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useRosteredShift.ts",
+      "line": 76,
+      "table": "roster_shifts",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useRosteredShift.ts",
+      "line": 131,
+      "table": "officer_activity_rates",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useShiftGate.ts",
+      "line": 97,
+      "table": "zones",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useShiftGate.ts",
+      "line": 113,
+      "table": "officer_shifts",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useShiftGate.ts",
+      "line": 244,
+      "table": "user_profiles",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useShiftGate.ts",
+      "line": 269,
+      "table": "notifications",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useSiteGuardDashboard.ts",
+      "line": 148,
+      "table": "client_sites",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useSiteGuardDashboard.ts",
+      "line": 185,
+      "table": "persons_of_interest",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useSiteGuardDashboard.ts",
+      "line": 214,
+      "table": "persons_of_interest",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useSiteGuardDashboard.ts",
+      "line": 232,
+      "table": "site_incidents",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useSiteGuardDashboard.ts",
+      "line": 262,
+      "table": "site_incidents",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useSiteGuardDashboard.ts",
+      "line": 283,
+      "table": "site_incidents",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useSiteRiskAssessment.ts",
+      "line": 127,
+      "table": "site_risk_assessments",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useSiteRiskAssessment.ts",
+      "line": 146,
+      "table": "site_risk_assessments",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useSiteRiskAssessment.ts",
+      "line": 168,
+      "table": "site_risk_assessments",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useSiteRiskAssessment.ts",
+      "line": 186,
+      "table": "site_risk_assessments",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useSiteRiskAssessment.ts",
+      "line": 204,
+      "table": "site_risk_assessments",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useUsers.ts",
+      "line": 32,
+      "table": "user_profiles",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useUsers.ts",
+      "line": 61,
+      "table": "user_profiles",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useUsers.ts",
+      "line": 113,
+      "table": "user_profiles",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useUsers.ts",
+      "line": 135,
+      "table": "user_profiles",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useUsers.ts",
+      "line": 155,
+      "table": "user_profiles",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useVehicleAnalysis.ts",
+      "line": 41,
+      "table": "observations",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useVehicleAnalysis.ts",
+      "line": 145,
+      "table": "observations",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useVehicleCompliance.ts",
+      "line": 77,
+      "table": "observations",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useVehicleCompliance.ts",
+      "line": 142,
+      "table": "observations",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useVehicleCompliance.ts",
+      "line": 192,
+      "table": "observations",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useVehicleProfilePhoto.ts",
+      "line": 33,
+      "table": "canonical_vehicles",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useVehicleProfilePhoto.ts",
+      "line": 53,
+      "table": "observations",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useVehicleProfilePhoto.ts",
+      "line": 96,
+      "table": "canonical_vehicles",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useVehicleProfilePhoto.ts",
+      "line": 125,
+      "table": "observations",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useVehicles.ts",
+      "line": 38,
+      "table": "canonical_vehicles",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useVehicles.ts",
+      "line": 44,
+      "table": "observations",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useVehicles.ts",
+      "line": 98,
+      "table": "canonical_vehicles",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useVehicles.ts",
+      "line": 115,
+      "table": "canonical_vehicles",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useVehicles.ts",
+      "line": 136,
+      "table": "canonical_vehicles",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useWelfareCheckin.ts",
+      "line": 93,
+      "table": "officer_welfare_settings",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useWelfareCheckin.ts",
+      "line": 229,
+      "table": "welfare_checkins",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useZones.ts",
+      "line": 22,
+      "table": "zones",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useZones.ts",
+      "line": 67,
+      "table": "zones",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useZones.ts",
+      "line": 90,
+      "table": "zones",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useZones.ts",
+      "line": 116,
+      "table": "zones",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useZones.ts",
+      "line": 138,
+      "table": "zones",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/hooks/useZones.ts",
+      "line": 161,
+      "table": "zones",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/bobLearningMemory.ts",
+      "line": 212,
+      "table": "bob_learning_memory",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobLearningMemory.ts",
+      "line": 222,
+      "table": "bob_learning_memory",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobLearningMemory.ts",
+      "line": 231,
+      "table": "bob_learning_memory",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobLearningMemory.ts",
+      "line": 239,
+      "table": "bob_learning_memory",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobLearningMemory.ts",
+      "line": 291,
+      "table": "bob_conversation_memory",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobLearningMemory.ts",
+      "line": 299,
+      "table": "bob_conversation_memory",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobLearningMemory.ts",
+      "line": 344,
+      "table": "bob_conversation_memory",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobLearningMemory.ts",
+      "line": 349,
+      "table": "bob_learning_memory",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobLearningMemory.ts",
+      "line": 386,
+      "table": "bob_conversation_memory",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobLearningMemory.ts",
+      "line": 397,
+      "table": "bob_conversation_memory",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobLearningMemory.ts",
+      "line": 403,
+      "table": "bob_learning_memory",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobLearningMemory.ts",
+      "line": 414,
+      "table": "bob_learning_memory",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobLearningMemory.ts",
+      "line": 430,
+      "table": "bob_conversation_memory",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobLearningMemory.ts",
+      "line": 433,
+      "table": "bob_learning_memory",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/dispatchJobs.ts",
+      "line": 25,
+      "table": "dispatch_jobs",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/dispatchJobs.ts",
+      "line": 36,
+      "table": "dispatch_jobs",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/fullExport.ts",
+      "line": 271,
+      "table": "observations",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/fullExport.ts",
+      "line": 319,
+      "table": "observations",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/fullExport.ts",
+      "line": 342,
+      "table": "enforcement_actions",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/geofence.ts",
+      "line": 116,
+      "table": "zones",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/geofence.ts",
+      "line": 323,
+      "table": "patrols",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/geofence.ts",
+      "line": 338,
+      "table": "patrols",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/geofence.ts",
+      "line": 371,
+      "table": "patrols",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/geofence.ts",
+      "line": 386,
+      "table": "patrols",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/privacyCurtain.ts",
+      "line": 132,
+      "table": "privacy_access_log",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/pushNotifications.ts",
+      "line": 74,
+      "table": "user_profiles",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/pushNotifications.ts",
+      "line": 105,
+      "table": "user_profiles",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/pushNotifications.ts",
+      "line": 114,
+      "table": "user_profiles",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/pushNotifications.ts",
+      "line": 121,
+      "table": "user_profiles",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/pushNotifications.ts",
+      "line": 224,
+      "table": "user_profiles",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/pushNotifications.ts",
+      "line": 234,
+      "table": "user_profiles",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/pushNotifications.ts",
+      "line": 241,
+      "table": "user_profiles",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/scanPipeline.ts",
+      "line": 71,
+      "table": "observations",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 44,
+      "table": "organizations",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 97,
+      "table": "user_profiles",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 124,
+      "table": "canonical_vehicles",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 151,
+      "table": "zones",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 178,
+      "table": "observations",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 207,
+      "table": "breach_alerts",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 360,
+      "table": "observations",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 400,
+      "table": "observations",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 462,
+      "table": "canonical_vehicles",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 465,
+      "table": "zones",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 468,
+      "table": "observations",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 471,
+      "table": "breach_alerts",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 513,
+      "table": "bug_reports",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/vehicleAnalysis.ts",
+      "line": 61,
+      "table": "observations",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/vehicleAnalysis.ts",
+      "line": 116,
+      "table": "observations",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/vehicleAnalysis.ts",
+      "line": 205,
+      "table": "observations",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/vehicleAnalysis.ts",
+      "line": 264,
+      "table": "observations",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/vehicleAnalysis.ts",
+      "line": 321,
+      "table": "observations",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/zoneResolution.ts",
+      "line": 37,
+      "table": "zones",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/zoneResolution.ts",
+      "line": 51,
+      "table": "zones",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    }
+  ]
+}

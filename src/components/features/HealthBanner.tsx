@@ -7,7 +7,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, XCircle, RefreshCw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { checkRailwayServicesHealth } from '@/lib/inferenceService'
+import { checkServicesHealth } from '@/lib/inferenceService'
 import { supabase } from '@/lib/supabase'
 
 type HealthStatus = 'operational' | 'degraded' | 'down'
@@ -15,9 +15,9 @@ type HealthStatus = 'operational' | 'degraded' | 'down'
 export function HealthBanner() {
   const navigate = useNavigate()
 
-  const { data: railwayHealth, isLoading: railwayLoading, refetch } = useQuery({
-    queryKey: ['health-banner-railway'],
-    queryFn: checkRailwayServicesHealth,
+  const { data: serviceHealth, isLoading: serviceHealthLoading, refetch } = useQuery({
+    queryKey: ['health-banner-services'],
+    queryFn: checkServicesHealth,
     refetchInterval: 60_000,
     staleTime: 30_000,
   })
@@ -32,14 +32,14 @@ export function HealthBanner() {
     staleTime: 30_000,
   })
 
-  if (railwayLoading || dbLoading) return null
+  if (serviceHealthLoading || dbLoading) return null
 
-  const railwayOk = railwayHealth?.proxy && railwayHealth?.inference
+  const inferenceOk = serviceHealth?.inference === true
   const dbOk = dbPing?.ok !== false
 
   const overallStatus: HealthStatus =
     !dbOk ? 'down'
-    : !railwayOk ? 'degraded'
+    : !inferenceOk ? 'degraded'
     : 'operational'
 
   // Only surface non-green states
@@ -63,11 +63,9 @@ export function HealthBanner() {
       <span className="font-medium">
         {isDegraded ? 'Some services are degraded' : 'Service disruption detected'}
       </span>
-      {!railwayOk && (
+      {!inferenceOk && (
         <span className="text-xs opacity-75 ml-1">
-          (Proxy/Inference
-          {!railwayHealth?.proxy ? ' — proxy down' : ''}
-          {!railwayHealth?.inference ? ' — inference down' : ''})
+          (Inference service unavailable)
         </span>
       )}
       {!dbOk && <span className="text-xs opacity-75 ml-1">(Database unreachable)</span>}

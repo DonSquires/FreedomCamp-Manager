@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
+import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 import type { BreachAlert, BreachStatus, Severity } from '@/types'
 
 interface UseBreachesOptions {
@@ -45,9 +46,11 @@ export function useBreaches(options: UseBreachesOptions = {}) {
     statusFilter = 'all', 
     severityFilter = 'all' 
   } = options
+  const { operationalOrganizationId } = useOperationalOrganization()
+  const effectiveOrganizationId = organizationId ?? operationalOrganizationId
 
   return useQuery({
-    queryKey: ['breach-alerts', organizationId, zoneId, statusFilter, severityFilter, searchQuery],
+    queryKey: ['breach-alerts', effectiveOrganizationId, zoneId, statusFilter, severityFilter, searchQuery],
     queryFn: async () => {
       let query = supabase.from('breach_alerts')
         .select(`
@@ -57,8 +60,8 @@ export function useBreaches(options: UseBreachesOptions = {}) {
         `)
         .order('created_at', { ascending: false })
 
-      if (organizationId) {
-        query = query.eq('organization_id', organizationId)
+      if (effectiveOrganizationId) {
+        query = query.eq('organization_id', effectiveOrganizationId)
       }
 
       if (zoneId) {
@@ -162,13 +165,16 @@ export function useNotifyBreach() {
 }
 
 export function useBreachStats(organizationId?: string | null) {
+  const { operationalOrganizationId } = useOperationalOrganization()
+  const effectiveOrganizationId = organizationId ?? operationalOrganizationId
+
   return useQuery({
-    queryKey: ['breach-stats', organizationId],
+    queryKey: ['breach-stats', effectiveOrganizationId],
     queryFn: async () => {
       const buildCount = (extraFilter?: (q: any) => any) => {
         let q = supabase.from('breach_alerts')
           .select('*', { count: 'exact', head: true })
-        if (organizationId) q = q.eq('organization_id', organizationId)
+        if (effectiveOrganizationId) q = q.eq('organization_id', effectiveOrganizationId)
         if (extraFilter) q = extraFilter(q)
         return q
       }

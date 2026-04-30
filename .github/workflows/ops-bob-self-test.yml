@@ -1,0 +1,97 @@
+name: Ops — Bob Self-Test (Autonomous)
+
+# Bob runs his own Playwright tests on his RunPod worker and reports results
+# back to Supabase bug_reports. If any test fails, the workflow fails and
+# creates a bug report that Bob's AI inbox picks up for self-triage.
+#
+# Required secrets:
+#   RUNPOD_ENDPOINT_API_KEY  — RunPod API key for the serverless endpoint
+#   RUNPOD_ENDPOINT_ID       — RunPod endpoint ID (e.g. n0bp1ifmq01cx2)
+#   VITE_SUPABASE_URL        — Supabase project URL
+#   SUPABASE_SERVICE_ROLE_KEY — For writing bug reports
+#
+# Required secrets for repo clone inside Bob's worker:
+#   BOB_WORKER_GITHUB_TOKEN  — Fine-grained PAT with contents:read on this repo
+#                              (Bob clones the repo at startup to get test files)
+#
+# Optional secrets:
+#   SYNTHETIC_MONITOR_USER_ID — reporter UUID for auto-filed bug reports
+
+on:
+  schedule:
+    - cron: '0 */4 * * *'   # every 4 hours — Bob runs his own tests autonomously
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: 'Test scope to run'
+        required: false
+        default: 'quick'
+        type: choice
+        options: [quick, core, workflows, visual, full]
+      dry_run:
+        description: 'Dry run (skip Supabase write)'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  bob-self-test:
+    name: Bob Autonomous Self-Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Validate required secrets
+        run: |
+          missing=""
+          [ -z "$RUNPOD_ENDPOINT_API_KEY" ] && missing="$missing RUNPOD_ENDPOINT_API_KEY"
+          [ -z "$RUNPOD_ENDPOINT_ID" ]       && missing="$missing RUNPOD_ENDPOINT_ID"
+          [ -z "$VITE_SUPABASE_URL" ]        && missing="$missing VITE_SUPABASE_URL"
+          [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] && missing="$missing SUPABASE_SERVICE_ROLE_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing secrets:$missing"
+            exit 1
+          fi
+          echo "✅ All required secrets present"
+        env:
+          RUNPOD_ENDPOINT_API_KEY:  ${{ secrets.RUNPOD_ENDPOINT_API_KEY }}
+          RUNPOD_ENDPOINT_ID:       ${{ secrets.RUNPOD_ENDPOINT_ID }}
+          VITE_SUPABASE_URL:        ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Set worker env vars via Supabase secrets (ensure repo clone enabled)
+        run: |
+          # These are set as Supabase edge function secrets already.
+          # Here we just confirm the worker will have GITHUB_REPO_URL so it can
+          # clone the repo. The actual injection happens at worker startup via
+          # RunPod environment variables set on the endpoint - see docs/AI_SERVICE_CONFIGURATION.md
+          echo "GITHUB_REPO_URL=https://github.com/${{ github.repository }}.git" >> "$GITHUB_ENV"
+          echo "GITHUB_REPO_BRANCH=${{ github.ref_name }}" >> "$GITHUB_ENV"
+          echo "TEST_SCOPE=${{ github.event.inputs.scope || 'quick' }}" >> "$GITHUB_ENV"
+          echo "DRY_RUN=${{ github.event.inputs.dry_run || 'false' }}" >> "$GITHUB_ENV"
+
+      - name: Trigger Bob self-test on RunPod
+        run: node scripts/trigger-bob-self-test.mjs --scope "$TEST_SCOPE" $( [ "$DRY_RUN" = "true" ] && echo "--dryRun" )
+        env:
+          INFERENCE_SERVICE_URL:     https://api.runpod.ai/v2/${{ secrets.RUNPOD_ENDPOINT_ID }}
+          INFERENCE_API_KEY:         ${{ secrets.RUNPOD_ENDPOINT_API_KEY }}
+          VITE_SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY:    ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY:  ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SYNTHETIC_MONITOR_USER_ID: ${{ secrets.SYNTHETIC_MONITOR_USER_ID }}
+          BOB_WORKER_GITHUB_TOKEN:   ${{ secrets.BOB_WORKER_GITHUB_TOKEN }}
+          GITHUB_REPO_URL:           https://github.com/${{ github.repository }}.git
+          GITHUB_REPO_BRANCH:        ${{ github.ref_name }}
+          BOB_SELF_TEST_TIMEOUT_MS:  '900000'
+          BOB_SELF_TEST_POLL_MS:     '8000'

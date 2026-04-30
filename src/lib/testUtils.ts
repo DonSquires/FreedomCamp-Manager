@@ -6,7 +6,7 @@
 
 import { supabase } from './supabase'
 import { edgeFunctions } from './edgeFunctions'
-import { checkRailwayServicesHealth } from './inferenceService'
+import { checkServicesHealth } from './inferenceService'
 import {
   BUG_REPORT_STATUSES,
   isKnownBugReportStatus,
@@ -267,29 +267,29 @@ export const smokeTests = {
   },
 
   /**
-   * Test 10: Railway Services Health
+   * Test 10: External Services Health
    */
-  async testRailwayServices() {
-    console.log('🔍 Testing Railway services...')
+  async testServicesHealth() {
+    console.log('🔍 Testing external services...')
     
     try {
-      const health = await checkRailwayServicesHealth()
+      const health = await checkServicesHealth()
       
       const allHealthy = health.proxy && health.inference
       
       if (allHealthy) {
-        console.log('✅ Railway services healthy')
+        console.log('✅ External services healthy')
         console.log('   Proxy:', health.proxy)
         console.log('   Inference:', health.inference)
       } else {
-        console.log('⚠️  Some Railway services unavailable')
+        console.log('⚠️  Some external services unavailable')
         console.log('   Proxy:', health.proxy || 'OFFLINE')
         console.log('   Inference:', health.inference || 'OFFLINE')
       }
       
       return { success: allHealthy, health }
     } catch (error: any) {
-      console.error('❌ Railway services check failed:', error.message)
+      console.error('❌ External services check failed:', error.message)
       return { success: false, error: error.message }
     }
   },
@@ -310,7 +310,7 @@ export const smokeTests = {
       breaches: await this.testBreachAlertQuery(),
       storage: await this.testStorageAccess(),
       edgeFunctions: await this.testEdgeFunctionHealth(),
-      railway: await this.testRailwayServices(),
+      services: await this.testServicesHealth(),
     }
 
     console.log('\n📊 Test Summary:')
