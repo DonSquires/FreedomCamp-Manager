@@ -54,6 +54,14 @@ Optional automation hooks:
 Optional activity-driven scale-down:
   BOB_SUPERVISOR_ACTIVITY_FILE
 
+Mode selection:
+  BOB_SUPERVISOR_MODE=auto|serverless|pod   # default: auto
+  In pod mode, smoke uses GET /health instead of POST /runsync.
+
+Optional periodic self-test hook:
+  BOB_SUPERVISOR_SELF_TEST_CMD
+  BOB_SUPERVISOR_SELF_TEST_INTERVAL_MS      # default: 15m
+
 Common flags:
   --once
   --dryRun
@@ -121,6 +129,7 @@ function loadState(filePath) {
       lastScaleDownAt: 0,
       lastRecoverAt: 0,
       lastScaleUpAt: 0,
+      lastSelfTestAt: 0,
       lastLatencyMs: 0,
     };
   }
@@ -177,6 +186,54 @@ async function httpSmoke({ url, apiKey, timeoutMs, message }) {
   }
 }
 
+async function httpSmokePod({ url, timeoutMs }) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const startedAt = Date.now();
+
+  try {
+    const response = await fetch(`${url}/health`, {
+      method: 'GET',
+      signal: controller.signal,
+    });
+
+    const latencyMs = Date.now() - startedAt;
+    const text = await response.text();
+    let json = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = null;
+    }
+
+    const healthy = response.ok && (json?.status === 'healthy' || json?.status === 'ok' || response.status === 200);
+    return {
+      ok: healthy,
+      status: response.status,
+      latencyMs,
+      text,
+      json,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      latencyMs: Date.now() - startedAt,
+      text: String(error?.message || error),
+      json: null,
+    };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function resolveSupervisorMode(endpointBaseUrl) {
+  const configured = String(process.env.BOB_SUPERVISOR_MODE || 'auto').trim().toLowerCase();
+  if (configured === 'serverless' || configured === 'pod') return configured;
+  if (/api\.runpod\.ai\/v2\//i.test(endpointBaseUrl)) return 'serverless';
+  return 'pod';
+}
+
 function activityAgeMs(activityFile) {
   if (!activityFile) return null;
   try {
@@ -229,8 +286,13 @@ async function main() {
 
   const endpointBaseUrl = deriveEndpointBaseUrl();
   const apiKey = resolveApiKey();
-  if (!endpointBaseUrl || !apiKey) {
-    console.error('Need INFERENCE_SERVICE_URL (or RUNPOD_ENDPOINT_ID) and INFERENCE_API_KEY (or RUNPOD_ENDPOINT_API_KEY / RUNPOD_API_KEY)');
+  const supervisorMode = resolveSupervisorMode(endpointBaseUrl);
+  if (!endpointBaseUrl) {
+    console.error('Need INFERENCE_SERVICE_URL (or RUNPOD_ENDPOINT_ID)');
+    process.exit(1);
+  }
+  if (supervisorMode === 'serverless' && !apiKey) {
+    console.error('Serverless mode requires INFERENCE_API_KEY (or RUNPOD_ENDPOINT_API_KEY / RUNPOD_API_KEY)');
     process.exit(1);
   }
 
@@ -244,15 +306,24 @@ async function main() {
   const activityFile = String(process.env.BOB_SUPERVISOR_ACTIVITY_FILE || '').trim();
   const stateFile = path.resolve(process.cwd(), String(process.env.BOB_SUPERVISOR_STATE_FILE || DEFAULT_STATE_FILE));
   const pingMessage = String(process.env.BOB_SUPERVISOR_PING_MESSAGE || 'ping').trim() || 'ping';
+  const selfTestCommand = String(process.env.BOB_SUPERVISOR_SELF_TEST_CMD || '').trim();
+  const selfTestIntervalMs = envNumber('BOB_SUPERVISOR_SELF_TEST_INTERVAL_MS', 900000);
+
+  console.log(`[supervisor] mode=${supervisorMode} endpoint=${endpointBaseUrl}`);
 
   const loop = async () => {
     const state = loadState(stateFile);
-    const smoke = await httpSmoke({
-      url: endpointBaseUrl,
-      apiKey,
-      timeoutMs: smokeTimeoutMs,
-      message: pingMessage,
-    });
+    const smoke = supervisorMode === 'pod'
+      ? await httpSmokePod({
+          url: endpointBaseUrl,
+          timeoutMs: smokeTimeoutMs,
+        })
+      : await httpSmoke({
+          url: endpointBaseUrl,
+          apiKey,
+          timeoutMs: smokeTimeoutMs,
+          message: pingMessage,
+        });
 
     const activityAge = activityAgeMs(activityFile);
     const output = {
@@ -311,6 +382,23 @@ async function main() {
       });
       if (scaleDown.executed) state.lastScaleDownAt = scaleDown.ranAt;
       output.scaleDown = scaleDown;
+    }
+
+    if (smoke.ok && selfTestCommand) {
+      const now = Date.now();
+      const lastSelfTestAt = Number(state.lastSelfTestAt || 0);
+      if (now - lastSelfTestAt >= selfTestIntervalMs) {
+        const selfTest = await maybeRunAction({
+          label: 'self-test',
+          explicitCommand: selfTestCommand,
+          fallbackCommand: '',
+          cooldownMs: selfTestIntervalMs,
+          lastRanAt: lastSelfTestAt,
+          dryRun,
+        });
+        if (selfTest.executed) state.lastSelfTestAt = selfTest.ranAt;
+        output.selfTest = selfTest;
+      }
     }
 
     saveState(stateFile, state);
