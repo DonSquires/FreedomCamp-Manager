@@ -83,7 +83,7 @@ function ReconnectBanner({ isOnline }: { isOnline: boolean }) {
  * Offline queue badge — shows count of pending/failed items requiring attention.
  */
 /**
- * ServiceStatusDot — lightweight indicator for backend service health (proxy + inference + DB).
+ * ServiceStatusDot — lightweight indicator for backend service health (inference + DB).
  * Visible only when status is degraded or down. No-op when everything is operational.
  */
 function ServiceStatusDot() {
@@ -103,13 +103,13 @@ function ServiceStatusDot() {
     staleTime: 60_000,
   })
 
-  const railwayOk = railwayHealth ? (railwayHealth.proxy && railwayHealth.inference) : true
+  const inferenceOk = railwayHealth ? railwayHealth.inference : true
   const dbOk = dbPing ? dbPing.ok !== false : true
 
-  if (railwayOk && dbOk) return null
+  if (inferenceOk && dbOk) return null
 
   const isDown = !dbOk
-  const label = isDown ? 'Database unreachable' : 'Some services are degraded — tap for diagnostics'
+  const label = isDown ? 'Database unreachable' : 'Inference service degraded — tap for diagnostics'
 
   return (
     <div
@@ -197,7 +197,7 @@ export function OfficerShell({ children, title, description, showBackButton }: O
         </div>
 
         {/* Offline indicator in header */}
-          {/* Service health dot — only visible when proxy/inference/db is degraded */}
+          {/* Service health dot — only visible when inference/db is degraded */}
           <ServiceStatusDot />
 
           {/* Offline indicator in header */}

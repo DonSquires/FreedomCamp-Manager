@@ -73,8 +73,8 @@ export function SystemHealthIndicator() {
       icon: <Cloud className="h-5 w-5" />,
     },
     {
-      name: 'Railway Services',
-      status: (railwayHealth?.proxy && railwayHealth?.inference) ? 'operational' : 'degraded',
+      name: 'Inference (RunPod)',
+      status: railwayHealth?.inference ? 'operational' : 'degraded',
       icon: <Server className="h-5 w-5" />,
     },
     {
@@ -222,18 +222,13 @@ export function SystemHealthIndicator() {
           </div>
         )}
 
-        {/* Railway services detail */}
-        {railwayHealth && !(railwayHealth.proxy && railwayHealth.inference) && (
+        {/* Inference service detail */}
+        {railwayHealth && !railwayHealth.inference && (
           <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg text-sm">
             <div className="font-medium mb-2">Service Issues</div>
-            {!railwayHealth.proxy && (
-              <div className="text-yellow-900 dark:text-yellow-100">
-                • NZSCV verification service unavailable
-              </div>
-            )}
             {!railwayHealth.inference && (
               <div className="text-yellow-900 dark:text-yellow-100">
-                • ORC/AI inference service unavailable
+                • RunPod inference service unavailable
               </div>
             )}
           </div>

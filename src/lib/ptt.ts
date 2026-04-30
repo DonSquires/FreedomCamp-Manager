@@ -831,10 +831,17 @@ export async function requestPTTToken(channelScope: string): Promise<PTTTokenRes
       }
 
       const errorStr = String((error as any)?.message ?? error ?? '')
+      const loweredError = errorStr.toLowerCase()
       const isTransient = (
-        errorStr.toLowerCase().includes('failed to fetch') ||
-        errorStr.toLowerCase().includes('network') ||
-        errorStr.toLowerCase().includes('401')
+        loweredError.includes('failed to fetch') ||
+        loweredError.includes('network') ||
+        loweredError.includes('unable to reach the edge function') ||
+        loweredError.includes('ptt server unreachable') ||
+        loweredError.includes('[code: 401]') ||
+        loweredError.includes('[code: 502]') ||
+        loweredError.includes('[code: 503]') ||
+        loweredError.includes('http status 502') ||
+        loweredError.includes('http status 503')
       )
 
       if (!isTransient || attempt === MAX_TOKEN_MINT_RETRIES) break

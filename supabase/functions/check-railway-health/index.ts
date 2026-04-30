@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
       (async () => {
         if (!PROXY_SERVER_URL) {
           return {
-            status: 'offline',
+            status: 'not_configured',
             error: proxyValidation.error || 'PROXY_SERVER_URL not configured',
             ...(proxyValidation.warning ? { warning: proxyValidation.warning } : {}),
           }

@@ -34,12 +34,12 @@ export function HealthBanner() {
 
   if (railwayLoading || dbLoading) return null
 
-  const railwayOk = railwayHealth?.proxy && railwayHealth?.inference
+  const inferenceOk = railwayHealth?.inference === true
   const dbOk = dbPing?.ok !== false
 
   const overallStatus: HealthStatus =
     !dbOk ? 'down'
-    : !railwayOk ? 'degraded'
+    : !inferenceOk ? 'degraded'
     : 'operational'
 
   // Only surface non-green states
@@ -63,11 +63,9 @@ export function HealthBanner() {
       <span className="font-medium">
         {isDegraded ? 'Some services are degraded' : 'Service disruption detected'}
       </span>
-      {!railwayOk && (
+      {!inferenceOk && (
         <span className="text-xs opacity-75 ml-1">
-          (Proxy/Inference
-          {!railwayHealth?.proxy ? ' — proxy down' : ''}
-          {!railwayHealth?.inference ? ' — inference down' : ''})
+          (Inference service unavailable)
         </span>
       )}
       {!dbOk && <span className="text-xs opacity-75 ml-1">(Database unreachable)</span>}
