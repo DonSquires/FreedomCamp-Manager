@@ -61,9 +61,38 @@ fi
 # 3. Install inference-service deps
 # ---------------------------------------------------------------------------
 INFERENCE_DIR="$REPO_DIR/inference-service"
+INSTALL_CACHE_DIR="/workspace/cache"
+INSTALL_HASH_FILE="$INSTALL_CACHE_DIR/inference_node_modules.hash"
 echo "[pod_start] Installing inference-service deps..."
 cd "$INFERENCE_DIR"
-npm ci --omit=dev 2>/dev/null || npm install --production
+mkdir -p "$INSTALL_CACHE_DIR"
+
+LOCKFILE=""
+if [ -f "$INFERENCE_DIR/package-lock.json" ]; then
+  LOCKFILE="$INFERENCE_DIR/package-lock.json"
+elif [ -f "$INFERENCE_DIR/npm-shrinkwrap.json" ]; then
+  LOCKFILE="$INFERENCE_DIR/npm-shrinkwrap.json"
+fi
+
+CURRENT_HASH=""
+if [ -n "$LOCKFILE" ]; then
+  CURRENT_HASH=$(sha256sum "$LOCKFILE" | awk '{print $1}')
+fi
+
+PREV_HASH=""
+if [ -f "$INSTALL_HASH_FILE" ]; then
+  PREV_HASH=$(cat "$INSTALL_HASH_FILE")
+fi
+
+if [ -d "$INFERENCE_DIR/node_modules" ] && [ -n "$CURRENT_HASH" ] && [ "$CURRENT_HASH" = "$PREV_HASH" ]; then
+  echo "[pod_start] Dependency cache hit; skipping npm install"
+else
+  echo "[pod_start] Dependency cache miss; running npm ci"
+  npm ci --omit=dev 2>/dev/null || npm install --production
+  if [ -n "$CURRENT_HASH" ]; then
+    printf '%s' "$CURRENT_HASH" > "$INSTALL_HASH_FILE"
+  fi
+fi
 
 # Download required ONNX models so /infer does not run in degraded mode.
 echo "[pod_start] Downloading ONNX models..."
