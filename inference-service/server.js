@@ -1733,6 +1733,16 @@ const upload = multer({
 let yoloSession = null;
 let embeddingSession = null;
 
+function resolveModelPath(configuredPath, fallbackFile) {
+  const raw = String(configuredPath || '').trim();
+  if (raw) {
+    return path.isAbsolute(raw)
+      ? raw
+      : path.resolve(__dirname, raw.replace(/^\.\//, ''));
+  }
+  return path.resolve(__dirname, 'models', fallbackFile);
+}
+
 async function loadModels() {
   console.log('Loading ONNX models...');
 
@@ -1742,19 +1752,22 @@ async function loadModels() {
   }
   
   try {
+    const yoloModelPath = resolveModelPath(process.env.YOLO_MODEL_PATH, 'yolov8n.onnx');
+    const embeddingModelPath = resolveModelPath(process.env.EMBEDDING_MODEL_PATH, 'mobilenet_v3.onnx');
+
     // YOLOv8n for vehicle detection
-    yoloSession = await ort.InferenceSession.create('./models/yolov8n.onnx', {
+    yoloSession = await ort.InferenceSession.create(yoloModelPath, {
       executionProviders: ['cpu'],
       graphOptimizationLevel: 'all'
     });
-    console.log('✅ YOLOv8n loaded');
+    console.log(`✅ YOLOv8n loaded (${yoloModelPath})`);
 
     // MobileNetV3 for embeddings
-    embeddingSession = await ort.InferenceSession.create('./models/mobilenet_v3.onnx', {
+    embeddingSession = await ort.InferenceSession.create(embeddingModelPath, {
       executionProviders: ['cpu'],
       graphOptimizationLevel: 'all'
     });
-    console.log('✅ MobileNetV3 loaded');
+    console.log(`✅ MobileNetV3 loaded (${embeddingModelPath})`);
 
   } catch (error) {
     console.error('❌ Model loading failed (service will run in degraded mode):', error.message);
