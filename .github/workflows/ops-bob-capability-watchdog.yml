@@ -131,6 +131,7 @@ jobs:
           INFERENCE_API_KEY: ${{ steps.serverless_auth.outputs.resolved_key }}
           BOB_CAPABILITY_STRICT: 'true'
           BOB_WATCHDOG_SERVERLESS_REQUIRED: ${{ vars.BOB_WATCHDOG_SERVERLESS_REQUIRED }}
+          BOB_CAPABILITY_TIMEOUT_MS: '120000'
 
   pod-capability-check:
     name: Bob Pod Capability Check
