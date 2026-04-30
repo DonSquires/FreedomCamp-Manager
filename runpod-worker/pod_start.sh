@@ -69,6 +69,11 @@ npm ci --omit=dev 2>/dev/null || npm install --production
 echo "[pod_start] Downloading ONNX models..."
 node scripts/download-models.js
 
+# Compatibility fallback: some runtime paths still reference /app/models.
+mkdir -p /app/models
+cp -f "$INFERENCE_DIR/models/yolov8n.onnx" /app/models/yolov8n.onnx
+cp -f "$INFERENCE_DIR/models/mobilenet_v3.onnx" /app/models/mobilenet_v3.onnx
+
 # Ensure a vision model exists; if the requested model is unsupported by the
 # bundled Ollama version, fall back to a broadly compatible multimodal model.
 VISION_MODEL="${OLLAMA_VISION_MODEL:-llama3.2-vision:11b}"
