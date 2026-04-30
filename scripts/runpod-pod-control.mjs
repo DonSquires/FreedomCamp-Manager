@@ -65,8 +65,8 @@ async function main() {
   try {
     let result;
     if (action === 'stop') {
-      result = await graphql(apiKey, `mutation { stopPod(input: { podId: "${podId}" }) { id desiredStatus } }`);
-      const pod = result?.data?.stopPod;
+      result = await graphql(apiKey, `mutation { podStop(input: { podId: "${podId}" }) { id desiredStatus } }`);
+      const pod = result?.data?.podStop;
       if (pod) {
         console.log(`✅ Stop requested — desiredStatus: ${pod.desiredStatus}`);
       } else {
