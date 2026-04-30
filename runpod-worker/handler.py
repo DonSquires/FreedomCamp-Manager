@@ -530,6 +530,26 @@ def handler(job):
         scope = inp.get("scope", "quick")
         timeout_ms = int(inp.get("timeout_ms", 120000))
         reporter = inp.get("reporter", "json")
+        forwarded_runtime_env = {}
+        for k, v in inp.items():
+            if not isinstance(k, str) or not isinstance(v, str):
+                continue
+            if not v:
+                continue
+            if k.startswith("PLAYWRIGHT_") or k.startswith("E2E_") or k.startswith("API_TEST_"):
+                forwarded_runtime_env[k] = v
+        for k in [
+            "VITE_SUPABASE_URL",
+            "VITE_SUPABASE_ANON_KEY",
+            "SUPABASE_SERVICE_ROLE_KEY",
+            "DEFAULT_PLAYWRIGHT_BASE_URL",
+            "PLAYWRIGHT_BASE_URL",
+            "INFERENCE_SERVICE_URL",
+            "INFERENCE_API_KEY",
+        ]:
+            val = inp.get(k)
+            if isinstance(val, str) and val:
+                forwarded_runtime_env[k] = val
         # Optional repo clone/pull from job input — allows CI to trigger fresh tests
         # without rebuilding the worker image.
         repo_url = inp.get("repo_url") or os.environ.get("GITHUB_REPO_URL", "")
@@ -676,7 +696,11 @@ def handler(job):
                 text=True,
                 cwd=working_dir,
                 timeout=timeout_ms // 1000 + 60,
-                env={**os.environ, "PLAYWRIGHT_JSON_OUTPUT_NAME": output_path},
+                env={
+                    **os.environ,
+                    **forwarded_runtime_env,
+                    "PLAYWRIGHT_JSON_OUTPUT_NAME": output_path,
+                },
             )
 
         try:
