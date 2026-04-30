@@ -8,7 +8,6 @@ import { getCorsHeaders } from '../_shared/withCors.ts'
 import { validateServiceUrl, buildEndpointUrl } from '../_shared/urlUtils.ts'
 
 const HEALTH_CHECK_TIMEOUT_MS = 8_000
-const RUNPOD_PING_TIMEOUT_MS = 60_000
 const INFERENCE_API_KEY =
   Deno.env.get('INFERENCE_API_KEY') ||
   Deno.env.get('RUNPOD_ENDPOINT_API_KEY') ||
