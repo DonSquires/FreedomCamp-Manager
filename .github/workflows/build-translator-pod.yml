@@ -86,8 +86,4 @@ jobs:
             -H "Content-Type: application/json" \
             -d "{\"imageName\":\"${IMAGE_REF}\"}" >/tmp/runpod_translator_template_patch.json
 
-          python3 - <<'PY'
-            import json
-            payload = json.load(open('/tmp/runpod_translator_template_patch.json', 'r', encoding='utf-8'))
-            print(f"Translator template imageName: {payload.get('imageName', '?')}")
-            PY
+          echo "Translator template imageName: $(jq -r '.imageName // "?"' /tmp/runpod_translator_template_patch.json)"
