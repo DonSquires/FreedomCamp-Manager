@@ -127,10 +127,12 @@ Likely causes:
 Actions:
 
 1. Confirm pod image and startup command fields (dockerStartCmd, dockerEntrypoint).
-2. Validate exposed HTTP port includes internal app port.
-3. Restart pod once.
-4. If still failing, recreate pod from known-good template.
-5. Keep serverless primary during pod outage.
+2. Prefer startup command fallback form:
+  - `bash -lc 'if [ -x /usr/local/bin/pod_start.sh ]; then exec /usr/local/bin/pod_start.sh; elif [ -x /app/pod_start.sh ]; then exec /app/pod_start.sh; elif [ -x /app/start.sh ]; then exec /app/start.sh; else ls -la /app || true; exit 1; fi'`
+3. Validate exposed HTTP port includes internal app port.
+4. Restart pod once.
+5. If still failing, recreate pod from known-good template.
+6. Keep serverless primary during pod outage.
 
 ### 6.2 502 from pod proxy
 

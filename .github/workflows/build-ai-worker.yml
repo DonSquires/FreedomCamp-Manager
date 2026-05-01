@@ -94,6 +94,7 @@ jobs:
           RUNPOD_API_KEY:      ${{ secrets.RUNPOD_ENDPOINT_API_KEY || secrets.RUNPOD_API_KEY }}
           RUNPOD_ENDPOINT_ID:  ${{ secrets.RUNPOD_ENDPOINT_ID }}
           RUNPOD_TEMPLATE_ID:  ${{ secrets.RUNPOD_TEMPLATE_ID }}
+          RUNPOD_WORKER_TEMPLATE_ID: ${{ secrets.RUNPOD_WORKER_TEMPLATE_ID }}
         run: |
           set -euo pipefail
 
@@ -105,6 +106,13 @@ jobs:
             echo "WARNING: RUNPOD_API_KEY or RUNPOD_TEMPLATE_ID not set - skipping endpoint update."
             echo "   New image: $IMAGE_TAG"
             exit 0
+          fi
+
+          if [ -n "${RUNPOD_WORKER_TEMPLATE_ID:-}" ]; then
+            echo "Hardening worker template startup command on $RUNPOD_WORKER_TEMPLATE_ID ..."
+            START_CMD='["bash","-lc","if [ -x /usr/local/bin/pod_start.sh ]; then exec /usr/local/bin/pod_start.sh; elif [ -x /app/pod_start.sh ]; then exec /app/pod_start.sh; elif [ -x /app/start.sh ]; then exec /app/start.sh; else echo startup script missing; ls -la /app || true; sleep 30; exit 1; fi"]'
+            rest PATCH "templates/$RUNPOD_WORKER_TEMPLATE_ID" "{\"dockerStartCmd\":$START_CMD}" >/dev/null || \
+              echo "::warning::Failed to harden worker template startup command"
           fi
 
           rest() {

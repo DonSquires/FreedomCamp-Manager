@@ -1,7 +1,8 @@
 #!/bin/bash
 # ---------------------------------------------------------------------------
 # pod_start.sh — Startup script for the RunPod SPOT POD (HTTP API on port 3000)
-# Baked into the Docker image so dockerArgs can simply call: bash /app/pod_start.sh
+# Baked into the Docker image at /usr/local/bin/pod_start.sh so dockerStartCmd
+# can use a stable path even when /app is overridden by runtime mounts.
 # No quoting/escaping issues in RunPod dockerArgs.
 #
 # Sequence:

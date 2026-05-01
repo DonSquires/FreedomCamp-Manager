@@ -72,6 +72,10 @@ WORKDIR /app
 
 COPY handler.py start.sh pod_start.sh training_memory.json package.json ./
 
+# Install startup scripts in a path that cannot be shadowed by runtime mounts.
+RUN install -m 0755 start.sh /usr/local/bin/start.sh && \
+  install -m 0755 pod_start.sh /usr/local/bin/pod_start.sh
+
 # Fail fast during image build if handler.py has syntax issues.
 RUN python3 -m py_compile /app/handler.py
 
@@ -81,4 +85,4 @@ RUN npm install --save-dev @playwright/test && \
   npx playwright install --with-deps chromium firefox webkit
 RUN chmod +x start.sh pod_start.sh
 
-CMD ["./start.sh"]
+CMD ["/usr/local/bin/start.sh"]
