@@ -872,7 +872,8 @@ async function main() {
       baseReady = await waitForBaseUrlReady(agenticBaseUrl, agenticBaseUrlWaitMs)
     }
 
-    const agenticPacks = Array.isArray(profile.ui?.agenticPacks) ? profile.ui.agenticPacks : []
+    const runAgenticPacks = toBool(profile.ui?.runAgenticPacks, true)
+    const agenticPacks = runAgenticPacks && Array.isArray(profile.ui?.agenticPacks) ? profile.ui.agenticPacks : []
     try {
       if (!baseReady) {
         for (const pack of agenticPacks) {

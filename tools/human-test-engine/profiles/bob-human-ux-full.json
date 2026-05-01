@@ -24,7 +24,7 @@
       "crm-business-crossover",
       "client-portal-isolation"
     ],
-    "runAgenticPacks": false,
+    "runAgenticPacks": true,
     "agenticNoPlanner": true,
     "agenticMaxSteps": 14,
     "agenticTimeoutMs": 15000,
