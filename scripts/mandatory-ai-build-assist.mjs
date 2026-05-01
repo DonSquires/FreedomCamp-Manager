@@ -14,6 +14,7 @@ function parseArgs(argv) {
     outDir: 'tools/human-trial-gate',
     dryRun: false,
     maxDiffBytes: 300000,
+    required: ['build', 'research', 'triage'],
   }
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -25,10 +26,27 @@ function parseArgs(argv) {
     else if (token === '--dry-run') args.dryRun = true
     else if (token === '--max-diff-bytes') args.maxDiffBytes = Number.parseInt(String(argv[i + 1] || args.maxDiffBytes), 10)
     else if (token.startsWith('--max-diff-bytes=')) args.maxDiffBytes = Number.parseInt(token.slice('--max-diff-bytes='.length), 10)
+    else if (token === '--required') {
+      args.required = String(argv[i + 1] || '')
+        .split(',')
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean)
+    } else if (token.startsWith('--required=')) {
+      args.required = token.slice('--required='.length)
+        .split(',')
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean)
+    }
   }
 
   if (!Number.isFinite(args.maxDiffBytes) || args.maxDiffBytes < 10000) {
     throw new Error('--max-diff-bytes must be an integer >= 10000')
+  }
+
+  const allowed = new Set(['build', 'research', 'triage'])
+  args.required = args.required.filter((value) => allowed.has(value))
+  if (args.required.length === 0) {
+    throw new Error('--required must include one or more of: build,research,triage')
   }
 
   return args
@@ -180,7 +198,56 @@ async function tryOpenAIStyleEndpoint(payload, apiKey) {
   }
 }
 
-async function tryBobAskCopilot(payload) {
+function capabilityQuestion(capability, payload) {
+  const changedFiles = Array.isArray(payload?.changedFiles) ? payload.changedFiles : []
+
+  if (capability === 'build') {
+    return [
+      'Mandatory build assistance request.',
+      `Repository: ${payload.repository}`,
+      `Head: ${payload.headSha}`,
+      `Base: ${payload.baseSha || 'none'}`,
+      `Changed files (${changedFiles.length}): ${changedFiles.join(', ') || 'none'}`,
+      'Provide top blockers, major risks, and immediate fixes required for this build gate.',
+    ].join('\n')
+  }
+
+  if (capability === 'research') {
+    return [
+      'Mandatory research assistance request.',
+      `Repository: ${payload.repository}`,
+      `Head: ${payload.headSha}`,
+      `Base: ${payload.baseSha || 'none'}`,
+      `Changed files (${changedFiles.length}): ${changedFiles.join(', ') || 'none'}`,
+      'Provide grounded research pointers for architecture, testing, and rollout risk within this codebase.',
+    ].join('\n')
+  }
+
+  return [
+    'Mandatory triage assistance request.',
+    `Repository: ${payload.repository}`,
+    `Head: ${payload.headSha}`,
+    `Base: ${payload.baseSha || 'none'}`,
+    `Changed files (${changedFiles.length}): ${changedFiles.join(', ') || 'none'}`,
+    'Provide a triage plan grouped by blocker, major, minor including immediate next actions.',
+  ].join('\n')
+}
+
+function capabilityCategory(capability) {
+  if (capability === 'research') return 'general'
+  if (capability === 'triage') return 'architecture'
+  return 'architecture'
+}
+
+function buildOpenAIAnalyzePayload(capability, basePayload) {
+  const contextPrefix = `capability=${capability}; mandatory_assistance=true; `
+  return {
+    ...basePayload,
+    context: `${contextPrefix}${basePayload.context}`,
+  }
+}
+
+async function tryBobAskCopilot(capability, payload) {
   const base = normalizeUrl(process.env.BOB_SERVICE_URL || process.env.INFERENCE_SERVICE_URL)
   const key = safeText(process.env.BOB_INFERENCE_API_KEY || process.env.INFERENCE_API_KEY)
 
@@ -193,25 +260,16 @@ async function tryBobAskCopilot(payload) {
     }
   }
 
-  const changedFiles = Array.isArray(payload?.changedFiles) ? payload.changedFiles : []
-  const question = [
-    'Mandatory build assistance request.',
-    `Repository: ${payload.repository}`,
-    `Head: ${payload.headSha}`,
-    `Base: ${payload.baseSha || 'none'}`,
-    `Changed files (${changedFiles.length}): ${changedFiles.join(', ') || 'none'}`,
-    'Provide top blockers, major risks, and immediate fixes required for this build gate.',
-  ].join('\n')
-
   const body = {
-    question,
-    category: 'architecture',
+    question: capabilityQuestion(capability, payload),
+    category: capabilityCategory(capability),
     source: 'human-trial-release-gate',
     context: {
       mode: payload.mode,
+      capability,
       head: payload.headSha,
       base: payload.baseSha,
-      changed_files: changedFiles,
+      changed_files: Array.isArray(payload?.changedFiles) ? payload.changedFiles : [],
     },
   }
 
@@ -238,6 +296,32 @@ async function tryBobAskCopilot(payload) {
   }
 }
 
+async function executeCapability(capability, analyzePayload, basePayload) {
+  const openAiStyle = await tryOpenAIStyleEndpoint(
+    buildOpenAIAnalyzePayload(capability, analyzePayload),
+    process.env.AI_ASSIST_API_KEY || process.env.INFERENCE_API_KEY,
+  )
+
+  if (openAiStyle.success) {
+    return {
+      capability,
+      success: true,
+      selectedProvider: openAiStyle.provider,
+      providerAttempts: [openAiStyle],
+      response: openAiStyle.response || null,
+    }
+  }
+
+  const bobFallback = await tryBobAskCopilot(capability, basePayload)
+  return {
+    capability,
+    success: bobFallback.success,
+    selectedProvider: bobFallback.success ? bobFallback.provider : null,
+    providerAttempts: [openAiStyle, bobFallback],
+    response: bobFallback.success ? (bobFallback.response || null) : null,
+  }
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2))
   const outDir = path.resolve(args.outDir)
@@ -254,39 +338,43 @@ async function main() {
     baseSha: gitContext.baseSha,
     changedFiles: gitContext.files,
     diffTruncated: gitContext.truncated,
+    requiredCapabilities: args.required,
+    capabilityResults: [],
     providerAttempts: [],
-    selectedProvider: null,
+    selectedProviders: {},
     success: false,
   }
 
   if (args.dryRun) {
     audit.success = true
-    audit.selectedProvider = 'dry-run'
-    audit.providerAttempts.push({ attempted: true, success: true, provider: 'dry-run' })
+    for (const capability of args.required) {
+      audit.capabilityResults.push({
+        capability,
+        success: true,
+        selectedProvider: 'dry-run',
+        providerAttempts: [{ attempted: true, success: true, provider: 'dry-run', capability }],
+      })
+      audit.selectedProviders[capability] = 'dry-run'
+    }
+    audit.providerAttempts = audit.capabilityResults.flatMap((item) => item.providerAttempts)
   } else {
-    const openAiStyle = await tryOpenAIStyleEndpoint(analyzePayload, process.env.AI_ASSIST_API_KEY || process.env.INFERENCE_API_KEY)
-    audit.providerAttempts.push(openAiStyle)
-
-    if (openAiStyle.success) {
-      audit.success = true
-      audit.selectedProvider = openAiStyle.provider
-      audit.response = openAiStyle.response || null
-    } else {
-      const bobFallback = await tryBobAskCopilot({
+    for (const capability of args.required) {
+      const capabilityResult = await executeCapability(capability, analyzePayload, {
         mode: args.mode,
         repository: audit.repository,
         headSha: gitContext.headSha,
         baseSha: gitContext.baseSha,
         changedFiles: gitContext.files,
       })
-      audit.providerAttempts.push(bobFallback)
 
-      if (bobFallback.success) {
-        audit.success = true
-        audit.selectedProvider = bobFallback.provider
-        audit.response = bobFallback.response || null
+      audit.capabilityResults.push(capabilityResult)
+      audit.providerAttempts.push(...capabilityResult.providerAttempts)
+      if (capabilityResult.success && capabilityResult.selectedProvider) {
+        audit.selectedProviders[capability] = capabilityResult.selectedProvider
       }
     }
+
+    audit.success = audit.capabilityResults.every((item) => item.success)
   }
 
   const payloadPath = path.join(outDir, 'ai-assist-request.json')
@@ -300,15 +388,25 @@ async function main() {
   console.log(`- ${resultPath}`)
 
   if (!audit.success) {
-    const reasons = audit.providerAttempts
-      .map((attempt) => `${attempt.provider}:${attempt.reason || (attempt.success ? 'ok' : 'failed')}`)
+    const reasons = audit.capabilityResults
+      .filter((item) => !item.success)
+      .map((item) => {
+        const attempts = item.providerAttempts
+          .map((attempt) => `${attempt.provider}:${attempt.reason || (attempt.success ? 'ok' : 'failed')}`)
+          .join('|')
+        return `${item.capability}[${attempts}]`
+      })
       .join(', ')
 
     console.error(`[mandatory-ai-build-assist] failed: ${reasons}`)
     process.exit(1)
   }
 
-  console.log(`[mandatory-ai-build-assist] success via ${audit.selectedProvider}`)
+  const providersUsed = Object.entries(audit.selectedProviders)
+    .map(([capability, provider]) => `${capability}:${provider}`)
+    .join(', ')
+
+  console.log(`[mandatory-ai-build-assist] success via ${providersUsed}`)
 }
 
 main().catch((error) => {

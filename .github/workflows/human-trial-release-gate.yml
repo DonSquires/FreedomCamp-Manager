@@ -63,10 +63,10 @@ jobs:
       - name: Install Playwright browsers and system deps
         run: bunx playwright install --with-deps chromium firefox webkit
 
-      - name: Mandatory AI build assistance
+      - name: Mandatory AI build research triage assistance
         id: mandatory_ai_assist
         continue-on-error: true
-        run: node scripts/mandatory-ai-build-assist.mjs --mode human-trial-release-gate --out-dir tools/human-trial-gate
+        run: node scripts/mandatory-ai-build-assist.mjs --mode human-trial-release-gate --required build,research,triage --out-dir tools/human-trial-gate
 
       - name: Verify Bob training wiring
         id: verify_training
