@@ -1,8 +1,8 @@
 # Bob Failure Summary
 
-Generated: 2026-05-01T07:43:05.007Z
+Generated: 2026-05-01T10:06:04.760Z
 Window: last 24 hours
-Entries analyzed: 1
+Entries analyzed: 0
 Low-score entries: 0
 
 ## Top Failure Reasons
