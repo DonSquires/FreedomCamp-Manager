@@ -1,13 +1,13 @@
 # Bob Failure Summary
 
-Generated: 2026-04-30T08:20:23.599Z
+Generated: 2026-05-01T01:57:40.011Z
 Window: last 24 hours
-Entries analyzed: 2
-Low-score entries: 1
+Entries analyzed: 0
+Low-score entries: 0
 
 ## Top Failure Reasons
 
-- fallback_applied (1)
+- none
 
 ## Top Hallucination Patterns
 
@@ -19,7 +19,7 @@ Low-score entries: 1
 
 ## Most-Flagged Artifacts
 
-- /workspaces/FreedomCamp-Manager/spec.md (1)
+- none
 
 ## Recommendations
 

@@ -1,22 +1,12 @@
 {
-  "generatedAt": "2026-04-30T08:20:23.599Z",
+  "generatedAt": "2026-05-01T01:57:40.011Z",
   "windowHours": 24,
-  "totalEntries": 2,
-  "lowScoreCount": 1,
-  "topFailureReasons": [
-    {
-      "name": "fallback_applied",
-      "count": 1
-    }
-  ],
+  "totalEntries": 0,
+  "lowScoreCount": 0,
+  "topFailureReasons": [],
   "topHallucinationPatterns": [],
   "repeatedHallucinations": [],
-  "topFlaggedArtifacts": [
-    {
-      "name": "/workspaces/FreedomCamp-Manager/spec.md",
-      "count": 1
-    }
-  ],
+  "topFlaggedArtifacts": [],
   "recommendations": [
     "No repeated failure mode crossed the automatic threshold in this window."
   ]
