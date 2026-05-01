@@ -181,6 +181,11 @@ const TEAM_CHAT_TRANSLATION_PREF_KEY = 'team-chat-translation-pref-v1'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const CHANNEL_SWITCH_DEBOUNCE_MS = 400
 const CONNECT_ACTION_COOLDOWN_MS = 800
+const MANUAL_CONNECT_MIN_GAP_MS = 900
+const AUTO_RETRY_MIN_GAP_MS = 4000
+const CONNECT_STORM_WINDOW_MS = 15000
+const CONNECT_STORM_MAX_ATTEMPTS = 6
+const CONNECT_STORM_COOLDOWN_MS = 20000
 
 function getChannelScope(channel: RadioChannel, effectiveOrgId: string): string {
   if (channel.scope_override) {
@@ -497,6 +502,11 @@ export default function PTTRadio() {
   const connectDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const connectRetryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingRetryChannelRef = useRef<RadioChannel | null>(null)
+  const connectInFlightRef = useRef(false)
+  const connectAttemptTimestampsRef = useRef<number[]>([])
+  const connectCircuitOpenUntilRef = useRef(0)
+  const lastConnectAttemptAtRef = useRef(0)
+  const lastConnectCircuitToastAtRef = useRef(0)
 
   // ── Org ID ────────────────────────────────────────────────
   const effectiveOrgId = useMemo(
@@ -802,10 +812,53 @@ export default function PTTRadio() {
   const connectToChannel = useCallback(
     async (channel: RadioChannel, options?: { autoRetry?: boolean }) => {
       if (!effectiveOrgId) return
+
+      const now = Date.now()
+      const circuitRemainingMs = connectCircuitOpenUntilRef.current - now
+      if (circuitRemainingMs > 0) {
+        const remainingSeconds = Math.max(1, Math.ceil(circuitRemainingMs / 1000))
+        const message = `Push to Talk reconnect protection is active. Retrying in ${remainingSeconds}s…`
+        setError(message)
+        setRetryCountdownSeconds(remainingSeconds)
+        if (!options?.autoRetry && now - lastConnectCircuitToastAtRef.current > 2500) {
+          lastConnectCircuitToastAtRef.current = now
+          toast.warning(message)
+        }
+        return
+      }
+
+      const minGapMs = options?.autoRetry ? AUTO_RETRY_MIN_GAP_MS : MANUAL_CONNECT_MIN_GAP_MS
+      if (now - lastConnectAttemptAtRef.current < minGapMs) {
+        return
+      }
+
+      if (connectInFlightRef.current) {
+        return
+      }
+
+      const attemptWindowStart = now - CONNECT_STORM_WINDOW_MS
+      const recentAttempts = connectAttemptTimestampsRef.current.filter((ts) => ts >= attemptWindowStart)
+      recentAttempts.push(now)
+      connectAttemptTimestampsRef.current = recentAttempts
+      lastConnectAttemptAtRef.current = now
+
+      if (recentAttempts.length > CONNECT_STORM_MAX_ATTEMPTS && connectionStatus !== 'connected') {
+        connectCircuitOpenUntilRef.current = now + CONNECT_STORM_COOLDOWN_MS
+        const cooldownSeconds = Math.ceil(CONNECT_STORM_COOLDOWN_MS / 1000)
+        const message = `Push to Talk is reconnecting too frequently. Pausing retries for ${cooldownSeconds}s.`
+        setError(message)
+        setRetryCountdownSeconds(cooldownSeconds)
+        if (!options?.autoRetry) {
+          toast.warning(message)
+        }
+        return
+      }
+
       if (!options?.autoRetry && (isConnecting || isConnectCoolingDown || retryCountdownSeconds !== null)) {
         return
       }
 
+      connectInFlightRef.current = true
       setIsConnecting(true)
       setError(null)
       setConnectCooldownUntil(Date.now() + CONNECT_ACTION_COOLDOWN_MS)
@@ -817,6 +870,8 @@ export default function PTTRadio() {
         setActiveChannel(channel)
         setRetryCountdownSeconds(null)
         pendingRetryChannelRef.current = null
+        connectAttemptTimestampsRef.current = []
+        connectCircuitOpenUntilRef.current = 0
         if (connectRetryTimeoutRef.current) {
           clearTimeout(connectRetryTimeoutRef.current)
           connectRetryTimeoutRef.current = null
@@ -850,11 +905,18 @@ export default function PTTRadio() {
           toast.error(msg)
         }
       } finally {
+        connectInFlightRef.current = false
         setIsConnecting(false)
       }
     },
-    [effectiveOrgId, isConnectCoolingDown, isConnecting, retryCountdownSeconds, setError],
+    [connectionStatus, effectiveOrgId, isConnectCoolingDown, isConnecting, retryCountdownSeconds, setError],
   )
+
+  useEffect(() => {
+    if (connectionStatus !== 'connected') return
+    connectAttemptTimestampsRef.current = []
+    connectCircuitOpenUntilRef.current = 0
+  }, [connectionStatus])
 
   const handleChannelSelect = useCallback(
     (channel: RadioChannel) => {

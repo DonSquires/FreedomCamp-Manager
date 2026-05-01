@@ -324,6 +324,7 @@ let localTokenCooldownUntilMs = 0
 let pingInterval: ReturnType<typeof setInterval> | null = null
 let tokenRefreshTimeout: ReturnType<typeof setTimeout> | null = null
 let socketConnectTimeout: ReturnType<typeof setTimeout> | null = null
+let isCleaningUpConnection = false
 let activeChannelScope: string | null = null  // Tracks the last requested scope for visibility-triggered reconnects
 let activeChannelName: string | null = null   // Tracks the channel display name for reconnect restoration
 let lastRequestedChannelScope: string | null = null
@@ -1022,7 +1023,7 @@ export async function connectToPTT(channelScope: string, channelName?: string, f
         console.log('🎤 PTT: Disconnected', event.code, event.reason)
         lastSocketCloseCode = event.code
         lastSocketCloseReason = event.reason || null
-        cleanupConnection()
+        cleanupConnection({ closeSocket: false })
 
         if (event.code === 4000) {
           // Older socket replaced by a newer session. Do not auto-reconnect.
@@ -1103,7 +1104,13 @@ export function disconnectFromPTT(): void {
 /**
  * Clean up connection resources
  */
-function cleanupConnection(): void {
+function cleanupConnection(options?: { closeSocket?: boolean }): void {
+  if (isCleaningUpConnection) return
+  isCleaningUpConnection = true
+
+  const closeSocket = options?.closeSocket !== false
+
+  try {
   reconnectAttempts = 0
   clearTokenRefreshTimer()
   clearSocketConnectTimeout()
@@ -1118,8 +1125,22 @@ function cleanupConnection(): void {
   }
 
   if (ws) {
-    ws.close(1000, 'User disconnect')
+    const socketToClose = ws
     ws = null
+
+    if (closeSocket) {
+      try {
+        socketToClose.onopen = null
+        socketToClose.onmessage = null
+        socketToClose.onerror = null
+        socketToClose.onclose = null
+        if (socketToClose.readyState === WebSocket.OPEN || socketToClose.readyState === WebSocket.CONNECTING) {
+          socketToClose.close(1000, 'User disconnect')
+        }
+      } catch {
+        // Ignore socket-close failures during cleanup.
+      }
+    }
   }
 
   // Clean up WebRTC
@@ -1166,6 +1187,9 @@ function cleanupConnection(): void {
   negotiatedWsProtocol = 'ptt.v1'
   negotiatedProtocolVersion = null
   negotiatedInteropProfile = null
+  } finally {
+    isCleaningUpConnection = false
+  }
 }
 
 /**
