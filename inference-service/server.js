@@ -672,6 +672,60 @@ const RUNPOD_ENDPOINT_URL = String(process.env.RUNPOD_ENDPOINT_URL || '').trim()
 const RUNPOD_ENDPOINT_API_KEY = String(process.env.RUNPOD_ENDPOINT_API_KEY || '').trim();
 const RUNPOD_ENDPOINT_TIMEOUT_MS = Number(process.env.RUNPOD_ENDPOINT_TIMEOUT_MS || 120_000);
 const RUNPOD_ENDPOINT_POLL_INTERVAL_MS = Number(process.env.RUNPOD_ENDPOINT_POLL_INTERVAL_MS || 3_000);
+const DEFAULT_RUNPOD_SERVERLESS_ACTION_ALLOWLIST = [
+  'ping',
+  'chat',
+  'review',
+  'assess',
+  'translate',
+  'training_note',
+  'ui_vision',
+];
+const RUNPOD_SERVERLESS_ACTION_ALLOWLIST = (() => {
+  const raw = String(process.env.RUNPOD_SERVERLESS_ACTION_ALLOWLIST || '').trim();
+  if (!raw) return DEFAULT_RUNPOD_SERVERLESS_ACTION_ALLOWLIST;
+  return raw
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+})();
+const RUNPOD_SERVERLESS_CAPABILITY_GATE_ENABLED = envFlag(process.env.RUNPOD_SERVERLESS_CAPABILITY_GATE_ENABLED, true);
+
+function deriveRunpodRequestedAction(body = {}) {
+  const candidates = [
+    body?.input?.action,
+    body?.payload?.input?.action,
+    body?.payload?.action,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate.trim().toLowerCase();
+    }
+  }
+
+  return '';
+}
+
+function getRunpodServerlessCapabilities() {
+  return {
+    capability_gate_enabled: RUNPOD_SERVERLESS_CAPABILITY_GATE_ENABLED,
+    allowlist_source: process.env.RUNPOD_SERVERLESS_ACTION_ALLOWLIST ? 'env' : 'default',
+    allowed_actions: RUNPOD_SERVERLESS_ACTION_ALLOWLIST,
+  };
+}
+
+function assertRunpodServerlessActionAllowed(action) {
+  if (!RUNPOD_SERVERLESS_CAPABILITY_GATE_ENABLED) return;
+  if (!action) return;
+  if (RUNPOD_SERVERLESS_ACTION_ALLOWLIST.includes(action)) return;
+
+  throw new Error(
+    `RunPod serverless capability gate blocked action: ${action}. ` +
+    `Allowed actions: ${RUNPOD_SERVERLESS_ACTION_ALLOWLIST.join(', ')}. ` +
+    'Route unsupported actions to pod execution path.'
+  );
+}
 
 function deriveRunpodInvokeUrl() {
   if (RUNPOD_ENDPOINT_URL) return RUNPOD_ENDPOINT_URL;
@@ -8782,8 +8836,20 @@ app.get('/runpod/serverless/status/:jobId', runpodPodRateLimit, requireInference
   }
 });
 
+app.get('/runpod/serverless/capabilities', runpodPodRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const capabilities = getRunpodServerlessCapabilities();
+    res.json({ success: true, capabilities });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
 app.post('/runpod/serverless/invoke', runpodPodRateLimit, requireInferenceAuth, async (req, res) => {
   try {
+    const action = deriveRunpodRequestedAction(req.body || {});
+    assertRunpodServerlessActionAllowed(action);
+
     const poll = req.body?.poll !== false;
     const timeoutMs = Number(req.body?.timeout_ms || RUNPOD_ENDPOINT_TIMEOUT_MS);
     const intervalMs = Number(req.body?.interval_ms || RUNPOD_ENDPOINT_POLL_INTERVAL_MS);

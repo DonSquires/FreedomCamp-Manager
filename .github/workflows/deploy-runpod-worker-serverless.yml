@@ -87,6 +87,46 @@ jobs:
           MODEL_TAG='${{ github.event.inputs.model || 'qwen2.5:7b' }}'
           npm run -s runpod:endpoint:promote -- --waitSeconds "$WAIT_SECONDS" --model "$MODEL_TAG" --projectRef "$SUPABASE_PROJECT_REF"
 
+      - name: Gate rollout on mandatory serverless capabilities
+        run: |
+          set -euo pipefail
+          REQUIRED="${BOB_WATCHDOG_SERVERLESS_REQUIRED:-chat,review,assess,translate,training_note}"
+          echo "Checking mandatory serverless capabilities: ${REQUIRED}"
+          node scripts/bob-capability-gate.mjs --mode serverless --required "$REQUIRED" --strict
+        env:
+          RUNPOD_ENDPOINT_ID: ${{ secrets.RUNPOD_ENDPOINT_ID }}
+          RUNPOD_ENDPOINT_URL: ${{ secrets.RUNPOD_ENDPOINT_URL }}
+          INFERENCE_API_KEY: ${{ secrets.RUNPOD_ENDPOINT_API_KEY != '' && secrets.RUNPOD_ENDPOINT_API_KEY || secrets.RUNPOD_API_KEY }}
+          BOB_CAPABILITY_TIMEOUT_MS: '120000'
+          BOB_WATCHDOG_SERVERLESS_REQUIRED: ${{ vars.BOB_WATCHDOG_SERVERLESS_REQUIRED }}
+
+      - name: Decide pod browser gate eligibility
+        id: pod_gate_decide
+        run: |
+          set -euo pipefail
+          if [ -z "${BOB_SERVICE_URL:-}" ] || [ -z "${INFERENCE_API_KEY:-}" ]; then
+            echo "run_pod_gate=false" >> "$GITHUB_OUTPUT"
+            echo "Pod browser gate skipped (missing BOB_SERVICE_URL or INFERENCE_API_KEY)."
+          else
+            echo "run_pod_gate=true" >> "$GITHUB_OUTPUT"
+            echo "Pod browser gate enabled."
+          fi
+        env:
+          BOB_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
+          INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY != '' && secrets.INFERENCE_API_KEY || secrets.RUNPOD_ENDPOINT_API_KEY != '' && secrets.RUNPOD_ENDPOINT_API_KEY || secrets.RUNPOD_API_KEY }}
+
+      - name: Gate rollout on pod browser capabilities
+        if: steps.pod_gate_decide.outputs.run_pod_gate == 'true'
+        run: |
+          set -euo pipefail
+          REQUIRED="${BOB_WATCHDOG_POD_BROWSER_REQUIRED:-playwright_chromium,playwright_firefox,playwright_webkit}"
+          echo "Checking pod browser capabilities: ${REQUIRED}"
+          node scripts/bob-capability-gate.mjs --mode pod --required "$REQUIRED" --strict --timeoutMs 180000
+        env:
+          INFERENCE_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
+          INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY != '' && secrets.INFERENCE_API_KEY || secrets.RUNPOD_ENDPOINT_API_KEY != '' && secrets.RUNPOD_ENDPOINT_API_KEY || secrets.RUNPOD_API_KEY }}
+          BOB_WATCHDOG_POD_BROWSER_REQUIRED: ${{ vars.BOB_WATCHDOG_POD_BROWSER_REQUIRED }}
+
       - name: Summarize promotion
         if: always()
         run: |

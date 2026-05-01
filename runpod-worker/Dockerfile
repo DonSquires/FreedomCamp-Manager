@@ -75,9 +75,10 @@ COPY handler.py start.sh pod_start.sh training_memory.json package.json ./
 # Fail fast during image build if handler.py has syntax issues.
 RUN python3 -m py_compile /app/handler.py
 
-# Install Playwright + its browser dependencies so run_playwright works offline
+# Install Playwright + browser runtimes so run_playwright supports
+# chromium/firefox/webkit projects in pod mode.
 RUN npm install --save-dev @playwright/test && \
-    npx playwright install --with-deps chromium
+  npx playwright install --with-deps chromium firefox webkit
 RUN chmod +x start.sh pod_start.sh
 
 CMD ["./start.sh"]

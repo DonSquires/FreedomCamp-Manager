@@ -177,7 +177,7 @@ jobs:
       - name: Run strict pod capability gate
         if: steps.decide.outputs.run_pod == 'true'
         run: |
-          REQUIRED="${BOB_WATCHDOG_POD_REQUIRED:-chat,health,self_heal}"
+          REQUIRED="${BOB_WATCHDOG_POD_REQUIRED:-chat,health,self_heal,run_playwright}"
           echo "Checking pod capabilities: $REQUIRED"
           node scripts/bob-capability-gate.mjs --mode pod --required "$REQUIRED" --strict
         env:
@@ -185,3 +185,15 @@ jobs:
           INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY != '' && secrets.INFERENCE_API_KEY || secrets.RUNPOD_ENDPOINT_API_KEY != '' && secrets.RUNPOD_ENDPOINT_API_KEY || secrets.RUNPOD_API_KEY }}
           BOB_CAPABILITY_STRICT: 'true'
           BOB_WATCHDOG_POD_REQUIRED: ${{ vars.BOB_WATCHDOG_POD_REQUIRED }}
+
+      - name: Run strict pod browser capability gate
+        if: steps.decide.outputs.run_pod == 'true'
+        run: |
+          REQUIRED="${BOB_WATCHDOG_POD_BROWSER_REQUIRED:-playwright_chromium,playwright_firefox,playwright_webkit}"
+          echo "Checking pod browser capabilities: $REQUIRED"
+          node scripts/bob-capability-gate.mjs --mode pod --required "$REQUIRED" --strict --timeoutMs 180000
+        env:
+          INFERENCE_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
+          INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY != '' && secrets.INFERENCE_API_KEY || secrets.RUNPOD_ENDPOINT_API_KEY != '' && secrets.RUNPOD_ENDPOINT_API_KEY || secrets.RUNPOD_API_KEY }}
+          BOB_CAPABILITY_STRICT: 'true'
+          BOB_WATCHDOG_POD_BROWSER_REQUIRED: ${{ vars.BOB_WATCHDOG_POD_BROWSER_REQUIRED }}

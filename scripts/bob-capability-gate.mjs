@@ -6,6 +6,7 @@ import { loadLocalEnv } from './load-local-env.mjs';
 loadLocalEnv();
 
 const SILENT_WAV_BASE64 = 'UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=';
+const TINY_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7ZCq4AAAAASUVORK5CYII=';
 
 function getArg(name, fallback = '') {
   const key = `--${name}`;
@@ -111,7 +112,32 @@ async function checkServerlessCapability(capability, targets, timeoutMs) {
   };
 
   const actionMap = {
+    ping: { action: 'ping' },
     chat: { action: 'chat', message: 'capability check ping', history: [] },
+    review: {
+      action: 'review',
+      message: 'Synthetic watchdog check for review action readiness.',
+    },
+    assess: {
+      action: 'assess',
+      type: 'general',
+      description: 'Synthetic capability gate assessment input',
+    },
+    translate: {
+      action: 'translate',
+      text: 'Kia ora',
+      target_language: 'en',
+      source_language: 'mi',
+    },
+    training_note: {
+      action: 'training_note',
+      message: 'Synthetic capability gate training note',
+    },
+    ui_vision: {
+      action: 'ui_vision',
+      focus: 'general',
+      image_b64: TINY_PNG_BASE64,
+    },
     speak: { action: 'speak', text: 'capability check', style: 'default' },
     transcribe: {
       action: 'transcribe',
@@ -144,7 +170,8 @@ async function checkServerlessCapability(capability, targets, timeoutMs) {
     status !== 'FAILED' &&
     output?.success !== false &&
     (capability !== 'transcribe' || typeof output?.transcript !== 'undefined' || output?.client_action === 'web_speech_recognition') &&
-    (capability !== 'speak' || Boolean(output?.audio_base64 || output?.spoken_text || output?.client_action));
+    (capability !== 'speak' || Boolean(output?.audio_base64 || output?.spoken_text || output?.client_action)) &&
+    (capability !== 'ui_vision' || !/image_b64 required/i.test(String(output?.error || result.data?.error || '')));
 
   return {
     capability,
@@ -166,6 +193,75 @@ async function checkPodCapability(capability, targets, timeoutMs) {
         }
       : {}),
   };
+
+  async function runPodAsyncAction(input) {
+    const create = await fetchJson(`${base}/run`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ input }),
+    }, timeoutMs);
+
+    if (!create.ok) {
+      return {
+        ok: false,
+        httpStatus: create.status,
+        detail: String(create.data?.error || create.data?.message || 'failed-to-queue-pod-job'),
+      };
+    }
+
+    const jobId = String(create.data?.id || '').trim();
+    if (!jobId) {
+      return {
+        ok: false,
+        httpStatus: create.status,
+        detail: 'pod-job-id-missing',
+      };
+    }
+
+    const pollStartedAt = Date.now();
+    const intervalMs = 2000;
+    while (Date.now() - pollStartedAt <= timeoutMs) {
+      const status = await fetchJson(`${base}/status/${encodeURIComponent(jobId)}`, {
+        method: 'GET',
+        headers,
+      }, timeoutMs);
+
+      if (!status.ok) {
+        return {
+          ok: false,
+          httpStatus: status.status,
+          detail: String(status.data?.error || status.data?.message || 'pod-job-status-failed'),
+        };
+      }
+
+      const state = String(status.data?.status || '').toUpperCase();
+      if (state === 'COMPLETED') {
+        const output = status.data?.output || {};
+        const outputOk = output?.success !== false;
+        return {
+          ok: outputOk,
+          httpStatus: status.status,
+          detail: outputOk ? 'ok' : String(output?.error || status.data?.error || 'pod-job-output-failed'),
+        };
+      }
+
+      if (state === 'FAILED' || state === 'CANCELLED' || state === 'TIMED_OUT') {
+        return {
+          ok: false,
+          httpStatus: status.status,
+          detail: String(status.data?.error || status.data?.output?.error || `pod-job-${state.toLowerCase()}`),
+        };
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+
+    return {
+      ok: false,
+      httpStatus: 408,
+      detail: `pod-job-timeout-${timeoutMs}ms`,
+    };
+  }
 
   if (capability === 'chat') {
     const result = await fetchJson(`${base}/chat`, {
@@ -257,6 +353,40 @@ async function checkPodCapability(capability, targets, timeoutMs) {
       ok: result.ok && result.data?.success !== false,
       httpStatus: result.status,
       detail: result.ok ? 'ok' : String(result.data?.error || 'failed'),
+    };
+  }
+
+  if (capability === 'run_playwright') {
+    const result = await runPodAsyncAction({
+      action: 'run_playwright',
+      scope: 'quick',
+      reporter: 'json',
+      specs: ['--list'],
+      timeout_ms: Math.min(60000, timeoutMs),
+    });
+
+    return {
+      capability,
+      ok: result.ok,
+      httpStatus: result.httpStatus,
+      detail: result.detail,
+    };
+  }
+
+  if (capability === 'playwright_chromium' || capability === 'playwright_firefox' || capability === 'playwright_webkit') {
+    const browser = capability.replace('playwright_', '');
+    const result = await runPodAsyncAction({
+      action: 'run_playwright',
+      reporter: 'json',
+      specs: ['--list', `--project=${browser}`],
+      timeout_ms: Math.min(60000, timeoutMs),
+    });
+
+    return {
+      capability,
+      ok: result.ok,
+      httpStatus: result.httpStatus,
+      detail: result.detail,
     };
   }
 
