@@ -156,6 +156,7 @@ Likely causes:
 
 - Strict startup failure path exits container.
 - Auth/bootstrap steps fail and terminate entrypoint.
+- Pod is using serverless worker startup path (`start.sh`) so worker exits after no job/test payload.
 
 Actions:
 
@@ -164,6 +165,13 @@ Actions:
 3. Make startup script tolerant to non-critical install/model-fetch failures.
 4. Recycle pod after applying mitigation.
 5. If unresolved, replace pod from fixed template and keep one-pod policy.
+
+Pod startup command guardrail:
+
+1. Prefer image default CMD routed through `/usr/local/bin/start_mode.sh`.
+2. If overriding startup command in RunPod Console, force pod mode explicitly:
+  - `bash -lc 'export RUNPOD_RUNTIME_MODE=pod; exec /usr/local/bin/start_mode.sh'`
+3. Avoid direct pod startup commands that run only the serverless worker path.
 
 ### 6.4 Zero GPU on restart
 
