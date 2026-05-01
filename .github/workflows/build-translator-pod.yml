@@ -5,6 +5,7 @@ on:
     branches:
       - main
     paths:
+      - '.github/workflows/build-translator-pod.yml'
       - 'ptt-bridge-python/**'
       - 'scripts/deploy-translator-runpod.sh'
       - 'scripts/promote-translator-pod.mjs'
