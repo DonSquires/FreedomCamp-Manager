@@ -40,6 +40,13 @@ jobs:
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
       VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
       DEFAULT_PLAYWRIGHT_BASE_URL: ${{ secrets.FRONTEND_URL }}
+      BOB_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
+      INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL }}
+      BOB_INFERENCE_API_KEY: ${{ secrets.BOB_INFERENCE_API_KEY }}
+      INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
+      AI_ASSIST_BASE_URL: ${{ secrets.AI_ASSIST_BASE_URL }}
+      AI_ASSIST_ANALYZE_URL: ${{ secrets.AI_ASSIST_ANALYZE_URL }}
+      AI_ASSIST_API_KEY: ${{ secrets.AI_ASSIST_API_KEY }}
 
     steps:
       - name: Checkout
@@ -55,6 +62,11 @@ jobs:
 
       - name: Install Playwright browsers and system deps
         run: bunx playwright install --with-deps chromium firefox webkit
+
+      - name: Mandatory AI build assistance
+        id: mandatory_ai_assist
+        continue-on-error: true
+        run: node scripts/mandatory-ai-build-assist.mjs --mode human-trial-release-gate --out-dir tools/human-trial-gate
 
       - name: Verify Bob training wiring
         id: verify_training
@@ -177,6 +189,7 @@ jobs:
         id: gate_summary
         if: always()
         env:
+          OUTCOME_MANDATORY_AI_ASSIST: ${{ steps.mandatory_ai_assist.outcome }}
           OUTCOME_VERIFY_TRAINING: ${{ steps.verify_training.outcome }}
           OUTCOME_VALIDATE_CREDENTIALS: ${{ steps.validate_credentials.outcome }}
           OUTCOME_LINT: ${{ steps.lint.outcome }}
@@ -213,6 +226,7 @@ jobs:
       - name: Enforce release gate verdict
         if: always()
         env:
+          OUTCOME_MANDATORY_AI_ASSIST: ${{ steps.mandatory_ai_assist.outcome }}
           OUTCOME_VERIFY_TRAINING: ${{ steps.verify_training.outcome }}
           OUTCOME_VALIDATE_CREDENTIALS: ${{ steps.validate_credentials.outcome }}
           OUTCOME_LINT: ${{ steps.lint.outcome }}
@@ -226,6 +240,7 @@ jobs:
           failed=""
 
           for item in \
+            "mandatory-ai-assist:$OUTCOME_MANDATORY_AI_ASSIST" \
             "verify-training:$OUTCOME_VERIFY_TRAINING" \
             "validate-credentials:$OUTCOME_VALIDATE_CREDENTIALS" \
             "lint:$OUTCOME_LINT" \

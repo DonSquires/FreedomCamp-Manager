@@ -117,6 +117,7 @@
     "test:runpod:core:full": "node scripts/run-tests-on-runpod.mjs --scope full --suite core",
     "test:release:all-in-one": "node scripts/bob-release-gate-all-in-one.mjs",
     "test:release:all-in-one:dry": "node scripts/bob-release-gate-all-in-one.mjs --dry-run",
+    "test:release:ai-assist": "node scripts/mandatory-ai-build-assist.mjs",
     "test:release:summary": "node scripts/human-trial-gate-summary.mjs",
     "install:playwright": "playwright install"
   },

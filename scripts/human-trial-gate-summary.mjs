@@ -144,6 +144,7 @@ async function collectPlaywrightFailures(testResultsRoot) {
 
 function collectStepOutcomesFromEnv() {
   const mapping = [
+    ['mandatory_ai_assist', process.env.OUTCOME_MANDATORY_AI_ASSIST],
     ['verify_training', process.env.OUTCOME_VERIFY_TRAINING],
     ['validate_credentials', process.env.OUTCOME_VALIDATE_CREDENTIALS],
     ['lint', process.env.OUTCOME_LINT],
