@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { Activity, Database, Server, Shield, RefreshCw, CheckCircle, XCircle, AlertTriangle, Stethoscope, Wrench, Loader2, Clock3, Languages } from 'lucide-react'
 import { AppLayout } from '@/components/features/AppLayout'
-import { checkProxyHealth, checkInferenceHealth } from '@/lib/proxyServices'
+import { checkProxyHealth, checkInferenceHealth, checkPttHealth } from '@/lib/proxyServices'
 
 interface IntegrityResults {
   processed: number
@@ -101,9 +101,16 @@ export default function SystemDiagnostics() {
     refetchInterval: 30000, // Refresh every 30 seconds
   })
 
+  const { data: pttHealth, isLoading: pttLoading, refetch: refetchPtt } = useQuery({
+    queryKey: ['ptt-health'],
+    queryFn: () => checkPttHealth(),
+    refetchInterval: 30000,
+  })
+
   const refetchRailway = () => {
     refetchProxy()
     refetchInference()
+    refetchPtt()
     void refetchDoctorHealth()
     void refetchDoctorTimeline()
   }
@@ -229,7 +236,7 @@ export default function SystemDiagnostics() {
       </div>
 
       {/* System Status */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Database */}
         <Card>
           <CardHeader className="pb-3">
@@ -306,6 +313,7 @@ export default function SystemDiagnostics() {
           <CardHeader className="pb-3">
             <Activity className="h-8 w-8 text-purple-600 mb-2" />
             <CardTitle className="text-lg">Inference Service</CardTitle>
+            <CardTitle className="text-lg">Bob Inference</CardTitle>
           </CardHeader>
           <CardContent>
             {inferenceLoading ? (
@@ -363,6 +371,60 @@ export default function SystemDiagnostics() {
             )}
             <div className="text-xs text-gray-600 mt-2">
               YOLOv8 Vehicle Detection, translation, and speech readiness
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* PTT Signaling */}
+        <Card>
+          <CardHeader className="pb-3">
+            <Server className="h-8 w-8 text-cyan-600 mb-2" />
+            <CardTitle className="text-lg">PTT Signaling</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {pttLoading ? (
+              <Badge variant="secondary">Checking...</Badge>
+            ) : pttHealth?.status === 'online' ? (
+              <>
+                <Badge variant="default">
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  Online
+                </Badge>
+                {pttHealth.wsUrl && (
+                  <div className="text-xs text-gray-600 mt-1 break-all">
+                    {pttHealth.wsUrl}
+                  </div>
+                )}
+              </>
+            ) : pttHealth?.status === 'degraded' ? (
+              <>
+                <Badge variant="secondary">
+                  <AlertTriangle className="h-3 w-3 mr-1" />
+                  Degraded
+                </Badge>
+                {pttHealth?.error && (
+                  <div className="text-xs text-red-600 mt-1">{pttHealth.error}</div>
+                )}
+                {pttHealth.wsUrl && (
+                  <div className="text-xs text-gray-600 mt-1 break-all">{pttHealth.wsUrl}</div>
+                )}
+              </>
+            ) : (
+              <>
+                <Badge variant="destructive">
+                  <XCircle className="h-3 w-3 mr-1" />
+                  Offline
+                </Badge>
+                {pttHealth?.error && (
+                  <div className="text-xs text-red-600 mt-1">{pttHealth.error}</div>
+                )}
+                {pttHealth?.wsUrl && (
+                  <div className="text-xs text-gray-600 mt-1 break-all">{pttHealth.wsUrl}</div>
+                )}
+              </>
+            )}
+            <div className="text-xs text-gray-600 mt-2">
+              Radio signaling server and WebSocket endpoint health
             </div>
           </CardContent>
         </Card>

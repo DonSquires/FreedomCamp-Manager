@@ -97,6 +97,42 @@ import { toast } from 'sonner'
 import { signalSessionActivity } from '@/hooks/useSessionInactivityLock'
 import { usePTTStore, usePTTAvailable, usePTTCanSpeak } from '@/stores/pttStore'
 import { startSpeaking, stopSpeaking } from '@/lib/ptt'
+import { checkInferenceHealth, checkPttHealth } from '@/lib/proxyServices'
+
+function HeaderStatusPill({
+  label,
+  state,
+  icon,
+  detail,
+}: {
+  label: string
+  state: 'online' | 'offline' | 'degraded' | 'connecting'
+  icon: React.ReactNode
+  detail?: string
+}) {
+  const toneClasses = {
+    online: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300',
+    degraded: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
+    connecting: 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300',
+    offline: 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300',
+  }[state]
+
+  const dotClasses = {
+    online: 'bg-emerald-500',
+    degraded: 'bg-amber-500',
+    connecting: 'bg-sky-500 animate-pulse',
+    offline: 'bg-slate-400',
+  }[state]
+
+  return (
+    <div className={cn('inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] font-medium', toneClasses)}>
+      {icon}
+      <span className={cn('h-2 w-2 rounded-full', dotClasses)} />
+      <span>{label}</span>
+      {detail ? <span className="hidden xl:inline opacity-75">{detail}</span> : null}
+    </div>
+  )
+}
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -438,6 +474,36 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
   const [pttHolding, setPttHolding]   = useState(false)
   const [pttExpanded, setPttExpanded] = useState(false)
 
+  const { data: bobHealth } = useQuery({
+    queryKey: ['app-header-bob-health'],
+    queryFn: checkInferenceHealth,
+    enabled: !!user,
+    staleTime: 30_000,
+    refetchInterval: 45_000,
+  })
+
+  const bobStatusTone: 'online' | 'offline' | 'degraded' | 'connecting' =
+    bobHealth?.status === 'online' ? 'online' : bobHealth?.status === 'degraded' ? 'degraded' : 'offline'
+
+  const { data: pttHealth } = useQuery({
+    queryKey: ['ptt-health'],
+    queryFn: checkPttHealth,
+    enabled: !!user,
+    staleTime: 30_000,
+    refetchInterval: 45_000,
+  })
+
+  const pttStatusTone: 'online' | 'offline' | 'degraded' | 'connecting' =
+    pttConnectionStatus === 'connecting' || pttConnectionStatus === 'reconnecting'
+      ? 'connecting'
+      : pttConnectionStatus === 'error'
+        ? 'degraded'
+        : pttHealth?.status === 'online'
+          ? 'online'
+          : pttHealth?.status === 'degraded'
+            ? 'degraded'
+            : 'offline'
+
   const handlePTTDown = useCallback(async () => {
     // Prevent re-entry via both local guard and the authoritative store flag
     if (!pttCanSpeak || !pttAvailable || pttHolding || pttIsSpeaking) return
@@ -656,7 +722,8 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-cyan-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900">
       {/* Mobile Header */}
       <header className="lg:hidden bg-white/95 dark:bg-gray-800/95 backdrop-blur shadow-sm sticky top-0 z-40 border-b border-gray-200/60 dark:border-gray-700/60">
-        <div className="flex items-center justify-between px-4 py-3">
+        <div className="px-4 py-3 space-y-2">
+          <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
               <SheetTrigger asChild>
@@ -722,6 +789,23 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
               </span>
             )}
           </button>
+          </div>
+          {user && (
+            <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
+              <HeaderStatusPill
+                label="PTT"
+                state={pttStatusTone}
+                icon={<Radio className="h-3.5 w-3.5" />}
+                detail={pttChannelName || pttConnectionStatus}
+              />
+              <HeaderStatusPill
+                label="Bob"
+                state={bobStatusTone}
+                icon={<BrainCircuit className="h-3.5 w-3.5" />}
+                detail={bobHealth?.status === 'online' ? 'ready' : bobHealth?.error || 'offline'}
+              />
+            </div>
+          )}
         </div>
       </header>
 
@@ -819,22 +903,39 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
                 )}
                 </div>
               </div>
-              {/* Header right side: notification bell */}
-              <button
-                type="button"
-                title="Notifications"
-                aria-label="Notifications"
-                data-testid="notification-bell"
-                onClick={() => navigate('/notifications')}
-                className="relative flex items-center justify-center h-9 w-9 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-              >
-                <Bell className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                {notifCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 h-4 w-4 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
-                    {notifCount > 9 ? '9+' : notifCount}
-                  </span>
+              <div className="flex items-center gap-3">
+                {user && (
+                  <div className="flex items-center gap-2">
+                    <HeaderStatusPill
+                      label="PTT"
+                      state={pttStatusTone}
+                      icon={<Radio className="h-3.5 w-3.5" />}
+                      detail={pttChannelName || pttConnectionStatus}
+                    />
+                    <HeaderStatusPill
+                      label="Bob"
+                      state={bobStatusTone}
+                      icon={<BrainCircuit className="h-3.5 w-3.5" />}
+                      detail={bobHealth?.status === 'online' ? 'ready' : bobHealth?.error || 'offline'}
+                    />
+                  </div>
                 )}
-              </button>
+                <button
+                  type="button"
+                  title="Notifications"
+                  aria-label="Notifications"
+                  data-testid="notification-bell"
+                  onClick={() => navigate('/notifications')}
+                  className="relative flex items-center justify-center h-9 w-9 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <Bell className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                  {notifCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 h-4 w-4 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
+                      {notifCount > 9 ? '9+' : notifCount}
+                    </span>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </header>

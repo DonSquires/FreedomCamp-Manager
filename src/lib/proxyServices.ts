@@ -23,6 +23,9 @@ interface ServicesHealthResponse {
   proxy_url: string | null
   inference: { status: string; error?: string; config?: InferenceServiceConfig; [key: string]: unknown }
   inference_url: string | null
+  ptt: { status: string; error?: string; warning?: string; [key: string]: unknown }
+  ptt_url: string | null
+  ptt_ws_url: string | null
   inference_api_key_configured: boolean
   checked_at: string
 }
@@ -35,6 +38,9 @@ async function getServiceURLs(): Promise<{
   inferenceUrl: string | null
   proxyHealth: ServicesHealthResponse['proxy'] | null
   inferenceHealth: ServicesHealthResponse['inference'] | null
+  pttUrl: string | null
+  pttHealth: ServicesHealthResponse['ptt'] | null
+  pttWsUrl: string | null
   inferenceApiKeyConfigured: boolean
   error: string | null
 }> {
@@ -47,6 +53,9 @@ async function getServiceURLs(): Promise<{
         inferenceUrl: null,
         proxyHealth: null,
         inferenceHealth: null,
+        pttUrl: null,
+        pttHealth: null,
+        pttWsUrl: null,
         inferenceApiKeyConfigured: false,
         error: error || 'Failed to get service URLs',
       }
@@ -58,6 +67,9 @@ async function getServiceURLs(): Promise<{
       inferenceUrl: response?.inference_url || null,
       proxyHealth: response?.proxy || null,
       inferenceHealth: response?.inference || null,
+      pttUrl: response?.ptt_url || null,
+      pttHealth: response?.ptt || null,
+      pttWsUrl: response?.ptt_ws_url || null,
       inferenceApiKeyConfigured: response?.inference_api_key_configured ?? false,
       error: null,
     }
@@ -67,6 +79,9 @@ async function getServiceURLs(): Promise<{
       inferenceUrl: null,
       proxyHealth: null,
       inferenceHealth: null,
+      pttUrl: null,
+      pttHealth: null,
+      pttWsUrl: null,
       inferenceApiKeyConfigured: false,
       error: error.message || 'Unknown error',
     }
@@ -668,6 +683,35 @@ export async function checkInferenceHealth(): Promise<ServiceHealthStatus> {
   }
 }
 
+/**
+ * Check PTT signaling service health through the shared check-services-health function.
+ */
+export async function checkPttHealth(): Promise<ServiceHealthStatus & { wsUrl?: string | null }> {
+  const { pttUrl, pttHealth, pttWsUrl, error: urlError } = await getServiceURLs()
+
+  if (urlError) {
+    return { status: 'offline', error: urlError, wsUrl: pttWsUrl }
+  }
+
+  if (!pttUrl) {
+    return {
+      status: 'offline',
+      error: 'PTT_SERVER_URL secret not configured in Supabase',
+      wsUrl: pttWsUrl,
+    }
+  }
+
+  const rawStatus = pttHealth?.status as string | undefined
+  const isOnline = rawStatus === 'ok' || rawStatus === 'healthy'
+  const isOffline = !rawStatus || rawStatus === 'offline'
+
+  return {
+    status: isOnline ? 'online' : isOffline ? 'offline' : 'degraded',
+    error: (pttHealth?.error || pttHealth?.warning) as string | undefined,
+    wsUrl: pttWsUrl,
+  }
+}
+
 // ============================================================================
 // EXPORTS
 // ============================================================================
@@ -687,4 +731,5 @@ export const railwayServices = {
   // Health
   checkProxyHealth,
   checkInferenceHealth,
+  checkPttHealth,
 }
