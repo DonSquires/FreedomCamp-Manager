@@ -120,6 +120,9 @@
     "test:release:ai-assist": "node scripts/mandatory-ai-build-assist.mjs",
     "test:release:enterprise-readiness": "node scripts/enterprise-readiness-report.mjs",
     "test:release:summary": "node scripts/human-trial-gate-summary.mjs",
+      "demo:seed": "node scripts/seed-demo-data.mjs",
+      "demo:seed:dry": "node scripts/seed-demo-data.mjs --dry-run",
+      "demo:seed:orgs": "node scripts/seed-demo-data.mjs --org-only",
     "install:playwright": "playwright install"
   },
   "dependencies": {

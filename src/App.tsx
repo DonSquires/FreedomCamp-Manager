@@ -7,6 +7,7 @@ import { useSessionInactivityLock } from '@/hooks/useSessionInactivityLock'
 import { useThemeMode } from '@/hooks/useThemeMode'
 import { usePTTAutoConnect } from '@/hooks/usePTTAutoConnect'
 import { useSessionGpsLogging } from '@/hooks/useSessionGpsLogging'
+import { useOrgModules } from '@/hooks/useOrgModules'
 
 // ---------------------------------------------------------------------------
 // Lazy-loaded page chunks — Vite code-splits each of these into a separate
@@ -375,6 +376,7 @@ function AreaRoute({
   area: string
 }) {
   const { user } = useAuthStore()
+  const { hasAreaAccess, isLoading: modulesLoading } = useOrgModules()
 
   if (!user) return <Navigate to="/login" replace />
 
@@ -391,6 +393,11 @@ function AreaRoute({
     if (!user.portal_access.includes(area)) {
       return <Navigate to="/" replace />
     }
+  }
+
+  // Module subscription check — don't block while loading (fallback = allow all)
+  if (!isSuperUser && !modulesLoading && !hasAreaAccess(area)) {
+    return <Navigate to="/portal-selection" replace />
   }
 
   return <>{children}</>
