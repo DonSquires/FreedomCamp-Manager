@@ -65,9 +65,26 @@ jobs:
           BASE_URL="${INFERENCE_SERVICE_URL%/}"
 
           if echo "$BASE_URL" | grep -Eq '^https://api\.runpod\.ai/v2/[^/]+(/(run|runsync))?/?$'; then
-            echo "::error::Resolved training URL points to RunPod serverless API (${BASE_URL}), which does not expose /learn/pretrain."
-            echo "::error::Set BOB_SERVICE_URL secret to the RunPod Bob service/gateway URL that serves /learn/pretrain."
-            exit 1
+            RUNSYNC_URL="$(echo "$BASE_URL" | sed -E 's#/(run|runsync)/?$##')/runsync"
+            NOTE="Nightly pretrain trigger profile=${PROFILE} multiplier=${MULTIPLIER}. Use the latest training_memory.json bundle in this worker deployment."
+
+            HTTP_STATUS=$(curl -s -o /tmp/pretrain-response.json -w "%{http_code}" \
+              --max-time 60 \
+              -X POST "${RUNSYNC_URL}" \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer ${INFERENCE_API_KEY}" \
+              -H "x-inference-api-key: ${INFERENCE_API_KEY}" \
+              -d "{\"input\":{\"action\":\"training_note\",\"message\":\"${NOTE}\"}}")
+
+            cat /tmp/pretrain-response.json
+
+            if [ "$HTTP_STATUS" != "200" ]; then
+              echo "::error::Serverless training_note trigger failed with HTTP $HTTP_STATUS"
+              exit 1
+            fi
+
+            echo "✅ Nightly serverless training note accepted"
+            exit 0
           fi
 
           echo "🧠 Triggering /learn/pretrain profile=${PROFILE} multiplier=${MULTIPLIER}"
