@@ -34,6 +34,18 @@ if ! python3 -m pip install --user onnxruntime-gpu; then
 fi
 python3 -m pip install --user runpod requests
 
+log "Installing translator pod Python dependencies"
+if ! python3 -m pip install --user faster-whisper ctranslate2 transformers; then
+  log "faster-whisper stack install failed; continuing without blocking setup"
+fi
+
+if ! command -v runpodctl >/dev/null 2>&1; then
+  log "Attempting to install RunPod CLI (runpodctl)"
+  if ! curl -fsSL https://raw.githubusercontent.com/runpod/runpodctl/main/install.sh | bash; then
+    log "RunPod CLI install failed; continuing without blocking setup"
+  fi
+fi
+
 log "Preparing local model cache"
 mkdir -p models
 

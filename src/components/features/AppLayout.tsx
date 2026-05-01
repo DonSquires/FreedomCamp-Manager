@@ -14,6 +14,7 @@ import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
 import { PublicSafetyBanner } from '@/components/features/PublicSafetyBanner'
 import { Button } from '@/components/ui/button'
 import { HealthBanner } from '@/components/features/HealthBanner'
+import { JurisdictionBanner } from '@/components/features/JurisdictionBanner'
 import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import {
@@ -943,6 +944,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
         {/* Page Content */}
         <main className="p-4 lg:p-6 relative">
           <PublicSafetyBanner />
+          <JurisdictionBanner />
           {(user?.role === 'admin' || user?.role === 'master' || user?.role === 'grand_master') && <HealthBanner />}
           {children}
 

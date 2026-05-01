@@ -206,6 +206,94 @@ app.get('/health', (req, res) => {
   });
 });
 
+// PTT stream multiplexing context resolver.
+// Resolves whether a provider should stay in tactical stream or move into
+// diplomatic/client stream based on contractor_jurisdictions delegation.
+app.post('/api/ptt/multiplex-context', rateLimitMiddleware, async (req, res) => {
+  try {
+    const authResult = checkProxyAuth(req);
+    if (authResult) {
+      return res.status(authResult.status).json(authResult.body);
+    }
+
+    const providerOrgId = String(req.body?.provider_org_id || '').trim();
+    const clientOrgId = String(req.body?.client_org_id || '').trim();
+    const branchId = String(req.body?.branch_id || '').trim();
+
+    if (!providerOrgId) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'provider_org_id is required',
+      });
+    }
+
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      return res.status(200).json({
+        success: true,
+        stream: 'tactical',
+        tactical_channel: `org:${providerOrgId}`,
+        diplomatic_channel: null,
+        handshake_active: false,
+        reason: 'supabase_not_configured',
+      });
+    }
+
+    const headers = {
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      'Content-Type': 'application/json',
+    };
+
+    const filters = [
+      `provider_id=eq.${encodeURIComponent(providerOrgId)}`,
+      'ptt_bridge_active=is.true',
+    ];
+    if (clientOrgId) filters.push(`client_id=eq.${encodeURIComponent(clientOrgId)}`);
+    if (branchId) filters.push(`branch_id=eq.${encodeURIComponent(branchId)}`);
+
+    const queryUrl = `${SUPABASE_URL}/rest/v1/contractor_jurisdictions` +
+      `?select=id,provider_id,client_id,branch_id,access_level,ptt_bridge_active` +
+      `&${filters.join('&')}` +
+      '&limit=1';
+
+    const supabaseRes = await axios.get(queryUrl, { headers, timeout: 10000 });
+    const row = Array.isArray(supabaseRes.data) ? supabaseRes.data[0] : null;
+    const isDelegated = !!row && ['enforce', 'admin'].includes(String(row.access_level || '').toLowerCase());
+
+    return res.status(200).json({
+      success: true,
+      stream: isDelegated ? 'diplomatic' : 'tactical',
+      tactical_channel: `org:${providerOrgId}`,
+      diplomatic_channel: isDelegated ? `org:${row.client_id}` : null,
+      handshake_active: isDelegated,
+      access_level: row?.access_level || null,
+      provider_org_id: providerOrgId,
+      client_org_id: row?.client_id || clientOrgId || null,
+      branch_id: row?.branch_id || branchId || null,
+      reason: isDelegated ? 'contractor_jurisdiction_active' : 'no_active_contractor_jurisdiction',
+    });
+  } catch (error) {
+    const isSchemaIssue = String(error?.response?.data?.message || '').toLowerCase().includes('contractor_jurisdictions');
+    if (isSchemaIssue) {
+      const providerOrgId = String(req.body?.provider_org_id || '').trim();
+      return res.status(200).json({
+        success: true,
+        stream: 'tactical',
+        tactical_channel: providerOrgId ? `org:${providerOrgId}` : null,
+        diplomatic_channel: null,
+        handshake_active: false,
+        reason: 'contractor_jurisdictions_not_deployed',
+      });
+    }
+
+    console.error('❌ multiplex-context error:', error?.response?.data || error?.message || error);
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to resolve PTT multiplex context',
+    });
+  }
+});
+
 // NZSCV API Proxy endpoint
 app.post('/api/nzscv/vehicle-info', rateLimitMiddleware, async (req, res) => {
   try {

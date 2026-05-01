@@ -225,6 +225,11 @@ Canonical secret names used by deploy workflows:
 | `PROXY_SERVICE_URL` | Proxy health check |
 | `BOB_SERVICE_URL` | Bob health + chat route verification |
 | `BOB_INFERENCE_API_KEY` | Bob ops workflow auth alias for `INFERENCE_API_KEY` |
+| `RUNPOD_PRIMARY_POD_NAME` | Bob automation primary pod label shown in admin health cards |
+| `RUNPOD_PRIMARY_GPU_PROFILE` | GPU profile label shown in admin health cards |
+| `RUNPOD_TARGET_PODS` | Desired pod count shown in admin health cards |
+| `RUNPOD_ACTIVE_PODS` | Current active pod count shown in admin health cards |
+| `RUNPOD_BALANCE_HINT_USD` | Optional fallback balance hint when GraphQL balance is unavailable |
 
 > ⚠️ `RAILWAY_BOB_TOKEN`, `RAILWAY_BOB_SERVICE_ID`, `RAILWAY_BOB_PROJECT_ID`, `RAILWAY_OLLAMA_SERVICE_ID`, `OLLAMA_SERVICE_URL`
 > are **no longer required** — Bob and Ollama moved to RunPod.
@@ -232,6 +237,10 @@ Canonical secret names used by deploy workflows:
 Notes:
 - Bob ops workflows accept URL/key aliases to reduce naming drift: `BOB_SERVICE_URL` <-> `INFERENCE_SERVICE_URL` and `BOB_INFERENCE_API_KEY` <-> `INFERENCE_API_KEY`.
 - Service IDs remain mandatory for deterministic deployments (proxy only).
+- If a Bob pod is broken, create replacements with:
+  - `npm run runpod:bob:replace` (single replacement pod)
+  - `npm run runpod:bob:replace:3` (restore a 3-pod pool)
+  - Defaults: pod base `bob-automation-pod-v3`, GPU type id `NVIDIA_GEFORCE_RTX_4090`.
 
 ---
 

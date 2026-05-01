@@ -773,6 +773,14 @@ Deno.serve(async (req: Request) => {
     const photoUrl:       string | null = body.photo_url ?? null;
     const allowAdminOverride = body.allow_admin_override === true;
 
+    const gpsLatitudeRaw = body.gps_latitude ?? body.officer_latitude ?? body.latitude ?? null;
+    const gpsLongitudeRaw = body.gps_longitude ?? body.officer_longitude ?? body.longitude ?? null;
+    const gpsAccuracyRaw = body.gps_accuracy ?? body.officer_accuracy ?? null;
+
+    const gpsLatitude = Number.isFinite(Number(gpsLatitudeRaw)) ? Number(gpsLatitudeRaw) : null;
+    const gpsLongitude = Number.isFinite(Number(gpsLongitudeRaw)) ? Number(gpsLongitudeRaw) : null;
+    const gpsAccuracy = Number.isFinite(Number(gpsAccuracyRaw)) ? Number(gpsAccuracyRaw) : null;
+
     if (!observationId) return jsonResp({ error: 'observation_id is required' }, 400);
     if (!photoUrl)       return jsonResp({ error: 'photo_url is required' }, 400);
     observationIdForCleanup = observationId;
@@ -827,9 +835,46 @@ Deno.serve(async (req: Request) => {
       return jsonResp({ error: 'Forbidden: observation belongs to another officer' }, 403);
     }
 
-    const zoneId         = obs.zone_id as string;
-    const organizationId = obs.organization_id as string;
-    const recordedAt     = obs.recorded_at as string;
+    const zoneId = obs.zone_id as string;
+    const sourceOrganizationId = obs.organization_id as string;
+    let organizationId = sourceOrganizationId;
+    const recordedAt = obs.recorded_at as string;
+
+    const providerOrganizationId = (profile as any).employer_organization_id || (profile as any).organization_id || null;
+
+    // Optional multi-tenant handshake routing:
+    // When the officer is physically inside a client geofence and has explicit
+    // authorized_work_locations access, route downstream records to that client org.
+    if (providerOrganizationId && gpsLatitude !== null && gpsLongitude !== null) {
+      try {
+        const { data: handshakeData, error: handshakeError } = await supabase.rpc(
+          'resolve_hybrid_workspace_handshake',
+          {
+            p_provider_org_id: providerOrganizationId,
+            p_longitude: gpsLongitude,
+            p_latitude: gpsLatitude,
+            p_preferred_client_org_id: sourceOrganizationId,
+            p_user_id: profile.id,
+            p_default_translation_lang: 'hi-IN',
+          } as any,
+        );
+
+        if (!handshakeError && handshakeData && handshakeData.matched === true && handshakeData.handshake_active === true) {
+          const routedClientOrgId = typeof handshakeData.client_org_id === 'string' ? handshakeData.client_org_id : null;
+          if (routedClientOrgId && allowedOrganizationIds.has(routedClientOrgId)) {
+            organizationId = routedClientOrgId;
+            console.log('↔️ process-officer-scan routed via handshake', {
+              observationId,
+              from_org: sourceOrganizationId,
+              to_org: organizationId,
+              workspace_id: handshakeData.workspace_id || null,
+            });
+          }
+        }
+      } catch (handshakeErr: any) {
+        console.warn('⚠️ Handshake routing skipped (non-fatal):', handshakeErr?.message || String(handshakeErr));
+      }
+    }
 
     // ── Step 2: Download photo ─────────────────────────────────────────────
     const imageBytes = await downloadPhoto(supabase, photoUrl);

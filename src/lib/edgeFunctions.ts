@@ -1511,6 +1511,17 @@ export const edgeFunctions = {
   },
 
   /**
+   * Resolve tactical vs diplomatic stream mode for live PTT routing.
+   */
+  pttMultiplexContext: async (params: {
+    provider_org_id: string
+    client_org_id?: string | null
+    branch_id?: string | null
+  }) => {
+    return callEdgeFunction('ptt-multiplex-context', params, { showToast: false })
+  },
+
+  /**
    * Bulk-export observations, breaches, or notices to JSON or CSV.
    */
   exportData: async (params: {

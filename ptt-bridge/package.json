@@ -1,0 +1,35 @@
+{
+  "name": "ptt-bridge",
+  "version": "1.0.0",
+  "description": "PTT audio translation bridge: Whisper → Seamless → Piper pipeline for real-time voice-to-voice translation",
+  "main": "server.js",
+  "scripts": {
+    "dev": "node --watch server.js",
+    "start": "node server.js",
+    "test": "node test-local.sh"
+  },
+  "keywords": [
+    "ptt",
+    "audio",
+    "translation",
+    "whisper",
+    "seamless",
+    "piper",
+    "inference"
+  ],
+  "author": "OnSpace AI",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "multer": "^1.4.5-lts.1",
+    "axios": "^1.7.7",
+    "dotenv": "^16.4.5",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

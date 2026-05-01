@@ -412,21 +412,61 @@ function scheduleTokenRefresh(channelScope: string, channelName: string | undefi
   }, delayMs)
 }
 
+const PTT_VISIBILITY_LISTENER_KEY = '__fieldopsPttVisibilityListener__'
+
+function handlePTTVisibilityReconnect(): void {
+  if (typeof document === 'undefined') return
+  if (document.visibilityState !== 'visible') return
+  if (!activeChannelScope) return
+
+  // If the WS is gone or closing, reconnect immediately without waiting for backoff.
+  if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+    console.log('🎤 PTT: Page visible – reconnecting dropped WS', activeChannelScope)
+    reconnectAttempts = 0
+    connectToPTT(activeChannelScope).catch((err) => {
+      console.error('🎤 PTT: Visibility reconnect failed', err)
+    })
+  }
+}
+
+function installPTTVisibilityListener(): void {
+  if (typeof document === 'undefined') return
+  const globalScope = globalThis as typeof globalThis & {
+    [PTT_VISIBILITY_LISTENER_KEY]?: () => void
+  }
+
+  const priorListener = globalScope[PTT_VISIBILITY_LISTENER_KEY]
+  if (priorListener) {
+    document.removeEventListener('visibilitychange', priorListener)
+  }
+
+  document.addEventListener('visibilitychange', handlePTTVisibilityReconnect)
+  globalScope[PTT_VISIBILITY_LISTENER_KEY] = handlePTTVisibilityReconnect
+}
+
+function uninstallPTTVisibilityListener(): void {
+  if (typeof document === 'undefined') return
+  const globalScope = globalThis as typeof globalThis & {
+    [PTT_VISIBILITY_LISTENER_KEY]?: () => void
+  }
+
+  const listener = globalScope[PTT_VISIBILITY_LISTENER_KEY]
+  if (!listener) return
+
+  document.removeEventListener('visibilitychange', listener)
+  delete globalScope[PTT_VISIBILITY_LISTENER_KEY]
+}
+
 // Reconnect when the page/tab becomes visible again (handles mobile browser backgrounding).
-if (typeof document !== 'undefined') {
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState !== 'visible') return
-    if (!activeChannelScope) return
-    // If the WS is gone or closing, reconnect immediately without waiting for backoff.
-    if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
-      console.log('🎤 PTT: Page visible – reconnecting dropped WS', activeChannelScope)
-      reconnectAttempts = 0
-      connectToPTT(activeChannelScope).catch((err) => {
-        console.error('🎤 PTT: Visibility reconnect failed', err)
-      })
-    }
+installPTTVisibilityListener()
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    uninstallPTTVisibilityListener()
+    disconnectFromPTT()
   })
 }
+
 let localStream: MediaStream | null = null
 const peerConnections: Map<string, RTCPeerConnection> = new Map()
 let mediaRecorder: MediaRecorder | null = null

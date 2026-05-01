@@ -155,6 +155,37 @@ async function getRunpodDollarRemaining() {
   }
 }
 
+function parseInteger(input: string | null | undefined, fallback: number): number {
+  const n = Number(String(input ?? '').trim())
+  return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : fallback
+}
+
+function parseFloatValue(input: string | null | undefined): number | null {
+  const n = Number(String(input ?? '').trim())
+  return Number.isFinite(n) ? n : null
+}
+
+function getRunpodPodContext() {
+  const podName = (Deno.env.get('RUNPOD_PRIMARY_POD_NAME') || 'bob-automation-pod-v3').trim()
+  const gpuProfile = (Deno.env.get('RUNPOD_PRIMARY_GPU_PROFILE') || 'RTX 4090 x1').trim()
+  const targetPods = parseInteger(Deno.env.get('RUNPOD_TARGET_PODS'), 3)
+  const activePods = parseInteger(Deno.env.get('RUNPOD_ACTIVE_PODS'), targetPods)
+  const balanceHintUsd = parseFloatValue(Deno.env.get('RUNPOD_BALANCE_HINT_USD'))
+
+  return {
+    podName,
+    gpuProfile,
+    targetPods,
+    activePods,
+    ...(balanceHintUsd !== null
+      ? {
+          balanceHintUsd,
+          balanceHintFormatted: `$${balanceHintUsd.toFixed(2)}`,
+        }
+      : {}),
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: getCorsHeaders(req) })
@@ -412,6 +443,7 @@ Deno.serve(async (req: Request) => {
       const health = await bobGet('/health')
       const doctor = await bobGet('/doctor/health')
       const runpodDollars = await getRunpodDollarRemaining()
+      const runpodPod = getRunpodPodContext()
 
       return new Response(
         JSON.stringify({
@@ -431,6 +463,7 @@ Deno.serve(async (req: Request) => {
             },
           },
           runpodDollars,
+          runpodPod,
         }),
         { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
       )

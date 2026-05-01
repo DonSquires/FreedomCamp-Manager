@@ -88,6 +88,14 @@ interface BobAutomationStatus {
     usdRemaining?: number
     reason?: string
   }
+  runpodPod?: {
+    podName?: string
+    gpuProfile?: string
+    targetPods?: number
+    activePods?: number
+    balanceHintUsd?: number
+    balanceHintFormatted?: string
+  }
 }
 
 // Map an import_batches row to ImportHistoryRecord
@@ -386,7 +394,7 @@ export default function DataManagementHub() {
             )}
 
             {hasBobAutomationAccess && !bobAutomationError && (
-              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-6">
                 <div className="rounded-md border p-3">
                   <div className="text-xs text-muted-foreground">Overall</div>
                   <div className="mt-1">
@@ -422,7 +430,23 @@ export default function DataManagementHub() {
                   <div className="mt-1 text-sm font-medium">
                     {bobAutomationStatus?.runpodDollars?.available
                       ? (bobAutomationStatus.runpodDollars.formatted || `$${Number(bobAutomationStatus.runpodDollars.usdRemaining || 0).toFixed(2)}`)
+                      : bobAutomationStatus?.runpodPod?.balanceHintFormatted
+                        ? bobAutomationStatus.runpodPod.balanceHintFormatted
                       : 'Unavailable'}
+                  </div>
+                </div>
+
+                <div className="rounded-md border p-3">
+                  <div className="text-xs text-muted-foreground">RunPod Pod</div>
+                  <div className="mt-1 text-sm font-medium">
+                    {bobAutomationStatus?.runpodPod?.podName || 'Not set'}
+                  </div>
+                </div>
+
+                <div className="rounded-md border p-3">
+                  <div className="text-xs text-muted-foreground">GPU / Pods</div>
+                  <div className="mt-1 text-sm font-medium">
+                    {`${bobAutomationStatus?.runpodPod?.gpuProfile || 'Unknown'} | ${bobAutomationStatus?.runpodPod?.activePods ?? 0}/${bobAutomationStatus?.runpodPod?.targetPods ?? 0}`}
                   </div>
                 </div>
               </div>

@@ -1,5 +1,53 @@
 import { test, expect, applySyntheticOrganization } from './setup'
 
+const supabaseUrl = process.env.VITE_SUPABASE_URL || ''
+
+async function stubTranslationRailContext(
+  page: any,
+  options: {
+    stream: 'diplomatic' | 'tactical'
+    clientOrgId?: string | null
+    workspaceName?: string
+  },
+) {
+  await page.context().grantPermissions(['geolocation'])
+  await page.context().setGeolocation({ latitude: -41.2706, longitude: 173.284 })
+
+  await page.route(`${supabaseUrl}/rest/v1/rpc/resolve_hybrid_workspace_handshake`, async (route: any) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        matched: true,
+        conflict: false,
+        provider_org_id: 'provider-org',
+        client_org_id: options.clientOrgId ?? 'client-org',
+        workspace_id: 'workspace-1',
+        workspace_name: options.workspaceName ?? 'Client Workspace',
+        translation_active: true,
+        handshake_active: true,
+        branch_id: null,
+      }),
+    })
+  })
+
+  await page.route(`${supabaseUrl}/functions/v1/ptt-multiplex-context`, async (route: any) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        stream: options.stream,
+        tactical_channel: 'org:provider-org',
+        diplomatic_channel: options.stream === 'diplomatic' ? `org:${options.clientOrgId ?? 'client-org'}` : null,
+        handshake_active: options.stream === 'diplomatic',
+        access_level: options.stream === 'diplomatic' ? 'enforce' : null,
+        client_org_id: options.clientOrgId ?? 'client-org',
+      }),
+    })
+  })
+}
+
 async function waitForRadioState(page: any, state: 'connecting' | 'connected' | 'ready' | 'transmitting', timeout = 20000) {
   if (state === 'connected' || state === 'connecting') {
     await expect(page.getByTestId('ptt-connection-status')).toHaveAttribute('data-state', state, { timeout })
@@ -57,6 +105,28 @@ test.describe('PTT radio route smoke', () => {
     await waitForRadioState(masterUser, 'transmitting', 10000)
     await pttButton.dispatchEvent('mouseup')
     await waitForRadioState(masterUser, 'ready', 10000)
+  })
+
+  test('radio shows Diplomatic Route when multiplex context is delegated', async ({ officerUser: page }) => {
+    await stubTranslationRailContext(page, {
+      stream: 'diplomatic',
+      clientOrgId: 'b8f3a1e4-5c7d-4e9f-a2b6-3c8d9e1f2a3b',
+      workspaceName: 'Nelson Delegated Workspace',
+    })
+
+    await assertRadioLoads(page)
+    await expect(page.getByText(/Nelson Delegated Workspace .* Diplomatic Route/i)).toBeVisible({ timeout: 20000 })
+  })
+
+  test('radio shows Tactical Route when multiplex context stays provider-side', async ({ officerUser: page }) => {
+    await stubTranslationRailContext(page, {
+      stream: 'tactical',
+      clientOrgId: 'b8f3a1e4-5c7d-4e9f-a2b6-3c8d9e1f2a3b',
+      workspaceName: 'Nelson Delegated Workspace',
+    })
+
+    await assertRadioLoads(page)
+    await expect(page.getByText(/Nelson Delegated Workspace .* Tactical Route/i)).toBeVisible({ timeout: 20000 })
   })
 })
 

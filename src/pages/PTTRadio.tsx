@@ -37,6 +37,8 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { useBobCollaboration } from '@/hooks/useBobCollaboration'
+import { useHybridWorkspaceHandshake } from '@/hooks/useHybridWorkspaceHandshake'
+import { useBobTranslator } from '@/hooks/useBobTranslator'
 import {
   usePTTStore,
   usePTTAvailable,
@@ -448,6 +450,10 @@ export default function PTTRadio() {
   const [showVoxCalibrator, setShowVoxCalibrator] = useState(false)
   const [degradedMode, setDegradedMode] = useState(false)
   const [disconnectingUserId, setDisconnectingUserId] = useState<string | null>(null)
+  const [handoffGeoPoint, setHandoffGeoPoint] = useState<{ latitude: number; longitude: number } | null>(null)
+  const [handoffGpsUnavailable, setHandoffGpsUnavailable] = useState(false)
+  const [translationRailEnabled, setTranslationRailEnabled] = useState(false)
+  const [pttStreamMode, setPttStreamMode] = useState<'tactical' | 'diplomatic'>('tactical')
   const [interpreterInput, setInterpreterInput] = useState('')
   const [interpreterOutput, setInterpreterOutput] = useState('')
   const [interpreterTranslationMeta, setInterpreterTranslationMeta] = useState<TranslationResult | null>(null)
@@ -507,6 +513,7 @@ export default function PTTRadio() {
   const connectCircuitOpenUntilRef = useRef(0)
   const lastConnectAttemptAtRef = useRef(0)
   const lastConnectCircuitToastAtRef = useRef(0)
+  const handoffGeoPollInFlightRef = useRef(false)
 
   // ── Org ID ────────────────────────────────────────────────
   const effectiveOrgId = useMemo(
@@ -518,6 +525,37 @@ export default function PTTRadio() {
   )
   const homeOrganizationId = user?.organization_id || effectiveOrgId || null
   const employerOrganizationId = user?.employer_organization_id || null
+  const providerOrgId = employerOrganizationId || homeOrganizationId || null
+
+  const { data: hybridHandshake } = useHybridWorkspaceHandshake({
+    providerOrgId,
+    longitude: handoffGeoPoint?.longitude,
+    latitude: handoffGeoPoint?.latitude,
+    preferredClientOrgId: organizationId || null,
+    userId: user?.id,
+    defaultTranslationLang: interpreterTargetLanguage,
+    enabled: !!user,
+  })
+
+  const translationRailAvailable = hybridHandshake?.handshake_active === true
+  const translatorWorkspaceId = hybridHandshake?.workspace_id || null
+  const translatorTargetLanguage = hybridHandshake?.target_translation_language || interpreterTargetLanguage
+  const { connectionState: translatorConnectionState, sendAudioChunk } = useBobTranslator({
+    workspaceId: translatorWorkspaceId,
+    enabled: translationRailEnabled && translationRailAvailable,
+    targetLanguage: translatorTargetLanguage,
+  })
+  const translatorStatusLabel = translationRailEnabled
+    ? `Bob Ear ${translatorConnectionState.toUpperCase()}`
+    : 'Bob Ear STANDBY'
+  const streamModeLabel = pttStreamMode === 'diplomatic' ? 'Diplomatic Route' : 'Tactical Route'
+
+  const translationRailSubtitle = translationRailAvailable
+    ? `${hybridHandshake?.workspace_name || 'Client Workspace'} • ${hybridHandshake?.translation_active ? 'Translation Available' : 'Translation Ready'} • ${streamModeLabel}`
+    : handoffGpsUnavailable
+      ? 'GPS unavailable • translator standby'
+      : 'Provider tactical mode'
+
   const crossOrgIds = useMemo(() => {
     const ids = new Set<string>()
     const excluded = new Set<string>([homeOrganizationId || ''])
@@ -813,6 +851,12 @@ export default function PTTRadio() {
     async (channel: RadioChannel, options?: { autoRetry?: boolean }) => {
       if (!effectiveOrgId) return
 
+      const requestedScope = getChannelScope(channel, effectiveOrgId)
+      if (connectionStatus === 'connected' && channelId === requestedScope) {
+        setActiveChannel(channel)
+        return
+      }
+
       const now = Date.now()
       const circuitRemainingMs = connectCircuitOpenUntilRef.current - now
       if (circuitRemainingMs > 0) {
@@ -909,7 +953,7 @@ export default function PTTRadio() {
         setIsConnecting(false)
       }
     },
-    [connectionStatus, effectiveOrgId, isConnectCoolingDown, isConnecting, retryCountdownSeconds, setError],
+    [channelId, connectionStatus, effectiveOrgId, isConnectCoolingDown, isConnecting, retryCountdownSeconds, setError],
   )
 
   useEffect(() => {
@@ -1019,6 +1063,85 @@ export default function PTTRadio() {
     if (Notification.permission === 'default') setShowNotificationHint(true)
     requestNotificationPermission()
   }, [])
+
+  // ── Hybrid handshake geolocation polling ─────────────────
+  useEffect(() => {
+    if (!user || !navigator?.geolocation) {
+      setHandoffGpsUnavailable(true)
+      return
+    }
+
+    let cancelled = false
+
+    const pollGeo = async () => {
+      if (handoffGeoPollInFlightRef.current) return
+      handoffGeoPollInFlightRef.current = true
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 10_000,
+            maximumAge: 20_000,
+          })
+        })
+
+        if (!cancelled) {
+          setHandoffGpsUnavailable(false)
+          setHandoffGeoPoint({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          })
+        }
+      } catch {
+        if (!cancelled) {
+          setHandoffGpsUnavailable(true)
+        }
+      } finally {
+        handoffGeoPollInFlightRef.current = false
+      }
+    }
+
+    void pollGeo()
+    const interval = setInterval(() => void pollGeo(), 30_000)
+
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [user])
+
+  useEffect(() => {
+    if (!translationRailAvailable && translationRailEnabled) {
+      setTranslationRailEnabled(false)
+    }
+  }, [translationRailAvailable, translationRailEnabled])
+
+  useEffect(() => {
+    if (!providerOrgId) {
+      setPttStreamMode('tactical')
+      return
+    }
+
+    let cancelled = false
+
+    edgeFunctions.pttMultiplexContext({
+      provider_org_id: providerOrgId,
+      client_org_id: hybridHandshake?.client_org_id || null,
+      branch_id: hybridHandshake?.branch_id || null,
+    })
+      .then((result: any) => {
+        if (cancelled) return
+        const stream = String(result?.data?.stream || '').toLowerCase()
+        setPttStreamMode(stream === 'diplomatic' ? 'diplomatic' : 'tactical')
+      })
+      .catch(() => {
+        if (!cancelled) setPttStreamMode('tactical')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [providerOrgId, hybridHandshake?.client_org_id, hybridHandshake?.branch_id])
 
   const requestMicrophoneAccess = useCallback(async () => {
     try {
@@ -1413,8 +1536,41 @@ export default function PTTRadio() {
     if (emergencyMode) {
       sendEmergencyBroadcast(false)
     }
+
+    if (clipUrl && translationRailEnabled && translationRailAvailable) {
+      void (async () => {
+        try {
+          const clipResponse = await fetch(clipUrl)
+          if (!clipResponse.ok) return
+          const buffer = await clipResponse.arrayBuffer()
+          const bytes = new Uint8Array(buffer)
+          let binary = ''
+          const chunkSize = 0x8000
+          for (let i = 0; i < bytes.length; i += chunkSize) {
+            binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize))
+          }
+          const audioBase64 = btoa(binary)
+          sendAudioChunk(audioBase64, 'audio/webm')
+        } catch {
+          // Translation forwarding is best-effort and should not block radio UX.
+        }
+      })()
+    }
+
     setEmergencyMode(false)
-  }, [isTransmitting, currentTxStart, callsign, user, activeChannel, emergencyMode, effectiveOrgId, queryClient])
+  }, [
+    isTransmitting,
+    currentTxStart,
+    callsign,
+    user,
+    activeChannel,
+    emergencyMode,
+    effectiveOrgId,
+    queryClient,
+    translationRailEnabled,
+    translationRailAvailable,
+    sendAudioChunk,
+  ])
 
   // ── Incoming transmission detection ──────────────────────
   useEffect(() => {
@@ -2064,6 +2220,31 @@ export default function PTTRadio() {
             </Button>
           </div>
         )}
+
+        {/* ── Translation rail status ─────────────────────── */}
+        <div className="px-4 py-2 border-b border-slate-800 bg-slate-900/80 shrink-0 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className={`h-2.5 w-2.5 rounded-full ${translationRailEnabled ? 'bg-yellow-400 animate-pulse' : 'bg-blue-400 animate-pulse'}`} />
+            <span className="text-xs uppercase tracking-wide text-slate-200">
+              {translationRailEnabled ? 'Diplomatic Bus' : 'Tactical Bus'}
+            </span>
+            <span className="text-[10px] text-slate-400 truncate">{translationRailSubtitle}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className={translationRailEnabled ? 'border-yellow-500 text-yellow-300' : 'border-blue-500 text-blue-300'}>
+              {translationRailEnabled ? 'Gold Pulse' : 'Blue Pulse'}
+            </Badge>
+            <Badge variant="outline" className="border-emerald-500/60 text-emerald-300">
+              {translatorStatusLabel}
+            </Badge>
+            <Switch
+              checked={translationRailEnabled}
+              onCheckedChange={setTranslationRailEnabled}
+              disabled={!translationRailAvailable}
+              aria-label="Universal translator toggle"
+            />
+          </div>
+        </div>
 
         {/* ── Notification hint ────────────────────────────── */}
         {showNotificationHint && (

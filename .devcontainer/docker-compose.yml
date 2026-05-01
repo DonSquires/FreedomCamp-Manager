@@ -25,5 +25,22 @@ services:
     environment:
       OLLAMA_HOST: 0.0.0.0:11434
 
+  ptt-translator-python:
+    build:
+      context: ..
+      dockerfile: ptt-bridge-python/Dockerfile
+    container_name: fieldops-ptt-translator-python
+    restart: unless-stopped
+    profiles: ["translator"]
+    ports:
+      - '8274:8274'
+    environment:
+      WHISPER_MODEL: distil-large-v3
+      WHISPER_DEVICE: cpu
+      WHISPER_COMPUTE_TYPE: int8
+      TRANSLATOR_MODEL_PATH: nllb-200-distilled-600M
+      TOKENIZER_MODEL_NAME: facebook/nllb-200-distilled-600M
+      TRANSLATOR_DEVICE: cpu
+
 volumes:
   ollama_data:

@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  mumble:
+    image: mumblevoip/mumble-server:latest
+    container_name: fieldops-murmur
+    restart: unless-stopped
+    environment:
+      MUMBLE_CONFIG_SERVERPASSWORD: ${MUMBLE_SERVER_PASSWORD:-}
+      MUMBLE_CONFIG_BANDWIDTH: ${MUMBLE_BANDWIDTH:-72000}
+      MUMBLE_CONFIG_USERS: ${MUMBLE_MAX_USERS:-100}
+      MUMBLE_CONFIG_PORT: ${MUMBLE_PORT:-64738}
+      MUMBLE_CONFIG_WELCOMETEXT: ${MUMBLE_WELCOME_TEXT:-FieldOps Voice Backbone}
+    ports:
+      - "64738:64738/tcp"
+      - "64738:64738/udp"
+    volumes:
+      - murmur_data:/data
+
+volumes:
+  murmur_data:

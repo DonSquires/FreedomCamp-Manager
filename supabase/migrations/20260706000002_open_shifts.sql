@@ -44,6 +44,7 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_open_shifts_updated_at ON public.open_shifts;
 CREATE TRIGGER trg_open_shifts_updated_at
   BEFORE UPDATE ON public.open_shifts
   FOR EACH ROW EXECUTE FUNCTION public.update_open_shifts_updated_at();
@@ -52,6 +53,7 @@ CREATE TRIGGER trg_open_shifts_updated_at
 ALTER TABLE public.open_shifts ENABLE ROW LEVEL SECURITY;
 
 -- Admins can do everything within their organisation
+DROP POLICY IF EXISTS "admins manage open_shifts" ON public.open_shifts;
 CREATE POLICY "admins manage open_shifts"
   ON public.open_shifts
   FOR ALL
@@ -66,6 +68,7 @@ CREATE POLICY "admins manage open_shifts"
 
 -- Officers (and admin_officer acting as officer) can read open shifts for
 -- their organisation and claim them (update status + claimed_by).
+DROP POLICY IF EXISTS "officers read open_shifts" ON public.open_shifts;
 CREATE POLICY "officers read open_shifts"
   ON public.open_shifts
   FOR SELECT
@@ -78,6 +81,7 @@ CREATE POLICY "officers read open_shifts"
     )
   );
 
+DROP POLICY IF EXISTS "officers claim open_shifts" ON public.open_shifts;
 CREATE POLICY "officers claim open_shifts"
   ON public.open_shifts
   FOR UPDATE

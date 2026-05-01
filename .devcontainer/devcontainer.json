@@ -70,7 +70,7 @@
 
   // Forward the Vite dev server port so you can preview the app in your
   // browser tab directly from Codespaces.
-  "forwardPorts": [5173, 3000, 3002, 5432, 8080, 11434],
+  "forwardPorts": [5173, 3000, 3002, 5432, 8080, 8273, 11434],
 
   "portsAttributes": {
     "5173": { "label": "Vite Dev Server", "onAutoForward": "openPreview" },
@@ -78,6 +78,7 @@
     "3002": { "label": "PTT Signaling Server" },
     "5432": { "label": "PostgreSQL" },
     "8080": { "label": "Inference Service" },
+    "8273": { "label": "PTT Bridge Service" },
     "11434": { "label": "Ollama API", "onAutoForward": "silent" }
   },
 
@@ -105,6 +106,8 @@
     "REQUIRE_SELF_CONTAINED_MODE": "false",
     "RUNPOD_GATEWAY_URL": "${localEnv:RUNPOD_GATEWAY_URL}",
     "RUNPOD_POD_ID": "${localEnv:RUNPOD_POD_ID}",
+    "RUNPOD_TRANSLATOR_WS_URL": "${localEnv:RUNPOD_TRANSLATOR_WS_URL}",
+    "OLLAMA_PTT_BASE_URL": "${localEnv:OLLAMA_PTT_BASE_URL}",
     "BOB_VEHICLE_MODEL_URL": "${localEnv:BOB_VEHICLE_MODEL_URL}",
     "BOB_FACE_MODEL_URL": "${localEnv:BOB_FACE_MODEL_URL}",
     "BOB_SMOKE_MODEL_URL": "${localEnv:BOB_SMOKE_MODEL_URL}"

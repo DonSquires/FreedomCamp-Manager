@@ -672,6 +672,9 @@ const RUNPOD_ENDPOINT_URL = String(process.env.RUNPOD_ENDPOINT_URL || '').trim()
 const RUNPOD_ENDPOINT_API_KEY = String(process.env.RUNPOD_ENDPOINT_API_KEY || '').trim();
 const RUNPOD_ENDPOINT_TIMEOUT_MS = Number(process.env.RUNPOD_ENDPOINT_TIMEOUT_MS || 120_000);
 const RUNPOD_ENDPOINT_POLL_INTERVAL_MS = Number(process.env.RUNPOD_ENDPOINT_POLL_INTERVAL_MS || 3_000);
+const ALPR_RUNPOD_OFFLOAD_ENABLED = envFlag(process.env.ALPR_RUNPOD_OFFLOAD_ENABLED, false);
+const ALPR_RUNPOD_ACTION = String(process.env.ALPR_RUNPOD_ACTION || 'alpr').trim().toLowerCase();
+const ALPR_RUNPOD_TIMEOUT_MS = Number(process.env.ALPR_RUNPOD_TIMEOUT_MS || 35_000);
 const DEFAULT_RUNPOD_SERVERLESS_ACTION_ALLOWLIST = [
   'ping',
   'chat',
@@ -6401,6 +6404,40 @@ app.post('/infer/alpr', alprRateLimit, upload.single('photo'), requireInferenceA
     // Parse optional pre-computed vehicle bbox
     if (req.body?.vehicle_bbox) {
       try { vehicleBbox = JSON.parse(req.body.vehicle_bbox); } catch { /* ignore */ }
+    }
+
+    // Optional offload path: route ALPR workload to RunPod serverless first.
+    if (ALPR_RUNPOD_OFFLOAD_ENABLED && deriveRunpodInvokeUrl()) {
+      try {
+        const runpodJob = await invokeRunpodServerless({
+          input: {
+            action: ALPR_RUNPOD_ACTION,
+            image_base64: imageBuffer.toString('base64'),
+            image_mime_type: req.file.mimetype || 'image/jpeg',
+            vehicle_bbox: vehicleBbox || undefined,
+          },
+          poll: true,
+          timeoutMs: ALPR_RUNPOD_TIMEOUT_MS,
+          intervalMs: RUNPOD_ENDPOINT_POLL_INTERVAL_MS,
+        });
+
+        const runpodOutput = runpodJob?.final?.output || runpodJob?.final || null;
+        const hasPlateShape = !!runpodOutput && (
+          Array.isArray(runpodOutput.results) ||
+          typeof runpodOutput.plate === 'string'
+        );
+
+        if (hasPlateShape) {
+          return res.json({
+            success: true,
+            ...runpodOutput,
+            alpr_provider: 'runpod_serverless',
+            processing_time_ms: Date.now() - startTime,
+          });
+        }
+      } catch (runpodError) {
+        console.warn('⚠️  /infer/alpr RunPod offload failed, falling back to local:', runpodError.message);
+      }
     }
 
     // ── Step 1: Attempt dedicated plate detection ──────────────────

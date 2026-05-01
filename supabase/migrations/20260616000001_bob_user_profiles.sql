@@ -78,11 +78,13 @@ CREATE TRIGGER trg_bob_user_profiles_updated_at
 ALTER TABLE public.bob_user_profiles ENABLE ROW LEVEL SECURITY;
 
 -- Users can read their own profile
+DROP POLICY IF EXISTS "bob_profile_select_own" ON public.bob_user_profiles;
 CREATE POLICY "bob_profile_select_own"
   ON public.bob_user_profiles FOR SELECT
   USING (user_id = auth.uid());
 
 -- Users can update their own non-ACL fields (tier + permissions are admin-only)
+DROP POLICY IF EXISTS "bob_profile_update_own" ON public.bob_user_profiles;
 CREATE POLICY "bob_profile_update_own"
   ON public.bob_user_profiles FOR UPDATE
   USING (user_id = auth.uid())
@@ -94,6 +96,7 @@ CREATE POLICY "bob_profile_update_own"
   );
 
 -- Admins / masters can read all profiles in their org
+DROP POLICY IF EXISTS "bob_profile_select_admin" ON public.bob_user_profiles;
 CREATE POLICY "bob_profile_select_admin"
   ON public.bob_user_profiles FOR SELECT
   USING (
@@ -106,6 +109,7 @@ CREATE POLICY "bob_profile_select_admin"
   );
 
 -- Admins / masters can upsert profiles for their org members
+DROP POLICY IF EXISTS "bob_profile_upsert_admin" ON public.bob_user_profiles;
 CREATE POLICY "bob_profile_upsert_admin"
   ON public.bob_user_profiles FOR ALL
   USING (
