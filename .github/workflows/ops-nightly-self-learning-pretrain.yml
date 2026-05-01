@@ -64,7 +64,23 @@ jobs:
           MULTIPLIER=${PRETRAIN_MULTIPLIER:-6}
           BASE_URL="${INFERENCE_SERVICE_URL%/}"
 
-          if echo "$BASE_URL" | grep -Eq '^https://api\.runpod\.ai/v2/[^/]+(/(run|runsync))?/?$'; then
+          echo "🧠 Triggering /learn/pretrain profile=${PROFILE} multiplier=${MULTIPLIER}"
+
+          HTTP_STATUS=$(curl -s -o /tmp/pretrain-response.json -w "%{http_code}" \
+            --max-time 45 \
+            -X POST "${BASE_URL}/learn/pretrain" \
+            -H "Content-Type: application/json" \
+            -H "x-inference-api-key: ${INFERENCE_API_KEY}" \
+            -d "{\"profile\":\"${PROFILE}\",\"multiplier\":${MULTIPLIER}}")
+
+          cat /tmp/pretrain-response.json
+
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✅ Nightly pretrain trigger completed"
+            exit 0
+          fi
+
+          if [ "$HTTP_STATUS" = "404" ]; then
             RUNSYNC_URL="$(echo "$BASE_URL" | sed -E 's#/(run|runsync)/?$##')/runsync"
             NOTE="Nightly pretrain trigger profile=${PROFILE} multiplier=${MULTIPLIER}. Use the latest training_memory.json bundle in this worker deployment."
 
@@ -78,29 +94,14 @@ jobs:
 
             cat /tmp/pretrain-response.json
 
-            if [ "$HTTP_STATUS" != "200" ]; then
-              echo "::error::Serverless training_note trigger failed with HTTP $HTTP_STATUS"
-              exit 1
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "✅ Nightly serverless training note accepted"
+              exit 0
             fi
 
-            echo "✅ Nightly serverless training note accepted"
-            exit 0
-          fi
-
-          echo "🧠 Triggering /learn/pretrain profile=${PROFILE} multiplier=${MULTIPLIER}"
-
-          HTTP_STATUS=$(curl -s -o /tmp/pretrain-response.json -w "%{http_code}" \
-            --max-time 45 \
-            -X POST "${BASE_URL}/learn/pretrain" \
-            -H "Content-Type: application/json" \
-            -H "x-inference-api-key: ${INFERENCE_API_KEY}" \
-            -d "{\"profile\":\"${PROFILE}\",\"multiplier\":${MULTIPLIER}}")
-
-          cat /tmp/pretrain-response.json
-
-          if [ "$HTTP_STATUS" != "200" ]; then
-            echo "::error::Pretrain trigger failed with HTTP $HTTP_STATUS"
+            echo "::error::Nightly serverless training fallback failed with HTTP $HTTP_STATUS"
             exit 1
           fi
 
-          echo "✅ Nightly pretrain trigger completed"
+          echo "::error::Pretrain trigger failed with HTTP $HTTP_STATUS"
+          exit 1
