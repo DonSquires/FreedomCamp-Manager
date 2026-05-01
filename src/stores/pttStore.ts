@@ -251,7 +251,8 @@ export const usePTTStore = create<PTTState>()(
 
       setError: (error) => set({ error }),
 
-      setDegradedMode: (degraded) => set({ degradedMode: degraded }),
+        setDegradedMode: (degraded) =>
+          set((state) => (state.degradedMode === degraded ? state : { degradedMode: degraded })),
 
       reset: () => set(initialState),
     }),

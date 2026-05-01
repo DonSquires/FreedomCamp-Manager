@@ -207,7 +207,7 @@ export async function startPTTBackgroundService(): Promise<void> {
       degradedModeTimeout = setTimeout(() => {
         degradedModeTimeout = null
         const current = usePTTStore.getState()
-        if (current.connectionStatus !== 'connected') {
+        if (current.connectionStatus !== 'connected' && !current.degradedMode) {
           usePTTStore.getState().setDegradedMode(true)
         }
       }, DEGRADED_MODE_THRESHOLD_MS)
@@ -217,7 +217,9 @@ export async function startPTTBackgroundService(): Promise<void> {
         clearTimeout(degradedModeTimeout)
         degradedModeTimeout = null
       }
-      usePTTStore.getState().setDegradedMode(false)
+      if (state.degradedMode) {
+        usePTTStore.getState().setDegradedMode(false)
+      }
     }
   })
 

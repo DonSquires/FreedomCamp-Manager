@@ -8,6 +8,8 @@ import { useThemeMode } from '@/hooks/useThemeMode'
 import { usePTTAutoConnect } from '@/hooks/usePTTAutoConnect'
 import { useSessionGpsLogging } from '@/hooks/useSessionGpsLogging'
 import { useOrgModules } from '@/hooks/useOrgModules'
+import { useFeedbackCapture } from '@/hooks/useFeedbackCapture'
+import { useLiveSessionDiagnostics } from '@/hooks/useLiveSessionDiagnostics'
 
 // ---------------------------------------------------------------------------
 // Lazy-loaded page chunks — Vite code-splits each of these into a separate
@@ -237,6 +239,13 @@ function RouteChangeCleanup() {
     // Using { fetchStatus: 'fetching' } avoids cancelling idle/background queries.
     qc.cancelQueries({ fetchStatus: 'fetching' })
   }, [location.pathname]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return null
+}
+
+function GlobalAppObservers() {
+  useFeedbackCapture()
+  useLiveSessionDiagnostics()
 
   return null
 }
@@ -498,6 +507,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <RouteChangeCleanup />
+        <GlobalAppObservers />
         <Suspense fallback={null}>
           <NetworkStatusBar />
           <PWAInstallPrompt />

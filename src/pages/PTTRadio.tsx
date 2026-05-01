@@ -578,7 +578,7 @@ export default function PTTRadio() {
   }, [employerOrganizationId, homeOrganizationId, user?.authorized_work_locations, user?.extra_organization_ids])
   const { connectionState: translatorConnectionState, sendAudioChunk, hasEndpoint: translatorHasEndpoint } = useBobTranslator({
     workspaceId: translatorWorkspaceId,
-    enabled: translationRailEnabled && !!providerOrgId && translatorHasEndpoint,
+    enabled: translationRailEnabled && !!providerOrgId,
     targetLanguage: translatorTargetLanguage,
     providerOrgId,
     clientOrgId: translatorClientOrgId,
@@ -1811,6 +1811,9 @@ export default function PTTRadio() {
               }
             }
           }
+        } catch (fetchErr: any) {
+          // Translator pod unreachable — log quietly and allow outer handler to surface degraded message
+          console.warn('PTT interpreter translator pod unavailable:', fetchErr?.message || fetchErr)
         } finally {
           clearTimeout(timeout)
         }

@@ -1366,6 +1366,36 @@ export const edgeFunctions = {
   },
 
   /**
+   * Ingest app-wide passive live-session diagnostics for Bob-assisted test review.
+   */
+  liveSessionDiagnosticsIngest: async (params: {
+    session_id: string
+    current_route?: string | null
+    flush_reason?: string | null
+    snapshot?: Record<string, unknown> | null
+    events?: Array<{
+      event_type: string
+      route_path?: string | null
+      title?: string | null
+      details?: unknown
+      occurred_at?: string
+    }>
+  }) => {
+    return callEdgeFunction('live-session-diagnostics-ingest', params, { showToast: false })
+  },
+
+  /**
+   * Fetch a recent summary of passive live-session diagnostics for Bob review.
+   */
+  liveSessionDiagnosticsSummary: async (params: {
+    target_user_id?: string
+    session_id?: string
+    limit?: number
+  } = {}) => {
+    return callEdgeFunction('live-session-diagnostics-summary', params, { showToast: false })
+  },
+
+  /**
    * Diagnose a PTT issue by forwarding a symptom description to Bob's /assess/ptt endpoint.
    *
    * Returns a structured diagnosis with root cause, remediation steps, and urgency.

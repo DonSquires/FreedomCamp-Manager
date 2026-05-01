@@ -36,6 +36,9 @@ ERROR_THRESHOLD="${BOB_MONITOR_ERROR_THRESHOLD:-5}"
 ESCALATE_TO_DR_BOB="${BOB_ESCALATE_TO_DR_BOB:-true}"
 INCIDENT_FILE="${BOB_MONITOR_INCIDENT_FILE:-data/dr-bob-live-incident.md}"
 ESCALATION_FILE="${BOB_MONITOR_ESCALATION_FILE:-data/dr-bob-live-escalation.json}"
+LIVE_DIAG_SELF_HEAL_ENABLED="${BOB_LIVE_DIAG_SELF_HEAL_ENABLED:-true}"
+LIVE_DIAG_SUMMARY_FILE="${BOB_LIVE_DIAG_SUMMARY_FILE:-data/live-session-diagnostics-summary.json}"
+LIVE_DIAG_WINDOW_MINUTES="${LIVE_DIAG_WINDOW_MINUTES:-20}"
 
 TMP_INPUT="$(mktemp)"
 cleanup() {
@@ -97,6 +100,43 @@ if (errorCount >= threshold) {
 
 fs.writeFileSync(filePath, `${JSON.stringify(state, null, 2)}\n`);
 EOF_NODE
+
+if [[ "$LIVE_DIAG_SELF_HEAL_ENABLED" == "true" ]]; then
+  node scripts/self-heal-live-session-diagnostics.mjs --window-minutes "$LIVE_DIAG_WINDOW_MINUTES" || true
+
+  if [[ -f "$LIVE_DIAG_SUMMARY_FILE" ]]; then
+    node - "$ROOT_DIR/system_state.json" "$LIVE_DIAG_SUMMARY_FILE" <<'EOF_LIVE_DIAG'
+const fs = require('fs');
+
+const [statePath, summaryPath] = process.argv.slice(2);
+const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+const summary = JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
+
+state.monitor = {
+  ...(state.monitor || {}),
+  live_session_diagnostics: summary,
+};
+
+const hasLiveWarning = summary && (summary.status === 'warning' || summary.status === 'stale' || summary.status === 'unavailable');
+if (hasLiveWarning) {
+  const liveWarning = `Live session diagnostics ${summary.status}: ${summary.reason || 'review required'}`;
+  if (state.critical_warning) {
+    if (!String(state.critical_warning).includes(liveWarning)) {
+      state.critical_warning = `${state.critical_warning} ${liveWarning}`;
+    }
+  } else {
+    state.critical_warning = liveWarning;
+  }
+
+  if (state.monitor.status === 'healthy') {
+    state.monitor.status = 'warning';
+  }
+}
+
+fs.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`);
+EOF_LIVE_DIAG
+  fi
+fi
 
 echo "Bob monitor checked logs: ${ERROR_COUNT} server-side 500 errors in last ${WINDOW_MINUTES} minutes"
 

@@ -877,7 +877,7 @@ export async function requestPTTToken(channelScope: string): Promise<PTTTokenRes
       // Some gateway responses surface auth failures as plain text instead of a
       // structured 401 error type. Force a session refresh once, then retry.
       if (!refreshedSessionAfterAuthError) {
-        const authLikeFailure = /invalid\s+jwt|jwt\s+expired|invalid\s+user\s+token|unauthorized|\[code:\s*401\]/i.test(errorStr)
+        const authLikeFailure = /invalid\s+jwt|jwt\s+expired|invalid\s+user\s+token|unauthorized|\[code:\s*401\]|no active session/i.test(errorStr)
         if (authLikeFailure) {
           refreshedSessionAfterAuthError = true
           try {

@@ -16,6 +16,7 @@ import { useLocation } from 'react-router-dom'
 
 const MAX_NAV_HISTORY = 20
 const MAX_CONSOLE_ERRORS = 30
+const MAX_USER_ACTIONS = 50
 
 // ── Shared in-memory store (module-level so it survives re-renders) ───────────
 
@@ -36,6 +37,7 @@ export interface FeedbackSnapshot {
   currentPage: string
   navigationHistory: NavEntry[]
   consoleErrors: ConsoleEntry[]
+  recentUserActions: UserActionEntry[]
   browserInfo: {
     userAgent: string
     language: string
@@ -50,11 +52,20 @@ export interface FeedbackSnapshot {
   appVersion: string
 }
 
+export interface UserActionEntry {
+  type: 'click' | 'submit' | 'change'
+  label: string
+  path: string
+  timestamp: string
+}
+
 // Module-level mutable state so the hook can be called from multiple components
 const _navHistory: NavEntry[] = []
 const _consoleErrors: ConsoleEntry[] = []
+const _userActions: UserActionEntry[] = []
 let _patchedConsole = false
 let _patchedUnhandled = false
+let _patchedInteractions = false
 
 function pushNav(entry: NavEntry) {
   // Avoid consecutive duplicates
@@ -68,6 +79,21 @@ function pushConsoleEntry(entry: ConsoleEntry) {
   if (_consoleErrors.length > MAX_CONSOLE_ERRORS) _consoleErrors.shift()
 }
 
+function pushUserAction(entry: UserActionEntry) {
+  const previous = _userActions[_userActions.length - 1]
+  if (
+    previous &&
+    previous.type === entry.type &&
+    previous.label === entry.label &&
+    previous.path === entry.path
+  ) {
+    return
+  }
+
+  _userActions.push(entry)
+  if (_userActions.length > MAX_USER_ACTIONS) _userActions.shift()
+}
+
 function sanitiseMessage(args: any[]): string {
   return args
     .map(a => {
@@ -79,6 +105,27 @@ function sanitiseMessage(args: any[]): string {
     })
     .join(' ')
     .slice(0, 1000)
+}
+
+function describeTarget(target: EventTarget | null): string {
+  if (!(target instanceof Element)) return 'unknown'
+
+  const subject = target.closest('button,a,[role="button"],input,select,textarea,label,summary,[data-testid]') || target
+  const text = (subject.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 80)
+  const testId = subject.getAttribute('data-testid')
+  const role = subject.getAttribute('role')
+  const href = subject instanceof HTMLAnchorElement ? subject.getAttribute('href') : null
+  const name = subject.getAttribute('name')
+  const tag = subject.tagName.toLowerCase()
+
+  return [
+    tag,
+    text || null,
+    testId ? `data-testid=${testId}` : null,
+    role ? `role=${role}` : null,
+    name ? `name=${name}` : null,
+    href ? `href=${href}` : null,
+  ].filter(Boolean).join(' | ')
 }
 
 /** Patch console.error + console.warn and window unhandledrejection once */
@@ -110,6 +157,49 @@ function patchGlobals() {
       const stack = reason instanceof Error ? reason.stack?.slice(0, 800) : undefined
       pushConsoleEntry({ level: 'unhandled', message, stack, timestamp: new Date().toISOString() })
     })
+  }
+
+  if (!_patchedInteractions) {
+    _patchedInteractions = true
+
+    window.addEventListener('click', (event) => {
+      pushUserAction({
+        type: 'click',
+        label: describeTarget(event.target),
+        path: `${window.location.pathname}${window.location.search}`,
+        timestamp: new Date().toISOString(),
+      })
+    }, true)
+
+    window.addEventListener('submit', (event) => {
+      pushUserAction({
+        type: 'submit',
+        label: describeTarget(event.target),
+        path: `${window.location.pathname}${window.location.search}`,
+        timestamp: new Date().toISOString(),
+      })
+    }, true)
+
+    window.addEventListener('change', (event) => {
+      const target = event.target
+      if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement || target instanceof HTMLTextAreaElement)) {
+        return
+      }
+
+      const shouldCapture =
+        target instanceof HTMLSelectElement ||
+        target instanceof HTMLTextAreaElement ||
+        ['checkbox', 'radio', 'range', 'date'].includes(target.type)
+
+      if (!shouldCapture) return
+
+      pushUserAction({
+        type: 'change',
+        label: describeTarget(target),
+        path: `${window.location.pathname}${window.location.search}`,
+        timestamp: new Date().toISOString(),
+      })
+    }, true)
   }
 }
 
@@ -146,6 +236,7 @@ export function getFeedbackSnapshot(): FeedbackSnapshot {
     currentPage: typeof window !== 'undefined' ? window.location.pathname : '',
     navigationHistory: [..._navHistory],
     consoleErrors: [..._consoleErrors],
+    recentUserActions: [..._userActions],
     browserInfo: typeof window !== 'undefined' ? getBrowserInfo() : ({} as any),
     capturedAt: new Date().toISOString(),
     appVersion: import.meta.env.VITE_APP_VERSION ?? 'dev',

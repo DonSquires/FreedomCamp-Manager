@@ -77,10 +77,13 @@ const config = {
   email: getArg('email') || process.env.API_TEST_EMAIL || process.env.PLAYWRIGHT_ADMIN_EMAIL || process.env.E2E_ADMIN_EMAIL || process.env.PLAYWRIGHT_LIVE_EMAIL || '',
   password: getArg('password') || process.env.API_TEST_PASSWORD || process.env.PLAYWRIGHT_ADMIN_PASSWORD || process.env.E2E_ADMIN_PASSWORD || process.env.PLAYWRIGHT_LIVE_PASSWORD || process.env.PLAYWRIGHT_TEST_PASSWORD || '',
   headless: hasFlag('headed') ? false : boolEnv('AGENTIC_HEADLESS', true),
-  maxSteps: Number(getArg('max-steps', '')) || nEnv('AGENTIC_MAX_STEPS', 12),
+  maxSteps: Number(getArg('max-steps', '')) || nEnv('AGENTIC_MAX_STEPS', 120),
   evidenceDir: path.resolve(getArg('evidence-dir', defaultEvidenceDir)),
   timeoutMs: Number(getArg('timeout-ms', '')) || nEnv('AGENTIC_TIMEOUT_MS', 15000),
   plannerEnabled: hasFlag('no-planner') ? false : true,
+  followAllMoves: hasFlag('follow-all') || boolEnv('AGENTIC_FOLLOW_ALL', false),
+  recordVideo: hasFlag('no-video') ? false : boolEnv('AGENTIC_RECORD_VIDEO', true),
+  recordTrace: hasFlag('trace') || boolEnv('AGENTIC_RECORD_TRACE', false),
 }
 
 if (hasFlag('help')) {
@@ -97,9 +100,12 @@ Options:
   --base-url <url>           App base URL (default: PLAYWRIGHT_BASE_URL or http://localhost:5173)
   --email <email>            Login email (fallback from Playwright env vars)
   --password <password>      Login password (fallback from Playwright env vars)
-  --max-steps <n>            Max action iterations (default: 12)
+  --max-steps <n>            Max action iterations (default: 120)
   --timeout-ms <n>           Action timeout in ms (default: 15000)
   --evidence-dir <path>      Output folder for screenshots and report.json
+  --follow-all               Keep observing beyond heuristic plan (uses planner or wait actions)
+  --no-video                 Disable Playwright video capture (enabled by default)
+  --trace                    Enable Playwright trace.zip capture
   --headed                   Run browser headed (default headless)
   --no-planner               Disable Bob planner and use heuristic-only plan
   --help                     Show this help
@@ -144,7 +150,13 @@ function buildHeuristicPlan(goal) {
   }
 
   if (g.includes('ptt')) {
-    steps.push({ type: 'goto', url: '/ptt', note: 'Open PTT area if route exists' })
+    steps.push({ type: 'ensurePortalSelectionResolved', url: '/radio', note: 'Resolve portal-selection before radio/PTT checks' })
+    steps.push({ type: 'goto', url: '/radio', note: 'Open radio/PTT area if route exists' })
+  }
+
+  if (g.includes('radio')) {
+    steps.push({ type: 'ensurePortalSelectionResolved', url: '/radio', note: 'Resolve portal-selection before radio checks' })
+    steps.push({ type: 'goto', url: '/radio', note: 'Open radio screen' })
   }
 
   if (g.includes('welfare') && g.includes('without location')) {
@@ -231,7 +243,7 @@ async function callBobPlanner({ goal, observation, priorActions }) {
 Return ONLY compact JSON with this exact shape:
 {
   "action": {
-    "type": "goto|click|fill|press|expectVisible|waitForUrlContains|waitForUrlNotContains|axeCheck|done",
+    "type": "goto|click|clickIfVisible|fill|press|hover|scroll|wait|expectVisible|expectVisibleAny|waitForUrlContains|waitForUrlNotContains|ensurePortalSelectionResolved|axeCheck|done",
     "selector": "optional css/text selector",
     "value": "optional text",
     "url": "optional path or url",
@@ -342,6 +354,23 @@ async function executeAction(page, action) {
   if (t === 'press') {
     await page.locator(action.selector || 'body').first().press(action.key || 'Enter', { timeout: config.timeoutMs })
     return { ok: true }
+  }
+
+  if (t === 'hover') {
+    await page.locator(action.selector || '').first().hover({ timeout: config.timeoutMs })
+    return { ok: true }
+  }
+
+  if (t === 'scroll') {
+    const y = Number(action.value || 700)
+    await page.evaluate((distance) => window.scrollBy(0, Number.isFinite(distance) ? distance : 700), y)
+    return { ok: true, scrollY: y }
+  }
+
+  if (t === 'wait') {
+    const ms = Math.max(200, Number(action.value || 1200) || 1200)
+    await page.waitForTimeout(ms)
+    return { ok: true, waitedMs: ms }
   }
 
   if (t === 'expectVisible') {
@@ -474,6 +503,9 @@ function redactConfigForReport() {
     maxSteps: config.maxSteps,
     timeoutMs: config.timeoutMs,
     plannerEnabled: config.plannerEnabled,
+    followAllMoves: config.followAllMoves,
+    recordVideo: config.recordVideo,
+    recordTrace: config.recordTrace,
     emailProvided: Boolean(config.email),
     passwordProvided: Boolean(config.password),
   }
@@ -507,7 +539,18 @@ async function main() {
       ...(browserLaunchCandidates.length > 0 ? { executablePath: browserLaunchCandidates[0] } : {}),
       args: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
     })
-    context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+    context = await browser.newContext({
+      viewport: { width: 1440, height: 900 },
+      ...(config.recordVideo ? {
+        recordVideo: {
+          dir: config.evidenceDir,
+          size: { width: 1280, height: 720 },
+        },
+      } : {}),
+    })
+    if (config.recordTrace) {
+      await context.tracing.start({ screenshots: true, snapshots: true, sources: true })
+    }
     page = await context.newPage()
   } catch (error) {
     report.result = 'failed_launch'
@@ -534,7 +577,13 @@ async function main() {
         priorActions: report.actions.map((a) => ({ step: a.step, type: a.action?.type, ok: a.execution?.ok })),
       })
 
-      const action = planned || heuristicPlan[heuristicIdx++] || { type: 'done', note: 'Plan exhausted' }
+      let action = planned
+        || heuristicPlan[heuristicIdx++]
+        || (config.followAllMoves ? { type: 'wait', value: '1500', note: 'Follow-all idle observation step' } : { type: 'done', note: 'Plan exhausted' })
+
+      if (config.followAllMoves && action.type === 'done') {
+        action = { type: 'wait', value: '1500', note: 'Follow-all converted done to wait to continue observation' }
+      }
       const started = Date.now()
       let execution
 
@@ -581,6 +630,19 @@ async function main() {
     }
   } finally {
     report.ended_at = new Date().toISOString()
+    if (config.recordTrace && context) {
+      const tracePath = path.join(config.evidenceDir, 'trace.zip')
+      await context.tracing.stop({ path: tracePath }).catch(() => undefined)
+      report.trace = tracePath
+    }
+
+    if (config.recordVideo && page) {
+      const videoPath = await page.video()?.path().catch(() => undefined)
+      if (videoPath) {
+        report.video = videoPath
+      }
+    }
+
     const outFile = path.join(config.evidenceDir, 'report.json')
     await fs.writeFile(outFile, `${JSON.stringify(report, null, 2)}\n`, 'utf8')
     await context?.close().catch(() => undefined)

@@ -1,0 +1,14 @@
+{
+  "checked_at": "2026-05-01T16:54:20.915Z",
+  "window_minutes": 20,
+  "status": "stale",
+  "source": "live-session-diagnostics-summary",
+  "reason": "No live session diagnostic events detected in last 20m.",
+  "recent_events": 0,
+  "route_changes": 0,
+  "offline_events": 0,
+  "console_error_count": 0,
+  "unhandled_count": 0,
+  "latest_route": "/team-chat",
+  "top_event_types": []
+}
