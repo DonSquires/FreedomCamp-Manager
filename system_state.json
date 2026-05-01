@@ -11,8 +11,10 @@
   "generated_at": "2026-05-01T13:29:43Z",
   "source": "scripts/system-check.sh",
   "monitor": {
-    "checked_at": "2026-05-01T13:29:43.117Z",
+    "checked_at": "2026-05-01T13:54:57.962Z",
     "status": "healthy",
-    "note": "CI environment — log scan skipped"
+    "window_minutes": 15,
+    "error_threshold": 5,
+    "recent_500_errors": 0
   }
 }
