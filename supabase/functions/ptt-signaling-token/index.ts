@@ -198,17 +198,6 @@ Deno.serve(async (req) => {
 
     const [scopeType, scopeId] = channelScope.split(':')
     const isPrivilegedRole = ['master', 'grand_master'].includes(profile.role)
-    const requiresExplicitScope = !isPrivilegedRole && scopeType !== 'org'
-
-    if (requiresExplicitScope && !hasExplicitChannelScopeAccess(profile, channelScope)) {
-      return new Response(
-        JSON.stringify({
-          error: 'PTT channel not assigned',
-          message: 'You are not assigned to this PTT channel scope.',
-        }),
-        { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
-      )
-    }
 
     // Resolve effective organization context. For master/grand_master users who
     // may have organization_id = null, derive org context from channel scope.
@@ -279,13 +268,25 @@ Deno.serve(async (req) => {
           )
         }
         effectiveOrganizationId = pttChannel.organization_id
-      } else if (!effectiveOrganizationId) {
+      } else if (hasExplicitChannelScopeAccess(profile, channelScope)) {
+        // Legacy compatibility: explicitly assigned deployment scopes may not
+        // have a backing row in ptt_channels yet.
+        if (!effectiveOrganizationId) {
+          return new Response(
+            JSON.stringify({
+              error: 'Organization context required',
+              message: 'Unable to resolve organization context for team/deployment channel scope',
+            }),
+            { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+          )
+        }
+      } else {
         return new Response(
           JSON.stringify({
-            error: 'Organization context required',
-            message: 'Unable to resolve organization context for team/deployment channel scope',
+            error: 'PTT channel not assigned',
+            message: 'You are not assigned to this PTT channel scope.',
           }),
-          { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+          { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         )
       }
     } else if (scopeType === 'direct') {
