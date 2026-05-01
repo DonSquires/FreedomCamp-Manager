@@ -3,6 +3,8 @@
 Last updated: 2026-04-30
 Owner: FieldOps AI Platform Ops
 
+Hybrid reference: [RUNPOD_HYBRID_RUNBOOK.md](RUNPOD_HYBRID_RUNBOOK.md)
+
 ## 1. Scope
 
 This runbook defines production operations for the FieldOps AI stack on RunPod:
@@ -46,7 +48,7 @@ GPU preference order currently configured:
 
 - Pod: 0ua9n24yxpvvrw (bob-automation-pod-v2-a40)
 - Current desiredStatus: EXITED
-- Last observed image: ghcr.io/donsquires/freedomcamp-manager-ai:latest
+- Last observed image: ghcr.io/donsquires/freedomcamp-manager-ai@sha256:d024aa6930f47095ecbe574b305b248edc425269c092c25f538eb6e2453c46fb
 
 ## 3. Golden Operating Mode
 
