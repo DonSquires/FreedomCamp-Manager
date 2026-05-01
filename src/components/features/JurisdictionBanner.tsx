@@ -83,6 +83,20 @@ export function JurisdictionBanner() {
   const conflict = handshake?.conflict === true;
   const handshakeActive = handshake?.handshake_active === true;
   const translationActive = handshake?.translation_active === true;
+  const handshakeReason = String(handshake?.reason || '').trim();
+
+  const friendlyReason = (() => {
+    if (handshakeReason === 'no_matching_zone_or_active_contract') {
+      return 'No active client zone + contract match for this GPS location. Tactical provider radio remains available.';
+    }
+    if (handshakeReason === 'gps_required') {
+      return 'Location access is required to resolve client workspace handshakes.';
+    }
+    if (handshakeReason === 'multiple_matching_zones') {
+      return 'Multiple jurisdictions detected. Select a client context to continue.';
+    }
+    return handshakeReason || 'No active zone + contract handshake at this location.';
+  })();
 
   const title = !gpsAvailable
     ? 'GPS Unavailable - Context Locked'
@@ -92,7 +106,7 @@ export function JurisdictionBanner() {
         ? 'Client Jurisdiction Active'
         : matched
           ? 'Standard Patrol Mode'
-          : 'Outside Contracted Zone';
+          : 'Provider Tactical Mode';
 
   const subtitle = !gpsAvailable
     ? 'Enable location to auto-switch workspace rules and translation mode.'
@@ -102,7 +116,7 @@ export function JurisdictionBanner() {
         ? `${handshake?.workspace_name || 'Client Workspace'} - ${translationActive ? 'Translation Available' : 'Translation Off'}`
         : matched
           ? 'Provider workspace rules in effect.'
-          : handshake?.reason || 'No active zone + contract handshake at this location.';
+          : friendlyReason;
 
   return (
     <div
