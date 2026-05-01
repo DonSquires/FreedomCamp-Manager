@@ -188,6 +188,21 @@ const AUTO_RETRY_MIN_GAP_MS = 4000
 const CONNECT_STORM_WINDOW_MS = 15000
 const CONNECT_STORM_MAX_ATTEMPTS = 6
 const CONNECT_STORM_COOLDOWN_MS = 20000
+const CONNECTION_WARNING_TIMEOUT_MS = 12000
+
+function deriveTranslatorRestUrlFromWs(raw: string): string {
+  const trimmed = String(raw || '').trim().replace(/\/$/, '')
+  if (!trimmed || trimmed.includes('your-runpod-pod.runpod.net')) return ''
+
+  const asHttp = trimmed
+    .replace(/^wss:\/\//i, 'https://')
+    .replace(/^ws:\/\//i, 'http://')
+
+  const withoutWsRoute = asHttp.replace(/\/ws\/translate(?:\?.*)?$/i, '')
+  if (!withoutWsRoute.startsWith('http://') && !withoutWsRoute.startsWith('https://')) return ''
+
+  return `${withoutWsRoute}/translate`
+}
 
 function getChannelScope(channel: RadioChannel, effectiveOrgId: string): string {
   if (channel.scope_override) {
@@ -442,6 +457,7 @@ export default function PTTRadio() {
   const [isConnecting, setIsConnecting] = useState(false)
   const [connectCooldownUntil, setConnectCooldownUntil] = useState(0)
   const [retryCountdownSeconds, setRetryCountdownSeconds] = useState<number | null>(null)
+  const [connectionWarningArmed, setConnectionWarningArmed] = useState(false)
   const [callsign, setCallsign] = useState('')
   const [txLog, setTxLog] = useState<TransmissionEntry[]>([])
   const [currentTxStart, setCurrentTxStart] = useState<Date | null>(null)
@@ -585,6 +601,11 @@ export default function PTTRadio() {
     : handoffGpsUnavailable
       ? 'GPS unavailable • translator standby'
       : 'Provider tactical mode'
+
+  const translatorRestUrl = useMemo(
+    () => deriveTranslatorRestUrlFromWs(import.meta.env.VITE_BOB_TRANSLATOR_WS_URL || ''),
+    [],
+  )
 
   const crossOrgIds = useMemo(() => {
     const ids = new Set<string>()
@@ -1012,6 +1033,19 @@ export default function PTTRadio() {
     }, 1000)
     return () => clearTimeout(timer)
   }, [retryCountdownSeconds])
+
+  useEffect(() => {
+    if (!activeChannel || connectionStatus === 'connected') {
+      setConnectionWarningArmed(false)
+      return
+    }
+
+    const timer = setTimeout(() => {
+      setConnectionWarningArmed(true)
+    }, CONNECTION_WARNING_TIMEOUT_MS)
+
+    return () => clearTimeout(timer)
+  }, [activeChannel, connectionStatus])
 
   useEffect(() => {
     return () => {
@@ -1716,37 +1750,85 @@ export default function PTTRadio() {
 
     setIsInterpreterTranslating(true)
     try {
+      let translatedText = ''
+      let meta: TranslationResult | null = null
+
       const { data, error } = await edgeFunctions.translateMessage({
         text,
         target_language: interpreterTargetLanguage,
       })
 
-      if (error || !data) {
+      if (!error && data) {
+        translatedText = String((data as any)?.translated_text || '').trim()
+        if (translatedText) {
+          meta = {
+            translated_text: translatedText,
+            target_language: String((data as any)?.target_language || interpreterTargetLanguage),
+            detected_source: typeof (data as any)?.detected_source === 'string' ? (data as any).detected_source : null,
+            translation_confidence: typeof (data as any)?.translation_confidence === 'number' ? (data as any).translation_confidence : undefined,
+            confidence_reason: typeof (data as any)?.confidence_reason === 'string' ? (data as any).confidence_reason : undefined,
+            provider: typeof (data as any)?.provider === 'string' ? (data as any).provider : undefined,
+            fallback: (data as any)?.fallback === true,
+          }
+        }
+      }
+
+      // Tactical fallback: use translator pod REST when edge translation path fails.
+      if (!translatedText && translatorRestUrl) {
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 15000)
+        try {
+          const resp = await fetch(translatorRestUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text,
+              source_lang: 'en-NZ',
+              target_lang: interpreterTargetLanguage,
+              context: 'ptt-radio',
+              provider_org_id: providerOrgId,
+              client_org_id: translatorClientOrgId,
+              officer_id: user?.id,
+              employer_org_id: employerOrganizationId,
+              authorized_organizations: translatorAuthorizedOrgIds,
+            }),
+            signal: controller.signal,
+          })
+
+          if (resp.ok) {
+            const fallbackData = await resp.json().catch(() => null)
+            const fallbackText = String(fallbackData?.translated || fallbackData?.translated_text || '').trim()
+            if (fallbackText) {
+              translatedText = fallbackText
+              meta = {
+                translated_text: fallbackText,
+                target_language: String(fallbackData?.target_lang || interpreterTargetLanguage),
+                detected_source: typeof fallbackData?.source_lang === 'string' ? fallbackData.source_lang : null,
+                translation_confidence: 0.7,
+                confidence_reason: 'Direct translator pod fallback path used.',
+                provider: 'translator-rest-fallback',
+                fallback: true,
+              }
+            }
+          }
+        } finally {
+          clearTimeout(timeout)
+        }
+      }
+
+      if (!translatedText || !meta) {
         throw new Error('Translation unavailable right now')
       }
 
-      const translatedText = String((data as any)?.translated_text || '').trim()
-      if (!translatedText) {
-        throw new Error('Translation returned an empty response')
-      }
-
       setInterpreterOutput(translatedText)
-      setInterpreterTranslationMeta({
-        translated_text: translatedText,
-        target_language: String((data as any)?.target_language || interpreterTargetLanguage),
-        detected_source: typeof (data as any)?.detected_source === 'string' ? (data as any).detected_source : null,
-        translation_confidence: typeof (data as any)?.translation_confidence === 'number' ? (data as any).translation_confidence : undefined,
-        confidence_reason: typeof (data as any)?.confidence_reason === 'string' ? (data as any).confidence_reason : undefined,
-        provider: typeof (data as any)?.provider === 'string' ? (data as any).provider : undefined,
-        fallback: (data as any)?.fallback === true,
-      })
+      setInterpreterTranslationMeta(meta)
     } catch (err: any) {
       console.error('PTT interpreter translation failed:', err)
       toast.error('PTT interpreter could not translate right now.')
     } finally {
       setIsInterpreterTranslating(false)
     }
-  }, [interpreterInput, interpreterTargetLanguage])
+  }, [interpreterInput, interpreterTargetLanguage, translatorRestUrl, providerOrgId, translatorClientOrgId, user?.id, employerOrganizationId, translatorAuthorizedOrgIds])
 
   const captureSpeechForInterpreter = useCallback(() => {
     const Ctor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
@@ -2106,7 +2188,19 @@ export default function PTTRadio() {
         </div>
 
         {/* ── Error banner ─────────────────────────────────── */}
-        {error && (
+        {!connectionWarningArmed && activeChannel && connectionStatus !== 'connected' && (
+          <div className="px-4 py-2 bg-slate-900 border-b border-slate-700 text-xs text-slate-300 flex items-center gap-2 shrink-0">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-300 shrink-0" />
+            <div className="min-w-0">
+              <div>Connecting to radio signaling service…</div>
+              <div className="text-[10px] text-slate-400/80 uppercase tracking-wider mt-1">
+                Signaling: {signalingDebugLabel} ({signalingTransportState})
+              </div>
+            </div>
+          </div>
+        )}
+
+        {error && connectionWarningArmed && (
           <div className="px-4 py-2 bg-red-950 border-b border-red-800 text-xs text-red-300 flex items-center gap-2 shrink-0">
             <AlertTriangle className="h-3.5 w-3.5 text-red-400 shrink-0" />
             <div className="min-w-0">
