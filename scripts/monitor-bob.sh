@@ -84,6 +84,9 @@ state.monitor = {
   recent_500_errors: errorCount,
 };
 
+// Non-CI monitor runs should not keep a stale CI skip note.
+delete state.monitor.note;
+
 if (errorCount >= threshold) {
   state.critical_warning = `Bob monitor detected ${errorCount} server-side 500 errors in the last ${windowMinutes} minutes.`;
   state.monitor.status = 'warning';

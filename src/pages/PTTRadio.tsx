@@ -1136,8 +1136,8 @@ export default function PTTRadio() {
   }, [user])
 
   useEffect(() => {
-    if (!translationRailAvailable && translationRailEnabled) {
-      setTranslationRailEnabled(false)
+    if (translationRailEnabled !== translationRailAvailable) {
+      setTranslationRailEnabled(translationRailAvailable)
     }
   }, [translationRailAvailable, translationRailEnabled])
 
@@ -1201,6 +1201,30 @@ export default function PTTRadio() {
       setIsPrimingAudio(false)
     }
   }, [audioPrimed, isPrimingAudio])
+
+  // Auto-prime remote audio on the first user interaction so mobile devices
+  // do not require a dedicated "Prime" action before incoming playback works.
+  useEffect(() => {
+    if (audioPrimed) return
+
+    let priming = false
+
+    const attemptPrime = () => {
+      if (priming || audioPrimed) return
+      priming = true
+      void primeAudioOutput(true).finally(() => {
+        priming = false
+      })
+    }
+
+    window.addEventListener('pointerdown', attemptPrime, { passive: true })
+    window.addEventListener('keydown', attemptPrime)
+
+    return () => {
+      window.removeEventListener('pointerdown', attemptPrime)
+      window.removeEventListener('keydown', attemptPrime)
+    }
+  }, [audioPrimed, primeAudioOutput])
 
   // ── Incoming transmission detection ──────────────────────
   useEffect(() => {
