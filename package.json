@@ -118,6 +118,7 @@
     "test:release:all-in-one": "node scripts/bob-release-gate-all-in-one.mjs",
     "test:release:all-in-one:dry": "node scripts/bob-release-gate-all-in-one.mjs --dry-run",
     "test:release:ai-assist": "node scripts/mandatory-ai-build-assist.mjs",
+    "test:release:enterprise-readiness": "node scripts/enterprise-readiness-report.mjs",
     "test:release:summary": "node scripts/human-trial-gate-summary.mjs",
     "install:playwright": "playwright install"
   },

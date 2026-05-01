@@ -240,6 +240,11 @@ jobs:
           OUTCOME_DEEP_SUITE: ${{ steps.deep_suite.outcome }}
         run: node scripts/human-trial-gate-summary.mjs --out-dir tools/human-trial-gate
 
+      - name: Generate enterprise readiness report
+        id: enterprise_readiness
+        if: always()
+        run: node scripts/enterprise-readiness-report.mjs --gate-dir tools/human-trial-gate --out-dir tools/human-trial-gate --pass-threshold 85
+
       - name: Upload Playwright artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -261,6 +266,8 @@ jobs:
           path: |
             tools/human-trial-gate/summary.json
             tools/human-trial-gate/summary.md
+            tools/human-trial-gate/enterprise-readiness.json
+            tools/human-trial-gate/enterprise-readiness.md
 
       - name: Enforce release gate verdict
         if: always()
