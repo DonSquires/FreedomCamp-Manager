@@ -1597,54 +1597,6 @@ export default function PTTRadio() {
     sendAudioChunk,
   ])
 
-  // ── Incoming transmission detection ──────────────────────
-  useEffect(() => {
-    if (speakerId && !isSpeaking) {
-      // Someone else is transmitting
-      const name = speakerName || 'Unknown'
-      const ch = activeChannel?.name ?? 'Channel'
-      // Log it locally
-      const entry: TransmissionEntry = {
-        id: `live-${Date.now()}`,
-        callsign: name,
-        name,
-        channelName: ch,
-        channelNumber: activeChannel?.channel_number ?? 0,
-        durationSeconds: 0,
-        createdAt: new Date().toISOString(),
-        isEmergency: emergencyMode,
-        isLive: true,
-      }
-      setTxLog((prev) => [entry, ...prev].slice(0, 60))
-    }
-  }, [speakerId, isSpeaking, speakerName, activeChannel?.name, activeChannel?.channel_number, emergencyMode])
-
-  // ── Live TX timer ─────────────────────────────────────────
-  useEffect(() => {
-    if (isTransmitting) {
-      setCurrentTxStart(new Date())
-      setLiveTxSeconds(0)
-      liveTxTimerRef.current = setInterval(() => {
-        setLiveTxSeconds((s) => s + 1)
-      }, 1000)
-    } else {
-      if (liveTxTimerRef.current) { clearInterval(liveTxTimerRef.current); liveTxTimerRef.current = null }
-      setCurrentTxStart(null)
-      setLiveTxSeconds(0)
-    }
-    return () => { if (liveTxTimerRef.current) clearInterval(liveTxTimerRef.current) }
-  }, [isTransmitting])
-
-  // ── VOX monitoring ────────────────────────────────────────
-  useEffect(() => {
-    if (voxEnabled && isAvailable) {
-      startVoxMonitoring()
-    } else {
-      stopVoxMonitoring()
-    }
-    return () => stopVoxMonitoring()
-  }, [voxEnabled, isAvailable])
-
   // ── Spacebar PTT shortcut ─────────────────────────────────
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -1663,32 +1615,6 @@ export default function PTTRadio() {
     window.addEventListener('keyup', up)
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
   }, [handlePTTPress, handlePTTRelease])
-
-  // ── Scanner mode ─────────────────────────────────────────
-  useEffect(() => {
-    if (!scanMode) {
-      if (scanTimerRef.current) { clearInterval(scanTimerRef.current); scanTimerRef.current = null }
-      return
-    }
-    const nonEmergency = channels.filter((c) => c.channel_type !== 'emergency' && c.channel_type !== 'cross_org')
-    if (!nonEmergency.length) return
-
-    scanTimerRef.current = setInterval(async () => {
-      // Pause scan if someone is transmitting
-      if (speakerId) return
-      setScanIndex((prev) => {
-        const next = (prev + 1) % nonEmergency.length
-        const ch = nonEmergency[next]
-        if (ch) {
-          setActiveChannel(ch)
-          connectToChannel(ch)
-        }
-        return next
-      })
-    }, scanDwellMs)
-
-    return () => { if (scanTimerRef.current) clearInterval(scanTimerRef.current) }
-  }, [scanMode, channels, speakerId, connectToChannel, scanDwellMs])
 
   // ── Degraded connection warning (15s non-connected state → amber banner) ───
   useEffect(() => {
@@ -1738,26 +1664,6 @@ export default function PTTRadio() {
       document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [handlePTTRelease, isTransmitting])
-
-  // ── Cleanup on unmount ────────────────────────────────────
-  useEffect(() => {
-    return () => {
-      stopVoxMonitoring()
-      if (liveTxTimerRef.current) clearInterval(liveTxTimerRef.current)
-      if (scanTimerRef.current) clearInterval(scanTimerRef.current)
-      if (wakeLockRef.current) releaseWakeLock()
-    }
-  }, [])
-
-  // ── PTT diagnostics polling ───────────────────────────────
-  useEffect(() => {
-    setDiagnostics(getPTTDiagnostics())
-    const iv = setInterval(() => {
-      setDiagnostics(getPTTDiagnostics())
-    }, 1200)
-
-    return () => clearInterval(iv)
-  }, [])
 
   const handleEmergencyBroadcast = useCallback(async () => {
     if (!effectiveOrgId) return
