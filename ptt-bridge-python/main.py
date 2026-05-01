@@ -1,5 +1,6 @@
 import os
 import tempfile
+import base64
 from typing import Optional
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -42,6 +43,11 @@ class TranslateRequest(BaseModel):
     source_lang: Optional[str] = None
     target_lang: Optional[str] = None
     context: Optional[str] = None
+    provider_org_id: Optional[str] = None
+    client_org_id: Optional[str] = None
+    officer_id: Optional[str] = None
+    employer_org_id: Optional[str] = None
+    authorized_organizations: Optional[list[str]] = None
 
 
 stt_model = None
@@ -119,6 +125,28 @@ def transcribe_audio_bytes(audio_bytes: bytes):
         return text, detected_lang
 
 
+def parse_authorized_orgs(raw: Optional[str]) -> list[str]:
+    if not raw:
+        return []
+    return [item.strip() for item in str(raw).split(',') if item and item.strip()]
+
+
+def normalize_identity_metadata(
+    provider_org_id: Optional[str],
+    client_org_id: Optional[str],
+    officer_id: Optional[str],
+    employer_org_id: Optional[str],
+    authorized_organizations: Optional[list[str]],
+) -> dict:
+    return {
+        "provider_org_id": provider_org_id,
+        "client_org_id": client_org_id,
+        "officer_id": officer_id,
+        "employer_org_id": employer_org_id,
+        "authorized_organizations": authorized_organizations or [],
+    }
+
+
 @app.get("/health")
 async def health():
     model_ready = BOB_TRANSLATOR_MOCK or (
@@ -152,6 +180,13 @@ async def translate_endpoint(payload: TranslateRequest):
         "source_lang": source_lang,
         "target_lang": target_lang,
         "context": payload.context or DEFAULT_CONTEXT,
+        "identity": normalize_identity_metadata(
+            payload.provider_org_id,
+            payload.client_org_id,
+            payload.officer_id,
+            payload.employer_org_id,
+            payload.authorized_organizations,
+        ),
     }
 
 
@@ -159,9 +194,72 @@ async def translate_endpoint(payload: TranslateRequest):
 async def translate_stream(websocket: WebSocket):
     await websocket.accept()
 
+    query = websocket.query_params
+    default_identity = normalize_identity_metadata(
+        query.get("provider_org_id"),
+        query.get("client_org_id"),
+        query.get("officer_id"),
+        query.get("employer_org_id"),
+        parse_authorized_orgs(query.get("authorized_orgs")),
+    )
+    default_context = query.get("context") or DEFAULT_CONTEXT
+    default_target_lang = query.get("target_lang") or DEFAULT_TARGET_LANG
+
     try:
         while True:
-            audio_data = await websocket.receive_bytes()
+            message = await websocket.receive()
+            audio_data: bytes
+            context = default_context
+            source_lang_override: Optional[str] = None
+            target_lang_override: Optional[str] = None
+            identity = default_identity
+
+            if message.get("bytes") is not None:
+                audio_data = message["bytes"]
+            else:
+                text_payload = message.get("text")
+                if not text_payload:
+                    await websocket.send_json({
+                        "error": "translation_failed",
+                        "message": "Unsupported websocket payload format",
+                        "context": default_context,
+                        "identity": default_identity,
+                    })
+                    continue
+
+                import json
+                payload = json.loads(text_payload)
+                if str(payload.get("action") or "translate_audio_chunk") != "translate_audio_chunk":
+                    await websocket.send_json({
+                        "error": "translation_failed",
+                        "message": "Unsupported websocket action",
+                        "context": default_context,
+                        "identity": default_identity,
+                    })
+                    continue
+
+                audio_base64 = str(payload.get("audio_base64") or "").strip()
+                if not audio_base64:
+                    await websocket.send_json({
+                        "error": "translation_failed",
+                        "message": "audio_base64 is required for JSON websocket payloads",
+                        "context": default_context,
+                        "identity": default_identity,
+                    })
+                    continue
+
+                audio_data = base64.b64decode(audio_base64)
+                context = str(payload.get("context") or default_context)
+                source_lang_override = payload.get("source_lang")
+                target_lang_override = payload.get("target_language")
+                identity = normalize_identity_metadata(
+                    payload.get("provider_org_id") or default_identity.get("provider_org_id"),
+                    payload.get("client_org_id") or default_identity.get("client_org_id"),
+                    payload.get("officer_id") or default_identity.get("officer_id"),
+                    payload.get("employer_org_id") or default_identity.get("employer_org_id"),
+                    payload.get("authorized_organizations") or default_identity.get("authorized_organizations"),
+                )
+
             text, detected_lang = transcribe_audio_bytes(audio_data)
 
             if not text:
@@ -169,14 +267,15 @@ async def translate_stream(websocket: WebSocket):
                     "original": "",
                     "translated": "",
                     "source_lang": detected_lang,
-                    "target_lang": detect_target_lang(detected_lang, None),
-                    "context": DEFAULT_CONTEXT,
+                    "target_lang": detect_target_lang(detected_lang, target_lang_override or default_target_lang),
+                    "context": context,
+                    "identity": identity,
                     "warning": "empty_transcript",
                 })
                 continue
 
-            source_lang = DEFAULT_SOURCE_LANG if detected_lang == "en" else detected_lang
-            target_lang = detect_target_lang(source_lang, None)
+            source_lang = str(source_lang_override or (DEFAULT_SOURCE_LANG if detected_lang == "en" else detected_lang))
+            target_lang = detect_target_lang(source_lang, target_lang_override or default_target_lang)
             translated_text = translate_text(text, source_lang, target_lang)
 
             await websocket.send_json({
@@ -184,7 +283,8 @@ async def translate_stream(websocket: WebSocket):
                 "translated": translated_text,
                 "source_lang": source_lang,
                 "target_lang": target_lang,
-                "context": DEFAULT_CONTEXT,
+                "context": context,
+                "identity": identity,
             })
     except WebSocketDisconnect:
         return

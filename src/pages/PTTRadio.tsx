@@ -36,7 +36,7 @@ import { canAccessPTTChannel } from '@/lib/pttChannelAccess'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
-import { useBobCollaboration } from '@/hooks/useBobCollaboration'
+import { useBobBrain } from '@/hooks/useBobBrain'
 import { useHybridWorkspaceHandshake } from '@/hooks/useHybridWorkspaceHandshake'
 import { useBobTranslator } from '@/hooks/useBobTranslator'
 import {
@@ -397,7 +397,14 @@ export default function PTTRadio() {
   const { user } = useAuthStore()
   const { organizationId } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
-  const { askBob, bobResponse, isWaiting, clearResponse, pendingPacket } = useBobCollaboration()
+  const {
+    askBobBrain,
+    response: bobResponse,
+    isLoading: isWaiting,
+    error: bobResponseError,
+    completedAt: bobResponseCompletedAt,
+    clearResponse,
+  } = useBobBrain()
 
   // PTT store state
   const connectionStatus = usePTTStore((s) => s.connectionStatus)
@@ -539,11 +546,29 @@ export default function PTTRadio() {
 
   const translationRailAvailable = hybridHandshake?.handshake_active === true
   const translatorWorkspaceId = hybridHandshake?.workspace_id || null
+  const translatorClientOrgId = hybridHandshake?.client_org_id || null
   const translatorTargetLanguage = hybridHandshake?.target_translation_language || interpreterTargetLanguage
+  const translatorAuthorizedOrgIds = useMemo(() => {
+    const ids = new Set<string>()
+    if (homeOrganizationId) ids.add(homeOrganizationId)
+    if (employerOrganizationId) ids.add(employerOrganizationId)
+    for (const id of user?.authorized_work_locations || []) {
+      if (id) ids.add(id)
+    }
+    for (const id of user?.extra_organization_ids || []) {
+      if (id) ids.add(id)
+    }
+    return Array.from(ids)
+  }, [employerOrganizationId, homeOrganizationId, user?.authorized_work_locations, user?.extra_organization_ids])
   const { connectionState: translatorConnectionState, sendAudioChunk } = useBobTranslator({
     workspaceId: translatorWorkspaceId,
     enabled: translationRailEnabled && translationRailAvailable,
     targetLanguage: translatorTargetLanguage,
+    providerOrgId,
+    clientOrgId: translatorClientOrgId,
+    officerId: user?.id || null,
+    employerOrgId: employerOrganizationId,
+    authorizedOrganizations: translatorAuthorizedOrgIds,
   })
   const translatorStatusLabel = translationRailEnabled
     ? `Bob Ear ${translatorConnectionState.toUpperCase()}`
@@ -1863,8 +1888,7 @@ export default function PTTRadio() {
     const snapshot = getPTTDiagnostics()
     setDiagnostics(snapshot)
 
-    askBob({
-      title: `PTT assessment: ${activeChannel?.name ?? 'No channel selected'}`,
+    void askBobBrain({
       prompt: buildPTTAssessmentPrompt({
         diagnostics: snapshot,
         activeChannel,
@@ -1883,22 +1907,13 @@ export default function PTTRadio() {
         liveClipsCount: lastClips.length,
         channelsError,
       }),
-      source: 'dispatch',
-      summary: `Assess live PTT diagnostics for ${callsign || 'current operator'}`,
-      autoSubmit: true,
-      returnRoute: '/radio',
-      metadata: {
-        feature: 'ptt-radio',
-        channel_number: activeChannel?.channel_number ?? null,
-        channel_scope: snapshot.channelScope,
-        requested_scope: snapshot.requestedChannelScope,
-        ice_errors: snapshot.iceCandidates.errors,
-        last_ice_error: snapshot.iceCandidates.lastError,
-      },
+      lat: handoffGeoPoint?.latitude,
+      lng: handoffGeoPoint?.longitude,
+      organizationId: effectiveOrgId,
     })
   }, [
     activeChannel,
-    askBob,
+    askBobBrain,
     callsign,
     canSpeak,
     channelsError,
@@ -1913,6 +1928,8 @@ export default function PTTRadio() {
     rosterWithSelf.length,
     someoneSpeaking,
     speakerName,
+    handoffGeoPoint?.latitude,
+    handoffGeoPoint?.longitude,
   ])
 
   // ─────────────────────────────────────────────────────────
@@ -2678,14 +2695,29 @@ export default function PTTRadio() {
 
                     {isWaiting && (
                       <div className="text-slate-400">
-                        Bob Assistant Studio is processing the latest radio snapshot{pendingPacket ? ` for request ${pendingPacket.id.slice(0, 8)}` : ''}.
+                        Bob Brain is processing the latest radio diagnostics snapshot.
                       </div>
                     )}
 
                     {bobResponse && (
                       <div className="space-y-1">
-                        <div className="text-slate-500">Returned {formatDateTime(bobResponse.createdAt)}</div>
-                        <div className="whitespace-pre-wrap text-slate-200">{bobResponse.responseText}</div>
+                        <div className="text-slate-500">
+                          Returned {bobResponseCompletedAt ? formatDateTime(bobResponseCompletedAt) : 'just now'}
+                        </div>
+                        <div className="whitespace-pre-wrap text-slate-200">{bobResponse.answer}</div>
+                        {(bobResponse.jurisdiction || bobResponse.provider || bobResponse.model) && (
+                          <div className="text-[10px] text-slate-500 uppercase tracking-wide">
+                            {bobResponse.jurisdiction ? `Jurisdiction: ${bobResponse.jurisdiction}` : 'Jurisdiction: General'}
+                            {bobResponse.provider ? ` • Provider: ${bobResponse.provider}` : ''}
+                            {bobResponse.model ? ` • Model: ${bobResponse.model}` : ''}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {bobResponseError && !isWaiting && (
+                      <div className="text-amber-300">
+                        Bob assessment error: {bobResponseError}
                       </div>
                     )}
                   </div>

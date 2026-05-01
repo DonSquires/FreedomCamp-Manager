@@ -5,6 +5,11 @@ type UseBobTranslatorOptions = {
   workspaceId?: string | null
   enabled?: boolean
   targetLanguage?: string
+  providerOrgId?: string | null
+  clientOrgId?: string | null
+  officerId?: string | null
+  employerOrgId?: string | null
+  authorizedOrganizations?: string[]
 }
 
 type TranslatorStreamMessage = {
@@ -33,6 +38,11 @@ export function useBobTranslator({
   workspaceId,
   enabled = false,
   targetLanguage = 'hi-IN',
+  providerOrgId,
+  clientOrgId,
+  officerId,
+  employerOrgId,
+  authorizedOrganizations = [],
 }: UseBobTranslatorOptions) {
   const [connectionState, setConnectionState] = useState<'idle' | 'connecting' | 'open' | 'closing' | 'closed'>('idle')
   const [lastMessage, setLastMessage] = useState<TranslatorStreamMessage | null>(null)
@@ -47,9 +57,27 @@ export function useBobTranslator({
   const translatorUrl = useMemo(() => {
     if (!workspaceId) return ''
 
+    const params = new URLSearchParams()
+    params.set('workspace_id', workspaceId)
+    params.set('target_lang', targetLanguage)
+    if (providerOrgId) params.set('provider_org_id', providerOrgId)
+    if (clientOrgId) params.set('client_org_id', clientOrgId)
+    if (officerId) params.set('officer_id', officerId)
+    if (employerOrgId) params.set('employer_org_id', employerOrgId)
+    if (authorizedOrganizations.length) params.set('authorized_orgs', authorizedOrganizations.join(','))
+
     const delimiter = translatorBaseUrl.includes('?') ? '&' : '?'
-    return `${translatorBaseUrl}${delimiter}workspace_id=${encodeURIComponent(workspaceId)}&target_lang=${encodeURIComponent(targetLanguage)}`
-  }, [targetLanguage, translatorBaseUrl, workspaceId])
+    return `${translatorBaseUrl}${delimiter}${params.toString()}`
+  }, [
+    targetLanguage,
+    translatorBaseUrl,
+    workspaceId,
+    providerOrgId,
+    clientOrgId,
+    officerId,
+    employerOrgId,
+    authorizedOrganizations,
+  ])
 
   useEffect(() => {
     if (!enabled || !translatorUrl) {
@@ -98,6 +126,11 @@ export function useBobTranslator({
         target_language: targetLanguage,
         mime_type: mimeType,
         audio_base64: audioChunkBase64,
+        provider_org_id: providerOrgId,
+        client_org_id: clientOrgId,
+        officer_id: officerId,
+        employer_org_id: employerOrgId,
+        authorized_organizations: authorizedOrganizations,
       })
     },
   }

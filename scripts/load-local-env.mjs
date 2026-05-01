@@ -88,6 +88,11 @@ export function loadLocalEnv() {
     applyEnvFile(runtimePath, true);
   }
 
+  const translatorRuntimePath = path.join(root, '.runtime/translator.env');
+  if (fs.existsSync(translatorRuntimePath)) {
+    applyEnvFile(translatorRuntimePath, true);
+  }
+
   const inferenceUrl = firstNonEmptyEnv([
     'INFERENCE_SERVICE_URL',
     'BOB_SERVICE_URL',
@@ -105,4 +110,11 @@ export function loadLocalEnv() {
     'SUPABASE_SERVICE_ROLE_KEY',
   ]);
   setEnvIfMissing('SUPABASE_SERVICE_ROLE_KEY', supabaseServiceRole);
+
+  const translatorTemplateId = firstNonEmptyEnv([
+    'TRANSLATOR_TEMPLATE_ID',
+    'RUNPOD_TRANSLATOR_TEMPLATE_ID',
+  ]);
+  setEnvIfMissing('TRANSLATOR_TEMPLATE_ID', translatorTemplateId);
+  setEnvIfMissing('RUNPOD_TRANSLATOR_TEMPLATE_ID', translatorTemplateId);
 }

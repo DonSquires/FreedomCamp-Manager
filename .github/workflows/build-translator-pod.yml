@@ -1,0 +1,92 @@
+name: Build and Publish Translator Pod
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'ptt-bridge-python/**'
+      - 'scripts/deploy-translator-runpod.sh'
+      - 'scripts/promote-translator-pod.mjs'
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: donsquires/freedomcamp-manager-translator
+
+concurrency:
+  group: build-translator-pod-main
+  cancel-in-progress: true
+
+jobs:
+  build-and-push-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Free disk space on runner
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          df -h
+
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push translator image
+        id: build_push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./ptt-bridge-python
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Print immutable image references
+        run: |
+          set -e
+          echo "Immutable tag: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+          echo "Image digest:  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build_push.outputs.digest }}"
+
+          {
+            echo "## Translator Pod Image Published"
+            echo ""
+            echo "- Immutable tag: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}\`"
+            echo "- Immutable digest: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build_push.outputs.digest }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Update RunPod translator template image
+        continue-on-error: true
+        env:
+          RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+          RUNPOD_TRANSLATOR_TEMPLATE_ID: ${{ secrets.RUNPOD_TRANSLATOR_TEMPLATE_ID }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${RUNPOD_API_KEY:-}" ] || [ -z "${RUNPOD_TRANSLATOR_TEMPLATE_ID:-}" ]; then
+            echo "WARNING: RUNPOD_API_KEY or RUNPOD_TRANSLATOR_TEMPLATE_ID not set - skipping translator template update."
+            exit 0
+          fi
+
+          IMAGE_REF="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build_push.outputs.digest }}"
+
+          curl -fsSL -X PATCH "https://rest.runpod.io/v1/templates/${RUNPOD_TRANSLATOR_TEMPLATE_ID}" \
+            -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"imageName\":\"${IMAGE_REF}\"}" >/tmp/runpod_translator_template_patch.json
+
+          python3 - <<'PY'
+import json
+payload = json.load(open('/tmp/runpod_translator_template_patch.json', 'r', encoding='utf-8'))
+print(f"Translator template imageName: {payload.get('imageName', '?')}")
+PY
