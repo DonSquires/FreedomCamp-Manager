@@ -52,6 +52,44 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: AI assistance preflight
+        id: ai_preflight
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+
+          OPENAI_URL="${AI_ASSIST_ANALYZE_URL:-}"
+          if [ -z "$OPENAI_URL" ] && [ -n "${AI_ASSIST_BASE_URL:-}" ]; then
+            OPENAI_URL="${AI_ASSIST_BASE_URL%/}/api/v1/analyze-pr"
+          fi
+
+          BOB_URL="${BOB_SERVICE_URL:-${INFERENCE_SERVICE_URL:-}}"
+
+          HAS_OPENAI_KEY="no"
+          if [ -n "${AI_ASSIST_API_KEY:-}" ] || [ -n "${INFERENCE_API_KEY:-}" ]; then
+            HAS_OPENAI_KEY="yes"
+          fi
+
+          HAS_BOB_KEY="no"
+          if [ -n "${BOB_INFERENCE_API_KEY:-}" ] || [ -n "${INFERENCE_API_KEY:-}" ]; then
+            HAS_BOB_KEY="yes"
+          fi
+
+          echo "AI preflight:"
+          echo "- OpenAI-style endpoint configured: $([ -n "$OPENAI_URL" ] && echo yes || echo no)"
+          echo "- OpenAI-style key configured: $HAS_OPENAI_KEY"
+          echo "- Bob endpoint configured: $([ -n "$BOB_URL" ] && echo yes || echo no)"
+          echo "- Bob key configured: $HAS_BOB_KEY"
+
+          if [ -n "$OPENAI_URL" ] && [ "$HAS_OPENAI_KEY" = "yes" ]; then
+            echo "- Active path: openai-style"
+          elif [ -n "$BOB_URL" ] && [ "$HAS_BOB_KEY" = "yes" ]; then
+            echo "- Active path: bob-fallback"
+          else
+            echo "::error::No valid AI assistance path. Configure OpenAI-style endpoint+key or Bob endpoint+key."
+            exit 1
+          fi
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -189,6 +227,7 @@ jobs:
         id: gate_summary
         if: always()
         env:
+          OUTCOME_AI_PREFLIGHT: ${{ steps.ai_preflight.outcome }}
           OUTCOME_MANDATORY_AI_ASSIST: ${{ steps.mandatory_ai_assist.outcome }}
           OUTCOME_VERIFY_TRAINING: ${{ steps.verify_training.outcome }}
           OUTCOME_VALIDATE_CREDENTIALS: ${{ steps.validate_credentials.outcome }}
@@ -226,6 +265,7 @@ jobs:
       - name: Enforce release gate verdict
         if: always()
         env:
+          OUTCOME_AI_PREFLIGHT: ${{ steps.ai_preflight.outcome }}
           OUTCOME_MANDATORY_AI_ASSIST: ${{ steps.mandatory_ai_assist.outcome }}
           OUTCOME_VERIFY_TRAINING: ${{ steps.verify_training.outcome }}
           OUTCOME_VALIDATE_CREDENTIALS: ${{ steps.validate_credentials.outcome }}
@@ -240,6 +280,7 @@ jobs:
           failed=""
 
           for item in \
+            "ai-preflight:$OUTCOME_AI_PREFLIGHT" \
             "mandatory-ai-assist:$OUTCOME_MANDATORY_AI_ASSIST" \
             "verify-training:$OUTCOME_VERIFY_TRAINING" \
             "validate-credentials:$OUTCOME_VALIDATE_CREDENTIALS" \
