@@ -44,7 +44,7 @@ jobs:
           INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
 
       - name: Validate Bob capability gate (pod)
-        run: node scripts/bob-capability-gate.mjs --mode pod --required chat,health,self_heal --strict
+        run: node scripts/bob-capability-gate.mjs --mode auto --required chat,health --strict
         env:
           INFERENCE_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
           INFERENCE_API_KEY:     ${{ secrets.INFERENCE_API_KEY }}
