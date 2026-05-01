@@ -77,6 +77,12 @@ async function main() {
     process.exit(1);
   }
 
+  // Detect RunPod serverless API endpoints (api.runpod.ai/v2/<id>).
+  // These expose /runsync and /run rather than direct REST routes like /health
+  // or /chat, so we must use a different verification strategy.
+  const isRunpodServerless = /api\.runpod\.ai\/v2\//i.test(baseUrl);
+  const runpodBase = isRunpodServerless ? baseUrl.replace(/\/(runsync|run|run-sync)\/?$/i, '') : '';
+
   const privilegedHeaders = apiKey
     ? {
         Authorization: `Bearer ${apiKey}`,
@@ -89,15 +95,35 @@ async function main() {
 
   let failures = 0;
 
-  // 1) Health check (no auth required)
-  const health = await fetchJson(`${baseUrl}/health`, { method: 'GET' }, timeoutMs);
-  const healthStatus = String(health?.data?.status || '').toLowerCase();
-  const healthOk = health.ok && (healthStatus === 'healthy' || healthStatus === 'ok' || health.status === 200);
-  console.log(`CHECK health ok=${healthOk} status=${health.status} service_status=${health?.data?.status || 'unknown'}`);
-  if (!healthOk) failures += 1;
+  // 1) Health check
+  if (isRunpodServerless) {
+    // RunPod serverless: use a synchronous ping job via /runsync to verify the
+    // worker is alive (direct GET /health is not exposed on the RunPod API).
+    const ping = await fetchJson(
+      `${runpodBase}/runsync`,
+      {
+        method: 'POST',
+        headers: privilegedHeaders,
+        body: JSON.stringify({ input: { action: 'ping' } }),
+      },
+      timeoutMs
+    );
+    const output = ping?.data?.output;
+    const healthOk = ping.ok && output?.success === true;
+    console.log(`CHECK health ok=${healthOk} status=${ping.status} mode=serverless worker=${output?.message || 'unknown'}`);
+    if (!healthOk) failures += 1;
+  } else {
+    const health = await fetchJson(`${baseUrl}/health`, { method: 'GET' }, timeoutMs);
+    const healthStatus = String(health?.data?.status || '').toLowerCase();
+    const healthOk = health.ok && (healthStatus === 'healthy' || healthStatus === 'ok' || health.status === 200);
+    console.log(`CHECK health ok=${healthOk} status=${health.status} service_status=${health?.data?.status || 'unknown'}`);
+    if (!healthOk) failures += 1;
+  }
 
-  // 2) Self-healing planner (requires auth)
-  if (!apiKey) {
+  // 2) Self-healing planner (direct inference-service only; not available via RunPod serverless worker)
+  if (isRunpodServerless) {
+    console.log('CHECK self-heal skipped=true reason=serverless-mode-unsupported');
+  } else if (!apiKey) {
     console.log('CHECK self-heal skipped=true reason=no-api-key');
   } else {
     const selfHeal = await fetchJson(
@@ -129,8 +155,10 @@ async function main() {
     if (!selfHealOk) failures += 1;
   }
 
-  // 3) Optional code executor trigger (requires auth)
-  if (skipExecutor) {
+  // 3) Optional code executor trigger (requires auth; only on direct inference-service)
+  if (isRunpodServerless) {
+    console.log('CHECK executor skipped=true reason=serverless-mode-unsupported');
+  } else if (skipExecutor) {
     console.log('CHECK executor skipped=true reason=flag');
   } else if (!apiKey) {
     console.log('CHECK executor skipped=true reason=no-api-key');
