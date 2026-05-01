@@ -148,9 +148,29 @@ jobs:
           if [ -z "${BOB_SERVICE_URL:-}" ] || [ -z "${INFERENCE_API_KEY:-}" ]; then
             echo "run_pod_gate=false" >> "$GITHUB_OUTPUT"
             echo "Pod browser gate skipped (missing BOB_SERVICE_URL or INFERENCE_API_KEY)."
-          else
+            exit 0
+          fi
+
+          health_code=$(curl -sS -o /tmp/pod_gate_health.json -w "%{http_code}" --max-time 10 "${BOB_SERVICE_URL%/}/health" || true)
+          if [ "$health_code" != "200" ]; then
+            echo "run_pod_gate=false" >> "$GITHUB_OUTPUT"
+            echo "Pod browser gate skipped (health check HTTP ${health_code})."
+            exit 0
+          fi
+
+          run_code=$(curl -sS -o /tmp/pod_gate_run_probe.json -w "%{http_code}" --max-time 12 \
+            -X POST "${BOB_SERVICE_URL%/}/run" \
+            -H "Authorization: Bearer ${INFERENCE_API_KEY}" \
+            -H "x-inference-api-key: ${INFERENCE_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{"input":{"action":"ping"}}' || true)
+
+          if [ "$run_code" = "200" ] || [ "$run_code" = "202" ]; then
             echo "run_pod_gate=true" >> "$GITHUB_OUTPUT"
-            echo "Pod browser gate enabled."
+            echo "Pod browser gate enabled (helper /run available)."
+          else
+            echo "run_pod_gate=false" >> "$GITHUB_OUTPUT"
+            echo "Pod browser gate skipped (/run helper unavailable, HTTP ${run_code})."
           fi
         env:
           BOB_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}

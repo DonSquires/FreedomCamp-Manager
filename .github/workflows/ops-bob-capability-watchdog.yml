@@ -154,16 +154,32 @@ jobs:
           set -euo pipefail
           if [ -z "${BOB_SERVICE_URL:-}" ] || [ -z "${INFERENCE_API_KEY:-}" ]; then
             echo "run_pod=false" >> "$GITHUB_OUTPUT"
+            echo "run_pod_helper=false" >> "$GITHUB_OUTPUT"
             echo "Pod secrets not set; skipping pod watchdog check."
           elif echo "${BOB_SERVICE_URL}" | grep -Eq '^https://api\.runpod\.ai/v2/'; then
             echo "run_pod=false" >> "$GITHUB_OUTPUT"
+            echo "run_pod_helper=false" >> "$GITHUB_OUTPUT"
             echo "BOB_SERVICE_URL points to serverless endpoint; skipping pod watchdog check."
           elif [ "$(curl -sS -o /dev/null -w "%{http_code}" --max-time 8 "${BOB_SERVICE_URL%/}/health" || true)" != "200" ]; then
             echo "run_pod=false" >> "$GITHUB_OUTPUT"
+            echo "run_pod_helper=false" >> "$GITHUB_OUTPUT"
             echo "BOB_SERVICE_URL health is not 200; skipping pod watchdog check."
           else
+            run_code=$(curl -sS -o /tmp/pod_run_probe.json -w "%{http_code}" --max-time 12 \
+              -X POST "${BOB_SERVICE_URL%/}/run" \
+              -H "Authorization: Bearer ${INFERENCE_API_KEY}" \
+              -H "x-inference-api-key: ${INFERENCE_API_KEY}" \
+              -H "Content-Type: application/json" \
+              -d '{"input":{"action":"ping"}}' || true)
+
             echo "run_pod=true" >> "$GITHUB_OUTPUT"
-            echo "Pod secrets present; running pod watchdog check."
+            if [ "$run_code" = "200" ] || [ "$run_code" = "202" ]; then
+              echo "run_pod_helper=true" >> "$GITHUB_OUTPUT"
+              echo "Pod helper /run is available; enabling run_playwright/browser watchdog checks."
+            else
+              echo "run_pod_helper=false" >> "$GITHUB_OUTPUT"
+              echo "Pod helper /run unavailable (HTTP ${run_code}); skipping run_playwright/browser checks."
+            fi
           fi
         env:
           BOB_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
@@ -177,17 +193,23 @@ jobs:
       - name: Run strict pod capability gate
         if: steps.decide.outputs.run_pod == 'true'
         run: |
-          REQUIRED="${BOB_WATCHDOG_POD_REQUIRED:-chat,health,self_heal,run_playwright}"
+          if [ "${POD_RUN_HELPER_ENABLED}" = "true" ]; then
+            REQUIRED="${BOB_WATCHDOG_POD_REQUIRED:-chat,health,self_heal,run_playwright}"
+          else
+            REQUIRED="${BOB_WATCHDOG_POD_REQUIRED_BASE:-chat,health,self_heal}"
+          fi
           echo "Checking pod capabilities: $REQUIRED"
           node scripts/bob-capability-gate.mjs --mode pod --required "$REQUIRED" --strict
         env:
           INFERENCE_SERVICE_URL: ${{ secrets.BOB_SERVICE_URL }}
           INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY != '' && secrets.INFERENCE_API_KEY || secrets.RUNPOD_ENDPOINT_API_KEY != '' && secrets.RUNPOD_ENDPOINT_API_KEY || secrets.RUNPOD_API_KEY }}
           BOB_CAPABILITY_STRICT: 'true'
+          POD_RUN_HELPER_ENABLED: ${{ steps.decide.outputs.run_pod_helper }}
           BOB_WATCHDOG_POD_REQUIRED: ${{ vars.BOB_WATCHDOG_POD_REQUIRED }}
+          BOB_WATCHDOG_POD_REQUIRED_BASE: ${{ vars.BOB_WATCHDOG_POD_REQUIRED_BASE }}
 
       - name: Run strict pod browser capability gate
-        if: steps.decide.outputs.run_pod == 'true'
+        if: steps.decide.outputs.run_pod == 'true' && steps.decide.outputs.run_pod_helper == 'true'
         run: |
           REQUIRED="${BOB_WATCHDOG_POD_BROWSER_REQUIRED:-playwright_chromium,playwright_firefox,playwright_webkit}"
           echo "Checking pod browser capabilities: $REQUIRED"
