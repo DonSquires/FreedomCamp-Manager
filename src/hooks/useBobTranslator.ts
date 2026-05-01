@@ -26,6 +26,14 @@ function normalizeWsUrl(raw: string): string {
   return value.replace(/\/$/, '')
 }
 
+function isUsableTranslatorWsUrl(url: string): boolean {
+  if (!url) return false
+  if (!(url.startsWith('wss://') || url.startsWith('ws://'))) return false
+  // Guard against template placeholders accidentally making it to runtime.
+  if (url.includes('your-runpod-pod.runpod.net')) return false
+  return true
+}
+
 function parseConnectionState(readyState: number): 'idle' | 'connecting' | 'open' | 'closing' | 'closed' {
   if (readyState === WebSocket.CONNECTING) return 'connecting'
   if (readyState === WebSocket.OPEN) return 'open'
@@ -51,10 +59,12 @@ export function useBobTranslator({
 
   const translatorBaseUrl = useMemo(() => {
     const envUrl = normalizeWsUrl(import.meta.env.VITE_BOB_TRANSLATOR_WS_URL || '')
-    return envUrl || 'wss://your-runpod-pod.runpod.net/ws/translate'
+    return isUsableTranslatorWsUrl(envUrl) ? envUrl : ''
   }, [])
 
   const translatorUrl = useMemo(() => {
+    if (!translatorBaseUrl) return ''
+
     const params = new URLSearchParams()
     if (workspaceId) params.set('workspace_id', workspaceId)
     params.set('target_lang', targetLanguage)
@@ -117,6 +127,7 @@ export function useBobTranslator({
     connectionState,
     error,
     lastMessage,
+    hasEndpoint: Boolean(translatorBaseUrl),
     sendAudioChunk: (audioChunkBase64: string, mimeType = 'audio/webm') => {
       radioManager.send({
         action: 'translate_audio_chunk',

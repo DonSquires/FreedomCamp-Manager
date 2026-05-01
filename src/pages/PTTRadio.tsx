@@ -560,9 +560,9 @@ export default function PTTRadio() {
     }
     return Array.from(ids)
   }, [employerOrganizationId, homeOrganizationId, user?.authorized_work_locations, user?.extra_organization_ids])
-  const { connectionState: translatorConnectionState, sendAudioChunk } = useBobTranslator({
+  const { connectionState: translatorConnectionState, sendAudioChunk, hasEndpoint: translatorHasEndpoint } = useBobTranslator({
     workspaceId: translatorWorkspaceId,
-    enabled: translationRailEnabled && !!providerOrgId,
+    enabled: translationRailEnabled && !!providerOrgId && translatorHasEndpoint,
     targetLanguage: translatorTargetLanguage,
     providerOrgId,
     clientOrgId: translatorClientOrgId,
@@ -570,10 +570,15 @@ export default function PTTRadio() {
     employerOrgId: employerOrganizationId,
     authorizedOrganizations: translatorAuthorizedOrgIds,
   })
-  const translatorStatusLabel = translationRailEnabled
-    ? `Bob Ear ${translatorConnectionState.toUpperCase()}`
-    : 'Bob Ear STANDBY'
+  const translatorStatusLabel = !translationRailEnabled
+    ? 'Bob Ear STANDBY'
+    : !translatorHasEndpoint
+      ? 'Bob Ear NO ENDPOINT'
+      : translatorConnectionState === 'closed'
+        ? 'Bob Ear STANDBY'
+        : `Bob Ear ${translatorConnectionState.toUpperCase()}`
   const streamModeLabel = pttStreamMode === 'diplomatic' ? 'Diplomatic Route' : 'Tactical Route'
+  const isDiplomaticMode = pttStreamMode === 'diplomatic'
 
   const translationRailSubtitle = translationRailAvailable
     ? `${hybridHandshake?.workspace_name || 'Client Workspace'} • ${hybridHandshake?.translation_active ? 'Translation Available' : 'Translation Ready'} • ${streamModeLabel}`
@@ -2174,15 +2179,15 @@ export default function PTTRadio() {
         {/* ── Translation rail status ─────────────────────── */}
         <div className="px-4 py-2 border-b border-slate-800 bg-slate-900/80 shrink-0 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2 min-w-0">
-            <span className={`h-2.5 w-2.5 rounded-full ${translationRailEnabled ? 'bg-yellow-400 animate-pulse' : 'bg-blue-400 animate-pulse'}`} />
+            <span className={`h-2.5 w-2.5 rounded-full ${isDiplomaticMode ? 'bg-yellow-400 animate-pulse' : 'bg-blue-400 animate-pulse'}`} />
             <span className="text-xs uppercase tracking-wide text-slate-200">
-              {translationRailEnabled ? 'Diplomatic Bus' : 'Tactical Bus'}
+              {isDiplomaticMode ? 'Diplomatic Bus' : 'Tactical Bus'}
             </span>
             <span className="text-[10px] text-slate-400 truncate">{translationRailSubtitle}</span>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className={translationRailEnabled ? 'border-yellow-500 text-yellow-300' : 'border-blue-500 text-blue-300'}>
-              {translationRailEnabled ? 'Gold Pulse' : 'Blue Pulse'}
+            <Badge variant="outline" className={isDiplomaticMode ? 'border-yellow-500 text-yellow-300' : 'border-blue-500 text-blue-300'}>
+              {isDiplomaticMode ? 'Gold Pulse' : 'Blue Pulse'}
             </Badge>
             <Badge variant="outline" className="border-emerald-500/60 text-emerald-300">
               {translatorStatusLabel}
@@ -2190,7 +2195,7 @@ export default function PTTRadio() {
             <Switch
               checked={translationRailEnabled}
               onCheckedChange={setTranslationRailEnabled}
-              disabled={!translationRailAvailable}
+              disabled={!providerOrgId}
               aria-label="Universal translator toggle"
             />
           </div>
