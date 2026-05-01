@@ -55,10 +55,8 @@ export function useBobTranslator({
   }, [])
 
   const translatorUrl = useMemo(() => {
-    if (!workspaceId) return ''
-
     const params = new URLSearchParams()
-    params.set('workspace_id', workspaceId)
+    if (workspaceId) params.set('workspace_id', workspaceId)
     params.set('target_lang', targetLanguage)
     if (providerOrgId) params.set('provider_org_id', providerOrgId)
     if (clientOrgId) params.set('client_org_id', clientOrgId)

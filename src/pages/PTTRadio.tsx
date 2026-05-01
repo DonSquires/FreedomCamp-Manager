@@ -459,7 +459,7 @@ export default function PTTRadio() {
   const [disconnectingUserId, setDisconnectingUserId] = useState<string | null>(null)
   const [handoffGeoPoint, setHandoffGeoPoint] = useState<{ latitude: number; longitude: number } | null>(null)
   const [handoffGpsUnavailable, setHandoffGpsUnavailable] = useState(false)
-  const [translationRailEnabled, setTranslationRailEnabled] = useState(false)
+  const [translationRailEnabled, setTranslationRailEnabled] = useState(true)
   const [pttStreamMode, setPttStreamMode] = useState<'tactical' | 'diplomatic'>('tactical')
   const [interpreterInput, setInterpreterInput] = useState('')
   const [interpreterOutput, setInterpreterOutput] = useState('')
@@ -562,7 +562,7 @@ export default function PTTRadio() {
   }, [employerOrganizationId, homeOrganizationId, user?.authorized_work_locations, user?.extra_organization_ids])
   const { connectionState: translatorConnectionState, sendAudioChunk } = useBobTranslator({
     workspaceId: translatorWorkspaceId,
-    enabled: translationRailEnabled && translationRailAvailable,
+    enabled: translationRailEnabled && !!providerOrgId,
     targetLanguage: translatorTargetLanguage,
     providerOrgId,
     clientOrgId: translatorClientOrgId,
@@ -1136,10 +1136,13 @@ export default function PTTRadio() {
   }, [user])
 
   useEffect(() => {
-    if (translationRailEnabled !== translationRailAvailable) {
-      setTranslationRailEnabled(translationRailAvailable)
+    if (!providerOrgId && translationRailEnabled) {
+      setTranslationRailEnabled(false)
     }
-  }, [translationRailAvailable, translationRailEnabled])
+    if (providerOrgId && !translationRailEnabled) {
+      setTranslationRailEnabled(true)
+    }
+  }, [providerOrgId, translationRailEnabled])
 
   useEffect(() => {
     if (!providerOrgId) {
@@ -1586,7 +1589,7 @@ export default function PTTRadio() {
       sendEmergencyBroadcast(false)
     }
 
-    if (clipUrl && translationRailEnabled && translationRailAvailable) {
+    if (clipUrl && translationRailEnabled) {
       void (async () => {
         try {
           const clipResponse = await fetch(clipUrl)
