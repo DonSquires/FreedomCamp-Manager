@@ -1,0 +1,35 @@
+{
+  "updatedAt": "2026-05-01T02:39:34.826Z",
+  "runId": "2026-05-01T02-39-34-805Z",
+  "batch": "human",
+  "scope": "quick",
+  "resumeMode": false,
+  "continueOnFailure": true,
+  "startedAt": "2026-05-01T02:39:34.819Z",
+  "endedAt": "2026-05-01T02:39:34.819Z",
+  "summary": {
+    "passed": 0,
+    "failed": 0
+  },
+  "failedStages": [],
+  "failureContexts": [
+    {
+      "folder": "crm-service-provider-visua-b41f7-d-service-provider-visually-Mobile-Chrome",
+      "testName": "crm-service-provider-visual.spec.ts >> CRM full visual provisioning and module sweep >> validate live client and service provider visually",
+      "location": "tests/e2e/crm-service-provider-visual.spec.ts:48:3",
+      "error": "Error: browserType.launch: Target page, context or browser has been closed"
+    },
+    {
+      "folder": "crm-service-provider-visua-b41f7-d-service-provider-visually-Mobile-Safari",
+      "testName": "crm-service-provider-visual.spec.ts >> CRM full visual provisioning and module sweep >> validate live client and service provider visually",
+      "location": "tests/e2e/crm-service-provider-visual.spec.ts:48:3",
+      "error": "Error: browserType.launch: Target page, context or browser has been closed"
+    },
+    {
+      "folder": "crm-service-provider-visua-b41f7-d-service-provider-visually-chromium",
+      "testName": "crm-service-provider-visual.spec.ts >> CRM full visual provisioning and module sweep >> validate live client and service provider visually",
+      "location": "tests/e2e/crm-service-provider-visual.spec.ts:48:3",
+      "error": "Error: browserType.launch: Target page, context or browser has been closed"
+    }
+  ]
+}

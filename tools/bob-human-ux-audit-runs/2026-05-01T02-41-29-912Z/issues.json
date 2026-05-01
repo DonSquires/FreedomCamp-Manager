@@ -1,0 +1,16 @@
+{
+  "generatedAt": "2026-05-01T02:41:58.564Z",
+  "count": 1,
+  "issues": [
+    {
+      "id": "visual|crm-service-provider-visual.spec.ts >> crm full visual provisioning and module sweep >> validate live client and service provider visually|tests/e2e/crm-service-provider-visual.spec.ts:48:3|error: browsertype.launch: target page, context or browser has been closed",
+      "movement": "visual",
+      "dimension": "architecture",
+      "dimensionTitle": "Architecture/flow",
+      "testName": "crm-service-provider-visual.spec.ts >> CRM full visual provisioning and module sweep >> validate live client and service provider visually",
+      "location": "tests/e2e/crm-service-provider-visual.spec.ts:48:3",
+      "error": "Error: browserType.launch: Target page, context or browser has been closed",
+      "sourceFolder": "crm-service-provider-visua-b41f7-d-service-provider-visually-Mobile-Chrome"
+    }
+  ]
+}

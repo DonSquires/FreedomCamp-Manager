@@ -1,0 +1,66 @@
+{
+  "generatedAt": "2026-05-01T02:39:34.840Z",
+  "count": 6,
+  "issues": [
+    {
+      "id": "visual:crm-service-provider-visua-b41f7-d-service-provider-visually-Mobile-Chrome",
+      "movement": "visual",
+      "dimension": "wording",
+      "dimensionTitle": "Wording",
+      "testName": "crm-service-provider-visual.spec.ts >> CRM full visual provisioning and module sweep >> validate live client and service provider visually",
+      "location": "tests/e2e/crm-service-provider-visual.spec.ts:48:3",
+      "error": "Error: browserType.launch: Target page, context or browser has been closed",
+      "sourceFolder": "crm-service-provider-visua-b41f7-d-service-provider-visually-Mobile-Chrome"
+    },
+    {
+      "id": "visual:crm-service-provider-visua-b41f7-d-service-provider-visually-Mobile-Safari",
+      "movement": "visual",
+      "dimension": "wording",
+      "dimensionTitle": "Wording",
+      "testName": "crm-service-provider-visual.spec.ts >> CRM full visual provisioning and module sweep >> validate live client and service provider visually",
+      "location": "tests/e2e/crm-service-provider-visual.spec.ts:48:3",
+      "error": "Error: browserType.launch: Target page, context or browser has been closed",
+      "sourceFolder": "crm-service-provider-visua-b41f7-d-service-provider-visually-Mobile-Safari"
+    },
+    {
+      "id": "visual:crm-service-provider-visua-b41f7-d-service-provider-visually-chromium",
+      "movement": "visual",
+      "dimension": "wording",
+      "dimensionTitle": "Wording",
+      "testName": "crm-service-provider-visual.spec.ts >> CRM full visual provisioning and module sweep >> validate live client and service provider visually",
+      "location": "tests/e2e/crm-service-provider-visual.spec.ts:48:3",
+      "error": "Error: browserType.launch: Target page, context or browser has been closed",
+      "sourceFolder": "crm-service-provider-visua-b41f7-d-service-provider-visually-chromium"
+    },
+    {
+      "id": "human:crm-service-provider-visua-b41f7-d-service-provider-visually-Mobile-Chrome",
+      "movement": "human",
+      "dimension": "wording",
+      "dimensionTitle": "Wording",
+      "testName": "crm-service-provider-visual.spec.ts >> CRM full visual provisioning and module sweep >> validate live client and service provider visually",
+      "location": "tests/e2e/crm-service-provider-visual.spec.ts:48:3",
+      "error": "Error: browserType.launch: Target page, context or browser has been closed",
+      "sourceFolder": "crm-service-provider-visua-b41f7-d-service-provider-visually-Mobile-Chrome"
+    },
+    {
+      "id": "human:crm-service-provider-visua-b41f7-d-service-provider-visually-Mobile-Safari",
+      "movement": "human",
+      "dimension": "wording",
+      "dimensionTitle": "Wording",
+      "testName": "crm-service-provider-visual.spec.ts >> CRM full visual provisioning and module sweep >> validate live client and service provider visually",
+      "location": "tests/e2e/crm-service-provider-visual.spec.ts:48:3",
+      "error": "Error: browserType.launch: Target page, context or browser has been closed",
+      "sourceFolder": "crm-service-provider-visua-b41f7-d-service-provider-visually-Mobile-Safari"
+    },
+    {
+      "id": "human:crm-service-provider-visua-b41f7-d-service-provider-visually-chromium",
+      "movement": "human",
+      "dimension": "wording",
+      "dimensionTitle": "Wording",
+      "testName": "crm-service-provider-visual.spec.ts >> CRM full visual provisioning and module sweep >> validate live client and service provider visually",
+      "location": "tests/e2e/crm-service-provider-visual.spec.ts:48:3",
+      "error": "Error: browserType.launch: Target page, context or browser has been closed",
+      "sourceFolder": "crm-service-provider-visua-b41f7-d-service-provider-visually-chromium"
+    }
+  ]
+}

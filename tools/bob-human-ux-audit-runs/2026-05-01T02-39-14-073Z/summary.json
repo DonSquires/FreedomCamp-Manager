@@ -1,0 +1,30 @@
+{
+  "runId": "2026-05-01T02-39-14-073Z",
+  "startedAt": "2026-05-01T02:39:14.084Z",
+  "endedAt": "2026-05-01T02:39:34.842Z",
+  "trainingWiring": {
+    "status": "pass",
+    "report": null
+  },
+  "movements": [
+    {
+      "movement": "visual",
+      "status": "fail",
+      "exitCode": 1,
+      "attempts": 1,
+      "detectedIssues": 3
+    },
+    {
+      "movement": "human",
+      "status": "pass",
+      "exitCode": 0,
+      "attempts": 1,
+      "detectedIssues": 3
+    }
+  ],
+  "totalIssues": 6,
+  "issueArtifacts": {
+    "issuesJsonPath": "/workspaces/FreedomCamp-Manager/tools/bob-human-ux-audit-runs/2026-05-01T02-39-14-073Z/issues.json",
+    "issuesMdPath": "/workspaces/FreedomCamp-Manager/tools/bob-human-ux-audit-runs/2026-05-01T02-39-14-073Z/issues.md"
+  }
+}

@@ -59,6 +59,7 @@ grep_requested_output.txt
 .home/
 .local/
 .venv-migrate/
+.venv-translator/
 
 # E2E test artifacts
 playwright-report/
