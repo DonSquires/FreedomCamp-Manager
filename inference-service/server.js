@@ -8867,6 +8867,126 @@ app.post('/runpod/serverless/invoke', runpodPodRateLimit, requireInferenceAuth, 
   }
 });
 
+// ---------------------------------------------------------------------------
+// Sub-agent unified dispatch
+// ---------------------------------------------------------------------------
+
+// Actions that must execute on the pod (browser, playwright, heavy compute).
+const POD_ONLY_ACTIONS = new Set([
+  'run_playwright', 'playwright_chromium', 'playwright_firefox', 'playwright_webkit',
+  'screenshot', 'ui_screenshot_capture', 'pdf_export',
+]);
+
+// Actions that execute on RunPod serverless (LLM text tasks).
+const SERVERLESS_ACTIONS = new Set(RUNPOD_SERVERLESS_ACTION_ALLOWLIST);
+
+/**
+ * Decide routing target for a given action.
+ * Returns 'serverless' | 'pod' | 'local'.
+ */
+function resolveAgentTarget(action, explicitTarget) {
+  const t = String(explicitTarget || 'auto').trim().toLowerCase();
+  if (t === 'serverless' || t === 'pod' || t === 'local') return t;
+  if (POD_ONLY_ACTIONS.has(action)) return 'pod';
+  if (SERVERLESS_ACTIONS.has(action)) return 'serverless';
+  // Default: serverless if endpoint configured, else local
+  if (deriveRunpodInvokeUrl()) return 'serverless';
+  return 'local';
+}
+
+/**
+ * GET /agent/targets
+ * Returns the list of known sub-agent targets and their supported actions.
+ */
+app.get('/agent/targets', codeRateLimit, requireInferenceAuth, (req, res) => {
+  res.json({
+    success: true,
+    targets: {
+      serverless: {
+        description: 'RunPod serverless endpoint — LLM text actions',
+        configured: !!deriveRunpodInvokeUrl(),
+        actions: [...SERVERLESS_ACTIONS],
+      },
+      pod: {
+        description: 'RunPod pod helper (/run async) — browser, playwright, heavy compute',
+        configured: true,
+        actions: [...POD_ONLY_ACTIONS],
+      },
+      local: {
+        description: 'Local Ollama — lightweight fallback',
+        configured: true,
+        actions: ['chat', 'ask'],
+      },
+    },
+    routing_policy: 'Serverless-first for LLM actions; pod for browser/compute; local as fallback',
+  });
+});
+
+/**
+ * POST /agent/dispatch
+ * Unified sub-agent router. Accepts:
+ *   { action: string, payload: object, target?: "auto|serverless|pod|local", poll?: boolean, timeout_ms?: number }
+ * Returns the action result from the selected sub-agent.
+ */
+app.post('/agent/dispatch', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const action = String(body.action || '').trim().toLowerCase();
+    if (!action) {
+      return res.status(400).json({ success: false, error: 'action is required' });
+    }
+
+    const target = resolveAgentTarget(action, body.target);
+    const poll = body.poll !== false;
+    const timeoutMs = Number(body.timeout_ms || RUNPOD_ENDPOINT_TIMEOUT_MS);
+
+    if (target === 'serverless') {
+      assertRunpodServerlessActionAllowed(action);
+      const input = body.payload && typeof body.payload === 'object' ? body.payload : { action };
+      const result = await invokeRunpodServerless({
+        input,
+        payload: { input },
+        poll,
+        timeoutMs,
+        intervalMs: RUNPOD_ENDPOINT_POLL_INTERVAL_MS,
+      });
+      return res.json({ success: true, target, action, ...result });
+    }
+
+    if (target === 'pod') {
+      const input = { action, ...(body.payload && typeof body.payload === 'object' ? body.payload : {}) };
+      const job = createPodJobRecord();
+      podAsyncJobs.set(job.id, job);
+      void executePodAsyncJob(job.id, input);
+
+      if (!poll) {
+        return res.json({ success: true, target, action, id: job.id, status: 'IN_QUEUE' });
+      }
+
+      // Poll locally
+      const started = Date.now();
+      while (Date.now() - started <= timeoutMs) {
+        const current = podAsyncJobs.get(job.id);
+        if (current && isRunpodTerminalStatus(current.status)) {
+          return res.json({ success: current.status !== 'FAILED', target, action, id: job.id, status: current.status, output: current.output, error: current.error });
+        }
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+      return res.status(408).json({ success: false, target, action, id: job.id, error: 'Pod job polling timed out' });
+    }
+
+    // local fallback — simple chat passthrough
+    return res.status(501).json({
+      success: false,
+      target,
+      action,
+      error: `Action "${action}" routed to local Ollama — use POST /chat instead for local inference`,
+    });
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
 // Error handler
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
