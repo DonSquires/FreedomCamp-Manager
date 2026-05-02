@@ -8,6 +8,7 @@
     "build:diagnostics": "sh scripts/build-diagnostics.sh",
     "typecheck": "tsc -b",
     "lint": "eslint .",
+    "lint:doc-authority": "node scripts/doc-authority-check.mjs",
     "review:evidence": "node scripts/generate-bob-build-review-evidence.mjs tools/bob-build-review-evidence.json",
     "bob:self-heal-bridge": "node scripts/generate-bob-self-heal-bridge.mjs",
     "bob:collab": "bash scripts/bob-collab.sh",

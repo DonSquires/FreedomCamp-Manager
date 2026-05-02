@@ -88,7 +88,35 @@ Use this register for all Bob `ungrounded` findings that represent future-state 
 3. Gap: Role-gated route matrix not fully centralized.
    Owner: Application architecture.
    Evidence required: per-route role map maintained with source links.
-   Status: open.
+   Status: in progress (primary and related route annotations added in docs/MODULE_ROADMAP.md).
+
+## Triad Pair-Review Round (2026-05-02)
+
+This round includes three independent lenses before implementation:
+
+1. Bob review (automation):
+   - Input: docs/MODULE_ROADMAP.md
+   - Decision: needs-revision
+   - Signal type: ungrounded reference and future-state framing flags
+   - Handling rule: treated as target-state gap signals, then tracked and resolved through grounded doc updates.
+
+2. OpenAI architecture lens:
+   - Decision: proceed with phased governance improvements
+   - Focus: auditability, low-noise enforcement, canonical-source discipline
+   - Action: keep checks warning-first, with optional strict mode via environment toggle.
+
+3. Specialist subagent (architecture/governance):
+   - Recommendation: conditional go
+   - Immediate scope: expand related-route role gates and add Layer 1 doc-authority warning script
+   - Deferred scope: deeper RLS and edge-function authorization mapping in later phase.
+
+Triad outcome:
+
+1. Implement now:
+   - related-route role-gate annotations in docs/MODULE_ROADMAP.md
+   - warning-first doc-authority checker script (scripts/doc-authority-check.mjs)
+2. Keep phase-2 follow-up in backlog:
+   - deeper schema and edge-function authority indexing
 
 ## OpenAI Lens Review (Architecture + Governance)
 
