@@ -209,8 +209,8 @@ jobs:
           GITHUB_REPO_BRANCH:        ${{ github.ref_name }}
           BOB_SELF_TEST_PREFLIGHT:   'true'
           BOB_SELF_TEST_REQUIRE_REPO_TOKEN: 'true'
-          BOB_SELF_TEST_AUTH_MODE:   'repo-token'
-          BOB_SELF_TEST_EMBED_REPO_TOKEN_IN_URL: 'false'
+          BOB_SELF_TEST_AUTH_MODE:   'embed-url'
+          BOB_SELF_TEST_EMBED_REPO_TOKEN_IN_URL: 'true'
           BOB_SELF_TEST_TIMEOUT_MS:  '540000'
           BOB_SELF_TEST_POLL_MS:     '8000'
           PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK: '1'
