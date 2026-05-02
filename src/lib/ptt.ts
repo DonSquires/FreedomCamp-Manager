@@ -363,6 +363,43 @@ function isValidWebSocketUrl(url: string): boolean {
   }
 }
 
+function normalizeIceUrl(rawUrl: unknown, hasCredentials: boolean): string | null {
+  if (typeof rawUrl !== 'string') return null
+  const value = rawUrl.trim()
+  if (!value) return null
+
+  if (/^(stun|turn|turns):/i.test(value)) {
+    return value
+  }
+
+  // Defensive normalization for upstream payloads that return host:port only.
+  const inferredScheme = hasCredentials ? 'turn' : 'stun'
+  return `${inferredScheme}:${value}`
+}
+
+function normalizeIceServers(servers: RTCIceServer[] | undefined): RTCIceServer[] {
+  if (!Array.isArray(servers)) return []
+
+  const normalized: RTCIceServer[] = []
+  for (const server of servers) {
+    if (!server) continue
+    const hasCredentials = Boolean((server as any).username || (server as any).credential)
+    const rawUrls = Array.isArray(server.urls) ? server.urls : [server.urls]
+    const urls = rawUrls
+      .map((url) => normalizeIceUrl(url, hasCredentials))
+      .filter((url): url is string => Boolean(url))
+
+    if (!urls.length) continue
+
+    normalized.push({
+      ...server,
+      urls: urls.length === 1 ? urls[0] : urls,
+    })
+  }
+
+  return normalized
+}
+
 async function waitForPTTTokenWindow(): Promise<void> {
   const now = Date.now()
   const lastRequestAt = readLastTokenRequestAt()
@@ -992,10 +1029,12 @@ export async function connectToPTT(channelScope: string, channelName?: string, f
       return
     }
 
+    const normalizedIceServers = normalizeIceServers(tokenData.iceServers)
+
     store.setConnection('connecting', tokenData.wsUrl, tokenData.token)
-    store.setIceServers(tokenData.iceServers)
+    store.setIceServers(normalizedIceServers)
     applyTransportDiagnostics(tokenData.transport || {
-      turnConfigured: tokenData.iceServers.some((server) => {
+      turnConfigured: normalizedIceServers.some((server) => {
         const urls = Array.isArray(server.urls) ? server.urls : [server.urls]
         return urls.some((url) => typeof url === 'string' && (url.startsWith('turn:') || url.startsWith('turns:')))
       }),

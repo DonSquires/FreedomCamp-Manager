@@ -67,11 +67,22 @@ export function PTTChannelAccessControl({
     queryFn: async () => {
       if (!organizationId) return []
 
-      const { data, error } = await (supabase as any)
+      let { data, error } = await (supabase as any)
         .from('ptt_channels')
         .select('id, name, channel_number, channel_type, description, organization_id, scope_override')
         .eq('organization_id', organizationId)
         .order('name', { ascending: true })
+
+      if (error?.code === '42703' && String(error.message || '').includes('scope_override')) {
+        const fallback = await (supabase as any)
+          .from('ptt_channels')
+          .select('id, name, channel_number, channel_type, description, organization_id')
+          .eq('organization_id', organizationId)
+          .order('name', { ascending: true })
+
+        data = (fallback.data || []).map((row: any) => ({ ...row, scope_override: null }))
+        error = fallback.error
+      }
 
       if (error) {
         console.error('Error fetching channels:', error)

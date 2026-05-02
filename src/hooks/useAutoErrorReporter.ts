@@ -30,8 +30,12 @@ import { edgeFunctions } from '@/lib/edgeFunctions'
 // Patterns that are NOT worth auto-reporting (React dev warnings, a11y hints, etc.)
 
 const NOISE_PATTERNS = [
+  /React Router Future Flag Warning/i,
   /DialogContent.*DialogTitle/i,
+  /Missing `Description` or `aria-describedby=\{undefined\}` for \{DialogContent\}/i,
   /Warning: Each child in a list/i,
+  /Encountered two children with the same key/i,
+  /validateDOMNesting/i,
   /Warning: ReactDOM\.render/i,
   /Warning: Can't perform a React state update/i,
   /Warning: An update to .* inside a test/i,
@@ -42,6 +46,12 @@ const NOISE_PATTERNS = [
   /Non-Error promise rejection/i,
   /Content Security Policy/i,
   /favicon/i,
+  /Token mint rate limited/i,
+  /recent Push to Talk token was already issued/i,
+  /Session expired during request/i,
+  /No active session found\. Please sign in again/i,
+  /PTT: WebSocket error \{"isTrusted":true\}/i,
+  /Notification permission denied/i,
 ]
 
 function isNoise(message: string): boolean {

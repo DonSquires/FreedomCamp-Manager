@@ -52,6 +52,39 @@ function normalizeWsUrl(value: string): string {
   return ''
 }
 
+function normalizeIceUrl(rawUrl: unknown, hasCredentials: boolean): string | null {
+  if (typeof rawUrl !== 'string') return null
+  const value = rawUrl.trim()
+  if (!value) return null
+  if (/^(stun|turn|turns):/i.test(value)) return value
+  const inferredScheme = hasCredentials ? 'turn' : 'stun'
+  return `${inferredScheme}:${value}`
+}
+
+function normalizeIceServers(servers: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(servers)) return []
+
+  const normalized: Array<Record<string, unknown>> = []
+  for (const entry of servers) {
+    if (!entry || typeof entry !== 'object') continue
+    const server = entry as Record<string, unknown>
+    const hasCredentials = Boolean(server.username || server.credential)
+    const rawUrls = Array.isArray(server.urls) ? server.urls : [server.urls]
+    const urls = rawUrls
+      .map((url) => normalizeIceUrl(url, hasCredentials))
+      .filter((url): url is string => Boolean(url))
+
+    if (!urls.length) continue
+
+    normalized.push({
+      ...server,
+      urls: urls.length === 1 ? urls[0] : urls,
+    })
+  }
+
+  return normalized
+}
+
 function isProductionRuntime(): boolean {
   const nodeEnv = (Deno.env.get('NODE_ENV') || '').toLowerCase()
   return nodeEnv === 'production' || !!Deno.env.get('DENO_DEPLOYMENT_ID')
@@ -494,6 +527,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         ...tokenData,
+        iceServers: normalizeIceServers(tokenData?.iceServers),
         wsUrl: resolvedWsUrl,
       }),
       { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }

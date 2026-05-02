@@ -112,7 +112,8 @@ export async function detectCurrentZones(
   organizationScope?: string | string[]
 ): Promise<GeofenceZone[]> {
   try {
-    // Fetch all active zones – include zone_type so we can sort by specificity
+    // Fetch all active zones – include zone_type so we can sort by specificity.
+    // Some environments may not yet have zones.radius_meters; retry without it.
     let query = (supabase.from('zones') as any)
       .select('id, name, organization_id, location_lat, location_lng, geometry, zone_type, radius_meters, parent_zone_id')
       .eq('is_active', true)
@@ -123,8 +124,24 @@ export async function detectCurrentZones(
       query = query.eq('organization_id', organizationScope)
     }
     
-    const { data: zones, error } = await query
-    
+    let { data: zones, error } = await query
+
+    if (error?.code === '42703' && String(error.message || '').includes('radius_meters')) {
+      let fallbackQuery = (supabase.from('zones') as any)
+        .select('id, name, organization_id, location_lat, location_lng, geometry, zone_type, parent_zone_id')
+        .eq('is_active', true)
+
+      if (Array.isArray(organizationScope) && organizationScope.length > 0) {
+        fallbackQuery = fallbackQuery.in('organization_id', organizationScope)
+      } else if (typeof organizationScope === 'string' && organizationScope.length > 0) {
+        fallbackQuery = fallbackQuery.eq('organization_id', organizationScope)
+      }
+
+      const fallback = await fallbackQuery
+      zones = (fallback.data || []).map((z: any) => ({ ...z, radius_meters: null }))
+      error = fallback.error
+    }
+
     if (error) throw error
     if (!zones) return []
     
@@ -219,8 +236,62 @@ async function getOfficerActivePatrols(userId: string): Promise<ActivePatrol[]> 
     })
 
     if (error) {
-      console.warn('Could not load active patrols for geofence auto-checkin:', error)
-      return []
+      const isMissingCheckedInColumn =
+        error?.code === '42703' && String(error?.message || '').includes('checked_in_at')
+
+      if (!isMissingCheckedInColumn) {
+        console.warn('Could not load active patrols for geofence auto-checkin:', error)
+        return []
+      }
+
+      // Compatibility fallback for tenants with older patrol schema.
+      const { data: patrolRows, error: patrolError } = await (supabase as any)
+        .from('patrols')
+        .select('id, zone_id, status, completed_at, auto_checkin_enabled, assigned_to')
+        .eq('assigned_to', userId)
+        .in('status', ['scheduled', 'in_progress'])
+        .is('completed_at', null)
+
+      if (patrolError) {
+        console.warn('Fallback patrol lookup failed:', patrolError)
+        return []
+      }
+
+      const zoneIds = Array.from(new Set((patrolRows || []).map((p: any) => p.zone_id).filter(Boolean)))
+      let zoneMap = new Map<string, any>()
+
+      if (zoneIds.length) {
+        const { data: zoneRows, error: zoneError } = await (supabase as any)
+          .from('zones')
+          .select('id, name, location_lat, location_lng, radius_meters')
+          .in('id', zoneIds)
+
+        if (!zoneError) {
+          zoneMap = new Map((zoneRows || []).map((z: any) => [z.id, z]))
+        } else if (zoneError.code === '42703' && String(zoneError.message || '').includes('radius_meters')) {
+          const { data: zoneRowsNoRadius } = await (supabase as any)
+            .from('zones')
+            .select('id, name, location_lat, location_lng')
+            .in('id', zoneIds)
+          zoneMap = new Map((zoneRowsNoRadius || []).map((z: any) => [z.id, { ...z, radius_meters: null }]))
+        }
+      }
+
+      return (patrolRows || []).map((p: any) => {
+        const z = zoneMap.get(p.zone_id)
+        return {
+          patrol_id: p.id,
+          zone_id: p.zone_id,
+          zone_name: z?.name || 'Unknown Zone',
+          geofence_radius: z?.radius_meters ?? null,
+          auto_checkin_enabled: p.auto_checkin_enabled ?? true,
+          status: p.status,
+          checked_in_at: null,
+          completed_at: p.completed_at ?? null,
+          zone_center_lat: z?.location_lat ?? null,
+          zone_center_lng: z?.location_lng ?? null,
+        } as ActivePatrol
+      })
     }
 
     return (data || []) as ActivePatrol[]
