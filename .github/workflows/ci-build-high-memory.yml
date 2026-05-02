@@ -19,8 +19,8 @@ on:
       - '.github/workflows/ci-build-high-memory.yml'
       - 'scripts/build-diagnostics.sh'
       - 'scripts/doc-authority-check.mjs'
-        - 'scripts/collect-workflow-evidence.mjs'
-        - 'docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json'
+      - 'scripts/collect-workflow-evidence.mjs'
+      - 'docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json'
   pull_request:
     branches: [main]
     paths:
