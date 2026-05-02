@@ -242,7 +242,11 @@ BEGIN
         r.gps_lat,
         r.gps_lng,
         'backfill_dispatch_jobs',
-        0.6,          -- moderate confidence: address text + GPS present
+        -- 0.6 = moderate confidence: we have both address text AND GPS coordinates
+        -- but the address was free-text (not geocoder-normalised), so we cannot
+        -- guarantee the text exactly matches the coordinates.  A geocoder round-trip
+        -- would be needed to push confidence to 0.9+.
+        0.6,
         r.created_by
       )
       RETURNING id INTO new_loi_id;

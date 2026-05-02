@@ -1,6 +1,6 @@
 # Domain Model — Location, Zone, and Dispatch Architecture
 
-> **Status**: Active — introduced in PR #[update-domain-model-architecture]  
+> **Status**: Active — introduced in PR [update-domain-model-architecture](https://github.com/DonSquires/FreedomCamp-Manager/pull/new/copilot/update-domain-model-architecture)  
 > **Version**: 1.0  
 > **Date**: 2026-07-07
 
