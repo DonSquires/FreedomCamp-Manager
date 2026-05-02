@@ -1659,7 +1659,6 @@ export default function PTTRadio() {
     effectiveOrgId,
     queryClient,
     translationRailEnabled,
-    translationRailAvailable,
     sendAudioChunk,
   ])
 

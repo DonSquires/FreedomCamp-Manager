@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { edgeFunctions } from '@/lib/edgeFunctions'
@@ -24,7 +24,7 @@ export function useLiveSessionDiagnostics() {
   const inFlightRef = useRef(false)
   const sessionStartedRef = useRef(false)
 
-  const flush = async (reason: string) => {
+  const flush = useCallback(async (reason: string) => {
     if (!user?.id || inFlightRef.current) return
 
     const snapshot = getFeedbackSnapshot()
@@ -76,7 +76,7 @@ export function useLiveSessionDiagnostics() {
     } finally {
       inFlightRef.current = false
     }
-  }
+  }, [location.pathname, location.search, user?.id])
 
   useEffect(() => {
     if (!user?.id || sessionStartedRef.current) return
@@ -87,7 +87,7 @@ export function useLiveSessionDiagnostics() {
       organization_id: user.organization_id ?? null,
     }, `${location.pathname}${location.search}`, getDocumentTitle())
     void flush('session-start')
-  }, [location.pathname, location.search, user?.id, user?.organization_id, user?.role])
+  }, [flush, location.pathname, location.search, user?.id, user?.organization_id, user?.role])
 
   useEffect(() => {
     if (!user?.id) return
@@ -98,7 +98,7 @@ export function useLiveSessionDiagnostics() {
     }, `${location.pathname}${location.search}`, getDocumentTitle())
 
     void flush('route-change')
-  }, [location.hash, location.pathname, location.search, user?.id])
+  }, [flush, location.hash, location.pathname, location.search, user?.id])
 
   useEffect(() => {
     if (!user?.id || typeof window === 'undefined') return
@@ -133,7 +133,7 @@ export function useLiveSessionDiagnostics() {
       window.removeEventListener('blur', onBlur)
       document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [location.pathname, location.search, user?.id])
+  }, [flush, location.pathname, location.search, user?.id])
 
   useEffect(() => {
     if (!user?.id) return
@@ -145,7 +145,7 @@ export function useLiveSessionDiagnostics() {
     return () => {
       window.clearInterval(interval)
     }
-  }, [user?.id, location.pathname, location.search])
+  }, [flush, user?.id])
 
   useEffect(() => {
     if (!user?.id) return
@@ -154,5 +154,5 @@ export function useLiveSessionDiagnostics() {
       recordLiveSessionDiagnostic('session_observer_unmounted', {}, `${location.pathname}${location.search}`, getDocumentTitle())
       void flush('unmount')
     }
-  }, [location.pathname, location.search, user?.id])
+  }, [flush, location.pathname, location.search, user?.id])
 }
