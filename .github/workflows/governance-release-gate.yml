@@ -12,6 +12,8 @@ on:
       - 'docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json'
       - 'scripts/doc-authority-check.mjs'
       - 'scripts/check-route-roadmap-coverage.mjs'
+      - 'scripts/generate-route-role-matrix.mjs'
+      - 'scripts/validate-roadmap-grounding.mjs'
       - 'scripts/collect-workflow-evidence.mjs'
       - 'scripts/get-workflow-ids.mjs'
       - 'scripts/validate-workflow-evidence.mjs'
@@ -29,6 +31,8 @@ on:
       - 'docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json'
       - 'scripts/doc-authority-check.mjs'
       - 'scripts/check-route-roadmap-coverage.mjs'
+      - 'scripts/generate-route-role-matrix.mjs'
+      - 'scripts/validate-roadmap-grounding.mjs'
       - 'scripts/collect-workflow-evidence.mjs'
       - 'scripts/get-workflow-ids.mjs'
       - 'scripts/validate-workflow-evidence.mjs'
@@ -72,6 +76,14 @@ jobs:
           ROUTE_ROADMAP_DIFF_RANGE: ${{ github.event_name == 'pull_request' && format('origin/{0}...{1}', github.base_ref, github.sha) || format('{0}..{1}', github.event.before, github.sha) }}
         run: bun run lint:route-roadmap
 
+      - name: Generate route-role matrix artifact
+        run: |
+          bun run roadmap:route-matrix -- --out tools/route-role-matrix/governance/${{ github.run_id }}/route-role-matrix.json
+
+      - name: Roadmap grounding strict gate
+        run: |
+          node scripts/validate-roadmap-grounding.mjs --strict --matrix tools/route-role-matrix/governance/${{ github.run_id }}/route-role-matrix.json
+
       - name: Resolve required P0 workflow IDs
         id: required-workflows
         run: |
@@ -93,11 +105,21 @@ jobs:
           path: tools/workflow-evidence/governance/${{ github.run_id }}
           if-no-files-found: error
 
+      - name: Upload route-role matrix artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-route-role-matrix-${{ github.run_id }}
+          path: tools/route-role-matrix/governance/${{ github.run_id }}
+          if-no-files-found: error
+
       - name: Publish governance summary
         if: always()
         run: |
           echo "## Governance Release Gate" >> "$GITHUB_STEP_SUMMARY"
           echo "- Doc authority strict gate: completed" >> "$GITHUB_STEP_SUMMARY"
           echo "- Route roadmap strict gate: completed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Roadmap grounding strict gate: completed" >> "$GITHUB_STEP_SUMMARY"
           echo "- Required workflow evidence IDs: ${{ steps.required-workflows.outputs.ids }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Evidence artifact path: tools/workflow-evidence/governance/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Route-role matrix path: tools/route-role-matrix/governance/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"

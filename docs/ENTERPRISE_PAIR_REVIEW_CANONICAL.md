@@ -89,7 +89,7 @@ Use this register for all Bob `ungrounded` findings that represent future-state 
 1. Gap: Module/service reference flagged as ungrounded.
    Owner: Platform governance.
    Evidence required: route/module exists in repo and is covered by tests or validation notes.
-   Status: open.
+   Status: in progress (governance workflows now generate route-role matrix artifacts directly from src/App.tsx and enforce roadmap grounding against docs/MODULE_ROADMAP.md).
 
 2. Gap: Validation evidence flags lacking concrete command trace.
    Owner: Release engineering.
@@ -99,7 +99,7 @@ Use this register for all Bob `ungrounded` findings that represent future-state 
 3. Gap: Role-gated route matrix not fully centralized.
    Owner: Application architecture.
    Evidence required: per-route role map maintained with source links.
-   Status: in progress (primary and related route annotations added in docs/MODULE_ROADMAP.md; route-roadmap strict CI check added for changed route coverage).
+   Status: completed (machine-generated route-role matrix plus strict roadmap grounding checks added to governance and monthly checkpoint workflows).
 
 ## Triad Pair-Review Round (2026-05-02)
 
@@ -179,6 +179,8 @@ Core command anchors:
 5. Workflow evidence validator: scripts/validate-workflow-evidence.mjs
 6. Workflow ID resolver (matrix-driven): scripts/get-workflow-ids.mjs
 7. Route-roadmap coverage checker: scripts/check-route-roadmap-coverage.mjs
+8. Route-role matrix generator: scripts/generate-route-role-matrix.mjs
+9. Roadmap grounding validator: scripts/validate-roadmap-grounding.mjs
 
 ## OpenAI Lens Review (Architecture + Governance)
 
@@ -244,3 +246,4 @@ This policy controls when DOC_AUTHORITY_STRICT_POLICY should be enabled in CI.
 7. Completed: build budget gate added to CI (scripts/check-build-budgets.mjs via ci-build-high-memory workflow).
 8. Completed: governance + monthly evidence requirement expanded to all P0 workflows (matrix-driven workflow ID resolution).
 9. Completed: strict route-roadmap coverage lint added for route path changes in governance gate.
+10. Completed: machine-generated route-role matrix and strict roadmap grounding checks added to governance and monthly checkpoint workflows.
