@@ -11,9 +11,9 @@ test.describe('Deep functional test actions', () => {
 test('admin can reach key functional routes', async ({ page }) => {
 await loginAs(page, 'adminOrg1')
 
-await expectAuthenticatedRoute(page, '/admin')
-await expectAuthenticatedRoute(page, '/compliance')
-await expectAuthenticatedRoute(page, '/reports')
-await expectAuthenticatedRoute(page, '/tender-workspace')
-})
+    await expectAuthenticatedRoute(page, '/admin')
+    await expectAuthenticatedRoute(page, '/compliance')
+    await expectAuthenticatedRoute(page, '/reports')
+    await expectAuthenticatedRoute(page, '/tender-workspace')
+  })
 })

@@ -4,7 +4,7 @@
  * Manages conversation state, message history, and learning scores for Bob.
  */
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import * as conversationService from '@/lib/bobConversationService'
 import type { BobMessage, BobConversation } from '@/lib/bobConversationService'
@@ -36,6 +36,16 @@ export function useBobConversation(options: UseBobConversationOptions): UseBobCo
   const [currentConversationId, setCurrentConversationId] = useState<string | undefined>(conversationId)
   const [isNewConversation, setIsNewConversation] = useState(!conversationId)
 
+  // Ref mirrors currentConversationId so mutations always read the latest value
+  // even if React hasn't re-rendered yet (e.g. right after createConversation).
+  const currentConversationIdRef = useRef<string | undefined>(conversationId)
+
+  /** Update both state and the synchronous ref in one call. */
+  const setConversationId = useCallback((id: string | undefined) => {
+    currentConversationIdRef.current = id
+    setCurrentConversationId(id)
+  }, [])
+
   // Load conversation if ID provided
   const {
     data: conversation,
@@ -60,7 +70,7 @@ export function useBobConversation(options: UseBobConversationOptions): UseBobCo
         organizationId,
         params.summary
       )
-      setCurrentConversationId(conv.conversation_id)
+      setConversationId(conv.conversation_id)
       setIsNewConversation(false)
       return conv
     },
@@ -72,11 +82,14 @@ export function useBobConversation(options: UseBobConversationOptions): UseBobCo
       content: string
       metadata?: BobMessage['metadata']
     }) => {
-      if (!currentConversationId) {
+      // Use the ref so we always have the latest conversation ID even when
+      // React hasn't yet re-rendered after a createConversation call.
+      const convId = currentConversationIdRef.current
+      if (!convId) {
         throw new Error('No active conversation')
       }
       const message = await conversationService.appendMessage(
-        currentConversationId,
+        convId,
         params,
         organizationId
       )
@@ -132,9 +145,9 @@ export function useBobConversation(options: UseBobConversationOptions): UseBobCo
     : []
 
   const clearConversation = useCallback(() => {
-    setCurrentConversationId(undefined)
+    setConversationId(undefined)
     setIsNewConversation(true)
-  }, [])
+  }, [setConversationId])
 
   // Store current conversation ID in session storage so it persists across page reloads
   useEffect(() => {
@@ -148,11 +161,11 @@ export function useBobConversation(options: UseBobConversationOptions): UseBobCo
     if (!conversationId && !currentConversationId) {
       const stored = sessionStorage.getItem(`bob-conversation-id-${organizationId}`)
       if (stored) {
-        setCurrentConversationId(stored)
+        setConversationId(stored)
         setIsNewConversation(false)
       }
     }
-  }, [organizationId, conversationId, currentConversationId])
+  }, [organizationId, conversationId, currentConversationId, setConversationId])
 
   return {
     conversation,
@@ -164,7 +177,7 @@ export function useBobConversation(options: UseBobConversationOptions): UseBobCo
     
     createConversation: (title, summary) => createMutation.mutateAsync({ title, summary }),
     loadConversation: async (id) => {
-      setCurrentConversationId(id)
+      setConversationId(id)
       setIsNewConversation(false)
       return conversationService.loadConversation(id, organizationId)
     },

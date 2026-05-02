@@ -237,7 +237,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!profile.organization_id) {
+    // Master users are not scoped to a single org in their profile; they
+    // must provide the target org via the request body. Enforce that later
+    // (after parsing the body). Non-master users must have an org in their
+    // profile otherwise the account is misconfigured.
+    if (!profile.organization_id && profile.role !== 'master') {
       console.error('❌ [IMPORT] No organization ID');
       return new Response(
         JSON.stringify({ error: 'Organization not found' }),
@@ -245,7 +249,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log('✅ [IMPORT] User authorized - role:', profile.role, 'org:', profile.organization_id);
+    console.log('✅ [IMPORT] User authorized - role:', profile.role, 'org:', profile.organization_id ?? '(master — body-supplied)');
 
     // Parse request body – accept both camelCase (UI) and snake_case (legacy) param names
     const body = await req.json();

@@ -26,6 +26,8 @@ import { useBobStore, type BobTask } from '@/stores/bobStore'
 import { useBobConversation } from '@/hooks/useBobConversation'
 import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
+import { toast } from 'sonner'
 
 type BobStudioTab = 'chat' | 'planning' | 'voice' | 'testing' | 'diagnostics'
 
@@ -60,13 +62,18 @@ export default function BobStudio() {
     organizationId: operationalOrganizationId ?? undefined,
   })
 
-  // On mount: load existing conversation or start new
+  // On mount: sync Zustand from the hook's persisted sessionStorage key so both
+  // layers agree on the active conversation (avoids new-conversation creation on reload).
   useEffect(() => {
-    const restored = sessionStorage.getItem(`bob-conversation-${operationalOrganizationId}`)
-    if (restored) {
-      loadConversation(restored)
+    if (!activeConversationId && operationalOrganizationId) {
+      const stored = sessionStorage.getItem(`bob-conversation-id-${operationalOrganizationId}`)
+      if (stored) {
+        setActiveConversation(stored, null)
+        loadConversation(stored)
+      }
     }
-  }, [operationalOrganizationId, loadConversation])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [operationalOrganizationId])
 
   const handleSendMessage = async (content: string) => {
     if (!operationalOrganizationId) return
@@ -74,16 +81,40 @@ export default function BobStudio() {
     let convId = activeConversationId
     if (!convId) {
       const newConv = await createConversation('Bob Chat', operationalOrganizationId)
-      if (newConv) {
-        convId = newConv.conversation_id
-        setActiveConversation(convId, newConv)
-        sessionStorage.setItem(`bob-conversation-${operationalOrganizationId}`, convId)
-      }
+      if (!newConv) return
+      convId = newConv.conversation_id
+      setActiveConversation(convId, newConv)
+      // Sync the hook's ref to the new conversation so sendMessage targets it
+      // immediately, without waiting for a React re-render cycle.
+      await loadConversation(convId)
     }
 
-    if (convId) {
-      await sendMessage('user', content)
+    if (!convId) return
+
+    // Save user message to DB
+    await sendMessage('user', content)
+
+    // Build conversation history for AI context (existing turns + this new user message)
+    const historyForAi = [
+      ...messages.map((m) => ({ role: m.role as 'user' | 'assistant' | 'system', content: m.content })),
+      { role: 'user' as const, content },
+    ]
+
+    // Call Bob inference
+    const { data, error } = await edgeFunctions.aiChat({
+      messages: historyForAi,
+      provider: 'auto',
+    })
+
+    if (error || !data?.response) {
+      // Don't persist errors to the conversation history as they pollute future AI context
+      console.error('[BobStudio] AI call failed:', error)
+      toast.error('Bob could not respond right now. Please try again in a moment.')
+      return
     }
+
+    // Save assistant response to DB
+    await sendMessage('assistant', data.response, { model: data.model, provider: data.provider })
   }
 
   const handleRecordAudio = () => {
