@@ -3,7 +3,6 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { useSessionLockStore } from '@/stores/sessionLockStore'
-import { useFeedbackCapture } from '@/hooks/useFeedbackCapture'
 import { useAutoErrorReporter } from '@/hooks/useAutoErrorReporter'
 import { FeedbackModal } from '@/components/features/FeedbackModal'
 import { PTTBar } from '@/components/features/PTTBar'
@@ -520,8 +519,6 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
     try { await stopSpeaking() } catch { /* silent */ } finally { setPttHolding(false) }
   }, [pttHolding, pttIsSpeaking])
 
-  // Passive context capture for feedback reports
-  useFeedbackCapture()
   // Automatic crash detection — submits bug reports without user action
   useAutoErrorReporter()
   const { data: notifCount = 0 } = useNotificationCount()
