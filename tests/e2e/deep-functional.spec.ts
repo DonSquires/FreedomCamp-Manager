@@ -1,6 +1,9 @@
 import { test, expect } from '@playwright/test';
 
 test('Deep functional test actions', async ({ page }) => {
+  // 1. Add navigation to your application's start URL
+  await page.goto('/');
+
   // Example snippet before fix
   const headerLocator = page.locator('h1, h2, h3').first(); // Timeout changed to 20000
   await headerLocator.waitFor({ timeout: 20000 });
