@@ -5,6 +5,17 @@ Baseline commit: 35015963
 Review mode: Dual-lens (Bob operations lens + OpenAI architecture lens)
 Status: Active canonical record (update on each material platform change)
 
+## Execution Continuity To-Do List (Crash Recovery)
+
+Use this checklist as the single restart anchor if an agent session ends unexpectedly.
+Tick items only when evidence is complete and committed.
+
+1. [x] Create persistent execution to-do list in session tooling.
+2. [x] Mirror the to-do list in this canonical institutional manual.
+3. [x] Wire CI workflow evidence snapshot generation and artifact upload.
+4. [x] Publish doc-authority strict-policy rollout guidance.
+5. [x] Validate, commit, and push this execution slice.
+
 ## Purpose
 
 This document is the canonical enterprise-grade review record for FieldOps Manager.
@@ -205,6 +216,19 @@ For each architecture-impacting change:
    - relevant Bob-assisted suite(s)
 4. If external model review is needed, regenerate docs/OPENAI_REDACTED_REVIEW_PACKET.md.
 5. Attach commit hash and date in this file.
+
+## Doc-Authority Strict Policy Rollout
+
+This policy controls when DOC_AUTHORITY_STRICT_POLICY should be enabled in CI.
+
+1. Stage 1 (default): warning mode only.
+   - Scope: pull requests and routine mainline changes.
+   - Requirement: doc-authority warning appears but does not fail CI.
+2. Stage 2 (guarded strict mode): mainline strict mode for architecture-impacting changes.
+   - Enable by setting repository variable DOC_AUTHORITY_STRICT_POLICY=true.
+   - Apply when release manager confirms canonical doc update discipline is stable for two consecutive cycles.
+3. Stage 3 (operational hardening): strict mode remains enabled for mainline; pull requests stay warning mode unless a dedicated governance gate is introduced.
+   - Requirement: target-state gap register is actively maintained and evidence artifacts are attached to cycle closures.
 
 ## Next Cycle TODO
 

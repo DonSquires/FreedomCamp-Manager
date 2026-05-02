@@ -19,6 +19,8 @@ on:
       - '.github/workflows/ci-build-high-memory.yml'
       - 'scripts/build-diagnostics.sh'
       - 'scripts/doc-authority-check.mjs'
+        - 'scripts/collect-workflow-evidence.mjs'
+        - 'docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json'
   pull_request:
     branches: [main]
     paths:
@@ -36,6 +38,8 @@ on:
       - '.github/workflows/ci-build-high-memory.yml'
       - 'scripts/build-diagnostics.sh'
       - 'scripts/doc-authority-check.mjs'
+      - 'scripts/collect-workflow-evidence.mjs'
+      - 'docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json'
 
 jobs:
   build-high-memory:
@@ -82,6 +86,18 @@ jobs:
 
       - name: Build
         run: bun run build
+
+      - name: Collect workflow evidence snapshot
+        run: |
+          bun run evidence:workflow --workflow WF-01,WF-07,WF-11 --status ci-snapshot --notes "ci-build-high-memory:${{ github.run_id }}" --out-dir tools/workflow-evidence/ci/${{ github.run_id }}
+
+      - name: Upload workflow evidence artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: workflow-evidence-${{ github.run_id }}
+          path: tools/workflow-evidence/ci/${{ github.run_id }}
+          if-no-files-found: warn
 
       - name: Run build diagnostics on failure
         if: failure()
