@@ -11,19 +11,36 @@ function run(command) {
   }
 }
 
+function parseFiles(raw) {
+  return raw
+    .split('\n')
+    .map((f) => f.trim())
+    .filter(Boolean)
+}
+
+function getChangedFilesFromRange(range) {
+  const fromRange = run(`git diff --name-only ${range}`)
+  return fromRange ? parseFiles(fromRange) : []
+}
+
 function getChangedFiles() {
+  const explicitRange = String(process.env.DOC_AUTHORITY_DIFF_RANGE || '').trim()
+  if (explicitRange) {
+    return getChangedFilesFromRange(explicitRange)
+  }
+
   const staged = run('git diff --cached --name-only')
   if (staged) {
-    return staged.split('\n').map((f) => f.trim()).filter(Boolean)
+    return parseFiles(staged)
   }
 
   const unstaged = run('git diff --name-only')
   if (unstaged) {
-    return unstaged.split('\n').map((f) => f.trim()).filter(Boolean)
+    return parseFiles(unstaged)
   }
 
   const headDiff = run('git diff --name-only HEAD~1..HEAD')
-  return headDiff ? headDiff.split('\n').map((f) => f.trim()).filter(Boolean) : []
+  return headDiff ? parseFiles(headDiff) : []
 }
 
 function includesPath(files, path) {

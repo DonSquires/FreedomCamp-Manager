@@ -6,6 +6,10 @@ on:
     branches: [main]
     paths:
       - 'src/**'
+      - 'supabase/functions/**'
+      - 'supabase/migrations/**'
+      - 'docs/MODULE_ROADMAP.md'
+      - 'docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md'
       - 'package.json'
       - 'bun.lock'
       - 'tsconfig.json'
@@ -14,10 +18,15 @@ on:
       - 'vite.config.ts'
       - '.github/workflows/ci-build-high-memory.yml'
       - 'scripts/build-diagnostics.sh'
+      - 'scripts/doc-authority-check.mjs'
   pull_request:
     branches: [main]
     paths:
       - 'src/**'
+      - 'supabase/functions/**'
+      - 'supabase/migrations/**'
+      - 'docs/MODULE_ROADMAP.md'
+      - 'docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md'
       - 'package.json'
       - 'bun.lock'
       - 'tsconfig.json'
@@ -26,6 +35,7 @@ on:
       - 'vite.config.ts'
       - '.github/workflows/ci-build-high-memory.yml'
       - 'scripts/build-diagnostics.sh'
+      - 'scripts/doc-authority-check.mjs'
 
 jobs:
   build-high-memory:
@@ -37,6 +47,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch base branch for pull request diffs
+        if: github.event_name == 'pull_request'
+        run: git fetch --no-tags --prune --depth=1 origin "${{ github.base_ref }}"
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -48,6 +64,18 @@ jobs:
 
       - name: Lint
         run: bun run lint
+
+      - name: Doc authority lint (warning mode)
+        env:
+          DOC_AUTHORITY_DIFF_RANGE: ${{ github.event_name == 'pull_request' && format('origin/{0}...{1}', github.base_ref, github.sha) || format('{0}..{1}', github.event.before, github.sha) }}
+        run: bun run lint:doc-authority
+
+      - name: Doc authority lint (strict policy)
+        if: github.event_name != 'pull_request' && vars.DOC_AUTHORITY_STRICT_POLICY == 'true'
+        env:
+          DOC_AUTHORITY_STRICT: 'true'
+          DOC_AUTHORITY_DIFF_RANGE: ${{ github.event_name == 'pull_request' && format('origin/{0}...{1}', github.base_ref, github.sha) || format('{0}..{1}', github.event.before, github.sha) }}
+        run: bun run lint:doc-authority
 
       - name: Navigation parity tests
         run: bun run test:nav-parity

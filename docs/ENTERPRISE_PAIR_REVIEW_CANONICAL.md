@@ -164,6 +164,7 @@ Core command anchors:
 1. Bob-assisted generic wrapper: scripts/run-test-with-bob-assist.mjs
 2. Bob-assisted core suite: scripts/run-bob-assisted-core-suite.mjs
 3. Human module suite: scripts/run-human-module-suite.mjs
+4. Workflow evidence collector: scripts/collect-workflow-evidence.mjs
 
 ## OpenAI Lens Review (Architecture + Governance)
 
@@ -208,6 +209,7 @@ For each architecture-impacting change:
 ## Next Cycle TODO
 
 1. Completed: role-gate annotations added in docs/MODULE_ROADMAP.md.
-2. Add lightweight doc-authority lint rule (warn when canonical docs not updated in route/edge/schema PRs).
+2. Completed: lightweight doc-authority lint rule wired into CI (warning mode with optional strict-policy path via DOC_AUTHORITY_STRICT_POLICY).
 3. Add recurring monthly pair-review checkpoint.
 4. Expand role-gate coverage from primary routes to every related route entry.
+5. Standardize workflow evidence capture per execution using scripts/collect-workflow-evidence.mjs and tools/workflow-evidence/ index records.
