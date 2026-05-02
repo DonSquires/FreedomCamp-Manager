@@ -45,6 +45,9 @@ async function upsertFallbackDiagnosticReport(
   const latestRoute = args.currentRoute || String(args.snapshot.current_page || '').trim() || null
   const snapshotBrowserInfo = asObject(args.snapshot.browser_info)
   const snapshotConsoleErrors = Array.isArray(args.snapshot.console_errors) ? args.snapshot.console_errors : []
+  const hasErrors = snapshotConsoleErrors.some(
+    (e: unknown) => e && typeof e === 'object' && (e as Record<string, unknown>).level !== 'warn',
+  )
   const metadata = {
     live_session_diagnostics: {
       session_id: args.sessionId,
@@ -85,8 +88,10 @@ Event count in latest flush: ${args.rows.length}.`
       ? (snapshotBrowserInfo.onLine ? 'online' : 'offline')
       : null,
     app_version: String(args.snapshot.app_version || 'live-diagnostics'),
-    status: 'investigating',
-    requires_human_review: false,
+    // Only flag for investigation when the session actually captured errors.
+    // Clean passive snapshots are stored as 'closed' to keep the inbox clear.
+    status: hasErrors ? 'investigating' : 'closed',
+    requires_human_review: hasErrors,
     admin_notified: false,
     user_notified: false,
     auto_reported: true,
