@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest'
 
 import { NAVIGATION_REGISTRY_V1 } from '@/config/navigationRegistry'
 import { pinnedItems, navigationGroups } from '@/components/features/AppLayout'
-import { primaryLinks, moreGroups } from '@/components/features/AdminNavigationMenu'
 
 function getAppRoutePaths(): Set<string> {
   const appPath = path.resolve(process.cwd(), 'src/App.tsx')
@@ -19,8 +18,10 @@ function getSidebarPaths(): Set<string> {
 }
 
 function getAdminMenuPaths(): Set<string> {
-  const grouped = moreGroups.flatMap((group) => group.links.map((link) => link.to))
-  return new Set([...primaryLinks.map((link) => link.to), ...grouped])
+  const adminMenuPath = path.resolve(process.cwd(), 'src/components/features/AdminNavigationMenu.tsx')
+  const content = fs.readFileSync(adminMenuPath, 'utf8')
+  const matches = content.matchAll(/to:\s*'([^']+)'/g)
+  return new Set(Array.from(matches, (m) => m[1]))
 }
 
 const navAliasMap: Record<string, string[]> = {

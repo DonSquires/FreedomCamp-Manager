@@ -18,6 +18,10 @@ fi
 
 NODE_VERSION="$(node -v 2>/dev/null || echo 'not installed')"
 BUN_VERSION="$(bun -v 2>/dev/null || echo 'not installed')"
+TOOLCHAIN_READY="false"
+if [[ "$NODE_VERSION" != "not installed" && "$BUN_VERSION" != "not installed" ]]; then
+  TOOLCHAIN_READY="true"
+fi
 
 MODULES_JSON='[]'
 if [[ -d src/modules ]]; then
@@ -25,7 +29,8 @@ if [[ -d src/modules ]]; then
   if command -v jq >/dev/null 2>&1; then
     MODULES_JSON="$(printf '%s\n' "$MODULE_LINES" | jq -R -s -c 'split("\n") | map(select(length > 0))')"
   else
-    MODULES_JSON="$(printf '%s\n' "$MODULE_LINES" | node -e 'const fs=require("fs"); const input=fs.readFileSync(0,"utf8"); const arr=input.split(/\r?\n/).filter(Boolean); process.stdout.write(JSON.stringify(arr));')"
+    # Node may not be installed in minimal containers; use POSIX tools for JSON fallback.
+    MODULES_JSON="$(printf '%s\n' "$MODULE_LINES" | awk 'BEGIN{printf "["} NF{gsub(/\\/,"\\\\"); gsub(/\"/,"\\\""); if(n++) printf ","; printf "\"%s\"", $0} END{printf "]"}')"
   fi
 fi
 
@@ -41,6 +46,7 @@ cat > system_state.json <<EOF
   "os": "$OS_DESC",
   "node_version": "$NODE_VERSION",
   "bun_version": "$BUN_VERSION",
+  "toolchain_ready": $TOOLCHAIN_READY,
   "modules": $MODULES_JSON,
   "lockfiles": $LOCKFILES_JSON,
   "generated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",

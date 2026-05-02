@@ -150,8 +150,10 @@ Cycle blockers:
 2. Record evidence fields and command/artifact mapping in canonical workflow records.
    - Status: completed (registry added below)
 3. Resolve TypeScript deprecation warning impacting strict governance confidence.
-   - Status: partially resolved (current compiler requires ignoreDeprecations=5.0)
-   - Next step: upgrade TypeScript toolchain before switching suppression target
+   - Status: partially resolved (repository toolchain is on TypeScript ^5.9.3; tsconfig suppression remains pinned at ignoreDeprecations=5.0)
+   - Runtime validation: completed (bun run typecheck, bun run lint, bun run build all pass in current container)
+   - Suppression-target trial: blocked by compiler constraint (bun x tsc --noEmit --ignoreDeprecations 5.5 -p tsconfig.app.json returns TS5103 invalid value)
+   - Next step: keep ignoreDeprecations=5.0 until TypeScript supports a newer valid threshold or the deprecated configuration is removed upstream
    - Classification: target-state-gap (toolchain dependency)
 
 ## Evidence Command Registry
@@ -259,6 +261,8 @@ This policy controls when DOC_AUTHORITY_STRICT_POLICY should be enabled in CI.
 15. Completed: known React hook and fast-refresh lint warnings remediated in admin navigation, diagnostics hook, and PTT radio pages.
 16. Completed: ESLint warning budget lowered to zero (maxWarnings=0) for strict zero-warning enforcement.
 17. Completed: lint warning budget gate enforced across build, governance release, and monthly checkpoint workflows.
+18. Completed: runtime preflight hardened via scripts/system-check.sh to expose toolchain readiness and avoid Node-dependent fallback parsing.
+19. Completed: Bun-capable runtime validation executed in-session (typecheck/lint/build) with documented ignoreDeprecations threshold constraint evidence.
 
 ## Execution Ledger
 
