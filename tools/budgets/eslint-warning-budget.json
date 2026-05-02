@@ -1,0 +1,4 @@
+{
+  "maxWarnings": 8,
+  "notes": "Set to current known baseline to prevent warning-count regressions. Lower over time as warnings are fixed."
+}

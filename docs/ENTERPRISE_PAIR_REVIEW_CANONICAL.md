@@ -185,6 +185,7 @@ Core command anchors:
 11. Roadmap related-route role-gate validator: scripts/validate-roadmap-role-gates.mjs
 12. Module grounding report generator: scripts/generate-module-grounding-report.mjs
 13. Module grounding validator: scripts/validate-module-grounding.mjs
+14. ESLint warning budget gate: scripts/check-eslint-warning-budget.mjs
 
 ## OpenAI Lens Review (Architecture + Governance)
 
@@ -254,3 +255,4 @@ This policy controls when DOC_AUTHORITY_STRICT_POLICY should be enabled in CI.
 11. Completed: governance run summary JSON artifacts added for governance release and monthly checkpoint workflows.
 12. Completed: duplicate /asset-management route definition removed to eliminate role-gate ambiguity.
 13. Completed: module grounding evidence and strict validation added to governance release and monthly checkpoint workflows.
+14. Completed: CI lint warning budget gate added to prevent warning-count regressions.

@@ -9,6 +9,7 @@
     "build:diagnostics": "sh scripts/build-diagnostics.sh",
     "typecheck": "tsc -b",
     "lint": "eslint .",
+    "lint:warning-budget": "node scripts/check-eslint-warning-budget.mjs",
     "lint:doc-authority": "node scripts/doc-authority-check.mjs",
     "lint:route-roadmap": "node scripts/check-route-roadmap-coverage.mjs",
     "lint:roadmap-grounding": "node scripts/validate-roadmap-grounding.mjs --strict",
