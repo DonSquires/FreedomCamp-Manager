@@ -280,7 +280,10 @@ jobs:
             -H "apikey: ${VITE_SUPABASE_ANON_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
-            -d '{"message":"ping — respond in five words or fewer","provider":"inference"}')
+            -d '{"message":"ping — respond in five words or fewer","provider":"inference"}' || true)
+          if [ ! -s /tmp/bob_resp.json ]; then
+            echo '{}' > /tmp/bob_resp.json
+          fi
           PROVIDER=$(jq -r '.provider // "unknown"' /tmp/bob_resp.json 2>/dev/null || echo "unknown")
           echo "http_code=$HTTP_CODE" >> "$GITHUB_OUTPUT"
           echo "provider=$PROVIDER" >> "$GITHUB_OUTPUT"

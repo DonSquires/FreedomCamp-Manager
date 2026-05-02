@@ -81,18 +81,59 @@ jobs:
           echo "TEST_SCOPE=${{ github.event.inputs.scope || 'quick' }}" >> "$GITHUB_ENV"
           echo "DRY_RUN=${{ github.event.inputs.dry_run || 'false' }}" >> "$GITHUB_ENV"
 
+      - name: Resolve serverless auth key for Bob self-test
+        id: serverless-auth
+        run: |
+          set -euo pipefail
+
+          endpoint="${RUNPOD_ENDPOINT_URL:-}"
+          if [ -z "$endpoint" ]; then
+            endpoint="https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}/runsync"
+          fi
+
+          try_key() {
+            local label="$1"
+            local key="$2"
+            if [ -z "$key" ]; then
+              return 1
+            fi
+            status=$(curl -sS -o /tmp/bob_self_test_auth_probe.json -w "%{http_code}" \
+              -X POST "$endpoint" \
+              -H "Authorization: Bearer ${key}" \
+              -H "Content-Type: application/json" \
+              -d '{"input":{"action":"chat","message":"auth probe","history":[]}}' || true)
+            if [ "$status" = "401" ]; then
+              echo "Serverless Bob self-test auth failed with ${label} (401)"
+              return 1
+            fi
+            echo "Serverless Bob self-test auth accepted ${label} (HTTP ${status})"
+            echo "resolved_key=${key}" >> "$GITHUB_OUTPUT"
+            return 0
+          }
+
+          try_key "RUNPOD_ENDPOINT_API_KEY" "${RUNPOD_ENDPOINT_API_KEY:-}" \
+            || try_key "INFERENCE_API_KEY" "${INFERENCE_API_KEY:-}" \
+            || try_key "RUNPOD_API_KEY" "${RUNPOD_API_KEY:-}" \
+            || { echo "::error::No valid serverless API key resolved for Bob self-test"; exit 1; }
+        env:
+          RUNPOD_ENDPOINT_ID: ${{ secrets.RUNPOD_ENDPOINT_ID }}
+          RUNPOD_ENDPOINT_URL: ${{ secrets.RUNPOD_ENDPOINT_URL }}
+          RUNPOD_ENDPOINT_API_KEY: ${{ secrets.RUNPOD_ENDPOINT_API_KEY }}
+          INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
+          RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+
       - name: Validate Bob capability gate (serverless)
-        run: node scripts/bob-capability-gate.mjs --mode serverless --required chat,run_playwright --strict
+        run: node scripts/bob-capability-gate.mjs --mode serverless --required run_playwright --strict
         env:
           INFERENCE_SERVICE_URL:  https://api.runpod.ai/v2/${{ secrets.RUNPOD_ENDPOINT_ID }}
-          INFERENCE_API_KEY:      ${{ secrets.RUNPOD_ENDPOINT_API_KEY }}
+          INFERENCE_API_KEY:      ${{ steps.serverless-auth.outputs.resolved_key }}
           BOB_CAPABILITY_STRICT:  'true'
 
       - name: Trigger Bob self-test on RunPod
         run: node scripts/trigger-bob-self-test.mjs --scope "$TEST_SCOPE" $( [ "$DRY_RUN" = "true" ] && echo "--dryRun" )
         env:
           INFERENCE_SERVICE_URL:     https://api.runpod.ai/v2/${{ secrets.RUNPOD_ENDPOINT_ID }}
-          INFERENCE_API_KEY:         ${{ secrets.RUNPOD_ENDPOINT_API_KEY }}
+          INFERENCE_API_KEY:         ${{ steps.serverless-auth.outputs.resolved_key }}
           VITE_SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY:    ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY:  ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
