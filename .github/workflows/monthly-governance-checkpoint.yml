@@ -48,6 +48,10 @@ jobs:
         run: |
           bun run evidence:workflow:validate -- --dir tools/workflow-evidence/monthly/${{ github.run_id }} --required "${{ steps.required-workflows.outputs.ids }}"
 
+      - name: Generate monthly governance run summary JSON
+        run: |
+          bun run governance:summary -- --gate monthly-governance --requiredIds "${{ steps.required-workflows.outputs.ids }}" --evidenceDir tools/workflow-evidence/monthly/${{ github.run_id }} --matrixDir tools/route-role-matrix/monthly/${{ github.run_id }} --out tools/governance-run-summaries/monthly/${{ github.run_id }}/run-summary.json --strict-route-roadmap --strict-roadmap-grounding
+
       - name: Upload monthly governance artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -64,6 +68,14 @@ jobs:
           path: tools/route-role-matrix/monthly/${{ github.run_id }}
           if-no-files-found: error
 
+      - name: Upload monthly governance run summary artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: monthly-governance-run-summary-${{ github.run_id }}
+          path: tools/governance-run-summaries/monthly/${{ github.run_id }}
+          if-no-files-found: error
+
       - name: Publish checkpoint summary
         if: always()
         run: |
@@ -73,3 +85,4 @@ jobs:
           echo "- Canonical record: docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md" >> "$GITHUB_STEP_SUMMARY"
           echo "- Artifact path: tools/workflow-evidence/monthly/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Route-role matrix path: tools/route-role-matrix/monthly/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Governance summary path: tools/governance-run-summaries/monthly/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"

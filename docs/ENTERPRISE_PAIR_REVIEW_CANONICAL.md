@@ -181,6 +181,7 @@ Core command anchors:
 7. Route-roadmap coverage checker: scripts/check-route-roadmap-coverage.mjs
 8. Route-role matrix generator: scripts/generate-route-role-matrix.mjs
 9. Roadmap grounding validator: scripts/validate-roadmap-grounding.mjs
+10. Governance run summary exporter: scripts/generate-governance-run-summary.mjs
 
 ## OpenAI Lens Review (Architecture + Governance)
 
@@ -247,3 +248,4 @@ This policy controls when DOC_AUTHORITY_STRICT_POLICY should be enabled in CI.
 8. Completed: governance + monthly evidence requirement expanded to all P0 workflows (matrix-driven workflow ID resolution).
 9. Completed: strict route-roadmap coverage lint added for route path changes in governance gate.
 10. Completed: machine-generated route-role matrix and strict roadmap grounding checks added to governance and monthly checkpoint workflows.
+11. Completed: governance run summary JSON artifacts added for governance release and monthly checkpoint workflows.

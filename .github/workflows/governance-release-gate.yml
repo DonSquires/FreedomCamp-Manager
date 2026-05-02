@@ -13,6 +13,7 @@ on:
       - 'scripts/doc-authority-check.mjs'
       - 'scripts/check-route-roadmap-coverage.mjs'
       - 'scripts/generate-route-role-matrix.mjs'
+      - 'scripts/generate-governance-run-summary.mjs'
       - 'scripts/validate-roadmap-grounding.mjs'
       - 'scripts/collect-workflow-evidence.mjs'
       - 'scripts/get-workflow-ids.mjs'
@@ -32,6 +33,7 @@ on:
       - 'scripts/doc-authority-check.mjs'
       - 'scripts/check-route-roadmap-coverage.mjs'
       - 'scripts/generate-route-role-matrix.mjs'
+      - 'scripts/generate-governance-run-summary.mjs'
       - 'scripts/validate-roadmap-grounding.mjs'
       - 'scripts/collect-workflow-evidence.mjs'
       - 'scripts/get-workflow-ids.mjs'
@@ -97,6 +99,10 @@ jobs:
         run: |
           bun run evidence:workflow:validate -- --dir tools/workflow-evidence/governance/${{ github.run_id }} --required "${{ steps.required-workflows.outputs.ids }}"
 
+      - name: Generate governance run summary JSON
+        run: |
+          bun run governance:summary -- --gate governance-release --requiredIds "${{ steps.required-workflows.outputs.ids }}" --evidenceDir tools/workflow-evidence/governance/${{ github.run_id }} --matrixDir tools/route-role-matrix/governance/${{ github.run_id }} --out tools/governance-run-summaries/governance-release/${{ github.run_id }}/run-summary.json --strict-doc-authority --strict-route-roadmap --strict-roadmap-grounding
+
       - name: Upload governance evidence artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -113,6 +119,14 @@ jobs:
           path: tools/route-role-matrix/governance/${{ github.run_id }}
           if-no-files-found: error
 
+      - name: Upload governance run summary artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-run-summary-${{ github.run_id }}
+          path: tools/governance-run-summaries/governance-release/${{ github.run_id }}
+          if-no-files-found: error
+
       - name: Publish governance summary
         if: always()
         run: |
@@ -123,3 +137,4 @@ jobs:
           echo "- Required workflow evidence IDs: ${{ steps.required-workflows.outputs.ids }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Evidence artifact path: tools/workflow-evidence/governance/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Route-role matrix path: tools/route-role-matrix/governance/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Governance summary path: tools/governance-run-summaries/governance-release/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
