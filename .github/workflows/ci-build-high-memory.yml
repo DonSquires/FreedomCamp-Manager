@@ -18,6 +18,7 @@ on:
       - 'vite.config.ts'
       - '.github/workflows/ci-build-high-memory.yml'
       - 'scripts/build-diagnostics.sh'
+      - 'scripts/check-build-budgets.mjs'
       - 'scripts/doc-authority-check.mjs'
       - 'scripts/collect-workflow-evidence.mjs'
       - 'docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json'
@@ -37,6 +38,7 @@ on:
       - 'vite.config.ts'
       - '.github/workflows/ci-build-high-memory.yml'
       - 'scripts/build-diagnostics.sh'
+      - 'scripts/check-build-budgets.mjs'
       - 'scripts/doc-authority-check.mjs'
       - 'scripts/collect-workflow-evidence.mjs'
       - 'docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json'
@@ -86,6 +88,9 @@ jobs:
 
       - name: Build
         run: bun run build
+
+      - name: Build budget gate
+        run: bun run build:budget
 
       - name: Collect workflow evidence snapshot
         run: |

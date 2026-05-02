@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:budget": "node scripts/check-build-budgets.mjs",
     "build:diagnostics": "sh scripts/build-diagnostics.sh",
     "typecheck": "tsc -b",
     "lint": "eslint .",
