@@ -94,7 +94,7 @@ Use this register for all Bob `ungrounded` findings that represent future-state 
 2. Gap: Validation evidence flags lacking concrete command trace.
    Owner: Release engineering.
    Evidence required: attach command, result summary, and report artifact path.
-   Status: open.
+   Status: in progress (governance gate enforces evidence generation + schema validation for WF-01/WF-07/WF-11 via .github/workflows/governance-release-gate.yml).
 
 3. Gap: Role-gated route matrix not fully centralized.
    Owner: Application architecture.
@@ -176,6 +176,7 @@ Core command anchors:
 2. Bob-assisted core suite: scripts/run-bob-assisted-core-suite.mjs
 3. Human module suite: scripts/run-human-module-suite.mjs
 4. Workflow evidence collector: scripts/collect-workflow-evidence.mjs
+5. Workflow evidence validator: scripts/validate-workflow-evidence.mjs
 
 ## OpenAI Lens Review (Architecture + Governance)
 
@@ -234,6 +235,7 @@ This policy controls when DOC_AUTHORITY_STRICT_POLICY should be enabled in CI.
 
 1. Completed: role-gate annotations added in docs/MODULE_ROADMAP.md.
 2. Completed: lightweight doc-authority lint rule wired into CI (warning mode with optional strict-policy path via DOC_AUTHORITY_STRICT_POLICY).
-3. Add recurring monthly pair-review checkpoint.
-4. Expand role-gate coverage from primary routes to every related route entry.
-5. Standardize workflow evidence capture per execution using scripts/collect-workflow-evidence.mjs and tools/workflow-evidence/ index records.
+3. Completed: governance strict gate added for architecture-impacting changes (doc-authority strict + required workflow evidence validation for WF-01/WF-07/WF-11).
+4. Add recurring monthly pair-review checkpoint.
+5. Expand role-gate coverage from primary routes to every related route entry.
+6. Standardize workflow evidence capture per execution using scripts/collect-workflow-evidence.mjs and tools/workflow-evidence/ index records.

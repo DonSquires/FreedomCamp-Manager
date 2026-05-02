@@ -11,6 +11,7 @@
     "lint:doc-authority": "node scripts/doc-authority-check.mjs",
     "evidence:workflow": "node scripts/collect-workflow-evidence.mjs",
     "evidence:workflow:all": "node scripts/collect-workflow-evidence.mjs --all",
+    "evidence:workflow:validate": "node scripts/validate-workflow-evidence.mjs",
     "review:evidence": "node scripts/generate-bob-build-review-evidence.mjs tools/bob-build-review-evidence.json",
     "bob:self-heal-bridge": "node scripts/generate-bob-self-heal-bridge.mjs",
     "bob:collab": "bash scripts/bob-collab.sh",
