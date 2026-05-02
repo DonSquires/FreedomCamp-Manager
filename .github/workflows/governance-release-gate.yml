@@ -15,6 +15,7 @@ on:
       - 'scripts/generate-route-role-matrix.mjs'
       - 'scripts/generate-governance-run-summary.mjs'
       - 'scripts/validate-roadmap-grounding.mjs'
+      - 'scripts/validate-roadmap-role-gates.mjs'
       - 'scripts/collect-workflow-evidence.mjs'
       - 'scripts/get-workflow-ids.mjs'
       - 'scripts/validate-workflow-evidence.mjs'
@@ -35,6 +36,7 @@ on:
       - 'scripts/generate-route-role-matrix.mjs'
       - 'scripts/generate-governance-run-summary.mjs'
       - 'scripts/validate-roadmap-grounding.mjs'
+      - 'scripts/validate-roadmap-role-gates.mjs'
       - 'scripts/collect-workflow-evidence.mjs'
       - 'scripts/get-workflow-ids.mjs'
       - 'scripts/validate-workflow-evidence.mjs'
@@ -86,6 +88,10 @@ jobs:
         run: |
           node scripts/validate-roadmap-grounding.mjs --strict --matrix tools/route-role-matrix/governance/${{ github.run_id }}/route-role-matrix.json
 
+      - name: Roadmap role-gate strict validation
+        run: |
+          node scripts/validate-roadmap-role-gates.mjs --strict --matrix tools/route-role-matrix/governance/${{ github.run_id }}/route-role-matrix.json
+
       - name: Resolve required P0 workflow IDs
         id: required-workflows
         run: |
@@ -134,6 +140,7 @@ jobs:
           echo "- Doc authority strict gate: completed" >> "$GITHUB_STEP_SUMMARY"
           echo "- Route roadmap strict gate: completed" >> "$GITHUB_STEP_SUMMARY"
           echo "- Roadmap grounding strict gate: completed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Roadmap role-gate strict validation: completed" >> "$GITHUB_STEP_SUMMARY"
           echo "- Required workflow evidence IDs: ${{ steps.required-workflows.outputs.ids }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Evidence artifact path: tools/workflow-evidence/governance/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Route-role matrix path: tools/route-role-matrix/governance/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"

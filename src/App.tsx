@@ -1664,16 +1664,6 @@ export default function App() {
             }
           />
           <Route
-            path="/asset-management"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <AssetManagement />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-          <Route
             path="/availability"
             element={
               <ProtectedRoute>

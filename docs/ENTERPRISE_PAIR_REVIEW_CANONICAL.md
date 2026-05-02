@@ -99,7 +99,7 @@ Use this register for all Bob `ungrounded` findings that represent future-state 
 3. Gap: Role-gated route matrix not fully centralized.
    Owner: Application architecture.
    Evidence required: per-route role map maintained with source links.
-   Status: completed (machine-generated route-role matrix plus strict roadmap grounding checks added to governance and monthly checkpoint workflows).
+   Status: completed (machine-generated route-role matrix plus strict roadmap grounding and strict related-route role-gate validation checks added to governance workflows).
 
 ## Triad Pair-Review Round (2026-05-02)
 
@@ -182,6 +182,7 @@ Core command anchors:
 8. Route-role matrix generator: scripts/generate-route-role-matrix.mjs
 9. Roadmap grounding validator: scripts/validate-roadmap-grounding.mjs
 10. Governance run summary exporter: scripts/generate-governance-run-summary.mjs
+11. Roadmap related-route role-gate validator: scripts/validate-roadmap-role-gates.mjs
 
 ## OpenAI Lens Review (Architecture + Governance)
 
@@ -242,10 +243,11 @@ This policy controls when DOC_AUTHORITY_STRICT_POLICY should be enabled in CI.
 2. Completed: lightweight doc-authority lint rule wired into CI (warning mode with optional strict-policy path via DOC_AUTHORITY_STRICT_POLICY).
 3. Completed: governance strict gate added for architecture-impacting changes (doc-authority strict + required workflow evidence validation for WF-01/WF-07/WF-11).
 4. Completed: recurring monthly governance checkpoint workflow added (.github/workflows/monthly-governance-checkpoint.yml).
-5. Expand role-gate coverage from primary routes to every related route entry.
-6. Standardize workflow evidence capture per execution using scripts/collect-workflow-evidence.mjs and tools/workflow-evidence/ index records.
+5. Completed: role-gate coverage expanded with strict related-route role-gate validation using route-role matrix checks.
+6. Completed: workflow evidence capture standardized with matrix-driven collection, index records, and governance run summary artifacts.
 7. Completed: build budget gate added to CI (scripts/check-build-budgets.mjs via ci-build-high-memory workflow).
 8. Completed: governance + monthly evidence requirement expanded to all P0 workflows (matrix-driven workflow ID resolution).
 9. Completed: strict route-roadmap coverage lint added for route path changes in governance gate.
 10. Completed: machine-generated route-role matrix and strict roadmap grounding checks added to governance and monthly checkpoint workflows.
 11. Completed: governance run summary JSON artifacts added for governance release and monthly checkpoint workflows.
+12. Completed: duplicate /asset-management route definition removed to eliminate role-gate ambiguity.

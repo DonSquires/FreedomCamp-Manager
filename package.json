@@ -12,6 +12,7 @@
     "lint:doc-authority": "node scripts/doc-authority-check.mjs",
     "lint:route-roadmap": "node scripts/check-route-roadmap-coverage.mjs",
     "lint:roadmap-grounding": "node scripts/validate-roadmap-grounding.mjs --strict",
+    "lint:roadmap-role-gates": "node scripts/validate-roadmap-role-gates.mjs --strict",
     "roadmap:route-matrix": "node scripts/generate-route-role-matrix.mjs",
     "evidence:workflow": "node scripts/collect-workflow-evidence.mjs",
     "evidence:workflow:all": "node scripts/collect-workflow-evidence.mjs --all",
