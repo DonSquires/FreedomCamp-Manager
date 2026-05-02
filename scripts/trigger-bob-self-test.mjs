@@ -27,6 +27,7 @@
  * Usage:
  *   node scripts/trigger-bob-self-test.mjs
  *   node scripts/trigger-bob-self-test.mjs --scope core
+ *   node scripts/trigger-bob-self-test.mjs --scope quick --quickSpecs tests/e2e/deep-functional.spec.ts
  *   node scripts/trigger-bob-self-test.mjs --dryRun
  */
 
@@ -109,6 +110,7 @@ const SCOPE        = getArg('scope', process.env.BOB_SELF_TEST_SCOPE || 'quick')
 const TIMEOUT_MS   = Number(process.env.BOB_SELF_TEST_TIMEOUT_MS || 600000);
 const POLL_MS      = Number(process.env.BOB_SELF_TEST_POLL_MS || 5000);
 const DRY_RUN      = getBoolArg('dryRun') || process.env.BOB_SELF_TEST_DRY_RUN === 'true';
+const QUICK_SPECS_ARG = getArg('quickSpecs', '');
 const VALID_SCOPES = new Set(['quick', 'core', 'workflows', 'visual', 'human', 'full']);
 const QUICK_SCOPE_DEFAULT_SPECS = ['tests/e2e/deep-functional.spec.ts'];
 
@@ -141,6 +143,13 @@ if (!VALID_SCOPES.has(SCOPE)) {
   console.error(`[bob-self-test] Invalid scope: ${SCOPE}`);
   console.error('[bob-self-test] Valid scopes: quick, core, workflows, visual, human, full');
   process.exit(1);
+}
+
+function parseSpecArg(raw) {
+  return String(raw || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 // ─── HTTP helpers ─────────────────────────────────────────────────────────────
@@ -313,7 +322,10 @@ async function run() {
   }
 
   const forwardedTestEnv = collectForwardedTestEnv();
-  const quickScopeSpecs = SCOPE === 'quick' ? QUICK_SCOPE_DEFAULT_SPECS : [];
+  const configuredQuickSpecs = parseSpecArg(QUICK_SPECS_ARG);
+  const quickScopeSpecs = SCOPE === 'quick'
+    ? (configuredQuickSpecs.length > 0 ? configuredQuickSpecs : QUICK_SCOPE_DEFAULT_SPECS)
+    : [];
   if (quickScopeSpecs.length > 0) {
     console.log(`[bob-self-test] quick scope specs: ${quickScopeSpecs.join(', ')}`);
   }

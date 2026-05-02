@@ -28,6 +28,11 @@ on:
         default: 'quick'
         type: choice
         options: [quick, core, workflows, visual, full]
+      quick_specs:
+        description: 'Optional comma-separated specs used only when scope=quick'
+        required: false
+        default: ''
+        type: string
       dry_run:
         description: 'Dry run (skip Supabase write)'
         required: false
@@ -81,6 +86,7 @@ jobs:
           echo "GITHUB_REPO_URL=https://github.com/${{ github.repository }}.git" >> "$GITHUB_ENV"
           echo "GITHUB_REPO_BRANCH=${{ github.ref_name }}" >> "$GITHUB_ENV"
           echo "TEST_SCOPE=${{ github.event.inputs.scope || 'quick' }}" >> "$GITHUB_ENV"
+          echo "QUICK_SPECS=${{ github.event.inputs.quick_specs || '' }}" >> "$GITHUB_ENV"
           echo "DRY_RUN=${{ github.event.inputs.dry_run || 'false' }}" >> "$GITHUB_ENV"
 
       - name: Preflight Bob worker repo token access
@@ -150,7 +156,17 @@ jobs:
           BOB_CAPABILITY_STRICT:  'true'
 
       - name: Trigger Bob self-test on RunPod
-        run: node scripts/trigger-bob-self-test.mjs --scope "$TEST_SCOPE" $( [ "$DRY_RUN" = "true" ] && echo "--dryRun" )
+        run: |
+          set -euo pipefail
+          EXTRA_ARGS=""
+          if [ -n "${QUICK_SPECS:-}" ] && [ "$TEST_SCOPE" = "quick" ]; then
+            EXTRA_ARGS="$EXTRA_ARGS --quickSpecs=${QUICK_SPECS}"
+          fi
+          if [ "$DRY_RUN" = "true" ]; then
+            EXTRA_ARGS="$EXTRA_ARGS --dryRun"
+          fi
+          # shellcheck disable=SC2086
+          node scripts/trigger-bob-self-test.mjs --scope "$TEST_SCOPE" $EXTRA_ARGS
         env:
           INFERENCE_SERVICE_URL:     https://api.runpod.ai/v2/${{ secrets.RUNPOD_ENDPOINT_ID }}
           INFERENCE_API_KEY:         ${{ steps.serverless-auth.outputs.resolved_key }}
