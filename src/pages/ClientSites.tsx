@@ -4,7 +4,8 @@
  * Jobs created in the DispatchConsole can be linked to these sites for history.
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -142,6 +143,7 @@ function siteFormFromRecord(s: ClientSite): SiteForm {
 export default function ClientSites() {
   const { user } = useAuthStore()
   const qc = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
   const orgId = user?.organization_id
   const isSuperUser = user?.role === 'master' || user?.role === 'grand_master'
 
@@ -166,6 +168,26 @@ export default function ClientSites() {
     if (orgIds === null) return true
     return orgIds.includes(org.id)
   })
+  const queryOrgId = searchParams.get('orgId') ?? ''
+  const queryOrgName = availableOrganizations.find((org) => org.id === queryOrgId)?.name ?? ''
+
+  useEffect(() => {
+    const orgIdParam = searchParams.get('orgId')
+    if (!orgIdParam) return
+
+    const orgAllowed = availableOrganizations.some((org) => org.id === orgIdParam)
+    if (!orgAllowed) return
+
+    setSelectedOrgId((current) => (current === orgIdParam ? current : orgIdParam))
+  }, [searchParams, availableOrganizations])
+
+  function clearCrmOrgContext() {
+    setSelectedOrgId('')
+    if (!queryOrgId) return
+    const next = new URLSearchParams(searchParams)
+    next.delete('orgId')
+    setSearchParams(next)
+  }
 
   // ── Fetch sites ─────────────────────────────────────────────────────────────
   const { data: sites = [], isLoading } = useQuery<ClientSite[]>({
@@ -436,6 +458,17 @@ export default function ClientSites() {
             Show inactive
           </label>
         </div>
+
+        {queryOrgId && selectedOrgId === queryOrgId && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="bg-blue-50 border-blue-300 text-blue-700">
+              Filtered from CRM: {queryOrgName || queryOrgId}
+            </Badge>
+            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={clearCrmOrgContext}>
+              Clear CRM filter
+            </Button>
+          </div>
+        )}
 
         {/* Table */}
         <Card>

@@ -27,7 +27,7 @@ import {
 } from '@/components/ui/select'
 import {
   Building2, Users, Search, ChevronRight, Phone, Mail,
-  CheckCircle2, AlertTriangle, Clock, Plus,
+  CheckCircle2, ShieldCheck, MapPinned,
 } from 'lucide-react'
 import { getOrgTypeLabel } from '@/lib/utils'
 
@@ -191,6 +191,23 @@ export default function CRMModule() {
     enabled: !orgIdsLoading && (orgIds === null || !!user?.organization_id),
   })
 
+  const { data: siteCount = 0, isLoading: siteCountLoading } = useQuery<number>({
+    queryKey: ['crm_site_count', user?.organization_id, orgIds],
+    queryFn: async () => {
+      let q = (supabase.from('client_sites') as any)
+        .select('id', { count: 'exact', head: true })
+
+      if (orgIds !== null) {
+        q = q.in('organization_id', orgIds)
+      }
+
+      const { count, error } = await q
+      if (error) throw error
+      return count ?? 0
+    },
+    enabled: !orgIdsLoading && (orgIds === null || !!user?.organization_id),
+  })
+
   // ── Filtered lists ────────────────────────────────────────────────────────
 
   const filteredAccounts = accounts.filter((a) => {
@@ -220,11 +237,82 @@ export default function CRMModule() {
 
   const contractorCount = accounts.filter(a => a.organization_type === 'contractor').length
   const clientCount     = accounts.filter(a => a.organization_type === 'client').length
+  const activeAccountCount = accounts.filter((account) => account.is_active).length
+  const compliantContractorCount = accounts.filter((account) => complianceStatus(account.contractor_profile) === 'ok').length
+
+  const overviewCards = [
+    {
+      label: 'Accounts',
+      value: accounts.length,
+      detail: `${clientCount} clients · ${contractorCount} contractors`,
+      icon: Building2,
+    },
+    {
+      label: 'Contacts',
+      value: contacts.length,
+      detail: 'Visible CRM stakeholders and system-linked contacts',
+      icon: Users,
+    },
+    {
+      label: 'Sites',
+      value: siteCountLoading ? '…' : siteCount,
+      detail: 'Linked client locations in the current org scope',
+      icon: MapPinned,
+    },
+    {
+      label: 'Compliant Contractors',
+      value: compliantContractorCount,
+      detail: `${activeAccountCount} active accounts in scope`,
+      icon: CheckCircle2,
+    },
+  ]
 
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
     <AppLayout title="CRM" description="Accounts, contacts and contracts" showBackButton>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 mb-4">
+        {overviewCards.map((card) => {
+          const Icon = card.icon
+          return (
+            <Card key={card.label}>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm text-gray-500">{card.label}</p>
+                    <p className="text-2xl font-semibold mt-1">{card.value}</p>
+                    <p className="text-xs text-gray-400 mt-1">{card.detail}</p>
+                  </div>
+                  <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
+                    <Icon className="h-5 w-5 text-slate-700" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
+
+      <Card className="mb-4 border-dashed">
+        <CardContent className="p-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-sm font-medium text-slate-900">CRM workspace</p>
+            <p className="text-sm text-gray-500">Use CRM as the account hub, then move into site and access administration without losing org context.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => navigate('/client-sites')}>
+              <MapPinned className="h-4 w-4" /> Client Sites
+            </Button>
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => navigate('/access-control')}>
+              <ShieldCheck className="h-4 w-4" /> Access Control
+            </Button>
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => navigate('/client-master-list')}>
+              <ChevronRight className="h-4 w-4" /> Master List of Clients
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       <Tabs defaultValue="accounts">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <TabsList>
@@ -243,9 +331,7 @@ export default function CRMModule() {
               </span>
             </TabsTrigger>
           </TabsList>
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => navigate('/client-master-list')}>
-            <ChevronRight className="h-4 w-4" /> Master List of Clients
-          </Button>
+          <div className="text-xs text-gray-400">Accounts remain the canonical entry point for sites, access, and contractor readiness.</div>
         </div>
 
         {/* ── Accounts tab ────────────────────────────────────────────────── */}
@@ -345,6 +431,30 @@ export default function CRMModule() {
                                 via {account.parent.name}
                               </p>
                             )}
+                            <div className="mt-2 flex items-center gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs"
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  navigate(`/client-sites?orgId=${encodeURIComponent(account.id)}`)
+                                }}
+                              >
+                                Sites
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs"
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  navigate(`/access-control?orgId=${encodeURIComponent(account.id)}`)
+                                }}
+                              >
+                                Access
+                              </Button>
+                            </div>
                           </div>
                         </div>
 

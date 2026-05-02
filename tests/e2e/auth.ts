@@ -610,7 +610,18 @@ async function resolvePortalSelectionIfNeeded(page: Page, user: TestUserKey): Pr
   await page.evaluate(() => {
     window.sessionStorage.setItem('adminOfficerPortalChoice', 'selected')
   })
-  await page.goto(targetPortalPath)
+
+  const targetButton = user === 'officerOrg1'
+    ? page.getByRole('button', { name: /open field officer/i })
+    : page.getByRole('button', { name: /open admin portal/i })
+
+  const canClickPortal = await targetButton.isVisible({ timeout: 2500 }).catch(() => false)
+  if (canClickPortal) {
+    await targetButton.click()
+  } else {
+    await page.goto(targetPortalPath)
+  }
+
   await page.waitForURL(
     (url) => !url.pathname.startsWith('/portal-selection'),
     { timeout: 20000 }

@@ -29,7 +29,7 @@
     "agenticMaxSteps": 14,
     "agenticTimeoutMs": 15000,
     "runPlaywrightSweep": true,
-    "playwrightCommand": "node scripts/run-human-module-suite.mjs"
+    "playwrightCommand": "node scripts/run-bob-assisted-core-suite.mjs"
   },
   "architectureContext": {
     "multiOrgDriver": {

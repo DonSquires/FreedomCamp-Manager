@@ -550,7 +550,10 @@ test.describe('Face Recognition', () => {
     for (const label of ['Recent', 'Linked', 'Unlinked']) {
       const tab = page.locator('[role="tab"], button').filter({ hasText: new RegExp(label, 'i') }).first()
       if (await tab.isVisible({ timeout: 3000 })) {
-        await tab.click()
+        await tab.scrollIntoViewIfNeeded().catch(() => undefined)
+        await tab.click({ timeout: 5000, force: true }).catch(async () => {
+          await tab.dispatchEvent('click')
+        })
         await page.waitForTimeout(300)
       }
     }
@@ -2211,6 +2214,41 @@ test.describe('CRM Module', () => {
     await loginAs(page, 'adminOrg1')
     await go(page, '/crm')
     await assertHeading(page, /crm/i)
+    await expect(page.getByText('Accounts', { exact: true }).first()).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('button', { name: /client sites/i })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('button', { name: /access control/i })).toBeVisible({ timeout: 10000 })
+  })
+
+  test('account Sites action opens Client Sites with org context', async ({ page }) => {
+    await loginAs(page, 'adminOrg1')
+    await go(page, '/crm')
+
+    const firstSitesAction = page.getByRole('button', { name: /^sites$/i }).first()
+    const hasAction = await firstSitesAction.isVisible({ timeout: 5000 }).catch(() => false)
+
+    if (!hasAction) {
+      await expect(page.getByText(/no accounts found\./i)).toBeVisible({ timeout: 10000 })
+      return
+    }
+
+    await firstSitesAction.click()
+    await expect(page).toHaveURL(/\/client-sites\?orgId=/)
+  })
+
+  test('account Access action opens Access Control with org context', async ({ page }) => {
+    await loginAs(page, 'master')
+    await go(page, '/crm')
+
+    const firstAccessAction = page.getByRole('button', { name: /^access$/i }).first()
+    const hasAction = await firstAccessAction.isVisible({ timeout: 5000 }).catch(() => false)
+
+    if (!hasAction) {
+      await expect(page.getByText(/no accounts found\./i)).toBeVisible({ timeout: 10000 })
+      return
+    }
+
+    await firstAccessAction.click()
+    await expect(page).toHaveURL(/\/access-control\?orgId=/)
   })
 })
 

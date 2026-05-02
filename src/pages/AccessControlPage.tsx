@@ -16,7 +16,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { useShiftGate } from '@/hooks/useShiftGate'
@@ -130,6 +130,7 @@ const AREA_GROUPS: { label: string; areas: PortalAreaCode[] }[] = [
 export default function AccessControlPage() {
   const { user } = useAuthStore()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
 
   const { gateApplies, canAccessPortal, canUseFeature, isLoading: gateLoading } = useShiftGate()
@@ -174,6 +175,27 @@ export default function AccessControlPage() {
       return data ?? []
     },
   })
+
+  useEffect(() => {
+    const orgIdParam = searchParams.get('orgId')
+    if (!orgIdParam) return
+
+    const orgAllowed = orgs.some((org) => org.id === orgIdParam)
+    if (!orgAllowed) return
+
+    setFilterOrg((current) => (current === orgIdParam ? current : orgIdParam))
+  }, [searchParams, orgs])
+
+  const queryOrgId = searchParams.get('orgId') ?? ''
+  const queryOrgName = orgs.find((org) => org.id === queryOrgId)?.name ?? ''
+
+  function clearCrmOrgContext() {
+    setFilterOrg('all')
+    if (!queryOrgId) return
+    const next = new URLSearchParams(searchParams)
+    next.delete('orgId')
+    setSearchParams(next)
+  }
 
   // ── Filtered list ──────────────────────────────────────────────────────────
 
@@ -377,6 +399,16 @@ export default function AccessControlPage() {
                 ))}
               </select>
             </div>
+            {queryOrgId && filterOrg === queryOrgId && (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Badge variant="outline" className="bg-blue-50 border-blue-300 text-blue-700">
+                  Filtered from CRM: {queryOrgName || queryOrgId}
+                </Badge>
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={clearCrmOrgContext}>
+                  Clear CRM filter
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 

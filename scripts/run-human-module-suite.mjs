@@ -3,6 +3,25 @@
 import { spawn } from 'node:child_process'
 import process from 'node:process'
 
+function normalizeGrepArgs(args) {
+  const normalized = [...args]
+
+  for (let index = 0; index < normalized.length; index += 1) {
+    if (normalized[index] !== '--grep') continue
+
+    const value = normalized[index + 1]
+    if (!value || !value.includes('›')) continue
+
+    normalized[index + 1] = value
+      .split('›')
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .join('.*')
+  }
+
+  return normalized
+}
+
 function run(command, args) {
   const chromiumPathCandidates = [
     process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
@@ -37,7 +56,7 @@ function run(command, args) {
 
 async function main() {
   const command = process.platform === 'win32' ? 'bunx.cmd' : 'bunx'
-  const passthroughArgs = process.argv.slice(2)
+  const passthroughArgs = normalizeGrepArgs(process.argv.slice(2))
   const specs = [
     'tests/e2e/human-module-interaction.spec.ts',
     'tests/e2e/module-route-access.spec.ts',
