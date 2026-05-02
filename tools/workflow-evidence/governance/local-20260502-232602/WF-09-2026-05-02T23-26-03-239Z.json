@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-05-02T23:26:03.260Z",
+  "sourceMatrix": "docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json",
+  "workflow": {
+    "id": "WF-09",
+    "name": "Offline Queue Capture and Sync",
+    "criticality": "P0",
+    "owner": "Field reliability",
+    "testType": "e2e",
+    "matrixStatus": "grounded"
+  },
+  "execution": {
+    "recordedStatus": "governance-gate",
+    "commandIndex": 0,
+    "command": "node scripts/run-test-with-bob-assist.mjs -- npx playwright test tests/e2e/offline-queue.spec.ts tests/e2e/pwa-features.spec.ts",
+    "tests": [
+      "tests/e2e/offline-queue.spec.ts",
+      "tests/e2e/pwa-features.spec.ts"
+    ],
+    "notes": "local-governance-slice:local-20260502-232602"
+  },
+  "artifacts": [
+    {
+      "path": "playwright-report/",
+      "exists": true,
+      "type": "directory",
+      "sample": [
+        "index.html"
+      ]
+    },
+    {
+      "path": "test-results/",
+      "exists": true,
+      "type": "directory",
+      "sample": [
+        ".last-run.json",
+        "results.json"
+      ]
+    }
+  ],
+  "git": {
+    "branch": "main",
+    "commit": "7d365c9de0d06f8467ae2e536f29907bd59d1c89"
+  }
+}

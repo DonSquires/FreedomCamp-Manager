@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-05-02T23:26:03.251Z",
+  "sourceMatrix": "docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json",
+  "workflow": {
+    "id": "WF-01",
+    "name": "CRM to Client Sites Drillthrough",
+    "criticality": "P0",
+    "owner": "Operations admin",
+    "testType": "e2e",
+    "matrixStatus": "grounded"
+  },
+  "execution": {
+    "recordedStatus": "governance-gate",
+    "commandIndex": 0,
+    "command": "node scripts/run-human-module-suite.mjs --grep \"CRM Module\"",
+    "tests": [
+      "tests/e2e/ui-comprehensive.spec.ts",
+      "tests/e2e/crm-business-crossover.spec.ts"
+    ],
+    "notes": "local-governance-slice:local-20260502-232602"
+  },
+  "artifacts": [
+    {
+      "path": "playwright-report/",
+      "exists": true,
+      "type": "directory",
+      "sample": [
+        "index.html"
+      ]
+    },
+    {
+      "path": "test-results/",
+      "exists": true,
+      "type": "directory",
+      "sample": [
+        ".last-run.json",
+        "results.json"
+      ]
+    }
+  ],
+  "git": {
+    "branch": "main",
+    "commit": "7d365c9de0d06f8467ae2e536f29907bd59d1c89"
+  }
+}
