@@ -26,7 +26,7 @@ import { Separator } from '@/components/ui/separator'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Building2, Phone, Mail, ChevronDown, ChevronUp, Edit2,
-  Save, X, MapPin, Calendar, Clock, ArrowLeft, Users,
+  Save, X, MapPin, Calendar, Clock, ArrowLeft, Users, DollarSign,
   CheckCircle2, AlertTriangle,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -49,6 +49,7 @@ interface ClientOrg {
 interface ClientSite {
   id: string
   zone_id: string | null
+  loi_id: string | null
   name: string
   site_code: string | null
   site_type: string
@@ -64,6 +65,25 @@ interface ClientSite {
   default_charge_rate: number | null
   is_active: boolean
   zone: { name: string } | null
+}
+
+interface ClientZone {
+  id: string
+  name: string
+  zone_type: string
+  is_active: boolean
+  loi_id: string | null
+}
+
+interface LocationOfInterestRow {
+  id: string
+  name?: string | null
+  loi_kind?: string | null
+  address_full?: string | null
+  display_address?: string | null
+  suburb?: string | null
+  city?: string | null
+  is_active?: boolean
 }
 
 interface RecentShift {
@@ -143,6 +163,9 @@ export default function ClientAccountPage() {
 
   const [secAccount, setSecAccount] = useState(true)
   const [secSites,   setSecSites]   = useState(true)
+  const [secZones, setSecZones] = useState(true)
+  const [secLocations, setSecLocations] = useState(true)
+  const [secControlCenter, setSecControlCenter] = useState(true)
   const [secOperations, setSecOperations] = useState(true)
   const [secShifts,  setSecShifts]  = useState(false)
 
@@ -178,7 +201,7 @@ export default function ClientAccountPage() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('client_sites')
-        .select('id, zone_id, name, site_code, site_type, address, city, contact_name, contact_phone, contact_email, contract_start_date, contract_end_date, default_response_minutes, default_pay_rate, default_charge_rate, is_active, zone:zones!zone_id(name)')
+        .select('id, zone_id, loi_id, name, site_code, site_type, address, city, contact_name, contact_phone, contact_email, contract_start_date, contract_end_date, default_response_minutes, default_pay_rate, default_charge_rate, is_active, zone:zones!zone_id(name)')
         .eq('organization_id', orgId)
         .order('name')
       if (error) throw error
@@ -186,6 +209,35 @@ export default function ClientAccountPage() {
         ...s,
         zone: Array.isArray(s.zone) ? (s.zone[0] ?? null) : s.zone,
       })) as ClientSite[]
+    },
+    enabled: !!orgId,
+  })
+
+  const { data: zones = [], isLoading: zonesLoading } = useQuery<ClientZone[]>({
+    queryKey: ['crm_client_zones', orgId],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('zones')
+        .select('id, name, zone_type, is_active, loi_id')
+        .eq('organization_id', orgId)
+        .order('name')
+      if (error) throw error
+      return (data ?? []) as ClientZone[]
+    },
+    enabled: !!orgId,
+  })
+
+  const { data: locations = [], isLoading: locationsLoading } = useQuery<LocationOfInterestRow[]>({
+    queryKey: ['crm_client_loi', orgId],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('locations_of_interest')
+        .select('*')
+        .eq('organization_id', orgId)
+        .eq('is_active', true)
+        .order('updated_at', { ascending: false })
+      if (error) throw error
+      return (data ?? []) as LocationOfInterestRow[]
     },
     enabled: !!orgId,
   })
@@ -444,6 +496,17 @@ export default function ClientAccountPage() {
                         {[site.address, site.city].filter(Boolean).join(', ')}
                       </p>
                     )}
+                    <div className="mt-1">
+                      {site.loi_id ? (
+                        <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-300">
+                          <CheckCircle2 className="h-3 w-3 mr-1" /> Site linked to LOI
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-300">
+                          <AlertTriangle className="h-3 w-3 mr-1" /> Site missing LOI link
+                        </Badge>
+                      )}
+                    </div>
                     {site.contact_name && (
                       <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                         <Users className="h-3 w-3 flex-shrink-0" /> {site.contact_name}
@@ -482,7 +545,139 @@ export default function ClientAccountPage() {
         </div>
       </Section>
 
-      {/* ── Section 3: Operations & Settings ───────────────────────────── */}
+      {/* ── Section 3: Zones ────────────────────────────────────────────── */}
+      <Section title={`Zones (${zones.length})`} open={secZones} toggle={() => setSecZones(v => !v)}>
+        {zonesLoading ? (
+          <p className="text-xs text-muted-foreground py-2">Loading zones…</p>
+        ) : zones.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-2">No zones found for this client organisation.</p>
+        ) : (
+          <div className="space-y-2">
+            {zones.map(zone => (
+              <div key={zone.id} className={`rounded-md border p-3 text-sm ${!zone.is_active ? 'opacity-60' : ''}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold truncate">{zone.name}</p>
+                    <p className="text-xs text-muted-foreground">{zone.zone_type}</p>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {zone.loi_id ? (
+                      <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-300">
+                        <CheckCircle2 className="h-3 w-3 mr-1" /> Linked to LOI
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-300">
+                        <AlertTriangle className="h-3 w-3 mr-1" /> Missing LOI Link
+                      </Badge>
+                    )}
+                    {!zone.is_active && <Badge variant="secondary" className="text-xs">Inactive</Badge>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Section>
+
+      {/* ── Section 4: Locations of Interest ───────────────────────────── */}
+      <Section title={`Locations of Interest (${locations.length})`} open={secLocations} toggle={() => setSecLocations(v => !v)}>
+        {locationsLoading ? (
+          <p className="text-xs text-muted-foreground py-2">Loading locations…</p>
+        ) : locations.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-2">No LOI records found for this client organisation.</p>
+        ) : (
+          <div className="space-y-2">
+            {locations.map(loc => (
+              <div key={loc.id} className="rounded-md border p-3 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold truncate">{loc.name || loc.display_address || loc.address_full || 'Unnamed Location'}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {loc.display_address || loc.address_full || [loc.suburb, loc.city].filter(Boolean).join(', ') || 'No address available'}
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="text-xs capitalize">{loc.loi_kind || 'address'}</Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Section>
+
+      {/* ── Section 5: Operations & Settings ───────────────────────────── */}
+      <Section
+        title="Client Control Center"
+        open={secControlCenter}
+        toggle={() => setSecControlCenter(v => !v)}
+      >
+        <p className="text-xs text-muted-foreground mb-3">
+          Central access to the core client management surfaces: commercial settings, access control, service modules, rostering, and client documents.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+          <div className="rounded border p-2.5">
+            <p className="font-semibold mb-2">Commercial ($)</p>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" className="text-xs" onClick={() => navigate('/pricing')}>
+                <DollarSign className="h-3.5 w-3.5 mr-1" /> Pricing Matrix
+              </Button>
+              <Button size="sm" variant="outline" className="text-xs" onClick={() => navigate('/invoicing')}>
+                Invoicing
+              </Button>
+            </div>
+          </div>
+
+          <div className="rounded border p-2.5">
+            <p className="font-semibold mb-2">Access & Permissions</p>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" className="text-xs" onClick={() => navigate('/users')}>
+                User Access
+              </Button>
+              <Button size="sm" variant="outline" className="text-xs" onClick={() => navigate('/site-permissions')}>
+                Site Permissions
+              </Button>
+              <Button size="sm" variant="outline" className="text-xs" onClick={() => navigate('/admin/service-provider-access')}>
+                Roster Overrides
+              </Button>
+            </div>
+          </div>
+
+          <div className="rounded border p-2.5">
+            <p className="font-semibold mb-2">Modules & Service Areas</p>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" className="text-xs" onClick={() => navigate('/compliance')}>
+                Freedom Camping
+              </Button>
+              <Button size="sm" variant="outline" className="text-xs" onClick={() => navigate('/noise-control')}>
+                Noise Control
+              </Button>
+              <Button size="sm" variant="outline" className="text-xs" onClick={() => navigate('/biosecurity-control')}>
+                Biosecurity
+              </Button>
+              <Button size="sm" variant="outline" className="text-xs" onClick={() => navigate('/smoke-control')}>
+                Smoke
+              </Button>
+            </div>
+          </div>
+
+          <div className="rounded border p-2.5">
+            <p className="font-semibold mb-2">Operations, Rostering & Docs</p>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" className="text-xs" onClick={() => navigate('/roster')}>
+                Roster Planner
+              </Button>
+              <Button size="sm" variant="outline" className="text-xs" onClick={() => navigate('/dispatch')}>
+                Dispatch
+              </Button>
+              <Button size="sm" variant="outline" className="text-xs" onClick={() => navigate('/import-data')}>
+                Client Documents
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Section>
+
+      {/* ── Section 6: Operations & Settings ───────────────────────────── */}
       <Section
         title="Operations & Settings"
         open={secOperations}
@@ -530,7 +725,7 @@ export default function ClientAccountPage() {
         </div>
       </Section>
 
-      {/* ── Section 4: Recent Shifts ────────────────────────────────────── */}
+      {/* ── Section 7: Recent Shifts ────────────────────────────────────── */}
       <Section
         title="Recent Shifts"
         open={secShifts}

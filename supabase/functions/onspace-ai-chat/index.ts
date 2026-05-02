@@ -362,9 +362,10 @@ function normalizeBaseUrl(raw?: string | null): string {
   return `https://${trimmed}`
 }
 
-function parseProviderPreference(raw: unknown): 'auto' | 'inference' | 'ollama' {
+function parseProviderPreference(raw: unknown): 'auto' | 'inference' | 'ollama' | 'openai' {
   const normalized = String(raw ?? '').trim().toLowerCase()
-  if (normalized === 'ollama' || normalized === 'inference' || normalized === 'auto') {
+  if (normalized === 'chatgpt') return 'openai'
+  if (normalized === 'ollama' || normalized === 'inference' || normalized === 'auto' || normalized === 'openai') {
     return normalized
   }
   return 'auto'
@@ -646,7 +647,9 @@ Deno.serve(async (req: Request) => {
     // to avoid model-not-found 404s when AI_DEFAULT_MODEL points to non-Ollama model names.
     const runpodModel = normalizeOllamaModel(Deno.env.get('RUNPOD_OLLAMA_MODEL') ?? Deno.env.get('OLLAMA_MODEL') ?? 'qwen2.5:7b')
 
-    const openAIReferenceGateEnabled = parseBooleanEnv(Deno.env.get('OPENAI_REFERENCE_GATE_ENABLED'), true)
+    // Default to allowing OpenAI/chatgpt as a reference provider hint.
+    // Set OPENAI_REFERENCE_GATE_ENABLED=true to enforce a hard block.
+    const openAIReferenceGateEnabled = parseBooleanEnv(Deno.env.get('OPENAI_REFERENCE_GATE_ENABLED'), false)
     if (openAIReferenceGateEnabled && isOpenAIReferenceProvider(requestedProvider)) {
       return new Response(
         JSON.stringify({
@@ -1246,7 +1249,82 @@ Deno.serve(async (req: Request) => {
       throw lastError ?? new Error(`Ollama chat failed after ${BOB_OLLAMA_CHAT_RETRIES + 1} attempts`)
     }
 
+    async function callOpenAIProvider() {
+      const openAIKey = String(Deno.env.get('OPENAI_API_KEY') ?? '').trim()
+      if (!openAIKey) throw new Error('OPENAI_API_KEY is not configured')
+
+      const openAIBaseUrl = normalizeBaseUrl(Deno.env.get('OPENAI_BASE_URL') ?? 'https://api.openai.com/v1')
+      const openAIModel = String(Deno.env.get('OPENAI_MODEL') ?? 'gpt-4o-mini').trim() || 'gpt-4o-mini'
+      const openAiMessages = messages.map((m) => ({ role: m.role, content: m.content }))
+
+      let lastError: Error | null = null
+
+      for (let attempt = 0; attempt <= BOB_INFERENCE_CHAT_RETRIES; attempt += 1) {
+        const isLastAttempt = attempt === BOB_INFERENCE_CHAT_RETRIES
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), BOB_INFERENCE_CHAT_TIMEOUT_MS)
+        try {
+          const response = await fetch(`${openAIBaseUrl}/chat/completions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${openAIKey}`,
+            },
+            body: JSON.stringify({
+              model: openAIModel,
+              messages: openAiMessages,
+              temperature,
+            }),
+            signal: controller.signal,
+          })
+
+          const rawText = await response.text()
+          if (!response.ok) {
+            const openAiErr = new Error(`OpenAI chat returned ${response.status}: ${rawText.slice(0, 300)}`)
+            if (!isLastAttempt && isRetryableStatus(response.status)) {
+              lastError = openAiErr
+              await sleep(inferenceBackoffDelayMs(attempt))
+              continue
+            }
+            throw openAiErr
+          }
+
+          const parsed = (() => { try { return JSON.parse(rawText) } catch { return null } })()
+          const choice = parsed?.choices?.[0]?.message?.content
+          const responseText =
+            (typeof choice === 'string' ? choice : '') ||
+            normalizeProviderText(rawText, parsed)
+
+          if (!responseText) throw new Error('OpenAI returned an empty response')
+
+          return {
+            responseText,
+            provider: 'openai',
+            model: parsed?.model ?? openAIModel,
+          }
+        } catch (err: any) {
+          const message = String(err?.message ?? err)
+          const retryableError = message.includes('AbortError') || message.includes('timed out') || message.includes('fetch failed')
+          if (!isLastAttempt && retryableError) {
+            lastError = err instanceof Error ? err : new Error(message)
+            await sleep(inferenceBackoffDelayMs(attempt))
+            continue
+          }
+          throw err
+        } finally {
+          clearTimeout(timeoutId)
+        }
+      }
+
+      throw lastError ?? new Error(`OpenAI chat failed after ${BOB_INFERENCE_CHAT_RETRIES + 1} attempts`)
+    }
+
     const providerOrder = (() => {
+      if (providerPreference === 'openai') {
+        if (allowProviderFallback && canUseOllamaProvider) return ['openai', 'inference', 'ollama']
+        if (allowProviderFallback) return ['openai', 'inference']
+        return ['openai']
+      }
       if (providerPreference === 'ollama') {
         if (!canUseOllamaProvider) {
           // In unified deployments, coerce explicit ollama requests to inference.
@@ -1265,9 +1343,11 @@ Deno.serve(async (req: Request) => {
 
     for (const providerName of providerOrder) {
       try {
-        providerResult = providerName === 'inference'
-          ? await callInferenceProvider()
-          : await callOllamaProvider()
+        providerResult = providerName === 'openai'
+          ? await callOpenAIProvider()
+          : providerName === 'inference'
+            ? await callInferenceProvider()
+            : await callOllamaProvider()
         break
       } catch (providerErr: any) {
         providerErrors.push(`${providerName}: ${providerErr?.message ?? 'unknown error'}`)

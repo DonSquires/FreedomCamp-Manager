@@ -58,7 +58,12 @@ function enforceBobOnlyProviderLock(inferenceUrl: string): void {
 
   // Optional compatibility mode: allow provider env vars to exist for reference
   // or migration metadata, while still forcing all runtime calls through Bob.
-  const allowReferenceProviderEnv = isTruthyEnv(Deno.env.get('BOB_ALLOW_PROVIDER_REFERENCE_ENV'))
+  // Default true so provider reference env vars can exist without tripping lock.
+  // Runtime inference still routes through Bob unless broader provider lock is disabled.
+  const allowReferenceProviderEnvRaw = Deno.env.get('BOB_ALLOW_PROVIDER_REFERENCE_ENV')
+  const allowReferenceProviderEnv = allowReferenceProviderEnvRaw === undefined
+    ? true
+    : isTruthyEnv(allowReferenceProviderEnvRaw)
 
   const forbiddenKeys = getForbiddenProviderEnvKeys()
   if (!allowReferenceProviderEnv && forbiddenKeys.length > 0) {

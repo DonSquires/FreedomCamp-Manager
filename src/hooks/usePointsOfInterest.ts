@@ -38,6 +38,8 @@ export interface VehicleOfInterest {
   organization_id: string
   created_by: string | null
   plate_number: string
+  primary_zone_id: string | null
+  zone_last_observed_at: string | null
   vehicle_make: string | null
   vehicle_model: string | null
   vehicle_color: string | null
@@ -54,6 +56,7 @@ export interface VehicleOfInterest {
   updated_at: string
   creator?: { first_name: string; last_name: string } | null
   linked_person?: { full_name: string } | null
+  primary_zone?: { name: string; zone_type: string | null } | null
 }
 
 export interface TrespassNotice {
@@ -185,7 +188,7 @@ export function useVehiclesOfInterest(options?: {
     queryFn: async () => {
       let q = supabase
         .from('vehicles_of_interest')
-        .select('*, creator:created_by(first_name, last_name), linked_person:linked_person_id(full_name)')
+        .select('*, creator:created_by(first_name, last_name), linked_person:linked_person_id(full_name), primary_zone:primary_zone_id(name, zone_type)')
         .order('created_at', { ascending: false })
 
       if (orgId) q = q.eq('organization_id', orgId)
@@ -195,7 +198,8 @@ export function useVehiclesOfInterest(options?: {
 
       const { data, error } = await q
       if (error) throw error
-      return (data ?? []) as VehicleOfInterest[]
+      // Relationship typing can lag behind schema updates; normalize through unknown.
+      return (data ?? []) as unknown as VehicleOfInterest[]
     },
     enabled: !!orgId,
   })
@@ -219,7 +223,7 @@ export function useVehiclesOfInterest(options?: {
 
   const updateVehicle = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<VehicleOfInterest> & { id: string }) => {
-      const { creator: _creator, linked_person: _linked_person, ...dbUpdates } = updates
+      const { creator: _creator, linked_person: _linked_person, primary_zone: _primary_zone, ...dbUpdates } = updates
       const { data, error } = await supabase
         .from('vehicles_of_interest')
         .update(dbUpdates)

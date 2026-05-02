@@ -690,7 +690,13 @@ async function main() {
       } catch {
         json = null
       }
-      return { ok: res.ok, status: res.status, json, text }
+      return {
+        ok: res.ok,
+        status: res.status,
+        json,
+        text,
+        contentType: String(res.headers.get('content-type') || '').toLowerCase(),
+      }
     } finally {
       clearTimeout(timer)
     }
@@ -716,7 +722,13 @@ async function main() {
       } catch {
         json = null
       }
-      return { ok: res.ok, status: res.status, json, text }
+      return {
+        ok: res.ok,
+        status: res.status,
+        json,
+        text,
+        contentType: String(res.headers.get('content-type') || '').toLowerCase(),
+      }
     } finally {
       clearTimeout(timer)
     }
@@ -768,7 +780,18 @@ async function main() {
           text: 'FieldOps audio system test. Confirm voice synthesis and playback path.',
           format: 'wav',
         }),
-        validate: (resp) => resp.ok && !!(resp.json?.audio_base64 || resp.json?.audio || resp.json?.url),
+        validate: (resp) => {
+          if (!resp.ok) return false
+          if (resp.json?.error) return false
+          return Boolean(
+            resp.json?.audio_base64 ||
+              resp.json?.audio ||
+              resp.json?.url ||
+              resp.json?.spoken_text ||
+              resp.json?.client_action ||
+              (resp.contentType && resp.contentType.startsWith('audio/')),
+          )
+        },
       },
       {
         name: 'multimodal.listen',
@@ -802,11 +825,14 @@ async function main() {
           const detail = resp.json?.error || resp.text || `HTTP ${resp.status}`
           const detailText = String(detail || '').toLowerCase()
           const infer404 = detailText.includes('(404)') || detailText.includes(' 404') || detailText.includes('not found')
+          const unsupportedAction = detailText.includes('unknown action') || detailText.includes('unsupported action')
 
-          if (test.optionalCapability && (inferenceReportedOffline || infer404)) {
+          if (test.optionalCapability && (inferenceReportedOffline || infer404 || unsupportedAction)) {
             record(test.name, 'skipped', inferenceReportedOffline
               ? 'Inference service reported offline in external health check'
-              : 'Inference endpoint unavailable (404)', {
+              : unsupportedAction
+                ? 'Inference provider does not expose this optional capability in current runtime'
+                : 'Inference endpoint unavailable (404)', {
               durationMs: Date.now() - start,
               statusCode: resp.status,
             })

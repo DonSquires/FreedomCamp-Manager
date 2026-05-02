@@ -9552,6 +9552,7 @@ export type Database = {
           organization_id: string
           photos: string[] | null
           plate_number: string
+          primary_zone_id: string | null
           reason: string | null
           status: string
           updated_at: string | null
@@ -9559,6 +9560,7 @@ export type Database = {
           vehicle_make: string | null
           vehicle_model: string | null
           vehicle_year: number | null
+          zone_last_observed_at: string | null
         }
         Insert: {
           active?: boolean | null
@@ -9572,6 +9574,7 @@ export type Database = {
           organization_id: string
           photos?: string[] | null
           plate_number: string
+          primary_zone_id?: string | null
           reason?: string | null
           status?: string
           updated_at?: string | null
@@ -9579,6 +9582,7 @@ export type Database = {
           vehicle_make?: string | null
           vehicle_model?: string | null
           vehicle_year?: number | null
+          zone_last_observed_at?: string | null
         }
         Update: {
           active?: boolean | null
@@ -9592,6 +9596,7 @@ export type Database = {
           organization_id?: string
           photos?: string[] | null
           plate_number?: string
+          primary_zone_id?: string | null
           reason?: string | null
           status?: string
           updated_at?: string | null
@@ -9599,6 +9604,7 @@ export type Database = {
           vehicle_make?: string | null
           vehicle_model?: string | null
           vehicle_year?: number | null
+          zone_last_observed_at?: string | null
         }
         Relationships: [
           {
@@ -9634,6 +9640,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicles_of_interest_primary_zone_id_fkey"
+            columns: ["primary_zone_id"]
+            isOneToOne: false
+            referencedRelation: "zones"
             referencedColumns: ["id"]
           },
         ]

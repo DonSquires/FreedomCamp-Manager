@@ -356,6 +356,13 @@ export default function PointsOfInterest() {
                           {v.reason && <p className="text-sm text-muted-foreground mt-0.5">{v.reason}</p>}
                           <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
                             {v.linked_person && <span className="flex items-center gap-1"><User className="h-3 w-3" /> Linked: {v.linked_person.full_name}</span>}
+                            {v.primary_zone && (
+                              <span className="flex items-center gap-1">
+                                <MapPin className="h-3 w-3" />
+                                Zone: {v.primary_zone.name}
+                                {v.primary_zone.zone_type && ` (${v.primary_zone.zone_type === 'freedom_camp' || v.primary_zone.zone_type === 'freedom_camping' ? 'Freedom Camping' : v.primary_zone.zone_type})`}
+                              </span>
+                            )}
                             {v.creator && <span>Added by {v.creator.first_name} {v.creator.last_name}</span>}
                           </div>
                         </div>

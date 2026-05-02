@@ -90,6 +90,39 @@ Deno.serve(withCors(async (req: Request) => {
               },
             }),
           }, { retries: 1, timeoutMs: 28_000, backoffMs: 500 })
+
+          const runpodText = await inferResp.text().catch(() => '')
+          let runpodJson: any = null
+          try {
+            runpodJson = runpodText ? JSON.parse(runpodText) : null
+          } catch {
+            runpodJson = null
+          }
+
+          const output = runpodJson?.output ?? runpodJson
+          const outputSuccess = output?.success !== false
+          if (!inferResp.ok || !outputSuccess) {
+            const errMsg = String(output?.error || runpodJson?.error || `HTTP ${inferResp.status}`)
+            console.error(`synthesize-speech: runpod speech failed from ${serviceUrl}`, errMsg.slice(0, 220))
+            lastError = new Error(errMsg)
+            continue
+          }
+
+          if (typeof output?.audio_base64 === 'string' && output.audio_base64.trim()) {
+            const bytes = Uint8Array.from(atob(output.audio_base64), (c) => c.charCodeAt(0))
+            return new Response(bytes, {
+              status: 200,
+              headers: { ...getCorsHeaders(req), 'Content-Type': 'audio/wav' },
+            })
+          }
+
+          // Some worker variants return speech directives instead of binary audio.
+          return jsonResponse({
+            success: true,
+            spoken_text: String(output?.spoken_text || output?.response || text),
+            client_action: String(output?.client_action || 'web_speech_synthesis'),
+            provider: String(output?.provider || 'runpod'),
+          }, req, 200)
         } else {
           inferResp = await fetchWithRetry(`${serviceUrl}/infer/speak`, {
             method: 'POST',
