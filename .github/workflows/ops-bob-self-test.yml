@@ -42,6 +42,9 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+permissions:
+  contents: read
+
 jobs:
   bob-self-test:
     name: Bob Autonomous Self-Test
@@ -88,22 +91,35 @@ jobs:
           echo "DRY_RUN=${{ github.event.inputs.dry_run || 'false' }}" >> "$GITHUB_ENV"
 
       - name: Preflight Bob worker repo token access
+        id: repo-token
         run: |
           set -euo pipefail
           repo_api="https://api.github.com/repos/${{ github.repository }}"
-          status=$(curl -sS -o /tmp/bob_self_test_repo_probe.json -w "%{http_code}" \
-            -H "Authorization: Bearer ${BOB_WORKER_GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            -H "User-Agent: bob-self-test-workflow" \
-            "$repo_api" || true)
-          if [ "$status" != "200" ]; then
-            echo "::error::BOB_WORKER_GITHUB_TOKEN cannot read ${{ github.repository }} (HTTP $status)"
-            cat /tmp/bob_self_test_repo_probe.json || true
-            exit 1
-          fi
-          echo "✅ Worker repo token has repo read access"
+
+          try_repo_token() {
+            local label="$1"
+            local token="$2"
+            [ -z "$token" ] && return 1
+            status=$(curl -sS -o /tmp/bob_self_test_repo_probe.json -w "%{http_code}" \
+              -H "Authorization: Bearer ${token}" \
+              -H "Accept: application/vnd.github+json" \
+              -H "User-Agent: bob-self-test-workflow" \
+              "$repo_api" || true)
+            if [ "$status" = "200" ]; then
+              echo "resolved_token=${token}" >> "$GITHUB_OUTPUT"
+              echo "✅ Worker repo token resolved via ${label}"
+              return 0
+            fi
+            echo "Repo token ${label} failed with HTTP ${status}"
+            return 1
+          }
+
+          try_repo_token "BOB_WORKER_GITHUB_TOKEN" "${BOB_WORKER_GITHUB_TOKEN:-}" \
+            || try_repo_token "GITHUB_TOKEN" "${GITHUB_TOKEN:-}" \
+            || { echo "::error::No repo token can read ${{ github.repository }}"; cat /tmp/bob_self_test_repo_probe.json || true; exit 1; }
         env:
-          BOB_WORKER_GITHUB_TOKEN: ${{ secrets.BOB_WORKER_GITHUB_TOKEN != '' && secrets.BOB_WORKER_GITHUB_TOKEN || github.token }}
+          BOB_WORKER_GITHUB_TOKEN: ${{ secrets.BOB_WORKER_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Resolve serverless auth key for Bob self-test
         id: serverless-auth
@@ -172,7 +188,7 @@ jobs:
           VITE_SUPABASE_ANON_KEY:    ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY:  ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SYNTHETIC_MONITOR_USER_ID: ${{ secrets.SYNTHETIC_MONITOR_USER_ID }}
-          BOB_WORKER_GITHUB_TOKEN:   ${{ secrets.BOB_WORKER_GITHUB_TOKEN != '' && secrets.BOB_WORKER_GITHUB_TOKEN || github.token }}
+          BOB_WORKER_GITHUB_TOKEN:   ${{ steps.repo-token.outputs.resolved_token }}
           GITHUB_REPO_URL:           https://github.com/${{ github.repository }}.git
           GITHUB_REPO_BRANCH:        ${{ github.ref_name }}
           BOB_SELF_TEST_PREFLIGHT:   'true'
