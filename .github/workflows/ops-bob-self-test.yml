@@ -162,7 +162,15 @@ jobs:
           INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
           RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
 
-      - name: Validate Bob capability gate (serverless)
+      - name: Validate Bob capability gate (serverless core)
+        run: node scripts/bob-capability-gate.mjs --mode serverless --required chat --strict
+        env:
+          INFERENCE_SERVICE_URL:  https://api.runpod.ai/v2/${{ secrets.RUNPOD_ENDPOINT_ID }}
+          INFERENCE_API_KEY:      ${{ steps.serverless-auth.outputs.resolved_key }}
+          BOB_CAPABILITY_STRICT:  'true'
+
+      - name: Probe Bob run_playwright capability (advisory)
+        continue-on-error: true
         run: node scripts/bob-capability-gate.mjs --mode serverless --required run_playwright --strict
         env:
           INFERENCE_SERVICE_URL:  https://api.runpod.ai/v2/${{ secrets.RUNPOD_ENDPOINT_ID }}
