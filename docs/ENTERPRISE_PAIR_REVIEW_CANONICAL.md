@@ -132,6 +132,7 @@ For each architecture-impacting change:
 
 ## Next Cycle TODO
 
-1. Add role-gate annotations per route in the roadmap.
+1. Completed: role-gate annotations added in docs/MODULE_ROADMAP.md.
 2. Add lightweight doc-authority lint rule (warn when canonical docs not updated in route/edge/schema PRs).
 3. Add recurring monthly pair-review checkpoint.
+4. Expand role-gate coverage from primary routes to every related route entry.

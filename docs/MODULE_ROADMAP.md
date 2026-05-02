@@ -13,88 +13,107 @@ Source of truth for routes: src/App.tsx and docs/uiux-master-redesign/artifacts/
 
 1. CRM and account operations
    - Primary: /crm
+   - Role gate: admin, admin_officer, master, grand_master
    - Related: /crm/client/:orgId, /crm/contractor/:orgId, /client-sites, /access-control, /client-master-list
 
 2. Compliance and enforcement
    - Primary: /compliance
+   - Role gate: admin, admin_officer, master
    - Related: /breaches, /infringements, /notice-to-vacate, /enforcement-actions, /enforcement-command-center, /compliance-recalculation
 
 3. Patrol and dispatch
    - Primary: /live-patrol
+   - Role gate: admin, admin_officer, master
    - Related: /dispatch, /dispatch-wizard, /dispatch-monitor, /dispatched-jobs, /job-map, /roster
 
 4. Field officer workflows
    - Primary: /field and /field-officer
+   - Role gate: officer, admin_officer (field portal area-gated)
    - Related: /observations, /observations-report, /patrol-checkpoints, /patrol-schedule
 
 ## Specialist Portals
 
 1. Parking
    - Primary: /parking
+   - Role gate: admin, admin_officer, master
    - Related: /parking-officer
 
 2. Noise
    - Primary: /noise-control
+   - Role gate: admin, admin_officer, master (area=noise)
    - Related: /noise-officer
 
 3. Biosecurity
    - Primary: /biosecurity-control
+   - Role gate: admin, admin_officer, master (area=biosecurity)
    - Related: /biosecurity-officer
 
 4. Smoke
    - Primary: /smoke-control
+   - Role gate: admin, admin_officer, master (area=smoke)
    - Related: /smoke-officer
 
 ## AI, Intelligence, and Review Surfaces
 
 1. Bob assistant and orchestration
    - Primary: /bob-assistant
+   - Role gate: admin, admin_officer, master, officer, grand_master
    - Related: /bob-intake-queue, /live-plan-reviews, /bob-ui-review, /ai-analysis
 
 2. Intelligence and approvals
    - Primary: /intel-approvals
+   - Role gate: master, grand_master
    - Related: /investigations, /incident-reports
 
 3. Tender and analysis workspace
    - Primary: /tender-workspace
+   - Role gate: admin, master, grand_master
    - Related: /tender-workspace/:id, /tender-reference-library
 
 ## Data, Diagnostics, and Recovery
 
 1. Data management
    - Primary: /admin/data-hub
+   - Role gate: admin, admin_officer, master
    - Related: /data, /admin/data-cleanup, /admin/data-integrity, /import-data, /import-historical
 
 2. Recovery and maintenance
    - Primary: /admin/cleanup-recalculate
+   - Role gate: admin, master
    - Related: /photo-reingest, /evidence-photo-linker, /diagnostics
 
 3. Spatial and zone administration
    - Primary: /spatial-compliance
+   - Role gate: admin, admin_officer, master
    - Related: /zones, /site-risk-assessment, /points-of-interest
 
 ## Identity, Access, and Communications
 
 1. Identity and records
    - Primary: /identity-verification
+   - Role gate: admin, admin_officer, master
    - Related: /face-recognition, /person-records, /vehicles, /vehicles/:id
 
 2. Access governance
    - Primary: /access-control
+   - Role gate: admin, admin_officer, master, grand_master (area=users)
    - Related: /users, /organizations, /admin/site-permissions, /admin/service-provider-access
 
 3. Comms and PTT
    - Primary: /radio
+   - Role gate: authenticated users (protected route)
    - Related: /radio/log, /messages, /team-chat
 
 ## Executive and Governance Views
 
 1. Platform and admin views
    - Primary: /platform
+   - Role gate: grand_master
    - Related: /admin, /admin/dashboard, /reports, /custom-reports, /audit-log
 
 2. Client-facing visibility
    - Primary: /client-portal
+   - Role gate: client_viewer, client_officer, client_admin, admin, admin_officer, master, grand_master
    - Related: /organization-profile, /reports-hub, /disputes
 
 ## Maintenance Rule
