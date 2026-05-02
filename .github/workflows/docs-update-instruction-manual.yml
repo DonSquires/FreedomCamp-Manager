@@ -1,0 +1,270 @@
+name: Docs — Flag Instruction Manual for Update
+
+# Monitors key source files. When any of them change on main, opens a GitHub
+# issue that lists the changed files and which manual sections are likely
+# affected, so a developer knows to review and update the manual.
+#
+# No secrets required — uses the built-in GITHUB_TOKEN.
+#
+# Trigger summary:
+#   • push to main touching: src/App.tsx, src/pages/**, src/stores/authStore.ts,
+#     supabase/functions/**, supabase/migrations/**, src/hooks/usePermissions.ts
+#   • manual dispatch (workflow_dispatch) for ad-hoc runs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      # Routing / portal structure
+      - 'src/App.tsx'
+      - 'src/pages/PortalSelection.tsx'
+      - 'src/pages/Login.tsx'
+      # All page components (new pages, removed pages, role changes)
+      - 'src/pages/**'
+      # Auth store — roles, portal access gating
+      - 'src/stores/authStore.ts'
+      # Permission / area codes
+      - 'src/hooks/usePermissions.ts'
+      # Edge functions (new functions, renamed, removed)
+      - 'supabase/functions/**/index.ts'
+      # Database schema (new tables, columns, RLS changes)
+      - 'supabase/migrations/**'
+
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for manual trigger (shown in issue)'
+        required: false
+        default: 'Manual trigger — review all sections'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  flag-manual-for-update:
+    name: Flag INSTRUCTION_MANUAL.md for update
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+
+      # ── Collect changed files ───────────────────────────────────────────────
+      - name: Detect changed files
+        id: changed
+        run: |
+          set -euo pipefail
+
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            # Manual run — treat every watched path as changed
+            changed_files="Manual trigger: ${{ github.event.inputs.reason }}"
+            echo "changed_files<<EOF" >> "$GITHUB_OUTPUT"
+            echo "$changed_files" >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Compare HEAD with its parent
+          files=$(git diff --name-only HEAD^ HEAD 2>/dev/null || git diff --name-only HEAD 2>/dev/null)
+
+          # Filter to only the paths we care about
+          relevant=$(echo "$files" | grep -E \
+            '^src/App\.tsx$|^src/pages/|^src/stores/authStore\.ts$|^src/hooks/usePermissions\.ts$|^supabase/functions/|^supabase/migrations/' \
+            || true)
+
+          if [ -z "$relevant" ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "changed_files<<EOF" >> "$GITHUB_OUTPUT"
+            echo "$relevant" >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Map changed files → affected manual sections ───────────────────────
+      - name: Map files to manual sections
+        id: sections
+        if: steps.changed.outputs.has_changes == 'true'
+        run: |
+          set -euo pipefail
+
+          files="${{ steps.changed.outputs.changed_files }}"
+          declare -A seen
+          sections=""
+
+          add_section() {
+            local s="$1"
+            if [ -z "${seen[$s]+x}" ]; then
+              seen[$s]=1
+              sections="${sections}- ${s}\n"
+            fi
+          }
+
+          while IFS= read -r f; do
+            case "$f" in
+              src/App.tsx|src/pages/PortalSelection.tsx|src/pages/Login.tsx)
+                add_section "§2 Getting Started — Login & Navigation"
+                add_section "§4.2 Admin Officer (Dual Role) — portal selection"
+                ;;
+              src/stores/authStore.ts|src/hooks/usePermissions.ts)
+                add_section "§2.3 Portal Selection"
+                add_section "§7.8 User & Organisation Provisioning — roles table"
+                add_section "Appendix B — Role Access Matrix"
+                ;;
+              src/pages/AdminHub.tsx|src/pages/AdminPortal.tsx)
+                add_section "§4.1 Administrator — Admin Hub"
+                ;;
+              src/pages/FieldOfficerPortal.tsx)
+                add_section "§5.1 Field Officer — Freedom Camping Patrol"
+                ;;
+              src/pages/SiteGuardPortal.tsx)
+                add_section "§5.2 Site Guard Officer"
+                ;;
+              src/pages/ParkingOfficerPortal.tsx|src/pages/ParkingEnforcementPortal.tsx)
+                add_section "§5.3 Parking Enforcement Officer"
+                ;;
+              src/pages/NoiseOfficerPortal.tsx|src/pages/NoiseControlPortal.tsx)
+                add_section "§5.4 Noise Control Officer"
+                ;;
+              src/pages/BiosecurityOfficerPortal.tsx|src/pages/BiosecurityControlPage.tsx)
+                add_section "§5.5 Biosecurity Inspection Officer"
+                ;;
+              src/pages/SmokeComplaintOfficerPortal.tsx|src/pages/SmokeComplaintControlPage.tsx)
+                add_section "§5.6 Smoke Complaint Officer (OOH)"
+                ;;
+              src/pages/EMSPortal.tsx)
+                add_section "§5.7 EMS Officer"
+                ;;
+              src/pages/ClientOrganisationPortal.tsx)
+                add_section "§6 PART D — Client Organisation"
+                ;;
+              src/pages/UserManagement.tsx|src/pages/OrganizationManagement.tsx|src/pages/AccessControlPage.tsx)
+                add_section "§4.1 Users & Organisations sub-section"
+                add_section "§7.8 User & Organisation Provisioning"
+                ;;
+              src/pages/Platform.tsx)
+                add_section "§3.1 Grand Master — Platform Overview"
+                ;;
+              src/pages/SystemDiagnostics.tsx)
+                add_section "§7.7 System Diagnostics & Health"
+                ;;
+              supabase/functions/*/index.ts)
+                add_section "§7.4 Edge Functions"
+                ;;
+              supabase/migrations/*)
+                add_section "§7.3 Database & Migrations — Key Tables"
+                add_section "§7.3 Row-Level Security (RLS)"
+                ;;
+              src/pages/*)
+                add_section "§4.1 Administrator — relevant sub-section (new/changed page)"
+                ;;
+            esac
+          done <<< "$files"
+
+          if [ -z "$sections" ]; then
+            sections="- General review recommended\n"
+          fi
+
+          # Write multi-line output safely
+          {
+            echo "sections<<EOF"
+            printf "%b" "$sections"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # ── Check for an existing open issue to avoid duplicates ───────────────
+      - name: Check for existing open flagging issue
+        id: existing
+        if: steps.changed.outputs.has_changes == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'docs,manual-update-needed',
+              per_page: 5,
+            });
+            const existing = issues.data.find(i =>
+              i.title.startsWith('docs: INSTRUCTION_MANUAL.md may need updating')
+            );
+            return existing ? existing.number : null;
+          result-encoding: string
+
+      # ── Open (or update) the tracking issue ────────────────────────────────
+      - name: Create or update flagging issue
+        if: steps.changed.outputs.has_changes == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const changedFiles = `${{ steps.changed.outputs.changed_files }}`;
+            const sections    = `${{ steps.sections.outputs.sections }}`;
+            const runUrl      = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const commitSha   = context.sha.substring(0, 8);
+            const commitUrl   = `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${context.sha}`;
+
+            const body = [
+              `## 📋 INSTRUCTION_MANUAL.md — update needed`,
+              ``,
+              `A push to \`main\` touched files that are cross-referenced in [\`docs/INSTRUCTION_MANUAL.md\`](../blob/main/docs/INSTRUCTION_MANUAL.md).`,
+              `Please review the manual and update any affected sections.`,
+              ``,
+              `### Commit`,
+              `[${commitSha}](${commitUrl}) — ${context.actor}`,
+              ``,
+              `### Changed source files`,
+              `\`\`\``,
+              changedFiles,
+              `\`\`\``,
+              ``,
+              `### Likely affected manual sections`,
+              sections,
+              `### How to update`,
+              `1. Open \`docs/INSTRUCTION_MANUAL.md\`.`,
+              `2. Review the sections listed above.`,
+              `3. Update any stale routes, role descriptions, table names, or feature lists.`,
+              `4. Update the **Last reviewed** date at the top of the file.`,
+              `5. Close this issue once the manual is up to date.`,
+              ``,
+              `---`,
+              `*Triggered by [workflow run #${context.runId}](${runUrl})*`,
+            ].join('\n');
+
+            const existingNumber = parseInt(`${{ steps.existing.outputs.result }}`) || null;
+
+            if (existingNumber) {
+              // Add a comment to the existing issue rather than opening a duplicate
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo:  context.repo.repo,
+                issue_number: existingNumber,
+                body: [
+                  `### 🔄 New trigger — commit [${commitSha}](${commitUrl})`,
+                  ``,
+                  `**Changed files:**`,
+                  `\`\`\``,
+                  changedFiles,
+                  `\`\`\``,
+                  `**Affected sections:**`,
+                  sections,
+                ].join('\n'),
+              });
+              console.log(`Commented on existing issue #${existingNumber}`);
+            } else {
+              const issue = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo:  context.repo.repo,
+                title: 'docs: INSTRUCTION_MANUAL.md may need updating',
+                body,
+                labels: ['docs', 'manual-update-needed'],
+              });
+              console.log(`Created issue #${issue.data.number}: ${issue.data.html_url}`);
+            }
