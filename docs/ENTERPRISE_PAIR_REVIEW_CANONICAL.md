@@ -37,6 +37,19 @@ Primary manuals and standards reviewed:
 
 ## Bob Lens Review (Operational + Reliability)
 
+### Interpretation Rule (Important)
+
+For this canonical live document, Bob review output `ungrounded reference` is treated as a target-state gap signal.
+It means: "planned capability is documented but not yet fully implemented or proven in current repo/runtime truth."
+It does not automatically invalidate the document intent.
+
+Follow-up behavior:
+
+1. Keep the target-state statement in the canonical record.
+2. Add the item to the Target-State Gap Register section below.
+3. Track owner, evidence required, and due milestone.
+4. Close the gap only when repo/runtime evidence exists.
+
 ### Findings
 
 1. Major: Documentation drift risk across many docs with overlapping authority.
@@ -57,6 +70,25 @@ Primary manuals and standards reviewed:
 
 Approve with notes.
 Operational posture is strong enough for enterprise progression if the documentation authority and test-mode policy are maintained.
+
+## Target-State Gap Register
+
+Use this register for all Bob `ungrounded` findings that represent future-state or in-progress enterprise scope.
+
+1. Gap: Module/service reference flagged as ungrounded.
+   Owner: Platform governance.
+   Evidence required: route/module exists in repo and is covered by tests or validation notes.
+   Status: open.
+
+2. Gap: Validation evidence flags lacking concrete command trace.
+   Owner: Release engineering.
+   Evidence required: attach command, result summary, and report artifact path.
+   Status: open.
+
+3. Gap: Role-gated route matrix not fully centralized.
+   Owner: Application architecture.
+   Evidence required: per-route role map maintained with source links.
+   Status: open.
 
 ## OpenAI Lens Review (Architecture + Governance)
 
