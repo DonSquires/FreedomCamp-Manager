@@ -269,6 +269,7 @@ This policy controls when DOC_AUTHORITY_STRICT_POLICY should be enabled in CI.
 23. Completed: autonomous fail-fast loop run for current session (summarize-failures) with no repeated hallucination blocker at threshold >= 3 in the 24-hour window.
 24. Completed: strict governance health rerun passed after roadmap text normalization (strict roadmap grounding, strict related-route role gates, strict module grounding, lint, and build).
 25. Completed: autonomous session protocol executed in full — truth sync, fail-fast scan (no blockers), top-3 risk pattern capture, all 5 strict governance gates PASS, lint clean, build ✓ 3949 modules.
+26. Completed: Bob brain dump and training infrastructure research and hardening — oversized file removed from git, max size reduced to 30 MB, daily auto-ingest CI workflow added (ops-bob-brain-dump-refresh.yml), training wiring verification wired into governance-release-gate, system_state module auto-detection confirmed correct.
 
 ## Execution Ledger
 
@@ -289,4 +290,6 @@ Date: 2026-05-02
 13. 7d365c9d - Update canonical ledger and refresh system state
 14. 8e035829 - Refresh governance evidence artifacts for all P0 workflows
 15. f16ec195 - Fix module grounding resolution and refresh governance artifacts
-16. (pending) - Run full session protocol: truth sync, fail-fast, governance gates, canonical update
+16. cef60b6d - Run session protocol: truth sync, fail-fast, governance gates all PASS
+17. c4247a21 - Add ADR-002, refresh brain dump, add P0 governance run-summary and evidence artifacts
+18. (pending) - Bob brain dump hardening: size cap, CI schedule, training wiring gate

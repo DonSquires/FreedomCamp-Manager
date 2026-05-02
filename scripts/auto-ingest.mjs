@@ -10,7 +10,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const workspaceRoot = path.resolve(__dirname, '..');
 const outputPath = path.join(workspaceRoot, 'docs', 'BOB_BRAIN_DUMP.md');
-const defaultMaxOutputBytes = 90 * 1024 * 1024;
+const defaultMaxOutputBytes = 30 * 1024 * 1024; // 30 MB — keeps file within VSCode 50 MB sync limit
 
 function parsePositiveIntegerEnv(value, fallback) {
   if (value == null || value === '') return fallback;
