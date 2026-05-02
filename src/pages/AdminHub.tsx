@@ -379,7 +379,7 @@ export default function AdminHub() {
     {
       id: 'reports',
       title: 'Reports & Analytics',
-      description: 'Compliance reports, KPIs, AI analysis and audit logs',
+      description: 'Compliance reports, KPIs, Bob analysis and audit logs',
       primaryPath: '/reports-hub',
       Icon: FileBarChart,
       accentColor: 'bg-teal-500',
@@ -387,7 +387,7 @@ export default function AdminHub() {
       iconBg: 'bg-teal-600',
       quickLinks: [
         { path: '/reports-hub',          label: 'Reports Hub',     Icon: FileBarChart },
-        { path: '/ai-analysis',          label: 'AI Analysis',     Icon: Sparkles },
+        { path: '/ai-analysis',          label: 'Bob Analysis',     Icon: Sparkles },
         { path: '/compliance-analytics', label: 'Analytics',       Icon: PieChart },
         { path: '/patrol-kpis',          label: 'Patrol KPIs',     Icon: TrendingUp },
         { path: '/custom-reports',       label: 'Custom Reports',  Icon: BarChart3 },

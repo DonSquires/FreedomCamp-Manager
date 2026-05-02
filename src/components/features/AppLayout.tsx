@@ -1061,7 +1061,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
 
                 <button
                   onClick={() => navigate('/bob-assistant')}
-                  title="Ask Bob — AI operational assistant"
+                  title="Ask Bob — operational assistant"
                   className={cn(
                     'flex items-center gap-2 rounded-full shadow-lg px-3 py-2 text-xs font-medium transition-all hover:shadow-xl',
                     location.pathname === '/bob-assistant'

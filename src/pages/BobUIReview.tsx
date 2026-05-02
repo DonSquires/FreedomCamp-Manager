@@ -239,7 +239,7 @@ export default function BobUIReview() {
           </div>
           <div>
             <h1 className="text-xl font-semibold">Bob UI Review</h1>
-            <p className="text-sm text-muted-foreground">AI-powered UI analysis — code quality, accessibility &amp; visual review</p>
+            <p className="text-sm text-muted-foreground">Bob-powered UI analysis — code quality, accessibility &amp; visual review</p>
           </div>
           <Badge variant="secondary" className="ml-auto">Beta</Badge>
         </div>

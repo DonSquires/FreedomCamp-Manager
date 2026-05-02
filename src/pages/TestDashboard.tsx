@@ -107,7 +107,7 @@ export default function TestDashboard() {
       tests: [
         { id: 'scan-1', name: 'Manual plate entry', status: 'pending' },
         { id: 'scan-2', name: 'Camera capture with OCR', status: 'pending' },
-        { id: 'scan-3', name: 'AI vehicle detection', status: 'pending' },
+        { id: 'scan-3', name: 'Bob vehicle detection', status: 'pending' },
       ],
     },
     {

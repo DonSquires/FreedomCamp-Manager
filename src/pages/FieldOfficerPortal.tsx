@@ -2227,7 +2227,7 @@ export default function FieldOfficerPortal() {
                   </div>
                   <div>
                     <p className="text-base font-semibold text-emerald-800 dark:text-emerald-200">Biosecurity (CNG)</p>
-                    <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">Plant ID · RPMP · Notices · Bob AI</p>
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">Plant ID · RPMP · Notices · Bob</p>
                   </div>
                 </button>
               </div>
@@ -2392,7 +2392,7 @@ export default function FieldOfficerPortal() {
                 </div>
                 <div>
                   <p className="text-base font-semibold text-emerald-800 dark:text-emerald-200">Biosecurity (CNG)</p>
-                  <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">Plant ID · RPMP · Bob AI</p>
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">Plant ID · RPMP · Bob</p>
                 </div>
               </button>
 

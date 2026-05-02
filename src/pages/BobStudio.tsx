@@ -126,7 +126,7 @@ export default function BobStudio() {
       <div className="space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">Bob Studio</h1>
         <p className="text-muted-foreground">
-          Operational AI for compliance workflows | Org: {operationalOrganizationId || 'N/A'}
+          Bob for compliance workflows | Org: {operationalOrganizationId || 'N/A'}
         </p>
       </div>
 
