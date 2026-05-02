@@ -177,6 +177,20 @@ export default defineConfig({
       },
     },
 
+    // Touch-emulation project for cross-module workflow and mobile-friendly enforcement buttons.
+    // trace:'on' provides a full film-strip for every run; video records on the first retry.
+    {
+      name: 'chromium-touch',
+      use: {
+        ...devices['Desktop Chrome'],
+        hasTouch: true,
+        trace: 'on',
+        video: 'on-first-retry',
+        launchOptions: chromiumLaunchOptions,
+      },
+      testMatch: ['**/cross-module-workflow.spec.ts'],
+    },
+
     desktopFirefoxProject,
 
     desktopSafariProject,
