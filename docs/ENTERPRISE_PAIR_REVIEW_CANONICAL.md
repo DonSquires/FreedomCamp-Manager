@@ -264,11 +264,14 @@ This policy controls when DOC_AUTHORITY_STRICT_POLICY should be enabled in CI.
 
 Date: 2026-05-02
 
-1. b8093f34 - Remediate remaining lint warning sources
-2. 22210b23 - Add ESLint warning budget gate to CI
-3. de9b7e65 - Add strict module grounding checks to governance workflows
-4. b3d342db - Enforce related-route role gates and remove duplicate route
-5. 66db00a8 - Add governance run summary artifacts to CI gates
-6. 91754efb - Add route-role matrix grounding controls to governance gates
-7. baf40937 - Enforce route-roadmap coverage and full P0 governance evidence
-8. 3c6c0f22 - Add CI build budget gate for enterprise hardening
+1. 1c39c289 - Enforce lint warning budget across governance workflows
+2. 0f28d507 - Enforce zero ESLint warning budget
+3. 2eea9928 - Add canonical execution ledger with commit trace
+4. b8093f34 - Remediate remaining lint warning sources
+5. 22210b23 - Add ESLint warning budget gate to CI
+6. de9b7e65 - Add strict module grounding checks to governance workflows
+7. b3d342db - Enforce related-route role gates and remove duplicate route
+8. 66db00a8 - Add governance run summary artifacts to CI gates
+9. 91754efb - Add route-role matrix grounding controls to governance gates
+10. baf40937 - Enforce route-roadmap coverage and full P0 governance evidence
+11. 3c6c0f22 - Add CI build budget gate for enterprise hardening
