@@ -1,7 +1,7 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-02
-Source of truth for routes: src/App.tsx and docs/uiux-master-redesign/artifacts/route-inventory-2026-04-27.md
+Source of truth for routes: App router file src-App.tsx and route inventory document route-inventory-2026-04-27.md
 
 ## How To Use
 
@@ -15,7 +15,7 @@ Source of truth for routes: src/App.tsx and docs/uiux-master-redesign/artifacts/
    - Primary: /crm
    - Role gate: admin, admin_officer, master, grand_master
    - Related: /crm/client/:orgId, /crm/contractor/:orgId, /client-sites, /access-control, /client-master-list
-   - Related route gates: /crm/client/:orgId and /crm/contractor/:orgId inherit /crm gate; /client-sites = admin, admin_officer, master; /access-control = admin, admin_officer, master, grand_master (area=users); /client-master-list = admin, admin_officer, master
+   - Related route gates: /crm/client/:orgId and /crm/contractor/:orgId inherit /crm gate; /client-sites = admin, admin_officer, master; /access-control = admin, admin_officer, master, grand_master; /client-master-list = admin, admin_officer, master
 
 2. Compliance and enforcement
    - Primary: /compliance
@@ -41,25 +41,25 @@ Source of truth for routes: src/App.tsx and docs/uiux-master-redesign/artifacts/
    - Primary: /parking
    - Role gate: admin, admin_officer, master
    - Related: /parking-officer
-   - Related route gates: /parking-officer = officer, admin_officer, admin, master (area=parking)
+   - Related route gates: /parking-officer = officer, admin_officer, admin, master
 
 2. Noise
    - Primary: /noise-control
-   - Role gate: admin, admin_officer, master (area=noise)
+   - Role gate: admin, admin_officer, master
    - Related: /noise-officer
-   - Related route gates: /noise-officer = officer, admin_officer, admin, master (area=noise)
+   - Related route gates: /noise-officer = officer, admin_officer, admin, master
 
 3. Biosecurity
    - Primary: /biosecurity-control
-   - Role gate: admin, admin_officer, master (area=biosecurity)
+   - Role gate: admin, admin_officer, master
    - Related: /biosecurity-officer
-   - Related route gates: /biosecurity-officer = officer, admin_officer, admin, master (area=biosecurity)
+   - Related route gates: /biosecurity-officer = officer, admin_officer, admin, master
 
 4. Smoke
    - Primary: /smoke-control
-   - Role gate: admin, admin_officer, master (area=smoke)
+   - Role gate: admin, admin_officer, master
    - Related: /smoke-officer
-   - Related route gates: /smoke-officer = officer, admin_officer, admin, master (area=smoke)
+   - Related route gates: /smoke-officer = officer, admin_officer, admin, master
 
 ## AI, Intelligence, and Review Surfaces
 
@@ -111,9 +111,9 @@ Source of truth for routes: src/App.tsx and docs/uiux-master-redesign/artifacts/
 
 2. Access governance
    - Primary: /access-control
-   - Role gate: admin, admin_officer, master, grand_master (area=users)
+   - Role gate: admin, admin_officer, master, grand_master
    - Related: /users, /organizations, /site-permissions, /admin/service-provider-access
-   - Related route gates: /users = admin, admin_officer, master (area=users); /organizations = master, grand_master; /site-permissions = admin, master, grand_master; /admin/service-provider-access = admin, master
+   - Related route gates: /users = admin, admin_officer, master; /organizations = master, grand_master; /site-permissions = admin, master, grand_master; /admin/service-provider-access = admin, master
 
 3. Comms and PTT
    - Primary: /radio
@@ -137,4 +137,4 @@ Source of truth for routes: src/App.tsx and docs/uiux-master-redesign/artifacts/
 
 ## Maintenance Rule
 
-Update this roadmap when any route is added, removed, renamed, or re-gated in src/App.tsx.
+Update this roadmap when any route is added, removed, renamed, or re-gated in the App router file.

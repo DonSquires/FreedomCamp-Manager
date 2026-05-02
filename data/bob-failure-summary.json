@@ -1,12 +1,17 @@
 {
-  "generatedAt": "2026-05-02T01:46:43.473Z",
+  "generatedAt": "2026-05-02T23:33:41.107Z",
   "windowHours": 24,
-  "totalEntries": 0,
+  "totalEntries": 2,
   "lowScoreCount": 0,
   "topFailureReasons": [],
   "topHallucinationPatterns": [],
   "repeatedHallucinations": [],
-  "topFlaggedArtifacts": [],
+  "topFlaggedArtifacts": [
+    {
+      "name": "/workspaces/FreedomCamp-Manager/tmp/bob-self-test-timeout-fix-plan.md",
+      "count": 2
+    }
+  ],
   "recommendations": [
     "No repeated failure mode crossed the automatic threshold in this window."
   ]
