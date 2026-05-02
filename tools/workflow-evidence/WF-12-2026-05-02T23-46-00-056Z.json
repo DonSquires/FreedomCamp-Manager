@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-05-02T23:46:00.080Z",
+  "sourceMatrix": "docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json",
+  "workflow": {
+    "id": "WF-12",
+    "name": "Tender Workspace Intake to Analysis",
+    "criticality": "P1",
+    "owner": "Commercial operations",
+    "testType": "e2e",
+    "matrixStatus": "grounded"
+  },
+  "execution": {
+    "recordedStatus": "recorded",
+    "commandIndex": 0,
+    "command": "node scripts/run-test-with-bob-assist.mjs -- npx playwright test tests/e2e/tender-workspace.spec.ts",
+    "tests": [
+      "tests/e2e/tender-workspace.spec.ts"
+    ]
+  },
+  "artifacts": [
+    {
+      "path": "playwright-report/",
+      "exists": true,
+      "type": "directory",
+      "sample": [
+        "index.html"
+      ]
+    },
+    {
+      "path": "test-results/",
+      "exists": true,
+      "type": "directory",
+      "sample": [
+        ".last-run.json",
+        "results.json"
+      ]
+    }
+  ],
+  "git": {
+    "branch": "main",
+    "commit": "cef60b6d404b2ab5cafbb734e60fcf2a4f3b5614"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-05-02T23:46:00.077Z",
+  "sourceMatrix": "docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json",
+  "workflow": {
+    "id": "WF-07",
+    "name": "Multi-Org Data Isolation",
+    "criticality": "P0",
+    "owner": "Security and governance",
+    "testType": "e2e+api",
+    "matrixStatus": "grounded"
+  },
+  "execution": {
+    "recordedStatus": "recorded",
+    "commandIndex": 0,
+    "command": "node scripts/run-test-with-bob-assist.mjs -- npx playwright test tests/e2e/multi-org-rls.spec.ts tests/e2e/org-isolation-api.spec.ts",
+    "tests": [
+      "tests/e2e/multi-org-rls.spec.ts",
+      "tests/e2e/org-isolation-api.spec.ts",
+      "tests/e2e/client-portal-isolation.spec.ts"
+    ]
+  },
+  "artifacts": [
+    {
+      "path": "playwright-report/",
+      "exists": true,
+      "type": "directory",
+      "sample": [
+        "index.html"
+      ]
+    },
+    {
+      "path": "test-results/",
+      "exists": true,
+      "type": "directory",
+      "sample": [
+        ".last-run.json",
+        "results.json"
+      ]
+    }
+  ],
+  "git": {
+    "branch": "main",
+    "commit": "cef60b6d404b2ab5cafbb734e60fcf2a4f3b5614"
+  }
+}

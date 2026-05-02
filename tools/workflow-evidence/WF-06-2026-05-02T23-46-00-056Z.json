@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-05-02T23:46:00.076Z",
+  "sourceMatrix": "docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json",
+  "workflow": {
+    "id": "WF-06",
+    "name": "PTT Connect, Broadcast, and Log",
+    "criticality": "P0",
+    "owner": "Communications operations",
+    "testType": "e2e",
+    "matrixStatus": "grounded"
+  },
+  "execution": {
+    "recordedStatus": "recorded",
+    "commandIndex": 0,
+    "command": "node scripts/run-test-with-bob-assist.mjs -- npx playwright test tests/e2e/ptt-e2e.spec.ts tests/e2e/ptt-radio-smoke.spec.ts",
+    "tests": [
+      "tests/e2e/ptt-e2e.spec.ts",
+      "tests/e2e/ptt-radio-smoke.spec.ts",
+      "tests/e2e/ptt-websocket-connectivity.spec.ts"
+    ]
+  },
+  "artifacts": [
+    {
+      "path": "playwright-report/",
+      "exists": true,
+      "type": "directory",
+      "sample": [
+        "index.html"
+      ]
+    },
+    {
+      "path": "test-results/",
+      "exists": true,
+      "type": "directory",
+      "sample": [
+        ".last-run.json",
+        "results.json"
+      ]
+    }
+  ],
+  "git": {
+    "branch": "main",
+    "commit": "cef60b6d404b2ab5cafbb734e60fcf2a4f3b5614"
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-05-02T23:46:20.068Z",
+  "gate": "local-health-20260502-234559",
+  "git": {
+    "sha": null,
+    "ref": null,
+    "eventName": null,
+    "runId": null,
+    "runAttempt": null,
+    "actor": null
+  },
+  "strictControls": {
+    "docAuthority": false,
+    "routeRoadmap": false,
+    "roadmapGrounding": false
+  },
+  "requiredWorkflowIds": [
+    "WF-01",
+    "WF-02",
+    "WF-03",
+    "WF-04",
+    "WF-05",
+    "WF-06",
+    "WF-07",
+    "WF-08",
+    "WF-09",
+    "WF-10",
+    "WF-11"
+  ],
+  "artifacts": {
+    "workflowEvidenceDir": {
+      "path": "tools/workflow-evidence",
+      "exists": true,
+      "type": "directory",
+      "sizeBytes": 4096
+    },
+    "routeRoleMatrixDir": {
+      "path": "tools/route-role-matrix",
+      "exists": true,
+      "type": "directory",
+      "sizeBytes": 4096
+    }
+  },
+  "checks": {
+    "evidenceDirExists": true,
+    "matrixDirExists": true
+  }
+}

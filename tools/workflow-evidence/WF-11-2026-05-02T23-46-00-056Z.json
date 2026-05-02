@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-05-02T23:46:00.080Z",
+  "sourceMatrix": "docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json",
+  "workflow": {
+    "id": "WF-11",
+    "name": "API Contract and Service Health",
+    "criticality": "P0",
+    "owner": "Platform engineering",
+    "testType": "api+e2e",
+    "matrixStatus": "grounded"
+  },
+  "execution": {
+    "recordedStatus": "recorded",
+    "commandIndex": 0,
+    "command": "node scripts/run-test-with-bob-assist.mjs -- npx playwright test -c playwright.api.config.ts",
+    "tests": [
+      "tests/e2e/api-response.spec.ts",
+      "tests/e2e/production-readiness-audit.spec.ts"
+    ]
+  },
+  "artifacts": [
+    {
+      "path": "playwright-report/",
+      "exists": true,
+      "type": "directory",
+      "sample": [
+        "index.html"
+      ]
+    },
+    {
+      "path": "test-results/",
+      "exists": true,
+      "type": "directory",
+      "sample": [
+        ".last-run.json",
+        "results.json"
+      ]
+    }
+  ],
+  "git": {
+    "branch": "main",
+    "commit": "cef60b6d404b2ab5cafbb734e60fcf2a4f3b5614"
+  }
+}
