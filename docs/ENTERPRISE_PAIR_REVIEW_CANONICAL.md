@@ -265,6 +265,7 @@ This policy controls when DOC_AUTHORITY_STRICT_POLICY should be enabled in CI.
 19. Completed: Bun-capable runtime validation executed in-session (typecheck/lint/build) with documented ignoreDeprecations threshold constraint evidence.
 20. Completed: navigation parity test typing fixed and runtime preflight hardening committed and pushed to main.
 21. Completed: local governance evidence refresh executed for all P0 workflows (WF-01..WF-11), with validated evidence snapshots plus route-role matrix, module grounding report, and governance run summary artifacts.
+22. Completed: module-grounding parser hardened to correctly parse self-closing Route elements and resolve directory imports (including index files), then governance artifacts regenerated with module grounding at unresolved=0 and missing files=0.
 
 ## Execution Ledger
 

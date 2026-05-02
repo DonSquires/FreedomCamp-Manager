@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-05-02T23:29:26.489Z",
+  "sourceMatrix": "docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json",
+  "workflow": {
+    "id": "WF-02",
+    "name": "Vehicle Scan to Compliance Evaluation",
+    "criticality": "P0",
+    "owner": "Field officer operations",
+    "testType": "e2e",
+    "matrixStatus": "grounded"
+  },
+  "execution": {
+    "recordedStatus": "governance-gate",
+    "commandIndex": 0,
+    "command": "node scripts/run-test-with-bob-assist.mjs -- npx playwright test tests/e2e/scan-flow.spec.ts",
+    "tests": [
+      "tests/e2e/scan-flow.spec.ts",
+      "tests/e2e/compliance-recalculation.spec.ts"
+    ],
+    "notes": "post-grounding-fix:local-20260502-232926"
+  },
+  "artifacts": [
+    {
+      "path": "playwright-report/",
+      "exists": true,
+      "type": "directory",
+      "sample": [
+        "index.html"
+      ]
+    },
+    {
+      "path": "test-results/",
+      "exists": true,
+      "type": "directory",
+      "sample": [
+        ".last-run.json",
+        "results.json"
+      ]
+    }
+  ],
+  "git": {
+    "branch": "main",
+    "commit": "8e0358290ec20b1d4053e003a031d81ff3e90f5b"
+  }
+}

@@ -44,17 +44,7 @@ function parseArgs(argv) {
 }
 
 function collectRouteChunks(source) {
-  const chunks = []
-  let cursor = 0
-  while (cursor < source.length) {
-    const start = source.indexOf('<Route', cursor)
-    if (start === -1) break
-    const end = source.indexOf('/>', start)
-    if (end === -1) break
-    chunks.push(source.slice(start, end + 2))
-    cursor = end + 2
-  }
-  return chunks
+  return [...source.matchAll(/<Route\b[\s\S]*?\/>/g)].map((hit) => String(hit[0]))
 }
 
 function extractLazyImports(source) {
@@ -71,12 +61,41 @@ function normalizeImportPath(importPath) {
   const value = String(importPath || '').trim()
   if (!value) return ''
   if (value.startsWith('@/')) {
-    return `src/${value.slice(2)}.tsx`
+    return `src/${value.slice(2)}`
   }
   if (value.startsWith('./') || value.startsWith('../')) {
     return value
   }
   return ''
+}
+
+async function resolveImportFile(cwd, appPath, importPath) {
+  const normalized = normalizeImportPath(importPath)
+  if (!normalized) return ''
+
+  const basePath = normalized.startsWith('src/')
+    ? path.resolve(cwd, normalized)
+    : path.resolve(path.dirname(appPath), normalized)
+
+  const candidates = [
+    basePath,
+    `${basePath}.tsx`,
+    `${basePath}.ts`,
+    `${basePath}.jsx`,
+    `${basePath}.js`,
+    path.join(basePath, 'index.tsx'),
+    path.join(basePath, 'index.ts'),
+    path.join(basePath, 'index.jsx'),
+    path.join(basePath, 'index.js'),
+  ]
+
+  for (const candidate of candidates) {
+    if (await exists(candidate)) {
+      return path.relative(cwd, candidate).replace(/\\/g, '/')
+    }
+  }
+
+  return path.relative(cwd, candidates[0]).replace(/\\/g, '/')
 }
 
 async function exists(filePath) {
@@ -128,7 +147,7 @@ async function main() {
     if (!primary) continue
 
     const importPath = primary.componentName ? lazyImports.get(primary.componentName) || '' : ''
-    const resolved = normalizeImportPath(importPath)
+    const resolved = await resolveImportFile(cwd, appPath, importPath)
     const existsFlag = resolved ? await exists(path.resolve(cwd, resolved)) : false
 
     routes.push({

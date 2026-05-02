@@ -1,0 +1,1091 @@
+{
+  "generatedAt": "2026-05-02T23:29:26.382Z",
+  "source": "src/App.tsx",
+  "routeCount": 120,
+  "unresolvedRouteCount": 0,
+  "missingFileCount": 0,
+  "unresolvedRoutes": [],
+  "missingFiles": [],
+  "routes": [
+    {
+      "path": "/login",
+      "componentName": "Login",
+      "importPath": "@/pages/Login",
+      "resolvedPath": "src/pages/Login.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/dispute",
+      "componentName": "PublicDisputePortal",
+      "importPath": "@/pages/PublicDisputePortal",
+      "resolvedPath": "src/pages/PublicDisputePortal.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/portal-selection",
+      "componentName": "PortalSelection",
+      "importPath": "@/pages/PortalSelection",
+      "resolvedPath": "src/pages/PortalSelection.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/officer-home",
+      "componentName": "OfficerHomePage",
+      "importPath": "@/pages/OfficerHomePage",
+      "resolvedPath": "src/pages/OfficerHomePage.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/field-officer",
+      "componentName": "FieldOfficerPortal",
+      "importPath": "@/pages/FieldOfficerPortal",
+      "resolvedPath": "src/pages/FieldOfficerPortal.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/field",
+      "componentName": "Navigate",
+      "importPath": "",
+      "resolvedPath": "",
+      "isRedirect": true,
+      "importResolved": false,
+      "fileExists": true
+    },
+    {
+      "path": "/",
+      "componentName": "Navigate",
+      "importPath": "",
+      "resolvedPath": "",
+      "isRedirect": true,
+      "importResolved": false,
+      "fileExists": true
+    },
+    {
+      "path": "/admin",
+      "componentName": "AdminHub",
+      "importPath": "@/pages/AdminHub",
+      "resolvedPath": "src/pages/AdminHub.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/admin/dashboard",
+      "componentName": "AdminPortal",
+      "importPath": "@/pages/AdminPortal",
+      "resolvedPath": "src/pages/AdminPortal.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/vehicles",
+      "componentName": "VehicleManagement",
+      "importPath": "@/pages/VehicleManagement",
+      "resolvedPath": "src/pages/VehicleManagement.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/zones",
+      "componentName": "ZoneManagement",
+      "importPath": "@/pages/ZoneManagement",
+      "resolvedPath": "src/pages/ZoneManagement.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/compliance",
+      "componentName": "CompliancePage",
+      "importPath": "@/pages/CompliancePage",
+      "resolvedPath": "src/pages/CompliancePage.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/breaches",
+      "componentName": "BreachAlerts",
+      "importPath": "@/pages/BreachAlerts",
+      "resolvedPath": "src/pages/BreachAlerts.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/data",
+      "componentName": "DataManagement",
+      "importPath": "@/pages/DataManagement",
+      "resolvedPath": "src/pages/DataManagement.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/users",
+      "componentName": "UserManagement",
+      "importPath": "@/pages/UserManagement",
+      "resolvedPath": "src/pages/UserManagement.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/access-control",
+      "componentName": "AccessControlPage",
+      "importPath": "@/pages/AccessControlPage",
+      "resolvedPath": "src/pages/AccessControlPage.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/organizations",
+      "componentName": "OrganizationManagement",
+      "importPath": "@/pages/OrganizationManagement",
+      "resolvedPath": "src/pages/OrganizationManagement.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/platform",
+      "componentName": "Platform",
+      "importPath": "@/pages/Platform",
+      "resolvedPath": "src/pages/Platform.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/grandmaster-code-studio",
+      "componentName": "GrandmasterCodingStudio",
+      "importPath": "@/pages/GrandmasterCodingStudio",
+      "resolvedPath": "src/pages/GrandmasterCodingStudio.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/compliance-escalations",
+      "componentName": "ComplianceEscalations",
+      "importPath": "@/pages/ComplianceEscalations",
+      "resolvedPath": "src/pages/ComplianceEscalations.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/client-portal",
+      "componentName": "ClientOrganisationPortal",
+      "importPath": "@/pages/ClientOrganisationPortal",
+      "resolvedPath": "src/pages/ClientOrganisationPortal.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/incidents",
+      "componentName": "IncidentManagement",
+      "importPath": "@/pages/IncidentManagement",
+      "resolvedPath": "src/pages/IncidentManagement.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/reports",
+      "componentName": "Reports",
+      "importPath": "@/pages/Reports",
+      "resolvedPath": "src/pages/Reports.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/diagnostics",
+      "componentName": "SystemDiagnostics",
+      "importPath": "@/pages/SystemDiagnostics",
+      "resolvedPath": "src/pages/SystemDiagnostics.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/test-dashboard",
+      "componentName": "TestDashboard",
+      "importPath": "@/pages/TestDashboard",
+      "resolvedPath": "src/pages/TestDashboard.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/compliance-recalculation",
+      "componentName": "ComplianceRecalculation",
+      "importPath": "@/pages/ComplianceRecalculation",
+      "resolvedPath": "src/pages/ComplianceRecalculation.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/photo-reingest",
+      "componentName": "PhotoReingest",
+      "importPath": "@/pages/PhotoReingest",
+      "resolvedPath": "src/pages/PhotoReingest.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/evidence-photo-linker",
+      "componentName": "EvidencePhotoLinker",
+      "importPath": "@/pages/EvidencePhotoLinker",
+      "resolvedPath": "src/pages/EvidencePhotoLinker.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/live-tracking",
+      "componentName": "LiveOfficerTracking",
+      "importPath": "@/pages/LiveOfficerTracking",
+      "resolvedPath": "src/pages/LiveOfficerTracking.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/organization-profile",
+      "componentName": "OrganizationProfile",
+      "importPath": "@/pages/OrganizationProfile",
+      "resolvedPath": "src/pages/OrganizationProfile.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/audit-log",
+      "componentName": "AuditLog",
+      "importPath": "@/pages/AuditLog",
+      "resolvedPath": "src/pages/AuditLog.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/enforcement-actions",
+      "componentName": "EnforcementActions",
+      "importPath": "@/pages/EnforcementActions",
+      "resolvedPath": "src/pages/EnforcementActions.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/enforcement-command-center",
+      "componentName": "EnforcementCommandCenter",
+      "importPath": "@/pages/EnforcementCommandCenter",
+      "resolvedPath": "src/pages/EnforcementCommandCenter.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/infringements",
+      "componentName": "InfringementNotices",
+      "importPath": "@/pages/InfringementNotices",
+      "resolvedPath": "src/pages/InfringementNotices.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/privacy-curtain",
+      "componentName": "PrivacyCurtain",
+      "importPath": "@/pages/PrivacyCurtain",
+      "resolvedPath": "src/pages/PrivacyCurtain.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/patrol-checkpoints",
+      "componentName": "PatrolCheckpointManagement",
+      "importPath": "@/pages/PatrolCheckpointManagement",
+      "resolvedPath": "src/pages/PatrolCheckpointManagement.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/patrol-schedule",
+      "componentName": "PatrolScheduleManagement",
+      "importPath": "@/pages/PatrolScheduleManagement",
+      "resolvedPath": "src/pages/PatrolScheduleManagement.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/patrol-kpis",
+      "componentName": "PatrolKPIDashboard",
+      "importPath": "@/pages/PatrolKPIDashboard",
+      "resolvedPath": "src/pages/PatrolKPIDashboard.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/admin/data-hub",
+      "componentName": "DataManagementHub",
+      "importPath": "@/pages/DataManagementHub",
+      "resolvedPath": "src/pages/DataManagementHub.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/admin/data-cleanup",
+      "componentName": "DataCleanupUtility",
+      "importPath": "@/pages/DataCleanupUtility",
+      "resolvedPath": "src/pages/DataCleanupUtility.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/admin/cleanup-recalculate",
+      "componentName": "CleanupAndRecalculate",
+      "importPath": "@/pages/CleanupAndRecalculate",
+      "resolvedPath": "src/pages/CleanupAndRecalculate.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/admin/data-integrity",
+      "componentName": "DataIntegrityDashboard",
+      "importPath": "@/pages/DataIntegrityDashboard",
+      "resolvedPath": "src/pages/DataIntegrityDashboard.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/live-patrol",
+      "componentName": "LivePatrolMonitor",
+      "importPath": "@/pages/LivePatrolMonitor",
+      "resolvedPath": "src/pages/LivePatrolMonitor.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/reports-hub",
+      "componentName": "Navigate",
+      "importPath": "",
+      "resolvedPath": "",
+      "isRedirect": true,
+      "importResolved": false,
+      "fileExists": true
+    },
+    {
+      "path": "/custom-reports",
+      "componentName": "CustomReportBuilder",
+      "importPath": "@/pages/CustomReportBuilder",
+      "resolvedPath": "src/pages/CustomReportBuilder.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/ai-analysis",
+      "componentName": "AiAnalysis",
+      "importPath": "@/pages/AiAnalysis",
+      "resolvedPath": "src/pages/AiAnalysis.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/hotspots",
+      "componentName": "HotspotsMap",
+      "importPath": "@/pages/HotspotsMap",
+      "resolvedPath": "src/pages/HotspotsMap.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/spatial-compliance",
+      "componentName": "SpatialComplianceAdmin",
+      "importPath": "@/pages/SpatialComplianceAdmin",
+      "resolvedPath": "src/pages/SpatialComplianceAdmin.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/compliance-analytics",
+      "componentName": "ComplianceAnalytics",
+      "importPath": "@/pages/ComplianceAnalytics",
+      "resolvedPath": "src/pages/ComplianceAnalytics.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/incident-reports",
+      "componentName": "IncidentReports",
+      "importPath": "@/pages/IncidentReports",
+      "resolvedPath": "src/pages/IncidentReports.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/observations",
+      "componentName": "ObservationsView",
+      "importPath": "@/pages/ObservationsView",
+      "resolvedPath": "src/pages/ObservationsView.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/observation-records",
+      "componentName": "Navigate",
+      "importPath": "",
+      "resolvedPath": "",
+      "isRedirect": true,
+      "importResolved": false,
+      "fileExists": true
+    },
+    {
+      "path": "/search",
+      "componentName": "UniversalSearch",
+      "importPath": "@/pages/UniversalSearch",
+      "resolvedPath": "src/pages/UniversalSearch.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/team-chat",
+      "componentName": "TeamChat",
+      "importPath": "@/pages/TeamChat",
+      "resolvedPath": "src/pages/TeamChat.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/radio",
+      "componentName": "PTTRadio",
+      "importPath": "@/pages/PTTRadio",
+      "resolvedPath": "src/pages/PTTRadio.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/radio/log",
+      "componentName": "PTTTransmissionLog",
+      "importPath": "@/pages/PTTTransmissionLog",
+      "resolvedPath": "src/pages/PTTTransmissionLog.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/messages",
+      "componentName": "MessagingPage",
+      "importPath": "@/modules/messaging",
+      "resolvedPath": "src/modules/messaging",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/intel-approvals",
+      "componentName": "IntelApprovalQueue",
+      "importPath": "@/pages/IntelApprovalQueue",
+      "resolvedPath": "src/pages/IntelApprovalQueue.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/bob-intake-queue",
+      "componentName": "BobIntakeQueue",
+      "importPath": "@/pages/BobIntakeQueue",
+      "resolvedPath": "src/pages/BobIntakeQueue.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/bob-assistant",
+      "componentName": "BobAssistantStudio",
+      "importPath": "@/pages/BobAssistantStudio",
+      "resolvedPath": "src/pages/BobAssistantStudio.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/bob-ui-review",
+      "componentName": "BobUIReview",
+      "importPath": "@/pages/BobUIReview",
+      "resolvedPath": "src/pages/BobUIReview.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/live-plan-reviews",
+      "componentName": "OpsLivePlanReviewQueue",
+      "importPath": "@/pages/OpsLivePlanReviewQueue",
+      "resolvedPath": "src/pages/OpsLivePlanReviewQueue.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/notice-to-vacate",
+      "componentName": "NoticeToVacate",
+      "importPath": "@/pages/NoticeToVacate",
+      "resolvedPath": "src/pages/NoticeToVacate.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/disputes",
+      "componentName": "Disputes",
+      "importPath": "@/pages/Disputes",
+      "resolvedPath": "src/pages/Disputes.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/admin/discrepancies",
+      "componentName": "VehicleDiscrepancies",
+      "importPath": "@/pages/VehicleDiscrepancies",
+      "resolvedPath": "src/pages/VehicleDiscrepancies.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/admin/nzscv",
+      "componentName": "NZSCVMonitor",
+      "importPath": "@/pages/NZSCVMonitor",
+      "resolvedPath": "src/pages/NZSCVMonitor.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/officer-welfare",
+      "componentName": "OfficerWelfareSettings",
+      "importPath": "@/pages/OfficerWelfareSettings",
+      "resolvedPath": "src/pages/OfficerWelfareSettings.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/enforcement-review",
+      "componentName": "EnforcementReview",
+      "importPath": "@/pages/EnforcementReview",
+      "resolvedPath": "src/pages/EnforcementReview.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/investigations",
+      "componentName": "InvestigationJobsPage",
+      "importPath": "@/pages/InvestigationJobsPage",
+      "resolvedPath": "src/pages/InvestigationJobsPage.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/parking",
+      "componentName": "ParkingEnforcementPortal",
+      "importPath": "@/pages/ParkingEnforcementPortal",
+      "resolvedPath": "src/pages/ParkingEnforcementPortal.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/parking-officer",
+      "componentName": "ParkingOfficerPortal",
+      "importPath": "@/pages/ParkingOfficerPortal",
+      "resolvedPath": "src/pages/ParkingOfficerPortal.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/noise-control",
+      "componentName": "NoiseControlPortal",
+      "importPath": "@/pages/NoiseControlPortal",
+      "resolvedPath": "src/pages/NoiseControlPortal.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/noise-officer",
+      "componentName": "NoiseOfficerPortal",
+      "importPath": "@/pages/NoiseOfficerPortal",
+      "resolvedPath": "src/pages/NoiseOfficerPortal.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/biosecurity-control",
+      "componentName": "BiosecurityControlPage",
+      "importPath": "@/pages/BiosecurityControlPage",
+      "resolvedPath": "src/pages/BiosecurityControlPage.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/biosecurity-officer",
+      "componentName": "BiosecurityOfficerPortal",
+      "importPath": "@/pages/BiosecurityOfficerPortal",
+      "resolvedPath": "src/pages/BiosecurityOfficerPortal.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/smoke-control",
+      "componentName": "SmokeComplaintControlPage",
+      "importPath": "@/pages/SmokeComplaintControlPage",
+      "resolvedPath": "src/pages/SmokeComplaintControlPage.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/smoke-officer",
+      "componentName": "SmokeComplaintOfficerPortal",
+      "importPath": "@/pages/SmokeComplaintOfficerPortal",
+      "resolvedPath": "src/pages/SmokeComplaintOfficerPortal.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/vehicles/:id",
+      "componentName": "VehicleDetailPage",
+      "importPath": "@/pages/VehicleDetailPage",
+      "resolvedPath": "src/pages/VehicleDetailPage.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/person-records",
+      "componentName": "PersonRecords",
+      "importPath": "@/pages/PersonRecords",
+      "resolvedPath": "src/pages/PersonRecords.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/points-of-interest",
+      "componentName": "PointsOfInterest",
+      "importPath": "@/pages/PointsOfInterest",
+      "resolvedPath": "src/pages/PointsOfInterest.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/site-risk-assessment",
+      "componentName": "SiteRiskAssessment",
+      "importPath": "@/pages/SiteRiskAssessment",
+      "resolvedPath": "src/pages/SiteRiskAssessment.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/face-recognition",
+      "componentName": "FaceRecognitionPage",
+      "importPath": "@/pages/FaceRecognitionPage",
+      "resolvedPath": "src/pages/FaceRecognitionPage.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/identity-verification",
+      "componentName": "IdentityVerificationPage",
+      "importPath": "@/pages/IdentityVerificationPage",
+      "resolvedPath": "src/pages/IdentityVerificationPage.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/import-data",
+      "componentName": "ImportData",
+      "importPath": "@/pages/ImportData",
+      "resolvedPath": "src/pages/ImportData.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/import-historical",
+      "componentName": "ImportHistoricalData",
+      "importPath": "@/pages/ImportHistoricalData",
+      "resolvedPath": "src/pages/ImportHistoricalData.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/breach-notices",
+      "componentName": "BreachNotices",
+      "importPath": "@/pages/BreachNotices",
+      "resolvedPath": "src/pages/BreachNotices.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/observations-report",
+      "componentName": "ObservationsReport",
+      "importPath": "@/pages/ObservationsReport",
+      "resolvedPath": "src/pages/ObservationsReport.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/settings",
+      "componentName": "Settings",
+      "importPath": "@/pages/Settings",
+      "resolvedPath": "src/pages/Settings.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/admin/service-provider-access",
+      "componentName": "ServiceProviderAccessSettings",
+      "importPath": "@/pages/admin/ServiceProviderAccessSettings",
+      "resolvedPath": "src/pages/admin/ServiceProviderAccessSettings.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/profile",
+      "componentName": "Profile",
+      "importPath": "@/pages/Profile",
+      "resolvedPath": "src/pages/Profile.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/vehicle-registry",
+      "componentName": "VehicleRegistry",
+      "importPath": "@/pages/VehicleRegistry",
+      "resolvedPath": "src/pages/VehicleRegistry.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/admin/canonical-records",
+      "componentName": "CanonicalRecordsManager",
+      "importPath": "@/pages/CanonicalRecordsManager",
+      "resolvedPath": "src/pages/CanonicalRecordsManager.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/notifications",
+      "componentName": "NotificationsCenter",
+      "importPath": "@/pages/NotificationsCenter",
+      "resolvedPath": "src/pages/NotificationsCenter.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/compliance-dashboard",
+      "componentName": "Navigate",
+      "importPath": "",
+      "resolvedPath": "",
+      "isRedirect": true,
+      "importResolved": false,
+      "fileExists": true
+    },
+    {
+      "path": "/clean-dashboard",
+      "componentName": "CleanDashboard",
+      "importPath": "@/pages/CleanDashboard",
+      "resolvedPath": "src/pages/CleanDashboard.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/asset-management",
+      "componentName": "AssetManagement",
+      "importPath": "@/pages/AssetManagement",
+      "resolvedPath": "src/pages/AssetManagement.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/invoicing",
+      "componentName": "InvoicingPage",
+      "importPath": "@/pages/InvoicingPage",
+      "resolvedPath": "src/pages/InvoicingPage.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/pricing",
+      "componentName": "PricingPage",
+      "importPath": "@/pages/PricingPage",
+      "resolvedPath": "src/pages/PricingPage.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/timesheets",
+      "componentName": "TimesheetReview",
+      "importPath": "@/pages/TimesheetReview",
+      "resolvedPath": "src/pages/TimesheetReview.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/open-shifts",
+      "componentName": "OpenShifts",
+      "importPath": "@/pages/OpenShifts",
+      "resolvedPath": "src/pages/OpenShifts.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/dispatch",
+      "componentName": "DispatchConsole",
+      "importPath": "@/pages/DispatchConsole",
+      "resolvedPath": "src/pages/DispatchConsole.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/dispatch-monitor",
+      "componentName": "DispatchMonitor",
+      "importPath": "@/pages/DispatchMonitor",
+      "resolvedPath": "src/pages/DispatchMonitor.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/dispatch-wizard",
+      "componentName": "DispatchWizard",
+      "importPath": "@/pages/DispatchWizard",
+      "resolvedPath": "src/pages/DispatchWizard.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/dispatched-jobs",
+      "componentName": "DispatchedJobsList",
+      "importPath": "@/pages/DispatchedJobsList",
+      "resolvedPath": "src/pages/DispatchedJobsList.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/job-map",
+      "componentName": "JobMap",
+      "importPath": "@/pages/JobMap",
+      "resolvedPath": "src/pages/JobMap.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/operations-map",
+      "componentName": "OperationsMap",
+      "importPath": "@/pages/OperationsMap",
+      "resolvedPath": "src/pages/OperationsMap.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/client-sites",
+      "componentName": "ClientSites",
+      "importPath": "@/pages/ClientSites",
+      "resolvedPath": "src/pages/ClientSites.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/site-permissions",
+      "componentName": "SitePermissionsAdmin",
+      "importPath": "@/pages/SitePermissionsAdmin",
+      "resolvedPath": "src/pages/SitePermissionsAdmin.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/client-master-list",
+      "componentName": "ClientMasterList",
+      "importPath": "@/pages/ClientMasterList",
+      "resolvedPath": "src/pages/ClientMasterList.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/roster",
+      "componentName": "RosterPlanner",
+      "importPath": "@/pages/RosterPlanner",
+      "resolvedPath": "src/pages/RosterPlanner.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/officer-skills",
+      "componentName": "OfficerSkills",
+      "importPath": "@/pages/OfficerSkills",
+      "resolvedPath": "src/pages/OfficerSkills.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/availability",
+      "componentName": "OfficerAvailability",
+      "importPath": "@/pages/OfficerAvailability",
+      "resolvedPath": "src/pages/OfficerAvailability.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/crm",
+      "componentName": "CRMModule",
+      "importPath": "@/pages/CRMModule",
+      "resolvedPath": "src/pages/CRMModule.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/crm/contractor/:orgId",
+      "componentName": "ContractorAccountPage",
+      "importPath": "@/pages/ContractorAccountPage",
+      "resolvedPath": "src/pages/ContractorAccountPage.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/crm/client/:orgId",
+      "componentName": "ClientAccountPage",
+      "importPath": "@/pages/ClientAccountPage",
+      "resolvedPath": "src/pages/ClientAccountPage.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/tender-workspace",
+      "componentName": "TenderWorkspace",
+      "importPath": "@/pages/TenderWorkspace",
+      "resolvedPath": "src/pages/TenderWorkspace.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/tender-workspace/:id",
+      "componentName": "TenderWorkspaceDetail",
+      "importPath": "@/pages/TenderWorkspaceDetail",
+      "resolvedPath": "src/pages/TenderWorkspaceDetail.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/tender-reference-library",
+      "componentName": "TenderReferenceLibrary",
+      "importPath": "@/pages/TenderReferenceLibrary",
+      "resolvedPath": "src/pages/TenderReferenceLibrary.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/ems",
+      "componentName": "EMSPortal",
+      "importPath": "@/pages/EMSPortal",
+      "resolvedPath": "src/pages/EMSPortal.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/site-guard",
+      "componentName": "SiteGuardPortal",
+      "importPath": "@/pages/SiteGuardPortal",
+      "resolvedPath": "src/pages/SiteGuardPortal.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    }
+  ]
+}

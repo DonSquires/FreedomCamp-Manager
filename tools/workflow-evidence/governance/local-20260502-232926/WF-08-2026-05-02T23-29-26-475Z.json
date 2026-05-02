@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-05-02T23:29:26.495Z",
+  "sourceMatrix": "docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json",
+  "workflow": {
+    "id": "WF-08",
+    "name": "Role Matrix Access Control",
+    "criticality": "P0",
+    "owner": "Identity and access",
+    "testType": "e2e",
+    "matrixStatus": "grounded"
+  },
+  "execution": {
+    "recordedStatus": "governance-gate",
+    "commandIndex": 0,
+    "command": "node scripts/run-test-with-bob-assist.mjs -- npx playwright test tests/e2e/role-matrix-smoke.spec.ts tests/e2e/module-route-access.spec.ts",
+    "tests": [
+      "tests/e2e/role-matrix-smoke.spec.ts",
+      "tests/e2e/module-route-access.spec.ts",
+      "tests/e2e/governance-bob-regression.spec.ts"
+    ],
+    "notes": "post-grounding-fix:local-20260502-232926"
+  },
+  "artifacts": [
+    {
+      "path": "playwright-report/",
+      "exists": true,
+      "type": "directory",
+      "sample": [
+        "index.html"
+      ]
+    },
+    {
+      "path": "test-results/",
+      "exists": true,
+      "type": "directory",
+      "sample": [
+        ".last-run.json",
+        "results.json"
+      ]
+    }
+  ],
+  "git": {
+    "branch": "main",
+    "commit": "8e0358290ec20b1d4053e003a031d81ff3e90f5b"
+  }
+}
