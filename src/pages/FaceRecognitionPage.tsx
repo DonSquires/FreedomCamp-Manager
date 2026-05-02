@@ -171,7 +171,7 @@ export default function FaceRecognitionPage() {
               Face Recognition
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              AI-powered face detection with automatic POI / trespass matching
+              Bob-powered face detection with automatic POI / trespass matching
             </p>
           </div>
           <Button onClick={() => setCameraOpen(true)} className="gap-2">
@@ -202,7 +202,7 @@ export default function FaceRecognitionPage() {
             <div className="text-sm">
               <p className="font-medium text-blue-800 dark:text-blue-200">How POI Matching Works</p>
               <p className="text-blue-700 dark:text-blue-300 mt-1">
-                1. Take a photo of a person → AI detects the face and generates an embedding.<br/>
+                1. Take a photo of a person → Bob detects the face and generates an embedding.<br/>
                 2. The embedding is automatically compared against all linked POI face records.<br/>
                 3. If a match is found, the person&apos;s details (including trespass status) are shown immediately.<br/>
                 4. You can link new captures to existing person records to build the recognition database.

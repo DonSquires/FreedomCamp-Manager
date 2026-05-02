@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
-import { CheckCircle2, RadioTower, ShieldCheck, Route, Sparkles } from 'lucide-react'
+import { CheckCircle2, RadioTower, ShieldCheck, Route } from 'lucide-react'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -168,12 +168,7 @@ export default function Login() {
               })}
             </div>
 
-            <div className="mt-7 rounded-2xl border border-slate-200/70 bg-gradient-to-r from-amber-50 to-sky-50 px-4 py-3 flex items-start gap-3">
-              <Sparkles className="h-4.5 w-4.5 text-amber-600 mt-0.5" />
-              <p className="text-xs sm:text-sm text-slate-700">
-                Trusted by Iron Eagle Security and OnSpace AI for operationally critical workflows.
-              </p>
-            </div>
+
           </section>
 
           <section className="rounded-3xl border border-slate-200/70 bg-white/88 backdrop-blur-xl p-6 sm:p-8 shadow-[0_20px_60px_rgba(15,23,42,0.14)]">

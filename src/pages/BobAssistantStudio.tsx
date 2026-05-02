@@ -3610,7 +3610,7 @@ export default function BobAssistantStudio() {
                   { suite: 'smoke', label: 'Smoke Tests', desc: 'Auth, DB, edge functions, NZSCV, welfare' },
                   { suite: 'data', label: 'Data Check', desc: 'Compliance state, monthly stays, duplicates' },
                   { suite: 'performance', label: 'Benchmark', desc: 'Query timing across key tables' },
-                  { suite: 'bugfix', label: 'Bug Audit', desc: 'AI analysis status, anomalies in recent reports' },
+                  { suite: 'bugfix', label: 'Bug Audit', desc: 'Bob analysis status, anomalies in recent reports' },
                 ] as const).map(({ suite, label, desc }) => (
                   <button
                     key={suite}

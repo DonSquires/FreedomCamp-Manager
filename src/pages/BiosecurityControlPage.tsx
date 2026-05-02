@@ -349,7 +349,7 @@ export default function BiosecurityControlPage() {
                           <th className="px-3 py-2 text-left font-medium text-gray-600">Density</th>
                           <th className="px-3 py-2 text-left font-medium text-gray-600">Stage</th>
                           <th className="px-3 py-2 text-left font-medium text-gray-600">Recommended Action</th>
-                          <th className="px-3 py-2 text-left font-medium text-gray-600">AI Confidence</th>
+                          <th className="px-3 py-2 text-left font-medium text-gray-600">Bob Confidence</th>
                           <th className="px-3 py-2 text-left font-medium text-gray-600">Submitted</th>
                         </tr>
                       </thead>

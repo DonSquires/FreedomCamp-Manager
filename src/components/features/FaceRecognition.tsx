@@ -150,7 +150,7 @@ export function FaceRecognition({
         if (!cancelled) {
           if (timeoutId) clearTimeout(timeoutId)
           const errorMessage = err?.message === 'Health check timed out'
-            ? 'Service health check timed out. The AI service may be unavailable.'
+            ? 'Service health check timed out. Bob may be unavailable.'
             : 'Failed to check service health'
           setServiceStatus({ status: 'offline', error: errorMessage })
         }
@@ -342,7 +342,7 @@ export function FaceRecognition({
       if (errorMessage.includes('Inference service not configured') || 
           errorMessage.includes('503')) {
         toast.error(
-          'Face recognition service is not available. The AI inference service needs to be configured. Contact your administrator.',
+          'Face recognition service is not available. The Bob inference service needs to be configured. Contact your administrator.',
           { duration: 8000 }
         )
       } else if (errorMessage.includes('401') || errorMessage.includes('Unauthorized') || 
@@ -397,7 +397,7 @@ export function FaceRecognition({
         <div className="bg-amber-500 text-black px-3 py-2 text-sm flex items-center gap-2">
           <WifiOff className="h-4 w-4 flex-shrink-0" />
           <span>
-            <strong>AI Service Unavailable</strong> — Face detection requires the inference service 
+            <strong>Bob Service Unavailable</strong> — Face detection requires the inference service 
             to be configured. Contact your administrator.
           </span>
         </div>
@@ -556,14 +556,14 @@ export function FaceRecognition({
             {checkingService ? (
               <>
                 <Loader2 className="h-10 w-10 animate-spin" />
-                <span className="text-sm text-center">Checking AI service availability…</span>
+                <span className="text-sm text-center">Checking Bob service availability…</span>
               </>
             ) : serviceStatus?.status === 'offline' ? (
               <>
                 <WifiOff className="h-10 w-10 text-amber-500" />
                 <span className="text-sm text-center text-amber-600 dark:text-amber-400">
                   <strong>Service Not Available</strong><br />
-                  The AI inference service is not configured.<br />
+                  The Bob inference service is not configured.<br />
                   Contact your administrator to set up Railway services.
                 </span>
               </>
@@ -572,7 +572,7 @@ export function FaceRecognition({
                 <ScanFace className="h-10 w-10" />
                 <span className="text-sm text-center">
                   Capture a photo to detect faces.<br />
-                  AI will identify faces and generate descriptions.
+                  Bob will identify faces and generate descriptions.
                 </span>
               </>
             )}

@@ -459,9 +459,9 @@ export default function SmokeComplaintOfficerPortal() {
           wind_direction: w.wind_direction || prev.wind_direction,
         } : prev)
       }
-      toast.success('Bob AI analysis complete')
+      toast.success('Bob analysis complete')
     } catch (e: any) {
-      toast.error(`AI analysis failed: ${e.message}`)
+      toast.error(`Bob analysis failed: ${e.message}`)
     } finally {
       setAiLoading(false)
     }
@@ -574,13 +574,13 @@ export default function SmokeComplaintOfficerPortal() {
 
     if (step === 3) return (
       <div className="space-y-4">
-        <p className="text-sm text-muted-foreground">Bob AI will analyse the scene photo and complaint context.</p>
+        <p className="text-sm text-muted-foreground">Bob will analyse the scene photo and complaint context.</p>
         <Button
           className="bg-amber-600 hover:bg-amber-700 text-white w-full"
           onClick={runAiAnalysis}
           disabled={aiLoading}
         >
-          {aiLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Analysing…</> : 'Run Bob AI Analysis'}
+          {aiLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Analysing…</> : 'Run Bob Analysis'}
         </Button>
         {aiResult && (
           <div className="space-y-3">
@@ -625,7 +625,7 @@ export default function SmokeComplaintOfficerPortal() {
 
     if (step === 4) return (
       <div className="space-y-4">
-        <p className="text-sm text-muted-foreground">Complete the assessment checklist (pre-filled by Bob AI where available).</p>
+        <p className="text-sm text-muted-foreground">Complete the assessment checklist (pre-filled by Bob where available).</p>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
             <Label>Smoke Opacity</Label>
@@ -1070,7 +1070,7 @@ export default function SmokeComplaintOfficerPortal() {
 
             {/* Step labels */}
             <p className="text-xs text-muted-foreground mb-4">
-              {['Location', 'Media', 'Bob AI', 'Checklist', 'Action', 'Notice'][step - 1]}
+              {['Location', 'Media', 'Bob', 'Checklist', 'Action', 'Notice'][step - 1]}
             </p>
 
             {renderStep()}

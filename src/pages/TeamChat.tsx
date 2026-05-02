@@ -955,7 +955,7 @@ export default function TeamChat() {
             </div>
 
             <div className="rounded-md border bg-muted/40 p-3">
-              <div className="text-xs font-medium text-muted-foreground mb-2">AI document helper</div>
+              <div className="text-xs font-medium text-muted-foreground mb-2">Bob document helper</div>
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"

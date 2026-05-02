@@ -343,7 +343,7 @@ export default function BiosecurityOfficerPortal() {
       })
       set({ step: 4 })
     } catch (err: any) {
-      set({ ai_running: false, ai_error: err.message ?? 'AI analysis failed' })
+      set({ ai_running: false, ai_error: err.message ?? 'Bob analysis failed' })
     }
   }
 
@@ -444,7 +444,7 @@ export default function BiosecurityOfficerPortal() {
     }
   }
 
-  const STEPS = ['Location', 'Photo', 'AI Analysis', 'Checklist', 'Action', 'Notice']
+  const STEPS = ['Location', 'Photo', 'Bob Analysis', 'Checklist', 'Action', 'Notice']
   const needsNotice = state.recommended_action === 'nod' || state.recommended_action === 'infringement'
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -480,7 +480,7 @@ export default function BiosecurityOfficerPortal() {
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 flex gap-2 text-sm text-amber-800">
           <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />
           <span>
-            <strong>AI identification is a screening aid only.</strong> You must confirm the species
+            <strong>Bob identification is a screening aid only.</strong> You must confirm the species
             identification before issuing any notice.
           </span>
         </div>
@@ -695,7 +695,7 @@ export default function BiosecurityOfficerPortal() {
             <div className="space-y-4">
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 flex gap-2">
                 <Info className="h-4 w-4 shrink-0 mt-0.5" />
-                <span>Bob AI will analyse your photo and attempt to identify if Chilean Needlegrass
+                <span>Bob will analyse your photo and attempt to identify if Chilean Needlegrass
                   (<em>Nassella neesiana</em>) is present, and prefill the inspection checklist.</span>
               </div>
               {state.photo_preview && (
@@ -708,7 +708,7 @@ export default function BiosecurityOfficerPortal() {
               )}
               {state.ai_result && !state.ai_running && (
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 space-y-1 text-sm">
-                  <p className="font-semibold text-emerald-800">AI Result</p>
+                  <p className="font-semibold text-emerald-800">Bob Result</p>
                   <p><strong>Species:</strong> {state.ai_result.identification?.species ?? '—'}</p>
                   <p><strong>Confidence:</strong> {state.ai_result.identification?.confidence != null
                     ? `${Math.round(state.ai_result.identification.confidence * 100)}%` : '—'}</p>
@@ -720,10 +720,10 @@ export default function BiosecurityOfficerPortal() {
                 onClick={runAiAnalysis}>
                 {state.ai_running
                   ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Analysing…</>
-                  : <><Bug className="h-4 w-4 mr-2" /> Analyse with Bob AI</>}
+                  : <><Bug className="h-4 w-4 mr-2" /> Analyse with Bob</>}
               </Button>
               {state.ai_result && (
-                <p className="text-xs text-gray-400 text-center">AI complete — advance to confirm checklist</p>
+                <p className="text-xs text-gray-400 text-center">Bob analysis complete — advance to confirm checklist</p>
               )}
             </div>
           )}
@@ -899,7 +899,7 @@ export default function BiosecurityOfficerPortal() {
                 disabled={!canAdvance()}
                 onClick={() => {
                   if (state.step === 3 && !state.ai_result) {
-                    toast.error('Please run the AI analysis first (or skip to manually fill checklist)')
+                    toast.error('Please run the Bob analysis first (or skip to manually fill checklist)')
                     set({ step: state.step + 1 })
                     return
                   }

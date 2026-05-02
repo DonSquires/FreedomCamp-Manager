@@ -431,7 +431,7 @@ export default function SmokeComplaintControlPage() {
                         <TableHead>Smoke Opacity</TableHead>
                         <TableHead>Prohibited Materials</TableHead>
                         <TableHead>Recommended Action</TableHead>
-                        <TableHead>AI Confidence</TableHead>
+                        <TableHead>Bob Confidence</TableHead>
                         <TableHead>Time</TableHead>
                       </TableRow>
                     </TableHeader>

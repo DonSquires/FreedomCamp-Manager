@@ -584,7 +584,7 @@ export default function NoiseOfficerPortal() {
         noise_source: result?.noise_source || prev.noise_source,
         action_notes: [
           prev.action_notes,
-          result?.rationale ? `AI audio assessment: ${result.rationale}` : '',
+          result?.rationale ? `Bob audio assessment: ${result.rationale}` : '',
         ].filter(Boolean).join('\n').trim(),
       }))
       toast.success('Audio assessment applied to matrix and recommendation')

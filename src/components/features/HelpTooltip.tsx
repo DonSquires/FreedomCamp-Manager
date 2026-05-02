@@ -162,7 +162,7 @@ export const HELP_TOPICS = {
     content: (
       <div className="space-y-3">
         <p>
-          The Plate Scanner uses AI-powered Automatic Licence Plate Recognition (ALPR) 
+          The Plate Scanner uses Bob-powered Automatic Licence Plate Recognition (ALPR) 
           to quickly identify vehicles.
         </p>
         <div className="space-y-2">
