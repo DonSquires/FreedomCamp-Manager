@@ -165,5 +165,5 @@ jobs:
           BOB_SELF_TEST_REQUIRE_REPO_TOKEN: 'true'
           BOB_SELF_TEST_AUTH_MODE:   'repo-token'
           BOB_SELF_TEST_EMBED_REPO_TOKEN_IN_URL: 'false'
-          BOB_SELF_TEST_TIMEOUT_MS:  '900000'
+          BOB_SELF_TEST_TIMEOUT_MS:  '540000'
           BOB_SELF_TEST_POLL_MS:     '8000'

@@ -109,6 +109,8 @@ const SCOPE        = getArg('scope', process.env.BOB_SELF_TEST_SCOPE || 'quick')
 const TIMEOUT_MS   = Number(process.env.BOB_SELF_TEST_TIMEOUT_MS || 600000);
 const POLL_MS      = Number(process.env.BOB_SELF_TEST_POLL_MS || 5000);
 const DRY_RUN      = getBoolArg('dryRun') || process.env.BOB_SELF_TEST_DRY_RUN === 'true';
+const VALID_SCOPES = new Set(['quick', 'core', 'workflows', 'visual', 'human', 'full']);
+const QUICK_SCOPE_DEFAULT_SPECS = ['tests/e2e/deep-functional.spec.ts'];
 
 const rawBase = (
   process.env.INFERENCE_SERVICE_URL ||
@@ -133,6 +135,11 @@ if (!rawBase) {
 }
 if (!API_KEY) {
   console.error('[bob-self-test] INFERENCE_API_KEY / RUNPOD_ENDPOINT_API_KEY required');
+  process.exit(1);
+}
+if (!VALID_SCOPES.has(SCOPE)) {
+  console.error(`[bob-self-test] Invalid scope: ${SCOPE}`);
+  console.error('[bob-self-test] Valid scopes: quick, core, workflows, visual, human, full');
   process.exit(1);
 }
 
@@ -306,6 +313,10 @@ async function run() {
   }
 
   const forwardedTestEnv = collectForwardedTestEnv();
+  const quickScopeSpecs = SCOPE === 'quick' ? QUICK_SCOPE_DEFAULT_SPECS : [];
+  if (quickScopeSpecs.length > 0) {
+    console.log(`[bob-self-test] quick scope specs: ${quickScopeSpecs.join(', ')}`);
+  }
 
   const payload = {
     input: {
@@ -313,6 +324,7 @@ async function run() {
       scope:       SCOPE,
       timeout_ms:  Math.max(TIMEOUT_MS - 60000, 60000),
       reporter:    'json',
+      ...(quickScopeSpecs.length > 0 ? { specs: quickScopeSpecs } : {}),
       // Repo clone — Bob will git clone/pull this before running tests
       repo_url:    REPO_URL,
       repo_branch: REPO_BRANCH,
