@@ -13,10 +13,10 @@ test('Deep functional test actions', async ({ page }) => {
   await cardLocator.waitFor({ timeout: 20000 });
   
   // Example snippet before fix
-  const breachesAction = page.locator('/* your locator here */'); 
+  const breachesAction = page.locator('button', { hasText: 'Breaches' }).first(); 
   await breachesAction.click({ timeout: 15000 }); // Timeout changed to 15000
   
   // Example snippet before fix
-  const rosterContent = page.locator('/* your locator here */'); 
+  const rosterContent = page.locator('.roster-content, [data-testid="roster"]').first(); 
   await expect(rosterContent).toBeVisible({ timeout: 25000 }); // Timeout changed to 25000
 });
