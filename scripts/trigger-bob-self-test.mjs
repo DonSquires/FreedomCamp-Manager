@@ -19,6 +19,9 @@
  *   BOB_SELF_TEST_TIMEOUT_MS   max poll time in ms  (default: 600000 = 10 min)
  *   BOB_SELF_TEST_POLL_MS      poll interval         (default: 5000)
  *   BOB_SELF_TEST_DRY_RUN      true = skip Supabase write, just print
+ *   BOB_SELF_TEST_PREFLIGHT    true = validate repo/token access before queueing (default: true)
+ *   BOB_SELF_TEST_REQUIRE_REPO_TOKEN true = require worker git token for private repos (default: true)
+ *   BOB_SELF_TEST_AUTH_MODE    repo-token | embed-url (default: repo-token)
  *   SYNTHETIC_MONITOR_USER_ID  reporter UUID for bug_reports (optional)
  *
  * Usage:
@@ -198,7 +201,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 function withGithubAuth(url, token) {
   const rawUrl = String(url || '').trim();
-  const rawToken = String(token || '').trim();
+  const rawToken = String(token || '').trim().replace(/\s+/g, '');
   if (!rawUrl || !rawToken) return rawUrl;
   if (!/^https:\/\/github\.com\//i.test(rawUrl)) return rawUrl;
   if (rawUrl.includes('@github.com/')) return rawUrl;
@@ -212,6 +215,54 @@ function envBool(name, fallback = false) {
   return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
 }
 
+function normalizeGithubRepoUrl(rawUrl) {
+  const value = String(rawUrl || '').trim().replace(/\/+$/, '');
+  if (!value) return '';
+  return value.replace(/\.git$/i, '') + '.git';
+}
+
+function parseGithubRepoSlug(repoUrl) {
+  const normalized = normalizeGithubRepoUrl(repoUrl).replace(/\.git$/i, '');
+  const match = normalized.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)$/i);
+  if (!match) return null;
+  return { owner: match[1], repo: match[2] };
+}
+
+async function githubRepoAccessProbe(repoUrl, token = '') {
+  const slug = parseGithubRepoSlug(repoUrl);
+  if (!slug) {
+    return {
+      ok: false,
+      status: 0,
+      error: `Unsupported GITHUB_REPO_URL format: ${repoUrl}`,
+    };
+  }
+
+  const headers = {
+    'Accept': 'application/vnd.github+json',
+    'User-Agent': 'bob-self-test-preflight',
+  };
+  if (token) headers.Authorization = `Bearer ${String(token).trim().replace(/\s+/g, '')}`;
+
+  try {
+    const response = await fetch(`https://api.github.com/repos/${slug.owner}/${slug.repo}`, { headers });
+    const payload = await response.json().catch(() => ({}));
+    return {
+      ok: response.ok,
+      status: response.status,
+      private: Boolean(payload?.private),
+      fullName: payload?.full_name || `${slug.owner}/${slug.repo}`,
+      error: payload?.message || '',
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      error: String(error?.message || error),
+    };
+  }
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 async function run() {
   const startedAt = new Date().toISOString();
@@ -221,9 +272,38 @@ async function run() {
   const submitUrl = `${rawBase}/run`;
   const REPO_URL_RAW = process.env.GITHUB_REPO_URL    || 'https://github.com/DonSquires/FreedomCamp-Manager.git';
   const REPO_BRANCH = process.env.GITHUB_REPO_BRANCH || 'main';
-  const REPO_TOKEN  = process.env.BOB_WORKER_GITHUB_TOKEN || process.env.GITHUB_TOKEN || process.env.GH_API || '';
+  const REPO_TOKEN  = (process.env.BOB_WORKER_GITHUB_TOKEN || process.env.GITHUB_TOKEN || process.env.GH_API || '').trim().replace(/\s+/g, '');
+  const PREFLIGHT = envBool('BOB_SELF_TEST_PREFLIGHT', true);
+  const REQUIRE_REPO_TOKEN = envBool('BOB_SELF_TEST_REQUIRE_REPO_TOKEN', true);
+  const AUTH_MODE = String(process.env.BOB_SELF_TEST_AUTH_MODE || '').trim().toLowerCase() || 'repo-token';
   const EMBED_REPO_TOKEN_IN_URL = envBool('BOB_SELF_TEST_EMBED_REPO_TOKEN_IN_URL', false);
-  const REPO_URL    = EMBED_REPO_TOKEN_IN_URL ? withGithubAuth(REPO_URL_RAW, REPO_TOKEN) : REPO_URL_RAW;
+  const useEmbedUrl = EMBED_REPO_TOKEN_IN_URL || AUTH_MODE === 'embed-url';
+  const REPO_URL_CLEAN = normalizeGithubRepoUrl(REPO_URL_RAW);
+  const REPO_URL    = useEmbedUrl ? withGithubAuth(REPO_URL_CLEAN, REPO_TOKEN) : REPO_URL_CLEAN;
+
+  if (PREFLIGHT) {
+    const slug = parseGithubRepoSlug(REPO_URL_CLEAN);
+    if (!slug) {
+      console.error(`[bob-self-test] Invalid GITHUB_REPO_URL: ${REPO_URL_RAW}`);
+      console.error('[bob-self-test] Expected format: https://github.com/<owner>/<repo>.git');
+      process.exit(1);
+    }
+    if (REQUIRE_REPO_TOKEN && !REPO_TOKEN) {
+      console.error('[bob-self-test] Missing repo token for worker clone. Set BOB_WORKER_GITHUB_TOKEN (or GITHUB_TOKEN/GH_API).');
+      process.exit(1);
+    }
+    const probe = await githubRepoAccessProbe(REPO_URL_CLEAN, REPO_TOKEN);
+    if (!probe.ok) {
+      const authHint = REPO_TOKEN
+        ? 'Token present but cannot read repo. Ensure token has contents:read on this repository.'
+        : 'No token supplied. Provide BOB_WORKER_GITHUB_TOKEN for private repo access.';
+      console.error(`[bob-self-test] Repo preflight failed: HTTP ${probe.status} ${probe.error || ''}`.trim());
+      console.error(`[bob-self-test] Repo target: ${slug.owner}/${slug.repo}`);
+      console.error(`[bob-self-test] ${authHint}`);
+      process.exit(1);
+    }
+    console.log(`[bob-self-test] Repo preflight ok: ${probe.fullName} (private=${probe.private})`);
+  }
 
   const forwardedTestEnv = collectForwardedTestEnv();
 
@@ -236,6 +316,7 @@ async function run() {
       // Repo clone — Bob will git clone/pull this before running tests
       repo_url:    REPO_URL,
       repo_branch: REPO_BRANCH,
+      repo_auth_mode: useEmbedUrl ? 'url-token' : 'token',
       ...(REPO_TOKEN ? { repo_token: REPO_TOKEN } : {}),
       // Pass test/runtime env so worker can build a complete .env for Playwright.
       ...forwardedTestEnv,

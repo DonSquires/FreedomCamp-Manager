@@ -965,10 +965,10 @@ export default function ImportData() {
       if (purpose === 'historical_records') {
         nextResult = await runHistoricalImport()
         toast.success(nextResult.batchId ? `Historical import started — batch ${String(nextResult.batchId).slice(0, 8)}...` : 'Historical import started')
-      } else if (shouldForceStaging || fileKind === 'document') {
+      } else if (shouldForceStaging) {
         nextResult = await createAiIntakePackage()
         toast.success('Bob intake package created')
-      } else if (fileKind === 'image' || fileKind === 'text') {
+      } else if (fileKind === 'image' || fileKind === 'text' || fileKind === 'document') {
         nextResult = await runDirectAiImport()
         toast.success(nextResult?.success ? 'Bob import completed' : 'Bob import finished with warnings')
       } else {
@@ -1285,7 +1285,7 @@ export default function ImportData() {
                     <FileSpreadsheet className="h-4 w-4" />
                     Start Historical Import
                   </span>
-                ) : fileKind === 'image' || fileKind === 'text' ? (
+                ) : fileKind === 'image' || fileKind === 'text' || fileKind === 'document' ? (
                   <span className="flex items-center gap-2">
                     <BrainCircuit className="h-4 w-4" />
                     Analyse and Import with Bob

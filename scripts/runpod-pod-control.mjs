@@ -41,6 +41,15 @@ async function graphql(apiKey, query) {
   return resp.json();
 }
 
+function extractGraphqlError(result) {
+  const first = result?.errors?.[0];
+  if (!first) return null;
+  return {
+    message: String(first.message || 'GraphQL error'),
+    code: String(first.extensions?.code || ''),
+  };
+}
+
 async function main() {
   const action = String(process.argv[2] || '').toLowerCase().trim();
   if (!['start', 'stop', 'status'].includes(action)) {
@@ -70,6 +79,11 @@ async function main() {
       if (pod) {
         console.log(`✅ Stop requested — desiredStatus: ${pod.desiredStatus}`);
       } else {
+        const gqlError = extractGraphqlError(result);
+        if (gqlError?.code === 'POD_NOT_FOUND') {
+          console.log(`ℹ️ Pod ${podId} does not exist or is already gone — treating stop as complete.`);
+          process.exit(0);
+        }
         console.error('Unexpected response:', JSON.stringify(result, null, 2));
         process.exit(1);
       }
@@ -99,6 +113,12 @@ async function main() {
           console.log(`Runtime:     (pod is stopped or starting)`);
         }
       } else {
+        const gqlError = extractGraphqlError(result);
+        if (gqlError?.code === 'POD_NOT_FOUND' || result?.data?.pod === null) {
+          console.log('Status:      STOPPED');
+          console.log('Runtime:     (pod not found / already stopped)');
+          process.exit(0);
+        }
         console.error('Pod not found or unexpected response:', JSON.stringify(result, null, 2));
         process.exit(1);
       }
