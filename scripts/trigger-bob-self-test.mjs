@@ -293,7 +293,8 @@ async function run() {
   const REQUIRE_REPO_TOKEN = envBool('BOB_SELF_TEST_REQUIRE_REPO_TOKEN', true);
   const AUTH_MODE = String(process.env.BOB_SELF_TEST_AUTH_MODE || '').trim().toLowerCase() || 'repo-token';
   const EMBED_REPO_TOKEN_IN_URL = envBool('BOB_SELF_TEST_EMBED_REPO_TOKEN_IN_URL', false);
-  const useEmbedUrl = EMBED_REPO_TOKEN_IN_URL || AUTH_MODE === 'embed-url';
+  const isGithubActionsToken = REPO_TOKEN.startsWith('ghs_');
+  const useEmbedUrl = EMBED_REPO_TOKEN_IN_URL || AUTH_MODE === 'embed-url' || isGithubActionsToken;
   const REPO_URL_CLEAN = normalizeGithubRepoUrl(REPO_URL_RAW);
   const REPO_URL    = useEmbedUrl ? withGithubAuth(REPO_URL_CLEAN, REPO_TOKEN) : REPO_URL_CLEAN;
 
@@ -328,6 +329,9 @@ async function run() {
     : [];
   if (quickScopeSpecs.length > 0) {
     console.log(`[bob-self-test] quick scope specs: ${quickScopeSpecs.join(', ')}`);
+  }
+  if (isGithubActionsToken) {
+    console.log('[bob-self-test] Detected GitHub Actions token; using URL-token repo auth mode for clone compatibility');
   }
 
   const payload = {
