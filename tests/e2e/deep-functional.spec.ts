@@ -1,22 +1,19 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '@playwright/test'
+import { loginAs } from './auth'
 
-test('Deep functional test actions', async ({ page }) => {
-  // 1. Add navigation to the target URL
-  await page.goto('/');
+async function expectAuthenticatedRoute(page: any, route: string) {
+  await page.goto(route, { waitUntil: 'domcontentloaded' })
+  await expect(page).not.toHaveURL(/\/login/)
+  await expect(page.locator('body')).toBeVisible({ timeout: 20000 })
+}
 
-  // Example snippet before fix
-  const headerLocator = page.locator('h1, h2, h3').first(); // Timeout changed to 20000
-  await headerLocator.waitFor({ timeout: 20000 });
-  
-  // Example snippet before fix
-  const cardLocator = page.locator('[class*="card"], [class*="org"], h2, h3').first(); // Timeout changed to 20000
-  await cardLocator.waitFor({ timeout: 20000 });
-  
-  // Example snippet before fix
-  const breachesAction = page.locator('button.breaches, [data-testid="breaches-action"], body'); 
-  await breachesAction.click({ timeout: 15000 }); // Timeout changed to 15000
-  
-  // Example snippet before fix
-  const rosterContent = page.locator('.roster-content, [data-testid="roster-content"], body'); 
-  await expect(rosterContent).toBeVisible({ timeout: 25000 }); // Timeout changed to 25000
-});
+test.describe('Deep functional test actions', () => {
+  test('admin can reach key functional routes', async ({ page }) => {
+    await loginAs(page, 'adminOrg1')
+
+    await expectAuthenticatedRoute(page, '/admin')
+    await expectAuthenticatedRoute(page, '/compliance')
+    await expectAuthenticatedRoute(page, '/reports')
+    await expectAuthenticatedRoute(page, '/tender-workspace')
+  })
+})

@@ -39,6 +39,16 @@ Deno.serve(async (req) => {
       headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
+
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  if (serviceRoleKey && token === serviceRoleKey) {
+    return handleParkPowSync(req);
+  }
+
+  return handleAuthenticatedParkPowSync(req, token);
+});
+
+async function handleAuthenticatedParkPowSync(req: Request, token: string) {
   const userClient = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_ANON_KEY")!,
@@ -51,6 +61,10 @@ Deno.serve(async (req) => {
     });
   }
 
+  return handleParkPowSync(req);
+}
+
+async function handleParkPowSync(req: Request) {
   // Validate action early — before checking API key, so missing action → 400 not 503
   let action: string | undefined;
   try {
@@ -95,7 +109,7 @@ Deno.serve(async (req) => {
       isUpstreamError ? 503 : 500,
     );
   }
-});
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // sync-lots: ensure every FieldOps Manager zone has a corresponding ParkPow lot

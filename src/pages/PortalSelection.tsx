@@ -103,10 +103,10 @@ export default function PortalSelection() {
       badge: rosteredShift?.service_type === 'guarding' ? 'Rostered' : null,
       action: () => {
         if (rosteredShift?.service_type === 'guarding' && rosteredShift.client_site_id) {
-          navigate(`/site-guard?site=${rosteredShift.client_site_id}&roster=${rosteredShift.id}`)
+          selectPortal(`/site-guard?site=${rosteredShift.client_site_id}&roster=${rosteredShift.id}`)
           return
         }
-        navigate('/site-guard')
+        selectPortal('/site-guard')
       },
     },
     {
@@ -117,7 +117,7 @@ export default function PortalSelection() {
       tone: 'from-amber-500 to-orange-700',
       border: 'border-amber-300/40 hover:border-amber-200/80',
       text: 'text-amber-100',
-      action: () => navigate('/parking-officer'),
+      action: () => selectPortal('/parking-officer'),
     },
     {
       id: 'noise',
@@ -127,7 +127,7 @@ export default function PortalSelection() {
       tone: 'from-yellow-500 to-amber-700',
       border: 'border-yellow-300/40 hover:border-yellow-200/80',
       text: 'text-yellow-100',
-      action: () => navigate('/noise-officer'),
+      action: () => selectPortal('/noise-officer'),
     },
     {
       id: 'ems',
@@ -138,7 +138,7 @@ export default function PortalSelection() {
       border: 'border-rose-300/40 hover:border-rose-200/80',
       text: 'text-rose-100',
       badge: 'Electronic Monitoring',
-      action: () => navigate('/ems'),
+      action: () => selectPortal('/ems'),
     },
     {
       id: 'client',
@@ -149,7 +149,7 @@ export default function PortalSelection() {
       border: 'border-indigo-300/40 hover:border-indigo-200/80',
       text: 'text-indigo-100',
       span: 'md:col-span-2',
-      action: () => navigate('/client-portal'),
+      action: () => selectPortal('/client-portal'),
     },
   ]
 
@@ -185,7 +185,7 @@ export default function PortalSelection() {
           onClick={() => {
             const portal = SERVICE_TYPE_PORTAL[rosteredShift.service_type!]
             const path = portal.buildPath ? portal.buildPath(rosteredShift) : portal.path
-            navigate(path)
+            selectPortal(path)
           }}
         >
           Go to Shift

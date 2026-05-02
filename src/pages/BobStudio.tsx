@@ -62,13 +62,18 @@ export default function BobStudio() {
     organizationId: operationalOrganizationId ?? undefined,
   })
 
-  // On mount: load existing conversation or start new
+  // On mount: sync Zustand from the hook's persisted sessionStorage key so both
+  // layers agree on the active conversation (avoids new-conversation creation on reload).
   useEffect(() => {
-    const restored = sessionStorage.getItem(`bob-conversation-${operationalOrganizationId}`)
-    if (restored) {
-      loadConversation(restored)
+    if (!activeConversationId && operationalOrganizationId) {
+      const stored = sessionStorage.getItem(`bob-conversation-id-${operationalOrganizationId}`)
+      if (stored) {
+        setActiveConversation(stored, null)
+        loadConversation(stored)
+      }
     }
-  }, [operationalOrganizationId, loadConversation])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [operationalOrganizationId])
 
   const handleSendMessage = async (content: string) => {
     if (!operationalOrganizationId) return
@@ -76,11 +81,12 @@ export default function BobStudio() {
     let convId = activeConversationId
     if (!convId) {
       const newConv = await createConversation('Bob Chat', operationalOrganizationId)
-      if (newConv) {
-        convId = newConv.conversation_id
-        setActiveConversation(convId, newConv)
-        sessionStorage.setItem(`bob-conversation-${operationalOrganizationId}`, convId)
-      }
+      if (!newConv) return
+      convId = newConv.conversation_id
+      setActiveConversation(convId, newConv)
+      // Sync the hook's ref to the new conversation so sendMessage targets it
+      // immediately, without waiting for a React re-render cycle.
+      await loadConversation(convId)
     }
 
     if (!convId) return

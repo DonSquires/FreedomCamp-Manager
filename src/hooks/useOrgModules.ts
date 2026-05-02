@@ -36,7 +36,7 @@ export type ModuleKey = (typeof ALL_MODULES)[number]
 
 /** Maps a module key to the portal route area codes it covers. */
 export const MODULE_AREA_MAP: Record<ModuleKey, string[]> = {
-  noise_control:         ['noise-control', 'noise-officer'],
+  noise_control:         ['noise', 'noise-control', 'noise-officer'],
   parking:               ['parking', 'parking-officer'],
   dispatch:              ['dispatch', 'dispatch-monitor', 'dispatch-wizard', 'dispatched-jobs'],
   roster:                ['roster', 'open-shifts', 'officer-availability', 'timesheet'],
