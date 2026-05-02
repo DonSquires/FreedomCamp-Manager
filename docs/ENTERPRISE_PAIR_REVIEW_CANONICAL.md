@@ -263,6 +263,7 @@ This policy controls when DOC_AUTHORITY_STRICT_POLICY should be enabled in CI.
 17. Completed: lint warning budget gate enforced across build, governance release, and monthly checkpoint workflows.
 18. Completed: runtime preflight hardened via scripts/system-check.sh to expose toolchain readiness and avoid Node-dependent fallback parsing.
 19. Completed: Bun-capable runtime validation executed in-session (typecheck/lint/build) with documented ignoreDeprecations threshold constraint evidence.
+20. Completed: navigation parity test typing fixed and runtime preflight hardening committed and pushed to main.
 
 ## Execution Ledger
 
@@ -279,3 +280,4 @@ Date: 2026-05-02
 9. 91754efb - Add route-role matrix grounding controls to governance gates
 10. baf40937 - Enforce route-roadmap coverage and full P0 governance evidence
 11. 3c6c0f22 - Add CI build budget gate for enterprise hardening
+12. 5ddb08d0 - Fix nav parity typecheck and harden runtime preflight
