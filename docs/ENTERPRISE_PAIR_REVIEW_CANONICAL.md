@@ -257,3 +257,16 @@ This policy controls when DOC_AUTHORITY_STRICT_POLICY should be enabled in CI.
 13. Completed: module grounding evidence and strict validation added to governance release and monthly checkpoint workflows.
 14. Completed: CI lint warning budget gate added to prevent warning-count regressions.
 15. Completed: known React hook and fast-refresh lint warnings remediated in admin navigation, diagnostics hook, and PTT radio pages.
+
+## Execution Ledger
+
+Date: 2026-05-02
+
+1. b8093f34 - Remediate remaining lint warning sources
+2. 22210b23 - Add ESLint warning budget gate to CI
+3. de9b7e65 - Add strict module grounding checks to governance workflows
+4. b3d342db - Enforce related-route role gates and remove duplicate route
+5. 66db00a8 - Add governance run summary artifacts to CI gates
+6. 91754efb - Add route-role matrix grounding controls to governance gates
+7. baf40937 - Enforce route-roadmap coverage and full P0 governance evidence
+8. 3c6c0f22 - Add CI build budget gate for enterprise hardening
