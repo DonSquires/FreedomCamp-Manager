@@ -345,7 +345,7 @@ async function run() {
       repo_url:    REPO_URL,
       repo_branch: REPO_BRANCH,
       repo_auth_mode: useEmbedUrl ? 'url-token' : 'token',
-      ...(REPO_TOKEN ? { repo_token: REPO_TOKEN } : {}),
+      ...(REPO_TOKEN && !useEmbedUrl ? { repo_token: REPO_TOKEN } : {}),
       // Pass test/runtime env so worker can build a complete .env for Playwright.
       ...forwardedTestEnv,
     },
