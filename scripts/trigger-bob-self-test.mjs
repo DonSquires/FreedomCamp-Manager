@@ -27,6 +27,7 @@
  * Usage:
  *   node scripts/trigger-bob-self-test.mjs
  *   node scripts/trigger-bob-self-test.mjs --scope core
+ *   node scripts/trigger-bob-self-test.mjs --scope quick --quickSpecs tests/e2e/deep-functional.spec.ts
  *   node scripts/trigger-bob-self-test.mjs --dryRun
  */
 
@@ -109,6 +110,9 @@ const SCOPE        = getArg('scope', process.env.BOB_SELF_TEST_SCOPE || 'quick')
 const TIMEOUT_MS   = Number(process.env.BOB_SELF_TEST_TIMEOUT_MS || 600000);
 const POLL_MS      = Number(process.env.BOB_SELF_TEST_POLL_MS || 5000);
 const DRY_RUN      = getBoolArg('dryRun') || process.env.BOB_SELF_TEST_DRY_RUN === 'true';
+const QUICK_SPECS_ARG = getArg('quickSpecs', '');
+const VALID_SCOPES = new Set(['quick', 'core', 'workflows', 'visual', 'human', 'full']);
+const QUICK_SCOPE_DEFAULT_SPECS = ['tests/e2e/deep-functional.spec.ts'];
 
 const rawBase = (
   process.env.INFERENCE_SERVICE_URL ||
@@ -134,6 +138,18 @@ if (!rawBase) {
 if (!API_KEY) {
   console.error('[bob-self-test] INFERENCE_API_KEY / RUNPOD_ENDPOINT_API_KEY required');
   process.exit(1);
+}
+if (!VALID_SCOPES.has(SCOPE)) {
+  console.error(`[bob-self-test] Invalid scope: ${SCOPE}`);
+  console.error('[bob-self-test] Valid scopes: quick, core, workflows, visual, human, full');
+  process.exit(1);
+}
+
+function parseSpecArg(raw) {
+  return String(raw || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 // ─── HTTP helpers ─────────────────────────────────────────────────────────────
@@ -277,7 +293,8 @@ async function run() {
   const REQUIRE_REPO_TOKEN = envBool('BOB_SELF_TEST_REQUIRE_REPO_TOKEN', true);
   const AUTH_MODE = String(process.env.BOB_SELF_TEST_AUTH_MODE || '').trim().toLowerCase() || 'repo-token';
   const EMBED_REPO_TOKEN_IN_URL = envBool('BOB_SELF_TEST_EMBED_REPO_TOKEN_IN_URL', false);
-  const useEmbedUrl = EMBED_REPO_TOKEN_IN_URL || AUTH_MODE === 'embed-url';
+  const isGithubActionsToken = REPO_TOKEN.startsWith('ghs_');
+  const useEmbedUrl = EMBED_REPO_TOKEN_IN_URL || AUTH_MODE === 'embed-url' || isGithubActionsToken;
   const REPO_URL_CLEAN = normalizeGithubRepoUrl(REPO_URL_RAW);
   const REPO_URL    = useEmbedUrl ? withGithubAuth(REPO_URL_CLEAN, REPO_TOKEN) : REPO_URL_CLEAN;
 
@@ -306,6 +323,16 @@ async function run() {
   }
 
   const forwardedTestEnv = collectForwardedTestEnv();
+  const configuredQuickSpecs = parseSpecArg(QUICK_SPECS_ARG);
+  const quickScopeSpecs = SCOPE === 'quick'
+    ? (configuredQuickSpecs.length > 0 ? configuredQuickSpecs : QUICK_SCOPE_DEFAULT_SPECS)
+    : [];
+  if (quickScopeSpecs.length > 0) {
+    console.log(`[bob-self-test] quick scope specs: ${quickScopeSpecs.join(', ')}`);
+  }
+  if (isGithubActionsToken) {
+    console.log('[bob-self-test] Detected GitHub Actions token; using URL-token repo auth mode for clone compatibility');
+  }
 
   const payload = {
     input: {
@@ -313,6 +340,7 @@ async function run() {
       scope:       SCOPE,
       timeout_ms:  Math.max(TIMEOUT_MS - 60000, 60000),
       reporter:    'json',
+      ...(quickScopeSpecs.length > 0 ? { specs: quickScopeSpecs } : {}),
       // Repo clone — Bob will git clone/pull this before running tests
       repo_url:    REPO_URL,
       repo_branch: REPO_BRANCH,
