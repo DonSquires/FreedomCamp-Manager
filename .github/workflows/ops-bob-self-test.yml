@@ -57,6 +57,7 @@ jobs:
           missing=""
           [ -z "$RUNPOD_ENDPOINT_API_KEY" ] && missing="$missing RUNPOD_ENDPOINT_API_KEY"
           [ -z "$RUNPOD_ENDPOINT_ID" ]       && missing="$missing RUNPOD_ENDPOINT_ID"
+          [ -z "$BOB_WORKER_GITHUB_TOKEN" ]  && missing="$missing BOB_WORKER_GITHUB_TOKEN"
           [ -z "$VITE_SUPABASE_URL" ]        && missing="$missing VITE_SUPABASE_URL"
           [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] && missing="$missing SUPABASE_SERVICE_ROLE_KEY"
           if [ -n "$missing" ]; then
@@ -67,6 +68,7 @@ jobs:
         env:
           RUNPOD_ENDPOINT_API_KEY:  ${{ secrets.RUNPOD_ENDPOINT_API_KEY }}
           RUNPOD_ENDPOINT_ID:       ${{ secrets.RUNPOD_ENDPOINT_ID }}
+          BOB_WORKER_GITHUB_TOKEN:  ${{ secrets.BOB_WORKER_GITHUB_TOKEN }}
           VITE_SUPABASE_URL:        ${{ secrets.VITE_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
@@ -80,6 +82,24 @@ jobs:
           echo "GITHUB_REPO_BRANCH=${{ github.ref_name }}" >> "$GITHUB_ENV"
           echo "TEST_SCOPE=${{ github.event.inputs.scope || 'quick' }}" >> "$GITHUB_ENV"
           echo "DRY_RUN=${{ github.event.inputs.dry_run || 'false' }}" >> "$GITHUB_ENV"
+
+      - name: Preflight Bob worker repo token access
+        run: |
+          set -euo pipefail
+          repo_api="https://api.github.com/repos/${{ github.repository }}"
+          status=$(curl -sS -o /tmp/bob_self_test_repo_probe.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${BOB_WORKER_GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "User-Agent: bob-self-test-workflow" \
+            "$repo_api" || true)
+          if [ "$status" != "200" ]; then
+            echo "::error::BOB_WORKER_GITHUB_TOKEN cannot read ${{ github.repository }} (HTTP $status)"
+            cat /tmp/bob_self_test_repo_probe.json || true
+            exit 1
+          fi
+          echo "✅ Worker repo token has repo read access"
+        env:
+          BOB_WORKER_GITHUB_TOKEN: ${{ secrets.BOB_WORKER_GITHUB_TOKEN }}
 
       - name: Resolve serverless auth key for Bob self-test
         id: serverless-auth
@@ -141,5 +161,9 @@ jobs:
           BOB_WORKER_GITHUB_TOKEN:   ${{ secrets.BOB_WORKER_GITHUB_TOKEN }}
           GITHUB_REPO_URL:           https://github.com/${{ github.repository }}.git
           GITHUB_REPO_BRANCH:        ${{ github.ref_name }}
+          BOB_SELF_TEST_PREFLIGHT:   'true'
+          BOB_SELF_TEST_REQUIRE_REPO_TOKEN: 'true'
+          BOB_SELF_TEST_AUTH_MODE:   'repo-token'
+          BOB_SELF_TEST_EMBED_REPO_TOKEN_IN_URL: 'false'
           BOB_SELF_TEST_TIMEOUT_MS:  '900000'
           BOB_SELF_TEST_POLL_MS:     '8000'
