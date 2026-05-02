@@ -10,9 +10,9 @@ name: Ops — Bob Self-Test (Autonomous)
 #   VITE_SUPABASE_URL        — Supabase project URL
 #   SUPABASE_SERVICE_ROLE_KEY — For writing bug reports
 #
-# Required secrets for repo clone inside Bob's worker:
+# Optional secret for repo clone inside Bob's worker:
 #   BOB_WORKER_GITHUB_TOKEN  — Fine-grained PAT with contents:read on this repo
-#                              (Bob clones the repo at startup to get test files)
+#                              (falls back to github.token when unset)
 #
 # Optional secrets:
 #   SYNTHETIC_MONITOR_USER_ID — reporter UUID for auto-filed bug reports
@@ -62,7 +62,6 @@ jobs:
           missing=""
           [ -z "$RUNPOD_ENDPOINT_API_KEY" ] && missing="$missing RUNPOD_ENDPOINT_API_KEY"
           [ -z "$RUNPOD_ENDPOINT_ID" ]       && missing="$missing RUNPOD_ENDPOINT_ID"
-          [ -z "$BOB_WORKER_GITHUB_TOKEN" ]  && missing="$missing BOB_WORKER_GITHUB_TOKEN"
           [ -z "$VITE_SUPABASE_URL" ]        && missing="$missing VITE_SUPABASE_URL"
           [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] && missing="$missing SUPABASE_SERVICE_ROLE_KEY"
           if [ -n "$missing" ]; then
@@ -73,7 +72,6 @@ jobs:
         env:
           RUNPOD_ENDPOINT_API_KEY:  ${{ secrets.RUNPOD_ENDPOINT_API_KEY }}
           RUNPOD_ENDPOINT_ID:       ${{ secrets.RUNPOD_ENDPOINT_ID }}
-          BOB_WORKER_GITHUB_TOKEN:  ${{ secrets.BOB_WORKER_GITHUB_TOKEN }}
           VITE_SUPABASE_URL:        ${{ secrets.VITE_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
@@ -105,7 +103,7 @@ jobs:
           fi
           echo "✅ Worker repo token has repo read access"
         env:
-          BOB_WORKER_GITHUB_TOKEN: ${{ secrets.BOB_WORKER_GITHUB_TOKEN }}
+          BOB_WORKER_GITHUB_TOKEN: ${{ secrets.BOB_WORKER_GITHUB_TOKEN != '' && secrets.BOB_WORKER_GITHUB_TOKEN || github.token }}
 
       - name: Resolve serverless auth key for Bob self-test
         id: serverless-auth
@@ -174,7 +172,7 @@ jobs:
           VITE_SUPABASE_ANON_KEY:    ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY:  ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SYNTHETIC_MONITOR_USER_ID: ${{ secrets.SYNTHETIC_MONITOR_USER_ID }}
-          BOB_WORKER_GITHUB_TOKEN:   ${{ secrets.BOB_WORKER_GITHUB_TOKEN }}
+          BOB_WORKER_GITHUB_TOKEN:   ${{ secrets.BOB_WORKER_GITHUB_TOKEN != '' && secrets.BOB_WORKER_GITHUB_TOKEN || github.token }}
           GITHUB_REPO_URL:           https://github.com/${{ github.repository }}.git
           GITHUB_REPO_BRANCH:        ${{ github.ref_name }}
           BOB_SELF_TEST_PREFLIGHT:   'true'
