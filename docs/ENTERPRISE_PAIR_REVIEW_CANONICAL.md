@@ -94,12 +94,12 @@ Use this register for all Bob `ungrounded` findings that represent future-state 
 2. Gap: Validation evidence flags lacking concrete command trace.
    Owner: Release engineering.
    Evidence required: attach command, result summary, and report artifact path.
-   Status: in progress (governance gate enforces evidence generation + schema validation for WF-01/WF-07/WF-11 via .github/workflows/governance-release-gate.yml).
+   Status: completed (governance and monthly checkpoint workflows now enforce evidence generation + schema validation for all P0 workflow IDs derived from docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json).
 
 3. Gap: Role-gated route matrix not fully centralized.
    Owner: Application architecture.
    Evidence required: per-route role map maintained with source links.
-   Status: in progress (primary and related route annotations added in docs/MODULE_ROADMAP.md).
+   Status: in progress (primary and related route annotations added in docs/MODULE_ROADMAP.md; route-roadmap strict CI check added for changed route coverage).
 
 ## Triad Pair-Review Round (2026-05-02)
 
@@ -177,6 +177,8 @@ Core command anchors:
 3. Human module suite: scripts/run-human-module-suite.mjs
 4. Workflow evidence collector: scripts/collect-workflow-evidence.mjs
 5. Workflow evidence validator: scripts/validate-workflow-evidence.mjs
+6. Workflow ID resolver (matrix-driven): scripts/get-workflow-ids.mjs
+7. Route-roadmap coverage checker: scripts/check-route-roadmap-coverage.mjs
 
 ## OpenAI Lens Review (Architecture + Governance)
 
@@ -240,3 +242,5 @@ This policy controls when DOC_AUTHORITY_STRICT_POLICY should be enabled in CI.
 5. Expand role-gate coverage from primary routes to every related route entry.
 6. Standardize workflow evidence capture per execution using scripts/collect-workflow-evidence.mjs and tools/workflow-evidence/ index records.
 7. Completed: build budget gate added to CI (scripts/check-build-budgets.mjs via ci-build-high-memory workflow).
+8. Completed: governance + monthly evidence requirement expanded to all P0 workflows (matrix-driven workflow ID resolution).
+9. Completed: strict route-roadmap coverage lint added for route path changes in governance gate.

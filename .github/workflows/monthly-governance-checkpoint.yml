@@ -24,16 +24,21 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Resolve required P0 workflow IDs
+        id: required-workflows
+        run: |
+          echo "ids=$(node scripts/get-workflow-ids.mjs --criticality P0)" >> "$GITHUB_OUTPUT"
+
       - name: Build gate
         run: bun run build
 
       - name: Collect monthly governance evidence
         run: |
-          bun run evidence:workflow --workflow WF-01,WF-07,WF-11 --status monthly-checkpoint --notes "monthly-governance-checkpoint:${{ github.run_id }}" --out-dir tools/workflow-evidence/monthly/${{ github.run_id }}
+          bun run evidence:workflow --workflow "${{ steps.required-workflows.outputs.ids }}" --status monthly-checkpoint --notes "monthly-governance-checkpoint:${{ github.run_id }}" --out-dir tools/workflow-evidence/monthly/${{ github.run_id }}
 
       - name: Validate monthly governance evidence
         run: |
-          bun run evidence:workflow:validate -- --dir tools/workflow-evidence/monthly/${{ github.run_id }} --required WF-01,WF-07,WF-11
+          bun run evidence:workflow:validate -- --dir tools/workflow-evidence/monthly/${{ github.run_id }} --required "${{ steps.required-workflows.outputs.ids }}"
 
       - name: Upload monthly governance artifacts
         if: always()
@@ -48,6 +53,6 @@ jobs:
         run: |
           echo "## Monthly Governance Checkpoint" >> "$GITHUB_STEP_SUMMARY"
           echo "- Build gate: completed" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Evidence IDs validated: WF-01, WF-07, WF-11" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Evidence IDs validated: ${{ steps.required-workflows.outputs.ids }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Canonical record: docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md" >> "$GITHUB_STEP_SUMMARY"
           echo "- Artifact path: tools/workflow-evidence/monthly/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"

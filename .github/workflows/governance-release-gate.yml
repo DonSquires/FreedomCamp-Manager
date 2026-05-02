@@ -11,7 +11,9 @@ on:
       - 'docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md'
       - 'docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json'
       - 'scripts/doc-authority-check.mjs'
+      - 'scripts/check-route-roadmap-coverage.mjs'
       - 'scripts/collect-workflow-evidence.mjs'
+      - 'scripts/get-workflow-ids.mjs'
       - 'scripts/validate-workflow-evidence.mjs'
       - '.github/workflows/governance-release-gate.yml'
       - 'package.json'
@@ -26,7 +28,9 @@ on:
       - 'docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md'
       - 'docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json'
       - 'scripts/doc-authority-check.mjs'
+      - 'scripts/check-route-roadmap-coverage.mjs'
       - 'scripts/collect-workflow-evidence.mjs'
+      - 'scripts/get-workflow-ids.mjs'
       - 'scripts/validate-workflow-evidence.mjs'
       - '.github/workflows/governance-release-gate.yml'
       - 'package.json'
@@ -62,13 +66,24 @@ jobs:
           DOC_AUTHORITY_DIFF_RANGE: ${{ github.event_name == 'pull_request' && format('origin/{0}...{1}', github.base_ref, github.sha) || format('{0}..{1}', github.event.before, github.sha) }}
         run: bun run lint:doc-authority
 
+      - name: Route roadmap strict gate
+        env:
+          ROUTE_ROADMAP_STRICT: 'true'
+          ROUTE_ROADMAP_DIFF_RANGE: ${{ github.event_name == 'pull_request' && format('origin/{0}...{1}', github.base_ref, github.sha) || format('{0}..{1}', github.event.before, github.sha) }}
+        run: bun run lint:route-roadmap
+
+      - name: Resolve required P0 workflow IDs
+        id: required-workflows
+        run: |
+          echo "ids=$(node scripts/get-workflow-ids.mjs --criticality P0)" >> "$GITHUB_OUTPUT"
+
       - name: Collect governance evidence snapshot
         run: |
-          bun run evidence:workflow --workflow WF-01,WF-07,WF-11 --status governance-gate --notes "governance-release-gate:${{ github.run_id }}" --out-dir tools/workflow-evidence/governance/${{ github.run_id }}
+          bun run evidence:workflow --workflow "${{ steps.required-workflows.outputs.ids }}" --status governance-gate --notes "governance-release-gate:${{ github.run_id }}" --out-dir tools/workflow-evidence/governance/${{ github.run_id }}
 
       - name: Validate governance evidence snapshot
         run: |
-          bun run evidence:workflow:validate -- --dir tools/workflow-evidence/governance/${{ github.run_id }} --required WF-01,WF-07,WF-11
+          bun run evidence:workflow:validate -- --dir tools/workflow-evidence/governance/${{ github.run_id }} --required "${{ steps.required-workflows.outputs.ids }}"
 
       - name: Upload governance evidence artifacts
         if: always()
@@ -83,5 +98,6 @@ jobs:
         run: |
           echo "## Governance Release Gate" >> "$GITHUB_STEP_SUMMARY"
           echo "- Doc authority strict gate: completed" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Required workflow evidence IDs: WF-01, WF-07, WF-11" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Route roadmap strict gate: completed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Required workflow evidence IDs: ${{ steps.required-workflows.outputs.ids }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Evidence artifact path: tools/workflow-evidence/governance/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
