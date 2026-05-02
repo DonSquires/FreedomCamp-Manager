@@ -253,7 +253,11 @@ export default function Platform() {
 
   const isPendingAnalysisStatus = useCallback((status: string | null | undefined) => {
     const normalized = status ?? 'submitted'
-    return normalized === 'submitted' || normalized === 'acknowledged'
+    // 'investigating' is included because auto-generated live session diagnostic
+    // reports are created with that status directly by the ingest edge function.
+    // The !r.ai_analyzed guard in every call site prevents re-analysis of
+    // reports that have already been processed.
+    return normalized === 'submitted' || normalized === 'acknowledged' || normalized === 'investigating'
   }, [])
 
   // Bug / feedback reports
