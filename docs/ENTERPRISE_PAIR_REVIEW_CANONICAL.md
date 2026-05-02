@@ -89,7 +89,7 @@ Use this register for all Bob `ungrounded` findings that represent future-state 
 1. Gap: Module/service reference flagged as ungrounded.
    Owner: Platform governance.
    Evidence required: route/module exists in repo and is covered by tests or validation notes.
-   Status: in progress (governance workflows now generate route-role matrix artifacts directly from src/App.tsx and enforce roadmap grounding against docs/MODULE_ROADMAP.md).
+   Status: completed (governance + monthly workflows now enforce module grounding via generated route-to-component import reports with strict validation).
 
 2. Gap: Validation evidence flags lacking concrete command trace.
    Owner: Release engineering.
@@ -183,6 +183,8 @@ Core command anchors:
 9. Roadmap grounding validator: scripts/validate-roadmap-grounding.mjs
 10. Governance run summary exporter: scripts/generate-governance-run-summary.mjs
 11. Roadmap related-route role-gate validator: scripts/validate-roadmap-role-gates.mjs
+12. Module grounding report generator: scripts/generate-module-grounding-report.mjs
+13. Module grounding validator: scripts/validate-module-grounding.mjs
 
 ## OpenAI Lens Review (Architecture + Governance)
 
@@ -251,3 +253,4 @@ This policy controls when DOC_AUTHORITY_STRICT_POLICY should be enabled in CI.
 10. Completed: machine-generated route-role matrix and strict roadmap grounding checks added to governance and monthly checkpoint workflows.
 11. Completed: governance run summary JSON artifacts added for governance release and monthly checkpoint workflows.
 12. Completed: duplicate /asset-management route definition removed to eliminate role-gate ambiguity.
+13. Completed: module grounding evidence and strict validation added to governance release and monthly checkpoint workflows.

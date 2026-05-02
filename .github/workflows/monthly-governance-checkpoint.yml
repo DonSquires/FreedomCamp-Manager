@@ -40,6 +40,14 @@ jobs:
         run: |
           node scripts/validate-roadmap-grounding.mjs --strict --matrix tools/route-role-matrix/monthly/${{ github.run_id }}/route-role-matrix.json
 
+      - name: Generate module grounding artifact
+        run: |
+          bun run roadmap:module-grounding -- --out tools/module-grounding/monthly/${{ github.run_id }}/module-grounding-report.json
+
+      - name: Module grounding strict validation
+        run: |
+          node scripts/validate-module-grounding.mjs --strict --report tools/module-grounding/monthly/${{ github.run_id }}/module-grounding-report.json
+
       - name: Collect monthly governance evidence
         run: |
           bun run evidence:workflow --workflow "${{ steps.required-workflows.outputs.ids }}" --status monthly-checkpoint --notes "monthly-governance-checkpoint:${{ github.run_id }}" --out-dir tools/workflow-evidence/monthly/${{ github.run_id }}
@@ -68,6 +76,14 @@ jobs:
           path: tools/route-role-matrix/monthly/${{ github.run_id }}
           if-no-files-found: error
 
+      - name: Upload monthly module grounding artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: monthly-module-grounding-${{ github.run_id }}
+          path: tools/module-grounding/monthly/${{ github.run_id }}
+          if-no-files-found: error
+
       - name: Upload monthly governance run summary artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -85,4 +101,5 @@ jobs:
           echo "- Canonical record: docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md" >> "$GITHUB_STEP_SUMMARY"
           echo "- Artifact path: tools/workflow-evidence/monthly/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Route-role matrix path: tools/route-role-matrix/monthly/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Module grounding path: tools/module-grounding/monthly/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Governance summary path: tools/governance-run-summaries/monthly/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
