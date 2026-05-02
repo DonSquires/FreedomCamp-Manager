@@ -34,6 +34,8 @@ type ResolvedProfile = {
   employerOrganizationName: string | null
 }
 
+export type LoginContextProfile = ResolvedProfile
+
 type DesiredRole = 'master' | 'grand_master' | 'admin' | 'admin_officer' | 'officer' | 'client_viewer' | 'client_officer' | 'client_admin'
 
 function readEnv(...names: string[]): string {
@@ -468,6 +470,41 @@ export function getApiBearerToken(): string | null {
     'PLAYWRIGHT_LIVE_BEARER_TOKEN',
     'E2E_LIVE_BEARER_TOKEN'
   ) || null
+}
+
+export async function loginWithLiveCredentialsAndResolveProfile(page: Page): Promise<LoginContextProfile | null> {
+  const credentials = getApiTestCredentials()
+  if (!credentials.email || !credentials.password) {
+    throw new Error(
+      'Live/API credentials are missing. Set API_TEST_EMAIL/API_TEST_PASSWORD or PLAYWRIGHT_LIVE_EMAIL/PLAYWRIGHT_LIVE_PASSWORD.'
+    )
+  }
+
+  await page.goto('/login')
+  await page.fill('input[type="email"]', credentials.email)
+  await page.fill('input[type="password"]', credentials.password)
+  await page.click('button[type="submit"]')
+
+  try {
+    await page.waitForURL(
+      (url) => !url.pathname.startsWith('/login'),
+      { timeout: 20000 }
+    )
+  } catch {
+    const errorText = await page.locator('text=/invalid|error|failed/i').first().textContent().catch(() => null)
+    const suffix = errorText ? ` Visible message: ${errorText.trim()}` : ''
+    throw new Error(`Login failed for ${credentials.email}. Current URL: ${page.url()}.${suffix}`)
+  }
+
+  await page.evaluate(() => {
+    window.sessionStorage.setItem('adminOfficerPortalChoice', 'selected')
+  })
+
+  await resolvePortalSelectionIfNeeded(page, 'adminOrg1')
+  await ensureWorkAreaPermission(page)
+  await page.waitForLoadState('networkidle').catch(() => undefined)
+
+  return fetchResolvedProfile(page)
 }
 
 async function getAccessTokenFromBrowser(page: Page): Promise<string | null> {

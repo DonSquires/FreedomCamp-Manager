@@ -122,8 +122,8 @@ jobs:
             return 1
           }
 
-          try_repo_token "BOB_WORKER_GITHUB_TOKEN" "${BOB_WORKER_GITHUB_TOKEN:-}" \
-            || try_repo_token "GITHUB_TOKEN" "${GITHUB_TOKEN:-}" \
+          try_repo_token "GITHUB_TOKEN" "${GITHUB_TOKEN:-}" \
+            || try_repo_token "BOB_WORKER_GITHUB_TOKEN" "${BOB_WORKER_GITHUB_TOKEN:-}" \
             || { echo "::error::No repo token can read ${{ github.repository }}"; cat /tmp/bob_self_test_repo_probe.json || true; exit 1; }
         env:
           BOB_WORKER_GITHUB_TOKEN: ${{ secrets.BOB_WORKER_GITHUB_TOKEN }}
