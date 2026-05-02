@@ -236,6 +236,6 @@ This policy controls when DOC_AUTHORITY_STRICT_POLICY should be enabled in CI.
 1. Completed: role-gate annotations added in docs/MODULE_ROADMAP.md.
 2. Completed: lightweight doc-authority lint rule wired into CI (warning mode with optional strict-policy path via DOC_AUTHORITY_STRICT_POLICY).
 3. Completed: governance strict gate added for architecture-impacting changes (doc-authority strict + required workflow evidence validation for WF-01/WF-07/WF-11).
-4. Add recurring monthly pair-review checkpoint.
+4. Completed: recurring monthly governance checkpoint workflow added (.github/workflows/monthly-governance-checkpoint.yml).
 5. Expand role-gate coverage from primary routes to every related route entry.
 6. Standardize workflow evidence capture per execution using scripts/collect-workflow-evidence.mjs and tools/workflow-evidence/ index records.

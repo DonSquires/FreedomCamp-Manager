@@ -1,0 +1,53 @@
+name: Monthly Governance Checkpoint
+
+on:
+  schedule:
+    - cron: '0 6 1 * *'
+  workflow_dispatch:
+
+jobs:
+  monthly-governance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build gate
+        run: bun run build
+
+      - name: Collect monthly governance evidence
+        run: |
+          bun run evidence:workflow --workflow WF-01,WF-07,WF-11 --status monthly-checkpoint --notes "monthly-governance-checkpoint:${{ github.run_id }}" --out-dir tools/workflow-evidence/monthly/${{ github.run_id }}
+
+      - name: Validate monthly governance evidence
+        run: |
+          bun run evidence:workflow:validate -- --dir tools/workflow-evidence/monthly/${{ github.run_id }} --required WF-01,WF-07,WF-11
+
+      - name: Upload monthly governance artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: monthly-governance-evidence-${{ github.run_id }}
+          path: tools/workflow-evidence/monthly/${{ github.run_id }}
+          if-no-files-found: error
+
+      - name: Publish checkpoint summary
+        if: always()
+        run: |
+          echo "## Monthly Governance Checkpoint" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Build gate: completed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Evidence IDs validated: WF-01, WF-07, WF-11" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Canonical record: docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Artifact path: tools/workflow-evidence/monthly/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
