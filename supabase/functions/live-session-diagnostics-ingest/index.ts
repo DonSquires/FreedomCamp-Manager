@@ -46,7 +46,11 @@ async function upsertFallbackDiagnosticReport(
   const snapshotBrowserInfo = asObject(args.snapshot.browser_info)
   const snapshotConsoleErrors = Array.isArray(args.snapshot.console_errors) ? args.snapshot.console_errors : []
   const hasErrors = snapshotConsoleErrors.some(
-    (e: unknown) => e && typeof e === 'object' && (e as Record<string, unknown>).level !== 'warn',
+    (e: unknown) => {
+      if (!e || typeof e !== 'object') return false
+      const level = (e as Record<string, unknown>).level
+      return level === 'error' || level === 'unhandled'
+    },
   )
   const metadata = {
     live_session_diagnostics: {
