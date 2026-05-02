@@ -24,6 +24,12 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Lint
+        run: bun run lint
+
+      - name: Lint warning budget gate
+        run: bun run lint:warning-budget
+
       - name: Resolve required P0 workflow IDs
         id: required-workflows
         run: |
@@ -39,6 +45,10 @@ jobs:
       - name: Roadmap grounding strict gate
         run: |
           node scripts/validate-roadmap-grounding.mjs --strict --matrix tools/route-role-matrix/monthly/${{ github.run_id }}/route-role-matrix.json
+
+      - name: Roadmap role-gate strict validation
+        run: |
+          node scripts/validate-roadmap-role-gates.mjs --strict --matrix tools/route-role-matrix/monthly/${{ github.run_id }}/route-role-matrix.json
 
       - name: Generate module grounding artifact
         run: |
@@ -97,6 +107,7 @@ jobs:
         run: |
           echo "## Monthly Governance Checkpoint" >> "$GITHUB_STEP_SUMMARY"
           echo "- Build gate: completed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Lint warning budget gate: completed" >> "$GITHUB_STEP_SUMMARY"
           echo "- Evidence IDs validated: ${{ steps.required-workflows.outputs.ids }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Canonical record: docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md" >> "$GITHUB_STEP_SUMMARY"
           echo "- Artifact path: tools/workflow-evidence/monthly/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"

@@ -11,6 +11,7 @@ on:
       - 'docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md'
       - 'docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json'
       - 'scripts/doc-authority-check.mjs'
+      - 'scripts/check-eslint-warning-budget.mjs'
       - 'scripts/check-route-roadmap-coverage.mjs'
       - 'scripts/generate-route-role-matrix.mjs'
       - 'scripts/generate-module-grounding-report.mjs'
@@ -21,6 +22,7 @@ on:
       - 'scripts/collect-workflow-evidence.mjs'
       - 'scripts/get-workflow-ids.mjs'
       - 'scripts/validate-workflow-evidence.mjs'
+      - 'tools/budgets/eslint-warning-budget.json'
       - '.github/workflows/governance-release-gate.yml'
       - 'package.json'
       - 'bun.lock'
@@ -34,6 +36,7 @@ on:
       - 'docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md'
       - 'docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json'
       - 'scripts/doc-authority-check.mjs'
+      - 'scripts/check-eslint-warning-budget.mjs'
       - 'scripts/check-route-roadmap-coverage.mjs'
       - 'scripts/generate-route-role-matrix.mjs'
       - 'scripts/generate-module-grounding-report.mjs'
@@ -44,6 +47,7 @@ on:
       - 'scripts/collect-workflow-evidence.mjs'
       - 'scripts/get-workflow-ids.mjs'
       - 'scripts/validate-workflow-evidence.mjs'
+      - 'tools/budgets/eslint-warning-budget.json'
       - '.github/workflows/governance-release-gate.yml'
       - 'package.json'
       - 'bun.lock'
@@ -71,6 +75,12 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Lint warning budget gate
+        run: bun run lint:warning-budget
 
       - name: Doc authority strict gate
         env:
@@ -158,6 +168,7 @@ jobs:
         run: |
           echo "## Governance Release Gate" >> "$GITHUB_STEP_SUMMARY"
           echo "- Doc authority strict gate: completed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Lint warning budget gate: completed" >> "$GITHUB_STEP_SUMMARY"
           echo "- Route roadmap strict gate: completed" >> "$GITHUB_STEP_SUMMARY"
           echo "- Roadmap grounding strict gate: completed" >> "$GITHUB_STEP_SUMMARY"
           echo "- Roadmap role-gate strict validation: completed" >> "$GITHUB_STEP_SUMMARY"

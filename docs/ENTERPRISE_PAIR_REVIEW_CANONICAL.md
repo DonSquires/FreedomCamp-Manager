@@ -258,6 +258,7 @@ This policy controls when DOC_AUTHORITY_STRICT_POLICY should be enabled in CI.
 14. Completed: CI lint warning budget gate added to prevent warning-count regressions.
 15. Completed: known React hook and fast-refresh lint warnings remediated in admin navigation, diagnostics hook, and PTT radio pages.
 16. Completed: ESLint warning budget lowered to zero (maxWarnings=0) for strict zero-warning enforcement.
+17. Completed: lint warning budget gate enforced across build, governance release, and monthly checkpoint workflows.
 
 ## Execution Ledger
 
