@@ -1,0 +1,26 @@
+{
+  "createdAt": "2026-05-02T05:12:43.637Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/tmp/bob-self-test-timeout-fix-plan.md",
+  "outputPath": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/bob-self-test-timeout-fix-plan.md.2026-05-02T05-12-43-624Z.json",
+  "decision": "needs-revision",
+  "structured": true,
+  "escalationReason": "blocker-findings",
+  "review": {
+    "decision": "needs-revision",
+    "summary": "The plan introduces a new constant without grounding it in the current system state, which could lead to unverified assumptions.",
+    "findings": [
+      {
+        "severity": "blocker",
+        "title": "Ungrounded Constant Usage",
+        "evidence": "The plan references `tests/e2e/deep-functional.spec.ts` as a default quick spec list without it being listed in the current system state or repo.",
+        "requiredAction": "Add `tests/e2e/deep-functional.spec.ts` to the `system_state.json` or remove its reference from the plan."
+      }
+    ],
+    "verificationChecks": [
+      "Run targeted build",
+      "Confirm terminal job output from RunPod `/status/{jobId}`"
+    ]
+  },
+  "basicFixResult": null,
+  "requiredAction": "Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope."
+}

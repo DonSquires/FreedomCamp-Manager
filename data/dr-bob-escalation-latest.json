@@ -1,17 +1,17 @@
 {
-  "timestamp": "2026-04-26T15:04:06.002Z",
-  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/uiux-master-redesign/execution-todo.md",
-  "reviewArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/execution-todo.md.2026-04-26T15-04-05-988Z.json",
-  "escalationArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-escalations/escalation.2026-04-26T15-04-06-002Z.json",
+  "timestamp": "2026-05-02T05:12:43.638Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/tmp/bob-self-test-timeout-fix-plan.md",
+  "reviewArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/bob-self-test-timeout-fix-plan.md.2026-05-02T05-12-43-624Z.json",
+  "escalationArtifact": "/workspaces/FreedomCamp-Manager/data/dr-bob-escalations/escalation.2026-05-02T05-12-43-637Z.json",
   "structured": true,
   "decision": "needs-revision",
   "reason": "blocker-findings",
-  "summary": "The artifact references modules and services that are not currently grounded in the system_state.json, which requires revisions before implementation can proceed.",
+  "summary": "The plan introduces a new constant without grounding it in the current system state, which could lead to unverified assumptions.",
   "findingsCount": 1,
-  "topFinding": "Ungrounded Module References",
+  "topFinding": "Ungrounded Constant Usage",
   "selfHealAttempted": false,
   "selfHealSuccess": false,
   "handoffRequired": true,
   "copilotActionHint": "Investigate escalation artifact and implement targeted fix",
-  "responsePreview": "{\"delayTime\":18,\"executionTime\":1775,\"id\":\"sync-bfdd6992-19d9-4480-b513-e90ecc73f890-u2\",\"output\":{\"message\":\"{\\n  \\\"decision\\\": \\\"needs-revision\\\",\\n  \\\"summary\\\": \\\"The artifact references modules and services that are not currently grounded in the system_state.json, which requires revisions befor"
+  "responsePreview": "{\"delayTime\":18,\"executionTime\":1929,\"id\":\"sync-4f4af03c-df76-4263-adff-50005d01fcad-u2\",\"output\":{\"message\":\"{\\n  \\\"decision\\\": \\\"needs-revision\\\",\\n  \\\"summary\\\": \\\"The plan introduces a new constant without grounding it in the current system state, which could lead to unverified assumptions.\\\",\\n"
 }

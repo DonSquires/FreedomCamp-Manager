@@ -1,0 +1,25 @@
+{
+  "createdAt": "2026-05-02T05:12:25.497Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/tmp/bob-self-test-timeout-fix-plan.md",
+  "outputPath": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/bob-self-test-timeout-fix-plan.md.2026-05-02T05-12-25-484Z.json",
+  "decision": "needs-revision",
+  "structured": true,
+  "escalationReason": "blocker-findings",
+  "review": {
+    "decision": "needs-revision",
+    "summary": "The plan references modules not grounded in the current system_state.json, specifically 'BOB_SELF_TEST_QUICK_SPECS' which is not present.",
+    "findings": [
+      {
+        "severity": "blocker",
+        "title": "Ungrounded Environment Variable Reference",
+        "evidence": "'BOB_SELF_TEST_QUICK_SPECS' is referenced in the plan but does not exist in system_state.json or repo files.",
+        "requiredAction": "Remove 'BOB_SELF_TEST_QUICK_SPECS' from the plan and ensure all environment variables are grounded."
+      }
+    ],
+    "verificationChecks": [
+      "Verify all environment variable references in the plan are present in system_state.json or repo files"
+    ]
+  },
+  "basicFixResult": null,
+  "requiredAction": "Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope."
+}
