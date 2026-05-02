@@ -389,6 +389,25 @@ Be specific. Name exact files and line-level changes where possible.`
     queryClient.invalidateQueries({ queryKey: ['platform-feedback'] })
   }, [queryClient])
 
+  const [deletingOld, setDeletingOld] = useState(false)
+  const deleteOldClosedReports = useCallback(async () => {
+    const TERMINAL_STATUSES = ['closed', 'resolved', 'wont_fix', 'duplicate']
+    const cutoff = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()
+    setDeletingOld(true)
+    try {
+      const { error, count } = await supabase
+        .from('bug_reports')
+        .delete({ count: 'exact' })
+        .in('status', TERMINAL_STATUSES)
+        .lt('created_at', cutoff)
+      if (error) { toast.error('Cleanup failed', { description: error.message }); return }
+      queryClient.invalidateQueries({ queryKey: ['platform-feedback'] })
+      toast.success(`Cleaned up ${count ?? 0} closed report${count === 1 ? '' : 's'} older than 6 hours`)
+    } finally {
+      setDeletingOld(false)
+    }
+  }, [queryClient])
+
   const runBulkAutoAnalysis = useCallback(async () => {
     const reports = (feedbackReports ?? []).filter((report) => (
       isPendingAnalysisStatus(report.status) && !report.ai_analyzed
@@ -770,6 +789,20 @@ Be specific. Name exact files and line-level changes where possible.`
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['platform-feedback'] })}>
                   <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refresh
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={deleteOldClosedReports}
+                  disabled={deletingOld || feedbackLoading}
+                  className="text-muted-foreground hover:text-destructive hover:border-destructive/50"
+                  title="Delete closed / resolved / won't-fix / duplicate reports older than 6 hours"
+                >
+                  {deletingOld ? (
+                    <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Cleaning…</>
+                  ) : (
+                    <><Clock className="h-3.5 w-3.5 mr-1.5" /> Clean up (6h+)</>
+                  )}
                 </Button>
               </div>
             </div>
