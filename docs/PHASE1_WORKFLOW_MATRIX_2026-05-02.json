@@ -1,0 +1,237 @@
+{
+  "generatedAt": "2026-05-02",
+  "owner": "Primary execution lead",
+  "workflows": [
+    {
+      "id": "WF-01",
+      "name": "CRM to Client Sites Drillthrough",
+      "criticality": "P0",
+      "owner": "Operations admin",
+      "testType": "e2e",
+      "commands": [
+        "node scripts/run-human-module-suite.mjs --grep \"CRM Module\""
+      ],
+      "tests": [
+        "tests/e2e/ui-comprehensive.spec.ts",
+        "tests/e2e/crm-business-crossover.spec.ts"
+      ],
+      "artifacts": [
+        "playwright-report/",
+        "test-results/"
+      ],
+      "status": "grounded"
+    },
+    {
+      "id": "WF-02",
+      "name": "Vehicle Scan to Compliance Evaluation",
+      "criticality": "P0",
+      "owner": "Field officer operations",
+      "testType": "e2e",
+      "commands": [
+        "node scripts/run-test-with-bob-assist.mjs -- npx playwright test tests/e2e/scan-flow.spec.ts"
+      ],
+      "tests": [
+        "tests/e2e/scan-flow.spec.ts",
+        "tests/e2e/compliance-recalculation.spec.ts"
+      ],
+      "artifacts": [
+        "playwright-report/",
+        "test-results/"
+      ],
+      "status": "grounded"
+    },
+    {
+      "id": "WF-03",
+      "name": "Breach Escalation and Notice Path",
+      "criticality": "P0",
+      "owner": "Compliance lead",
+      "testType": "e2e",
+      "commands": [
+        "node scripts/run-test-with-bob-assist.mjs -- npx playwright test tests/e2e/enforcement-route-restoration-smoke.spec.ts"
+      ],
+      "tests": [
+        "tests/e2e/enforcement-route-restoration-smoke.spec.ts",
+        "tests/e2e/route-restoration-smoke.spec.ts"
+      ],
+      "artifacts": [
+        "playwright-report/",
+        "test-results/"
+      ],
+      "status": "grounded"
+    },
+    {
+      "id": "WF-04",
+      "name": "Report Generation and Export",
+      "criticality": "P0",
+      "owner": "Reporting administrator",
+      "testType": "e2e",
+      "commands": [
+        "node scripts/run-test-with-bob-assist.mjs -- npx playwright test tests/e2e/report-generation.spec.ts"
+      ],
+      "tests": [
+        "tests/e2e/report-generation.spec.ts",
+        "tests/e2e/capability-overview.spec.ts"
+      ],
+      "artifacts": [
+        "playwright-report/",
+        "test-results/"
+      ],
+      "status": "grounded"
+    },
+    {
+      "id": "WF-05",
+      "name": "Dispatch Assignment to Job Map",
+      "criticality": "P0",
+      "owner": "Dispatch supervisor",
+      "testType": "e2e",
+      "commands": [
+        "node scripts/run-test-with-bob-assist.mjs -- npx playwright test tests/e2e/cross-module-workflow.spec.ts"
+      ],
+      "tests": [
+        "tests/e2e/cross-module-workflow.spec.ts",
+        "tests/e2e/system-integration.spec.ts"
+      ],
+      "artifacts": [
+        "playwright-report/",
+        "test-results/"
+      ],
+      "status": "grounded"
+    },
+    {
+      "id": "WF-06",
+      "name": "PTT Connect, Broadcast, and Log",
+      "criticality": "P0",
+      "owner": "Communications operations",
+      "testType": "e2e",
+      "commands": [
+        "node scripts/run-test-with-bob-assist.mjs -- npx playwright test tests/e2e/ptt-e2e.spec.ts tests/e2e/ptt-radio-smoke.spec.ts"
+      ],
+      "tests": [
+        "tests/e2e/ptt-e2e.spec.ts",
+        "tests/e2e/ptt-radio-smoke.spec.ts",
+        "tests/e2e/ptt-websocket-connectivity.spec.ts"
+      ],
+      "artifacts": [
+        "playwright-report/",
+        "test-results/"
+      ],
+      "status": "grounded"
+    },
+    {
+      "id": "WF-07",
+      "name": "Multi-Org Data Isolation",
+      "criticality": "P0",
+      "owner": "Security and governance",
+      "testType": "e2e+api",
+      "commands": [
+        "node scripts/run-test-with-bob-assist.mjs -- npx playwright test tests/e2e/multi-org-rls.spec.ts tests/e2e/org-isolation-api.spec.ts"
+      ],
+      "tests": [
+        "tests/e2e/multi-org-rls.spec.ts",
+        "tests/e2e/org-isolation-api.spec.ts",
+        "tests/e2e/client-portal-isolation.spec.ts"
+      ],
+      "artifacts": [
+        "playwright-report/",
+        "test-results/"
+      ],
+      "status": "grounded"
+    },
+    {
+      "id": "WF-08",
+      "name": "Role Matrix Access Control",
+      "criticality": "P0",
+      "owner": "Identity and access",
+      "testType": "e2e",
+      "commands": [
+        "node scripts/run-test-with-bob-assist.mjs -- npx playwright test tests/e2e/role-matrix-smoke.spec.ts tests/e2e/module-route-access.spec.ts"
+      ],
+      "tests": [
+        "tests/e2e/role-matrix-smoke.spec.ts",
+        "tests/e2e/module-route-access.spec.ts",
+        "tests/e2e/governance-bob-regression.spec.ts"
+      ],
+      "artifacts": [
+        "playwright-report/",
+        "test-results/"
+      ],
+      "status": "grounded"
+    },
+    {
+      "id": "WF-09",
+      "name": "Offline Queue Capture and Sync",
+      "criticality": "P0",
+      "owner": "Field reliability",
+      "testType": "e2e",
+      "commands": [
+        "node scripts/run-test-with-bob-assist.mjs -- npx playwright test tests/e2e/offline-queue.spec.ts tests/e2e/pwa-features.spec.ts"
+      ],
+      "tests": [
+        "tests/e2e/offline-queue.spec.ts",
+        "tests/e2e/pwa-features.spec.ts"
+      ],
+      "artifacts": [
+        "playwright-report/",
+        "test-results/"
+      ],
+      "status": "grounded"
+    },
+    {
+      "id": "WF-10",
+      "name": "Specialist Portal Smoke (Noise/Biosecurity/Smoke)",
+      "criticality": "P0",
+      "owner": "Specialised services",
+      "testType": "e2e",
+      "commands": [
+        "node scripts/run-test-with-bob-assist.mjs -- npx playwright test tests/e2e/noise-e2e.spec.ts tests/e2e/biosecurity-e2e.spec.ts"
+      ],
+      "tests": [
+        "tests/e2e/noise-e2e.spec.ts",
+        "tests/e2e/biosecurity-e2e.spec.ts",
+        "tests/e2e/module-e2e-comprehensive.spec.ts"
+      ],
+      "artifacts": [
+        "playwright-report/",
+        "test-results/"
+      ],
+      "status": "grounded"
+    },
+    {
+      "id": "WF-11",
+      "name": "API Contract and Service Health",
+      "criticality": "P0",
+      "owner": "Platform engineering",
+      "testType": "api+e2e",
+      "commands": [
+        "node scripts/run-test-with-bob-assist.mjs -- npx playwright test -c playwright.api.config.ts"
+      ],
+      "tests": [
+        "tests/e2e/api-response.spec.ts",
+        "tests/e2e/production-readiness-audit.spec.ts"
+      ],
+      "artifacts": [
+        "playwright-report/",
+        "test-results/"
+      ],
+      "status": "grounded"
+    },
+    {
+      "id": "WF-12",
+      "name": "Tender Workspace Intake to Analysis",
+      "criticality": "P1",
+      "owner": "Commercial operations",
+      "testType": "e2e",
+      "commands": [
+        "node scripts/run-test-with-bob-assist.mjs -- npx playwright test tests/e2e/tender-workspace.spec.ts"
+      ],
+      "tests": [
+        "tests/e2e/tender-workspace.spec.ts"
+      ],
+      "artifacts": [
+        "playwright-report/",
+        "test-results/"
+      ],
+      "status": "grounded"
+    }
+  ]
+}

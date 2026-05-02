@@ -134,8 +134,36 @@ Lens decisions:
 Cycle blockers:
 
 1. Publish 12-workflow mission-critical matrix.
+   - Status: completed
+   - Artifact: docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json
 2. Record evidence fields and command/artifact mapping in canonical workflow records.
+   - Status: completed (registry added below)
 3. Resolve TypeScript deprecation warning impacting strict governance confidence.
+   - Status: partially resolved (current compiler requires ignoreDeprecations=5.0)
+   - Next step: upgrade TypeScript toolchain before switching suppression target
+   - Classification: target-state-gap (toolchain dependency)
+
+## Evidence Command Registry
+
+The mission-critical workflow evidence matrix is tracked in:
+
+1. docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json
+
+Execution rules:
+
+1. Each workflow must have:
+   - owner
+   - command(s)
+   - test file references
+   - artifact paths
+2. A workflow cannot be marked complete unless command output artifacts exist.
+3. Any manual-only P0 workflow is blocked until automation or approved compensating control is documented.
+
+Core command anchors:
+
+1. Bob-assisted generic wrapper: scripts/run-test-with-bob-assist.mjs
+2. Bob-assisted core suite: scripts/run-bob-assisted-core-suite.mjs
+3. Human module suite: scripts/run-human-module-suite.mjs
 
 ## OpenAI Lens Review (Architecture + Governance)
 
