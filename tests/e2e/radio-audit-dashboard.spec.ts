@@ -60,7 +60,7 @@ test.describe('RadioAuditDashboard', () => {
     await expect(page.getByRole('heading', { name: /Radio Audit Dashboard/i })).not.toBeVisible({ timeout: 10000 })
   })
 
-  test('latency tab is visible and accessible to admin', async ({ adminUser: page }) => {
+  test('latency and packet-loss panels are visible to admin', async ({ adminUser: page }) => {
     test.skip(!syntheticAudioEnabled, 'Requires VITE_RADIO_SYNTHETIC_AUDIO_ENABLED=true')
 
     await page.goto('/radio/audit')
@@ -68,7 +68,11 @@ test.describe('RadioAuditDashboard', () => {
 
     await page.getByRole('tab', { name: /Latency/i }).click()
     // Either shows latency stats or empty-state message
-    const statsOrEmpty = page.locator('[data-testid="latency-stats"], :text("No render latency data")')
-    await expect(statsOrEmpty.first()).toBeVisible({ timeout: 10000 })
+    const latencyStatsOrEmpty = page.locator('[data-testid="latency-stats"], :text("No render latency data")')
+    await expect(latencyStatsOrEmpty.first()).toBeVisible({ timeout: 10000 })
+
+    // Either shows packet-loss stats or empty-state message
+    const packetLossStatsOrEmpty = page.locator('[data-testid="packet-loss-stats"], :text("No packet-loss metrics available")')
+    await expect(packetLossStatsOrEmpty.first()).toBeVisible({ timeout: 10000 })
   })
 })
