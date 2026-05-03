@@ -273,6 +273,25 @@ Latest Session Snapshot:
   - Deploy + Playwright still pending for current head; owner: CI/Release pipeline
 - Next exact command to run: `cd /workspaces/FreedomCamp-Manager && GH_PAGER=cat gh run list --limit 80 --json databaseId,headSha,workflowName,status,conclusion,url | jq 'map(select(.headSha=="'"$(git rev-parse HEAD)"'"))'`
 
+Latest Session Snapshot (ORG-SCOPE-ZERO COMPLETE):
+
+- Timestamp (NZ): 2026-05-03 20:25:28 NZST
+- Current branch: main
+- HEAD SHA: 76d3e2799b00ca3ad5f247bd2e07e150f4c799cc
+- Working tree status (`git status -sb`): clean (`## main...origin/main`)
+- Latest lint result: pass (`bun run lint`)
+- Latest build result: pass (`bun run build`, 3953 modules transformed, built in 20.73s)
+- Latest targeted test result: pass (`node scripts/audit-org-scoping.mjs`, missing required org filters: 0)
+- Active/last CI run IDs (all complete):
+  - `25274043306` Governance Release Gate: completed, success
+  - `25274043303` policy-bob-no-openai: completed, success
+  - `25274043310` Validate RunPod Image Tags: completed, success
+  - `25274043335` CI Build High Memory: completed, success
+  - `25274043305` Deploy Admin Portal to Vercel: completed, success
+  - `25274043304` Playwright Deep Functional Cross-Browser: completed, success
+- Open blockers with owner: **NONE**. Org-scoping hardening complete; all required CI gates passed.
+- Next exact command to run: `cd /workspaces/FreedomCamp-Manager && bash scripts/system-check.sh && node scripts/summarize-failures.mjs`
+
 ## 8. Fast Resume Commands
 
 Run these as a single crash-recovery bundle:
