@@ -66,6 +66,10 @@ export function useIncidents(options?: {
   const query = useQuery({
     queryKey: ['incidents', { ...options, organizationId: effectiveOrganizationId }],
     queryFn: async () => {
+      if (!effectiveOrganizationId) {
+        return [] as Incident[]
+      }
+
       let incidentsQuery = supabase
         .from('incidents')
         .select(`
@@ -91,9 +95,7 @@ export function useIncidents(options?: {
         `)
         .order('created_at', { ascending: false })
 
-      if (effectiveOrganizationId) {
-        incidentsQuery = incidentsQuery.eq('organization_id', effectiveOrganizationId)
-      }
+      incidentsQuery = incidentsQuery.eq('organization_id', effectiveOrganizationId)
 
       if (options?.zoneId) {
         incidentsQuery = incidentsQuery.eq('zone_id', options.zoneId)

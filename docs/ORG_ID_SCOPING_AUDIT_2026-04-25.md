@@ -1,19 +1,16 @@
 # Org Scoping Audit (2026-04-25)
 
-Generated: 2026-05-03T07:46:25.713Z
+Generated: 2026-05-03T07:51:21.555Z
 
 Total query sites: 250
-Missing required org filter: 37
+Missing required org filter: 34
 Review needed: 61
 Known exceptions: 2
 
 ## Missing Required Org Filters
 
 - src/hooks/useAuditLogs.ts:163 table=audit_log
-- src/hooks/useEnforcementActions.ts:153 table=enforcement_actions
-- src/hooks/useEnforcementActions.ts:182 table=enforcement_actions
-- src/hooks/useEnforcementActions.ts:209 table=enforcement_actions
-- src/hooks/useIncidents.ts:70 table=incidents
+- src/hooks/useIncidents.ts:74 table=incidents
 - src/hooks/useOfficerNotifications.ts:124 table=breach_alerts
 - src/hooks/useOfficerNotifications.ts:225 table=breach_alerts
 - src/hooks/useOfficerNotifications.ts:230 table=breach_alerts

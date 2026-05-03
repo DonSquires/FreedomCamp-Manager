@@ -115,6 +115,10 @@ export function useEnforcementActions(options?: {
   // Create action mutation
   const createAction = useMutation({
     mutationFn: async (input: CreateActionInput) => {
+      if (!user?.organization_id) {
+        throw new Error('No organization context for enforcement action creation')
+      }
+
       const { data, error } = await (supabase
         .from('enforcement_actions') as any)
         .insert({
@@ -126,10 +130,6 @@ export function useEnforcementActions(options?: {
           observation_id: input.observation_id,
           notes: input.notes,
           status: 'pending',
-    onError: (err: any) => {
-      console.error(err)
-      toast.error(err?.message || 'Operation failed')
-    },
         })
         .select()
         .single()
@@ -150,18 +150,21 @@ export function useEnforcementActions(options?: {
   // Assign action mutation
   const assignAction = useMutation({
     mutationFn: async ({ id, assigned_to }: AssignActionInput) => {
-      const { error } = await supabase.from('enforcement_actions')
+      let query = supabase
+        .from('enforcement_actions')
         .update({
           assigned_to,
           assigned_at: new Date().toISOString(),
           assigned_by: user?.id,
           status: 'assigned',
-    onError: (err: any) => {
-      console.error(err)
-      toast.error(err?.message || 'Operation failed')
-    },
         })
         .eq('id', id)
+
+      if (user?.role !== 'master' && user?.organization_id) {
+        query = query.eq('organization_id', user.organization_id)
+      }
+
+      const { error } = await query
 
       if (error) {
         toast.error('Failed to assign action')
@@ -179,18 +182,21 @@ export function useEnforcementActions(options?: {
     mutationFn: async (id: string) => {
       if (!user?.id) throw new Error('User not authenticated')
 
-      const { error } = await supabase.from('enforcement_actions')
+      let query = supabase
+        .from('enforcement_actions')
         .update({
           assigned_to: user.id,
           assigned_at: new Date().toISOString(),
           assigned_by: user.id,
           status: 'assigned',
-    onError: (err: any) => {
-      console.error(err)
-      toast.error(err?.message || 'Operation failed')
-    },
         })
         .eq('id', id)
+
+      if (user?.role !== 'master' && user?.organization_id) {
+        query = query.eq('organization_id', user.organization_id)
+      }
+
+      const { error } = await query
 
       if (error) {
         toast.error('Failed to assign to self')
@@ -206,19 +212,22 @@ export function useEnforcementActions(options?: {
   // Complete action mutation
   const completeAction = useMutation({
     mutationFn: async ({ id, outcome, notes }: CompleteActionInput) => {
-      const { error } = await supabase.from('enforcement_actions')
+      let query = supabase
+        .from('enforcement_actions')
         .update({
           status: 'completed',
           completion_outcome: outcome,
           completion_notes: notes,
           completed_by: user?.id,
           completed_at: new Date().toISOString(),
-    onError: (err: any) => {
-      console.error(err)
-      toast.error(err?.message || 'Operation failed')
-    },
         })
         .eq('id', id)
+
+      if (user?.role !== 'master' && user?.organization_id) {
+        query = query.eq('organization_id', user.organization_id)
+      }
+
+      const { error } = await query
 
       if (error) {
         toast.error('Failed to complete action')

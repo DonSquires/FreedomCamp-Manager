@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-03T07:46:25.713Z",
+  "generatedAt": "2026-05-03T07:51:21.555Z",
   "scope": [
     "src/hooks",
     "src/lib"
@@ -28,9 +28,9 @@
   },
   "summary": {
     "total": 250,
-    "ok": 112,
+    "ok": 115,
     "known_exception": 2,
-    "missing_org_filter": 37,
+    "missing_org_filter": 34,
     "allowed_global_or_user_scoped": 38,
     "review": 61
   },
@@ -44,32 +44,8 @@
       "scoped": false
     },
     {
-      "file": "src/hooks/useEnforcementActions.ts",
-      "line": 153,
-      "table": "enforcement_actions",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/useEnforcementActions.ts",
-      "line": 182,
-      "table": "enforcement_actions",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/useEnforcementActions.ts",
-      "line": 209,
-      "table": "enforcement_actions",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
       "file": "src/hooks/useIncidents.ts",
-      "line": 70,
+      "line": 74,
       "table": "incidents",
       "status": "missing_org_filter",
       "orgRequired": true,
@@ -1035,7 +1011,7 @@
     },
     {
       "file": "src/hooks/useEnforcementActions.ts",
-      "line": 119,
+      "line": 123,
       "table": "enforcement_actions",
       "status": "ok",
       "orgRequired": true,
@@ -1043,27 +1019,27 @@
     },
     {
       "file": "src/hooks/useEnforcementActions.ts",
-      "line": 153,
+      "line": 154,
       "table": "enforcement_actions",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/hooks/useEnforcementActions.ts",
-      "line": 182,
+      "line": 186,
       "table": "enforcement_actions",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/hooks/useEnforcementActions.ts",
-      "line": 209,
+      "line": 216,
       "table": "enforcement_actions",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/hooks/useFlaggedVehicles.ts",
@@ -1163,7 +1139,7 @@
     },
     {
       "file": "src/hooks/useIncidents.ts",
-      "line": 70,
+      "line": 74,
       "table": "incidents",
       "status": "missing_org_filter",
       "orgRequired": true,
@@ -1171,7 +1147,7 @@
     },
     {
       "file": "src/hooks/useIncidents.ts",
-      "line": 133,
+      "line": 135,
       "table": "incidents",
       "status": "ok",
       "orgRequired": true,
@@ -1179,7 +1155,7 @@
     },
     {
       "file": "src/hooks/useIncidents.ts",
-      "line": 169,
+      "line": 171,
       "table": "incidents",
       "status": "ok",
       "orgRequired": true,
@@ -1187,7 +1163,7 @@
     },
     {
       "file": "src/hooks/useIncidents.ts",
-      "line": 201,
+      "line": 203,
       "table": "incidents",
       "status": "ok",
       "orgRequired": true,
@@ -1195,7 +1171,7 @@
     },
     {
       "file": "src/hooks/useIncidents.ts",
-      "line": 249,
+      "line": 251,
       "table": "incidents",
       "status": "ok",
       "orgRequired": true,
