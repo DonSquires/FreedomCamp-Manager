@@ -6,7 +6,7 @@
 
 > **Living document** — this manual is updated automatically when source files change.  
 > See [`.github/workflows/docs-update-instruction-manual.yml`](../.github/workflows/docs-update-instruction-manual.yml) for the update trigger rules.  
-> Last reviewed: 2026-05-02
+> Last reviewed: 2026-05-03
 
 ---
 
@@ -800,6 +800,12 @@ supabase db push --linked
 | `observations` | Officer observations |
 | `dispatch_jobs` | Jobs dispatched to officers |
 | `dispatch_resources` | Patrol runs and callsigns |
+| `radio_transmissions` | PTT transmission audit trail (speaker, channel, emergency flag, start/end) |
+| `radio_transcript_segments` | Transcript segments per transmission (sequence, confidence, final flag) |
+| `radio_translation_segments` | Per-segment translated caption output |
+| `radio_tts_renders` | Synthetic translated-audio render artifacts (always synthetic-tagged) |
+| `radio_voice_profiles` | Voice profile registry (consent-governed, revocable) |
+| `radio_voice_consents` | Auditable consent/revocation records for voice profiles |
 | `canonical_persons` | Master person registry |
 | `canonical_vehicles` | Deduplicated vehicle registry |
 | `client_sites` | Contracted client sites (unique on `organization_id + site_code`) |
@@ -844,6 +850,8 @@ Located in `supabase/functions/<name>/index.ts`. All functions are Deno TypeScri
 | `live-session-diagnostics-ingest` | Ingest live session diagnostics to `bug_reports` |
 | `live-session-diagnostics-summary` | AI summary of session diagnostics |
 | `check-railway-health` | Legacy alias → delegates to `check-services-health` |
+| `radio-token` | Mints scoped PTT JWT + creates `radio_transmissions` audit row |
+| `radio-audit` | Org-scoped radio audit metrics (coverage, low-confidence, synthetic-tagging) |
 
 **Conventions (mandatory for new Edge Functions):**
 
@@ -915,6 +923,28 @@ The PTT system provides real-time radio communication between officers and super
 | PTT Bridge Python | `ptt-bridge-python/` | Mumble integration |
 | Mumble Stack | `mumble-stack/` | Self-hosted Mumble server config |
 
+#### Radio Control Plane (current production contract)
+
+| API / Service | Purpose |
+|---|---|
+| `supabase/functions/radio-token` | Policy-plane token minting and transmission audit row creation |
+| `ptt-server/radio-router.js` | SFU control endpoints and transmission-scoped JWT verification |
+| `ptt-server/speech-worker.js` | Redis queue consumer for speech lifecycle events |
+| `inference-service/server.js` `/radio/speech-event` | Speech ingress endpoint (authenticated, async 202 acceptance) |
+
+#### Auth Model
+
+1. `radio-token` is called with user bearer auth and returns a scoped radio JWT.
+2. SFU/session endpoints in `ptt-server` require `Authorization: Bearer <radio-jwt>`.
+3. Transmission scope is enforced server-side (`claims.transmission_id` must match request transmission).
+
+#### Speech Pipeline (Phase 1)
+
+1. Producer/session lifecycle events are enqueued in Redis (`radio:speech:events`).
+2. `speech-worker.js` forwards events to inference webhook with retry/backoff and DLQ.
+3. `radio-speech-processor` writes transcript segments when enabled and updates `ended_at` on session close.
+4. AI-off/stub mode is supported and must not block original audio traffic.
+
 #### Configuration
 
 Officers are assigned PTT channel access via the `ptt_channel_access` array on their `user_profiles` record. Administrators configure channels via **User Management** → PTT Channel Access Control.
@@ -936,6 +966,28 @@ Navigate to `/diagnostics` (`master` or `grand_master` role required).
 | **Inference Service** | Bob/ONNX service ping |
 | **PTT Service** | Push-to-Talk WebRTC signalling |
 | **Database Connectivity** | Supabase read/write round-trip |
+
+#### Radio-Specific Health Endpoints
+
+| Endpoint | Service | Meaning |
+|---|---|---|
+| `GET /radio/health` | `ptt-server` | SFU readiness, worker count, active sessions, router totals |
+| `GET /health` → `radio_pipeline` | `inference-service` | Speech processor mode (`stub`/`whisper`), processor enabled flag, model/config visibility |
+
+Use these endpoints during incident response before escalating a radio outage.
+
+#### Phase 1 Validation Workflow
+
+The dedicated CI gate is [`.github/workflows/phase1-radio-validation.yml`](../.github/workflows/phase1-radio-validation.yml) and executes:
+
+1. Role-scoped radio access tests
+2. Org isolation tests (transcripts + translations)
+3. Reconnect resilience tests
+4. Emergency-channel latency tests
+5. AI-off degradation tests
+6. Voice consent/revocation tests
+
+Expected behavior: when optional org2/inference secrets are not present, environment-gated tests skip instead of failing unrelated deployment checks.
 
 #### Data Integrity
 
