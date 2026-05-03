@@ -64,6 +64,7 @@ import {
 import { requestWakeLock, releaseWakeLock, requestNotificationPermission } from '@/lib/pttBackground'
 import { radioFeatureFlags } from '@/lib/radio/radioFeatureFlags'
 import { radioCaptionService, type CaptionSegment } from '@/lib/radio/radioCaptionService'
+import { checkInferenceHealth } from '@/lib/proxyServices'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -191,6 +192,7 @@ const CONNECT_STORM_WINDOW_MS = 15000
 const CONNECT_STORM_MAX_ATTEMPTS = 6
 const CONNECT_STORM_COOLDOWN_MS = 20000
 const CONNECTION_WARNING_TIMEOUT_MS = 12000
+const CAPTION_DELAY_THRESHOLD_MS = 6000
 
 function deriveTranslatorRestUrlFromWs(raw: string): string {
   const trimmed = String(raw || '').trim().replace(/\/$/, '')
@@ -540,26 +542,85 @@ export default function PTTRadio() {
   const lastConnectCircuitToastAtRef = useRef(0)
   const handoffGeoPollInFlightRef = useRef(false)
 
-  // ── Org ID ────────────────────────────────────────────────
-    // ── Live Captions (Phase 2 — gated by radioFeatureFlags.captionsEnabled) ──
-    const [liveCaptions, setLiveCaptions] = useState<CaptionSegment[]>([])
-    useEffect(() => {
-      if (!radioFeatureFlags.captionsEnabled) return
-      const unsub = radioCaptionService.subscribe((seg) => {
-        setLiveCaptions((prev) => {
-          const idx = prev.findIndex(
-            (s) => s.transmissionId === seg.transmissionId && s.sequenceNum === seg.sequenceNum,
-          )
-          if (idx >= 0) {
-            const next = [...prev]
-            next[idx] = seg
-            return next
-          }
-          return [...prev, seg].slice(-50)
-        })
+  // ── Live Captions (Phase 2 — gated by radioFeatureFlags.captionsEnabled) ──
+  const [liveCaptions, setLiveCaptions] = useState<CaptionSegment[]>([])
+  const [lastCaptionAtMs, setLastCaptionAtMs] = useState<number | null>(null)
+  const [captionsDelayed, setCaptionsDelayed] = useState(false)
+  const remoteTransmissionStartedAtRef = useRef<number | null>(null)
+
+  const { data: captionInferenceHealth } = useQuery({
+    queryKey: ['radio-caption-inference-health'],
+    queryFn: checkInferenceHealth,
+    enabled: radioFeatureFlags.captionsEnabled,
+    refetchInterval: 30000,
+    staleTime: 15000,
+  })
+
+  useEffect(() => {
+    if (!radioFeatureFlags.captionsEnabled) return
+    const unsub = radioCaptionService.subscribe((seg) => {
+      setLastCaptionAtMs(Date.now())
+      setLiveCaptions((prev) => {
+        const idx = prev.findIndex(
+          (s) => s.transmissionId === seg.transmissionId && s.sequenceNum === seg.sequenceNum,
+        )
+        if (idx >= 0) {
+          const next = [...prev]
+          next[idx] = seg
+          return next
+        }
+        return [...prev, seg].slice(-50)
       })
-      return unsub
-    }, [])
+    })
+    return unsub
+  }, [])
+
+  const captionPipeline = captionInferenceHealth?.radioPipeline
+  const captionProcessorEnabled = captionPipeline?.processor_enabled === true
+  const captionUnavailableReason = captionInferenceHealth?.status === 'offline'
+    ? captionInferenceHealth.error || 'Inference service offline'
+    : captionPipeline && captionPipeline.processor_enabled === false
+      ? 'Speech processor is disabled on inference service'
+      : null
+  const captionsUnavailable = Boolean(captionUnavailableReason)
+  const remoteTransmissionActive = Boolean(speakerId && !isSpeaking)
+
+  useEffect(() => {
+    if (!radioFeatureFlags.captionsEnabled) return
+    if (remoteTransmissionActive) {
+      remoteTransmissionStartedAtRef.current = Date.now()
+      return
+    }
+    remoteTransmissionStartedAtRef.current = null
+    setCaptionsDelayed(false)
+  }, [remoteTransmissionActive])
+
+  useEffect(() => {
+    if (!radioFeatureFlags.captionsEnabled) return
+    if (captionsUnavailable || !captionProcessorEnabled) {
+      setCaptionsDelayed(false)
+      return
+    }
+
+    const iv = setInterval(() => {
+      if (!remoteTransmissionActive) {
+        setCaptionsDelayed(false)
+        return
+      }
+
+      const reference = Math.max(lastCaptionAtMs || 0, remoteTransmissionStartedAtRef.current || 0)
+      if (!reference) {
+        setCaptionsDelayed(false)
+        return
+      }
+
+      setCaptionsDelayed(Date.now() - reference > CAPTION_DELAY_THRESHOLD_MS)
+    }, 1000)
+
+    return () => clearInterval(iv)
+  }, [captionProcessorEnabled, captionsUnavailable, lastCaptionAtMs, remoteTransmissionActive])
+
+  // ── Org ID ────────────────────────────────────────────────
 
   const effectiveOrgId = useMemo(
     () =>
@@ -3070,12 +3131,20 @@ export default function PTTRadio() {
               {radioFeatureFlags.captionsEnabled && (
                 <div className="border-t border-slate-800 shrink-0">
                   <div className="flex items-center gap-1.5 text-[10px] text-slate-500 uppercase tracking-widest px-3 pt-2 pb-1">
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                    Live Captions
+                    <span
+                      className={`inline-block w-1.5 h-1.5 rounded-full ${captionsUnavailable ? 'bg-red-500' : captionsDelayed ? 'bg-amber-400 animate-pulse' : 'bg-green-500 animate-pulse'}`}
+                    />
+                    {captionsUnavailable ? 'Live Captions Unavailable' : captionsDelayed ? 'Live Captions Delayed' : 'Live Captions'}
                   </div>
                   <ScrollArea className="h-20 px-3 pb-2">
-                    {liveCaptions.length === 0 ? (
-                      <p className="text-[11px] text-slate-600 italic">Waiting for captions…</p>
+                    {captionsUnavailable ? (
+                      <p className="text-[11px] text-red-400 italic">{captionUnavailableReason}</p>
+                    ) : captionsDelayed ? (
+                      <p className="text-[11px] text-amber-300 italic">Caption stream delayed for current transmission…</p>
+                    ) : liveCaptions.length === 0 ? (
+                      <p className="text-[11px] text-slate-600 italic">
+                        {captionProcessorEnabled ? 'Waiting for captions…' : 'Caption pipeline standby…'}
+                      </p>
                     ) : (
                       <div className="space-y-0.5">
                         {liveCaptions.slice(-8).map((seg) => (

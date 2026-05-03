@@ -608,6 +608,13 @@ export interface ServiceHealthStatus {
   status: 'online' | 'offline' | 'degraded'
   latency_ms?: number
   error?: string
+  /** Radio speech pipeline status from inference /health when available. */
+  radioPipeline?: {
+    processor_enabled?: boolean
+    processor_mode?: string
+    whisper_model?: string
+    [key: string]: unknown
+  } | null
   /** Whether INFERENCE_API_KEY is configured in Supabase secrets */
   apiKeyConfigured?: boolean
   /** Whether the inference service has INFERENCE_API_KEY_SET (from its health response) */
@@ -678,6 +685,7 @@ export async function checkInferenceHealth(): Promise<ServiceHealthStatus> {
   return {
     status: isOnline ? 'online' : isOffline ? 'offline' : 'degraded',
     error: inferenceHealth?.error as string | undefined,
+    radioPipeline: (inferenceHealth?.radio_pipeline as ServiceHealthStatus['radioPipeline']) ?? null,
     apiKeyConfigured: inferenceApiKeyConfigured,
     serviceApiKeyRequired,
   }
