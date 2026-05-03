@@ -633,6 +633,63 @@ export default function PTTRadio() {
   const employerOrganizationId = user?.employer_organization_id || null
   const providerOrgId = employerOrganizationId || homeOrganizationId || null
 
+  useEffect(() => {
+    if (!radioFeatureFlags.captionsEnabled || !effectiveOrgId) return
+
+    const toCaptionSegment = (row: any): CaptionSegment | null => {
+      if (!row?.transmission_id || typeof row.sequence_num !== 'number') return null
+      return {
+        transmissionId: String(row.transmission_id),
+        sequenceNum: Number(row.sequence_num),
+        segmentStartMs: Number(row.segment_start_ms || 0),
+        segmentEndMs: Number(row.segment_end_ms || 0),
+        text: String(row.text || ''),
+        language: String(row.language || 'en'),
+        confidence: Number(row.confidence ?? 0),
+        isFinal: Boolean(row.is_final),
+      }
+    }
+
+    const channel = supabase
+      .channel(`radio-captions-${effectiveOrgId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'radio_transcript_segments',
+          filter: `org_id=eq.${effectiveOrgId}`,
+        },
+        (payload: any) => {
+          const seg = toCaptionSegment(payload?.new)
+          if (!seg) return
+          radioCaptionService.emit(seg)
+        },
+      )
+      .subscribe()
+
+    // Catch-up fetch so clients joining mid-transmission can render recent segments.
+    const sinceIso = new Date(Date.now() - 2 * 60 * 1000).toISOString()
+    void (supabase as any)
+      .from('radio_transcript_segments')
+      .select('transmission_id, sequence_num, segment_start_ms, segment_end_ms, text, language, confidence, is_final, created_at')
+      .eq('org_id', effectiveOrgId)
+      .gte('created_at', sinceIso)
+      .order('created_at', { ascending: true })
+      .limit(40)
+      .then(({ data, error }: any) => {
+        if (error || !Array.isArray(data)) return
+        for (const row of data) {
+          const seg = toCaptionSegment(row)
+          if (seg) radioCaptionService.emit(seg)
+        }
+      })
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [effectiveOrgId])
+
   const { data: hybridHandshake } = useHybridWorkspaceHandshake({
     providerOrgId,
     longitude: handoffGeoPoint?.longitude,
