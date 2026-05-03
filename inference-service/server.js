@@ -99,7 +99,7 @@ const { createKnowledgeRequestStore } = require('./lib/knowledge-requests');
 const { resolveBobProfile, buildProfileSystemPromptSection, hasPermission, invalidateBobProfileCache } = require('./lib/bob-profile');
 const { createCodeTaskStore } = require('./lib/code-tasks');
 const { recordResponseFeedback } = require('./lib/response-feedback');
-const { processSpeechEvent } = require('./lib/radio-speech-processor');
+const { processSpeechEvent, getRadioPipelineStatus } = require('./lib/radio-speech-processor');
 const { identifyPlants, getWeatherForLocation: getBioWeather } = require('./lib/biosecurity-inference');
 const { assessSmoke } = require('./lib/smoke-inference');
 const {
@@ -8257,6 +8257,7 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
     runpod_pod_manager: runpodPodManager.toJSON(),
     knowledge_requests: knowledgeRequestsStore.getState(),
     code_tasks: codeTaskStore.getState(),
+    radio_pipeline: getRadioPipelineStatus(),
     uptime: process.uptime(),
     memory: process.memoryUsage()
   });

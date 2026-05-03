@@ -172,10 +172,13 @@ async function handleProducerCreated(event) {
     return;
   }
 
+  const pipelineStartMs = Date.now();
   const result = await transcribeAudio({ audioData, audioUrl, language, transmissionId });
+  const processingLatencyMs = Date.now() - pipelineStartMs;
 
   // Don't persist empty stub segments unless RADIO_PERSIST_STUB is set.
   if (result.stub && !process.env.RADIO_PERSIST_STUB) {
+    console.log(`[radio-speech-processor] stub skipped tx=${transmissionId.slice(0, 8)} latency=${processingLatencyMs}ms`);
     return;
   }
 
@@ -196,7 +199,11 @@ async function handleProducerCreated(event) {
 
   try {
     await supabaseInsert('radio_transcript_segments', row);
-    console.log(`[radio-speech-processor] inserted segment seq=${seq} for tx=${transmissionId.slice(0, 8)}`);
+    console.log(
+      `[radio-speech-processor] inserted segment seq=${seq} tx=${transmissionId.slice(0, 8)}` +
+      ` latency=${processingLatencyMs}ms provider=${result.provider || 'unknown'}` +
+      ` confidence=${result.confidence ?? 'null'}`
+    );
   } catch (err) {
     console.error('[radio-speech-processor] insert failed:', err.message);
     throw err;
@@ -254,4 +261,20 @@ async function processSpeechEvent(event) {
   return false;
 }
 
-module.exports = { processSpeechEvent };
+/**
+ * Returns a lightweight status snapshot for the /health endpoint.
+ * Safe to call at any time; never throws.
+ */
+function getRadioPipelineStatus() {
+  const whisperEnabled = String(process.env.RADIO_PROCESSOR_ENABLED || 'false').toLowerCase() === 'true';
+  const ollaPttConfigured = !!(process.env.OLLAMA_PTT_BASE_URL || process.env.OLLAMA_BASE_URL);
+  return {
+    processor_enabled: PROCESSOR_ENABLED,
+    processor_mode: whisperEnabled && ollaPttConfigured ? 'whisper' : 'stub',
+    ollama_ptt_configured: ollaPttConfigured,
+    whisper_model: WHISPER_MODEL,
+    active_transmission_counters: sequenceCounters.size,
+  };
+}
+
+module.exports = { processSpeechEvent, getRadioPipelineStatus };
