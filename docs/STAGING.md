@@ -579,6 +579,8 @@ Completed kickoff artifacts:
 3. `docs/PHASE3_UX_BASELINE_CAPTURE_2026-05-03.md` (baseline metric workbook)
 4. `tests/e2e/phase3-ux-baseline-capture.spec.ts` (click-depth/time/error capture spec)
 5. `.github/workflows/phase3-ux-baseline-capture.yml` (CI capture lane)
+6. `docs/PHASE3_ROLE_PATH_SIMPLIFICATION_MAPS_2026-05-03.md` (role-family fast-path maps)
+7. `docs/PHASE3_VISUAL_HIERARCHY_CLEANUP_CHECKLIST_2026-05-03.md` (slice-based implementation checklist)
 
 Validation gates completed locally:
 1. `npm run lint` -> pass
