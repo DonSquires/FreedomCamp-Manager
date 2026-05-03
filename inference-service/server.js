@@ -99,6 +99,7 @@ const { createKnowledgeRequestStore } = require('./lib/knowledge-requests');
 const { resolveBobProfile, buildProfileSystemPromptSection, hasPermission, invalidateBobProfileCache } = require('./lib/bob-profile');
 const { createCodeTaskStore } = require('./lib/code-tasks');
 const { recordResponseFeedback } = require('./lib/response-feedback');
+const { processSpeechEvent } = require('./lib/radio-speech-processor');
 const { identifyPlants, getWeatherForLocation: getBioWeather } = require('./lib/biosecurity-inference');
 const { assessSmoke } = require('./lib/smoke-inference');
 const {
@@ -4751,14 +4752,22 @@ app.post('/radio/speech-event', inferenceRateLimit, requireInferenceAuth, async 
       return res.status(400).json({ error: 'transmissionId is required' });
     }
 
-    // Phase 1 queue handoff acknowledgement endpoint.
-    // Phase 2/3 workers will consume these lifecycle events and run STT + translation.
+    const enrichedEvent = {
+      ...payload,
+      orgId: payload.orgId || req.get('x-org-id') || null,
+    };
+
     console.log('[radio-speech-event] accepted', {
       type,
       transmissionId,
-      orgId: payload.orgId || req.get('x-org-id') || null,
+      orgId: enrichedEvent.orgId,
       speakerId: payload.speakerId || null,
       isEmergency: Boolean(payload.isEmergency),
+    });
+
+    // Run the speech processor asynchronously — do not block the 202 response.
+    processSpeechEvent(enrichedEvent).catch((err) => {
+      console.error('[radio-speech-event] processor error:', err.message);
     });
 
     return res.status(202).json({
