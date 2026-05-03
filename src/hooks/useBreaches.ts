@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
+import { useAuthStore } from '@/stores/authStore'
 import type { BreachAlert, BreachStatus, Severity } from '@/types'
 
 interface UseBreachesOptions {
@@ -96,17 +97,26 @@ export function useBreaches(options: UseBreachesOptions = {}) {
 }
 
 export function useBreach(breachId: string) {
+  const { operationalOrganizationId } = useOperationalOrganization()
+  const { user } = useAuthStore()
+
   return useQuery({
-    queryKey: ['breach', breachId],
+    queryKey: ['breach', breachId, operationalOrganizationId, user?.role],
     queryFn: async () => {
-      const { data, error } = await supabase.from('breach_alerts')
+      let query = supabase
+        .from('breach_alerts')
         .select(`
           *,
           zone:zones(name),
           organization:organizations(name)
         `)
         .eq('id', breachId)
-        .single()
+
+      if (user?.role !== 'master' && operationalOrganizationId) {
+        query = query.eq('organization_id', operationalOrganizationId)
+      }
+
+      const { data, error } = await query.single()
 
       if (error) throw error
       return data as unknown as BreachAlertExtended
@@ -117,10 +127,13 @@ export function useBreach(breachId: string) {
 
 export function useResolveBreach() {
   const queryClient = useQueryClient()
+  const { operationalOrganizationId } = useOperationalOrganization()
+  const { user } = useAuthStore()
 
   return useMutation({
     mutationFn: async ({ breachId, userId }: { breachId: string; userId: string }) => {
-      const { error } = await supabase.from('breach_alerts')
+      let query = supabase
+        .from('breach_alerts')
         .update({ 
           status: 'resolved',
           resolved_at: new Date().toISOString(),
@@ -130,6 +143,12 @@ export function useResolveBreach() {
           admin_reviewed_at: new Date().toISOString(),
         })
         .eq('id', breachId)
+
+      if (user?.role !== 'master' && operationalOrganizationId) {
+        query = query.eq('organization_id', operationalOrganizationId)
+      }
+
+      const { error } = await query
 
       if (error) throw error
     },
@@ -145,12 +164,21 @@ export function useResolveBreach() {
 
 export function useNotifyBreach() {
   const queryClient = useQueryClient()
+  const { operationalOrganizationId } = useOperationalOrganization()
+  const { user } = useAuthStore()
 
   return useMutation({
     mutationFn: async (breachId: string) => {
-      const { error } = await supabase.from('breach_alerts')
+      let query = supabase
+        .from('breach_alerts')
         .update({ status: 'acknowledged' })
         .eq('id', breachId)
+
+      if (user?.role !== 'master' && operationalOrganizationId) {
+        query = query.eq('organization_id', operationalOrganizationId)
+      }
+
+      const { error } = await query
 
       if (error) throw error
     },

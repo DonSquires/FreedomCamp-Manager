@@ -1,18 +1,15 @@
 # Org Scoping Audit (2026-04-25)
 
-Generated: 2026-05-03T07:27:47.641Z
+Generated: 2026-05-03T07:41:16.475Z
 
 Total query sites: 250
-Missing required org filter: 45
+Missing required org filter: 39
 Review needed: 61
 Known exceptions: 2
 
 ## Missing Required Org Filters
 
 - src/hooks/useAuditLogs.ts:163 table=audit_log
-- src/hooks/useBreaches.ts:102 table=breach_alerts
-- src/hooks/useBreaches.ts:123 table=breach_alerts
-- src/hooks/useBreaches.ts:151 table=breach_alerts
 - src/hooks/useChatMessages.ts:71 table=chat_messages
 - src/hooks/useEnforcementActions.ts:153 table=enforcement_actions
 - src/hooks/useEnforcementActions.ts:182 table=enforcement_actions
@@ -25,9 +22,6 @@ Known exceptions: 2
 - src/hooks/useOfficerNotifications.ts:250 table=breach_alerts
 - src/hooks/usePatrolCheckpoints.ts:140 table=patrol_checkpoints
 - src/hooks/usePatrolRouteInstances.ts:344 table=audit_log
-- src/hooks/usePatrols.ts:128 table=patrols
-- src/hooks/usePatrols.ts:157 table=patrols
-- src/hooks/usePatrols.ts:289 table=patrols
 - src/hooks/useShiftGate.ts:97 table=zones
 - src/hooks/useVehicleAnalysis.ts:41 table=observations
 - src/hooks/useVehicleAnalysis.ts:145 table=observations

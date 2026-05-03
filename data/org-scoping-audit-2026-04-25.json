@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-03T07:27:47.641Z",
+  "generatedAt": "2026-05-03T07:41:16.475Z",
   "scope": [
     "src/hooks",
     "src/lib"
@@ -28,9 +28,9 @@
   },
   "summary": {
     "total": 250,
-    "ok": 104,
+    "ok": 110,
     "known_exception": 2,
-    "missing_org_filter": 45,
+    "missing_org_filter": 39,
     "allowed_global_or_user_scoped": 38,
     "review": 61
   },
@@ -39,30 +39,6 @@
       "file": "src/hooks/useAuditLogs.ts",
       "line": 163,
       "table": "audit_log",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/useBreaches.ts",
-      "line": 102,
-      "table": "breach_alerts",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/useBreaches.ts",
-      "line": 123,
-      "table": "breach_alerts",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/useBreaches.ts",
-      "line": 151,
-      "table": "breach_alerts",
       "status": "missing_org_filter",
       "orgRequired": true,
       "scoped": false
@@ -159,30 +135,6 @@
       "file": "src/hooks/usePatrolRouteInstances.ts",
       "line": 344,
       "table": "audit_log",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/usePatrols.ts",
-      "line": 128,
-      "table": "patrols",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/usePatrols.ts",
-      "line": 157,
-      "table": "patrols",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/usePatrols.ts",
-      "line": 289,
-      "table": "patrols",
       "status": "missing_org_filter",
       "orgRequired": true,
       "scoped": false
@@ -963,7 +915,7 @@
     },
     {
       "file": "src/hooks/useBreaches.ts",
-      "line": 55,
+      "line": 56,
       "table": "breach_alerts",
       "status": "ok",
       "orgRequired": true,
@@ -971,31 +923,31 @@
     },
     {
       "file": "src/hooks/useBreaches.ts",
-      "line": 102,
+      "line": 107,
       "table": "breach_alerts",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/hooks/useBreaches.ts",
-      "line": 123,
+      "line": 136,
       "table": "breach_alerts",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/hooks/useBreaches.ts",
-      "line": 151,
+      "line": 173,
       "table": "breach_alerts",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/hooks/useBreaches.ts",
-      "line": 175,
+      "line": 203,
       "table": "breach_alerts",
       "status": "ok",
       "orgRequired": true,
@@ -1683,23 +1635,7 @@
     },
     {
       "file": "src/hooks/usePatrols.ts",
-      "line": 128,
-      "table": "patrols",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/usePatrols.ts",
-      "line": 157,
-      "table": "patrols",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/usePatrols.ts",
-      "line": 186,
+      "line": 130,
       "table": "patrols",
       "status": "ok",
       "orgRequired": true,
@@ -1707,7 +1643,7 @@
     },
     {
       "file": "src/hooks/usePatrols.ts",
-      "line": 237,
+      "line": 167,
       "table": "patrols",
       "status": "ok",
       "orgRequired": true,
@@ -1715,7 +1651,23 @@
     },
     {
       "file": "src/hooks/usePatrols.ts",
-      "line": 265,
+      "line": 202,
+      "table": "patrols",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/usePatrols.ts",
+      "line": 253,
+      "table": "patrols",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/usePatrols.ts",
+      "line": 281,
       "table": "patrol_schedule_zones",
       "status": "allowed_global_or_user_scoped",
       "orgRequired": false,
@@ -1723,15 +1675,15 @@
     },
     {
       "file": "src/hooks/usePatrols.ts",
-      "line": 289,
+      "line": 307,
       "table": "patrols",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/hooks/usePatrols.ts",
-      "line": 474,
+      "line": 498,
       "table": "patrols",
       "status": "ok",
       "orgRequired": true,

@@ -122,16 +122,24 @@ export function usePatrol(patrolId: string) {
 
 export function useStartPatrol() {
   const queryClient = useQueryClient()
+  const { user } = useAuthStore()
 
   return useMutation({
     mutationFn: async (patrolId: string) => {
-      const { error } = await supabase.from('patrols')
+      let query = supabase
+        .from('patrols')
         .update({ 
           status: 'in_progress',
           started_at: new Date().toISOString(),
           actual_start_time: new Date().toISOString(),
         })
         .eq('id', patrolId)
+
+      if (user?.role !== 'master' && user?.organization_id) {
+        query = query.eq('organization_id', user.organization_id)
+      }
+
+      const { error } = await query
 
       if (error) throw error
     },
@@ -147,6 +155,7 @@ export function useStartPatrol() {
 
 export function useCompletePatrol() {
   const queryClient = useQueryClient()
+  const { user } = useAuthStore()
 
   return useMutation({
     mutationFn: async ({ patrolId, vehiclesChecked, breachesFound }: {
@@ -154,7 +163,8 @@ export function useCompletePatrol() {
       vehiclesChecked: number
       breachesFound: number
     }) => {
-      const { error } = await supabase.from('patrols')
+      let query = supabase
+        .from('patrols')
         .update({ 
           status: 'completed',
           ended_at: new Date().toISOString(),
@@ -163,6 +173,12 @@ export function useCompletePatrol() {
           breaches_found: breachesFound
         })
         .eq('id', patrolId)
+
+      if (user?.role !== 'master' && user?.organization_id) {
+        query = query.eq('organization_id', user.organization_id)
+      }
+
+      const { error } = await query
 
       if (error) throw error
     },
@@ -283,12 +299,20 @@ export function useCreatePatrolSchedule() {
 /** Cancel a scheduled patrol */
 export function useCancelPatrol() {
   const queryClient = useQueryClient()
+  const { user } = useAuthStore()
 
   return useMutation({
     mutationFn: async (patrolId: string) => {
-      const { error } = await supabase.from('patrols')
+      let query = supabase
+        .from('patrols')
         .update({ status: 'cancelled' })
         .eq('id', patrolId)
+
+      if (user?.role !== 'master' && user?.organization_id) {
+        query = query.eq('organization_id', user.organization_id)
+      }
+
+      const { error } = await query
       if (error) throw error
     },
     onSuccess: () => {
