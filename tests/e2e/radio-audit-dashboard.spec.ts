@@ -59,4 +59,16 @@ test.describe('RadioAuditDashboard', () => {
     // RoleRoute redirects or renders an access-denied message; either way the audit page heading should NOT appear
     await expect(page.getByRole('heading', { name: /Radio Audit Dashboard/i })).not.toBeVisible({ timeout: 10000 })
   })
+
+  test('latency tab is visible and accessible to admin', async ({ adminUser: page }) => {
+    test.skip(!syntheticAudioEnabled, 'Requires VITE_RADIO_SYNTHETIC_AUDIO_ENABLED=true')
+
+    await page.goto('/radio/audit')
+    await expect(page.getByRole('heading', { name: /Radio Audit Dashboard/i })).toBeVisible({ timeout: 20000 })
+
+    await page.getByRole('tab', { name: /Latency/i }).click()
+    // Either shows latency stats or empty-state message
+    const statsOrEmpty = page.locator('[data-testid="latency-stats"], :text("No render latency data")')
+    await expect(statsOrEmpty.first()).toBeVisible({ timeout: 10000 })
+  })
 })

@@ -18,8 +18,8 @@ import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { AlertTriangle, ArrowLeft, ShieldCheck, Volume2 } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import { Activity, AlertTriangle, ArrowLeft, ShieldCheck, Volume2 } from 'lucide-react'
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { formatInTimeZone } from 'date-fns-tz'
@@ -58,6 +58,16 @@ interface RenderRow {
 interface DayBucket {
   day: string
   renders: number
+}
+
+interface LatencyBucket {
+  label: string
+  count: number
+}
+
+interface LatencyTrendPoint {
+  ts: string
+  latency: number
 }
 
 export default function RadioAuditDashboard() {
@@ -163,6 +173,52 @@ export default function RadioAuditDashboard() {
   const syntheticRenders = useMemo(() => renders.filter((r) => r.is_synthetic), [renders])
   const voiceTwinRenders = useMemo(() => renders.filter((r) => !!r.voice_profile_id), [renders])
 
+  // Latency stats derived from render_latency_ms
+  const latencyValues = useMemo(
+    () => renders.map((r) => r.render_latency_ms).filter((v): v is number => v !== null),
+    [renders],
+  )
+  const latencyStats = useMemo(() => {
+    if (latencyValues.length === 0) return null
+    const sorted = [...latencyValues].sort((a, b) => a - b)
+    const sum = sorted.reduce((acc, v) => acc + v, 0)
+    return {
+      p50: sorted[Math.floor(sorted.length * 0.5)] ?? 0,
+      p95: sorted[Math.floor(sorted.length * 0.95)] ?? 0,
+      p99: sorted[Math.floor(sorted.length * 0.99)] ?? 0,
+      mean: Math.round(sum / sorted.length),
+      max: sorted[sorted.length - 1] ?? 0,
+      count: sorted.length,
+    }
+  }, [latencyValues])
+
+  // Latency distribution histogram — 10 buckets 0–500 ms, overflow bucket
+  const latencyHistogram = useMemo((): LatencyBucket[] => {
+    const BUCKETS = 10
+    const BUCKET_SIZE = 50
+    const counts = Array(BUCKETS + 1).fill(0) as number[]
+    for (const v of latencyValues) {
+      const idx = Math.min(Math.floor(v / BUCKET_SIZE), BUCKETS)
+      counts[idx]++
+    }
+    return counts.map((count, i) => ({
+      label: i < BUCKETS ? `${i * BUCKET_SIZE}–${(i + 1) * BUCKET_SIZE}` : '500+',
+      count,
+    }))
+  }, [latencyValues])
+
+  // Latency trend — last 50 renders with latency, oldest first
+  const latencyTrend = useMemo((): LatencyTrendPoint[] => {
+    return renders
+      .filter((r) => r.render_latency_ms !== null)
+      .slice(0, 50)
+      .reverse()
+      .map((r, i) => ({
+        ts: String(i + 1),
+        latency: r.render_latency_ms!,
+      }))
+  }, [renders])
+
   if (!canAccess) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-slate-400">
@@ -259,6 +315,10 @@ export default function RadioAuditDashboard() {
           <TabsTrigger value="renders" className="data-[state=active]:bg-slate-700 text-xs">
             <Volume2 className="h-3.5 w-3.5 mr-1" />
             Render Audit Log
+          </TabsTrigger>
+          <TabsTrigger value="latency" className="data-[state=active]:bg-slate-700 text-xs">
+            <Activity className="h-3.5 w-3.5 mr-1" />
+            Latency
           </TabsTrigger>
         </TabsList>
 
@@ -368,6 +428,90 @@ export default function RadioAuditDashboard() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Latency Dashboard — Ticket Group E.3 */}
+        <TabsContent value="latency" className="mt-3">
+          {latencyStats === null ? (
+            <Card className="bg-slate-900 border-slate-800">
+              <CardContent className="p-4">
+                <p className="text-sm text-slate-500">No render latency data available for this organisation.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {/* Percentile stat cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3" data-testid="latency-stats">
+                {[
+                  { label: 'Mean', value: latencyStats.mean, color: 'text-slate-200' },
+                  { label: 'p50', value: latencyStats.p50, color: 'text-green-400' },
+                  { label: 'p95', value: latencyStats.p95, color: 'text-amber-400' },
+                  { label: 'p99', value: latencyStats.p99, color: 'text-orange-400' },
+                  { label: 'Max', value: latencyStats.max, color: 'text-red-400' },
+                ].map(({ label, value, color }) => (
+                  <Card key={label} className="bg-slate-900 border-slate-800">
+                    <CardHeader className="pb-1 pt-3 px-4">
+                      <CardTitle className="text-[11px] text-slate-400 uppercase tracking-wider">{label}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-3">
+                      <span className={`text-xl font-bold tabular-nums ${color}`}>{value} ms</span>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              {/* Latency histogram */}
+              <Card className="bg-slate-900 border-slate-800">
+                <CardHeader className="pb-2 pt-4 px-4">
+                  <CardTitle className="text-sm text-slate-300 flex items-center gap-2">
+                    <Activity className="h-4 w-4 text-amber-400" />
+                    Render Latency Distribution (ms buckets)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-4">
+                  <ResponsiveContainer width="100%" height={150}>
+                    <BarChart data={latencyHistogram} margin={{ top: 0, right: 8, left: -20, bottom: 0 }}>
+                      <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill: '#64748b', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                      <Tooltip
+                        contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 6, fontSize: 12 }}
+                        labelStyle={{ color: '#94a3b8' }}
+                        itemStyle={{ color: '#fbbf24' }}
+                      />
+                      <Bar dataKey="count" fill="#d97706" radius={[3, 3, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              {/* Latency trend (last 50 renders) */}
+              {latencyTrend.length > 1 && (
+                <Card className="bg-slate-900 border-slate-800">
+                  <CardHeader className="pb-2 pt-4 px-4">
+                    <CardTitle className="text-sm text-slate-300 flex items-center gap-2">
+                      <Activity className="h-4 w-4 text-green-400" />
+                      Render Latency Trend — Last {latencyTrend.length} Renders
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-4 pb-4">
+                    <ResponsiveContainer width="100%" height={150}>
+                      <LineChart data={latencyTrend} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                        <XAxis dataKey="ts" tick={false} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fill: '#64748b', fontSize: 11 }} axisLine={false} tickLine={false} unit=" ms" />
+                        <Tooltip
+                          contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 6, fontSize: 12 }}
+                          labelFormatter={() => 'Render'}
+                          formatter={(v: number) => [`${v} ms`, 'Latency']}
+                        />
+                        <ReferenceLine y={latencyStats.p95} stroke="#f59e0b" strokeDasharray="3 3" label={{ value: 'p95', fill: '#f59e0b', fontSize: 10 }} />
+                        <Line type="monotone" dataKey="latency" stroke="#34d399" dot={false} strokeWidth={1.5} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>
