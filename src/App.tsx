@@ -389,6 +389,7 @@ function AreaRoute({
 }) {
   const { user } = useAuthStore()
   const { hasAreaAccess, isLoading: modulesLoading } = useOrgModules()
+  const orgCtx = useOrganization()
 
   if (!user) return <Navigate to="/login" replace />
 
@@ -412,8 +413,6 @@ function AreaRoute({
     return <Navigate to="/portal-selection" replace />
   }
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const orgCtx = useOrganization()
   return (
     <OrganizationContext.Provider value={orgCtx}>
       {children}
