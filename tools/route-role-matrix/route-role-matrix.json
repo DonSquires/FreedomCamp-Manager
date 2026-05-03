@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-05-02T23:42:51.263Z",
+  "generatedAt": "2026-05-03T08:40:40.520Z",
   "source": "src/App.tsx",
-  "routeCount": 120,
+  "routeCount": 121,
   "duplicatePathCount": 0,
   "duplicates": [],
   "routes": [
@@ -621,12 +621,25 @@
       "sourceIndex": 58
     },
     {
+      "path": "/radio/audit",
+      "accessType": "protected-role",
+      "roles": [
+        "admin",
+        "admin_officer",
+        "master",
+        "grand_master"
+      ],
+      "area": null,
+      "protected": true,
+      "sourceIndex": 59
+    },
+    {
       "path": "/messages",
       "accessType": "protected-authenticated",
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 59
+      "sourceIndex": 60
     },
     {
       "path": "/intel-approvals",
@@ -637,7 +650,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 60
+      "sourceIndex": 61
     },
     {
       "path": "/bob-intake-queue",
@@ -650,7 +663,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 61
+      "sourceIndex": 62
     },
     {
       "path": "/bob-assistant",
@@ -664,7 +677,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 62
+      "sourceIndex": 63
     },
     {
       "path": "/bob-ui-review",
@@ -677,7 +690,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 63
+      "sourceIndex": 64
     },
     {
       "path": "/live-plan-reviews",
@@ -690,7 +703,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 64
+      "sourceIndex": 65
     },
     {
       "path": "/notice-to-vacate",
@@ -702,7 +715,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 65
+      "sourceIndex": 66
     },
     {
       "path": "/disputes",
@@ -714,7 +727,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 66
+      "sourceIndex": 67
     },
     {
       "path": "/admin/discrepancies",
@@ -726,7 +739,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 67
+      "sourceIndex": 68
     },
     {
       "path": "/admin/nzscv",
@@ -739,7 +752,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 68
+      "sourceIndex": 69
     },
     {
       "path": "/officer-welfare",
@@ -751,7 +764,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 69
+      "sourceIndex": 70
     },
     {
       "path": "/enforcement-review",
@@ -763,7 +776,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 70
+      "sourceIndex": 71
     },
     {
       "path": "/investigations",
@@ -775,7 +788,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 71
+      "sourceIndex": 72
     },
     {
       "path": "/parking",
@@ -787,7 +800,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 72
+      "sourceIndex": 73
     },
     {
       "path": "/parking-officer",
@@ -800,7 +813,7 @@
       ],
       "area": "parking",
       "protected": true,
-      "sourceIndex": 73
+      "sourceIndex": 74
     },
     {
       "path": "/noise-control",
@@ -812,7 +825,7 @@
       ],
       "area": "noise",
       "protected": true,
-      "sourceIndex": 74
+      "sourceIndex": 75
     },
     {
       "path": "/noise-officer",
@@ -825,7 +838,7 @@
       ],
       "area": "noise",
       "protected": true,
-      "sourceIndex": 75
+      "sourceIndex": 76
     },
     {
       "path": "/biosecurity-control",
@@ -837,7 +850,7 @@
       ],
       "area": "biosecurity",
       "protected": true,
-      "sourceIndex": 76
+      "sourceIndex": 77
     },
     {
       "path": "/biosecurity-officer",
@@ -850,7 +863,7 @@
       ],
       "area": "biosecurity",
       "protected": true,
-      "sourceIndex": 77
+      "sourceIndex": 78
     },
     {
       "path": "/smoke-control",
@@ -862,7 +875,7 @@
       ],
       "area": "smoke",
       "protected": true,
-      "sourceIndex": 78
+      "sourceIndex": 79
     },
     {
       "path": "/smoke-officer",
@@ -875,7 +888,7 @@
       ],
       "area": "smoke",
       "protected": true,
-      "sourceIndex": 79
+      "sourceIndex": 80
     },
     {
       "path": "/vehicles/:id",
@@ -883,7 +896,7 @@
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 80
+      "sourceIndex": 81
     },
     {
       "path": "/person-records",
@@ -895,7 +908,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 81
+      "sourceIndex": 82
     },
     {
       "path": "/points-of-interest",
@@ -908,7 +921,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 82
+      "sourceIndex": 83
     },
     {
       "path": "/site-risk-assessment",
@@ -921,7 +934,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 83
+      "sourceIndex": 84
     },
     {
       "path": "/face-recognition",
@@ -934,7 +947,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 84
+      "sourceIndex": 85
     },
     {
       "path": "/identity-verification",
@@ -946,7 +959,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 85
+      "sourceIndex": 86
     },
     {
       "path": "/import-data",
@@ -958,7 +971,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 86
+      "sourceIndex": 87
     },
     {
       "path": "/import-historical",
@@ -969,7 +982,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 87
+      "sourceIndex": 88
     },
     {
       "path": "/breach-notices",
@@ -982,7 +995,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 88
+      "sourceIndex": 89
     },
     {
       "path": "/observations-report",
@@ -994,7 +1007,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 89
+      "sourceIndex": 90
     },
     {
       "path": "/settings",
@@ -1002,7 +1015,7 @@
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 90
+      "sourceIndex": 91
     },
     {
       "path": "/admin/service-provider-access",
@@ -1013,7 +1026,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 91
+      "sourceIndex": 92
     },
     {
       "path": "/profile",
@@ -1021,7 +1034,7 @@
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 92
+      "sourceIndex": 93
     },
     {
       "path": "/vehicle-registry",
@@ -1034,7 +1047,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 93
+      "sourceIndex": 94
     },
     {
       "path": "/admin/canonical-records",
@@ -1046,7 +1059,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 94
+      "sourceIndex": 95
     },
     {
       "path": "/notifications",
@@ -1054,7 +1067,7 @@
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 95
+      "sourceIndex": 96
     },
     {
       "path": "/compliance-dashboard",
@@ -1062,7 +1075,7 @@
       "roles": [],
       "area": null,
       "protected": false,
-      "sourceIndex": 96
+      "sourceIndex": 97
     },
     {
       "path": "/clean-dashboard",
@@ -1074,7 +1087,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 97
+      "sourceIndex": 98
     },
     {
       "path": "/asset-management",
@@ -1087,7 +1100,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 98
+      "sourceIndex": 99
     },
     {
       "path": "/invoicing",
@@ -1100,7 +1113,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 99
+      "sourceIndex": 100
     },
     {
       "path": "/pricing",
@@ -1113,7 +1126,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 100
+      "sourceIndex": 101
     },
     {
       "path": "/timesheets",
@@ -1125,7 +1138,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 102
+      "sourceIndex": 103
     },
     {
       "path": "/open-shifts",
@@ -1138,7 +1151,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 103
+      "sourceIndex": 104
     },
     {
       "path": "/dispatch",
@@ -1150,7 +1163,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 104
+      "sourceIndex": 105
     },
     {
       "path": "/dispatch-monitor",
@@ -1162,7 +1175,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 105
+      "sourceIndex": 106
     },
     {
       "path": "/dispatch-wizard",
@@ -1174,7 +1187,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 106
+      "sourceIndex": 107
     },
     {
       "path": "/dispatched-jobs",
@@ -1186,7 +1199,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 107
+      "sourceIndex": 108
     },
     {
       "path": "/job-map",
@@ -1199,7 +1212,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 108
+      "sourceIndex": 109
     },
     {
       "path": "/operations-map",
@@ -1211,7 +1224,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 109
+      "sourceIndex": 110
     },
     {
       "path": "/client-sites",
@@ -1223,7 +1236,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 110
+      "sourceIndex": 111
     },
     {
       "path": "/site-permissions",
@@ -1235,7 +1248,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 111
+      "sourceIndex": 112
     },
     {
       "path": "/client-master-list",
@@ -1247,7 +1260,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 112
+      "sourceIndex": 113
     },
     {
       "path": "/roster",
@@ -1259,7 +1272,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 113
+      "sourceIndex": 114
     },
     {
       "path": "/officer-skills",
@@ -1271,7 +1284,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 114
+      "sourceIndex": 115
     },
     {
       "path": "/availability",
@@ -1279,7 +1292,7 @@
       "roles": [],
       "area": null,
       "protected": true,
-      "sourceIndex": 115
+      "sourceIndex": 116
     },
     {
       "path": "/crm",
@@ -1292,7 +1305,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 116
+      "sourceIndex": 117
     },
     {
       "path": "/crm/contractor/:orgId",
@@ -1305,7 +1318,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 117
+      "sourceIndex": 118
     },
     {
       "path": "/crm/client/:orgId",
@@ -1318,7 +1331,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 118
+      "sourceIndex": 119
     },
     {
       "path": "/tender-workspace",
@@ -1330,7 +1343,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 119
+      "sourceIndex": 120
     },
     {
       "path": "/tender-workspace/:id",
@@ -1342,7 +1355,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 120
+      "sourceIndex": 121
     },
     {
       "path": "/tender-reference-library",
@@ -1354,7 +1367,7 @@
       ],
       "area": null,
       "protected": true,
-      "sourceIndex": 121
+      "sourceIndex": 122
     },
     {
       "path": "/ems",
@@ -1368,7 +1381,7 @@
       ],
       "area": "ems",
       "protected": true,
-      "sourceIndex": 122
+      "sourceIndex": 123
     },
     {
       "path": "/site-guard",
@@ -1382,7 +1395,7 @@
       ],
       "area": "site_guard",
       "protected": true,
-      "sourceIndex": 123
+      "sourceIndex": 124
     }
   ]
 }

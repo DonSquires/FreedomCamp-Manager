@@ -1,7 +1,7 @@
 # Enterprise Pair Review (Canonical Live Record)
 
 Date: 2026-05-03
-Baseline commit: 987f24c8
+Baseline commit: 6ad47163
 Review mode: Dual-lens (Bob operations lens + OpenAI architecture lens)
 Status: Active canonical record (update on each material platform change)
 
@@ -66,6 +66,34 @@ Primary manuals and standards reviewed:
 4. Deploy Admin Portal to Vercel: pass
 5. Synthetic UI Monitor: pass or intentionally skipped by workflow conditions
 6. Staging crash-recovery and handoff protocol is active in docs/STAGING.md and enforced by governance gates
+
+## Governance Cadence (Phase 2)
+
+1. Release checkpoints:
+   - Run `Governance Release Gate` on every push to `main` for route/schema/edge/doc-authority surfaces.
+   - Require explicit outcome classification: GO, CONDITIONAL_GO, or NO_GO in governance summary artifacts.
+2. Monthly cadence:
+   - Run `monthly-governance-checkpoint.yml` once per month.
+   - Revalidate doc authority, route-role grounding, module grounding, and evidence snapshots.
+3. Iteration cadence:
+   - Before any material change, run crash-recovery truth sync (`scripts/system-check.sh`, `scripts/summarize-failures.mjs`).
+   - After each material change, run local lint/build and targeted strict governance checks.
+4. Handoff requirement:
+   - Update `docs/STAGING.md` session snapshot with CI run IDs, blockers, and next command before session end.
+
+## Phase 2 Evidence Snapshot (2026-05-03)
+
+1. Role-gate strict validation: pass
+   - Command: `node scripts/validate-roadmap-role-gates.mjs --strict`
+   - Note: initial mismatch (`/radio/audit`) resolved by regenerating route-role matrix artifact.
+2. Route-role matrix refresh: pass
+   - Command: `node scripts/generate-route-role-matrix.mjs`
+   - Artifact: `tools/route-role-matrix/route-role-matrix.json` (route count: 121)
+3. Doc-authority strict mode: pass
+   - Command: `DOC_AUTHORITY_STRICT=true bun run lint:doc-authority`
+4. Governance status:
+   - Classification: CONDITIONAL_GO (pending triad sign-off capture for this cycle)
+   - Blockers: none technical; documentation sign-off record pending.
 
 ## Bob Lens Review (Operational + Reliability)
 
