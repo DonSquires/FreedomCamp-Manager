@@ -226,6 +226,19 @@ export default function DispatchConsole() {
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState<JobForm>(emptyForm())
 
+  // Offline detection
+  const [isOffline, setIsOffline] = useState(!navigator.onLine)
+  useEffect(() => {
+    const goOffline = () => setIsOffline(true)
+    const goOnline  = () => setIsOffline(false)
+    window.addEventListener('offline', goOffline)
+    window.addEventListener('online', goOnline)
+    return () => {
+      window.removeEventListener('offline', goOffline)
+      window.removeEventListener('online', goOnline)
+    }
+  }, [])
+
   // Auto-refresh every 30s for real-time feel
   const [tick, setTick] = useState(0)
   useEffect(() => {
@@ -255,7 +268,7 @@ export default function DispatchConsole() {
   })
 
   // ── Officers query — uses proximity ranking when selected job has GPS ──────
-  const { data: officers = [] } = useQuery<OfficerStatus[]>({
+  const { data: officers = [], isLoading: officersLoading, isError: officersError } = useQuery<OfficerStatus[]>({
     queryKey: ['dispatch-officers', orgId, tick, selectedJob?.id ?? null],
     queryFn: async () => {
       // If the selected job has GPS coordinates, use the proximity RPC
@@ -455,6 +468,14 @@ export default function DispatchConsole() {
       <GlobalFilterRibbon />
       <div className="p-4 md:p-6 space-y-4 max-w-screen-2xl mx-auto">
 
+      {/* Offline warning */}
+        {isOffline && (
+          <div className="flex items-center gap-2 rounded-md bg-yellow-50 border border-yellow-300 text-yellow-800 dark:bg-yellow-900/30 dark:border-yellow-700 dark:text-yellow-200 px-4 py-2 text-sm font-medium">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            You are offline. Dispatch actions are unavailable until connectivity is restored.
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -616,8 +637,22 @@ export default function DispatchConsole() {
                     </div>
                   </div>
                 ))}
-                {officers.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-4">No officers found</p>
+                {officersLoading && (
+                  <p className="text-sm text-muted-foreground text-center py-4">Loading officers…</p>
+                )}
+                {!officersLoading && officersError && (
+                  <div className="flex flex-col items-center gap-1 py-4 text-center">
+                    <AlertTriangle className="h-5 w-5 text-destructive" />
+                    <p className="text-sm text-destructive">Failed to load officers</p>
+                    <p className="text-xs text-muted-foreground">Check your network and try refreshing</p>
+                  </div>
+                )}
+                {!officersLoading && !officersError && officers.length === 0 && (
+                  <div className="flex flex-col items-center gap-1 py-4 text-center">
+                    <User className="h-6 w-6 text-muted-foreground/50" />
+                    <p className="text-sm text-muted-foreground font-medium">No officers on shift</p>
+                    <p className="text-xs text-muted-foreground">Start a shift or assign manually</p>
+                  </div>
                 )}
               </CardContent>
             </Card>

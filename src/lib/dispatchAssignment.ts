@@ -46,6 +46,19 @@ export interface DispatchResourceCandidate {
   rule_priority: number
 }
 
+/** Reason why automatic resource selection returned no candidate */
+export type DispatchFailureReason =
+  | 'no_gps'               // Job has no GPS coordinates — cannot do zone matching
+  | 'no_matching_zone'     // Job GPS found but no zone polygon contains it
+  | 'no_available_resource' // Zones matched but no eligible resource found
+  | 'network_error'        // Supabase query failed
+
+/** Typed result returned by selectDispatchResourceWithReason */
+export interface DispatchSelectionResult {
+  candidate: DispatchResourceCandidate | null
+  failureReason?: DispatchFailureReason
+}
+
 /** Context provided to the selector */
 export interface DispatchJobContext {
   /** ISO job type code (e.g. 'noise_complaint', 'alarm_response') */
@@ -342,4 +355,25 @@ export async function findExistingLoiByGeofence(
   }
 
   return null
+}
+
+/**
+ * Typed wrapper that preserves the existing selection behavior while exposing
+ * a machine-readable failure reason for UI fallback messaging.
+ */
+export async function selectDispatchResourceWithReason(
+  loi: LoiForDispatch,
+  context: DispatchJobContext,
+): Promise<DispatchSelectionResult> {
+  if (loi.gps_lat == null || loi.gps_lng == null) {
+    return { candidate: null, failureReason: 'no_gps' }
+  }
+
+  try {
+    const candidate = await selectDispatchResource(loi, context)
+    if (candidate) return { candidate }
+    return { candidate: null, failureReason: 'no_available_resource' }
+  } catch {
+    return { candidate: null, failureReason: 'network_error' }
+  }
 }
