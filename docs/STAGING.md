@@ -173,6 +173,24 @@ Fill this before stopping work:
 - Open blockers with owner:
 - Next exact command to run:
 
+Latest Session Snapshot:
+
+- Timestamp (NZ): 2026-05-03 19:16:42 NZST
+- Current branch: main
+- HEAD SHA: 10319594f3f5bf57756ceed9f707ea091436d9e6
+- Working tree status (`git status -sb`): clean (`## main...origin/main`)
+- Latest lint result: pass (`LINT_EXIT=0`)
+- Latest build result: pass (`vite build`, 3953 modules transformed, built in 21.42s)
+- Latest targeted test result: pass (`node --test ptt-server/test/radio-health-schema.test.js`, 3 passed, 0 failed)
+- Active/last CI run IDs:
+  - `25272681980` Governance Release Gate: success
+  - `25272681977` policy-bob-no-openai: success
+  - `25272681982` Validate RunPod Image Tags: success
+  - `25272681979` Deploy Admin Portal to Vercel: success
+  - `25272788170` Synthetic UI Monitor: success
+- Open blockers with owner: none
+- Next exact command to run: `cd /workspaces/FreedomCamp-Manager && bash scripts/system-check.sh && node scripts/summarize-failures.mjs && bun run lint && bun run build`
+
 ## 8. Fast Resume Commands
 
 Run these as a single crash-recovery bundle:
