@@ -423,6 +423,101 @@ If UX or role-flow change introduces route/doc drift:
 3. Resolve mismatch in docs/MODULE_ROADMAP.md or src/App.tsx
 4. Re-run doc authority checks and record evidence in STAGING snapshot
 
+### 9E. Top-10 High-Traffic Route Triage (Initial)
+
+Traffic proxy method:
+1. Prioritize P0 workflow surfaces from `docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json`
+2. Cross-map to primary/related routes in `docs/MODULE_ROADMAP.md`
+3. Validate route existence in `src/App.tsx`
+
+Ranked triage list (initial):
+
+| Rank | Route | Primary Roles | Friction Severity | Current Click Depth (est.) | Target Click Depth | Owner |
+|---|---|---|---|---:|---:|---|
+| 1 | `/compliance` | admin, admin_officer, master | High | 4 | 2 | Product design + frontend |
+| 2 | `/dispatch-monitor` | admin, admin_officer, master | High | 4 | 2 | Operations + frontend |
+| 3 | `/job-map` | admin, admin_officer, master, officer | High | 3 | 2 | Operations + frontend |
+| 4 | `/observations` | admin, admin_officer, master | High | 4 | 2 | Field workflows team |
+| 5 | `/radio` | authenticated users | High | 3 | 1 | Comms workflows team |
+| 6 | `/breaches` | authenticated users | Medium | 4 | 2 | Compliance team |
+| 7 | `/reports` | admin, admin_officer, master | Medium | 4 | 2 | Reporting + frontend |
+| 8 | `/crm` | admin, admin_officer, master, grand_master | Medium | 4 | 2 | CRM/domain team |
+| 9 | `/live-patrol` | admin, admin_officer, master | Medium | 3 | 2 | Patrol operations |
+| 10 | `/noise-control` | admin, admin_officer, master | Medium | 4 | 2 | Specialist services |
+
+### 9F. Route Friction and Simplification Plan
+
+Common friction patterns:
+1. Duplicate navigation surfaces for the same operation (list page + monitor page + map page).
+2. Action buttons hidden below dense tables, forcing scan-time overhead.
+3. Role-specific shortcuts inconsistent between admin and officer routes.
+4. Context loss when drilling into records and returning to filtered lists.
+
+Role-specific path simplifications:
+1. Officer flows:
+  - Fast path: `/field-officer` -> `/radio` -> `/observations` -> `/job-map`
+  - Add pinned quick-actions in field shell for report, dispatch acceptance, and evidence capture.
+2. Admin/admin_officer flows:
+  - Fast path: `/admin/dashboard` -> `/dispatch-monitor` -> `/compliance` -> `/reports`
+  - Add single "Ops Command" handoff links between dispatch/compliance/reporting surfaces.
+3. Master/grand_master flows:
+  - Fast path: `/platform` -> `/audit-log` -> `/intel-approvals` -> `/reports`
+  - Add governance shortcut strip for approvals, audits, and org-level controls.
+
+### 9G. Visual Hierarchy Cleanup Plan
+
+Now (immediate quick wins):
+1. Standardize primary action placement above table fold on the 10 triaged routes.
+2. Promote active filters and role context into sticky page headers.
+3. Reduce dense card/table duplication on compliance and dispatch pages.
+
+Next (phase slice B):
+1. Introduce route-level summary bars (pending alerts, unresolved breaches, active dispatches).
+2. Normalize empty/loading/error states across specialist portals.
+3. Tighten typography scale and spacing rhythm for dense admin views.
+
+Later (phase slice C):
+1. Cross-route command palette for top operator actions.
+2. Progressive disclosure patterns for advanced controls.
+3. Guided first-run cues for low-frequency governance tools.
+
+### 9H. Phase 3 UX Acceptance Criteria
+
+Per-route measurable targets:
+1. Median click depth to complete core action <= 2 for triaged routes.
+2. Time-to-primary-action reduced by >= 30% from current baseline.
+3. Error-prone actions (wrong route, wrong role surface, abandoned task) reduced by >= 25%.
+4. Role-route mismatch findings remain zero under strict roadmap-role validation.
+5. No regressions in lint/build/doc-authority governance gates.
+
+### 9I. Phase 3 Governance Gate (Conditional-Go -> GO)
+
+Triad review membership (formalized):
+1. Product design lead (UX decisions + readability hierarchy)
+2. Application architecture lead (route/path + role-gate integrity)
+3. Operations lead (field/admin workflow validity)
+
+Triad approval rule:
+1. GO: all 3 approve or approve-with-notes and no unresolved P0 blockers.
+2. CONDITIONAL_GO: <= 2 procedural blockers with explicit owner/date/evidence.
+3. NO_GO: any unresolved P0 blocker in role-gate integrity, route drift, or baseline evidence.
+
+Named owner assignment for 9A deliverables (execution role owners):
+1. 9A.1 UX triage list: Product design lead
+2. 9A.2 Role-path simplification: Application architecture lead
+3. 9A.3 Visual hierarchy cleanup: Frontend lead + Product design lead
+
+Baseline metrics requirement (must complete before implementation slice starts):
+1. Capture measured click depth (not estimates) for top-10 routes.
+2. Capture median time-to-primary-action for each route family.
+3. Capture error-prone action count from operator walkthrough samples.
+4. Store evidence snapshot in STAGING session log before first UX code change.
+
+Phase boundary clarity:
+1. P1 now-slice shipping minimum: ranks 1-5 from 9E.
+2. P2 next-slice shipping minimum: ranks 6-10 from 9E.
+3. Later-slice items from 9G are backlog-only until P1/P2 acceptance criteria pass.
+
 ## 8. Fast Resume Commands
 
 Run these as a single crash-recovery bundle:
