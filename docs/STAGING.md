@@ -592,3 +592,41 @@ GH_PAGER=cat gh run list --limit 120 --json databaseId,headSha,name,status,concl
 3. Do not mark tasks complete without command evidence.
 4. Do not ship doc changes that contradict canonical authority.
 5. Do not treat design-target files (`spec.md`, `plan.md`) as implementation proof.
+
+---
+
+## 10. Active To-Do List (2026-05-03)
+
+> Last updated: 2026-05-03 | Commit: 8cc8c4f3 | Sprint: 0
+
+### Sprint 0 — Gap Closure (must complete before Sprint 1)
+
+| # | Task | Status | Owner | Evidence / File |
+|---|---|---|---|---|
+| S0-1 | Create `docs/cross-org-verification-matrix.md` | ⬜ Not started | Dev | Ground from `tests/e2e/module-route-access.spec.ts` |
+| S0-2 | Create `docs/competitive-gap-board.md` | ⬜ Not started | Dev | Ground from `docs/COMPETITIVE_ANALYSIS_2024.md` + `docs/MODULE_ROADMAP.md` |
+| S0-3 | Create `docs/voc-to-backlog-mapping.md` | ⬜ Not started | Dev | Map VOC signals to backlog items with acceptance criteria |
+| S0-4 | Create `docs/ui-ux-first-wave-rollout-log.md` | ⬜ Not started | Dev | Top-10 operator routes for async-state UX rollout |
+| S0-5 | Re-run all 4 consensus lenses (Sprint 0 exit gate) | ⬜ Not started | Bob/AI | All lenses must return approve/approve-with-notes, no blockers |
+
+### Sprint 1 — Implementation (starts after Sprint 0 gate passes)
+
+| # | Task | Status | Owner | Evidence / File |
+|---|---|---|---|---|
+| S1-1 | Manifest-driven menu filtering | ⬜ Not started | Dev | `src/components/features/AppLayout.tsx` + `src/navigation/routeManifest.ts` |
+| S1-2 | Expand E2E: route/menu parity assertions | ⬜ Not started | Dev | `tests/e2e/module-route-access.spec.ts` |
+| S1-3 | Add org-scope context to `src/App.tsx` AreaRoute | ⬜ Not started | Dev | Align with `useOrganization()` hook pattern |
+| S1-4 | Dispatch fallback UX (offline / no officer assigned) | ⬜ Not started | Dev | `src/lib/dispatchAssignment.ts` |
+| S1-5 | Multi-org assurance: cross-org data bleed regression tests | ⬜ Not started | Dev | New test suite, ground from cross-org matrix (S0-1) |
+
+### Governance Cadence
+
+| # | Task | Frequency | Owner |
+|---|---|---|---|
+| G-1 | Weekly 4-lens triad review | Weekly | Bob + Dev |
+| G-2 | CI gate check before phase progression | Per PR | CI |
+| G-3 | Ungrounded refs → Candidate Gap Register investigation | Per session | Dev |
+| G-4 | Append lessons learned to `docs/LESSONS_LEARNED.md` | Per blocker resolved | Bob |
+
+### Status Legend
+`⬜ Not started` | `🔄 In progress` | `✅ Done` | `🚫 Blocked`
