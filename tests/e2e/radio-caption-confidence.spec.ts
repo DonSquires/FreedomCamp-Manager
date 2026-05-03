@@ -125,4 +125,40 @@ test.describe('radio caption confidence indicators', () => {
     await expect(page.getByText(/coqui-xtts/i)).toBeVisible()
     await expect(page.getByText('1 delayed')).toBeVisible()
   })
+
+  test('shows voice twin consent status indicators', async ({ officerUser: page }) => {
+    test.skip(
+      !captionsEnabled || !translationsEnabled || !syntheticAudioEnabled,
+      'Requires caption+translation+synthetic-audio flags enabled',
+    )
+
+    await page.goto('/radio')
+    await expect(page.getByRole('heading', { name: 'Radio' })).toBeVisible({ timeout: 20000 })
+
+    await page.evaluate(() => {
+      window.dispatchEvent(new CustomEvent('radio:inject-voice-consent-status', {
+        detail: {
+          consentId: 'consent-active-1',
+          provider: 'coqui-xtts',
+          purpose: 'voice_twin_training',
+          retentionDays: 90,
+          consentedAt: new Date().toISOString(),
+          revokedAt: null,
+          revocationReason: null,
+          voiceProfileId: 'profile-1',
+          profileProvider: 'coqui-xtts',
+          profileModelRef: 'officer-voice-profile-v1',
+          profileEnrolledAt: new Date().toISOString(),
+          profileRevokedAt: null,
+          profileActive: true,
+        },
+      }))
+    })
+
+    await expect(page.getByText(/Voice Twin Consent/i)).toBeVisible()
+    await expect(page.getByText(/Consented/i).first()).toBeVisible()
+    await expect(page.getByText(/Retention: 90 days/i)).toBeVisible()
+    await expect(page.getByText(/officer-voice-profile-v1/i)).toBeVisible()
+    await expect(page.getByRole('button', { name: /Revoke Consent/i })).toBeVisible()
+  })
 })

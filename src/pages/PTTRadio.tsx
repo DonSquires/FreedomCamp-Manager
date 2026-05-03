@@ -162,6 +162,22 @@ interface SyntheticAudioRender {
   storagePath: string | null
 }
 
+interface VoiceTwinConsentStatus {
+  consentId: string | null
+  provider: string | null
+  purpose: string | null
+  retentionDays: number | null
+  consentedAt: string | null
+  revokedAt: string | null
+  revocationReason: string | null
+  voiceProfileId: string | null
+  profileProvider: string | null
+  profileModelRef: string | null
+  profileEnrolledAt: string | null
+  profileRevokedAt: string | null
+  profileActive: boolean
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
@@ -566,6 +582,8 @@ export default function PTTRadio() {
   const [liveCaptions, setLiveCaptions] = useState<CaptionSegment[]>([])
   const [liveTranslations, setLiveTranslations] = useState<TranslationSegment[]>([])
   const [syntheticRenders, setSyntheticRenders] = useState<SyntheticAudioRender[]>([])
+  const [voiceTwinStatusOverride, setVoiceTwinStatusOverride] = useState<VoiceTwinConsentStatus | null>(null)
+  const [voiceTwinMutationPending, setVoiceTwinMutationPending] = useState(false)
   const [lastCaptionAtMs, setLastCaptionAtMs] = useState<number | null>(null)
   const [captionsDelayed, setCaptionsDelayed] = useState(false)
   const remoteTransmissionStartedAtRef = useRef<number | null>(null)
@@ -670,6 +688,24 @@ export default function PTTRadio() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!radioFeatureFlags.syntheticAudioEnabled || typeof window === 'undefined') return
+
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<VoiceTwinConsentStatus | null>).detail
+      if (!detail) {
+        setVoiceTwinStatusOverride(null)
+        return
+      }
+      setVoiceTwinStatusOverride(detail)
+    }
+
+    window.addEventListener('radio:inject-voice-consent-status', handler as EventListener)
+    return () => {
+      window.removeEventListener('radio:inject-voice-consent-status', handler as EventListener)
+    }
+  }, [])
+
   const captionPipeline = captionInferenceHealth?.radioPipeline
   const captionProcessorEnabled = captionPipeline?.processor_enabled === true
   const captionUnavailableReason = captionInferenceHealth?.status === 'offline'
@@ -745,6 +781,61 @@ export default function PTTRadio() {
   const homeOrganizationId = user?.organization_id || effectiveOrgId || null
   const employerOrganizationId = user?.employer_organization_id || null
   const providerOrgId = employerOrganizationId || homeOrganizationId || null
+
+  const { data: voiceTwinStatusFromDb } = useQuery<VoiceTwinConsentStatus | null>({
+    queryKey: ['radio-voice-twin-status', effectiveOrgId, user?.id],
+    queryFn: async () => {
+      if (!effectiveOrgId || !user?.id) return null
+
+      const [{ data: consentRows, error: consentError }, { data: profileRows, error: profileError }] = await Promise.all([
+        (supabase as any)
+          .from('radio_voice_consents')
+          .select('id, provider, purpose, retention_days, consented_at, revoked_at, revocation_reason, voice_profile_id')
+          .eq('org_id', effectiveOrgId)
+          .eq('officer_id', user.id)
+          .order('consented_at', { ascending: false })
+          .limit(1),
+        (supabase as any)
+          .from('radio_voice_profiles')
+          .select('id, provider, model_ref, enrolled_at, revoked_at, is_active')
+          .eq('org_id', effectiveOrgId)
+          .eq('officer_id', user.id)
+          .order('enrolled_at', { ascending: false })
+          .limit(1),
+      ])
+
+      if (consentError) throw consentError
+      if (profileError) throw profileError
+
+      const consent = Array.isArray(consentRows) ? consentRows[0] : null
+      const profile = Array.isArray(profileRows) ? profileRows[0] : null
+
+      if (!consent && !profile) return null
+
+      return {
+        consentId: consent?.id ?? null,
+        provider: consent?.provider ?? null,
+        purpose: consent?.purpose ?? null,
+        retentionDays: Number.isFinite(Number(consent?.retention_days)) ? Number(consent.retention_days) : null,
+        consentedAt: consent?.consented_at ?? null,
+        revokedAt: consent?.revoked_at ?? null,
+        revocationReason: consent?.revocation_reason ?? null,
+        voiceProfileId: consent?.voice_profile_id ?? profile?.id ?? null,
+        profileProvider: profile?.provider ?? null,
+        profileModelRef: profile?.model_ref ?? null,
+        profileEnrolledAt: profile?.enrolled_at ?? null,
+        profileRevokedAt: profile?.revoked_at ?? null,
+        profileActive: Boolean(profile?.is_active && !profile?.revoked_at),
+      }
+    },
+    enabled: radioFeatureFlags.syntheticAudioEnabled && !!effectiveOrgId && !!user?.id,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  })
+
+  const effectiveVoiceTwinStatus = voiceTwinStatusOverride ?? voiceTwinStatusFromDb ?? null
+  const hasActiveVoiceConsent = Boolean(effectiveVoiceTwinStatus?.consentId && !effectiveVoiceTwinStatus?.revokedAt)
+  const hasRevokedVoiceConsent = Boolean(effectiveVoiceTwinStatus?.consentId && effectiveVoiceTwinStatus?.revokedAt)
 
   useEffect(() => {
     if (!radioFeatureFlags.translationEnabled) return
@@ -1279,6 +1370,67 @@ export default function PTTRadio() {
       setDisconnectingUserId(null)
     }
   }, [hasPttSupervisorControls, user?.id])
+
+  const handleEnableVoiceTwin = useCallback(async () => {
+    if (!radioFeatureFlags.syntheticAudioEnabled) return
+    if (!effectiveOrgId || !user?.id) {
+      toast.error('Voice twin enrollment requires organization and user context.')
+      return
+    }
+
+    setVoiceTwinMutationPending(true)
+    try {
+      const { error: insertError } = await (supabase as any)
+        .from('radio_voice_consents')
+        .insert({
+          org_id: effectiveOrgId,
+          officer_id: user.id,
+          purpose: 'voice_twin_training',
+          retention_days: 90,
+          provider: 'coqui-xtts',
+        })
+
+      if (insertError) throw insertError
+      setVoiceTwinStatusOverride(null)
+      queryClient.invalidateQueries({ queryKey: ['radio-voice-twin-status', effectiveOrgId, user.id] })
+      toast.success('Voice twin consent recorded. Synthetic relay remains clearly labeled.')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      toast.error(`Unable to enable voice twin: ${message}`)
+    } finally {
+      setVoiceTwinMutationPending(false)
+    }
+  }, [effectiveOrgId, queryClient, user?.id])
+
+  const handleRevokeVoiceTwin = useCallback(async () => {
+    if (!radioFeatureFlags.syntheticAudioEnabled) return
+    const consentId = effectiveVoiceTwinStatus?.consentId
+    if (!effectiveOrgId || !user?.id || !consentId) {
+      toast.error('No active voice twin consent found to revoke.')
+      return
+    }
+
+    setVoiceTwinMutationPending(true)
+    try {
+      const { error: revokeError } = await (supabase as any)
+        .from('radio_voice_consents')
+        .update({
+          revoked_at: new Date().toISOString(),
+          revocation_reason: 'user_initiated',
+        })
+        .eq('id', consentId)
+
+      if (revokeError) throw revokeError
+      setVoiceTwinStatusOverride(null)
+      queryClient.invalidateQueries({ queryKey: ['radio-voice-twin-status', effectiveOrgId, user.id] })
+      toast.success('Voice twin consent revoked. Future voice-profile synthesis is blocked.')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      toast.error(`Unable to revoke voice twin consent: ${message}`)
+    } finally {
+      setVoiceTwinMutationPending(false)
+    }
+  }, [effectiveOrgId, effectiveVoiceTwinStatus?.consentId, queryClient, user?.id])
 
   // ─────────────────────────────────────────────────────────
   // Channel connection callbacks (before effects that use them)
@@ -3553,6 +3705,73 @@ export default function PTTRadio() {
                               })}
                             </div>
                           )}
+                        </div>
+                      )}
+
+                      {radioFeatureFlags.syntheticAudioEnabled && (
+                        <div className="mt-2 border-t border-slate-800/80 pt-2">
+                          <div className="flex items-center gap-1.5 text-[10px] text-slate-500 uppercase tracking-widest pb-1">
+                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
+                            Voice Twin Consent
+                            {hasActiveVoiceConsent ? (
+                              <span className="inline-flex items-center rounded border border-emerald-700/70 bg-emerald-900/30 px-1 py-0 text-[8px] uppercase tracking-wide text-emerald-200">
+                                Consented
+                              </span>
+                            ) : hasRevokedVoiceConsent ? (
+                              <span className="inline-flex items-center rounded border border-amber-700/70 bg-amber-900/40 px-1 py-0 text-[8px] uppercase tracking-wide text-amber-200">
+                                Revoked
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center rounded border border-slate-700 bg-slate-900/40 px-1 py-0 text-[8px] uppercase tracking-wide text-slate-300">
+                                Not Enrolled
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="text-[11px] text-slate-400 leading-snug">
+                            {effectiveVoiceTwinStatus?.provider && (
+                              <div>Provider: {effectiveVoiceTwinStatus.provider}</div>
+                            )}
+                            {effectiveVoiceTwinStatus?.retentionDays != null && (
+                              <div>Retention: {effectiveVoiceTwinStatus.retentionDays} days</div>
+                            )}
+                            {effectiveVoiceTwinStatus?.revocationReason && (
+                              <div className="text-amber-300">Reason: {effectiveVoiceTwinStatus.revocationReason}</div>
+                            )}
+                            {effectiveVoiceTwinStatus?.profileModelRef && (
+                              <div className={effectiveVoiceTwinStatus.profileActive ? 'text-indigo-200' : 'text-slate-500'}>
+                                Voice profile: {effectiveVoiceTwinStatus.profileModelRef}
+                              </div>
+                            )}
+                            {!effectiveVoiceTwinStatus && (
+                              <div className="text-slate-600 italic">No voice-twin consent record yet.</div>
+                            )}
+                          </div>
+
+                          <div className="mt-1.5 flex items-center gap-1.5">
+                            {!hasActiveVoiceConsent ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="h-6 px-2 text-[10px] uppercase tracking-wide bg-indigo-600 hover:bg-indigo-500"
+                                onClick={() => void handleEnableVoiceTwin()}
+                                disabled={voiceTwinMutationPending}
+                              >
+                                {voiceTwinMutationPending ? 'Saving…' : 'Enable Voice Twin'}
+                              </Button>
+                            ) : (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-6 px-2 text-[10px] uppercase tracking-wide border-amber-700/70 text-amber-200 hover:bg-amber-900/30"
+                                onClick={() => void handleRevokeVoiceTwin()}
+                                disabled={voiceTwinMutationPending}
+                              >
+                                {voiceTwinMutationPending ? 'Saving…' : 'Revoke Consent'}
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
