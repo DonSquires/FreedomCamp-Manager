@@ -301,6 +301,170 @@ The full operational dashboard. Contains:
 
 ---
 
+###### Patrol Schedule Management (`/patrol-schedules`)
+
+Patrol schedules define *when* and *where* officers are expected to patrol. A patrol schedule record is an admin-authored template that generates individual patrol session records when an officer starts their shift.
+
+**Creating a patrol schedule:**
+
+1. Navigate to `/patrol-schedules` → **New Schedule**.
+2. Fill in the schedule fields:
+   - **Zone** — enforcement zone the patrol covers
+   - **Assigned officer** — pre-assign or leave blank for open assignment
+   - **Date** — patrol date
+   - **Shift** — `morning`, `afternoon`, `night`, or `overnight`
+   - **Patrol route** — optional named route to guide the officer
+   - **Notes** — briefing notes visible to the officer
+3. Click **Create** — the schedule appears in the schedule list with status `scheduled`.
+4. The assigned officer receives a notification and can view the upcoming patrol from their home screen.
+
+**Patrol status lifecycle:**
+
+| Status | Meaning |
+|---|---|
+| `scheduled` | Admin created; officer not yet started |
+| `in_progress` | Officer started patrol (tapped **Start Patrol** in the field portal) |
+| `completed` | Officer completed the session |
+| `cancelled` | Admin or officer cancelled before starting |
+
+**Starting a patrol (admin view):**  
+Admin can manually advance a patrol status from `scheduled` to `in_progress` or mark it cancelled. Field officers start their own patrols from the field portal — this action also creates a `patrols` table record linked to the schedule.
+
+**Completing a patrol (admin view):**  
+Click **Complete** on an in-progress patrol to close the session. The system prompts for a completion note and records the end time. Completing a patrol does not affect active scan records — all observations remain linked to the patrol.
+
+---
+
+###### Live Patrol Monitor (`/live-patrol-monitor`)
+
+The Live Patrol Monitor is the supervisor's real-time dashboard for all active patrols.
+
+**Panel layout:**
+
+| Panel | Description |
+|---|---|
+| **Active Patrols** | Cards for each currently in-progress patrol showing officer name, zone, shift start time, vehicles checked, duration, and GPS freshness |
+| **Officer GPS** | Last known GPS fix per officer with timestamp; colour-coded green (< 5 min) → amber (5–15 min) → red (> 15 min stale) |
+| **Welfare Status** | Welfare check-in status per officer: On Time / Overdue / Man Down |
+| **Patrol Summary** | Count summary: active, scheduled, completed today |
+
+**Actions available from the monitor:**
+
+- **Refresh** (manual or auto-interval) — re-fetches all patrol data
+- **Radio** — opens PTT panel pre-scoped to the officer's channel
+- **View patrol** — drills into the full patrol record including scan history
+- **Live map** — opens `/live-map` with the officer's GPS trace highlighted
+
+**Missed patrol alerts:**  
+If an officer has a `scheduled` patrol that has not transitioned to `in_progress` within 15 minutes of the scheduled start time, the Live Patrol Monitor highlights it in amber. Supervisors can either contact the officer via PTT or reassign the patrol from the Dispatch Console.
+
+---
+
+###### Patrol Checkpoint Management (`/patrol-checkpoints`)
+
+QR checkpoints define physical locations on a patrol route that officers must scan to prove attendance.
+
+**Creating a checkpoint:**
+
+1. Navigate to `/patrol-checkpoints` → **New Checkpoint**.
+2. Enter the checkpoint name, description, and GPS coordinates (or use the map pin tool to place it).
+3. Select the zone this checkpoint belongs to.
+4. Click **Save** — a unique QR code is generated and downloadable.
+5. Print the QR code and affix it to the physical location (e.g. gate post, parking sign).
+
+**Assigning checkpoints to a patrol route:**
+
+1. Go to the patrol route record.
+2. Add checkpoints in sequence order — the expected scan order is enforced during patrol.
+3. Set an optional time window per checkpoint (e.g. "arrive between 23:00–01:00").
+
+**Missed checkpoint handling:**  
+If an officer has a patrol route instance open and fails to scan a checkpoint within its time window, the system flags the stop as `missed`. The Live Patrol Monitor highlights missed checkpoints in red. Supervisors are notified via the Notifications Centre.
+
+**Checkpoint scan results visible to admin:**  
+Navigate to a completed patrol → **Checkpoint Log** to see each stop with scan time, GPS fix, deviation from expected time, and any notes.
+
+---
+
+###### Patrol KPI Dashboard (`/patrol-kpi`)
+
+Provides performance metrics for patrols and officers across the selected date range and organisation.
+
+**Key metrics:**
+
+| Metric | Description |
+|---|---|
+| **Patrols completed** | Count of completed patrol sessions |
+| **Patrols missed / cancelled** | Sessions that did not start or were cancelled |
+| **Average patrol duration** | Mean shift length in minutes |
+| **Vehicles checked per patrol** | Scan productivity per session |
+| **Checkpoint compliance rate** | % of expected checkpoints scanned on time |
+| **Welfare alert rate** | Welfare escalations triggered per 100 patrol hours |
+| **SLA breach rate** | % of dispatched jobs that exceeded response SLA |
+
+Filters available: date range, organisation, zone, officer, and service type.
+
+---
+
+###### Roster Planner (`/roster-planner`)
+
+The Roster Planner provides a **weekly visual roster board** — officers as rows, days as columns, shift cards in cells — inspired by InTime / Deputy workforce management tools.
+
+**Navigating the roster:**
+
+- Use the **← Previous week** / **Next week →** arrows to move between weeks.
+- Each cell shows the officer's shift card (if rostered) or an empty slot.
+- Shift cards display: start time, end time, zone, service type, and status (draft / published / accepted / declined).
+
+**Creating a shift:**
+
+1. Click an empty cell for a day/officer combination.
+2. A **New Shift** dialog opens — fill in:
+   - Start time / end time
+   - Zone
+   - Service type (`freedom_camping`, `parking`, `noise`, etc.)
+   - Optional patrol route
+   - Notes
+3. Click **Save as Draft** or **Publish** (published shifts notify officers immediately).
+
+**Publishing a roster:**
+
+Draft shifts are visible to admins only. Click **Publish Week** to publish all draft shifts for the current week at once. Officers receive a notification with their shift details.
+
+**Officer acceptance:**  
+Officers see upcoming shifts on their home screen. They can tap **Accept** or **Decline**. Declined shifts appear in amber on the Roster Planner and are automatically surfaced on the Open Shifts page.
+
+**Swaps and replacements:**  
+To reassign a shift: click the shift card → **Reassign** → select a new officer from the available pool. The system checks for conflicts with other shifts and flags overlaps.
+
+---
+
+###### Open Shifts (`/open-shifts`)
+
+Displays all unfilled or declined shifts for the current and upcoming weeks.
+
+- Admins can assign an open shift to any available officer.
+- Officers with the `open_shift_notifications` preference enabled are notified of new open shifts.
+- Shift urgency is colour-coded: shifts starting within 24 hours are highlighted red.
+
+---
+
+###### Timesheet Review (`/timesheets`)
+
+Review, edit, and approve officer timesheets.
+
+**Workflow:**
+
+1. At shift end, the system auto-generates a timesheet record from the officer's session start/end times, GPS data, and manual check-out.
+2. Admins review timesheets: verify actual hours vs. scheduled, add approved overtime, or flag discrepancies.
+3. Click **Approve** — the timesheet is locked and forwarded to payroll export.
+4. Click **Reject with Note** — the officer is notified to correct their entry.
+
+**Export:**  
+Use **Export CSV** to download approved timesheets for the selected period for payroll processing.
+
+---
+
 ##### Personnel & Welfare
 
 | Page | Path | Purpose |
@@ -308,6 +472,93 @@ The full operational dashboard. Contains:
 | Officer Welfare Settings | `/officer-welfare-settings` | Configure welfare check intervals and escalation paths |
 | Notifications Centre | `/notifications` | View all system and welfare alerts |
 | Identity Verification | `/identity-verification` | Verify officer identity documents |
+
+---
+
+##### Communications
+
+| Page | Path | Purpose |
+|---|---|---|
+| PTT Radio | `/radio` | Push-to-Talk voice radio interface |
+| PTT Transmission Log | `/ptt-log` | Archive of all PTT transmissions |
+| PTT Audit Dashboard | `/radio/audit` | Radio usage analytics and audit metrics |
+| Team Chat | `/messages` | Text-based team messaging |
+
+---
+
+###### PTT Radio (`/radio`)
+
+The PTT (Push-to-Talk) radio feature provides real-time voice communication between officers and supervisors over a WebRTC channel — no physical radio hardware required.
+
+**Using PTT:**
+
+1. Navigate to `/radio` or tap the **Radio** icon on any portal page.
+2. Your organisation's default channel loads automatically.
+3. **To transmit:** Press and hold the **PTT Button** (large orange button). Speak clearly. Release to end the transmission.
+4. **To listen:** Transmissions from other channel members play automatically through the device speaker.
+5. **Emergency broadcast:** Tap the **Emergency** button (red) to send a priority emergency transmission that interrupts all other channel audio and triggers a supervisor alert.
+
+**Channel access:**  
+Officers are assigned to one or more PTT channels via their user profile. Admins configure channel assignments in **User Management** → PTT Channel Access. By default, all officers in the same organisation share one primary channel.
+
+**Transcription and translation (Phase 1):**  
+When the inference service is connected, PTT transmissions are automatically transcribed. Transcripts are stored in `radio_transcript_segments` and are searchable from the PTT Transmission Log. Translation to a secondary language is available when configured.
+
+> **Voice consent**: Officers must provide consent before their voice profile is registered. Consent is managed via `radio_voice_consents` and is fully revocable at any time from their profile settings.
+
+---
+
+###### PTT Transmission Log (`/ptt-log`)
+
+Full archive of all voice transmissions for the organisation.
+
+- Searchable by date, officer, channel, and keyword (requires transcription enabled)
+- Each row shows: officer, channel, duration, transmission start time, and emergency flag
+- Click a row to play back the audio recording (if stored) and view the full transcript
+- Export for compliance or investigation purposes
+
+---
+
+###### PTT Audit Dashboard (`/radio/audit`)
+
+Analytics on radio usage across the organisation.
+
+**Metrics:**
+
+| Metric | Description |
+|---|---|
+| **Total transmissions** | Count of PTT events in the period |
+| **Coverage rate** | % of patrols with at least one radio transmission |
+| **Average transmission duration** | Mean transmission length in seconds |
+| **Low-confidence transcripts** | Transmissions where transcription confidence < threshold |
+| **Emergency transmissions** | Count of emergency-flagged broadcasts |
+| **Per-officer breakdown** | Individual radio activity summary |
+
+> **Access**: Admin, admin_officer, master, grand_master.
+
+---
+
+###### Team Chat (`/messages`)
+
+Text-based messaging for team coordination. Available to all authenticated users.
+
+**Features:**
+
+- **Organisation channel** — a shared team-wide message thread
+- **Direct messages** — one-to-one messaging between any two users in the same organisation
+- **Job-linked messages** — dispatch jobs can be annotated with chat messages visible to all assigned officers and supervisors
+- **File attachments** — images and documents can be shared within a chat thread
+- **Notification badges** — unread message count shown on the navigation icon
+
+**When to use PTT vs. Team Chat:**
+
+| Scenario | Recommended |
+|---|---|
+| Urgent field update, hands-free | PTT Radio |
+| Real-time incident coordination | PTT Radio |
+| Non-urgent admin note | Team Chat |
+| Sharing a document or photo | Team Chat |
+| Handover notes at shift change | Team Chat |
 
 ---
 
@@ -338,6 +589,105 @@ The full operational dashboard. Contains:
 | Dispatch Monitor | `/dispatch-monitor` | Live job queue and officer assignment overview |
 | Dispatch Wizard | `/dispatch-wizard` | Guided job creation for complex situations |
 | Dispatched Jobs List | `/dispatched-jobs` | Historical job list with status |
+
+---
+
+###### Dispatch Console (`/dispatch-console`)
+
+The Dispatch Console is the **real-time operational board** for creating, assigning, and tracking dispatch jobs — modelled on CAD (Computer-Aided Dispatch) systems used in emergency services.
+
+**Layout:**
+
+| Panel | Description |
+|---|---|
+| **Job Queue (left)** | Priority-sorted list of all active jobs: `pending` → `dispatched` → `acknowledged` → `en_route` → `on_scene` → `completed` |
+| **Officer Board (right)** | Available officers with their current GPS status and last known location |
+| **SLA Timer** | Each job displays a countdown clock; overdue SLA jobs are highlighted in red |
+
+**Creating a new job:**
+
+1. Click **+ New Job** in the top-right of the console.
+2. Fill in the job form:
+   - **Job type** — `patrol_check`, `alarm_response`, `welfare_check`, `noise_complaint`, `parking`, `trespass`, `general_enquiry`, `freedom_camping`, etc.
+   - **Priority** — `low` / `normal` / `high` / `urgent`
+   - **Title and description** — brief summary of the situation
+   - **Address** — full street address (auto-geocoded to GPS coordinates)
+   - **Caller details** — caller name and phone (if applicable)
+   - **Client site** — optionally link to a contracted client site
+   - **Zone** — enforcement zone if applicable
+   - **Response SLA** — default is set per job type; override if needed
+3. Click **Create Job** — the job appears in the queue with status `pending`.
+
+**Assigning a job to an officer:**
+
+1. Click the pending job in the queue — it highlights.
+2. Click an officer in the Officer Board who is available (green status).
+3. Click **Dispatch** — the job moves to `dispatched` status.
+4. The officer receives an in-app push notification with the job address and description.
+
+**Job lifecycle status codes:**
+
+| Status | Meaning | Triggered by |
+|---|---|---|
+| `pending` | Created, awaiting assignment | Admin (console or wizard) |
+| `dispatched` | Assigned to officer | Admin (dispatch action) |
+| `acknowledged` | Officer confirmed receipt | Officer (field portal) |
+| `en_route` | Officer is travelling to scene | Officer (field portal) |
+| `on_scene` | Officer arrived | Officer (field portal) or geofence trigger |
+| `completed` | Job closed with outcome | Officer or admin |
+| `cancelled` | Job cancelled before completion | Admin |
+
+**SLA management:**  
+Jobs that exceed their response SLA without reaching `on_scene` status are automatically:
+- Highlighted red in the Dispatch Console
+- Flagged with `sla_breached = true` in the database
+- Surfaced on the Dispatch Monitor escalation board
+
+**Alarm types:**  
+The job record supports an optional `alarm_type` field for integration with alarm monitoring panels (e.g. duress, intrusion, hold-up). Alarm type codes are configurable per organisation and used to pre-fill job descriptions and priority.
+
+**Auto-replan:**  
+The `useDispatchReplan` hook supports automated reassignment of jobs when an officer goes offline or declines. Admins can enable auto-replan per organisation from the Dispatch Console settings.
+
+---
+
+###### Dispatch Monitor (`/dispatch-monitor`)
+
+The Dispatch Monitor provides a **supervisor-level overview** of the entire job queue without the assignment controls of the console.
+
+- Displays all active jobs grouped by status
+- Shows officer locations on the integrated map panel
+- Highlights SLA breaches in real time
+- Does not allow assignment actions — use the Dispatch Console for that
+
+**Use case:** A second supervisor watching the board without needing to interact — or a display screen in a control room.
+
+---
+
+###### Dispatch Wizard (`/dispatch-wizard`)
+
+A guided step-by-step job creation flow for complex or multi-resource situations (e.g. large events, multi-zone incidents).
+
+**Steps:**
+
+1. **Situation type** — select from a pre-defined scenario list (noise event, suspicious vehicle, medical assist, etc.)
+2. **Location** — enter address or drop pin on map
+3. **Resource selection** — the wizard recommends the nearest available officer(s) based on GPS proximity and service type
+4. **Briefing notes** — free-text briefing for the assigned officers
+5. **Review & dispatch** — confirm and create the job(s)
+
+The wizard supports **multi-resource dispatch** — create multiple linked jobs in one workflow (e.g. primary officer + backup officer + supervisory notification).
+
+---
+
+###### Dispatched Jobs List (`/dispatched-jobs`)
+
+Historical record of all dispatch jobs for the selected organisation and date range.
+
+- Filterable by status, job type, officer, zone, client site, and date
+- Each row links to the full job detail view (timeline, officer updates, GPS trace, evidence)
+- **Export CSV** available for reporting and billing purposes
+- SLA breach rate is summarised at the top of the list
 
 ---
 
