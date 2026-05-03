@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/stores/authStore'
+import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 
 export interface ChatAttachment {
   url: string
@@ -61,9 +63,12 @@ type ChatMessagesCache = {
 export function useChatMessages(threadId: string | null) {
   const queryClient = useQueryClient()
   const channelRef = useRef<any>(null)
+  const { user } = useAuthStore()
+  const { operationalOrganizationId } = useOperationalOrganization()
+  const effectiveOrganizationId = operationalOrganizationId || user?.organization_id || null
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useInfiniteQuery({
-    queryKey: ['chat-messages', threadId],
+    queryKey: ['chat-messages', threadId, effectiveOrganizationId],
     queryFn: async ({ pageParam }: { pageParam: string | null }) => {
       if (!threadId) return { messages: [] as PersistedMessage[], nextCursor: null as string | null }
 
@@ -74,6 +79,10 @@ export function useChatMessages(threadId: string | null) {
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(PAGE_SIZE)
+
+      if (effectiveOrganizationId) {
+        query = query.eq('organization_id', effectiveOrganizationId)
+      }
 
       if (pageParam) {
         query = query.lt('created_at', pageParam)
@@ -99,11 +108,15 @@ export function useChatMessages(threadId: string | null) {
 
   const { mutateAsync: insertMessage } = useMutation({
     mutationFn: async (input: InsertMessageInput): Promise<PersistedMessage> => {
+      if (!effectiveOrganizationId) {
+        throw new Error('No organization context for chat message insert')
+      }
+
       const { data: row, error } = await (supabase as any)
         .from('chat_messages')
         .insert({
           thread_id: input.thread_id,
-          organization_id: input.organization_id,
+          organization_id: effectiveOrganizationId,
           sender_id: input.sender_id ?? null,
           sender_name: input.sender_name,
           sender_role: input.sender_role,
@@ -113,10 +126,6 @@ export function useChatMessages(threadId: string | null) {
           attachments: input.attachments ?? [],
           is_bob_message: input.is_bob_message ?? false,
           bob_spoken: input.bob_spoken ?? false,
-    onError: (err: any) => {
-      console.error(err)
-      console.error('Operation failed:', err)
-    },
         })
         .select()
         .single()

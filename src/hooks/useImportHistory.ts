@@ -214,18 +214,26 @@ export function useImportStats(options?: {
 
 // Hook for single import record
 export function useImportRecord(id: string | null) {
+  const { user } = useAuthStore()
+
   return useQuery({
-    queryKey: ['import-record', id],
+    queryKey: ['import-record', id, user?.organization_id, user?.role],
     queryFn: async () => {
       if (!id) return null
 
-      const { data, error } = await supabase.from('import_batches')
+      let query = supabase
+        .from('import_batches')
         .select(`
           *,
           importer:user_profiles!import_batches_uploaded_by_fkey(first_name, last_name, email)
         `)
         .eq('id', id)
-        .single()
+
+      if (user?.role !== 'master' && user?.organization_id) {
+        query = query.eq('organization_id', user.organization_id)
+      }
+
+      const { data, error } = await query.single()
 
       if (error) {
         toast.error('Failed to load import record')
