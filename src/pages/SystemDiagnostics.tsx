@@ -143,6 +143,35 @@ export default function SystemDiagnostics() {
     refetchInterval: 45_000,
   })
 
+  const { data: radioAudit } = useQuery({
+    queryKey: ['radio-audit-diagnostics'],
+    queryFn: async () => {
+      const baseUrl = String(import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '')
+      const anonKey = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim()
+      if (!baseUrl || !anonKey) return null
+
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token || ''
+      if (!token) return null
+
+      const res = await fetch(`${baseUrl}/functions/v1/radio-audit?since_hours=24`, {
+        method: 'GET',
+        headers: {
+          apikey: anonKey,
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (!res.ok) {
+        throw new Error(`radio-audit failed (${res.status})`)
+      }
+
+      return await res.json() as Record<string, any>
+    },
+    enabled: isMaster,
+    refetchInterval: 45_000,
+  })
+
   const inferenceConfig = ((inferenceHealth as any)?.config ?? {}) as Record<string, any>
   const inferenceCapabilities = ((inferenceHealth as any)?.capabilities ?? {}) as Record<string, any>
   const translationEnabled = inferenceCapabilities.translation === true
@@ -157,6 +186,7 @@ export default function SystemDiagnostics() {
   const radioLastLatencyMs = Number.isFinite(Number(radioMetrics.last_latency_ms))
     ? Number(radioMetrics.last_latency_ms)
     : null
+  const radioConfidenceRollups = ((radioAudit as any)?.transcript_pipeline?.confidence_rollups_recent?.top_transmissions ?? []) as Array<Record<string, any>>
 
   const runDoctorPlaybook = async (playbook: 'ollama_recovery' | 'ptt_token_path_repair' | 'edge_auth_alignment', dryRun = false) => {
     setDoctorPlaybookRunning(playbook)
@@ -348,6 +378,16 @@ export default function SystemDiagnostics() {
                     Radio events: {Number(radioMetrics.processed_events || 0)} processed · {Number(radioMetrics.failed_events || 0)} failed
                     {radioLastLatencyMs !== null ? ` · last latency ${radioLastLatencyMs}ms` : ''}
                   </div>
+                  {radioConfidenceRollups.length > 0 && (
+                    <div className="pt-1">
+                      <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">Top low-confidence transmissions (24h)</div>
+                      {radioConfidenceRollups.slice(0, 3).map((row) => (
+                        <div key={String(row.transmission_id)} className="text-[11px] text-gray-600 leading-snug">
+                          {(row.speaker_name || 'Unknown speaker')} · {String(row.channel_id || 'unknown channel')} · {Number(row.low_confidence_pct || 0)}% low-confidence ({Number(row.low_confidence_segments || 0)}/{Number(row.scored_segment_count || 0)})
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </>
             ) : inferenceHealth?.status === 'degraded' ? (
@@ -367,6 +407,16 @@ export default function SystemDiagnostics() {
                     Radio events: {Number(radioMetrics.processed_events || 0)} processed · {Number(radioMetrics.failed_events || 0)} failed
                     {radioLastLatencyMs !== null ? ` · last latency ${radioLastLatencyMs}ms` : ''}
                   </div>
+                  {radioConfidenceRollups.length > 0 && (
+                    <div className="pt-1">
+                      <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">Top low-confidence transmissions (24h)</div>
+                      {radioConfidenceRollups.slice(0, 3).map((row) => (
+                        <div key={String(row.transmission_id)} className="text-[11px] text-gray-600 leading-snug">
+                          {(row.speaker_name || 'Unknown speaker')} · {String(row.channel_id || 'unknown channel')} · {Number(row.low_confidence_pct || 0)}% low-confidence ({Number(row.low_confidence_segments || 0)}/{Number(row.scored_segment_count || 0)})
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </>
             ) : (
@@ -388,6 +438,16 @@ export default function SystemDiagnostics() {
                     Radio events: {Number(radioMetrics.processed_events || 0)} processed · {Number(radioMetrics.failed_events || 0)} failed
                     {radioLastLatencyMs !== null ? ` · last latency ${radioLastLatencyMs}ms` : ''}
                   </div>
+                  {radioConfidenceRollups.length > 0 && (
+                    <div className="pt-1">
+                      <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">Top low-confidence transmissions (24h)</div>
+                      {radioConfidenceRollups.slice(0, 3).map((row) => (
+                        <div key={String(row.transmission_id)} className="text-[11px] text-gray-600 leading-snug">
+                          {(row.speaker_name || 'Unknown speaker')} · {String(row.channel_id || 'unknown channel')} · {Number(row.low_confidence_pct || 0)}% low-confidence ({Number(row.low_confidence_segments || 0)}/{Number(row.scored_segment_count || 0)})
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </>
             )}
