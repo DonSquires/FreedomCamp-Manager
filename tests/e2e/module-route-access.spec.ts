@@ -687,4 +687,44 @@ test.describe('org isolation – CRM parameterised routes', () => {
     const url = page.url()
     expect(url).not.toContain(SPOOFED_ORG_ID)
   })
+
+  test('master cannot access /crm/client/:spoofedOrgId outside assigned orgs', async ({ page }) => {
+    await loginAs(page, 'master')
+    await page.goto(`/crm/client/${SPOOFED_ORG_ID}`, { waitUntil: 'networkidle' })
+    const url = page.url()
+    expect(url).not.toContain(SPOOFED_ORG_ID)
+  })
+
+  test('master cannot access /crm/contractor/:spoofedOrgId outside assigned orgs', async ({ page }) => {
+    await loginAs(page, 'master')
+    await page.goto(`/crm/contractor/${SPOOFED_ORG_ID}`, { waitUntil: 'networkidle' })
+    const url = page.url()
+    expect(url).not.toContain(SPOOFED_ORG_ID)
+  })
+})
+
+// ─── CROSS-ORG REGRESSION MATRIX GAPS ───────────────────────────────────────
+
+test.describe('cross-org matrix regression checks', () => {
+  test.describe.configure({ mode: 'serial' })
+
+  test('admin is BLOCKED from /grandmaster-code-studio', async ({ page }) => {
+    await loginAs(page, 'adminOrg1')
+    await assertRouteBlocked(page, '/grandmaster-code-studio')
+  })
+
+  test('admin is BLOCKED from /compliance-escalations', async ({ page }) => {
+    await loginAs(page, 'adminOrg1')
+    await assertRouteBlocked(page, '/compliance-escalations')
+  })
+
+  test('master is BLOCKED from /grandmaster-code-studio', async ({ page }) => {
+    await loginAs(page, 'master')
+    await assertRouteBlocked(page, '/grandmaster-code-studio')
+  })
+
+  test('master is BLOCKED from /compliance-escalations', async ({ page }) => {
+    await loginAs(page, 'master')
+    await assertRouteBlocked(page, '/compliance-escalations')
+  })
 })
