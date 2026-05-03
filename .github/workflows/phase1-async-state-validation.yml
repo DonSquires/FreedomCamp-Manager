@@ -1,0 +1,109 @@
+name: Phase 1 Async-State Validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'tests/e2e/async-state-first-wave.spec.ts'
+      - 'src/components/features/AppLayout.tsx'
+      - 'src/pages/DispatchConsole.tsx'
+      - 'src/pages/LiveOfficerTracking.tsx'
+      - 'src/pages/CompliancePage.tsx'
+      - 'src/pages/PatrolScheduleManagement.tsx'
+      - 'src/pages/OfficerWelfareSettings.tsx'
+      - 'src/pages/IncidentReports.tsx'
+      - 'src/pages/Reports.tsx'
+      - 'src/pages/EnforcementActions.tsx'
+      - 'src/pages/ZoneManagement.tsx'
+      - '.github/workflows/phase1-async-state-validation.yml'
+
+concurrency:
+  group: phase1-async-state-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  phase1-async-state-validation:
+    name: Phase 1 Async-State Validation (Chromium + Mobile Chrome)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      CI: true
+
+      # Scope preflight only to the identity required by this suite.
+      PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK: '1'
+      PLAYWRIGHT_REQUIRED_TEST_USERS: adminOrg1
+
+      # Supabase
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+      # Admin credential for first-wave routes
+      PLAYWRIGHT_ADMIN_ORG1_EMAIL: ${{ secrets.PLAYWRIGHT_ADMIN_ORG1_EMAIL != '' && secrets.PLAYWRIGHT_ADMIN_ORG1_EMAIL || secrets.PLAYWRIGHT_ADMIN_EMAIL }}
+      PLAYWRIGHT_ADMIN_ORG1_PASSWORD: ${{ secrets.PLAYWRIGHT_ADMIN_ORG1_PASSWORD != '' && secrets.PLAYWRIGHT_ADMIN_ORG1_PASSWORD || secrets.PLAYWRIGHT_ADMIN_PASSWORD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate required env vars
+        run: |
+          set -euo pipefail
+          missing=0
+          required_vars=(
+            VITE_SUPABASE_URL
+            VITE_SUPABASE_ANON_KEY
+            PLAYWRIGHT_ADMIN_ORG1_EMAIL
+            PLAYWRIGHT_ADMIN_ORG1_PASSWORD
+          )
+
+          for name in "${required_vars[@]}"; do
+            value="${!name:-}"
+            if [ -z "$value" ]; then
+              echo "::error::Missing required secret/env: $name"
+              missing=1
+            fi
+          done
+
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::One or more required secrets are missing."
+            exit 1
+          fi
+
+      - name: Install Playwright browser
+        run: bunx playwright install --with-deps chromium
+
+      - name: Run first-wave async-state suite
+        run: |
+          bunx playwright test tests/e2e/async-state-first-wave.spec.ts \
+            --project=chromium \
+            --project="Mobile Chrome" \
+            --reporter=list \
+            --timeout=60000
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: phase1-async-state-validation-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore

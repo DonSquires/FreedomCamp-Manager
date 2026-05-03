@@ -97,6 +97,7 @@ For each route in the first wave, the following checklist must pass before marki
 - Commit `e65c4686`: async-state rollout across first-wave route components and shared AppLayout stale/offline indicators
 - Files touched: `src/pages/DispatchConsole.tsx`, `src/pages/LiveOfficerTracking.tsx`, `src/pages/CompliancePage.tsx`, `src/pages/PatrolScheduleManagement.tsx`, `src/pages/OfficerWelfareSettings.tsx`, `src/pages/IncidentReports.tsx`, `src/pages/Reports.tsx`, `src/pages/EnforcementActions.tsx`, `src/pages/ZoneManagement.tsx`, `src/components/features/AppLayout.tsx`
 - Added E2E async-state coverage spec: `tests/e2e/async-state-first-wave.spec.ts` (offline degradation assertions for all top-10 first-wave routes)
+- Added CI execution lane: `.github/workflows/phase1-async-state-validation.yml` (Chromium + Mobile Chrome)
 - Execution note: local run in this container is blocked by Playwright host dependency requirements and role-credential preflight; run in CI or a provisioned Playwright host to mark `E2E Updated` as complete.
 
 ---
