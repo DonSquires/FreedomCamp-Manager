@@ -94,10 +94,15 @@ export function useShiftGate(): ShiftGateState {
     queryKey: ['zone-features-gate', rosteredShift?.zone_id],
     queryFn: async () => {
       if (!rosteredShift?.zone_id) return []
-      const { data } = await (supabase.from('zones') as any)
+      let query = (supabase.from('zones') as any)
         .select('zone_features')
         .eq('id', rosteredShift.zone_id)
-        .maybeSingle()
+
+      if (user?.organization_id) {
+        query = query.eq('organization_id', user.organization_id)
+      }
+
+      const { data } = await query.maybeSingle()
       return (data?.zone_features ?? []) as string[]
     },
     enabled: gateApplies && !!rosteredShift?.zone_id,

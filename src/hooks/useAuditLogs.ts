@@ -154,12 +154,14 @@ export function useUserActivity(userId: string | null) {
 
 // Hook for entity history
 export function useEntityHistory(entityType: string, entityId: string | null) {
+  const { user } = useAuthStore()
+
   return useQuery({
-    queryKey: ['entity-history', entityType, entityId],
+    queryKey: ['entity-history', entityType, entityId, user?.role, user?.organization_id],
     queryFn: async () => {
       if (!entityId) return []
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('audit_log')
         .select(`
           *,
@@ -167,7 +169,12 @@ export function useEntityHistory(entityType: string, entityId: string | null) {
         `)
         .eq('entity_type', entityType)
         .eq('entity_id', entityId)
-        .order('created_at', { ascending: false })
+
+      if (user?.role !== 'master' && user?.organization_id) {
+        query = query.eq('organization_id', user.organization_id)
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false })
 
       if (error) {
         toast.error('Failed to load entity history')

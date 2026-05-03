@@ -153,7 +153,7 @@ node scripts/validate-workflow-evidence.mjs
 - [x] Reconfirm role-route mapping against `docs/MODULE_ROADMAP.md` and `src/App.tsx`.
 - [x] Re-run org-scoping verification artifacts before release candidate promotion.
 
-Current finding: org-scoping static audit still reports `missing_org_filter=45` after latest remediation pass (down from 47).
+Current finding: org-scoping static audit now reports `missing_org_filter=17` after latest remediation pass (down from 47).
 
 ### E. Release Gate Discipline
 
@@ -212,6 +212,24 @@ Latest Session Snapshot:
 - Open blockers with owner:
   - Org-scoping audit still reports 45 missing org filters; owner: Application architecture + data governance
 - Next exact command to run: `cd /workspaces/FreedomCamp-Manager && node scripts/audit-org-scoping.mjs && GH_PAGER=cat gh run list --limit 20 --json databaseId,headSha,name,status,conclusion,url`
+
+Latest Session Snapshot:
+
+- Timestamp (NZ): 2026-05-03 19:57:35 NZST
+- Current branch: main
+- HEAD SHA: 15db51f691471e824b7ddd0399d7d5f29f1dbe8a
+- Working tree status (`git status -sb`): pending staged updates (`docs/STAGING.md` only)
+- Latest lint result: pass (`bun run lint`)
+- Latest build result: pass (`bun run build`, 3953 modules transformed, built in 21.10s)
+- Latest targeted test result: pass (`node scripts/audit-org-scoping.mjs`, missing required org filters reduced to 24)
+- Active/last CI run IDs:
+  - `25273584289` policy-bob-no-openai: success
+  - `25273584280` Validate RunPod Image Tags: success
+  - `25273584279` CI Build High Memory: in progress
+  - `25273584285` Deploy Admin Portal to Vercel: in progress
+- Open blockers with owner:
+  - Org-scoping audit still reports 17 missing org filters; owner: Application architecture + data governance
+- Next exact command to run: `cd /workspaces/FreedomCamp-Manager && GH_PAGER=cat gh run list --limit 30 --json databaseId,headSha,name,status,conclusion,url | jq 'map(select(.headSha=="'"$(git rev-parse HEAD)"'"))' && node scripts/audit-org-scoping.mjs`
 
 ## 8. Fast Resume Commands
 

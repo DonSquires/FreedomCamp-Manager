@@ -140,6 +140,7 @@ export function useRecordCheckpointVisit() {
         .from('patrol_checkpoints')
         .select('id, name, location_lat, location_lng, check_in_radius_metres, organization_id')
         .eq('id', params.checkpointId)
+        .eq('organization_id', user.organization_id)
         .single() as unknown as { data: PatrolCheckpoint | null; error: unknown }
 
       const checkpoint = checkpointRaw

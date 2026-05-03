@@ -83,12 +83,16 @@ export function useZone(zoneId: string) {
 
 export function useCreateZone() {
   const queryClient = useQueryClient()
+  const { operationalOrganizationId } = useOperationalOrganization()
 
   return useMutation({
     mutationFn: async (zone: Omit<Zone, 'id' | 'created_at'>) => {
       const { error } = await (supabase
         .from('zones') as any)
-        .insert(zone)
+        .insert({
+          ...zone,
+          organization_id: zone.organization_id ?? operationalOrganizationId,
+        })
 
       if (error) {
         if (error.message?.includes('idx_zones_unique_org_name_active')) {

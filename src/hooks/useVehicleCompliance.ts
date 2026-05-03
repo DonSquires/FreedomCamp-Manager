@@ -188,11 +188,16 @@ export function useVehicleCompliance(plateNumber?: string, options?: {
   const recalculateCompliance = useMutation({
     mutationFn: async (observationId: string) => {
       // Look up the photo_url stored on the observation row
-      const { data: obsRow, error: obsErr } = await supabase
+      let query = supabase
         .from('observations')
         .select('photo_url')
         .eq('observation_id', observationId)
-        .maybeSingle()
+
+      if (user?.role !== 'master' && user?.organization_id) {
+        query = query.eq('organization_id', user.organization_id)
+      }
+
+      const { data: obsRow, error: obsErr } = await query.maybeSingle()
 
       if (obsErr) {
         toast.error('Failed to load observation')

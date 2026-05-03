@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-03T07:57:12.035Z",
+  "generatedAt": "2026-05-03T08:04:32.464Z",
   "scope": [
     "src/hooks",
     "src/lib"
@@ -28,69 +28,13 @@
   },
   "summary": {
     "total": 250,
-    "ok": 125,
+    "ok": 132,
     "known_exception": 2,
-    "missing_org_filter": 24,
     "allowed_global_or_user_scoped": 38,
-    "review": 61
+    "review": 61,
+    "missing_org_filter": 17
   },
   "missingOrgFilter": [
-    {
-      "file": "src/hooks/useAuditLogs.ts",
-      "line": 163,
-      "table": "audit_log",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/useIncidents.ts",
-      "line": 74,
-      "table": "incidents",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/usePatrolCheckpoints.ts",
-      "line": 140,
-      "table": "patrol_checkpoints",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/usePatrolRouteInstances.ts",
-      "line": 344,
-      "table": "audit_log",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/useShiftGate.ts",
-      "line": 97,
-      "table": "zones",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/useVehicleCompliance.ts",
-      "line": 192,
-      "table": "observations",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/useZones.ts",
-      "line": 90,
-      "table": "zones",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
     {
       "file": "src/lib/dispatchJobs.ts",
       "line": 25,
@@ -375,7 +319,7 @@
     },
     {
       "file": "src/hooks/usePatrolRouteInstances.ts",
-      "line": 350,
+      "line": 353,
       "table": "patrol_route_instance_stops",
       "status": "review",
       "orgRequired": false,
@@ -383,7 +327,7 @@
     },
     {
       "file": "src/hooks/usePatrolRouteInstances.ts",
-      "line": 362,
+      "line": 365,
       "table": "patrol_route_instances",
       "status": "review",
       "orgRequired": false,
@@ -391,7 +335,7 @@
     },
     {
       "file": "src/hooks/usePatrolRouteInstances.ts",
-      "line": 370,
+      "line": 373,
       "table": "patrol_route_instances",
       "status": "review",
       "orgRequired": false,
@@ -503,7 +447,7 @@
     },
     {
       "file": "src/hooks/useShiftGate.ts",
-      "line": 113,
+      "line": 118,
       "table": "officer_shifts",
       "status": "review",
       "orgRequired": false,
@@ -729,7 +673,7 @@
     },
     {
       "file": "src/hooks/useAuditLogs.ts",
-      "line": 218,
+      "line": 225,
       "table": "audit_log",
       "status": "known_exception",
       "orgRequired": true,
@@ -755,15 +699,7 @@
     },
     {
       "file": "src/hooks/useAuditLogs.ts",
-      "line": 163,
-      "table": "audit_log",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/useAuditLogs.ts",
-      "line": 199,
+      "line": 165,
       "table": "audit_log",
       "status": "ok",
       "orgRequired": true,
@@ -771,7 +707,15 @@
     },
     {
       "file": "src/hooks/useAuditLogs.ts",
-      "line": 218,
+      "line": 206,
+      "table": "audit_log",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useAuditLogs.ts",
+      "line": 225,
       "table": "audit_log",
       "status": "known_exception",
       "orgRequired": true,
@@ -1059,15 +1003,7 @@
     },
     {
       "file": "src/hooks/useIncidents.ts",
-      "line": 74,
-      "table": "incidents",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/useIncidents.ts",
-      "line": 135,
+      "line": 96,
       "table": "incidents",
       "status": "ok",
       "orgRequired": true,
@@ -1075,7 +1011,7 @@
     },
     {
       "file": "src/hooks/useIncidents.ts",
-      "line": 171,
+      "line": 136,
       "table": "incidents",
       "status": "ok",
       "orgRequired": true,
@@ -1083,7 +1019,7 @@
     },
     {
       "file": "src/hooks/useIncidents.ts",
-      "line": 203,
+      "line": 172,
       "table": "incidents",
       "status": "ok",
       "orgRequired": true,
@@ -1091,7 +1027,15 @@
     },
     {
       "file": "src/hooks/useIncidents.ts",
-      "line": 251,
+      "line": 204,
+      "table": "incidents",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useIncidents.ts",
+      "line": 252,
       "table": "incidents",
       "status": "ok",
       "orgRequired": true,
@@ -1413,13 +1357,13 @@
       "file": "src/hooks/usePatrolCheckpoints.ts",
       "line": 140,
       "table": "patrol_checkpoints",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/hooks/usePatrolCheckpoints.ts",
-      "line": 170,
+      "line": 171,
       "table": "checkpoint_visits",
       "status": "ok",
       "orgRequired": false,
@@ -1469,13 +1413,13 @@
       "file": "src/hooks/usePatrolRouteInstances.ts",
       "line": 344,
       "table": "audit_log",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/hooks/usePatrolRouteInstances.ts",
-      "line": 350,
+      "line": 353,
       "table": "patrol_route_instance_stops",
       "status": "review",
       "orgRequired": false,
@@ -1483,7 +1427,7 @@
     },
     {
       "file": "src/hooks/usePatrolRouteInstances.ts",
-      "line": 362,
+      "line": 365,
       "table": "patrol_route_instances",
       "status": "review",
       "orgRequired": false,
@@ -1491,7 +1435,7 @@
     },
     {
       "file": "src/hooks/usePatrolRouteInstances.ts",
-      "line": 370,
+      "line": 373,
       "table": "patrol_route_instances",
       "status": "review",
       "orgRequired": false,
@@ -1781,13 +1725,13 @@
       "file": "src/hooks/useShiftGate.ts",
       "line": 97,
       "table": "zones",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/hooks/useShiftGate.ts",
-      "line": 113,
+      "line": 118,
       "table": "officer_shifts",
       "status": "review",
       "orgRequired": false,
@@ -1795,7 +1739,7 @@
     },
     {
       "file": "src/hooks/useShiftGate.ts",
-      "line": 244,
+      "line": 249,
       "table": "user_profiles",
       "status": "ok",
       "orgRequired": false,
@@ -1803,7 +1747,7 @@
     },
     {
       "file": "src/hooks/useShiftGate.ts",
-      "line": 269,
+      "line": 274,
       "table": "notifications",
       "status": "allowed_global_or_user_scoped",
       "orgRequired": false,
@@ -1973,9 +1917,9 @@
       "file": "src/hooks/useVehicleCompliance.ts",
       "line": 192,
       "table": "observations",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/hooks/useVehicleProfilePhoto.ts",
@@ -2083,15 +2027,7 @@
     },
     {
       "file": "src/hooks/useZones.ts",
-      "line": 90,
-      "table": "zones",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/useZones.ts",
-      "line": 117,
+      "line": 91,
       "table": "zones",
       "status": "ok",
       "orgRequired": true,
@@ -2099,7 +2035,7 @@
     },
     {
       "file": "src/hooks/useZones.ts",
-      "line": 146,
+      "line": 121,
       "table": "zones",
       "status": "ok",
       "orgRequired": true,
@@ -2107,7 +2043,15 @@
     },
     {
       "file": "src/hooks/useZones.ts",
-      "line": 175,
+      "line": 150,
+      "table": "zones",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/useZones.ts",
+      "line": 179,
       "table": "zones",
       "status": "ok",
       "orgRequired": true,

@@ -44,6 +44,28 @@ interface UpdateIncidentInput {
   retention_hold?: boolean
 }
 
+const INCIDENT_SELECT_FIELDS = [
+  'id',
+  'organization_id',
+  'zone_id',
+  'plate_number',
+  'incident_type',
+  'severity',
+  'status',
+  'description',
+  'evidence_count',
+  'primary_evidence_url',
+  'location_lat',
+  'location_lng',
+  'location_address',
+  'notes',
+  'metadata',
+  'created_at',
+  'user_id',
+  'zone:zones(name)',
+  'user_profile:user_profiles!incidents_user_id_fkey(first_name, last_name)',
+].join(',')
+
 export function useIncidents(options?: {
   organizationId?: string
   zoneId?: string
@@ -72,30 +94,9 @@ export function useIncidents(options?: {
 
       let incidentsQuery = supabase
         .from('incidents')
-        .select(`
-          id,
-          organization_id,
-          zone_id,
-          plate_number,
-          incident_type,
-          severity,
-          status,
-          description,
-          evidence_count,
-          primary_evidence_url,
-          location_lat,
-          location_lng,
-          location_address,
-          notes,
-          metadata,
-          created_at,
-          user_id,
-          zone:zones(name),
-          user_profile:user_profiles!incidents_user_id_fkey(first_name, last_name)
-        `)
+        .select(INCIDENT_SELECT_FIELDS)
+        .eq('organization_id', effectiveOrganizationId)
         .order('created_at', { ascending: false })
-
-      incidentsQuery = incidentsQuery.eq('organization_id', effectiveOrganizationId)
 
       if (options?.zoneId) {
         incidentsQuery = incidentsQuery.eq('zone_id', options.zoneId)
@@ -120,7 +121,7 @@ export function useIncidents(options?: {
         throw error
       }
 
-      return data as Incident[]
+      return data as unknown as Incident[]
     },
   })
 

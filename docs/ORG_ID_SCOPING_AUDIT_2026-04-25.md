@@ -1,21 +1,14 @@
 # Org Scoping Audit (2026-04-25)
 
-Generated: 2026-05-03T07:57:12.035Z
+Generated: 2026-05-03T08:04:32.464Z
 
 Total query sites: 250
-Missing required org filter: 24
+Missing required org filter: 17
 Review needed: 61
 Known exceptions: 2
 
 ## Missing Required Org Filters
 
-- src/hooks/useAuditLogs.ts:163 table=audit_log
-- src/hooks/useIncidents.ts:74 table=incidents
-- src/hooks/usePatrolCheckpoints.ts:140 table=patrol_checkpoints
-- src/hooks/usePatrolRouteInstances.ts:344 table=audit_log
-- src/hooks/useShiftGate.ts:97 table=zones
-- src/hooks/useVehicleCompliance.ts:192 table=observations
-- src/hooks/useZones.ts:90 table=zones
 - src/lib/dispatchJobs.ts:25 table=dispatch_jobs
 - src/lib/dispatchJobs.ts:36 table=dispatch_jobs
 - src/lib/fullExport.ts:271 table=observations
@@ -54,9 +47,9 @@ Known exceptions: 2
 - src/hooks/usePatrolRouteInstances.ts:155 table=patrol_route_instance_stops
 - src/hooks/usePatrolRouteInstances.ts:294 table=patrol_route_instance_stops
 - src/hooks/usePatrolRouteInstances.ts:312 table=patrol_route_instance_stops
-- src/hooks/usePatrolRouteInstances.ts:350 table=patrol_route_instance_stops
-- src/hooks/usePatrolRouteInstances.ts:362 table=patrol_route_instances
-- src/hooks/usePatrolRouteInstances.ts:370 table=patrol_route_instances
+- src/hooks/usePatrolRouteInstances.ts:353 table=patrol_route_instance_stops
+- src/hooks/usePatrolRouteInstances.ts:365 table=patrol_route_instances
+- src/hooks/usePatrolRouteInstances.ts:373 table=patrol_route_instances
 - src/hooks/usePersonRecords.ts:95 table=person_records
 - src/hooks/usePersonRecords.ts:122 table=person_records
 - src/hooks/usePersonRecords.ts:154 table=person_records
@@ -70,7 +63,7 @@ Known exceptions: 2
 ## Known Exceptions
 
 - src/hooks/useAuditLogs.ts:90 table=audit_log
-- src/hooks/useAuditLogs.ts:218 table=audit_log
+- src/hooks/useAuditLogs.ts:225 table=audit_log
 
 ## Notes
 

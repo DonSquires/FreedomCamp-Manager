@@ -342,7 +342,10 @@ export function useUpdatePatrolRouteStopStatus() {
 
       const { error: auditError } = await (supabase as any)
         .from('audit_log')
-        .insert(auditPayload)
+        .insert({
+          ...auditPayload,
+          organization_id: auditPayload.organization_id,
+        })
 
       if (auditError) throw auditError
 
