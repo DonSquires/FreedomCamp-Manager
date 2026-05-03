@@ -150,6 +150,7 @@ interface TransmissionEntry {
   transcript?: string | null
   isEmergency: boolean
   isLive: boolean
+  isVoiceTwin?: boolean
 }
 
 interface SyntheticAudioRender {
@@ -704,6 +705,20 @@ export default function PTTRadio() {
     window.addEventListener('radio:inject-voice-consent-status', handler as EventListener)
     return () => {
       window.removeEventListener('radio:inject-voice-consent-status', handler as EventListener)
+    }
+  }, [])
+
+  // ── Test injection hook: radio:inject-tx-entry ────────────
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<TransmissionEntry>).detail
+      if (!detail) return
+      setTxLog((prev) => [detail, ...prev].slice(0, 60))
+    }
+    window.addEventListener('radio:inject-tx-entry', handler as EventListener)
+    return () => {
+      window.removeEventListener('radio:inject-tx-entry', handler as EventListener)
     }
   }, [])
 
@@ -1311,6 +1326,7 @@ export default function PTTRadio() {
         transcript: r.transcript ?? null,
         isEmergency: r.is_emergency ?? false,
         isLive: false,
+        isVoiceTwin: r.is_voice_twin ?? false,
       }))
     },
     enabled: !!effectiveOrgId,
@@ -1912,6 +1928,7 @@ export default function PTTRadio() {
         createdAt: new Date().toISOString(),
         isEmergency: emergencyMode,
         isLive: true,
+        isVoiceTwin: false,
       }
       setTxLog((prev) => [entry, ...prev].slice(0, 60))
     }
@@ -2179,6 +2196,7 @@ export default function PTTRadio() {
       transcript: null,
       isEmergency: emergencyMode,
       isLive: false,
+      isVoiceTwin: radioFeatureFlags.syntheticAudioEnabled && hasActiveVoiceConsent,
     }
     setTxLog((prev) => [entry, ...prev].slice(0, 60))
 
@@ -3657,6 +3675,13 @@ export default function PTTRadio() {
                               <div className="mt-0.5">
                                 <span className="inline-flex items-center gap-0.5 px-1 py-0 rounded text-[8px] uppercase tracking-wide bg-violet-900/60 text-violet-300 border border-violet-700/50">
                                   Synthetic relay
+                                </span>
+                              </div>
+                            )}
+                            {entry.isVoiceTwin && (
+                              <div className="mt-0.5">
+                                <span className="inline-flex items-center gap-0.5 px-1 py-0 rounded text-[8px] uppercase tracking-wide bg-cyan-900/60 text-cyan-300 border border-cyan-700/50" data-testid="voice-twin-badge">
+                                  Voice Twin
                                 </span>
                               </div>
                             )}

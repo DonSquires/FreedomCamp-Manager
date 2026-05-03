@@ -182,4 +182,34 @@ test.describe('radio caption confidence indicators', () => {
     await expect(page.getByRole('button', { name: /Enable Voice Twin/i })).toBeDisabled()
     await expect(page.getByText(/require admin or supervisor role/i)).toBeVisible()
   })
+
+  test('voice-twin TX log badge appears when consent is active', async ({ adminUser: page }) => {
+    test.skip(
+      !captionsEnabled || !translationsEnabled || !syntheticAudioEnabled,
+      'Requires caption+translation+synthetic-audio flags enabled',
+    )
+
+    await page.goto('/radio')
+    await expect(page.getByRole('heading', { name: 'Radio' })).toBeVisible({ timeout: 20000 })
+
+    await page.evaluate(() => {
+      window.dispatchEvent(new CustomEvent('radio:inject-tx-entry', {
+        detail: {
+          id: 'vt-test-001',
+          callsign: 'ALPHA-1',
+          name: 'Test Officer',
+          channelName: 'Primary',
+          channelNumber: 1,
+          durationSeconds: 12,
+          createdAt: new Date().toISOString(),
+          isEmergency: false,
+          isLive: false,
+          isVoiceTwin: true,
+        },
+      }))
+    })
+
+    await expect(page.getByTestId('voice-twin-badge')).toBeVisible()
+    await expect(page.getByTestId('voice-twin-badge')).toHaveText(/voice twin/i)
+  })
 })
