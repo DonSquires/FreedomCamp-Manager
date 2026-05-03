@@ -1,0 +1,116 @@
+name: Phase 1 Radio Validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'tests/e2e/radio-*.spec.ts'
+      - 'playwright.config.ts'
+      - '.github/workflows/phase1-radio-validation.yml'
+
+concurrency:
+  group: phase1-radio-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  phase1-radio-validation:
+    name: Phase 1 Radio Validation (Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      CI: true
+
+      # Enforce role-specific credentials for this suite (no fallback).
+      PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK: '0'
+      PLAYWRIGHT_REQUIRED_TEST_USERS: adminOrg1,adminOrg2,officerOrg1
+
+      # Supabase
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      # Role matrix (required for org isolation + consent/revocation coverage)
+      PLAYWRIGHT_ADMIN_ORG1_EMAIL: ${{ secrets.PLAYWRIGHT_ADMIN_ORG1_EMAIL }}
+      PLAYWRIGHT_ADMIN_ORG1_PASSWORD: ${{ secrets.PLAYWRIGHT_ADMIN_ORG1_PASSWORD }}
+      PLAYWRIGHT_ADMIN_ORG2_EMAIL: ${{ secrets.PLAYWRIGHT_ADMIN_ORG2_EMAIL }}
+      PLAYWRIGHT_ADMIN_ORG2_PASSWORD: ${{ secrets.PLAYWRIGHT_ADMIN_ORG2_PASSWORD }}
+      PLAYWRIGHT_OFFICER_ORG1_EMAIL: ${{ secrets.PLAYWRIGHT_OFFICER_ORG1_EMAIL }}
+      PLAYWRIGHT_OFFICER_ORG1_PASSWORD: ${{ secrets.PLAYWRIGHT_OFFICER_ORG1_PASSWORD }}
+
+      # Inference service (AI-off degradation checks)
+      INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL }}
+      INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
+      RADIO_SPEECH_WEBHOOK_SECRET: ${{ secrets.RADIO_SPEECH_WEBHOOK_SECRET }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate required env vars
+        run: |
+          set -euo pipefail
+          missing=0
+          required_vars=(
+            VITE_SUPABASE_URL
+            VITE_SUPABASE_ANON_KEY
+            PLAYWRIGHT_ADMIN_ORG1_EMAIL
+            PLAYWRIGHT_ADMIN_ORG1_PASSWORD
+            PLAYWRIGHT_ADMIN_ORG2_EMAIL
+            PLAYWRIGHT_ADMIN_ORG2_PASSWORD
+            PLAYWRIGHT_OFFICER_ORG1_EMAIL
+            PLAYWRIGHT_OFFICER_ORG1_PASSWORD
+            INFERENCE_SERVICE_URL
+            INFERENCE_API_KEY
+          )
+
+          for name in "${required_vars[@]}"; do
+            value="${!name:-}"
+            if [ -z "$value" ]; then
+              echo "::error::Missing required secret/env: $name"
+              missing=1
+            fi
+          done
+
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::One or more required secrets are missing."
+            exit 1
+          fi
+
+      - name: Install Playwright browser
+        run: bunx playwright install --with-deps chromium
+
+      - name: Run Phase 1 radio validation suite
+        run: |
+          bunx playwright test \
+            tests/e2e/radio-role-access.spec.ts \
+            tests/e2e/radio-org-isolation-transcripts.spec.ts \
+            tests/e2e/radio-reconnect-resilience.spec.ts \
+            tests/e2e/radio-emergency-latency.spec.ts \
+            tests/e2e/radio-ai-off-degradation.spec.ts \
+            tests/e2e/radio-voice-consent-revocation.spec.ts \
+            --project=chromium \
+            --reporter=list \
+            --timeout=60000
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: phase1-radio-validation-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
