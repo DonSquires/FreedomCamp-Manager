@@ -150,6 +150,13 @@ export default function SystemDiagnostics() {
   const translationLocal = inferenceCapabilities.translation_local_ollama_enabled === true
   const whisperCliStatus = String((inferenceHealth as any)?.models?.whisper_cli || 'unknown')
   const whisperModelStatus = String((inferenceHealth as any)?.models?.whisper_model || 'unknown')
+  const radioPipeline = (inferenceHealth as any)?.radioPipeline ?? null
+  const radioPipelineMode = String(radioPipeline?.processor_mode || 'unknown')
+  const radioProcessorEnabled = radioPipeline?.processor_enabled === true
+  const radioMetrics = (radioPipeline?.metrics ?? {}) as Record<string, any>
+  const radioLastLatencyMs = Number.isFinite(Number(radioMetrics.last_latency_ms))
+    ? Number(radioMetrics.last_latency_ms)
+    : null
 
   const runDoctorPlaybook = async (playbook: 'ollama_recovery' | 'ptt_token_path_repair' | 'edge_auth_alignment', dryRun = false) => {
     setDoctorPlaybookRunning(playbook)
@@ -336,6 +343,11 @@ export default function SystemDiagnostics() {
                   </div>
                   <div>Translation model: {translationModel}</div>
                   <div>Whisper: CLI {whisperCliStatus} · model {whisperModelStatus}</div>
+                  <div>Radio pipeline: {radioProcessorEnabled ? `active (${radioPipelineMode})` : `standby (${radioPipelineMode})`}</div>
+                  <div>
+                    Radio events: {Number(radioMetrics.processed_events || 0)} processed · {Number(radioMetrics.failed_events || 0)} failed
+                    {radioLastLatencyMs !== null ? ` · last latency ${radioLastLatencyMs}ms` : ''}
+                  </div>
                 </div>
               </>
             ) : inferenceHealth?.status === 'degraded' ? (
@@ -350,6 +362,11 @@ export default function SystemDiagnostics() {
                 <div className="mt-2 space-y-1 text-xs text-gray-600">
                   <div>Translation model: {translationModel}</div>
                   <div>Whisper: CLI {whisperCliStatus} · model {whisperModelStatus}</div>
+                  <div>Radio pipeline: {radioProcessorEnabled ? `active (${radioPipelineMode})` : `standby (${radioPipelineMode})`}</div>
+                  <div>
+                    Radio events: {Number(radioMetrics.processed_events || 0)} processed · {Number(radioMetrics.failed_events || 0)} failed
+                    {radioLastLatencyMs !== null ? ` · last latency ${radioLastLatencyMs}ms` : ''}
+                  </div>
                 </div>
               </>
             ) : (
@@ -366,6 +383,11 @@ export default function SystemDiagnostics() {
                 <div className="mt-2 space-y-1 text-xs text-gray-600">
                   <div>Translation model: {translationModel}</div>
                   <div>Whisper: CLI {whisperCliStatus} · model {whisperModelStatus}</div>
+                  <div>Radio pipeline: {radioProcessorEnabled ? `active (${radioPipelineMode})` : `standby (${radioPipelineMode})`}</div>
+                  <div>
+                    Radio events: {Number(radioMetrics.processed_events || 0)} processed · {Number(radioMetrics.failed_events || 0)} failed
+                    {radioLastLatencyMs !== null ? ` · last latency ${radioLastLatencyMs}ms` : ''}
+                  </div>
                 </div>
               </>
             )}
