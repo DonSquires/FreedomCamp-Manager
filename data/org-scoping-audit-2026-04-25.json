@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-30T03:45:22.695Z",
+  "generatedAt": "2026-05-03T07:27:47.641Z",
   "scope": [
     "src/hooks",
     "src/lib"
@@ -27,12 +27,12 @@
     ]
   },
   "summary": {
-    "total": 225,
-    "ok": 84,
+    "total": 250,
+    "ok": 104,
     "known_exception": 2,
-    "missing_org_filter": 44,
+    "missing_org_filter": 45,
     "allowed_global_or_user_scoped": 38,
-    "review": 57
+    "review": 61
   },
   "missingOrgFilter": [
     {
@@ -188,22 +188,6 @@
       "scoped": false
     },
     {
-      "file": "src/hooks/usePlateScans.ts",
-      "line": 166,
-      "table": "plate_scans",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/usePlateScans.ts",
-      "line": 193,
-      "table": "plate_scans",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
       "file": "src/hooks/useShiftGate.ts",
       "line": 97,
       "table": "zones",
@@ -301,7 +285,7 @@
     },
     {
       "file": "src/lib/geofence.ts",
-      "line": 371,
+      "line": 249,
       "table": "patrols",
       "status": "missing_org_filter",
       "orgRequired": true,
@@ -309,7 +293,31 @@
     },
     {
       "file": "src/lib/geofence.ts",
-      "line": 386,
+      "line": 265,
+      "table": "zones",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/geofence.ts",
+      "line": 273,
+      "table": "zones",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/geofence.ts",
+      "line": 442,
+      "table": "patrols",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/geofence.ts",
+      "line": 457,
       "table": "patrols",
       "status": "missing_org_filter",
       "orgRequired": true,
@@ -607,7 +615,7 @@
     },
     {
       "file": "src/hooks/usePointsOfInterest.ts",
-      "line": 142,
+      "line": 145,
       "table": "persons_of_interest",
       "status": "review",
       "orgRequired": false,
@@ -615,7 +623,7 @@
     },
     {
       "file": "src/hooks/usePointsOfInterest.ts",
-      "line": 159,
+      "line": 162,
       "table": "persons_of_interest",
       "status": "review",
       "orgRequired": false,
@@ -623,7 +631,7 @@
     },
     {
       "file": "src/hooks/usePointsOfInterest.ts",
-      "line": 224,
+      "line": 228,
       "table": "vehicles_of_interest",
       "status": "review",
       "orgRequired": false,
@@ -631,7 +639,7 @@
     },
     {
       "file": "src/hooks/usePointsOfInterest.ts",
-      "line": 241,
+      "line": 245,
       "table": "vehicles_of_interest",
       "status": "review",
       "orgRequired": false,
@@ -639,7 +647,7 @@
     },
     {
       "file": "src/hooks/usePointsOfInterest.ts",
-      "line": 314,
+      "line": 318,
       "table": "trespass_notices",
       "status": "review",
       "orgRequired": false,
@@ -721,6 +729,14 @@
       "file": "src/hooks/useWelfareCheckin.ts",
       "line": 93,
       "table": "officer_welfare_settings",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobADRService.ts",
+      "line": 286,
+      "table": "bob_learning_log",
       "status": "review",
       "orgRequired": false,
       "scoped": false
@@ -838,6 +854,30 @@
       "scoped": false
     },
     {
+      "file": "src/lib/bobReasoningService.ts",
+      "line": 315,
+      "table": "bob_hypotheses",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobReasoningService.ts",
+      "line": 316,
+      "table": "bob_approval_gates",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobReasoningService.ts",
+      "line": 317,
+      "table": "bob_reasoning_audit",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
       "file": "src/lib/testUtils.ts",
       "line": 513,
       "table": "bug_reports",
@@ -907,7 +947,7 @@
     },
     {
       "file": "src/hooks/useAutoErrorReporter.ts",
-      "line": 112,
+      "line": 122,
       "table": "bug_reports",
       "status": "ok",
       "orgRequired": false,
@@ -1779,31 +1819,39 @@
     },
     {
       "file": "src/hooks/usePlateScans.ts",
+      "line": 131,
+      "table": "plate_scans",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/usePlateScans.ts",
+      "line": 167,
+      "table": "plate_scans",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/usePlateScans.ts",
+      "line": 197,
+      "table": "plate_scans",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/usePointsOfInterest.ts",
+      "line": 108,
+      "table": "persons_of_interest",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/hooks/usePointsOfInterest.ts",
       "line": 127,
-      "table": "plate_scans",
-      "status": "ok",
-      "orgRequired": true,
-      "scoped": true
-    },
-    {
-      "file": "src/hooks/usePlateScans.ts",
-      "line": 166,
-      "table": "plate_scans",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/usePlateScans.ts",
-      "line": 193,
-      "table": "plate_scans",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/usePointsOfInterest.ts",
-      "line": 105,
       "table": "persons_of_interest",
       "status": "ok",
       "orgRequired": false,
@@ -1811,15 +1859,7 @@
     },
     {
       "file": "src/hooks/usePointsOfInterest.ts",
-      "line": 124,
-      "table": "persons_of_interest",
-      "status": "ok",
-      "orgRequired": false,
-      "scoped": true
-    },
-    {
-      "file": "src/hooks/usePointsOfInterest.ts",
-      "line": 142,
+      "line": 145,
       "table": "persons_of_interest",
       "status": "review",
       "orgRequired": false,
@@ -1827,7 +1867,7 @@
     },
     {
       "file": "src/hooks/usePointsOfInterest.ts",
-      "line": 159,
+      "line": 162,
       "table": "persons_of_interest",
       "status": "review",
       "orgRequired": false,
@@ -1835,7 +1875,7 @@
     },
     {
       "file": "src/hooks/usePointsOfInterest.ts",
-      "line": 187,
+      "line": 190,
       "table": "vehicles_of_interest",
       "status": "ok",
       "orgRequired": false,
@@ -1843,7 +1883,7 @@
     },
     {
       "file": "src/hooks/usePointsOfInterest.ts",
-      "line": 206,
+      "line": 210,
       "table": "vehicles_of_interest",
       "status": "ok",
       "orgRequired": false,
@@ -1851,7 +1891,7 @@
     },
     {
       "file": "src/hooks/usePointsOfInterest.ts",
-      "line": 224,
+      "line": 228,
       "table": "vehicles_of_interest",
       "status": "review",
       "orgRequired": false,
@@ -1859,7 +1899,7 @@
     },
     {
       "file": "src/hooks/usePointsOfInterest.ts",
-      "line": 241,
+      "line": 245,
       "table": "vehicles_of_interest",
       "status": "review",
       "orgRequired": false,
@@ -1867,7 +1907,7 @@
     },
     {
       "file": "src/hooks/usePointsOfInterest.ts",
-      "line": 269,
+      "line": 273,
       "table": "trespass_notices",
       "status": "ok",
       "orgRequired": false,
@@ -1875,7 +1915,7 @@
     },
     {
       "file": "src/hooks/usePointsOfInterest.ts",
-      "line": 291,
+      "line": 295,
       "table": "trespass_notices",
       "status": "ok",
       "orgRequired": false,
@@ -1883,7 +1923,7 @@
     },
     {
       "file": "src/hooks/usePointsOfInterest.ts",
-      "line": 314,
+      "line": 318,
       "table": "trespass_notices",
       "status": "review",
       "orgRequired": false,
@@ -2242,6 +2282,118 @@
       "scoped": true
     },
     {
+      "file": "src/lib/bobADRService.ts",
+      "line": 158,
+      "table": "bob_learning_log",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/bobADRService.ts",
+      "line": 233,
+      "table": "bob_learning_log",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/bobADRService.ts",
+      "line": 240,
+      "table": "bob_learning_log",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/bobADRService.ts",
+      "line": 286,
+      "table": "bob_learning_log",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobConversationService.ts",
+      "line": 63,
+      "table": "bob_conversations",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/bobConversationService.ts",
+      "line": 88,
+      "table": "bob_conversations",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/bobConversationService.ts",
+      "line": 100,
+      "table": "bob_messages",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/bobConversationService.ts",
+      "line": 125,
+      "table": "bob_messages",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/bobConversationService.ts",
+      "line": 160,
+      "table": "bob_learning_log",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/bobConversationService.ts",
+      "line": 190,
+      "table": "bob_conversations",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/bobConversationService.ts",
+      "line": 243,
+      "table": "bob_conversations",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/bobConversationService.ts",
+      "line": 261,
+      "table": "bob_conversations",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/bobConversationService.ts",
+      "line": 311,
+      "table": "bob_conversations",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/bobConversationService.ts",
+      "line": 337,
+      "table": "bob_conversations",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
       "file": "src/lib/bobLearningMemory.ts",
       "line": 212,
       "table": "bob_learning_memory",
@@ -2354,6 +2506,62 @@
       "scoped": false
     },
     {
+      "file": "src/lib/bobReasoningService.ts",
+      "line": 288,
+      "table": "bob_reasoning_audit",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/bobReasoningService.ts",
+      "line": 315,
+      "table": "bob_hypotheses",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobReasoningService.ts",
+      "line": 316,
+      "table": "bob_approval_gates",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/bobReasoningService.ts",
+      "line": 317,
+      "table": "bob_reasoning_audit",
+      "status": "review",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/dispatchAssignment.ts",
+      "line": 200,
+      "table": "zones",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/dispatchAssignment.ts",
+      "line": 223,
+      "table": "zone_dispatch_resource_rules",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/dispatchAssignment.ts",
+      "line": 325,
+      "table": "locations_of_interest",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
       "file": "src/lib/dispatchJobs.ts",
       "line": 25,
       "table": "dispatch_jobs",
@@ -2395,7 +2603,7 @@
     },
     {
       "file": "src/lib/geofence.ts",
-      "line": 116,
+      "line": 117,
       "table": "zones",
       "status": "ok",
       "orgRequired": true,
@@ -2403,23 +2611,15 @@
     },
     {
       "file": "src/lib/geofence.ts",
-      "line": 323,
-      "table": "patrols",
+      "line": 130,
+      "table": "zones",
       "status": "ok",
       "orgRequired": true,
       "scoped": true
     },
     {
       "file": "src/lib/geofence.ts",
-      "line": 338,
-      "table": "patrols",
-      "status": "ok",
-      "orgRequired": true,
-      "scoped": true
-    },
-    {
-      "file": "src/lib/geofence.ts",
-      "line": 371,
+      "line": 249,
       "table": "patrols",
       "status": "missing_org_filter",
       "orgRequired": true,
@@ -2427,7 +2627,47 @@
     },
     {
       "file": "src/lib/geofence.ts",
-      "line": 386,
+      "line": 265,
+      "table": "zones",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/geofence.ts",
+      "line": 273,
+      "table": "zones",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/geofence.ts",
+      "line": 394,
+      "table": "patrols",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/geofence.ts",
+      "line": 409,
+      "table": "patrols",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/geofence.ts",
+      "line": 442,
+      "table": "patrols",
+      "status": "missing_org_filter",
+      "orgRequired": true,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/geofence.ts",
+      "line": 457,
       "table": "patrols",
       "status": "missing_org_filter",
       "orgRequired": true,

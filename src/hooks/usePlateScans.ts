@@ -123,6 +123,10 @@ export function usePlateScans(options?: {
   // Create scan mutation
   const createScan = useMutation({
     mutationFn: async (input: CreateScanInput) => {
+      if (!user?.organization_id) {
+        throw new Error('No organization context for plate scan creation')
+      }
+
       const { data, error } = await (supabase
         .from('plate_scans') as any)
         .insert({
@@ -139,10 +143,6 @@ export function usePlateScans(options?: {
           ai_vehicle_model: input.ai_vehicle_model,
           ai_vehicle_color: input.ai_vehicle_color,
           scanned_at: new Date().toISOString(),
-    onError: (err: any) => {
-      console.error(err)
-      toast.error(err?.message || 'Operation failed')
-    },
         })
         .select()
         .single()
@@ -163,17 +163,21 @@ export function usePlateScans(options?: {
   // Review scan mutation
   const reviewScan = useMutation({
     mutationFn: async ({ id, action, notes }: ReviewScanInput) => {
-      const { error } = await supabase.from('plate_scans')
+      let query = supabase
+        .from('plate_scans')
         .update({
           reviewed: true,
           review_action: action,
           violation_summary: notes,
-    onError: (err: any) => {
-      console.error(err)
-      toast.error(err?.message || 'Operation failed')
-    },
         })
         .eq('id', id)
+
+      // Enforce tenant scope on write operations for non-master users.
+      if (user?.role !== 'master' && user?.organization_id) {
+        query = query.eq('organization_id', user.organization_id)
+      }
+
+      const { error } = await query
 
       if (error) {
         toast.error('Failed to review scan')
@@ -189,10 +193,17 @@ export function usePlateScans(options?: {
   // Delete scan mutation
   const deleteScan = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      let query = supabase
         .from('plate_scans')
         .delete()
         .eq('id', id)
+
+      // Enforce tenant scope on write operations for non-master users.
+      if (user?.role !== 'master' && user?.organization_id) {
+        query = query.eq('organization_id', user.organization_id)
+      }
+
+      const { error } = await query
 
       if (error) {
         toast.error('Failed to delete scan')

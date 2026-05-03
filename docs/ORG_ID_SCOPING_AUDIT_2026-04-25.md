@@ -1,10 +1,10 @@
 # Org Scoping Audit (2026-04-25)
 
-Generated: 2026-04-30T03:45:22.695Z
+Generated: 2026-05-03T07:27:47.641Z
 
-Total query sites: 225
-Missing required org filter: 44
-Review needed: 57
+Total query sites: 250
+Missing required org filter: 45
+Review needed: 61
 Known exceptions: 2
 
 ## Missing Required Org Filters
@@ -28,8 +28,6 @@ Known exceptions: 2
 - src/hooks/usePatrols.ts:128 table=patrols
 - src/hooks/usePatrols.ts:157 table=patrols
 - src/hooks/usePatrols.ts:289 table=patrols
-- src/hooks/usePlateScans.ts:166 table=plate_scans
-- src/hooks/usePlateScans.ts:193 table=plate_scans
 - src/hooks/useShiftGate.ts:97 table=zones
 - src/hooks/useVehicleAnalysis.ts:41 table=observations
 - src/hooks/useVehicleAnalysis.ts:145 table=observations
@@ -42,8 +40,11 @@ Known exceptions: 2
 - src/lib/dispatchJobs.ts:25 table=dispatch_jobs
 - src/lib/dispatchJobs.ts:36 table=dispatch_jobs
 - src/lib/fullExport.ts:271 table=observations
-- src/lib/geofence.ts:371 table=patrols
-- src/lib/geofence.ts:386 table=patrols
+- src/lib/geofence.ts:249 table=patrols
+- src/lib/geofence.ts:265 table=zones
+- src/lib/geofence.ts:273 table=zones
+- src/lib/geofence.ts:442 table=patrols
+- src/lib/geofence.ts:457 table=patrols
 - src/lib/scanPipeline.ts:71 table=observations
 - src/lib/testUtils.ts:151 table=zones
 - src/lib/testUtils.ts:178 table=observations
@@ -83,9 +84,9 @@ Known exceptions: 2
 - src/hooks/usePersonRecords.ts:176 table=person_records
 - src/hooks/usePersonRecords.ts:199 table=person_records
 - src/hooks/usePersonRecords.ts:265 table=person_observations
-- src/hooks/usePointsOfInterest.ts:142 table=persons_of_interest
-- src/hooks/usePointsOfInterest.ts:159 table=persons_of_interest
-- src/hooks/usePointsOfInterest.ts:224 table=vehicles_of_interest
+- src/hooks/usePointsOfInterest.ts:145 table=persons_of_interest
+- src/hooks/usePointsOfInterest.ts:162 table=persons_of_interest
+- src/hooks/usePointsOfInterest.ts:228 table=vehicles_of_interest
 
 ## Known Exceptions
 
