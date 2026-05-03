@@ -75,4 +75,15 @@ test.describe('RadioAuditDashboard', () => {
     const packetLossStatsOrEmpty = page.locator('[data-testid="packet-loss-stats"], :text("No packet-loss metrics available")')
     await expect(packetLossStatsOrEmpty.first()).toBeVisible({ timeout: 10000 })
   })
+
+  test('runbooks tab is visible and accessible to admin', async ({ adminUser: page }) => {
+    test.skip(!syntheticAudioEnabled, 'Requires VITE_RADIO_SYNTHETIC_AUDIO_ENABLED=true')
+
+    await page.goto('/radio/audit')
+    await expect(page.getByRole('heading', { name: /Radio Audit Dashboard/i })).toBeVisible({ timeout: 20000 })
+
+    await page.getByRole('tab', { name: /Runbooks/i }).click()
+    await expect(page.getByTestId('runbook-cards')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText(/AI Pipeline Offline/i)).toBeVisible()
+  })
 })

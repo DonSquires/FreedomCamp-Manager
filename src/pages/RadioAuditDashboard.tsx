@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Activity, AlertTriangle, ArrowLeft, ShieldCheck, Volume2 } from 'lucide-react'
+import { Activity, AlertTriangle, ArrowLeft, BookOpen, ShieldCheck, Volume2 } from 'lucide-react'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -78,6 +78,14 @@ interface PacketLossBucket {
 interface PacketLossTrendPoint {
   ts: string
   lossPct: number
+}
+
+interface RunbookCard {
+  id: string
+  title: string
+  trigger: string
+  severity: 'normal' | 'warning' | 'critical'
+  steps: string[]
 }
 
 function extractPacketLossPercent(metadata: unknown): number | null {
@@ -342,6 +350,71 @@ export default function RadioAuditDashboard() {
       }))
   }, [transmissionMetadata])
 
+  const runbookCards = useMemo((): RunbookCard[] => {
+    const p95Latency = latencyStats?.p95 ?? 0
+    const p95PacketLoss = packetLossStats?.p95 ?? 0
+    const hasActiveVoiceTwinButNoSynthetic = activeConsents.length > 0 && syntheticRenders.length === 0
+
+    return [
+      {
+        id: 'ai-pipeline-offline',
+        title: 'AI Pipeline Offline / No Synthetic Output',
+        trigger: hasActiveVoiceTwinButNoSynthetic
+          ? 'Active voice-twin consent exists but no synthetic renders are present.'
+          : 'No active pipeline outage signal from current audit telemetry.',
+        severity: hasActiveVoiceTwinButNoSynthetic ? 'critical' : 'normal',
+        steps: [
+          'Confirm synthetic audio feature flag is enabled for the environment.',
+          'Check inference-service health endpoint and worker queue depth.',
+          'Verify radio_tts_renders inserts are occurring for active channels.',
+          'If still offline, switch operators to original-audio-only mode and escalate to on-call.',
+        ],
+      },
+      {
+        id: 'high-latency',
+        title: 'High Render Latency',
+        trigger: latencyStats
+          ? `Current p95 latency: ${p95Latency} ms`
+          : 'No latency sample set available.',
+        severity: p95Latency >= 1200 ? 'critical' : p95Latency >= 800 ? 'warning' : 'normal',
+        steps: [
+          'Check p95 render latency trend and identify when the spike began.',
+          'Inspect model provider saturation and queue backpressure.',
+          'Reduce non-essential translation fan-out languages temporarily.',
+          'If p95 remains >1200 ms for 10 minutes, trigger AI degradation runbook and notify supervisors.',
+        ],
+      },
+      {
+        id: 'high-packet-loss',
+        title: 'High Packet Loss / Media Degradation',
+        trigger: packetLossStats
+          ? `Current p95 packet loss: ${p95PacketLoss.toFixed(2)}%`
+          : 'No packet-loss metrics found in transmission metadata.',
+        severity: p95PacketLoss >= 5 ? 'critical' : p95PacketLoss >= 2 ? 'warning' : 'normal',
+        steps: [
+          'Check SFU node health and TURN relay utilisation.',
+          'Validate whether loss is org-specific or cross-org.',
+          'Move affected units to low-bitrate fallback profile.',
+          'If p95 packet loss >= 5%, advise channel users to prioritise emergency voice traffic only.',
+        ],
+      },
+      {
+        id: 'consent-enforcement',
+        title: 'Consent Revocation Enforcement Drift',
+        trigger: revokedConsents.length > 0
+          ? `Detected ${revokedConsents.length} revoked consent records.`
+          : 'No revoked consent records in current window.',
+        severity: revokedConsents.length > 0 ? 'warning' : 'normal',
+        steps: [
+          'Verify revoked profiles are marked inactive and excluded from synthesis requests.',
+          'Check for any post-revocation renders tied to revoked profile IDs.',
+          'If post-revocation output exists, disable synthetic relay and open compliance incident.',
+          'Document incident evidence and escalation path for legal/compliance review.',
+        ],
+      },
+    ]
+  }, [activeConsents.length, latencyStats, packetLossStats, revokedConsents.length, syntheticRenders.length])
+
   if (!canAccess) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-slate-400">
@@ -442,6 +515,10 @@ export default function RadioAuditDashboard() {
           <TabsTrigger value="latency" className="data-[state=active]:bg-slate-700 text-xs">
             <Activity className="h-3.5 w-3.5 mr-1" />
             Latency
+          </TabsTrigger>
+          <TabsTrigger value="runbooks" className="data-[state=active]:bg-slate-700 text-xs">
+            <BookOpen className="h-3.5 w-3.5 mr-1" />
+            Runbooks
           </TabsTrigger>
         </TabsList>
 
@@ -714,6 +791,48 @@ export default function RadioAuditDashboard() {
                 )}
               </>
             )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="runbooks" className="mt-3">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" data-testid="runbook-cards">
+            {runbookCards.map((card) => {
+              const badgeClass =
+                card.severity === 'critical'
+                  ? 'bg-red-900/50 text-red-300 border-red-700/50'
+                  : card.severity === 'warning'
+                    ? 'bg-amber-900/50 text-amber-300 border-amber-700/50'
+                    : 'bg-emerald-900/50 text-emerald-300 border-emerald-700/50'
+
+              return (
+                <Card key={card.id} className="bg-slate-900 border-slate-800">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <CardTitle className="text-sm text-slate-200 leading-snug">{card.title}</CardTitle>
+                      <Badge variant="outline" className={`text-[10px] uppercase tracking-wide ${badgeClass}`}>
+                        {card.severity}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-slate-400">{card.trigger}</p>
+                  </CardHeader>
+                  <CardContent>
+                    <ol className="list-decimal ml-4 space-y-1.5 text-xs text-slate-300">
+                      {card.steps.map((step) => (
+                        <li key={step}>{step}</li>
+                      ))}
+                    </ol>
+                    <div className="mt-3 flex items-center gap-2">
+                      <Button size="sm" variant="outline" className="text-xs" onClick={() => navigate('/radio')}>
+                        Open Radio Console
+                      </Button>
+                      <Button size="sm" variant="ghost" className="text-xs text-slate-400" onClick={() => setActiveTab('renders')}>
+                        View Render Audit
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         </TabsContent>
       </Tabs>
