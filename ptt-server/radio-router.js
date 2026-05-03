@@ -47,6 +47,15 @@ const TOKEN_TTL_SECONDS = 3600;
 const REDIS_URL = String(process.env.REDIS_URL || '').trim();
 const RADIO_SPEECH_QUEUE_KEY = process.env.RADIO_SPEECH_QUEUE_KEY || 'radio:speech:events';
 const RADIO_SPEECH_DLQ_KEY = process.env.RADIO_SPEECH_DLQ_KEY || `${RADIO_SPEECH_QUEUE_KEY}:dlq`;
+const RADIO_SPEECH_METRICS_URL = String(process.env.RADIO_SPEECH_METRICS_URL || '').trim();
+const RADIO_SPEECH_METRICS_API_KEY = String(
+  process.env.RADIO_SPEECH_METRICS_API_KEY
+  || process.env.RADIO_SPEECH_INFERENCE_API_KEY
+  || process.env.INFERENCE_API_KEY
+  || ''
+).trim();
+const RADIO_SPEECH_METRICS_SECRET = String(process.env.RADIO_SPEECH_WEBHOOK_SECRET || '').trim();
+const RADIO_SPEECH_METRICS_TIMEOUT_MS = Math.max(1000, parseInt(process.env.RADIO_SPEECH_METRICS_TIMEOUT_MS || '3000', 10));
 
 let redisClient = null;
 let redisReady = false;
@@ -139,6 +148,62 @@ async function getSpeechQueueHealth() {
         ...speechQueueMetrics,
       },
     };
+  }
+}
+
+async function getSpeechProcessorHealth() {
+  if (!RADIO_SPEECH_METRICS_URL) {
+    return {
+      enabled: false,
+      ready: false,
+      metricsUrl: null,
+      status: 'not_configured',
+    };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort('timeout'), RADIO_SPEECH_METRICS_TIMEOUT_MS);
+
+  try {
+    const headers = { Accept: 'application/json' };
+    if (RADIO_SPEECH_METRICS_API_KEY) headers.Authorization = `Bearer ${RADIO_SPEECH_METRICS_API_KEY}`;
+    if (RADIO_SPEECH_METRICS_SECRET) headers['x-radio-speech-secret'] = RADIO_SPEECH_METRICS_SECRET;
+
+    const response = await fetch(RADIO_SPEECH_METRICS_URL, {
+      method: 'GET',
+      headers,
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      return {
+        enabled: true,
+        ready: false,
+        metricsUrl: RADIO_SPEECH_METRICS_URL,
+        status: 'http_error',
+        httpStatus: response.status,
+      };
+    }
+
+    const payload = await response.json().catch(() => ({}));
+    return {
+      enabled: true,
+      ready: true,
+      metricsUrl: RADIO_SPEECH_METRICS_URL,
+      status: 'online',
+      generatedAt: payload.generated_at || null,
+      radioPipeline: payload.radio_pipeline || null,
+    };
+  } catch (err) {
+    return {
+      enabled: true,
+      ready: false,
+      metricsUrl: RADIO_SPEECH_METRICS_URL,
+      status: 'offline',
+      error: String(err?.message || err),
+    };
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -516,7 +581,10 @@ router.delete('/radio/session/:transmissionId', verifyRadioJwt, verifyTransmissi
 // GET /radio/health
 // ---------------------------------------------------------------------------
 router.get('/radio/health', async (req, res) => {
-  const speechQueue = await getSpeechQueueHealth();
+  const [speechQueue, speechProcessor] = await Promise.all([
+    getSpeechQueueHealth(),
+    getSpeechProcessorHealth(),
+  ]);
 
   res.json({
     sfuReady,
@@ -524,6 +592,7 @@ router.get('/radio/health', async (req, res) => {
     activeSessions: sessions.size,
     totalRouters: workers.reduce((sum, w) => sum + w.routers.size, 0),
     speechQueue,
+    speechProcessor,
   });
 });
 
