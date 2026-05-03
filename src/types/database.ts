@@ -10576,6 +10576,225 @@ export type Database = {
           },
         ]
       }
+      radio_transmissions: {
+        Row: {
+          id: string
+          org_id: string
+          channel_id: string
+          channel_type: string
+          speaker_id: string
+          speaker_name: string
+          started_at: string
+          ended_at: string | null
+          duration_ms: number | null
+          recording_enabled: boolean
+          is_emergency: boolean
+          floor_granted_at: string | null
+          floor_released_at: string | null
+          metadata: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          channel_id: string
+          channel_type: string
+          speaker_id: string
+          speaker_name: string
+          started_at?: string
+          ended_at?: string | null
+          recording_enabled?: boolean
+          is_emergency?: boolean
+          floor_granted_at?: string | null
+          floor_released_at?: string | null
+          metadata?: Json
+          created_at?: string
+        }
+        Update: {
+          ended_at?: string | null
+          recording_enabled?: boolean
+          is_emergency?: boolean
+          floor_granted_at?: string | null
+          floor_released_at?: string | null
+          metadata?: Json
+        }
+        Relationships: [
+          { foreignKeyName: "radio_transmissions_org_id_fkey"; columns: ["org_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] },
+          { foreignKeyName: "radio_transmissions_speaker_id_fkey"; columns: ["speaker_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+        ]
+      }
+      radio_transcript_segments: {
+        Row: {
+          id: string
+          org_id: string
+          transmission_id: string
+          sequence_num: number
+          segment_start_ms: number
+          segment_end_ms: number
+          text: string
+          language: string
+          confidence: number | null
+          is_final: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          transmission_id: string
+          sequence_num: number
+          segment_start_ms: number
+          segment_end_ms: number
+          text: string
+          language?: string
+          confidence?: number | null
+          is_final?: boolean
+          created_at?: string
+        }
+        Update: {
+          text?: string
+          confidence?: number | null
+          is_final?: boolean
+        }
+        Relationships: [
+          { foreignKeyName: "radio_transcript_segments_org_id_fkey"; columns: ["org_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] },
+          { foreignKeyName: "radio_transcript_segments_transmission_id_fkey"; columns: ["transmission_id"]; isOneToOne: false; referencedRelation: "radio_transmissions"; referencedColumns: ["id"] },
+        ]
+      }
+      radio_translation_segments: {
+        Row: {
+          id: string
+          org_id: string
+          transcript_segment_id: string
+          target_language: string
+          text: string
+          confidence: number | null
+          is_low_confidence: boolean
+          provider: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          transcript_segment_id: string
+          target_language: string
+          text: string
+          confidence?: number | null
+          provider?: string | null
+          created_at?: string
+        }
+        Update: {
+          text?: string
+          confidence?: number | null
+          provider?: string | null
+        }
+        Relationships: [
+          { foreignKeyName: "radio_translation_segments_transcript_segment_id_fkey"; columns: ["transcript_segment_id"]; isOneToOne: false; referencedRelation: "radio_transcript_segments"; referencedColumns: ["id"] },
+        ]
+      }
+      radio_tts_renders: {
+        Row: {
+          id: string
+          org_id: string
+          translation_segment_id: string
+          target_language: string
+          voice_profile_id: string | null
+          provider: string
+          is_synthetic: boolean
+          storage_path: string | null
+          duration_ms: number | null
+          render_latency_ms: number | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          translation_segment_id: string
+          target_language: string
+          voice_profile_id?: string | null
+          provider: string
+          is_synthetic?: boolean
+          storage_path?: string | null
+          duration_ms?: number | null
+          render_latency_ms?: number | null
+          created_at?: string
+        }
+        Update: {
+          storage_path?: string | null
+          duration_ms?: number | null
+          render_latency_ms?: number | null
+        }
+        Relationships: [
+          { foreignKeyName: "radio_tts_renders_translation_segment_id_fkey"; columns: ["translation_segment_id"]; isOneToOne: false; referencedRelation: "radio_translation_segments"; referencedColumns: ["id"] },
+        ]
+      }
+      radio_voice_profiles: {
+        Row: {
+          id: string
+          org_id: string
+          officer_id: string
+          provider: string
+          model_ref: string
+          enrolled_at: string
+          revoked_at: string | null
+          is_active: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          officer_id: string
+          provider: string
+          model_ref: string
+          enrolled_at?: string
+          revoked_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          revoked_at?: string | null
+          model_ref?: string
+        }
+        Relationships: [
+          { foreignKeyName: "radio_voice_profiles_org_id_fkey"; columns: ["org_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] },
+          { foreignKeyName: "radio_voice_profiles_officer_id_fkey"; columns: ["officer_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+        ]
+      }
+      radio_voice_consents: {
+        Row: {
+          id: string
+          org_id: string
+          officer_id: string
+          voice_profile_id: string | null
+          purpose: string
+          retention_days: number
+          provider: string
+          consented_at: string
+          revoked_at: string | null
+          revocation_reason: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          officer_id: string
+          voice_profile_id?: string | null
+          purpose: string
+          retention_days?: number
+          provider: string
+          consented_at?: string
+          revoked_at?: string | null
+          revocation_reason?: string | null
+          created_at?: string
+        }
+        Update: {
+          revoked_at?: string | null
+          revocation_reason?: string | null
+        }
+        Relationships: [
+          { foreignKeyName: "radio_voice_consents_org_id_fkey"; columns: ["org_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] },
+          { foreignKeyName: "radio_voice_consents_officer_id_fkey"; columns: ["officer_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "radio_voice_consents_voice_profile_id_fkey"; columns: ["voice_profile_id"]; isOneToOne: false; referencedRelation: "radio_voice_profiles"; referencedColumns: ["id"] },
+        ]
+      }
     }
     Functions: {
       _next_noise_seq: {

@@ -271,6 +271,7 @@ This policy controls when DOC_AUTHORITY_STRICT_POLICY should be enabled in CI.
 25. Completed: autonomous session protocol executed in full — truth sync, fail-fast scan (no blockers), top-3 risk pattern capture, all 5 strict governance gates PASS, lint clean, build ✓ 3949 modules.
 26. Completed: Bob brain dump and training infrastructure research and hardening — oversized file removed from git, max size reduced to 30 MB, daily auto-ingest CI workflow added (ops-bob-brain-dump-refresh.yml), training wiring verification wired into governance-release-gate, system_state module auto-detection confirmed correct.
 27. Completed: PTT Radio Phase 0 ADRs written and approved — ADR 003 (service topology), ADR 004 (SFU: mediasoup), ADR 005 (voice synthesis: Piper + Coqui XTTS), ADR 006 (legal/compliance: voice matching and synthetic audio). Phase 0 exit criteria met.
+28. Completed: PTT Radio Phase 1 Group A schema delivered — 5 migration files (radio_transmissions, radio_transcript_segments, radio_translation_segments, radio_tts_renders, radio_voice_profiles_and_consents) + RLS policy migration + TypeScript database types updated. Build and lint clean.
 
 ## Execution Ledger
 
@@ -295,3 +296,4 @@ Date: 2026-05-02
 17. c4247a21 - Add ADR-002, refresh brain dump, add P0 governance run-summary and evidence artifacts
 18. (pending) - Bob brain dump hardening: size cap, CI schedule, training wiring gate
 19. (pending) - PTT Phase 0 ADRs: service topology, SFU, voice synthesis, compliance
+20. (pending) - PTT Phase 1 Group A: radio schema migrations + RLS + TS types
