@@ -111,10 +111,35 @@ If you have a **rostered shift**, it is displayed at the top of the selector wit
 
 ### 2.4 Navigation Overview
 
-- **Top bar**: Organisation filter, search, notifications, profile, settings
-- **Sidebar / Navigation menu**: Links to all modules enabled for your organisation and role
-- **Global Filter Ribbon** (admin area): Date-range and organisation filter applied across all compliance and reporting screens
-- **Bob AI Assistant** (floating button): Context-aware AI assistant available on most pages
+#### Finding your way around
+
+Every portal has the same layout skeleton:
+
+| Element | Location | Purpose |
+|---|---|---|
+| **Sidebar** | Left edge (desktop) / hamburger menu (mobile) | All modules available to your role. Expand/collapse with the chevron at the top. |
+| **Top bar** | Across the top | Organisation selector, universal search (🔍), notifications bell, your profile avatar, settings cog |
+| **Global Filter Ribbon** | Below the top bar on admin pages | Date-range picker and organisation filter — applies to all compliance and reporting screens on the current tab |
+| **Bob AI Button** | Floating bottom-right | Opens the Bob AI assistant panel. Available on all pages for admin roles. |
+| **PTT Bar** | Bottom of screen (officer portals) | Push-to-talk transmit button and channel indicator |
+| **Field Safety Bar** | Top of screen (officer portals) | Welfare check-in status, man-down detection indicator, emergency button |
+
+#### How to navigate to any module
+
+1. **From the Sidebar**: Click the relevant group heading to expand it, then click the module name. The current page is highlighted.
+2. **From the universal search**: Click the 🔍 icon in the top bar (or press `/`). Type a module name, vehicle plate, person name, or zone. Results include direct links to pages and records.
+3. **From the Admin Hub** (`/admin`): Admins land here after login. Each card on the hub links directly to a major module. Click **→** on any card to open it.
+4. **From breadcrumb links**: Detail pages (vehicle, zone, breach) have breadcrumbs at the top — click a breadcrumb to navigate back without losing your filter state.
+5. **Direct URL**: Every page has a stable URL. Bookmark frequently used pages.
+
+#### Using the Global Filter Ribbon
+
+The Global Filter Ribbon appears at the top of all admin compliance and reporting screens. Changes here apply to **all currently open tabs** in the admin area.
+
+1. Click the **date range** field — a calendar picker opens. Select a start and end date.
+2. Click the **organisation** dropdown if you have access to multiple organisations — select the one you want to filter to, or choose **All** to see everything your role permits.
+3. The page refreshes automatically. A blue indicator shows when a non-default filter is active.
+4. Click **Reset** (×) to return to the default (today, all accessible orgs).
 
 ---
 
@@ -123,38 +148,68 @@ If you have a **rostered shift**, it is displayed at the top of the selector wit
 ### 3.1 Grand Master
 
 **Role code**: `grand_master`  
-**Access**: Unrestricted — bypasses all role and area restrictions across all organisations.
+**Access**: Unrestricted — bypasses all role and area restrictions across all organisations.  
+**Landing page**: `/platform` (the Platform overview)
 
 The Grand Master is the platform operator (OnSpace AI). This role has a dedicated landing page at `/platform` and access to all features, all organisations, and all data.
 
+#### How to reach the Platform page
+
+After login, the Grand Master lands automatically on `/platform`. From any other page, click **Platform** in the sidebar (top of the navigation, marked with a globe icon).
+
 #### Platform Overview (`/platform`)
 
-The Platform page provides a cross-organisation summary view including:
-- Total active organisations
-- System health indicators
-- Revenue overview (invoicing data)
-- Cross-organisation breach and compliance metrics
-- Platform audit log
+The Platform page is a cross-organisation executive dashboard. When you first open it you will see:
+
+1. **Stats bar** — four headline tiles across the top: Total organisations, Total users, Scans in period, and Active breaches.
+2. **Tabs** — switch between: Overview · Organisations · System · Feedback & Bugs
+3. **Period picker** — adjust the reporting period using the date range in the top-right of the stats bar.
+
+**Overview tab:**
+- Cross-organisation compliance summary — breach totals, notice count, infringement count, open disputes
+- Per-organisation usage table showing officer count, scan count, breach count, notice count
+
+**Organisations tab:**
+- Full list of all organisations on the platform with type, level, active status, officer count, and usage metrics
+- Click any row to open the organisation's profile
+
+**System tab:**
+- Live system health indicator (Supabase connectivity, inference service, PTT service, proxy server)
+- Click **Run Diagnostics** to execute a full health check — this calls the `check-services-health` edge function and displays results per service
+
+**Feedback & Bugs tab:**
+- All bug reports and feedback submitted across the platform grouped by severity
+- Click **Analyse** on any report to run a Bob AI analysis — the report status updates to `analysed` and AI findings are displayed inline
+- Click **Acknowledge** or **Resolve** to update the report lifecycle
 
 #### Exclusive Grand Master Modules
 
-| Module | Path | Purpose |
+To access any of these from the sidebar:
+
+| Module | Sidebar location | Path |
 |---|---|---|
-| **Grandmaster Code Studio** | `/grandmaster-code-studio` | AI-assisted live coding environment for platform development |
-| **Compliance Escalations** | `/compliance-escalations` | Cross-org escalations and override capability |
-| **Bob Assistant Studio** | `/bob-studio` | Configure, test, and refine Bob AI modules |
-| **Bob Intake Queue** | `/bob-intake` | Review and approve AI-generated assessments before release |
-| **Ops Live Plan Review** | `/ops-live-plan-review` | Review and approve AI-generated patrol plans |
-| **Intel Approval Queue** | `/intel-approval` | Review and approve AI-generated intelligence reports |
-| **Organisation Management** | `/organizations` | Create and manage all organisations across the platform |
-| **System Diagnostics** | `/diagnostics` | Full system health, service checks, data integrity |
+| **Grandmaster Code Studio** | Owner Tools → Code Studio | `/grandmaster-code-studio` |
+| **Compliance Escalations** | Compliance → Escalations | `/compliance-escalations` |
+| **Bob Assistant Studio** | AI & Intelligence → Bob Studio | `/bob-studio` |
+| **Bob Intake Queue** | AI & Intelligence → Intake Queue | `/bob-intake` |
+| **Ops Live Plan Review** | AI & Intelligence → Plan Reviews | `/ops-live-plan-review` |
+| **Intel Approval Queue** | AI & Intelligence → Intel Approvals | `/intel-approval` |
+| **Organisation Management** | Owner Tools → Organisations | `/organizations` |
+| **System Diagnostics** | Owner Tools → Diagnostics | `/diagnostics` |
 
 #### Managing Organisations
 
-1. Navigate to **Organisation Management** (`/organizations`).
-2. The list shows all organisations with type, level, status, and enforcement workflow.
-3. To create a new organisation: click **New Organisation** — fill in name, type (`owner` / `service_provider` / `client` / `contractor`), enforcement workflow, overnight verification mode, and contact details.
-4. Organisation types determine billing scope and user provisioning access.
+**To navigate to Organisation Management:**  
+Sidebar → Owner Tools → **Organisations** (or go directly to `/organizations`).
+
+The list shows all organisations with type, level, status, and enforcement workflow.
+
+**To create a new organisation:**
+1. Click **New Organisation** in the top-right.
+2. Fill in name, type (`owner` / `service_provider` / `client` / `contractor`), enforcement workflow, overnight verification mode, and contact details.
+3. Set `parent_organization_id` to place it in the hierarchy.
+4. Click **Save** — the organisation is created and immediately visible in the list.
+5. Navigate to **User Management** (`/users`) to create the first admin user for the new organisation.
 
 **Enforcement Workflow modes:**
 
@@ -171,31 +226,54 @@ The Platform page provides a cross-organisation summary view including:
 | `two_photo_verification` | Two photos per vehicle required to confirm overnight stay |
 | `one_photo_per_day_inference` | Single photo per day; AI infers overnight presence |
 
+#### Bob Assistant Studio (`/bob-studio`)
+
+**To navigate:** Sidebar → AI & Intelligence → **Bob Studio**.
+
+1. Select the Bob **capability module** to configure (chat, assess, triage, noise, biosecurity, smoke).
+2. Adjust the system prompt, temperature, and context window settings.
+3. Use the **Test** panel on the right to send a sample input and review the output live.
+4. Click **Save Configuration** — changes take effect immediately for all new Bob sessions.
+
 ---
 
 ### 3.2 Master
 
 **Role code**: `master`  
-**Access**: All modules within their organisation and all child organisations. Cannot access other platform tenants.
+**Access**: All modules within their organisation and all child organisations.  
+**Landing page**: `/admin` (Admin Hub)
 
-The Master role is typically the operations director or senior manager of the security company. They have access to all admin functionality and additionally:
+The Master role is typically the operations director or senior manager of the security company. They see every admin module and additionally have exclusive access to organisation management, system diagnostics, pricing, and the full tender workspace.
 
-#### Additional Master-Only Access
+#### How to navigate as Master
 
-| Module | Path | Purpose |
+After login you land on the **Admin Hub** (`/admin`). The hub is a card grid — each card represents a major module. Click any card to open that area. The sidebar on the left lists all available modules grouped by category.
+
+Modules exclusive to Master (not available to standard `admin`):
+
+| Module | How to navigate | Path |
 |---|---|---|
-| **Organisation Management** | `/organizations` | Manage own org hierarchy |
-| **System Diagnostics** | `/diagnostics` | Health checks for their service instance |
-| **Pricing Page** | `/pricing` | View and manage pricing/subscription tiers |
-| **Tender Workspace** | `/tenders` | Manage tender/RFP documents |
-| **CRM Module** | `/crm` | Client relationship management |
-| **Invoicing** | `/invoicing` | Billing and invoice management |
+| **Organisation Management** | Sidebar → Owner Tools → Organisations | `/organizations` |
+| **System Diagnostics** | Sidebar → Owner Tools → Diagnostics | `/diagnostics` |
+| **Pricing Page** | Sidebar → Finance → Pricing | `/pricing` |
+| **Tender Workspace** | Sidebar → Business → Tenders | `/tenders` |
+| **Intel Approval Queue** | Sidebar → AI & Intelligence → Intel Approvals | `/intel-approval` |
+| **Service Provider Access Settings** | Sidebar → Access → Service Provider Access | `/admin/service-provider-access` |
 
-Masters see every admin module listed in [Part B](#part-b--service-provider) below. The key distinction from `admin` is:
-- Masters can see **all sub-organisations** without a filter restriction
-- Masters access the **Organisation Management** page (admins cannot)
-- Masters access **System Diagnostics** (admins cannot)
-- Masters have no portal-area restrictions
+#### Key Master Workflows
+
+**Viewing all child organisations:**
+1. Open the **Organisation Management** page (`/organizations`).
+2. The tree view shows your organisation and all child orgs with their status, user counts, and recent activity.
+3. Click any child org row to switch context — the Global Filter Ribbon at the top updates to scope all data to that org.
+4. To return to your own org, click the organisation selector in the top bar and choose your org.
+
+**Approving intelligence reports:**
+1. Navigate to Sidebar → AI & Intelligence → **Intel Approval Queue** (`/intel-approval`).
+2. AI-generated intelligence reports submitted by officers or Bob are listed with status `pending_review`.
+3. Click a report to review it. You can **Approve** (publishes to the compliance dashboard), **Reject with Note** (returns to the submitter), or **Escalate** (flags for Grand Master review).
+
+All other admin workflows for Master are identical to the Administrator role — see [§4.1 Administrator](#41-administrator) for the full details.
 
 ---
 
@@ -204,15 +282,27 @@ Masters see every admin module listed in [Part B](#part-b--service-provider) bel
 ### 4.1 Administrator
 
 **Role code**: `admin`  
-**Access**: Full admin portal for their assigned organisation. Route: `/admin` → **Admin Hub**.
+**Access**: Full admin portal for their assigned organisation.  
+**Landing page**: `/admin` → **Admin Hub**
 
 #### Admin Hub (`/admin`)
 
-The Admin Hub is the primary landing page for administrators. It is a card-based dashboard with live metrics. Each card represents a major functional area with quick-links to sub-pages.
+After login, the Admin Hub is your home screen. It is a card-based dashboard with live metrics.
+
+**Reading the dashboard:**
+- The top row of KPI tiles shows: **Total Scans Today**, **Active Breaches**, **Patrols Running**, and **Officer Welfare Alerts** — all live and scoped to your current organisation and date filter.
+- The **Compliance Trend Chart** below shows daily scan-vs-breach ratio over the selected date range. Hover over a data point to see the day's exact figures.
+- The **SCV Enforcement Countdown** shows days remaining until the mandatory SCV certificate check date.
+- Quick-navigation cards for each major module are below — click any card's **→** arrow to open that section.
+
+**Changing the date range or organisation:**  
+Use the **Global Filter Ribbon** at the top of the page. Click the date field to open the calendar picker. Click the organisation dropdown to switch between orgs you have access to.
 
 ---
 
 ##### Operations Centre (`/admin/dashboard`)
+
+**How to navigate:** Sidebar → Dashboard → **Operations Centre**, or click the Admin Hub card for "Operations".
 
 The full operational dashboard. Contains:
 - **KPI tiles**: Total scans today, active breaches, patrols running, officer welfare alerts
@@ -224,40 +314,159 @@ The full operational dashboard. Contains:
 
 ##### Compliance & Enforcement
 
-| Page | Path | Purpose |
+**How to navigate to this section:** Sidebar → **Compliance** group. Each sub-item takes you directly to the relevant page.
+
+| Page | Path | How to navigate |
 |---|---|---|
-| Compliance Dashboard | `/admin/compliance` | Real-time compliance rates by zone |
-| Compliance Analytics | `/admin/compliance-analytics` | Trend analysis, heatmaps, breakdown by service |
-| Breach Alerts | `/breaches` | Active breaches awaiting action |
-| Breach Notices | `/breach-notices` | Historical breach notice log |
-| Infringement Notices | `/infringement-notices` | Issue, track, and manage infringement notices |
-| Notice to Vacate | `/notice-to-vacate` | Issue and track NTV documents |
-| Enforcement Actions | `/enforcement-actions` | Enforce, escalate, or close breach records |
-| Enforcement Command Centre | `/enforcement-command-centre` | Supervisor enforcement overview |
-| Enforcement Review | `/enforcement-review` | Review officer enforcement actions |
-| Disputes | `/disputes` | Manage disputed infringement notices |
-| Compliance Recalculation | `/compliance-recalculation` | Re-score historical vehicle records |
-| Compliance Escalations | `/compliance-escalations` | Escalate records requiring higher authority action |
+| Compliance Dashboard | `/admin/compliance` | Sidebar → Compliance → Dashboard |
+| Compliance Analytics | `/admin/compliance-analytics` | Sidebar → Compliance → Analytics |
+| Breach Alerts | `/breaches` | Sidebar → Compliance → Breach Alerts |
+| Breach Notices | `/breach-notices` | Sidebar → Compliance → Breach Notices |
+| Infringement Notices | `/infringement-notices` | Sidebar → Compliance → Infringements |
+| Notice to Vacate | `/notice-to-vacate` | Sidebar → Compliance → Notice to Vacate |
+| Enforcement Actions | `/enforcement-actions` | Sidebar → Compliance → Enforcement Actions |
+| Enforcement Command Centre | `/enforcement-command-centre` | Sidebar → Compliance → Command Centre |
+| Enforcement Review | `/enforcement-review` | Sidebar → Compliance → Review |
+| Disputes | `/disputes` | Sidebar → Compliance → Disputes |
+| Compliance Recalculation | `/compliance-recalculation` | Sidebar → Data → Recalculate |
+| Compliance Escalations | `/compliance-escalations` | Sidebar → Compliance → Escalations (master/grand_master only) |
+
+---
+
+**Compliance Dashboard (`/admin/compliance`)**
+
+The Compliance Dashboard shows real-time compliance rates by zone.
+
+1. Open the page — a grid of zone cards loads, each showing: zone name, vehicles checked today, breach count, compliance rate (%), and an RAG (red/amber/green) status indicator.
+2. Click any zone card to drill into that zone's detail: full breach list, scan history, and trend chart.
+3. Use the **Global Filter Ribbon** to change the date range — the dashboard refreshes automatically.
+4. Click **Export** to download the zone-by-zone compliance summary as CSV.
+
+---
+
+**Breach Alerts (`/breaches`)**
+
+The active breach queue. Every vehicle that has triggered a breach condition appears here until actioned.
+
+1. Navigate to Sidebar → Compliance → **Breach Alerts**.
+2. Each row shows: plate number, vehicle photo thumbnail, zone, breach type, first detected date, current status, and assigned officer.
+3. **To take action on a breach:**
+   - Click the breach row to open the breach detail panel.
+   - Review the scan history, overnight counts, and any prior warnings.
+   - Choose an action: **Issue Warning**, **Issue NTV**, **Issue Infringement**, or **Mark Resolved**.
+   - The selected action creates the appropriate document and updates the breach status.
+4. **Filtering**: Use the filter bar at the top to filter by zone, status (`active`, `pending_review`, `actioned`), or date range.
+5. **Bulk action**: Select multiple breach rows using the checkboxes → click **Bulk Action** → choose an action to apply to all selected records.
+
+---
+
+**Infringement Notices (`/infringement-notices`)**
 
 **To issue an Infringement Notice:**
-1. Navigate to `/infringement-notices` or open a breach record from `/breaches`.
-2. Click **Issue From Evidence Only** (notice must link to a scan or breach).
-3. Fill in offence description, legal basis (default: `FCA 2011 s.20`), fine amount ($200 default), and service method.
-4. Click **Issue Notice** — a unique notice number is generated.
-5. Click **Print** for a print-ready HTML document.
+1. Navigate to Sidebar → Compliance → **Infringements** (`/infringement-notices`).
+2. Click **+ Issue Notice** in the top-right.
+3. Link the notice to a breach record or scan record using the search field.
+4. Fill in offence description, legal basis (default: `FCA 2011 s.20`), fine amount ($200 default), service method (hand delivery, post, vehicle), and officer details.
+5. Click **Issue Notice** — a unique notice number is generated (format: `INF-YYYYMMDD-XXXX`).
+6. Click **Print** for a print-ready HTML document, or **Email** to send directly to the registered address.
+
+**To search existing notices:**
+- Use the search bar at the top of the Infringement Notices page to search by plate number, notice number, or address.
+- Filter by status: `draft`, `issued`, `paid`, `disputed`, `withdrawn`.
+- Click a notice row to open the full notice detail.
+
+---
+
+**Notice to Vacate (`/notice-to-vacate`)**
+
+1. Navigate to Sidebar → Compliance → **Notice to Vacate**.
+2. Click **+ New Notice**.
+3. Search for the vehicle plate — the form pre-fills with the vehicle's last known zone and officer.
+4. Confirm or update: zone, address, legal basis (`FCA 2011 s.32` or council bylaw reference), reason for vacation.
+5. Set the **Vacate By** time (default: 7:00 AM next morning for overnight campers).
+6. Click **Issue** — the notice is saved and printable immediately.
+
+---
+
+**Enforcement Command Centre (`/enforcement-command-centre`)**
+
+A supervisor overview of all open enforcement actions across the organisation.
+
+1. Navigate to Sidebar → Compliance → **Command Centre**.
+2. The page shows four columns: **Pending Review** · **In Progress** · **Escalated** · **Resolved** (kanban-style).
+3. Click any card to see the full enforcement record, officer notes, and action history.
+4. Drag a card between columns to update the status, or open the record and use the **Update Status** button.
+5. The **Escalation filter** at the top lets you isolate records at escalation level 2+ (requiring supervisor sign-off).
+
+---
+
+**Disputes (`/disputes`)**
+
+Manages infringement notices that have been formally disputed.
+
+1. Navigate to Sidebar → Compliance → **Disputes**.
+2. The dispute list shows: notice number, plate, dispute received date, grounds, and current status.
+3. **To process a dispute:**
+   - Click the dispute row to open it.
+   - Review the dispute grounds, officer notes, photographic evidence, and original notice.
+   - Choose: **Uphold Notice** (dispute rejected, notice stands), **Withdraw Notice** (dispute accepted, notice cancelled), or **Refer for Review** (send to senior officer or council).
+   - Add a decision note — this is the official decision record.
+   - Click **Save Decision** — the notice and dispute statuses update accordingly.
+4. Upheld disputes: the infringement notice remains active. Withdrawn disputes: the notice is marked withdrawn and the fine is zeroed.
 
 ---
 
 ##### Vehicles & ALPR
 
-| Page | Path | Purpose |
+**How to navigate:** Sidebar → **Vehicles** group.
+
+| Page | Path | How to navigate |
 |---|---|---|
-| Vehicle Management | `/vehicles` | Search and manage vehicle records |
-| Vehicle Registry | `/vehicle-registry` | Canonical vehicle database |
-| Vehicle Detail | `/vehicles/:id` | Plate history, photos, compliance record |
-| Vehicle Discrepancies | `/vehicle-discrepancies` | Flag inconsistent plate/vehicle data |
-| NZSCV Monitor | `/admin/nzscv` | Monitor SCV certification status via NZSCV database |
-| Canonical Records Manager | `/canonical-records` | Manage deduplicated vehicle and person master records |
+| Vehicle Management | `/vehicles` | Sidebar → Vehicles → All Vehicles |
+| Vehicle Registry | `/vehicle-registry` | Sidebar → Vehicles → Registry |
+| Vehicle Detail | `/vehicles/:id` | Click any vehicle row in the list |
+| Vehicle Discrepancies | `/vehicle-discrepancies` | Sidebar → Vehicles → Discrepancies |
+| NZSCV Monitor | `/admin/nzscv` | Sidebar → Vehicles → NZSCV Monitor |
+| Canonical Records Manager | `/canonical-records` | Sidebar → Data → Canonical Records |
+
+---
+
+**Vehicle Management (`/vehicles`)**
+
+1. Navigate to Sidebar → Vehicles → **All Vehicles**.
+2. The list shows all vehicles known to the system — plate number, make, model, colour, compliance status, last seen zone, and last scan date.
+3. **To search for a vehicle**: type a plate number (full or partial) in the search box at the top. Results filter as you type.
+4. **To view full history**: click the vehicle row → Vehicle Detail page opens showing:
+   - All scans linked to this vehicle with dates, zones, officers, and photo thumbnails
+   - Compliance record: nights logged per zone, breach history, issued notices
+   - NZSCV SCV certification status (green tick / red cross / unknown)
+   - Any person records linked to this vehicle
+5. **To add a manual vehicle record**: click **+ Add Vehicle** → enter plate, make, model, colour, and any known details → **Save**.
+6. **To flag a vehicle as Vehicle of Interest (VOI)**: from the Vehicle Detail page, click **Flag as VOI** → enter the reason and alert level. Officers will see a VOI warning when this plate is scanned in the field.
+
+---
+
+**NZSCV Monitor (`/admin/nzscv`)**
+
+Monitors the New Zealand Self-Contained Vehicle (SCV) certification database.
+
+1. Navigate to Sidebar → Vehicles → **NZSCV Monitor**.
+2. The monitor shows a live list of vehicles in your system with their NZSCV status: `certified`, `expired`, `not_found`, `pending`.
+3. The **Enforcement Countdown** tile shows the days remaining until the next mandatory SCV check date — this is set per zone.
+4. **To check a specific plate**: enter the plate number in the search bar at the top. The system queries the NZSCV proxy in real time and returns the current certification status.
+5. **To refresh all statuses**: click **Bulk Refresh** — this re-queries NZSCV for all vehicles active in your zones within the selected date range. This may take several minutes.
+6. Vehicles with expired or missing SCV certification in SCV-required zones are highlighted red.
+
+---
+
+**Vehicle Discrepancies (`/vehicle-discrepancies`)**
+
+Flags inconsistencies in vehicle data — e.g. plate numbers that have been captured with different makes/models, or plates where officer-entered data contradicts NZSCV records.
+
+1. Navigate to Sidebar → Vehicles → **Discrepancies**.
+2. Each discrepancy row shows the plate, the conflicting data fields, the source of each value, and a confidence score.
+3. **To resolve a discrepancy**: click the row → review the conflicting data → click **Accept Primary** (keep the most-trusted value) or **Merge Manually** to enter a corrected value.
+4. Resolved discrepancies are archived and a note is added to the vehicle record.
 
 ---
 
