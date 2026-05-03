@@ -1,0 +1,354 @@
+/**
+ * radio-router.js
+ *
+ * Phase 1 Group B — Radio Control Plane Extension
+ *
+ * Adds mediasoup SFU routes alongside existing ptt-server signaling.
+ * Per ADR 003: this module extends the control plane; it does not replace it.
+ * Per ADR 004: mediasoup v3 is the selected SFU.
+ *
+ * Routes exposed:
+ *   POST /radio/token          Sign + return a scoped radio token (called by Supabase radio-token Edge Function)
+ *   POST /radio/router/create  Create a mediasoup Router for a channel (SFU session init)
+ *   POST /radio/transport/create  Create a WebRtcTransport for a participant
+ *   POST /radio/transport/connect  Connect a WebRtcTransport (DTLS handshake)
+ *   POST /radio/producer/create   Create a Producer (inbound media from participant)
+ *   POST /radio/consumer/create   Create a Consumer (outbound media to participant)
+ *   DELETE /radio/session/:transmissionId  Close a radio session and release SFU resources
+ *   GET  /radio/health         Health check — returns worker + router counts
+ *
+ * Mount this router in server.js:
+ *   const { radioRouter } = require('./radio-router');
+ *   app.use('/', radioRouter);
+ */
+
+'use strict';
+
+const express = require('express');
+const jwt = require('jsonwebtoken');
+const { v4: uuidv4 } = require('uuid');
+
+const router = express.Router();
+
+// ---------------------------------------------------------------------------
+// Environment
+// ---------------------------------------------------------------------------
+const RADIO_JWT_SECRET = process.env.RADIO_JWT_SECRET || process.env.PTT_JWT_SECRET || '';
+const RADIO_PROXY_SECRET = process.env.RADIO_PROXY_SECRET || process.env.PTT_PROXY_SECRET || '';
+const ANNOUNCED_IP = process.env.ANNOUNCED_IP || process.env.SERVER_IP || '127.0.0.1';
+const SFU_MIN_PORT = parseInt(process.env.SFU_MIN_PORT || '40000', 10);
+const SFU_MAX_PORT = parseInt(process.env.SFU_MAX_PORT || '49999', 10);
+const WORKER_COUNT = Math.min(
+  parseInt(process.env.SFU_WORKER_COUNT || '1', 10),
+  require('os').cpus().length
+);
+const TOKEN_TTL_SECONDS = 3600;
+
+// ---------------------------------------------------------------------------
+// Proxy auth middleware (same pattern as existing ptt-server)
+// ---------------------------------------------------------------------------
+function proxyAuthMiddleware(req, res, next) {
+  if (!RADIO_PROXY_SECRET) return next(); // dev mode: skip
+  const secret = req.headers['x-proxy-secret'];
+  if (!secret || secret !== RADIO_PROXY_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized', message: 'Invalid proxy secret' });
+  }
+  next();
+}
+
+// ---------------------------------------------------------------------------
+// mediasoup worker pool
+// ---------------------------------------------------------------------------
+let mediasoup;
+let workers = [];
+let nextWorkerIndex = 0;
+let sfuReady = false;
+
+async function initSfu() {
+  try {
+    mediasoup = require('mediasoup');
+  } catch {
+    console.warn('[radio-router] mediasoup not installed — SFU routes will return 503 until installed');
+    return;
+  }
+
+  for (let i = 0; i < WORKER_COUNT; i++) {
+    const worker = await mediasoup.createWorker({
+      logLevel: process.env.NODE_ENV === 'production' ? 'warn' : 'debug',
+      rtcMinPort: SFU_MIN_PORT,
+      rtcMaxPort: SFU_MAX_PORT,
+    });
+    worker.on('died', (error) => {
+      console.error(`[radio-router] mediasoup worker #${i} died`, error);
+      // Replace crashed worker
+      mediasoup.createWorker({
+        logLevel: 'warn',
+        rtcMinPort: SFU_MIN_PORT,
+        rtcMaxPort: SFU_MAX_PORT,
+      }).then((newWorker) => {
+        workers[i] = { worker: newWorker, routers: new Map() };
+        newWorker.on('died', () => console.error(`[radio-router] replacement worker #${i} died`));
+      }).catch(console.error);
+    });
+    workers.push({ worker, routers: new Map() });
+  }
+  sfuReady = true;
+  console.log(`[radio-router] mediasoup SFU ready — ${WORKER_COUNT} worker(s)`);
+}
+
+function getNextWorker() {
+  const entry = workers[nextWorkerIndex % workers.length];
+  nextWorkerIndex++;
+  return entry;
+}
+
+// In-memory session registry: transmissionId → { workerIndex, routerId, transports, producers, consumers }
+const sessions = new Map();
+
+const mediaCodecs = [
+  {
+    kind: 'audio',
+    mimeType: 'audio/opus',
+    clockRate: 48000,
+    channels: 2,
+  },
+];
+
+// ---------------------------------------------------------------------------
+// POST /radio/token
+// Called by the Supabase radio-token Edge Function to get a signed token.
+// ---------------------------------------------------------------------------
+router.post('/radio/token', proxyAuthMiddleware, (req, res) => {
+  if (!RADIO_JWT_SECRET) {
+    return res.status(503).json({ error: 'RADIO_JWT_SECRET not configured' });
+  }
+
+  const {
+    sub, org, role, channel_scope, channel_type, transmission_id, is_emergency, iat, exp,
+  } = req.body;
+
+  if (!sub || !org || !channel_scope || !transmission_id) {
+    return res.status(400).json({ error: 'Missing required token fields' });
+  }
+
+  const token = jwt.sign(
+    { sub, org, role, channel_scope, channel_type, transmission_id, is_emergency },
+    RADIO_JWT_SECRET,
+    { expiresIn: TOKEN_TTL_SECONDS }
+  );
+
+  const iceServers = buildIceServers();
+
+  res.json({ token, iceServers, expiresIn: TOKEN_TTL_SECONDS });
+});
+
+function buildIceServers() {
+  const servers = [];
+  const turnUrl = process.env.TURN_URL;
+  if (turnUrl) {
+    servers.push({
+      urls: [turnUrl],
+      username: process.env.TURN_USERNAME || '',
+      credential: process.env.TURN_CREDENTIAL || '',
+    });
+  }
+  const stunUrl = process.env.STUN_URL || 'stun:stun.l.google.com:19302';
+  servers.push({ urls: [stunUrl] });
+  return servers;
+}
+
+// ---------------------------------------------------------------------------
+// POST /radio/router/create
+// Create a mediasoup Router for an org-scoped channel.
+// ---------------------------------------------------------------------------
+router.post('/radio/router/create', proxyAuthMiddleware, async (req, res) => {
+  if (!sfuReady) return res.status(503).json({ error: 'SFU not ready' });
+
+  const { transmissionId } = req.body;
+  if (!transmissionId) return res.status(400).json({ error: 'transmissionId required' });
+
+  if (sessions.has(transmissionId)) {
+    const session = sessions.get(transmissionId);
+    return res.json({ routerId: session.routerId, transmissionId });
+  }
+
+  const workerEntry = getNextWorker();
+  const router = await workerEntry.worker.createRouter({ mediaCodecs });
+
+  const session = {
+    routerId: router.id,
+    workerIndex: workers.indexOf(workerEntry),
+    router,
+    transports: new Map(),
+    producers: new Map(),
+    consumers: new Map(),
+  };
+  sessions.set(transmissionId, session);
+  workerEntry.routers.set(router.id, router);
+
+  res.json({ routerId: router.id, transmissionId });
+});
+
+// ---------------------------------------------------------------------------
+// POST /radio/transport/create
+// Create a server-side WebRtcTransport for a participant.
+// ---------------------------------------------------------------------------
+router.post('/radio/transport/create', proxyAuthMiddleware, async (req, res) => {
+  if (!sfuReady) return res.status(503).json({ error: 'SFU not ready' });
+
+  const { transmissionId, direction } = req.body; // direction: 'send' | 'recv'
+  if (!transmissionId || !direction) {
+    return res.status(400).json({ error: 'transmissionId and direction required' });
+  }
+
+  const session = sessions.get(transmissionId);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+
+  const transport = await session.router.createWebRtcTransport({
+    listenIps: [{ ip: '0.0.0.0', announcedIp: ANNOUNCED_IP }],
+    enableUdp: true,
+    enableTcp: true,
+    preferUdp: true,
+  });
+
+  session.transports.set(transport.id, { transport, direction });
+
+  res.json({
+    transportId: transport.id,
+    iceParameters: transport.iceParameters,
+    iceCandidates: transport.iceCandidates,
+    dtlsParameters: transport.dtlsParameters,
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /radio/transport/connect
+// Client provides its DTLS parameters to complete the handshake.
+// ---------------------------------------------------------------------------
+router.post('/radio/transport/connect', proxyAuthMiddleware, async (req, res) => {
+  if (!sfuReady) return res.status(503).json({ error: 'SFU not ready' });
+
+  const { transmissionId, transportId, dtlsParameters } = req.body;
+  if (!transmissionId || !transportId || !dtlsParameters) {
+    return res.status(400).json({ error: 'transmissionId, transportId, and dtlsParameters required' });
+  }
+
+  const session = sessions.get(transmissionId);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+
+  const entry = session.transports.get(transportId);
+  if (!entry) return res.status(404).json({ error: 'Transport not found' });
+
+  await entry.transport.connect({ dtlsParameters });
+  res.json({ connected: true });
+});
+
+// ---------------------------------------------------------------------------
+// POST /radio/producer/create
+// Create a Producer — inbound audio from the sending participant.
+// ---------------------------------------------------------------------------
+router.post('/radio/producer/create', proxyAuthMiddleware, async (req, res) => {
+  if (!sfuReady) return res.status(503).json({ error: 'SFU not ready' });
+
+  const { transmissionId, transportId, kind, rtpParameters } = req.body;
+  if (!transmissionId || !transportId || !kind || !rtpParameters) {
+    return res.status(400).json({ error: 'transmissionId, transportId, kind, and rtpParameters required' });
+  }
+
+  const session = sessions.get(transmissionId);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+
+  const entry = session.transports.get(transportId);
+  if (!entry) return res.status(404).json({ error: 'Transport not found' });
+
+  const producer = await entry.transport.produce({ kind, rtpParameters });
+  session.producers.set(producer.id, producer);
+
+  res.json({ producerId: producer.id });
+});
+
+// ---------------------------------------------------------------------------
+// POST /radio/consumer/create
+// Create a Consumer — outbound audio to a receiving participant.
+// ---------------------------------------------------------------------------
+router.post('/radio/consumer/create', proxyAuthMiddleware, async (req, res) => {
+  if (!sfuReady) return res.status(503).json({ error: 'SFU not ready' });
+
+  const { transmissionId, transportId, producerId, rtpCapabilities } = req.body;
+  if (!transmissionId || !transportId || !producerId || !rtpCapabilities) {
+    return res.status(400).json({ error: 'transmissionId, transportId, producerId, and rtpCapabilities required' });
+  }
+
+  const session = sessions.get(transmissionId);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+
+  if (!session.router.canConsume({ producerId, rtpCapabilities })) {
+    return res.status(400).json({ error: 'Cannot consume: incompatible RTP capabilities' });
+  }
+
+  const entry = session.transports.get(transportId);
+  if (!entry) return res.status(404).json({ error: 'Transport not found' });
+
+  const consumer = await entry.transport.consume({
+    producerId,
+    rtpCapabilities,
+    paused: false,
+  });
+  session.consumers.set(consumer.id, consumer);
+
+  res.json({
+    consumerId: consumer.id,
+    producerId: consumer.producerId,
+    kind: consumer.kind,
+    rtpParameters: consumer.rtpParameters,
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /radio/session/:transmissionId
+// Close a radio session and release all SFU resources.
+// ---------------------------------------------------------------------------
+router.delete('/radio/session/:transmissionId', proxyAuthMiddleware, async (req, res) => {
+  const { transmissionId } = req.params;
+  const session = sessions.get(transmissionId);
+
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+
+  // Close consumers, producers, transports in order
+  for (const consumer of session.consumers.values()) {
+    try { consumer.close(); } catch { /* ignore */ }
+  }
+  for (const producer of session.producers.values()) {
+    try { producer.close(); } catch { /* ignore */ }
+  }
+  for (const { transport } of session.transports.values()) {
+    try { transport.close(); } catch { /* ignore */ }
+  }
+
+  const workerEntry = workers[session.workerIndex];
+  if (workerEntry) {
+    workerEntry.routers.delete(session.routerId);
+  }
+
+  sessions.delete(transmissionId);
+  res.json({ closed: true, transmissionId });
+});
+
+// ---------------------------------------------------------------------------
+// GET /radio/health
+// ---------------------------------------------------------------------------
+router.get('/radio/health', (req, res) => {
+  res.json({
+    sfuReady,
+    workerCount: workers.length,
+    activeSessions: sessions.size,
+    totalRouters: workers.reduce((sum, w) => sum + w.routers.size, 0),
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Export router and init function for mounting in server.js
+// ---------------------------------------------------------------------------
+module.exports = { radioRouter: router, initSfu };

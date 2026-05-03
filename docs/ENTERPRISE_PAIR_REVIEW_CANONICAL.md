@@ -272,6 +272,7 @@ This policy controls when DOC_AUTHORITY_STRICT_POLICY should be enabled in CI.
 26. Completed: Bob brain dump and training infrastructure research and hardening — oversized file removed from git, max size reduced to 30 MB, daily auto-ingest CI workflow added (ops-bob-brain-dump-refresh.yml), training wiring verification wired into governance-release-gate, system_state module auto-detection confirmed correct.
 27. Completed: PTT Radio Phase 0 ADRs written and approved — ADR 003 (service topology), ADR 004 (SFU: mediasoup), ADR 005 (voice synthesis: Piper + Coqui XTTS), ADR 006 (legal/compliance: voice matching and synthetic audio). Phase 0 exit criteria met.
 28. Completed: PTT Radio Phase 1 Group A schema delivered — 5 migration files (radio_transmissions, radio_transcript_segments, radio_translation_segments, radio_tts_renders, radio_voice_profiles_and_consents) + RLS policy migration + TypeScript database types updated. Build and lint clean.
+29. Completed: PTT Radio Phase 1 Group B control plane delivered — radio-token Supabase Edge Function (scoped JWT, transmission audit row, dev mode fallback) + ptt-server radio-router.js (mediasoup SFU worker pool, /radio/* routes: token/router/transport/producer/consumer/session/health) + mediasoup added to dependencies + env vars documented.
 
 ## Execution Ledger
 
@@ -297,3 +298,4 @@ Date: 2026-05-02
 18. (pending) - Bob brain dump hardening: size cap, CI schedule, training wiring gate
 19. (pending) - PTT Phase 0 ADRs: service topology, SFU, voice synthesis, compliance
 20. (pending) - PTT Phase 1 Group A: radio schema migrations + RLS + TS types
+21. (pending) - PTT Phase 1 Group B: radio-token Edge Function + ptt-server mediasoup extension

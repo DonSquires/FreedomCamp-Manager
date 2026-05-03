@@ -22,6 +22,9 @@ const { v4: uuidv4 } = require('uuid');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
+// Radio SFU control plane (Phase 1 Group B — ADR 003/004)
+const { radioRouter, initSfu } = require('./radio-router');
+
 const app = express();
 const PORT = process.env.PORT || 3002;
 app.set('trust proxy', 1);
@@ -1561,10 +1564,18 @@ function logStartupBanner(port) {
   `);
 }
 
+// Mount radio SFU router (non-breaking: existing /api/* routes unaffected)
+app.use('/', radioRouter);
+
 function startServer(port = PORT, host = '0.0.0.0') {
   if (server.listening) {
     return Promise.resolve(server);
   }
+
+  // Initialise mediasoup workers before accepting connections
+  initSfu().catch((err) => {
+    console.warn('[ptt-server] mediasoup init failed — SFU routes disabled:', err.message);
+  });
 
   return new Promise((resolve, reject) => {
     const onError = (err) => {
