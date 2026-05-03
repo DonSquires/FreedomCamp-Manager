@@ -29,6 +29,9 @@ const PROCESSOR_TIMEOUT_MS = Math.max(5000, parseInt(process.env.RADIO_PROCESSOR
 const PROCESSOR_ENABLED = String(process.env.RADIO_PROCESSOR_ENABLED || 'false').toLowerCase() === 'true';
 const AUDIO_FETCH_TIMEOUT_MS = Math.max(3000, parseInt(process.env.RADIO_AUDIO_FETCH_TIMEOUT_MS || '12000', 10));
 const AUDIO_MAX_FETCH_BYTES = Math.max(64 * 1024, parseInt(process.env.RADIO_AUDIO_MAX_FETCH_BYTES || String(8 * 1024 * 1024), 10));
+const DEFAULT_SEGMENT_DURATION_MS = 800;
+const MIN_SEGMENT_DURATION_MS = 250;
+const MAX_SEGMENT_TEXT_LENGTH = 120;
 
 // ─── Supabase REST helpers ────────────────────────────────────────────────────
 
@@ -82,6 +85,80 @@ function toBase64AudioFromDataUrl(dataUrl) {
   const match = String(dataUrl || '').match(/^data:audio\/[^;]+;base64,(.+)$/i);
   if (!match?.[1]) return null;
   return match[1].trim() || null;
+}
+
+function splitTranscriptText(text) {
+  const normalized = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!normalized) return [];
+
+  const sentenceChunks = normalized
+    .split(/(?<=[.!?])\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  const chunks = [];
+  const inputChunks = sentenceChunks.length ? sentenceChunks : [normalized];
+
+  for (const rawChunk of inputChunks) {
+    if (rawChunk.length <= MAX_SEGMENT_TEXT_LENGTH) {
+      chunks.push(rawChunk);
+      continue;
+    }
+
+    // Hard-wrap long fragments so one segment does not dominate UI replay.
+    const words = rawChunk.split(' ').filter(Boolean);
+    let current = '';
+
+    for (const word of words) {
+      const candidate = current ? `${current} ${word}` : word;
+      if (candidate.length <= MAX_SEGMENT_TEXT_LENGTH) {
+        current = candidate;
+        continue;
+      }
+
+      if (current) chunks.push(current);
+      current = word;
+    }
+
+    if (current) chunks.push(current);
+  }
+
+  return chunks.length ? chunks : [normalized];
+}
+
+function buildTranscriptSegments(result, segmentStartMs) {
+  const chunks = splitTranscriptText(result?.text || '');
+  const normalizedChunks = chunks.length ? chunks : [''];
+  const totalChars = normalizedChunks.reduce((sum, chunk) => sum + Math.max(1, chunk.length), 0);
+  const estimatedDurationMs = Math.max(
+    normalizedChunks.length * DEFAULT_SEGMENT_DURATION_MS,
+    Number(result?.durationMs) || 0,
+  );
+
+  let cursor = Number(segmentStartMs) || 0;
+
+  return normalizedChunks.map((chunk, index) => {
+    const isLast = index === normalizedChunks.length - 1;
+    const weightedDuration = Math.max(
+      MIN_SEGMENT_DURATION_MS,
+      Math.round((Math.max(1, chunk.length) / totalChars) * estimatedDurationMs),
+    );
+    const nextEnd = isLast
+      ? (Number(segmentStartMs) || 0) + estimatedDurationMs
+      : cursor + weightedDuration;
+
+    const segment = {
+      text: chunk,
+      language: result?.language || 'en',
+      confidence: result?.confidence ?? null,
+      isFinal: isLast ? Boolean(result?.isFinal) : false,
+      segmentStartMs: cursor,
+      segmentEndMs: Math.max(cursor, nextEnd),
+    };
+
+    cursor = segment.segmentEndMs;
+    return segment;
+  });
 }
 
 async function fetchAudioUrlAsBase64(audioUrl) {
@@ -210,6 +287,13 @@ async function transcribeAudio({ audioData, audioUrl, language, transmissionId }
 // ─── Sequence counter ─────────────────────────────────────────────────────────
 // Per-transmission sequence tracking (in-memory; sufficient for single-process).
 const sequenceCounters = new Map();
+const pipelineMetrics = {
+  processed_events: 0,
+  failed_events: 0,
+  last_processed_at: null,
+  last_latency_ms: null,
+  last_error: null,
+};
 
 function nextSeq(transmissionId) {
   const next = (sequenceCounters.get(transmissionId) || 0) + 1;
@@ -241,33 +325,41 @@ async function handleProducerCreated(event) {
 
   // Don't persist empty stub segments unless RADIO_PERSIST_STUB is set.
   if (result.stub && !process.env.RADIO_PERSIST_STUB) {
+    pipelineMetrics.processed_events += 1;
+    pipelineMetrics.last_processed_at = new Date().toISOString();
+    pipelineMetrics.last_latency_ms = processingLatencyMs;
+    pipelineMetrics.last_error = null;
     console.log(`[radio-speech-processor] stub skipped tx=${transmissionId.slice(0, 8)} latency=${processingLatencyMs}ms`);
     return;
   }
 
-  const segmentEndMs = segmentStartMs + (result.durationMs || 0);
-  const seq = nextSeq(transmissionId);
-
-  const row = {
+  const segments = buildTranscriptSegments(result, segmentStartMs);
+  const rows = segments.map((segment) => ({
     org_id: orgId,
     transmission_id: transmissionId,
-    sequence_num: seq,
-    segment_start_ms: segmentStartMs,
-    segment_end_ms: segmentEndMs,
-    text: result.text,
-    language: result.language,
-    confidence: result.confidence,
-    is_final: result.isFinal,
-  };
+    sequence_num: nextSeq(transmissionId),
+    segment_start_ms: segment.segmentStartMs,
+    segment_end_ms: segment.segmentEndMs,
+    text: segment.text,
+    language: segment.language,
+    confidence: segment.confidence,
+    is_final: segment.isFinal,
+  }));
 
   try {
-    await supabaseInsert('radio_transcript_segments', row);
+    await supabaseInsert('radio_transcript_segments', rows);
+    pipelineMetrics.processed_events += 1;
+    pipelineMetrics.last_processed_at = new Date().toISOString();
+    pipelineMetrics.last_latency_ms = processingLatencyMs;
+    pipelineMetrics.last_error = null;
     console.log(
-      `[radio-speech-processor] inserted segment seq=${seq} tx=${transmissionId.slice(0, 8)}` +
+      `[radio-speech-processor] inserted ${rows.length} segment(s) tx=${transmissionId.slice(0, 8)}` +
       ` latency=${processingLatencyMs}ms provider=${result.provider || 'unknown'}` +
       ` confidence=${result.confidence ?? 'null'}`
     );
   } catch (err) {
+    pipelineMetrics.failed_events += 1;
+    pipelineMetrics.last_error = err.message;
     console.error('[radio-speech-processor] insert failed:', err.message);
     throw err;
   }
@@ -337,6 +429,9 @@ function getRadioPipelineStatus() {
     ollama_ptt_configured: ollaPttConfigured,
     whisper_model: WHISPER_MODEL,
     active_transmission_counters: sequenceCounters.size,
+    metrics: {
+      ...pipelineMetrics,
+    },
   };
 }
 
