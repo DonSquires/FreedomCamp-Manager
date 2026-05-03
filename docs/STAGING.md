@@ -716,3 +716,50 @@ GH_PAGER=cat gh run list --limit 120 --json databaseId,headSha,name,status,concl
 | Route-Role Strict Validation | ✅ PASS (validate-roadmap-role-gates.mjs --strict) |
 | Lint | ✅ PASS |
 | Build | ✅ PASS |
+
+---
+
+## 12. Phase 3 Sprint To-Do List (2026-05-03 onwards)
+
+### Core Deliverables
+
+| # | Task | Owner | Status | Evidence |
+|---|---|---|---|---|
+| P3-1 | Implement Slice A: nav chrome polish (sidebar collapse, breadcrumb UX) | Dev | ⬜ Not started | `src/components/layout/AppSidebar.tsx` |
+| P3-2 | Implement Slice B: dashboard tile optimization (grid, spacing, accessibility) | Dev | ⬜ Not started | `src/pages/AdminPortal/AdminDashboard.tsx` |
+| P3-3 | Implement Slice C: list card standardization (breach, route, patrol, shift cards) | Dev | ⬜ Not started | `src/components/features/CardList*.tsx` |
+| P3-4 | Measure click-depth for each Slice during implementation | QA | ⬜ Not started | Re-run `phase3-ux-baseline-capture.spec.ts` after each Slice |
+| P3-5 | Verify visual hierarchy meets QA guardrails post-Slice | QA | ⬜ Not started | `docs/PHASE3_VISUAL_HIERARCHY_CLEANUP_CHECKLIST_2026-05-03.md` |
+
+### Role-Path Enforcement
+
+| # | Task | Owner | Status | Evidence |
+|---|---|---|---|---|
+| P3-6 | Wire role-path simplification maps into navigate() helper | Dev | ⬜ Not started | `src/lib/navigation.ts` |
+| P3-7 | Audit all page redirects against role-path matrix | QA | ⬜ Not started | `docs/PHASE3_ROLE_PATH_SIMPLIFICATION_MAPS_2026-05-03.md` |
+| P3-8 | Add E2E redirect validation for role paths | QA | ⬜ Not started | `tests/e2e/phase3-role-path-redirect.spec.ts` |
+
+### CI & Governance
+
+| # | Task | Owner | Status | Evidence |
+|---|---|---|---|---|
+| P3-9 | Schedule Phase 3 baseline capture in CI (daily snapshots) | DevOps | ⬜ Not started | `.github/workflows/phase3-ux-baseline-capture.yml` — add schedule trigger |
+| P3-10 | Add Slice A/B/C implementation gates to CI lint budget | DevOps | ⬜ Not started | Update `docs/DECISIONS.md` and CI config |
+| P3-11 | Run Phase 3 triad review on completion (Bob + Specialist) | Bob | ⬜ Not started | `docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md` — update outcome to GO |
+
+### Documentation & Handoff
+
+| # | Task | Owner | Status | Evidence |
+|---|---|---|---|---|
+| P3-12 | Update PHASE3_UX_BASELINE_CAPTURE workbook with Slice metrics | Dev | ⬜ Not started | Rows: median click-depth, time-to-action, error-prone actions |
+| P3-13 | Record Phase 3 sprint retrospective (blockers, learnings) | Bob | ⬜ Not started | `docs/LESSONS_LEARNED.md` |
+| P3-14 | Update ADR-003 with Phase 3 UX improvements | Dev | ⬜ Not started | `docs/adr/003-*.md` |
+
+### Success Criteria
+
+- ✅ All 10 routes meet target time-to-primary-action < 8s
+- ✅ Visual hierarchy checklist: Slice A/B/C all "complete" (not "qualified")
+- ✅ Zero role-path redirect failures in E2E
+- ✅ CI baseline capture gates all PASS for Phase 3
+- ✅ Triad review outcome: GO (move to Phase 4)
+
