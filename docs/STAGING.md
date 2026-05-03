@@ -329,6 +329,21 @@ Latest Session Snapshot (Phase 2 Governance Hardening Complete):
 - Open blockers with owner: **NONE**. Phase 2 governance hardening complete.
 - Next exact command to run: `cd /workspaces/FreedomCamp-Manager && node scripts/run-human-module-suite.mjs --grep "UX"`
 
+Latest Session Snapshot (Crash-Recovery: Inference-First Restored):
+
+- Timestamp (NZ): 2026-05-03 23:05:09 NZST
+- Current branch: main
+- HEAD SHA: 3bad47a220df91eadf987395f79f59041e8571fb
+- Working tree status (`git status -sb`): dirty (`## main...origin/main`, `M data/bob-response-scores.jsonl`)
+- Runtime rollback actions completed:
+  - Supabase secrets set: `BOB_CHAT_PROVIDER=inference`
+  - Supabase secrets set: `BOB_CHAT_ALLOW_FALLBACK=true`
+  - Confirmed gates: `SELF_CONTAINED_STRICT_EGRESS=false`, `OPENAI_REFERENCE_GATE_ENABLED=false`
+- Latest targeted runtime test result: pass (`POST /functions/v1/onspace-ai-chat` returned `HTTP 200`, `response=INFERENCE_ROLLBACK_OK`, `model=qwen2.5:7b`, `provider=runpod-serverless-ollama`)
+- Open blockers with owner:
+  - Direct OpenAI path from Supabase Edge Function still fails with upstream `401 Incorrect API key provided` when forced `provider=openai`; owner: Secrets/runtime alignment (Supabase secret plane vs Bob runtime plane)
+- Next exact command to run: `cd /workspaces/FreedomCamp-Manager && export PATH="$HOME/.local/bin:$PATH" && supabase secrets list | rg -n "BOB_CHAT_PROVIDER|BOB_CHAT_ALLOW_FALLBACK|SELF_CONTAINED_STRICT_EGRESS|OPENAI_REFERENCE_GATE_ENABLED" -i && node scripts/ask-bob.mjs "Respond with BOB_OK and active provider mode."`
+
 ## Phase 2 (P1): Governance and Auditability Hardening To-Do List
 
 **Owner**: Application architecture + Release engineering
