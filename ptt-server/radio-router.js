@@ -15,7 +15,7 @@
  *   POST /radio/producer/create   Create a Producer (inbound media from participant)
  *   POST /radio/consumer/create   Create a Consumer (outbound media to participant)
  *   DELETE /radio/session/:transmissionId  Close a radio session and release SFU resources
- *   GET  /radio/health         Health check — returns worker + router counts
+ *   GET  /radio/health         Health check — returns worker/router counts + speech queue depth
  *
  * Mount this router in server.js:
  *   const { radioRouter } = require('./radio-router');
@@ -46,6 +46,7 @@ const WORKER_COUNT = Math.min(
 const TOKEN_TTL_SECONDS = 3600;
 const REDIS_URL = String(process.env.REDIS_URL || '').trim();
 const RADIO_SPEECH_QUEUE_KEY = process.env.RADIO_SPEECH_QUEUE_KEY || 'radio:speech:events';
+const RADIO_SPEECH_DLQ_KEY = process.env.RADIO_SPEECH_DLQ_KEY || `${RADIO_SPEECH_QUEUE_KEY}:dlq`;
 
 let redisClient = null;
 let redisReady = false;
@@ -83,6 +84,44 @@ async function enqueueSpeechEvent(event) {
     }));
   } catch (err) {
     console.warn('[radio-router] Failed to enqueue speech event:', err.message);
+  }
+}
+
+async function getSpeechQueueHealth() {
+  if (!(redisClient && redisReady)) {
+    return {
+      enabled: !!REDIS_URL,
+      ready: false,
+      queueKey: RADIO_SPEECH_QUEUE_KEY,
+      dlqKey: RADIO_SPEECH_DLQ_KEY,
+      depth: null,
+      dlqDepth: null,
+    };
+  }
+
+  try {
+    const [depth, dlqDepth] = await Promise.all([
+      redisClient.lLen(RADIO_SPEECH_QUEUE_KEY),
+      redisClient.lLen(RADIO_SPEECH_DLQ_KEY),
+    ]);
+    return {
+      enabled: true,
+      ready: true,
+      queueKey: RADIO_SPEECH_QUEUE_KEY,
+      dlqKey: RADIO_SPEECH_DLQ_KEY,
+      depth,
+      dlqDepth,
+    };
+  } catch (err) {
+    return {
+      enabled: true,
+      ready: false,
+      queueKey: RADIO_SPEECH_QUEUE_KEY,
+      dlqKey: RADIO_SPEECH_DLQ_KEY,
+      depth: null,
+      dlqDepth: null,
+      error: String(err?.message || err),
+    };
   }
 }
 
@@ -459,12 +498,15 @@ router.delete('/radio/session/:transmissionId', verifyRadioJwt, verifyTransmissi
 // ---------------------------------------------------------------------------
 // GET /radio/health
 // ---------------------------------------------------------------------------
-router.get('/radio/health', (req, res) => {
+router.get('/radio/health', async (req, res) => {
+  const speechQueue = await getSpeechQueueHealth();
+
   res.json({
     sfuReady,
     workerCount: workers.length,
     activeSessions: sessions.size,
     totalRouters: workers.reduce((sum, w) => sum + w.routers.size, 0),
+    speechQueue,
   });
 });
 
