@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-03T08:10:41.428Z",
+  "generatedAt": "2026-05-03T08:14:44.589Z",
   "scope": [
     "src/hooks",
     "src/lib"
@@ -27,79 +27,13 @@
     ]
   },
   "summary": {
-    "total": 250,
-    "ok": 141,
+    "total": 251,
+    "ok": 150,
     "known_exception": 2,
     "allowed_global_or_user_scoped": 38,
-    "review": 61,
-    "missing_org_filter": 8
+    "review": 61
   },
-  "missingOrgFilter": [
-    {
-      "file": "src/lib/testUtils.ts",
-      "line": 151,
-      "table": "zones",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/lib/testUtils.ts",
-      "line": 178,
-      "table": "observations",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/lib/testUtils.ts",
-      "line": 207,
-      "table": "breach_alerts",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/lib/testUtils.ts",
-      "line": 360,
-      "table": "observations",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/lib/testUtils.ts",
-      "line": 400,
-      "table": "observations",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/lib/testUtils.ts",
-      "line": 465,
-      "table": "zones",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/lib/testUtils.ts",
-      "line": 468,
-      "table": "observations",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/lib/testUtils.ts",
-      "line": 471,
-      "table": "breach_alerts",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    }
-  ],
+  "missingOrgFilter": [],
   "reviewNeeded": [
     {
       "file": "src/hooks/useFlaggedVehicles.ts",
@@ -583,7 +517,7 @@
     },
     {
       "file": "src/lib/testUtils.ts",
-      "line": 513,
+      "line": 555,
       "table": "bug_reports",
       "status": "review",
       "orgRequired": false,
@@ -2451,15 +2385,7 @@
     },
     {
       "file": "src/lib/testUtils.ts",
-      "line": 44,
-      "table": "organizations",
-      "status": "allowed_global_or_user_scoped",
-      "orgRequired": false,
-      "scoped": false
-    },
-    {
-      "file": "src/lib/testUtils.ts",
-      "line": 97,
+      "line": 48,
       "table": "user_profiles",
       "status": "allowed_global_or_user_scoped",
       "orgRequired": false,
@@ -2467,87 +2393,103 @@
     },
     {
       "file": "src/lib/testUtils.ts",
-      "line": 124,
-      "table": "canonical_vehicles",
+      "line": 69,
+      "table": "organizations",
       "status": "allowed_global_or_user_scoped",
       "orgRequired": false,
       "scoped": false
     },
     {
       "file": "src/lib/testUtils.ts",
-      "line": 151,
-      "table": "zones",
-      "status": "missing_org_filter",
-      "orgRequired": true,
+      "line": 122,
+      "table": "user_profiles",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
+      "scoped": false
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 149,
+      "table": "canonical_vehicles",
+      "status": "allowed_global_or_user_scoped",
+      "orgRequired": false,
       "scoped": false
     },
     {
       "file": "src/lib/testUtils.ts",
       "line": 178,
-      "table": "observations",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/lib/testUtils.ts",
-      "line": 207,
-      "table": "breach_alerts",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/lib/testUtils.ts",
-      "line": 360,
-      "table": "observations",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/lib/testUtils.ts",
-      "line": 400,
-      "table": "observations",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/lib/testUtils.ts",
-      "line": 462,
-      "table": "canonical_vehicles",
-      "status": "allowed_global_or_user_scoped",
-      "orgRequired": false,
-      "scoped": false
-    },
-    {
-      "file": "src/lib/testUtils.ts",
-      "line": 465,
       "table": "zones",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/lib/testUtils.ts",
-      "line": 468,
+      "line": 208,
       "table": "observations",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/lib/testUtils.ts",
-      "line": 471,
+      "line": 240,
       "table": "breach_alerts",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 396,
+      "table": "observations",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 438,
+      "table": "observations",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 501,
+      "table": "canonical_vehicles",
+      "status": "ok",
+      "orgRequired": false,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 505,
+      "table": "zones",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 509,
+      "table": "observations",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
     },
     {
       "file": "src/lib/testUtils.ts",
       "line": 513,
+      "table": "breach_alerts",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/testUtils.ts",
+      "line": 555,
       "table": "bug_reports",
       "status": "review",
       "orgRequired": false,

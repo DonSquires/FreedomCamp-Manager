@@ -29,6 +29,31 @@ type BugReport = Database['public']['Tables']['bug_reports']['Row']
 type ComplianceResult = { observation_id: string }
 type VehicleMonthlyStay = { plate_number: string; nights_stayed: number; consecutive_nights: number }
 
+const FALLBACK_TEST_ORG_ID = '00000000-0000-0000-0000-000000000000'
+
+let cachedTestOrgId: string | null = null
+
+async function resolveTestOrganizationId(): Promise<string> {
+  if (cachedTestOrgId) {
+    return cachedTestOrgId
+  }
+
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.user?.id) {
+    cachedTestOrgId = FALLBACK_TEST_ORG_ID
+    return cachedTestOrgId
+  }
+
+  const { data: profile } = await (supabase
+    .from('user_profiles') as any)
+    .select('organization_id')
+    .eq('id', session.user.id)
+    .maybeSingle()
+
+  cachedTestOrgId = profile?.organization_id || FALLBACK_TEST_ORG_ID
+  return cachedTestOrgId
+}
+
 /**
  * Smoke Test Suite - Verify critical app functionality
  */
@@ -147,9 +172,12 @@ export const smokeTests = {
     console.log('🔍 Testing zone query...')
     
     try {
+      const orgId = await resolveTestOrganizationId()
+
       const { data, error } = await supabase
         .from('zones')
         .select('id, name, organization_id')
+        .eq('organization_id', orgId)
         .limit(5)
       
       if (error) throw error
@@ -174,9 +202,12 @@ export const smokeTests = {
     console.log('🔍 Testing observation query...')
     
     try {
+      const orgId = await resolveTestOrganizationId()
+
       const { data, error } = await supabase
         .from('observations')
         .select('id:observation_id, plate_number, recorded_at, is_compliant')
+        .eq('organization_id', orgId)
         .order('recorded_at', { ascending: false })
         .limit(10)
       
@@ -203,9 +234,12 @@ export const smokeTests = {
     console.log('🔍 Testing breach alert query...')
     
     try {
+      const orgId = await resolveTestOrganizationId()
+
       const { data, error } = await supabase
         .from('breach_alerts')
         .select('id, plate_number, breach_type, status')
+        .eq('organization_id', orgId)
         .limit(10)
       
       if (error) throw error
@@ -356,9 +390,12 @@ export const dataVerification = {
    * breach_reason). The observations-row fields are authoritative for scan pipeline writes.
    */
   async verifyComplianceResults() {
+    const orgId = await resolveTestOrganizationId()
+
     const { data: observationsData } = await supabase
       .from('observations')
       .select('id:observation_id, is_compliant')
+      .eq('organization_id', orgId)
       
       .limit(100)
 
@@ -395,10 +432,12 @@ export const dataVerification = {
   async verifyMonthlyStays() {
     const now = new Date()
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+    const orgId = await resolveTestOrganizationId()
 
     const { data: obsData, error } = await (supabase as any)
       .from('observations')
       .select('plate_number, nights_stayed_this_month, consecutive_nights')
+      .eq('organization_id', orgId)
       
       .gte('recorded_at', monthStart)
       .limit(500)
@@ -461,15 +500,18 @@ export const performanceTests = {
       vehicleList: await this.measureQueryTime('Vehicle List (100 records)', () =>
         supabase.from('canonical_vehicles').select('*').limit(100)
       ),
-      zoneList: await this.measureQueryTime('Zone List (50 records)', () =>
-        supabase.from('zones').select('*').limit(50)
-      ),
-      observationList: await this.measureQueryTime('Observation List (100 records)', () =>
-        supabase.from('observations').select('*').order('recorded_at', { ascending: false }).limit(100)
-      ),
-      breachList: await this.measureQueryTime('Breach Alert List (100 records)', () =>
-        supabase.from('breach_alerts').select('*').limit(100)
-      ),
+      zoneList: await this.measureQueryTime('Zone List (50 records)', async () => {
+        const orgId = await resolveTestOrganizationId()
+        return supabase.from('zones').select('*').eq('organization_id', orgId).limit(50)
+      }),
+      observationList: await this.measureQueryTime('Observation List (100 records)', async () => {
+        const orgId = await resolveTestOrganizationId()
+        return supabase.from('observations').select('*').eq('organization_id', orgId).order('recorded_at', { ascending: false }).limit(100)
+      }),
+      breachList: await this.measureQueryTime('Breach Alert List (100 records)', async () => {
+        const orgId = await resolveTestOrganizationId()
+        return supabase.from('breach_alerts').select('*').eq('organization_id', orgId).limit(100)
+      }),
       dashboardStats: await this.measureQueryTime('Dashboard Stats', () =>
         supabase.rpc('get_admin_dashboard_stats')
       ),

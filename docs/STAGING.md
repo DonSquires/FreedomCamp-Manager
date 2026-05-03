@@ -153,7 +153,7 @@ node scripts/validate-workflow-evidence.mjs
 - [x] Reconfirm role-route mapping against `docs/MODULE_ROADMAP.md` and `src/App.tsx`.
 - [x] Re-run org-scoping verification artifacts before release candidate promotion.
 
-Current finding: org-scoping static audit now reports `missing_org_filter=8` after latest remediation pass (down from 47).
+Current finding: org-scoping static audit now reports `missing_org_filter=0` after latest remediation pass (down from 47).
 
 ### E. Release Gate Discipline
 
@@ -250,6 +250,27 @@ Latest Session Snapshot:
 - Open blockers with owner:
   - Remaining org-scoping findings concentrated in `src/lib/*` and `src/lib/testUtils.ts`; owner: Application architecture + data governance
   - CI Build + Deploy not complete yet for current head; owner: CI/Release pipeline
+- Next exact command to run: `cd /workspaces/FreedomCamp-Manager && GH_PAGER=cat gh run list --limit 80 --json databaseId,headSha,workflowName,status,conclusion,url | jq 'map(select(.headSha=="'"$(git rev-parse HEAD)"'"))'`
+
+Latest Session Snapshot:
+
+- Timestamp (NZ): 2026-05-03 20:15:18 NZST
+- Current branch: main
+- HEAD SHA: 046b54137b94e0fecab668dda00a2bd41a9db494
+- Working tree status (`git status -sb`): staged updates pending for org-scope-zero slice
+- Latest lint result: pass (`bun run lint`)
+- Latest build result: pass (`bun run build`, 3953 modules transformed, built in 20.73s)
+- Latest targeted test result: pass (`node scripts/audit-org-scoping.mjs`, missing required org filters reduced to 0)
+- Active/last CI run IDs:
+  - `25273957011` Governance Release Gate: success
+  - `25273957022` policy-bob-no-openai: success
+  - `25273957034` Validate RunPod Image Tags: success
+  - `25273957132` CI Build High Memory: success
+  - `25273957027` Deploy Admin Portal to Vercel: in progress
+  - `25273957029` Playwright Deep Functional Cross-Browser: queued
+- Open blockers with owner:
+  - No org-scoping blockers remain in static audit.
+  - Deploy + Playwright still pending for current head; owner: CI/Release pipeline
 - Next exact command to run: `cd /workspaces/FreedomCamp-Manager && GH_PAGER=cat gh run list --limit 80 --json databaseId,headSha,workflowName,status,conclusion,url | jq 'map(select(.headSha=="'"$(git rev-parse HEAD)"'"))'`
 
 ## 8. Fast Resume Commands

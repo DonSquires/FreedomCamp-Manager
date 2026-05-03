@@ -1,22 +1,11 @@
 # Org Scoping Audit (2026-04-25)
 
-Generated: 2026-05-03T08:10:41.428Z
+Generated: 2026-05-03T08:14:44.589Z
 
-Total query sites: 250
-Missing required org filter: 8
+Total query sites: 251
+Missing required org filter: 0
 Review needed: 61
 Known exceptions: 2
-
-## Missing Required Org Filters
-
-- src/lib/testUtils.ts:151 table=zones
-- src/lib/testUtils.ts:178 table=observations
-- src/lib/testUtils.ts:207 table=breach_alerts
-- src/lib/testUtils.ts:360 table=observations
-- src/lib/testUtils.ts:400 table=observations
-- src/lib/testUtils.ts:465 table=zones
-- src/lib/testUtils.ts:468 table=observations
-- src/lib/testUtils.ts:471 table=breach_alerts
 
 ## Review Needed
 
