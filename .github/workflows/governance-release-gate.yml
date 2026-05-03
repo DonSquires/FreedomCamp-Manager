@@ -53,6 +53,9 @@ on:
       - 'bun.lock'
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   governance-gate:
     runs-on: ubuntu-latest
