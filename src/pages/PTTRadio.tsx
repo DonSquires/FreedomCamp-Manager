@@ -195,6 +195,13 @@ const CONNECTION_WARNING_TIMEOUT_MS = 12000
 const CAPTION_DELAY_THRESHOLD_MS = 6000
 const CAPTION_LOW_CONFIDENCE_THRESHOLD = 0.65
 
+function isLowConfidenceCaption(seg: CaptionSegment): boolean {
+  return seg.isFinal
+    && Number.isFinite(seg.confidence)
+    && seg.confidence > 0
+    && seg.confidence < CAPTION_LOW_CONFIDENCE_THRESHOLD
+}
+
 function deriveTranslatorRestUrlFromWs(raw: string): string {
   const trimmed = String(raw || '').trim().replace(/\/$/, '')
   if (!trimmed || trimmed.includes('your-runpod-pod.runpod.net')) return ''
@@ -576,6 +583,21 @@ export default function PTTRadio() {
     return unsub
   }, [])
 
+  useEffect(() => {
+    if (!radioFeatureFlags.captionsEnabled || typeof window === 'undefined') return
+
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<CaptionSegment>).detail
+      if (!detail?.transmissionId || typeof detail.sequenceNum !== 'number') return
+      radioCaptionService.emit(detail)
+    }
+
+    window.addEventListener('radio:inject-caption', handler as EventListener)
+    return () => {
+      window.removeEventListener('radio:inject-caption', handler as EventListener)
+    }
+  }, [])
+
   const captionPipeline = captionInferenceHealth?.radioPipeline
   const captionProcessorEnabled = captionPipeline?.processor_enabled === true
   const captionUnavailableReason = captionInferenceHealth?.status === 'offline'
@@ -585,6 +607,11 @@ export default function PTTRadio() {
       : null
   const captionsUnavailable = Boolean(captionUnavailableReason)
   const remoteTransmissionActive = Boolean(speakerId && !isSpeaking)
+  const recentCaptions = useMemo(() => liveCaptions.slice(-8), [liveCaptions])
+  const lowConfidenceCaptionCount = useMemo(
+    () => recentCaptions.filter((seg) => isLowConfidenceCaption(seg)).length,
+    [recentCaptions],
+  )
 
   useEffect(() => {
     if (!radioFeatureFlags.captionsEnabled) return
@@ -3193,6 +3220,11 @@ export default function PTTRadio() {
                       className={`inline-block w-1.5 h-1.5 rounded-full ${captionsUnavailable ? 'bg-red-500' : captionsDelayed ? 'bg-amber-400 animate-pulse' : 'bg-green-500 animate-pulse'}`}
                     />
                     {captionsUnavailable ? 'Live Captions Unavailable' : captionsDelayed ? 'Live Captions Delayed' : 'Live Captions'}
+                    {lowConfidenceCaptionCount > 0 && (
+                      <span className="ml-1 inline-flex items-center rounded border border-amber-700/70 bg-amber-900/40 px-1 py-0 text-[8px] uppercase tracking-wide text-amber-200">
+                        {lowConfidenceCaptionCount} low-confidence
+                      </span>
+                    )}
                   </div>
                   <ScrollArea className="h-20 px-3 pb-2">
                     {captionsUnavailable ? (
@@ -3205,12 +3237,9 @@ export default function PTTRadio() {
                       </p>
                     ) : (
                       <div className="space-y-0.5">
-                        {liveCaptions.slice(-8).map((seg) => (
+                        {recentCaptions.map((seg) => (
                           (() => {
-                            const isLowConfidence = seg.isFinal
-                              && Number.isFinite(seg.confidence)
-                              && seg.confidence > 0
-                              && seg.confidence < CAPTION_LOW_CONFIDENCE_THRESHOLD
+                            const isLowConfidence = isLowConfidenceCaption(seg)
 
                             return (
                               <div
