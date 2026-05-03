@@ -13,6 +13,7 @@
 ## Table of Contents
 
 1. [Introduction & Overview](#1-introduction--overview)
+1a. [UI/UX Design Standards](#1a-uiux-design-standards)
 2. [Getting Started — Login & Navigation](#2-getting-started--login--navigation)
 3. [PART A — Owner](#part-a--owner)
    - [3.1 Grand Master](#31-grand-master)
@@ -33,20 +34,22 @@
    - [6.1 Client Viewer](#61-client-viewer)
    - [6.2 Client Officer](#62-client-officer)
    - [6.3 Client Admin](#63-client-admin)
-7. [PART E — Technical Reference (Systems Administrator)](#part-e--technical-reference-systems-administrator)
-   - [7.1 Architecture Overview](#71-architecture-overview)
-   - [7.2 Environment Setup](#72-environment-setup)
-   - [7.3 Database & Migrations](#73-database--migrations)
-   - [7.4 Edge Functions](#74-edge-functions)
-   - [7.5 AI Services (Bob / Inference)](#75-ai-services-bob--inference)
-   - [7.6 PTT / Push-to-Talk](#76-ptt--push-to-talk)
-   - [7.7 System Diagnostics & Health](#77-system-diagnostics--health)
-   - [7.8 User & Organisation Provisioning](#78-user--organisation-provisioning)
-   - [7.9 Data Integrity & Cleanup](#79-data-integrity--cleanup)
-   - [7.10 Security & Compliance Notes](#710-security--compliance-notes)
-8. [Appendix A — Enforcement Document Quick Reference](#appendix-a--enforcement-document-quick-reference)
-9. [Appendix B — Role Access Matrix](#appendix-b--role-access-matrix)
-10. [Appendix C — Common Troubleshooting](#appendix-c--common-troubleshooting)
+7. [PART E — Public Portals](#part-e--public-portals)
+   - [7.1 Public Dispute Submission Portal](#71-public-dispute-submission-portal)
+8. [PART F — Technical Reference (Systems Administrator)](#part-f--technical-reference-systems-administrator)
+   - [8.1 Architecture Overview](#81-architecture-overview)
+   - [8.2 Environment Setup](#82-environment-setup)
+   - [8.3 Database & Migrations](#83-database--migrations)
+   - [8.4 Edge Functions](#84-edge-functions)
+   - [8.5 AI Services (Bob / Inference)](#85-ai-services-bob--inference)
+   - [8.6 PTT / Push-to-Talk](#86-ptt--push-to-talk)
+   - [8.7 System Diagnostics & Health](#87-system-diagnostics--health)
+   - [8.8 User & Organisation Provisioning](#88-user--organisation-provisioning)
+   - [8.9 Data Integrity & Cleanup](#89-data-integrity--cleanup)
+   - [8.10 Security & Compliance Notes](#810-security--compliance-notes)
+9. [Appendix A — Enforcement Document Quick Reference](#appendix-a--enforcement-document-quick-reference)
+10. [Appendix B — Role Access Matrix](#appendix-b--role-access-matrix)
+11. [Appendix C — Common Troubleshooting](#appendix-c--common-troubleshooting)
 
 ---
 
@@ -73,6 +76,189 @@ The platform uses a **role-based access control (RBAC)** model with nine distinc
 | **Service Provider** | `admin`, `admin_officer`, `nzscv_monitor` |
 | **Client Organisation** | `client_admin`, `client_officer`, `client_viewer` |
 | **Field** | `officer` (auto-routed per service type) |
+
+---
+
+## 1a. UI/UX Design Standards
+
+> **This section describes how every part of the platform should look and behave.** Designers, developers, and QA testers use this as the acceptance standard. Operators and supervisors use it to understand what to expect from the interface.
+
+### Shell Model
+
+FieldOps Manager uses three distinct experience "shells". Each shell is optimised for a different working context. The visual chrome, density, and interaction model differ between shells, but the underlying design system and component language are the same.
+
+| Shell | Who uses it | Density | Primary metaphor |
+|---|---|---|---|
+| **Officer Shell** | Field officers on mobile | Glove-safe, night-readable | Mission board → single active task |
+| **Admin Shell** | Admins, admin officers on desktop/tablet | Standard → dense | Queue management and triage |
+| **Master/Governance Shell** | Master, Grand Master | Standard | Policy, oversight, configuration |
+
+The **Bob Workspace** (AI assistant panel) sits inside the Admin and Master shells as a slide-out panel. It is never a primary navigation destination — it is always assistive and supplementary.
+
+---
+
+### Page Anatomy
+
+Every page in the platform follows this structure, top to bottom:
+
+```
+┌─────────────────────────────────────────────────────┐
+│  TOP BAR  Org selector │ Search │ Alerts │ Profile  │
+├──────────────────────────────────────────────────────┤
+│  GLOBAL FILTER RIBBON  Date range │ Org filter      │
+│  (admin/master shells only)                         │
+├────────────────────────────────────────────────────-─┤
+│  PAGE HEADER  Title + breadcrumb + primary action   │
+├──────────────────────────────────────────────────────┤
+│  STATUS STRIP  Live status indicators / alert badge │
+├──────────────────────────────────────────────────────┤
+│  PRIMARY ACTIONS  Max one main action, ≤2 secondary │
+├──────────────────────────────────────────────────────┤
+│  FILTERS / SEARCH                                   │
+├──────────────────────────────────────────────────────┤
+│  CONTENT AREA  (table / cards / map / form)         │
+├──────────────────────────────────────────────────────┤
+│  AUDIT TRACE  Last modified by / timestamp (detail) │
+└──────────────────────────────────────────────────────┘
+```
+
+**Rules:**
+- One primary action per page. It is always the rightmost button in the Page Header, coloured with the brand primary colour.
+- Status indicators always use the four-state scale: **normal** (grey/green) · **watch** (amber) · **action** (orange) · **critical** (red). They are never colour-only — always paired with a text label or icon.
+- Empty states always provide a call-to-action explaining what to do next (not just "No data").
+- Error states always provide an actionable recovery option (retry, contact support, or a specific corrective action).
+- Loading states show a skeleton that matches the layout of the content being loaded, not a spinner alone.
+
+---
+
+### Design Tokens & Themes
+
+The platform uses a layered token system:
+
+| Layer | Examples |
+|---|---|
+| **Core tokens** | `--color-brand-primary`, `--spacing-4`, `--radius-md`, `--elevation-2` |
+| **Semantic tokens** | `--color-success`, `--color-warning`, `--color-breach`, `--color-queued`, `--color-offline` |
+| **Context tokens** | `--theme-night-patrol`, `--theme-high-contrast`, `--theme-dispatch-mode` |
+
+**Available themes:**
+- **Light** (default) — standard office use
+- **Dark** — low-light environments
+- **Night Patrol** — maximum contrast, reduced blue light, enlarged touch targets; designed for outdoor use at 2 AM
+- **High Contrast** — WCAG AAA contrast ratios; required for vision-impaired users
+
+Theme is set per user in their Profile settings and persists across sessions. Supervisors can remotely set a default theme for all devices in their organisation from Organisation Settings.
+
+---
+
+### Component Density Tiers
+
+| Tier | Context | Characteristics |
+|---|---|---|
+| **Glove-safe** | Officer portals, night patrol | Touch targets ≥ 44×44 px; large text (≥ 16px body); generous spacing; single-column layout |
+| **Standard** | Admin portal, client portal | Touch targets ≥ 32×32 px; normal text density; multi-column layouts permitted |
+| **Dense** | Dispatch console, command centre, KPI boards | Compact table rows; information-dense cards; maximum data per viewport |
+
+Officers always experience the **glove-safe** tier. Admins default to **standard** but can switch specific pages (e.g. Dispatch Console, Command Centre) to **dense** via a toggle in the page header.
+
+---
+
+### Card Taxonomy
+
+All cards in the platform belong to one of five types:
+
+| Type | Purpose | Key elements |
+|---|---|---|
+| **Metric card** | Show a single KPI number | Number, label, trend arrow, colour indicator |
+| **Workflow card** | Represent one item in a queue | Title, status badge, assigned-to, action buttons |
+| **Alert card** | Surface an active alert needing attention | Severity colour, icon, description, acknowledge/dismiss |
+| **Queue card** | Compact row-card for high-volume lists | Plate/ID, zone, status, timestamp, primary action |
+| **Task card** | Rostered task or pending assignment | Task name, due time, officer, status |
+
+---
+
+### Accessibility Standards
+
+The platform must meet **WCAG 2.2 AA** as a minimum. Key requirements:
+
+| Criterion | Requirement |
+|---|---|
+| **Focus visibility** (2.4.11) | Keyboard focus indicator is never obscured by other elements in any admin view |
+| **Dragging alternatives** (2.5.7) | Every drag action (e.g. Enforcement Command Centre kanban) has a non-drag alternative (e.g. status dropdown in the card) |
+| **Target size** (2.5.8) | All interactive elements in officer/glove-safe tier are ≥ 44×44 px; minimum 24×24 px in all other contexts |
+| **Consistent help** (3.2.6) | The Bob AI button, feedback button, and support link appear in the same position on every page |
+| **Redundant entry** (3.3.7) | Data already known to the system (zone, officer name, plate from a scan) is pre-filled in all forms; the user is never asked to re-enter it |
+| **Accessible authentication** (3.3.8) | Login and password reset never rely solely on CAPTCHA; field officers can log in using biometric device unlock |
+| **Reduced motion** | All animated transitions respect `prefers-reduced-motion` — animations fall back to instant transitions |
+| **Colour + text** | Colour meaning is always paired with a text label or icon; nothing is communicated through colour alone |
+| **Screen reader** | All critical officer workflow paths have ARIA labels; all icons have accessible names |
+
+---
+
+### Performance Budgets
+
+| Shell | Metric | Target |
+|---|---|---|
+| Officer Shell | Time-to-interactive (first patrol action available) | < 2.5 s on 4G median |
+| Officer Shell | Action feedback latency (scan result returned) | < 150 ms perceived (optimistic UI) |
+| Admin Shell | Initial queue data load | < 2.0 s |
+| Admin Shell | Filter response (date range / org change) | < 300 ms |
+| Master Shell | Governance pages load | < 2.5 s |
+| All shells | Route chunk size | < 250 KB gzip per route (lazy loaded) |
+
+---
+
+### Offline-First Officer UX
+
+Officers regularly work in areas with no mobile data. The platform must behave correctly offline:
+
+| Action | Expected UI behaviour |
+|---|---|
+| **Scan a vehicle** | Scan is processed locally; result card shows **amber "Queued (offline)"** badge; scan is synced on reconnect |
+| **Issue a notice** | Notice is queued; temporary reference number is shown; notice is finalised and numbered on sync |
+| **Print a notice** | Works if the HTML was already cached; "Connect to network first" message if not yet generated |
+| **Update job status** | Queued and synced on reconnect |
+| **Welfare check-in** | Cached locally and synced; if offline for > 2× the check-in interval, a local device alert fires |
+
+**Sync queue indicator**: A persistent amber badge in the top navigation counts the number of queued actions. The badge disappears when all items are synced. Officers must clear the queue before ending their shift — the shift end confirmation screen shows an error if unsynced items remain.
+
+---
+
+### Field Portal Chrome Elements
+
+Every officer portal has two persistent UI elements:
+
+#### Field Safety Bar (top of screen)
+
+```
+┌───────────────────────────────────────────────────────────────┐
+│ 🟢 Welfare check: OK  │  Next check in 23 min  │  🚨 SOS    │
+└───────────────────────────────────────────────────────────────┘
+```
+
+- Shows current welfare check status (green/amber/red)
+- Countdown to next welfare check-in
+- **SOS button** (red) — sends immediate emergency alert to all supervisors with GPS coordinates, triggers priority PTT broadcast, and locks the screen to emergency mode until acknowledged by a supervisor
+- Tapping the welfare status opens the welfare check-in dialog
+
+**Welfare check-in dialog:**
+- A large **I'm OK** button (full-width, green)
+- Optional note field
+- If not acknowledged within the configured interval (default 30 minutes), the status turns amber (overdue) and supervisors are notified
+- If not acknowledged within 2× the interval, status turns red (man down) and escalation contacts are alerted
+
+#### PTT Bar (bottom of screen)
+
+```
+┌───────────────────────────────────────────────────────────────┐
+│  Channel: Alpha 1  │  ████████ PTT HOLD TO TALK  ████████   │
+└───────────────────────────────────────────────────────────────┘
+```
+
+- Channel name on the left
+- **PTT button** — hold to transmit, release to end; a pulsing animation indicates active transmission
+- Incoming transmissions show the speaker's name in a banner above the bar
+- Emergency transmissions show a red pulsing banner that cannot be dismissed until the transmission ends
 
 ---
 
@@ -111,10 +297,35 @@ If you have a **rostered shift**, it is displayed at the top of the selector wit
 
 ### 2.4 Navigation Overview
 
-- **Top bar**: Organisation filter, search, notifications, profile, settings
-- **Sidebar / Navigation menu**: Links to all modules enabled for your organisation and role
-- **Global Filter Ribbon** (admin area): Date-range and organisation filter applied across all compliance and reporting screens
-- **Bob AI Assistant** (floating button): Context-aware AI assistant available on most pages
+#### Finding your way around
+
+Every portal has the same layout skeleton:
+
+| Element | Location | Purpose |
+|---|---|---|
+| **Sidebar** | Left edge (desktop) / hamburger menu (mobile) | All modules available to your role. Expand/collapse with the chevron at the top. |
+| **Top bar** | Across the top | Organisation selector, universal search (🔍), notifications bell, your profile avatar, settings cog |
+| **Global Filter Ribbon** | Below the top bar on admin pages | Date-range picker and organisation filter — applies to all compliance and reporting screens on the current tab |
+| **Bob AI Button** | Floating bottom-right | Opens the Bob AI assistant panel. Available on all pages for admin roles. |
+| **PTT Bar** | Bottom of screen (officer portals) | Push-to-talk transmit button and channel indicator |
+| **Field Safety Bar** | Top of screen (officer portals) | Welfare check-in status, man-down detection indicator, emergency button |
+
+#### How to navigate to any module
+
+1. **From the Sidebar**: Click the relevant group heading to expand it, then click the module name. The current page is highlighted.
+2. **From the universal search**: Click the 🔍 icon in the top bar (or press `/`). Type a module name, vehicle plate, person name, or zone. Results include direct links to pages and records.
+3. **From the Admin Hub** (`/admin`): Admins land here after login. Each card on the hub links directly to a major module. Click **→** on any card to open it.
+4. **From breadcrumb links**: Detail pages (vehicle, zone, breach) have breadcrumbs at the top — click a breadcrumb to navigate back without losing your filter state.
+5. **Direct URL**: Every page has a stable URL. Bookmark frequently used pages.
+
+#### Using the Global Filter Ribbon
+
+The Global Filter Ribbon appears at the top of all admin compliance and reporting screens. Changes here apply to **all currently open tabs** in the admin area.
+
+1. Click the **date range** field — a calendar picker opens. Select a start and end date.
+2. Click the **organisation** dropdown if you have access to multiple organisations — select the one you want to filter to, or choose **All** to see everything your role permits.
+3. The page refreshes automatically. A blue indicator shows when a non-default filter is active.
+4. Click **Reset** (×) to return to the default (today, all accessible orgs).
 
 ---
 
@@ -123,38 +334,68 @@ If you have a **rostered shift**, it is displayed at the top of the selector wit
 ### 3.1 Grand Master
 
 **Role code**: `grand_master`  
-**Access**: Unrestricted — bypasses all role and area restrictions across all organisations.
+**Access**: Unrestricted — bypasses all role and area restrictions across all organisations.  
+**Landing page**: `/platform` (the Platform overview)
 
 The Grand Master is the platform operator (OnSpace AI). This role has a dedicated landing page at `/platform` and access to all features, all organisations, and all data.
 
+#### How to reach the Platform page
+
+After login, the Grand Master lands automatically on `/platform`. From any other page, click **Platform** in the sidebar (top of the navigation, marked with a globe icon).
+
 #### Platform Overview (`/platform`)
 
-The Platform page provides a cross-organisation summary view including:
-- Total active organisations
-- System health indicators
-- Revenue overview (invoicing data)
-- Cross-organisation breach and compliance metrics
-- Platform audit log
+The Platform page is a cross-organisation executive dashboard. When you first open it you will see:
+
+1. **Stats bar** — four headline tiles across the top: Total organisations, Total users, Scans in period, and Active breaches.
+2. **Tabs** — switch between: Overview · Organisations · System · Feedback & Bugs
+3. **Period picker** — adjust the reporting period using the date range in the top-right of the stats bar.
+
+**Overview tab:**
+- Cross-organisation compliance summary — breach totals, notice count, infringement count, open disputes
+- Per-organisation usage table showing officer count, scan count, breach count, notice count
+
+**Organisations tab:**
+- Full list of all organisations on the platform with type, level, active status, officer count, and usage metrics
+- Click any row to open the organisation's profile
+
+**System tab:**
+- Live system health indicator (Supabase connectivity, inference service, PTT service, proxy server)
+- Click **Run Diagnostics** to execute a full health check — this calls the `check-services-health` edge function and displays results per service
+
+**Feedback & Bugs tab:**
+- All bug reports and feedback submitted across the platform grouped by severity
+- Click **Analyse** on any report to run a Bob AI analysis — the report status updates to `analysed` and AI findings are displayed inline
+- Click **Acknowledge** or **Resolve** to update the report lifecycle
 
 #### Exclusive Grand Master Modules
 
-| Module | Path | Purpose |
+To access any of these from the sidebar:
+
+| Module | Sidebar location | Path |
 |---|---|---|
-| **Grandmaster Code Studio** | `/grandmaster-code-studio` | AI-assisted live coding environment for platform development |
-| **Compliance Escalations** | `/compliance-escalations` | Cross-org escalations and override capability |
-| **Bob Assistant Studio** | `/bob-studio` | Configure, test, and refine Bob AI modules |
-| **Bob Intake Queue** | `/bob-intake` | Review and approve AI-generated assessments before release |
-| **Ops Live Plan Review** | `/ops-live-plan-review` | Review and approve AI-generated patrol plans |
-| **Intel Approval Queue** | `/intel-approval` | Review and approve AI-generated intelligence reports |
-| **Organisation Management** | `/organizations` | Create and manage all organisations across the platform |
-| **System Diagnostics** | `/diagnostics` | Full system health, service checks, data integrity |
+| **Grandmaster Code Studio** | Owner Tools → Code Studio | `/grandmaster-code-studio` |
+| **Compliance Escalations** | Compliance → Escalations | `/compliance-escalations` |
+| **Bob Assistant Studio** | AI & Intelligence → Bob Studio | `/bob-studio` |
+| **Bob Intake Queue** | AI & Intelligence → Intake Queue | `/bob-intake` |
+| **Ops Live Plan Review** | AI & Intelligence → Plan Reviews | `/ops-live-plan-review` |
+| **Intel Approval Queue** | AI & Intelligence → Intel Approvals | `/intel-approval` |
+| **Organisation Management** | Owner Tools → Organisations | `/organizations` |
+| **System Diagnostics** | Owner Tools → Diagnostics | `/diagnostics` |
 
 #### Managing Organisations
 
-1. Navigate to **Organisation Management** (`/organizations`).
-2. The list shows all organisations with type, level, status, and enforcement workflow.
-3. To create a new organisation: click **New Organisation** — fill in name, type (`owner` / `service_provider` / `client` / `contractor`), enforcement workflow, overnight verification mode, and contact details.
-4. Organisation types determine billing scope and user provisioning access.
+**To navigate to Organisation Management:**  
+Sidebar → Owner Tools → **Organisations** (or go directly to `/organizations`).
+
+The list shows all organisations with type, level, status, and enforcement workflow.
+
+**To create a new organisation:**
+1. Click **New Organisation** in the top-right.
+2. Fill in name, type (`owner` / `service_provider` / `client` / `contractor`), enforcement workflow, overnight verification mode, and contact details.
+3. Set `parent_organization_id` to place it in the hierarchy.
+4. Click **Save** — the organisation is created and immediately visible in the list.
+5. Navigate to **User Management** (`/users`) to create the first admin user for the new organisation.
 
 **Enforcement Workflow modes:**
 
@@ -171,31 +412,54 @@ The Platform page provides a cross-organisation summary view including:
 | `two_photo_verification` | Two photos per vehicle required to confirm overnight stay |
 | `one_photo_per_day_inference` | Single photo per day; AI infers overnight presence |
 
+#### Bob Assistant Studio (`/bob-studio`)
+
+**To navigate:** Sidebar → AI & Intelligence → **Bob Studio**.
+
+1. Select the Bob **capability module** to configure (chat, assess, triage, noise, biosecurity, smoke).
+2. Adjust the system prompt, temperature, and context window settings.
+3. Use the **Test** panel on the right to send a sample input and review the output live.
+4. Click **Save Configuration** — changes take effect immediately for all new Bob sessions.
+
 ---
 
 ### 3.2 Master
 
 **Role code**: `master`  
-**Access**: All modules within their organisation and all child organisations. Cannot access other platform tenants.
+**Access**: All modules within their organisation and all child organisations.  
+**Landing page**: `/admin` (Admin Hub)
 
-The Master role is typically the operations director or senior manager of the security company. They have access to all admin functionality and additionally:
+The Master role is typically the operations director or senior manager of the security company. They see every admin module and additionally have exclusive access to organisation management, system diagnostics, pricing, and the full tender workspace.
 
-#### Additional Master-Only Access
+#### How to navigate as Master
 
-| Module | Path | Purpose |
+After login you land on the **Admin Hub** (`/admin`). The hub is a card grid — each card represents a major module. Click any card to open that area. The sidebar on the left lists all available modules grouped by category.
+
+Modules exclusive to Master (not available to standard `admin`):
+
+| Module | How to navigate | Path |
 |---|---|---|
-| **Organisation Management** | `/organizations` | Manage own org hierarchy |
-| **System Diagnostics** | `/diagnostics` | Health checks for their service instance |
-| **Pricing Page** | `/pricing` | View and manage pricing/subscription tiers |
-| **Tender Workspace** | `/tenders` | Manage tender/RFP documents |
-| **CRM Module** | `/crm` | Client relationship management |
-| **Invoicing** | `/invoicing` | Billing and invoice management |
+| **Organisation Management** | Sidebar → Owner Tools → Organisations | `/organizations` |
+| **System Diagnostics** | Sidebar → Owner Tools → Diagnostics | `/diagnostics` |
+| **Pricing Page** | Sidebar → Finance → Pricing | `/pricing` |
+| **Tender Workspace** | Sidebar → Business → Tenders | `/tenders` |
+| **Intel Approval Queue** | Sidebar → AI & Intelligence → Intel Approvals | `/intel-approval` |
+| **Service Provider Access Settings** | Sidebar → Access → Service Provider Access | `/admin/service-provider-access` |
 
-Masters see every admin module listed in [Part B](#part-b--service-provider) below. The key distinction from `admin` is:
-- Masters can see **all sub-organisations** without a filter restriction
-- Masters access the **Organisation Management** page (admins cannot)
-- Masters access **System Diagnostics** (admins cannot)
-- Masters have no portal-area restrictions
+#### Key Master Workflows
+
+**Viewing all child organisations:**
+1. Open the **Organisation Management** page (`/organizations`).
+2. The tree view shows your organisation and all child orgs with their status, user counts, and recent activity.
+3. Click any child org row to switch context — the Global Filter Ribbon at the top updates to scope all data to that org.
+4. To return to your own org, click the organisation selector in the top bar and choose your org.
+
+**Approving intelligence reports:**
+1. Navigate to Sidebar → AI & Intelligence → **Intel Approval Queue** (`/intel-approval`).
+2. AI-generated intelligence reports submitted by officers or Bob are listed with status `pending_review`.
+3. Click a report to review it. You can **Approve** (publishes to the compliance dashboard), **Reject with Note** (returns to the submitter), or **Escalate** (flags for Grand Master review).
+
+All other admin workflows for Master are identical to the Administrator role — see [§4.1 Administrator](#41-administrator) for the full details.
 
 ---
 
@@ -204,15 +468,27 @@ Masters see every admin module listed in [Part B](#part-b--service-provider) bel
 ### 4.1 Administrator
 
 **Role code**: `admin`  
-**Access**: Full admin portal for their assigned organisation. Route: `/admin` → **Admin Hub**.
+**Access**: Full admin portal for their assigned organisation.  
+**Landing page**: `/admin` → **Admin Hub**
 
 #### Admin Hub (`/admin`)
 
-The Admin Hub is the primary landing page for administrators. It is a card-based dashboard with live metrics. Each card represents a major functional area with quick-links to sub-pages.
+After login, the Admin Hub is your home screen. It is a card-based dashboard with live metrics.
+
+**Reading the dashboard:**
+- The top row of KPI tiles shows: **Total Scans Today**, **Active Breaches**, **Patrols Running**, and **Officer Welfare Alerts** — all live and scoped to your current organisation and date filter.
+- The **Compliance Trend Chart** below shows daily scan-vs-breach ratio over the selected date range. Hover over a data point to see the day's exact figures.
+- The **SCV Enforcement Countdown** shows days remaining until the mandatory SCV certificate check date.
+- Quick-navigation cards for each major module are below — click any card's **→** arrow to open that section.
+
+**Changing the date range or organisation:**  
+Use the **Global Filter Ribbon** at the top of the page. Click the date field to open the calendar picker. Click the organisation dropdown to switch between orgs you have access to.
 
 ---
 
 ##### Operations Centre (`/admin/dashboard`)
+
+**How to navigate:** Sidebar → Dashboard → **Operations Centre**, or click the Admin Hub card for "Operations".
 
 The full operational dashboard. Contains:
 - **KPI tiles**: Total scans today, active breaches, patrols running, officer welfare alerts
@@ -224,40 +500,191 @@ The full operational dashboard. Contains:
 
 ##### Compliance & Enforcement
 
-| Page | Path | Purpose |
+**How to navigate to this section:** Sidebar → **Compliance** group. Each sub-item takes you directly to the relevant page.
+
+| Page | Path | How to navigate |
 |---|---|---|
-| Compliance Dashboard | `/admin/compliance` | Real-time compliance rates by zone |
-| Compliance Analytics | `/admin/compliance-analytics` | Trend analysis, heatmaps, breakdown by service |
-| Breach Alerts | `/breaches` | Active breaches awaiting action |
-| Breach Notices | `/breach-notices` | Historical breach notice log |
-| Infringement Notices | `/infringement-notices` | Issue, track, and manage infringement notices |
-| Notice to Vacate | `/notice-to-vacate` | Issue and track NTV documents |
-| Enforcement Actions | `/enforcement-actions` | Enforce, escalate, or close breach records |
-| Enforcement Command Centre | `/enforcement-command-centre` | Supervisor enforcement overview |
-| Enforcement Review | `/enforcement-review` | Review officer enforcement actions |
-| Disputes | `/disputes` | Manage disputed infringement notices |
-| Compliance Recalculation | `/compliance-recalculation` | Re-score historical vehicle records |
-| Compliance Escalations | `/compliance-escalations` | Escalate records requiring higher authority action |
+| Compliance Dashboard | `/admin/compliance` | Sidebar → Compliance → Dashboard |
+| Compliance Analytics | `/admin/compliance-analytics` | Sidebar → Compliance → Analytics |
+| Breach Alerts | `/breaches` | Sidebar → Compliance → Breach Alerts |
+| Breach Notices | `/breach-notices` | Sidebar → Compliance → Breach Notices |
+| Infringement Notices | `/infringement-notices` | Sidebar → Compliance → Infringements |
+| Notice to Vacate | `/notice-to-vacate` | Sidebar → Compliance → Notice to Vacate |
+| Enforcement Actions | `/enforcement-actions` | Sidebar → Compliance → Enforcement Actions |
+| Enforcement Command Centre | `/enforcement-command-centre` | Sidebar → Compliance → Command Centre |
+| Enforcement Review | `/enforcement-review` | Sidebar → Compliance → Review |
+| Disputes | `/disputes` | Sidebar → Compliance → Disputes |
+| Compliance Recalculation | `/compliance-recalculation` | Sidebar → Data → Recalculate |
+| Compliance Escalations | `/compliance-escalations` | Sidebar → Compliance → Escalations (master/grand_master only) |
+
+---
+
+**Compliance Dashboard (`/admin/compliance`)**
+
+The Compliance Dashboard shows real-time compliance rates by zone.
+
+1. Open the page — a grid of zone cards loads, each showing: zone name, vehicles checked today, breach count, compliance rate (%), and an RAG (red/amber/green) status indicator.
+2. Click any zone card to drill into that zone's detail: full breach list, scan history, and trend chart.
+3. Use the **Global Filter Ribbon** to change the date range — the dashboard refreshes automatically.
+4. Click **Export** to download the zone-by-zone compliance summary as CSV.
+
+---
+
+**Breach Alerts (`/breaches`)**
+
+The active breach queue. Every vehicle that has triggered a breach condition appears here until actioned.
+
+1. Navigate to Sidebar → Compliance → **Breach Alerts**.
+2. Each row shows: plate number, vehicle photo thumbnail, zone, breach type, first detected date, current status, and assigned officer.
+3. **To take action on a breach:**
+   - Click the breach row to open the breach detail panel.
+   - Review the scan history, overnight counts, and any prior warnings.
+   - Choose an action: **Issue Warning**, **Issue NTV**, **Issue Infringement**, or **Mark Resolved**.
+   - The selected action creates the appropriate document and updates the breach status.
+4. **Filtering**: Use the filter bar at the top to filter by zone, status (`active`, `pending_review`, `actioned`), or date range.
+5. **Bulk action**: Select multiple breach rows using the checkboxes → click **Bulk Action** → choose an action to apply to all selected records.
+
+**Enforcement escalation decision guide:**
+
+Follow this decision path when actioning a breach. The system will suggest the correct action based on the vehicle's history, but officers must confirm.
+
+```
+Vehicle Scan → Compliant?
+  YES → No action needed. Record is logged.
+  NO  → First offence in this zone? No prior history?
+          YES → Issue Warning Notice (record in system)
+                → Vehicle returns in breach again?
+                     NO  → Continue monitoring
+                     YES → Issue Infringement Notice (FCA s.20, $200 fine)
+          NO  → Prior warning already issued?
+                     YES → Issue Infringement Notice
+                     NO  → Prior infringement on record?
+                               YES → Review with supervisor → possible court referral
+                → Stay limit exceeded? Vehicle still present?
+                     YES → Issue Notice to Vacate (24–48 hr deadline)
+                           → Did vehicle comply by deadline?
+                                YES → Close — vehicle departed
+                                NO  → Escalate to supervisor
+                                      → Homeless flag on vehicle?
+                                           YES → Welfare check required first
+                                                 Do NOT tow without supervisor authorisation
+                                           NO  → Tow request or further infringement
+```
+
+---
+
+**Infringement Notices (`/infringement-notices`)**
 
 **To issue an Infringement Notice:**
-1. Navigate to `/infringement-notices` or open a breach record from `/breaches`.
-2. Click **Issue From Evidence Only** (notice must link to a scan or breach).
-3. Fill in offence description, legal basis (default: `FCA 2011 s.20`), fine amount ($200 default), and service method.
-4. Click **Issue Notice** — a unique notice number is generated.
-5. Click **Print** for a print-ready HTML document.
+1. Navigate to Sidebar → Compliance → **Infringements** (`/infringement-notices`).
+2. Click **+ Issue Notice** in the top-right.
+3. Link the notice to a breach record or scan record using the search field.
+4. Fill in offence description, legal basis (default: `FCA 2011 s.20`), fine amount ($200 default), service method (hand delivery, post, vehicle), and officer details.
+5. Click **Issue Notice** — a unique notice number is generated (format: `INF-YYYYMMDD-XXXX`).
+6. Click **Print** for a print-ready HTML document, or **Email** to send directly to the registered address.
+
+**To search existing notices:**
+- Use the search bar at the top of the Infringement Notices page to search by plate number, notice number, or address.
+- Filter by status: `draft`, `issued`, `paid`, `disputed`, `withdrawn`.
+- Click a notice row to open the full notice detail.
+
+---
+
+**Notice to Vacate (`/notice-to-vacate`)**
+
+1. Navigate to Sidebar → Compliance → **Notice to Vacate**.
+2. Click **+ New Notice**.
+3. Search for the vehicle plate — the form pre-fills with the vehicle's last known zone and officer.
+4. Confirm or update: zone, address, legal basis (`FCA 2011 s.32` or council bylaw reference), reason for vacation.
+5. Set the **Vacate By** time (default: 7:00 AM next morning for overnight campers).
+6. Click **Issue** — the notice is saved and printable immediately.
+
+---
+
+**Enforcement Command Centre (`/enforcement-command-centre`)**
+
+A supervisor overview of all open enforcement actions across the organisation.
+
+1. Navigate to Sidebar → Compliance → **Command Centre**.
+2. The page shows four columns: **Pending Review** · **In Progress** · **Escalated** · **Resolved** (kanban-style).
+3. Click any card to see the full enforcement record, officer notes, and action history.
+4. Drag a card between columns to update the status, or open the record and use the **Update Status** button.
+5. The **Escalation filter** at the top lets you isolate records at escalation level 2+ (requiring supervisor sign-off).
+
+---
+
+**Disputes (`/disputes`)**
+
+Manages infringement notices that have been formally disputed by the recipient.
+
+**How a dispute reaches this page:**  
+When an officer issues an infringement notice, the notice includes a printed QR code and the public URL `fcmanager.co.nz/dispute`. The recipient can scan the QR code on their physical ticket, which opens a pre-filled dispute form in their browser — no account required. They enter their ticket number and vehicle registration to verify identity, describe their grounds for dispute, and attach evidence (permit photos, signage photos, etc.). The dispute submission is received and stored automatically, and an AI analysis is run in the background. This dispute then appears in the admin Disputes page.
+
+1. Navigate to Sidebar → Compliance → **Disputes**.
+2. The dispute list shows: notice number, plate, dispute received date, grounds summary (from AI analysis), AI confidence score, and current status.
+3. **To process a dispute:**
+   - Click the dispute row to open it.
+   - Review the dispute grounds, AI analysis summary, attached evidence, officer notes from the scene, and the original notice.
+   - Choose: **Uphold Notice** (dispute rejected, notice stands), **Withdraw Notice** (dispute accepted, notice cancelled), or **Refer for Review** (send to senior officer or council).
+   - Add a decision note — this is the official decision record.
+   - Click **Save Decision** — the notice and dispute statuses update; a confirmation email is automatically sent to the disputant.
+4. Upheld disputes: the infringement notice remains active. Withdrawn disputes: the notice is marked withdrawn and the fine is zeroed.
+
+> **Decision audit trail**: All dispute decisions are logged with the deciding officer's identity and timestamp. This record cannot be edited after saving.
 
 ---
 
 ##### Vehicles & ALPR
 
-| Page | Path | Purpose |
+**How to navigate:** Sidebar → **Vehicles** group.
+
+| Page | Path | How to navigate |
 |---|---|---|
-| Vehicle Management | `/vehicles` | Search and manage vehicle records |
-| Vehicle Registry | `/vehicle-registry` | Canonical vehicle database |
-| Vehicle Detail | `/vehicles/:id` | Plate history, photos, compliance record |
-| Vehicle Discrepancies | `/vehicle-discrepancies` | Flag inconsistent plate/vehicle data |
-| NZSCV Monitor | `/admin/nzscv` | Monitor SCV certification status via NZSCV database |
-| Canonical Records Manager | `/canonical-records` | Manage deduplicated vehicle and person master records |
+| Vehicle Management | `/vehicles` | Sidebar → Vehicles → All Vehicles |
+| Vehicle Registry | `/vehicle-registry` | Sidebar → Vehicles → Registry |
+| Vehicle Detail | `/vehicles/:id` | Click any vehicle row in the list |
+| Vehicle Discrepancies | `/vehicle-discrepancies` | Sidebar → Vehicles → Discrepancies |
+| NZSCV Monitor | `/admin/nzscv` | Sidebar → Vehicles → NZSCV Monitor |
+| Canonical Records Manager | `/canonical-records` | Sidebar → Data → Canonical Records |
+
+---
+
+**Vehicle Management (`/vehicles`)**
+
+1. Navigate to Sidebar → Vehicles → **All Vehicles**.
+2. The list shows all vehicles known to the system — plate number, make, model, colour, compliance status, last seen zone, and last scan date.
+3. **To search for a vehicle**: type a plate number (full or partial) in the search box at the top. Results filter as you type.
+4. **To view full history**: click the vehicle row → Vehicle Detail page opens showing:
+   - All scans linked to this vehicle with dates, zones, officers, and photo thumbnails
+   - Compliance record: nights logged per zone, breach history, issued notices
+   - NZSCV SCV certification status (green tick / red cross / unknown)
+   - Any person records linked to this vehicle
+5. **To add a manual vehicle record**: click **+ Add Vehicle** → enter plate, make, model, colour, and any known details → **Save**.
+6. **To flag a vehicle as Vehicle of Interest (VOI)**: from the Vehicle Detail page, click **Flag as VOI** → enter the reason and alert level. Officers will see a VOI warning when this plate is scanned in the field.
+
+---
+
+**NZSCV Monitor (`/admin/nzscv`)**
+
+Monitors the New Zealand Self-Contained Vehicle (SCV) certification database.
+
+1. Navigate to Sidebar → Vehicles → **NZSCV Monitor**.
+2. The monitor shows a live list of vehicles in your system with their NZSCV status: `certified`, `expired`, `not_found`, `pending`.
+3. The **Enforcement Countdown** tile shows the days remaining until the next mandatory SCV check date — this is set per zone.
+4. **To check a specific plate**: enter the plate number in the search bar at the top. The system queries the NZSCV proxy in real time and returns the current certification status.
+5. **To refresh all statuses**: click **Bulk Refresh** — this re-queries NZSCV for all vehicles active in your zones within the selected date range. This may take several minutes.
+6. Vehicles with expired or missing SCV certification in SCV-required zones are highlighted red.
+
+---
+
+**Vehicle Discrepancies (`/vehicle-discrepancies`)**
+
+Flags inconsistencies in vehicle data — e.g. plate numbers that have been captured with different makes/models, or plates where officer-entered data contradicts NZSCV records.
+
+1. Navigate to Sidebar → Vehicles → **Discrepancies**.
+2. Each discrepancy row shows the plate, the conflicting data fields, the source of each value, and a confidence score.
+3. **To resolve a discrepancy**: click the row → review the conflicting data → click **Accept Primary** (keep the most-trusted value) or **Merge Manually** to enter a corrected value.
+4. Resolved discrepancies are archived and a note is added to the vehicle record.
 
 ---
 
@@ -301,13 +728,324 @@ The full operational dashboard. Contains:
 
 ---
 
-##### Personnel & Welfare
+###### Patrol Schedule Management (`/patrol-schedules`)
+
+Patrol schedules define *when* and *where* officers are expected to patrol. A patrol schedule record is an admin-authored template that generates individual patrol session records when an officer starts their shift.
+
+**Creating a patrol schedule:**
+
+1. Navigate to `/patrol-schedules` → **New Schedule**.
+2. Fill in the schedule fields:
+   - **Zone** — enforcement zone the patrol covers
+   - **Assigned officer** — pre-assign or leave blank for open assignment
+   - **Date** — patrol date
+   - **Shift** — `morning`, `afternoon`, `night`, or `overnight`
+   - **Patrol route** — optional named route to guide the officer
+   - **Notes** — briefing notes visible to the officer
+3. Click **Create** — the schedule appears in the schedule list with status `scheduled`.
+4. The assigned officer receives a notification and can view the upcoming patrol from their home screen.
+
+**Patrol status lifecycle:**
+
+| Status | Meaning |
+|---|---|
+| `scheduled` | Admin created; officer not yet started |
+| `in_progress` | Officer started patrol (tapped **Start Patrol** in the field portal) |
+| `completed` | Officer completed the session |
+| `cancelled` | Admin or officer cancelled before starting |
+
+**Starting a patrol (admin view):**  
+Admin can manually advance a patrol status from `scheduled` to `in_progress` or mark it cancelled. Field officers start their own patrols from the field portal — this action also creates a `patrols` table record linked to the schedule.
+
+**Completing a patrol (admin view):**  
+Click **Complete** on an in-progress patrol to close the session. The system prompts for a completion note and records the end time. Completing a patrol does not affect active scan records — all observations remain linked to the patrol.
+
+---
+
+###### Live Patrol Monitor (`/live-patrol-monitor`)
+
+The Live Patrol Monitor is the supervisor's real-time dashboard for all active patrols.
+
+**Panel layout:**
+
+| Panel | Description |
+|---|---|
+| **Active Patrols** | Cards for each currently in-progress patrol showing officer name, zone, shift start time, vehicles checked, duration, and GPS freshness |
+| **Officer GPS** | Last known GPS fix per officer with timestamp; colour-coded green (< 5 min) → amber (5–15 min) → red (> 15 min stale) |
+| **Welfare Status** | Welfare check-in status per officer: On Time / Overdue / Man Down |
+| **Patrol Summary** | Count summary: active, scheduled, completed today |
+
+**Actions available from the monitor:**
+
+- **Refresh** (manual or auto-interval) — re-fetches all patrol data
+- **Radio** — opens PTT panel pre-scoped to the officer's channel
+- **View patrol** — drills into the full patrol record including scan history
+- **Live map** — opens `/live-map` with the officer's GPS trace highlighted
+
+**Missed patrol alerts:**  
+If an officer has a `scheduled` patrol that has not transitioned to `in_progress` within 15 minutes of the scheduled start time, the Live Patrol Monitor highlights it in amber. Supervisors can either contact the officer via PTT or reassign the patrol from the Dispatch Console.
+
+---
+
+###### Patrol Checkpoint Management (`/patrol-checkpoints`)
+
+QR checkpoints define physical locations on a patrol route that officers must scan to prove attendance.
+
+**Creating a checkpoint:**
+
+1. Navigate to `/patrol-checkpoints` → **New Checkpoint**.
+2. Enter the checkpoint name, description, and GPS coordinates (or use the map pin tool to place it).
+3. Select the zone this checkpoint belongs to.
+4. Click **Save** — a unique QR code is generated and downloadable.
+5. Print the QR code and affix it to the physical location (e.g. gate post, parking sign).
+
+**Assigning checkpoints to a patrol route:**
+
+1. Go to the patrol route record.
+2. Add checkpoints in sequence order — the expected scan order is enforced during patrol.
+3. Set an optional time window per checkpoint (e.g. "arrive between 23:00–01:00").
+
+**Missed checkpoint handling:**  
+If an officer has a patrol route instance open and fails to scan a checkpoint within its time window, the system flags the stop as `missed`. The Live Patrol Monitor highlights missed checkpoints in red. Supervisors are notified via the Notifications Centre.
+
+**Checkpoint scan results visible to admin:**  
+Navigate to a completed patrol → **Checkpoint Log** to see each stop with scan time, GPS fix, deviation from expected time, and any notes.
+
+---
+
+###### Patrol KPI Dashboard (`/patrol-kpi`)
+
+Provides performance metrics for patrols and officers across the selected date range and organisation.
+
+**Key metrics:**
+
+| Metric | Description |
+|---|---|
+| **Patrols completed** | Count of completed patrol sessions |
+| **Patrols missed / cancelled** | Sessions that did not start or were cancelled |
+| **Average patrol duration** | Mean shift length in minutes |
+| **Vehicles checked per patrol** | Scan productivity per session |
+| **Checkpoint compliance rate** | % of expected checkpoints scanned on time |
+| **Welfare alert rate** | Welfare escalations triggered per 100 patrol hours |
+| **SLA breach rate** | % of dispatched jobs that exceeded response SLA |
+
+Filters available: date range, organisation, zone, officer, and service type.
+
+---
+
+###### Roster Planner (`/roster-planner`)
+
+The Roster Planner provides a **weekly visual roster board** — officers as rows, days as columns, shift cards in cells — inspired by InTime / Deputy workforce management tools.
+
+**Navigating the roster:**
+
+- Use the **← Previous week** / **Next week →** arrows to move between weeks.
+- Each cell shows the officer's shift card (if rostered) or an empty slot.
+- Shift cards display: start time, end time, zone, service type, and status (draft / published / accepted / declined).
+
+**Creating a shift:**
+
+1. Click an empty cell for a day/officer combination.
+2. A **New Shift** dialog opens — fill in:
+   - Start time / end time
+   - Zone
+   - Service type (`freedom_camping`, `parking`, `noise`, etc.)
+   - Optional patrol route
+   - Notes
+3. Click **Save as Draft** or **Publish** (published shifts notify officers immediately).
+
+**Publishing a roster:**
+
+Draft shifts are visible to admins only. Click **Publish Week** to publish all draft shifts for the current week at once. Officers receive a notification with their shift details.
+
+**Officer acceptance:**  
+Officers see upcoming shifts on their home screen. They can tap **Accept** or **Decline**. Declined shifts appear in amber on the Roster Planner and are automatically surfaced on the Open Shifts page.
+
+**Swaps and replacements:**  
+To reassign a shift: click the shift card → **Reassign** → select a new officer from the available pool. The system checks for conflicts with other shifts and flags overlaps.
+
+---
+
+###### Open Shifts (`/open-shifts`)
+
+Displays all unfilled or declined shifts for the current and upcoming weeks.
+
+- Admins can assign an open shift to any available officer.
+- Officers with the `open_shift_notifications` preference enabled are notified of new open shifts.
+- Shift urgency is colour-coded: shifts starting within 24 hours are highlighted red.
+
+---
+
+###### Timesheet Review (`/timesheets`)
+
+Review, edit, and approve officer timesheets.
+
+**Workflow:**
+
+1. At shift end, the system auto-generates a timesheet record from the officer's session start/end times, GPS data, and manual check-out.
+2. Admins review timesheets: verify actual hours vs. scheduled, add approved overtime, or flag discrepancies.
+3. Click **Approve** — the timesheet is locked and forwarded to payroll export.
+4. Click **Reject with Note** — the officer is notified to correct their entry.
+
+**Export:**  
+Use **Export CSV** to download approved timesheets for the selected period for payroll processing.
+
+---
+
+###### On-Call Rostering & Callout Shifts
+
+Security and enforcement operations require 24/7 coverage. Rather than staffing full shifts around the clock, the system supports **on-call rostering** where officers are paid a fixed availability rate and only receive full shift pay when actually called out.
+
+**How to navigate:**  
+Sidebar → Roster → **On-Call Periods** (`/on-call-periods`) or Sidebar → Roster → **Callout Shifts** (`/callout-shifts`)
+
+**Key business rules:**
+- Officers on call receive a flat **on-call availability rate** for the on-call period (e.g. $60 for a 12-hour overnight on-call block)
+- When called out, a minimum of **3 hours pay** is guaranteed regardless of actual time worked
+- Hours worked beyond the 3-hour minimum are paid at the **after-minimum rate**
+- Travel to and from the callout location is separately compensated as a **travel allowance** (by distance, by time, or both)
+- On-call periods can be positioned **before** or **after** a regular rostered shift at different rates
+
+**Creating an on-call period:**
+
+1. Navigate to Sidebar → Roster → **On-Call Periods**.
+2. Click **+ New On-Call Period**.
+3. Fill in:
+   - **Officer** — select from the available officer list
+   - **Period type** — `standard` (standalone), `before_shift`, `after_shift`, or `overnight`
+   - **Start / end time** — the window the officer must remain available
+   - **Rate** — select from the configured rate list or enter a custom flat rate
+   - **Linked shift** (optional) — attach to a rostered shift for before/after on-call
+4. Click **Save** — the officer is notified and must **Accept** the on-call assignment from their home screen.
+
+**Processing a callout:**
+
+When a job comes in during an on-call period:
+1. In the Dispatch Console, the officer's on-call status is shown on their resource card (moon icon).
+2. Dispatch the job to the officer as normal.
+3. The system automatically creates a **Callout Shift** record linked to the on-call period.
+4. The callout shift tracks: `callout_received_at`, `departed_at`, `arrived_at`, `work_started_at`, `work_ended_at`, `returned_at`.
+5. The officer updates these timestamps from the field portal as they progress through the callout.
+
+**Pay calculation example:**
+
+| Component | Calculation | Amount |
+|---|---|---|
+| On-call pay (12hr overnight) | Flat rate | $60.00 |
+| Callout work (45 min actual, 3hr minimum) | 3 hrs × $45/hr | $135.00 |
+| Additional work (over 3hr minimum) | 0 hrs × $35/hr | $0.00 |
+| Travel (40 km round trip) | 40 × $0.85/km | $34.00 |
+| Travel time (1 hr) | 1 hr × $25/hr | $25.00 |
+| **Total** | | **$254.00** |
+
+**Travel allowances:**
+
+A travel allowance record is created per callout. It records:
+- Journey type (`outbound`, `return`, or `round_trip`)
+- Origin office (for jurisdiction boundary calculation)
+- Distance in km
+- Travel duration in minutes
+- Whether the travel was outside the officer's normal jurisdiction
+
+Travel is only payable outside the officer's normal jurisdiction unless the service agreement specifies otherwise. The system calculates distance using the officer's registered office location as the reference point.
+
+**Payroll export:**  
+On-call pay, callout pay, and travel allowances are combined per officer on the Timesheet Review page and included in the payroll CSV export. The export breaks the three components out as separate line items.
+
+---
 
 | Page | Path | Purpose |
 |---|---|---|
 | Officer Welfare Settings | `/officer-welfare-settings` | Configure welfare check intervals and escalation paths |
 | Notifications Centre | `/notifications` | View all system and welfare alerts |
 | Identity Verification | `/identity-verification` | Verify officer identity documents |
+
+---
+
+##### Communications
+
+| Page | Path | Purpose |
+|---|---|---|
+| PTT Radio | `/radio` | Push-to-Talk voice radio interface |
+| PTT Transmission Log | `/ptt-log` | Archive of all PTT transmissions |
+| PTT Audit Dashboard | `/radio/audit` | Radio usage analytics and audit metrics |
+| Team Chat | `/messages` | Text-based team messaging |
+
+---
+
+###### PTT Radio (`/radio`)
+
+The PTT (Push-to-Talk) radio feature provides real-time voice communication between officers and supervisors over a WebRTC channel — no physical radio hardware required.
+
+**Using PTT:**
+
+1. Navigate to `/radio` or tap the **Radio** icon on any portal page.
+2. Your organisation's default channel loads automatically.
+3. **To transmit:** Press and hold the **PTT Button** (large orange button). Speak clearly. Release to end the transmission.
+4. **To listen:** Transmissions from other channel members play automatically through the device speaker.
+5. **Emergency broadcast:** Tap the **Emergency** button (red) to send a priority emergency transmission that interrupts all other channel audio and triggers a supervisor alert.
+
+**Channel access:**  
+Officers are assigned to one or more PTT channels via their user profile. Admins configure channel assignments in **User Management** → PTT Channel Access. By default, all officers in the same organisation share one primary channel.
+
+**Transcription and translation (Phase 1):**  
+When the inference service is connected, PTT transmissions are automatically transcribed. Transcripts are stored in `radio_transcript_segments` and are searchable from the PTT Transmission Log. Translation to a secondary language is available when configured.
+
+> **Voice consent**: Officers must provide consent before their voice profile is registered. Consent is managed via `radio_voice_consents` and is fully revocable at any time from their profile settings.
+
+---
+
+###### PTT Transmission Log (`/ptt-log`)
+
+Full archive of all voice transmissions for the organisation.
+
+- Searchable by date, officer, channel, and keyword (requires transcription enabled)
+- Each row shows: officer, channel, duration, transmission start time, and emergency flag
+- Click a row to play back the audio recording (if stored) and view the full transcript
+- Export for compliance or investigation purposes
+
+---
+
+###### PTT Audit Dashboard (`/radio/audit`)
+
+Analytics on radio usage across the organisation.
+
+**Metrics:**
+
+| Metric | Description |
+|---|---|
+| **Total transmissions** | Count of PTT events in the period |
+| **Coverage rate** | % of patrols with at least one radio transmission |
+| **Average transmission duration** | Mean transmission length in seconds |
+| **Low-confidence transcripts** | Transmissions where transcription confidence < threshold |
+| **Emergency transmissions** | Count of emergency-flagged broadcasts |
+| **Per-officer breakdown** | Individual radio activity summary |
+
+> **Access**: Admin, admin_officer, master, grand_master.
+
+---
+
+###### Team Chat (`/messages`)
+
+Text-based messaging for team coordination. Available to all authenticated users.
+
+**Features:**
+
+- **Organisation channel** — a shared team-wide message thread
+- **Direct messages** — one-to-one messaging between any two users in the same organisation
+- **Job-linked messages** — dispatch jobs can be annotated with chat messages visible to all assigned officers and supervisors
+- **File attachments** — images and documents can be shared within a chat thread
+- **Notification badges** — unread message count shown on the navigation icon
+
+**When to use PTT vs. Team Chat:**
+
+| Scenario | Recommended |
+|---|---|
+| Urgent field update, hands-free | PTT Radio |
+| Real-time incident coordination | PTT Radio |
+| Non-urgent admin note | Team Chat |
+| Sharing a document or photo | Team Chat |
+| Handover notes at shift change | Team Chat |
 
 ---
 
@@ -332,12 +1070,137 @@ The full operational dashboard. Contains:
 
 ##### Dispatch
 
+> **Architecture note**: The dispatch system is built around three anchoring concepts: the **Location of Interest (LOI)**, the **Dispatch Resource** (patrol run / callsign), and the **Service Agreement** (who pays and what SLA applies). A job is always dispatched to a *Dispatch Resource* (a named patrol run such as "Zone 587 Nelson Night Patrol"), not directly to an individual officer. The roster layer separately resolves which officer is currently assigned to that run.
+
 | Page | Path | Purpose |
 |---|---|---|
-| Dispatch Console | `/dispatch-console` | Create and assign dispatch jobs |
-| Dispatch Monitor | `/dispatch-monitor` | Live job queue and officer assignment overview |
-| Dispatch Wizard | `/dispatch-wizard` | Guided job creation for complex situations |
-| Dispatched Jobs List | `/dispatched-jobs` | Historical job list with status |
+| Dispatch Console | `/dispatch-console` | Create, assign, and manage live dispatch jobs |
+| Dispatch Monitor | `/dispatch-monitor` | Supervisor read-only view of the live job queue |
+| Dispatch Wizard | `/dispatch-wizard` | Guided multi-resource job creation |
+| Dispatched Jobs List | `/dispatched-jobs` | Historical job list with full timeline |
+
+---
+
+###### Dispatch Console (`/dispatch-console`)
+
+The Dispatch Console is the **real-time operational board** for creating, assigning, and tracking dispatch jobs — modelled on CAD (Computer-Aided Dispatch) systems used in emergency services.
+
+**UI Layout:**
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  TOP BAR: + New Job │ Filter │ Auto-assign toggle │ Settings │
+├─────────────────────────────────┬────────────────────────────┤
+│  JOB QUEUE (left 60%)           │  RESOURCE BOARD (right 40%)│
+│  Priority-sorted, colour-coded  │  Active patrol runs /      │
+│  SLA countdown on each card     │  callsigns with status     │
+│  Drag-to-assign OR click+select │  GPS freshness indicator   │
+└─────────────────────────────────┴────────────────────────────┘
+```
+
+**Creating a new job — step by step:**
+
+1. Click **+ New Job** in the top bar.
+2. Fill in the job form:
+   - **Job type** — select from the type registry (e.g. `patrol_check`, `alarm_response`, `noise_complaint`, `freedom_camping`, `parking`, `welfare_check`, `trespass`). The type controls the default SLA, priority, and whether a client site is required.
+   - **Location of Interest (LOI)** — enter the full street address. The system geocodes it automatically and displays a map pin preview. The LOI is the spatial anchor of the job — it is always required. For alarm/guarding jobs, selecting a **Client Site** populates the LOI automatically from the site address.
+   - **Client Site** (optional) — required only for alarm response and guarding jobs; not required for noise, parking, or freedom camping jobs.
+   - **Service Agreement** — select the contract that governs this job. This determines the payer, SLA timer, and whether auto-dispatch is permitted.
+   - **Priority** — `low` / `normal` / `high` / `urgent`
+   - **Briefing notes** — visible to the assigned resource
+   - **Response SLA** — auto-populated from the service agreement; override if needed
+3. Click **Create Job** — the job appears in the queue with status `pending` and the SLA countdown starts.
+
+**Assigning a job to a Dispatch Resource:**
+
+1. Click the pending job card — it highlights with a blue selection ring.
+2. In the Resource Board, the system automatically highlights the recommended Dispatch Resource based on polygon geofence matching (the resource whose patrol area contains the LOI).
+3. Click the recommended resource, or select any other resource manually.
+4. Click **Dispatch** — the job moves to `dispatched` status and the officer assigned to that run receives an in-app push notification.
+
+> **Manual override**: A dispatcher can override the auto-recommended resource at any time before the job reaches `en_route` status. Use the **Reassign** option on the job card.
+
+**Job lifecycle state machine:**
+
+```
+PENDING → DISPATCHED → ACKNOWLEDGED → EN_ROUTE → ON_SCENE → COMPLETED
+                                                         ↓
+                                               (at any stage) → CANCELLED
+```
+
+| Status | Meaning | Triggered by |
+|---|---|---|
+| `pending` | Created, awaiting resource assignment | Admin (console, wizard, or client portal) |
+| `dispatched` | Assigned to a Dispatch Resource | Admin dispatch action |
+| `acknowledged` | Assigned officer confirmed receipt | Officer (field portal) |
+| `en_route` | Officer is travelling to the scene | Officer (field portal) |
+| `on_scene` | Officer has arrived | Officer (field portal) or geofence trigger |
+| `completed` | Job closed with outcome | Officer or admin |
+| `cancelled` | Cancelled before completion | Admin |
+
+**SLA management:**
+- The SLA clock starts at `created_at` and targets `on_scene_at ≤ created_at + sla_minutes`
+- Jobs approaching SLA breach turn **amber** at 75% of the SLA window elapsed
+- Jobs that exceed the SLA turn **red** and are flagged `sla_breached = true`
+- SLA breaches increment the `escalation_level` counter and surface on the Dispatch Monitor
+
+**UI behaviour for drag-and-drop assignment:**
+- Drag a job card from the queue onto a resource card in the Resource Board to assign it
+- For accessibility: every drag action has a non-drag alternative — click the job card, then click a resource, then click the **Assign** button that appears
+- Assigned resources are highlighted green; resources at capacity are amber; offline resources are grey
+
+---
+
+###### Dispatch Monitor (`/dispatch-monitor`)
+
+Supervisor-level read-only overview of the entire job queue. Intended for control room displays or secondary supervisors who need to observe without interacting.
+
+**UI Layout:**
+
+- Left panel: all active jobs grouped by status with SLA timers
+- Right panel: live officer/resource map showing GPS positions and job assignments
+- Top strip: live KPI tiles — Active Jobs · SLA Breached · Available Resources · On Scene
+
+No assignment or editing controls — use the Dispatch Console for those actions.
+
+---
+
+###### Dispatch Wizard (`/dispatch-wizard`)
+
+Guided step-by-step job creation for complex or multi-resource situations (e.g. large events, multi-zone incidents requiring backup).
+
+**Steps:**
+1. **Situation type** — select a scenario from the pre-defined list (noise event, suspicious vehicle, medical assist, community welfare, etc.)
+2. **Location** — enter address or drop pin on the map; the system shows matching patrol run areas overlaid
+3. **Resource selection** — the wizard recommends resources by GPS proximity and service type; dispatcher confirms or overrides
+4. **Briefing notes** — free-text briefing for all assigned resources
+5. **Review & dispatch** — confirm the job(s); supports **multi-resource dispatch** in one workflow (e.g. primary officer + backup + supervisor notification)
+
+---
+
+###### Dispatched Jobs List (`/dispatched-jobs`)
+
+Full historical record of all dispatch jobs.
+
+- Filterable by: status, job type, dispatch resource, zone, client site, date, SLA breach flag
+- Each row links to the full job detail view (timeline, officer updates, GPS trace, evidence, outcome)
+- **Export CSV** for reporting and billing
+- SLA breach rate summarised at the top
+- Service Agreement usage breakdown available via the **By Contract** view toggle
+
+---
+
+###### Client Portal Job Submission
+
+Clients with an approved **Service Agreement** that has `allows_client_submission = true` can submit jobs from the Client Portal.
+
+**Submission modes (controlled per Service Agreement):**
+
+| Mode | Setting | Behaviour |
+|---|---|---|
+| **Disabled** | `allows_client_submission = false` | Submit button is hidden in the client portal |
+| **Approval required** | `allows_client_submission = true`, `allows_auto_dispatch = false` | Job is created as `pending_approval`; dispatch team reviews and approves before it enters the live queue |
+| **Auto-dispatch** | `allows_client_submission = true`, `allows_auto_dispatch = true` | Job is created and immediately dispatched to the nearest available resource; used for alarm monitoring centres |
 
 ---
 
@@ -365,31 +1228,196 @@ The full operational dashboard. Contains:
 
 ##### Finance & Business
 
-| Page | Path | Purpose |
+| Page | Path | How to navigate |
 |---|---|---|
-| Invoicing | `/invoicing` | Create, manage, and export invoices |
-| Pricing Page | `/pricing` | Subscription and service pricing |
-| CRM Module | `/crm` | Client accounts, contacts, and opportunities |
-| Tender Workspace | `/tenders` | RFP and tender management |
-| Tender Reference Library | `/tender-library` | Clause and template library for tenders |
+| Invoicing | `/invoicing` | Sidebar → Finance → Invoicing |
+| Pricing Page | `/pricing` | Sidebar → Finance → Pricing (master only) |
+| CRM Module | `/crm` | Sidebar → Business → CRM |
+| Client Account Detail | `/crm/client/:orgId` | Click any client row in CRM |
+| Contractor Account Detail | `/crm/contractor/:orgId` | Click any contractor row in CRM |
+| Tender Workspace | `/tenders` | Sidebar → Business → Tenders |
+| Tender Reference Library | `/tender-library` | Sidebar → Business → Tender Library |
+
+---
+
+###### CRM Module (`/crm`)
+
+The CRM module is the relationship management hub for all client and contractor accounts.
+
+**Navigating to CRM:**  
+Sidebar → Business → **CRM** (or go directly to `/crm`)
+
+**Layout:** Two tabs — **Accounts** and **Contacts**.
+
+**Accounts tab:**
+- Shows all organisations in the system typed as `client` or `contractor` with: name, type, parent organisation, active status, insurance status, and H&S policy status.
+- Use the **type filter** at the top to switch between Clients and Contractors.
+- Use the **search bar** to find by name.
+- Click any row to open the account detail page:
+  - **Client account** → opens `OrganizationProfile` page with enforcement metrics, site list, and contact details
+  - **Contractor account** → opens `ContractorAccountPage` with service agreement status, insurance expiry, H&S policy expiry, guard hourly rate, and compliance certifications
+
+**Contacts tab:**
+- All user profiles linked to client and contractor organisations
+- Shown with: name, role, organisation, phone, email
+- Click a contact row to open their profile
+
+**Creating a new client account:**
+1. Navigate to `/crm` → Accounts tab → click **+ New Client**.
+2. A new `organization` record is created with type `client`.
+3. Fill in: organisation name, contact email, contact phone, parent organisation (if applicable).
+4. Save — the new client appears in the CRM list and can be linked to client sites.
+
+---
+
+###### Invoicing (`/invoicing`)
+
+**Navigating to Invoicing:**  
+Sidebar → Finance → **Invoicing**
+
+The invoicing module manages billing for all contracted services.
+
+**Invoice workflow:**
+
+1. Navigate to `/invoicing` — the invoice list shows all invoices with status: `draft`, `sent`, `paid`, `overdue`, `void`.
+2. **To create a new invoice:**
+   - Click **+ New Invoice**
+   - Select the **client organisation** being billed
+   - Set the **billing period** (date range)
+   - The system pulls timesheet data, dispatch job counts, infringement notice counts, and on-call pay records for the period and pre-populates the line items
+   - Add/edit/remove line items as needed
+   - Set payment terms (default: 14 days)
+   - Click **Save as Draft** or **Send** to email the invoice to the client
+3. **Tracking payment**: Update the invoice status to `paid` when payment is received, or `overdue` if the payment deadline passes.
+4. **Export**: Use **Export PDF** to download a print-ready invoice, or **Export CSV** to export the line items for accounting.
+
+---
+
+###### Tender Workspace (`/tenders`)
+
+**Navigating to Tenders:**  
+Sidebar → Business → **Tenders** (master role required)
+
+The Tender Workspace manages RFP (Request for Proposal) and tender submissions.
+
+**Workflow:**
+1. Create a new tender from the **+ New Tender** button.
+2. Fill in: tender title, issuing council/client, due date, service type, estimated contract value.
+3. Use the **Clause Library** (`/tender-library`) to pull pre-approved clauses directly into the document — eliminates copy/paste errors and ensures approved language is used.
+4. Assign a **lead author** and any **co-authors** from the user list.
+5. Track status through: `draft` → `in_review` → `submitted` → `awarded` / `declined`.
+6. Attach supporting documents (certifications, evidence, pricing schedules) to the tender record.
+
+---
+
+##### Reports & Analytics
+
+**How to navigate:**  
+Sidebar → **Reports** group.
+
+| Page | Path | How to navigate |
+|---|---|---|
+| Reports Hub | `/reports-hub` | Sidebar → Reports → Hub |
+| Pre-Built Reports | `/reports` | Sidebar → Reports → Reports |
+| Custom Report Builder | `/custom-reports` | Sidebar → Reports → Custom |
+| Observations | `/observations` | Sidebar → Records → Observations |
+| Observations Report | `/observations-report` | Sidebar → Reports → Observations |
+| Observation Records | `/observation-records` | Sidebar → Records → Observation Records |
+| Incident Reports | `/incident-reports` | Sidebar → Reports → Incidents |
+| Incident Management | `/incidents` | Sidebar → Records → Incidents |
+| AI Analysis | `/ai-analysis` | Sidebar → AI & Intelligence → Analysis |
+| Compliance Analytics | `/admin/compliance-analytics` | Sidebar → Compliance → Analytics |
+| Audit Log | `/audit-log` | Sidebar → Platform → Audit Log |
+
+---
+
+###### Reports Hub (`/reports-hub`)
+
+The Reports Hub is the starting point for all reporting. It shows:
+- **Recent reports** — last 5 reports generated by your organisation
+- **Scheduled reports** — reports configured to generate automatically on a schedule
+- **Quick access tiles** — one-click access to the most common reports (Compliance Summary, Breach Report, Officer Activity, Patrol KPIs, Infringement Register)
+
+**Generating a report:**
+1. Click any report tile or navigate to `/reports`.
+2. Set the **date range** and **organisation** using the filter controls.
+3. Click **Generate** — the report renders in the browser within seconds.
+4. Click **Export PDF** or **Export CSV** to download.
+5. Click **Schedule** to configure the report to generate automatically (daily, weekly, monthly) and email it to specified recipients.
+
+---
+
+###### Custom Report Builder (`/custom-reports`)
+
+Build reports from any combination of available data domains.
+
+**Workflow:**
+1. Navigate to `/custom-reports` → **+ New Report**.
+2. **Select data source** — choose from: observations, breaches, notices, patrols, incidents, dispatch jobs, timesheets, NZSCV checks.
+3. **Choose columns** — drag fields from the available field list into the column builder. Reorder by dragging.
+4. **Add filters** — filter by zone, officer, status, date range, or any field value.
+5. **Preview** — see a live preview of the first 20 rows.
+6. **Save** the report template with a name — it appears in the Reports Hub for one-click regeneration.
+7. **Export** current results as CSV or PDF.
+
+---
+
+###### AI Analysis (`/ai-analysis`)
+
+Bob AI-generated insights for compliance patterns, breach hotspots, and enforcement effectiveness.
+
+**How to use:**
+1. Navigate to Sidebar → AI & Intelligence → **Analysis**.
+2. Select an **analysis type**: Compliance Trend · Breach Hotspot · Officer Productivity · Zone Risk Score · Seasonal Patterns.
+3. Set the date range and zone filter.
+4. Click **Analyse** — Bob processes the data and returns a structured analysis with:
+   - Executive summary (2–3 sentences)
+   - Key findings (bullet list)
+   - Data visualisation (chart or map)
+   - Recommended actions
+5. All analyses are logged in the audit trail. Significant findings can be **published** to the Compliance Dashboard as a permanent insight record.
+
+> **Human approval required**: Bob's recommendations are advisory. No data is changed until a human administrator explicitly approves and applies a recommended action.
 
 ---
 
 ##### Data Management
 
+**How to navigate:**  
+Sidebar → **Data** group.
+
 | Page | Path | Purpose |
 |---|---|---|
-| Data Management Hub | `/data-management-hub` | Central data management landing page |
-| Data Management | `/data` | Import/export and data overview |
-| Import Data | `/import-data` | Import scan, breach, or vehicle data |
+| Data Management Hub | `/data-management-hub` | Central landing page |
+| Import Data | `/import-data` | Import scan, breach, or vehicle records |
 | Import Historical Data | `/import-historical` | Batch import of historical records |
-| Cleanup and Recalculate | `/cleanup-recalculate` | Remove duplicate records and recalculate compliance scores |
-| Photo Reingest | `/photo-reingest` | Reprocess failed or missing plate photos |
-| Evidence Photo Linker | `/evidence-photo-linker` | Manually link orphaned photos to scan records |
+| Cleanup and Recalculate | `/cleanup-recalculate` | Remove duplicates, recalculate compliance |
+| Photo Reingest | `/photo-reingest` | Reprocess failed plate photos |
+| Evidence Photo Linker | `/evidence-photo-linker` | Manually link orphaned photos to scans |
 | Data Cleanup Utility | `/data-cleanup` | Targeted data-quality tools |
-| Data Integrity Dashboard | `/data-integrity` | Monitor data health metrics |
-| Person Records | `/person-records` | Canonical person registry management |
+| Data Integrity Dashboard | `/data-integrity` | Live data health metrics |
+| Person Records | `/person-records` | Canonical person registry |
 | Face Recognition | `/face-recognition` | AI face recognition management |
+
+---
+
+###### Importing Data (`/import-data`)
+
+**When to use:** When migrating from another system, or when bulk-loading historical enforcement records.
+
+**Workflow:**
+1. Navigate to Sidebar → Data → **Import Data**.
+2. Click **+ New Import**.
+3. Select the **record type**: observations, breach alerts, infringement notices, vehicle records, person records.
+4. Download the **CSV template** for the selected type — this shows the required columns and format.
+5. Prepare your data file using the template.
+6. Upload the CSV — the system validates each row and shows a preview of what will be imported.
+7. Fix any validation errors highlighted in red (invalid plate formats, missing required fields, duplicate records).
+8. Click **Confirm Import** — records are staged in `import_staging` and reviewed before being committed.
+9. Review the staged import — approve or reject individual rows if needed.
+10. Click **Commit** to write approved records to the live tables.
+
+**After importing:** Navigate to `/cleanup-recalculate` and run a compliance recalculation for the imported date range to ensure breach records are correctly generated from the imported observations.
 
 ---
 
@@ -422,16 +1450,68 @@ The Admin Officer role is designed for supervisors who both manage compliance fr
 ### 4.3 NZSCV Monitor
 
 **Role code**: `nzscv_monitor`  
-**Access**: Restricted to the NZSCV Vehicle Registry monitor and basic account pages.
+**Access**: Restricted to the NZSCV Vehicle Registry monitor and basic account pages.  
+**Landing page**: `/admin/nzscv`
 
-This read-only role is for users who only need to check the New Zealand Self-Contained Vehicle (NZSCV) certification database.
+This read-only role is for staff who only need to check and monitor the New Zealand Self-Contained Vehicle (NZSCV) certification database — for example, a council officer who validates SCV status but does not manage enforcement.
 
-**Available pages:**
-- `/admin/nzscv` — NZSCV status monitor
-- `/vehicle-registry` — Read-only vehicle registry
-- `/search` — Universal search
-- `/profile` — Own profile
-- `/settings` — Account settings
+#### How to navigate as NZSCV Monitor
+
+After login, you land directly on the NZSCV Monitor page. The sidebar shows only the pages available to your role:
+
+| Sidebar item | Path | Purpose |
+|---|---|---|
+| NZSCV Monitor | `/admin/nzscv` | SCV status dashboard |
+| Vehicle Registry | `/vehicle-registry` | Browse known vehicle records |
+| Search | `/search` | Universal search across accessible records |
+| Profile | `/profile` | Your account settings |
+| Settings | `/settings` | Account preferences |
+
+#### NZSCV Monitor Page (`/admin/nzscv`)
+
+The NZSCV Monitor is a live dashboard showing the SCV certification status of all vehicles active in the system.
+
+**Page layout:**
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  ENFORCEMENT COUNTDOWN TILE                                  │
+│  "SCV check mandatory in 12 days (Zone: Nelson Riverside)"  │
+├──────────────────────────────────────────────────────────────┤
+│  STATUS SUMMARY TILES                                        │
+│  Certified: 142  │  Expired: 8  │  Unknown: 23  │  Exempt: 5│
+├──────────────────────────────────────────────────────────────┤
+│  VEHICLE LIST  (filtered by active zone and date range)      │
+│  Plate │ Make/Model │ SCV Status │ Expiry │ Zone │ Last seen │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**Checking a specific vehicle's SCV status:**
+1. Type the plate number in the **Search** bar at the top of the vehicle list.
+2. The system queries the NZSCV API in real time and returns the current certification status within seconds.
+3. The result shows: certificate number, expiry date, vehicle class, and whether the certification is valid for the zone's SCV requirement.
+
+**Checking a vehicle that is not in the system:**
+1. Click **+ Ad-Hoc Check** in the top-right.
+2. Enter the plate number.
+3. Click **Check NZSCV** — the result is returned from the NZSCV API and displayed. The result is not stored permanently (no enforcement record is created).
+
+**Understanding SCV statuses:**
+
+| Status | Meaning |
+|---|---|
+| 🟢 `certified` | Valid SCV certificate exists and is not expired |
+| 🔴 `expired` | Certificate exists but expiry date has passed |
+| ⚫ `not_found` | Plate is not registered in the NZSCV database |
+| ⚪ `unknown` | Query returned no definitive result (retry recommended) |
+| 🟡 `exempt` | Vehicle or zone is exempt from SCV requirement |
+| 🔵 `pending` | Certificate application in progress |
+
+**Enforcement countdown:**  
+The countdown tile shows the date when the next **mandatory SCV check cycle** is due for each active zone. This date is configured per zone by the admin. When the countdown reaches zero, the system flags all vehicles in that zone without a valid certificate as non-compliant, even if no breach scan has been processed.
+
+**Bulk refresh:**  
+Click **Bulk Refresh** to re-query NZSCV for all vehicles active in the selected zone and date range. This re-confirms the current certification status for all known vehicles. The operation may take several minutes for large zones.
 
 ---
 
@@ -569,27 +1649,74 @@ For council and private parking enforcement operations.
 **Service type**: `noise`  
 **Portal path**: `/noise-officer`
 
-For after-hours noise control operations under the Resource Management Act 1991.
+For after-hours noise control operations under the Resource Management Act 1991 (RMA).
 
-#### Noise Assessment Workflow
+#### Receiving a Job
 
-1. Receive a complaint from dispatch or create a new attendance record.
-2. **Bob AI Assessment**: Tap **Assess with Bob** — Bob analyses the complaint context and suggests the appropriate notice type (Abatement, Direction, or Enforcement).
-3. Choose the notice type:
+Noise control officers receive jobs via the Dispatch Console. When dispatched, the officer's portal displays an incoming job notification with: address, priority, complaint description, and any prior notice history at that address.
 
-| Notice | When to issue |
-|---|---|
-| **Abatement Notice** | First attendance — occupant must reduce noise |
-| **Direction Notice** | Prior Abatement Notice exists and noise has recurred |
-| **Enforcement Notice** | Serious, persistent, or uncooperative occupant |
+**Respond to the dispatch:**
+1. From the portal home screen, the incoming job card appears at the top with a pulsing amber border.
+2. Tap **Acknowledge** — the job status updates to `acknowledged` and the SLA timer advances.
+3. Tap **En Route** when you start travelling — the GPS trace begins.
+4. Tap **On Scene** when you arrive — the job status updates and the scene assessment form unlocks.
 
-4. Complete the notice form with:
-   - Address
-   - Offence description (specific and accurate)
-   - Legal basis (`RMA 1991 s.326` or `s.327`)
-   - Officer details
-5. Issue and print the notice.
-6. Log the outcome (noise abated, refused, escalated, etc.).
+#### Scene Assessment
+
+1. **Review the context panel** — the system shows prior notice history at this address:
+   - If a **Permanent END** is in place → a red **SEIZURE AUTHORITY ACTIVE** banner is shown prominently at the top. Any noise in breach may be seized immediately.
+   - If a prior END exists → a red banner recommends escalating to a new END.
+   - If a prior AN exists → an amber banner recommends a Direction Notice (DN).
+   - If this is a first contact → the green pathway suggests verbal warning or AN.
+   - If an H&S flag is set on the address → a yellow safety panel is shown. Read the safety brief before approaching.
+2. Complete the **Assessment tab**:
+   - Enter the decibel reading (if you have a sound meter)
+   - Select the noise source (music, power tools, vehicle, animal, industrial, etc.)
+   - Take scene photos and upload them — photos are essential evidence for any notice above a verbal warning
+   - Enter a scene description
+
+#### Noise Enforcement Decision Path
+
+```
+First contact at address?
+  YES → Verbal warning first
+         → Noise stops? → Close job
+         → Noise continues or occupant refuses?
+              → Issue Abatement Notice (AN) — RMA s.326, 24-hour comply
+  NO  → Prior notice history exists
+         → Prior verbal only → Issue Abatement Notice (AN)
+         → Prior AN → Issue Direction Notice (DN) — immediate compliance
+         → Prior AN or DN, serious/persistent → Issue Enforcement Notice (END) — RMA s.327, 72-hour comply
+         → END issued, noise continues after 72 hrs → Seize equipment (document all items + photos, contact supervisor)
+         → Permanent END in place → Immediate seizure authority — assess scene → seize if noise present
+```
+
+#### Issuing Notices
+
+1. In the **Action** section, select the appropriate notice type.
+2. Confirm the pre-filled fields:
+   - Recipient name and address
+   - Offence description (be specific — describe the noise, its character, and its unreasonable nature)
+   - Legal basis (auto-populated: AN = `RMA s.326(1)(a)`, END = `RMA s.327`)
+   - Comply-by period: AN = 24 hours (default), DN = immediate, END = 72 hours
+3. Click **Issue Notice** — the notice is saved. Click **Print** to produce the printed document.
+4. Hand the notice to the occupant or affix it to the property entrance.
+
+**Equipment Seizure (END only):**  
+When issuing an END or responding to a Permanent END:
+1. A **Seizure** section appears after the END is issued.
+2. Record each item seized: make, model, serial number.
+3. Photograph each item.
+4. Contact your supervisor to arrange secure storage.
+5. Update the job status to `completed` with outcome `equipment_seized`.
+
+#### Completing the Job
+
+1. Tap **Update Status** → select the outcome: `noise_abated`, `notice_issued`, `refused_to_comply`, `equipment_seized`, `no_evidence_of_noise`, `escalated`.
+2. The job status moves to `completed`.
+3. The full job record — assessment, photos, notices, timestamps — is automatically available in the admin portal.
+
+> **Evidence reminder**: Photos and decibel readings are legally significant. Always capture them at the scene before issuing any notice above a verbal warning.
 
 ---
 
@@ -598,16 +1725,37 @@ For after-hours noise control operations under the Resource Management Act 1991.
 **Service type**: `biosecurity_inspection`  
 **Portal path**: `/biosecurity-officer`
 
-For biosecurity compliance inspections.
+For biosecurity compliance inspections, primarily focusing on Chilean Needlegrass (*Nassella neesiana*) identification and management under the Biosecurity Act 1993.
+
+#### Receiving a Job
+
+Biosecurity jobs are dispatched from the admin portal. The officer receives a notification with: site address, inspection type, priority, and any prior notice history.
+
+1. Tap **Acknowledge** → **En Route** → **On Scene** as you travel and arrive.
+2. The context panel shows: prior notice count, management plan status, and any safety notes.
 
 #### Inspection Workflow
 
-1. Navigate to the inspection site.
-2. Complete the inspection form fields (pest records, hygiene, compliance items).
-3. **Bob AI Assessment**: Bob analyses inspection inputs and flags high-risk items for escalation.
-4. Issue an **Abatement Notice** or **Enforcement Notice** as required.
-5. Attach photographic evidence.
-6. Submit the inspection report — auto-routed to the compliance dashboard.
+1. **Photograph the specimen** — take clear photos of the plant (whole plant, leaf detail, seed heads if present).
+2. Tap **Identify with Bob** — Bob AI analyses the photo against the *Nassella neesiana* identification checklist:
+   - Species confirmation (tightly rolled leaves, distinctive seed head)
+   - Density estimate (scattered / moderate / dense)
+   - Seed head presence (indicates high spread risk — triggers immediate escalation recommendation)
+   - Land-use context
+3. **Confirm the AI checklist** — review each item Bob identified and confirm or correct it. You are the authorised officer; Bob is advisory.
+4. Select an **Action**:
+
+| Action | When to use |
+|---|---|
+| **No Action** | Not confirmed *Nassella neesiana*, or within an existing management plan area |
+| **Advisory Notice** | First detection; landowner cooperative; management plan required |
+| **Notice of Direction (NOD)** | Prior advisory ignored; landowner uncooperative; or high-density infestation |
+| **Infringement Notice** | Persistent non-compliance |
+| **Referral to MPI** | Large-scale or cross-boundary infestation requiring central government response |
+
+5. For notices: confirm the pre-filled form (legal basis, recipient, comply-by period).
+6. Click **Issue Notice** → **Print**.
+7. Update job status with outcome.
 
 ---
 
@@ -616,15 +1764,59 @@ For biosecurity compliance inspections.
 **Service type**: `smoke_complaint_ooh`  
 **Portal path**: `/smoke-officer`
 
-For out-of-hours smoke complaint response.
+For out-of-hours smoke complaint response under the Resource Management Act 1991 s.17A.
 
-#### Smoke Complaint Workflow
+#### Receiving a Job
 
-1. Receive a complaint reference from dispatch.
-2. Attend the address and assess the situation.
-3. **Bob AI Assessment**: Bob analyses the complaint type (domestic burning, industrial, nuisance) and recommends a response pathway.
-4. Issue the appropriate notice or log a no-action outcome.
-5. Complete the post-attendance report.
+Smoke complaint jobs are dispatched from the admin portal or received via the council's after-hours call centre. The job card shows: address, suburb, complaint source (neighbour, council hotline, self-report), priority, whether out-of-hours flag is set, and any repeat-offender flag.
+
+1. Tap **Acknowledge** → **En Route** → **On Scene** as you progress.
+
+#### Six-Step On-Scene Assessment
+
+The portal guides you through six structured steps:
+
+**Step 1 — GPS Confirmation**  
+Confirm your GPS position is at the correct address. The system shows your current coordinates against the job address. Tap **Confirm Location**.
+
+**Step 2 — Media Capture**  
+Photograph and/or video the smoke source. This is essential evidence. Tap **Capture Photo** or **Capture Video**. Upload at minimum one photo before proceeding.
+
+**Step 3 — Bob AI Assessment**  
+Tap **Assess with Bob**. Bob analyses the complaint context, photos, time of day, and address history to recommend a response pathway:
+- Domestic solid fuel burning (acceptable/unacceptable conditions)
+- Industrial or commercial source
+- Vehicle exhaust
+- Agricultural burning (permit required or exempted)
+- Nuisance burning (no permit, unreasonable effect)
+
+Review Bob's recommendation. Bob is advisory — you confirm the assessment.
+
+**Step 4 — Checklist**  
+Complete the structured checklist:
+- Is the smoke visible and excessive?
+- Is the source identified?
+- Is the burning type controlled/permitted?
+- Is the wind direction carrying smoke to neighbouring properties?
+- Is the time of day within unreasonable hours (after 8pm default)?
+
+**Step 5 — Action Selection**  
+Select the appropriate action:
+
+| Action | When to use |
+|---|---|
+| **No Action** | Burning is lawful, permitted, or smoke has ceased |
+| **Verbal Warning** | First contact; occupant cooperative; smoke reducing |
+| **Abatement Notice** | Persistent or unreasonable burning; RMA s.17A |
+| **Infringement Notice** | Repeat offence or non-compliance after Abatement Notice |
+| **Prosecution Referral** | Serious or persistent commercial/industrial violation |
+
+**Step 6 — Notice Generation & Close**  
+If a notice was selected:
+1. Confirm the pre-filled notice form (recipient, offence description, legal basis, comply-by period).
+2. Click **Issue Notice** → **Print**.
+3. Deliver the notice or affix to property entrance.
+4. Update job status with outcome.
 
 ---
 
@@ -633,68 +1825,246 @@ For out-of-hours smoke complaint response.
 **Service type**: `ems`  
 **Portal path**: `/ems`
 
-For Electronic Monitoring (EM) bail device management.
+For Electronic Monitoring (EM) bail and sentence supervision device management. EMS officers are contracted by the Department of Corrections or Oranga Tamariki to fit, maintain, and respond to alerts from GPS/radio-frequency ankle monitoring devices.
 
-#### EMS Operations
+#### Starting an EMS Shift
 
-| Task | Steps |
-|---|---|
-| **Device Fit** | Log the device serial number, recipient details, GPS anchor address, and fit conditions |
-| **Device Check** | Scan device QR code to log a welfare check and signal quality assessment |
-| **Device Removal** | Record the removal with reason, condition, and return details |
-| **Tamper Alert Response** | Respond to system-generated tamper alerts — log attendance, outcome, and evidence |
+1. Navigate to `/ems` or wait for auto-routing from your rostered EMS shift.
+2. The portal home screen shows your assigned **monitoring roster** — the list of participants you are responsible for during this shift.
+3. Review the **Alert Queue** first — any tamper alerts, out-of-zone alerts, or missed check-ins from your participants are shown at the top with urgency level.
+
+#### EMS Portal Layout
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  TOP TABS:  Alert Queue │ My Roster │ Device Fits │ History   │
+├──────────────────────────────────────────────────────────────┤
+│  ALERT QUEUE (default):                                      │
+│  • Severity badge (Critical / High / Standard)               │
+│  • Participant name (de-identified code if policy requires)  │
+│  • Alert type: tamper, zone breach, missed check-in, low battery│
+│  • Alert time                                                │
+│  • [Respond] [Acknowledge] [Escalate]                        │
+└──────────────────────────────────────────────────────────────┘
+```
+
+#### Key EMS Tasks
+
+**Device Fit:**
+1. Navigate to **Device Fits** tab → **+ New Fit**.
+2. Enter or scan the device serial number.
+3. Fill in:
+   - Participant ID (or link to person record)
+   - Anchor address (GPS anchor for home-detention zone boundary)
+   - Fit conditions (approved leave windows, curfew hours)
+   - Supervising agency reference number
+4. Attach a photo of the fitted device.
+5. Click **Save Fit** — the device is activated and monitoring begins.
+
+**Device Check (welfare / compliance check):**
+1. Tap the participant's name in the roster.
+2. Tap **Log Device Check**.
+3. Scan the device QR code if on-site, or use the manual entry form.
+4. Record:
+   - Signal quality (strong / weak / no signal)
+   - Physical condition of the device
+   - Any damage or tampering observed
+   - Whether the participant is present
+5. Submit the check — the record is saved with your GPS location and timestamp.
+
+**Device Removal:**
+1. Navigate to the participant record → **Remove Device**.
+2. Record: removal reason (sentence completed, court order, device fault), device condition, and return details.
+3. Submit — the device is deactivated and the monitoring record is closed.
+
+**Responding to a Tamper Alert:**
+1. The alert appears in the **Alert Queue** with a **Critical** badge.
+2. Tap **Respond** — the job status changes to `acknowledged`.
+3. Travel to the participant's anchor address.
+4. On scene: assess the device.
+5. Select outcome: `false_alarm`, `physical_damage`, `deliberate_tamper`, `device_fault`.
+6. For deliberate tamper: photograph the device, contact the supervising agency, and complete a written report.
+7. Update the alert with outcome and close.
 
 ---
 
 ## PART D — Client Organisation
 
-Client users access a read-only portal scoped to their own organisation's contracted sites and services.
+Client users access a portal scoped to their own organisation's contracted sites and services. No enforcement records can be created, edited, or deleted by client users — the portal is primarily a live operational transparency tool.
+
+**Landing page:** `/client-portal`
+
+**How to navigate to the Client Portal:**  
+After login, client users are automatically routed to `/client-portal`. There is no portal selection step.
+
+**Portal navigation structure (sidebar):**
+
+| Sidebar section | Pages available |
+|---|---|
+| Overview | Dashboard (KPI tiles + activity feed) |
+| Operations | Sites Overview, Guard Activity Feed |
+| Enforcement | Infringements, Notices to Vacate |
+| Records | Observations, Risk Assessments |
+| Reports | Compliance summary report, Export |
+| Support | Contact service provider, Dispute a notice |
 
 ### 6.1 Client Viewer
 
 **Role code**: `client_viewer`  
 **Access**: Read-only. All data scoped to their organisation. Route: `/client-portal`.
 
-#### Client Portal Modules
+#### Client Portal Dashboard
 
-| Module | Description |
+The dashboard is the first screen after login. It shows:
+
+| Tile | Description |
 |---|---|
-| **Guard Activity Feed** | Chronological list of all officer scan and incident events at their sites |
-| **Compliance KPI Tiles** | Summary metrics: scans today, active breaches, compliance rate, incidents open |
-| **Sites Overview** | Status of each contracted site with guard coverage indicator |
-| **Infringements** | All infringement notices issued at their sites |
-| **Risk Assessments** | Site risk assessment records |
-| **Observations** | Officer observation records relevant to their sites |
-| **Contact** | Service provider contact details and escalation contacts |
+| **Sites Online** | Number of contracted sites with active guard coverage right now |
+| **Scans Today** | Total vehicle scans completed at your sites today |
+| **Active Breaches** | Vehicles currently in breach status at your sites |
+| **Compliance Rate** | % of scanned vehicles that are compliant today |
+| **Open Incidents** | Incidents logged at your sites in the last 7 days |
 
-Clients cannot create records, issue notices, or modify any data. All views update in real time as officers complete work.
+Below the KPI tiles, the **Live Activity Feed** shows real-time events at your sites — each card shows: officer name, site, event type (scan, checkpoint, incident), time, and outcome. The feed updates automatically.
+
+#### Sites Overview
+
+**How to navigate:**  
+Client Portal sidebar → Operations → **Sites**
+
+Each contracted site is shown as a card with:
+- Site name and address
+- Current guard status (On Duty / Unattended / Shift Ending Soon)
+- Today's scan count
+- Active breach count
+- Last officer activity timestamp
+
+Click a site card to see that site's full activity history, current officer on duty, and any open incidents.
+
+#### Infringement Notices
+
+**How to navigate:**  
+Client Portal sidebar → Enforcement → **Infringements**
+
+All infringement notices issued at your contracted sites. Read-only.
+
+- Filterable by site, date range, and status
+- Click a notice row to see the full notice details, evidence photos, and current status
+- **Dispute a notice**: If a notice should not have been issued (e.g. wrong vehicle, valid permit not checked), click **Request Dispute Review** on the notice detail page — this opens a message to the service provider, not the public dispute portal
+
+#### Reporting
+
+**How to navigate:**  
+Client Portal sidebar → Reports
+
+Click **Generate Compliance Report** to download a PDF or CSV compliance summary for your sites for any date range. Reports include: scan counts, breach rates, notice counts, incident counts, and officer patrol hours.
 
 ---
 
 ### 6.2 Client Officer
 
 **Role code**: `client_officer`  
-**Access**: Same as Client Viewer. In some configurations, a Client Officer may log incidents from the client portal. Access is determined by their organisation's settings.
+**Access**: Same as Client Viewer plus the ability to log incidents from the client portal.
+
+**Additional capability:**  
+From any site detail page or from the guard activity feed, a Client Officer can tap **+ Log Incident** to record an incident they have personally observed (e.g. property damage, suspicious behaviour). This incident is immediately visible to the service provider in the admin portal.
 
 ---
 
 ### 6.3 Client Admin
 
 **Role code**: `client_admin`  
-**Access**: Client portal plus the ability to manage client-side contacts and site access settings. This role can:
-- Add/update site contact information
-- Request additional users for their organisation (subject to service provider approval)
-- View and respond to disputes
+**Access**: Client portal plus site contact management and limited administrative functions.
+
+**Additional capabilities:**
+
+| Capability | How to access |
+|---|---|
+| Add / update site contact information | Client Portal → Sites → [Site name] → Contacts tab → Edit |
+| Request additional portal user accounts | Client Portal → sidebar → Settings → Users → Request User |
+| View and comment on disputes | Client Portal → Enforcement → Disputes |
+| Download invoices (if billing integration enabled) | Client Portal → Settings → Invoices |
+
+Requested user accounts require approval from the service provider before becoming active.
 
 ---
 
-## PART E — Technical Reference (Systems Administrator)
+## PART E — Public Portals
+
+### 7.1 Public Dispute Submission Portal
+
+**URL**: `https://fcmanager.co.nz/dispute`  
+**Who uses it**: Members of the public who have received an infringement notice and wish to formally dispute it. No account is needed.
+
+The public dispute portal is printed on every infringement notice as a URL and a QR code. It is a standalone public-facing web page separate from the main application.
+
+#### How the Public User Accesses It
+
+**Option A — QR Code (recommended):**
+1. Scan the QR code printed in the bottom-right corner of the physical infringement notice.
+2. The browser opens at `https://fcmanager.co.nz/d/<secure_token>`.
+3. The dispute form pre-fills with the ticket details (notice number and vehicle registration are not required — the QR token pre-authenticates the lookup).
+4. Skip directly to Step 3 of the workflow below.
+
+**Option B — Manual URL:**
+1. Open `https://fcmanager.co.nz/dispute` in any browser.
+2. Enter the **ticket number** (printed on the notice, format: `INF-YYYYMMDD-XXXX`) and the **vehicle registration** (licence plate).
+3. Click **Find My Ticket** — if both match a record, the dispute form opens.
+
+#### Public Dispute Form (Step by Step)
+
+**Step 1 — Ticket Confirmation**  
+The portal displays the ticket details:
+- Offence date and location
+- Offence description
+- Fine amount ($200 default)
+- Organisation name and branding (pulled from the issuing organisation)
+
+The user confirms this is their ticket.
+
+**Step 2 — Your Details**  
+The user enters:
+- Full name
+- Email address (for confirmation email)
+- Phone number (optional)
+
+**Step 3 — Grounds for Dispute**  
+A text area where the user describes why they believe the notice should be withdrawn (max 2000 characters). Guidance text explains what constitutes valid grounds (e.g. valid SCV certificate not checked, signage not visible, vehicle does not match, medical emergency).
+
+**Step 4 — Upload Evidence**  
+Optional: the user can attach up to 3 photos (PNG/JPEG/WEBP, max 10 MB each). Examples:
+- A valid SCV certificate
+- A photo of the campsite showing no prohibition signage
+- A permit issued by the council
+
+**Step 5 — Review & Submit**  
+Summary of the dispute. The user ticks a declaration box confirming the information is true. Clicks **Submit Dispute**.
+
+**Step 6 — Confirmation**  
+A confirmation screen shows a dispute reference number (format: `DS-XXXXXXXXX`). A confirmation email is sent to the address provided, including:
+- Dispute reference number
+- Summary of grounds submitted
+- Expected processing time (typically 10 working days)
+- Contact details for the issuing organisation
+
+#### What Happens After Submission
+
+1. The dispute record is created and linked to the infringement notice in the admin portal.
+2. Bob AI runs an analysis of the dispute text and evidence — the analysis result (summary and confidence score) is attached to the dispute record before an admin sees it.
+3. The notice status changes from `issued` to `under_dispute`.
+4. An alert is sent to the admin team via the Notifications Centre.
+5. An admin processes the dispute via the **Disputes** page in the admin portal (see [Disputes](#disputes-disputes)).
+6. When a decision is made, the disputant receives an email informing them of the outcome.
+
+---
+
+## PART F — Technical Reference (Systems Administrator)
 
 This section is for the systems administrator, DevOps engineer, or platform operator responsible for deploying, configuring, and maintaining FieldOps Manager.
 
 ---
 
-### 7.1 Architecture Overview
+### 8.1 Architecture Overview
 
 | Layer | Technology |
 |---|---|
@@ -730,7 +2100,7 @@ inference-service/ — ONNX AI inference (own package.json)
 
 ---
 
-### 7.2 Environment Setup
+### 8.2 Environment Setup
 
 #### Prerequisites
 
@@ -771,7 +2141,7 @@ cd inference-service && npm install && npm run dev
 
 ---
 
-### 7.3 Database & Migrations
+### 8.3 Database & Migrations
 
 The database is hosted on Supabase (PostgreSQL). Migrations are in `supabase/migrations/` prefixed by date (`YYYYMMDD_*`).
 
@@ -810,7 +2180,15 @@ supabase db push --linked
 | `canonical_vehicles` | Deduplicated vehicle registry |
 | `client_sites` | Contracted client sites (unique on `organization_id + site_code`) |
 | `person_observations` | Person scan history |
-| `bug_reports` | Manual feedback, auto error reports, live-session diagnostics |
+| `bob_conversations` | Bob AI conversation sessions per user per org |
+| `bob_messages` | Individual Bob AI messages within a conversation |
+| `on_call_periods` | On-call availability assignments per officer |
+| `callout_shifts` | Ad-hoc callout shifts triggered from on-call periods (3hr minimum pay rule) |
+| `travel_allowances` | Travel reimbursement records per callout |
+| `office_locations` | Reference points for travel distance calculations and jurisdiction boundaries |
+| `on_call_rates` | Configurable on-call rate structures per organisation |
+| `service_agreements` | Contracts governing dispatch jobs (payer, SLA, client submission mode) |
+| `dispatch_resources` | Named patrol runs / callsigns — the entity jobs are dispatched to |
 
 #### Row-Level Security (RLS)
 
@@ -831,7 +2209,7 @@ The `get_user_organization_ids()` SQL function returns the full set of org IDs a
 
 ---
 
-### 7.4 Edge Functions
+### 8.4 Edge Functions
 
 Located in `supabase/functions/<name>/index.ts`. All functions are Deno TypeScript.
 
@@ -875,7 +2253,7 @@ supabase functions deploy
 
 ---
 
-### 7.5 AI Services (Bob / Inference)
+### 8.5 AI Services (Bob / Inference)
 
 **Bob** is the in-platform AI assistant for compliance, noise, biosecurity, smoke, and operational triage.
 
@@ -892,7 +2270,7 @@ Environment variable: `OLLAMA_BASE_URL=http://ollama:11434` (use service name in
 #### Bob AI Configuration
 
 - Bob's capabilities are configured via the **Bob Assistant Studio** (`/bob-studio`) — grand_master only.
-- Bob conversations are persisted per user per org in the `conversations` and `messages` tables.
+- Bob conversations are persisted per user per org in the `bob_conversations` and `bob_messages` tables.
 - `currentConversationId` is stored in `sessionStorage` under `bob-conversation-id-${organizationId}`.
 - Bob uses `SUPABASE_SERVICE_ROLE_KEY` for background tasks (never exposed to the browser).
 - Tenant context is passed via `x-org-id` header on all Bob requests.
@@ -910,7 +2288,7 @@ Environment variable: `OLLAMA_BASE_URL=http://ollama:11434` (use service name in
 
 ---
 
-### 7.6 PTT / Push-to-Talk
+### 8.6 PTT / Push-to-Talk
 
 The PTT system provides real-time radio communication between officers and supervisors.
 
@@ -953,7 +2331,7 @@ Officers are assigned PTT channel access via the `ptt_channel_access` array on t
 
 ---
 
-### 7.7 System Diagnostics & Health
+### 8.7 System Diagnostics & Health
 
 Navigate to `/diagnostics` (`master` or `grand_master` role required).
 
@@ -1005,7 +2383,7 @@ The `useLiveSessionDiagnostics` hook (mounted globally in `App.tsx`) captures Ja
 
 ---
 
-### 7.8 User & Organisation Provisioning
+### 8.8 User & Organisation Provisioning
 
 #### Creating a New Organisation
 
@@ -1039,7 +2417,7 @@ Restrict which admin modules a user can access by setting **portal area codes** 
 
 ---
 
-### 7.9 Data Integrity & Cleanup
+### 8.9 Data Integrity & Cleanup
 
 #### Compliance Recalculation
 
@@ -1070,7 +2448,7 @@ If vehicle scan photos failed to process during capture:
 
 ---
 
-### 7.10 Security & Compliance Notes
+### 8.10 Security & Compliance Notes
 
 #### Authentication
 
