@@ -6,6 +6,9 @@ const captionsEnabled = ['1', 'true', 'yes', 'on'].includes(
 const translationsEnabled = ['1', 'true', 'yes', 'on'].includes(
   String(process.env.VITE_RADIO_TRANSLATION_ENABLED || '').toLowerCase(),
 )
+const syntheticAudioEnabled = ['1', 'true', 'yes', 'on'].includes(
+  String(process.env.VITE_RADIO_SYNTHETIC_AUDIO_ENABLED || '').toLowerCase(),
+)
 
 test.describe('radio caption confidence indicators', () => {
   test('shows low-confidence badges and header aggregate', async ({ officerUser: page }) => {
@@ -80,5 +83,46 @@ test.describe('radio caption confidence indicators', () => {
     await expect(page.getByText(/Live Translation \(en-NZ\)/i)).toBeVisible()
     await expect(page.getByText('Possible mismatch in translated phrase')).toBeVisible()
     await expect(page.getByText('1 low-confidence').first()).toBeVisible()
+  })
+
+  test('shows synthetic translated-audio relay indicators', async ({ officerUser: page }) => {
+    test.skip(
+      !captionsEnabled || !translationsEnabled || !syntheticAudioEnabled,
+      'Requires caption+translation+synthetic-audio flags enabled',
+    )
+
+    await page.goto('/radio')
+    await expect(page.getByRole('heading', { name: 'Radio' })).toBeVisible({ timeout: 20000 })
+
+    await page.evaluate(() => {
+      window.dispatchEvent(new CustomEvent('radio:inject-tts-render', {
+        detail: {
+          translationSegmentId: 'segment-fast-render',
+          targetLanguage: 'en-NZ',
+          provider: 'piper',
+          isSynthetic: true,
+          renderLatencyMs: 820,
+          durationMs: 1100,
+          storagePath: null,
+        },
+      }))
+
+      window.dispatchEvent(new CustomEvent('radio:inject-tts-render', {
+        detail: {
+          translationSegmentId: 'segment-slow-render',
+          targetLanguage: 'en-NZ',
+          provider: 'coqui-xtts',
+          isSynthetic: true,
+          renderLatencyMs: 2210,
+          durationMs: 1900,
+          storagePath: null,
+        },
+      }))
+    })
+
+    await expect(page.getByText(/Translated Audio Relay/i)).toBeVisible()
+    await expect(page.getByText(/Synthetic/i).first()).toBeVisible()
+    await expect(page.getByText(/coqui-xtts/i)).toBeVisible()
+    await expect(page.getByText('1 delayed')).toBeVisible()
   })
 })

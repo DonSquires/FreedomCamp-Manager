@@ -152,6 +152,16 @@ interface TransmissionEntry {
   isLive: boolean
 }
 
+interface SyntheticAudioRender {
+  translationSegmentId: string
+  targetLanguage: string
+  provider: string
+  isSynthetic: boolean
+  renderLatencyMs: number | null
+  durationMs: number | null
+  storagePath: string | null
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
@@ -195,6 +205,7 @@ const CONNECT_STORM_COOLDOWN_MS = 20000
 const CONNECTION_WARNING_TIMEOUT_MS = 12000
 const CAPTION_DELAY_THRESHOLD_MS = 6000
 const CAPTION_LOW_CONFIDENCE_THRESHOLD = 0.65
+const SYNTHETIC_RELAY_DELAY_THRESHOLD_MS = 1500
 
 function isLowConfidenceCaption(seg: CaptionSegment): boolean {
   return seg.isFinal
@@ -554,6 +565,7 @@ export default function PTTRadio() {
   // ── Live Captions (Phase 2 — gated by radioFeatureFlags.captionsEnabled) ──
   const [liveCaptions, setLiveCaptions] = useState<CaptionSegment[]>([])
   const [liveTranslations, setLiveTranslations] = useState<TranslationSegment[]>([])
+  const [syntheticRenders, setSyntheticRenders] = useState<SyntheticAudioRender[]>([])
   const [lastCaptionAtMs, setLastCaptionAtMs] = useState<number | null>(null)
   const [captionsDelayed, setCaptionsDelayed] = useState(false)
   const remoteTransmissionStartedAtRef = useRef<number | null>(null)
@@ -633,6 +645,31 @@ export default function PTTRadio() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!radioFeatureFlags.syntheticAudioEnabled || typeof window === 'undefined') return
+
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<SyntheticAudioRender>).detail
+      if (!detail?.translationSegmentId || !detail?.targetLanguage) return
+      setSyntheticRenders((prev) => {
+        const idx = prev.findIndex(
+          (r) => r.translationSegmentId === detail.translationSegmentId && r.targetLanguage === detail.targetLanguage,
+        )
+        if (idx >= 0) {
+          const next = [...prev]
+          next[idx] = detail
+          return next
+        }
+        return [...prev, detail].slice(-60)
+      })
+    }
+
+    window.addEventListener('radio:inject-tts-render', handler as EventListener)
+    return () => {
+      window.removeEventListener('radio:inject-tts-render', handler as EventListener)
+    }
+  }, [])
+
   const captionPipeline = captionInferenceHealth?.radioPipeline
   const captionProcessorEnabled = captionPipeline?.processor_enabled === true
   const captionUnavailableReason = captionInferenceHealth?.status === 'offline'
@@ -644,6 +681,10 @@ export default function PTTRadio() {
   const remoteTransmissionActive = Boolean(speakerId && !isSpeaking)
   const recentCaptions = useMemo(() => liveCaptions.slice(-8), [liveCaptions])
   const recentTranslations = useMemo(() => liveTranslations.slice(-6), [liveTranslations])
+  const recentSyntheticRenders = useMemo(
+    () => syntheticRenders.filter((r) => r.targetLanguage === interpreterTargetLanguage).slice(-6),
+    [interpreterTargetLanguage, syntheticRenders],
+  )
   const lowConfidenceCaptionCount = useMemo(
     () => recentCaptions.filter((seg) => isLowConfidenceCaption(seg)).length,
     [recentCaptions],
@@ -651,6 +692,10 @@ export default function PTTRadio() {
   const lowConfidenceTranslationCount = useMemo(
     () => recentTranslations.filter((seg) => seg.isLowConfidence).length,
     [recentTranslations],
+  )
+  const delayedSyntheticRenderCount = useMemo(
+    () => recentSyntheticRenders.filter((render) => (render.renderLatencyMs ?? 0) > SYNTHETIC_RELAY_DELAY_THRESHOLD_MS).length,
+    [recentSyntheticRenders],
   )
 
   useEffect(() => {
@@ -812,6 +857,77 @@ export default function PTTRadio() {
         for (const row of data) {
           const seg = toTranslationSegment(row)
           if (seg) radioTranslationService.emit(seg)
+        }
+      })
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [effectiveOrgId, interpreterTargetLanguage])
+
+  useEffect(() => {
+    if (!radioFeatureFlags.syntheticAudioEnabled || !effectiveOrgId || !interpreterTargetLanguage) return
+
+    const toSyntheticRender = (row: any): SyntheticAudioRender | null => {
+      if (!row?.translation_segment_id || !row?.target_language) return null
+      return {
+        translationSegmentId: String(row.translation_segment_id),
+        targetLanguage: String(row.target_language),
+        provider: String(row.provider || 'unknown'),
+        isSynthetic: row.is_synthetic !== false,
+        renderLatencyMs: Number.isFinite(Number(row.render_latency_ms)) ? Number(row.render_latency_ms) : null,
+        durationMs: Number.isFinite(Number(row.duration_ms)) ? Number(row.duration_ms) : null,
+        storagePath: row.storage_path ? String(row.storage_path) : null,
+      }
+    }
+
+    const upsertRender = (render: SyntheticAudioRender) => {
+      setSyntheticRenders((prev) => {
+        const idx = prev.findIndex(
+          (r) => r.translationSegmentId === render.translationSegmentId && r.targetLanguage === render.targetLanguage,
+        )
+        if (idx >= 0) {
+          const next = [...prev]
+          next[idx] = render
+          return next
+        }
+        return [...prev, render].slice(-60)
+      })
+    }
+
+    const channel = supabase
+      .channel(`radio-synthetic-renders-${effectiveOrgId}-${interpreterTargetLanguage}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'radio_tts_renders',
+          filter: `org_id=eq.${effectiveOrgId}`,
+        },
+        (payload: any) => {
+          const render = toSyntheticRender(payload?.new)
+          if (!render) return
+          if (render.targetLanguage !== interpreterTargetLanguage) return
+          upsertRender(render)
+        },
+      )
+      .subscribe()
+
+    const sinceIso = new Date(Date.now() - 2 * 60 * 1000).toISOString()
+    void (supabase as any)
+      .from('radio_tts_renders')
+      .select('translation_segment_id, target_language, provider, is_synthetic, render_latency_ms, duration_ms, storage_path, created_at')
+      .eq('org_id', effectiveOrgId)
+      .eq('target_language', interpreterTargetLanguage)
+      .gte('created_at', sinceIso)
+      .order('created_at', { ascending: true })
+      .limit(40)
+      .then(({ data, error }: any) => {
+        if (error || !Array.isArray(data)) return
+        for (const row of data) {
+          const render = toSyntheticRender(row)
+          if (render) upsertRender(render)
         }
       })
 
@@ -3296,10 +3412,10 @@ export default function PTTRadio() {
                               "{entry.transcript}"
                             </div>
                           )}
-                            {radioFeatureFlags.syntheticAudioEnabled && entry.transcript && (
+                            {radioFeatureFlags.syntheticAudioEnabled && recentSyntheticRenders.length > 0 && (
                               <div className="mt-0.5">
                                 <span className="inline-flex items-center gap-0.5 px-1 py-0 rounded text-[8px] uppercase tracking-wide bg-violet-900/60 text-violet-300 border border-violet-700/50">
-                                  AI
+                                  Synthetic relay
                                 </span>
                               </div>
                             )}
@@ -3394,6 +3510,49 @@ export default function PTTRadio() {
                               )}
                             </div>
                           ))}
+                        </div>
+                      )}
+
+                      {radioFeatureFlags.syntheticAudioEnabled && (
+                        <div className="mt-2 border-t border-slate-800/80 pt-2">
+                          <div className="flex items-center gap-1.5 text-[10px] text-slate-500 uppercase tracking-widest pb-1">
+                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
+                            Translated Audio Relay
+                            <span className="inline-flex items-center rounded border border-violet-700/70 bg-violet-900/35 px-1 py-0 text-[8px] uppercase tracking-wide text-violet-200">
+                              Synthetic
+                            </span>
+                            {delayedSyntheticRenderCount > 0 && (
+                              <span className="ml-1 inline-flex items-center rounded border border-amber-700/70 bg-amber-900/40 px-1 py-0 text-[8px] uppercase tracking-wide text-amber-200">
+                                {delayedSyntheticRenderCount} delayed
+                              </span>
+                            )}
+                          </div>
+
+                          {recentSyntheticRenders.length === 0 ? (
+                            <p className="text-[11px] text-slate-600 italic">Waiting for translated audio renders…</p>
+                          ) : (
+                            <div className="space-y-0.5 max-h-14 overflow-y-auto pr-1">
+                              {recentSyntheticRenders.map((render) => {
+                                const isDelayed = (render.renderLatencyMs ?? 0) > SYNTHETIC_RELAY_DELAY_THRESHOLD_MS
+                                return (
+                                  <div
+                                    key={`${render.translationSegmentId}-${render.targetLanguage}`}
+                                    className={`text-[11px] leading-snug ${isDelayed ? 'text-amber-300' : 'text-violet-200'}`}
+                                  >
+                                    {render.provider}
+                                    {render.renderLatencyMs != null && (
+                                      <span className="ml-1 text-[10px] text-slate-400">{render.renderLatencyMs} ms</span>
+                                    )}
+                                    {isDelayed && (
+                                      <span className="ml-1 inline-flex items-center rounded border border-amber-700/70 bg-amber-900/40 px-1 py-0 text-[8px] uppercase tracking-wide text-amber-200">
+                                        Delayed
+                                      </span>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
