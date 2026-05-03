@@ -596,6 +596,31 @@ Current blocker:
 Next command (once remote sync is complete):
 1. `gh workflow run phase3-ux-baseline-capture.yml`
 
+Latest Session Snapshot (Tool Install + STAGING Checklist Completed):
+
+- Timestamp (NZ): 2026-05-04 10:05:00 NZST
+- Current branch: main
+- HEAD SHA: c1f909626e0940044beaf873213814cc10475e4e
+- Working tree status (`git status -sb`): staged (`system_state.json`, `data/bob-failure-summary.json`, `docs/BOB_FAILURE_SUMMARY.md`)
+- Tools installed this session:
+  - `nodejs` 24.14.1 (via `sudo apk add`)
+  - `npm` 11.11.0 (via `sudo apk add`)
+  - `github-cli` 2.83.0 (via `sudo apk add github-cli`)
+  - `bun` 1.3.13 (via `curl https://bun.sh/install`)
+  - Playwright Chromium headless shell downloaded (`~/.cache/ms-playwright/chromium_headless_shell-1217`)
+- Checklist results:
+  1. Repo context: `/workspaces/FreedomCamp-Manager`, branch `main`, one dirty file `system_state.json`
+  2. Truth sync: `bash scripts/system-check.sh` → `System state captured in system_state.json`
+  3. Failure summary: 0 low-score entries, 0 repeated hallucinations, no blockers
+  4. Auto-ingest: 778 files, brain dump 19.4 MB
+  5. Lint: pass
+  6. Build: pass (3955 modules, built in ~22s)
+  7. PTT schema test: 3 passed, 0 failed
+  8. Doc-authority strict: PASS
+- CI status (no failures in latest 20 runs): all `completed success`
+- Open blockers: none
+- Next exact command to run: `cd /workspaces/FreedomCamp-Manager && export PATH="$HOME/.bun/bin:$PATH" && bash scripts/system-check.sh && node scripts/summarize-failures.mjs`
+
 ## 8. Fast Resume Commands
 
 Run these as a single crash-recovery bundle:
