@@ -1,8 +1,8 @@
 # Bob Failure Summary
 
-Generated: 2026-05-02T23:42:34.718Z
+Generated: 2026-05-03T00:23:02.003Z
 Window: last 24 hours
-Entries analyzed: 2
+Entries analyzed: 3
 Low-score entries: 0
 
 ## Top Failure Reasons
@@ -19,7 +19,7 @@ Low-score entries: 0
 
 ## Most-Flagged Artifacts
 
-- /workspaces/FreedomCamp-Manager/tmp/bob-self-test-timeout-fix-plan.md (2)
+- /workspaces/FreedomCamp-Manager/tmp/bob-self-test-timeout-fix-plan.md (2), /workspaces/FreedomCamp-Manager/docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md (1)
 
 ## Recommendations
 

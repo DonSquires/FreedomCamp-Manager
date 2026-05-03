@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-05-02T23:42:34.718Z",
+  "generatedAt": "2026-05-03T00:23:02.003Z",
   "windowHours": 24,
-  "totalEntries": 2,
+  "totalEntries": 3,
   "lowScoreCount": 0,
   "topFailureReasons": [],
   "topHallucinationPatterns": [],
@@ -10,6 +10,10 @@
     {
       "name": "/workspaces/FreedomCamp-Manager/tmp/bob-self-test-timeout-fix-plan.md",
       "count": 2
+    },
+    {
+      "name": "/workspaces/FreedomCamp-Manager/docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md",
+      "count": 1
     }
   ],
   "recommendations": [
