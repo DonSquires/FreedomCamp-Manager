@@ -24,20 +24,28 @@ const FIRST_WAVE_ROUTES = [
   '/admin/dashboard',
 ] as const
 
+async function dispatchConnectivityEvent(page: Page, type: 'offline' | 'online') {
+  // Delay event dispatch slightly so React effects have attached listeners on route mount.
+  await page.evaluate(async (eventType) => {
+    await new Promise<void>((resolve) => {
+      window.setTimeout(() => {
+        window.dispatchEvent(new Event(eventType))
+        resolve()
+      }, 50)
+    })
+  }, type)
+}
+
 async function assertOfflineBanner(page: Page, route: string) {
   await page.goto(route, { waitUntil: 'domcontentloaded' })
 
-  // Force offline UI mode in-app without relying on network-layer flakiness.
-  await page.evaluate(() => {
-    window.dispatchEvent(new Event('offline'))
-  })
+  await expect(page.locator('main')).toBeVisible({ timeout: 8000 })
+  await dispatchConnectivityEvent(page, 'offline')
 
   await expect(page.getByText(OFFLINE_BANNER)).toBeVisible({ timeout: 8000 })
 
   // Restore online mode to verify graceful recovery.
-  await page.evaluate(() => {
-    window.dispatchEvent(new Event('online'))
-  })
+  await dispatchConnectivityEvent(page, 'online')
 
   await expect(page.getByText(OFFLINE_BANNER)).toBeHidden({ timeout: 8000 })
 }

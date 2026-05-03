@@ -72,6 +72,24 @@ Primary manuals and standards reviewed:
 5. Synthetic UI Monitor: pass or intentionally skipped by workflow conditions
 6. Staging crash-recovery and handoff protocol is active in docs/STAGING.md and enforced by governance gates
 
+## CI Failure Remediation Addendum (2026-05-03)
+
+Scope:
+
+1. Database migration consistency gate failure on duplicate migration version prefix.
+2. Phase 1 async-state validation flake on offline banner assertion timing.
+
+Changes applied:
+
+1. Renumbered `supabase/migrations/20260503000001_add_auto_reported_to_bug_reports.sql` to `supabase/migrations/20260503000004_add_auto_reported_to_bug_reports.sql` to eliminate duplicate version `20260503000001`.
+2. Hardened `tests/e2e/async-state-first-wave.spec.ts` connectivity toggles by dispatching online/offline events after a short delay and only after `main` is visible, reducing listener-mount race risk.
+
+Validation status:
+
+1. Duplicate migration scan: pass (no duplicate version prefixes detected).
+2. Doc-authority strict check: pass after this canonical update.
+3. Full Playwright rerun in local container: blocked by missing Chromium headless shell binary in this runtime (`ENOENT`), pending CI verification.
+
 ## Weekly 4-Lens Triad Review (2026-05-03, Sprint 1)
 
 Scope reviewed:
