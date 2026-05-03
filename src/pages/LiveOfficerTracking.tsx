@@ -49,7 +49,7 @@ export default function LiveOfficerTracking() {
   }
 
   // Fetch live officer locations
-  const { data: officers, isLoading, refetch } = useQuery({
+  const { data: officers, isLoading, isFetching, isError, error, refetch } = useQuery({
     queryKey: ['live-officers', organizationId],
     queryFn: async () => {
       // Primary source: org-scoped live-tracking RPC backed by officer_activity_log
@@ -245,14 +245,34 @@ export default function LiveOfficerTracking() {
           </div>
         )}
 
+        {isFetching && !isLoading && (
+          <div className="inline-flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300">
+            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+            Refreshing officer positions
+          </div>
+        )}
+
         {/* Officer List */}
         {isLoading ? (
           <PaperworkSearchAnimation text="Loading officer locations…" />
+        ) : isError ? (
+          <Card>
+            <CardContent className="text-center py-12 space-y-3">
+              <AlertCircle className="h-12 w-12 text-red-400 mx-auto" />
+              <p className="text-gray-700 dark:text-gray-200 font-medium">Unable to load officer locations</p>
+              <p className="text-sm text-gray-500">Check connectivity and try again.</p>
+              <Button onClick={() => refetch()} variant="outline" size="sm">Retry</Button>
+              {!!(error as Error | undefined)?.message && (
+                <p className="text-xs text-gray-400">Live tracking feed unavailable</p>
+              )}
+            </CardContent>
+          </Card>
         ) : officers && officers.length === 0 ? (
           <Card>
             <CardContent className="text-center py-12">
               <User className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600">No active officers</p>
+              <p className="text-gray-700 dark:text-gray-200 font-medium">No officer GPS available</p>
+              <p className="text-sm text-gray-500 mt-1">Ask field staff to open the app and enable location updates.</p>
             </CardContent>
           </Card>
         ) : (

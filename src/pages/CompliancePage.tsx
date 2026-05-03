@@ -298,7 +298,7 @@ function BreachesTab({
   const startISO = nzDateToUTCStart(dateFrom);
   const endISO = nzDateToUTCEnd(dateTo);
 
-  const { data, isLoading, isFetching, isError, error: queryError } = useQuery({
+  const { data, isLoading, isFetching, isError } = useQuery({
     queryKey: ['breaches-detail', page, search, dateFrom, dateTo, orgId, zoneId, statusFilter],
     queryFn: async () => {
       if (statusFilter) {
@@ -458,9 +458,9 @@ function BreachesTab({
         {isLoading ? (
           <Spinner />
         ) : isError ? (
-          <Empty msg={`Failed to load breach observations: ${(queryError as Error)?.message ?? 'Unknown error'}`} />
+          <Empty msg="Unable to load compliance data right now. Refresh and try again." />
         ) : !data?.rows.length ? (
-          <Empty msg="No breach observations found in this period" />
+          <Empty msg="All zones compliant in the selected window. Try widening your date range to review historical breaches." />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

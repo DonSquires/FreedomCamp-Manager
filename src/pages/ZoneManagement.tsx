@@ -136,7 +136,7 @@ export default function ZoneManagement() {
   })
 
   // Fetch zones with counts
-  const { data: zoneData, isLoading } = useQuery({
+  const { data: zoneData, isLoading, isFetching, isError } = useQuery({
     queryKey: ['zones', organizationId, showInactive, searchQuery],
     queryFn: async () => {
       let query = (supabase.from('zones') as any)
@@ -540,13 +540,28 @@ export default function ZoneManagement() {
       )}
 
       {/* Zones Grid */}
+      {isFetching && !isLoading && (
+        <div className="inline-flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300 mb-4">
+          Refreshing zones in the background
+        </div>
+      )}
+
       {isLoading ? (
         <PaperworkSearchAnimation text="Loading zones…" />
+      ) : isError ? (
+        <Card>
+          <CardContent className="text-center py-12">
+            <AlertTriangle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+            <p className="text-gray-700 dark:text-gray-200 font-medium">Unable to load zones</p>
+            <p className="text-sm text-gray-500 mt-1">Please retry after refreshing this page.</p>
+          </CardContent>
+        </Card>
       ) : zones && zones.length === 0 ? (
         <Card>
           <CardContent className="text-center py-12">
             <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">No zones found</p>
+            <p className="text-gray-700 dark:text-gray-200 font-medium">No zones configured yet</p>
+            <p className="text-sm text-gray-500 mt-1">Add your first zone to enable compliance boundary checks.</p>
           </CardContent>
         </Card>
       ) : (

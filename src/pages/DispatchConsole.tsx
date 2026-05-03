@@ -545,11 +545,21 @@ export default function DispatchConsole() {
           {/* ── Job Queue (2/3 width) ──────────────────────────────────── */}
           <div className="lg:col-span-2 space-y-3">
             {jobsLoading && (
-              <div className="text-center py-12 text-muted-foreground">Loading jobs…</div>
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <Card key={`job-skel-${i}`} className="animate-pulse border-l-4 border-l-gray-300">
+                    <CardContent className="p-4 space-y-2">
+                      <div className="h-3 w-24 rounded bg-muted" />
+                      <div className="h-4 w-2/3 rounded bg-muted" />
+                      <div className="h-3 w-1/2 rounded bg-muted" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             )}
             {!jobsLoading && jobs.length === 0 && (
               <div className="text-center py-12 text-muted-foreground">
-                No jobs found. Create one with "New Job".
+                No jobs found. Create your first job with "New Job".
               </div>
             )}
             {jobs.map(job => {

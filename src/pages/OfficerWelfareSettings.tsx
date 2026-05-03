@@ -130,7 +130,7 @@ export default function OfficerWelfareSettings() {
 
     return () => { supabase.removeChannel(channel) }
   }, [orgId, queryClient])
-  const { data: allSettings = [], isLoading: loadingSettings } = useQuery({
+  const { data: allSettings = [], isLoading: loadingSettings, isFetching: fetchingSettings } = useQuery({
     queryKey: ['welfare-settings', orgId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -154,7 +154,7 @@ export default function OfficerWelfareSettings() {
   })
 
   // Fetch active welfare alerts
-  const { data: activeAlerts = [], isLoading: loadingAlerts } = useQuery({
+  const { data: activeAlerts = [], isLoading: loadingAlerts, isFetching: fetchingAlerts } = useQuery({
     queryKey: ['welfare-alerts', orgId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -312,6 +312,11 @@ export default function OfficerWelfareSettings() {
 
         {/* Active alerts tab */}
         <TabsContent value="alerts" className="mt-4 space-y-3">
+          {fetchingAlerts && !loadingAlerts && (
+            <div className="inline-flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300">
+              Refreshing welfare alerts
+            </div>
+          )}
           {loadingAlerts ? (
             <div className="text-center py-8 text-muted-foreground">Loading alerts…</div>
           ) : activeAlerts.length === 0 ? (
@@ -378,6 +383,11 @@ export default function OfficerWelfareSettings() {
 
         {/* Settings tab */}
         <TabsContent value="settings" className="mt-4">
+          {fetchingSettings && !loadingSettings && (
+            <div className="inline-flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300 mb-3">
+              Refreshing officer settings
+            </div>
+          )}
           <div className="flex items-center gap-3 mb-4">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />

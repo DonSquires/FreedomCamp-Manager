@@ -123,7 +123,7 @@ export default function PatrolScheduleManagement() {
 
   // ─── Data ─────────────────────────────────────────────────────────────────
 
-  const { data: patrols = [], isLoading } = usePatrols({
+  const { data: patrols = [], isLoading, isFetching } = usePatrols({
     organizationId: user?.organization_id,
     status: statusFilter === 'all' ? 'all' : statusFilter as any,
   })
@@ -228,6 +228,12 @@ export default function PatrolScheduleManagement() {
       description="Create and manage patrol schedules for field officers"
     >
       <div className="space-y-6">
+        {isFetching && !isLoading && (
+          <div className="inline-flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300">
+            Refreshing patrol schedules in the background
+          </div>
+        )}
+
         {/* Summary cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card>
@@ -307,7 +313,7 @@ export default function PatrolScheduleManagement() {
                 {isLoading && (
                   <TableRow>
                     <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
-                      Loading…
+                      Loading patrol schedule grid…
                     </TableCell>
                   </TableRow>
                 )}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { isRouteVisibleForRole } from '@/navigation/routeManifestAdapter'
 import { routeManifest, type AppRole } from '@/navigation/routeManifest'
@@ -450,6 +450,19 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
   })
   const [reLoginPassword, setReLoginPassword] = useState('')
   const [unlocking, setUnlocking] = useState(false)
+  const [isOffline, setIsOffline] = useState(!navigator.onLine)
+  const activeFetchCount = useIsFetching()
+
+  useEffect(() => {
+    const onOffline = () => setIsOffline(true)
+    const onOnline = () => setIsOffline(false)
+    window.addEventListener('offline', onOffline)
+    window.addEventListener('online', onOnline)
+    return () => {
+      window.removeEventListener('offline', onOffline)
+      window.removeEventListener('online', onOnline)
+    }
+  }, [])
   const { user, logout, unlockSession } = useAuthStore()
   const {
     isLocked,
@@ -949,6 +962,17 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
           <PublicSafetyBanner />
           <JurisdictionBanner />
           {(user?.role === 'admin' || user?.role === 'master' || user?.role === 'grand_master') && <HealthBanner />}
+          {isOffline && (
+            <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-900/25 dark:text-amber-200">
+              Connection lost. You are offline and some live data may be stale.
+            </div>
+          )}
+          {!isOffline && activeFetchCount > 0 && (
+            <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300">
+              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+              Refreshing live data in the background
+            </div>
+          )}
           {children}
 
           {/* PTT / Team Chat floating action button */}

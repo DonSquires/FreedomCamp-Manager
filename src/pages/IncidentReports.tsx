@@ -17,6 +17,7 @@ import {
   FileText, 
   Search, 
   AlertCircle,
+  AlertTriangle,
   CheckCircle,
   Clock,
   Shield,
@@ -85,7 +86,7 @@ export default function IncidentReports() {
   const [creatingPersonForLink, setCreatingPersonForLink] = useState(false)
 
   // Fetch incidents
-  const { data: incidents, isLoading } = useQuery({
+  const { data: incidents, isLoading, isFetching, isError } = useQuery({
     queryKey: ['incidents', organizationId, zoneId, severityFilter, statusFilter, searchQuery, dateFrom, dateTo],
     queryFn: async () => {
       let query = supabase
@@ -444,16 +445,31 @@ export default function IncidentReports() {
       </Card>
 
       {/* Incidents List */}
+      {isFetching && !isLoading && (
+        <div className="inline-flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300">
+          Refreshing incidents
+        </div>
+      )}
+
       {isLoading ? (
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading incidents...</p>
         </div>
+      ) : isError ? (
+        <Card>
+          <CardContent className="text-center py-12 space-y-3">
+            <AlertTriangle className="h-12 w-12 text-red-400 mx-auto" />
+            <p className="text-gray-700 dark:text-gray-200 font-medium">Unable to load incidents</p>
+            <p className="text-sm text-gray-500">Please refresh and try again.</p>
+          </CardContent>
+        </Card>
       ) : incidents && incidents.length === 0 ? (
         <Card>
           <CardContent className="text-center py-12">
             <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">No incidents found</p>
+            <p className="text-gray-700 dark:text-gray-200 font-medium">No incidents in this date range</p>
+            <p className="text-sm text-gray-500 mt-1">Try expanding the date filter or clearing search criteria.</p>
           </CardContent>
         </Card>
       ) : (

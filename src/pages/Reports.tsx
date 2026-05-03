@@ -159,6 +159,7 @@ export default function Reports() {
   const [emailDialogOpen, setEmailDialogOpen] = useState(false)
   const [emailRecipient, setEmailRecipient] = useState(user?.email || '')
   const [sendingEmail, setSendingEmail] = useState(false)
+  const [generatingReport, setGeneratingReport] = useState(false)
 
   // ── Observations query ───────────────────────────────────────────────
   const { data: observations = [], isLoading: loadingObs } = useQuery({
@@ -451,18 +452,26 @@ export default function Reports() {
   ]
 
   const handleExportPDF = () => {
+    setGeneratingReport(true)
     try {
       exportReportPDF(buildPDFConfig(), buildPDFSections())
       toast.success('PDF report opened for printing')
     } catch (err: any) {
       toast.error(err.message || 'Failed to generate PDF')
+    } finally {
+      setGeneratingReport(false)
     }
   }
 
   const handlePreviewPDF = () => {
-    const html = generateReportHTML(buildPDFConfig(), buildPDFSections())
-    setPreviewHtml(html)
-    setPreviewOpen(true)
+    setGeneratingReport(true)
+    try {
+      const html = generateReportHTML(buildPDFConfig(), buildPDFSections())
+      setPreviewHtml(html)
+      setPreviewOpen(true)
+    } finally {
+      setGeneratingReport(false)
+    }
   }
 
   function downloadHtml(html: string, filename: string) {
@@ -540,12 +549,20 @@ export default function Reports() {
         {/* Export actions bar */}
         <Card className="mb-6">
           <CardContent className="pt-4">
+            {generatingReport && (
+              <div className="mb-3">
+                <div className="h-1.5 w-full overflow-hidden rounded bg-blue-100 dark:bg-blue-900/25">
+                  <div className="h-full w-1/2 animate-pulse rounded bg-blue-500" />
+                </div>
+                <p className="mt-1 text-xs text-blue-700 dark:text-blue-300">Generating report…</p>
+              </div>
+            )}
             <div className="flex flex-wrap gap-3">
-              <Button onClick={handlePreviewPDF} disabled={isLoading}>
+              <Button onClick={handlePreviewPDF} disabled={isLoading || generatingReport}>
                 <FileText className="h-4 w-4 mr-2" />
                 Preview Report
               </Button>
-              <Button onClick={handleExportPDF} variant="outline" disabled={isLoading}>
+              <Button onClick={handleExportPDF} variant="outline" disabled={isLoading || generatingReport}>
                 <Printer className="h-4 w-4 mr-2" />
                 Export PDF
               </Button>

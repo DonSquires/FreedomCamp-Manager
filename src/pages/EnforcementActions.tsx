@@ -85,7 +85,7 @@ export default function EnforcementActions() {
   const navigate = useNavigate()
 
   // Fetch enforcement actions
-  const { data: actions, isLoading: actionsLoading } = useQuery({
+  const { data: actions, isLoading: actionsLoading, isFetching, isError } = useQuery({
     queryKey: ['enforcement-actions', effectiveOrganizationId, zoneId, statusFilter, actionTypeFilter, searchQuery, dateFrom, dateTo],
     queryFn: async () => {
       let query = supabase
@@ -517,11 +517,25 @@ export default function EnforcementActions() {
       </Card>
 
       {/* Actions List */}
+      {isFetching && !actionsLoading && (
+        <div className="inline-flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300">
+          Refreshing enforcement actions
+        </div>
+      )}
+
       {actionsLoading ? (
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading enforcement actions...</p>
         </div>
+      ) : isError ? (
+        <Card>
+          <CardContent className="text-center py-12">
+            <AlertTriangle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+            <p className="text-gray-700 dark:text-gray-200 font-medium">Unable to load enforcement actions</p>
+            <p className="text-sm text-gray-500 mt-1">Please retry after refreshing this page.</p>
+          </CardContent>
+        </Card>
       ) : actions && actions.length === 0 ? (
         <Card>
           <CardContent className="text-center py-12">
