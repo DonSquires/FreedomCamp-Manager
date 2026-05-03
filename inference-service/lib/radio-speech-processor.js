@@ -27,6 +27,8 @@ const OLLAMA_GATEWAY_KEY = String(process.env.OLLAMA_GATEWAY_KEY || '');
 const WHISPER_MODEL = String(process.env.RADIO_WHISPER_MODEL || process.env.OLLAMA_MODEL || 'qwen2.5:7b');
 const PROCESSOR_TIMEOUT_MS = Math.max(5000, parseInt(process.env.RADIO_PROCESSOR_TIMEOUT_MS || '20000', 10));
 const PROCESSOR_ENABLED = String(process.env.RADIO_PROCESSOR_ENABLED || 'false').toLowerCase() === 'true';
+const AUDIO_FETCH_TIMEOUT_MS = Math.max(3000, parseInt(process.env.RADIO_AUDIO_FETCH_TIMEOUT_MS || '12000', 10));
+const AUDIO_MAX_FETCH_BYTES = Math.max(64 * 1024, parseInt(process.env.RADIO_AUDIO_MAX_FETCH_BYTES || String(8 * 1024 * 1024), 10));
 
 // ─── Supabase REST helpers ────────────────────────────────────────────────────
 
@@ -76,6 +78,65 @@ async function supabasePatch(table, id, patch) {
 
 // ─── STT ─────────────────────────────────────────────────────────────────────
 
+function toBase64AudioFromDataUrl(dataUrl) {
+  const match = String(dataUrl || '').match(/^data:audio\/[^;]+;base64,(.+)$/i);
+  if (!match?.[1]) return null;
+  return match[1].trim() || null;
+}
+
+async function fetchAudioUrlAsBase64(audioUrl) {
+  if (!audioUrl) return null;
+  const trimmed = String(audioUrl).trim();
+  if (!trimmed) return null;
+
+  const fromDataUrl = toBase64AudioFromDataUrl(trimmed);
+  if (fromDataUrl) return fromDataUrl;
+
+  let parsed;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    console.warn('[radio-speech-processor] invalid audioUrl, skipping fetch');
+    return null;
+  }
+
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    console.warn('[radio-speech-processor] unsupported audioUrl protocol:', parsed.protocol);
+    return null;
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort('timeout'), AUDIO_FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(parsed.toString(), {
+      method: 'GET',
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      console.warn(`[radio-speech-processor] audioUrl fetch failed ${res.status}`);
+      return null;
+    }
+
+    const contentLength = Number(res.headers.get('content-length') || 0);
+    if (contentLength > AUDIO_MAX_FETCH_BYTES) {
+      console.warn(`[radio-speech-processor] audioUrl too large (${contentLength} bytes)`);
+      return null;
+    }
+
+    const buffer = Buffer.from(await res.arrayBuffer());
+    if (buffer.length > AUDIO_MAX_FETCH_BYTES) {
+      console.warn(`[radio-speech-processor] audio payload exceeds limit (${buffer.length} bytes)`);
+      return null;
+    }
+    return buffer.toString('base64');
+  } catch (err) {
+    console.warn('[radio-speech-processor] audioUrl fetch error:', err.message);
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Transcribe audio data (base64 or plain URL reference).
  *
@@ -89,8 +150,10 @@ async function supabasePatch(table, id, patch) {
  *   (model: whisper / faster-whisper GGUF) when available.
  */
 async function transcribeAudio({ audioData, audioUrl, language, transmissionId }) {
+  const resolvedAudioData = audioData || await fetchAudioUrlAsBase64(audioUrl);
+
   // Phase 2: real Whisper path (requires whisper model pulled into Ollama instance).
-  if (audioData && OLLAMA_BASE_URL) {
+  if (resolvedAudioData && OLLAMA_BASE_URL) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort('timeout'), PROCESSOR_TIMEOUT_MS);
     try {
@@ -104,7 +167,7 @@ async function transcribeAudio({ audioData, audioUrl, language, transmissionId }
           model: WHISPER_MODEL,
           stream: false,
           format: 'json',
-          prompt: `Transcribe the following audio for NZ field operations context. Return JSON: {\"text\":\"...\",\"language\":\"...\",\"confidence\":0.9}. Audio (base64 Opus): ${audioData}`,
+          prompt: `Transcribe the following audio for NZ field operations context. Return JSON: {\"text\":\"...\",\"language\":\"...\",\"confidence\":0.9}. Audio (base64 Opus): ${resolvedAudioData}`,
         }),
         signal: controller.signal,
       });
