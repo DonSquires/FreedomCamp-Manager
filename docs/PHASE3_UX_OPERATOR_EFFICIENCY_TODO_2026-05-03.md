@@ -27,7 +27,7 @@ Execute Phase 3 UX/operator-efficiency triage with measurable evidence, role-pat
 - [ ] B3. Classify quick wins into now/next/later slices
 - [ ] B4. Define measurable UX acceptance criteria by route family
 - [x] B5. Map role-specific path simplifications for admin, admin_officer, officer, master
-- [ ] B6. Validate route/role alignment with docs/MODULE_ROADMAP.md and src/App.tsx
+- [x] B6. Validate route/role alignment with docs/MODULE_ROADMAP.md and src/App.tsx
 - [x] B7. Run triad review on Phase 3 artifact before implementation commit
 
 Evidence:
