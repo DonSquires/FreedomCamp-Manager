@@ -930,6 +930,16 @@ export default function AdminPortal() {
     },
   ]
 
+  const moduleTileClass =
+    'relative min-h-20 flex flex-col items-center justify-center gap-1.5 rounded-lg border p-2.5 text-center border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2'
+  const moduleTileCompactClass =
+    'min-h-20 flex flex-col items-center justify-center gap-0.5 rounded-lg border p-2.5 text-center border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2'
+  const moduleTileLabelClass = 'text-xs font-medium text-gray-700 dark:text-gray-300 leading-tight'
+  const quickActionRowClass =
+    'flex w-full items-center justify-between rounded-lg border border-white/60 dark:border-white/10 bg-white/70 dark:bg-slate-800/50 px-3 py-2.5 text-left hover:bg-white dark:hover:bg-slate-800 transition-colors group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2'
+  const listRowClass =
+    'flex items-center justify-between gap-3 rounded-lg border border-white/60 dark:border-white/10 bg-white/70 dark:bg-slate-800/50 px-3 py-2.5'
+
   if (isError) {
     return (
       <AppLayout
@@ -1045,7 +1055,10 @@ export default function AdminPortal() {
         </div>
 
         {/* ── LIVE OPS STATUS BAR — 5 key real-time metrics ───────────────────────── */}
-        <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+        <section
+          aria-label="Live operations status"
+          className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 lg:gap-3"
+        >
           {[
             { label: 'Active Officers', value: (data as any)?.activeOfficers ?? 0, Icon: UserCheck, colorClass: 'text-cyan-700 dark:text-cyan-400', bgClass: 'bg-cyan-50 dark:bg-cyan-900/20 border-cyan-200 dark:border-cyan-800', path: '/live-tracking' },
             { label: 'Checks Today', value: (data as any)?.checksToday ?? 0, Icon: ClipboardCheck, colorClass: 'text-blue-700 dark:text-blue-400', bgClass: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800', path: null },
@@ -1057,12 +1070,13 @@ export default function AdminPortal() {
               key={label}
               onClick={() => path && navigate(path)}
               disabled={!path}
-              className={`min-h-16 flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${bgClass} ${path ? 'cursor-pointer hover:shadow-sm active:scale-[0.98]' : 'cursor-default'}`}
+              aria-label={`${label}: ${isLoading ? 'loading' : value}`}
+              className={`min-h-[4.25rem] flex items-center gap-2.5 rounded-xl border px-3.5 py-3 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${bgClass} ${path ? 'cursor-pointer hover:shadow-sm active:scale-[0.98]' : 'cursor-default'}`}
             >
               <Icon className={`h-4 w-4 shrink-0 ${colorClass}`} />
               <div className="min-w-0">
-                <p className={`text-xl font-bold leading-tight ${colorClass}`}>{isLoading ? '—' : value}</p>
-                <p className="text-xs text-muted-foreground truncate">{label}</p>
+                <p className={`text-xl font-bold leading-tight tracking-tight ${colorClass}`}>{isLoading ? '—' : value}</p>
+                <p className="text-xs text-muted-foreground truncate mt-0.5">{label}</p>
               </div>
             </button>
           ))}
@@ -1078,17 +1092,26 @@ export default function AdminPortal() {
         </details>
 
         {/* ── PRIMARY KPIs — Big Three ──────────────────────────────────────────────── */}
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <section aria-label="Primary operational KPIs" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {primaryKPIs.map((kpi) => {
             const Icon = kpi.icon
             return (
               <Card
                 key={kpi.title}
-                className="cursor-pointer overflow-hidden group border border-white/60 dark:border-white/10 bg-white/80 dark:bg-slate-900/70 backdrop-blur-sm shadow-sm hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200"
+                role="button"
+                tabIndex={0}
+                aria-label={`${kpi.title}: ${kpi.value}`}
+                className="cursor-pointer overflow-hidden group border border-white/60 dark:border-white/10 bg-white/85 dark:bg-slate-900/70 backdrop-blur-sm shadow-sm hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                 onClick={() => openDrilldown(kpi.config)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    openDrilldown(kpi.config)
+                  }
+                }}
               >
                 <div className={`h-1 w-full bg-gradient-to-r ${kpi.accentColor}`} />
-                <CardHeader className="pb-2 pt-4">
+                <CardHeader className="pb-2.5 pt-4">
                   <CardDescription className="flex items-center justify-between text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                     {kpi.title}
                     <ArrowRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -1100,7 +1123,7 @@ export default function AdminPortal() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="pt-0 pb-3">
+                <CardContent className="pt-0 pb-3.5">
                   {kpi.subtitle && (
                     <p className="inline-flex rounded-md border border-white/70 dark:border-white/10 bg-white/70 dark:bg-black/20 px-2 py-1 text-[11px] text-muted-foreground leading-tight">
                       {kpi.subtitle}
@@ -1113,19 +1136,20 @@ export default function AdminPortal() {
         </section>
 
         {/* ── SECONDARY KPIs — attention items ─────────────────────────────────────── */}
-        <section className="grid gap-2.5 grid-cols-2 sm:grid-cols-4 lg:grid-cols-7">
+        <section aria-label="Secondary operational KPIs" className="grid gap-2.5 grid-cols-2 sm:grid-cols-4 xl:grid-cols-7">
           {secondaryKPIs.map((kpi) => {
             const Icon = kpi.icon
             return (
               <button
                 key={kpi.title}
                 onClick={() => openDrilldown(kpi.config)}
-                className="min-h-14 flex items-center gap-2.5 rounded-lg border border-white/60 dark:border-white/10 bg-white/80 dark:bg-slate-900/70 px-3 py-2.5 text-left hover:bg-white dark:hover:bg-slate-900 transition-colors shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                aria-label={`${kpi.title}: ${kpi.value}`}
+                className="min-h-[3.75rem] flex items-center gap-2.5 rounded-lg border border-white/60 dark:border-white/10 bg-white/85 dark:bg-slate-900/70 px-3.5 py-2.5 text-left hover:bg-white dark:hover:bg-slate-900 transition-colors shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
               >
                 <Icon className={`h-4 w-4 shrink-0 ${kpi.iconColor}`} />
                 <div className="min-w-0">
                   <p className="text-lg font-semibold text-gray-900 dark:text-white leading-tight">{kpi.value}</p>
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground truncate">{kpi.title}</p>
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground truncate mt-0.5">{kpi.title}</p>
                 </div>
               </button>
             )
@@ -1165,7 +1189,7 @@ export default function AdminPortal() {
                     return (
                       <div
                         key={shift.id}
-                        className={`min-h-20 rounded-lg border p-2.5 text-sm ${
+                        className={`min-h-20 rounded-lg border p-3 text-sm ${
                           isActive
                             ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950/20'
                             : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40'
@@ -1223,14 +1247,12 @@ export default function AdminPortal() {
                     { path: '/compliance-analytics',       label: 'Analytics',        Icon: PieChart,      color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
                     { path: '/spatial-compliance',         label: 'Spatial',          Icon: Map,           color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
-                    <button key={path} onClick={() => navigate(path)}
-                      className={`relative min-h-20 flex flex-col items-center justify-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`}
-                    >
+                    <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       {badge !== undefined && (
                         <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">{badge > 99 ? '99+' : badge}</span>
                       )}
                       <Icon className={`h-5 w-5 ${color}`} />
-                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                      <span className={moduleTileLabelClass}>{label}</span>
                     </button>
                   ))}
                 </div>
@@ -1250,14 +1272,12 @@ export default function AdminPortal() {
                     { path: '/patrol-kpis',        label: 'Patrol KPIs',     Icon: TrendingUp,    color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
                     { path: '/patrol-checkpoints', label: 'Checkpoints',     Icon: ScanLine,      color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
-                    <button key={path} onClick={() => navigate(path)}
-                      className={`relative min-h-20 flex flex-col items-center justify-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`}
-                    >
+                    <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       {badge !== undefined && (
                         <span className={`absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full ${path === '/officer-welfare' ? 'bg-red-500' : 'bg-green-500'} text-[9px] font-bold text-white`}>{badge > 99 ? '99+' : badge}</span>
                       )}
                       <Icon className={`h-5 w-5 ${color}`} />
-                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                      <span className={moduleTileLabelClass}>{label}</span>
                     </button>
                   ))}
                 </div>
@@ -1279,14 +1299,12 @@ export default function AdminPortal() {
                     { path: '/admin/discrepancies',    label: 'Discrepancies',     Icon: AlertTriangle, color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20', badge: (data as any)?.discrepanciesPending > 0 ? (data as any)?.discrepanciesPending : undefined },
                     { path: '/admin/canonical-records',label: 'Canonical Records', Icon: Database,      color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
-                    <button key={path} onClick={() => navigate(path)}
-                      className={`relative min-h-20 flex flex-col items-center justify-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`}
-                    >
+                    <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       {badge !== undefined && (
                         <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-white">{badge > 99 ? '99+' : badge}</span>
                       )}
                       <Icon className={`h-5 w-5 ${color}`} />
-                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                      <span className={moduleTileLabelClass}>{label}</span>
                     </button>
                   ))}
                 </div>
@@ -1307,14 +1325,12 @@ export default function AdminPortal() {
                     { path: '/observation-records', label: 'Observations',      Icon: Eye,           color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                     { path: '/site-risk-assessment',label: 'Risk Assessment',   Icon: ClipboardCheck,color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
-                    <button key={path} onClick={() => navigate(path)}
-                      className={`relative min-h-20 flex flex-col items-center justify-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`}
-                    >
+                    <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       {badge !== undefined && (
                         <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500 text-[9px] font-bold text-white">{badge}</span>
                       )}
                       <Icon className={`h-5 w-5 ${color}`} />
-                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                      <span className={moduleTileLabelClass}>{label}</span>
                     </button>
                   ))}
                 </div>
@@ -1337,11 +1353,9 @@ export default function AdminPortal() {
                     { path: '/client-sites', label: 'Client Sites',  Icon: Building2,     color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
                     { path: '/dispatch',     label: 'Dispatch',      Icon: Radio,         color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
                   ].map(({ path, label, Icon, color, bg, scopeHint }) => (
-                    <button key={path} onClick={() => navigate(path)}
-                      className={`min-h-20 flex flex-col items-center justify-center gap-0.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`}
-                    >
+                    <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileCompactClass} ${bg}`}>
                       <Icon className={`h-5 w-5 ${color}`} />
-                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                      <span className={moduleTileLabelClass}>{label}</span>
                       {scopeHint && <span className="text-[10px] text-muted-foreground leading-tight">{scopeHint}</span>}
                     </button>
                   ))}
@@ -1362,11 +1376,9 @@ export default function AdminPortal() {
                     { path: '/availability',      label: 'Availability',     Icon: CalendarDays,  color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                     { path: '/asset-management',  label: 'Assets',           Icon: Package2,      color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
                   ].map(({ path, label, Icon, color, bg }) => (
-                    <button key={path} onClick={() => navigate(path)}
-                      className={`min-h-20 flex flex-col items-center justify-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`}
-                    >
+                    <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       <Icon className={`h-5 w-5 ${color}`} />
-                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                      <span className={moduleTileLabelClass}>{label}</span>
                     </button>
                   ))}
                 </div>
@@ -1386,11 +1398,9 @@ export default function AdminPortal() {
                     { path: '/audit-log',            label: 'Audit Log',           Icon: ScrollText,    color: 'text-gray-600',   bg: 'bg-gray-100 dark:bg-gray-800/30' },
                     { path: '/users',                label: 'Users',               Icon: Users,         color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
                   ].map(({ path, label, Icon, color, bg }) => (
-                    <button key={path} onClick={() => navigate(path)}
-                      className={`min-h-20 flex flex-col items-center justify-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`}
-                    >
+                    <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       <Icon className={`h-5 w-5 ${color}`} />
-                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                      <span className={moduleTileLabelClass}>{label}</span>
                     </button>
                   ))}
                 </div>
@@ -1435,8 +1445,9 @@ export default function AdminPortal() {
               {drilldowns.map(({ title, to, icon: Icon, metric, config }) => (
                 <button
                   key={to}
-                  className="flex w-full items-center justify-between rounded-lg border border-white/60 dark:border-white/10 bg-white/70 dark:bg-slate-800/50 px-3 py-2.5 text-left hover:bg-white dark:hover:bg-slate-800 transition-colors group"
+                  className={quickActionRowClass}
                   onClick={() => openDrilldown(config)}
+                  aria-label={`Open quick action: ${title}`}
                 >
                   <span className="flex items-center gap-2 min-w-0">
                     <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -1469,7 +1480,7 @@ export default function AdminPortal() {
               {recentHistoricalObservations.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No recent observations found.</p>
               ) : recentHistoricalObservations.map((obs: any) => (
-                <div key={obs.observation_id} className="flex items-center justify-between gap-3 rounded-lg border border-white/60 dark:border-white/10 bg-white/70 dark:bg-slate-800/50 px-3 py-2">
+                <div key={obs.observation_id} className={listRowClass}>
                   <div className="min-w-0">
                     <p className="font-mono text-sm font-semibold truncate">{obs.plate_number || 'UNKNOWN'}</p>
                     <p className="text-xs text-muted-foreground truncate">

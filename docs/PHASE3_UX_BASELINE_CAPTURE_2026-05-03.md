@@ -22,16 +22,16 @@ Capture measured baselines before further UX implementation for:
 
 | Route | Click Depth (median) | Time-to-Primary-Action (median, sec) | Error-Prone Actions (count/sample) | Evidence Run ID | Status |
 |---|---:|---:|---:|---|---|
-| /compliance | pending | 10.16 | 0 | local | partial |
-| /dispatch-monitor | pending | 10.16 | 0 | local | partial |
-| /job-map | pending | 10.18 | 0 | local | partial |
-| /observations | pending | 10.18 | 0 | local | partial |
-| /radio | pending | 10.32 | 0 | local | partial |
-| /breaches | pending | 10.14 | 0 | local | partial |
-| /reports | pending | 10.17 | 0 | local | partial |
-| /crm | pending | 10.18 | 0 | local | partial |
-| /live-patrol | pending | 10.15 | 0 | local | partial |
-| /noise-control | pending | 10.12 | 0 | local | partial |
+| /compliance | pending | 10.13 | 0 | local-p3-2-refresh | partial |
+| /dispatch-monitor | pending | 10.2 | 0 | local-p3-2-refresh | partial |
+| /job-map | pending | 10.2 | 0 | local-p3-2-refresh | partial |
+| /observations | pending | 10.17 | 0 | local-p3-2-refresh | partial |
+| /radio | pending | 10.22 | 0 | local-p3-2-refresh | partial |
+| /breaches | pending | 10.13 | 0 | local-p3-2-refresh | partial |
+| /reports | pending | 10.22 | 0 | local-p3-2-refresh | partial |
+| /crm | pending | 10.18 | 0 | local-p3-2-refresh | partial |
+| /live-patrol | pending | 10.21 | 0 | local-p3-2-refresh | partial |
+| /noise-control | pending | 10.15 | 0 | local-p3-2-refresh | partial |
 
 ## Evidence Sources
 
