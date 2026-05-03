@@ -4797,6 +4797,97 @@ app.get('/radio/speech-metrics', rateLimit({ windowMs: 30_000, max: 60, standard
   }
 });
 
+const RADIO_MEDIA_TAP_ENABLED = ['1', 'true', 'yes', 'on'].includes(String(process.env.RADIO_MEDIA_TAP_ENABLED || '').toLowerCase());
+const radioMediaTapMetrics = {
+  accepted_events: 0,
+  rejected_events: 0,
+  last_received_at: null,
+  last_payload_type: null,
+  last_error: null,
+};
+
+app.post('/radio/media-tap', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const providedSecret = String(req.get('x-radio-media-secret') || req.get('x-radio-speech-secret') || '').trim();
+    if (RADIO_SPEECH_WEBHOOK_SECRET && providedSecret !== RADIO_SPEECH_WEBHOOK_SECRET) {
+      radioMediaTapMetrics.rejected_events += 1;
+      radioMediaTapMetrics.last_error = 'Invalid radio media tap secret';
+      return res.status(401).json({ error: 'Invalid radio media tap secret' });
+    }
+
+    const payload = req.body || {};
+    const type = String(payload.type || '').trim();
+    const transmissionId = String(payload.transmissionId || '').trim();
+
+    if (!type) {
+      radioMediaTapMetrics.rejected_events += 1;
+      radioMediaTapMetrics.last_error = 'type is required';
+      return res.status(400).json({ error: 'type is required' });
+    }
+    if (!transmissionId) {
+      radioMediaTapMetrics.rejected_events += 1;
+      radioMediaTapMetrics.last_error = 'transmissionId is required';
+      return res.status(400).json({ error: 'transmissionId is required' });
+    }
+
+    radioMediaTapMetrics.last_received_at = new Date().toISOString();
+    radioMediaTapMetrics.last_payload_type = type;
+
+    if (!RADIO_MEDIA_TAP_ENABLED) {
+      return res.status(202).json({
+        success: true,
+        accepted: false,
+        stage: 'media-tap-disabled',
+        type,
+        transmissionId,
+      });
+    }
+
+    radioMediaTapMetrics.accepted_events += 1;
+    radioMediaTapMetrics.last_error = null;
+
+    console.log('[radio-media-tap] accepted', {
+      type,
+      transmissionId,
+      orgId: payload.orgId || req.get('x-org-id') || null,
+      mediaKind: payload.mediaKind || null,
+      hasStoragePath: !!payload.storagePath,
+      hasAudioUrl: !!payload.audioUrl,
+    });
+
+    return res.status(202).json({
+      success: true,
+      accepted: true,
+      stage: 'queued-for-media-tap-pipeline',
+      type,
+      transmissionId,
+    });
+  } catch (error) {
+    radioMediaTapMetrics.rejected_events += 1;
+    radioMediaTapMetrics.last_error = error.message;
+    console.error('Radio media tap ingestion error:', error);
+    return res.status(500).json({ error: 'Failed to ingest radio media tap', message: error.message });
+  }
+});
+
+app.get('/radio/media-tap-metrics', rateLimit({ windowMs: 30_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, async (_req, res) => {
+  try {
+    return res.json({
+      success: true,
+      generated_at: new Date().toISOString(),
+      media_tap: {
+        enabled: RADIO_MEDIA_TAP_ENABLED,
+        metrics: {
+          ...radioMediaTapMetrics,
+        },
+      },
+    });
+  } catch (error) {
+    console.error('Radio media tap metrics endpoint error:', error);
+    return res.status(500).json({ error: 'Failed to fetch radio media tap metrics', message: error.message });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Platform knowledge & diagnostics
 // ---------------------------------------------------------------------------
@@ -8209,6 +8300,7 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       SAFETY_MAN_DOWN_MODEL_PROVIDER,
       SAFETY_MAN_DOWN_MODEL: SAFETY_MAN_DOWN_MODEL || null,
       SAFETY_EMERGENCY_HOT_MIC_ENABLED,
+      RADIO_MEDIA_TAP_ENABLED,
     },
     capabilities: {
       plate_inference: modelsLoaded,
@@ -8272,6 +8364,12 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
     knowledge_requests: knowledgeRequestsStore.getState(),
     code_tasks: codeTaskStore.getState(),
     radio_pipeline: getRadioPipelineStatus(),
+    radio_media_tap: {
+      enabled: RADIO_MEDIA_TAP_ENABLED,
+      metrics: {
+        ...radioMediaTapMetrics,
+      },
+    },
     uptime: process.uptime(),
     memory: process.memoryUsage()
   });
