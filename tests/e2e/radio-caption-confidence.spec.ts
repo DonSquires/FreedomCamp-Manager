@@ -161,4 +161,25 @@ test.describe('radio caption confidence indicators', () => {
     await expect(page.getByText(/officer-voice-profile-v1/i)).toBeVisible()
     await expect(page.getByRole('button', { name: /Revoke Consent/i })).toBeVisible()
   })
+
+  test('officer sees enrollment permission guard for voice twin', async ({ officerUser: page }) => {
+    test.skip(
+      !captionsEnabled || !translationsEnabled || !syntheticAudioEnabled,
+      'Requires caption+translation+synthetic-audio flags enabled',
+    )
+
+    await page.goto('/radio')
+    await expect(page.getByRole('heading', { name: 'Radio' })).toBeVisible({ timeout: 20000 })
+
+    await page.evaluate(() => {
+      window.dispatchEvent(new CustomEvent('radio:inject-voice-consent-status', {
+        detail: null,
+      }))
+    })
+
+    await expect(page.getByText(/Voice Twin Consent/i)).toBeVisible()
+    await expect(page.getByText(/Not Enrolled/i)).toBeVisible()
+    await expect(page.getByRole('button', { name: /Enable Voice Twin/i })).toBeDisabled()
+    await expect(page.getByText(/require admin or supervisor role/i)).toBeVisible()
+  })
 })
