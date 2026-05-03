@@ -231,6 +231,27 @@ Latest Session Snapshot:
   - Org-scoping audit still reports 17 missing org filters; owner: Application architecture + data governance
 - Next exact command to run: `cd /workspaces/FreedomCamp-Manager && GH_PAGER=cat gh run list --limit 30 --json databaseId,headSha,name,status,conclusion,url | jq 'map(select(.headSha=="'"$(git rev-parse HEAD)"'"))' && node scripts/audit-org-scoping.mjs`
 
+Latest Session Snapshot:
+
+- Timestamp (NZ): 2026-05-03 20:07:20 NZST
+- Current branch: main
+- HEAD SHA: fd9ac1c11702c8baf98555d7ca353caaea579a23
+- Working tree status (`git status -sb`): docs handoff update pending
+- Latest lint result: pass (`bun run lint`)
+- Latest build result: pass (`bun run build`, 3953 modules transformed, built in 21.81s)
+- Latest targeted test result: pass (`node scripts/audit-org-scoping.mjs`, missing required org filters reduced to 17)
+- Active/last CI run IDs:
+  - `25273838147` Governance Release Gate: success
+  - `25273838150` policy-bob-no-openai: success
+  - `25273838141` Validate RunPod Image Tags: success
+  - `25273838153` CI Build High Memory: in progress
+  - `25273838163` Deploy Admin Portal to Vercel: in progress
+  - `25273838133` Playwright Deep Functional Cross-Browser: queued
+- Open blockers with owner:
+  - Remaining org-scoping findings concentrated in `src/lib/*` and `src/lib/testUtils.ts`; owner: Application architecture + data governance
+  - CI Build + Deploy not complete yet for current head; owner: CI/Release pipeline
+- Next exact command to run: `cd /workspaces/FreedomCamp-Manager && GH_PAGER=cat gh run list --limit 80 --json databaseId,headSha,workflowName,status,conclusion,url | jq 'map(select(.headSha=="'"$(git rev-parse HEAD)"'"))'`
+
 ## 8. Fast Resume Commands
 
 Run these as a single crash-recovery bundle:
