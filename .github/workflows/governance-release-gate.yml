@@ -64,6 +64,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
       - name: Fetch base branch for pull request diffs
         if: github.event_name == 'pull_request'
         run: git fetch --no-tags --prune --depth=1 origin "${{ github.base_ref }}"
