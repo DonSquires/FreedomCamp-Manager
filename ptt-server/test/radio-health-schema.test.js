@@ -39,10 +39,12 @@ function withFreshRadioRouter(envOverrides = {}) {
 
   const modulePath = require.resolve('../radio-router.js');
   delete require.cache[modulePath];
-  const { radioRouter } = require('../radio-router.js');
+  const radioRouterModule = require('../radio-router.js');
+  const { radioRouter } = radioRouterModule;
 
   return {
     radioRouter,
+    radioRouterModule,
     restore() {
       for (const [key, prev] of Object.entries(original)) {
         if (typeof prev === 'undefined') {
@@ -157,4 +159,43 @@ test('GET /radio/health reports online speechProcessor when metrics endpoint suc
     restoreRedisStub();
     global.fetch = originalFetch;
   }
+});
+
+test('speech queue metrics track enqueue success and failure', async () => {
+  const restoreRedisStub = withRedisModuleStub();
+  const { radioRouterModule, restore } = withFreshRadioRouter({
+    REDIS_URL: 'redis://example.test:6379',
+    RADIO_SPEECH_METRICS_URL: '',
+  });
+
+  const { __test } = radioRouterModule;
+  __test.resetSpeechQueueMetrics();
+
+  __test.setRedisClientForTests({
+    async rPush() { return 1; },
+    async lLen() { return 0; },
+  });
+  __test.setRedisReadyForTests(true);
+
+  await __test.enqueueSpeechEvent({ type: 'radio.producer.created', transmissionId: 'tx-success' });
+  let health = await __test.getSpeechQueueHealth();
+  assert.equal(health.metrics.eventsEnqueued, 1);
+  assert.equal(health.metrics.enqueueFailures, 0);
+  assert.equal(typeof health.metrics.lastEnqueuedAt, 'string');
+
+  __test.setRedisClientForTests({
+    async rPush() { throw new Error('redis write failed'); },
+    async lLen() { return 0; },
+  });
+
+  await __test.enqueueSpeechEvent({ type: 'radio.session.closed', transmissionId: 'tx-failure' });
+  health = await __test.getSpeechQueueHealth();
+  assert.equal(health.metrics.eventsEnqueued, 1);
+  assert.equal(health.metrics.enqueueFailures, 1);
+  assert.equal(health.metrics.lastEnqueueError, 'redis write failed');
+
+  __test.setRedisClientForTests(null);
+  __test.setRedisReadyForTests(false);
+  restore();
+  restoreRedisStub();
 });

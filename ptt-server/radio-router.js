@@ -66,6 +66,13 @@ const speechQueueMetrics = {
   lastEnqueueError: null,
 };
 
+function resetSpeechQueueMetrics() {
+  speechQueueMetrics.eventsEnqueued = 0;
+  speechQueueMetrics.enqueueFailures = 0;
+  speechQueueMetrics.lastEnqueuedAt = null;
+  speechQueueMetrics.lastEnqueueError = null;
+}
+
 async function initRadioRedis() {
   if (!REDIS_URL) return;
   if (redisClient) return;
@@ -602,4 +609,18 @@ router.get('/radio/health', async (req, res) => {
 // ---------------------------------------------------------------------------
 // Export router and init function for mounting in server.js
 // ---------------------------------------------------------------------------
-module.exports = { radioRouter: router, initSfu };
+module.exports = {
+  radioRouter: router,
+  initSfu,
+  __test: {
+    enqueueSpeechEvent,
+    getSpeechQueueHealth,
+    resetSpeechQueueMetrics,
+    setRedisClientForTests: (client) => {
+      redisClient = client;
+    },
+    setRedisReadyForTests: (ready) => {
+      redisReady = !!ready;
+    },
+  },
+};
