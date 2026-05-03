@@ -3,6 +3,9 @@
 **Author:** GitHub Copilot + Bob Architecture Review  
 **Priority:** Monday client demo + enterprise readiness
 
+> Authority status (2026-05-03): Historical baseline for the Monday demo cycle.
+> Active execution authority is maintained in docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md and docs/ENTERPRISE_COLLAB_EXECUTION_PLAN_2026-05-02.md.
+
 ---
 
 ## System Reality Check (as at 2026-05-01)

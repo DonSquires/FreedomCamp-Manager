@@ -1,7 +1,7 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-02
-Source of truth for routes: App router file src-App.tsx and route inventory document route-inventory-2026-04-27.md
+Source of truth for routes: App router file src/App.tsx and route inventory document docs/uiux-master-redesign/artifacts/route-inventory-2026-04-27.md
 
 ## How To Use
 

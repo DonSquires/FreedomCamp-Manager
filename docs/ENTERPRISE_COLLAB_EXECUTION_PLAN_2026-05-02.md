@@ -89,7 +89,7 @@ No phase closes without all four viewpoints captured.
 
 ### Deliverables
 
-1. Enterprise workflow test matrix for top 12 mission-critical flows.
+1. Enterprise workflow test matrix for 12 critical flows (11 P0 mission-critical + 1 P1 commercial-critical).
 2. Expanded automation targets for scan -> compliance -> breach -> notice -> report chain.
 3. Explicit pass/fail evidence format added to canonical review record.
 4. Workflow matrix is grounded to existing tests, scripts, or explicit manual controls.
@@ -104,7 +104,7 @@ No phase closes without all four viewpoints captured.
 
 ### Exit Criteria
 
-1. All 12 workflows have an evidence line item.
+1. All 12 workflows have an evidence line item, with all P0 workflows fully owned and validated.
 2. No unowned P0 gap remains.
 3. Bob + specialist + OpenAI all return approve or approve-with-notes.
 

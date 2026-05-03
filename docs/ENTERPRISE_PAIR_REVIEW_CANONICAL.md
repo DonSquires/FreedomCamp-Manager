@@ -5,6 +5,18 @@ Baseline commit: 35015963
 Review mode: Dual-lens (Bob operations lens + OpenAI architecture lens)
 Status: Active canonical record (update on each material platform change)
 
+## Execution Authority
+
+Execution order for enterprise planning and delivery:
+
+1. This canonical record is the primary authority for current execution status and decisions.
+2. docs/ENTERPRISE_COLLAB_EXECUTION_PLAN_2026-05-02.md is the active phase plan and must remain aligned with this record.
+3. docs/MASTER_IMPLEMENTATION_PLAN_2026-05-01.md is a historical Monday-demo baseline and must not supersede current canonical authority.
+
+Conflict rule:
+
+1. If statements conflict across planning documents, this file wins until an explicit update is committed here.
+
 ## Execution Continuity To-Do List (Crash Recovery)
 
 Use this checklist as the single restart anchor if an agent session ends unexpectedly.
