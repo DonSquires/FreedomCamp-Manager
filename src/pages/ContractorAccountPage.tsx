@@ -12,11 +12,12 @@
  *   • Contractor's own admin users: can edit contact info + upload documents
  */
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { uploadFile } from '@/lib/fileUpload'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Button } from '@/components/ui/button'
@@ -221,6 +222,15 @@ export default function ContractorAccountPage() {
   const fileRef = useRef<HTMLInputElement>(null)
 
   const isServiceProvider = ['grand_master', 'master', 'admin', 'admin_officer'].includes(user?.role ?? '')
+
+  // ── Org access guard — prevent URL-spoofed orgId from leaking data ──────────
+  const { orgIds, isLoading: orgIdsLoading } = useClientOrgIds()
+  useEffect(() => {
+    if (orgIdsLoading || !orgId) return
+    if (orgIds !== null && !orgIds.includes(orgId)) {
+      navigate('/crm', { replace: true })
+    }
+  }, [orgId, orgIds, orgIdsLoading, navigate])
 
   // ── Organisation ────────────────────────────────────────────────────────
 

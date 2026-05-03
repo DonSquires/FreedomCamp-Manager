@@ -14,8 +14,10 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -173,6 +175,16 @@ export default function ClientAccountPage() {
   const [contactForm, setContactForm] = useState<Partial<ClientOrg>>({})
 
   const canEdit = ['grand_master', 'master', 'admin', 'admin_officer'].includes(user?.role ?? '')
+
+  // ── Org access guard — prevent URL-spoofed orgId from leaking data ──────────
+  const { orgIds, isLoading: orgIdsLoading } = useClientOrgIds()
+  useEffect(() => {
+    if (orgIdsLoading || !orgId) return
+    // null = grand_master (unrestricted); otherwise verify orgId is in allowed set
+    if (orgIds !== null && !orgIds.includes(orgId)) {
+      navigate('/crm', { replace: true })
+    }
+  }, [orgId, orgIds, orgIdsLoading, navigate])
 
   // ── Organisation ──────────────────────────────────────────────────────────
 

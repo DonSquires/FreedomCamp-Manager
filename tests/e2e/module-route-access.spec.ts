@@ -648,3 +648,43 @@ test.describe('nzscv_monitor – restricted access', () => {
     await assertRouteBlocked(page, '/admin')
   })
 })
+
+// ─── ORG ISOLATION — CRM Parameterised Routes ─────────────────────────────────
+//
+// Verifies that /crm/client/:orgId and /crm/contractor/:orgId cannot be
+// accessed with a spoofed orgId that does not belong to the authenticated
+// user's organisation tree.
+//
+// The frontend guard (useClientOrgIds) will redirect to /crm when orgId is
+// outside the user's allowed descendant set. The RLS on the organisations
+// table provides the server-side defence.
+
+test.describe('org isolation – CRM parameterised routes', () => {
+  test.describe.configure({ mode: 'serial' })
+
+  const SPOOFED_ORG_ID = '00000000-0000-0000-0000-000000000001'
+
+  test('admin cannot access /crm/client/:spoofedOrgId from another org', async ({ page }) => {
+    await loginAs(page, 'adminOrg1')
+    // Navigate to a client org ID that does not belong to adminOrg1's hierarchy
+    await page.goto(`/crm/client/${SPOOFED_ORG_ID}`, { waitUntil: 'networkidle' })
+    // Guard should redirect back to /crm (or /login if not authenticated)
+    const url = page.url()
+    expect(url).not.toContain(SPOOFED_ORG_ID)
+  })
+
+  test('admin cannot access /crm/contractor/:spoofedOrgId from another org', async ({ page }) => {
+    await loginAs(page, 'adminOrg1')
+    await page.goto(`/crm/contractor/${SPOOFED_ORG_ID}`, { waitUntil: 'networkidle' })
+    const url = page.url()
+    expect(url).not.toContain(SPOOFED_ORG_ID)
+  })
+
+  test('officer cannot access /crm/client/:spoofedOrgId', async ({ page }) => {
+    await loginAs(page, 'officerOrg1')
+    await page.goto(`/crm/client/${SPOOFED_ORG_ID}`, { waitUntil: 'networkidle' })
+    // Officers don't have access to /crm routes at all — should redirect away
+    const url = page.url()
+    expect(url).not.toContain(SPOOFED_ORG_ID)
+  })
+})
