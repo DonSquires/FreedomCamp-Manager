@@ -1,0 +1,56 @@
+{
+  "createdAt": "2026-05-03T11:22:47.440Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/UI_UX_ENTERPRISE_FORWARD_PLAN_2026-05-03.md",
+  "outputPath": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/UI_UX_ENTERPRISE_FORWARD_PLAN_2026-05-03.md.2026-05-03T11-22-47-419Z.json",
+  "decision": "needs-revision",
+  "structured": true,
+  "escalationReason": "blocker-findings",
+  "review": {
+    "decision": "needs-revision",
+    "summary": "The plan references several modules and services that do not currently exist in the system_state.json, which could be misinterpreted as existing current-state implementation.",
+    "findings": [
+      {
+        "severity": "blocker",
+        "title": "Ungrounded module reference: route-manifest-driven nav filter spec",
+        "evidence": "The plan references a 'route-manifest-driven nav filter spec' which is not listed in the system_state.json or any repo files.",
+        "requiredAction": "Remove the reference to this spec from the current plan and update it as part of future work."
+      },
+      {
+        "severity": "blocker",
+        "title": "Ungrounded module reference: route/menu parity checklist",
+        "evidence": "The plan mentions a 'route/menu parity checklist' which is not listed in the system_state.json or any repo files.",
+        "requiredAction": "Remove the reference to this checklist from the current plan and update it as part of future work."
+      },
+      {
+        "severity": "blocker",
+        "title": "Ungrounded module reference: validation gate updates for route/menu parity drift",
+        "evidence": "The plan references 'validation gate updates for route/menu parity drift' which is not listed in the system_state.json or any repo files.",
+        "requiredAction": "Remove the reference to these updates from the current plan and update them as part of future work."
+      },
+      {
+        "severity": "blocker",
+        "title": "Ungrounded module reference: dispatch fallback decision tree",
+        "evidence": "The plan mentions a 'dispatch fallback decision tree' which is not listed in the system_state.json or any repo files.",
+        "requiredAction": "Remove the reference to this decision tree from the current plan and update it as part of future work."
+      },
+      {
+        "severity": "blocker",
+        "title": "Ungrounded module reference: cross-org route/access test matrix",
+        "evidence": "The plan references a 'cross-org route/access test matrix' which is not listed in the system_state.json or any repo files.",
+        "requiredAction": "Remove the reference to this test matrix from the current plan and update it as part of future work."
+      },
+      {
+        "severity": "blocker",
+        "title": "Ungrounded module reference: Bob workflow isolation checks across org contexts",
+        "evidence": "The plan mentions 'Bob workflow isolation checks across org contexts' which is not listed in the system_state.json or any repo files.",
+        "requiredAction": "Remove the reference to these checks from the current plan and update them as part of future work."
+      }
+    ],
+    "verificationChecks": [
+      "Run targeted build",
+      "Validate all references against system_state.json"
+    ]
+  },
+  "basicFixResult": null,
+  "requiredAction": "Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope."
+}

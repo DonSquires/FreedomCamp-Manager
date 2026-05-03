@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-05-02T23:42:51.367Z",
+  "generatedAt": "2026-05-03T11:33:14.534Z",
   "source": "src/App.tsx",
-  "routeCount": 120,
+  "routeCount": 121,
   "unresolvedRouteCount": 0,
   "missingFileCount": 0,
   "unresolvedRoutes": [],
@@ -507,6 +507,15 @@
       "componentName": "PTTTransmissionLog",
       "importPath": "@/pages/PTTTransmissionLog",
       "resolvedPath": "src/pages/PTTTransmissionLog.tsx",
+      "isRedirect": false,
+      "importResolved": true,
+      "fileExists": true
+    },
+    {
+      "path": "/radio/audit",
+      "componentName": "RadioAuditDashboard",
+      "importPath": "@/pages/RadioAuditDashboard",
+      "resolvedPath": "src/pages/RadioAuditDashboard.tsx",
       "isRedirect": false,
       "importResolved": true,
       "fileExists": true

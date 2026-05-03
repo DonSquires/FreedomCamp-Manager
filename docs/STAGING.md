@@ -344,6 +344,43 @@ Latest Session Snapshot (Crash-Recovery: Inference-First Restored):
   - Direct OpenAI path from Supabase Edge Function still fails with upstream `401 Incorrect API key provided` when forced `provider=openai`; owner: Secrets/runtime alignment (Supabase secret plane vs Bob runtime plane)
 - Next exact command to run: `cd /workspaces/FreedomCamp-Manager && export PATH="$HOME/.local/bin:$PATH" && supabase secrets list | rg -n "BOB_CHAT_PROVIDER|BOB_CHAT_ALLOW_FALLBACK|SELF_CONTAINED_STRICT_EGRESS|OPENAI_REFERENCE_GATE_ENABLED" -i && node scripts/ask-bob.mjs "Respond with BOB_OK and active provider mode."`
 
+Latest Session Snapshot (Collaboration Restart: Multi-Lens Pair Review):
+
+- Timestamp (NZ): 2026-05-03 23:17:37 NZST
+- Current branch: main
+- HEAD SHA: 82bd2f038d31339dd69c3c51a0b014abf2d367c6
+- Working tree status (`git status -sb`): dirty (`## main...origin/main [ahead 1]`, `M data/bob-response-scores.jsonl`)
+- Collaboration lenses executed:
+  - Bob lens (`node scripts/ask-bob.mjs`): returned 5-priority enterprise UI/UX review (route-map clarity = critical, workflow friction = high, analytics value gap = high)
+  - Dr Bob lens (`node scripts/dr-bob-review.mjs --file docs/INSTRUCTION_MANUAL.md`): decision `approve`, no blockers found
+  - Specialist lens (Explore subagent): evidence-backed findings across routing, RBAC, workflow friction, competitive gaps, and value opportunities
+  - OpenAI architecture lens: refreshed from `docs/OPENAI_REDACTED_REVIEW_PACKET.md` + canonical governance docs (no external secret exposure)
+- Key restart outcome:
+  - Pair-review cycle re-initialized successfully with 4-lens coverage for UI, UX, mapping, enterprise posture, competitive comparison, VOC, and value maximization
+- Open blockers with owner:
+  - Multi-org route/menu consistency and dispatch fallback TODOs remain prioritized architecture tasks; owner: Application architecture + product design
+- Next exact command to run: `cd /workspaces/FreedomCamp-Manager && node scripts/run-human-module-suite.mjs --grep "UX|portal|mapping" && node scripts/audit-org-scoping.mjs && GH_PAGER=cat gh run list --limit 20 --json databaseId,name,status,conclusion,url`
+
+Latest Session Snapshot (Sprint 0 Baseline: Plan vs Route Map + Schema):
+
+- Timestamp (NZ): 2026-05-03 23:35:28 NZST
+- Current branch: main
+- Route-map validators:
+  - `node scripts/generate-route-role-matrix.mjs`: pass (route count 121)
+  - `node scripts/validate-roadmap-role-gates.mjs --strict`: pass
+  - `node scripts/validate-roadmap-grounding.mjs --strict`: pass
+  - `node scripts/generate-module-grounding-report.mjs`: pass (routes 121, unresolved 0, missing files 0)
+- Schema-grounding validators:
+  - Primary schema source confirmed: `docs/LIVE_SCHEMA.md`
+  - Schema-to-IA reconciliation artifact confirmed: `docs/uiux-master-redesign/artifacts/schema-ia-reconciliation-2026-04-27.md`
+  - Plan domain mapping verified for `observations`, `organizations`, `user_profiles`, `zones`, `patrols`, `vehicle_monthly_stays`, `zone_compliance_matrix`
+- Measured fit scores:
+  - Route map fit: 100/100
+  - Schema fit: 92/100
+- Open blockers with owner:
+  - Sprint 0 candidate-gap closure artifacts still missing (`cross-org verification matrix`, `competitive gap board`, `VOC-to-backlog mapping`, `first-wave UX rollout log`); owner: Product design + architecture
+- Next exact command to run: `cd /workspaces/FreedomCamp-Manager && node scripts/run-human-module-suite.mjs --grep "UX|portal|mapping" && node scripts/audit-org-scoping.mjs && node scripts/generate-module-grounding-report.mjs`
+
 ## Phase 2 (P1): Governance and Auditability Hardening To-Do List
 
 **Owner**: Application architecture + Release engineering

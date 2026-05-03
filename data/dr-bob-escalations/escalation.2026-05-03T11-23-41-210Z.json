@@ -1,0 +1,25 @@
+{
+  "createdAt": "2026-05-03T11:23:41.209Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/UI_UX_ENTERPRISE_FORWARD_PLAN_2026-05-03.md",
+  "outputPath": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/UI_UX_ENTERPRISE_FORWARD_PLAN_2026-05-03.md.2026-05-03T11-23-41-196Z.json",
+  "decision": "needs-revision",
+  "structured": true,
+  "escalationReason": "blocker-findings",
+  "review": {
+    "decision": "needs-revision",
+    "summary": "The plan references future artifacts that should be marked as `to be created` and not treated as current-state implementations.",
+    "findings": [
+      {
+        "severity": "blocker",
+        "title": "Future artifact references in current state",
+        "evidence": "Artifacts like 'tests/e2e/module-route-access.spec.ts', 'src/lib/dispatchAssignment.ts', and 'to be created' deliverables are referenced as if they already exist.",
+        "requiredAction": "Mark all future artifacts with `to be created` and ensure they are not treated as current-state implementations."
+      }
+    ],
+    "verificationChecks": [
+      "Ensure all references to future artifacts are clearly marked"
+    ]
+  },
+  "basicFixResult": null,
+  "requiredAction": "Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope."
+}
