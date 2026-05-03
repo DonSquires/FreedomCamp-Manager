@@ -64,6 +64,7 @@ import {
 import { requestWakeLock, releaseWakeLock, requestNotificationPermission } from '@/lib/pttBackground'
 import { radioFeatureFlags } from '@/lib/radio/radioFeatureFlags'
 import { radioCaptionService, type CaptionSegment } from '@/lib/radio/radioCaptionService'
+import { radioTranslationService, type TranslationSegment } from '@/lib/radio/radioTranslationService'
 import { checkInferenceHealth } from '@/lib/proxyServices'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Badge } from '@/components/ui/badge'
@@ -552,6 +553,7 @@ export default function PTTRadio() {
 
   // ── Live Captions (Phase 2 — gated by radioFeatureFlags.captionsEnabled) ──
   const [liveCaptions, setLiveCaptions] = useState<CaptionSegment[]>([])
+  const [liveTranslations, setLiveTranslations] = useState<TranslationSegment[]>([])
   const [lastCaptionAtMs, setLastCaptionAtMs] = useState<number | null>(null)
   const [captionsDelayed, setCaptionsDelayed] = useState(false)
   const remoteTransmissionStartedAtRef = useRef<number | null>(null)
@@ -598,6 +600,39 @@ export default function PTTRadio() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!radioFeatureFlags.translationEnabled) return
+    const unsub = radioTranslationService.subscribe((seg) => {
+      setLiveTranslations((prev) => {
+        const idx = prev.findIndex(
+          (s) => s.transcriptSegmentId === seg.transcriptSegmentId && s.targetLanguage === seg.targetLanguage,
+        )
+        if (idx >= 0) {
+          const next = [...prev]
+          next[idx] = seg
+          return next
+        }
+        return [...prev, seg].slice(-50)
+      })
+    })
+    return unsub
+  }, [])
+
+  useEffect(() => {
+    if (!radioFeatureFlags.translationEnabled || typeof window === 'undefined') return
+
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<TranslationSegment>).detail
+      if (!detail?.transcriptSegmentId || !detail?.targetLanguage) return
+      radioTranslationService.emit(detail)
+    }
+
+    window.addEventListener('radio:inject-translation', handler as EventListener)
+    return () => {
+      window.removeEventListener('radio:inject-translation', handler as EventListener)
+    }
+  }, [])
+
   const captionPipeline = captionInferenceHealth?.radioPipeline
   const captionProcessorEnabled = captionPipeline?.processor_enabled === true
   const captionUnavailableReason = captionInferenceHealth?.status === 'offline'
@@ -608,9 +643,14 @@ export default function PTTRadio() {
   const captionsUnavailable = Boolean(captionUnavailableReason)
   const remoteTransmissionActive = Boolean(speakerId && !isSpeaking)
   const recentCaptions = useMemo(() => liveCaptions.slice(-8), [liveCaptions])
+  const recentTranslations = useMemo(() => liveTranslations.slice(-6), [liveTranslations])
   const lowConfidenceCaptionCount = useMemo(
     () => recentCaptions.filter((seg) => isLowConfidenceCaption(seg)).length,
     [recentCaptions],
+  )
+  const lowConfidenceTranslationCount = useMemo(
+    () => recentTranslations.filter((seg) => seg.isLowConfidence).length,
+    [recentTranslations],
   )
 
   useEffect(() => {
@@ -660,6 +700,11 @@ export default function PTTRadio() {
   const homeOrganizationId = user?.organization_id || effectiveOrgId || null
   const employerOrganizationId = user?.employer_organization_id || null
   const providerOrgId = employerOrganizationId || homeOrganizationId || null
+
+  useEffect(() => {
+    if (!radioFeatureFlags.translationEnabled) return
+    radioTranslationService.setTargetLanguage(interpreterTargetLanguage)
+  }, [interpreterTargetLanguage])
 
   useEffect(() => {
     if (!radioFeatureFlags.captionsEnabled || !effectiveOrgId) return
@@ -717,6 +762,63 @@ export default function PTTRadio() {
       supabase.removeChannel(channel)
     }
   }, [effectiveOrgId])
+
+  useEffect(() => {
+    if (!radioFeatureFlags.translationEnabled || !effectiveOrgId || !interpreterTargetLanguage) return
+
+    const toTranslationSegment = (row: any): TranslationSegment | null => {
+      if (!row?.transcript_segment_id || !row?.target_language) return null
+      const confidence = row.confidence == null ? 1 : Number(row.confidence)
+      return {
+        transcriptSegmentId: String(row.transcript_segment_id),
+        targetLanguage: String(row.target_language),
+        text: String(row.text || ''),
+        confidence,
+        provider: String(row.provider || 'unknown'),
+        isLowConfidence: typeof row.is_low_confidence === 'boolean' ? row.is_low_confidence : confidence < 0.7,
+      }
+    }
+
+    const channel = supabase
+      .channel(`radio-translations-${effectiveOrgId}-${interpreterTargetLanguage}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'radio_translation_segments',
+          filter: `org_id=eq.${effectiveOrgId}`,
+        },
+        (payload: any) => {
+          const seg = toTranslationSegment(payload?.new)
+          if (!seg) return
+          if (seg.targetLanguage !== interpreterTargetLanguage) return
+          radioTranslationService.emit(seg)
+        },
+      )
+      .subscribe()
+
+    const sinceIso = new Date(Date.now() - 2 * 60 * 1000).toISOString()
+    void (supabase as any)
+      .from('radio_translation_segments')
+      .select('transcript_segment_id, target_language, text, confidence, provider, is_low_confidence, created_at')
+      .eq('org_id', effectiveOrgId)
+      .eq('target_language', interpreterTargetLanguage)
+      .gte('created_at', sinceIso)
+      .order('created_at', { ascending: true })
+      .limit(40)
+      .then(({ data, error }: any) => {
+        if (error || !Array.isArray(data)) return
+        for (const row of data) {
+          const seg = toTranslationSegment(row)
+          if (seg) radioTranslationService.emit(seg)
+        }
+      })
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [effectiveOrgId, interpreterTargetLanguage])
 
   const { data: hybridHandshake } = useHybridWorkspaceHandshake({
     providerOrgId,
@@ -3262,6 +3364,40 @@ export default function PTTRadio() {
                       </div>
                     )}
                   </ScrollArea>
+
+                  {radioFeatureFlags.translationEnabled && (
+                    <div className="border-t border-slate-800 px-3 pt-2 pb-2">
+                      <div className="flex items-center gap-1.5 text-[10px] text-slate-500 uppercase tracking-widest pb-1">
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                        Live Translation ({interpreterTargetLanguage})
+                        {lowConfidenceTranslationCount > 0 && (
+                          <span className="ml-1 inline-flex items-center rounded border border-amber-700/70 bg-amber-900/40 px-1 py-0 text-[8px] uppercase tracking-wide text-amber-200">
+                            {lowConfidenceTranslationCount} low-confidence
+                          </span>
+                        )}
+                      </div>
+
+                      {recentTranslations.length === 0 ? (
+                        <p className="text-[11px] text-slate-600 italic">Waiting for translations…</p>
+                      ) : (
+                        <div className="space-y-0.5 max-h-16 overflow-y-auto pr-1">
+                          {recentTranslations.map((seg) => (
+                            <div
+                              key={`${seg.transcriptSegmentId}-${seg.targetLanguage}`}
+                              className={`text-[11px] leading-snug ${seg.isLowConfidence ? 'text-amber-300' : 'text-cyan-200'}`}
+                            >
+                              {seg.text}
+                              {seg.isLowConfidence && (
+                                <span className="ml-1 inline-flex items-center rounded border border-amber-700/70 bg-amber-900/40 px-1 py-0 text-[8px] uppercase tracking-wide text-amber-200">
+                                  Low confidence
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
