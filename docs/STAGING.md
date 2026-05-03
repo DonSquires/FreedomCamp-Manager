@@ -292,6 +292,26 @@ Latest Session Snapshot (ORG-SCOPE-ZERO COMPLETE):
 - Open blockers with owner: **NONE**. Org-scoping hardening complete; all required CI gates passed.
 - Next exact command to run: `cd /workspaces/FreedomCamp-Manager && bash scripts/system-check.sh && node scripts/summarize-failures.mjs`
 
+Latest Session Snapshot (Phase 2 Governance Hardening Progress):
+
+- Timestamp (NZ): 2026-05-03 21:13:55 NZST
+- Current branch: main
+- HEAD SHA: 95ba598db062e9705de9fa9390a1aaabd05b042c
+- Working tree status (`git status -sb`): docs update pending (`docs/STAGING.md`)
+- Latest strict checks:
+  - `node scripts/validate-roadmap-role-gates.mjs --strict`: pass
+  - `DOC_AUTHORITY_STRICT=true bun run lint:doc-authority`: pass
+  - `node scripts/generate-route-role-matrix.mjs`: pass (`tools/route-role-matrix/route-role-matrix.json`, route count 121)
+- Active/last CI run IDs (all complete):
+  - `25274883666` Governance Release Gate: completed, success
+  - `25274883650` policy-bob-no-openai: completed, success
+  - `25274883656` Validate RunPod Image Tags: completed, success
+  - `25274883733` CI Build High Memory: completed, success
+  - `25274883644` Deploy Admin Portal to Vercel: completed, success
+- Open blockers with owner:
+  - Triad sign-off capture pending for this Phase 2 cycle; owner: Primary execution lead
+- Next exact command to run: `cd /workspaces/FreedomCamp-Manager && node scripts/dr-bob-review.mjs --file docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md`
+
 ## Phase 2 (P1): Governance and Auditability Hardening To-Do List
 
 **Owner**: Application architecture + Release engineering
@@ -300,19 +320,19 @@ Latest Session Snapshot (ORG-SCOPE-ZERO COMPLETE):
 
 ### 8A. Phase 2 Deliverables (Execution Checklist)
 
-1. [ ] **CI wiring for doc-authority checks on route/schema/edge changes**
+1. [x] **CI wiring for doc-authority checks on route/schema/edge changes**
   - Command: `bun run lint:doc-authority --strict` (success on push to main)
   - Files: `.github/workflows/governance-release-gate.yml` (already wired)
   - Evidence: Run CI on next push, capture DOC_AUTHORITY_STRICT=true behavior
   - Owner: Release engineering
 
-2. [ ] **Route-role authority completeness review from roadmap to router truth**
+2. [x] **Route-role authority completeness review from roadmap to router truth**
   - Command: `node scripts/validate-roadmap-role-gates.mjs --strict`
   - Source: docs/MODULE_ROADMAP.md → src/App.tsx route inventory
   - Artifact: tools/route-role-matrix/governance/[run_id]/route-role-matrix.json
   - Owner: Application architecture
 
-3. [ ] **Governance cadence definition (monthly triad review + release gate checkpoints)**
+3. [x] **Governance cadence definition (monthly triad review + release gate checkpoints)**
   - Add to docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md Section: "Review Cadence"
   - Define: monthly triad review schedule + release gates
   - Definition: governance-release-gate.yml on every push to main (role/schema/edge changes)
@@ -320,12 +340,12 @@ Latest Session Snapshot (ORG-SCOPE-ZERO COMPLETE):
 
 ### 8B. Phase 2 Supporting Tasks
 
-- [ ] Validate role-gate strict checks pass on current HEAD
-- [ ] Run doc-authority check in strict mode against current branch
-- [ ] Verify all role annotations in MODULE_ROADMAP.md are bidirectionally validated against App.tsx
-- [ ] Generate fresh route-role matrix artifact for Phase 2 evidence
-- [ ] Update ENTERPRISE_PAIR_REVIEW_CANONICAL.md with governance cadence section
-- [ ] Record Phase 2 exit criteria evidence in canonical record
+- [x] Validate role-gate strict checks pass on current HEAD
+- [x] Run doc-authority check in strict mode against current branch
+- [x] Verify all role annotations in MODULE_ROADMAP.md are bidirectionally validated against App.tsx
+- [x] Generate fresh route-role matrix artifact for Phase 2 evidence
+- [x] Update ENTERPRISE_PAIR_REVIEW_CANONICAL.md with governance cadence section
+- [x] Record Phase 2 exit criteria evidence in canonical record
 - [ ] Triad review: Bob + OpenAI + Specialist validation
 
 ### 8C. Phase 2 Blocker Resolution
