@@ -44,3 +44,9 @@ Capture measured baselines before further UX implementation for:
 ## Notes
 
 - This workbook is the executable evidence surface for Phase 3 baseline requirements (D1-D4) and should be updated before additional UX code changes.
+
+## Current Execution State (2026-05-03)
+
+- Local run attempt (`PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=1 npx playwright test tests/e2e/phase3-ux-baseline-capture.spec.ts --project=chromium`) is blocked in this container.
+- Blocker: Playwright Chromium binary missing/host dependency mismatch (ENOENT on `chrome-headless-shell`).
+- Resolution path: execute `.github/workflows/phase3-ux-baseline-capture.yml` on GitHub Actions and import artifact values into this workbook.

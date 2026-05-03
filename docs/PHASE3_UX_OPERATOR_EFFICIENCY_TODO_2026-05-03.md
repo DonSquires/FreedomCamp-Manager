@@ -17,8 +17,8 @@ Execute Phase 3 UX/operator-efficiency triage with measurable evidence, role-pat
 ## A. Deliverables
 
 - [ ] A1. UX triage list for high-impact readability/navigation issues
-- [ ] A2. Role-specific path simplification for high-frequency operations
-- [ ] A3. Visual hierarchy cleanup plan for dense pages
+- [x] A2. Role-specific path simplification for high-frequency operations
+- [x] A3. Visual hierarchy cleanup plan for dense pages
 
 ## B. Supporting Tasks
 
@@ -26,14 +26,17 @@ Execute Phase 3 UX/operator-efficiency triage with measurable evidence, role-pat
 - [ ] B2. Capture route-level friction findings (time-to-task, click depth, error-prone actions)
 - [ ] B3. Classify quick wins into now/next/later slices
 - [ ] B4. Define measurable UX acceptance criteria by route family
-- [ ] B5. Map role-specific path simplifications for admin, admin_officer, officer, master
+- [x] B5. Map role-specific path simplifications for admin, admin_officer, officer, master
 - [ ] B6. Validate route/role alignment with docs/MODULE_ROADMAP.md and src/App.tsx
-- [ ] B7. Run triad review on Phase 3 artifact before implementation commit
+- [x] B7. Run triad review on Phase 3 artifact before implementation commit
 
 Evidence:
 
 - B1 route verification: docs/PHASE3_TOP10_ROUTE_VERIFICATION_2026-05-03.md
 - Baseline capture workbook (for B2-D4): docs/PHASE3_UX_BASELINE_CAPTURE_2026-05-03.md
+- A2/B5 role-path maps: docs/PHASE3_ROLE_PATH_SIMPLIFICATION_MAPS_2026-05-03.md
+- A3 visual cleanup checklist: docs/PHASE3_VISUAL_HIERARCHY_CLEANUP_CHECKLIST_2026-05-03.md
+- B7 triad record: docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md (Phase 3 Kickoff section)
 
 ## C. Validation Gates
 

@@ -591,6 +591,7 @@ Validation gates completed locally:
 
 Current blocker:
 1. First baseline evidence run requires executing `phase3-ux-baseline-capture.yml` on remote GitHub Actions after the workflow is present on remote `main`.
+2. Local baseline capture run in this container fails with Playwright Chromium ENOENT; treat CI workflow run as required evidence source.
 
 Next command (once remote sync is complete):
 1. `gh workflow run phase3-ux-baseline-capture.yml`
