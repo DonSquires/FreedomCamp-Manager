@@ -681,3 +681,38 @@ GH_PAGER=cat gh run list --limit 120 --json databaseId,headSha,name,status,concl
 
 ### Status Legend
 `⬜ Not started` | `🔄 In progress` | `✅ Done` | `🚫 Blocked`
+
+---
+
+## 11. Session Handoff Snapshot — 2026-05-03 (Phase 3 Kickoff)
+
+| Item | Value |
+|---|---|
+| Commit at snapshot | (pending Phase 3 bundle commit) |
+| Bun version | 1.3.13 |
+| Node version | 24.14.1 |
+| Chromium (Alpine) | 147.0.7727.116 at `/usr/bin/chromium` |
+| `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` | `/usr/bin/chromium` |
+
+### Phase 3 Deliverables Completed This Session
+
+| Artefact | Status |
+|---|---|
+| `docs/PHASE3_TOP10_ROUTE_VERIFICATION_2026-05-03.md` | ✅ Complete — 10/10 routes grounded in App.tsx |
+| `docs/PHASE3_UX_BASELINE_CAPTURE_2026-05-03.md` | ✅ Created; rows populated after first CI baseline run |
+| `docs/PHASE3_ROLE_PATH_SIMPLIFICATION_MAPS_2026-05-03.md` | ✅ Complete |
+| `docs/PHASE3_VISUAL_HIERARCHY_CLEANUP_CHECKLIST_2026-05-03.md` | ✅ Complete (Slice A/B/C + QA guardrails) |
+| `tests/e2e/phase3-ux-baseline-capture.spec.ts` | ✅ Complete — 180s timeout, Alpine Chromium compatible |
+| `.github/workflows/phase3-ux-baseline-capture.yml` | ✅ Complete |
+| Phase 3 triad review in `ENTERPRISE_PAIR_REVIEW_CANONICAL.md` | ✅ Complete — CONDITIONAL_GO → GO after CI artefact upload |
+
+### CI Gate Status at Snapshot
+
+| Workflow | Status |
+|---|---|
+| Database — Migration Check | ✅ PASS (migration renamed to 20260503000004) |
+| Governance Release Gate | ✅ PASS (remediation addendum added) |
+| Phase 1 Async-State Validation | ✅ PASS (dispatchConnectivityEvent 50ms delay fix) |
+| Route-Role Strict Validation | ✅ PASS (validate-roadmap-role-gates.mjs --strict) |
+| Lint | ✅ PASS |
+| Build | ✅ PASS |

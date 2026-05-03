@@ -454,3 +454,43 @@ Date: 2026-05-02
 19. (pending) - PTT Phase 0 ADRs: service topology, SFU, voice synthesis, compliance
 20. (pending) - PTT Phase 1 Group A: radio schema migrations + RLS + TS types
 21. (pending) - PTT Phase 1 Group B: radio-token Edge Function + ptt-server mediasoup extension
+
+---
+
+## Phase 3 UX Hardening Triad Review
+
+**Date:** 2026-05-03  
+**Sprint:** Phase 3 Kickoff  
+**Scope:** UX Baseline Capture, Role-Path Simplification, Visual Hierarchy Cleanup, Route-Role Strict Validation
+
+### Bob Lens (Operational Triage Lead)
+- **Verdict:** APPROVE WITH NOTES
+- Top-10 triaged routes grounded in App.tsx router via `docs/PHASE3_TOP10_ROUTE_VERIFICATION_2026-05-03.md` ✅
+- Role-path simplification maps complete for admin, officer, master roles ✅
+- Visual hierarchy cleanup checklist: Slice A (nav chrome), Slice B (dashboard tiles), Slice C (breach/route list cards) — all defined with QA guardrails ✅
+- Route-role strict validation: `node scripts/validate-roadmap-role-gates.mjs --strict` → PASS ✅
+- **Note:** Baseline metrics capture spec (`phase3-ux-baseline-capture.spec.ts`) runs against live Alpine Chromium; workbook to be populated from spec artefact on CI pass.
+
+### Architecture Lens (OpenAI Peer)
+- **Verdict:** APPROVE
+- Phase 3 scope is additive (measurement + checklist artefacts), no breaking schema or routing changes.
+- Baseline capture is non-destructive: emits JSON to `test-results/phase3-ux-baseline.json`, imported by `scripts/import-phase3-baseline.mjs`.
+- Role-path maps and hierarchy checklists do not modify production code; they gate future Slice A/B/C implementation tickets.
+
+### Specialist Verification (QA Gate)
+- **Verdict:** CONDITIONAL GO → GO after first CI baseline run
+- CI gate: `.github/workflows/phase3-ux-baseline-capture.yml` wired to `tests/e2e/phase3-ux-baseline-capture.spec.ts`; uploads JSON artefact on pass.
+- Workbook (`docs/PHASE3_UX_BASELINE_CAPTURE_2026-05-03.md`) row import is gated on artefact availability.
+- All five Phase 3 artefact docs verified present in `docs/`.
+- Lint and build: PASS (verified in this session).
+
+### Outcome
+**CONDITIONAL_GO** → reclassified **GO** upon first CI baseline artefact upload.
+
+### Completed Artifacts
+- `docs/PHASE3_TOP10_ROUTE_VERIFICATION_2026-05-03.md`
+- `docs/PHASE3_UX_BASELINE_CAPTURE_2026-05-03.md`
+- `docs/PHASE3_ROLE_PATH_SIMPLIFICATION_MAPS_2026-05-03.md`
+- `docs/PHASE3_VISUAL_HIERARCHY_CLEANUP_CHECKLIST_2026-05-03.md`
+- `tests/e2e/phase3-ux-baseline-capture.spec.ts`
+- `.github/workflows/phase3-ux-baseline-capture.yml`

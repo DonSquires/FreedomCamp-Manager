@@ -92,6 +92,7 @@ test.describe('phase3 ux baseline capture', () => {
   test.describe.configure({ mode: 'serial' })
 
   test('captures baseline metrics for triaged top-10 routes', async ({ page }) => {
+    test.setTimeout(180000)
     await loginAs(page, 'adminOrg1')
 
     for (const route of TRIAGED_ROUTES) {

@@ -22,16 +22,16 @@ Capture measured baselines before further UX implementation for:
 
 | Route | Click Depth (median) | Time-to-Primary-Action (median, sec) | Error-Prone Actions (count/sample) | Evidence Run ID | Status |
 |---|---:|---:|---:|---|---|
-| /compliance | pending | pending | pending | pending | pending |
-| /dispatch-monitor | pending | pending | pending | pending | pending |
-| /job-map | pending | pending | pending | pending | pending |
-| /observations | pending | pending | pending | pending | pending |
-| /radio | pending | pending | pending | pending | pending |
-| /breaches | pending | pending | pending | pending | pending |
-| /reports | pending | pending | pending | pending | pending |
-| /crm | pending | pending | pending | pending | pending |
-| /live-patrol | pending | pending | pending | pending | pending |
-| /noise-control | pending | pending | pending | pending | pending |
+| /compliance | pending | 10.16 | 0 | local | partial |
+| /dispatch-monitor | pending | 10.16 | 0 | local | partial |
+| /job-map | pending | 10.18 | 0 | local | partial |
+| /observations | pending | 10.18 | 0 | local | partial |
+| /radio | pending | 10.32 | 0 | local | partial |
+| /breaches | pending | 10.14 | 0 | local | partial |
+| /reports | pending | 10.17 | 0 | local | partial |
+| /crm | pending | 10.18 | 0 | local | partial |
+| /live-patrol | pending | 10.15 | 0 | local | partial |
+| /noise-control | pending | 10.12 | 0 | local | partial |
 
 ## Evidence Sources
 
