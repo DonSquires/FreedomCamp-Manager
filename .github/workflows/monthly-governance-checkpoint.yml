@@ -30,6 +30,11 @@ jobs:
       - name: Lint warning budget gate
         run: bun run lint:warning-budget
 
+      - name: Staging doc presence and freshness gate
+        env:
+          STAGING_MAX_AGE_DAYS: '14'
+        run: bun run lint:staging-doc
+
       - name: Resolve required P0 workflow IDs
         id: required-workflows
         run: |
@@ -108,6 +113,7 @@ jobs:
           echo "## Monthly Governance Checkpoint" >> "$GITHUB_STEP_SUMMARY"
           echo "- Build gate: completed" >> "$GITHUB_STEP_SUMMARY"
           echo "- Lint warning budget gate: completed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Staging doc presence/freshness gate: completed" >> "$GITHUB_STEP_SUMMARY"
           echo "- Evidence IDs validated: ${{ steps.required-workflows.outputs.ids }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Canonical record: docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md" >> "$GITHUB_STEP_SUMMARY"
           echo "- Artifact path: tools/workflow-evidence/monthly/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
