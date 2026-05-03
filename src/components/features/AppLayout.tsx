@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
+import { isRouteVisibleForRole } from '@/navigation/routeManifestAdapter'
+import { routeManifest, type AppRole } from '@/navigation/routeManifest'
 import { useSessionLockStore } from '@/stores/sessionLockStore'
 import { useAutoErrorReporter } from '@/hooks/useAutoErrorReporter'
 import { FeedbackModal } from '@/components/features/FeedbackModal'
@@ -334,7 +336,9 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
     })
   }
 
-  const visiblePinned = pinnedItems.filter(item => user && item.roles.includes(user.role))
+  const visiblePinned = pinnedItems.filter(item =>
+    user && isRouteVisibleForRole(item.path, user.role as AppRole, routeManifest)
+  )
 
   return (
     <nav className="space-y-2">
@@ -365,7 +369,9 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
       {/* Grouped navigation with accordion */}
       {navigationGroups.map((group) => {
         const GroupIcon = group.icon
-        const visibleItems = group.items.filter(item => item.roles.includes(effectiveNavRole ?? ''))
+        const visibleItems = group.items.filter(item =>
+          isRouteVisibleForRole(item.path, effectiveNavRole as AppRole, routeManifest)
+        )
         if (visibleItems.length === 0) return null
 
         const isOpen = openGroups.has(group.label)

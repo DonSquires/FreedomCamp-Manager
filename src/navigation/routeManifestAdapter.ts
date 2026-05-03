@@ -71,6 +71,23 @@ export function projectLegacyNavGroups(
 }
 
 /**
+ * Determines if a route should be visible in the navigation for a given role.
+ * If the path is in the manifest, the manifest is authoritative.
+ * If the path is NOT in the manifest yet, returns `true` (backward-compat fallback).
+ */
+export function isRouteVisibleForRole(
+  path: string,
+  role: AppRole | null | undefined,
+  entries: RouteManifestEntry[],
+): boolean {
+  const entry = entries.find((e) => e.path === path)
+  if (!entry) return true // not in manifest yet — allow (backward compat)
+  if (entry.visibilityMode === 'hidden') return false
+  if (!role) return false
+  return entry.rolesAllowed.includes(role)
+}
+
+/**
  * Lightweight runtime check to ensure legacy hardcoded nav has path parity
  * with migrated manifest routes for the current phase.
  */
