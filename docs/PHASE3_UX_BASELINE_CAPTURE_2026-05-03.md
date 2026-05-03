@@ -50,3 +50,17 @@ Capture measured baselines before further UX implementation for:
 - Local run attempt (`PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=1 npx playwright test tests/e2e/phase3-ux-baseline-capture.spec.ts --project=chromium`) is blocked in this container.
 - Blocker: Playwright Chromium binary missing/host dependency mismatch (ENOENT on `chrome-headless-shell`).
 - Resolution path: execute `.github/workflows/phase3-ux-baseline-capture.yml` on GitHub Actions and import artifact values into this workbook.
+
+## Artifact Import Command
+
+After downloading CI artifact `test-results/phase3-ux-baseline.json`, run:
+
+```bash
+node scripts/import-phase3-baseline.mjs \
+	--input test-results/phase3-ux-baseline.json \
+	--run-id <GITHUB_RUN_ID>
+```
+
+Optional:
+
+- `--workbook <path>` to target a different markdown workbook file.
