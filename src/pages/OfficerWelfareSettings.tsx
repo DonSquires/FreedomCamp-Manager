@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -99,7 +99,37 @@ export default function OfficerWelfareSettings() {
 
   const orgId = user?.role === 'master' ? (organizationId || undefined) : user?.organization_id
 
-  // Fetch all welfare settings for the org
+  // ── Realtime subscription — instantly surface man-down alerts ──────────────
+  useEffect(() => {
+    if (!orgId) return
+    const channel = supabase
+      .channel(`welfare-alerts-realtime-${orgId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'officer_welfare_alerts',
+          filter: `organization_id=eq.${orgId}`,
+        },
+        (payload) => {
+          const alertType = (payload.new as any)?.alert_type
+          const officerName = (payload.new as any)?.officer_name ?? 'An officer'
+          if (alertType === 'man_down') {
+            toast.error(`🚨 MAN DOWN — ${officerName}`, {
+              duration: 0,
+              description: 'Immediate response required. Check the Welfare Alerts tab.',
+            })
+          } else if (alertType === 'welfare_check') {
+            toast.warning(`⚠ Welfare check overdue — ${officerName}`)
+          }
+          queryClient.invalidateQueries({ queryKey: ['welfare-alerts', orgId] })
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [orgId, queryClient])
   const { data: allSettings = [], isLoading: loadingSettings } = useQuery({
     queryKey: ['welfare-settings', orgId],
     queryFn: async () => {

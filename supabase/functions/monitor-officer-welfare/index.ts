@@ -7,10 +7,60 @@ import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_share
  * 1. Auto-logoff based on vehicle scan inactivity
  * 2. Welfare checks based on GPS inactivity
  * 3. Escalation of unacknowledged alerts
+ * 4. Push notifications to supervisors on man-down escalation (B-02)
  *
  * PERFORMANCE: all per-officer look-ups are batched into single IN() queries
  * rather than one query per officer (previous N+1 anti-pattern).
  */
+
+// ─── Helper: notify all admins of an org about a man-down alert ───────────────
+async function notifySupervisors(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  organizationId: string,
+  officerName: string,
+  alertLevel: number,
+): Promise<void> {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+  const serviceKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+
+  // Fetch admins + admin_officers in the affected org who have push tokens
+  const { data: admins } = await supabaseAdmin
+    .from('user_profiles')
+    .select('id, push_token, push_subscription')
+    .eq('organization_id', organizationId)
+    .in('role', ['admin', 'admin_officer', 'master'])
+    .eq('is_active', true);
+
+  if (!admins || admins.length === 0) return;
+
+  const levelLabel = alertLevel >= 3 ? '🚨 CRITICAL' : '🚨 MAN DOWN';
+  const title = `${levelLabel} Alert`;
+  const body  = `${officerName} — no movement detected. Immediate response required.`;
+
+  const pushTargets = admins.filter((a: any) => a.push_token || a.push_subscription);
+
+  await Promise.allSettled(
+    pushTargets.map(async (admin: any) => {
+      try {
+        await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${serviceKey}`,
+          },
+          body: JSON.stringify({
+            user_id: admin.id,
+            title,
+            body,
+            data: { type: 'man_down', alert_level: alertLevel },
+          }),
+        });
+      } catch (err) {
+        console.warn(`Push failed for admin ${admin.id}:`, err);
+      }
+    })
+  );
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -287,7 +337,7 @@ Deno.serve(async (req) => {
     // ─────────────────────────────────────────────────────────────────────────
     const { data: pendingAlertsRaw } = await supabaseAdmin
       .from('officer_welfare_alerts')
-      .select('id, officer_id, officer_name, alert_type, alert_sent_at, escalation_level')
+      .select('id, officer_id, officer_name, organization_id, alert_type, alert_sent_at, escalation_level')
       .eq('status', 'pending')
       .in('alert_type', ['welfare_check', 'man_down']);
 
@@ -319,11 +369,15 @@ Deno.serve(async (req) => {
             console.log(`🚨 MAN-DOWN level 2 for ${alert.officer_name} — ${Math.round(alertAgeMin)} min`);
             escalateToLevel.set(alert.id, 2);
             manDownEscalations++;
+            // Notify supervisors immediately on first escalation to level 2
+            await notifySupervisors(supabaseAdmin, alert.organization_id ?? '', alert.officer_name, 2);
           }
           if (alert.escalation_level < 3 && alertAgeMin >= threshold * 3) {
             console.log(`🚨 MAN-DOWN CRITICAL for ${alert.officer_name} — ${Math.round(alertAgeMin)} min`);
             escalateToLevel.set(alert.id, 3);
             manDownEscalations++;
+            // Re-notify supervisors at critical level
+            await notifySupervisors(supabaseAdmin, alert.organization_id ?? '', alert.officer_name, 3);
           }
         }
 
