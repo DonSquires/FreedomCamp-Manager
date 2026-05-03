@@ -851,7 +851,7 @@ Located in `supabase/functions/<name>/index.ts`. All functions are Deno TypeScri
 | `live-session-diagnostics-summary` | AI summary of session diagnostics |
 | `check-railway-health` | Legacy alias → delegates to `check-services-health` |
 | `radio-token` | Mints scoped PTT JWT + creates `radio_transmissions` audit row |
-| `radio-audit` | Org-scoped radio audit metrics (coverage, low-confidence, synthetic-tagging) |
+| `radio-audit` | Org-scoped radio audit metrics (coverage, low-confidence, per-transmission confidence rollups, synthetic-tagging) |
 
 **Conventions (mandatory for new Edge Functions):**
 

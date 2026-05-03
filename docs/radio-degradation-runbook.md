@@ -44,6 +44,7 @@ GET https://<supabase-project>.functions.supabase.co/radio-audit?since_hours=24
 Authorization: Bearer <user-jwt>
 → transcript_pipeline.coverage_pct
 → transcript_pipeline.low_confidence_segments_recent
+→ transcript_pipeline.confidence_rollups_recent.top_transmissions[]
 → synthetic_media.tts_renders_recent
 ```
 
@@ -90,6 +91,7 @@ When `transcript_pipeline.low_confidence_segments_recent` > 20% of recent segmen
 1. Check Ollama pod GPU health — low confidence often indicates resource pressure.
 2. Review `RADIO_WHISPER_MODEL` — switch to a smaller/faster model if latency is the cause.
 3. Confidence threshold for flagging in audit is 0.5 (non-configurable in Phase 1; Phase 2 will add per-org config).
+4. Inspect `transcript_pipeline.confidence_rollups_recent.top_transmissions` to isolate which channel/speaker sessions are driving the drop.
 
 ---
 

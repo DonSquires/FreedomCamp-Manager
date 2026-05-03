@@ -9,6 +9,7 @@
  *   - Emergency transmission count
  *   - Transcript coverage (transmissions with at least one segment)
  *   - Low-confidence segments (confidence < 0.5)
+ *   - Per-transmission confidence rollups (top low-confidence transmissions)
  *   - Synthetic render count (phase 4 — always 0 until TTS relay ships)
  *
  * Query params:
@@ -19,6 +20,8 @@ import { withCors, jsonResponse, errorResponse } from '../_shared/withCors.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 
 const ALLOWED_ROLES = new Set(['admin', 'master', 'grand_master'])
+const LOW_CONFIDENCE_THRESHOLD = 0.5
+const MAX_TRANSMISSION_ROLLUPS = 10
 
 Deno.serve(withCors(async (req: Request) => {
   if (req.method !== 'GET') {
@@ -79,6 +82,8 @@ Deno.serve(withCors(async (req: Request) => {
     { data: coverageRows, error: e4 },
     { count: lowConfidenceSegments, error: e5 },
     { count: syntheticRenders, error: e6 },
+    { data: recentTransmissionRows, error: e7 },
+    { data: recentSegmentRows, error: e8 },
   ] = await Promise.all([
     // Total transmissions for this org
     supabaseAdmin
@@ -114,7 +119,7 @@ Deno.serve(withCors(async (req: Request) => {
       .select('*', { count: 'exact', head: true })
       .eq('org_id', orgId)
       .gte('created_at', sinceTs)
-      .lt('confidence', 0.5)
+      .lt('confidence', LOW_CONFIDENCE_THRESHOLD)
       .not('confidence', 'is', null),
 
     // Synthetic renders (Phase 4; expected 0 until TTS relay ships)
@@ -123,10 +128,28 @@ Deno.serve(withCors(async (req: Request) => {
       .select('*', { count: 'exact', head: true })
       .eq('org_id', orgId)
       .gte('created_at', sinceTs),
+
+    // Recent transmission rows for per-transmission confidence rollups.
+    supabaseAdmin
+      .from('radio_transmissions')
+      .select('id, channel_id, speaker_name, started_at, is_emergency')
+      .eq('org_id', orgId)
+      .gte('started_at', sinceTs)
+      .order('started_at', { ascending: false })
+      .limit(500),
+
+    // Recent segments for confidence aggregation by transmission.
+    supabaseAdmin
+      .from('radio_transcript_segments')
+      .select('transmission_id, confidence')
+      .eq('org_id', orgId)
+      .gte('created_at', sinceTs)
+      .order('created_at', { ascending: false })
+      .limit(5000),
   ])
 
-  if (e1 || e2 || e3 || e4 || e5 || e6) {
-    console.error('radio-audit query errors', { e1, e2, e3, e4, e5, e6 })
+  if (e1 || e2 || e3 || e4 || e5 || e6 || e7 || e8) {
+    console.error('radio-audit query errors', { e1, e2, e3, e4, e5, e6, e7, e8 })
     return errorResponse('Audit query failed', 500)
   }
 
@@ -139,6 +162,91 @@ Deno.serve(withCors(async (req: Request) => {
     (recentTransmissions ?? 0) > 0
       ? Math.round((transcriptCoveredCount / (recentTransmissions as number)) * 10000) / 100
       : null
+
+  const recentTxRows = (recentTransmissionRows ?? []) as Array<{
+    id: string
+    channel_id: string
+    speaker_name: string
+    started_at: string
+    is_emergency: boolean
+  }>
+  const recentSegRows = (recentSegmentRows ?? []) as Array<{
+    transmission_id: string
+    confidence: number | null
+  }>
+
+  const recentTxIdSet = new Set(recentTxRows.map((tx) => tx.id))
+  const confidenceByTx = new Map<string, {
+    segment_count: number
+    scored_segment_count: number
+    low_confidence_segments: number
+    confidence_sum: number
+  }>()
+
+  for (const row of recentSegRows) {
+    if (!recentTxIdSet.has(row.transmission_id)) continue
+    const current = confidenceByTx.get(row.transmission_id) || {
+      segment_count: 0,
+      scored_segment_count: 0,
+      low_confidence_segments: 0,
+      confidence_sum: 0,
+    }
+
+    current.segment_count += 1
+
+    const confidence = typeof row.confidence === 'number' ? row.confidence : null
+    if (confidence !== null) {
+      current.scored_segment_count += 1
+      current.confidence_sum += confidence
+      if (confidence < LOW_CONFIDENCE_THRESHOLD) {
+        current.low_confidence_segments += 1
+      }
+    }
+
+    confidenceByTx.set(row.transmission_id, current)
+  }
+
+  const transmissionRollups = recentTxRows
+    .map((tx) => {
+      const stats = confidenceByTx.get(tx.id)
+      if (!stats || stats.segment_count === 0) return null
+
+      const avgConfidence =
+        stats.scored_segment_count > 0
+          ? Math.round((stats.confidence_sum / stats.scored_segment_count) * 1000) / 1000
+          : null
+      const lowConfidencePct =
+        stats.scored_segment_count > 0
+          ? Math.round((stats.low_confidence_segments / stats.scored_segment_count) * 10000) / 100
+          : null
+
+      return {
+        transmission_id: tx.id,
+        channel_id: tx.channel_id,
+        speaker_name: tx.speaker_name,
+        started_at: tx.started_at,
+        is_emergency: tx.is_emergency,
+        segment_count: stats.segment_count,
+        scored_segment_count: stats.scored_segment_count,
+        avg_confidence: avgConfidence,
+        low_confidence_segments: stats.low_confidence_segments,
+        low_confidence_pct: lowConfidencePct,
+      }
+    })
+    .filter((row): row is NonNullable<typeof row> => row !== null)
+    .sort((a, b) => {
+      const pctA = a.low_confidence_pct ?? -1
+      const pctB = b.low_confidence_pct ?? -1
+      if (pctB !== pctA) return pctB - pctA
+      if (b.low_confidence_segments !== a.low_confidence_segments) {
+        return b.low_confidence_segments - a.low_confidence_segments
+      }
+      return b.segment_count - a.segment_count
+    })
+    .slice(0, MAX_TRANSMISSION_ROLLUPS)
+
+  const transmissionsWithScoredSegments = transmissionRollups.filter((row) => row.scored_segment_count > 0).length
+  const transmissionsWithLowConfidence = transmissionRollups.filter((row) => row.low_confidence_segments > 0).length
 
   return jsonResponse({
     org_id: orgId,
@@ -154,6 +262,12 @@ Deno.serve(withCors(async (req: Request) => {
       covered_recent: transcriptCoveredCount,
       coverage_pct: coveragePct,
       low_confidence_segments_recent: lowConfidenceSegments ?? 0,
+      confidence_rollups_recent: {
+        threshold: LOW_CONFIDENCE_THRESHOLD,
+        transmissions_with_scored_segments: transmissionsWithScoredSegments,
+        transmissions_with_low_confidence: transmissionsWithLowConfidence,
+        top_transmissions: transmissionRollups,
+      },
     },
     synthetic_media: {
       // Phase 4 field — TTS renders. Always 0 until Translated Audio Relay ships.
