@@ -1,7 +1,7 @@
 # Enterprise Pair Review (Canonical Live Record)
 
 Date: 2026-05-03
-Baseline commit: 6ad47163
+Baseline commit: a6e39a0f
 Review mode: Dual-lens (Bob operations lens + OpenAI architecture lens)
 Status: Active canonical record (update on each material platform change)
 
@@ -92,8 +92,30 @@ Primary manuals and standards reviewed:
 3. Doc-authority strict mode: pass
    - Command: `DOC_AUTHORITY_STRICT=true bun run lint:doc-authority`
 4. Governance status:
-   - Classification: CONDITIONAL_GO (pending triad sign-off capture for this cycle)
-   - Blockers: none technical; documentation sign-off record pending.
+   - Classification: GO (triad sign-off captured for this cycle)
+   - Blockers: none.
+
+## Triad Pair-Review Round (2026-05-03, Phase 2 Closeout)
+
+1. Bob review (automation):
+   - Decision: approve
+   - Command: `node scripts/dr-bob-review.mjs --file docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md`
+   - Findings: none
+   - Artifact: `data/dr-bob-reviews/ENTERPRISE_PAIR_REVIEW_CANONICAL.md.2026-05-03T09-17-02-045Z.json`
+
+2. OpenAI architecture lens:
+   - Decision: approve-with-notes
+   - Notes: governance cadence, strict doc-authority checks, and route-role grounding evidence are sufficient for Phase 2 exit.
+
+3. Specialist subagent (architecture/governance challenge):
+   - Decision: conditional-go
+   - Notes: no technical blockers; procedural requirement was triad capture itself, now satisfied by this section and STAGING update.
+
+Triad outcome:
+
+1. Phase 2 status: GO
+2. Remaining blockers: none
+3. Next phase entry condition: execute Phase 3 UX/operator-efficiency triage with evidence logging.
 
 ## Bob Lens Review (Operational + Reliability)
 
