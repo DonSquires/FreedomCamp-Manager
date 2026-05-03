@@ -114,6 +114,9 @@ jobs:
         run: |
           node scripts/validate-module-grounding.mjs --strict --report tools/module-grounding/governance/${{ github.run_id }}/module-grounding-report.json
 
+      - name: Refresh Bob brain dump for wiring checks
+        run: node scripts/auto-ingest.mjs
+
       - name: Bob training wiring verification
         run: node scripts/verify-bob-training-wiring.mjs --non-strict
 
