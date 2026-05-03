@@ -571,6 +571,28 @@ Phase boundary clarity:
 2. P2 next-slice shipping minimum: ranks 6-10 from 9E.
 3. Later-slice items from 9G are backlog-only until P1/P2 acceptance criteria pass.
 
+### 9J. Phase 3 Kickoff Evidence Snapshot (2026-05-03)
+
+Completed kickoff artifacts:
+1. `docs/PHASE3_UX_OPERATOR_EFFICIENCY_TODO_2026-05-03.md` (phase execution checklist)
+2. `docs/PHASE3_TOP10_ROUTE_VERIFICATION_2026-05-03.md` (10/10 route grounding proof)
+3. `docs/PHASE3_UX_BASELINE_CAPTURE_2026-05-03.md` (baseline metric workbook)
+4. `tests/e2e/phase3-ux-baseline-capture.spec.ts` (click-depth/time/error capture spec)
+5. `.github/workflows/phase3-ux-baseline-capture.yml` (CI capture lane)
+
+Validation gates completed locally:
+1. `npm run lint` -> pass
+2. `npm run build` -> pass
+3. `DOC_AUTHORITY_STRICT=true npm run lint:doc-authority` -> pass
+4. `node scripts/generate-route-role-matrix.mjs` -> pass (route count: 121)
+5. `node scripts/validate-roadmap-role-gates.mjs --strict` -> pass
+
+Current blocker:
+1. First baseline evidence run requires executing `phase3-ux-baseline-capture.yml` on remote GitHub Actions after the workflow is present on remote `main`.
+
+Next command (once remote sync is complete):
+1. `gh workflow run phase3-ux-baseline-capture.yml`
+
 ## 8. Fast Resume Commands
 
 Run these as a single crash-recovery bundle:
