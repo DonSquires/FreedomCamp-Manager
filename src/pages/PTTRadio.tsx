@@ -193,6 +193,7 @@ const CONNECT_STORM_MAX_ATTEMPTS = 6
 const CONNECT_STORM_COOLDOWN_MS = 20000
 const CONNECTION_WARNING_TIMEOUT_MS = 12000
 const CAPTION_DELAY_THRESHOLD_MS = 6000
+const CAPTION_LOW_CONFIDENCE_THRESHOLD = 0.65
 
 function deriveTranslatorRestUrlFromWs(raw: string): string {
   const trimmed = String(raw || '').trim().replace(/\/$/, '')
@@ -645,7 +646,7 @@ export default function PTTRadio() {
         segmentEndMs: Number(row.segment_end_ms || 0),
         text: String(row.text || ''),
         language: String(row.language || 'en'),
-        confidence: Number(row.confidence ?? 0),
+        confidence: row.confidence == null ? 1 : Number(row.confidence),
         isFinal: Boolean(row.is_final),
       }
     }
@@ -3205,15 +3206,29 @@ export default function PTTRadio() {
                     ) : (
                       <div className="space-y-0.5">
                         {liveCaptions.slice(-8).map((seg) => (
-                          <div
-                            key={`${seg.transmissionId}-${seg.sequenceNum}`}
-                            className={`text-[11px] leading-snug ${seg.isFinal ? 'text-slate-300' : 'text-slate-500 italic'}`}
-                          >
-                            {seg.text}
-                            {!seg.isFinal && (
-                              <span className="text-slate-600 animate-pulse"> …</span>
-                            )}
-                          </div>
+                          (() => {
+                            const isLowConfidence = seg.isFinal
+                              && Number.isFinite(seg.confidence)
+                              && seg.confidence > 0
+                              && seg.confidence < CAPTION_LOW_CONFIDENCE_THRESHOLD
+
+                            return (
+                              <div
+                                key={`${seg.transmissionId}-${seg.sequenceNum}`}
+                                className={`text-[11px] leading-snug ${seg.isFinal ? isLowConfidence ? 'text-amber-300' : 'text-slate-300' : 'text-slate-500 italic'}`}
+                              >
+                                {seg.text}
+                                {isLowConfidence && (
+                                  <span className="ml-1 inline-flex items-center rounded border border-amber-700/70 bg-amber-900/40 px-1 py-0 text-[8px] uppercase tracking-wide text-amber-200">
+                                    Low confidence
+                                  </span>
+                                )}
+                                {!seg.isFinal && (
+                                  <span className="text-slate-600 animate-pulse"> …</span>
+                                )}
+                              </div>
+                            )
+                          })()
                         ))}
                       </div>
                     )}
