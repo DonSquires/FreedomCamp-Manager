@@ -62,6 +62,8 @@ import {
   primePTTRemoteAudioPlayback,
 } from '@/lib/ptt'
 import { requestWakeLock, releaseWakeLock, requestNotificationPermission } from '@/lib/pttBackground'
+import { radioFeatureFlags } from '@/lib/radio/radioFeatureFlags'
+import { radioCaptionService, type CaptionSegment } from '@/lib/radio/radioCaptionService'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -539,6 +541,26 @@ export default function PTTRadio() {
   const handoffGeoPollInFlightRef = useRef(false)
 
   // ── Org ID ────────────────────────────────────────────────
+    // ── Live Captions (Phase 2 — gated by radioFeatureFlags.captionsEnabled) ──
+    const [liveCaptions, setLiveCaptions] = useState<CaptionSegment[]>([])
+    useEffect(() => {
+      if (!radioFeatureFlags.captionsEnabled) return
+      const unsub = radioCaptionService.subscribe((seg) => {
+        setLiveCaptions((prev) => {
+          const idx = prev.findIndex(
+            (s) => s.transmissionId === seg.transmissionId && s.sequenceNum === seg.sequenceNum,
+          )
+          if (idx >= 0) {
+            const next = [...prev]
+            next[idx] = seg
+            return next
+          }
+          return [...prev, seg].slice(-50)
+        })
+      })
+      return unsub
+    }, [])
+
   const effectiveOrgId = useMemo(
     () =>
       user?.role === 'master' || user?.role === 'grand_master'
@@ -3026,6 +3048,13 @@ export default function PTTRadio() {
                               "{entry.transcript}"
                             </div>
                           )}
+                            {radioFeatureFlags.syntheticAudioEnabled && entry.transcript && (
+                              <div className="mt-0.5">
+                                <span className="inline-flex items-center gap-0.5 px-1 py-0 rounded text-[8px] uppercase tracking-wide bg-violet-900/60 text-violet-300 border border-violet-700/50">
+                                  AI
+                                </span>
+                              </div>
+                            )}
                         </div>
                         {entry.isEmergency && (
                           <AlertTriangle className="h-3 w-3 text-red-500 shrink-0 mt-0.5" />
@@ -3036,6 +3065,35 @@ export default function PTTRadio() {
                 </div>
               </ScrollArea>
             </div>
+
+              {/* Live Caption Panel — Phase 2, gated by radioFeatureFlags.captionsEnabled */}
+              {radioFeatureFlags.captionsEnabled && (
+                <div className="border-t border-slate-800 shrink-0">
+                  <div className="flex items-center gap-1.5 text-[10px] text-slate-500 uppercase tracking-widest px-3 pt-2 pb-1">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                    Live Captions
+                  </div>
+                  <ScrollArea className="h-20 px-3 pb-2">
+                    {liveCaptions.length === 0 ? (
+                      <p className="text-[11px] text-slate-600 italic">Waiting for captions…</p>
+                    ) : (
+                      <div className="space-y-0.5">
+                        {liveCaptions.slice(-8).map((seg) => (
+                          <div
+                            key={`${seg.transmissionId}-${seg.sequenceNum}`}
+                            className={`text-[11px] leading-snug ${seg.isFinal ? 'text-slate-300' : 'text-slate-500 italic'}`}
+                          >
+                            {seg.text}
+                            {!seg.isFinal && (
+                              <span className="text-slate-600 animate-pulse"> …</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </ScrollArea>
+                </div>
+              )}
 
             {/* Recent clips from PTT store */}
             {lastClips.length > 0 && (
