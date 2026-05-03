@@ -64,3 +64,22 @@ node scripts/import-phase3-baseline.mjs \
 Optional:
 
 - `--workbook <path>` to target a different markdown workbook file.
+
+## One-Shot CI Fetch + Import
+
+If the workflow has already completed in GitHub Actions:
+
+```bash
+node scripts/fetch-and-import-phase3-baseline.mjs --run-id <GITHUB_RUN_ID>
+```
+
+Or auto-select the latest run for the workflow:
+
+```bash
+node scripts/fetch-and-import-phase3-baseline.mjs
+```
+
+Optional:
+
+- `--workflow <name>` to target a different workflow file
+- `--out-dir <path>` to control artifact download location
