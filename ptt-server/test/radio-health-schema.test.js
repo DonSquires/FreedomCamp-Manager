@@ -87,6 +87,9 @@ test('GET /radio/health includes speech queue and processor schema', async () =>
     assert.equal(typeof payload.speechQueue.ready, 'boolean');
     assert.equal(typeof payload.speechQueue.queueKey, 'string');
     assert.equal(typeof payload.speechQueue.dlqKey, 'string');
+    assert.ok(payload.speechQueue.metrics);
+    assert.equal(typeof payload.speechQueue.metrics.eventsEnqueued, 'number');
+    assert.equal(typeof payload.speechQueue.metrics.enqueueFailures, 'number');
 
     assert.ok(payload.speechProcessor);
     assert.equal(typeof payload.speechProcessor.enabled, 'boolean');
@@ -96,5 +99,62 @@ test('GET /radio/health includes speech queue and processor schema', async () =>
     await new Promise((resolve) => server.close(resolve));
     restore();
     restoreRedisStub();
+  }
+});
+
+test('GET /radio/health reports online speechProcessor when metrics endpoint succeeds', async () => {
+  const restoreRedisStub = withRedisModuleStub();
+  const originalFetch = global.fetch;
+  global.fetch = async (input, init) => {
+    const url = typeof input === 'string' ? input : String(input?.url || '');
+    if (url === 'https://example.test/radio/speech-metrics') {
+      return {
+        ok: true,
+        async json() {
+          return {
+            generated_at: '2026-05-03T00:00:00.000Z',
+            radio_pipeline: {
+              processor_enabled: true,
+              processor_mode: 'stub',
+              metrics: { processed_events: 2, failed_events: 0 },
+            },
+          };
+        },
+      };
+    }
+    return originalFetch(input, init);
+  };
+
+  const { radioRouter, restore } = withFreshRadioRouter({
+    REDIS_URL: '',
+    RADIO_SPEECH_METRICS_URL: 'https://example.test/radio/speech-metrics',
+    RADIO_SPEECH_METRICS_API_KEY: 'test-key',
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use('/', radioRouter);
+
+  const server = app.listen(0);
+
+  try {
+    const address = server.address();
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+    const response = await fetch(`${baseUrl}/radio/health`);
+    assert.equal(response.status, 200);
+
+    const payload = await response.json();
+    assert.ok(payload.speechProcessor);
+    assert.equal(payload.speechProcessor.enabled, true);
+    assert.equal(payload.speechProcessor.ready, true);
+    assert.equal(payload.speechProcessor.status, 'online');
+    assert.equal(payload.speechProcessor.metricsUrl, 'https://example.test/radio/speech-metrics');
+    assert.ok(payload.speechProcessor.radioPipeline);
+    assert.equal(payload.speechProcessor.radioPipeline.processor_enabled, true);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    restore();
+    restoreRedisStub();
+    global.fetch = originalFetch;
   }
 });

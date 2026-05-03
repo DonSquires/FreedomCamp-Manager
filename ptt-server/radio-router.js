@@ -116,6 +116,9 @@ async function getSpeechQueueHealth() {
       dlqKey: RADIO_SPEECH_DLQ_KEY,
       depth: null,
       dlqDepth: null,
+      metrics: {
+        ...speechQueueMetrics,
+      },
     };
   }
 
