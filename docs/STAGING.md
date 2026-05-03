@@ -603,11 +603,11 @@ GH_PAGER=cat gh run list --limit 120 --json databaseId,headSha,name,status,concl
 
 | # | Task | Status | Owner | Evidence / File |
 |---|---|---|---|---|
-| S0-1 | Create `docs/cross-org-verification-matrix.md` | ⬜ Not started | Dev | Ground from `tests/e2e/module-route-access.spec.ts` |
-| S0-2 | Create `docs/competitive-gap-board.md` | ⬜ Not started | Dev | Ground from `docs/COMPETITIVE_ANALYSIS_2024.md` + `docs/MODULE_ROADMAP.md` |
-| S0-3 | Create `docs/voc-to-backlog-mapping.md` | ⬜ Not started | Dev | Map VOC signals to backlog items with acceptance criteria |
-| S0-4 | Create `docs/ui-ux-first-wave-rollout-log.md` | ⬜ Not started | Dev | Top-10 operator routes for async-state UX rollout |
-| S0-5 | Re-run all 4 consensus lenses (Sprint 0 exit gate) | ⬜ Not started | Bob/AI | All lenses must return approve/approve-with-notes, no blockers |
+| S0-1 | Create `docs/cross-org-verification-matrix.md` | ✅ Done | Dev | Commit `c65b9603` — Dr Bob: approve |
+| S0-2 | Create `docs/competitive-gap-board.md` | ✅ Done | Dev | Commit `c65b9603` — Dr Bob: approve |
+| S0-3 | Create `docs/voc-to-backlog-mapping.md` | ✅ Done | Dev | Commit `c65b9603` — Dr Bob: approve |
+| S0-4 | Create `docs/ui-ux-first-wave-rollout-log.md` | ✅ Done | Dev | Commit `c65b9603` — Dr Bob: approve |
+| S0-5 | Re-run all 4 consensus lenses (Sprint 0 exit gate) | ✅ Done | Bob/AI | All 4 Dr Bob reviews: approve — Sprint 0 CLOSED |
 
 ### Sprint 1 — Implementation (starts after Sprint 0 gate passes)
 
