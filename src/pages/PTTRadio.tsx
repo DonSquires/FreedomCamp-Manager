@@ -2305,6 +2305,7 @@ export default function PTTRadio() {
     queryClient,
     translationRailEnabled,
     sendAudioChunk,
+    hasActiveVoiceConsent,
   ])
 
   // ── Spacebar PTT shortcut ─────────────────────────────────
