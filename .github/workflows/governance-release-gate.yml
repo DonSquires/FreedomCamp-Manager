@@ -26,6 +26,7 @@ on:
       - 'scripts/validate-workflow-evidence.mjs'
       - 'tools/budgets/eslint-warning-budget.json'
       - '.github/workflows/governance-release-gate.yml'
+      - '.github/workflows/monthly-governance-checkpoint.yml'
       - 'package.json'
       - 'bun.lock'
   push:
@@ -53,6 +54,7 @@ on:
       - 'scripts/validate-workflow-evidence.mjs'
       - 'tools/budgets/eslint-warning-budget.json'
       - '.github/workflows/governance-release-gate.yml'
+      - '.github/workflows/monthly-governance-checkpoint.yml'
       - 'package.json'
       - 'bun.lock'
   workflow_dispatch:
