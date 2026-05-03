@@ -292,6 +292,51 @@ Latest Session Snapshot (ORG-SCOPE-ZERO COMPLETE):
 - Open blockers with owner: **NONE**. Org-scoping hardening complete; all required CI gates passed.
 - Next exact command to run: `cd /workspaces/FreedomCamp-Manager && bash scripts/system-check.sh && node scripts/summarize-failures.mjs`
 
+## Phase 2 (P1): Governance and Auditability Hardening To-Do List
+
+**Owner**: Application architecture + Release engineering
+**Status**: Active (Start date: 2026-05-03)
+**Exit criteria**: All 3 deliverables complete + triad sign-off (Bob + OpenAI + Specialist)
+
+### 8A. Phase 2 Deliverables (Execution Checklist)
+
+1. [ ] **CI wiring for doc-authority checks on route/schema/edge changes**
+  - Command: `bun run lint:doc-authority --strict` (success on push to main)
+  - Files: `.github/workflows/governance-release-gate.yml` (already wired)
+  - Evidence: Run CI on next push, capture DOC_AUTHORITY_STRICT=true behavior
+  - Owner: Release engineering
+
+2. [ ] **Route-role authority completeness review from roadmap to router truth**
+  - Command: `node scripts/validate-roadmap-role-gates.mjs --strict`
+  - Source: docs/MODULE_ROADMAP.md → src/App.tsx route inventory
+  - Artifact: tools/route-role-matrix/governance/[run_id]/route-role-matrix.json
+  - Owner: Application architecture
+
+3. [ ] **Governance cadence definition (monthly triad review + release gate checkpoints)**
+  - Add to docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md Section: "Review Cadence"
+  - Define: monthly triad review schedule + release gates
+  - Definition: governance-release-gate.yml on every push to main (role/schema/edge changes)
+  - Owner: Primary execution lead
+
+### 8B. Phase 2 Supporting Tasks
+
+- [ ] Validate role-gate strict checks pass on current HEAD
+- [ ] Run doc-authority check in strict mode against current branch
+- [ ] Verify all role annotations in MODULE_ROADMAP.md are bidirectionally validated against App.tsx
+- [ ] Generate fresh route-role matrix artifact for Phase 2 evidence
+- [ ] Update ENTERPRISE_PAIR_REVIEW_CANONICAL.md with governance cadence section
+- [ ] Record Phase 2 exit criteria evidence in canonical record
+- [ ] Triad review: Bob + OpenAI + Specialist validation
+
+### 8C. Phase 2 Blocker Resolution
+
+If any gate fails:
+1. Check logs: `GH_PAGER=cat gh run view [RUN_ID] --log 2>&1 | grep -i error | head -20`
+2. Investigate: route not in roadmap, missing role gate, or doc mismatch
+3. Fix: update docs/MODULE_ROADMAP.md or src/App.tsx
+4. Revalidate: `node scripts/validate-roadmap-role-gates.mjs --strict --matrix [ARTIFACT]`
+5. Record: blocker reason + resolution in STAGING.md session note before retry
+
 ## 8. Fast Resume Commands
 
 Run these as a single crash-recovery bundle:
