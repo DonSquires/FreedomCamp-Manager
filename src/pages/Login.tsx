@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 import { CheckCircle2, RadioTower, ShieldCheck, Route } from 'lucide-react'
+import { getDefaultRouteForRole } from '@/navigation/rolePath'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -51,9 +52,9 @@ export default function Login() {
     if (isAuthenticated && user && !passwordSetupMode) {
       if (user.role === 'admin_officer') {
         window.sessionStorage.removeItem('adminOfficerPortalChoice')
-        navigate('/portal-selection', { replace: true })
+        navigate(getDefaultRouteForRole(user.role), { replace: true })
       } else {
-        navigate('/', { replace: true })
+        navigate(getDefaultRouteForRole(user.role), { replace: true })
       }
     }
   }, [isAuthenticated, user, navigate])

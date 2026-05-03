@@ -1,3 +1,4 @@
 export * from './routeManifest'
 export * from './routeManifestAdapter'
 export * from './routeManifestValidator'
+export * from './rolePath'

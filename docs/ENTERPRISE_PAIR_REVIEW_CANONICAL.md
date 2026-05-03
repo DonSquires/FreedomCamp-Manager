@@ -494,3 +494,15 @@ Date: 2026-05-02
 - `docs/PHASE3_VISUAL_HIERARCHY_CLEANUP_CHECKLIST_2026-05-03.md`
 - `tests/e2e/phase3-ux-baseline-capture.spec.ts`
 - `.github/workflows/phase3-ux-baseline-capture.yml`
+
+### Continuation Addendum (2026-05-03)
+
+- **P3-2 Dashboard tile optimization:** Implemented in `src/pages/AdminPortal.tsx` (spacing rhythm, accessibility labels, keyboard activation).
+- **P3-3 List-card standardization:** Unified module tiles, quick-action rows, and recent-observation rows via shared style tokens in `src/pages/AdminPortal.tsx`.
+- **P3-4 Re-measure baseline:** `tests/e2e/phase3-ux-baseline-capture.spec.ts` passed locally (1.8m), workbook refreshed with run id `local-p3-2-refresh`.
+- **P3-5 QA pass:** `bun run build`, `bun run lint`, and `node scripts/validate-roadmap-role-gates.mjs --strict` all PASS.
+- **P3-6 Role-path helper wiring:** Added `src/navigation/rolePath.ts`; integrated into `src/App.tsx` and `src/pages/Login.tsx` for consistent role-aware redirects.
+- **P3-8 Redirect E2E:** Added `tests/e2e/phase3-role-path-redirect.spec.ts`; local run PASS (4 passed).
+- **P3-9/P3-10 CI hardening:** `phase3-ux-baseline-capture.yml` now runs daily and includes strict role-gate validation plus redirect E2E guard.
+
+**Triad Outcome Update:** GO (Phase 3 continuation scope complete for P3-2, P3-3, P3-4, P3-5, P3-6, P3-8, P3-9, P3-10, P3-12).

@@ -12,6 +12,7 @@ import { useOrganization } from '@/hooks/useOrganization'
 import { OrganizationContext } from '@/contexts/OrganizationContext'
 import { useFeedbackCapture } from '@/hooks/useFeedbackCapture'
 import { useLiveSessionDiagnostics } from '@/hooks/useLiveSessionDiagnostics'
+import { getDefaultRouteForRole, getRoleConstrainedRedirect } from '@/navigation/rolePath'
 
 // ---------------------------------------------------------------------------
 // Lazy-loaded page chunks — Vite code-splits each of these into a separate
@@ -310,37 +311,13 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" replace />
   }
 
-  // admin_officer must choose a portal once per login session.
-  if (
-    user.role === 'admin_officer' &&
-    location.pathname !== '/portal-selection' &&
-    !hasPortalChoice()
-  ) {
-    return <Navigate to="/portal-selection" replace />
-  }
-
-  // NZSCV monitor users are limited to registry monitoring and basic account pages.
-  if (
-    user.role === 'nzscv_monitor' &&
-    !['/vehicle-registry', '/admin/nzscv', '/search', '/profile', '/settings'].includes(location.pathname)
-  ) {
-    return <Navigate to="/admin/nzscv" replace />
-  }
-
-  // Grand master users land on the platform overview page.
-  if (
-    user.role === 'grand_master' &&
-    location.pathname === '/'
-  ) {
-    return <Navigate to="/platform" replace />
-  }
-
-  // Client persona users are limited to their organisation's client portal.
-  if (
-    ['client_viewer', 'client_officer', 'client_admin'].includes(user.role) &&
-    !['/client-portal', '/profile', '/settings'].includes(location.pathname)
-  ) {
-    return <Navigate to="/client-portal" replace />
+  const roleConstrainedRedirect = getRoleConstrainedRedirect(
+    user.role,
+    location.pathname,
+    hasPortalChoice(),
+  )
+  if (roleConstrainedRedirect) {
+    return <Navigate to={roleConstrainedRedirect} replace />
   }
 
   return <>{children}</>
@@ -362,7 +339,7 @@ function RoleRoute({
   if (user.role === 'grand_master') return <>{children}</>
 
   if (!allowedRoles.includes(user.role)) {
-    return <Navigate to="/" replace />
+    return <Navigate to={getDefaultRouteForRole(user.role)} replace />
   }
 
   return <>{children}</>
@@ -398,13 +375,13 @@ function AreaRoute({
 
   // Role check
   if (!isSuperUser && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/" replace />
+    return <Navigate to={getDefaultRouteForRole(user.role)} replace />
   }
 
   // Portal-area check (skip if portal_access is empty — fall back to role only)
   if (!isSuperUser && user.portal_access && user.portal_access.length > 0) {
     if (!user.portal_access.includes(area)) {
-      return <Navigate to="/" replace />
+      return <Navigate to={getDefaultRouteForRole(user.role)} replace />
     }
   }
 
