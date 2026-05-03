@@ -109,13 +109,20 @@ export function useCreateZone() {
 
 export function useUpdateZone() {
   const queryClient = useQueryClient()
+  const { operationalOrganizationId } = useOperationalOrganization()
 
   return useMutation({
     mutationFn: async ({ zoneId, updates }: { zoneId: string; updates: Partial<Zone> }) => {
       const { _count: _count_, ...dbUpdates } = updates
-      const { error } = await supabase.from('zones')
+      let query = supabase.from('zones')
         .update(dbUpdates)
         .eq('id', zoneId)
+
+      if (operationalOrganizationId) {
+        query = query.eq('organization_id', operationalOrganizationId)
+      }
+
+      const { error } = await query
 
       if (error) throw error
     },
@@ -132,12 +139,19 @@ export function useUpdateZone() {
 
 export function useToggleZoneActive() {
   const queryClient = useQueryClient()
+  const { operationalOrganizationId } = useOperationalOrganization()
 
   return useMutation({
     mutationFn: async ({ zoneId, isActive }: { zoneId: string; isActive: boolean }) => {
-      const { error } = await supabase.from('zones')
+      let query = supabase.from('zones')
         .update({ is_active: !isActive })
         .eq('id', zoneId)
+
+      if (operationalOrganizationId) {
+        query = query.eq('organization_id', operationalOrganizationId)
+      }
+
+      const { error } = await query
 
       if (error) throw error
     },

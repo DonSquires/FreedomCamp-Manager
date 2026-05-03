@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
+import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 import { toast } from 'sonner'
 
 interface VehicleAnalysis {
@@ -29,6 +30,7 @@ interface AnalyzePhotoInput {
 
 export function useVehicleAnalysis(plateNumber?: string) {
   const { user } = useAuthStore()
+  const { operationalOrganizationId } = useOperationalOrganization()
   const queryClient = useQueryClient()
 
   // Fetch AI analysis results for vehicle
@@ -37,7 +39,11 @@ export function useVehicleAnalysis(plateNumber?: string) {
     queryFn: async () => {
       if (!plateNumber) return []
 
-      const { data, error } = await supabase
+      if (user?.role !== 'master' && !operationalOrganizationId) {
+        return []
+      }
+
+      let query = supabase
         .from('observations')
         .select(`
           plate_number,
@@ -51,7 +57,12 @@ export function useVehicleAnalysis(plateNumber?: string) {
           recorded_at
         `)
         .eq('plate_number', plateNumber)
-        
+
+      if (user?.role !== 'master' && operationalOrganizationId) {
+        query = query.eq('organization_id', operationalOrganizationId)
+      }
+
+      const { data, error } = await query
         .or('photo.not.is.null,photo_url.not.is.null')
         .order('recorded_at', { ascending: false })
 
@@ -134,18 +145,28 @@ export function useVehicleAnalysis(plateNumber?: string) {
 
 // Hook for analyzing single observation
 export function useAnalyzeObservation(observationId: string | null) {
+  const { user } = useAuthStore()
+  const { operationalOrganizationId } = useOperationalOrganization()
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async () => {
       if (!observationId) throw new Error('No observation ID')
+      if (user?.role !== 'master' && !operationalOrganizationId) {
+        throw new Error('No organization context available')
+      }
 
       // Get observation
-      const { data: obs, error: obsError } = await supabase
+      let query = supabase
         .from('observations')
         .select('photo, photo_url, plate_number')
         .eq('observation_id', observationId)
-        .single()
+
+      if (user?.role !== 'master' && operationalOrganizationId) {
+        query = query.eq('organization_id', operationalOrganizationId)
+      }
+
+      const { data: obs, error: obsError } = await query.single()
 
       if (obsError) throw obsError
 

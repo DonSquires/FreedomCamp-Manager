@@ -6,6 +6,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 import { toast } from 'sonner'
 import type { Database } from '@/types/database'
 
@@ -57,6 +58,7 @@ interface InvestigationJobResult {
 
 export function useOfficerNotifications(options: { limit?: number; unreadOnly?: boolean } = {}) {
   const { user } = useAuthStore()
+  const { operationalOrganizationId } = useOperationalOrganization()
   const queryClient = useQueryClient()
 
   // Fetch notification preferences
@@ -120,7 +122,11 @@ export function useOfficerNotifications(options: { limit?: number; unreadOnly?: 
       const alerts: OfficerAlert[] = []
 
       // Breach alerts in officer's zones
-      const { data: breachAlerts } = await supabase
+      if (user.role !== 'master' && !operationalOrganizationId) {
+        return alerts
+      }
+
+      let breachAlertsQuery = supabase
         .from('breach_alerts')
         .select(`
           id,
@@ -129,6 +135,12 @@ export function useOfficerNotifications(options: { limit?: number; unreadOnly?: 
           created_at,
           zone:zones(name)
         `)
+
+      if (user.role !== 'master' && operationalOrganizationId) {
+        breachAlertsQuery = breachAlertsQuery.eq('organization_id', operationalOrganizationId)
+      }
+
+      const { data: breachAlerts } = await breachAlertsQuery
         .eq('status', 'pending')
         .limit(10)
 
@@ -222,12 +234,30 @@ export function useOfficerNotifications(options: { limit?: number; unreadOnly?: 
     notifications: alertsQuery.data,
     refetch: alertsQuery.refetch,
     markAsRead: async (id: string) => {
-      const { error } = await supabase.from('breach_alerts').update({ status: 'acknowledged' }).eq('id', id)
+      let query = supabase
+        .from('breach_alerts')
+        .update({ status: 'acknowledged' })
+        .eq('id', id)
+
+      if (user?.role !== 'master' && operationalOrganizationId) {
+        query = query.eq('organization_id', operationalOrganizationId)
+      }
+
+      const { error } = await query
       if (error) console.error('Failed to acknowledge alert:', error)
       alertsQuery.refetch()
     },
     deleteNotification: async (id: string) => {
-      const { error } = await supabase.from('breach_alerts').update({ status: 'dismissed' }).eq('id', id)
+      let query = supabase
+        .from('breach_alerts')
+        .update({ status: 'dismissed' })
+        .eq('id', id)
+
+      if (user?.role !== 'master' && operationalOrganizationId) {
+        query = query.eq('organization_id', operationalOrganizationId)
+      }
+
+      const { error } = await query
       if (error) console.error('Failed to dismiss alert:', error)
       alertsQuery.refetch()
     },
@@ -237,6 +267,7 @@ export function useOfficerNotifications(options: { limit?: number; unreadOnly?: 
 // Hook for alert count
 export function useOfficerAlertCount() {
   const { user } = useAuthStore()
+  const { operationalOrganizationId } = useOperationalOrganization()
 
   return useQuery({
     queryKey: ['officer-alert-count', user?.id],
@@ -245,11 +276,20 @@ export function useOfficerAlertCount() {
 
       let count = 0
 
+      if (user.role !== 'master' && !operationalOrganizationId) {
+        return 0
+      }
+
       // Count pending breach alerts
-      const { count: breachCount } = await supabase
+      let breachCountQuery = supabase
         .from('breach_alerts')
         .select('*', { count: 'exact', head: true })
-        .eq('status', 'pending')
+
+      if (user.role !== 'master' && operationalOrganizationId) {
+        breachCountQuery = breachCountQuery.eq('organization_id', operationalOrganizationId)
+      }
+
+      const { count: breachCount } = await breachCountQuery.eq('status', 'pending')
 
       count += breachCount || 0
 

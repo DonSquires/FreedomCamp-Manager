@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-03T07:51:21.555Z",
+  "generatedAt": "2026-05-03T07:57:12.035Z",
   "scope": [
     "src/hooks",
     "src/lib"
@@ -28,9 +28,9 @@
   },
   "summary": {
     "total": 250,
-    "ok": 115,
+    "ok": 125,
     "known_exception": 2,
-    "missing_org_filter": 34,
+    "missing_org_filter": 24,
     "allowed_global_or_user_scoped": 38,
     "review": 61
   },
@@ -47,38 +47,6 @@
       "file": "src/hooks/useIncidents.ts",
       "line": 74,
       "table": "incidents",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/useOfficerNotifications.ts",
-      "line": 124,
-      "table": "breach_alerts",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/useOfficerNotifications.ts",
-      "line": 225,
-      "table": "breach_alerts",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/useOfficerNotifications.ts",
-      "line": 230,
-      "table": "breach_alerts",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/useOfficerNotifications.ts",
-      "line": 250,
-      "table": "breach_alerts",
       "status": "missing_org_filter",
       "orgRequired": true,
       "scoped": false
@@ -108,22 +76,6 @@
       "scoped": false
     },
     {
-      "file": "src/hooks/useVehicleAnalysis.ts",
-      "line": 41,
-      "table": "observations",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/useVehicleAnalysis.ts",
-      "line": 145,
-      "table": "observations",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
       "file": "src/hooks/useVehicleCompliance.ts",
       "line": 192,
       "table": "observations",
@@ -132,40 +84,8 @@
       "scoped": false
     },
     {
-      "file": "src/hooks/useVehicleProfilePhoto.ts",
-      "line": 53,
-      "table": "observations",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/useVehicleProfilePhoto.ts",
-      "line": 125,
-      "table": "observations",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
       "file": "src/hooks/useZones.ts",
       "line": 90,
-      "table": "zones",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/useZones.ts",
-      "line": 116,
-      "table": "zones",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/hooks/useZones.ts",
-      "line": 138,
       "table": "zones",
       "status": "missing_org_filter",
       "orgRequired": true,
@@ -367,7 +287,7 @@
     },
     {
       "file": "src/hooks/useOfficerNotifications.ts",
-      "line": 152,
+      "line": 164,
       "table": "flagged_vehicles",
       "status": "review",
       "orgRequired": false,
@@ -375,7 +295,7 @@
     },
     {
       "file": "src/hooks/useOfficerNotifications.ts",
-      "line": 179,
+      "line": 191,
       "table": "investigation_jobs",
       "status": "review",
       "orgRequired": false,
@@ -383,7 +303,7 @@
     },
     {
       "file": "src/hooks/useOfficerNotifications.ts",
-      "line": 258,
+      "line": 298,
       "table": "flagged_vehicles",
       "status": "review",
       "orgRequired": false,
@@ -391,7 +311,7 @@
     },
     {
       "file": "src/hooks/useOfficerNotifications.ts",
-      "line": 266,
+      "line": 306,
       "table": "investigation_jobs",
       "status": "review",
       "orgRequired": false,
@@ -1251,7 +1171,7 @@
     },
     {
       "file": "src/hooks/useOfficerNotifications.ts",
-      "line": 69,
+      "line": 71,
       "table": "user_profiles",
       "status": "allowed_global_or_user_scoped",
       "orgRequired": false,
@@ -1259,7 +1179,7 @@
     },
     {
       "file": "src/hooks/useOfficerNotifications.ts",
-      "line": 98,
+      "line": 100,
       "table": "user_profiles",
       "status": "allowed_global_or_user_scoped",
       "orgRequired": false,
@@ -1267,15 +1187,15 @@
     },
     {
       "file": "src/hooks/useOfficerNotifications.ts",
-      "line": 124,
+      "line": 130,
       "table": "breach_alerts",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/hooks/useOfficerNotifications.ts",
-      "line": 152,
+      "line": 164,
       "table": "flagged_vehicles",
       "status": "review",
       "orgRequired": false,
@@ -1283,7 +1203,7 @@
     },
     {
       "file": "src/hooks/useOfficerNotifications.ts",
-      "line": 179,
+      "line": 191,
       "table": "investigation_jobs",
       "status": "review",
       "orgRequired": false,
@@ -1291,31 +1211,31 @@
     },
     {
       "file": "src/hooks/useOfficerNotifications.ts",
-      "line": 225,
+      "line": 238,
       "table": "breach_alerts",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/hooks/useOfficerNotifications.ts",
-      "line": 230,
+      "line": 252,
       "table": "breach_alerts",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/hooks/useOfficerNotifications.ts",
-      "line": 250,
+      "line": 285,
       "table": "breach_alerts",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/hooks/useOfficerNotifications.ts",
-      "line": 258,
+      "line": 298,
       "table": "flagged_vehicles",
       "status": "review",
       "orgRequired": false,
@@ -1323,7 +1243,7 @@
     },
     {
       "file": "src/hooks/useOfficerNotifications.ts",
-      "line": 266,
+      "line": 306,
       "table": "investigation_jobs",
       "status": "review",
       "orgRequired": false,
@@ -2019,19 +1939,19 @@
     },
     {
       "file": "src/hooks/useVehicleAnalysis.ts",
-      "line": 41,
+      "line": 47,
       "table": "observations",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/hooks/useVehicleAnalysis.ts",
-      "line": 145,
+      "line": 161,
       "table": "observations",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/hooks/useVehicleCompliance.ts",
@@ -2059,7 +1979,7 @@
     },
     {
       "file": "src/hooks/useVehicleProfilePhoto.ts",
-      "line": 33,
+      "line": 39,
       "table": "canonical_vehicles",
       "status": "allowed_global_or_user_scoped",
       "orgRequired": false,
@@ -2067,15 +1987,15 @@
     },
     {
       "file": "src/hooks/useVehicleProfilePhoto.ts",
-      "line": 53,
+      "line": 59,
       "table": "observations",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/hooks/useVehicleProfilePhoto.ts",
-      "line": 96,
+      "line": 107,
       "table": "canonical_vehicles",
       "status": "allowed_global_or_user_scoped",
       "orgRequired": false,
@@ -2083,11 +2003,11 @@
     },
     {
       "file": "src/hooks/useVehicleProfilePhoto.ts",
-      "line": 125,
+      "line": 140,
       "table": "observations",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/hooks/useVehicles.ts",
@@ -2171,23 +2091,23 @@
     },
     {
       "file": "src/hooks/useZones.ts",
-      "line": 116,
+      "line": 117,
       "table": "zones",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/hooks/useZones.ts",
-      "line": 138,
+      "line": 146,
       "table": "zones",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/hooks/useZones.ts",
-      "line": 161,
+      "line": 175,
       "table": "zones",
       "status": "ok",
       "orgRequired": true,

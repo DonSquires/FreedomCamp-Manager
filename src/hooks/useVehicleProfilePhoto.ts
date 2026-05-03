@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
+import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 import { getObservationPhotoUrl } from '@/lib/photoUtils'
 import { toast } from 'sonner'
 
@@ -21,6 +22,7 @@ interface ProfilePhoto {
 
 export function useVehicleProfilePhoto(plateNumber?: string) {
   const { user } = useAuthStore()
+  const { operationalOrganizationId } = useOperationalOrganization()
   const queryClient = useQueryClient()
 
   // Fetch current profile photo
@@ -28,6 +30,10 @@ export function useVehicleProfilePhoto(plateNumber?: string) {
     queryKey: ['vehicle-profile-photo', plateNumber],
     queryFn: async () => {
       if (!plateNumber) return null
+
+      if (user?.role !== 'master' && !operationalOrganizationId) {
+        return null
+      }
 
       const { data, error } = await supabase
         .from('canonical_vehicles')
@@ -49,12 +55,17 @@ export function useVehicleProfilePhoto(plateNumber?: string) {
       }
 
       // Get total photo count
-      const { count } = await supabase
+      let countQuery = supabase
         .from('observations')
         .select('*', { count: 'exact', head: true })
         .eq('plate_number', plateNumber)
         .not('photo_url', 'is', null)
-        
+
+      if (user?.role !== 'master' && operationalOrganizationId) {
+        countQuery = countQuery.eq('organization_id', operationalOrganizationId)
+      }
+
+      const { count } = await countQuery
 
       const d = data as any
       return {
@@ -122,11 +133,19 @@ export function useVehicleProfilePhoto(plateNumber?: string) {
     queryFn: async () => {
       if (!plateNumber) return []
 
-      const { data, error } = await supabase.from('observations')
+      if (user?.role !== 'master' && !operationalOrganizationId) {
+        return []
+      }
+
+      let query = supabase.from('observations')
         .select('photo, photo_url, recorded_at, embedding_quality, gps_accuracy')
         .eq('plate_number', plateNumber)
+      if (user?.role !== 'master' && operationalOrganizationId) {
+        query = query.eq('organization_id', operationalOrganizationId)
+      }
+
+      const { data, error } = await query
         .or('photo.not.is.null,photo_url.not.is.null')
-        
         .order('recorded_at', { ascending: false })
 
       if (error) throw error

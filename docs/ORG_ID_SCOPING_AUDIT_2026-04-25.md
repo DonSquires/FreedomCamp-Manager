@@ -1,9 +1,9 @@
 # Org Scoping Audit (2026-04-25)
 
-Generated: 2026-05-03T07:51:21.555Z
+Generated: 2026-05-03T07:57:12.035Z
 
 Total query sites: 250
-Missing required org filter: 34
+Missing required org filter: 24
 Review needed: 61
 Known exceptions: 2
 
@@ -11,21 +11,11 @@ Known exceptions: 2
 
 - src/hooks/useAuditLogs.ts:163 table=audit_log
 - src/hooks/useIncidents.ts:74 table=incidents
-- src/hooks/useOfficerNotifications.ts:124 table=breach_alerts
-- src/hooks/useOfficerNotifications.ts:225 table=breach_alerts
-- src/hooks/useOfficerNotifications.ts:230 table=breach_alerts
-- src/hooks/useOfficerNotifications.ts:250 table=breach_alerts
 - src/hooks/usePatrolCheckpoints.ts:140 table=patrol_checkpoints
 - src/hooks/usePatrolRouteInstances.ts:344 table=audit_log
 - src/hooks/useShiftGate.ts:97 table=zones
-- src/hooks/useVehicleAnalysis.ts:41 table=observations
-- src/hooks/useVehicleAnalysis.ts:145 table=observations
 - src/hooks/useVehicleCompliance.ts:192 table=observations
-- src/hooks/useVehicleProfilePhoto.ts:53 table=observations
-- src/hooks/useVehicleProfilePhoto.ts:125 table=observations
 - src/hooks/useZones.ts:90 table=zones
-- src/hooks/useZones.ts:116 table=zones
-- src/hooks/useZones.ts:138 table=zones
 - src/lib/dispatchJobs.ts:25 table=dispatch_jobs
 - src/lib/dispatchJobs.ts:36 table=dispatch_jobs
 - src/lib/fullExport.ts:271 table=observations
@@ -53,10 +43,10 @@ Known exceptions: 2
 - src/hooks/useHealthSafety.ts:216 table=health_safety_reports
 - src/hooks/useManDownDetection.ts:89 table=officer_welfare_alerts
 - src/hooks/useManDownDetection.ts:197 table=officer_welfare_alerts
-- src/hooks/useOfficerNotifications.ts:152 table=flagged_vehicles
-- src/hooks/useOfficerNotifications.ts:179 table=investigation_jobs
-- src/hooks/useOfficerNotifications.ts:258 table=flagged_vehicles
-- src/hooks/useOfficerNotifications.ts:266 table=investigation_jobs
+- src/hooks/useOfficerNotifications.ts:164 table=flagged_vehicles
+- src/hooks/useOfficerNotifications.ts:191 table=investigation_jobs
+- src/hooks/useOfficerNotifications.ts:298 table=flagged_vehicles
+- src/hooks/useOfficerNotifications.ts:306 table=investigation_jobs
 - src/hooks/useOfficerWelfareMonitor.ts:102 table=officer_welfare_alerts
 - src/hooks/useOfficerWelfareMonitor.ts:125 table=officer_welfare_alerts
 - src/hooks/useOfficerWelfareMonitor.ts:170 table=officer_welfare_settings
