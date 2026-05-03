@@ -33,7 +33,7 @@ Reach a high-end enterprise-grade bar by closing critical confidence and governa
 ## Baseline Signals (Current)
 
 1. Build gate passes.
-2. Lint has warnings but no errors.
+2. Lint passes and warning-budget gates are enforced.
 3. Bob canonical review approves current governance document.
 4. Role-gate roadmap and doc-authority warning checks are implemented.
 

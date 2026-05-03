@@ -1,7 +1,7 @@
 # Enterprise Pair Review (Canonical Live Record)
 
-Date: 2026-05-02
-Baseline commit: 35015963
+Date: 2026-05-03
+Baseline commit: 987f24c8
 Review mode: Dual-lens (Bob operations lens + OpenAI architecture lens)
 Status: Active canonical record (update on each material platform change)
 
@@ -57,6 +57,15 @@ Primary manuals and standards reviewed:
 2. Focused Bob-assisted E2E gate: pass (targeted specialist suites)
 3. CRM + Bob-assisted routing baseline: previously validated in mainline suite
 4. Current architecture baseline: as documented in docs/SYSTEM_GUIDE.md and enforced by current repository topology
+
+## Current Cycle Snapshot (2026-05-03)
+
+1. Governance Release Gate: pass
+2. policy-bob-no-openai: pass
+3. Validate RunPod Image Tags: pass
+4. Deploy Admin Portal to Vercel: pass
+5. Synthetic UI Monitor: pass or intentionally skipped by workflow conditions
+6. Staging crash-recovery and handoff protocol is active in docs/STAGING.md and enforced by governance gates
 
 ## Bob Lens Review (Operational + Reliability)
 
