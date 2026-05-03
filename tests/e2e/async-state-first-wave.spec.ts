@@ -1,7 +1,7 @@
 /**
  * Async-State First-Wave E2E
  *
- * Validates graceful offline behavior for sampled first-wave operator routes.
+ * Validates graceful offline behavior for first-wave operator routes.
  * Uses the shared AppLayout offline banner as a deterministic async-state signal.
  */
 
@@ -11,6 +11,18 @@ import { loginAs } from './auth'
 test.use({ screenshot: 'on' })
 
 const OFFLINE_BANNER = 'Connection lost. You are offline and some live data may be stale.'
+const FIRST_WAVE_ROUTES = [
+  '/dispatch',
+  '/live-tracking',
+  '/compliance',
+  '/patrol-schedule',
+  '/officer-welfare',
+  '/incident-reports',
+  '/reports',
+  '/enforcement-actions',
+  '/zones',
+  '/admin/dashboard',
+] as const
 
 async function assertOfflineBanner(page: Page, route: string) {
   await page.goto(route, { waitUntil: 'domcontentloaded' })
@@ -33,28 +45,13 @@ async function assertOfflineBanner(page: Page, route: string) {
 test.describe('first-wave async-state offline behavior', () => {
   test.describe.configure({ mode: 'serial' })
 
-  test('dispatch shows and clears offline banner', async ({ page }) => {
+  test.beforeEach(async ({ page }) => {
     await loginAs(page, 'adminOrg1')
-    await assertOfflineBanner(page, '/dispatch')
   })
 
-  test('live-tracking shows and clears offline banner', async ({ page }) => {
-    await loginAs(page, 'adminOrg1')
-    await assertOfflineBanner(page, '/live-tracking')
-  })
-
-  test('compliance shows and clears offline banner', async ({ page }) => {
-    await loginAs(page, 'adminOrg1')
-    await assertOfflineBanner(page, '/compliance')
-  })
-
-  test('patrol-schedule shows and clears offline banner', async ({ page }) => {
-    await loginAs(page, 'adminOrg1')
-    await assertOfflineBanner(page, '/patrol-schedule')
-  })
-
-  test('officer-welfare shows and clears offline banner', async ({ page }) => {
-    await loginAs(page, 'adminOrg1')
-    await assertOfflineBanner(page, '/officer-welfare')
-  })
+  for (const route of FIRST_WAVE_ROUTES) {
+    test(`${route} shows and clears offline banner`, async ({ page }) => {
+      await assertOfflineBanner(page, route)
+    })
+  }
 })
