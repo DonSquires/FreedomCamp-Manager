@@ -27,6 +27,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
+const { createClient } = require('redis');
 
 const router = express.Router();
 
@@ -43,6 +44,47 @@ const WORKER_COUNT = Math.min(
   require('os').cpus().length
 );
 const TOKEN_TTL_SECONDS = 3600;
+const REDIS_URL = String(process.env.REDIS_URL || '').trim();
+const RADIO_SPEECH_QUEUE_KEY = process.env.RADIO_SPEECH_QUEUE_KEY || 'radio:speech:events';
+
+let redisClient = null;
+let redisReady = false;
+
+async function initRadioRedis() {
+  if (!REDIS_URL) return;
+  if (redisClient) return;
+  redisClient = createClient({ url: REDIS_URL });
+  redisClient.on('ready', () => {
+    redisReady = true;
+    console.log('[radio-router] Redis connected for speech queue');
+  });
+  redisClient.on('error', (err) => {
+    redisReady = false;
+    console.warn('[radio-router] Redis error:', err.message);
+  });
+  redisClient.on('end', () => {
+    redisReady = false;
+  });
+
+  try {
+    await redisClient.connect();
+  } catch (err) {
+    redisReady = false;
+    console.warn('[radio-router] Redis connect failed:', err.message);
+  }
+}
+
+async function enqueueSpeechEvent(event) {
+  if (!(redisClient && redisReady)) return;
+  try {
+    await redisClient.rPush(RADIO_SPEECH_QUEUE_KEY, JSON.stringify({
+      ...event,
+      enqueuedAt: new Date().toISOString(),
+    }));
+  } catch (err) {
+    console.warn('[radio-router] Failed to enqueue speech event:', err.message);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Proxy auth middleware (same pattern as existing ptt-server)
@@ -53,6 +95,43 @@ function proxyAuthMiddleware(req, res, next) {
   if (!secret || secret !== RADIO_PROXY_SECRET) {
     return res.status(401).json({ error: 'Unauthorized', message: 'Invalid proxy secret' });
   }
+  next();
+}
+
+function verifyRadioJwt(req, res, next) {
+  if (!RADIO_JWT_SECRET) {
+    return res.status(503).json({ error: 'RADIO_JWT_SECRET not configured' });
+  }
+
+  const authHeader = req.headers.authorization || '';
+  if (!authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Missing bearer token' });
+  }
+
+  const token = authHeader.slice('Bearer '.length).trim();
+  try {
+    const claims = jwt.verify(token, RADIO_JWT_SECRET);
+    req.radioClaims = claims;
+    return next();
+  } catch (_err) {
+    return res.status(401).json({ error: 'Invalid or expired radio token' });
+  }
+}
+
+function verifyTransmissionScope(req, res, next) {
+  const claims = req.radioClaims || {};
+  const claimedTransmissionId = claims.transmission_id;
+  const bodyTransmissionId = req.body?.transmissionId;
+  const pathTransmissionId = req.params?.transmissionId;
+  const transmissionId = bodyTransmissionId || pathTransmissionId;
+
+  if (!claimedTransmissionId || !transmissionId) {
+    return res.status(400).json({ error: 'Missing transmission scope' });
+  }
+  if (claimedTransmissionId !== transmissionId) {
+    return res.status(403).json({ error: 'Transmission scope mismatch' });
+  }
+
   next();
 }
 
@@ -94,6 +173,9 @@ async function initSfu() {
   }
   sfuReady = true;
   console.log(`[radio-router] mediasoup SFU ready — ${WORKER_COUNT} worker(s)`);
+
+  // Optional Redis queue used by speech workers.
+  await initRadioRedis();
 }
 
 function getNextWorker() {
@@ -161,7 +243,7 @@ function buildIceServers() {
 // POST /radio/router/create
 // Create a mediasoup Router for an org-scoped channel.
 // ---------------------------------------------------------------------------
-router.post('/radio/router/create', proxyAuthMiddleware, async (req, res) => {
+router.post('/radio/router/create', verifyRadioJwt, verifyTransmissionScope, async (req, res) => {
   if (!sfuReady) return res.status(503).json({ error: 'SFU not ready' });
 
   const { transmissionId } = req.body;
@@ -186,14 +268,14 @@ router.post('/radio/router/create', proxyAuthMiddleware, async (req, res) => {
   sessions.set(transmissionId, session);
   workerEntry.routers.set(router.id, router);
 
-  res.json({ routerId: router.id, transmissionId });
+  res.json({ routerId: router.id, transmissionId, mediaCodecs: session.router.rtpCapabilities?.codecs || [] });
 });
 
 // ---------------------------------------------------------------------------
 // POST /radio/transport/create
 // Create a server-side WebRtcTransport for a participant.
 // ---------------------------------------------------------------------------
-router.post('/radio/transport/create', proxyAuthMiddleware, async (req, res) => {
+router.post('/radio/transport/create', verifyRadioJwt, verifyTransmissionScope, async (req, res) => {
   if (!sfuReady) return res.status(503).json({ error: 'SFU not ready' });
 
   const { transmissionId, direction } = req.body; // direction: 'send' | 'recv'
@@ -214,6 +296,7 @@ router.post('/radio/transport/create', proxyAuthMiddleware, async (req, res) => 
   session.transports.set(transport.id, { transport, direction });
 
   res.json({
+    id: transport.id,
     transportId: transport.id,
     iceParameters: transport.iceParameters,
     iceCandidates: transport.iceCandidates,
@@ -225,7 +308,7 @@ router.post('/radio/transport/create', proxyAuthMiddleware, async (req, res) => 
 // POST /radio/transport/connect
 // Client provides its DTLS parameters to complete the handshake.
 // ---------------------------------------------------------------------------
-router.post('/radio/transport/connect', proxyAuthMiddleware, async (req, res) => {
+router.post('/radio/transport/connect', verifyRadioJwt, verifyTransmissionScope, async (req, res) => {
   if (!sfuReady) return res.status(503).json({ error: 'SFU not ready' });
 
   const { transmissionId, transportId, dtlsParameters } = req.body;
@@ -247,7 +330,7 @@ router.post('/radio/transport/connect', proxyAuthMiddleware, async (req, res) =>
 // POST /radio/producer/create
 // Create a Producer — inbound audio from the sending participant.
 // ---------------------------------------------------------------------------
-router.post('/radio/producer/create', proxyAuthMiddleware, async (req, res) => {
+router.post('/radio/producer/create', verifyRadioJwt, verifyTransmissionScope, async (req, res) => {
   if (!sfuReady) return res.status(503).json({ error: 'SFU not ready' });
 
   const { transmissionId, transportId, kind, rtpParameters } = req.body;
@@ -264,14 +347,40 @@ router.post('/radio/producer/create', proxyAuthMiddleware, async (req, res) => {
   const producer = await entry.transport.produce({ kind, rtpParameters });
   session.producers.set(producer.id, producer);
 
-  res.json({ producerId: producer.id });
+  const claims = req.radioClaims || {};
+  await enqueueSpeechEvent({
+    type: 'radio.producer.created',
+    transmissionId,
+    producerId: producer.id,
+    orgId: claims.org || null,
+    speakerId: claims.sub || null,
+    channelType: claims.channel_type || null,
+    isEmergency: !!claims.is_emergency,
+  });
+
+  producer.on('transportclose', () => {
+    session.producers.delete(producer.id);
+  });
+
+  producer.on('close', () => {
+    enqueueSpeechEvent({
+      type: 'radio.producer.closed',
+      transmissionId,
+      producerId: producer.id,
+      orgId: claims.org || null,
+      speakerId: claims.sub || null,
+    }).catch(() => {});
+    session.producers.delete(producer.id);
+  });
+
+  res.json({ id: producer.id, producerId: producer.id });
 });
 
 // ---------------------------------------------------------------------------
 // POST /radio/consumer/create
 // Create a Consumer — outbound audio to a receiving participant.
 // ---------------------------------------------------------------------------
-router.post('/radio/consumer/create', proxyAuthMiddleware, async (req, res) => {
+router.post('/radio/consumer/create', verifyRadioJwt, verifyTransmissionScope, async (req, res) => {
   if (!sfuReady) return res.status(503).json({ error: 'SFU not ready' });
 
   const { transmissionId, transportId, producerId, rtpCapabilities } = req.body;
@@ -297,6 +406,7 @@ router.post('/radio/consumer/create', proxyAuthMiddleware, async (req, res) => {
   session.consumers.set(consumer.id, consumer);
 
   res.json({
+    id: consumer.id,
     consumerId: consumer.id,
     producerId: consumer.producerId,
     kind: consumer.kind,
@@ -308,7 +418,7 @@ router.post('/radio/consumer/create', proxyAuthMiddleware, async (req, res) => {
 // DELETE /radio/session/:transmissionId
 // Close a radio session and release all SFU resources.
 // ---------------------------------------------------------------------------
-router.delete('/radio/session/:transmissionId', proxyAuthMiddleware, async (req, res) => {
+router.delete('/radio/session/:transmissionId', verifyRadioJwt, verifyTransmissionScope, async (req, res) => {
   const { transmissionId } = req.params;
   const session = sessions.get(transmissionId);
 
@@ -333,6 +443,16 @@ router.delete('/radio/session/:transmissionId', proxyAuthMiddleware, async (req,
   }
 
   sessions.delete(transmissionId);
+
+  const claims = req.radioClaims || {};
+  await enqueueSpeechEvent({
+    type: 'radio.session.closed',
+    transmissionId,
+    orgId: claims.org || null,
+    speakerId: claims.sub || null,
+    isEmergency: !!claims.is_emergency,
+  });
+
   res.json({ closed: true, transmissionId });
 });
 

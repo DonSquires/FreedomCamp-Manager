@@ -74,7 +74,8 @@ async function createSfuSession(opts: SfuTransportOptions): Promise<SfuSession> 
 
   // 3. Create a WebRTC send transport on the control plane
   const transportParams = await post<{
-    id: string
+    id?: string
+    transportId?: string
     iceParameters: object
     iceCandidates: object[]
     dtlsParameters: object
@@ -89,8 +90,16 @@ async function createSfuSession(opts: SfuTransportOptions): Promise<SfuSession> 
   )
 
   // 4. Wire up the client-side send transport
+  const transportId = transportParams.transportId || transportParams.id
+  if (!transportId) {
+    throw new Error('radio-transport: control plane did not return transport id')
+  }
+
   const sendTransport = device.createSendTransport({
-    ...transportParams,
+    id: transportId,
+    iceParameters: transportParams.iceParameters,
+    iceCandidates: transportParams.iceCandidates,
+    dtlsParameters: transportParams.dtlsParameters,
     iceServers,
   } as Parameters<typeof device.createSendTransport>[0])
 
