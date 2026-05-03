@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-03T08:04:32.464Z",
+  "generatedAt": "2026-05-03T08:10:41.428Z",
   "scope": [
     "src/hooks",
     "src/lib"
@@ -28,85 +28,13 @@
   },
   "summary": {
     "total": 250,
-    "ok": 132,
+    "ok": 141,
     "known_exception": 2,
     "allowed_global_or_user_scoped": 38,
     "review": 61,
-    "missing_org_filter": 17
+    "missing_org_filter": 8
   },
   "missingOrgFilter": [
-    {
-      "file": "src/lib/dispatchJobs.ts",
-      "line": 25,
-      "table": "dispatch_jobs",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/lib/dispatchJobs.ts",
-      "line": 36,
-      "table": "dispatch_jobs",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/lib/fullExport.ts",
-      "line": 271,
-      "table": "observations",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/lib/geofence.ts",
-      "line": 249,
-      "table": "patrols",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/lib/geofence.ts",
-      "line": 265,
-      "table": "zones",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/lib/geofence.ts",
-      "line": 273,
-      "table": "zones",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/lib/geofence.ts",
-      "line": 442,
-      "table": "patrols",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/lib/geofence.ts",
-      "line": 457,
-      "table": "patrols",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/lib/scanPipeline.ts",
-      "line": 71,
-      "table": "observations",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
     {
       "file": "src/lib/testUtils.ts",
       "line": 151,
@@ -2341,29 +2269,21 @@
       "file": "src/lib/dispatchJobs.ts",
       "line": 25,
       "table": "dispatch_jobs",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/lib/dispatchJobs.ts",
-      "line": 36,
+      "line": 39,
       "table": "dispatch_jobs",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/lib/fullExport.ts",
-      "line": 271,
-      "table": "observations",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/lib/fullExport.ts",
-      "line": 319,
+      "line": 297,
       "table": "observations",
       "status": "ok",
       "orgRequired": true,
@@ -2371,7 +2291,15 @@
     },
     {
       "file": "src/lib/fullExport.ts",
-      "line": 342,
+      "line": 321,
+      "table": "observations",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/fullExport.ts",
+      "line": 344,
       "table": "enforcement_actions",
       "status": "ok",
       "orgRequired": true,
@@ -2397,29 +2325,29 @@
       "file": "src/lib/geofence.ts",
       "line": 249,
       "table": "patrols",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
-    },
-    {
-      "file": "src/lib/geofence.ts",
-      "line": 265,
-      "table": "zones",
-      "status": "missing_org_filter",
-      "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/lib/geofence.ts",
       "line": 273,
       "table": "zones",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/lib/geofence.ts",
-      "line": 394,
+      "line": 289,
+      "table": "zones",
+      "status": "ok",
+      "orgRequired": true,
+      "scoped": true
+    },
+    {
+      "file": "src/lib/geofence.ts",
+      "line": 418,
       "table": "patrols",
       "status": "ok",
       "orgRequired": true,
@@ -2427,7 +2355,7 @@
     },
     {
       "file": "src/lib/geofence.ts",
-      "line": 409,
+      "line": 434,
       "table": "patrols",
       "status": "ok",
       "orgRequired": true,
@@ -2435,19 +2363,19 @@
     },
     {
       "file": "src/lib/geofence.ts",
-      "line": 442,
+      "line": 468,
       "table": "patrols",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/lib/geofence.ts",
-      "line": 457,
+      "line": 488,
       "table": "patrols",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/lib/privacyCurtain.ts",
@@ -2517,9 +2445,9 @@
       "file": "src/lib/scanPipeline.ts",
       "line": 71,
       "table": "observations",
-      "status": "missing_org_filter",
+      "status": "ok",
       "orgRequired": true,
-      "scoped": false
+      "scoped": true
     },
     {
       "file": "src/lib/testUtils.ts",

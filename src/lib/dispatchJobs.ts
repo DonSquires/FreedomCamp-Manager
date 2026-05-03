@@ -23,7 +23,10 @@ export async function insertDispatchJobWithAlarmTypeFallback<T>(
 ) {
   const initialResult = await (supabase as any)
     .from('dispatch_jobs')
-    .insert(payload)
+    .insert({
+      ...payload,
+      organization_id: (payload as any).organization_id ?? null,
+    })
     .select(selectClause)
     .single()
 
@@ -34,7 +37,10 @@ export async function insertDispatchJobWithAlarmTypeFallback<T>(
   const { alarm_type: _alarmType, ...fallbackPayload } = payload
   return await (supabase as any)
     .from('dispatch_jobs')
-    .insert(fallbackPayload)
+    .insert({
+      ...fallbackPayload,
+      organization_id: (fallbackPayload as any).organization_id ?? null,
+    })
     .select(selectClause)
     .single() as { data: T | null; error: { code?: string; message?: string } | null }
 }

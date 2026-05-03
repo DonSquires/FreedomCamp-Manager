@@ -1,23 +1,14 @@
 # Org Scoping Audit (2026-04-25)
 
-Generated: 2026-05-03T08:04:32.464Z
+Generated: 2026-05-03T08:10:41.428Z
 
 Total query sites: 250
-Missing required org filter: 17
+Missing required org filter: 8
 Review needed: 61
 Known exceptions: 2
 
 ## Missing Required Org Filters
 
-- src/lib/dispatchJobs.ts:25 table=dispatch_jobs
-- src/lib/dispatchJobs.ts:36 table=dispatch_jobs
-- src/lib/fullExport.ts:271 table=observations
-- src/lib/geofence.ts:249 table=patrols
-- src/lib/geofence.ts:265 table=zones
-- src/lib/geofence.ts:273 table=zones
-- src/lib/geofence.ts:442 table=patrols
-- src/lib/geofence.ts:457 table=patrols
-- src/lib/scanPipeline.ts:71 table=observations
 - src/lib/testUtils.ts:151 table=zones
 - src/lib/testUtils.ts:178 table=observations
 - src/lib/testUtils.ts:207 table=breach_alerts

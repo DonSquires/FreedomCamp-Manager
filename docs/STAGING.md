@@ -153,7 +153,7 @@ node scripts/validate-workflow-evidence.mjs
 - [x] Reconfirm role-route mapping against `docs/MODULE_ROADMAP.md` and `src/App.tsx`.
 - [x] Re-run org-scoping verification artifacts before release candidate promotion.
 
-Current finding: org-scoping static audit now reports `missing_org_filter=17` after latest remediation pass (down from 47).
+Current finding: org-scoping static audit now reports `missing_org_filter=8` after latest remediation pass (down from 47).
 
 ### E. Release Gate Discipline
 
@@ -228,7 +228,7 @@ Latest Session Snapshot:
   - `25273584279` CI Build High Memory: in progress
   - `25273584285` Deploy Admin Portal to Vercel: in progress
 - Open blockers with owner:
-  - Org-scoping audit still reports 17 missing org filters; owner: Application architecture + data governance
+  - Org-scoping audit still reports 8 missing org filters (all in `src/lib/testUtils.ts`); owner: Application architecture + data governance
 - Next exact command to run: `cd /workspaces/FreedomCamp-Manager && GH_PAGER=cat gh run list --limit 30 --json databaseId,headSha,name,status,conclusion,url | jq 'map(select(.headSha=="'"$(git rev-parse HEAD)"'"))' && node scripts/audit-org-scoping.mjs`
 
 Latest Session Snapshot:

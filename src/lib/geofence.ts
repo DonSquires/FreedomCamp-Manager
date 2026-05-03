@@ -229,7 +229,7 @@ async function logOfficerGpsUpdate(
   }
 }
 
-async function getOfficerActivePatrols(userId: string): Promise<ActivePatrol[]> {
+async function getOfficerActivePatrols(userId: string, organizationScope?: string | string[]): Promise<ActivePatrol[]> {
   try {
     const { data, error } = await (supabase as any).rpc('get_officer_active_patrols', {
       p_officer_id: userId,
@@ -245,12 +245,20 @@ async function getOfficerActivePatrols(userId: string): Promise<ActivePatrol[]> 
       }
 
       // Compatibility fallback for tenants with older patrol schema.
-      const { data: patrolRows, error: patrolError } = await (supabase as any)
+      let patrolQuery = (supabase as any)
         .from('patrols')
         .select('id, zone_id, status, completed_at, auto_checkin_enabled, assigned_to')
         .eq('assigned_to', userId)
         .in('status', ['scheduled', 'in_progress'])
         .is('completed_at', null)
+
+      if (Array.isArray(organizationScope) && organizationScope.length > 0) {
+        patrolQuery = patrolQuery.in('organization_id', organizationScope)
+      } else if (typeof organizationScope === 'string' && organizationScope.length > 0) {
+        patrolQuery = patrolQuery.eq('organization_id', organizationScope)
+      }
+
+      const { data: patrolRows, error: patrolError } = await patrolQuery
 
       if (patrolError) {
         console.warn('Fallback patrol lookup failed:', patrolError)
@@ -261,18 +269,34 @@ async function getOfficerActivePatrols(userId: string): Promise<ActivePatrol[]> 
       let zoneMap = new Map<string, any>()
 
       if (zoneIds.length) {
-        const { data: zoneRows, error: zoneError } = await (supabase as any)
+        let zoneQuery = (supabase as any)
           .from('zones')
           .select('id, name, location_lat, location_lng, radius_meters')
           .in('id', zoneIds)
 
+        if (Array.isArray(organizationScope) && organizationScope.length > 0) {
+          zoneQuery = zoneQuery.in('organization_id', organizationScope)
+        } else if (typeof organizationScope === 'string' && organizationScope.length > 0) {
+          zoneQuery = zoneQuery.eq('organization_id', organizationScope)
+        }
+
+        const { data: zoneRows, error: zoneError } = await zoneQuery
+
         if (!zoneError) {
           zoneMap = new Map((zoneRows || []).map((z: any) => [z.id, z]))
         } else if (zoneError.code === '42703' && String(zoneError.message || '').includes('radius_meters')) {
-          const { data: zoneRowsNoRadius } = await (supabase as any)
+          let zoneFallbackQuery = (supabase as any)
             .from('zones')
             .select('id, name, location_lat, location_lng')
             .in('id', zoneIds)
+
+          if (Array.isArray(organizationScope) && organizationScope.length > 0) {
+            zoneFallbackQuery = zoneFallbackQuery.in('organization_id', organizationScope)
+          } else if (typeof organizationScope === 'string' && organizationScope.length > 0) {
+            zoneFallbackQuery = zoneFallbackQuery.eq('organization_id', organizationScope)
+          }
+
+          const { data: zoneRowsNoRadius } = await zoneFallbackQuery
           zoneMap = new Map((zoneRowsNoRadius || []).map((z: any) => [z.id, { ...z, radius_meters: null }]))
         }
       }
@@ -395,6 +419,7 @@ export async function autoStartPatrol(
       .select('id')
       .eq('assigned_to', userId)
       .eq('zone_id', zoneId)
+      .eq('organization_id', organizationId)
       .eq('patrol_date', new Date().toISOString().split('T')[0])
       .eq('status', 'in_progress')
       .maybeSingle()
@@ -435,17 +460,23 @@ export async function autoStartPatrol(
  */
 export async function autoStopPatrol(
   userId: string,
-  zoneId: string
+  zoneId: string,
+  organizationId?: string
 ): Promise<{ success: boolean }> {
   try {
     // Find active patrol
-    const { data: patrol, error: findError } = await (supabase.from('patrols') as any)
+    let patrolQuery = (supabase.from('patrols') as any)
       .select('id')
       .eq('assigned_to', userId)
       .eq('zone_id', zoneId)
       .eq('patrol_date', new Date().toISOString().split('T')[0])
       .eq('status', 'in_progress')
-      .maybeSingle()
+
+    if (organizationId) {
+      patrolQuery = patrolQuery.eq('organization_id', organizationId)
+    }
+
+    const { data: patrol, error: findError } = await patrolQuery.maybeSingle()
     
     if (findError) throw findError
     if (!patrol) {
@@ -454,12 +485,18 @@ export async function autoStopPatrol(
     }
     
     // Update patrol to completed
-    const { error: updateError } = await (supabase.from('patrols') as any)
+    let updateQuery = (supabase.from('patrols') as any)
       .update({
         ended_at: new Date().toISOString(),
         status: 'completed',
       })
       .eq('id', patrol.id)
+
+    if (organizationId) {
+      updateQuery = updateQuery.eq('organization_id', organizationId)
+    }
+
+    const { error: updateError } = await updateQuery
     
     if (updateError) throw updateError
     
@@ -510,7 +547,7 @@ export async function monitorGeofenceAndPatrol(
       options?.activityType || 'gps_update'
     )
 
-    const activePatrols = await getOfficerActivePatrols(userId)
+    const activePatrols = await getOfficerActivePatrols(userId, organizationScope)
     const inProgressPatrol = activePatrols.find(
       (patrol) => patrol.status === 'in_progress' && !patrol.completed_at
     ) || null
@@ -549,7 +586,8 @@ export async function monitorGeofenceAndPatrol(
         if (activePatrols.length === 0) {
           // Legacy fallback: for tenants not using scheduled patrol assignments
           if (currentZoneId) {
-            await autoStopPatrol(userId, currentZoneId)
+            const scopedOrgId = typeof organizationScope === 'string' ? organizationScope : undefined
+            await autoStopPatrol(userId, currentZoneId, scopedOrgId)
           }
           await autoStartPatrol(userId, primaryZone.id, primaryZone.organization_id, userLat, userLng)
         }
@@ -560,7 +598,8 @@ export async function monitorGeofenceAndPatrol(
       // Outside all geofences
       if (currentZoneId) {
         if (activePatrols.length === 0) {
-          await autoStopPatrol(userId, currentZoneId)
+          const scopedOrgId = typeof organizationScope === 'string' ? organizationScope : undefined
+          await autoStopPatrol(userId, currentZoneId, scopedOrgId)
         }
         onZoneChange(null, 'Other Location', null)
       } else if (options?.currentZoneName !== 'Other Location') {

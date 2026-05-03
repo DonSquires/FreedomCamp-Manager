@@ -42,6 +42,32 @@ const DEFAULT_TABLES = [
   'organizations',
 ]
 
+const EXPORT_OBSERVATIONS_WITH_VEHICLES_SELECT = `
+  *,
+  canonical_vehicles!observations_plate_number_fkey (
+    vehicle_make,
+    vehicle_model,
+    vehicle_year,
+    vehicle_color,
+    self_contained,
+    self_contained_expiry,
+    homeless_status,
+    is_flagged
+  ),
+  zones!vehicle_observations_v2_zone_id_fkey (
+    name,
+    description,
+    self_contained_required,
+    nights_per_month,
+    max_consecutive_nights
+  ),
+  user_profiles!vehicle_observations_v2_recorded_by_fkey (
+    first_name,
+    last_name,
+    email
+  )
+`
+
 /**
  * Export all data for an organization
  */
@@ -269,31 +295,7 @@ export async function exportObservationsWithVehicles(
 ): Promise<any[]> {
   const { data, error } = await supabase
     .from('observations')
-    .select(`
-      *,
-      canonical_vehicles!observations_plate_number_fkey (
-        vehicle_make,
-        vehicle_model,
-        vehicle_year,
-        vehicle_color,
-        self_contained,
-        self_contained_expiry,
-        homeless_status,
-        is_flagged
-      ),
-      zones!vehicle_observations_v2_zone_id_fkey (
-        name,
-        description,
-        self_contained_required,
-        nights_per_month,
-        max_consecutive_nights
-      ),
-      user_profiles!vehicle_observations_v2_recorded_by_fkey (
-        first_name,
-        last_name,
-        email
-      )
-    `)
+    .select(EXPORT_OBSERVATIONS_WITH_VEHICLES_SELECT)
     .eq('organization_id', organizationId)
     .gte('recorded_at', dateFrom)
     .lte('recorded_at', dateTo)

@@ -64,13 +64,14 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: str
   }
 }
 
-async function recoverObservationByIdempotency(idempotencyKey: string): Promise<string | null> {
+async function recoverObservationByIdempotency(idempotencyKey: string, organizationId: string): Promise<string | null> {
   const deadline = Date.now() + RECOVERY_LOOKUP_TIMEOUT_MS
 
   while (Date.now() < deadline) {
     const { data, error } = await (supabase.from('observations') as any)
       .select('observation_id, id')
       .eq('idempotency_key', idempotencyKey)
+      .eq('organization_id', organizationId)
       .maybeSingle()
 
     if (!error && data) {
@@ -266,7 +267,7 @@ export async function captureAndSave(
       // If the request timed out or the network dropped after the backend started,
       // recover using idempotency key so the UI can still complete.
       emitScanProgress(onStageChange, 'recovery')
-      const recoveredId = await recoverObservationByIdempotency(idempKey)
+      const recoveredId = await recoverObservationByIdempotency(idempKey, user.organization_id)
       if (recoveredId) {
         observationId = recoveredId
       } else {
