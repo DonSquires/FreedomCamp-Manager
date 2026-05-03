@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "speech:worker": "node speech-worker.js",
     "test": "node --test test/**/*.test.js"
   },
   "keywords": [

@@ -1124,6 +1124,7 @@ const SUPABASE_JWT_AUDIENCE = process.env.SUPABASE_JWT_AUDIENCE || '';
 // Set SUPABASE_SERVICE_ROLE_KEY on Railway to the same value as the Supabase
 // project's service role key.
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const RADIO_SPEECH_WEBHOOK_SECRET = String(process.env.RADIO_SPEECH_WEBHOOK_SECRET || '').trim();
 
 function isLocalUrl(value) {
   if (!value) return false;
@@ -1801,7 +1802,7 @@ const corsOptions = {
     callback(new Error('Not allowed by CORS'));
   },
   methods: ['POST', 'GET', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-inference-api-key', 'x-client-info', 'apikey', 'x-user-id', 'x-org-id', 'x-user-role', 'x-user-email'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-inference-api-key', 'x-client-info', 'apikey', 'x-user-id', 'x-org-id', 'x-user-role', 'x-user-email', 'x-radio-speech-secret'],
   maxAge: 86400, // 24 hours
 };
 
@@ -4725,6 +4726,51 @@ app.post('/assess/ptt', inferenceRateLimit, requireInferenceAuth, async (req, re
   } catch (error) {
     console.error('PTT assessment error:', error);
     return res.status(500).json({ error: 'PTT assessment failed', message: error.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Radio speech queue ingress (Phase 1 Group D)
+// ---------------------------------------------------------------------------
+
+app.post('/radio/speech-event', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const providedSecret = String(req.get('x-radio-speech-secret') || '').trim();
+    if (RADIO_SPEECH_WEBHOOK_SECRET && providedSecret !== RADIO_SPEECH_WEBHOOK_SECRET) {
+      return res.status(401).json({ error: 'Invalid radio speech webhook secret' });
+    }
+
+    const payload = req.body || {};
+    const type = String(payload.type || '').trim();
+    const transmissionId = String(payload.transmissionId || '').trim();
+
+    if (!type) {
+      return res.status(400).json({ error: 'type is required' });
+    }
+    if (!transmissionId) {
+      return res.status(400).json({ error: 'transmissionId is required' });
+    }
+
+    // Phase 1 queue handoff acknowledgement endpoint.
+    // Phase 2/3 workers will consume these lifecycle events and run STT + translation.
+    console.log('[radio-speech-event] accepted', {
+      type,
+      transmissionId,
+      orgId: payload.orgId || req.get('x-org-id') || null,
+      speakerId: payload.speakerId || null,
+      isEmergency: Boolean(payload.isEmergency),
+    });
+
+    return res.status(202).json({
+      success: true,
+      accepted: true,
+      stage: 'queued-for-speech-pipeline',
+      type,
+      transmissionId,
+    });
+  } catch (error) {
+    console.error('Radio speech event ingestion error:', error);
+    return res.status(500).json({ error: 'Failed to ingest radio speech event', message: error.message });
   }
 });
 
