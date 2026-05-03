@@ -118,8 +118,8 @@ Source of truth for routes: App router file src-App.tsx and route inventory docu
 3. Comms and PTT
    - Primary: /radio
    - Role gate: authenticated users (protected route)
-   - Related: /radio/log, /messages, /team-chat
-   - Related route gates: /radio/log, /messages, /team-chat = authenticated users (protected route)
+   - Related: /radio/log, /radio/audit, /messages, /team-chat
+   - Related route gates: /radio/log, /messages, /team-chat = authenticated users (protected route); /radio/audit = admin, admin_officer, master, grand_master
 
 ## Executive and Governance Views
 

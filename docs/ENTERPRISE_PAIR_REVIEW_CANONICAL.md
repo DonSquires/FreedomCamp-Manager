@@ -273,6 +273,7 @@ This policy controls when DOC_AUTHORITY_STRICT_POLICY should be enabled in CI.
 27. Completed: PTT Radio Phase 0 ADRs written and approved — ADR 003 (service topology), ADR 004 (SFU: mediasoup), ADR 005 (voice synthesis: Piper + Coqui XTTS), ADR 006 (legal/compliance: voice matching and synthetic audio). Phase 0 exit criteria met.
 28. Completed: PTT Radio Phase 1 Group A schema delivered — 5 migration files (radio_transmissions, radio_transcript_segments, radio_translation_segments, radio_tts_renders, radio_voice_profiles_and_consents) + RLS policy migration + TypeScript database types updated. Build and lint clean.
 29. Completed: PTT Radio Phase 1 Group B control plane delivered — radio-token Supabase Edge Function (scoped JWT, transmission audit row, dev mode fallback) + ptt-server radio-router.js (mediasoup SFU worker pool, /radio/* routes: token/router/transport/producer/consumer/session/health) + mediasoup added to dependencies + env vars documented.
+30. Completed: PTT Radio Phases 2–5 and Ticket Groups A/E delivered — Phase 2 (live captions), Phase 3 (translation stream), Phase 4 (synthetic TTS relay indicators), Phase 5 (voice-twin consent/enrollment/revocation/audit tagging); ADR 007 (voice-twin governance model); RadioAuditDashboard (/radio/audit, admin-gated) with consent records, render audit log, and latency dashboard (histogram, trend, percentile stats); lint warning budget and route-roadmap coverage restored; all governance gate checks pass.
 
 ## Execution Ledger
 
