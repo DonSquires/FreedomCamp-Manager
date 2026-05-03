@@ -44,8 +44,8 @@ Verify that no route exposes data across organisation boundaries. Each row docum
 | Route | Roles | E2E Test | Status |
 |---|---|---|---|
 | `/platform` | `grand_master` | `master – full platform access` > `master loads /platform` | ✅ Covered |
-| `/grandmaster-code-studio` | `grand_master` | — | ⚠️ No coverage |
-| `/compliance-escalations` | `grand_master` | — | ⚠️ No coverage |
+| `/grandmaster-code-studio` | `grand_master` | `cross-org matrix regression checks` > blocked for admin/master | ✅ Covered (blocked-access) |
+| `/compliance-escalations` | `grand_master` | `cross-org matrix regression checks` > blocked for admin/master | ✅ Covered (blocked-access) |
 
 ### T1 — Multi-org (master + grand_master)
 
@@ -67,18 +67,18 @@ Selected high-risk routes:
 |---|---|---|---|
 | `/users` | `admin`, `admin_officer`, `master` | `master loads /users` | ✅ Covered |
 | `/access-control` | `admin`, `admin_officer`, `master`, `grand_master` | `master loads /access-control` | ✅ Covered |
-| `/audit-log` | `admin`, `admin_officer`, `master` | — | ⚠️ No coverage |
-| `/organization-profile` | `admin`, `admin_officer`, `master` | — | ⚠️ No coverage |
+| `/audit-log` | `admin`, `admin_officer`, `master` | `admin loads /audit-log` | ✅ Covered |
+| `/organization-profile` | `admin`, `admin_officer`, `master` | `admin loads /organization-profile` | ✅ Covered |
 | `/admin/service-provider-access` | `admin`, `master` | `master loads /admin/service-provider-access` | ✅ Covered |
 | `/admin/cleanup-recalculate` | `admin`, `master` | — | ⚠️ No coverage |
-| `/admin/canonical-records` | `admin`, `admin_officer`, `master` | — | ⚠️ No coverage |
+| `/admin/canonical-records` | `admin`, `admin_officer`, `master` | `admin loads /admin/canonical-records` | ✅ Covered |
 | `/import-historical` | `admin`, `master` | — | ⚠️ No coverage |
-| `/privacy-curtain` | `admin`, `admin_officer`, `master` | — | ⚠️ No coverage |
-| `/person-records` | `admin`, `admin_officer`, `master` | — | ⚠️ No coverage |
-| `/identity-verification` | `admin`, `admin_officer`, `master` | — | ⚠️ No coverage |
-| `/crm` | `admin`, `admin_officer`, `master`, `grand_master` | — | ⚠️ No coverage |
-| `/crm/contractor/:orgId` | `admin`, `admin_officer`, `master`, `grand_master` | — | ⚠️ Parameterised — org bleed risk |
-| `/crm/client/:orgId` | `admin`, `admin_officer`, `master`, `grand_master` | — | ⚠️ Parameterised — org bleed risk |
+| `/privacy-curtain` | `admin`, `admin_officer`, `master` | `admin loads /privacy-curtain` | ✅ Covered |
+| `/person-records` | `admin`, `admin_officer`, `master` | `admin loads /person-records` | ✅ Covered |
+| `/identity-verification` | `admin`, `admin_officer`, `master` | `admin loads /identity-verification` | ✅ Covered |
+| `/crm` | `admin`, `admin_officer`, `master`, `grand_master` | `admin loads /crm` | ✅ Covered |
+| `/crm/contractor/:orgId` | `admin`, `admin_officer`, `master`, `grand_master` | `org isolation – CRM parameterised routes` | ✅ Covered (spoof test) |
+| `/crm/client/:orgId` | `admin`, `admin_officer`, `master`, `grand_master` | `org isolation – CRM parameterised routes` | ✅ Covered (spoof test) |
 
 ### T3 — Field (officer + admin)
 
@@ -112,9 +112,9 @@ Selected high-risk routes:
 
 | Route | Bleed Scenario | RLS Policy Required | Verified |
 |---|---|---|---|
-| `/crm/contractor/:orgId` | master reading contractor data of an org not assigned to them | `orgId` must match `user_organizations` membership | ❌ Unverified |
-| `/crm/client/:orgId` | master reading client data of unassigned org | `orgId` must match `user_organizations` membership | ❌ Unverified |
-| `/organizations` | master listing all organisations | Grand_master only, master sees assigned orgs | ❌ Unverified |
+| `/crm/contractor/:orgId` | master reading contractor data of an org not assigned to them | `orgId` must match `user_organizations` membership | ✅ Verified (RLS + spoof E2E) |
+| `/crm/client/:orgId` | master reading client data of unassigned org | `orgId` must match `user_organizations` membership | ✅ Verified (RLS + spoof E2E) |
+| `/organizations` | master listing all organisations | Grand_master only, master sees assigned orgs | 🟨 Partially verified (RLS enabled + policy added; dedicated fixture proof pending) |
 | `/users` | master listing users of all orgs | Filter by `organization_id` | ❌ Unverified |
 | `/audit-log` | master viewing audit entries cross-org | Filter by `organization_id` | ❌ Unverified |
 | `/crm` | master seeing all CRM contacts | Filter by `organization_id` | ❌ Unverified |
@@ -137,5 +137,5 @@ Selected high-risk routes:
 
 - Route count: 121 (from `tools/route-role-matrix/route-role-matrix.json`, commit `8cc8c4f3`)
 - E2E spec roles covered: `master`, `admin` (adminOrg1), `admin_officer` (clientStaff), `officer` (officerOrg1), `client_viewer`
-- Source: `tests/e2e/module-route-access.spec.ts` (650 lines)
-- RLS policy source: `supabase/migrations/` (unverified in this artifact — see Sprint 0 Action 2)
+- Source: `tests/e2e/module-route-access.spec.ts` (expanded in Sprint 1: T0 blocked-access + CRM org spoof coverage)
+- RLS policy source: `supabase/migrations/20260503000001_organizations_enable_rls.sql` (enabled + scoped policies)

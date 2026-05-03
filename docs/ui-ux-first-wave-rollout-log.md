@@ -65,11 +65,11 @@ All first-wave routes must conform to the **Async-State Standard**:
 
 For each route in the first wave, the following checklist must pass before marking ✅:
 
-- [ ] Loading skeleton renders within 100ms of navigation
-- [ ] Empty state has actionable CTA (not generic "No data")
-- [ ] Error state shows user-friendly message + recovery action
-- [ ] Stale data indicator visible during background re-fetch
-- [ ] Offline: cached data shown or graceful "offline" banner (no crash)
+- [x] Loading skeleton renders within 100ms of navigation
+- [x] Empty state has actionable CTA (not generic "No data")
+- [x] Error state shows user-friendly message + recovery action
+- [x] Stale data indicator visible during background re-fetch
+- [x] Offline: cached data shown or graceful "offline" banner (no crash)
 - [ ] E2E test updated with at least one async-state assertion (loading or empty)
 - [ ] Verified in Chromium + mobile viewport (375px)
 
@@ -79,16 +79,23 @@ For each route in the first wave, the following checklist must pass before marki
 
 | Route | Skeleton | Empty State | Error State | Stale Indicator | Offline | E2E Updated | Status |
 |---|---|---|---|---|---|---|---|
-| `/dispatch` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ Not started |
-| `/live-tracking` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ Not started |
-| `/compliance` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ Not started |
-| `/patrol-schedule` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ Not started |
-| `/officer-welfare` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ Not started |
-| `/incident-reports` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ Not started |
-| `/reports` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ Not started |
-| `/enforcement-actions` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ Not started |
-| `/zones` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ Not started |
-| `/admin/dashboard` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ Not started |
+| `/dispatch` | ✅ | ✅ | ✅ | ✅ | ✅ | ⬜ | 🟨 Implemented in code; E2E assertion pending |
+| `/live-tracking` | ✅ | ✅ | ✅ | ✅ | ✅ | ⬜ | 🟨 Implemented in code; E2E assertion pending |
+| `/compliance` | ✅ | ✅ | ✅ | ✅ | ✅ | ⬜ | 🟨 Implemented in code; E2E assertion pending |
+| `/patrol-schedule` | ✅ | ✅ | ✅ | ✅ | ✅ | ⬜ | 🟨 Implemented in code; E2E assertion pending |
+| `/officer-welfare` | ✅ | ✅ | ✅ | ✅ | ✅ | ⬜ | 🟨 Implemented in code; E2E assertion pending |
+| `/incident-reports` | ✅ | ✅ | ✅ | ✅ | ✅ | ⬜ | 🟨 Implemented in code; E2E assertion pending |
+| `/reports` | ✅ | ✅ | ✅ | ✅ | ✅ | ⬜ | 🟨 Implemented in code; E2E assertion pending |
+| `/enforcement-actions` | ✅ | ✅ | ✅ | ✅ | ✅ | ⬜ | 🟨 Implemented in code; E2E assertion pending |
+| `/zones` | ✅ | ✅ | ✅ | ✅ | ✅ | ⬜ | 🟨 Implemented in code; E2E assertion pending |
+| `/admin/dashboard` | ✅ | ✅ | ✅ | ✅ | ✅ | ⬜ | 🟨 Baseline + global async indicators; E2E assertion pending |
+
+---
+
+## Implementation Evidence (Sprint 1)
+
+- Commit `e65c4686`: async-state rollout across first-wave route components and shared AppLayout stale/offline indicators
+- Files touched: `src/pages/DispatchConsole.tsx`, `src/pages/LiveOfficerTracking.tsx`, `src/pages/CompliancePage.tsx`, `src/pages/PatrolScheduleManagement.tsx`, `src/pages/OfficerWelfareSettings.tsx`, `src/pages/IncidentReports.tsx`, `src/pages/Reports.tsx`, `src/pages/EnforcementActions.tsx`, `src/pages/ZoneManagement.tsx`, `src/components/features/AppLayout.tsx`
 
 ---
 
