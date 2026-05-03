@@ -374,6 +374,55 @@ If any gate fails:
 4. Revalidate: `node scripts/validate-roadmap-role-gates.mjs --strict --matrix [ARTIFACT]`
 5. Record: blocker reason + resolution in STAGING.md session note before retry
 
+## Phase 3 (P1/P2): UX and Operator Efficiency Improvements To-Do List
+
+**Owner**: Product design + Application architecture + Operations enablement
+**Status**: Active (Start date: 2026-05-03)
+**Exit criteria**: Top-friction routes triaged, high-impact UX fixes implemented/scheduled, triad review confirms enterprise trajectory
+
+### 9A. Phase 3 Deliverables (Execution Checklist)
+
+1. [ ] **UX triage list for high-impact readability/navigation issues**
+  - Scope: top 10 high-traffic routes with operator friction scoring
+  - Output: ranked triage table with severity, user impact, and fix owner
+  - Owner: Product design
+
+2. [ ] **Role-specific path simplification for high-frequency operations**
+  - Scope: reduce click depth and decision points for officer/admin daily flows
+  - Output: before/after route-path maps and acceptance criteria
+  - Owner: Application architecture
+
+3. [ ] **Visual hierarchy cleanup plan for dense pages**
+  - Scope: tables, compliance pages, dispatch/monitoring pages, officer portals
+  - Output: implementation checklist with phased rollout and regression guardrails
+  - Owner: Product design + frontend
+
+### 9B. Phase 3 Supporting Tasks
+
+- [ ] Identify top 10 high-traffic routes using existing workflow matrix and operator workflows
+- [ ] Capture route-level friction findings (time-to-task, click depth, error-prone actions)
+- [ ] Propose quick wins and classify into now/next/later slices
+- [ ] Define measurable UX acceptance criteria per route family
+- [ ] Map role-specific path simplifications for admin, admin_officer, officer, master
+- [ ] Validate route and role changes stay aligned with MODULE_ROADMAP and App router
+- [ ] Run triad review on Phase 3 artifact before implementation commit
+
+### 9C. Phase 3 Validation Commands
+
+1. `bun run lint`
+2. `bun run build`
+3. `bun run lint:doc-authority`
+4. `node scripts/generate-route-role-matrix.mjs`
+5. `node scripts/validate-roadmap-role-gates.mjs --strict`
+
+### 9D. Phase 3 Blocker Resolution
+
+If UX or role-flow change introduces route/doc drift:
+1. Check docs vs routes: `node scripts/generate-route-role-matrix.mjs`
+2. Validate strict gates: `node scripts/validate-roadmap-role-gates.mjs --strict`
+3. Resolve mismatch in docs/MODULE_ROADMAP.md or src/App.tsx
+4. Re-run doc authority checks and record evidence in STAGING snapshot
+
 ## 8. Fast Resume Commands
 
 Run these as a single crash-recovery bundle:
