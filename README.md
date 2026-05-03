@@ -8,6 +8,11 @@ multi-organisation support.
 **Tech stack:** React 18 · TypeScript · Vite · Tailwind CSS · shadcn/ui ·
 Supabase (PostgreSQL + Edge Functions) · Bun
 
+## New Session Start Here
+
+For any new chat or restart, begin with [docs/STAGING.md](docs/STAGING.md).
+It is the current handoff, crash-recovery, active phase checklist, and next-command source of truth.
+
 ---
 
 ## Quick start

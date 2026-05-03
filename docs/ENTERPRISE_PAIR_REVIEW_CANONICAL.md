@@ -5,6 +5,11 @@ Baseline commit: a6e39a0f
 Review mode: Dual-lens (Bob operations lens + OpenAI architecture lens)
 Status: Active canonical record (update on each material platform change)
 
+## Start Here For New Sessions
+
+Open `docs/STAGING.md` first.
+Use it as the active handoff, crash-recovery checklist, current phase tracker, and next-command reference before reading deeper planning documents.
+
 ## Execution Authority
 
 Execution order for enterprise planning and delivery:
