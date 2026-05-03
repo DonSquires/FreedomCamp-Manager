@@ -485,6 +485,7 @@ export default function PTTRadio() {
   const isAvailable = usePTTAvailable()
   const canSpeak = usePTTCanSpeak()
   const hasPttSupervisorControls = user?.role === 'master' || user?.role === 'grand_master'
+  const canManageVoiceProfiles = ['admin', 'admin_officer', 'master', 'grand_master'].includes(user?.role || '')
 
   // Component state
   const [activeChannel, setActiveChannel] = useState<RadioChannel | null>(null)
@@ -1373,6 +1374,10 @@ export default function PTTRadio() {
 
   const handleEnableVoiceTwin = useCallback(async () => {
     if (!radioFeatureFlags.syntheticAudioEnabled) return
+    if (!canManageVoiceProfiles) {
+      toast.error('Voice twin enrollment must be initiated by an admin or supervisor.')
+      return
+    }
     if (!effectiveOrgId || !user?.id) {
       toast.error('Voice twin enrollment requires organization and user context.')
       return
@@ -1400,7 +1405,7 @@ export default function PTTRadio() {
     } finally {
       setVoiceTwinMutationPending(false)
     }
-  }, [effectiveOrgId, queryClient, user?.id])
+  }, [canManageVoiceProfiles, effectiveOrgId, queryClient, user?.id])
 
   const handleRevokeVoiceTwin = useCallback(async () => {
     if (!radioFeatureFlags.syntheticAudioEnabled) return
@@ -1431,6 +1436,90 @@ export default function PTTRadio() {
       setVoiceTwinMutationPending(false)
     }
   }, [effectiveOrgId, effectiveVoiceTwinStatus?.consentId, queryClient, user?.id])
+
+  const handleRevokeVoiceProfile = useCallback(async () => {
+    if (!radioFeatureFlags.syntheticAudioEnabled) return
+    if (!canManageVoiceProfiles) {
+      toast.error('Only admin or supervisor profiles can revoke voice profiles.')
+      return
+    }
+
+    const profileId = effectiveVoiceTwinStatus?.voiceProfileId
+    if (!effectiveOrgId || !profileId || !user?.id) {
+      toast.error('No active voice profile found to revoke.')
+      return
+    }
+
+    setVoiceTwinMutationPending(true)
+    try {
+      const revokedAt = new Date().toISOString()
+      const [{ error: revokeProfileError }, { error: revokeConsentError }] = await Promise.all([
+        (supabase as any)
+          .from('radio_voice_profiles')
+          .update({ revoked_at: revokedAt })
+          .eq('id', profileId)
+          .eq('org_id', effectiveOrgId),
+        (supabase as any)
+          .from('radio_voice_consents')
+          .update({
+            revoked_at: revokedAt,
+            revocation_reason: 'profile_revoked_by_admin',
+          })
+          .eq('id', effectiveVoiceTwinStatus?.consentId || ''),
+      ])
+
+      if (revokeProfileError) throw revokeProfileError
+      if (revokeConsentError) throw revokeConsentError
+
+      setVoiceTwinStatusOverride(null)
+      queryClient.invalidateQueries({ queryKey: ['radio-voice-twin-status', effectiveOrgId, user.id] })
+      toast.success('Voice profile revoked and active voice-twin synthesis disabled.')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      toast.error(`Unable to revoke voice profile: ${message}`)
+    } finally {
+      setVoiceTwinMutationPending(false)
+    }
+  }, [canManageVoiceProfiles, effectiveOrgId, effectiveVoiceTwinStatus?.consentId, effectiveVoiceTwinStatus?.voiceProfileId, queryClient, user?.id])
+
+  const handleDeleteVoiceProfile = useCallback(async () => {
+    if (!radioFeatureFlags.syntheticAudioEnabled) return
+    if (!canManageVoiceProfiles) {
+      toast.error('Only admin or supervisor profiles can delete voice profiles.')
+      return
+    }
+
+    const profileId = effectiveVoiceTwinStatus?.voiceProfileId
+    if (!effectiveOrgId || !profileId || !user?.id) {
+      toast.error('No voice profile found to delete.')
+      return
+    }
+
+    if (typeof window !== 'undefined') {
+      const confirmed = window.confirm('Delete this voice profile? Existing consent history remains, but profile synthesis will be unavailable.')
+      if (!confirmed) return
+    }
+
+    setVoiceTwinMutationPending(true)
+    try {
+      const { error: deleteError } = await (supabase as any)
+        .from('radio_voice_profiles')
+        .delete()
+        .eq('id', profileId)
+        .eq('org_id', effectiveOrgId)
+
+      if (deleteError) throw deleteError
+
+      setVoiceTwinStatusOverride(null)
+      queryClient.invalidateQueries({ queryKey: ['radio-voice-twin-status', effectiveOrgId, user.id] })
+      toast.success('Voice profile deleted. New synthesis requires fresh enrollment.')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      toast.error(`Unable to delete voice profile: ${message}`)
+    } finally {
+      setVoiceTwinMutationPending(false)
+    }
+  }, [canManageVoiceProfiles, effectiveOrgId, effectiveVoiceTwinStatus?.voiceProfileId, queryClient, user?.id])
 
   // ─────────────────────────────────────────────────────────
   // Channel connection callbacks (before effects that use them)
@@ -3755,7 +3844,7 @@ export default function PTTRadio() {
                                 size="sm"
                                 className="h-6 px-2 text-[10px] uppercase tracking-wide bg-indigo-600 hover:bg-indigo-500"
                                 onClick={() => void handleEnableVoiceTwin()}
-                                disabled={voiceTwinMutationPending}
+                                disabled={voiceTwinMutationPending || !canManageVoiceProfiles}
                               >
                                 {voiceTwinMutationPending ? 'Saving…' : 'Enable Voice Twin'}
                               </Button>
@@ -3771,7 +3860,38 @@ export default function PTTRadio() {
                                 {voiceTwinMutationPending ? 'Saving…' : 'Revoke Consent'}
                               </Button>
                             )}
+
+                            {canManageVoiceProfiles && effectiveVoiceTwinStatus?.voiceProfileId && (
+                              <>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 px-2 text-[10px] uppercase tracking-wide border-indigo-700/70 text-indigo-200 hover:bg-indigo-900/30"
+                                  onClick={() => void handleRevokeVoiceProfile()}
+                                  disabled={voiceTwinMutationPending || !effectiveVoiceTwinStatus.profileActive}
+                                >
+                                  {voiceTwinMutationPending ? 'Saving…' : 'Revoke Profile'}
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 px-2 text-[10px] uppercase tracking-wide border-red-800/70 text-red-200 hover:bg-red-900/30"
+                                  onClick={() => void handleDeleteVoiceProfile()}
+                                  disabled={voiceTwinMutationPending}
+                                >
+                                  {voiceTwinMutationPending ? 'Saving…' : 'Delete Profile'}
+                                </Button>
+                              </>
+                            )}
                           </div>
+
+                          {!canManageVoiceProfiles && (
+                            <p className="mt-1 text-[10px] text-slate-500 italic">
+                              Enrollment and profile lifecycle actions require admin or supervisor role.
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>
