@@ -126,23 +126,23 @@ redis-server --version
 
 ### A. Authority and Governance
 
-- [ ] Verify `docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md` reflects the latest commit hash and cycle date.
-- [ ] Confirm `docs/ENTERPRISE_COLLAB_EXECUTION_PLAN_2026-05-02.md` still matches canonical priorities.
-- [ ] Run doc authority checks and archive output for handoff evidence.
+- [x] Verify `docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md` reflects the latest commit hash and cycle date.
+- [x] Confirm `docs/ENTERPRISE_COLLAB_EXECUTION_PLAN_2026-05-02.md` still matches canonical priorities.
+- [x] Run doc authority checks and archive output for handoff evidence.
 ```bash
 bun run lint:doc-authority
 ```
 
 ### B. PTT and Radio Readiness
 
-- [ ] Confirm PTT control-plane health schema remains stable (`/radio/health` contract).
-- [ ] Validate Phase 1 radio workflow remains green in CI.
+- [x] Confirm PTT control-plane health schema remains stable (`/radio/health` contract).
+- [x] Validate Phase 1 radio workflow remains green in CI.
 - [ ] Re-run degradation and consent related checks according to `docs/INSTRUCTION_MANUAL.md` and `docs/radio-degradation-runbook.md`.
 
 ### C. Workflow Evidence Integrity
 
-- [ ] Validate all P0 workflow IDs in `docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json` have fresh evidence references.
-- [ ] Re-run evidence collection scripts if any workflow is stale.
+- [x] Validate all P0 workflow IDs in `docs/PHASE1_WORKFLOW_MATRIX_2026-05-02.json` have fresh evidence references.
+- [x] Re-run evidence collection scripts if any workflow is stale.
 ```bash
 node scripts/collect-workflow-evidence.mjs
 node scripts/validate-workflow-evidence.mjs
@@ -150,13 +150,15 @@ node scripts/validate-workflow-evidence.mjs
 
 ### D. Multi-Org and Access Controls
 
-- [ ] Reconfirm role-route mapping against `docs/MODULE_ROADMAP.md` and `src/App.tsx`.
-- [ ] Re-run org-scoping verification artifacts before release candidate promotion.
+- [x] Reconfirm role-route mapping against `docs/MODULE_ROADMAP.md` and `src/App.tsx`.
+- [x] Re-run org-scoping verification artifacts before release candidate promotion.
+
+Current finding: org-scoping static audit still reports `missing_org_filter=45` after latest remediation pass (down from 47).
 
 ### E. Release Gate Discipline
 
-- [ ] Ensure each release gate run ends with GO, CONDITIONAL_GO, or NO_GO and all blockers have owners.
-- [ ] Keep CI run IDs and outcomes logged in Section 7 before ending a session.
+- [x] Ensure each release gate run ends with GO, CONDITIONAL_GO, or NO_GO and all blockers have owners.
+- [x] Keep CI run IDs and outcomes logged in Section 7 before ending a session.
 
 ## 7. Session Handoff Log (Update Before Exit)
 
@@ -190,6 +192,26 @@ Latest Session Snapshot:
   - `25272788170` Synthetic UI Monitor: success
 - Open blockers with owner: none
 - Next exact command to run: `cd /workspaces/FreedomCamp-Manager && bash scripts/system-check.sh && node scripts/summarize-failures.mjs && bun run lint && bun run build`
+
+Latest Session Snapshot:
+
+- Timestamp (NZ): 2026-05-03 19:35:58 NZST
+- Current branch: main
+- HEAD SHA: 34e84bcba0a5e12109794e7496af12a8cdec3cbb
+- Working tree status (`git status -sb`): clean (`## main...origin/main`)
+- Latest lint result: pass (`bun run lint`)
+- Latest build result: pass (`bun run build`)
+- Latest targeted test result: pass (`node --test ptt-server/test/radio-health-schema.test.js`, 3 passed, 0 failed)
+- Active/last CI run IDs:
+  - `25273201961` Governance Release Gate: success
+  - `25273201959` policy-bob-no-openai: success
+  - `25273201958` Validate RunPod Image Tags: success
+  - `25273201956` CI Build High Memory: success
+  - `25273201952` CI Org Isolation API: success
+  - `25273201963` Deploy Admin Portal to Vercel: in progress
+- Open blockers with owner:
+  - Org-scoping audit still reports 45 missing org filters; owner: Application architecture + data governance
+- Next exact command to run: `cd /workspaces/FreedomCamp-Manager && node scripts/audit-org-scoping.mjs && GH_PAGER=cat gh run list --limit 20 --json databaseId,headSha,name,status,conclusion,url`
 
 ## 8. Fast Resume Commands
 
