@@ -55,6 +55,15 @@ async function fetchTranscriptRows(token: string, orgId: string): Promise<{ stat
   return { status: res.status, rows: await res.json() as Array<Record<string, unknown>> }
 }
 
+async function fetchTranslationRows(token: string, orgId: string): Promise<{ status: number; rows: Array<Record<string, unknown>> | null }> {
+  const res = await fetch(
+    `${getSupabaseUrl()}/rest/v1/radio_translation_segments?select=id,org_id,transcript_segment_id,target_language&org_id=eq.${orgId}&limit=10`,
+    { headers: headers(token) },
+  )
+  if (!res.ok) return { status: res.status, rows: null }
+  return { status: res.status, rows: await res.json() as Array<Record<string, unknown>> }
+}
+
 const adminOrg1Email = readEnv('PLAYWRIGHT_ADMIN_ORG1_EMAIL', 'PLAYWRIGHT_ADMIN_EMAIL', 'E2E_ADMIN_EMAIL')
 const adminOrg1Password = readEnv('PLAYWRIGHT_ADMIN_ORG1_PASSWORD', 'PLAYWRIGHT_ADMIN_PASSWORD', 'E2E_ADMIN_PASSWORD')
 const adminOrg2Email = readEnv('PLAYWRIGHT_ADMIN_ORG2_EMAIL', 'E2E_ADMIN_ORG2_EMAIL')
@@ -64,7 +73,7 @@ const officerPassword = readEnv('PLAYWRIGHT_OFFICER_ORG1_PASSWORD', 'PLAYWRIGHT_
 
 const hasSupabase = !!getSupabaseUrl() && !!getAnonKey()
 
-test.describe('radio transcript org isolation', () => {
+test.describe('radio transcript and translation org isolation', () => {
   test('admin from org1 cannot read transcript rows from org2', async () => {
     test.skip(!hasSupabase, 'Supabase URL/key not configured')
     test.skip(!adminOrg1Email || !adminOrg1Password || !adminOrg2Email || !adminOrg2Password, 'Distinct admin credentials not configured')
@@ -78,6 +87,27 @@ test.describe('radio transcript org isolation', () => {
     test.skip(!foreignOrgId, 'Unable to resolve org2 organization id')
 
     const result = await fetchTranscriptRows(org1Token, foreignOrgId)
+    expect([200, 404, 500]).toContain(result.status)
+    expect(result.status).not.toBe(401)
+    expect(result.status).not.toBe(403)
+    if (result.status === 200) {
+      expect(result.rows).toEqual([])
+    }
+  })
+
+  test('admin from org1 cannot read translation rows from org2', async () => {
+    test.skip(!hasSupabase, 'Supabase URL/key not configured')
+    test.skip(!adminOrg1Email || !adminOrg1Password || !adminOrg2Email || !adminOrg2Password, 'Distinct admin credentials not configured')
+
+    const org1Token = await signIn(adminOrg1Email, adminOrg1Password)
+    const org2Token = await signIn(adminOrg2Email, adminOrg2Password)
+    test.skip(!org1Token || !org2Token, 'Admin sign-in failed')
+
+    const org2Profile = await fetchMyProfile(org2Token)
+    const foreignOrgId = org2Profile?.organization_id || ''
+    test.skip(!foreignOrgId, 'Unable to resolve org2 organization id')
+
+    const result = await fetchTranslationRows(org1Token, foreignOrgId)
     expect([200, 404, 500]).toContain(result.status)
     expect(result.status).not.toBe(401)
     expect(result.status).not.toBe(403)
