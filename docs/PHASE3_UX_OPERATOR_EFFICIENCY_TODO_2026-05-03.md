@@ -37,11 +37,19 @@ Evidence:
 
 ## C. Validation Gates
 
-- [ ] C1. npm run lint (or bun run lint in Bun-enabled host)
-- [ ] C2. npm run build (or bun run build in Bun-enabled host)
-- [ ] C3. DOC_AUTHORITY_STRICT=true bun run lint:doc-authority
-- [ ] C4. node scripts/generate-route-role-matrix.mjs
-- [ ] C5. node scripts/validate-roadmap-role-gates.mjs --strict
+- [x] C1. npm run lint (or bun run lint in Bun-enabled host)
+- [x] C2. npm run build (or bun run build in Bun-enabled host)
+- [x] C3. DOC_AUTHORITY_STRICT=true bun run lint:doc-authority
+- [x] C4. node scripts/generate-route-role-matrix.mjs
+- [x] C5. node scripts/validate-roadmap-role-gates.mjs --strict
+
+Evidence (2026-05-03):
+
+- `npm run lint` -> pass
+- `npm run build` -> pass
+- `DOC_AUTHORITY_STRICT=true npm run lint:doc-authority` -> pass
+- `node scripts/generate-route-role-matrix.mjs` -> pass (route count: 121)
+- `node scripts/validate-roadmap-role-gates.mjs --strict` -> pass
 
 ## D. Baseline Evidence Requirements (Before UX Code Changes)
 
