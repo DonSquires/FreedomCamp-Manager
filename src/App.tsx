@@ -8,6 +8,8 @@ import { useThemeMode } from '@/hooks/useThemeMode'
 import { usePTTAutoConnect } from '@/hooks/usePTTAutoConnect'
 import { useSessionGpsLogging } from '@/hooks/useSessionGpsLogging'
 import { useOrgModules } from '@/hooks/useOrgModules'
+import { useOrganization } from '@/hooks/useOrganization'
+import { OrganizationContext } from '@/contexts/OrganizationContext'
 import { useFeedbackCapture } from '@/hooks/useFeedbackCapture'
 import { useLiveSessionDiagnostics } from '@/hooks/useLiveSessionDiagnostics'
 
@@ -410,7 +412,13 @@ function AreaRoute({
     return <Navigate to="/portal-selection" replace />
   }
 
-  return <>{children}</>
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const orgCtx = useOrganization()
+  return (
+    <OrganizationContext.Provider value={orgCtx}>
+      {children}
+    </OrganizationContext.Provider>
+  )
 }
 
 export default function App() {
