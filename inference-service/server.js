@@ -4783,6 +4783,20 @@ app.post('/radio/speech-event', inferenceRateLimit, requireInferenceAuth, async 
   }
 });
 
+app.get('/radio/speech-metrics', rateLimit({ windowMs: 30_000, max: 60, standardHeaders: true, legacyHeaders: false }), requireInferenceAuth, async (_req, res) => {
+  try {
+    const pipeline = getRadioPipelineStatus();
+    return res.json({
+      success: true,
+      generated_at: new Date().toISOString(),
+      radio_pipeline: pipeline,
+    });
+  } catch (error) {
+    console.error('Radio speech metrics endpoint error:', error);
+    return res.status(500).json({ error: 'Failed to fetch radio speech metrics', message: error.message });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Platform knowledge & diagnostics
 // ---------------------------------------------------------------------------

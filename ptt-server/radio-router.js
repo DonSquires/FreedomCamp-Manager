@@ -50,6 +50,12 @@ const RADIO_SPEECH_DLQ_KEY = process.env.RADIO_SPEECH_DLQ_KEY || `${RADIO_SPEECH
 
 let redisClient = null;
 let redisReady = false;
+const speechQueueMetrics = {
+  eventsEnqueued: 0,
+  enqueueFailures: 0,
+  lastEnqueuedAt: null,
+  lastEnqueueError: null,
+};
 
 async function initRadioRedis() {
   if (!REDIS_URL) return;
@@ -82,7 +88,12 @@ async function enqueueSpeechEvent(event) {
       ...event,
       enqueuedAt: new Date().toISOString(),
     }));
+    speechQueueMetrics.eventsEnqueued += 1;
+    speechQueueMetrics.lastEnqueuedAt = new Date().toISOString();
+    speechQueueMetrics.lastEnqueueError = null;
   } catch (err) {
+    speechQueueMetrics.enqueueFailures += 1;
+    speechQueueMetrics.lastEnqueueError = String(err?.message || err);
     console.warn('[radio-router] Failed to enqueue speech event:', err.message);
   }
 }
@@ -111,6 +122,9 @@ async function getSpeechQueueHealth() {
       dlqKey: RADIO_SPEECH_DLQ_KEY,
       depth,
       dlqDepth,
+      metrics: {
+        ...speechQueueMetrics,
+      },
     };
   } catch (err) {
     return {
@@ -121,6 +135,9 @@ async function getSpeechQueueHealth() {
       depth: null,
       dlqDepth: null,
       error: String(err?.message || err),
+      metrics: {
+        ...speechQueueMetrics,
+      },
     };
   }
 }
