@@ -150,6 +150,16 @@ export default function DispatchMonitor() {
       <GlobalFilterRibbon />
       <div className="space-y-4">
 
+        {/* ── Alert summary strip — visible above fold ── */}
+        {!isLoading && (stats.duress > 0 || stats.not_acknowledged > 0 || stats.over_response_time > 0) && (
+          <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800 px-4 py-2 text-sm font-medium text-red-700 dark:text-red-400 flex-wrap">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {stats.duress > 0 && <span>{stats.duress} Duress</span>}
+            {stats.not_acknowledged > 0 && <span>{stats.not_acknowledged} Not Acknowledged</span>}
+            {stats.over_response_time > 0 && <span>{stats.over_response_time} Over SLA</span>}
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">

@@ -360,6 +360,42 @@ export default function Compliance() {
     >
       <GlobalFilterRibbon />
 
+      {/* ── Sticky quick-action bar — primary actions above the fold ── */}
+      <div className="sticky top-0 z-10 -mx-4 px-4 py-2 bg-background/95 backdrop-blur border-b flex items-center justify-between gap-2 flex-wrap mb-4">
+        <div className="flex items-center gap-3 text-sm">
+          {stats && (
+            <>
+              <span className="flex items-center gap-1 font-semibold">
+                <Activity className="h-4 w-4 text-blue-500" />
+                {stats.total_observations} obs
+              </span>
+              <span className="text-muted-foreground">·</span>
+              <span className="flex items-center gap-1 text-green-600 font-semibold">
+                <CheckCircle className="h-4 w-4" />
+                {stats.compliance_rate.toFixed(0)}% compliant
+              </span>
+              {(stats.total_observations - stats.compliant_observations) > 0 && (
+                <>
+                  <span className="text-muted-foreground">·</span>
+                  <span className="flex items-center gap-1 text-red-600 font-semibold">
+                    <AlertTriangle className="h-4 w-4" />
+                    {stats.total_observations - stats.compliant_observations} breaches
+                  </span>
+                </>
+              )}
+            </>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setActiveTab('analytics')} className="gap-1.5">
+            <TrendingUp className="h-3.5 w-3.5" /> Analytics
+          </Button>
+          <Button size="sm" onClick={() => setActiveTab('observations')} className="gap-1.5">
+            <Eye className="h-3.5 w-3.5" /> View Observations
+          </Button>
+        </div>
+      </div>
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3 mb-6">
           <TabsTrigger value="overview" className="flex items-center gap-2">

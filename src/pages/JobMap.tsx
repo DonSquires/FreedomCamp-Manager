@@ -315,6 +315,11 @@ export default function JobMap() {
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <MapPin className="h-6 w-6 text-blue-600" />
               Job Map
+              {filteredJobs.length > 0 && (
+                <Badge variant="secondary" className="text-xs font-normal">
+                  {filteredJobs.length} active
+                </Badge>
+              )}
             </h1>
             <p className="text-sm text-muted-foreground">
               View all dispatch jobs on map • Click a pin to see details

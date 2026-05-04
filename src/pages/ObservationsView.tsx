@@ -145,8 +145,9 @@ export default function ObservationsView() {
     <AppLayout title="Observations" description="Map, photos and list of all field observations" showBackButton>
       <GlobalFilterRibbon />
 
-      {/* Summary bar */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
+      {/* Summary bar — sticky so counts remain visible while scrolling */}
+      <div className="sticky top-0 z-10 -mx-4 px-4 py-2 bg-background/95 backdrop-blur border-b mb-4">
+      <div className="grid grid-cols-3 gap-3">
         <div className="flex items-center gap-2 rounded-lg border bg-card p-3">
           <Car className="h-5 w-5 text-blue-500 shrink-0" />
           <div>
@@ -168,6 +169,7 @@ export default function ObservationsView() {
             <p className="text-xl font-bold text-red-600">{breachCount}</p>
           </div>
         </div>
+      </div>
       </div>
 
       {/* Search + Refresh */}
