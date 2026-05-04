@@ -62,43 +62,111 @@ async function captureRouteBaseline(page: Page, route: string): Promise<Baseline
     'Settings',
   ] as const
 
+  const ROUTE_LABELS: Record<string, string[]> = {
+    '/compliance': ['Compliance', 'Compliance Hub'],
+    '/dispatch-monitor': ['Dispatch Monitor', 'Monitor'],
+    '/job-map': ['Job Map'],
+    '/observations': ['Observations', 'Observation Records'],
+    '/radio': ['Radio'],
+    '/breaches': ['Breaches', 'Breaches & Alerts'],
+    '/reports': ['Reports', 'Reports Hub'],
+    '/crm': ['CRM Hub', 'CRM / Accounts'],
+    '/live-patrol': ['Live Patrol', 'Live Patrol Monitor'],
+    '/noise-control': ['Noise Control'],
+  }
+
+  const prepAppShellNavigation = async () => {
+    await page.evaluate(() => {
+      window.localStorage.setItem('fc_sidebar_open', 'true')
+      window.sessionStorage.setItem('adminOfficerPortalChoice', 'selected')
+    })
+
+    const openMenuButton = page.getByRole('button', { name: /open menu/i }).first()
+    const canOpenDesktopNav = await openMenuButton.isVisible().catch(() => false)
+    if (canOpenDesktopNav) {
+      await openMenuButton.click().catch(() => undefined)
+    }
+  }
+
   const tryClickRouteLink = async (): Promise<number | null> => {
-    const link = page.locator(`a[href="${route}"]:visible`).first()
-    const visible = await link.isVisible().catch(() => false)
-    if (visible) {
-      await link.click()
+    const clickRouteButton = async (): Promise<boolean> => {
+      const labels = ROUTE_LABELS[route] ?? []
+      for (const label of labels) {
+        const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const candidate = page.getByRole('button', { name: new RegExp(`^${escaped}$`, 'i') }).first()
+        const isVisible = await candidate.isVisible().catch(() => false)
+        if (!isVisible) continue
+
+        await candidate.click().catch(() => undefined)
+        await page.waitForLoadState('domcontentloaded')
+        if (page.url().includes(route)) return true
+      }
+
+      return false
+    }
+
+    const clickRouteAnchor = async (requireVisible: boolean): Promise<boolean> => {
+      const candidate = page.locator(`a[href="${route}"]`).first()
+      const count = await candidate.count()
+      if (count === 0) return false
+
+      if (requireVisible) {
+        const isVisible = await candidate.isVisible().catch(() => false)
+        if (!isVisible) return false
+      }
+
+      await candidate.click(requireVisible ? undefined : { force: true }).catch(() => undefined)
       await page.waitForLoadState('domcontentloaded')
+      return page.url().includes(route)
+    }
+
+    if (await clickRouteAnchor(true)) {
       return 1
+    }
+
+    if (await clickRouteButton()) {
+      return 2
     }
 
     // Expand grouped sidebar sections and try again.
     for (const label of NAV_GROUP_LABELS) {
-      const toggle = page.getByRole('button', { name: label }).first()
+      const toggle = page.locator('aside').getByRole('button', { name: label }).first()
       const canToggle = await toggle.isVisible().catch(() => false)
       if (canToggle) {
         await toggle.click().catch(() => undefined)
       }
     }
 
-    const expandedLink = page.locator(`a[href="${route}"]:visible`).first()
-    const expandedVisible = await expandedLink.isVisible().catch(() => false)
-    if (!expandedVisible) return null
+    if (await clickRouteAnchor(true)) {
+      return 3
+    }
 
-    await expandedLink.click()
-    await page.waitForLoadState('domcontentloaded')
-    return 2
+    // Final fallback: if a link exists in DOM but is clipped/hidden, allow force-click.
+    if (await clickRouteAnchor(false)) {
+      return 4
+    }
+
+    return null
   }
 
   const navigateViaAppShell = async (): Promise<number | null> => {
+    await prepAppShellNavigation()
+
     // Attempt 1: admin hub cards / quick links.
     await page.goto('/admin', { waitUntil: 'domcontentloaded' })
+    await prepAppShellNavigation()
+    const adminShellUrl = page.url()
     const hubDepth = await tryClickRouteLink()
     if (hubDepth != null) return hubDepth
 
     // Attempt 2: operations dashboard nav/shortcuts.
     await page.goto('/admin/dashboard', { waitUntil: 'domcontentloaded' })
+    await prepAppShellNavigation()
+    const dashboardShellUrl = page.url()
     const dashboardDepth = await tryClickRouteLink()
     if (dashboardDepth != null) return dashboardDepth
+
+    note = `No visible app navigation link found from /admin or /admin/dashboard (resolved URLs: ${adminShellUrl}, ${dashboardShellUrl})`
 
     return null
   }
@@ -113,7 +181,7 @@ async function captureRouteBaseline(page: Page, route: string): Promise<Baseline
   } else {
     // No direct app-shell navigation path found in this environment.
     clickDepth = null
-    note = 'No visible app navigation link found from /admin or /admin/dashboard'
+    note = note ?? 'No visible app navigation link found from /admin or /admin/dashboard'
     errorProneActions += 1
   }
 

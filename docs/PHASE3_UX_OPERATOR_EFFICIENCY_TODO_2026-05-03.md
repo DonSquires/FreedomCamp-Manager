@@ -94,8 +94,9 @@ Evidence (2026-05-03):
 - Top-10 route efficiency pass is now complete at the route level; remaining Phase 3 work shifts to shared chrome, dashboard density, standardized list cards, CI cadence, and retrospective/governance closeout.
 - Baseline capture re-run with shared fallback credentials:
 	- `PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=1 bunx playwright test tests/e2e/phase3-ux-baseline-capture.spec.ts --project=chromium --reporter=list`
-	- `node scripts/import-phase3-baseline.mjs --input test-results/phase3-ux-baseline.json --run-id local-2026-05-04-phase3-nondirect-v2`
-- Remaining open gate: D1 click-depth medians are still pending because triaged route links are not visible from the measured `/admin` and `/admin/dashboard` shell state in the current Playwright environment.
+	- Result: `1 passed (18.5s)`
+	- `node scripts/import-phase3-baseline.mjs --input test-results/phase3-ux-baseline.json --run-id local-2026-05-04-phase3-nondirect-v4`
+- Remaining open gate: D1 click-depth medians are still pending because triaged route links are not visible from the measured `/admin` and `/admin/dashboard` shell state in the current Playwright environment (diagnostic note now records resolved URLs: `http://localhost:5173/admin` and `http://localhost:5173/admin/dashboard`).
 - Role-path redirect audit evidence refreshed:
 	- `PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=1 bunx playwright test tests/e2e/phase3-role-path-redirect.spec.ts --project=chromium --reporter=list`
 	- Result: `20 passed (1.8m)`

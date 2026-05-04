@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
+import { ListCardRow } from '@/components/features/ListCardRow'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -646,21 +647,36 @@ export default function LivePatrolMonitor() {
                         {getGPSStatusText(patrol._last_gps_update)}
                       </Badge>
                     </div>
-                    <CardDescription>
-                      <div className="flex items-center gap-4 text-sm">
-                        <span className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />
-                          {patrol.zone.name}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {patrol.shift}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {formatDuration(patrol._duration_minutes)}
-                        </span>
-                      </div>
+                    <CardDescription className="space-y-1">
+                      <ListCardRow
+                        className="bg-transparent p-0"
+                        left={(
+                          <span className="flex items-center gap-1 text-sm">
+                            <MapPin className="h-3 w-3" />
+                            {patrol.zone.name}
+                          </span>
+                        )}
+                        right={(
+                          <span className="flex items-center gap-1 text-sm">
+                            <Calendar className="h-3 w-3" />
+                            {patrol.shift}
+                          </span>
+                        )}
+                      />
+                      <ListCardRow
+                        className="bg-transparent p-0"
+                        left={(
+                          <span className="flex items-center gap-1 text-sm">
+                            <Clock className="h-3 w-3" />
+                            {formatDuration(patrol._duration_minutes)}
+                          </span>
+                        )}
+                        right={(
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {getGPSStatusText(patrol._last_gps_update)}
+                          </span>
+                        )}
+                      />
                     </CardDescription>
                   </div>
                   <Button
@@ -707,25 +723,39 @@ export default function LivePatrolMonitor() {
 
                   {/* Check-in Details */}
                   <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
-                    <div className="flex items-center gap-2 text-sm mb-2">
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                      <span className="font-semibold">Started:</span>
-                      <span className="text-gray-600 dark:text-gray-400">
-                        {patrol.status === 'in_progress' ? formatDateTime(patrol.updated_at || patrol.created_at) : 'Not started'}
-                      </span>
-                    </div>
+                    <ListCardRow
+                      className="bg-transparent p-0"
+                      left={(
+                        <>
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          <span className="font-semibold text-sm">Started:</span>
+                        </>
+                      )}
+                      right={(
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          {patrol.status === 'in_progress' ? formatDateTime(patrol.updated_at || patrol.created_at) : 'Not started'}
+                        </span>
+                      )}
+                    />
                   </div>
 
                   {/* Current GPS Position */}
                   {patrol._last_gps_lat && patrol._last_gps_lng && (
                     <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
-                      <div className="flex items-center gap-2 text-sm mb-2">
-                        <Navigation className="h-4 w-4 text-blue-600" />
-                        <span className="font-semibold">Current Position:</span>
-                        <span className="text-gray-600 dark:text-gray-400">
-                          {getGPSStatusText(patrol._last_gps_update)}
-                        </span>
-                      </div>
+                      <ListCardRow
+                        className="bg-transparent p-0"
+                        left={(
+                          <>
+                            <Navigation className="h-4 w-4 text-blue-600" />
+                            <span className="font-semibold text-sm">Current Position:</span>
+                          </>
+                        )}
+                        right={(
+                          <span className="text-sm text-gray-600 dark:text-gray-400">
+                            {getGPSStatusText(patrol._last_gps_update)}
+                          </span>
+                        )}
+                      />
                       <div className="flex items-center gap-2 text-xs text-gray-500">
                         <MapPin className="h-3 w-3" />
                         <span>
@@ -738,16 +768,23 @@ export default function LivePatrolMonitor() {
                   {/* Contact Info */}
                   {patrol.officer.phone && (
                     <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
-                      <div className="flex items-center gap-2 text-sm">
-                        <Radio className="h-4 w-4 text-gray-600" />
-                        <span className="font-semibold">Contact:</span>
-                        <a 
-                          href={`tel:${patrol.officer.phone}`}
-                          className="text-blue-600 hover:underline"
-                        >
-                          {patrol.officer.phone}
-                        </a>
-                      </div>
+                      <ListCardRow
+                        className="bg-transparent p-0"
+                        left={(
+                          <>
+                            <Radio className="h-4 w-4 text-gray-600" />
+                            <span className="font-semibold text-sm">Contact:</span>
+                          </>
+                        )}
+                        right={(
+                          <a
+                            href={`tel:${patrol.officer.phone}`}
+                            className="text-sm text-blue-600 hover:underline"
+                          >
+                            {patrol.officer.phone}
+                          </a>
+                        )}
+                      />
                     </div>
                   )}
 
@@ -828,36 +865,54 @@ export default function LivePatrolMonitor() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {/* GPS Position */}
-                  <div className="flex items-center gap-2 text-sm">
-                    <Navigation className="h-4 w-4 text-blue-600 shrink-0" />
-                    <Badge className={getGPSStatusColor(officer.last_gps_update)}>
-                      {getGPSStatusText(officer.last_gps_update)}
-                    </Badge>
-                    {officer.last_gps_latitude && officer.last_gps_longitude && (
+                  <ListCardRow
+                    className="bg-transparent p-0"
+                    left={(
+                      <>
+                        <Navigation className="h-4 w-4 text-blue-600 shrink-0" />
+                        <Badge className={getGPSStatusColor(officer.last_gps_update)}>
+                          {getGPSStatusText(officer.last_gps_update)}
+                        </Badge>
+                      </>
+                    )}
+                    right={officer.last_gps_latitude && officer.last_gps_longitude ? (
                       <span className="text-xs text-gray-500">
                         {Number(officer.last_gps_latitude).toFixed(5)}, {Number(officer.last_gps_longitude).toFixed(5)}
                       </span>
-                    )}
-                  </div>
+                    ) : undefined}
+                  />
 
                   {/* Vehicle scans today */}
-                  <div className="flex items-center gap-2 text-sm">
-                    <Car className="h-4 w-4 text-green-600 shrink-0" />
-                    <span className="font-medium">{officer._vehicles_scanned_today}</span>
-                    <span className="text-gray-500">vehicles scanned today</span>
-                  </div>
+                  <ListCardRow
+                    className="bg-transparent p-0"
+                    left={(
+                      <>
+                        <Car className="h-4 w-4 text-green-600 shrink-0" />
+                        <span className="text-sm text-gray-500">Vehicles scanned</span>
+                      </>
+                    )}
+                    right={<span className="text-sm font-medium">{officer._vehicles_scanned_today}</span>}
+                  />
 
                   {/* Contact */}
                   {officer.phone && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <Radio className="h-4 w-4 text-gray-500 shrink-0" />
-                      <a
-                        href={`tel:${officer.phone}`}
-                        className="text-blue-600 hover:underline"
-                      >
-                        {officer.phone}
-                      </a>
-                    </div>
+                    <ListCardRow
+                      className="bg-transparent p-0"
+                      left={(
+                        <>
+                          <Radio className="h-4 w-4 text-gray-500 shrink-0" />
+                          <span className="text-sm text-gray-500">Contact</span>
+                        </>
+                      )}
+                      right={(
+                        <a
+                          href={`tel:${officer.phone}`}
+                          className="text-sm text-blue-600 hover:underline"
+                        >
+                          {officer.phone}
+                        </a>
+                      )}
+                    />
                   )}
                 </CardContent>
               </Card>

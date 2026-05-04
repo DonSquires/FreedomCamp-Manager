@@ -512,7 +512,8 @@ Date: 2026-05-02
 - **P1/P2 route tranche shipped:** Top-10 route pass is now complete on production pages via commits `7185e979` and `69a45c3d`.
 - **P3-1 nav chrome polish:** `src/components/features/AppLayout.tsx` now renders active breadcrumbs in the desktop command header while retaining the existing persisted sidebar collapse control.
 - **P3-2 dashboard command bar:** `src/pages/AdminPortal.tsx` now keeps priority actions and live operational counts visible in a sticky command bar during scroll.
-- **P3-3 list-card standardization (first pass):** Added shared compact list-row component `src/components/features/ListCardRow.tsx` and adopted it in high-density alert cards on `src/pages/BreachAlerts.tsx` and `src/pages/NoiseControlPortal.tsx`.
+- **P3-3 list-card standardization (second pass):** Extended shared `ListCardRow` usage into `src/pages/LivePatrolMonitor.tsx` patrol/officer cards while preserving existing stats blocks.
+- **D1 baseline rerun diagnostics:** `tests/e2e/phase3-ux-baseline-capture.spec.ts` now records resolved shell URLs in blocker notes; latest workbook import run id is `local-2026-05-04-phase3-nondirect-v4`.
 - **P3-13 retrospective captured:** `docs/LESSONS_LEARNED.md` now records Phase 3 monitor-noise and layout-symbol-collision lessons with prevention rules.
 - **P3-14 ADR recorded:** Added `docs/adr/009-phase3-ux-hardening-and-navigation-measurement.md` to formalize shared list-card and non-direct baseline measurement decisions.
 - **Tracker correction:** STAGING Phase 3 ticket statuses were updated to match already-shipped role-path, CI, and baseline workbook work.

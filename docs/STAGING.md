@@ -813,8 +813,8 @@ Route tranche result:
 |---|---|---|---|---|
 | P3-1 | Implement Slice A: nav chrome polish (sidebar collapse, breadcrumb UX) | Dev | ✅ Done | `src/components/features/AppLayout.tsx` |
 | P3-2 | Implement Slice B: dashboard tile optimization (grid, spacing, accessibility) | Dev | ✅ Done | `src/pages/AdminPortal.tsx` |
-| P3-3 | Implement Slice C: list card standardization (breach, route, patrol, shift cards) | Dev | 🔄 In progress | `src/components/features/ListCardRow.tsx`, `src/pages/BreachAlerts.tsx`, `src/pages/NoiseControlPortal.tsx` |
-| P3-4 | Measure click-depth for each Slice during implementation | QA | 🔄 In progress | Re-run `phase3-ux-baseline-capture.spec.ts` after each Slice |
+| P3-3 | Implement Slice C: list card standardization (breach, route, patrol, shift cards) | Dev | 🔄 In progress | `src/components/features/ListCardRow.tsx`, `src/pages/BreachAlerts.tsx`, `src/pages/NoiseControlPortal.tsx`, `src/pages/LivePatrolMonitor.tsx` |
+| P3-4 | Measure click-depth for each Slice during implementation | QA | 🔄 In progress | Re-run `phase3-ux-baseline-capture.spec.ts` after each Slice; latest import `local-2026-05-04-phase3-nondirect-v4` still reports `clickDepth=null` with resolved shell URLs (`/admin`, `/admin/dashboard`) |
 | P3-5 | Verify visual hierarchy meets QA guardrails post-Slice | QA | 🔄 In progress | `docs/PHASE3_VISUAL_HIERARCHY_CLEANUP_CHECKLIST_2026-05-03.md` |
 
 ### Role-Path Enforcement

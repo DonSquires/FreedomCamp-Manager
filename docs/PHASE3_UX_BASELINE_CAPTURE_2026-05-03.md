@@ -22,16 +22,16 @@ Capture measured baselines before further UX implementation for:
 
 | Route | Click Depth (median) | Time-to-Primary-Action (median, sec) | Error-Prone Actions (count/sample) | Evidence Run ID | Status |
 |---|---:|---:|---:|---|---|
-| /compliance | pending | 0.57 | 2 | local-2026-05-04-phase3-nondirect-v2 | partial |
-| /dispatch-monitor | pending | 0.65 | 2 | local-2026-05-04-phase3-nondirect-v2 | partial |
-| /job-map | pending | 0.72 | 2 | local-2026-05-04-phase3-nondirect-v2 | partial |
-| /observations | pending | 0.65 | 2 | local-2026-05-04-phase3-nondirect-v2 | partial |
-| /radio | pending | 0.85 | 2 | local-2026-05-04-phase3-nondirect-v2 | partial |
-| /breaches | pending | 0.84 | 2 | local-2026-05-04-phase3-nondirect-v2 | partial |
-| /reports | pending | 0.63 | 2 | local-2026-05-04-phase3-nondirect-v2 | partial |
-| /crm | pending | 0.59 | 2 | local-2026-05-04-phase3-nondirect-v2 | partial |
-| /live-patrol | pending | 0.74 | 2 | local-2026-05-04-phase3-nondirect-v2 | partial |
-| /noise-control | pending | 0.72 | 2 | local-2026-05-04-phase3-nondirect-v2 | partial |
+| /compliance | pending | 0.66 | 2 | local-2026-05-04-phase3-nondirect-v4 | partial |
+| /dispatch-monitor | pending | 0.76 | 2 | local-2026-05-04-phase3-nondirect-v4 | partial |
+| /job-map | pending | 0.9 | 2 | local-2026-05-04-phase3-nondirect-v4 | partial |
+| /observations | pending | 0.69 | 2 | local-2026-05-04-phase3-nondirect-v4 | partial |
+| /radio | pending | 0.71 | 2 | local-2026-05-04-phase3-nondirect-v4 | partial |
+| /breaches | pending | 0.71 | 2 | local-2026-05-04-phase3-nondirect-v4 | partial |
+| /reports | pending | 0.61 | 2 | local-2026-05-04-phase3-nondirect-v4 | partial |
+| /crm | pending | 0.66 | 2 | local-2026-05-04-phase3-nondirect-v4 | partial |
+| /live-patrol | pending | 0.58 | 2 | local-2026-05-04-phase3-nondirect-v4 | partial |
+| /noise-control | pending | 0.65 | 2 | local-2026-05-04-phase3-nondirect-v4 | partial |
 
 ## Evidence Sources
 
@@ -49,11 +49,11 @@ Capture measured baselines before further UX implementation for:
 
 - Local run completed in this container:
 	- `PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=1 bunx playwright test tests/e2e/phase3-ux-baseline-capture.spec.ts --project=chromium --reporter=list`
-	- Result: `1 passed (18.4s)`
+	- Result: `1 passed (18.5s)`
 - Workbook import completed:
-	- `node scripts/import-phase3-baseline.mjs --input test-results/phase3-ux-baseline.json --run-id local-2026-05-04-phase3-nondirect-v2`
+	- `node scripts/import-phase3-baseline.mjs --input test-results/phase3-ux-baseline.json --run-id local-2026-05-04-phase3-nondirect-v4`
 	- Rows processed: `10`
-- Remaining blocker: click-depth medians are still pending (`clickDepth=null`) for all top-10 routes because triaged route links are not visible from the measured `/admin` and `/admin/dashboard` shell state in the current environment.
+- Remaining blocker: click-depth medians are still pending (`clickDepth=null`) for all top-10 routes because triaged route links are not visible from the measured `/admin` and `/admin/dashboard` shell state in the current environment; diagnostics now confirm shell resolution stays on `http://localhost:5173/admin` and `http://localhost:5173/admin/dashboard`.
 
 ## Artifact Import Command
 

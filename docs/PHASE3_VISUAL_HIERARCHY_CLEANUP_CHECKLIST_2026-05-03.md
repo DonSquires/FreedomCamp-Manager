@@ -65,3 +65,4 @@ For each completed checklist item, record:
 - P1/P2 route tranche shipped with above-fold actions and summary strips: commits `7185e979` and `69a45c3d`.
 - Shared chrome and dashboard command bar improvements: commits `cce6c89d` and `226a5ac2`.
 - P3-3 shared list-card standardization started: commit `1e7be71c` (`ListCardRow` adopted in BreachAlerts and NoiseControlPortal).
+- P3-3 shared list-card standardization expanded into patrol monitoring cards (`src/pages/LivePatrolMonitor.tsx`) with reusable row shells for metadata, GPS, and contact rows.
