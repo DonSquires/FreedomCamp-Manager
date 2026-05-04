@@ -68,6 +68,27 @@ if [ -n "$REPO_URL" ]; then
     echo "[start] WARNING: repo sync failed; continuing without repo-dependent setup"
   fi
 
+  TRAINING_REFRESH_ON_START="${BOB_TRAINING_REFRESH_ON_START:-true}"
+  if [ "$TRAINING_REFRESH_ON_START" = "true" ]; then
+    if [ -f "$REPO_DIR/scripts/auto-ingest.mjs" ]; then
+      echo "[start] Refreshing docs/BOB_BRAIN_DUMP.md via auto-ingest..."
+      if ! (cd "$REPO_DIR" && node scripts/auto-ingest.mjs); then
+        echo "[start] WARNING: auto-ingest failed; keeping existing brain dump"
+      fi
+    fi
+    if [ -f "$REPO_DIR/scripts/generate-runpod-training-memory.mjs" ]; then
+      echo "[start] Refreshing runpod-worker/training_memory.json..."
+      if ! (cd "$REPO_DIR" && node scripts/generate-runpod-training-memory.mjs); then
+        echo "[start] WARNING: training memory refresh failed; keeping existing training memory"
+      fi
+    fi
+  fi
+
+  if [ -f "$REPO_DIR/runpod-worker/training_memory.json" ]; then
+    cp -f "$REPO_DIR/runpod-worker/training_memory.json" /app/training_memory.json
+    echo "[start] Synced training memory to /app/training_memory.json"
+  fi
+
   # Install Node deps + Playwright config for the repo
   if [ -f "$REPO_DIR/package.json" ]; then
     echo "[start] Installing repo Node deps..."
@@ -75,6 +96,22 @@ if [ -n "$REPO_URL" ]; then
       echo "[start] WARNING: npm install failed in $REPO_DIR"
     fi
     cd /app
+  fi
+
+  # Prepare inference-service models/config so translation/vision/audio paths
+  # behave the same way as pod runtime during realignment validation.
+  INFERENCE_DIR="$REPO_DIR/inference-service"
+  if [ -f "$INFERENCE_DIR/scripts/download-models.js" ]; then
+    echo "[start] Downloading ONNX models for inference-service..."
+    if ! (cd "$INFERENCE_DIR" && node scripts/download-models.js); then
+      echo "[start] WARNING: model download failed; continuing with preloaded models"
+    fi
+  fi
+
+  if [ -d "$INFERENCE_DIR/models" ]; then
+    mkdir -p /app/models
+    [ -f "$INFERENCE_DIR/models/yolov8n.onnx" ] && cp -f "$INFERENCE_DIR/models/yolov8n.onnx" /app/models/yolov8n.onnx || true
+    [ -f "$INFERENCE_DIR/models/mobilenet_v3.onnx" ] && cp -f "$INFERENCE_DIR/models/mobilenet_v3.onnx" /app/models/mobilenet_v3.onnx || true
   fi
 
   # Write .env for tests — inject required Supabase + inference vars
@@ -140,7 +177,6 @@ except Exception as e:
   sleep 5
 done
 echo "[start] Model warm-up complete"
-echo "[start] Model warm-up complete"
 
 # ---------------------------------------------------------------------------
 # Inference-service (Bob HTTP API on port 3000)
@@ -150,6 +186,16 @@ echo "[start] Model warm-up complete"
 INFERENCE_SVC_DIR="${REPO_DIR}/inference-service"
 BOB_INFERENCE_SERVICE="${BOB_INFERENCE_SERVICE:-true}"
 if [ "$BOB_INFERENCE_SERVICE" = "true" ] && [ -f "${INFERENCE_SVC_DIR}/server.js" ]; then
+  VISION_MODEL="${OLLAMA_VISION_MODEL:-llama3.2-vision:11b}"
+  echo "[start] Ensuring vision model is available: ${VISION_MODEL}"
+  if ! ollama list 2>/dev/null | grep -q "${VISION_MODEL}"; then
+    if ! ollama pull "${VISION_MODEL}"; then
+      echo "[start] WARNING: Failed to pull ${VISION_MODEL}; falling back to llava:7b"
+      VISION_MODEL="llava:7b"
+      ollama pull "${VISION_MODEL}" || true
+    fi
+  fi
+
   echo "[start] Setting up inference-service env..."
   cat > "${INFERENCE_SVC_DIR}/.env" <<EOF
 PORT=3000
@@ -158,9 +204,19 @@ BOB_OPERATING_MODE=${BOB_OPERATING_MODE:-build-training}
 OLLAMA_BASE_URL=http://127.0.0.1:11434
 CHAT_PROVIDER=${CHAT_PROVIDER:-ollama}
 TABULAR_NLP_PROVIDER=${TABULAR_NLP_PROVIDER:-heuristic}
+OLLAMA_VISION_MODEL=${VISION_MODEL}
 SELF_CONTAINED_MODE=false
 SELF_CONTAINED_STRICT_EGRESS=false
 REQUIRE_SELF_CONTAINED_MODE=false
+OLLAMA_AUTO_PULL_MODELS=false
+YOLO_MODEL_PATH=${INFERENCE_SVC_DIR}/models/yolov8n.onnx
+EMBEDDING_MODEL_PATH=${INFERENCE_SVC_DIR}/models/mobilenet_v3.onnx
+WHISPER_SERVICE_URL=${WHISPER_SERVICE_URL:-}
+ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY:-}
+BOB_ENABLE_TTS=${BOB_ENABLE_TTS:-true}
+BOB_ENABLE_STT=${BOB_ENABLE_STT:-true}
+BOB_ENABLE_AUDIO_ANALYSIS=${BOB_ENABLE_AUDIO_ANALYSIS:-true}
+BOB_ENABLE_UI_VISION=${BOB_ENABLE_UI_VISION:-true}
 DOCTOR_REQUIRE_ONNX_MODELS=false
 DOCTOR_OLLAMA_PROBE_TIMEOUT_MS=12000
 ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://kxwjcupuxnnbnzcgmkoi.supabase.co}

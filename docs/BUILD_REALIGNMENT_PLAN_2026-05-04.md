@@ -758,6 +758,7 @@ Phase A gate is green when all 5 prerequisites have documented test evidence:
 2. **Case model**: Schema deployed to staging, TypeScript types generated (`src/types/database.ts` includes `operational_cases` and event tables), API docs and sample payloads published
 3. **Feature flags**: Supabase table created with name/org/enabled columns, naming pattern (FF_PHASE_B_*) defined, `scripts/rollback-feature-flag.sh` tested, canary procedure documented (5%→25%→50%→100% with error/latency thresholds)
 4. **Bootstrap routes**: 3 routes (field-officer, dispatch-console, breaches) running on case model in staging, E2E smoke test `tests/e2e/bootstrap-routes.test.ts` passing (validates patrol dispatch insertion, job creation/assignment, enforcement timeline creation)
+   - Authoritative execution path for this gate is Ubuntu CI or RunPod serverless `run_playwright`, not local Alpine Playwright shells.
 5. **Ownership**: 8 roles assigned, GitHub team (@DonSquires/team-realignment) updated, Slack confirmation thread created, each lead confirms capacity in #realignment-kickoff
 
 **Note**: Sections 11.2a (prerequisite definition) and 12.1 Phase Gate Criteria (gate definition) together form the Phase A acceptance framework. All criteria in both sections must be satisfied before Phase B production rollout is authorized.
@@ -851,6 +852,7 @@ Phase A gate is green when all criteria below are satisfied. These criteria corr
    - Dispatch console job list → reflects latest dispatch_jobs with status transitions
    - Breaches surface → enforcement timeline creation on dispatch completion
    - All routes return case-model data with org scope, no cross-org leakage (per 11.2a prerequisite #4).
+   - Accepted evidence source: GitHub Actions Ubuntu runner or RunPod serverless `run_playwright` result attached to STAGING/session evidence.
 4. **Feature flags and rollback**: Supabase table created with FF_PHASE_B_* naming pattern, canary rollout procedure tested (5%→25%→50%→100%), `scripts/rollback-feature-flag.sh` verified (per 11.2a prerequisite #3).
 5. **Ownership and role assignment**: All 8 team leads confirmed in GitHub @DonSquires/team-realignment, Slack confirmation thread #realignment-kickoff has capacity sign-off (per 11.2a prerequisite #5).
 

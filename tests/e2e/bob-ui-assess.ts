@@ -46,7 +46,13 @@ const BOB_API_KEY = readEnv('BOB_INFERENCE_API_KEY')
 const BOB_SCORE_THRESHOLD = parseInt(readEnv('BOB_UI_SCORE_THRESHOLD') || '60', 10)
 const BOB_HARD_FAIL = readEnv('BOB_UI_HARD_FAIL') === '1'
 const BOB_ASSESS_MAX_MS = parseInt(readEnv('BOB_UI_ASSESS_MAX_MS') || '8000', 10)
-const RUNPOD_URL = readEnv('RUNPOD_GATEWAY_URL', 'RUNPOD_SERVERLESS_URL', 'RUNPOD_URL')
+const RUNPOD_SERVERLESS_URL = readEnv(
+  'RUNPOD_ENDPOINT_URL',
+  'RUNPOD_RUNSYNC_URL',
+  'RUNPOD_GATEWAY_URL',
+  'RUNPOD_SERVERLESS_URL',
+  'RUNPOD_URL'
+)
 const RUNPOD_API_KEY = readEnv('RUNPOD_API_KEY', 'DR_BOB_API', 'BOB_INFERENCE_API_KEY', 'INFERENCE_API_KEY', 'VITE_INFERENCE_API_KEY')
 const ALLOW_SUPABASE_FALLBACK = readEnv('BOB_UI_ALLOW_SUPABASE_FALLBACK') === '1'
 const SUPABASE_URL = readEnv('VITE_SUPABASE_URL')
@@ -229,13 +235,13 @@ async function assessViaSupabaseUiVision(
   }
 }
 
-async function assessViaRunpodEmulator(
+async function assessViaRunpodServerless(
   screenshotBuffer: Buffer,
   label: string
 ): Promise<BobAssessmentResult | null> {
-  if (!RUNPOD_URL || !RUNPOD_API_KEY) return null
+  if (!RUNPOD_SERVERLESS_URL || !RUNPOD_API_KEY) return null
 
-  const response = await fetch(RUNPOD_URL, {
+  const response = await fetch(RUNPOD_SERVERLESS_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -258,7 +264,7 @@ async function assessViaRunpodEmulator(
     return {
       available: true,
       skipped: true,
-      skipReason: `RunPod emulator responded with ${response.status}`,
+      skipReason: `RunPod serverless responded with ${response.status}`,
     }
   }
 
@@ -364,17 +370,17 @@ export async function bobAssessPage(
   let result: BobAssessmentResult
   try {
     const assessmentWork = async (): Promise<BobAssessmentResult> => {
-      // Prefer direct assessment endpoint, then RunPod emulator ui_vision.
+      // Prefer direct assessment endpoint, then RunPod serverless ui_vision.
       // Supabase fallback is opt-in only to avoid masking emulator wiring issues.
       return (
         (await assessViaDirectBob(screenshotBuffer, label)) ||
-        (await assessViaRunpodEmulator(screenshotBuffer, label)) ||
+        (await assessViaRunpodServerless(screenshotBuffer, label)) ||
         (ALLOW_SUPABASE_FALLBACK ? await assessViaSupabaseUiVision(page, screenshotBuffer, label) : null) ||
         {
           available: false,
           skipped: true,
           skipReason:
-            'No reachable Bob assessment path (direct endpoint and RunPod emulator unavailable' +
+            'No reachable Bob assessment path (direct endpoint and RunPod serverless unavailable' +
             (ALLOW_SUPABASE_FALLBACK ? '; Supabase fallback also unavailable)' : ')'),
         }
       )
@@ -452,8 +458,8 @@ export async function bobAssessPage(
  * Called from global-setup to give an early warning if Bob is offline.
  */
 export async function checkBobUiCapability(): Promise<void> {
-  if (!BOB_SERVICE_URL && !RUNPOD_URL && !(ALLOW_SUPABASE_FALLBACK && SUPABASE_URL)) {
-    console.warn('[bob-ui-assess] Bob UI assessment disabled: no direct Bob URL, no RunPod URL, and Supabase fallback disabled/unconfigured')
+  if (!BOB_SERVICE_URL && !RUNPOD_SERVERLESS_URL && !(ALLOW_SUPABASE_FALLBACK && SUPABASE_URL)) {
+    console.warn('[bob-ui-assess] Bob UI assessment disabled: no direct Bob URL, no RunPod serverless URL, and Supabase fallback disabled/unconfigured')
     return
   }
 
@@ -478,13 +484,13 @@ export async function checkBobUiCapability(): Promise<void> {
 
   if (SUPABASE_URL) {
     if (ALLOW_SUPABASE_FALLBACK) {
-      console.warn('[bob-ui-assess] Direct Bob/RunPod unavailable; UI assessments will fallback to Supabase ui_vision when authenticated')
+      console.warn('[bob-ui-assess] Direct Bob/RunPod serverless unavailable; UI assessments will fallback to Supabase ui_vision when authenticated')
     }
     return
   }
 
-  if (RUNPOD_URL) {
-    console.warn('[bob-ui-assess] Direct Bob endpoint unavailable; UI assessments will use RunPod emulator path')
+  if (RUNPOD_SERVERLESS_URL) {
+    console.warn('[bob-ui-assess] Direct Bob endpoint unavailable; UI assessments will use RunPod serverless path')
     return
   }
 

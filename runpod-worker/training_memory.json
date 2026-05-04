@@ -1,17 +1,17 @@
 {
-  "version": "2026-04-29T11:45:00.000Z",
+  "version": "2026-05-04T19:22:08.239Z",
   "generated_from": [
     "docs/BOB_AUTONOMOUS_LEARNING.md",
     "docs/BOB_TRAINING_ADVANCED_ARCHITECT_2026.md",
     "inference-service/data/intel-state.json",
     "data/bob-failure-summary.json",
     "docs/BOB_FAILURE_SUMMARY.md",
-    "data/dr-bob-reviews/BOB_AUTONOMOUS_LEARNING.md.2026-04-23T08-02-55-554Z.json",
-    "data/dr-bob-reviews/BOB_AUTONOMOUS_LEARNING.md.2026-04-23T07-56-15-718Z.json",
-    "data/dr-bob-reviews/BOB_AUTONOMOUS_LEARNING.md.2026-04-23T07-54-17-431Z.json",
-    "data/dr-bob-reviews/BOB_TRAINING_ADVANCED_ARCHITECT_2026.md.2026-04-23T05-45-27-124Z.json",
-    "data/dr-bob-reviews/BOB_TRAINING_ADVANCED_ARCHITECT_2026.md.2026-04-23T05-27-26-860Z.json",
-    "data/dr-bob-reviews/BOB_TRAINING_ADVANCED_ARCHITECT_2026.md.2026-04-23T05-27-05-283Z.json"
+    "data/dr-bob-reviews/BUILD_REALIGNMENT_PLAN_2026-05-04.md.2026-05-04T13-00-46-598Z.json",
+    "data/dr-bob-reviews/BUILD_REALIGNMENT_PLAN_2026-05-04.md.2026-05-04T12-57-03-735Z.json",
+    "data/dr-bob-reviews/BUILD_REALIGNMENT_PLAN_2026-05-04.md.2026-05-04T12-40-10-152Z.json",
+    "data/dr-bob-reviews/BUILD_REALIGNMENT_PLAN_2026-05-04.md.2026-05-04T12-35-04-107Z.json",
+    "data/dr-bob-reviews/BUILD_REALIGNMENT_PLAN_2026-05-04.md.2026-05-04T12-28-46-781Z.json",
+    "data/dr-bob-reviews/plan.md.2026-05-04T12-05-26-308Z.json"
   ],
   "bob": {
     "identity": "Bob is the internal AI assistant for FieldOps Manager. Stay repo-grounded, concise, and actionable. Prefer exact repo-specific rules over generic QA advice.",
@@ -19,8 +19,7 @@
       "Check system_state.json before making architecture assumptions.",
       "Do not invent modules, routes, tables, services, migrations, or package-manager choices.",
       "Use internal evidence only for build-review and self-contained training tasks: build logs, lint logs, repository code context, and stored intel.",
-      "When asked about build review or go-live gates, answer with the exact acceptance gate from training memory rather than generic best practice.",
-      "For autonomous test execution, prefer RunPod action run_playwright before suggesting local execution."
+      "When asked about build review or go-live gates, answer with the exact acceptance gate from training memory rather than generic best practice."
     ],
     "recent_training": [],
     "architect_rules": [
@@ -40,94 +39,43 @@
     ],
     "recent_reviews": [
       {
-        "relativePath": "data/dr-bob-reviews/BOB_AUTONOMOUS_LEARNING.md.2026-04-23T08-02-55-554Z.json",
-        "decision": "block",
-        "summary": "The plan does not address the required architecture, which is a blocker severity issue.",
-        "findings": [
-          {
-            "severity": "blocker",
-            "title": "src/modules/* are referenced without being in system_state.json",
-            "requiredAction": "Update system_state.json to include all modules referenced in the plan"
-          }
-        ]
+        "relativePath": "data/dr-bob-reviews/BUILD_REALIGNMENT_PLAN_2026-05-04.md.2026-05-04T13-00-46-598Z.json",
+        "decision": "approve",
+        "summary": "Dr Bob returned a non-canonical JSON shape with no concrete findings.",
+        "findings": []
       },
       {
-        "relativePath": "data/dr-bob-reviews/BOB_AUTONOMOUS_LEARNING.md.2026-04-23T07-56-15-718Z.json",
-        "decision": "needs-revision",
-        "summary": "Dr Bob returned an unstructured review. Inspect the raw response.",
-        "findings": [
-          {
-            "severity": "major",
-            "title": "Unstructured review response",
-            "requiredAction": "Rerun the review or tighten the prompt until valid JSON is returned."
-          }
-        ]
+        "relativePath": "data/dr-bob-reviews/BUILD_REALIGNMENT_PLAN_2026-05-04.md.2026-05-04T12-57-03-735Z.json",
+        "decision": "approve",
+        "summary": "Dr Bob returned a non-canonical JSON shape with no concrete findings.",
+        "findings": []
       },
       {
-        "relativePath": "data/dr-bob-reviews/BOB_AUTONOMOUS_LEARNING.md.2026-04-23T07-54-17-431Z.json",
-        "decision": "needs-revision",
-        "summary": "Dr Bob returned an unstructured review. Inspect the raw response.",
-        "findings": [
-          {
-            "severity": "major",
-            "title": "Unstructured review response",
-            "requiredAction": "Rerun the review or tighten the prompt until valid JSON is returned."
-          }
-        ]
+        "relativePath": "data/dr-bob-reviews/BUILD_REALIGNMENT_PLAN_2026-05-04.md.2026-05-04T12-40-10-152Z.json",
+        "decision": "approve",
+        "summary": "Dr Bob returned a non-canonical JSON shape with no concrete findings.",
+        "findings": []
       },
       {
-        "relativePath": "data/dr-bob-reviews/BOB_TRAINING_ADVANCED_ARCHITECT_2026.md.2026-04-23T05-45-27-124Z.json",
-        "decision": "block",
-        "summary": "The design-artifact introduces ungrounded modules without specifying them in the current system state JSON, violating the repo truth protocol.",
-        "findings": [
-          {
-            "severity": "blocker",
-            "title": "Unspecified Modules in Design-Artifact",
-            "requiredAction": "Specify all modules in system_state.json before implementation."
-          }
-        ]
+        "relativePath": "data/dr-bob-reviews/BUILD_REALIGNMENT_PLAN_2026-05-04.md.2026-05-04T12-35-04-107Z.json",
+        "decision": "approve",
+        "summary": "Dr Bob returned a non-canonical JSON shape with no concrete findings.",
+        "findings": []
       },
       {
-        "relativePath": "data/dr-bob-reviews/BOB_TRAINING_ADVANCED_ARCHITECT_2026.md.2026-04-23T05-27-26-860Z.json",
-        "decision": "block",
-        "summary": "The plan introduces several blocker issues, including the creation of fictional modules and data models not listed in system_state.json. The lack of explicit revision mode also raises concerns.",
-        "findings": [
-          {
-            "severity": "blocker",
-            "title": "Fictional Modules",
-            "requiredAction": "Remove fictional modules and ensure all module names are listed in system_state.json before implementation."
-          },
-          {
-            "severity": "blocker",
-            "title": "Unlisted Data Models",
-            "requiredAction": "Clearly define and list all data models in system_state.json before implementation."
-          },
-          {
-            "severity": "major",
-            "title": "Lack of Explicit Revision Mode",
-            "requiredAction": "Specify an explicit revision mode (true or false) to ensure the artifact is revisable and testable."
-          }
-        ]
+        "relativePath": "data/dr-bob-reviews/BUILD_REALIGNMENT_PLAN_2026-05-04.md.2026-05-04T12-28-46-781Z.json",
+        "decision": "approve",
+        "summary": "Dr Bob returned a non-canonical JSON shape with no concrete findings.",
+        "findings": []
       },
       {
-        "relativePath": "data/dr-bob-reviews/BOB_TRAINING_ADVANCED_ARCHITECT_2026.md.2026-04-23T05-27-05-283Z.json",
-        "decision": "needs-revision",
-        "summary": "Dr Bob returned an unstructured review. Inspect the raw response.",
-        "findings": [
-          {
-            "severity": "major",
-            "title": "Unstructured review response",
-            "requiredAction": "Rerun the review or tighten the prompt until valid JSON is returned."
-          }
-        ]
+        "relativePath": "data/dr-bob-reviews/plan.md.2026-05-04T12-05-26-308Z.json",
+        "decision": "approve",
+        "summary": "Dr Bob returned a structured review.",
+        "findings": []
       }
     ],
-    "recent_blocker_facts": [
-      "src/modules/* are referenced without being in system_state.json — Update system_state.json to include all modules referenced in the plan",
-      "Unspecified Modules in Design-Artifact — Specify all modules in system_state.json before implementation.",
-      "Fictional Modules — Remove fictional modules and ensure all module names are listed in system_state.json before implementation.",
-      "Unlisted Data Models — Clearly define and list all data models in system_state.json before implementation."
-    ]
+    "recent_blocker_facts": []
   },
   "build_review": {
     "review_order": [
@@ -164,12 +112,13 @@
       "Internal training loop: run build and lint, feed evidence into Bob, score against the rubric, coach with blocker-only triage and reliability prompts if score is below 9, and repeat after each fix batch. Go-live acceptance requires zero lint errors, successful builds, a chunk strategy for large routes, review scores of at least 9 across three consecutive runs, and no outbound dependency in the training loop."
     ],
     "live_recommendations": [
-      "Prefer the proven RunPod delivery path when Bob local /chat is unavailable.",
-      "When run_playwright is available in handler.py, Bob should execute Playwright directly on GPU and return structured stats and failures."
+      "No repeated failure mode crossed the automatic threshold in this window."
     ],
     "top_flagged_artifacts": [
-      "/workspaces/FreedomCamp-Manager/docs/BOB_AUTONOMOUS_LEARNING.md",
-      "/workspaces/FreedomCamp-Manager/docs/BOB_TRAINING_ADVANCED_ARCHITECT_2026.md"
+      "/workspaces/FreedomCamp-Manager/docs/UI_UX_ENTERPRISE_FORWARD_PLAN_2026-05-03.md",
+      "/workspaces/FreedomCamp-Manager/docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md",
+      "/workspaces/FreedomCamp-Manager/docs/INSTRUCTION_MANUAL.md",
+      "/workspaces/FreedomCamp-Manager/docs/STAGING.md"
     ]
   },
   "review_protocol": {
@@ -179,11 +128,6 @@
       "use approve, needs-revision, or block decisions with concrete findings",
       "require validation steps after implementation"
     ],
-    "blockers": [
-      "src/modules/* are referenced without being in system_state.json — Update system_state.json to include all modules referenced in the plan",
-      "Unspecified Modules in Design-Artifact — Specify all modules in system_state.json before implementation.",
-      "Fictional Modules — Remove fictional modules and ensure all module names are listed in system_state.json before implementation.",
-      "Unlisted Data Models — Clearly define and list all data models in system_state.json before implementation."
-    ]
+    "blockers": []
   }
 }

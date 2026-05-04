@@ -747,6 +747,22 @@ Latest Session Snapshot (Phase 1 Staging Review + Credential Bootstrap Remediati
   3. `e2e:codespace:env` was clarified as a status-only helper; `e2e:codespace:status` added as the explicit alias.
 - Next exact command to run: `bun run lint && bun run build && node scripts/generate-route-role-matrix.mjs --out /tmp/route-role-matrix.local.json && node scripts/validate-roadmap-grounding.mjs --strict --matrix /tmp/route-role-matrix.local.json`
 
+Latest Session Snapshot (Phase A Serverless Gate Confirmation):
+
+- Timestamp (NZ): 2026-05-05 07:04:56 NZST
+- Current branch: main
+- HEAD SHA: 425f0094d71ce61df84dfce906c1c978dd87ee42
+- Working tree status before doc sync: clean
+- Evidence captured:
+  1. `gh secret set GH_API --app codespaces --body "$GH_API"` -> PASS
+  2. `bash scripts/playwright-codespace-credentials.sh node ... action:'run_playwright' ... specs:['tests/e2e/bootstrap-routes.test.ts','--project=chromium']` against RunPod serverless -> PASS
+  3. Remote Playwright result -> `9 passed`, `exit_code: 0`, `provider: playwright-runner`, bootstrap route summary `3/3 routes verified`
+- Staging finding summary:
+  1. Local Alpine Codespaces Chromium is not the authoritative bootstrap gate runner because Playwright pulls Ubuntu browser builds and local headless-shell launch fails before navigation.
+  2. RunPod serverless is the valid execution path for `tests/e2e/bootstrap-routes.test.ts` in this environment and is now the latest recorded Phase A bootstrap evidence.
+  3. `tests/integration/org-isolation.test.ts` remains blocked locally until `SUPABASE_SERVICE_ROLE_KEY` is present in the shell or `.env`.
+- Next exact command to run: `cd /workspaces/FreedomCamp-Manager && export PATH="$PWD/.runtime/bin:$HOME/.bun/bin:$HOME/.local/bin:$PATH" && export SUPABASE_SERVICE_ROLE_KEY=*** && bunx vitest run tests/integration/org-isolation.test.ts`
+
 ## 8. Fast Resume Commands
 
 Run these as a single crash-recovery bundle:

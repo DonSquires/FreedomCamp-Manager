@@ -12,7 +12,10 @@ Requires Ollama >= 0.3.x for /api/chat support (pinned in Dockerfile via OLLAMA_
 import os
 import json
 import shutil
+import base64
 import urllib.parse
+import tempfile
+import subprocess
 import requests
 import runpod
 
@@ -359,6 +362,82 @@ def ollama_vision_chat(prompt, image_b64, model=None, temperature=0.2):
     return {"content": content, "model": data.get("model", model or OLLAMA_VISION_MODEL)}
 
 
+def _language_to_espeak_voice(language):
+    lang = str(language or "en-NZ").strip().lower()
+    if lang.startswith("mi"):
+        return "en-nz"
+    if lang.startswith("ja"):
+        return "ja"
+    if lang.startswith("zh"):
+        return "zh"
+    if lang.startswith("ko"):
+        return "ko"
+    if lang.startswith("fr"):
+        return "fr"
+    if lang.startswith("de"):
+        return "de"
+    if lang.startswith("es"):
+        return "es"
+    return "en-nz"
+
+
+def _style_to_speech_tone(style):
+    key = str(style or "default").strip().lower()
+    if key in {"urgent", "alert"}:
+        return {"rate": 190, "pitch": 1.05}
+    if key in {"calm", "reassuring"}:
+        return {"rate": 145, "pitch": 0.95}
+    if key in {"brief", "concise"}:
+        return {"rate": 175, "pitch": 1.0}
+    return {"rate": 160, "pitch": 1.0}
+
+
+def synthesize_with_espeak(text, language="en-NZ", voice_profile=None, style="default"):
+    voice_profile = voice_profile or {}
+    tone = _style_to_speech_tone(style)
+
+    rate = int(max(90, min(260, float(voice_profile.get("rate", tone["rate"])))) )
+    # espeak-ng pitch is 0..99, convert from normalized 0..2 if provided
+    normalized_pitch = float(voice_profile.get("pitch", tone["pitch"]))
+    espeak_pitch = int(max(0, min(99, normalized_pitch * 50)))
+    voice = str(voice_profile.get("voice_name") or _language_to_espeak_voice(language)).strip()
+
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as wav_file:
+        wav_path = wav_file.name
+
+    try:
+        cmd = [
+            "espeak-ng",
+            "-v", voice,
+            "-s", str(rate),
+            "-p", str(espeak_pitch),
+            "-w", wav_path,
+            text,
+        ]
+        subprocess.run(cmd, check=True, capture_output=True, timeout=20)
+        with open(wav_path, "rb") as rf:
+            audio_b64 = base64.b64encode(rf.read()).decode("ascii")
+        return {
+            "ok": True,
+            "audio_base64": audio_b64,
+            "audio_mime_type": "audio/wav",
+            "voice_params": {
+                "rate": rate,
+                "pitch": normalized_pitch,
+                "voice_name": voice,
+                "lang": language,
+                "style": style,
+            },
+        }
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+    finally:
+        try:
+            os.unlink(wav_path)
+        except Exception:
+            pass
+
+
 def handler(job):
     inp = job.get("input") or {}
     action = inp.get("action", "chat")
@@ -481,11 +560,83 @@ def handler(job):
         target = inp.get("target_language", "en")
         target_name = langs.get(target, target)
         result = ollama_chat([
-            {"role": "system", "content": f"Translate to {target_name}. Return only the translation."},
+            {"role": "system", "content": f"Translate to {target_name}. Preserve operational meaning and tone. Return only the translation."},
             {"role": "user", "content": text},
         ], inp.get("model"), 0.1)
         return {"success": True, "translation": result["content"], "translated_text": result["content"],
                 "target_language": target, "model": result["model"], "provider": "ollama"}
+
+    if action == "speak":
+        text = str(inp.get("text") or inp.get("message") or "").strip()
+        if not text:
+            return {"success": False, "error": "text required"}
+
+        language = str(inp.get("language") or "en-NZ")
+        style = str(inp.get("style") or "default")
+        voice_profile = inp.get("voice_profile") or {}
+
+        tts = synthesize_with_espeak(text, language=language, voice_profile=voice_profile, style=style)
+        if tts.get("ok"):
+            return {
+                "success": True,
+                "spoken_text": text,
+                "audio_base64": tts.get("audio_base64"),
+                "audio_mime_type": tts.get("audio_mime_type", "audio/wav"),
+                "voice_params": tts.get("voice_params"),
+                "provider": "espeak-ng",
+            }
+
+        return {
+            "success": True,
+            "spoken_text": text,
+            "client_action": "web_speech_synthesis",
+            "voice_params": {
+                "lang": language,
+                "style": style,
+                **(voice_profile if isinstance(voice_profile, dict) else {}),
+            },
+            "warning": f"Local TTS synthesis unavailable: {tts.get('error', 'unknown error')}",
+            "provider": "client-fallback",
+        }
+
+    if action == "transcribe":
+        audio_base64 = str(inp.get("audio_base64") or "").strip()
+        audio_mime_type = str(inp.get("audio_mime_type") or "audio/webm").strip()
+        language = str(inp.get("language") or "en").strip()
+        whisper_url = str(os.environ.get("WHISPER_SERVICE_URL", "")).strip().rstrip("/")
+
+        if audio_base64 and whisper_url:
+            try:
+                w_resp = requests.post(
+                    f"{whisper_url}/infer/transcribe",
+                    json={
+                        "audio_base64": audio_base64,
+                        "audio_mime_type": audio_mime_type,
+                        "language": language,
+                    },
+                    timeout=60,
+                )
+                if w_resp.ok:
+                    w_data = w_resp.json()
+                    transcript = w_data.get("transcript") or w_data.get("text")
+                    if transcript:
+                        return {
+                            "success": True,
+                            "transcript": transcript,
+                            "language": language,
+                            "provider": "whisper",
+                        }
+            except Exception as w_err:
+                print(f"[worker] Whisper service unavailable: {w_err}")
+
+        return {
+            "success": True,
+            "transcript": "",
+            "language": language,
+            "client_action": "web_speech_recognition",
+            "message": "No Whisper service configured/reachable. Use browser Web Speech API for transcription.",
+            "provider": "client-fallback",
+        }
 
     if action == "ui_vision":
         image_b64 = inp.get("image_b64")  # base64-encoded PNG/JPG
