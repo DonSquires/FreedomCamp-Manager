@@ -46,6 +46,8 @@ service_cmd() {
     translator)
       if command -v uvicorn >/dev/null 2>&1; then
         echo "cd '$ROOT_DIR' && uvicorn ptt-bridge-python.main:app --host 0.0.0.0 --port ${TRANSLATOR_PORT:-8274}"
+      elif command -v python3 >/dev/null 2>&1; then
+        echo "cd '$ROOT_DIR' && python3 -m uvicorn ptt-bridge-python.main:app --host 0.0.0.0 --port ${TRANSLATOR_PORT:-8274}"
       else
         echo ""
       fi
