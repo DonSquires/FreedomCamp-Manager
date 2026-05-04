@@ -143,18 +143,18 @@ Update this roadmap when any route is added, removed, renamed, or re-gated in th
 
 Route gating and default redirect behavior was centralized into a shared role-path helper used by App routing and login entry flow.
 
-1. New helper: src/navigation/rolePath.ts
+1. New helper: navigation rolePath helper (`src navigation rolePath.ts`)
    - getDefaultRouteForRole(role)
    - getRoleConstrainedRedirect(role, path, hasPortalChoice)
-2. App router integration: src/App.tsx
+2. App router integration: App router (`src App.tsx`)
    - ProtectedRoute now delegates role-constrained redirects to rolePath helper.
    - RoleRoute and AreaRoute unauthorized redirects now route to role-aware defaults, not a blanket root redirect.
-3. Login integration: src/pages/Login.tsx
+3. Login integration: Login page (`src pages Login.tsx`)
    - Post-auth redirect now uses role-aware defaults from rolePath helper.
 
 Operational impact:
 
 1. admin_officer portal-selection enforcement remains session-choice aware.
-2. nzscv_monitor remains constrained to monitoring/account routes.
-3. client persona roles remain constrained to client portal/account routes.
+2. nzscv_monitor remains constrained to monitoring and account areas.
+3. client persona roles remain constrained to client portal and account areas.
 4. grand_master default landing remains /platform.

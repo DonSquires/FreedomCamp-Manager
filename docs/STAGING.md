@@ -621,6 +621,23 @@ Latest Session Snapshot (Tool Install + STAGING Checklist Completed):
 - Open blockers: none
 - Next exact command to run: `cd /workspaces/FreedomCamp-Manager && export PATH="$HOME/.bun/bin:$PATH" && bash scripts/system-check.sh && node scripts/summarize-failures.mjs`
 
+Latest Session Snapshot (Phase 1 Staging Review + Credential Bootstrap Remediation):
+
+- Timestamp (NZ): 2026-05-04 14:35:00 NZST
+- Current branch: main
+- HEAD SHA: 28c7755a70f691e3ea472c36b6b6b29aca028347
+- Working tree status: in progress remediation for staging gate + credential bootstrap ergonomics
+- Local validation:
+  1. `bun run build` -> PASS
+  2. `bun run lint` -> PASS
+  3. `node scripts/generate-route-role-matrix.mjs --out /tmp/route-role-matrix.local.json && node scripts/validate-roadmap-grounding.mjs --strict --matrix /tmp/route-role-matrix.local.json` -> PASS after roadmap addendum cleanup
+  4. `bash scripts/playwright-codespace-credentials.sh bunx playwright test tests/e2e/phase1-radio-rls.spec.ts --project=chromium --list` -> PASS
+- Staging finding summary:
+  1. Governance Release Gate failed because slash-prefixed file paths and prose in `docs/MODULE_ROADMAP.md` were parsed as routes (`/navigation/rolePath`, `/App`, `/pages/Login`, `/account`).
+  2. `scripts/playwright-codespace-credentials.sh` required hardening because direct `.env` sourcing could overwrite injected Codespaces secrets.
+  3. `e2e:codespace:env` was clarified as a status-only helper; `e2e:codespace:status` added as the explicit alias.
+- Next exact command to run: `bun run lint && bun run build && node scripts/generate-route-role-matrix.mjs --out /tmp/route-role-matrix.local.json && node scripts/validate-roadmap-grounding.mjs --strict --matrix /tmp/route-role-matrix.local.json`
+
 ## 8. Fast Resume Commands
 
 Run these as a single crash-recovery bundle:

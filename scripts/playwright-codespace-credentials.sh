@@ -10,12 +10,41 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+load_env_if_missing() {
+  local file_path="$1"
+  [[ -f "$file_path" ]] || return 0
+
+  while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
+    local line="${raw_line%%#*}"
+    line="${line%$'\r'}"
+    [[ -n "${line//[[:space:]]/}" ]] || continue
+    [[ "$line" == *=* ]] || continue
+
+    local key="${line%%=*}"
+    local value="${line#*=}"
+
+    key="${key//[$'\t\r\n '] }"
+    key="${key// /}"
+    [[ -n "$key" ]] || continue
+
+    value="${value#${value%%[![:space:]]*}}"
+    value="${value%${value##*[![:space:]]}}"
+
+    if [[ "$value" == \"*\" && "$value" == *\" ]]; then
+      value="${value:1:-1}"
+    elif [[ "$value" == \'*\' && "$value" == *\' ]]; then
+      value="${value:1:-1}"
+    fi
+
+    if [[ -z "${!key:-}" ]]; then
+      export "$key=$value"
+    fi
+  done < "$file_path"
+}
+
 # Load local .env values (without overwriting already injected env vars).
 if [[ -f .env ]]; then
-  set -a
-  # shellcheck disable=SC1091
-  source ./.env
-  set +a
+  load_env_if_missing ./.env
 fi
 
 set_if_missing() {
@@ -111,6 +140,7 @@ print_status() {
 }
 
 if [[ $# -eq 0 ]]; then
+  echo "[playwright-codespace-credentials] status-only mode; pass a command to execute with mapped credentials"
   print_status
   exit 0
 fi
