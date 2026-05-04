@@ -7,6 +7,7 @@ import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
+import { ListCardRow } from '@/components/features/ListCardRow'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -377,20 +378,21 @@ export default function HotspotsMap() {
                       selectedZone === hotspot.zone_id ? null : hotspot.zone_id
                     )}
                   >
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <div className={`w-3 h-3 ${getActivityColor(hotspot.total_observations)} rounded-full`}></div>
-                          <span className="font-semibold text-sm">{hotspot.zone_name}</span>
+                    <ListCardRow
+                      left={
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <div className={`w-3 h-3 ${getActivityColor(hotspot.total_observations)} rounded-full`}></div>
+                            <span className="font-semibold text-sm">{hotspot.zone_name}</span>
+                          </div>
+                          <p className="text-xs text-gray-500 font-mono">
+                            {hotspot.center_lat.toFixed(6)}, {hotspot.center_lng.toFixed(6)}
+                          </p>
                         </div>
-                        <p className="text-xs text-gray-500 font-mono">
-                          {hotspot.center_lat.toFixed(6)}, {hotspot.center_lng.toFixed(6)}
-                        </p>
-                      </div>
-                      <Badge className={getBreachRateColor(hotspot.breach_rate)}>
-                        {hotspot.breach_rate.toFixed(0)}%
-                      </Badge>
-                    </div>
+                      }
+                      right={<Badge className={getBreachRateColor(hotspot.breach_rate)}>{hotspot.breach_rate.toFixed(0)}%</Badge>}
+                      className="mb-2"
+                    />
                     <div className="grid grid-cols-3 gap-2 text-xs">
                       <div className="bg-gray-100 dark:bg-gray-800 rounded p-2 text-center">
                         <div className="font-bold text-blue-600">{hotspot.total_observations}</div>
