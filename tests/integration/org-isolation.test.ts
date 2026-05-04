@@ -54,18 +54,12 @@ describe('Phase A: Organization Isolation Gate', () => {
           organization_type: 'client',
           is_active: true,
           overnight_verification_mode: 'standard',
-          address_line_1: '123 Test St',
-          city: 'Test City A',
-          country: 'NZ',
         },
         {
           name: 'Test Org B (Isolation Test)',
           organization_type: 'client',
           is_active: true,
           overnight_verification_mode: 'standard',
-          address_line_1: '456 Test Ave',
-          city: 'Test City B',
-          country: 'NZ',
         },
       ])
       .select();
