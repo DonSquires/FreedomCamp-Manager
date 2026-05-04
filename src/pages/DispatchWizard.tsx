@@ -15,6 +15,7 @@ import { insertDispatchJobWithAlarmTypeFallback } from '@/lib/dispatchJobs'
 import { useAuthStore } from '@/stores/authStore'
 import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { AppLayout } from '@/components/features/AppLayout'
+import { ListCardRow } from '@/components/features/ListCardRow'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -392,27 +393,39 @@ export default function DispatchWizard() {
                           : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
                       }`}
                     >
-                      <div className="flex items-center gap-2">
-                        {o.call_sign && (
-                          <Badge variant="outline" className="font-mono font-bold text-blue-700 border-blue-400 gap-0.5 text-xs">
-                            <Radio className="h-3 w-3" />{o.call_sign}
-                          </Badge>
+                      <ListCardRow
+                        className="rounded-none bg-transparent p-0"
+                        left={(
+                          <>
+                            {o.call_sign && (
+                              <Badge variant="outline" className="font-mono font-bold text-blue-700 border-blue-400 gap-0.5 text-xs">
+                                <Radio className="h-3 w-3" />{o.call_sign}
+                              </Badge>
+                            )}
+                            <span className="font-medium text-sm">{o.first_name} {o.last_name}</span>
+                          </>
                         )}
-                        <span className="font-medium text-sm">{o.first_name} {o.last_name}</span>
-                        <span className={`ml-auto text-xs px-1.5 py-0.5 rounded-full ${
-                          o.is_on_shift && o.active_patrol_count === 0
-                            ? 'bg-green-100 text-green-700'
-                            : o.is_on_shift
-                            ? 'bg-orange-100 text-orange-700'
-                            : 'bg-gray-100 text-gray-500'
-                        }`}>
-                          {o.is_on_shift ? (o.active_patrol_count > 0 ? `${o.active_patrol_count} active` : 'Available') : 'Off shift'}
-                        </span>
-                      </div>
+                        right={(
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                            o.is_on_shift && o.active_patrol_count === 0
+                              ? 'bg-green-100 text-green-700'
+                              : o.is_on_shift
+                              ? 'bg-orange-100 text-orange-700'
+                              : 'bg-gray-100 text-gray-500'
+                          }`}>
+                            {o.is_on_shift ? (o.active_patrol_count > 0 ? `${o.active_patrol_count} active` : 'Available') : 'Off shift'}
+                          </span>
+                        )}
+                      />
                       {o.phone && (
-                        <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-                          <Phone className="h-3 w-3" />{o.phone}
-                        </p>
+                        <ListCardRow
+                          className="mt-0.5 rounded-none bg-transparent p-0"
+                          left={(
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Phone className="h-3 w-3" />{o.phone}
+                            </span>
+                          )}
+                        />
                       )}
                     </button>
                   ))}
