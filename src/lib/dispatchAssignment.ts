@@ -28,6 +28,8 @@ export interface LoiForDispatch {
   id: string
   gps_lat: number | null
   gps_lng: number | null
+  /** Optional human-readable address (used for no-GPS fallback matching) */
+  display_address?: string | null
   /** Pre-computed geofence polygon stored on the LOI record */
   geofence_geometry?: GeoJsonPolygon | null
 }
@@ -66,6 +68,10 @@ export interface DispatchJobContext {
   /** Dispatch time (defaults to now() if omitted) */
   dispatch_at?: Date
   organization_id: string
+  /** Optional fallback hints when GPS is missing or does not map to any zone */
+  suburb?: string | null
+  postcode?: string | null
+  council?: string | null
 }
 
 // ── Internal zone/rule types ───────────────────────────────────────────────
@@ -80,6 +86,7 @@ interface ZoneRow {
 }
 
 interface ResourceRuleRow {
+  zone_id: string
   dispatch_resource_id: string
   priority: number
   job_type_code: string | null
@@ -182,6 +189,58 @@ function pointInZone(lat: number, lng: number, zone: ZoneRow): boolean {
   return false
 }
 
+function normalizeText(value: string | null | undefined): string {
+  return (value ?? '').trim().toLowerCase()
+}
+
+function uniqueNonEmpty(values: Array<string | null | undefined>): string[] {
+  return Array.from(
+    new Set(values.map(normalizeText).filter((value) => value.length > 0)),
+  )
+}
+
+/**
+ * Resolve fallback zones using nearest centroid (when GPS exists but no match)
+ * or address-token matching (when GPS is missing).
+ */
+function resolveFallbackZoneIds(
+  zones: ZoneRow[],
+  loi: LoiForDispatch,
+  context: DispatchJobContext,
+): string[] {
+  // Fallback A: nearest zone centroid when coordinates exist but no containment hit.
+  if (loi.gps_lat != null && loi.gps_lng != null) {
+    const nearest = zones
+      .filter((zone) => zone.location_lat != null && zone.location_lng != null)
+      .map((zone) => ({
+        id: zone.id,
+        distance: calculateDistance(loi.gps_lat!, loi.gps_lng!, zone.location_lat!, zone.location_lng!),
+      }))
+      .sort((a, b) => a.distance - b.distance)[0]
+
+    if (nearest) return [nearest.id]
+  }
+
+  // Fallback B: token-match against zone names using address hints.
+  const tokenCandidates = uniqueNonEmpty([
+    context.suburb,
+    context.postcode,
+    context.council,
+    loi.display_address,
+  ])
+
+  if (tokenCandidates.length === 0) return []
+
+  const byName = zones
+    .filter((zone) => {
+      const zoneName = normalizeText(zone.name)
+      return tokenCandidates.some((token) => zoneName.includes(token) || token.includes(zoneName))
+    })
+    .map((zone) => zone.id)
+
+  return byName
+}
+
 // ── Main selector ──────────────────────────────────────────────────────────
 
 /**
@@ -196,12 +255,6 @@ export async function selectDispatchResource(
   loi: LoiForDispatch,
   context: DispatchJobContext,
 ): Promise<DispatchResourceCandidate | null> {
-  if (loi.gps_lat == null || loi.gps_lng == null) {
-    // Without coordinates we cannot do polygon-based selection.
-    // Phase 5: suburb/postcode-based fallback (not yet implemented).
-    return null
-  }
-
   const dispatchAt = context.dispatch_at ?? new Date()
 
   try {
@@ -218,20 +271,29 @@ export async function selectDispatchResource(
       return null
     }
 
-    const matchingZoneIds: string[] = (zones ?? [])
-      .filter((z: ZoneRow) => pointInZone(loi.gps_lat!, loi.gps_lng!, z))
-      .map((z: ZoneRow) => z.id)
+    const zoneRows = (zones ?? []) as ZoneRow[]
 
-    if (matchingZoneIds.length === 0) {
-      // Phase 5: suburb/council boundary fallback (not yet implemented)
-      return null
-    }
+    const matchingZoneIds: string[] =
+      loi.gps_lat == null || loi.gps_lng == null
+        ? []
+        : zoneRows
+            .filter((z: ZoneRow) => pointInZone(loi.gps_lat!, loi.gps_lng!, z))
+            .map((z: ZoneRow) => z.id)
+
+    const fallbackZoneIds = matchingZoneIds.length > 0
+      ? []
+      : resolveFallbackZoneIds(zoneRows, loi, context)
+
+    const zoneIdsForRules = matchingZoneIds.length > 0 ? matchingZoneIds : fallbackZoneIds
+
+    if (zoneIdsForRules.length === 0) return null
 
     // ── Step 2: Load dispatch resource rules for matching zones ────────────
     // Cast to `any` — query references columns not yet in DB types
     const { data: rules, error: rulesErr } = await (supabase as any)
       .from('zone_dispatch_resource_rules')
       .select(`
+        zone_id,
         dispatch_resource_id,
         priority,
         job_type_code,
@@ -249,7 +311,7 @@ export async function selectDispatchResource(
           is_active
         )
       `)
-      .in('zone_id', matchingZoneIds)
+      .in('zone_id', zoneIdsForRules)
       .eq('organization_id', context.organization_id)
       .eq('is_active', true)
       .order('priority', { ascending: true })
@@ -266,6 +328,7 @@ export async function selectDispatchResource(
     const hh  = String(dispatchAt.getHours()).padStart(2, '0')
     const mm  = String(dispatchAt.getMinutes()).padStart(2, '0')
     const currentTimeStr = `${hh}:${mm}:00`
+    const strictZoneIds = new Set(matchingZoneIds)
 
     const candidates: DispatchResourceCandidate[] = []
 
@@ -291,7 +354,7 @@ export async function selectDispatchResource(
         display_name:         res.display_name,
         resource_type:        res.resource_type,
         auto_dispatch_enabled: res.auto_dispatch_enabled,
-        selection_reason:     'zone_rule',
+        selection_reason:     strictZoneIds.has(rule.zone_id) ? 'zone_rule' : 'fallback_radius',
         rule_priority:        rule.priority,
       })
     }
@@ -367,13 +430,12 @@ export async function selectDispatchResourceWithReason(
   loi: LoiForDispatch,
   context: DispatchJobContext,
 ): Promise<DispatchSelectionResult> {
-  if (loi.gps_lat == null || loi.gps_lng == null) {
-    return { candidate: null, failureReason: 'no_gps' }
-  }
-
   try {
     const candidate = await selectDispatchResource(loi, context)
     if (candidate) return { candidate }
+    if (loi.gps_lat == null || loi.gps_lng == null) {
+      return { candidate: null, failureReason: 'no_gps' }
+    }
     return { candidate: null, failureReason: 'no_available_resource' }
   } catch {
     return { candidate: null, failureReason: 'network_error' }

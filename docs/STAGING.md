@@ -742,7 +742,7 @@ GH_PAGER=cat gh run list --limit 120 --json databaseId,headSha,name,status,concl
 | S1-1 | Manifest-driven menu filtering | ✅ Done | Dev | `src/components/features/AppLayout.tsx`, `src/navigation/routeManifestAdapter.ts` — internal visibility + feature-flag aware nav filtering |
 | S1-2 | Expand E2E: route/menu parity assertions | ✅ Done | Dev | `tests/e2e/module-route-access.spec.ts` — targeted block `route/menu parity assertions` passing (`3 passed`, 2026-05-04) |
 | S1-3 | Add org-scope context to `src/App.tsx` AreaRoute | ⬜ Not started | Dev | Align with `useOrganization()` hook pattern |
-| S1-4 | Dispatch fallback UX (offline / no officer assigned) | ⬜ Not started | Dev | `src/lib/dispatchAssignment.ts` |
+| S1-4 | Dispatch fallback UX (offline / no officer assigned) | 🔄 In progress | Dev | `src/lib/dispatchAssignment.ts` — nearest-zone + address-token fallback implemented; pending dedicated no-GPS test coverage |
 | S1-5 | Multi-org assurance: cross-org data bleed regression tests | ⬜ Not started | Dev | New test suite, ground from cross-org matrix (S0-1) |
 
 ### Governance Cadence
@@ -883,7 +883,7 @@ Start date: 2026-05-04
 
 | # | Task | Owner | Status | Evidence |
 |---|---|---|---|---|
-| P4-4 | Implement suburb/postcode fallback in dispatchAssignment.ts | Dev | ⬜ Not started | `src/lib/dispatchAssignment.ts` (TODOs: lines 44, 162, 188, 198, 215, 221, 316, 323) |
+| P4-4 | Implement suburb/postcode fallback in dispatchAssignment.ts | Dev | ✅ Done | `src/lib/dispatchAssignment.ts` — fallback implemented via nearest-zone centroid and address-token matching (`suburb/postcode/council/display_address`) when strict zone containment fails or GPS is missing |
 | P4-5 | Add no-GPS assignment test cases | QA | ⬜ Not started | `tests/e2e/` + `scripts/run-human-module-suite.mjs` |
 
 ### Sprint 3: Async UX Consistency System
