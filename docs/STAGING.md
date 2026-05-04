@@ -783,6 +783,28 @@ Latest Session Snapshot (Phase A Focused Agentic Validation Continuation):
 - Next exact command to run:
   1. `bun run lint && bun run build && node scripts/generate-route-role-matrix.mjs --out /tmp/route-role-matrix.local.json && node scripts/validate-roadmap-grounding.mjs --strict --matrix /tmp/route-role-matrix.local.json`
 
+Latest Session Snapshot (Acceleration Pass: Multi-Worker + Parallel Phase A Suites):
+
+- Timestamp (UTC): 2026-05-04 20:57:12 UTC
+- Current branch: main
+- HEAD SHA: 0c421305ffea2db85df6bcfc91133d299a8c308a
+- RunPod endpoint scaling update (`n0bp1ifmq01cx2`):
+  1. Before: `workersMin=1`, `workersMax=3`, `scalerType=QUEUE_DELAY`
+  2. After: `workersMin=2`, `workersMax=4`, `scalerType=QUEUE_DELAY`
+- Parallel serverless suite evidence (launched concurrently from local agent):
+  1. `tests/e2e/bootstrap-routes.test.ts` via `trigger-bob-self-test` -> PASS (`45 passed`, `0 failed`, job `65ba75cd-229d-4c40-811b-f414bfc5a0f6-u2`)
+  2. `tests/e2e/org-isolation-api.spec.ts` via `trigger-bob-self-test` -> PASS (`10 passed`, `0 failed`, job `1e2e4f1e-4055-41fd-b3ea-214a6e0a89d2-u2`)
+- Session acceleration to-do baseline for this pass:
+  1. Review authority docs -> complete
+  2. Set acceleration backlog -> complete
+  3. Scale RunPod to multi-worker -> complete
+  4. Run parallel Phase A suites -> complete
+  5. Record outcomes in STAGING -> complete
+- Current workspace note:
+  1. `system_state.json`, `data/bob-failure-summary.json`, and `docs/BOB_FAILURE_SUMMARY.md` were refreshed by diagnostics scripts and remain uncommitted.
+- Next exact command to run:
+  1. `bash scripts/system-check.sh && node scripts/summarize-failures.mjs && bun run lint && bun run build`
+
 ## 8. Fast Resume Commands
 
 Run these as a single crash-recovery bundle:
