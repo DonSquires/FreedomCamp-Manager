@@ -905,6 +905,25 @@ export const edgeFunctions = {
   },
 
   /**
+   * Manage explicit cross-org PTT channel scope grants for a user.
+   * Allowed for master/grand_master callers only (enforced server-side).
+   */
+  setUserPttChannelAccess: async (params: {
+    user_id: string
+    mode?: 'replace' | 'grant' | 'revoke'
+    scopes: string[]
+  }) => {
+    return callEdgeFunction('manage-user', {
+      action: 'set_ptt_channel_access',
+      userId: params.user_id,
+      payload: {
+        mode: params.mode ?? 'replace',
+        scopes: params.scopes,
+      },
+    })
+  },
+
+  /**
    * Set user active state via consolidated user management edge function.
    */
   setUserActiveStatus: async (params: {

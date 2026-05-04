@@ -2,10 +2,38 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { getCorsHeaders } from '../_shared/withCors.ts'
 
 interface ManageUserRequest {
-  action: 'create' | 'update' | 'set_password' | 'deactivate' | 'disconnect_ptt'
+  action: 'create' | 'update' | 'set_password' | 'deactivate' | 'disconnect_ptt' | 'set_ptt_channel_access'
   userId?: string
   organizationId?: string
   payload?: Record<string, unknown>
+}
+
+type PttScopeMode = 'replace' | 'grant' | 'revoke'
+
+const PTT_SCOPE_PATTERN = /^(org|incident|direct|team|deployment):[a-f0-9-]+$/
+
+function normalizeScopeList(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  return Array.from(
+    new Set(
+      raw
+        .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+        .filter((scope) => scope.length > 0 && PTT_SCOPE_PATTERN.test(scope)),
+    ),
+  )
+}
+
+function applyPttScopeMutation(currentScopes: string[], incomingScopes: string[], mode: PttScopeMode): string[] {
+  if (mode === 'replace') return incomingScopes
+
+  const currentSet = new Set(currentScopes)
+  if (mode === 'grant') {
+    for (const scope of incomingScopes) currentSet.add(scope)
+    return Array.from(currentSet)
+  }
+
+  for (const scope of incomingScopes) currentSet.delete(scope)
+  return Array.from(currentSet)
 }
 
 function normalizeBaseUrl(value: string): string {
@@ -228,6 +256,56 @@ Deno.serve(async (req) => {
       const pttRevoke = await revokeActivePTTConnection(body.userId, 'admin_forced_disconnect')
 
       return new Response(JSON.stringify({ ok: true, message: 'PTT disconnect requested', pttRevoke }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    if (body.action === 'set_ptt_channel_access') {
+      if (!['master', 'grand_master'].includes(caller.role)) {
+        return new Response(JSON.stringify({ error: 'Only master or grand_master can modify cross-organization PTT scope access' }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      const modeRaw = String(body.payload?.mode ?? 'replace').toLowerCase()
+      const mode: PttScopeMode = modeRaw === 'grant' || modeRaw === 'revoke' ? modeRaw : 'replace'
+      const requestedScopes = normalizeScopeList(body.payload?.scopes)
+
+      const { data: existingProfile, error: existingProfileError } = await adminClient
+        .from('user_profiles')
+        .select('id, ptt_channel_access')
+        .eq('id', body.userId)
+        .single()
+
+      if (existingProfileError || !existingProfile) {
+        return new Response(JSON.stringify({ error: 'Target user profile not found' }), {
+          status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      const currentScopes = normalizeScopeList(existingProfile.ptt_channel_access)
+      const mergedScopes = applyPttScopeMutation(currentScopes, requestedScopes, mode)
+
+      const { data: updatedScopesProfile, error: scopeUpdateError } = await adminClient
+        .from('user_profiles')
+        .update({
+          ptt_channel_access: mergedScopes,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', body.userId)
+        .select('id, ptt_channel_access, updated_at')
+        .single()
+
+      if (scopeUpdateError) throw new Error(scopeUpdateError.message)
+
+      return new Response(JSON.stringify({
+        ok: true,
+        data: updatedScopesProfile,
+        mode,
+        requested_scopes: requestedScopes,
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
