@@ -179,6 +179,24 @@ function PageLoader() {
 // bring down the whole SPA.  On error it shows a minimal recovery UI that lets
 // the user navigate away (or retry) instead of staring at a white screen.
 // ---------------------------------------------------------------------------
+
+// Detects the "Failed to fetch dynamically imported module" error thrown by
+// browsers when a Vite code-split chunk URL no longer exists after a new
+// deployment (content-hash rotation).  Both Chrome and Firefox/Safari use
+// slightly different messages so we check for all known variants.
+function isChunkLoadError(error: Error | null): boolean {
+  if (!error) return false
+  const msg = error.message || ''
+  return (
+    msg.includes('Failed to fetch dynamically imported module') ||
+    msg.includes('error loading dynamically imported module') ||
+    msg.includes('Importing a module script failed') ||
+    /Loading chunk \d+ failed/.test(msg)
+  )
+}
+
+const CHUNK_RELOAD_KEY = 'chunk-reload-attempted'
+
 interface ErrorBoundaryProps { children: ReactNode }
 interface ErrorBoundaryState { hasError: boolean; error: Error | null }
 
@@ -194,24 +212,50 @@ class RouteErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryStat
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('[RouteErrorBoundary] Uncaught render error:', error, info)
+
+    // If the error is a stale-chunk fetch failure (new deployment rotated the
+    // content-hash filenames) attempt a single automatic full-page reload to
+    // pick up the fresh assets.  A sessionStorage flag acts as a circuit-
+    // breaker so we never reload more than once per session for this reason.
+    if (isChunkLoadError(error)) {
+      const alreadyReloaded = sessionStorage.getItem(CHUNK_RELOAD_KEY) === '1'
+      if (!alreadyReloaded) {
+        sessionStorage.setItem(CHUNK_RELOAD_KEY, '1')
+        window.location.reload()
+      }
+    }
   }
 
   render() {
     if (this.state.hasError) {
+      const chunkError = isChunkLoadError(this.state.error)
       return (
         <div className="min-h-screen flex items-center justify-center bg-background p-8">
           <div className="max-w-md text-center space-y-4">
-            <h1 className="text-2xl font-bold text-destructive">Something went wrong</h1>
+            <h1 className="text-2xl font-bold text-destructive">
+              {chunkError ? 'App updated — reload required' : 'Something went wrong'}
+            </h1>
             <p className="text-muted-foreground text-sm">
-              {this.state.error?.message || 'An unexpected error occurred.'}
+              {chunkError
+                ? 'A new version of the app has been deployed. Please reload the page to continue.'
+                : (this.state.error?.message || 'An unexpected error occurred.')}
             </p>
             <div className="flex gap-3 justify-center">
-              <button
-                className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm"
-                onClick={() => this.setState({ hasError: false, error: null })}
-              >
-                Try Again
-              </button>
+              {chunkError ? (
+                <button
+                  className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm"
+                  onClick={() => window.location.reload()}
+                >
+                  Reload Now
+                </button>
+              ) : (
+                <button
+                  className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm"
+                  onClick={() => this.setState({ hasError: false, error: null })}
+                >
+                  Try Again
+                </button>
+              )}
               <button
                 className="px-4 py-2 rounded-md border text-sm"
                 onClick={() => { window.location.href = '/' }}

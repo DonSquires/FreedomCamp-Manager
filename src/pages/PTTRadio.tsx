@@ -1092,7 +1092,7 @@ export default function PTTRadio() {
   const translationRailSubtitle = translationRailAvailable
     ? `${hybridHandshake?.workspace_name || 'Client Workspace'} • ${hybridHandshake?.translation_active ? 'Translation Available' : 'Translation Ready'} • ${streamModeLabel}`
     : handoffGpsUnavailable
-      ? 'GPS unavailable • translator standby'
+      ? 'Translation active • tactical mode'
       : 'Provider tactical mode'
 
   const translatorRestUrl = useMemo(
