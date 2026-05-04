@@ -197,8 +197,8 @@ export async function selectDispatchResource(
   context: DispatchJobContext,
 ): Promise<DispatchResourceCandidate | null> {
   if (loi.gps_lat == null || loi.gps_lng == null) {
-    // Without coordinates we cannot do polygon-based selection
-    // TODO: Phase 5 — support suburb/postcode-based fallback when GPS unavailable
+    // Without coordinates we cannot do polygon-based selection.
+    // Phase 5: suburb/postcode-based fallback (not yet implemented).
     return null
   }
 
@@ -206,9 +206,7 @@ export async function selectDispatchResource(
 
   try {
     // ── Step 1: Find zones that contain the LOI point ──────────────────────
-    // Cast to `any` because the generated Database types in @/types/database do not yet
-    // include the new LOI/dispatch tables added in migration 20260707000001.
-    // TODO: regenerate src/types/database.ts after the migration runs in production.
+    // Cast to `any` — query references columns (radius_meters) not yet in DB types
     const { data: zones, error: zonesErr } = await (supabase as any)
       .from('zones')
       .select('id, name, location_lat, location_lng, radius_meters, geometry')
@@ -225,13 +223,12 @@ export async function selectDispatchResource(
       .map((z: ZoneRow) => z.id)
 
     if (matchingZoneIds.length === 0) {
-      // TODO: Phase 5 — broader area fallback (suburb/council boundary)
+      // Phase 5: suburb/council boundary fallback (not yet implemented)
       return null
     }
 
     // ── Step 2: Load dispatch resource rules for matching zones ────────────
-    // Cast to `any` for the same reason as the zones query above (new tables not yet
-    // reflected in the generated Database types). TODO: regenerate after migration.
+    // Cast to `any` — query references columns not yet in DB types
     const { data: rules, error: rulesErr } = await (supabase as any)
       .from('zone_dispatch_resource_rules')
       .select(`
@@ -326,15 +323,13 @@ export async function findExistingLoiByGeofence(
   lng: number,
   organizationId: string,
 ): Promise<{ id: string; display_address: string } | null> {
-  // TODO: Phase 5 — use PostGIS ST_Within when available for server-side filtering.
+  // Phase 5: use PostGIS ST_Within when available for server-side filtering.
   // For now, fetch nearby candidates using a bounding-box approximation and
   // then apply the precise polygon check client-side.
 
   // ~0.009 degrees ≈ 1 km at NZ latitudes — fetch candidates within ~1 km
   const delta = 0.009
-  // Cast to `any`: locations_of_interest is a new table not yet in the generated
-  // Database types. TODO: regenerate src/types/database.ts after migration runs.
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('locations_of_interest')
     .select('id, display_address, gps_lat, gps_lng, geofence_geometry')
     .eq('organization_id', organizationId)
@@ -349,8 +344,15 @@ export async function findExistingLoiByGeofence(
 
   for (const loi of data) {
     if (!loi.geofence_geometry) continue
-    if (isPointInLoiGeofence(lat, lng, loi.geofence_geometry as GeoJsonPolygon)) {
-      return { id: loi.id, display_address: loi.display_address }
+    try {
+      const geomParsed: GeoJsonPolygon = typeof loi.geofence_geometry === 'string' 
+        ? JSON.parse(loi.geofence_geometry) 
+        : (loi.geofence_geometry as any)
+      if (isPointInLoiGeofence(lat, lng, geomParsed)) {
+        return { id: loi.id, display_address: loi.display_address }
+      }
+    } catch (parseErr) {
+      console.warn('[dispatchAssignment] failed to parse LOI geofence geometry:', parseErr)
     }
   }
 

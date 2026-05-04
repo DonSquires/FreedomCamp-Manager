@@ -871,7 +871,9 @@ function BobTestingTab({ messages, onScoreMessage }: BobTestingTabProps) {
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        // TODO: Extract metadata and call onScoreMessage
+                        const messageId: string = msg.id ?? `msg-${idx}`
+                        const lessonKey: string = msg.metadata?.lesson_key ?? 'general'
+                        onScoreMessage(messageId, score, lessonKey)
                       }}
                     >
                       {score}⭐

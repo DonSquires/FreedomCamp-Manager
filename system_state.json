@@ -3,7 +3,7 @@
   "node_version": "v24.14.1",
   "bun_version": "1.3.13",
   "toolchain_ready": true,
-  "modules": ["messaging"],
+  "modules": ["messaging", "radio", "dispatch", "locations_of_interest"],
   "lockfiles": ["bun.lock","package-lock.json"],
   "generated_at": "2026-05-03T22:03:05Z",
   "source": "scripts/system-check.sh"

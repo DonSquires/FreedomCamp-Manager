@@ -2109,6 +2109,233 @@ export type Database = {
           },
         ]
       }
+      dispatch_resources: {
+        Row: {
+          id: string
+          organization_id: string
+          callsign: string
+          name: string
+          description: string | null
+          resource_kind: string
+          base_loi_id: string | null
+          active_days: number[] | null
+          default_shift: string | null
+          default_start_time: string | null
+          default_end_time: string | null
+          scheduling_enabled: boolean
+          auto_dispatch_enabled: boolean
+          app_queue_id: string | null
+          sms_number: string | null
+          email_address: string | null
+          patrol_route_id: string | null
+          color: string | null
+          icon: string | null
+          is_active: boolean
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          callsign: string
+          name: string
+          description?: string | null
+          resource_kind?: string
+          base_loi_id?: string | null
+          active_days?: number[] | null
+          default_shift?: string | null
+          default_start_time?: string | null
+          default_end_time?: string | null
+          scheduling_enabled?: boolean
+          auto_dispatch_enabled?: boolean
+          app_queue_id?: string | null
+          sms_number?: string | null
+          email_address?: string | null
+          patrol_route_id?: string | null
+          color?: string | null
+          icon?: string | null
+          is_active?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          callsign?: string
+          name?: string
+          description?: string | null
+          resource_kind?: string
+          base_loi_id?: string | null
+          active_days?: number[] | null
+          default_shift?: string | null
+          default_start_time?: string | null
+          default_end_time?: string | null
+          scheduling_enabled?: boolean
+          auto_dispatch_enabled?: boolean
+          app_queue_id?: string | null
+          sms_number?: string | null
+          email_address?: string | null
+          patrol_route_id?: string | null
+          color?: string | null
+          icon?: string | null
+          is_active?: boolean
+          created_by?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "dispatch_resources_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] },
+          { foreignKeyName: "dispatch_resources_base_loi_id_fkey"; columns: ["base_loi_id"]; isOneToOne: false; referencedRelation: "locations_of_interest"; referencedColumns: ["id"] },
+          { foreignKeyName: "dispatch_resources_patrol_route_id_fkey"; columns: ["patrol_route_id"]; isOneToOne: false; referencedRelation: "patrol_routes"; referencedColumns: ["id"] },
+        ]
+      }
+      locations_of_interest: {
+        Row: {
+          id: string
+          organization_id: string
+          name: string | null
+          description: string | null
+          loi_kind: string
+          address_line1: string | null
+          address_line2: string | null
+          suburb: string | null
+          city: string | null
+          region: string | null
+          postcode: string | null
+          country: string
+          address_full: string | null
+          display_address: string | null
+          gps_lat: number | null
+          gps_lng: number | null
+          geo_zone_ids: string[] | null
+          geofence_geometry: string | null
+          canonical_loi_id: string | null
+          is_canonical: boolean
+          hazard_summary: string | null
+          access_summary: string | null
+          geocoded_at: string | null
+          geocoder_source: string | null
+          geocoder_confidence: number | null
+          is_active: boolean
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          name?: string | null
+          description?: string | null
+          loi_kind?: string
+          address_line1?: string | null
+          address_line2?: string | null
+          suburb?: string | null
+          city?: string | null
+          region?: string | null
+          postcode?: string | null
+          country?: string
+          address_full?: string | null
+          display_address?: string | null
+          gps_lat?: number | null
+          gps_lng?: number | null
+          geo_zone_ids?: string[] | null
+          geofence_geometry?: string | null
+          canonical_loi_id?: string | null
+          is_canonical?: boolean
+          hazard_summary?: string | null
+          access_summary?: string | null
+          geocoded_at?: string | null
+          geocoder_source?: string | null
+          geocoder_confidence?: number | null
+          is_active?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          name?: string | null
+          description?: string | null
+          loi_kind?: string
+          address_line1?: string | null
+          address_line2?: string | null
+          suburb?: string | null
+          city?: string | null
+          region?: string | null
+          postcode?: string | null
+          country?: string
+          address_full?: string | null
+          display_address?: string | null
+          gps_lat?: number | null
+          gps_lng?: number | null
+          geo_zone_ids?: string[] | null
+          geofence_geometry?: string | null
+          canonical_loi_id?: string | null
+          is_canonical?: boolean
+          hazard_summary?: string | null
+          access_summary?: string | null
+          geocoded_at?: string | null
+          geocoder_source?: string | null
+          geocoder_confidence?: number | null
+          is_active?: boolean
+          created_by?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "locations_of_interest_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] },
+          { foreignKeyName: "locations_of_interest_canonical_loi_id_fkey"; columns: ["canonical_loi_id"]; isOneToOne: false; referencedRelation: "locations_of_interest"; referencedColumns: ["id"] },
+        ]
+      }
+      zone_dispatch_resource_rules: {
+        Row: {
+          id: string
+          organization_id: string
+          zone_id: string
+          dispatch_resource_id: string
+          job_type_code: string | null
+          day_of_week: number | null
+          time_from: string | null
+          time_to: string | null
+          priority: number
+          is_active: boolean
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          zone_id: string
+          dispatch_resource_id: string
+          job_type_code?: string | null
+          day_of_week?: number | null
+          time_from?: string | null
+          time_to?: string | null
+          priority?: number
+          is_active?: boolean
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          zone_id?: string
+          dispatch_resource_id?: string
+          job_type_code?: string | null
+          day_of_week?: number | null
+          time_from?: string | null
+          time_to?: string | null
+          priority?: number
+          is_active?: boolean
+          created_by?: string | null
+        }
+        Relationships: [
+          { foreignKeyName: "zone_dispatch_resource_rules_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] },
+          { foreignKeyName: "zone_dispatch_resource_rules_zone_id_fkey"; columns: ["zone_id"]; isOneToOne: false; referencedRelation: "zones"; referencedColumns: ["id"] },
+          { foreignKeyName: "zone_dispatch_resource_rules_dispatch_resource_id_fkey"; columns: ["dispatch_resource_id"]; isOneToOne: false; referencedRelation: "dispatch_resources"; referencedColumns: ["id"] },
+        ]
+      }
       dispatch_jobs: {
         Row: {
           acknowledged_at: string | null
