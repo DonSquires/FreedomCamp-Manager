@@ -11,6 +11,18 @@ function safeErrorDetails(error: any) {
   };
 }
 
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === 'string')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
+function dedupe(values: string[]): string[] {
+  return Array.from(new Set(values));
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: getCorsHeaders(req) });
@@ -69,7 +81,11 @@ Deno.serve(async (req) => {
       extra_organization_ids,
       employer_organization_id,
       authorized_work_locations,
+      portal_access,
+      ptt_channel_access,
       phone,
+      job_title,
+      requires_driver_license,
       permissions,
     } = await req.json();
 
@@ -94,6 +110,9 @@ Deno.serve(async (req) => {
     const normalizedExtraOrganizationIds = Array.isArray(extra_organization_ids)
       ? extra_organization_ids.filter((id: unknown) => typeof id === 'string' && id && id !== organization_id)
       : [];
+    const normalizedAuthorizedWorkLocations = dedupe(asStringArray(authorized_work_locations));
+    const normalizedPortalAccess = dedupe(asStringArray(portal_access));
+    const normalizedPttChannelAccess = dedupe(asStringArray(ptt_channel_access));
 
     console.log('Creating user:', normalizedEmail, '| Role:', role);
 
@@ -132,8 +151,12 @@ Deno.serve(async (req) => {
         organization_id: organization_id || null,
         extra_organization_ids: normalizedExtraOrganizationIds,
         employer_organization_id: employer_organization_id || null,
-        authorized_work_locations: authorized_work_locations || [],
+        authorized_work_locations: normalizedAuthorizedWorkLocations,
+        portal_access: normalizedPortalAccess,
+        ptt_channel_access: normalizedPttChannelAccess,
         phone: phone || null,
+        job_title: job_title || null,
+        requires_driver_license: Boolean(requires_driver_license),
         permissions: permissions || [],
         is_active: true,
         created_at: new Date().toISOString(),

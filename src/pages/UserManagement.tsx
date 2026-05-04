@@ -90,6 +90,13 @@ interface UserProfile {
   organization?: Organization | null
 }
 
+interface DirectUserPreview {
+  id: string
+  first_name: string | null
+  last_name: string | null
+  email: string | null
+}
+
 export default function UserManagement() {
   const { user } = useAuthStore()
   const navigate = useNavigate()
@@ -119,6 +126,7 @@ export default function UserManagement() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showSetPasswordDialog, setShowSetPasswordDialog] = useState(false)
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   const normalizedEmail = email.trim()
   const hasEmailInput = normalizedEmail.length > 0
   const isEmailValid = !hasEmailInput || emailRegex.test(normalizedEmail)
@@ -132,6 +140,9 @@ export default function UserManagement() {
   const [editablePttScopes, setEditablePttScopes] = useState<string[]>([])
   const [crossOrgToAdd, setCrossOrgToAdd] = useState<string>('')
   const [directUserToAdd, setDirectUserToAdd] = useState<string>('')
+  const [portalAccess, setPortalAccess] = useState<PortalAreaCode[]>([])
+  const [createPttScopes, setCreatePttScopes] = useState<string[]>([])
+  const [createPttScopeInput, setCreatePttScopeInput] = useState<string>('')
 
   // Credentials form state
   const [coaNumber, setCoaNumber] = useState('')
@@ -181,6 +192,44 @@ export default function UserManagement() {
   const availableOrgs = isMaster
     ? (organizations || [])
     : (organizations || []).filter((o) => accessibleOrgIds?.includes(o.id))
+
+  const derivedAuthorizedWorkLocations = Array.from(
+    new Set([organizationId, ...extraOrganizationIds].filter((id): id is string => Boolean(id)))
+  )
+
+  const normalizedDirectUserToAdd = directUserToAdd.trim()
+  const directUserIdValid = normalizedDirectUserToAdd.length > 0 && uuidRegex.test(normalizedDirectUserToAdd)
+
+  const { data: directUserPreview, isFetching: isDirectUserPreviewLoading } = useQuery({
+    queryKey: ['direct-user-preview', normalizedDirectUserToAdd],
+    queryFn: async () => {
+      if (!directUserIdValid || !normalizedDirectUserToAdd) return null
+
+      const { data, error } = await (supabase
+        .from('user_profiles') as any)
+        .select('id, first_name, last_name, email')
+        .eq('id', normalizedDirectUserToAdd)
+        .limit(1)
+
+      if (error) throw error
+
+      const row = Array.isArray(data) ? data[0] : null
+      return (row || null) as DirectUserPreview | null
+    },
+    enabled: showEditDialog && isMaster && directUserIdValid,
+    staleTime: 30000,
+  })
+
+  const directScopeAlreadyGranted = directUserPreview
+    ? editablePttScopes.includes(`direct:${directUserPreview.id}`)
+    : false
+
+  const canGrantDirectScope = Boolean(
+    selectedUser &&
+    directUserPreview?.id &&
+    directUserPreview.id !== selectedUser.id &&
+    !directScopeAlreadyGranted
+  )
 
   // Fetch users
   const { data: users, isLoading, error: usersError } = useQuery({
@@ -255,6 +304,9 @@ export default function UserManagement() {
         organization_id: organizationId || null,
         extra_organization_ids: extraOrganizationIds,
         employer_organization_id: employerOrgId || null,
+        portal_access: portalAccess,
+        authorized_work_locations: derivedAuthorizedWorkLocations,
+        ptt_channel_access: createPttScopes,
       }
 
       const { data, error } = await withTimeout(
@@ -435,6 +487,25 @@ export default function UserManagement() {
     setOrganizationId('')
     setExtraOrganizationIds([])
     setEmployerOrgId('')
+    setPortalAccess([])
+    setCreatePttScopes([])
+    setCreatePttScopeInput('')
+  }
+  const togglePortalAccess = (area: PortalAreaCode) => {
+    setPortalAccess((prev) =>
+      prev.includes(area)
+        ? prev.filter((item) => item !== area)
+        : [...prev, area]
+    )
+  }
+  const addCreatePttScope = () => {
+    const trimmed = createPttScopeInput.trim()
+    if (!trimmed) return
+    setCreatePttScopes((prev) => (prev.includes(trimmed) ? prev : [...prev, trimmed]))
+    setCreatePttScopeInput('')
+  }
+  const removeCreatePttScope = (scope: string) => {
+    setCreatePttScopes((prev) => prev.filter((item) => item !== scope))
   }
 
   const toggleExtraOrganization = (orgId: string) => {
@@ -1285,6 +1356,78 @@ export default function UserManagement() {
                 </SelectContent>
               </Select>
             </div>
+            <div>
+              <Label>Portal Area Access (Pre-authorize)</Label>
+              <p className="text-xs text-gray-500 mt-1">
+                Leave empty to use role defaults. Select areas to pre-authorize specific portal routes.
+              </p>
+              <div className="mt-2 max-h-44 overflow-y-auto rounded-md border divide-y">
+                {(Object.keys(PORTAL_AREA_LABELS) as PortalAreaCode[]).map((area) => (
+                  <label key={area} className="flex items-center gap-2 px-3 py-2 hover:bg-muted/50 cursor-pointer">
+                    <Checkbox
+                      checked={portalAccess.includes(area)}
+                      onCheckedChange={() => togglePortalAccess(area)}
+                    />
+                    <span className="text-sm text-gray-800">{PORTAL_AREA_LABELS[area]}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <Label>Authorized Work Locations</Label>
+              <p className="text-xs text-gray-500 mt-1">
+                Saved from Organisation + Additional Organisations selections.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2 rounded-md border p-2 min-h-[2.5rem]">
+                {derivedAuthorizedWorkLocations.length === 0 ? (
+                  <span className="text-xs text-gray-500">No locations selected yet.</span>
+                ) : (
+                  derivedAuthorizedWorkLocations.map((orgId) => {
+                    const orgName = availableOrgs.find((org) => org.id === orgId)?.name || orgId
+                    return (
+                      <Badge key={orgId} variant="outline" className="text-xs">
+                        {orgName}
+                      </Badge>
+                    )
+                  })
+                )}
+              </div>
+            </div>
+            <div>
+              <Label>Explicit PTT Scopes (Optional)</Label>
+              <p className="text-xs text-gray-500 mt-1">
+                Add explicit cross-org/direct scopes now (for example org:&lt;uuid&gt; or direct:&lt;uuid&gt;).
+              </p>
+              <div className="mt-2 flex gap-2">
+                <Input
+                  placeholder="org:&lt;uuid&gt; or direct:&lt;uuid&gt;"
+                  value={createPttScopeInput}
+                  onChange={(e) => setCreatePttScopeInput(e.target.value)}
+                />
+                <Button type="button" variant="outline" onClick={addCreatePttScope}>
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {createPttScopes.length === 0 ? (
+                  <span className="text-xs text-gray-500">No explicit PTT scopes set.</span>
+                ) : (
+                  createPttScopes.map((scope) => (
+                    <Badge key={scope} variant="outline" className="flex items-center gap-1">
+                      {scope}
+                      <button
+                        type="button"
+                        onClick={() => removeCreatePttScope(scope)}
+                        className="inline-flex items-center"
+                        aria-label={`Remove ${scope}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))
+                )}
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="createPassword">Password *</Label>
@@ -1868,21 +2011,41 @@ export default function UserManagement() {
                         <Input
                           placeholder="UUID of target user"
                           value={directUserToAdd}
-                          onChange={(e) => setDirectUserToAdd(e.target.value.trim())}
+                          onChange={(e) => setDirectUserToAdd(e.target.value)}
                         />
                         <Button
                           type="button"
                           variant="outline"
                           onClick={() => {
-                            if (!directUserToAdd) return
-                            void grantScope(`direct:${directUserToAdd}`)
+                            if (!canGrantDirectScope || !directUserPreview?.id) return
+                            void grantScope(`direct:${directUserPreview.id}`)
                             setDirectUserToAdd('')
                           }}
-                          disabled={!directUserToAdd || setPttChannelAccessMutation.isPending}
+                          disabled={!canGrantDirectScope || setPttChannelAccessMutation.isPending}
                         >
                           <Plus className="h-4 w-4" />
                         </Button>
                       </div>
+                      {normalizedDirectUserToAdd.length > 0 && !directUserIdValid && (
+                        <p className="text-xs text-red-600">Enter a valid user UUID.</p>
+                      )}
+                      {directUserIdValid && isDirectUserPreviewLoading && (
+                        <p className="text-xs text-gray-500">Looking up user…</p>
+                      )}
+                      {directUserIdValid && !isDirectUserPreviewLoading && !directUserPreview && (
+                        <p className="text-xs text-red-600">No user found for this ID.</p>
+                      )}
+                      {directUserPreview && selectedUser && directUserPreview.id === selectedUser.id && (
+                        <p className="text-xs text-red-600">Cannot grant direct scope to the same user.</p>
+                      )}
+                      {directUserPreview && directScopeAlreadyGranted && (
+                        <p className="text-xs text-amber-600">Direct scope already exists for this user.</p>
+                      )}
+                      {directUserPreview && selectedUser && directUserPreview.id !== selectedUser.id && !directScopeAlreadyGranted && (
+                        <p className="text-xs text-green-700">
+                          Target: {(directUserPreview.first_name || '').trim()} {(directUserPreview.last_name || '').trim()} ({directUserPreview.email || directUserPreview.id})
+                        </p>
+                      )}
                     </div>
                   </div>
 

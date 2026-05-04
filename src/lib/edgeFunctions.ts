@@ -859,7 +859,9 @@ export const edgeFunctions = {
     phone?: string
     job_title?: string | null
     requires_driver_license?: boolean
+    portal_access?: string[]
     authorized_work_locations?: string[]
+    ptt_channel_access?: string[]
     permissions?: Record<string, unknown>
   }) => {
     return callEdgeFunction('create-user', params)

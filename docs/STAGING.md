@@ -184,6 +184,30 @@ Fill this before stopping work:
 - Open blockers with owner:
 - Next exact command to run:
 
+Latest Session Snapshot (User Persistence + Pre-Authorization Hardening):
+
+- Timestamp (NZ): 2026-05-04 16:22:10 NZST
+- Current branch: main
+- HEAD SHA: pending commit
+- Working tree status (`git status -sb`): dirty (4 code files + `docs/STAGING.md`)
+- Scope completed:
+  - `create-user` edge function now persists pre-authorization fields at create time (`portal_access`, `authorized_work_locations`, `ptt_channel_access`) plus profile metadata parity (`job_title`, `requires_driver_license`), with array normalization/deduping.
+  - User Management create dialog now supports pre-authorizing portal access and explicit PTT scopes at user creation time.
+  - Master direct-user PTT scope grant now validates UUID input, resolves target user profile preview, and blocks duplicates/self-target grants.
+  - Playwright auth helper profile mutations are now opt-in only to prevent shared-environment profile drift.
+- New environment guardrails:
+  - `PLAYWRIGHT_ALLOW_PROFILE_MUTATIONS=1` required for any automated profile patching in E2E auth helper.
+  - `PLAYWRIGHT_AUTO_SET_TEST_ROLE=1` now explicit opt-in (no default auto-mutation).
+- Latest lint result: pass (`bun run lint`)
+- Latest build result: pass (`bun run build`)
+- Latest targeted test result:
+  - Static diagnostics: no TypeScript/Problems errors on modified files (`src/pages/UserManagement.tsx`, `src/lib/edgeFunctions.ts`, `supabase/functions/create-user/index.ts`, `tests/e2e/auth.ts`)
+- Active/last CI run IDs:
+  - Not captured for this uncommitted working tree state.
+- Open blockers with owner:
+  - None in local validation. Deployment/runtime validation pending after push.
+- Next exact command to run: `cd /workspaces/FreedomCamp-Manager && git add docs/STAGING.md src/pages/UserManagement.tsx src/lib/edgeFunctions.ts supabase/functions/create-user/index.ts tests/e2e/auth.ts && git commit -m "fix(user-management): persist pre-authorized create-user settings and guard shared test mutations" && git push origin main`
+
 Latest Session Snapshot:
 
 - Timestamp (NZ): 2026-05-04 15:45:21 NZST

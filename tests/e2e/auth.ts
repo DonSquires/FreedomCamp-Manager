@@ -63,9 +63,10 @@ const defaultLivePassword = sharedPassword(
 const allowSharedFallback = readEnv('PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK') === '1'
 const skipRoleAssertions = readEnv('PLAYWRIGHT_SKIP_ROLE_ASSERTIONS') === '1'
 const roleAssertionMode = readEnv('PLAYWRIGHT_ROLE_ASSERTION_MODE') || 'strict'
-// Default to enabled to keep role-matrix tests deterministic when credentials
-// point at reusable sandbox accounts; set PLAYWRIGHT_AUTO_SET_TEST_ROLE=0 to opt out.
-const autoSetTestRole = readEnv('PLAYWRIGHT_AUTO_SET_TEST_ROLE') !== '0'
+// Profile mutations are opt-in to avoid changing persistent user settings in
+// shared/staging environments. Enable both flags in isolated test sandboxes.
+const allowProfileMutations = readEnv('PLAYWRIGHT_ALLOW_PROFILE_MUTATIONS') === '1'
+const autoSetTestRole = readEnv('PLAYWRIGHT_AUTO_SET_TEST_ROLE') === '1'
 
 const roleCapabilities: Record<string, string[]> = {
   grand_master: ['master_ops', 'admin_screen', 'field_ops', 'client_portal_view', 'client_portal_manage'],
@@ -346,7 +347,7 @@ async function fetchResolvedProfile(page: Page): Promise<ResolvedProfile | null>
 }
 
 async function autoSetRoleForTestUser(page: Page, user: TestUserKey): Promise<boolean> {
-  if (!autoSetTestRole) return false
+  if (!allowProfileMutations || !autoSetTestRole) return false
 
   const targetRole = desiredRoleByTestUser[user]
   const profile = await fetchResolvedProfile(page)
@@ -535,6 +536,8 @@ async function getAccessTokenFromBrowser(page: Page): Promise<string | null> {
 }
 
 async function ensureWorkAreaPermission(page: Page): Promise<void> {
+  if (!allowProfileMutations) return
+
   const targetOrgName = readEnv('PLAYWRIGHT_WORK_AREA_ORG', 'E2E_WORK_AREA_ORG') || 'Nelson City Council'
   const supabaseUrl = readEnv('VITE_SUPABASE_URL')
   const anonKey = readEnv('VITE_SUPABASE_ANON_KEY')
