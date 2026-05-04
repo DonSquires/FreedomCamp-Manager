@@ -98,4 +98,8 @@ Evidence (2026-05-03):
 - Remaining open gate: D1 click-depth medians are still pending because triaged route links are not visible from the measured `/admin` and `/admin/dashboard` shell state in the current Playwright environment.
 - Role-path redirect audit evidence refreshed:
 	- `PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=1 bunx playwright test tests/e2e/phase3-role-path-redirect.spec.ts --project=chromium --reporter=list`
-	- Result: `4 passed (28.8s)`
+	- Result: `20 passed (1.8m)`
+- Triad CI blocker evidence captured:
+	- `gh workflow run phase3-ux-baseline-capture.yml`
+	- Result: `HTTP 403: Resource not accessible by integration`
+	- Recent workflow runs for `.github/workflows/phase3-ux-baseline-capture.yml` show failure conclusions (`25303176478`, `25294265720`)

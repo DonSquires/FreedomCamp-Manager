@@ -516,4 +516,4 @@ Date: 2026-05-02
 - **P3-13 retrospective captured:** `docs/LESSONS_LEARNED.md` now records Phase 3 monitor-noise and layout-symbol-collision lessons with prevention rules.
 - **P3-14 ADR recorded:** Added `docs/adr/009-phase3-ux-hardening-and-navigation-measurement.md` to formalize shared list-card and non-direct baseline measurement decisions.
 - **Tracker correction:** STAGING Phase 3 ticket statuses were updated to match already-shipped role-path, CI, and baseline workbook work.
-- **Remaining scope:** `P3-3` shared list-card standardization completion, `P3-7` full redirect audit completion, a non-direct-navigation fix for `D1` click-depth medians, and final triad completion sign-off (`P3-11`).
+- **Remaining scope:** `P3-3` shared list-card standardization completion, a non-direct-navigation fix for `D1` click-depth medians, and final triad completion sign-off (`P3-11`) after a successful `phase3-ux-baseline-capture.yml` run (current manual dispatch is blocked by GitHub Actions permission `HTTP 403`).

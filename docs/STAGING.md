@@ -822,7 +822,7 @@ Route tranche result:
 | # | Task | Owner | Status | Evidence |
 |---|---|---|---|---|
 | P3-6 | Wire role-path simplification maps into navigate() helper | Dev | ✅ Done | `src/navigation/rolePath.ts` |
-| P3-7 | Audit all page redirects against role-path matrix | QA | 🔄 In progress | `docs/PHASE3_ROLE_PATH_SIMPLIFICATION_MAPS_2026-05-03.md`, `tests/e2e/phase3-role-path-redirect.spec.ts` |
+| P3-7 | Audit all page redirects against role-path matrix | QA | ✅ Done | `docs/PHASE3_ROLE_PATH_SIMPLIFICATION_MAPS_2026-05-03.md`, `tests/e2e/phase3-role-path-redirect.spec.ts` — local rerun `20 passed (1.8m)` on 2026-05-04 |
 | P3-8 | Add E2E redirect validation for role paths | QA | ✅ Done | `tests/e2e/phase3-role-path-redirect.spec.ts` |
 
 ### CI & Governance
@@ -831,7 +831,7 @@ Route tranche result:
 |---|---|---|---|---|
 | P3-9 | Schedule Phase 3 baseline capture in CI (daily snapshots) | DevOps | ✅ Done | `.github/workflows/phase3-ux-baseline-capture.yml` |
 | P3-10 | Add Slice A/B/C implementation gates to CI lint budget | DevOps | ✅ Done | `docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md` continuation addendum |
-| P3-11 | Run Phase 3 triad review on completion (Bob + Specialist) | Bob | 🔄 In progress | `docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md` — update outcome to GO |
+| P3-11 | Run Phase 3 triad review on completion (Bob + Specialist) | Bob | 🚫 Blocked | `docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md` — Phase 3 baseline workflow latest runs failed (`25303176478`, `25294265720`); manual dispatch blocked by GitHub Actions permission (`HTTP 403`) |
 
 ### Documentation & Handoff
 
@@ -846,6 +846,6 @@ Route tranche result:
 - ✅ All 10 routes meet target time-to-primary-action < 8s
 - ✅ Visual hierarchy checklist: Slice A/B/C all "complete" (not "qualified")
 - ✅ Zero role-path redirect failures in E2E
-- ✅ CI baseline capture gates all PASS for Phase 3
-- ✅ Triad review outcome: GO (move to Phase 4)
+- ❌ CI baseline capture gates all PASS for Phase 3 (latest workflow runs failed)
+- 🚫 Triad review outcome: GO (move to Phase 4) blocked pending successful baseline workflow evidence
 
