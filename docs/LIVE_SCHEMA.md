@@ -1484,6 +1484,199 @@ public.vehicle_monthly_stays.(plate_number, organization_id, zone_id)
 
 ---
 
+## public.operational_cases
+
+_Added: Phase A, 2026-05-04_
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| organization_id | uuid | NO | |
+| case_type | text | NO | 'dispatch' |
+| case_number | text | YES | |
+| dispatch_job_id | uuid | YES | |
+| created_from | text | NO | 'dispatch' |
+| created_at | timestamptz | NO | now() |
+| updated_at | timestamptz | NO | now() |
+| closed_at | timestamptz | YES | |
+| status | text | NO | 'active' |
+| title | text | YES | |
+| summary | text | YES | |
+| officer_notes | text | YES | |
+| created_by | uuid | YES | |
+
+RLS: enabled. Org-scoped read/write via `organization_id`. FK → `organizations`, `dispatch_jobs`, `user_profiles`.
+
+---
+
+## public.patrol_events
+
+_Added: Phase A, 2026-05-04_
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| organization_id | uuid | NO | |
+| case_id | uuid | NO | |
+| officer_id | uuid | NO | |
+| zone_id | uuid | YES | |
+| patrol_type | text | YES | 'routine' |
+| event_type | text | NO | 'patrol_start' |
+| status | text | NO | 'active' |
+| event_timestamp | timestamptz | NO | now() |
+| gps_lat | float8 | YES | |
+| gps_lng | float8 | YES | |
+| observation_text | text | YES | |
+| photo_urls | text[] | YES | |
+| created_at | timestamptz | NO | now() |
+| updated_at | timestamptz | NO | now() |
+| created_by | uuid | YES | |
+
+RLS: enabled. Org-scoped. FK → `organizations`, `operational_cases`, `user_profiles`, `zones`.
+
+---
+
+## public.dispatch_events
+
+_Added: Phase A, 2026-05-04_
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| organization_id | uuid | NO | |
+| case_id | uuid | NO | |
+| dispatch_job_id | uuid | NO | |
+| event_type | text | NO | 'dispatch_created' |
+| event_timestamp | timestamptz | NO | now() |
+| status | text | NO | 'recorded' |
+| assigned_to | uuid | YES | |
+| status_at_event | text | YES | |
+| escalation_level_at_event | int4 | YES | 0 |
+| notes | text | YES | |
+| triggered_by | uuid | YES | |
+| created_at | timestamptz | NO | now() |
+| created_by | uuid | YES | |
+
+RLS: enabled. Org-scoped. FK → `organizations`, `operational_cases`, `dispatch_jobs`, `user_profiles`.
+
+---
+
+## public.enforcement_events
+
+_Added: Phase A, 2026-05-04_
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| organization_id | uuid | NO | |
+| case_id | uuid | NO | |
+| event_type | text | NO | 'enforcement_initiated' |
+| event_timestamp | timestamptz | NO | now() |
+| status | text | NO | 'active' |
+| officer_id | uuid | NO | |
+| subject_type | text | YES | |
+| subject_identifier | text | YES | |
+| violation_type | text | YES | |
+| action_taken | text | YES | |
+| outcome | text | YES | |
+| photo_urls | text[] | YES | |
+| evidence_notes | text | YES | |
+| created_at | timestamptz | NO | now() |
+| updated_at | timestamptz | NO | now() |
+| created_by | uuid | YES | |
+
+RLS: enabled. Org-scoped. FK → `organizations`, `operational_cases`, `user_profiles`.
+
+---
+
+## public.case_comments
+
+_Added: Phase A, 2026-05-04_
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| organization_id | uuid | NO | |
+| case_id | uuid | NO | |
+| comment_text | text | NO | |
+| author_id | uuid | NO | |
+| created_at | timestamptz | NO | now() |
+| updated_at | timestamptz | NO | now() |
+| edited_by | uuid | YES | |
+
+RLS: enabled. Org-scoped. FK → `organizations`, `operational_cases`, `user_profiles`.
+
+---
+
+## public.feature_flags
+
+_Added: Phase A, 2026-05-04_
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| name | text | NO | (unique) |
+| description | text | YES | |
+| phase | text | YES | |
+| enabled | bool | NO | false |
+| rollout_percentage | int4 | NO | 0 |
+| canary_error_rate_threshold | numeric | YES | 1.00 |
+| canary_p95_latency_threshold_ms | int4 | YES | 500 |
+| rollout_strategy | text | YES | 'percentage' |
+| allowed_user_ids | uuid[] | YES | {} |
+| allowed_org_ids | uuid[] | YES | {} |
+| created_at | timestamptz | NO | now() |
+| updated_at | timestamptz | NO | now() |
+| created_by | uuid | YES | |
+| modified_by | uuid | YES | |
+
+RLS: enabled. Read: all authenticated. Write: `admin`/`master` roles only. Naming pattern: `FF_PHASE_[A-E]_[FEATURE]`.
+
+---
+
+## public.feature_flag_evaluations
+
+_Added: Phase A, 2026-05-04_
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| flag_id | uuid | NO | |
+| user_id | uuid | YES | |
+| organization_id | uuid | YES | |
+| enabled | bool | NO | false |
+| rollout_bucket | int4 | YES | |
+| evaluated_at | timestamptz | NO | now() |
+| evaluation_context | jsonb | YES | |
+| created_by | uuid | YES | auth.uid() |
+
+RLS: enabled. Read: `admin`/`master` roles only.
+
+---
+
+## public.feature_flag_rollout_history
+
+_Added: Phase A, 2026-05-04_
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| id | uuid | NO | gen_random_uuid() |
+| flag_id | uuid | NO | |
+| from_percentage | int4 | NO | 0 |
+| to_percentage | int4 | NO | 0 |
+| stage | text | YES | |
+| changed_at | timestamptz | NO | now() |
+| changed_by | uuid | YES | |
+| error_rate_at_change | numeric | YES | |
+| p95_latency_at_change_ms | int4 | YES | |
+| monitoring_notes | text | YES | |
+| change_reason | text | YES | |
+| created_at | timestamptz | NO | now() |
+
+RLS: enabled. Read: all authenticated. Write: `admin`/`master` roles only.
+
+---
+
 ## Database Functions
 
 The live database functions (stored procedures, triggers, RPCs, extensions) are documented in a dedicated companion file:
@@ -1505,8 +1698,8 @@ Same governance applies: any new or modified function or trigger requires a migr
 The TypeScript types that must stay in sync with this document:
 
 - `src/types/database.ts` — generated Supabase types (`Database['public']['Tables']`)
-  - Tables with full Row/Insert/Update types: `organizations`, `user_profiles`, `zones`, `canonical_vehicles`, `observations`, `breach_alerts`, `patrols`, `patrol_checkpoints`, `checkpoint_visits`, `privacy_curtain_settings`, `privacy_access_log`, `import_batches`, `enforcement_actions`, `health_safety_reports`, `officer_welfare_alerts`, `compliance_results`, `incidents`, `notifications`, `user_sessions`, `homeless_records`, `officer_activity_log`, `person_vehicle_links`, `infringement_notices`, `notices_to_vacate`, `admin_recalculation_actions`, `restrictions`, `zone_compliance_matrix`, `photo_metadata`, `vehicle_discrepancies`, `officer_shifts`, `patrol_site_visits`, `patrol_schedule_zones`, `flagged_vehicles`, `canonical_scv`, `canonical_homeless`, `dispute_intake`
-  - Functions: includes `get_patrol_kpis`, `is_zone_seasonally_open` (added Schema Extract #29)
+  - Tables with full Row/Insert/Update types: `organizations`, `user_profiles`, `zones`, `canonical_vehicles`, `observations`, `breach_alerts`, `patrols`, `patrol_checkpoints`, `checkpoint_visits`, `privacy_curtain_settings`, `privacy_access_log`, `import_batches`, `enforcement_actions`, `health_safety_reports`, `officer_welfare_alerts`, `compliance_results`, `incidents`, `notifications`, `user_sessions`, `homeless_records`, `officer_activity_log`, `person_vehicle_links`, `infringement_notices`, `notices_to_vacate`, `admin_recalculation_actions`, `restrictions`, `zone_compliance_matrix`, `photo_metadata`, `vehicle_discrepancies`, `officer_shifts`, `patrol_site_visits`, `patrol_schedule_zones`, `flagged_vehicles`, `canonical_scv`, `canonical_homeless`, `dispute_intake`, `operational_cases`, `patrol_events`, `dispatch_events`, `enforcement_events`, `case_comments`, `feature_flags`, `feature_flag_evaluations`, `feature_flag_rollout_history`
+  - Functions: includes `get_patrol_kpis`, `is_zone_seasonally_open` (added Schema Extract #29), `create_case_from_dispatch_job`, `is_feature_enabled`
 - `src/types/index.ts` — application-level interfaces (`Vehicle`, `Observation`, `BreachAlert`, etc.)
 
 When this schema changes, **both files must be updated in the same PR** as the migration.
