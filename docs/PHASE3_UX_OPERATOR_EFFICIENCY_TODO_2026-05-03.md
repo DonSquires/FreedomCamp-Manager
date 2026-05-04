@@ -100,7 +100,6 @@ Evidence (2026-05-03):
 - Role-path redirect audit evidence refreshed:
 	- `PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=1 bunx playwright test tests/e2e/phase3-role-path-redirect.spec.ts --project=chromium --reporter=list`
 	- Result: `20 passed (1.8m)`
-- Triad CI blocker evidence captured:
-	- `gh workflow run phase3-ux-baseline-capture.yml`
-	- Result: `HTTP 403: Resource not accessible by integration`
-	- Recent workflow runs for `.github/workflows/phase3-ux-baseline-capture.yml` show failure conclusions (`25303176478`, `25294265720`)
+- Triad CI blocker cleared:
+	- Manual dispatch remains restricted in this environment (`HTTP 403`), but push-triggered workflow rerun `25304989473` completed successfully.
+	- Evidence URL: `https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25304989473`

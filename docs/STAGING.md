@@ -831,7 +831,7 @@ Route tranche result:
 |---|---|---|---|---|
 | P3-9 | Schedule Phase 3 baseline capture in CI (daily snapshots) | DevOps | ✅ Done | `.github/workflows/phase3-ux-baseline-capture.yml` |
 | P3-10 | Add Slice A/B/C implementation gates to CI lint budget | DevOps | ✅ Done | `docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md` continuation addendum |
-| P3-11 | Run Phase 3 triad review on completion (Bob + Specialist) | Bob | 🚫 Blocked | `docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md` — latest baseline workflow runs failed (`25303176478`, `25294265720`); manual dispatch is blocked by GitHub Actions permission (`HTTP 403`), so workflow rerun must come from push/schedule after `.github/workflows/phase3-ux-baseline-capture.yml` shared-live-credential fix |
+| P3-11 | Run Phase 3 triad review on completion (Bob + Specialist) | Bob | ✅ Done | `docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md`, successful workflow rerun `25304989473` (`https://github.com/DonSquires/FreedomCamp-Manager/actions/runs/25304989473`) |
 
 ### Documentation & Handoff
 
@@ -846,6 +846,6 @@ Route tranche result:
 - ✅ All 10 routes meet target time-to-primary-action < 8s
 - ✅ Visual hierarchy checklist: Slice A/B/C all "complete" (not "qualified")
 - ✅ Zero role-path redirect failures in E2E
-- ❌ CI baseline capture gates all PASS for Phase 3 (latest workflow runs failed)
-- 🚫 Triad review outcome: GO (move to Phase 4) blocked pending successful baseline workflow evidence
+- ✅ CI baseline capture gates all PASS for Phase 3 (workflow run `25304989473` succeeded)
+- ✅ Triad review outcome: GO (move to Phase 4)
 

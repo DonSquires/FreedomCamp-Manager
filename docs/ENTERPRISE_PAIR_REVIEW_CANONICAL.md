@@ -515,8 +515,8 @@ Date: 2026-05-02
 - **P3-3 list-card standardization (second pass):** Extended shared `ListCardRow` usage into `src/pages/LivePatrolMonitor.tsx` patrol/officer cards while preserving existing stats blocks.
 - **P3-3 list-card standardization (third pass):** Extended shared `ListCardRow` usage into `src/pages/RosterPlanner.tsx` compact shift cards so time, label, and status rows use the same dense-card primitive.
 - **D1 baseline rerun resolved locally:** `tests/e2e/phase3-ux-baseline-capture.spec.ts` now waits for admin-shell hydration before measuring; workbook import run id `local-2026-05-04-phase3-nondirect-v5` captured click-depth medians for all top-10 routes.
-- **P3-11 rerun prep:** `.github/workflows/phase3-ux-baseline-capture.yml` now exports `PLAYWRIGHT_LIVE_EMAIL` / `PLAYWRIGHT_LIVE_PASSWORD` from the admin shared secret pair so the multi-role redirect guard can reuse shared fallback credentials in CI.
+- **P3-11 rerun resolved:** `.github/workflows/phase3-ux-baseline-capture.yml` now exports `PLAYWRIGHT_LIVE_EMAIL` / `PLAYWRIGHT_LIVE_PASSWORD` from the admin shared secret pair; push-triggered workflow run `25304989473` completed successfully.
 - **P3-13 retrospective captured:** `docs/LESSONS_LEARNED.md` now records Phase 3 monitor-noise and layout-symbol-collision lessons with prevention rules.
 - **P3-14 ADR recorded:** Added `docs/adr/009-phase3-ux-hardening-and-navigation-measurement.md` to formalize shared list-card and non-direct baseline measurement decisions.
 - **Tracker correction:** STAGING Phase 3 ticket statuses were updated to match already-shipped role-path, CI, and baseline workbook work.
-- **Remaining scope:** `P3-3` shared list-card standardization completion and final triad completion sign-off (`P3-11`) after a successful `phase3-ux-baseline-capture.yml` rerun from push/schedule (manual dispatch remains blocked by GitHub Actions permission `HTTP 403`).
+- **Remaining scope:** `P3-3` shared list-card standardization completion across remaining dense route/shift surfaces.
