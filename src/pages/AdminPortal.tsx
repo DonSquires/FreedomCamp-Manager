@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
+import { ListCardRow } from '@/components/features/ListCardRow'
 import { ComplianceTrendChart, type TrendDataPoint } from '@/components/features/ComplianceTrendChart'
 import { SystemHealthIndicator } from '@/components/features/SystemHealthIndicator'
 import { nzDateToUTCStart, nzDateToUTCEnd, parseNZDate } from '@/lib/timezone'
@@ -1241,12 +1242,20 @@ export default function AdminPortal() {
                             : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40'
                         }`}
                       >
-                        <div className="flex items-center gap-1.5 mb-1">
-                          {isActive && <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse shrink-0" />}
-                          <span className="font-medium text-xs truncate">{officerName}</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground">{startTime} – {endTime}</p>
-                        <p className="text-xs text-muted-foreground truncate">{serviceLabel}</p>
+                        <ListCardRow
+                          className="mb-1 gap-1.5 rounded-none bg-transparent p-0 text-xs"
+                          left={(
+                            <>
+                              {isActive && <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse shrink-0" />}
+                              <span className="truncate font-medium text-xs">{officerName}</span>
+                            </>
+                          )}
+                        />
+                        <ListCardRow
+                          className="gap-1.5 rounded-none bg-transparent p-0 text-xs"
+                          left={<span className="text-xs text-muted-foreground">{startTime} – {endTime}</span>}
+                          right={<span className="truncate text-xs text-muted-foreground">{serviceLabel}</span>}
+                        />
                       </div>
                     )
                   })}

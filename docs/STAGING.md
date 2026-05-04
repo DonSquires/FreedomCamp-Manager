@@ -813,7 +813,7 @@ Route tranche result:
 |---|---|---|---|---|
 | P3-1 | Implement Slice A: nav chrome polish (sidebar collapse, breadcrumb UX) | Dev | ✅ Done | `src/components/features/AppLayout.tsx` |
 | P3-2 | Implement Slice B: dashboard tile optimization (grid, spacing, accessibility) | Dev | ✅ Done | `src/pages/AdminPortal.tsx` |
-| P3-3 | Implement Slice C: list card standardization (breach, route, patrol, shift cards) | Dev | 🔄 In progress | `src/components/features/ListCardRow.tsx`, `src/pages/BreachAlerts.tsx`, `src/pages/NoiseControlPortal.tsx`, `src/pages/LivePatrolMonitor.tsx`, `src/pages/RosterPlanner.tsx`, `src/pages/OfficerAvailability.tsx` |
+| P3-3 | Implement Slice C: list card standardization (breach, route, patrol, shift cards) | Dev | 🔄 In progress | `src/components/features/ListCardRow.tsx`, `src/pages/BreachAlerts.tsx`, `src/pages/NoiseControlPortal.tsx`, `src/pages/LivePatrolMonitor.tsx`, `src/pages/RosterPlanner.tsx`, `src/pages/OfficerAvailability.tsx`, `src/pages/AdminPortal.tsx` |
 | P3-4 | Measure click-depth for each Slice during implementation | QA | ✅ Done | `tests/e2e/phase3-ux-baseline-capture.spec.ts`, `docs/PHASE3_UX_BASELINE_CAPTURE_2026-05-03.md` — local import `local-2026-05-04-phase3-nondirect-v5` captured click depth for all top-10 routes |
 | P3-5 | Verify visual hierarchy meets QA guardrails post-Slice | QA | 🔄 In progress | `docs/PHASE3_VISUAL_HIERARCHY_CLEANUP_CHECKLIST_2026-05-03.md` |
 

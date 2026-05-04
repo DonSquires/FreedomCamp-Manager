@@ -68,3 +68,4 @@ For each completed checklist item, record:
 - P3-3 shared list-card standardization expanded into patrol monitoring cards (`src/pages/LivePatrolMonitor.tsx`) with reusable row shells for metadata, GPS, and contact rows.
 - P3-3 shared list-card standardization expanded into `src/pages/RosterPlanner.tsx` compact shift cards, replacing the ad hoc two-row metadata shell with `ListCardRow`.
 - P3-3 shared list-card standardization expanded into `src/pages/OfficerAvailability.tsx` upcoming shift cards, replacing bespoke shift/action rows with the same compact shared shell.
+- P3-3 shared list-card standardization expanded into `src/pages/AdminPortal.tsx` today-roster tiles, replacing bespoke officer/time/service row shells with `ListCardRow`.
