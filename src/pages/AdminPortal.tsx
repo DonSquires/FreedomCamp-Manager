@@ -998,6 +998,52 @@ export default function AdminPortal() {
     >
       <GlobalFilterRibbon />
 
+      <div className="sticky top-0 z-10 -mx-4 mb-4 flex flex-wrap items-center justify-between gap-3 border-b bg-background/95 px-4 py-2 backdrop-blur">
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <span className="font-semibold text-foreground">Priority actions</span>
+          <span className="text-muted-foreground">·</span>
+          <span className={`font-medium ${metrics.activeBreaches > 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
+            {metrics.activeBreaches} active breach{metrics.activeBreaches === 1 ? '' : 'es'}
+          </span>
+          <span className="text-muted-foreground">·</span>
+          <span className={`font-medium ${welfareAlertCount > 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
+            {welfareAlertCount} welfare alert{welfareAlertCount === 1 ? '' : 's'}
+          </span>
+          <span className="text-muted-foreground">·</span>
+          <span className="font-medium text-muted-foreground">
+            {activePatrolCount} active patrol{activePatrolCount === 1 ? '' : 's'}
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant={metrics.activeBreaches > 0 ? 'default' : 'outline'}
+            className="gap-1.5"
+            onClick={() => navigate('/breaches')}
+          >
+            <AlertTriangle className="h-3.5 w-3.5" />
+            Breaches
+          </Button>
+          <Button
+            size="sm"
+            variant={welfareAlertCount > 0 ? 'default' : 'outline'}
+            className="gap-1.5"
+            onClick={() => navigate('/officer-welfare')}
+          >
+            <Heart className="h-3.5 w-3.5" />
+            Welfare
+          </Button>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => navigate('/dispatch')}>
+            <Radio className="h-3.5 w-3.5" />
+            Dispatch
+          </Button>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => navigate('/reports-hub')}>
+            <FileBarChart className="h-3.5 w-3.5" />
+            Reports
+          </Button>
+        </div>
+      </div>
+
       <div className="space-y-4">
 
         {/* ── Scope model strip ───────────────────────────────────────────── */}

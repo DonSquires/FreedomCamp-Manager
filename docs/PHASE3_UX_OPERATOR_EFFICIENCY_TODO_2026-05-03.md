@@ -71,13 +71,13 @@ Evidence (2026-05-03):
 - [x] E4. /observations — summary bar (Total/Compliant/In Breach) made sticky with backdrop blur
 - [x] E5. /radio — `/radio/log` link already surfaced (depth=1, no change required)
 
-### P2 Next-Slice (Ranks 6-10) — IN PROGRESS 2026-05-04
+### P2 Next-Slice (Ranks 6-10) — SHIPPED 2026-05-04 commit 69a45c3d
 
-- [ ] E6. /breaches
-- [ ] E7. /reports
-- [ ] E8. /crm
-- [ ] E9. /live-patrol
-- [ ] E10. /noise-control
+- [x] E6. /breaches — breach summary strip above fold for pending and enforcement-active counts
+- [x] E7. /reports — no code change required; summary grid + export bar already above fold and met slice goal
+- [x] E8. /crm — added missing GlobalFilterRibbon so org context remains visible on the CRM hub
+- [x] E9. /live-patrol — welfare alert strip listing officers with overdue welfare checks
+- [x] E10. /noise-control — urgent-job strip above fold for immediate dispatch attention
 
 ## F. Governance Decision
 
@@ -88,6 +88,10 @@ Evidence (2026-05-03):
 ## 2026-05-04 Continuation Notes
 
 - Validation gates re-run on current head: lint/build/doc-authority/route-role strict all pass.
+- P1 route tranche shipped in commit `7185e979`.
+- P2 route tranche shipped in commit `69a45c3d`.
+- Shared chrome follow-on started on current head: `AppLayout` now owns the active breadcrumb trail for route context, completing the documented Slice A nav-chrome target from STAGING `P3-1`.
+- Top-10 route efficiency pass is now complete at the route level; remaining Phase 3 work shifts to shared chrome, dashboard density, standardized list cards, CI cadence, and retrospective/governance closeout.
 - Baseline capture re-run with shared fallback credentials:
 	- `PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=1 bunx playwright test tests/e2e/phase3-ux-baseline-capture.spec.ts --project=chromium --reporter=list`
 	- `node scripts/import-phase3-baseline.mjs --input test-results/phase3-ux-baseline.json --run-id local-2026-05-04-phase3-baseline`

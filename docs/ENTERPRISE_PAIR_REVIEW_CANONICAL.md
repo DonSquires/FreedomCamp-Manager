@@ -498,11 +498,19 @@ Date: 2026-05-02
 ### Continuation Addendum (2026-05-03)
 
 - **P3-2 Dashboard tile optimization:** Implemented in `src/pages/AdminPortal.tsx` (spacing rhythm, accessibility labels, keyboard activation).
-- **P3-3 List-card standardization:** Unified module tiles, quick-action rows, and recent-observation rows via shared style tokens in `src/pages/AdminPortal.tsx`.
+- **P3-3 List-card standardization:** Deferred from the 2026-05-03 continuation slice; shared card normalization remains open follow-up work beyond the route tranche pass.
 - **P3-4 Re-measure baseline:** `tests/e2e/phase3-ux-baseline-capture.spec.ts` passed locally (1.8m), workbook refreshed with run id `local-p3-2-refresh`.
 - **P3-5 QA pass:** `bun run build`, `bun run lint`, and `node scripts/validate-roadmap-role-gates.mjs --strict` all PASS.
 - **P3-6 Role-path helper wiring:** Added `src/navigation/rolePath.ts`; integrated into `src/App.tsx` and `src/pages/Login.tsx` for consistent role-aware redirects.
 - **P3-8 Redirect E2E:** Added `tests/e2e/phase3-role-path-redirect.spec.ts`; local run PASS (4 passed).
 - **P3-9/P3-10 CI hardening:** `phase3-ux-baseline-capture.yml` now runs daily and includes strict role-gate validation plus redirect E2E guard.
 
-**Triad Outcome Update:** GO (Phase 3 continuation scope complete for P3-2, P3-3, P3-4, P3-5, P3-6, P3-8, P3-9, P3-10, P3-12).
+**Triad Outcome Update:** GO (Phase 3 continuation scope complete for P3-2, P3-4, P3-5, P3-6, P3-8, P3-9, P3-10, P3-12; P3-3 remains open follow-up work).
+
+### Continuation Addendum (2026-05-04)
+
+- **P1/P2 route tranche shipped:** Top-10 route pass is now complete on production pages via commits `7185e979` and `69a45c3d`.
+- **P3-1 nav chrome polish:** `src/components/features/AppLayout.tsx` now renders active breadcrumbs in the desktop command header while retaining the existing persisted sidebar collapse control.
+- **P3-2 dashboard command bar:** `src/pages/AdminPortal.tsx` now keeps priority actions and live operational counts visible in a sticky command bar during scroll.
+- **Tracker correction:** STAGING Phase 3 ticket statuses were updated to match already-shipped role-path, CI, and baseline workbook work.
+- **Remaining scope:** `P3-3` shared list-card standardization, a non-direct-navigation rerun for `D1` click-depth evidence, and closeout docs (`P3-13`, `P3-14`).

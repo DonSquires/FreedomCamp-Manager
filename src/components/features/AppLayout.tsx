@@ -7,6 +7,7 @@ import { routeManifest, type AppRole } from '@/navigation/routeManifest'
 import { useSessionLockStore } from '@/stores/sessionLockStore'
 import { useAutoErrorReporter } from '@/hooks/useAutoErrorReporter'
 import { FeedbackModal } from '@/components/features/FeedbackModal'
+import { BreadcrumbNav } from '@/components/features/BreadcrumbNav'
 import { PTTBar } from '@/components/features/PTTBar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useNotificationCount } from '@/hooks/useNotifications'
@@ -304,6 +305,18 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
     ],
   },
 ]
+
+const navigationLabelByPath = new Map(
+  [...pinnedItems, ...navigationGroups.flatMap((group) => group.items)].map((item) => [item.path.split('?')[0], item.label])
+)
+
+function formatBreadcrumbSegment(segment: string) {
+  return segment
+    .split('-')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
 
 function NavigationLinks({ onClick }: { onClick?: () => void }) {
   const location = useLocation()
@@ -691,6 +704,22 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
     navigate('/')
   }
 
+  const breadcrumbItems = useMemo(() => {
+    const pathname = location.pathname.split('?')[0]
+    const segments = pathname.split('/').filter(Boolean)
+
+    if (segments.length === 0) return []
+
+    return segments.map((segment, index) => {
+      const href = `/${segments.slice(0, index + 1).join('/')}`
+      const navLabel = navigationLabelByPath.get(href)
+      const fallbackLabel = formatBreadcrumbSegment(segment)
+      const label = index === segments.length - 1 ? (title || navLabel || fallbackLabel) : (navLabel || fallbackLabel)
+
+      return index === segments.length - 1 ? { label } : { label, href }
+    })
+  }, [location.pathname, title])
+
   // Persist sidebar open/closed preference
   const toggleDesktopNav = () => {
     setDesktopNavOpen((v) => {
@@ -897,6 +926,11 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
                 </Button>
 
                 <div>
+                {breadcrumbItems.length > 0 && (
+                  <div className="mb-2 hidden md:block">
+                    <BreadcrumbNav items={breadcrumbItems} />
+                  </div>
+                )}
                 {showBackButton && (
                   <Button 
                     variant="ghost" 
