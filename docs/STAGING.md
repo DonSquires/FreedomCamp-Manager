@@ -1117,3 +1117,43 @@ Start date: 2026-05-04
 - [ ] 0 unauthorized cross-org route/data exposures in test matrix
 - [ ] Top-5 VOC pain points mapped to tickets with acceptance criteria
 
+Latest Session Snapshot (Phase A Feature Flag Rollback Safety):
+
+- Timestamp (NZ): 2026-05-05 09:55:14 NZST
+- Current branch: main
+- HEAD SHA: pending commit
+- Working tree status (`git status -sb`): dirty (`tests/e2e/flag-teardown-safety.test.ts`, `docs/STAGING.md`)
+- Scope completed:
+  - Added degraded-mode validation test `tests/e2e/flag-teardown-safety.test.ts` per Phase A feature-flag rollback criterion.
+  - Test workflow validates mid-workflow rollback behavior by creating source rollout history, disabling a Phase B flag, writing rollback history, asserting source record persistence, then restoring original flag state.
+  - Added environment-safe skip behavior when `feature_flags` or `feature_flag_rollout_history` is not present in runtime schema cache (prevents false negatives on environments without feature-flag migration applied).
+- Latest targeted test result:
+  - `PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=1 bunx playwright test tests/e2e/flag-teardown-safety.test.ts --project=chromium`
+  - Result: `1 skipped` (environment does not expose `public.feature_flags` in schema cache)
+- Open blockers with owner:
+  - Feature-flag migration availability in target runtime for full assertion execution (owner: platform/database migration pipeline)
+- Next exact command to run:
+  - `PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=1 bunx playwright test tests/e2e/flag-teardown-safety.test.ts --project=chromium`
+
+Latest Session Snapshot (Phase A Agentic E2E Continuation — Parallel Serverless Validation):
+
+- Timestamp (NZ): 2026-05-05 09:58:26 NZST
+- Current branch: main
+- HEAD SHA: pending commit
+- Working tree status (`git status -sb`): dirty (`tests/e2e/flag-teardown-safety.test.ts`, `docs/STAGING.md`)
+- Parallel RunPod serverless executions:
+  - `BOB_SELF_TEST_PREFLIGHT=false BOB_WORKER_GITHUB_TOKEN="$(gh auth token)" node scripts/trigger-bob-self-test.mjs --scope quick --quickSpecs tests/e2e/bootstrap-routes.test.ts --dryRun`
+    - Result: PASS (`45 passed`, `0 failed`, `0 skipped`), job `1902ab3a-d7c5-4cfd-ae72-55d086a29e90-u1`
+  - `BOB_SELF_TEST_PREFLIGHT=false BOB_WORKER_GITHUB_TOKEN="$(gh auth token)" node scripts/trigger-bob-self-test.mjs --scope quick --quickSpecs tests/e2e/org-isolation-api.spec.ts --dryRun`
+    - Result: PASS (`15 passed`, `0 failed`, `20 skipped`), job `ae4717e8-883d-4b85-985f-d932f61e063d-u2`
+  - `BOB_SELF_TEST_PREFLIGHT=false BOB_WORKER_GITHUB_TOKEN="$(gh auth token)" node scripts/trigger-bob-self-test.mjs --scope quick --quickSpecs tests/e2e/flag-teardown-safety.test.ts --dryRun`
+    - Result: NOT RUNNABLE ON SERVERLESS (`No tests found`), job `8f3f14e5-5a65-41a1-87d4-97ebb8727ab0-u2`
+- Findings:
+  - Phase A core gate suites are green again in RunPod serverless (`bootstrap-routes`, `org-isolation-api`).
+  - `flag-teardown-safety` is currently local-only and must be committed/pushed before RunPod workers can execute it.
+  - Additional bleed regression confirmation: `tests/e2e/multi-org-rls.spec.ts,--project=chromium` -> PASS (`2 passed`, `0 failed`, `5 skipped`), job `6435ba10-f48b-4575-9f39-a21455957f18-u2` (2026-05-05 10:00:02 NZST).
+- Open blockers with owner:
+  - RunPod worker visibility of new test file (owner: repo sync via commit/push step)
+- Next exact command to run:
+  - `git add tests/e2e/flag-teardown-safety.test.ts docs/STAGING.md && git commit -m "test(e2e): add phase-a flag teardown safety coverage and serverless validation evidence" && git push origin main`
+
