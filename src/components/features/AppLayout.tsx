@@ -306,7 +306,7 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
   },
 ]
 
-const navigationLabelByPath = new Map(
+const navigationLabelByPath = new globalThis.Map(
   [...pinnedItems, ...navigationGroups.flatMap((group) => group.items)].map((item) => [item.path.split('?')[0], item.label])
 )
 
