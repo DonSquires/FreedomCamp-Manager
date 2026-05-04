@@ -27,6 +27,9 @@ import {
 // ---------------------------------------------------------------------------
 
 let isServiceRunning = false
+// When true the background reconnect loop is paused (e.g. while the full
+// /radio page is managing the channel) but the WebSocket itself stays alive.
+let suspendedByRoute = false
 let reconnectAttempts = 0
 const MAX_RECONNECT_ATTEMPTS = 10
 const RECONNECT_DELAY_MS = 3000
@@ -262,10 +265,34 @@ export function stopPTTBackgroundService(): void {
 }
 
 /**
+ * Pause the background reconnect loop while the /radio page manages the
+ * channel itself.  The WebSocket connection is intentionally kept alive.
+ */
+export function suspendPTTBackgroundReconnect(): void {
+  if (suspendedByRoute) return
+  suspendedByRoute = true
+  console.log('🎤 PTT Background: Reconnect suspended (radio route active)')
+}
+
+/**
+ * Resume the background reconnect loop when leaving the /radio page.
+ * If the connection dropped while suspended, a reconnect is scheduled.
+ */
+export function resumePTTBackgroundReconnect(): void {
+  if (!suspendedByRoute) return
+  suspendedByRoute = false
+  console.log('🎤 PTT Background: Reconnect resumed')
+  const { connectionStatus } = usePTTStore.getState()
+  if (isServiceRunning && connectionStatus !== 'connected' && connectionStatus !== 'connecting') {
+    scheduleReconnect()
+  }
+}
+
+/**
  * Schedule a reconnection attempt
  */
 function scheduleReconnect(): void {
-  if (!isServiceRunning) return
+  if (!isServiceRunning || suspendedByRoute) return
   if (reconnectTimeout) return
 
   reconnectAttempts++

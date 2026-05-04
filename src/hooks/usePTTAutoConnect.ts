@@ -14,6 +14,8 @@ import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import {
   startPTTBackgroundService,
   stopPTTBackgroundService,
+  suspendPTTBackgroundReconnect,
+  resumePTTBackgroundReconnect,
   requestNotificationPermission,
 } from '@/lib/pttBackground'
 
@@ -48,14 +50,20 @@ export function usePTTAutoConnect(): void {
     // has been verified, which causes 401 errors from ptt-signaling-token.
     if (loading) return
 
-    // The radio screen manages its own channel-specific connection. Stop the
-    // background org-channel service there so it does not override CH2/CH3/etc.
+    // While on /radio the full radio console manages channel selection.
+    // Suspend the background reconnect loop so it doesn't override the
+    // operator's channel choice — but keep the WebSocket alive so PTT
+    // never actually disconnects during navigation.
     if (isRadioRoute) {
       if (hasStarted.current) {
-        hasStarted.current = false
-        stopPTTBackgroundService()
+        suspendPTTBackgroundReconnect()
       }
       return
+    }
+
+    // Leaving /radio: resume background reconnect management.
+    if (hasStarted.current) {
+      resumePTTBackgroundReconnect()
     }
 
     // Start PTT service when user is authenticated

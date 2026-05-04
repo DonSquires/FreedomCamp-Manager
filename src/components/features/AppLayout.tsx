@@ -93,6 +93,7 @@ import {
   Mic,
   Tent,
   Package2,
+  ExternalLink,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -1048,7 +1049,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
               <div className="fixed bottom-4 right-4 z-40 flex flex-col items-end gap-2">
 
                 {/* ── Floating PTT button — hold to transmit on any page ─── */}
-                {(pttAvailable || pttConnectedNoChannel) && location.pathname !== '/radio' && (
+                {(pttAvailable || pttConnectedNoChannel || pttConnectionStatus === 'connecting' || pttConnectionStatus === 'reconnecting') && location.pathname !== '/radio' && (
                   <div className="flex flex-col items-end gap-1">
                     {/* Expanded status strip — shown when pttExpanded */}
                     {pttExpanded && (
@@ -1069,6 +1070,17 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
                           title="Open full radio console"
                         >
                           <Radio className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            const win = window.open('/radio', 'ptt-radio', 'width=960,height=720,menubar=no,toolbar=no,location=no,resizable=yes,scrollbars=yes')
+                            // Prevent the popup from accessing this window via window.opener
+                            if (win) win.opener = null
+                          }}
+                          className="text-slate-300 hover:text-white transition-colors"
+                          title="Pop out radio console to its own window"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     )}
