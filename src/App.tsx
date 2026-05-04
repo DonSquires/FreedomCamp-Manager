@@ -99,6 +99,7 @@ const IdentityVerificationPage = lazy(() => import('@/pages/IdentityVerification
 const TimesheetReview = lazy(() => import('@/pages/TimesheetReview'))
 const OpenShifts = lazy(() => import('@/pages/OpenShifts'))
 const DispatchConsole = lazy(() => import('@/pages/DispatchConsole'))
+const FieldOfficerDispatch = lazy(() => import('@/pages/FieldOfficerDispatch'))
 const JobMap = lazy(() => import('@/pages/JobMap'))
 const ClientSites = lazy(() => import('@/pages/ClientSites'))
 const SitePermissionsAdmin = lazy(() => import('@/pages/SitePermissionsAdmin'))
@@ -631,6 +632,18 @@ export default function App() {
             }
           />
 
+          {/* Field Officer Dispatch bootstrap route */}
+          <Route
+            path="/field-officer/dispatch"
+            element={
+              <ProtectedRoute>
+                <AreaRoute allowedRoles={['officer', 'admin_officer']} area="field_officer">
+                  <FieldOfficerDispatch />
+                </AreaRoute>
+              </ProtectedRoute>
+            }
+          />
+
           {/* Field Officer Portal */}
           <Route
             path="/field-officer"
@@ -928,6 +941,16 @@ export default function App() {
 
           <Route
             path="/enforcement-actions"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <EnforcementActions />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/enforcement"
             element={
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
@@ -1656,6 +1679,16 @@ export default function App() {
           />
           <Route
             path="/dispatch"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <DispatchConsole />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/dispatch"
             element={
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>

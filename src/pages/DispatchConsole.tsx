@@ -19,6 +19,7 @@ import { formatDistance } from '@/lib/geo'
 import { useAuthStore } from '@/stores/authStore'
 import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { useDispatchReplan } from '@/hooks/useDispatchReplan'
+import { useOperationalCases } from '@/hooks/useOperationalCases'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -267,6 +268,13 @@ export default function DispatchConsole() {
     enabled: !!orgId,
   })
 
+  const caseStatusFilter = statusFilter === 'active' ? undefined : statusFilter === 'completed' ? 'completed' : undefined
+  const { data: operationalCases = [] } = useOperationalCases({
+    caseType: 'dispatch_job',
+    status: caseStatusFilter,
+    limit: 100,
+  })
+
   // ── Officers query — uses proximity ranking when selected job has GPS ──────
   const { data: officers = [], isLoading: officersLoading, isError: officersError } = useQuery<OfficerStatus[]>({
     queryKey: ['dispatch-officers', orgId, tick, selectedJob?.id ?? null],
@@ -479,7 +487,7 @@ export default function DispatchConsole() {
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
+            <h1 data-testid="console-title" className="text-2xl font-bold flex items-center gap-2">
               <Radio className="h-6 w-6 text-primary" />
               Dispatch Console
             </h1>
@@ -516,6 +524,7 @@ export default function DispatchConsole() {
             { label: 'Active Jobs',        value: active,   icon: Navigation,    cls: 'text-blue-600'   },
             { label: 'SLA Breached',       value: breached, icon: AlertTriangle, cls: 'text-red-600'    },
             { label: 'Officers On Shift',  value: onShift,  icon: User,          cls: 'text-green-600'  },
+            { label: 'Case Model',         value: operationalCases.length, icon: FileText, cls: 'text-violet-600' },
           ].map(({ label, value, icon: Icon, cls }) => (
             <Card key={label} className={breached > 0 && label === 'SLA Breached' ? 'border-red-300 bg-red-50/30' : ''}>
               <CardContent className="pt-3 pb-2">
@@ -543,7 +552,7 @@ export default function DispatchConsole() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
           {/* ── Job Queue (2/3 width) ──────────────────────────────────── */}
-          <div className="lg:col-span-2 space-y-3">
+          <div className="lg:col-span-2 space-y-3" data-testid="job-list">
             {jobsLoading && (
               <div className="space-y-3">
                 {[1, 2, 3].map((i) => (
@@ -570,6 +579,7 @@ export default function DispatchConsole() {
               return (
                 <Card
                   key={job.id}
+                  data-testid="case-card"
                   onClick={() => setSelectedJob(job)}
                   className={`cursor-pointer transition-all hover:shadow-md border-l-4 ${
                     job.priority === 'urgent' ? 'border-l-red-500' :
@@ -909,10 +919,10 @@ export default function DispatchConsole() {
       <Dialog open={showCreate} onOpenChange={v => { setShowCreate(v); if (!v) setForm(emptyForm()) }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>New Dispatch Job</DialogTitle>
+            <DialogTitle data-testid="dispatch-form-title">New Dispatch Job</DialogTitle>
             <DialogDescription>Create a new job and optionally dispatch it immediately.</DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleCreate} className="space-y-4">
+          <form data-testid="dispatch-form" onSubmit={handleCreate} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Job Type</Label>

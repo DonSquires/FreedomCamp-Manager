@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
+import { useOperationalCases } from '@/hooks/useOperationalCases'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -83,6 +84,13 @@ export default function EnforcementActions() {
   const [warningModalBreach, setWarningModalBreach] = useState<BreachAlert | null>(null)
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+
+  const caseStatusFilter = statusFilter === 'all' ? undefined : statusFilter
+  const { data: operationalCases = [] } = useOperationalCases({
+    caseType: 'enforcement_action',
+    status: caseStatusFilter,
+    limit: 100,
+  })
 
   // Fetch enforcement actions
   const { data: actions, isLoading: actionsLoading, isFetching, isError } = useQuery({
@@ -337,6 +345,7 @@ export default function EnforcementActions() {
       showBackButton
     >
       <GlobalFilterRibbon />
+      <h1 data-testid="enforcement-title" className="sr-only">Enforcement Actions</h1>
 
       {/* Quick Navigation */}
       <div className="flex justify-end mb-4">
@@ -418,6 +427,15 @@ export default function EnforcementActions() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-red-600">{stats.tows}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-violet-600">Case Model</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-violet-600">{operationalCases.length}</div>
             </CardContent>
           </Card>
         </div>
@@ -554,7 +572,7 @@ export default function EnforcementActions() {
       ) : (
         <div className="space-y-4">
           {actions?.map((action) => (
-            <Card key={action.id} className="hover:shadow-lg transition-shadow">
+            <Card key={action.id} data-testid="enforcement-case" className="hover:shadow-lg transition-shadow">
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
