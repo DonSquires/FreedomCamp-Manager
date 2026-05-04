@@ -37,6 +37,7 @@ describe('Phase A: Organization Isolation Gate', () => {
   let orgB: TestOrg;
   let caseA: TestCase;
   let caseB: TestCase;
+  let hasOperationalCasesTable = false;
 
   beforeAll(async () => {
     if (!hasSupabaseEnv || !serviceClient) {
@@ -70,6 +71,21 @@ describe('Phase A: Organization Isolation Gate', () => {
 
     console.log(`✓ Created test organizations: ${orgA.id}, ${orgB.id}`);
 
+    const { error: operationalCasesError } = await serviceClient
+      .from('operational_cases')
+      .select('id')
+      .limit(1);
+
+    if (operationalCasesError) {
+      throw new Error(
+        `DEPLOYMENT_BLOCKER: public.operational_cases is unavailable in the target environment. ` +
+          `Apply Phase A case-model migrations before running the org-isolation gate. ` +
+          `Underlying error: ${operationalCasesError.message}`
+      );
+    }
+
+    hasOperationalCasesTable = true;
+
     // Note: In real environment with auth, would create actual users
     // For this test, we'll use the service role to simulate org-scoped access
     console.log('✓ Test data setup complete');
@@ -82,14 +98,14 @@ describe('Phase A: Organization Isolation Gate', () => {
 
     console.log('🧹 Cleaning up test data...');
 
-    if (caseA?.id) {
+    if (hasOperationalCasesTable && caseA?.id) {
       await serviceClient
         .from('operational_cases')
         .delete()
         .eq('id', caseA.id);
     }
 
-    if (caseB?.id) {
+    if (hasOperationalCasesTable && caseB?.id) {
       await serviceClient
         .from('operational_cases')
         .delete()

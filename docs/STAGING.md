@@ -1248,3 +1248,26 @@ Latest Session Snapshot (Phase A Contract Evidence + CI Runtime Repair):
 - Next exact command to run:
   - `git add src/types/database.ts docs/CASE_MODEL_API_CONTRACT.md docs/PHASE_A_OWNERSHIP_STATUS.md docs/INDEX.md tests/integration/org-isolation.test.ts tests/e2e/setup.ts docs/STAGING.md && git commit -m "docs(types): publish phase-a case model contract and align org isolation fixtures" && git push origin main`
 
+Latest Session Snapshot (Phase A Org-Isolation Gate — Explicit Deployment Blocker):
+
+- Timestamp (NZ): 2026-05-05 10:34:27 NZST
+- Current branch: main
+- HEAD SHA: 0d9226c2
+- New evidence:
+  - `CI Org Isolation API` reran against the repaired fixture payload and moved past organization creation.
+  - The workflow now fails on a harder blocker: `public.operational_cases` is missing from the target environment schema cache.
+  - This is corroborated by repo evidence: `docs/LIVE_SCHEMA.md` does not list `operational_cases`, while the migration and local type surface now do.
+- Implementation completed:
+  - Added a fail-fast preflight in `tests/integration/org-isolation.test.ts` that checks `public.operational_cases` availability immediately after fixture setup.
+  - When the table is absent, the suite now throws a structured `DEPLOYMENT_BLOCKER` error instead of producing mixed partial-pass noise.
+  - Local no-secret validation remains safe: `bunx vitest run tests/integration/org-isolation.test.ts` -> `6 skipped`.
+- External boundary reached:
+  - Attempted to trigger the safe migration utility workflow in `list` mode via GitHub CLI.
+  - Result: `HTTP 403 Resource not accessible by integration`.
+  - This environment cannot dispatch the migration workflow needed to prove or remediate the live-schema blocker.
+- Current interpretation:
+  - Repo-grounded Phase A work is substantially complete for org-isolation workflow wiring, case-model contract publication, local types, feature-flag rollback proof, and serverless bootstrap validation.
+  - The remaining blocker is target-environment migration state plus GitHub/Supabase approval/permission required to apply or list pending DB migrations.
+- Next exact command to run:
+  - `git add tests/integration/org-isolation.test.ts docs/STAGING.md && git commit -m "test(ci): fail fast on missing phase-a case model deployment" && git push origin main`
+
