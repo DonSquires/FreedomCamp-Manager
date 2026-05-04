@@ -1061,14 +1061,13 @@ export default function PTTRadio() {
     const ids = new Set<string>()
     if (homeOrganizationId) ids.add(homeOrganizationId)
     if (employerOrganizationId) ids.add(employerOrganizationId)
-    for (const id of user?.authorized_work_locations || []) {
-      if (id) ids.add(id)
-    }
+    // Do not gate translation rails by dynamic work-location/geofence membership.
+    // Keep same-org communications stable and include only explicit extra org grants.
     for (const id of user?.extra_organization_ids || []) {
       if (id) ids.add(id)
     }
     return Array.from(ids)
-  }, [employerOrganizationId, homeOrganizationId, user?.authorized_work_locations, user?.extra_organization_ids])
+  }, [employerOrganizationId, homeOrganizationId, user?.extra_organization_ids])
   const { connectionState: translatorConnectionState, sendAudioChunk, hasEndpoint: translatorHasEndpoint } = useBobTranslator({
     workspaceId: translatorWorkspaceId,
     enabled: translationRailEnabled && !!providerOrgId,

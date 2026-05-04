@@ -13,7 +13,17 @@ function normalizeBaseUrl(raw?: string | null): string {
   return String(raw ?? '').trim().replace(/\/+$/, '')
 }
 
-const BOB_SERVICE_URL = normalizeBaseUrl(Deno.env.get('BOB_SERVICE_URL') || Deno.env.get('INFERENCE_SERVICE_URL') || '')
+const RUNPOD_ENDPOINT_ID = String(Deno.env.get('RUNPOD_ENDPOINT_ID') || '').trim()
+const RUNPOD_DERIVED_URL = RUNPOD_ENDPOINT_ID ? `https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}` : ''
+
+const BOB_SERVICE_URL = normalizeBaseUrl(
+  Deno.env.get('BOB_SERVICE_URL') ||
+  Deno.env.get('INFERENCE_SERVICE_URL') ||
+  Deno.env.get('RUNPOD_ENDPOINT_URL') ||
+  Deno.env.get('INFERENCE_SERVICE_URL_RUNPOD') ||
+  RUNPOD_DERIVED_URL ||
+  '',
+)
 const BOB_FALLBACK_SERVICE_URL = normalizeBaseUrl(Deno.env.get('INFERENCE_SERVICE_FALLBACK_URL') || '')
 const BOB_API_KEY =
   Deno.env.get('BOB_INFERENCE_API_KEY') ??

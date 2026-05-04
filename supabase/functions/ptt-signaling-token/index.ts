@@ -95,7 +95,6 @@ const PTT_AUTHORIZATION_ERROR = 'Not authorized for this channel. PTT access is 
 function buildAllowedOrgIds(profile: {
   organization_id?: string | null
   employer_organization_id?: string | null
-  authorized_work_locations?: string[] | null
   extra_organization_ids?: string[] | null
 }): Set<string> {
   const allowed = new Set<string>()
@@ -106,7 +105,8 @@ function buildAllowedOrgIds(profile: {
 
   add(profile.organization_id)
   add(profile.employer_organization_id)
-  for (const orgId of profile.authorized_work_locations ?? []) add(orgId)
+  // PTT access should not be gated by transient geofence/work-location memberships.
+  // Keep org-level radio access stable via core org affiliations + explicit extras.
   for (const orgId of profile.extra_organization_ids ?? []) add(orgId)
 
   return allowed
@@ -115,7 +115,6 @@ function buildAllowedOrgIds(profile: {
 function canAccessChannelOrg(profile: {
   organization_id?: string | null
   employer_organization_id?: string | null
-  authorized_work_locations?: string[] | null
   extra_organization_ids?: string[] | null
 }, channelOrgId: string): boolean {
   return buildAllowedOrgIds(profile).has(channelOrgId)
@@ -125,6 +124,13 @@ function hasExplicitChannelScopeAccess(profile: {
   ptt_channel_access?: string[] | null
 }, channelScope: string): boolean {
   return Array.isArray(profile.ptt_channel_access) && profile.ptt_channel_access.includes(channelScope)
+}
+
+function canUseCrossOrgScope(profile: {
+  ptt_channel_access?: string[] | null
+}, channelScope: string, privileged: boolean): boolean {
+  if (privileged) return true
+  return hasExplicitChannelScopeAccess(profile, channelScope)
 }
 
 Deno.serve(async (req) => {
@@ -244,11 +250,13 @@ Deno.serve(async (req) => {
     }
 
     if (scopeType === 'org') {
-      const canAccess = canAccessChannelOrg(profile, scopeId)
+      const canAccessHomeOrg = canAccessChannelOrg(profile, scopeId)
+      const canAccessCrossOrg = canUseCrossOrgScope(profile, channelScope, isPrivilegedRole)
+      const canAccess = canAccessHomeOrg || canAccessCrossOrg
       if (!canAccess) {
         return new Response(
           JSON.stringify({ 
-            error: PTT_AUTHORIZATION_ERROR,
+            error: 'Not authorized for this channel. Same-organization channels are always allowed; cross-organization channels require an explicit scope grant by master or grand_master.',
           }),
           { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
         )
@@ -291,7 +299,11 @@ Deno.serve(async (req) => {
         .single()
 
       if (pttChannel?.organization_id) {
-        const canAccess = canAccessChannelOrg(profile, pttChannel.organization_id)
+        const canAccessHomeOrg = canAccessChannelOrg(profile, pttChannel.organization_id)
+        const canAccessCrossOrg =
+          canUseCrossOrgScope(profile, channelScope, isPrivilegedRole) ||
+          canUseCrossOrgScope(profile, `org:${pttChannel.organization_id}`, isPrivilegedRole)
+        const canAccess = canAccessHomeOrg || canAccessCrossOrg
         if (!canAccess) {
           return new Response(
             JSON.stringify({
@@ -349,6 +361,13 @@ Deno.serve(async (req) => {
         if (canAccess) {
           matchedDirectOrgId = candidateOrgId
           break
+        }
+      }
+
+      if (!matchedDirectOrgId) {
+        const explicitDirectAccess = canUseCrossOrgScope(profile, channelScope, isPrivilegedRole)
+        if (explicitDirectAccess) {
+          matchedDirectOrgId = profile.organization_id ?? profile.employer_organization_id ?? directScopeCandidates[0] ?? null
         }
       }
 

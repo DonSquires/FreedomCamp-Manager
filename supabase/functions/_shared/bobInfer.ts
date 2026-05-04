@@ -82,7 +82,14 @@ function enforceBobOnlyProviderLock(inferenceUrl: string): void {
 }
 
 function getInferenceConfig(): { inferenceUrl: string; apiKey: string } {
-  const inferenceUrl = normalizeBaseUrl(Deno.env.get('INFERENCE_SERVICE_URL'))
+  const runpodEndpointId = String(Deno.env.get('RUNPOD_ENDPOINT_ID') ?? '').trim()
+  const derivedRunpodUrl = runpodEndpointId ? `https://api.runpod.ai/v2/${runpodEndpointId}` : ''
+  const inferenceUrl = normalizeBaseUrl(
+    Deno.env.get('INFERENCE_SERVICE_URL') ||
+    Deno.env.get('RUNPOD_ENDPOINT_URL') ||
+    Deno.env.get('INFERENCE_SERVICE_URL_RUNPOD') ||
+    derivedRunpodUrl,
+  )
   const apiKey =
     Deno.env.get('INFERENCE_API_KEY') ||
     Deno.env.get('RUNPOD_ENDPOINT_API_KEY') ||

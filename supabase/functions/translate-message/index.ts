@@ -67,6 +67,17 @@ function normalizeBaseUrl(raw?: string | null): string {
   return isRunpodServerless(withScheme) ? normalizeRunpodBase(withScheme) : withScheme
 }
 
+function resolveInferenceUrl(): string {
+  const runpodEndpointId = String(Deno.env.get('RUNPOD_ENDPOINT_ID') ?? '').trim()
+  const derivedRunpodUrl = runpodEndpointId ? `https://api.runpod.ai/v2/${runpodEndpointId}` : ''
+  return normalizeBaseUrl(
+    Deno.env.get('INFERENCE_SERVICE_URL') ??
+    Deno.env.get('RUNPOD_ENDPOINT_URL') ??
+    Deno.env.get('INFERENCE_SERVICE_URL_RUNPOD') ??
+    derivedRunpodUrl,
+  )
+}
+
 Deno.serve(withCors(async (req: Request) => {
   const body = await req.json().catch(() => null)
   if (!body) {
@@ -86,7 +97,7 @@ Deno.serve(withCors(async (req: Request) => {
     return errorResponse('target_language is required (e.g. "en-NZ")', req, 400)
   }
 
-  const inferenceUrl = normalizeBaseUrl(Deno.env.get('INFERENCE_SERVICE_URL'))
+  const inferenceUrl = resolveInferenceUrl()
   const inferenceKey =
     Deno.env.get('INFERENCE_API_KEY') ??
     Deno.env.get('RUNPOD_ENDPOINT_API_KEY') ??
