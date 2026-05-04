@@ -12,6 +12,7 @@ Requires Ollama >= 0.3.x for /api/chat support (pinned in Dockerfile via OLLAMA_
 import os
 import json
 import shutil
+import urllib.parse
 import requests
 import runpod
 
@@ -555,22 +556,47 @@ def handler(job):
         repo_url = inp.get("repo_url") or os.environ.get("GITHUB_REPO_URL", "")
         repo_branch = inp.get("repo_branch") or os.environ.get("GITHUB_REPO_BRANCH", "main")
         repo_token = inp.get("repo_token") or os.environ.get("GITHUB_TOKEN", "")
+        repo_auth_mode = (inp.get("repo_auth_mode") or "token").strip().lower()
         repo_dir = "/app/repo"
 
         if repo_url:
             auth_url = repo_url
-            if repo_token:
-                auth_url = repo_url.replace("https://", f"https://{repo_token}@")
+            # token mode: worker embeds token; url-token mode: URL already carries credentials
+            if repo_token and repo_auth_mode == "token" and repo_url.startswith("https://github.com/"):
+                encoded_token = urllib.parse.quote(repo_token, safe='')
+                auth_url = repo_url.replace(
+                    "https://github.com/",
+                    f"https://x-access-token:{encoded_token}@github.com/",
+                )
             try:
                 if os.path.isdir(os.path.join(repo_dir, ".git")):
                     print(f"[worker] Updating repo at {repo_dir} branch={repo_branch}")
-                    subprocess.run(
-                        ["git", "-C", repo_dir, "fetch", "origin", repo_branch, "--depth=1"],
-                        check=True,
-                        capture_output=True,
-                        timeout=120,
-                        env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
-                    )
+                    try:
+                        subprocess.run(
+                            ["git", "-C", repo_dir, "fetch", "origin", repo_branch, "--depth=1"],
+                            check=True,
+                            capture_output=True,
+                            timeout=120,
+                            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+                        )
+                    except subprocess.CalledProcessError:
+                        if auth_url != repo_url:
+                            print("[worker] Auth fetch failed; retrying with public URL")
+                            subprocess.run(
+                                ["git", "-C", repo_dir, "remote", "set-url", "origin", repo_url],
+                                check=True,
+                                capture_output=True,
+                                timeout=30,
+                            )
+                            subprocess.run(
+                                ["git", "-C", repo_dir, "fetch", "origin", repo_branch, "--depth=1"],
+                                check=True,
+                                capture_output=True,
+                                timeout=120,
+                                env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+                            )
+                        else:
+                            raise
                     subprocess.run(
                         ["git", "-C", repo_dir, "reset", "--hard", f"origin/{repo_branch}"],
                         check=True,
@@ -579,13 +605,26 @@ def handler(job):
                     )
                 else:
                     print(f"[worker] Cloning repo into {repo_dir} branch={repo_branch}")
-                    subprocess.run(
-                        ["git", "clone", "--depth=1", "--branch", repo_branch, auth_url, repo_dir],
-                        check=True,
-                        capture_output=True,
-                        timeout=300,
-                        env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
-                    )
+                    try:
+                        subprocess.run(
+                            ["git", "clone", "--depth=1", "--branch", repo_branch, auth_url, repo_dir],
+                            check=True,
+                            capture_output=True,
+                            timeout=300,
+                            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+                        )
+                    except subprocess.CalledProcessError:
+                        if auth_url != repo_url:
+                            print("[worker] Auth clone failed; retrying with public URL")
+                            subprocess.run(
+                                ["git", "clone", "--depth=1", "--branch", repo_branch, repo_url, repo_dir],
+                                check=True,
+                                capture_output=True,
+                                timeout=300,
+                                env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+                            )
+                        else:
+                            raise
 
                 pkg_json = os.path.join(repo_dir, "package.json")
                 node_mod = os.path.join(repo_dir, "node_modules")

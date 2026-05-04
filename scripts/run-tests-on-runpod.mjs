@@ -17,13 +17,17 @@
  */
 
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { spawn } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import process from 'node:process'
+import { loadLocalEnv } from './load-local-env.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const rootDir = path.resolve(__dirname, '..')
+
+process.chdir(rootDir)
+loadLocalEnv()
 
 // ============================================================================
 // Configuration
@@ -56,6 +60,94 @@ const TEST_SUITES = {
 }
 
 const BROWSER_PROJECTS = ['chromium', 'firefox', 'webkit', 'Mobile Chrome', 'Mobile Safari']
+
+function collectForwardedTestEnv() {
+  const forwarded = {}
+  const prefixes = ['PLAYWRIGHT_', 'E2E_', 'API_TEST_']
+  const exact = new Set([
+    'DEFAULT_PLAYWRIGHT_BASE_URL',
+    'PLAYWRIGHT_BASE_URL',
+    'VITE_SUPABASE_URL',
+    'VITE_SUPABASE_ANON_KEY',
+    'SUPABASE_SERVICE_ROLE_KEY',
+    'INFERENCE_SERVICE_URL',
+    'INFERENCE_API_KEY',
+  ])
+
+  for (const [key, value] of Object.entries(process.env)) {
+    if (!value) continue
+    if (prefixes.some((prefix) => key.startsWith(prefix)) || exact.has(key)) {
+      forwarded[key] = value
+    }
+  }
+
+  const aliases = [
+    ['PLAYWRIGHT_OFFICER_ORG1_EMAIL', 'PLAYWRIGHT_OFFICER_EMAIL'],
+    ['PLAYWRIGHT_OFFICER_ORG1_PASSWORD', 'PLAYWRIGHT_OFFICER_PASSWORD'],
+    ['PLAYWRIGHT_CLIENT_VIEWER_EMAIL', 'PLAYWRIGHT_CLIENT_EMAIL'],
+    ['PLAYWRIGHT_CLIENT_VIEWER_PASSWORD', 'PLAYWRIGHT_CLIENT_PASSWORD'],
+    ['PLAYWRIGHT_CLIENT_STAFF_EMAIL', 'PLAYWRIGHT_CLIENT_OFFICER_EMAIL'],
+    ['PLAYWRIGHT_CLIENT_STAFF_PASSWORD', 'PLAYWRIGHT_CLIENT_OFFICER_PASSWORD'],
+  ]
+
+  for (const [target, source] of aliases) {
+    if (!forwarded[target] && forwarded[source]) forwarded[target] = forwarded[source]
+  }
+
+  if (!forwarded.PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK) {
+    forwarded.PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK = '1'
+  }
+
+  return forwarded
+}
+
+function resolveRepoContext() {
+  const repoUrl = String(
+    process.env.GITHUB_REPO_URL ||
+    process.env.REPO_URL ||
+    ''
+  ).trim()
+
+  const branch = String(
+    process.env.GITHUB_REPO_BRANCH ||
+    process.env.REPO_BRANCH ||
+    ''
+  ).trim()
+
+  const repoToken = String(
+    process.env.BOB_WORKER_GITHUB_TOKEN ||
+    process.env.GITHUB_TOKEN ||
+    process.env.GH_API ||
+    ''
+  ).trim()
+
+  let resolvedRepoUrl = repoUrl
+  let resolvedBranch = branch
+
+  try {
+    if (!resolvedRepoUrl) {
+      resolvedRepoUrl = execFileSync('git', ['remote', 'get-url', 'origin'], {
+        cwd: rootDir,
+        encoding: 'utf8',
+      }).trim()
+    }
+  } catch {}
+
+  try {
+    if (!resolvedBranch) {
+      resolvedBranch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+        cwd: rootDir,
+        encoding: 'utf8',
+      }).trim()
+    }
+  } catch {}
+
+  return {
+    repoUrl: resolvedRepoUrl,
+    repoBranch: resolvedBranch || 'main',
+    repoToken,
+  }
+}
 
 // ============================================================================
 // Argument Parsing
@@ -114,8 +206,13 @@ async function runTestsOnBob(opts) {
   const runpodBase = resolveRunpodBaseUrl().replace(/\/run$/, '')
   const apiKey = resolveRunpodApiKey()
   if (!apiKey) return null
+  const repo = resolveRepoContext()
+  const forwardedEnv = collectForwardedTestEnv()
 
-  const specs = TEST_SUITES[opts.suite] || TEST_SUITES.core
+  const suiteSpecs = TEST_SUITES[opts.suite] || TEST_SUITES.core
+  const specs = opts.scope === 'quick'
+    ? [...suiteSpecs, '--project=chromium']
+    : suiteSpecs
   const headers = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${apiKey}`,
@@ -131,7 +228,14 @@ async function runTestsOnBob(opts) {
         action: 'run_playwright',
         scope: opts.scope,
         specs,
-        timeout_ms: opts.executionTimeoutMs,
+        timeout_ms: opts.scope === 'quick'
+          ? Math.min(opts.executionTimeoutMs, 540000)
+          : opts.executionTimeoutMs,
+        ...(repo.repoUrl ? { repo_url: repo.repoUrl } : {}),
+        ...(repo.repoBranch ? { repo_branch: repo.repoBranch } : {}),
+        ...(repo.repoToken ? { repo_token: repo.repoToken } : {}),
+        repo_auth_mode: 'token',
+        ...forwardedEnv,
       },
     }),
   }).catch((e) => { throw new Error(`[bob] submit failed: ${e.message}`) })

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import process from 'node:process';
+import { execFileSync } from 'node:child_process';
 import { loadLocalEnv } from './load-local-env.mjs';
 
 loadLocalEnv();
@@ -104,6 +105,82 @@ function parseRequiredCapabilities(input) {
     .filter(Boolean);
 }
 
+function resolveRepoContext() {
+  const repoToken = String(
+    process.env.BOB_WORKER_GITHUB_TOKEN ||
+    process.env.GITHUB_TOKEN ||
+    process.env.GH_API ||
+    ''
+  ).trim();
+
+  let repoUrl = String(process.env.GITHUB_REPO_URL || process.env.REPO_URL || '').trim();
+  let repoBranch = String(process.env.GITHUB_REPO_BRANCH || process.env.REPO_BRANCH || '').trim();
+
+  try {
+    if (!repoUrl) {
+      repoUrl = execFileSync('git', ['remote', 'get-url', 'origin'], {
+        cwd: process.cwd(),
+        encoding: 'utf8',
+      }).trim();
+    }
+  } catch {}
+
+  try {
+    if (!repoBranch) {
+      repoBranch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+        cwd: process.cwd(),
+        encoding: 'utf8',
+      }).trim();
+    }
+  } catch {}
+
+  return {
+    repoUrl,
+    repoBranch: repoBranch || 'main',
+    repoToken,
+  };
+}
+
+function collectForwardedTestEnv() {
+  const forwarded = {};
+  const prefixes = ['PLAYWRIGHT_', 'E2E_', 'API_TEST_'];
+  const exact = new Set([
+    'DEFAULT_PLAYWRIGHT_BASE_URL',
+    'PLAYWRIGHT_BASE_URL',
+    'VITE_SUPABASE_URL',
+    'VITE_SUPABASE_ANON_KEY',
+    'SUPABASE_SERVICE_ROLE_KEY',
+    'INFERENCE_SERVICE_URL',
+    'INFERENCE_API_KEY',
+  ]);
+
+  for (const [key, value] of Object.entries(process.env)) {
+    if (!value) continue;
+    if (prefixes.some((prefix) => key.startsWith(prefix)) || exact.has(key)) {
+      forwarded[key] = value;
+    }
+  }
+
+  const aliases = [
+    ['PLAYWRIGHT_OFFICER_ORG1_EMAIL', 'PLAYWRIGHT_OFFICER_EMAIL'],
+    ['PLAYWRIGHT_OFFICER_ORG1_PASSWORD', 'PLAYWRIGHT_OFFICER_PASSWORD'],
+    ['PLAYWRIGHT_CLIENT_VIEWER_EMAIL', 'PLAYWRIGHT_CLIENT_EMAIL'],
+    ['PLAYWRIGHT_CLIENT_VIEWER_PASSWORD', 'PLAYWRIGHT_CLIENT_PASSWORD'],
+    ['PLAYWRIGHT_CLIENT_STAFF_EMAIL', 'PLAYWRIGHT_CLIENT_OFFICER_EMAIL'],
+    ['PLAYWRIGHT_CLIENT_STAFF_PASSWORD', 'PLAYWRIGHT_CLIENT_OFFICER_PASSWORD'],
+  ];
+
+  for (const [target, source] of aliases) {
+    if (!forwarded[target] && forwarded[source]) forwarded[target] = forwarded[source];
+  }
+
+  if (!forwarded.PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK) {
+    forwarded.PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK = '1';
+  }
+
+  return forwarded;
+}
+
 async function checkServerlessCapability(capability, targets, timeoutMs) {
   const endpoint = `${targets.runpodBaseUrl.replace(/\/+$/, '')}/runsync`;
   const headers = {
@@ -195,10 +272,21 @@ async function checkPodCapability(capability, targets, timeoutMs) {
   };
 
   async function runPodAsyncAction(input) {
+    const repo = resolveRepoContext();
+    const forwardedEnv = collectForwardedTestEnv();
     const create = await fetchJson(`${base}/run`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ input }),
+      body: JSON.stringify({
+        input: {
+          ...input,
+          ...(repo.repoUrl ? { repo_url: repo.repoUrl } : {}),
+          ...(repo.repoBranch ? { repo_branch: repo.repoBranch } : {}),
+          ...(repo.repoToken ? { repo_token: repo.repoToken } : {}),
+          repo_auth_mode: 'token',
+          ...forwardedEnv,
+        },
+      }),
     }, timeoutMs);
 
     if (!create.ok) {
@@ -361,8 +449,12 @@ async function checkPodCapability(capability, targets, timeoutMs) {
       action: 'run_playwright',
       scope: 'quick',
       reporter: 'json',
-      specs: ['--list'],
-      timeout_ms: Math.min(60000, timeoutMs),
+      specs: [
+        'tests/e2e/bootstrap-routes.test.ts',
+        '--project=chromium',
+        '--grep=Summary: All Bootstrap Routes Smoke Tests',
+      ],
+      timeout_ms: Math.min(180000, timeoutMs),
     });
 
     return {

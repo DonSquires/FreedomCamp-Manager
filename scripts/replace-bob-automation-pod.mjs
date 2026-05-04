@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * Replace broken Bob automation pods on RunPod.
+ * LEGACY TOOL: Replace broken Bob automation pods on RunPod.
+ *
+ * Serverless-first operations should not require pod replacement. Keep this
+ * script only for emergency fallback or migration scenarios.
  *
  * Defaults align with current operations context:
  * - Pod base name: bob-automation-pod-v3

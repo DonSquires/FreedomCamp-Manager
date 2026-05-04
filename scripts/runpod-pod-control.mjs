@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 /**
- * RunPod pod lifecycle control — start, stop, or check the status of a pod.
+ * LEGACY TOOL: RunPod pod lifecycle control — start, stop, or check pod status.
+ *
+ * Serverless-first operations should use endpoint autoscaling and health checks.
+ * Keep this script for manual emergency fallback only.
  *
  * Usage:
  *   node scripts/runpod-pod-control.mjs start  --pod <podId>

@@ -1,6 +1,11 @@
-name: Ops – RunPod Pod Lifecycle
+name: Ops – RunPod Pod Lifecycle (Legacy)
 
-# Stops or starts the RunPod GPU pod manually or on a schedule.
+# LEGACY WORKFLOW: pod lifecycle controls.
+#
+# Serverless-first operations should use endpoint-level autoscaling and health
+# checks. This workflow is kept for manual emergency fallback only.
+#
+# Stops or starts the RunPod GPU pod manually.
 #
 # Scheduled auto-stop: every 30 minutes, queries Bob's /runpod/pod endpoint.
 # If the pod has been idle for longer than BOB_IDLE_STOP_THRESHOLD_MIN (default 15 min)
@@ -21,9 +26,6 @@ name: Ops – RunPod Pod Lifecycle
 #   BOB_IDLE_STOP_THRESHOLD_MIN — minutes idle before scheduled auto-stop (default: 15)
 
 on:
-  schedule:
-    # Run every 30 minutes — checks idle status and stops if threshold exceeded.
-    - cron: '*/30 * * * *'
   workflow_dispatch:
     inputs:
       action:
@@ -81,13 +83,7 @@ jobs:
         run: |
           POD="${POD_OVERRIDE:-$RUNPOD_POD_ID}"
           echo "pod_id=${POD}" >> "$GITHUB_OUTPUT"
-          # For scheduled runs: default to 'auto-check' (idle detection + conditional stop).
-          # For manual dispatch: use the chosen action.
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            echo "action=auto-check" >> "$GITHUB_OUTPUT"
-          else
-            echo "action=${ACTION_INPUT:-status}" >> "$GITHUB_OUTPUT"
-          fi
+          echo "action=${ACTION_INPUT:-status}" >> "$GITHUB_OUTPUT"
 
       - name: Pod status
         if: steps.resolve.outputs.action == 'status'
