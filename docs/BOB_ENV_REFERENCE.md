@@ -68,7 +68,7 @@ Optional action hooks:
 - `BOB_RUNPOD_RECOVER_CMD`
 - `BOB_RUNPOD_SCALE_UP_CMD`
 - `BOB_RUNPOD_SCALE_DOWN_CMD`
-- `RUNPOD_POD_ID` for built-in pod start/stop fallback
+- `RUNPOD_POD_ID` is deprecated for Bob automation; built-in recovery now assumes RunPod serverless and uses endpoint warm/ping behavior instead
 
 ## Supervisor Hook Server Controls
 

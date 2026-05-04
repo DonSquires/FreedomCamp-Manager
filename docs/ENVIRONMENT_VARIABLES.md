@@ -169,7 +169,7 @@ VITE_TURNSTILE_SITE_KEY=0x4AAAAA...  # Cloudflare Turnstile site key
 | `TABULAR_NLP_PROVIDER` | Tabular NLP provider mode | Recommended | `ollama` |
 | `OLLAMA_BASE_URL` | Ollama endpoint for chat/NLP | Recommended | `http://127.0.0.1:11434` |
 | `OLLAMA_MODEL` | Ollama model name | Recommended | `qwen2.5:7b` |
-| `RUNPOD_POD_ID` | RunPod pod id for lifecycle start/stop | Optional | None |
+| `RUNPOD_POD_ID` | Deprecated legacy pod id for old lifecycle scripts; not used by serverless-first Bob automation | Optional | None |
 | `RUNPOD_API_KEY` | RunPod API key for pod lifecycle GraphQL | Optional | None |
 | `RUNPOD_IDLE_TIMEOUT_MS` | Idle timeout before auto-stop of pod | Optional | `900000` |
 | `RUNPOD_ENDPOINT_ID` | RunPod serverless endpoint id | Optional | None |

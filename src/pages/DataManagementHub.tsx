@@ -88,11 +88,12 @@ interface BobAutomationStatus {
     usdRemaining?: number
     reason?: string
   }
-  runpodPod?: {
-    podName?: string
-    gpuProfile?: string
-    targetPods?: number
-    activePods?: number
+  runpodEndpoint?: {
+    endpointId?: string
+    endpointLabel?: string
+    workerProfile?: string
+    targetWorkers?: number
+    activeWorkers?: number
     balanceHintUsd?: number
     balanceHintFormatted?: string
   }
@@ -430,23 +431,23 @@ export default function DataManagementHub() {
                   <div className="mt-1 text-sm font-medium">
                     {bobAutomationStatus?.runpodDollars?.available
                       ? (bobAutomationStatus.runpodDollars.formatted || `$${Number(bobAutomationStatus.runpodDollars.usdRemaining || 0).toFixed(2)}`)
-                      : bobAutomationStatus?.runpodPod?.balanceHintFormatted
-                        ? bobAutomationStatus.runpodPod.balanceHintFormatted
+                      : bobAutomationStatus?.runpodEndpoint?.balanceHintFormatted
+                        ? bobAutomationStatus.runpodEndpoint.balanceHintFormatted
                       : 'Unavailable'}
                   </div>
                 </div>
 
                 <div className="rounded-md border p-3">
-                  <div className="text-xs text-muted-foreground">RunPod Pod</div>
+                  <div className="text-xs text-muted-foreground">RunPod Endpoint</div>
                   <div className="mt-1 text-sm font-medium">
-                    {bobAutomationStatus?.runpodPod?.podName || 'Not set'}
+                    {bobAutomationStatus?.runpodEndpoint?.endpointLabel || bobAutomationStatus?.runpodEndpoint?.endpointId || 'Not set'}
                   </div>
                 </div>
 
                 <div className="rounded-md border p-3">
-                  <div className="text-xs text-muted-foreground">GPU / Pods</div>
+                  <div className="text-xs text-muted-foreground">Worker Profile / Active</div>
                   <div className="mt-1 text-sm font-medium">
-                    {`${bobAutomationStatus?.runpodPod?.gpuProfile || 'Unknown'} | ${bobAutomationStatus?.runpodPod?.activePods ?? 0}/${bobAutomationStatus?.runpodPod?.targetPods ?? 0}`}
+                    {`${bobAutomationStatus?.runpodEndpoint?.workerProfile || 'Unknown'} | ${bobAutomationStatus?.runpodEndpoint?.activeWorkers ?? 0}/${bobAutomationStatus?.runpodEndpoint?.targetWorkers ?? 0}`}
                   </div>
                 </div>
               </div>

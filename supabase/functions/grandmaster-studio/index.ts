@@ -165,18 +165,20 @@ function parseFloatValue(input: string | null | undefined): number | null {
   return Number.isFinite(n) ? n : null
 }
 
-function getRunpodPodContext() {
-  const podName = (Deno.env.get('RUNPOD_PRIMARY_POD_NAME') || 'bob-automation-pod-v3').trim()
-  const gpuProfile = (Deno.env.get('RUNPOD_PRIMARY_GPU_PROFILE') || 'RTX 4090 x1').trim()
-  const targetPods = parseInteger(Deno.env.get('RUNPOD_TARGET_PODS'), 3)
-  const activePods = parseInteger(Deno.env.get('RUNPOD_ACTIVE_PODS'), targetPods)
+function getRunpodEndpointContext() {
+  const endpointId = (Deno.env.get('RUNPOD_ENDPOINT_ID') || '').trim()
+  const endpointLabel = (Deno.env.get('RUNPOD_ENDPOINT_LABEL') || endpointId || 'Configured endpoint').trim()
+  const workerProfile = (Deno.env.get('RUNPOD_WORKER_PROFILE') || Deno.env.get('RUNPOD_PRIMARY_GPU_PROFILE') || 'Serverless worker').trim()
+  const targetWorkers = parseInteger(Deno.env.get('RUNPOD_TARGET_WORKERS'), parseInteger(Deno.env.get('RUNPOD_TARGET_PODS'), 0))
+  const activeWorkers = parseInteger(Deno.env.get('RUNPOD_ACTIVE_WORKERS'), parseInteger(Deno.env.get('RUNPOD_ACTIVE_PODS'), targetWorkers))
   const balanceHintUsd = parseFloatValue(Deno.env.get('RUNPOD_BALANCE_HINT_USD'))
 
   return {
-    podName,
-    gpuProfile,
-    targetPods,
-    activePods,
+    endpointId,
+    endpointLabel,
+    workerProfile,
+    targetWorkers,
+    activeWorkers,
     ...(balanceHintUsd !== null
       ? {
           balanceHintUsd,
@@ -443,7 +445,7 @@ Deno.serve(async (req: Request) => {
       const health = await bobGet('/health')
       const doctor = await bobGet('/doctor/health')
       const runpodDollars = await getRunpodDollarRemaining()
-      const runpodPod = getRunpodPodContext()
+      const runpodEndpoint = getRunpodEndpointContext()
 
       return new Response(
         JSON.stringify({
@@ -463,7 +465,7 @@ Deno.serve(async (req: Request) => {
             },
           },
           runpodDollars,
-          runpodPod,
+          runpodEndpoint,
         }),
         { status: 200, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
       )

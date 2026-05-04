@@ -49,14 +49,13 @@ Optional automation hooks:
   BOB_RUNPOD_RECOVER_CMD
   BOB_RUNPOD_SCALE_UP_CMD
   BOB_RUNPOD_SCALE_DOWN_CMD
-  RUNPOD_POD_ID              # enables built-in pod start/stop fallback
 
 Optional activity-driven scale-down:
   BOB_SUPERVISOR_ACTIVITY_FILE
 
 Mode selection:
   BOB_SUPERVISOR_MODE=auto|serverless|pod   # default: auto
-  In pod mode, smoke uses GET /health instead of POST /runsync.
+  RunPod endpoints should use serverless mode. Pod mode is only for non-serverless health endpoints.
 
 Optional periodic self-test hook:
   BOB_SUPERVISOR_SELF_TEST_CMD
@@ -257,12 +256,6 @@ async function runCommand(command, { dryRun, label }) {
   });
 }
 
-function podControlCommand(action) {
-  const podId = String(process.env.RUNPOD_POD_ID || '').trim();
-  if (!podId) return '';
-  return `node scripts/runpod-pod-control.mjs ${action} --pod ${podId}`;
-}
-
 async function maybeRunAction({ label, explicitCommand, fallbackCommand, cooldownMs, lastRanAt, dryRun }) {
   const now = Date.now();
   if (cooldownMs > 0 && now - lastRanAt < cooldownMs) {
@@ -350,7 +343,7 @@ async function main() {
       const recover = await maybeRunAction({
         label: 'recover',
         explicitCommand: String(process.env.BOB_RUNPOD_RECOVER_CMD || '').trim(),
-        fallbackCommand: podControlCommand('start'),
+        fallbackCommand: '',
         cooldownMs: scaleActionCooldownMs,
         lastRanAt: Number(state.lastRecoverAt || 0),
         dryRun,
@@ -375,7 +368,7 @@ async function main() {
       const scaleDown = await maybeRunAction({
         label: 'scale-down',
         explicitCommand: String(process.env.BOB_RUNPOD_SCALE_DOWN_CMD || '').trim(),
-        fallbackCommand: podControlCommand('stop'),
+        fallbackCommand: '',
         cooldownMs: scaleActionCooldownMs,
         lastRanAt: Number(state.lastScaleDownAt || 0),
         dryRun,

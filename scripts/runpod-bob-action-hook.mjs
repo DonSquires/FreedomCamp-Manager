@@ -122,54 +122,31 @@ async function pingRunsyncWithRetry(attempts = 2) {
   return last;
 }
 
-async function startPodIfConfigured() {
-  const podId = String(process.env.RUNPOD_POD_ID || '').trim();
-  if (!podId) {
-    return { ok: false, skipped: true, reason: 'RUNPOD_POD_ID not set' };
-  }
-  return runCommand(`node scripts/runpod-pod-control.mjs start --pod ${podId}`, 'pod-start');
-}
-
-async function stopPodIfConfigured() {
-  const podId = String(process.env.RUNPOD_POD_ID || '').trim();
-  if (!podId) {
-    return { ok: false, skipped: true, reason: 'RUNPOD_POD_ID not set' };
-  }
-  return runCommand(`node scripts/runpod-pod-control.mjs stop --pod ${podId}`, 'pod-stop');
-}
-
 async function runRecovery() {
-  const pod = await startPodIfConfigured();
   const ping = await pingRunsyncWithRetry(2);
   return {
     action: 'recover',
-    ok: Boolean(pod?.ok || ping?.ok),
-    pod,
+    ok: Boolean(ping?.ok),
     ping,
+    note: 'Serverless recovery warms and verifies the runsync endpoint. No pod lifecycle action is attempted.',
   };
 }
 
 async function runScaleUp() {
-  const pod = await startPodIfConfigured();
   const ping = await pingRunsync();
   return {
     action: 'scale-up',
-    ok: Boolean(pod?.ok || ping?.ok),
-    pod,
+    ok: Boolean(ping?.ok),
     ping,
-    note: 'For serverless endpoints without pod control, this action performs a warm ping only.',
+    note: 'Serverless scale-up performs a warm ping only. Worker concurrency must be managed in RunPod Console.',
   };
 }
 
 async function runScaleDown() {
-  const pod = await stopPodIfConfigured();
   return {
     action: 'scale-down',
-    ok: Boolean(pod?.ok || pod?.skipped),
-    pod,
-    note: pod?.skipped
-      ? 'No pod configured; serverless worker counts must be adjusted in RunPod Console.'
-      : 'Pod stop requested.',
+    ok: true,
+    note: 'Serverless scale-down is a no-op in code. Reduce worker concurrency or limits in RunPod Console.',
   };
 }
 
