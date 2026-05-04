@@ -1,4 +1,4 @@
-// Migration deployed: 2026-05-04
+// Migration deployed: 2026-05-04 | pgrst schema cache reloaded
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createClient } from '@supabase/supabase-js';
 
