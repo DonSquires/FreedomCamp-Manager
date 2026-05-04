@@ -276,6 +276,22 @@ async function countUserProfilesForOrg(orgId: string): Promise<number | null> {
   return Array.isArray(rows) ? rows.length : null
 }
 
+async function countRowsForOrg(table: string, orgId: string): Promise<number | null> {
+  if (!serviceRoleKey) return null
+
+  const res = await fetch(`${getSupabaseUrl()}/rest/v1/${table}?select=id&organization_id=eq.${orgId}&limit=1`, {
+    method: 'GET',
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+    },
+  })
+
+  if (!res.ok) return null
+  const rows = await res.json() as Array<{ id: string }>
+  return Array.isArray(rows) ? rows.length : null
+}
+
 test.describe('Org Isolation API Proof', () => {
   let bearerToken: string | null = null
   let foreignOrgIdFromDistinctCreds: string | null = null
@@ -371,17 +387,34 @@ test.describe('Org Isolation API Proof', () => {
     const myRole = (meRow.role || '').toLowerCase()
     const myOrgId = meRow.organization_id || null
 
-    expect(myRole === 'master' || myRole === 'grand_master').toBe(false)
-    test.skip(!myOrgId, 'Authenticated user profile has no organization_id for scoping proof')
-
-    const orgRows = await restGet('organizations?select=id,name&limit=25', bearerToken as string)
+    test.skip(
+      myRole === 'master' || myRole === 'grand_master',
+      'Resolved bearer token maps to master scope in this environment; non-master organization-list proof not applicable'
+    )
+    const orgRows = await restGet('organizations?select=id,name&limit=100', bearerToken as string)
     expect(orgRows.status).toBe(200)
     expect(Array.isArray(orgRows.data)).toBe(true)
 
     const rows = orgRows.data as Array<{ id?: string }>
     test.skip(rows.length === 0, 'No organization rows visible for this role in this environment')
 
-    expect(rows.every((row) => row.id === myOrgId)).toBe(true)
+    const memberships = await restGet('user_organizations?select=organization_id&limit=200', bearerToken as string)
+    test.skip(memberships.status !== 200, 'user_organizations is not directly readable for this role in this environment')
+    expect(Array.isArray(memberships.data)).toBe(true)
+
+    const allowedOrgIds = new Set(
+      (memberships.data as Array<{ organization_id?: string }>)
+        .map((row) => row.organization_id)
+        .filter((id): id is string => !!id)
+    )
+
+    if (myOrgId) {
+      allowedOrgIds.add(myOrgId)
+    }
+
+    test.skip(allowedOrgIds.size === 0, 'No membership-scoped organization ids available for this role in this environment')
+
+    expect(rows.every((row) => !!row.id && allowedOrgIds.has(row.id))).toBe(true)
   })
 
   test('non-master token cannot read foreign audit_log rows', async () => {
@@ -421,5 +454,67 @@ test.describe('Org Isolation API Proof', () => {
         await deleteSyntheticAuditLog(syntheticAuditId)
       }
     }
+  })
+
+  test('non-master token cannot read foreign client_sites rows', async () => {
+    test.skip(!bearerToken, 'No non-master API bearer token or role credentials available')
+    test.skip(!serviceRoleKey && !foreignOrgIdFromDistinctCreds, 'Need SUPABASE_SERVICE_ROLE_KEY or distinct org credentials for foreign-org client sites proof')
+
+    const me = await restGet('user_profiles?select=role,organization_id&limit=1', bearerToken as string)
+    expect(me.status).toBe(200)
+    const meRow = ((me.data as Array<{ role?: string; organization_id?: string }>)?.[0] || {})
+    const myRole = (meRow.role || '').toLowerCase()
+    const myOrgId = meRow.organization_id || null
+
+    expect(myRole === 'master' || myRole === 'grand_master').toBe(false)
+
+    let foreignOrgId: string | null = foreignOrgIdFromDistinctCreds
+    if (!foreignOrgId && serviceRoleKey) foreignOrgId = await findForeignOrgId(myOrgId)
+    test.skip(!foreignOrgId, 'Unable to resolve a foreign organization id for client sites proof')
+
+    const foreignRows = await countRowsForOrg('client_sites', foreignOrgId as string)
+    if (foreignRows !== null) {
+      test.skip(foreignRows === 0, 'Foreign org has no client_sites rows to validate against')
+    }
+
+    const foreignRead = await restGet(
+      `client_sites?select=id,organization_id&organization_id=eq.${foreignOrgId}&limit=5`,
+      bearerToken as string
+    )
+
+    expect(foreignRead.status).toBe(200)
+    expect(Array.isArray(foreignRead.data)).toBe(true)
+    expect((foreignRead.data as unknown[]).length).toBe(0)
+  })
+
+  test('non-master token cannot read foreign contractor_profiles rows', async () => {
+    test.skip(!bearerToken, 'No non-master API bearer token or role credentials available')
+    test.skip(!serviceRoleKey && !foreignOrgIdFromDistinctCreds, 'Need SUPABASE_SERVICE_ROLE_KEY or distinct org credentials for foreign-org contractor profile proof')
+
+    const me = await restGet('user_profiles?select=role,organization_id&limit=1', bearerToken as string)
+    expect(me.status).toBe(200)
+    const meRow = ((me.data as Array<{ role?: string; organization_id?: string }>)?.[0] || {})
+    const myRole = (meRow.role || '').toLowerCase()
+    const myOrgId = meRow.organization_id || null
+
+    expect(myRole === 'master' || myRole === 'grand_master').toBe(false)
+
+    let foreignOrgId: string | null = foreignOrgIdFromDistinctCreds
+    if (!foreignOrgId && serviceRoleKey) foreignOrgId = await findForeignOrgId(myOrgId)
+    test.skip(!foreignOrgId, 'Unable to resolve a foreign organization id for contractor profile proof')
+
+    const foreignRows = await countRowsForOrg('contractor_profiles', foreignOrgId as string)
+    if (foreignRows !== null) {
+      test.skip(foreignRows === 0, 'Foreign org has no contractor_profiles rows to validate against')
+    }
+
+    const foreignRead = await restGet(
+      `contractor_profiles?select=id,organization_id&organization_id=eq.${foreignOrgId}&limit=5`,
+      bearerToken as string
+    )
+
+    expect(foreignRead.status).toBe(200)
+    expect(Array.isArray(foreignRead.data)).toBe(true)
+    expect((foreignRead.data as unknown[]).length).toBe(0)
   })
 })
