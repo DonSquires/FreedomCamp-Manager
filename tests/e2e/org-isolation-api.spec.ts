@@ -362,6 +362,28 @@ test.describe('Org Isolation API Proof', () => {
     expect((foreignProfiles.data as unknown[]).length).toBe(0)
   })
 
+  test('non-master token organization list is scoped to own org', async () => {
+    test.skip(!bearerToken, 'No non-master API bearer token or role credentials available')
+
+    const me = await restGet('user_profiles?select=role,organization_id&limit=1', bearerToken as string)
+    expect(me.status).toBe(200)
+    const meRow = ((me.data as Array<{ role?: string; organization_id?: string }>)?.[0] || {})
+    const myRole = (meRow.role || '').toLowerCase()
+    const myOrgId = meRow.organization_id || null
+
+    expect(myRole === 'master' || myRole === 'grand_master').toBe(false)
+    test.skip(!myOrgId, 'Authenticated user profile has no organization_id for scoping proof')
+
+    const orgRows = await restGet('organizations?select=id,name&limit=25', bearerToken as string)
+    expect(orgRows.status).toBe(200)
+    expect(Array.isArray(orgRows.data)).toBe(true)
+
+    const rows = orgRows.data as Array<{ id?: string }>
+    test.skip(rows.length === 0, 'No organization rows visible for this role in this environment')
+
+    expect(rows.every((row) => row.id === myOrgId)).toBe(true)
+  })
+
   test('non-master token cannot read foreign audit_log rows', async () => {
     test.skip(!bearerToken, 'No non-master API bearer token or role credentials available')
     test.skip(!serviceRoleKey && !foreignOrgIdFromDistinctCreds, 'Need SUPABASE_SERVICE_ROLE_KEY or distinct org credentials for foreign-org audit log proof')

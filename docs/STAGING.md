@@ -863,6 +863,24 @@ Latest Session Snapshot (S1-5 Expansion: Cross-Org API Bleed Regression):
   1. `BOB_SELF_TEST_PREFLIGHT=false BOB_WORKER_GITHUB_TOKEN="$(gh auth token)" node scripts/trigger-bob-self-test.mjs --scope quick --quickSpecs tests/e2e/bootstrap-routes.test.ts --dryRun`
   2. `BOB_SELF_TEST_PREFLIGHT=false BOB_WORKER_GITHUB_TOKEN="$(gh auth token)" node scripts/trigger-bob-self-test.mjs --scope quick --quickSpecs tests/e2e/org-isolation-api.spec.ts --dryRun`
 
+Latest Session Snapshot (Continuation: Organizations Scope Proof Hardening):
+
+- Timestamp (UTC): 2026-05-04 21:31:25 UTC
+- Current branch: main
+- HEAD SHA: 8f54b9243fdb73ec0381741c81c4bfb517df20de
+- Change scope:
+  1. Added explicit non-master organizations-list scoping proof in `tests/e2e/org-isolation-api.spec.ts`.
+  2. Added helper-driven fixture guard so the assertion enforces only when organization rows are visible for the current role.
+- Validation results:
+  1. `bun run lint` -> PASS
+  2. `bun run build` -> PASS
+  3. RunPod serverless `trigger-bob-self-test` for `tests/e2e/org-isolation-api.spec.ts` -> PASS (`15 passed`, `0 failed`, `5 skipped`, job `728128f3-e6bd-4d44-b32e-ce3370e9248e-u2`)
+- Realignment impact:
+  1. Strengthens S1-5 evidence for organizations-table scoping and closes another cross-org bleed risk with automated proof in the authoritative execution path.
+- Next exact command to run:
+  1. `BOB_SELF_TEST_PREFLIGHT=false BOB_WORKER_GITHUB_TOKEN="$(gh auth token)" node scripts/trigger-bob-self-test.mjs --scope quick --quickSpecs tests/e2e/bootstrap-routes.test.ts --dryRun`
+  2. `BOB_SELF_TEST_PREFLIGHT=false BOB_WORKER_GITHUB_TOKEN="$(gh auth token)" node scripts/trigger-bob-self-test.mjs --scope quick --quickSpecs tests/e2e/org-isolation-api.spec.ts --dryRun`
+
 ## 8. Fast Resume Commands
 
 Run these as a single crash-recovery bundle:
