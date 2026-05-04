@@ -63,15 +63,15 @@ Evidence (2026-05-03):
 
 ## E. Shipping Slices
 
-### P1 Now-Slice (Ranks 1-5)
+### P1 Now-Slice (Ranks 1-5) — SHIPPED 2026-05-04 commit 7185e979
 
-- [ ] E1. /compliance
-- [ ] E2. /dispatch-monitor
-- [ ] E3. /job-map
-- [ ] E4. /observations
-- [ ] E5. /radio
+- [x] E1. /compliance — sticky quick-action bar with live KPIs + Analytics/View Observations buttons
+- [x] E2. /dispatch-monitor — red alert strip above fold for Duress / Not Acknowledged / Over SLA
+- [x] E3. /job-map — active job count badge in page heading
+- [x] E4. /observations — summary bar (Total/Compliant/In Breach) made sticky with backdrop blur
+- [x] E5. /radio — `/radio/log` link already surfaced (depth=1, no change required)
 
-### P2 Next-Slice (Ranks 6-10)
+### P2 Next-Slice (Ranks 6-10) — IN PROGRESS 2026-05-04
 
 - [ ] E6. /breaches
 - [ ] E7. /reports

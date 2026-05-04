@@ -494,6 +494,19 @@ export default function LivePatrolMonitor() {
     >
       <GlobalFilterRibbon />
 
+      {/* ── Welfare alert strip — officers needing immediate attention ── */}
+      {(() => {
+        const alertOfficers = activeOfficers.filter((o: any) => o._welfare_status === 'alert')
+        if (alertOfficers.length === 0) return null
+        return (
+          <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800 px-4 py-2 text-sm font-medium text-red-700 dark:text-red-400 flex-wrap mb-4">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span>{alertOfficers.length} officer{alertOfficers.length > 1 ? 's' : ''} — welfare check overdue</span>
+            <span className="text-red-400 font-normal">{alertOfficers.map((o: any) => o.officer?.full_name || 'Unknown').join(', ')}</span>
+          </div>
+        )
+      })()}
+
       {/* Stats Grid */}
       {stats && (
         <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6 mb-6">

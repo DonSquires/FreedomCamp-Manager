@@ -17,6 +17,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { AppLayout } from '@/components/features/AppLayout'
+import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -271,6 +272,7 @@ export default function CRMModule() {
 
   return (
     <AppLayout title="CRM" description="Accounts, contacts and contracts" showBackButton>
+      <GlobalFilterRibbon />
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 mb-4">
         {overviewCards.map((card) => {
           const Icon = card.icon

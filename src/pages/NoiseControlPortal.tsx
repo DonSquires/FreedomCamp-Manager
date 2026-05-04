@@ -439,6 +439,14 @@ export default function NoiseControlPortal() {
     <AppLayout>
       <div className="p-6 space-y-6 max-w-screen-2xl mx-auto">
 
+        {/* ── Urgent job alert strip ── */}
+        {stats.urgentJobs > 0 && (
+          <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800 px-4 py-2 text-sm font-medium text-red-700 dark:text-red-400 flex-wrap">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span>{stats.urgentJobs} urgent job{stats.urgentJobs > 1 ? 's' : ''} require immediate dispatch</span>
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">

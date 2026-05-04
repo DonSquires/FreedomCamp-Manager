@@ -1110,6 +1110,16 @@ export default function BreachAlerts() {
     <AppLayout title="Breach & Safety Alerts" description="3-Zone Adjudication Centre" showBackButton>
       <GlobalFilterRibbon />
 
+      {/* ── Breach summary strip — sticky count row above fold ── */}
+      {stats && (stats.pending > 0 || stats.enforcement > 0) && (
+        <div className="flex items-center gap-3 rounded-lg border border-orange-200 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-800 px-4 py-2 text-sm font-medium text-orange-700 dark:text-orange-400 flex-wrap mb-3">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          {stats.pending > 0 && <span>{stats.pending} Pending</span>}
+          {stats.enforcement > 0 && <span>{stats.enforcement} Enforcement Active</span>}
+          <span className="text-orange-400 font-normal ml-auto">{stats.total} total breaches</span>
+        </div>
+      )}
+
       {/* ── Intelligence & Safety Alert Banners ──────────────────────────── */}
       {intelligenceAlerts && intelligenceAlerts.length > 0 && (
         <Card className="border-red-400 bg-red-50 dark:bg-red-950/30 mb-3">
