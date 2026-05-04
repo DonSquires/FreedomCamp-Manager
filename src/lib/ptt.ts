@@ -13,6 +13,7 @@
 
 import { supabase } from './supabase'
 import { edgeFunctions } from './edgeFunctions'
+import { createTransport, type PTTTransport } from './ptt-transport'
 import { usePTTStore, PTTPresence, PTTClip, PTTChannelType } from '@/stores/pttStore'
 import { useAuthStore } from '@/stores/authStore'
 
@@ -26,6 +27,7 @@ interface PTTTokenResponse {
   expiresIn: number
   iceServers: RTCIceServer[]
   wsUrl: string
+  transmissionId?: string
   iceTransportPolicy?: RTCIceTransportPolicy
   transport?: {
     turnConfigured?: boolean
@@ -328,6 +330,8 @@ let isCleaningUpConnection = false
 let activeChannelScope: string | null = null  // Tracks the last requested scope for visibility-triggered reconnects
 let activeChannelName: string | null = null   // Tracks the channel display name for reconnect restoration
 let lastRequestedChannelScope: string | null = null
+let activeTokenData: PTTTokenResponse | null = null
+let activeTransport: PTTTransport | null = null
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)))
@@ -361,6 +365,15 @@ function isValidWebSocketUrl(url: string): boolean {
   } catch {
     return false
   }
+}
+
+function toControlPlaneUrl(wsUrl: string): string {
+  const parsed = new URL(wsUrl)
+  parsed.protocol = parsed.protocol === 'wss:' ? 'https:' : 'http:'
+  parsed.pathname = ''
+  parsed.search = ''
+  parsed.hash = ''
+  return parsed.toString().replace(/\/$/, '')
 }
 
 function normalizeIceUrl(rawUrl: unknown, hasCredentials: boolean): string | null {
@@ -1011,6 +1024,7 @@ export async function connectToPTT(channelScope: string, channelName?: string, f
   try {
     // Get token from Edge Function
     const tokenData = await requestPTTToken(channelScope)
+    activeTokenData = tokenData
 
     if (!tokenData.wsUrl || !isValidWebSocketUrl(tokenData.wsUrl)) {
       store.setConnection('error')
@@ -1228,6 +1242,14 @@ function cleanupConnection(options?: { closeSocket?: boolean }): void {
   peerConnections.clear()
   peerConnectionStates.clear()
   pendingIceCandidates.clear()
+
+  if (activeTransport) {
+    void activeTransport.disconnect().catch(() => {
+      // Ignore transport teardown failures during broader cleanup.
+    })
+    activeTransport = null
+  }
+  activeTokenData = null
 
   if (localStream) {
     void cleanupActiveLocalStream()
@@ -1753,6 +1775,26 @@ export async function startSpeaking(): Promise<void> {
     }
     mediaRecorder.start(100) // Collect data every 100ms
 
+    if (activeTokenData && store.channelId) {
+      if (activeTransport) {
+        await activeTransport.disconnect().catch(() => {
+          // Best-effort reset if a previous transport instance lingers.
+        })
+        activeTransport = null
+      }
+
+      activeTransport = await createTransport({
+        pptServerUrl: toControlPlaneUrl(activeTokenData.wsUrl),
+        token: activeTokenData.token,
+        channelId: store.channelId,
+        localStream,
+        onError: (message: string) => store.setError(message),
+      })
+
+      await activeTransport.requestFloor()
+      await activeTransport.startProducing()
+    }
+
     // Notify server
     if (ws?.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'start_speaking' }))
@@ -1862,6 +1904,19 @@ export async function stopSpeaking(): Promise<{ clipUrl?: string; duration?: num
 
   // Stop local stream
   await cleanupActiveLocalStream()
+
+  if (activeTransport) {
+    await activeTransport.stopProducing().catch((error) => {
+      console.error('🎤 PTT: Failed to stop transport producer', error)
+    })
+    await activeTransport.releaseFloor().catch((error) => {
+      console.error('🎤 PTT: Failed to release transport floor', error)
+    })
+    await activeTransport.disconnect().catch((error) => {
+      console.error('🎤 PTT: Failed to disconnect transport', error)
+    })
+    activeTransport = null
+  }
 
   // Notify server
   if (ws?.readyState === WebSocket.OPEN) {
