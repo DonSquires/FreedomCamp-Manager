@@ -4,6 +4,12 @@
 
 Accepted
 
+## Phase 3 Outcomes (2026-05-04)
+
+- Phase 3 UX hardening did not change this radio service topology decision.
+- The Phase 3 architecture record is captured separately in `docs/adr/009-phase3-ux-hardening-and-navigation-measurement.md`.
+- Existing ADR-003 verification requirements remain the source of truth for radio control/media-plane migration quality gates.
+
 ## Context
 
 The current PTT system uses a custom WebSocket signaling server (`ptt-server/`) backed by Redis for presence and channel management. Clients establish peer-to-peer WebRTC connections negotiated through this signaling plane. This architecture has the following constraints:
