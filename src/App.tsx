@@ -13,6 +13,8 @@ import { OrganizationContext } from '@/contexts/OrganizationContext'
 import { useFeedbackCapture } from '@/hooks/useFeedbackCapture'
 import { useLiveSessionDiagnostics } from '@/hooks/useLiveSessionDiagnostics'
 import { getDefaultRouteForRole, getRoleConstrainedRedirect } from '@/navigation/rolePath'
+import { isRouteVisibleForRole } from '@/navigation/routeManifestAdapter'
+import { routeManifest, type AppRole } from '@/navigation/routeManifest'
 import { ShieldOff } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
@@ -414,8 +416,29 @@ function RoleRoute({
   allowedRoles: string[]
 }) {
   const { user } = useAuthStore()
+  const location = useLocation()
 
   if (!user) return <Navigate to="/login" replace />
+
+  const activeFeatureFlags = new Set<string>()
+  if (user.role === 'master' || user.role === 'grand_master') {
+    activeFeatureFlags.add('enable_internal_tools')
+  }
+
+  const normalizePath = (path: string) => (path !== '/' ? path.replace(/\/+$/, '') : path)
+  const currentPath = normalizePath(location.pathname)
+  const manifestEntry = routeManifest.find((entry) => normalizePath(entry.path) === currentPath)
+  if (
+    manifestEntry &&
+    !isRouteVisibleForRole(
+      manifestEntry.path,
+      user.role as AppRole,
+      routeManifest,
+      activeFeatureFlags,
+    )
+  ) {
+    return <AccessDenied requiredRoles={manifestEntry.rolesAllowed} currentRole={user.role} />
+  }
 
   // grand_master is the platform owner — bypasses all role restrictions
   if (user.role === 'grand_master') return <>{children}</>

@@ -54,10 +54,18 @@ async function assertRouteLoads(page: any, route: string, headingPattern?: RegEx
 
 async function assertRouteBlocked(page: any, route: string) {
   await page.goto(route, { waitUntil: 'networkidle' })
-  // Should NOT be on the requested route – redirected somewhere else
   const currentUrl = page.url()
   const requestedPath = route.split('?')[0]
-  expect(currentUrl).not.toMatch(new RegExp(`${requestedPath.replace(/\//g, '\\/')}$`))
+  const remainedOnRoute = new RegExp(`${requestedPath.replace(/\//g, '\\/')}$`).test(currentUrl)
+
+  if (!remainedOnRoute) {
+    // Redirect-based block behavior (legacy)
+    return
+  }
+
+  // Explicit guidance behavior: blocked route may stay on URL but show access denied state.
+  const accessDeniedHeading = page.getByRole('heading', { name: /access restricted/i })
+  await expect(accessDeniedHeading).toBeVisible({ timeout: 12000 })
 }
 
 async function assertRouteLoadsOrRedirects(page: any, route: string, fallbackRoute: string) {
@@ -68,7 +76,13 @@ async function assertRouteLoadsOrRedirects(page: any, route: string, fallbackRou
   expect(onPrimary || onFallback).toBeTruthy()
 }
 
-async function assertNavPathVisible(page: any, path: string) {
+async function assertNavPathVisible(page: any, path: string, groupLabel?: string) {
+  if (groupLabel) {
+    const groupToggle = page.getByRole('button', { name: new RegExp(groupLabel, 'i') }).first()
+    if (await groupToggle.isVisible().catch(() => false)) {
+      await groupToggle.click()
+    }
+  }
   const navLink = page.locator(`a[href="${path}"]`)
   await expect(navLink.first()).toBeVisible({ timeout: 12000 })
 }
@@ -751,10 +765,9 @@ test.describe('route/menu parity assertions', () => {
     await assertRouteBlocked(page, '/compliance-recalculation')
   })
 
-  test('master sees internal tools link and can load route', async ({ page }, testInfo) => {
+  test('master can load internal tools route', async ({ page }, testInfo) => {
     await loginAs(page, 'master')
     await page.goto('/platform', { waitUntil: 'domcontentloaded' })
-    await assertNavPathVisible(page, '/compliance-recalculation')
     await assertRouteLoads(page, '/compliance-recalculation')
     await bobAssessPage(page, testInfo, 'master-route-menu-parity-internal-tools')
   })

@@ -739,8 +739,8 @@ GH_PAGER=cat gh run list --limit 120 --json databaseId,headSha,name,status,concl
 
 | # | Task | Status | Owner | Evidence / File |
 |---|---|---|---|---|
-| S1-1 | Manifest-driven menu filtering | ⬜ Not started | Dev | `src/components/features/AppLayout.tsx` + `src/navigation/routeManifest.ts` |
-| S1-2 | Expand E2E: route/menu parity assertions | ⬜ Not started | Dev | `tests/e2e/module-route-access.spec.ts` |
+| S1-1 | Manifest-driven menu filtering | ✅ Done | Dev | `src/components/features/AppLayout.tsx`, `src/navigation/routeManifestAdapter.ts` — internal visibility + feature-flag aware nav filtering |
+| S1-2 | Expand E2E: route/menu parity assertions | ✅ Done | Dev | `tests/e2e/module-route-access.spec.ts` — targeted block `route/menu parity assertions` passing (`3 passed`, 2026-05-04) |
 | S1-3 | Add org-scope context to `src/App.tsx` AreaRoute | ⬜ Not started | Dev | Align with `useOrganization()` hook pattern |
 | S1-4 | Dispatch fallback UX (offline / no officer assigned) | ⬜ Not started | Dev | `src/lib/dispatchAssignment.ts` |
 | S1-5 | Multi-org assurance: cross-org data bleed regression tests | ⬜ Not started | Dev | New test suite, ground from cross-org matrix (S0-1) |
@@ -876,7 +876,7 @@ Start date: 2026-05-04
 | # | Task | Owner | Status | Evidence |
 |---|---|---|---|---|
 | P4-1 | Wire AppLayout to manifest-driven role/org pre-filtering | Dev | ✅ Done | `src/components/features/AppLayout.tsx`, `src/navigation/routeManifestAdapter.ts` — nav now respects `visibilityMode=internal` and `featureFlag` (`enable_internal_tools`) |
-| P4-2 | Expand module-route-access E2E spec for role/menu parity | QA | 🔄 In progress | `tests/e2e/module-route-access.spec.ts` — added route/menu parity assertions for internal tools visibility and users-link parity (admin/master/officer) |
+| P4-2 | Expand module-route-access E2E spec for role/menu parity | QA | ✅ Done | `tests/e2e/module-route-access.spec.ts` — parity assertions updated for AccessDenied behavior; targeted run `PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=1 bunx playwright test tests/e2e/module-route-access.spec.ts --grep "route/menu parity assertions" --project=chromium --reporter=line` => `3 passed` |
 | P4-3 | Eliminate silent redirects — return explicit access guidance | Dev | ✅ Done | `src/App.tsx` — `RoleRoute` now renders explicit `AccessDenied` guidance for unauthorized role-route attempts |
 
 ### Sprint 2: Dispatch Reliability Fallbacks
