@@ -1,5 +1,16 @@
 # Enterprise Rebuild Plan (Final Merged) - 2026-04-25
 
+> ⚠️ **HISTORICAL DOCUMENT** — This plan was created 2026-04-25 and superseded by active execution authority.
+> 
+> **For current work:**
+> - Active planning: see docs/STAGING.md (comprehensive checklist and session handoff)
+> - Canonical authority: see docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md (2026-05-04 baseline)
+> - Current execution: see docs/ENTERPRISE_COLLAB_EXECUTION_PLAN_2026-05-02.md
+> 
+> This document is retained for historical reference and pattern examples only.
+
+---
+
 ## 1. Final Strategy
 
 Use current stack and infrastructure as fixed constraints, then execute a file-grounded restructure sequence using existing modules, workflows, migrations, and operational runbooks.
@@ -58,8 +69,8 @@ This revision also incorporates NZ-specific service-provider, council, client, p
 ### 2.3 UX/UI Structure
 
 1. Use existing route/access parity artifacts to keep role-visible navigation consistent:
-	- `docs/ACCESS_NAV_FINAL_RECONCILED_PLAN_2026-04-25.md`
-	- `src/components/features/AppLayout.tsx`
+	- See docs/MODULE_ROADMAP.md for current route definitions
+	- `src/components/features/AppLayout.tsx` (manifest-driven nav filtering)
 	- `src/components/features/AdminNavigationMenu.tsx`
 2. Preserve tenant-safe behavior through proven org-isolation tests and RLS-backed data access.
 3. Maintain mobile/web operational parity through existing mobile/PTT docs and workflows already in repo.
@@ -70,9 +81,7 @@ This revision also incorporates NZ-specific service-provider, council, client, p
 1. UI contract: typed query/mutation usage from `src/types/database.ts`.
 2. Edge contract: CORS + OPTIONS + shared helper pattern in `supabase/functions/_shared`.
 3. DB contract: migration chain in `supabase/migrations` plus live reference docs `docs/LIVE_SCHEMA.md` and `docs/LIVE_FUNCTIONS.md`.
-4. AI contract: governance artifacts already delivered in:
-	- `docs/PHASE3_AI_OUTPUT_SCHEMA_ENFORCEMENT_2026-04-25.md`
-	- `docs/PHASE3_GROUNDED_SOURCE_EVIDENCE_CHECKS_2026-04-25.md`
+4. AI contract: see docs/LESSONS_LEARNED.md and architecture review records for governance decisions.
 5. Ops contract: runbooks and checks in:
 	- `docs/PHASE4_OPS_HANDOVER_AND_RUNBOOKS_2026-04-25.md`
 	- `docs/PHASE4_DR_PLAYBOOKS_AND_RESTORE_DRILLS_2026-04-25.md`

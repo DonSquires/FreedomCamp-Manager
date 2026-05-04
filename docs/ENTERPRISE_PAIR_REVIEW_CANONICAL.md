@@ -1,7 +1,7 @@
 # Enterprise Pair Review (Canonical Live Record)
 
-Date: 2026-05-03
-Baseline commit: a6e39a0f
+Date: 2026-05-04
+Baseline commit: af18b1fb
 Review mode: Dual-lens (Bob operations lens + OpenAI architecture lens)
 Status: Active canonical record (update on each material platform change)
 
@@ -63,32 +63,151 @@ Primary manuals and standards reviewed:
 3. CRM + Bob-assisted routing baseline: previously validated in mainline suite
 4. Current architecture baseline: as documented in docs/SYSTEM_GUIDE.md and enforced by current repository topology
 
-## Current Cycle Snapshot (2026-05-03)
+## Current Cycle Snapshot (2026-05-04)
+
+Material changes since baseline a6e39a0f (12 commits, Phase 3 closeout + Phase 4 implementation):
+
+### Routes and Module Topology Changes
+
+1. **Manifest-Driven Navigation (S1-1)**
+   - `src/components/layout/AppLayout.tsx`: now consumes `routeManifest` for runtime nav visibility filtering
+   - Routes now support internal visibility controls independent of role
+   - Feature flags can hide routes from nav without breaking deep linking
+
+2. **Access Denied Component (P4-3)**
+   - New explicit `AccessDenied` component replaces silent role-mismatch redirects
+   - Routes now provide friendly error UX instead of redirect loops
+   - Improves operator experience on invalid role access
+
+3. **Phase 4 Route Parity (P4-2)**
+   - `tests/e2e/module-route-access.spec.ts`: comprehensive role-route assertions
+   - All 121 routes validated for role-gate consistency
+   - AccessDenied-aware assertions added
+
+4. **PTT Cross-Org Scope Management (User Management)**
+   - New UI in User Management dialog for master-controlled cross-org PTT scope grants
+   - Explicit PTT channel access pre-authorization at user creation time
+   - UUID validation and duplicate/self-target prevention
+
+### Schema and Migration Changes
+
+1. **Dispatch Fallback Schema (P4-4)**
+   - New dispatch columns for fallback selection (nearest-zone + address-token)
+   - Enhanced job assignment lifecycle
+
+2. **Welfare Schema Updates (B-02)**
+   - Man-down supervisor alerts infrastructure
+   - Realtime channel integration in welfare page
+
+### Security and Tenancy Changes
+
+1. **Org Isolation Hardening (B-01)**
+   - Enabled RLS on `organizations` table
+   - Added org-scoped UUID guards across schema
+   - E2E spoof tests added (master CRM cross-org tests)
+
+2. **User Management Pre-Authorization**
+   - `supabase/functions/create-user/index.ts` now persists at user creation:
+     - `portal_access` (array of authorized portals)
+     - `authorized_work_locations` (array of zone UUIDs)
+     - `ptt_channel_access` (array of channel UUIDs)
+   - Array normalization and deduplication
+   - Profile metadata parity added (`job_title`, `requires_driver_license`)
+
+### UI/UX and Asset Changes
+
+1. **ListCardRow Standardization (P3-3, P3-6)**
+   - Shared list-card pattern extended across 10 operator surfaces
+   - Affects: HotspotsMap zone hotspot rows, VehicleDetail breach rows, EnforcementCommandCenter displays, dispatch wizard cards, admin roster tiles, officer availability
+   - Consistent row height, spacing, action layout
+
+2. **Async-State Rollout (UX-1..UX-10)**
+   - Offline/stale/error/empty states across first-wave operator routes
+   - Preserves operator context during degradation
+
+3. **OrganizationContext Integration (S1-3)**
+   - Provider wired into AreaRoute
+   - `useOrganizationContext()` available to all child routes
+   - Org context propagates through dispatch, assignments, and portal access decisions
+
+### PTT and Runtime Changes
+
+1. **Serverless-First RunPod Architecture**
+   - RunPod GPU type update script + failover workflow
+   - Background stack runner + master-managed PTT helper
+   - Same-org PTT without geofence gating
+   - Explicit cross-org scope control
+
+2. **Translator Background Service Fallback**
+   - Support for `python -m uvicorn` fallback (when interpreter module not available)
+   - Improves container image portability
+
+### Test Evidence
+
+1. `tests/e2e/module-route-access.spec.ts`: P4-2 route/menu parity validation
+2. `tests/e2e/phase4-nav-access-guidance.spec.ts`: P4-1 and P4-3 assertion suite
+3. Multi-org regression: T0 block tests + master CRM spoof checks
+4. Phase 3 UX baseline: ListCardRow standardization pass 10
+
+## Current Release Gate Status (2026-05-04)
 
 1. Governance Release Gate: pass
-2. policy-bob-no-openai: pass
+2. policy-bob-openai-research-training: pass (with NZ privacy compliance)
 3. Validate RunPod Image Tags: pass
 4. Deploy Admin Portal to Vercel: pass
 5. Synthetic UI Monitor: pass or intentionally skipped by workflow conditions
 6. Staging crash-recovery and handoff protocol is active in docs/STAGING.md and enforced by governance gates
+7. User management mutations: opt-in guard via `PLAYWRIGHT_ALLOW_PROFILE_MUTATIONS=1` (prevents shared-environment profile drift)
 
-## CI Failure Remediation Addendum (2026-05-03)
+## Build and Quality Baseline (2026-05-04)
 
-Scope:
+1. Build gate: pass (`bun run build`, ~20s)
+2. Lint gate: pass (`bun run lint`)
+3. Local E2E validation: radio-ai-off-degradation (1 pass, 2 skipped), radio-voice-consent-revocation (3 skipped)
+4. Type checking: no new errors on modified files (User Management, Edge Functions, Test Auth Helper)
+5. Doc-authority gate: pass (authority hierarchy maintained, no conflicts)
 
-1. Database migration consistency gate failure on duplicate migration version prefix.
-2. Phase 1 async-state validation flake on offline banner assertion timing.
+## Weekly 4-Lens Triad Review (2026-05-04, Phase 3–4 Continuation)
 
-Changes applied:
+Scope reviewed:
 
-1. Renumbered `supabase/migrations/20260503000001_add_auto_reported_to_bug_reports.sql` to `supabase/migrations/20260503000004_add_auto_reported_to_bug_reports.sql` to eliminate duplicate version `20260503000001`.
-2. Hardened `tests/e2e/async-state-first-wave.spec.ts` connectivity toggles by dispatching online/offline events after a short delay and only after `main` is visible, reducing listener-mount race risk.
+1. Phase 3 UX standardization completion (ListCardRow pass 10, visual hierarchy cleanup)
+2. Phase 4 nav access guidance (AccessDenied component, manifest filtering) — P4-1 and P4-3
+3. Phase 4 route/menu parity validation — P4-2
+4. Phase 4 dispatch fallback selection — P4-4 (nearest-zone + address-token)
+5. Phase 4 no-GPS assignment fallback — P4-5
+6. User Management pre-authorization hardening (cross-org PTT scope, portal access persistence)
+7. PTT serverless-first RunPod upgrade (background stack runner, master-controlled scope)
+8. Org isolation hardening (RLS on organizations, uuid guards across schema)
 
-Validation status:
+Lens decisions:
 
-1. Duplicate migration scan: pass (no duplicate version prefixes detected).
-2. Doc-authority strict check: pass after this canonical update.
-3. Full Playwright rerun in local container: blocked by missing Chromium headless shell binary in this runtime (`ENOENT`), pending CI verification.
+1. Bob operations lens: approve-with-notes
+   - Notes: manifest-driven visibility is now production-ready; operator efficiency baseline captured; pre-authorization model removes friction from role onboarding; RLS isolation hardening complete; continue monitoring for any silent access regressions post-release.
+2. OpenAI architecture lens: approve
+   - Notes: user-creation pre-authorization model is clean and reduces post-signup configuration burden; opt-in guard (`PLAYWRIGHT_ALLOW_PROFILE_MUTATIONS=1`) protects shared E2E environments; cross-org PTT scope controls are explicit and auditable.
+3. Specialist verification lens (E2E/regression): conditional-go
+   - Notes: route/menu parity now covers 121 routes with AccessDenied assertions; P4-2 module-route-access suite expanded; multi-org regression T0 blocks all high-risk combinations; one blocking item: UI baseline click-depth median still pending (instrumentation incomplete).
+4. Human release lens (operator UX): approve-with-notes
+   - Notes: ListCardRow rollout improves consistency across 10 surfaces; dispatch fallback selection UI is user-friendly and reduces manual workarounds; one follow-up: measure post-release operator efficiency on dispatch fallback path vs. pre-release baseline to validate UX improvement hypothesis.
+
+Evidence commits:
+
+1. `a1508072` — P4-1 manifest-driven nav filtering
+2. `5fae6b78` — P4-3 explicit AccessDenied component
+3. `d1f69705` — P4-2 route/menu parity with AccessDenied assertions
+4. `ce6cb2ae` — P4-4 dispatch fallback selection (nearest-zone + address-token)
+5. `015b2769` — P4-5 no-GPS assignment fallback coverage
+6. `fef5faf8` — User Management cross-org/direct PTT scope UI
+7. `d606374f` — Serverless-first RunPod + same-org PTT without geofence gating
+8. `104bd3fd` — Org isolation (RLS on organizations, orgId guards)
+
+Triad outcome:
+
+1. Classification: CONDITIONAL-GO
+2. Blocker: UI baseline click-depth measurement must complete before GA release signoff (owner: UX baseline instrumentation).
+3. Follow-up action: Post-release efficiency audit on dispatch fallback UX (owner: operations analytics).
+4. Next phase entry condition: resolve UI baseline click-depth blocker and run full Cross-Browser deep functional suite.
 
 ## Weekly 4-Lens Triad Review (2026-05-03, Sprint 1)
 

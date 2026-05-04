@@ -10,7 +10,7 @@ Train Bob to conduct rigorous, source-aware research and distinguish facts from 
 
 **Type:** system  
 **Title:** Foundations of Evidence-Based Research  
-**Effective Date:** 2026-04-22
+**Effective Date:** 2026-05-04
 
 ### Core Principle
 
@@ -69,7 +69,7 @@ Example:
 
 **Type:** system  
 **Title:** Source Type Evaluation  
-**Effective Date:** 2026-04-22
+**Effective Date:** 2026-05-04
 
 ### Primary Sources (Direct Evidence)
 
@@ -143,7 +143,7 @@ When evaluating a claim in research:
 
 **Type:** system  
 **Title:** How to Verify Facts & Spot Misinformation  
-**Effective Date:** 2026-04-22
+**Effective Date:** 2026-05-04
 
 ### Verification Checklist
 
@@ -254,7 +254,7 @@ When you encounter a claim, use this checklist:
 
 **Type:** system  
 **Title:** Authoritative NZ Sources for Verification  
-**Effective Date:** 2026-04-22
+**Effective Date:** 2026-05-04
 
 ### Government & Official Sources (Highest Authority)
 
@@ -342,7 +342,7 @@ When you encounter a claim, use this checklist:
 
 **Type:** system  
 **Title:** Labeling Your Own Research in Client-Facing Communication  
-**Effective Date:** 2026-04-22
+**Effective Date:** 2026-05-04
 
 ### The Four-Level Response Framework
 
@@ -491,7 +491,7 @@ Councils have demonstrated strong demand (78% cite priority), legal authority to
 
 **Type:** system  
 **Title:** Spot Bias, Propaganda & Weak Arguments  
-**Effective Date:** 2026-04-22
+**Effective Date:** 2026-05-04
 
 ### Red Flags Checklist (32 Warning Signs)
 
@@ -569,7 +569,7 @@ When you encounter a claim, check for these red flags:
 
 **Type:** system  
 **Title:** Best Practices for AI-Assisted Research  
-**Effective Date:** 2026-04-22
+**Effective Date:** 2026-05-04
 
 ### What AI is Good At (In Research)
 
@@ -638,7 +638,7 @@ When AI tells you something, check for these warning signs:
 
 **Type:** system  
 **Title:** Research Protocol for FreedomCamp-Manager Market & Technical Analysis  
-**Effective Date:** 2026-04-22
+**Effective Date:** 2026-05-04
 
 ### Research Questions Worth Asking (vs. Quick Guesses)
 
