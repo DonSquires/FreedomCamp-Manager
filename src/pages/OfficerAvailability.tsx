@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
+import { ListCardRow } from '@/components/features/ListCardRow'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -369,27 +370,42 @@ function OfficerView() {
           ) : (
             <div className="space-y-2">
               {shifts.map((s) => (
-                <div key={s.id} className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg border bg-white">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className="font-medium text-sm">{s.shift_date}</span>
-                    <span className="text-sm text-gray-600">{s.start_time} – {s.end_time}</span>
-                    {s.client_site && <span className="text-sm text-gray-700 font-medium">{s.client_site.name}</span>}
-                    <Badge variant={s.status === 'confirmed' ? 'default' : 'secondary'} className="text-xs">{s.status}</Badge>
-                    {s.officer_response && (
-                      <Badge variant={s.officer_response === 'accepted' ? 'default' : 'destructive'} className="text-xs">
-                        {s.officer_response}
-                      </Badge>
+                <div key={s.id} className="space-y-2 rounded-lg border bg-white p-3">
+                  <ListCardRow
+                    className="bg-transparent p-0"
+                    left={(
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className="font-medium text-sm">{s.shift_date}</span>
+                        <span className="text-sm text-gray-600">{s.start_time} – {s.end_time}</span>
+                        {s.client_site && <span className="text-sm font-medium text-gray-700">{s.client_site.name}</span>}
+                      </div>
                     )}
-                  </div>
+                    right={(
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant={s.status === 'confirmed' ? 'default' : 'secondary'} className="text-xs">{s.status}</Badge>
+                        {s.officer_response && (
+                          <Badge variant={s.officer_response === 'accepted' ? 'default' : 'destructive'} className="text-xs">
+                            {s.officer_response}
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+                  />
                   {s.status === 'published' && !s.officer_response && (
-                    <div className="flex gap-2">
-                      <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => respondShiftMutation.mutate({ id: s.id, response: 'accepted' })}>
-                        <CheckCircle className="h-3 w-3 mr-1" /> Accept
-                      </Button>
-                      <Button size="sm" variant="destructive" onClick={() => { setDecliningShiftId(s.id); setShowDeclineDialog(true) }}>
-                        <XCircle className="h-3 w-3 mr-1" /> Decline
-                      </Button>
-                    </div>
+                    <ListCardRow
+                      className="bg-transparent p-0"
+                      left={<span className="text-xs text-muted-foreground">Action required</span>}
+                      right={(
+                        <div className="flex gap-2">
+                          <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => respondShiftMutation.mutate({ id: s.id, response: 'accepted' })}>
+                            <CheckCircle className="mr-1 h-3 w-3" /> Accept
+                          </Button>
+                          <Button size="sm" variant="destructive" onClick={() => { setDecliningShiftId(s.id); setShowDeclineDialog(true) }}>
+                            <XCircle className="mr-1 h-3 w-3" /> Decline
+                          </Button>
+                        </div>
+                      )}
+                    />
                   )}
                 </div>
               ))}
