@@ -805,6 +805,25 @@ Latest Session Snapshot (Acceleration Pass: Multi-Worker + Parallel Phase A Suit
 - Next exact command to run:
   1. `bash scripts/system-check.sh && node scripts/summarize-failures.mjs && bun run lint && bun run build`
 
+Latest Session Snapshot (Continuation: Expanded Parallel Regression Batch):
+
+- Timestamp (UTC): 2026-05-04 21:01:55 UTC
+- Current branch: main
+- HEAD SHA: 8fa4ef5ed501686e4e5b0016e1678107f0439fc4
+- RunPod scaling status:
+  1. Endpoint `n0bp1ifmq01cx2` remains on multi-worker acceleration settings (`workersMin=2`, `workersMax=4`).
+- Parallel regression batch results:
+  1. `tests/e2e/bootstrap-routes.test.ts` -> PASS (`45 passed`, `0 failed`, job `a3a40ab8-9b57-4551-9d92-b08022f1d3c4-u1`)
+  2. `tests/e2e/org-isolation-api.spec.ts` -> PASS (`10 passed`, `0 failed`, job `e89266e9-b509-48be-ad6b-f0d91dc5fa73-u2`)
+  3. `tests/e2e/multi-org-rls.spec.ts` (full quick matrix) -> FAIL (`6 passed`, `27 failed`, `2 skipped`, job `5abc588f-9818-43f4-811a-7df094d50e8b-u1`)
+  4. `tests/e2e/multi-org-rls.spec.ts --project=chromium` retry -> FAIL (`2 passed`, `3 failed`, `2 skipped`, job `d20796ca-d0b7-4276-a52c-9bb645511262-u2`)
+- Triage summary:
+  1. Failing tests are concentrated in the legacy `multi-org-rls` UI suite (admin/master login-path assertions and breach page path), while targeted Phase A gate suites remain green.
+  2. `multi-org-rls` is currently a blocker for broad regression confidence but not for the narrowly defined bootstrap/org-isolation Phase A gate evidence path.
+- Next exact command to run:
+  1. `BOB_SELF_TEST_PREFLIGHT=false BOB_WORKER_GITHUB_TOKEN="$(gh auth token)" node scripts/trigger-bob-self-test.mjs --scope quick --quickSpecs tests/e2e/multi-org-rls.spec.ts,--project=chromium --dryRun`
+  2. `node scripts/bob-capability-gate.mjs --required run_playwright --strict`
+
 ## 8. Fast Resume Commands
 
 Run these as a single crash-recovery bundle:
