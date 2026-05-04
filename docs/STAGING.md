@@ -843,6 +843,26 @@ Latest Session Snapshot (Stabilization: Legacy Multi-Org RLS Suite on Serverless
   1. `BOB_SELF_TEST_PREFLIGHT=false BOB_WORKER_GITHUB_TOKEN="$(gh auth token)" node scripts/trigger-bob-self-test.mjs --scope quick --quickSpecs tests/e2e/bootstrap-routes.test.ts --dryRun`
   2. `BOB_SELF_TEST_PREFLIGHT=false BOB_WORKER_GITHUB_TOKEN="$(gh auth token)" node scripts/trigger-bob-self-test.mjs --scope quick --quickSpecs tests/e2e/org-isolation-api.spec.ts --dryRun`
 
+Latest Session Snapshot (S1-5 Expansion: Cross-Org API Bleed Regression):
+
+- Timestamp (UTC): 2026-05-04 21:24:50 UTC
+- Current branch: main
+- HEAD SHA: a3506787be7afc6d9c204cc4985913a95bb61930
+- Change scope:
+  1. Expanded `tests/e2e/org-isolation-api.spec.ts` with additional cross-org bleed checks for:
+     - foreign `user_profiles` read attempts by non-master tokens
+     - foreign `audit_log` read attempts by non-master tokens
+  2. Added helper `countUserProfilesForOrg` to ensure assertions are only enforced when fixture rows exist.
+- Validation results:
+  1. `bun run lint` -> PASS
+  2. `bun run build` -> PASS
+  3. `trigger-bob-self-test` (RunPod serverless) for `tests/e2e/org-isolation-api.spec.ts` -> PASS (`10 passed`, `0 failed`, job `d327c8d2-f350-43dd-a124-709e3a499f7c-u2`)
+- Realignment impact:
+  1. Moves S1-5 forward by increasing explicit regression coverage for high-risk matrix items (`users`, `audit-log`) in authoritative serverless execution path.
+- Next exact command to run:
+  1. `BOB_SELF_TEST_PREFLIGHT=false BOB_WORKER_GITHUB_TOKEN="$(gh auth token)" node scripts/trigger-bob-self-test.mjs --scope quick --quickSpecs tests/e2e/bootstrap-routes.test.ts --dryRun`
+  2. `BOB_SELF_TEST_PREFLIGHT=false BOB_WORKER_GITHUB_TOKEN="$(gh auth token)" node scripts/trigger-bob-self-test.mjs --scope quick --quickSpecs tests/e2e/org-isolation-api.spec.ts --dryRun`
+
 ## 8. Fast Resume Commands
 
 Run these as a single crash-recovery bundle:

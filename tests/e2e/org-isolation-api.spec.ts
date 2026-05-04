@@ -260,6 +260,22 @@ async function deleteSyntheticOrg(orgId: string): Promise<void> {
   })
 }
 
+async function countUserProfilesForOrg(orgId: string): Promise<number | null> {
+  if (!serviceRoleKey) return null
+
+  const res = await fetch(`${getSupabaseUrl()}/rest/v1/user_profiles?select=id&organization_id=eq.${orgId}&limit=1`, {
+    method: 'GET',
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+    },
+  })
+
+  if (!res.ok) return null
+  const rows = await res.json() as Array<{ id: string }>
+  return Array.isArray(rows) ? rows.length : null
+}
+
 test.describe('Org Isolation API Proof', () => {
   let bearerToken: string | null = null
   let foreignOrgIdFromDistinctCreds: string | null = null
@@ -323,6 +339,64 @@ test.describe('Org Isolation API Proof', () => {
       await deleteSyntheticAuditLog(syntheticAuditId)
       if (createdOrg && syntheticOrgId) {
         await deleteSyntheticOrg(syntheticOrgId)
+      }
+    }
+  })
+
+  test('non-master token cannot read foreign user_profiles rows', async () => {
+    test.skip(!bearerToken, 'No non-master API bearer token or role credentials available')
+    test.skip(!foreignOrgIdFromDistinctCreds, 'Need distinct Org 2 credentials for foreign-org user_profiles proof')
+
+    const foreignOrgUserCount = await countUserProfilesForOrg(foreignOrgIdFromDistinctCreds as string)
+    if (foreignOrgUserCount !== null) {
+      test.skip(foreignOrgUserCount === 0, 'Foreign org has no user_profiles rows to validate against')
+    }
+
+    const foreignProfiles = await restGet(
+      `user_profiles?select=id,organization_id&organization_id=eq.${foreignOrgIdFromDistinctCreds}&limit=5`,
+      bearerToken as string
+    )
+
+    expect(foreignProfiles.status).toBe(200)
+    expect(Array.isArray(foreignProfiles.data)).toBe(true)
+    expect((foreignProfiles.data as unknown[]).length).toBe(0)
+  })
+
+  test('non-master token cannot read foreign audit_log rows', async () => {
+    test.skip(!bearerToken, 'No non-master API bearer token or role credentials available')
+    test.skip(!serviceRoleKey && !foreignOrgIdFromDistinctCreds, 'Need SUPABASE_SERVICE_ROLE_KEY or distinct org credentials for foreign-org audit log proof')
+
+    const me = await restGet('user_profiles?select=role,organization_id&limit=1', bearerToken as string)
+    expect(me.status).toBe(200)
+    const meRow = ((me.data as Array<{ role?: string; organization_id?: string }>)?.[0] || {})
+    const myOrgId = meRow.organization_id || null
+
+    let foreignOrgId: string | null = foreignOrgIdFromDistinctCreds
+
+    if (!foreignOrgId && serviceRoleKey) {
+      foreignOrgId = await findForeignOrgId(myOrgId)
+    }
+
+    test.skip(!foreignOrgId, 'Unable to resolve a foreign organization id for audit-log proof')
+
+    let syntheticAuditId: string | null = null
+    if (serviceRoleKey) {
+      syntheticAuditId = await createSyntheticAuditLog(foreignOrgId as string)
+    }
+
+    try {
+      const path = syntheticAuditId
+        ? `audit_log?select=id,organization_id&id=eq.${syntheticAuditId}&organization_id=eq.${foreignOrgId}&limit=1`
+        : `audit_log?select=id,organization_id&organization_id=eq.${foreignOrgId}&limit=1`
+
+      const foreignAudit = await restGet(path, bearerToken as string)
+
+      expect(foreignAudit.status).toBe(200)
+      expect(Array.isArray(foreignAudit.data)).toBe(true)
+      expect((foreignAudit.data as unknown[]).length).toBe(0)
+    } finally {
+      if (syntheticAuditId) {
+        await deleteSyntheticAuditLog(syntheticAuditId)
       }
     }
   })
