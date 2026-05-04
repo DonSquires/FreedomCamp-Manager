@@ -505,7 +505,7 @@ Date: 2026-05-02
 - **P3-8 Redirect E2E:** Added `tests/e2e/phase3-role-path-redirect.spec.ts`; local run PASS (4 passed).
 - **P3-9/P3-10 CI hardening:** `phase3-ux-baseline-capture.yml` now runs daily and includes strict role-gate validation plus redirect E2E guard.
 
-**Triad Outcome Update:** GO (Phase 3 continuation scope complete for P3-2, P3-4, P3-5, P3-6, P3-8, P3-9, P3-10, P3-12; P3-3 remains open follow-up work).
+**Triad Outcome Update:** Local continuation evidence is complete for P3-2, P3-4, P3-5, P3-6, P3-8, P3-9, P3-10, and P3-12; final GO remains blocked on a successful remote `phase3-ux-baseline-capture.yml` run.
 
 ### Continuation Addendum (2026-05-04)
 
@@ -513,8 +513,10 @@ Date: 2026-05-02
 - **P3-1 nav chrome polish:** `src/components/features/AppLayout.tsx` now renders active breadcrumbs in the desktop command header while retaining the existing persisted sidebar collapse control.
 - **P3-2 dashboard command bar:** `src/pages/AdminPortal.tsx` now keeps priority actions and live operational counts visible in a sticky command bar during scroll.
 - **P3-3 list-card standardization (second pass):** Extended shared `ListCardRow` usage into `src/pages/LivePatrolMonitor.tsx` patrol/officer cards while preserving existing stats blocks.
+- **P3-3 list-card standardization (third pass):** Extended shared `ListCardRow` usage into `src/pages/RosterPlanner.tsx` compact shift cards so time, label, and status rows use the same dense-card primitive.
 - **D1 baseline rerun resolved locally:** `tests/e2e/phase3-ux-baseline-capture.spec.ts` now waits for admin-shell hydration before measuring; workbook import run id `local-2026-05-04-phase3-nondirect-v5` captured click-depth medians for all top-10 routes.
+- **P3-11 rerun prep:** `.github/workflows/phase3-ux-baseline-capture.yml` now exports `PLAYWRIGHT_LIVE_EMAIL` / `PLAYWRIGHT_LIVE_PASSWORD` from the admin shared secret pair so the multi-role redirect guard can reuse shared fallback credentials in CI.
 - **P3-13 retrospective captured:** `docs/LESSONS_LEARNED.md` now records Phase 3 monitor-noise and layout-symbol-collision lessons with prevention rules.
 - **P3-14 ADR recorded:** Added `docs/adr/009-phase3-ux-hardening-and-navigation-measurement.md` to formalize shared list-card and non-direct baseline measurement decisions.
 - **Tracker correction:** STAGING Phase 3 ticket statuses were updated to match already-shipped role-path, CI, and baseline workbook work.
-- **Remaining scope:** `P3-3` shared list-card standardization completion and final triad completion sign-off (`P3-11`) after a successful `phase3-ux-baseline-capture.yml` run (current manual dispatch is blocked by GitHub Actions permission `HTTP 403`).
+- **Remaining scope:** `P3-3` shared list-card standardization completion and final triad completion sign-off (`P3-11`) after a successful `phase3-ux-baseline-capture.yml` rerun from push/schedule (manual dispatch remains blocked by GitHub Actions permission `HTTP 403`).

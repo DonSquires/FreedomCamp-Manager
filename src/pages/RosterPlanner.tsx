@@ -10,6 +10,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
+import { ListCardRow } from '@/components/features/ListCardRow'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -279,6 +280,7 @@ function ShiftCard({ shift, siteName, zoneName, onClick }: ShiftCardProps) {
   const style = STATUS_STYLE[shift.status]
   const isCancelled = shift.status === 'cancelled'
   const label = siteName || zoneName || shift.position_title || '–'
+  const timeRange = `${formatTime(shift.start_time)}–${formatTime(shift.end_time)}`
 
   return (
     <button
@@ -290,18 +292,16 @@ function ShiftCard({ shift, siteName, zoneName, onClick }: ShiftCardProps) {
         ${isCancelled ? 'opacity-60 line-through' : ''}
       `}
     >
-      <div className="flex items-start justify-between gap-1">
-        <span className="font-medium truncate leading-tight">
-          {formatTime(shift.start_time)}–{formatTime(shift.end_time)}
-        </span>
-        {shift.has_conflict && (
-          <AlertTriangle className="w-3 h-3 text-orange-500 shrink-0 mt-0.5" />
-        )}
-      </div>
-      <div className="truncate text-gray-600 leading-tight mt-0.5">{label}</div>
-      <div className={`inline-block mt-0.5 rounded text-[10px] px-1 py-0 ${style.badge}`}>
-        {style.label}
-      </div>
+      <ListCardRow
+        className="gap-1 rounded-none bg-transparent p-0 text-xs"
+        left={<span className="font-medium truncate leading-tight">{timeRange}</span>}
+        right={shift.has_conflict ? <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-orange-500" /> : undefined}
+      />
+      <ListCardRow
+        className="mt-0.5 gap-1 rounded-none bg-transparent p-0 text-xs"
+        left={<span className="truncate text-gray-600 leading-tight">{label}</span>}
+        right={<span className={`rounded px-1 py-0 text-[10px] ${style.badge}`}>{style.label}</span>}
+      />
     </button>
   )
 }

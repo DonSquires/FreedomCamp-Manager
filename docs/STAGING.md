@@ -514,9 +514,9 @@ Continuation evidence (2026-05-04):
 3. `DOC_AUTHORITY_STRICT=true bun run lint:doc-authority` -> pass
 4. `node scripts/generate-route-role-matrix.mjs` -> pass (route count: 121)
 5. `node scripts/validate-roadmap-role-gates.mjs --strict` -> pass
-6. Triad status reference retained in `docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md` (Phase 3 sections): GO
+6. Triad status reference retained in `docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md` (Phase 3 sections): local evidence complete, CI sign-off still blocked pending successful remote baseline workflow run.
 
-Next section active item: continue to `P3-3` shared list-card standardization after validating the current `P3-1` nav chrome and `P3-2` dashboard command-bar work on head; `D1` measured click-depth remains open for a non-direct-navigation baseline run.
+Next section active item: continue `P3-3` shared list-card standardization while allowing the updated `phase3-ux-baseline-capture.yml` workflow to rerun on `main`; `D1` measured click-depth is now captured locally via run `local-2026-05-04-phase3-nondirect-v5`, and the workflow now exports shared live credentials for the multi-role redirect guard.
 
 ### 9C. Phase 3 Validation Commands
 
@@ -813,7 +813,7 @@ Route tranche result:
 |---|---|---|---|---|
 | P3-1 | Implement Slice A: nav chrome polish (sidebar collapse, breadcrumb UX) | Dev | ✅ Done | `src/components/features/AppLayout.tsx` |
 | P3-2 | Implement Slice B: dashboard tile optimization (grid, spacing, accessibility) | Dev | ✅ Done | `src/pages/AdminPortal.tsx` |
-| P3-3 | Implement Slice C: list card standardization (breach, route, patrol, shift cards) | Dev | 🔄 In progress | `src/components/features/ListCardRow.tsx`, `src/pages/BreachAlerts.tsx`, `src/pages/NoiseControlPortal.tsx`, `src/pages/LivePatrolMonitor.tsx` |
+| P3-3 | Implement Slice C: list card standardization (breach, route, patrol, shift cards) | Dev | 🔄 In progress | `src/components/features/ListCardRow.tsx`, `src/pages/BreachAlerts.tsx`, `src/pages/NoiseControlPortal.tsx`, `src/pages/LivePatrolMonitor.tsx`, `src/pages/RosterPlanner.tsx` |
 | P3-4 | Measure click-depth for each Slice during implementation | QA | ✅ Done | `tests/e2e/phase3-ux-baseline-capture.spec.ts`, `docs/PHASE3_UX_BASELINE_CAPTURE_2026-05-03.md` — local import `local-2026-05-04-phase3-nondirect-v5` captured click depth for all top-10 routes |
 | P3-5 | Verify visual hierarchy meets QA guardrails post-Slice | QA | 🔄 In progress | `docs/PHASE3_VISUAL_HIERARCHY_CLEANUP_CHECKLIST_2026-05-03.md` |
 
@@ -831,7 +831,7 @@ Route tranche result:
 |---|---|---|---|---|
 | P3-9 | Schedule Phase 3 baseline capture in CI (daily snapshots) | DevOps | ✅ Done | `.github/workflows/phase3-ux-baseline-capture.yml` |
 | P3-10 | Add Slice A/B/C implementation gates to CI lint budget | DevOps | ✅ Done | `docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md` continuation addendum |
-| P3-11 | Run Phase 3 triad review on completion (Bob + Specialist) | Bob | 🚫 Blocked | `docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md` — Phase 3 baseline workflow latest runs failed (`25303176478`, `25294265720`); manual dispatch blocked by GitHub Actions permission (`HTTP 403`) |
+| P3-11 | Run Phase 3 triad review on completion (Bob + Specialist) | Bob | 🚫 Blocked | `docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md` — latest baseline workflow runs failed (`25303176478`, `25294265720`); manual dispatch is blocked by GitHub Actions permission (`HTTP 403`), so workflow rerun must come from push/schedule after `.github/workflows/phase3-ux-baseline-capture.yml` shared-live-credential fix |
 
 ### Documentation & Handoff
 

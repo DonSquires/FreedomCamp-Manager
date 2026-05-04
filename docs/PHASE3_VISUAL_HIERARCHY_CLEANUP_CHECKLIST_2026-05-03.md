@@ -66,3 +66,4 @@ For each completed checklist item, record:
 - Shared chrome and dashboard command bar improvements: commits `cce6c89d` and `226a5ac2`.
 - P3-3 shared list-card standardization started: commit `1e7be71c` (`ListCardRow` adopted in BreachAlerts and NoiseControlPortal).
 - P3-3 shared list-card standardization expanded into patrol monitoring cards (`src/pages/LivePatrolMonitor.tsx`) with reusable row shells for metadata, GPS, and contact rows.
+- P3-3 shared list-card standardization expanded into `src/pages/RosterPlanner.tsx` compact shift cards, replacing the ad hoc two-row metadata shell with `ListCardRow`.
