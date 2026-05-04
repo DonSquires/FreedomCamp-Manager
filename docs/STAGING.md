@@ -884,7 +884,7 @@ Start date: 2026-05-04
 | # | Task | Owner | Status | Evidence |
 |---|---|---|---|---|
 | P4-4 | Implement suburb/postcode fallback in dispatchAssignment.ts | Dev | ✅ Done | `src/lib/dispatchAssignment.ts` — fallback implemented via nearest-zone centroid and address-token matching (`suburb/postcode/council/display_address`) when strict zone containment fails or GPS is missing |
-| P4-5 | Add no-GPS assignment test cases | QA | ⬜ Not started | `tests/e2e/` + `scripts/run-human-module-suite.mjs` |
+| P4-5 | Add no-GPS assignment test cases | QA | ✅ Done | `src/lib/dispatchAssignment.test.ts` — Vitest coverage for no-GPS address-token fallback and nearest-zone fallback (`2 passed`, 2026-05-04) |
 
 ### Sprint 3: Async UX Consistency System
 
