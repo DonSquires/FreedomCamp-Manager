@@ -146,13 +146,13 @@ test.describe('Feature Flag Canary Progression', () => {
   // Skip in environments without service-role auth
   // This test validates canary progression against live feature_flags table
   if (!supabaseAdmin) {
-    test.skip(true, 'SUPABASE_SERVICE_ROLE_KEY required for live deployment testing')
+    test.skip()
     return
   }
 
   const flag = await getFlag(FLAG_NAME)
   if (!flag) {
-    test.skip(true, `${FLAG_NAME} not available in this environment`)
+    test.skip()
     return
   }
     // Reset to 0% baseline for a clean simulation
