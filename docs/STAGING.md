@@ -898,7 +898,7 @@ Start date: 2026-05-04
 
 | # | Task | Owner | Status | Evidence |
 |---|---|---|---|---|
-| P4-9 | Extend cross-org route/access E2E tests | QA | 🔄 In progress | `tests/e2e/module-route-access.spec.ts` + cross-org matrix; PTT cross-org channel policy hardened in `supabase/functions/ptt-signaling-token/index.ts` (explicit scope grants for cross-org/direct comms unless master/grand_master) |
+| P4-9 | Extend cross-org route/access E2E tests | QA | 🔄 In progress | `tests/e2e/module-route-access.spec.ts` + cross-org matrix; PTT cross-org channel policy hardened in `supabase/functions/ptt-signaling-token/index.ts` (explicit scope grants for cross-org/direct comms unless master/grand_master). Scope-management helper added in `supabase/functions/manage-user/index.ts` (`set_ptt_channel_access`) and wired to User Management UI (`src/pages/UserManagement.tsx`) via `edgeFunctions.setUserPttChannelAccess`. |
 | P4-10 | Map top-5 VOC pain points to implementation tickets | Product | ⬜ Not started | `docs/voc-to-backlog-mapping.md` (candidate gap — confirmed) |
 | P4-11 | Build competitive gap board from COMPETITIVE_ANALYSIS_2024.md | Product | ⬜ Not started | `docs/competitive-gap-board.md` (candidate gap — confirmed) |
 

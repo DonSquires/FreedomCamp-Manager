@@ -41,6 +41,8 @@ import {
   Lock,
   Radio,
   Settings,
+  Plus,
+  X,
 } from 'lucide-react'
 import { formatDateTime, formatDate } from '@/lib/utils'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -127,6 +129,9 @@ export default function UserManagement() {
   const [confirmNewPassword, setConfirmNewPassword] = useState('')
   const [bulkCallsignOrgId, setBulkCallsignOrgId] = useState<string>('')
   const [bulkCallsignMode, setBulkCallsignMode] = useState<'missing' | 'all'>('missing')
+  const [editablePttScopes, setEditablePttScopes] = useState<string[]>([])
+  const [crossOrgToAdd, setCrossOrgToAdd] = useState<string>('')
+  const [directUserToAdd, setDirectUserToAdd] = useState<string>('')
 
   // Credentials form state
   const [coaNumber, setCoaNumber] = useState('')
@@ -381,6 +386,38 @@ export default function UserManagement() {
     },
   })
 
+  const setPttChannelAccessMutation = useMutation({
+    mutationFn: async ({ userId, mode, scopes }: { userId: string; mode: 'replace' | 'grant' | 'revoke'; scopes: string[] }) => {
+      const { data, error } = await withTimeout(
+        edgeFunctions.setUserPttChannelAccess({
+          user_id: userId,
+          mode,
+          scopes,
+        }),
+        30000,
+        'Request timed out after 30 seconds.',
+      )
+
+      if (error) throw new Error(error)
+      return (data as any)?.data?.ptt_channel_access ?? (data as any)?.ptt_channel_access ?? null
+    },
+    onSuccess: (updatedScopesRaw) => {
+      const updatedScopes = Array.isArray(updatedScopesRaw) ? updatedScopesRaw : []
+      setEditablePttScopes(updatedScopes)
+      if (selectedUser) {
+        setSelectedUser({
+          ...selectedUser,
+          ptt_channel_access: updatedScopes,
+        })
+      }
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      toast.success('PTT channel access updated')
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to update PTT channel access')
+    },
+  })
+
   const resetForm = () => {
     setEmail('')
     setFirstName('')
@@ -418,7 +455,28 @@ export default function UserManagement() {
     setOrganizationId(userProfile.organization_id || '')
     setExtraOrganizationIds((userProfile.extra_organization_ids || []).filter((id) => id !== (userProfile.organization_id || '')))
     setEmployerOrgId(userProfile.employer_organization_id || '')
+    setEditablePttScopes(userProfile.ptt_channel_access || [])
+    setCrossOrgToAdd('')
+    setDirectUserToAdd('')
     setShowEditDialog(true)
+  }
+
+  const grantScope = async (scope: string) => {
+    if (!selectedUser || !scope.trim()) return
+    await setPttChannelAccessMutation.mutateAsync({
+      userId: selectedUser.id,
+      mode: 'grant',
+      scopes: [scope.trim()],
+    })
+  }
+
+  const revokeScope = async (scope: string) => {
+    if (!selectedUser || !scope.trim()) return
+    await setPttChannelAccessMutation.mutateAsync({
+      userId: selectedUser.id,
+      mode: 'revoke',
+      scopes: [scope.trim()],
+    })
   }
 
   const openCredentialsDialog = (userProfile: UserProfile) => {
@@ -1749,22 +1807,110 @@ export default function UserManagement() {
               <PTTChannelAccessControl
                 userId={selectedUser.id}
                 organizationId={organizationId || selectedUser.organization_id || ''}
-                currentChannelAccess={selectedUser.ptt_channel_access}
+                currentChannelAccess={editablePttScopes}
                 onSave={async (channelAccess) => {
-                  const normalizedAccess = channelAccess.length ? channelAccess : null
-                  const { error } = await (supabase.from('user_profiles') as any)
-                    .update({ ptt_channel_access: normalizedAccess })
-                    .eq('id', selectedUser.id)
-
-                  if (error) throw error
-
-                  setSelectedUser({
-                    ...selectedUser,
-                    ptt_channel_access: normalizedAccess,
+                  await setPttChannelAccessMutation.mutateAsync({
+                    userId: selectedUser.id,
+                    mode: 'replace',
+                    scopes: channelAccess,
                   })
-                  queryClient.invalidateQueries({ queryKey: ['users'] })
                 }}
+                disabled={setPttChannelAccessMutation.isPending}
               />
+            )}
+
+            {selectedUser && isMaster && (
+              <Card className="border-amber-300 bg-amber-50/50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <Lock className="h-4 w-4 text-amber-700" />
+                    Master Cross-Org PTT Scopes
+                  </CardTitle>
+                  <CardDescription>
+                    Grant explicit cross-organization or direct user radio scopes. Same-organization channels stay available by default.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <div className="space-y-2">
+                      <Label>Grant Org Channel Scope</Label>
+                      <div className="flex gap-2">
+                        <Select value={crossOrgToAdd || 'none'} onValueChange={(v) => setCrossOrgToAdd(v === 'none' ? '' : v)}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select organization" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Select organisation</SelectItem>
+                            {availableOrgs
+                              .filter((org) => org.id !== (organizationId || selectedUser.organization_id || ''))
+                              .map((org) => (
+                                <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            if (!crossOrgToAdd) return
+                            void grantScope(`org:${crossOrgToAdd}`)
+                            setCrossOrgToAdd('')
+                          }}
+                          disabled={!crossOrgToAdd || setPttChannelAccessMutation.isPending}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Grant Direct Scope (User ID)</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="UUID of target user"
+                          value={directUserToAdd}
+                          onChange={(e) => setDirectUserToAdd(e.target.value.trim())}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            if (!directUserToAdd) return
+                            void grantScope(`direct:${directUserToAdd}`)
+                            setDirectUserToAdd('')
+                          }}
+                          disabled={!directUserToAdd || setPttChannelAccessMutation.isPending}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-md border bg-white p-3">
+                    <div className="text-xs font-medium text-gray-600 mb-2">Explicit scope grants</div>
+                    <div className="flex flex-wrap gap-2">
+                      {editablePttScopes.length === 0 ? (
+                        <span className="text-xs text-gray-500">No explicit scopes. Default same-org behavior applies.</span>
+                      ) : (
+                        editablePttScopes.map((scope) => (
+                          <Badge key={scope} variant="outline" className="flex items-center gap-1">
+                            {scope}
+                            <button
+                              type="button"
+                              onClick={() => void revokeScope(scope)}
+                              className="inline-flex items-center"
+                              disabled={setPttChannelAccessMutation.isPending}
+                              aria-label={`Remove ${scope}`}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             )}
           </div>
           <DialogFooter>
