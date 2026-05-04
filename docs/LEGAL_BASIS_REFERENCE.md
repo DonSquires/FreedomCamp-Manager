@@ -131,6 +131,29 @@ All enforcement actions are logged with the officer's identity, timestamp, and l
 
 ---
 
+## 6. Bob OpenAI Research and Training Policy (NZ Privacy)
+
+OpenAI may be used for Bob research and training workflows only. Production enforcement workflows must continue to follow approved runtime controls and organisation data boundaries.
+
+When any data is sent to OpenAI for research or training, the following NZ Privacy Act 2020 requirements apply:
+
+1. **Purpose limitation (IPP 1, IPP 10):** Data must be used only for a lawful, documented research/training purpose connected to Bob quality, safety, or reliability.
+2. **Data minimisation (IPP 1):** Send the minimum required fields only. Do not send full enforcement records if sampled/redacted fields are sufficient.
+3. **Source and fairness (IPP 2-4):** Collection and handling must remain fair, lawful, and proportionate to the training objective.
+4. **Security safeguards (IPP 5):** Use secure transport and controlled secrets. No hardcoded keys. Restrict access to training prompts and outputs.
+5. **Access/correction readiness (IPP 6-7):** Maintain traceability for datasets/prompts used so records can be reviewed and corrected where required.
+6. **Retention control (IPP 9):** Do not retain externally processed datasets longer than needed for the approved purpose.
+7. **Disclosure constraints (IPP 11):** Do not include cross-organisation sensitive details unless disclosure is legally justified and documented.
+
+Mandatory operational controls for Bob OpenAI research/training:
+
+1. Redact direct identifiers by default (full name, exact address, phone, email, DOB, document numbers) unless legal authority is explicitly recorded.
+2. Apply organisation-scoped filtering before export. Never bypass RLS intent for convenience.
+3. Log the legal basis and purpose in project documentation whenever new OpenAI research/training integrations are introduced.
+4. Keep production inference paths compliant with current deployment mode rules and provider lock controls.
+
+---
+
 ## 7. Cross-Organisation Safety Flags — Privacy Framework
 
 > **Implemented in migration `20260424000002_global_safety_flags.sql`**

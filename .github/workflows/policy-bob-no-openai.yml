@@ -1,4 +1,4 @@
-name: policy-bob-no-openai
+name: policy-bob-openai-research-training
 
 on:
   pull_request:
@@ -7,7 +7,7 @@ on:
       - main
 
 jobs:
-  guard-no-openai:
+  guard-openai-research-training:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -15,5 +15,5 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Guard Bob-only policy (no new OpenAI refs)
+      - name: Guard Bob OpenAI policy (research/training + NZ privacy)
         run: sh scripts/guard-no-openai-new.sh

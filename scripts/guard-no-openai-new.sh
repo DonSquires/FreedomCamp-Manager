@@ -9,26 +9,60 @@ else
   RANGE="HEAD~1...HEAD"
 fi
 
-PATTERN="@openai|from 'openai'|from \"openai\"|require\\('openai'\\)|\"openai\"[[:space:]]*:"
+PATTERN="@openai|from 'openai'|from \"openai\"|require\\('openai'\\)|\"openai\"[[:space:]]*:|OPENAI_API_KEY|OPENAI_BASE_URL"
+
+# Bob policy: OpenAI is permitted only for research/training flows.
+# New OpenAI references in production/runtime paths remain blocked.
+ALLOWED_OPENAI_PATH_REGEX='^(docs/|scripts/|knowledge_base/|inference-service/scripts/|inference-service/training/|tests/)'
+
+# NZ privacy compliance evidence must be updated when introducing new OpenAI usage.
+REQUIRED_PRIVACY_DOC='docs/LEGAL_BASIS_REFERENCE.md'
 
 TMP_FILE="$(mktemp)"
-trap 'rm -f "$TMP_FILE"' EXIT
+OPENAI_HITS_FILE="$(mktemp)"
+trap 'rm -f "$TMP_FILE" "$OPENAI_HITS_FILE"' EXIT
 
-# Inspect only added lines in code/workflow/config paths and ignore docs/data markdown churn.
-git diff --unified=0 --no-color "$RANGE" -- \
-  . \
-  ':(exclude)docs/**' \
-  ':(exclude)data/**' \
-  ':(exclude)**/*.md' \
-  ':(exclude)shared/api/**' \
-  ':(exclude)scripts/guard-no-openai-new.sh' \
-  > "$TMP_FILE"
+# Inspect added lines in the full diff and attribute each hit to a file path.
+git diff --unified=0 --no-color "$RANGE" > "$TMP_FILE"
 
-if grep -E "^\+[^+]" "$TMP_FILE" | grep -Ein "$PATTERN" >/dev/null 2>&1; then
-  echo "Policy violation: New OpenAI references were introduced in this diff."
-  echo "Detected lines:"
-  grep -E "^\+[^+]" "$TMP_FILE" | grep -Ein "$PATTERN" || true
+awk -v pat="$PATTERN" '
+  /^\+\+\+ b\// {
+    current_file = substr($0, 7)
+    next
+  }
+  /^\+[^+]/ {
+    if (current_file != "" && $0 ~ pat) {
+      printf "%s\t%s\n", current_file, $0
+    }
+  }
+' "$TMP_FILE" > "$OPENAI_HITS_FILE"
+
+if [ ! -s "$OPENAI_HITS_FILE" ]; then
+  echo "Policy check passed: no new OpenAI references in this diff."
+  exit 0
+fi
+
+echo "Detected new OpenAI references:"
+cat "$OPENAI_HITS_FILE"
+
+violations=0
+while IFS=$(printf '\t') read -r file_path hit_line; do
+  if ! printf '%s' "$file_path" | grep -Eq "$ALLOWED_OPENAI_PATH_REGEX"; then
+    echo "Policy violation: OpenAI reference in non-research/non-training path: $file_path"
+    violations=1
+  fi
+done < "$OPENAI_HITS_FILE"
+
+if [ "$violations" -ne 0 ]; then
+  echo "Policy violation: OpenAI usage is only allowed for Bob research/training paths."
   exit 1
 fi
 
-echo "Policy check passed: no new OpenAI references in this diff."
+# Ensure legal/privacy basis is updated whenever new OpenAI references are introduced.
+if ! git diff --name-only "$RANGE" | grep -qx "$REQUIRED_PRIVACY_DOC"; then
+  echo "Policy violation: NZ privacy compliance evidence missing."
+  echo "Required update: $REQUIRED_PRIVACY_DOC"
+  exit 1
+fi
+
+echo "Policy check passed: OpenAI references are limited to research/training paths and NZ privacy doc update is present."
