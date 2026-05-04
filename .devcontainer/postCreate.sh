@@ -5,8 +5,110 @@ log() {
   echo "[postCreate] $*"
 }
 
+ensure_shell_path() {
+  local start="# >>> freedomcamp-cli-path >>>"
+  local end="# <<< freedomcamp-cli-path <<<"
+  local line='export PATH="/workspaces/FreedomCamp-Manager/.runtime/bin:$HOME/.local/bin:$PATH"'
+
+  touch "${HOME}/.bashrc" "${HOME}/.profile"
+  for shell_file in "${HOME}/.bashrc" "${HOME}/.profile"; do
+    if ! grep -q "$start" "$shell_file"; then
+      {
+        echo
+        echo "$start"
+        echo "$line"
+        echo "$end"
+      } >> "$shell_file"
+    fi
+  done
+}
+
+install_runpodctl() {
+  if command -v runpodctl >/dev/null 2>&1; then
+    log "runpodctl already installed"
+    return 0
+  fi
+
+  local arch
+  arch="$(uname -m)"
+  case "$arch" in
+    x86_64) arch="amd64" ;;
+    aarch64|arm64) arch="arm64" ;;
+    *) arch="amd64" ;;
+  esac
+
+  local target=".runtime/bin/runpodctl"
+  local latest_tag
+  latest_tag="$(curl -fsSL https://api.github.com/repos/runpod/runpodctl/releases/latest | grep -m1 '"tag_name"' | sed -E 's/.*"v?([^\"]+)".*/\1/')"
+  if curl -fsSL "https://github.com/runpod/runpodctl/releases/download/v${latest_tag}/runpodctl-linux-${arch}" -o "$target"; then
+    chmod +x "$target"
+    log "Installed runpodctl ${latest_tag}"
+  else
+    log "runpodctl binary install failed; continuing"
+  fi
+}
+
+install_railway() {
+  if command -v railway >/dev/null 2>&1; then
+    log "railway already installed"
+    return 0
+  fi
+
+  local arch
+  arch="$(uname -m)"
+  case "$arch" in
+    x86_64) arch="x86_64" ;;
+    aarch64|arm64) arch="aarch64" ;;
+    *) arch="x86_64" ;;
+  esac
+
+  local target=".runtime/bin/railway"
+  local latest_tag
+  latest_tag="$(curl -fsSL https://api.github.com/repos/railwayapp/cli/releases/latest | grep -m1 '"tag_name"' | sed -E 's/.*"v?([^\"]+)".*/\1/')"
+  if curl -fsSL "https://github.com/railwayapp/cli/releases/download/v${latest_tag}/railway-v${latest_tag}-${arch}-unknown-linux-musl.tar.gz" -o /tmp/railway.tgz \
+    && tar -xzf /tmp/railway.tgz -C /tmp \
+    && cp /tmp/railway "$target"; then
+    chmod +x "$target"
+    log "Installed railway ${latest_tag}"
+  else
+    log "railway binary install failed; continuing"
+  fi
+}
+
+install_ripgrep_and_alias() {
+  if ! command -v rg >/dev/null 2>&1; then
+    local arch
+    arch="$(uname -m)"
+    case "$arch" in
+      x86_64) arch="x86_64" ;;
+      aarch64|arm64) arch="aarch64" ;;
+      *) arch="x86_64" ;;
+    esac
+
+    local latest_tag
+    latest_tag="$(curl -fsSL https://api.github.com/repos/BurntSushi/ripgrep/releases/latest | grep -m1 '"tag_name"' | sed -E 's/.*"v?([^\"]+)".*/\1/')"
+    if curl -fsSL "https://github.com/BurntSushi/ripgrep/releases/download/${latest_tag}/ripgrep-${latest_tag}-${arch}-unknown-linux-musl.tar.gz" -o /tmp/rg.tgz \
+      && tar -xzf /tmp/rg.tgz -C /tmp \
+      && cp "/tmp/ripgrep-${latest_tag}-${arch}-unknown-linux-musl/rg" .runtime/bin/rg; then
+      chmod +x .runtime/bin/rg
+      log "Installed rg ${latest_tag}"
+    else
+      log "rg binary install failed; continuing"
+    fi
+  else
+    log "rg already installed"
+  fi
+
+  if command -v rg >/dev/null 2>&1 && [[ ! -x .runtime/bin/gr ]]; then
+    ln -sf "$(command -v rg)" .runtime/bin/gr
+    log "Created gr alias -> rg"
+  fi
+}
+
 log "Ensuring project env file exists"
 cp -n .env.example .env 2>/dev/null || true
+mkdir -p .runtime/bin
+ensure_shell_path
 
 log "Installing JavaScript dependencies"
 if command -v bun >/dev/null 2>&1; then
@@ -32,7 +134,7 @@ if ! python3 -m pip install --user onnxruntime-gpu; then
   log "onnxruntime-gpu unavailable in this environment; falling back to onnxruntime"
   python3 -m pip install --user onnxruntime
 fi
-python3 -m pip install --user runpod requests
+python3 -m pip install --user runpod runpod-cli requests
 
 log "Installing translator pod Python dependencies"
 if ! python3 -m pip install --user faster-whisper ctranslate2 transformers; then
@@ -41,9 +143,14 @@ fi
 
 if ! command -v runpodctl >/dev/null 2>&1; then
   log "Attempting to install RunPod CLI (runpodctl)"
-  if ! curl -fsSL https://raw.githubusercontent.com/runpod/runpodctl/main/install.sh | bash; then
-    log "RunPod CLI install failed; continuing without blocking setup"
-  fi
+  install_runpodctl
+fi
+
+install_railway
+install_ripgrep_and_alias
+
+if ! command -v hpanel >/dev/null 2>&1; then
+  log "hpanel CLI is not publicly available via standard package sources; skipping"
 fi
 
 log "Preparing local model cache"
