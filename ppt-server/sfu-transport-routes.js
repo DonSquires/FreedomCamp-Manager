@@ -15,6 +15,27 @@ const express = require('express');
 const router = express.Router();
 const { sfuManager } = require('./mediasoup-sfu');
 
+// In-memory registries for active mediasoup resources.
+// Key format: `${orgId}:${resourceId}` to enforce org scoping.
+const transportRegistry = new Map();
+const producerRegistry = new Map();
+
+function transportKey(orgId, transportId) {
+  return `${orgId}:${transportId}`;
+}
+
+function producerKey(orgId, producerId) {
+  return `${orgId}:${producerId}`;
+}
+
+function getRegisteredTransport(orgId, transportId) {
+  return transportRegistry.get(transportKey(orgId, transportId)) || null;
+}
+
+function getRegisteredProducer(orgId, producerId) {
+  return producerRegistry.get(producerKey(orgId, producerId)) || null;
+}
+
 /**
  * Middleware: Extract org + role from JWT
  * (Same pattern as radio-control-routes.js)
@@ -72,10 +93,25 @@ router.post('/transport/create', async (req, res) => {
     }
 
     // Get router for org
-    const router = await sfuManager.getOrCreateRouter(req.orgId);
+    const orgRouter = await sfuManager.getOrCreateRouter(req.orgId);
 
     // Create transport
-    const transport = await sfuManager.createWebRtcTransport(router);
+    const transport = await sfuManager.createWebRtcTransport(orgRouter);
+
+    const key = transportKey(req.orgId, transport.id);
+    transportRegistry.set(key, {
+      transport,
+      orgId: req.orgId,
+      userId: req.userId,
+      channelId: channel_id,
+      direction: direction || 'send',
+      transmissionId: req.transmissionId || null,
+      createdAt: Date.now(),
+    });
+
+    transport.on('close', () => {
+      transportRegistry.delete(key);
+    });
 
     // Return only what client needs for first answer
     res.json({
@@ -115,14 +151,18 @@ router.post('/transport/connect', async (req, res) => {
       return res.status(400).json({ error: 'Missing transport_id or dtlsParameters' });
     }
 
-    // Get router for org
-    const router = await sfuManager.getOrCreateRouter(req.orgId);
+    const entry = getRegisteredTransport(req.orgId, transport_id);
+    if (!entry) {
+      return res.status(404).json({ error: 'Transport not found' });
+    }
 
-    // Find transport (would be stored in session/cache in production)
-    // For now, error (in production, retrieve from store keyed by user + channel)
-    // TODO: implement transport registry
+    await entry.transport.connect({ dtlsParameters });
 
-    res.status(500).json({ error: 'Transport registry not yet implemented' });
+    res.json({
+      success: true,
+      message: 'Transport connected',
+      transport_id,
+    });
   } catch (err) {
     console.error('[SFU Transport] Connect failed:', err);
     res.status(500).json({ error: 'Failed to connect transport', details: err.message });
@@ -155,11 +195,46 @@ router.post('/transport/:transport_id/produce', async (req, res) => {
       return res.status(400).json({ error: 'Missing kind or rtpParameters' });
     }
 
-    // TODO: Retrieve transport from registry
-    // const transport = transportRegistry.get(transport_id);
-    // if (!transport) return res.status(404).json({ error: 'Transport not found' });
+    const entry = getRegisteredTransport(req.orgId, transport_id);
+    if (!entry) {
+      return res.status(404).json({ error: 'Transport not found' });
+    }
 
-    res.status(500).json({ error: 'Transport registry not yet implemented' });
+    const producer = await entry.transport.produce({
+      kind,
+      rtpParameters,
+      appData: {
+        ...(appData || {}),
+        org_id: req.orgId,
+        channel_id: appData?.channel_id || entry.channelId,
+        user_id: req.userId,
+        transmission_id: req.transmissionId || entry.transmissionId,
+      },
+    });
+
+    const pKey = producerKey(req.orgId, producer.id);
+    producerRegistry.set(pKey, {
+      producer,
+      orgId: req.orgId,
+      userId: req.userId,
+      channelId: appData?.channel_id || entry.channelId,
+      transmissionId: req.transmissionId || entry.transmissionId,
+      transportId: transport_id,
+      createdAt: Date.now(),
+    });
+
+    producer.on('transportclose', () => {
+      producerRegistry.delete(pKey);
+    });
+
+    producer.on('close', () => {
+      producerRegistry.delete(pKey);
+    });
+
+    res.json({
+      producer_id: producer.id,
+      timestamp: Date.now(),
+    });
   } catch (err) {
     console.error('[SFU Transport] Produce failed:', err);
     res.status(500).json({ error: 'Failed to create producer', details: err.message });
@@ -192,8 +267,35 @@ router.post('/transport/:transport_id/consume', async (req, res) => {
       return res.status(400).json({ error: 'Missing producer_id or rtpCapabilities' });
     }
 
-    // TODO: Retrieve transport and producer from registries
-    res.status(500).json({ error: 'Transport registry not yet implemented' });
+    const transportEntry = getRegisteredTransport(req.orgId, transport_id);
+    if (!transportEntry) {
+      return res.status(404).json({ error: 'Transport not found' });
+    }
+
+    const producerEntry = getRegisteredProducer(req.orgId, producer_id);
+    if (!producerEntry) {
+      return res.status(404).json({ error: 'Producer not found' });
+    }
+
+    const orgRouter = await sfuManager.getOrCreateRouter(req.orgId);
+    if (!orgRouter.canConsume({ producerId: producer_id, rtpCapabilities })) {
+      return res.status(400).json({ error: 'Cannot consume with provided rtpCapabilities' });
+    }
+
+    const consumer = await transportEntry.transport.consume({
+      producerId: producer_id,
+      rtpCapabilities,
+      paused: false,
+    });
+
+    res.json({
+      consumer_id: consumer.id,
+      producer_id,
+      kind: consumer.kind,
+      rtpParameters: consumer.rtpParameters,
+      type: consumer.type,
+      producer_paused: producerEntry.producer.paused,
+    });
   } catch (err) {
     console.error('[SFU Transport] Consume failed:', err);
     res.status(500).json({ error: 'Failed to create consumer', details: err.message });
@@ -211,8 +313,13 @@ router.post('/producer/:producer_id/pause', async (req, res) => {
   try {
     const { producer_id } = req.params;
 
-    // TODO: Retrieve producer from registry
-    res.status(500).json({ error: 'Transport registry not yet implemented' });
+    const entry = getRegisteredProducer(req.orgId, producer_id);
+    if (!entry) {
+      return res.status(404).json({ error: 'Producer not found' });
+    }
+
+    await entry.producer.pause();
+    res.json({ paused: true, producer_id });
   } catch (err) {
     console.error('[SFU Transport] Pause failed:', err);
     res.status(500).json({ error: 'Failed to pause producer', details: err.message });
@@ -230,8 +337,13 @@ router.post('/producer/:producer_id/resume', async (req, res) => {
   try {
     const { producer_id } = req.params;
 
-    // TODO: Retrieve producer from registry
-    res.status(500).json({ error: 'Transport registry not yet implemented' });
+    const entry = getRegisteredProducer(req.orgId, producer_id);
+    if (!entry) {
+      return res.status(404).json({ error: 'Producer not found' });
+    }
+
+    await entry.producer.resume();
+    res.json({ paused: false, producer_id });
   } catch (err) {
     console.error('[SFU Transport] Resume failed:', err);
     res.status(500).json({ error: 'Failed to resume producer', details: err.message });
@@ -265,12 +377,22 @@ router.post('/mediatap/create', async (req, res) => {
       return res.status(400).json({ error: 'Missing channel_id or producer_id' });
     }
 
-    // TODO: Retrieve router and producer from registries
-    // const router = routerRegistry.get(req.orgId);
-    // const producer = producerRegistry.get(producer_id);
-    // const tap = await sfuManager.createMediaTap(router, producer);
+    const producerEntry = getRegisteredProducer(req.orgId, producer_id);
+    if (!producerEntry) {
+      return res.status(404).json({ error: 'Producer not found' });
+    }
 
-    res.status(500).json({ error: 'Transport registry not yet implemented' });
+    const orgRouter = await sfuManager.getOrCreateRouter(req.orgId);
+    const tap = await sfuManager.createMediaTap(orgRouter, producerEntry.producer);
+
+    res.json({
+      transport_id: tap.transport.id,
+      consumer_id: tap.consumer.id,
+      rtpParameters: tap.rtpParameters,
+      tuple: tap.tuple,
+      channel_id,
+      producer_id,
+    });
   } catch (err) {
     console.error('[SFU Transport] MediaTap creation failed:', err);
     res
@@ -301,10 +423,17 @@ router.get('/stats/:producer_id', async (req, res) => {
   try {
     const { producer_id } = req.params;
 
-    // TODO: Retrieve producer from registry
-    // const stats = await producer.getStats();
+    const entry = getRegisteredProducer(req.orgId, producer_id);
+    if (!entry) {
+      return res.status(404).json({ error: 'Producer not found' });
+    }
 
-    res.status(500).json({ error: 'Transport registry not yet implemented' });
+    const stats = await entry.producer.getStats();
+    res.json({
+      producer_id,
+      kind: entry.producer.kind,
+      stats,
+    });
   } catch (err) {
     console.error('[SFU Transport] Stats retrieval failed:', err);
     res.status(500).json({ error: 'Failed to get stats', details: err.message });
