@@ -23,6 +23,7 @@ import {
   Eye,
   MoreHorizontal
 } from 'lucide-react'
+import { ListCardRow } from '@/components/features/ListCardRow'
 import { formatDateTime, formatDate } from '@/lib/utils'
 import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { toast } from 'sonner'
@@ -498,31 +499,29 @@ export default function EnforcementCommandCenter() {
                       key={breach.id}
                       className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg hover:shadow-md transition-shadow"
                     >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-mono font-bold text-lg">
-                              {breach.plate_number}
-                            </span>
-                            <Badge className={getSeverityColor(breach.severity)}>
-                              {breach.severity}
-                            </Badge>
+                      <ListCardRow
+                        left={
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-lg">{breach.plate_number}</span>
+                            <Badge className={getSeverityColor(breach.severity)}>{breach.severity}</Badge>
                             <Badge variant="outline">{breach.status}</Badge>
                           </div>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                        }
+                        right={<Button variant="ghost" size="sm"><Eye className="h-4 w-4" /></Button>}
+                        className="mb-1"
+                      />
+                      <ListCardRow
+                        left={
+                          <span className="text-sm text-gray-600 dark:text-gray-400">
                             {breach.zone.name} • {getBreachTypeLabel(breach.breach_type)}
-                          </p>
-                        </div>
-                        <Button variant="ghost" size="sm">
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <div className="flex items-center gap-4 text-xs text-gray-500 mt-2">
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {formatDateTime(breach.created_at)}
-                        </span>
-                      </div>
+                          </span>
+                        }
+                        right={
+                          <span className="flex items-center gap-1 text-xs text-gray-500">
+                            <Clock className="h-3 w-3" />{formatDateTime(breach.created_at)}
+                          </span>
+                        }
+                      />
                     </div>
                   ))}
                 </div>
@@ -563,14 +562,11 @@ export default function EnforcementCommandCenter() {
                       <p className="text-xs text-gray-600 dark:text-gray-400">
                         {patrol.zone.name}
                       </p>
-                      <div className="flex items-center justify-between mt-2 text-xs">
-                        <span className="text-gray-500">
-                          In progress
-                        </span>
-                        <span className="text-gray-500">
-                          {formatDateTime(patrol.created_at)}
-                        </span>
-                      </div>
+                      <ListCardRow
+                        left={<span className="text-xs text-gray-500">In progress</span>}
+                        right={<span className="text-xs text-gray-500">{formatDateTime(patrol.created_at)}</span>}
+                        className="mt-2"
+                      />
                     </div>
                   ))}
                 </div>
