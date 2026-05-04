@@ -1197,3 +1197,30 @@ Latest Session Snapshot (Phase A Agentic E2E Continuation — Consolidated Serve
 - Next exact command to run:
   - `git add docs/STAGING.md && git commit -m "docs(staging): record consolidated phase-a serverless cycle" && git push origin main`
 
+Latest Session Snapshot (Phase A Org-Isolation Gate Alignment — CI Wiring Repair):
+
+- Timestamp (NZ): 2026-05-05 10:12:06 NZST
+- Current branch: main
+- HEAD SHA: 45a6b0fc
+- Doc review outcome:
+  - `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md` requires 5 org-isolation scenarios to pass in CI: officer read isolation, realtime filtering, export scoping, geofence org resolution, transcript scoping.
+  - Existing active workflow `.github/workflows/ci-org-isolation-api.yml` only ran Playwright API coverage and did not execute the dedicated five-scenario gate suite.
+- Implementation completed:
+  - Repaired `tests/integration/org-isolation.test.ts` to be CI-safe with current Supabase client usage:
+    - no client construction when Supabase env is missing,
+    - local no-secret runs skip cleanly instead of failing,
+    - realtime scenario now uses the Supabase v2 `channel(...).on('postgres_changes', ...)` API,
+    - synthetic org setup aligned with current organization fixture constraints,
+    - cleanup now removes created `operational_cases` before deleting orgs.
+  - Updated `.github/workflows/ci-org-isolation-api.yml` to:
+    - trigger on changes to `tests/integration/org-isolation.test.ts`, and
+    - run `bunx vitest run tests/integration/org-isolation.test.ts` before the Playwright API suite.
+- Validation:
+  - `bunx vitest run tests/integration/org-isolation.test.ts` -> `6 skipped` locally without Supabase secrets (expected local-safe behavior)
+  - Problems panel: no errors in touched workflow or integration test files.
+- Findings:
+  - The remaining gap is no longer missing workflow wiring; it is now dependent on CI secrets/runtime data to execute the five-scenario gate for real.
+  - This closes the local code-path mismatch between the Phase A authority doc and the active CI workflow.
+- Next exact command to run:
+  - `git add tests/integration/org-isolation.test.ts .github/workflows/ci-org-isolation-api.yml docs/STAGING.md && git commit -m "test(ci): wire five-scenario org isolation gate into phase-a workflow" && git push origin main`
+

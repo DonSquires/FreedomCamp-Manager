@@ -15,18 +15,12 @@ import { createClient } from '@supabase/supabase-js';
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'http://localhost:54321';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || '';
+const hasSupabaseEnv = !!SUPABASE_URL && !!SERVICE_KEY && !!ANON_KEY;
 
 // Create test data structure
 interface TestOrg {
   id: string;
   name: string;
-}
-
-interface TestUser {
-  id: string;
-  org_id: string;
-  email: string;
-  role: string;
 }
 
 interface TestCase {
@@ -35,17 +29,20 @@ interface TestCase {
   case_number: string;
 }
 
-const serviceClient = createClient(SUPABASE_URL, SERVICE_KEY);
+const serviceClient = hasSupabaseEnv ? createClient(SUPABASE_URL, SERVICE_KEY) : null;
+const gateTest = hasSupabaseEnv ? it : it.skip;
 
 describe('Phase A: Organization Isolation Gate', () => {
   let orgA: TestOrg;
   let orgB: TestOrg;
-  let officerA: TestUser;
-  let officerB: TestUser;
   let caseA: TestCase;
   let caseB: TestCase;
 
   beforeAll(async () => {
+    if (!hasSupabaseEnv || !serviceClient) {
+      return;
+    }
+
     console.log('🔧 Setting up test data for org isolation tests...');
 
     // Create two test organizations
@@ -54,12 +51,18 @@ describe('Phase A: Organization Isolation Gate', () => {
       .insert([
         {
           name: 'Test Org A (Isolation Test)',
+          organization_type: 'client',
+          is_active: true,
+          overnight_verification_mode: 'standard',
           address_line_1: '123 Test St',
           city: 'Test City A',
           country: 'NZ',
         },
         {
           name: 'Test Org B (Isolation Test)',
+          organization_type: 'client',
+          is_active: true,
+          overnight_verification_mode: 'standard',
           address_line_1: '456 Test Ave',
           city: 'Test City B',
           country: 'NZ',
@@ -79,7 +82,25 @@ describe('Phase A: Organization Isolation Gate', () => {
   });
 
   afterAll(async () => {
+    if (!hasSupabaseEnv || !serviceClient) {
+      return;
+    }
+
     console.log('🧹 Cleaning up test data...');
+
+    if (caseA?.id) {
+      await serviceClient
+        .from('operational_cases')
+        .delete()
+        .eq('id', caseA.id);
+    }
+
+    if (caseB?.id) {
+      await serviceClient
+        .from('operational_cases')
+        .delete()
+        .eq('id', caseB.id);
+    }
     
     if (orgA?.id) {
       await serviceClient
@@ -99,7 +120,9 @@ describe('Phase A: Organization Isolation Gate', () => {
   });
 
   describe('Scenario 1: Cross-org query isolation on operational_cases', () => {
-    it('should prevent officer from Org A reading operational_cases from Org B', async () => {
+    gateTest('should prevent officer from Org A reading operational_cases from Org B', async () => {
+      if (!serviceClient) return;
+
       // Setup: Create a case in Org B
       const { data: caseBData, error: caseBError } = await serviceClient
         .from('operational_cases')
@@ -130,11 +153,18 @@ describe('Phase A: Organization Isolation Gate', () => {
   });
 
   describe('Scenario 2: Realtime subscriber filtering by organization', () => {
-    it('should filter operational_cases realtime subscriptions by organization', async () => {
+    gateTest('should filter operational_cases realtime subscriptions by organization', async () => {
+      if (!serviceClient) return;
+
       // Test: Subscribe to operational_cases for Org A only
-      const orgASubscription = serviceClient
-        .from(`operational_cases:organization_id=eq.${orgA.id}`)
-        .on('*', (payload: any) => {
+      const orgAChannel = serviceClient
+        .channel(`org-isolation-${orgA.id}`)
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'operational_cases',
+          filter: `organization_id=eq.${orgA.id}`,
+        }, (payload: any) => {
           // Verify any received event belongs to Org A
           expect(payload.new.organization_id).toBe(orgA.id);
         })
@@ -144,13 +174,15 @@ describe('Phase A: Organization Isolation Gate', () => {
       await new Promise(res => setTimeout(res, 100));
 
       // Cleanup
-      await orgASubscription.unsubscribe();
+      await serviceClient.removeChannel(orgAChannel);
       console.log('✓ Scenario 2: Realtime subscription filter verified (org_id filtering works)');
     });
   });
 
   describe('Scenario 3: Export data scoping to organization', () => {
-    it('should only export operational_cases record for requesting organization', async () => {
+    gateTest('should only export operational_cases record for requesting organization', async () => {
+      if (!serviceClient) return;
+
       // Setup: Create cases in both orgs
       const { data: caseAData, error: caseAError } = await serviceClient
         .from('operational_cases')
@@ -179,7 +211,9 @@ describe('Phase A: Organization Isolation Gate', () => {
   });
 
   describe('Scenario 4: Geofence transitions resolve to correct organization', () => {
-    it('should ensure geofence event handlers resolve to correct org context', async () => {
+    gateTest('should ensure geofence event handlers resolve to correct org context', async () => {
+      if (!serviceClient) return;
+
       // Setup: Verify operational_cases are scoped to correct org
       const { data: casesByOrg } = await serviceClient
         .from('operational_cases')
@@ -198,7 +232,9 @@ describe('Phase A: Organization Isolation Gate', () => {
   });
 
   describe('Scenario 5: Radio transcripts remain organization-scoped in realtime', () => {
-    it('should keep radio transcripts isolated by organization in realtime stream', async () => {
+    gateTest('should keep radio transcripts isolated by organization in realtime stream', async () => {
+      if (!serviceClient) return;
+
       // Note: This test validates the schema structure for future radio_transcripts integration
       // Current test validates that operational_cases enforces org isolation properly
       
@@ -218,7 +254,7 @@ describe('Phase A: Organization Isolation Gate', () => {
   });
 
   describe('Summary: Phase A Org Isolation Gate Status', () => {
-    it('should show all 5 scenarios passing', async () => {
+    gateTest('should show all 5 scenarios passing', async () => {
       console.log(`
 ╔════════════════════════════════════════════════════════════════════╗
 ║           PHASE A: ORG ISOLATION GATE — ALL SCENARIOS PASS          ║
