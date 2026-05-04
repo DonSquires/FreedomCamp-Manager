@@ -12,6 +12,8 @@ import { supabaseAdmin } from './setup'
  * 2. Error/latency threshold metadata can be captured per stage
  * 3. Rollback from any stage returns to 0% and records the reversal
  * 4. Source flag record remains intact after each stage
+ * 
+ * Note: Requires SUPABASE_SERVICE_ROLE_KEY for live DB access; skips in CI dry-run environments.
  */
 
 const FLAG_NAME = 'FF_PHASE_B_PATROL_EVENTS'
