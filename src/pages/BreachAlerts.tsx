@@ -46,6 +46,7 @@ import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { AdminFollowUpDrawer } from '@/components/features/AdminFollowUpDrawer'
+import { ListCardRow } from '@/components/features/ListCardRow'
 import { enrichVehicleFromMotorWeb } from '@/lib/proxyServices'
 import { isPhotoUrlExpired, parseStorageUrl } from '@/lib/photoUtils'
 
@@ -1130,27 +1131,37 @@ export default function BreachAlerts() {
             </div>
             <div className="space-y-2">
               {intelligenceAlerts.map((a: any) => (
-                <div key={a.id} className="flex items-center justify-between bg-white dark:bg-gray-900 rounded p-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <ShieldAlert className="h-4 w-4 text-red-600" />
-                    <span className="font-bold">{a.plate_number || 'Unknown'}</span>
-                    <Badge variant="outline" className="text-xs">
-                      {getBreachTypeLabel(a.breach_type)}
-                    </Badge>
-                    <span className="text-gray-500 flex items-center gap-1 text-xs">
-                      <MapPin className="h-3 w-3" />
-                      {(a.zones as any)?.name || 'Unknown Zone'}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-400 text-xs">{formatDateTime(a.created_at)}</span>
-                    <Button size="sm" variant="outline" className="text-xs h-6 px-2"
-                      onClick={() => acknowledgeMutation.mutate(a.id)}
-                      disabled={acknowledgeMutation.isPending}>
-                      Acknowledge
-                    </Button>
-                  </div>
-                </div>
+                <ListCardRow
+                  key={a.id}
+                  className="bg-white dark:bg-gray-900"
+                  left={(
+                    <>
+                      <ShieldAlert className="h-4 w-4 text-red-600" />
+                      <span className="truncate font-bold">{a.plate_number || 'Unknown'}</span>
+                      <Badge variant="outline" className="text-xs">
+                        {getBreachTypeLabel(a.breach_type)}
+                      </Badge>
+                      <span className="flex items-center gap-1 text-xs text-gray-500">
+                        <MapPin className="h-3 w-3" />
+                        {(a.zones as any)?.name || 'Unknown Zone'}
+                      </span>
+                    </>
+                  )}
+                  right={(
+                    <>
+                      <span className="text-xs text-gray-400">{formatDateTime(a.created_at)}</span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-6 px-2 text-xs"
+                        onClick={() => acknowledgeMutation.mutate(a.id)}
+                        disabled={acknowledgeMutation.isPending}
+                      >
+                        Acknowledge
+                      </Button>
+                    </>
+                  )}
+                />
               ))}
             </div>
           </div>
@@ -1166,26 +1177,36 @@ export default function BreachAlerts() {
             </div>
             <div className="space-y-2">
               {safetyAlerts.map((a: any) => (
-                <div key={a.id} className="flex items-center justify-between bg-white dark:bg-gray-900 rounded p-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-orange-600" />
-                    <span className="font-bold">{a.officer_name}</span>
-                    <Badge variant="outline" className="capitalize text-xs">
-                      {a.alert_type?.replace(/_/g, ' ')}
-                    </Badge>
-                    <Badge className={a.status === 'pending' ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'}>
-                      {a.status}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-400 text-xs">{formatDateTime(a.created_at)}</span>
-                    <Button size="sm" variant="outline" className="text-xs h-6 px-2"
-                      onClick={() => acknowledgeWelfareMutation.mutate(a.id)}
-                      disabled={acknowledgeWelfareMutation.isPending}>
-                      Acknowledge
-                    </Button>
-                  </div>
-                </div>
+                <ListCardRow
+                  key={a.id}
+                  className="bg-white dark:bg-gray-900"
+                  left={(
+                    <>
+                      <AlertTriangle className="h-4 w-4 text-orange-600" />
+                      <span className="truncate font-bold">{a.officer_name}</span>
+                      <Badge variant="outline" className="text-xs capitalize">
+                        {a.alert_type?.replace(/_/g, ' ')}
+                      </Badge>
+                      <Badge className={a.status === 'pending' ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'}>
+                        {a.status}
+                      </Badge>
+                    </>
+                  )}
+                  right={(
+                    <>
+                      <span className="text-xs text-gray-400">{formatDateTime(a.created_at)}</span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-6 px-2 text-xs"
+                        onClick={() => acknowledgeWelfareMutation.mutate(a.id)}
+                        disabled={acknowledgeWelfareMutation.isPending}
+                      >
+                        Acknowledge
+                      </Button>
+                    </>
+                  )}
+                />
               ))}
             </div>
           </div>

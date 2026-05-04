@@ -512,5 +512,6 @@ Date: 2026-05-02
 - **P1/P2 route tranche shipped:** Top-10 route pass is now complete on production pages via commits `7185e979` and `69a45c3d`.
 - **P3-1 nav chrome polish:** `src/components/features/AppLayout.tsx` now renders active breadcrumbs in the desktop command header while retaining the existing persisted sidebar collapse control.
 - **P3-2 dashboard command bar:** `src/pages/AdminPortal.tsx` now keeps priority actions and live operational counts visible in a sticky command bar during scroll.
+- **P3-3 list-card standardization (first pass):** Added shared compact list-row component `src/components/features/ListCardRow.tsx` and adopted it in high-density alert cards on `src/pages/BreachAlerts.tsx` and `src/pages/NoiseControlPortal.tsx`.
 - **Tracker correction:** STAGING Phase 3 ticket statuses were updated to match already-shipped role-path, CI, and baseline workbook work.
 - **Remaining scope:** `P3-3` shared list-card standardization, a non-direct-navigation rerun for `D1` click-depth evidence, and closeout docs (`P3-13`, `P3-14`).

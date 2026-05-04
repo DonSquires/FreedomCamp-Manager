@@ -19,6 +19,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
 import { AppLayout } from '@/components/features/AppLayout'
+import { ListCardRow } from '@/components/features/ListCardRow'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -771,10 +772,12 @@ export default function NoiseControlPortal() {
                     return (
                       <div className="space-y-2">
                         {repeat.slice(0, 10).map(([addr, count]) => (
-                          <div key={addr} className="flex items-center justify-between text-sm p-2 bg-red-50 rounded-lg">
-                            <span className="flex items-center gap-1 text-gray-700"><MapPin className="h-3 w-3 text-red-400" />{addr}</span>
-                            <Badge className="bg-red-100 text-red-700 border-red-200">{count} notices</Badge>
-                          </div>
+                          <ListCardRow
+                            key={addr}
+                            className="rounded-lg bg-red-50"
+                            left={<span className="flex items-center gap-1 text-gray-700"><MapPin className="h-3 w-3 text-red-400" />{addr}</span>}
+                            right={<Badge className="border-red-200 bg-red-100 text-red-700">{count} notices</Badge>}
+                          />
                         ))}
                       </div>
                     )
