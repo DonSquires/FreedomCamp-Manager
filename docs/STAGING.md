@@ -838,8 +838,8 @@ Route tranche result:
 | # | Task | Owner | Status | Evidence |
 |---|---|---|---|---|
 | P3-12 | Update PHASE3_UX_BASELINE_CAPTURE workbook with Slice metrics | Dev | ✅ Done | `docs/PHASE3_UX_BASELINE_CAPTURE_2026-05-03.md` |
-| P3-13 | Record Phase 3 sprint retrospective (blockers, learnings) | Bob | ⬜ Not started | `docs/LESSONS_LEARNED.md` |
-| P3-14 | Update ADR-003 with Phase 3 UX improvements | Dev | ⬜ Not started | `docs/adr/003-*.md` |
+| P3-13 | Record Phase 3 sprint retrospective (blockers, learnings) | Bob | ✅ Done | `docs/LESSONS_LEARNED.md` |
+| P3-14 | Record Phase 3 UX architecture decision | Dev | ✅ Done | `docs/adr/009-phase3-ux-hardening-and-navigation-measurement.md` |
 
 ### Success Criteria
 

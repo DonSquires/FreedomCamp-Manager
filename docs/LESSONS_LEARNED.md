@@ -13,6 +13,20 @@ Use this file to record concrete mistakes Bob and Dr Bob found during adversaria
 
 ## Current Lessons
 
+- Date: 2026-05-04
+- Trigger: Repeated synthetic monitor bug-report bursts (#483-#502).
+- Mistake: health workflow treated Bob provider degradation as a full platform outage even when frontend, Supabase, and Playwright checks passed.
+- Risk: issue-noise floods, alert fatigue, and triage cycles spent on non-actionable platform incidents.
+- Fix: updated `.github/workflows/synthetic-monitor.yml` so Bob degradation is flagged as warning-only when core app checks are healthy.
+- Prevention Rule: synthetic reliability checks must classify core availability separately from optional/auxiliary provider quality signals.
+
+- Date: 2026-05-04
+- Trigger: `bun run build` failure in `src/components/features/AppLayout.tsx` after breadcrumb label map addition.
+- Mistake: `new Map(...)` resolved to the imported Lucide `Map` icon symbol, not the global constructor.
+- Risk: hard build failure on `main` and blocked release validation.
+- Fix: switched constructor call to `new globalThis.Map(...)` and re-ran lint/build.
+- Prevention Rule: when a file imports symbols that shadow built-ins (e.g., `Map`, `Set`), use `globalThis.*` for constructors in shared layout code.
+
 - Date: 2026-04-28
 - Trigger: Visual regression route assertion for `/roster` during stabilization run.
 - Mistake: test expectation assumed `RosterPlanner` heading without validating actual route-to-component wiring.

@@ -513,5 +513,7 @@ Date: 2026-05-02
 - **P3-1 nav chrome polish:** `src/components/features/AppLayout.tsx` now renders active breadcrumbs in the desktop command header while retaining the existing persisted sidebar collapse control.
 - **P3-2 dashboard command bar:** `src/pages/AdminPortal.tsx` now keeps priority actions and live operational counts visible in a sticky command bar during scroll.
 - **P3-3 list-card standardization (first pass):** Added shared compact list-row component `src/components/features/ListCardRow.tsx` and adopted it in high-density alert cards on `src/pages/BreachAlerts.tsx` and `src/pages/NoiseControlPortal.tsx`.
+- **P3-13 retrospective captured:** `docs/LESSONS_LEARNED.md` now records Phase 3 monitor-noise and layout-symbol-collision lessons with prevention rules.
+- **P3-14 ADR recorded:** Added `docs/adr/009-phase3-ux-hardening-and-navigation-measurement.md` to formalize shared list-card and non-direct baseline measurement decisions.
 - **Tracker correction:** STAGING Phase 3 ticket statuses were updated to match already-shipped role-path, CI, and baseline workbook work.
-- **Remaining scope:** `P3-3` shared list-card standardization, a non-direct-navigation rerun for `D1` click-depth evidence, and closeout docs (`P3-13`, `P3-14`).
+- **Remaining scope:** `P3-3` shared list-card standardization completion, `P3-7` full redirect audit completion, a non-direct-navigation fix for `D1` click-depth medians, and final triad completion sign-off (`P3-11`).
