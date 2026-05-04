@@ -36,6 +36,59 @@ function getRegisteredProducer(orgId, producerId) {
   return producerRegistry.get(producerKey(orgId, producerId)) || null;
 }
 
+function closeTransportEntry(entry) {
+  if (!entry || !entry.transport) return;
+  try {
+    if (!entry.transport.closed) {
+      entry.transport.close();
+    }
+  } catch {
+    // Best-effort cleanup.
+  }
+}
+
+function cleanupByTransmission(orgId, transmissionId) {
+  if (!transmissionId) return { closedTransports: 0, removedProducers: 0 };
+
+  const transportKeysToRemove = [];
+  let closedTransports = 0;
+
+  for (const [key, entry] of transportRegistry.entries()) {
+    if (entry.orgId === orgId && String(entry.transmissionId || '') === String(transmissionId)) {
+      closeTransportEntry(entry);
+      transportKeysToRemove.push(key);
+      closedTransports += 1;
+    }
+  }
+
+  for (const key of transportKeysToRemove) {
+    transportRegistry.delete(key);
+  }
+
+  const producerKeysToRemove = [];
+  for (const [key, entry] of producerRegistry.entries()) {
+    if (entry.orgId === orgId && String(entry.transmissionId || '') === String(transmissionId)) {
+      try {
+        if (entry.producer && !entry.producer.closed) {
+          entry.producer.close();
+        }
+      } catch {
+        // Best-effort cleanup.
+      }
+      producerKeysToRemove.push(key);
+    }
+  }
+
+  for (const key of producerKeysToRemove) {
+    producerRegistry.delete(key);
+  }
+
+  return {
+    closedTransports,
+    removedProducers: producerKeysToRemove.length,
+  };
+}
+
 /**
  * Middleware: Extract org + role from JWT
  * (Same pattern as radio-control-routes.js)
@@ -437,6 +490,29 @@ router.get('/stats/:producer_id', async (req, res) => {
   } catch (err) {
     console.error('[SFU Transport] Stats retrieval failed:', err);
     res.status(500).json({ error: 'Failed to get stats', details: err.message });
+  }
+});
+
+/**
+ * DELETE /sfu/radio/session/:transmissionId
+ * Best-effort session teardown for all registered resources tied to a transmission.
+ */
+router.delete('/radio/session/:transmissionId', async (req, res) => {
+  try {
+    const { transmissionId } = req.params;
+    if (!transmissionId) {
+      return res.status(400).json({ error: 'Missing transmissionId' });
+    }
+
+    const result = cleanupByTransmission(req.orgId, transmissionId);
+    return res.json({
+      success: true,
+      transmissionId,
+      ...result,
+    });
+  } catch (err) {
+    console.error('[SFU Transport] Session teardown failed:', err);
+    return res.status(500).json({ error: 'Failed to teardown session', details: err.message });
   }
 });
 

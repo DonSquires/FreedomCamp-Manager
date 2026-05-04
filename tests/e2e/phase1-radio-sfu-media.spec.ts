@@ -53,6 +53,22 @@ async function mintRadioToken(jwt: string, channelId: string): Promise<string | 
   return body.token || null
 }
 
+async function mintTransmissionId(jwt: string, channelId: string): Promise<string | null> {
+  const res = await fetch(`${getSupabaseUrl()}/functions/v1/radio-token`, {
+    method: 'POST',
+    headers: {
+      apikey: getAnonKey(),
+      Authorization: `Bearer ${jwt}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ channelId, channelType: 'org' }),
+  })
+
+  if (!res.ok) return null
+  const body = (await res.json()) as { transmissionId?: string }
+  return body.transmissionId || null
+}
+
 test.describe('phase1 SFU media flow', () => {
   test('SFU transport endpoints are reachable with valid radio token', async () => {
     const supabaseUrl = getSupabaseUrl()
@@ -91,8 +107,43 @@ test.describe('phase1 SFU media flow', () => {
     expect(createRes.status).not.toBe(403)
 
     if (createRes.status === 200) {
-      const body = (await createRes.json()) as { transport_id?: string }
+      const body = (await createRes.json()) as { transport_id?: string; dtlsParameters?: unknown }
       expect(body.transport_id).toBeTruthy()
+
+      const connectRes = await fetch(`${pttServerUrl}/sfu/transport/connect`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${radioToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          transport_id: body.transport_id,
+          dtlsParameters: body.dtlsParameters || {},
+        }),
+      })
+
+      // DTLS payload is intentionally lightweight in this API contract test,
+      // so connect may fail on validation/runtime, but must stay authorized.
+      expect([200, 400, 500, 502, 503]).toContain(connectRes.status)
+      expect(connectRes.status).not.toBe(401)
+      expect(connectRes.status).not.toBe(403)
+
+      const transmissionId = await mintTransmissionId(jwt, `${channelId}-teardown`)
+      if (transmissionId) {
+        const teardownRes = await fetch(
+          `${pttServerUrl}/sfu/radio/session/${encodeURIComponent(transmissionId)}`,
+          {
+            method: 'DELETE',
+            headers: {
+              Authorization: `Bearer ${radioToken}`,
+            },
+          }
+        )
+
+        expect([200, 404, 500, 502, 503]).toContain(teardownRes.status)
+        expect(teardownRes.status).not.toBe(401)
+        expect(teardownRes.status).not.toBe(403)
+      }
     }
   })
 })
