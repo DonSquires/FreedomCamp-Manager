@@ -4,6 +4,22 @@
   "bun_version": "1.3.13",
   "toolchain_ready": true,
   "modules": ["messaging", "radio", "dispatch", "locations_of_interest"],
+  "route_evidence": {
+    "source_files": [
+      "src/App.tsx",
+      "src/navigation/routeManifest.ts"
+    ],
+    "verified_paths": [
+      "/breaches",
+      "/reports",
+      "/live-patrol",
+      "/radio",
+      "/noise-control",
+      "/crm"
+    ],
+    "verified_at": "2026-05-04T03:45:00Z",
+    "verification_method": "grep in src/App.tsx and src/navigation/routeManifest.ts"
+  },
   "lockfiles": ["bun.lock","package-lock.json"],
   "generated_at": "2026-05-03T22:03:05Z",
   "source": "scripts/system-check.sh"

@@ -22,16 +22,16 @@ Capture measured baselines before further UX implementation for:
 
 | Route | Click Depth (median) | Time-to-Primary-Action (median, sec) | Error-Prone Actions (count/sample) | Evidence Run ID | Status |
 |---|---:|---:|---:|---|---|
-| /compliance | pending | 10.13 | 0 | local-p3-2-refresh | partial |
-| /dispatch-monitor | pending | 10.2 | 0 | local-p3-2-refresh | partial |
-| /job-map | pending | 10.2 | 0 | local-p3-2-refresh | partial |
-| /observations | pending | 10.17 | 0 | local-p3-2-refresh | partial |
-| /radio | pending | 10.22 | 0 | local-p3-2-refresh | partial |
-| /breaches | pending | 10.13 | 0 | local-p3-2-refresh | partial |
-| /reports | pending | 10.22 | 0 | local-p3-2-refresh | partial |
-| /crm | pending | 10.18 | 0 | local-p3-2-refresh | partial |
-| /live-patrol | pending | 10.21 | 0 | local-p3-2-refresh | partial |
-| /noise-control | pending | 10.15 | 0 | local-p3-2-refresh | partial |
+| /compliance | pending | 10.12 | 0 | local-2026-05-04-phase3-baseline | partial |
+| /dispatch-monitor | pending | 10.21 | 0 | local-2026-05-04-phase3-baseline | partial |
+| /job-map | pending | 10.23 | 0 | local-2026-05-04-phase3-baseline | partial |
+| /observations | pending | 10.14 | 0 | local-2026-05-04-phase3-baseline | partial |
+| /radio | pending | 10.22 | 0 | local-2026-05-04-phase3-baseline | partial |
+| /breaches | pending | 10.12 | 0 | local-2026-05-04-phase3-baseline | partial |
+| /reports | pending | 10.14 | 0 | local-2026-05-04-phase3-baseline | partial |
+| /crm | pending | 10.16 | 0 | local-2026-05-04-phase3-baseline | partial |
+| /live-patrol | pending | 10.14 | 0 | local-2026-05-04-phase3-baseline | partial |
+| /noise-control | pending | 10.14 | 0 | local-2026-05-04-phase3-baseline | partial |
 
 ## Evidence Sources
 
@@ -45,11 +45,15 @@ Capture measured baselines before further UX implementation for:
 
 - This workbook is the executable evidence surface for Phase 3 baseline requirements (D1-D4) and should be updated before additional UX code changes.
 
-## Current Execution State (2026-05-03)
+## Current Execution State (2026-05-04)
 
-- Local run attempt (`PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=1 npx playwright test tests/e2e/phase3-ux-baseline-capture.spec.ts --project=chromium`) is blocked in this container.
-- Blocker: Playwright Chromium binary missing/host dependency mismatch (ENOENT on `chrome-headless-shell`).
-- Resolution path: execute `.github/workflows/phase3-ux-baseline-capture.yml` on GitHub Actions and import artifact values into this workbook.
+- Local run completed in this container:
+	- `PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=1 bunx playwright test tests/e2e/phase3-ux-baseline-capture.spec.ts --project=chromium --reporter=list`
+	- Result: `1 passed (1.9m)`
+- Workbook import completed:
+	- `node scripts/import-phase3-baseline.mjs --input test-results/phase3-ux-baseline.json --run-id local-2026-05-04-phase3-baseline`
+	- Rows processed: `10`
+- Remaining blocker: click-depth medians are still pending (`clickDepth=null`) for all top-10 routes because this run measured by direct route navigation in the current environment.
 
 ## Artifact Import Command
 

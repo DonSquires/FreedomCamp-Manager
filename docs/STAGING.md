@@ -186,6 +186,24 @@ Fill this before stopping work:
 
 Latest Session Snapshot:
 
+- Timestamp (NZ): 2026-05-04 15:45:21 NZST
+- Current branch: main
+- HEAD SHA: 5c055ef0d4051ae0b6b7adc035deee65a4c1c9a8
+- Working tree status (`git status -sb`): docs/system-state updates pending for Phase 3 continuation
+- Latest lint result: pass (`bun run lint`)
+- Latest build result: pass (`bun run build`, built in 20.00s)
+- Latest targeted test result:
+  - `tests/e2e/phase3-ux-baseline-capture.spec.ts`: 1 passed
+  - `node scripts/import-phase3-baseline.mjs --input test-results/phase3-ux-baseline.json --run-id local-2026-05-04-phase3-baseline`: workbook updated (10 rows)
+- Active/last CI run IDs:
+  - `25299495138` Governance Release Gate: completed, success
+  - `25299495144` Validate RunPod Image Tags: completed, success
+  - `25299495146` policy-bob-openai-research-training: completed, success
+  - `25299958134` Ops Bob Assess Failed Actions: completed, success
+- Open blockers with owner:
+  - Baseline click-depth medians still pending (`clickDepth=null` in current baseline artifact); owner: UX baseline instrumentation + navigation-surface measurement
+- Next exact command to run: `cd /workspaces/FreedomCamp-Manager && PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=1 bunx playwright test tests/e2e/phase3-ux-baseline-capture.spec.ts --project=chromium --reporter=list`
+
 - Timestamp (NZ): 2026-05-04 15:14:13 NZST
 - Current branch: main
 - HEAD SHA: 8b01f6839590953a70653b7f83650f0dcf1133e8
@@ -487,10 +505,18 @@ If any gate fails:
 - [x] Propose quick wins and classify into now/next/later slices
 - [x] Define measurable UX acceptance criteria per route family
 - [x] Map role-specific path simplifications for admin, admin_officer, officer, master
-- [ ] Validate route and role changes stay aligned with MODULE_ROADMAP and App router
-- [ ] Run triad review on Phase 3 artifact before implementation commit
+- [x] Validate route and role changes stay aligned with MODULE_ROADMAP and App router
+- [x] Run triad review on Phase 3 artifact before implementation commit
 
-Next section active item: Phase 3 validation and governance closure (`9B` remaining items), then begin implementation from Section 12 (`P3-1` nav chrome polish).
+Continuation evidence (2026-05-04):
+1. `bun run lint` -> pass
+2. `bun run build` -> pass
+3. `DOC_AUTHORITY_STRICT=true bun run lint:doc-authority` -> pass
+4. `node scripts/generate-route-role-matrix.mjs` -> pass (route count: 121)
+5. `node scripts/validate-roadmap-role-gates.mjs --strict` -> pass
+6. Triad status reference retained in `docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md` (Phase 3 sections): GO
+
+Next section active item: close remaining baseline gate for measured click depth (`D1`) using the imported workbook evidence path, then begin implementation from Section 12 (`P3-1` nav chrome polish).
 
 ### 9C. Phase 3 Validation Commands
 

@@ -16,7 +16,7 @@ Execute Phase 3 UX/operator-efficiency triage with measurable evidence, role-pat
 
 ## A. Deliverables
 
-- [ ] A1. UX triage list for high-impact readability/navigation issues
+- [x] A1. UX triage list for high-impact readability/navigation issues
 - [x] A2. Role-specific path simplification for high-frequency operations
 - [x] A3. Visual hierarchy cleanup plan for dense pages
 
@@ -24,8 +24,8 @@ Execute Phase 3 UX/operator-efficiency triage with measurable evidence, role-pat
 
 - [x] B1. Identify top-10 high-traffic routes from workflow matrix + route map
 - [ ] B2. Capture route-level friction findings (time-to-task, click depth, error-prone actions)
-- [ ] B3. Classify quick wins into now/next/later slices
-- [ ] B4. Define measurable UX acceptance criteria by route family
+- [x] B3. Classify quick wins into now/next/later slices
+- [x] B4. Define measurable UX acceptance criteria by route family
 - [x] B5. Map role-specific path simplifications for admin, admin_officer, officer, master
 - [x] B6. Validate route/role alignment with docs/MODULE_ROADMAP.md and src/App.tsx
 - [x] B7. Run triad review on Phase 3 artifact before implementation commit
@@ -57,9 +57,9 @@ Evidence (2026-05-03):
 ## D. Baseline Evidence Requirements (Before UX Code Changes)
 
 - [ ] D1. Measured click depth for top-10 routes captured (not estimates)
-- [ ] D2. Median time-to-primary-action per route family captured
-- [ ] D3. Error-prone action count from operator walkthrough samples captured
-- [ ] D4. Evidence snapshot recorded in STAGING session note
+- [x] D2. Median time-to-primary-action per route family captured
+- [x] D3. Error-prone action count from operator walkthrough samples captured
+- [x] D4. Evidence snapshot recorded in STAGING session note
 
 ## E. Shipping Slices
 
@@ -81,6 +81,14 @@ Evidence (2026-05-03):
 
 ## F. Governance Decision
 
-- [ ] F1. Triad decision recorded (GO/CONDITIONAL_GO/NO_GO)
-- [ ] F2. Blockers resolved or converted to target-state gaps with owner/date/evidence
-- [ ] F3. Canonical and STAGING updated with run IDs and artifact links
+- [x] F1. Triad decision recorded (GO/CONDITIONAL_GO/NO_GO)
+- [x] F2. Blockers resolved or converted to target-state gaps with owner/date/evidence
+- [x] F3. Canonical and STAGING updated with run IDs and artifact links
+
+## 2026-05-04 Continuation Notes
+
+- Validation gates re-run on current head: lint/build/doc-authority/route-role strict all pass.
+- Baseline capture re-run with shared fallback credentials:
+	- `PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=1 bunx playwright test tests/e2e/phase3-ux-baseline-capture.spec.ts --project=chromium --reporter=list`
+	- `node scripts/import-phase3-baseline.mjs --input test-results/phase3-ux-baseline.json --run-id local-2026-05-04-phase3-baseline`
+- Remaining open gate: D1 click-depth medians are still pending because baseline run currently navigates directly to routes in this environment.
