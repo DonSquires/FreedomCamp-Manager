@@ -14,6 +14,10 @@ import { supabaseAdmin } from './setup'
 const PATROL_CASE_TYPE = 'patrol'
 
 test.describe('Phase B1: Patrol and Respond', () => {
+  // Skip entire suite if admin key unavailable
+  if (!supabaseAdmin) {
+    test('Suite skipped: SUPABASE_SERVICE_ROLE_KEY required', async () => {})
+  } else {
   let testOrgId: string
   let testOfficerId: string
   let testCaseId: string
@@ -256,4 +260,5 @@ test.describe('Phase B1: Patrol and Respond', () => {
     await supabaseAdmin.from('user_profiles').delete().eq('id', testOfficerId)
     await supabaseAdmin.from('organizations').delete().eq('id', testOrgId)
   })
+  }
 })
