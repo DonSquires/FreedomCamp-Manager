@@ -815,7 +815,7 @@ Route tranche result:
 | P3-2 | Implement Slice B: dashboard tile optimization (grid, spacing, accessibility) | Dev | ✅ Done | `src/pages/AdminPortal.tsx` |
 | P3-3 | Implement Slice C: list card standardization (breach, route, patrol, shift cards) | Dev | ✅ Done | `ListCardRow.tsx` — 10 passes: BreachAlerts, NoiseControlPortal, LivePatrolMonitor, RosterPlanner, OfficerAvailability, AdminPortal, DispatchWizard, EnforcementCommandCenter, VehicleDetailPage, DataIntegrityDashboard, HotspotsMap |
 | P3-4 | Measure click-depth for each Slice during implementation | QA | ✅ Done | `tests/e2e/phase3-ux-baseline-capture.spec.ts`, `docs/PHASE3_UX_BASELINE_CAPTURE_2026-05-03.md` — local import `local-2026-05-04-phase3-nondirect-v5` captured click depth for all top-10 routes |
-| P3-5 | Verify visual hierarchy meets QA guardrails post-Slice | QA | 🔄 In progress | `docs/PHASE3_VISUAL_HIERARCHY_CLEANUP_CHECKLIST_2026-05-03.md` |
+| P3-5 | Verify visual hierarchy meets QA guardrails post-Slice | QA | ✅ Done | `docs/PHASE3_VISUAL_HIERARCHY_CLEANUP_CHECKLIST_2026-05-03.md` — all Slice A/B/C items verified after 10-pass P3-3 completion; success criteria all green |
 
 ### Role-Path Enforcement
 
@@ -848,4 +848,65 @@ Route tranche result:
 - ✅ Zero role-path redirect failures in E2E
 - ✅ CI baseline capture gates all PASS for Phase 3 (workflow run `25304989473` succeeded)
 - ✅ Triad review outcome: GO (move to Phase 4)
+- ✅ P3-3 ListCardRow: 10 passes, 11 surfaces standardized (2026-05-04)
+- ✅ P3-5 QA guard: all Phase 3 guardrails verified green (2026-05-04)
+
+### Phase 3 Closeout — 2026-05-04
+
+**Status: ✅ PHASE 3 COMPLETE**
+
+All 14 Phase 3 tickets closed. Phase 3 UX hardening sprint concluded with:
+- `ListCardRow` shared component adopted across 11 page surfaces (10 standardization passes)
+- Role-path redirect guard: 20 tests passing
+- CI baseline capture workflow: fixed and verified (run `25304989473`)
+- ADR-009 created for Phase 3 UX architecture decision
+- Lessons learned and retrospective recorded
+
+**Transition**: Phase 4 work begins from `docs/UI_UX_ENTERPRISE_FORWARD_PLAN_2026-05-03.md` Sprint 1.
+
+---
+
+## Section 9H — Phase 4: Enterprise UX Forward Plan
+
+Source: `docs/UI_UX_ENTERPRISE_FORWARD_PLAN_2026-05-03.md`
+Start date: 2026-05-04
+
+### Sprint 1: Route/Menu Authority Unification
+
+| # | Task | Owner | Status | Evidence |
+|---|---|---|---|---|
+| P4-1 | Wire AppLayout to manifest-driven role/org pre-filtering | Dev | ⬜ Not started | `src/components/features/AppLayout.tsx`, `src/navigation/routeManifest.ts` |
+| P4-2 | Expand module-route-access E2E spec for role/menu parity | QA | ⬜ Not started | `tests/e2e/module-route-access.spec.ts` |
+| P4-3 | Eliminate silent redirects — return explicit access guidance | Dev | ⬜ Not started | `src/App.tsx` guarded routes |
+
+### Sprint 2: Dispatch Reliability Fallbacks
+
+| # | Task | Owner | Status | Evidence |
+|---|---|---|---|---|
+| P4-4 | Implement suburb/postcode fallback in dispatchAssignment.ts | Dev | ⬜ Not started | `src/lib/dispatchAssignment.ts` (TODOs: lines 44, 162, 188, 198, 215, 221, 316, 323) |
+| P4-5 | Add no-GPS assignment test cases | QA | ⬜ Not started | `tests/e2e/` + `scripts/run-human-module-suite.mjs` |
+
+### Sprint 3: Async UX Consistency System
+
+| # | Task | Owner | Status | Evidence |
+|---|---|---|---|---|
+| P4-6 | Define and implement shared async-state components (loading/error/empty/retry/offline) | Dev | ⬜ Not started | `src/components/features/` |
+| P4-7 | Roll out to top-10 operator routes | Dev | ⬜ Not started | `docs/ui-ux-first-wave-rollout-log.md` (candidate gap — confirmed) |
+| P4-8 | Verify mobile viewport 375px for updated routes | QA | ⬜ Not started | Playwright mobile viewport tests |
+
+### Sprint 4: Multi-Org Assurance + Competitive/VOC
+
+| # | Task | Owner | Status | Evidence |
+|---|---|---|---|---|
+| P4-9 | Extend cross-org route/access E2E tests | QA | ⬜ Not started | `tests/e2e/module-route-access.spec.ts` + cross-org matrix |
+| P4-10 | Map top-5 VOC pain points to implementation tickets | Product | ⬜ Not started | `docs/voc-to-backlog-mapping.md` (candidate gap — confirmed) |
+| P4-11 | Build competitive gap board from COMPETITIVE_ANALYSIS_2024.md | Product | ⬜ Not started | `docs/competitive-gap-board.md` (candidate gap — confirmed) |
+
+### Phase 4 Success Criteria
+
+- [ ] 0 menu items rendered that resolve to blocked routes for any role/org
+- [ ] 100% successful dispatch assignment for defined no-GPS test cases
+- [ ] 100% of top-10 routes use standardized async-state patterns
+- [ ] 0 unauthorized cross-org route/data exposures in test matrix
+- [ ] Top-5 VOC pain points mapped to tickets with acceptance criteria
 

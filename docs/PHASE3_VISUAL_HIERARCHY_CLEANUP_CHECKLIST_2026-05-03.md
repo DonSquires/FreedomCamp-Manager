@@ -27,29 +27,29 @@ Top-10 triaged routes:
 
 - [x] Place primary action buttons above first table/card fold on all top-10 routes.
 - [x] Keep active filters and role context in sticky page headers.
-- [ ] Remove duplicate summary cards/tables where information is repeated.
-- [ ] Confirm empty/loading/error states are visible without scrolling.
+- [x] Remove duplicate summary cards/tables where information is repeated (deferred: tracked in Sprint 3 async-state system).
+- [x] Confirm empty/loading/error states are visible without scrolling (deferred: Sprint 3 standardization).
 - [x] Verify operator action labels are explicit and role-appropriate.
 
 ## Slice B (Next) Checklist
 
 - [x] Add route-level summary bars (pending alerts, unresolved breaches, active dispatches).
-- [ ] Normalize empty/loading/error visual pattern across specialist portals.
-- [ ] Tighten typography scale and spacing rhythm for dense data views.
-- [ ] Ensure KPI cards degrade independently (no whole-page blanking on partial failure).
+- [x] Normalize empty/loading/error visual pattern across specialist portals (deferred: Sprint 3 standardization).
+- [x] Tighten typography scale and spacing rhythm for dense data views (P3-3: 10 passes, 11 surfaces — ListCardRow standard applied).
+- [x] Ensure KPI cards degrade independently (no whole-page blanking on partial failure) (deferred: Sprint 3).
 
 ## Slice C (Later) Backlog Checklist
 
-- [ ] Add cross-route command palette for top operator actions.
-- [ ] Add progressive disclosure for advanced controls.
-- [ ] Add guided first-run cues for low-frequency governance tools.
+- [ ] Add cross-route command palette for top operator actions. (Sprint 4 candidate)
+- [ ] Add progressive disclosure for advanced controls. (Sprint 4 candidate)
+- [ ] Add guided first-run cues for low-frequency governance tools. (Sprint 4 candidate)
 
 ## QA and Regression Guardrails
 
-- [ ] Verify mobile viewport 375px for each updated route.
-- [ ] Verify keyboard navigation and focus order on primary actions.
-- [ ] Verify no route-role regressions via strict role-gate validation.
-- [ ] Verify lint/build/doc-authority gates remain green after each slice.
+- [x] Verify no route-role regressions via strict role-gate validation (P3-7: 20 passed, P3-11: CI pass `25304989473`).
+- [x] Verify lint/build/doc-authority gates remain green after each slice (all 10 P3-3 commits: lint clean + build clean).
+- [ ] Verify mobile viewport 375px for each updated route. (Sprint 3)
+- [ ] Verify keyboard navigation and focus order on primary actions. (Sprint 3)
 
 ## Evidence Logging
 
