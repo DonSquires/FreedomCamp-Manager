@@ -6,11 +6,18 @@ on:
     branches: [main]
     paths:
       - 'tests/e2e/async-state-first-wave.spec.ts'
+      - 'tools/route-role-matrix/route-role-matrix.json'
       - 'src/components/features/AppLayout.tsx'
+      - 'src/pages/BreachAlerts.tsx'
+      - 'src/pages/DispatchMonitor.tsx'
       - 'src/pages/DispatchConsole.tsx'
       - 'src/pages/LiveOfficerTracking.tsx'
+      - 'src/pages/JobMap.tsx'
       - 'src/pages/CompliancePage.tsx'
+      - 'src/pages/ObservationsView.tsx'
       - 'src/pages/PatrolScheduleManagement.tsx'
+      - 'src/pages/LivePatrolMonitor.tsx'
+      - 'src/pages/NoiseControlPortal.tsx'
       - 'src/pages/OfficerWelfareSettings.tsx'
       - 'src/pages/IncidentReports.tsx'
       - 'src/pages/Reports.tsx'

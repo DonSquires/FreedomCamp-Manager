@@ -90,6 +90,12 @@ For each route in the first wave, the following checklist must pass before marki
 | `/zones` | ✅ | ✅ | ✅ | ✅ | ✅ | 🟨 | 🟨 E2E assertion defined; CI execution pending |
 | `/admin/dashboard` | ✅ | ✅ | ✅ | ✅ | ✅ | 🟨 | 🟨 E2E assertion defined; CI execution pending |
 
+### Expansion Addendum (2026-05-04)
+
+- Expanded async-state offline verification coverage to additional admin/operator routes: `/breaches`, `/dispatch-monitor`, `/job-map`, `/observations`, `/live-patrol`, and `/noise-control`.
+- `tests/e2e/async-state-first-wave.spec.ts` now cross-checks every covered route against `tools/route-role-matrix/route-role-matrix.json` before tests run, so deleted or renamed paths fail fast.
+- `.github/workflows/phase1-async-state-validation.yml` now re-runs when any of the newly covered route surfaces change.
+
 ---
 
 ## Implementation Evidence (Sprint 1)
@@ -98,6 +104,7 @@ For each route in the first wave, the following checklist must pass before marki
 - Files touched: `src/pages/DispatchConsole.tsx`, `src/pages/LiveOfficerTracking.tsx`, `src/pages/CompliancePage.tsx`, `src/pages/PatrolScheduleManagement.tsx`, `src/pages/OfficerWelfareSettings.tsx`, `src/pages/IncidentReports.tsx`, `src/pages/Reports.tsx`, `src/pages/EnforcementActions.tsx`, `src/pages/ZoneManagement.tsx`, `src/components/features/AppLayout.tsx`
 - Added E2E async-state coverage spec: `tests/e2e/async-state-first-wave.spec.ts` (offline degradation assertions for all top-10 first-wave routes)
 - Added CI execution lane: `.github/workflows/phase1-async-state-validation.yml` (Chromium + Mobile Chrome)
+- Expanded verification slice on 2026-05-04: added Phase 3 operator routes to offline-banner coverage and bound the spec to the generated route matrix.
 - Execution note: local run in this container is blocked by Playwright host dependency requirements and role-credential preflight; run in CI or a provisioned Playwright host to mark `E2E Updated` as complete.
 
 ---

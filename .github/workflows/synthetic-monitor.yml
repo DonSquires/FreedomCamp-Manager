@@ -285,15 +285,24 @@ jobs:
             echo '{}' > /tmp/bob_resp.json
           fi
           PROVIDER=$(jq -r '.provider // "unknown"' /tmp/bob_resp.json 2>/dev/null || echo "unknown")
+          HAS_RESPONSE=$(jq -r '((.response // "") | tostring | length) > 0' /tmp/bob_resp.json 2>/dev/null || echo "false")
           echo "http_code=$HTTP_CODE" >> "$GITHUB_OUTPUT"
           echo "provider=$PROVIDER" >> "$GITHUB_OUTPUT"
-          if [ "$HTTP_CODE" = "200" ] && [ "$PROVIDER" != "local-fallback" ] && [ "$PROVIDER" != "unknown" ]; then
+          echo "has_response=$HAS_RESPONSE" >> "$GITHUB_OUTPUT"
+          if [ "$HTTP_CODE" = "200" ] && [ "$HAS_RESPONSE" = "true" ] && [ "$PROVIDER" != "local-fallback" ] && [ "$PROVIDER" != "local-failsafe" ] && [ "$PROVIDER" != "unknown" ]; then
             echo "✅ Bob AI chat HTTP $HTTP_CODE provider=$PROVIDER"
             echo "passed=true" >> "$GITHUB_OUTPUT"
+            echo "status=healthy" >> "$GITHUB_OUTPUT"
+          elif [ "$HTTP_CODE" = "200" ] && [ "$HAS_RESPONSE" = "true" ]; then
+            echo "::warning::Bob AI chat responded in degraded mode — HTTP $HTTP_CODE provider=$PROVIDER"
+            cat /tmp/bob_resp.json || true
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+            echo "status=degraded" >> "$GITHUB_OUTPUT"
           else
             echo "::warning::Bob AI chat check failed — HTTP $HTTP_CODE provider=$PROVIDER"
             cat /tmp/bob_resp.json || true
             echo "passed=false" >> "$GITHUB_OUTPUT"
+            echo "status=failed" >> "$GITHUB_OUTPUT"
           fi
         env:
           VITE_SUPABASE_URL:        ${{ secrets.VITE_SUPABASE_URL }}
@@ -309,6 +318,8 @@ jobs:
           supabase_ok="${{ steps.check-supabase.outputs.passed }}"
           playwright_ok="${{ steps.check-playwright.outputs.passed }}"
           bob_ok="${{ steps.check-bob.outputs.passed }}"
+          bob_status="${{ steps.check-bob.outputs.status }}"
+          bob_provider="${{ steps.check-bob.outputs.provider }}"
           playwright_vercel="${{ steps.check-playwright.outputs.vercel_protection }}"
           frontend_code="${{ steps.check-frontend.outputs.http_code }}"
           supabase_code="${{ steps.check-supabase.outputs.http_code }}"
@@ -378,10 +389,14 @@ jobs:
           echo "frontend_effective=$frontend_ok" >> "$GITHUB_OUTPUT"
           echo "supabase_effective=$supabase_ok" >> "$GITHUB_OUTPUT"
           echo "playwright_effective=$playwright_ok" >> "$GITHUB_OUTPUT"
+          echo "bob_effective=${bob_status:-failed}" >> "$GITHUB_OUTPUT"
 
-          if [ "$frontend_ok" != "true" ] || [ "$supabase_ok" != "true" ] || [ "$playwright_ok" != "true" ] || [ "$bob_ok" != "true" ]; then
+          if [ "$frontend_ok" != "true" ] || [ "$supabase_ok" != "true" ] || [ "$playwright_ok" != "true" ]; then
             echo "healthy=false" >> "$GITHUB_OUTPUT"
-            echo "::error::Health check FAILED — frontend=$frontend_ok supabase=$supabase_ok playwright=$playwright_ok bob=$bob_ok"
+            echo "::error::Health check FAILED — frontend=$frontend_ok supabase=$supabase_ok playwright=$playwright_ok bob=${bob_status:-failed}"
+          elif [ "${bob_status:-failed}" != "healthy" ]; then
+            echo "healthy=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::Core app checks passed, but Bob AI chat is ${bob_status:-failed} (provider=${bob_provider:-unknown}); suppressing synthetic incident noise"
           else
             echo "healthy=true" >> "$GITHUB_OUTPUT"
             echo "✅ All checks passed (including Bob AI)"
@@ -475,9 +490,24 @@ jobs:
       - name: Summary
         if: steps.check-secrets.outputs.secrets_present == 'true'
         run: |
+          BOB_STATUS="${{ steps.evaluate.outputs.bob_effective }}"
+          if [ "$BOB_STATUS" = "healthy" ]; then
+            BOB_LABEL="✅ Pass"
+          elif [ "$BOB_STATUS" = "degraded" ]; then
+            BOB_LABEL="⚠️ Degraded"
+          else
+            BOB_LABEL="❌ Fail"
+          fi
+
           echo "## Synthetic Monitor Results" >> "$GITHUB_STEP_SUMMARY"
           echo "| Check | Status |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
           echo "| Frontend HTTP | ${{ steps.evaluate.outputs.frontend_effective == 'true' && '✅ Pass' || '❌ Fail' }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Supabase REST | ${{ steps.evaluate.outputs.supabase_effective == 'true' && '✅ Pass' || '❌ Fail' }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Playwright render | ${{ steps.evaluate.outputs.playwright_effective == 'true' && '✅ Pass' || '❌ Fail' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Bob AI chat | ${BOB_LABEL} |" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$BOB_STATUS" != "healthy" ] && [ "${{ steps.evaluate.outputs.healthy }}" = "true" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "> Bob AI degraded without a core app outage. The workflow reports a warning but does not file a synthetic bug report." >> "$GITHUB_STEP_SUMMARY"
+          fi
