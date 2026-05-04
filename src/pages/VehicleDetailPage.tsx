@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { AppLayout } from '@/components/features/AppLayout'
+import { ListCardRow } from '@/components/features/ListCardRow'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -692,28 +693,26 @@ export default function VehicleDetailPage() {
               return (
                 <Card key={breach.id} className={isActive ? 'border-orange-300' : ''}>
                   <CardContent className="p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-2">
-                          <AlertTriangle className={`h-4 w-4 ${isActive ? 'text-orange-500' : 'text-muted-foreground'}`} />
-                          <span className="font-semibold text-sm">{toTitleCase(breach.breach_type)}</span>
-                          <Badge variant={isActive ? 'default' : 'secondary'} className="text-xs capitalize">
-                            {breach.status.replace(/_/g, ' ')}
-                          </Badge>
+                    <ListCardRow
+                      left={
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <AlertTriangle className={`h-4 w-4 ${isActive ? 'text-orange-500' : 'text-muted-foreground'}`} />
+                            <span className="font-semibold text-sm">{toTitleCase(breach.breach_type)}</span>
+                            <Badge variant={isActive ? 'default' : 'secondary'} className="text-xs capitalize">
+                              {breach.status.replace(/_/g, ' ')}
+                            </Badge>
+                          </div>
+                          <div className="text-xs text-muted-foreground flex gap-3">
+                            {breach.zone && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{breach.zone.name}</span>}
+                            <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{formatDateTime(breach.created_at)}</span>
+                          </div>
                         </div>
-                        <div className="text-xs text-muted-foreground flex gap-3">
-                          {breach.zone && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{breach.zone.name}</span>}
-                          <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{formatDateTime(breach.created_at)}</span>
-                        </div>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => navigate(`/breaches?id=${breach.id}`)}
-                      >
-                        View
-                      </Button>
-                    </div>
+                      }
+                      right={
+                        <Button size="sm" variant="ghost" onClick={() => navigate(`/breaches?id=${breach.id}`)}>View</Button>
+                      }
+                    />
                   </CardContent>
                 </Card>
               )

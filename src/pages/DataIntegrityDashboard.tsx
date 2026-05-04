@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { AppLayout } from '@/components/features/AppLayout'
 import { StatCard } from '@/components/features/StatCard'
+import { ListCardRow } from '@/components/features/ListCardRow'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
@@ -299,26 +300,27 @@ export default function DataIntegrityDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Total Checks Run</span>
-                <span className="font-medium">{totalChecks}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Checks Passing</span>
-                <span className="font-medium text-green-600">{passCount}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Warnings</span>
-                <span className="font-medium text-yellow-600">{warningCount}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Failures</span>
-                <span className="font-medium text-red-600">{failCount}</span>
-              </div>
-              <div className="flex items-center justify-between pt-3 border-t">
-                <span className="text-sm font-medium">Overall Health</span>
-                <span className="font-bold">{overallHealth.toFixed(1)}%</span>
-              </div>
+              <ListCardRow
+                left={<span className="text-sm text-muted-foreground">Total Checks Run</span>}
+                right={<span className="font-medium">{totalChecks}</span>}
+              />
+              <ListCardRow
+                left={<span className="text-sm text-muted-foreground">Checks Passing</span>}
+                right={<span className="font-medium text-green-600">{passCount}</span>}
+              />
+              <ListCardRow
+                left={<span className="text-sm text-muted-foreground">Warnings</span>}
+                right={<span className="font-medium text-yellow-600">{warningCount}</span>}
+              />
+              <ListCardRow
+                left={<span className="text-sm text-muted-foreground">Failures</span>}
+                right={<span className="font-medium text-red-600">{failCount}</span>}
+              />
+              <ListCardRow
+                left={<span className="text-sm font-medium">Overall Health</span>}
+                right={<span className="font-bold">{overallHealth.toFixed(1)}%</span>}
+                className="pt-3 border-t"
+              />
             </div>
           </CardContent>
         </Card>
