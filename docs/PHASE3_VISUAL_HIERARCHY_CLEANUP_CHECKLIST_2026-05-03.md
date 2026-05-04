@@ -25,15 +25,15 @@ Top-10 triaged routes:
 
 ## Slice A (Now) Checklist
 
-- [ ] Place primary action buttons above first table/card fold on all top-10 routes.
-- [ ] Keep active filters and role context in sticky page headers.
+- [x] Place primary action buttons above first table/card fold on all top-10 routes.
+- [x] Keep active filters and role context in sticky page headers.
 - [ ] Remove duplicate summary cards/tables where information is repeated.
 - [ ] Confirm empty/loading/error states are visible without scrolling.
-- [ ] Verify operator action labels are explicit and role-appropriate.
+- [x] Verify operator action labels are explicit and role-appropriate.
 
 ## Slice B (Next) Checklist
 
-- [ ] Add route-level summary bars (pending alerts, unresolved breaches, active dispatches).
+- [x] Add route-level summary bars (pending alerts, unresolved breaches, active dispatches).
 - [ ] Normalize empty/loading/error visual pattern across specialist portals.
 - [ ] Tighten typography scale and spacing rhythm for dense data views.
 - [ ] Ensure KPI cards degrade independently (no whole-page blanking on partial failure).
@@ -59,3 +59,9 @@ For each completed checklist item, record:
 2. PR/commit SHA
 3. Screenshot or artifact link
 4. Before/after click depth or time-to-action delta
+
+## Progress Notes (2026-05-04)
+
+- P1/P2 route tranche shipped with above-fold actions and summary strips: commits `7185e979` and `69a45c3d`.
+- Shared chrome and dashboard command bar improvements: commits `cce6c89d` and `226a5ac2`.
+- P3-3 shared list-card standardization started: commit `1e7be71c` (`ListCardRow` adopted in BreachAlerts and NoiseControlPortal).
