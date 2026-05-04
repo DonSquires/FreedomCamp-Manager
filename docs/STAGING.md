@@ -1157,3 +1157,22 @@ Latest Session Snapshot (Phase A Agentic E2E Continuation — Parallel Serverles
 - Next exact command to run:
   - `git add tests/e2e/flag-teardown-safety.test.ts docs/STAGING.md && git commit -m "test(e2e): add phase-a flag teardown safety coverage and serverless validation evidence" && git push origin main`
 
+Latest Session Snapshot (Phase A Agentic E2E Continuation — Post-Push RunPod Revalidation):
+
+- Timestamp (NZ): 2026-05-05 10:02:07 NZST
+- Current branch: main
+- HEAD SHA: 27d2253a
+- Commit/push status:
+  - `test(e2e): add phase-a flag teardown safety coverage and serverless validation evidence`
+  - Pushed to `origin/main` (`02ac9eb8` -> `27d2253a`)
+- RunPod rerun command:
+  - `BOB_SELF_TEST_PREFLIGHT=false BOB_WORKER_GITHUB_TOKEN="$(gh auth token)" node scripts/trigger-bob-self-test.mjs --scope quick --quickSpecs tests/e2e/flag-teardown-safety.test.ts --dryRun`
+- Result:
+  - PASS (`0 passed`, `0 failed`, `5 skipped`), job `29759596-a6f8-4dc0-8a90-0a40f2a1a483-u1`
+  - Test file is now discoverable and executable in RunPod worker clone (no more `No tests found`)
+- Findings:
+  - Phase A degraded-mode safety suite is now fully integrated into the serverless validation path.
+  - Remaining skip-only execution reflects environment gating (feature-flag tables/credentials), not worker clone visibility.
+- Next exact command to run:
+  - `BOB_SELF_TEST_PREFLIGHT=false BOB_WORKER_GITHUB_TOKEN="$(gh auth token)" node scripts/trigger-bob-self-test.mjs --scope quick --quickSpecs tests/e2e/bootstrap-routes.test.ts --dryRun`
+
