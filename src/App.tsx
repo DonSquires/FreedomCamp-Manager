@@ -1,5 +1,5 @@
 import { Component, lazy, Suspense, useEffect, type ErrorInfo, type ReactNode } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import { useAuthStore } from '@/stores/authStore'
@@ -13,6 +13,7 @@ import { OrganizationContext } from '@/contexts/OrganizationContext'
 import { useFeedbackCapture } from '@/hooks/useFeedbackCapture'
 import { useLiveSessionDiagnostics } from '@/hooks/useLiveSessionDiagnostics'
 import { getDefaultRouteForRole, getRoleConstrainedRedirect } from '@/navigation/rolePath'
+import { ShieldOff } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
 // Lazy-loaded page chunks — Vite code-splits each of these into a separate
@@ -311,6 +312,43 @@ const queryClient = new QueryClient({
   },
 })
 
+// ---------------------------------------------------------------------------
+// AccessDenied — replaces silent role-mismatch redirects with explicit guidance
+// ---------------------------------------------------------------------------
+function AccessDenied({ requiredRoles, currentRole }: { requiredRoles: string[]; currentRole: string }) {
+  const navigate = useNavigate()
+  const defaultPath = getDefaultRouteForRole(currentRole)
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-6">
+      <div className="max-w-md w-full text-center space-y-6">
+        <div className="flex justify-center">
+          <div className="h-16 w-16 rounded-full bg-red-50 dark:bg-red-950/30 flex items-center justify-center">
+            <ShieldOff className="h-8 w-8 text-red-500" />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <h1 className="text-xl font-semibold text-foreground">Access Restricted</h1>
+          <p className="text-sm text-muted-foreground">
+            Your current role (<strong>{currentRole.replace(/_/g, ' ')}</strong>) does not have
+            permission to view this page.
+          </p>
+          {requiredRoles.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Required: {requiredRoles.map(r => r.replace(/_/g, ' ')).join(', ')}
+            </p>
+          )}
+        </div>
+        <button
+          onClick={() => navigate(defaultPath, { replace: true })}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+        >
+          Go to my portal
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // Protected Route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuthStore()
@@ -383,7 +421,7 @@ function RoleRoute({
   if (user.role === 'grand_master') return <>{children}</>
 
   if (!allowedRoles.includes(user.role)) {
-    return <Navigate to={getDefaultRouteForRole(user.role)} replace />
+    return <AccessDenied requiredRoles={allowedRoles} currentRole={user.role} />
   }
 
   return <>{children}</>
