@@ -1,10 +1,24 @@
-# FieldOps Manager — Clean Rebuild Execution Plan
+# ⚠️ HISTORICAL DOCUMENT — FieldOps Manager Clean Rebuild Execution Plan (2026-04-01)
 
-> Purpose: turn the existing design and architecture documents into an execution plan for a full rebuild of the product surface.
+> **NOTE: This document was created 2026-04-01 (33 days before current session) and has been superseded by the active execution authority.**
 >
-> Source documents: `docs/CLEAN_REBUILD_DESIGN.md`, `docs/BUILD_PLAN.md`, `docs/BUILD_PLAN_V3.md`, `docs/CAPABILITY_OVERVIEW.md`, `docs/LIVE_SCHEMA.md`, `docs/LIVE_FUNCTIONS.md`, `docs/NEW_PROJECT_SETUP.md`.
+> For current execution status, platform stack decisions, and active rebuild phases, see:
+> - **Primary Authority**: [docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md](./ENTERPRISE_PAIR_REVIEW_CANONICAL.md) (baseline: af18b1fb, 2026-05-04)
+> - **Phase Status**: Phase 3 (UX standardization) COMPLETE, Phase 4 (Nav/Access) COMPLETE
+> - **Current Roadmap**: [docs/MODULE_ROADMAP.md](./MODULE_ROADMAP.md) (122 routes verified)
+> - **Session Resume**: [docs/STAGING.md](./STAGING.md) Section 7
 >
-> Date: 2026-04-01
+> **The product stack decision made in this plan remains CURRENT**: React + TypeScript + Supabase Postgres + Edge Functions. However, the rebuild timeline and phase priorities have materially changed.
+>
+> This document is retained as a historical record of pre-Phase 3 rebuild planning.
+
+---
+
+> **Original Document Purpose**: Turn the existing design and architecture documents into an execution plan for a full rebuild of the product surface.
+>
+> **Original Source Documents**: `docs/CLEAN_REBUILD_DESIGN.md`, `docs/BUILD_PLAN.md`, `docs/BUILD_PLAN_V3.md`, `docs/CAPABILITY_OVERVIEW.md`, `docs/LIVE_SCHEMA.md`, `docs/LIVE_FUNCTIONS.md`, `docs/NEW_PROJECT_SETUP.md`.
+>
+> **Original Date**: 2026-04-01
 
 ## 1. Decision
 

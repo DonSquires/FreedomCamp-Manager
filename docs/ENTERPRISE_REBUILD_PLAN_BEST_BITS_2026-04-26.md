@@ -1,4 +1,15 @@
-# Enterprise Rebuild Plan - Best Bits Merge (2026-04-26)
+# ⚠️ HISTORICAL DOCUMENT — Enterprise Rebuild Plan - Best Bits Merge (2026-04-26)
+
+> **This plan was created 2026-04-26 as part of the multi-lens rebuild synthesis process. It has been superseded by the active execution authority.**
+>
+> For current execution status and decisions, see:
+> - **Primary Authority**: [docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md](./ENTERPRISE_PAIR_REVIEW_CANONICAL.md) (baseline: af18b1fb, 2026-05-04)
+> - **Active Phase Plan**: [docs/ENTERPRISE_COLLAB_EXECUTION_PLAN_2026-05-02.md](./ENTERPRISE_COLLAB_EXECUTION_PLAN_2026-05-02.md)
+> - **Session Resume**: [docs/STAGING.md](./STAGING.md) Section 7
+>
+> This document is retained for historical reference and has informed the strategic direction preserved in the canonical record.
+
+---
 
 ## Review Basis
 
