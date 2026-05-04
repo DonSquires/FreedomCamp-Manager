@@ -1,11 +1,42 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import type { Database } from '@/types/database';
 
-type OperationalCase = Database['public']['Tables']['operational_cases']['Row'];
-type PatrolEvent = Database['public']['Tables']['patrol_events']['Row'];
-type DispatchEvent = Database['public']['Tables']['dispatch_events']['Row'];
-type EnforcementEvent = Database['public']['Tables']['enforcement_events']['Row'];
+type OperationalCase = {
+  id: string;
+  title?: string | null;
+  case_type?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+  dispatch_job_id?: string | null;
+  summary?: string | null;
+  created_from?: string | null;
+  [key: string]: unknown;
+};
+
+type PatrolEvent = {
+  id: string;
+  case_id: string;
+  event_timestamp?: string | null;
+  [key: string]: unknown;
+};
+
+type DispatchEvent = {
+  id: string;
+  case_id: string;
+  event_timestamp?: string | null;
+  [key: string]: unknown;
+};
+
+type EnforcementEvent = {
+  id: string;
+  case_id: string;
+  event_timestamp?: string | null;
+  [key: string]: unknown;
+};
+
+// These Phase A/B tables may not exist in generated Database types yet.
+// Use runtime queries while schema/type generation catches up.
+const sb = supabase as any;
 
 /**
  * Hook: Fetch operational cases for current organization
@@ -19,7 +50,7 @@ export const useOperationalCases = (filters?: {
   return useQuery({
     queryKey: ['operationalCases', filters],
     queryFn: async () => {
-      let query = supabase
+      let query = sb
         .from('operational_cases')
         .select('*')
         .order('created_at', { ascending: false });
@@ -50,7 +81,7 @@ export const useOperationalCaseWithEvents = (caseId: string | null) => {
     queryFn: async () => {
       if (!caseId) return null;
 
-      const { data: caseData, error: caseError } = await supabase
+      const { data: caseData, error: caseError } = await sb
         .from('operational_cases')
         .select('*')
         .eq('id', caseId)
@@ -61,9 +92,9 @@ export const useOperationalCaseWithEvents = (caseId: string | null) => {
       // Fetch all related events
       const [{ data: patrolEvents }, { data: dispatchEvents }, { data: enforcementEvents }] =
         await Promise.all([
-          supabase.from('patrol_events').select('*').eq('case_id', caseId),
-          supabase.from('dispatch_events').select('*').eq('case_id', caseId),
-          supabase.from('enforcement_events').select('*').eq('case_id', caseId),
+          sb.from('patrol_events').select('*').eq('case_id', caseId),
+          sb.from('dispatch_events').select('*').eq('case_id', caseId),
+          sb.from('enforcement_events').select('*').eq('case_id', caseId),
         ]);
 
       return {
@@ -90,7 +121,7 @@ export const useCreateOperationalCase = () => {
       dispatchJobId?: string;
       summary?: string;
     }) => {
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from('operational_cases')
         .insert({
           case_type: input.caseType,
@@ -118,7 +149,7 @@ export const usePatrolEvents = (caseId: string | null) => {
   return useQuery({
     queryKey: ['patrolEvents', caseId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from('patrol_events')
         .select('*')
         .eq('case_id', caseId)
@@ -147,7 +178,7 @@ export const useCreatePatrolEvent = () => {
       gpsLat?: number;
       gpsLng?: number;
     }) => {
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from('patrol_events')
         .insert({
           case_id: input.caseId,
@@ -179,7 +210,7 @@ export const useDispatchEvents = (caseId: string | null) => {
   return useQuery({
     queryKey: ['dispatchEvents', caseId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from('dispatch_events')
         .select('*')
         .eq('case_id', caseId)
@@ -206,7 +237,7 @@ export const useCreateDispatchEvent = () => {
       assignedTo?: string;
       statusAtEvent?: string;
     }) => {
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from('dispatch_events')
         .insert({
           case_id: input.caseId,
@@ -236,7 +267,7 @@ export const useEnforcementEvents = (caseId: string | null) => {
   return useQuery({
     queryKey: ['enforcementEvents', caseId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from('enforcement_events')
         .select('*')
         .eq('case_id', caseId)
@@ -264,7 +295,7 @@ export const useCreateEnforcementEvent = () => {
       actionTaken?: string;
       outcome?: string;
     }) => {
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from('enforcement_events')
         .insert({
           case_id: input.caseId,
@@ -296,7 +327,7 @@ export const useFeatureFlag = (flagName: string) => {
   return useQuery({
     queryKey: ['featureFlag', flagName],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .rpc('is_feature_enabled', { flag_name: flagName });
 
       if (error) throw error;
