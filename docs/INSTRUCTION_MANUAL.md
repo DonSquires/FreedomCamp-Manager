@@ -6,7 +6,7 @@
 
 > **Living document** — this manual is updated automatically when source files change.  
 > See [`.github/workflows/docs-update-instruction-manual.yml`](../.github/workflows/docs-update-instruction-manual.yml) for the update trigger rules.  
-> Last reviewed: 2026-05-03
+> Last reviewed: 2026-05-04
 
 ---
 
@@ -473,13 +473,13 @@ All other admin workflows for Master are identical to the Administrator role —
 
 #### Admin Hub (`/admin`)
 
-After login, the Admin Hub is your home screen. It is a card-based dashboard with live metrics.
+After login, the Admin Hub is your home screen. It is a card-based landing page with live metrics, direct-entry cards for each major module, and quick links for common sub-pages.
 
-**Reading the dashboard:**
-- The top row of KPI tiles shows: **Total Scans Today**, **Active Breaches**, **Patrols Running**, and **Officer Welfare Alerts** — all live and scoped to your current organisation and date filter.
-- The **Compliance Trend Chart** below shows daily scan-vs-breach ratio over the selected date range. Hover over a data point to see the day's exact figures.
-- The **SCV Enforcement Countdown** shows days remaining until the mandatory SCV certificate check date.
-- Quick-navigation cards for each major module are below — click any card's **→** arrow to open that section.
+**Reading the hub:**
+- Each card represents a major functional area such as Operations, Compliance, Dispatch, Reports, CRM, or a specialist workflow.
+- Every card carries a live metric badge so you can see queue pressure before opening the module.
+- Quick links inside a card open high-frequency sub-pages directly.
+- Click the card title or **Open →** to enter the full module workspace.
 
 **Changing the date range or organisation:**  
 Use the **Global Filter Ribbon** at the top of the page. Click the date field to open the calendar picker. Click the organisation dropdown to switch between orgs you have access to.
@@ -495,6 +495,7 @@ The full operational dashboard. Contains:
 - **Compliance Trend Chart**: Daily scan-vs-breach ratio over the selected date range
 - **SCV Enforcement Countdown**: Days remaining until the mandatory SCV certificate date
 - **Quick navigation tiles**: Jump to any major module
+- **Sticky priority-action bar**: keeps live breach, welfare, and patrol counts plus shortcuts to Breaches, Welfare, Dispatch, and Reports visible while you scroll
 
 ---
 
@@ -1653,7 +1654,7 @@ For after-hours noise control operations under the Resource Management Act 1991 
 
 #### Receiving a Job
 
-Noise control officers receive jobs via the Dispatch Console. When dispatched, the officer's portal displays an incoming job notification with: address, priority, complaint description, and any prior notice history at that address.
+Noise control officers receive jobs via the Dispatch Console. Supervisors and admin roles coordinate the wider queue from the Noise Control Portal (`/noise-control`). When dispatched, the officer's portal displays an incoming job notification with: address, priority, complaint description, and any prior notice history at that address.
 
 **Respond to the dispatch:**
 1. From the portal home screen, the incoming job card appears at the top with a pulsing amber border.
@@ -1717,6 +1718,15 @@ When issuing an END or responding to a Permanent END:
 3. The full job record — assessment, photos, notices, timestamps — is automatically available in the admin portal.
 
 > **Evidence reminder**: Photos and decibel readings are legally significant. Always capture them at the scene before issuing any notice above a verbal warning.
+
+#### Supervisor Noise Control Portal (`/noise-control`)
+
+Supervisors and admin roles use the Noise Control Portal to coordinate jobs, notices, and seizures across the organisation.
+
+1. The top of the page shows an urgent-job strip whenever priority incidents need immediate dispatch attention.
+2. Tabs separate **Jobs**, **Notices**, and **Seizures** for fast switching between live response and document follow-up.
+3. Use **Dispatch Job** to create a new job, **Issue Notice** to open the notice workflow, and **Refresh** to pull the latest queue state.
+4. Summary cards at the top show active jobs, urgent jobs, issued notices, and held seizures.
 
 ---
 
@@ -2170,6 +2180,7 @@ supabase db push --linked
 | `observations` | Officer observations |
 | `dispatch_jobs` | Jobs dispatched to officers |
 | `dispatch_resources` | Patrol runs and callsigns |
+| `bug_reports` | User-submitted and automatically detected bug / diagnostics reports |
 | `radio_transmissions` | PTT transmission audit trail (speaker, channel, emergency flag, start/end) |
 | `radio_transcript_segments` | Transcript segments per transmission (sequence, confidence, final flag) |
 | `radio_translation_segments` | Per-segment translated caption output |
@@ -2380,6 +2391,8 @@ Results show: records processed, duplicates removed, invalid plates flagged, and
 #### Live Session Diagnostics
 
 The `useLiveSessionDiagnostics` hook (mounted globally in `App.tsx`) captures JavaScript errors, performance metrics, and network failures during active sessions. Data is written to the `bug_reports` table — one row per session (`Live session diagnostics <sessionId>`), updated continuously.
+
+The `bug_reports.auto_reported` column distinguishes machine-generated incidents from user-submitted reports. It is set to `true` for browser auto-error submissions and GitHub Actions synthetic-monitor reports, allowing grand-master triage views to badge and prioritise these separately.
 
 ---
 
