@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Bootstraps Playwright credential variables from Codespaces TEST_* secrets.
+#
+# Usage:
+#   bash scripts/playwright-codespace-credentials.sh
+#   bash scripts/playwright-codespace-credentials.sh bunx playwright test tests/e2e/phase1-radio-*.spec.ts --project=chromium
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+# Load local .env values (without overwriting already injected env vars).
+if [[ -f .env ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source ./.env
+  set +a
+fi
+
+set_if_missing() {
+  local target="$1"
+  local source_name="$2"
+
+  if [[ -z "${!target:-}" && -n "${!source_name:-}" ]]; then
+    export "$target=${!source_name}"
+  fi
+}
+
+set_if_missing_chain() {
+  local target="$1"
+  shift
+  if [[ -n "${!target:-}" ]]; then
+    return
+  fi
+  local src
+  for src in "$@"; do
+    if [[ -n "${!src:-}" ]]; then
+      export "$target=${!src}"
+      return
+    fi
+  done
+}
+
+# Supabase URL fallback from project ref.
+if [[ -z "${VITE_SUPABASE_URL:-}" && -n "${SUPABASE_PROJECT_REF:-}" ]]; then
+  export VITE_SUPABASE_URL="https://${SUPABASE_PROJECT_REF}.supabase.co"
+fi
+
+# Role credential mappings from TEST_* to PLAYWRIGHT_*.
+set_if_missing PLAYWRIGHT_MASTER_EMAIL TEST_MASTER_EMAIL
+set_if_missing PLAYWRIGHT_MASTER_PASSWORD TEST_MASTER_PASSWORD
+
+set_if_missing PLAYWRIGHT_ADMIN_ORG1_EMAIL TEST_ADMIN_EMAIL
+set_if_missing_chain PLAYWRIGHT_ADMIN_ORG1_PASSWORD TEST_ADMIN_PASSWORD TEST_ADMIN_PASWORD
+
+set_if_missing PLAYWRIGHT_ADMIN_ORG2_EMAIL TEST_CLIENT_EMAIL
+set_if_missing PLAYWRIGHT_ADMIN_ORG2_PASSWORD TEST_CLIENT_PASSWORD
+
+set_if_missing PLAYWRIGHT_OFFICER_ORG1_EMAIL TEST_OFFICER_EMAIL
+set_if_missing PLAYWRIGHT_OFFICER_ORG1_PASSWORD TEST_OFFICER_PASSWORD
+
+set_if_missing PLAYWRIGHT_OFFICER_ORG2_EMAIL TEST_CLIENT_OFFICER_EMAIL
+set_if_missing PLAYWRIGHT_OFFICER_ORG2_PASSWORD TEST_CLIENT_OFFICER_PASSWORD
+
+set_if_missing PLAYWRIGHT_CLIENT_VIEWER_EMAIL TEST_CLIENT_EMAIL
+set_if_missing PLAYWRIGHT_CLIENT_VIEWER_PASSWORD TEST_CLIENT_PASSWORD
+
+set_if_missing PLAYWRIGHT_CLIENT_STAFF_EMAIL TEST_CLIENT_OFFICER_EMAIL
+set_if_missing PLAYWRIGHT_CLIENT_STAFF_PASSWORD TEST_CLIENT_OFFICER_PASSWORD
+
+# Control plane URL fallback for radio floor/SFU tests.
+set_if_missing_chain PTT_SERVER_URL VITE_PTT_SERVER_URL RADIO_CONTROL_PLANE_URL PTT_API_CODESPACE
+
+# Allow role-shared fallback to satisfy global preflight in shared sandboxes.
+if [[ -z "${PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK:-}" ]]; then
+  export PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=1
+fi
+
+print_status() {
+  local vars=(
+    VITE_SUPABASE_URL
+    VITE_SUPABASE_ANON_KEY
+    PTT_SERVER_URL
+    PLAYWRIGHT_MASTER_EMAIL
+    PLAYWRIGHT_MASTER_PASSWORD
+    PLAYWRIGHT_ADMIN_ORG1_EMAIL
+    PLAYWRIGHT_ADMIN_ORG1_PASSWORD
+    PLAYWRIGHT_ADMIN_ORG2_EMAIL
+    PLAYWRIGHT_ADMIN_ORG2_PASSWORD
+    PLAYWRIGHT_OFFICER_ORG1_EMAIL
+    PLAYWRIGHT_OFFICER_ORG1_PASSWORD
+    PLAYWRIGHT_OFFICER_ORG2_EMAIL
+    PLAYWRIGHT_OFFICER_ORG2_PASSWORD
+    PLAYWRIGHT_CLIENT_VIEWER_EMAIL
+    PLAYWRIGHT_CLIENT_VIEWER_PASSWORD
+    PLAYWRIGHT_CLIENT_STAFF_EMAIL
+    PLAYWRIGHT_CLIENT_STAFF_PASSWORD
+    PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK
+  )
+
+  echo "[playwright-codespace-credentials] variable status"
+  local v
+  for v in "${vars[@]}"; do
+    if [[ -n "${!v:-}" ]]; then
+      echo "- ${v}=set"
+    else
+      echo "- ${v}=missing"
+    fi
+  done
+}
+
+if [[ $# -eq 0 ]]; then
+  print_status
+  exit 0
+fi
+
+print_status
+exec "$@"
