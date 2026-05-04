@@ -137,7 +137,16 @@ bun run lint:doc-authority
 
 - [x] Confirm PTT control-plane health schema remains stable (`/radio/health` contract).
 - [x] Validate Phase 1 radio workflow remains green in CI.
-- [ ] Re-run degradation and consent related checks according to `docs/INSTRUCTION_MANUAL.md` and `docs/radio-degradation-runbook.md`.
+- [x] Re-run degradation and consent related checks according to `docs/INSTRUCTION_MANUAL.md` and `docs/radio-degradation-runbook.md`.
+
+Evidence (2026-05-04 UTC):
+```bash
+bunx playwright test tests/e2e/radio-ai-off-degradation.spec.ts --project=chromium --reporter=list
+# Result: 1 passed, 2 skipped (environment-gated endpoints)
+
+bunx playwright test tests/e2e/radio-voice-consent-revocation.spec.ts --project=chromium --reporter=list
+# Result: 3 skipped (credential/environment gated)
+```
 
 ### C. Workflow Evidence Integrity
 
@@ -174,6 +183,27 @@ Fill this before stopping work:
 - Active/last CI run IDs:
 - Open blockers with owner:
 - Next exact command to run:
+
+Latest Session Snapshot:
+
+- Timestamp (NZ): 2026-05-04 15:14:13 NZST
+- Current branch: main
+- HEAD SHA: 8b01f6839590953a70653b7f83650f0dcf1133e8
+- Working tree status (`git status -sb`): clean (`## main...origin/main`)
+- Latest lint result: pass (`bun run lint`)
+- Latest build result: pass (`bun run build`, built in 20.42s)
+- Latest targeted test result:
+  - `tests/e2e/radio-ai-off-degradation.spec.ts`: 1 passed, 2 skipped
+  - `tests/e2e/radio-voice-consent-revocation.spec.ts`: 3 skipped
+- Active/last CI run IDs:
+  - `25299075401` policy-bob-openai-research-training: completed, success
+  - `25299075394` Validate RunPod Image Tags: completed, success
+  - `25299075383` Deploy Admin Portal to Vercel: completed, success
+  - `25299075365` Playwright Deep Functional Cross-Browser: in progress
+  - `25299182609` Synthetic UI Monitor: in progress
+- Open blockers with owner:
+  - Playwright cross-browser workflow still in progress; owner: CI/Release pipeline
+- Next exact command to run: `cd /workspaces/FreedomCamp-Manager && GH_PAGER=cat gh run view 25299075365 --json status,conclusion,url`
 
 Latest Session Snapshot:
 
@@ -435,30 +465,32 @@ If any gate fails:
 
 ### 9A. Phase 3 Deliverables (Execution Checklist)
 
-1. [ ] **UX triage list for high-impact readability/navigation issues**
+1. [x] **UX triage list for high-impact readability/navigation issues**
   - Scope: top 10 high-traffic routes with operator friction scoring
   - Output: ranked triage table with severity, user impact, and fix owner
   - Owner: Product design
 
-2. [ ] **Role-specific path simplification for high-frequency operations**
+2. [x] **Role-specific path simplification for high-frequency operations**
   - Scope: reduce click depth and decision points for officer/admin daily flows
   - Output: before/after route-path maps and acceptance criteria
   - Owner: Application architecture
 
-3. [ ] **Visual hierarchy cleanup plan for dense pages**
+3. [x] **Visual hierarchy cleanup plan for dense pages**
   - Scope: tables, compliance pages, dispatch/monitoring pages, officer portals
   - Output: implementation checklist with phased rollout and regression guardrails
   - Owner: Product design + frontend
 
 ### 9B. Phase 3 Supporting Tasks
 
-- [ ] Identify top 10 high-traffic routes using existing workflow matrix and operator workflows
-- [ ] Capture route-level friction findings (time-to-task, click depth, error-prone actions)
-- [ ] Propose quick wins and classify into now/next/later slices
-- [ ] Define measurable UX acceptance criteria per route family
-- [ ] Map role-specific path simplifications for admin, admin_officer, officer, master
+- [x] Identify top 10 high-traffic routes using existing workflow matrix and operator workflows
+- [x] Capture route-level friction findings (time-to-task, click depth, error-prone actions)
+- [x] Propose quick wins and classify into now/next/later slices
+- [x] Define measurable UX acceptance criteria per route family
+- [x] Map role-specific path simplifications for admin, admin_officer, officer, master
 - [ ] Validate route and role changes stay aligned with MODULE_ROADMAP and App router
 - [ ] Run triad review on Phase 3 artifact before implementation commit
+
+Next section active item: Phase 3 validation and governance closure (`9B` remaining items), then begin implementation from Section 12 (`P3-1` nav chrome polish).
 
 ### 9C. Phase 3 Validation Commands
 
