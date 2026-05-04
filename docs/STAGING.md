@@ -875,9 +875,9 @@ Start date: 2026-05-04
 
 | # | Task | Owner | Status | Evidence |
 |---|---|---|---|---|
-| P4-1 | Wire AppLayout to manifest-driven role/org pre-filtering | Dev | ⬜ Not started | `src/components/features/AppLayout.tsx`, `src/navigation/routeManifest.ts` |
+| P4-1 | Wire AppLayout to manifest-driven role/org pre-filtering | Dev | ✅ Done | `src/components/features/AppLayout.tsx`, `src/navigation/routeManifestAdapter.ts` — nav now respects `visibilityMode=internal` and `featureFlag` (`enable_internal_tools`) |
 | P4-2 | Expand module-route-access E2E spec for role/menu parity | QA | ⬜ Not started | `tests/e2e/module-route-access.spec.ts` |
-| P4-3 | Eliminate silent redirects — return explicit access guidance | Dev | ⬜ Not started | `src/App.tsx` guarded routes |
+| P4-3 | Eliminate silent redirects — return explicit access guidance | Dev | ✅ Done | `src/App.tsx` — `RoleRoute` now renders explicit `AccessDenied` guidance for unauthorized role-route attempts |
 
 ### Sprint 2: Dispatch Reliability Fallbacks
 
