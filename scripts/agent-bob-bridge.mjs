@@ -49,6 +49,26 @@ function resolveRunpodApiKey() {
   ).trim();
 }
 
+function resolveOpenAIApiKey() {
+  return String(process.env.OPENAI_API_KEY || '').trim();
+}
+
+function resolveGitHubToken() {
+  return String(process.env.GITHUB_TOKEN || '').trim();
+}
+
+function resolveChatProvider() {
+  const explicit = String(process.env.BOB_CHAT_PROVIDER || '').trim().toLowerCase();
+  if (explicit === 'openai' || explicit === 'github' || explicit === 'inference') {
+    return explicit;
+  }
+  // Auto-detect based on available credentials
+  if (resolveOpenAIApiKey()) return 'openai';
+  if (resolveGitHubToken()) return 'github';
+  if (resolveBaseUrl() && resolveApiKey()) return 'inference';
+  return 'inference'; // default fallback
+}
+
 function resolveRunpodInvokeUrl() {
   const explicit = String(
     process.env.RUNPOD_ENDPOINT_URL ||
@@ -88,7 +108,13 @@ function buildScoreMetadata(payload = {}) {
   };
 }
 
-function extractBobMessage(payload = {}) {
+function extractBobMessage(payload = {}, provider = 'inference') {
+  // OpenAI and GitHub Models format
+  if (provider === 'openai' || provider === 'github') {
+    const message = payload.choices?.[0]?.message?.content;
+    if (message) return message;
+  }
+  // Inference service format
   return (
     payload.message ||
     payload.response ||
@@ -185,6 +211,70 @@ async function ensureBridgeCapabilities() {
   capabilityCache.untilMs = Date.now() + Math.max(5000, cacheMs);
 }
 
+async function sendOpenAIChat({ apiKey, timeoutMs, message, context, history }) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const messages = [
+      ...(Array.isArray(history) ? history : []),
+      { role: 'user', content: message },
+    ];
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: 'gpt-4-turbo-preview',
+        messages,
+        temperature: 0.7,
+        max_tokens: 2048,
+      }),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    return { response, payload };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function sendGitHubModelsChat({ token, timeoutMs, message, context, history }) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const messages = [
+      ...(Array.isArray(history) ? history : []),
+      { role: 'user', content: message },
+    ];
+
+    const response = await fetch('https://models.inference.ai.azure.com/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: 'gpt-4-turbo',
+        messages,
+        temperature: 0.7,
+        max_tokens: 2048,
+      }),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    return { response, payload };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function sendPodChat({ baseUrl, apiKey, orgId, timeoutMs, message, context, history }) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -228,80 +318,117 @@ async function sendServerlessChat({ timeoutMs, message, context }) {
 export async function consultBob(message, options = {}) {
   await ensureBridgeCapabilities();
 
-  const baseUrl = resolveBaseUrl();
-  const apiKey = resolveApiKey();
-  const mode = resolveBobMode({ podBaseUrl: baseUrl, runpodBaseUrl: resolveRunpodInvokeUrl().replace(/\/runsync$/i, ''), apiKey });
-  const orgId = resolveOrgId();
+  const provider = resolveChatProvider();
   const timeoutMs = Number(process.env.BOB_CHAT_TIMEOUT_MS || 30000);
-
-  if (mode !== 'serverless' && (!baseUrl || !apiKey)) {
-    const missing = [
-      !baseUrl
-        ? 'BOB_SERVICE_URL-or-INFERENCE_SERVICE_URL'
-        : null,
-      !apiKey
-        ? 'BOB_INFERENCE_API_KEY-or-INFERENCE_API_KEY'
-        : null,
-    ]
-      .filter(Boolean)
-      .join(', ');
-
-    throw new Error(`[Bob Bridge] Missing config: ${missing}`);
-  }
-
   let payload = {};
   let status = 200;
 
-    if (mode === 'serverless') {
-      const result = await sendServerlessChat({
-        timeoutMs,
-        message,
-        context: options.context || {},
-      });
-      if (!result) {
-        throw new Error('Serverless mode selected but RunPod endpoint/key are unavailable');
+  try {
+    if (provider === 'openai') {
+      const apiKey = resolveOpenAIApiKey();
+      if (!apiKey) {
+        throw new Error('[Bob Bridge] OpenAI provider selected but OPENAI_API_KEY is not set');
       }
-      payload = result.payload || {};
-      status = result.status || 200;
-    } else {
-      const { response, payload: podPayload } = await sendPodChat({
-        baseUrl,
+      const { response, payload: openaiPayload } = await sendOpenAIChat({
         apiKey,
-        orgId,
         timeoutMs,
         message,
         context: options.context || {},
+        history: options.history || [],
       });
+      payload = openaiPayload || {};
+      status = response.status;
+    } else if (provider === 'github') {
+      const token = resolveGitHubToken();
+      if (!token) {
+        throw new Error('[Bob Bridge] GitHub Models provider selected but GITHUB_TOKEN is not set');
+      }
+      const { response, payload: githubPayload } = await sendGitHubModelsChat({
+        token,
+        timeoutMs,
+        message,
+        context: options.context || {},
+        history: options.history || [],
+      });
+      payload = githubPayload || {};
+      status = response.status;
+    } else {
+      // Inference provider (RunPod/local)
+      const baseUrl = resolveBaseUrl();
+      const apiKey = resolveApiKey();
+      const mode = resolveBobMode({ podBaseUrl: baseUrl, runpodBaseUrl: resolveRunpodInvokeUrl().replace(/\/runsync$/i, ''), apiKey });
+      const orgId = resolveOrgId();
 
-      if (!response.ok) {
-        if (shouldFallbackToRunpod(response.status)) {
-          const fallback = await tryRunpodFallback(message, options.context, timeoutMs);
-          if (fallback) {
-            await recordScoredResponse({
-              target: 'Bob',
-              channel: 'bob-chat',
-              prompt: message,
-              response: fallback.message,
-              delivery: { sent: true, status: fallback.status, channel: 'bob-chat' },
-              metadata: {
-                provider: fallback.provider,
-                fallback: true,
-                qualityGateFailed: false,
-                fallbackApplied: true,
-              },
-            });
-            return fallback.message;
+      if (mode !== 'serverless' && (!baseUrl || !apiKey)) {
+        const missing = [
+          !baseUrl
+            ? 'BOB_SERVICE_URL-or-INFERENCE_SERVICE_URL'
+            : null,
+          !apiKey
+            ? 'BOB_INFERENCE_API_KEY-or-INFERENCE_API_KEY'
+            : null,
+        ]
+          .filter(Boolean)
+          .join(', ');
+
+        throw new Error(`[Bob Bridge] Missing config: ${missing}`);
+      }
+
+      if (mode === 'serverless') {
+        const result = await sendServerlessChat({
+          timeoutMs,
+          message,
+          context: options.context || {},
+        });
+        if (!result) {
+          throw new Error('Serverless mode selected but RunPod endpoint/key are unavailable');
+        }
+        payload = result.payload || {};
+        status = result.status || 200;
+      } else {
+        const { response, payload: podPayload } = await sendPodChat({
+          baseUrl,
+          apiKey,
+          orgId,
+          timeoutMs,
+          message,
+          context: options.context || {},
+        });
+
+        if (!response.ok) {
+          if (shouldFallbackToRunpod(response.status)) {
+            const fallback = await tryRunpodFallback(message, options.context, timeoutMs);
+            if (fallback) {
+              await recordScoredResponse({
+                target: 'Bob',
+                channel: 'bob-chat',
+                prompt: message,
+                response: fallback.message,
+                delivery: { sent: true, status: fallback.status, channel: 'bob-chat' },
+                metadata: {
+                  provider: fallback.provider,
+                  fallback: true,
+                  qualityGateFailed: false,
+                  fallbackApplied: true,
+                },
+              });
+              return fallback.message;
+            }
           }
+
+          throw new Error(`Bob /chat failed (${response.status}): ${JSON.stringify(podPayload).slice(0, 300)}`);
         }
 
-        throw new Error(`Bob /chat failed (${response.status}): ${JSON.stringify(podPayload).slice(0, 300)}`);
+        payload = podPayload || {};
+        status = response.status;
       }
-
-      payload = podPayload || {};
-      status = response.status;
     }
 
-    const bobMessage = extractBobMessage(payload);
+    if (status < 200 || status >= 300) {
+      throw new Error(`Chat provider failed (${status}): ${JSON.stringify(payload).slice(0, 300)}`);
+    }
+
+    const bobMessage = extractBobMessage(payload, provider);
 
     await recordScoredResponse({
       target: 'Bob',
@@ -309,10 +436,21 @@ export async function consultBob(message, options = {}) {
       prompt: message,
       response: bobMessage,
       delivery: { sent: true, status, channel: 'bob-chat' },
-      metadata: buildScoreMetadata(payload),
+      metadata: buildScoreMetadata({ ...payload, provider }),
     });
 
-  return bobMessage;
+    return bobMessage;
+  } catch (err) {
+    await recordScoredResponse({
+      target: 'Bob',
+      channel: 'bob-chat',
+      prompt: message,
+      response: '',
+      delivery: { sent: false, status: 0, channel: 'bob-chat', error: err.message },
+      metadata: { provider, error: err.message },
+    });
+    throw err;
+  }
 }
 
 /**
