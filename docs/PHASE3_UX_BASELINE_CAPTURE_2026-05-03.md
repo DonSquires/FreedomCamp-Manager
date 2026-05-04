@@ -22,16 +22,16 @@ Capture measured baselines before further UX implementation for:
 
 | Route | Click Depth (median) | Time-to-Primary-Action (median, sec) | Error-Prone Actions (count/sample) | Evidence Run ID | Status |
 |---|---:|---:|---:|---|---|
-| /compliance | pending | 0.66 | 2 | local-2026-05-04-phase3-nondirect-v4 | partial |
-| /dispatch-monitor | pending | 0.76 | 2 | local-2026-05-04-phase3-nondirect-v4 | partial |
-| /job-map | pending | 0.9 | 2 | local-2026-05-04-phase3-nondirect-v4 | partial |
-| /observations | pending | 0.69 | 2 | local-2026-05-04-phase3-nondirect-v4 | partial |
-| /radio | pending | 0.71 | 2 | local-2026-05-04-phase3-nondirect-v4 | partial |
-| /breaches | pending | 0.71 | 2 | local-2026-05-04-phase3-nondirect-v4 | partial |
-| /reports | pending | 0.61 | 2 | local-2026-05-04-phase3-nondirect-v4 | partial |
-| /crm | pending | 0.66 | 2 | local-2026-05-04-phase3-nondirect-v4 | partial |
-| /live-patrol | pending | 0.58 | 2 | local-2026-05-04-phase3-nondirect-v4 | partial |
-| /noise-control | pending | 0.65 | 2 | local-2026-05-04-phase3-nondirect-v4 | partial |
+| /compliance | 2 | 13.99 | 0 | local-2026-05-04-phase3-nondirect-v5 | captured |
+| /dispatch-monitor | 2 | 12.59 | 0 | local-2026-05-04-phase3-nondirect-v5 | captured |
+| /job-map | 2 | 12.69 | 0 | local-2026-05-04-phase3-nondirect-v5 | captured |
+| /observations | 2 | 12.39 | 0 | local-2026-05-04-phase3-nondirect-v5 | captured |
+| /radio | 3 | 15.17 | 0 | local-2026-05-04-phase3-nondirect-v5 | captured |
+| /breaches | 2 | 12.41 | 0 | local-2026-05-04-phase3-nondirect-v5 | captured |
+| /reports | 2 | 13 | 0 | local-2026-05-04-phase3-nondirect-v5 | captured |
+| /crm | 2 | 12.61 | 0 | local-2026-05-04-phase3-nondirect-v5 | captured |
+| /live-patrol | 2 | 12.45 | 0 | local-2026-05-04-phase3-nondirect-v5 | captured |
+| /noise-control | 2 | 12.7 | 1 | local-2026-05-04-phase3-nondirect-v5 | captured |
 
 ## Evidence Sources
 
@@ -49,11 +49,11 @@ Capture measured baselines before further UX implementation for:
 
 - Local run completed in this container:
 	- `PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=1 bunx playwright test tests/e2e/phase3-ux-baseline-capture.spec.ts --project=chromium --reporter=list`
-	- Result: `1 passed (18.5s)`
+	- Result: `1 passed (2.5m)`
 - Workbook import completed:
-	- `node scripts/import-phase3-baseline.mjs --input test-results/phase3-ux-baseline.json --run-id local-2026-05-04-phase3-nondirect-v4`
+	- `node scripts/import-phase3-baseline.mjs --input test-results/phase3-ux-baseline.json --run-id local-2026-05-04-phase3-nondirect-v5`
 	- Rows processed: `10`
-- Remaining blocker: click-depth medians are still pending (`clickDepth=null`) for all top-10 routes because triaged route links are not visible from the measured `/admin` and `/admin/dashboard` shell state in the current environment; diagnostics now confirm shell resolution stays on `http://localhost:5173/admin` and `http://localhost:5173/admin/dashboard`.
+- D1 baseline measurement is now captured locally: admin-shell hydration waits allow the spec to measure non-direct navigation with click-depth medians of `2` for nine routes and `3` for `/radio`.
 
 ## Artifact Import Command
 

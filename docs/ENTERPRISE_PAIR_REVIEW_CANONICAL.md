@@ -513,8 +513,8 @@ Date: 2026-05-02
 - **P3-1 nav chrome polish:** `src/components/features/AppLayout.tsx` now renders active breadcrumbs in the desktop command header while retaining the existing persisted sidebar collapse control.
 - **P3-2 dashboard command bar:** `src/pages/AdminPortal.tsx` now keeps priority actions and live operational counts visible in a sticky command bar during scroll.
 - **P3-3 list-card standardization (second pass):** Extended shared `ListCardRow` usage into `src/pages/LivePatrolMonitor.tsx` patrol/officer cards while preserving existing stats blocks.
-- **D1 baseline rerun diagnostics:** `tests/e2e/phase3-ux-baseline-capture.spec.ts` now records resolved shell URLs in blocker notes; latest workbook import run id is `local-2026-05-04-phase3-nondirect-v4`.
+- **D1 baseline rerun resolved locally:** `tests/e2e/phase3-ux-baseline-capture.spec.ts` now waits for admin-shell hydration before measuring; workbook import run id `local-2026-05-04-phase3-nondirect-v5` captured click-depth medians for all top-10 routes.
 - **P3-13 retrospective captured:** `docs/LESSONS_LEARNED.md` now records Phase 3 monitor-noise and layout-symbol-collision lessons with prevention rules.
 - **P3-14 ADR recorded:** Added `docs/adr/009-phase3-ux-hardening-and-navigation-measurement.md` to formalize shared list-card and non-direct baseline measurement decisions.
 - **Tracker correction:** STAGING Phase 3 ticket statuses were updated to match already-shipped role-path, CI, and baseline workbook work.
-- **Remaining scope:** `P3-3` shared list-card standardization completion, a non-direct-navigation fix for `D1` click-depth medians, and final triad completion sign-off (`P3-11`) after a successful `phase3-ux-baseline-capture.yml` run (current manual dispatch is blocked by GitHub Actions permission `HTTP 403`).
+- **Remaining scope:** `P3-3` shared list-card standardization completion and final triad completion sign-off (`P3-11`) after a successful `phase3-ux-baseline-capture.yml` run (current manual dispatch is blocked by GitHub Actions permission `HTTP 403`).

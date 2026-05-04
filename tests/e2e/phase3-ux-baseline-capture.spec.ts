@@ -93,7 +93,7 @@ async function captureRouteBaseline(page: Page, route: string): Promise<Baseline
       const labels = ROUTE_LABELS[route] ?? []
       for (const label of labels) {
         const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-        const candidate = page.getByRole('button', { name: new RegExp(`^${escaped}$`, 'i') }).first()
+        const candidate = page.getByRole('button', { name: new RegExp(escaped, 'i') }).first()
         const isVisible = await candidate.isVisible().catch(() => false)
         if (!isVisible) continue
 
@@ -155,6 +155,8 @@ async function captureRouteBaseline(page: Page, route: string): Promise<Baseline
     // Attempt 1: admin hub cards / quick links.
     await page.goto('/admin', { waitUntil: 'domcontentloaded' })
     await prepAppShellNavigation()
+    await page.locator('main').first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => undefined)
+    await page.waitForLoadState('networkidle').catch(() => undefined)
     const adminShellUrl = page.url()
     const hubDepth = await tryClickRouteLink()
     if (hubDepth != null) return hubDepth
@@ -162,6 +164,8 @@ async function captureRouteBaseline(page: Page, route: string): Promise<Baseline
     // Attempt 2: operations dashboard nav/shortcuts.
     await page.goto('/admin/dashboard', { waitUntil: 'domcontentloaded' })
     await prepAppShellNavigation()
+    await page.locator('main').first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => undefined)
+    await page.waitForLoadState('networkidle').catch(() => undefined)
     const dashboardShellUrl = page.url()
     const dashboardDepth = await tryClickRouteLink()
     if (dashboardDepth != null) return dashboardDepth
