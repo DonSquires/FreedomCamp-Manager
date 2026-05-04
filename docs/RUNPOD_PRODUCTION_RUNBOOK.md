@@ -30,12 +30,31 @@ This runbook defines production operations for the FieldOps AI stack on RunPod:
 
 GPU preference order currently configured:
 
-1. NVIDIA RTX 6000 Ada Generation
-2. NVIDIA L40
-3. NVIDIA L40S
-4. NVIDIA RTX PRO 6000 Blackwell Server Edition
-5. NVIDIA RTX PRO 6000 Blackwell Workstation Edition
-6. NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition
+Tier 1 — 24 GB, high supply (primary):
+1. NVIDIA GeForce RTX 4090
+2. NVIDIA L4
+3. NVIDIA RTX A5000
+
+Tier 2 — 24 GB professional:
+4. NVIDIA RTX A4500
+5. NVIDIA RTX 4000 Ada Generation
+
+Tier 3 — 48 GB, moderate supply:
+6. NVIDIA RTX A6000
+7. NVIDIA A40
+
+Tier 4 — 80 GB HPC, lower supply:
+8. NVIDIA A100 80GB PCIe
+9. NVIDIA A100-SXM4-80GB
+
+Tier 5 — original enterprise preference (last-resort fallback):
+10. NVIDIA RTX 6000 Ada Generation
+11. NVIDIA L40
+12. NVIDIA L40S
+
+> **Note:** Use `scripts/update-runpod-endpoint-gpus.mjs` or the
+> `Ops – RunPod Update Endpoint GPU Types` GitHub Actions workflow to apply
+> changes to the live endpoint when supply on the current tier is low.
 
 ### Templates
 
