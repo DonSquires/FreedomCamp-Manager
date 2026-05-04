@@ -53,13 +53,13 @@ describe('Phase A: Organization Isolation Gate', () => {
           name: 'Test Org A (Isolation Test)',
           organization_type: 'client',
           is_active: true,
-          overnight_verification_mode: 'standard',
+          overnight_verification_mode: 'two_photo_verification',
         },
         {
           name: 'Test Org B (Isolation Test)',
           organization_type: 'client',
           is_active: true,
-          overnight_verification_mode: 'standard',
+          overnight_verification_mode: 'two_photo_verification',
         },
       ])
       .select();

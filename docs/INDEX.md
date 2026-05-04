@@ -156,6 +156,7 @@ When conflicting information appears, follow this priority:
 ### Environment & Configuration
 - **[ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md)** — All env vars documented
 - **[FEATURE_FLAGS.md](FEATURE_FLAGS.md)** — Feature flag reference
+- **[CASE_MODEL_API_CONTRACT.md](CASE_MODEL_API_CONTRACT.md)** — Operational case model and event payload contract
 - **[NEW_PROJECT_SETUP.md](NEW_PROJECT_SETUP.md)** — Onboarding steps
 - **[SETUP_CHECKLIST.md](SETUP_CHECKLIST.md)** — Manual verification
 
@@ -165,6 +166,7 @@ When conflicting information appears, follow this priority:
 
 ### Multi-Organization (Multi-Tenancy)
 - **[ORG_ID_SCOPING_AUDIT_2026-04-25.md](ORG_ID_SCOPING_AUDIT_2026-04-25.md)** — Org isolation audit
+- **[PHASE_A_OWNERSHIP_STATUS.md](PHASE_A_OWNERSHIP_STATUS.md)** — Phase A ownership-role evidence and external verification status
 - **[ENTERPRISE_STAKEHOLDER_REQUIREMENTS_MATRIX_2026-04-25.md](ENTERPRISE_STAKEHOLDER_REQUIREMENTS_MATRIX_2026-04-25.md)** — Governance requirements
 - **[STACK_ACCESS_MAP.md](STACK_ACCESS_MAP.md)** — Service layer authorization
 

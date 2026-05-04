@@ -29,7 +29,7 @@ async function createSyntheticOrganization(): Promise<SyntheticOrganization> {
       // Keep fixture values aligned with the live DB check constraint enum.
       organization_type: 'client',
       is_active: true,
-      overnight_verification_mode: 'standard',
+      overnight_verification_mode: 'two_photo_verification',
     })
     .select('id, name')
     .single()

@@ -1224,3 +1224,27 @@ Latest Session Snapshot (Phase A Org-Isolation Gate Alignment — CI Wiring Repa
 - Next exact command to run:
   - `git add tests/integration/org-isolation.test.ts .github/workflows/ci-org-isolation-api.yml docs/STAGING.md && git commit -m "test(ci): wire five-scenario org isolation gate into phase-a workflow" && git push origin main`
 
+Latest Session Snapshot (Phase A Contract Evidence + CI Runtime Repair):
+
+- Timestamp (NZ): 2026-05-05 10:28:38 NZST
+- Current branch: main
+- HEAD SHA: 4b684ef4
+- Contract evidence completed:
+  - Added `docs/CASE_MODEL_API_CONTRACT.md` publishing the shared `operational_cases`, `patrol_events`, `dispatch_events`, `enforcement_events`, and `case_comments` contract with sample payloads.
+  - Added Phase A case-model tables plus `create_case_from_dispatch_job` to `src/types/database.ts` so the contract is now grounded in the generated type surface.
+  - Added `docs/PHASE_A_OWNERSHIP_STATUS.md` to make the eight required ownership roles explicit and separate repo-grounded role evidence from external GitHub-team/Slack confirmations.
+  - Indexed the new Phase A contract/ownership docs in `docs/INDEX.md`.
+- Validation:
+  - `bun run build` -> PASS after adding the case-model contract artifacts.
+  - Problems panel: no errors in touched type or doc files.
+- CI runtime repair progress:
+  - First rerun failure on `CI Org Isolation API` after workflow wiring: stale `organizations.address_line_1` fixture field not present in live schema.
+  - Second rerun failure: stale `overnight_verification_mode: 'standard'` fixture value violated live check constraint.
+  - Repaired both the integration gate suite and the shared synthetic-org E2E fixture to use the live schema-safe organization payload.
+  - Local revalidation: `bunx vitest run tests/integration/org-isolation.test.ts` -> `6 skipped` (expected without local secrets).
+- Findings:
+  - Phase A repo-grounded prerequisites are now materially stronger in three areas: org-isolation CI path, published case-model contract, and explicit ownership-role evidence.
+  - Remaining uncertainty is runtime-only: the secret-backed CI run must still prove the five-scenario org-isolation gate end to end.
+- Next exact command to run:
+  - `git add src/types/database.ts docs/CASE_MODEL_API_CONTRACT.md docs/PHASE_A_OWNERSHIP_STATUS.md docs/INDEX.md tests/integration/org-isolation.test.ts tests/e2e/setup.ts docs/STAGING.md && git commit -m "docs(types): publish phase-a case model contract and align org isolation fixtures" && git push origin main`
+

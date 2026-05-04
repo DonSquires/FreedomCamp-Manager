@@ -2336,6 +2336,102 @@ export type Database = {
           { foreignKeyName: "zone_dispatch_resource_rules_dispatch_resource_id_fkey"; columns: ["dispatch_resource_id"]; isOneToOne: false; referencedRelation: "dispatch_resources"; referencedColumns: ["id"] },
         ]
       }
+      case_comments: {
+        Row: {
+          author_id: string
+          case_id: string
+          comment_text: string
+          created_at: string
+          edited_by: string | null
+          id: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          case_id: string
+          comment_text: string
+          created_at?: string
+          edited_by?: string | null
+          id?: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          case_id?: string
+          comment_text?: string
+          created_at?: string
+          edited_by?: string | null
+          id?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "case_comments_author_id_fkey"; columns: ["author_id"]; isOneToOne: false; referencedRelation: "user_profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "case_comments_case_id_fkey"; columns: ["case_id"]; isOneToOne: false; referencedRelation: "operational_cases"; referencedColumns: ["id"] },
+          { foreignKeyName: "case_comments_edited_by_fkey"; columns: ["edited_by"]; isOneToOne: false; referencedRelation: "user_profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "case_comments_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] },
+        ]
+      }
+      dispatch_events: {
+        Row: {
+          assigned_to: string | null
+          case_id: string
+          created_at: string
+          created_by: string | null
+          dispatch_job_id: string
+          escalation_level_at_event: number | null
+          event_timestamp: string
+          event_type: string
+          id: string
+          notes: string | null
+          organization_id: string
+          status: string
+          status_at_event: string | null
+          triggered_by: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          case_id: string
+          created_at?: string
+          created_by?: string | null
+          dispatch_job_id: string
+          escalation_level_at_event?: number | null
+          event_timestamp?: string
+          event_type?: string
+          id?: string
+          notes?: string | null
+          organization_id: string
+          status?: string
+          status_at_event?: string | null
+          triggered_by?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          case_id?: string
+          created_at?: string
+          created_by?: string | null
+          dispatch_job_id?: string
+          escalation_level_at_event?: number | null
+          event_timestamp?: string
+          event_type?: string
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          status?: string
+          status_at_event?: string | null
+          triggered_by?: string | null
+        }
+        Relationships: [
+          { foreignKeyName: "dispatch_events_assigned_to_fkey"; columns: ["assigned_to"]; isOneToOne: false; referencedRelation: "user_profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "dispatch_events_case_id_fkey"; columns: ["case_id"]; isOneToOne: false; referencedRelation: "operational_cases"; referencedColumns: ["id"] },
+          { foreignKeyName: "dispatch_events_created_by_fkey"; columns: ["created_by"]; isOneToOne: false; referencedRelation: "user_profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "dispatch_events_dispatch_job_id_fkey"; columns: ["dispatch_job_id"]; isOneToOne: false; referencedRelation: "dispatch_jobs"; referencedColumns: ["id"] },
+          { foreignKeyName: "dispatch_events_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] },
+          { foreignKeyName: "dispatch_events_triggered_by_fkey"; columns: ["triggered_by"]; isOneToOne: false; referencedRelation: "user_profiles"; referencedColumns: ["id"] },
+        ]
+      }
       dispatch_jobs: {
         Row: {
           acknowledged_at: string | null
@@ -2554,6 +2650,189 @@ export type Database = {
             referencedRelation: "zones"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      enforcement_events: {
+        Row: {
+          action_taken: string | null
+          case_id: string
+          created_at: string
+          created_by: string | null
+          evidence_notes: string | null
+          event_timestamp: string
+          event_type: string
+          id: string
+          officer_id: string
+          organization_id: string
+          outcome: string | null
+          photo_urls: string[] | null
+          status: string
+          subject_identifier: string | null
+          subject_type: string | null
+          updated_at: string
+          violation_type: string | null
+        }
+        Insert: {
+          action_taken?: string | null
+          case_id: string
+          created_at?: string
+          created_by?: string | null
+          evidence_notes?: string | null
+          event_timestamp?: string
+          event_type?: string
+          id?: string
+          officer_id: string
+          organization_id: string
+          outcome?: string | null
+          photo_urls?: string[] | null
+          status?: string
+          subject_identifier?: string | null
+          subject_type?: string | null
+          updated_at?: string
+          violation_type?: string | null
+        }
+        Update: {
+          action_taken?: string | null
+          case_id?: string
+          created_at?: string
+          created_by?: string | null
+          evidence_notes?: string | null
+          event_timestamp?: string
+          event_type?: string
+          id?: string
+          officer_id?: string
+          organization_id?: string
+          outcome?: string | null
+          photo_urls?: string[] | null
+          status?: string
+          subject_identifier?: string | null
+          subject_type?: string | null
+          updated_at?: string
+          violation_type?: string | null
+        }
+        Relationships: [
+          { foreignKeyName: "enforcement_events_case_id_fkey"; columns: ["case_id"]; isOneToOne: false; referencedRelation: "operational_cases"; referencedColumns: ["id"] },
+          { foreignKeyName: "enforcement_events_created_by_fkey"; columns: ["created_by"]; isOneToOne: false; referencedRelation: "user_profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "enforcement_events_officer_id_fkey"; columns: ["officer_id"]; isOneToOne: false; referencedRelation: "user_profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "enforcement_events_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] },
+        ]
+      }
+      operational_cases: {
+        Row: {
+          case_number: string | null
+          case_type: string
+          closed_at: string | null
+          created_at: string
+          created_by: string | null
+          created_from: string
+          dispatch_job_id: string | null
+          id: string
+          officer_notes: string | null
+          organization_id: string
+          status: string
+          summary: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          case_number?: string | null
+          case_type?: string
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          created_from?: string
+          dispatch_job_id?: string | null
+          id?: string
+          officer_notes?: string | null
+          organization_id: string
+          status?: string
+          summary?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          case_number?: string | null
+          case_type?: string
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          created_from?: string
+          dispatch_job_id?: string | null
+          id?: string
+          officer_notes?: string | null
+          organization_id?: string
+          status?: string
+          summary?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "operational_cases_created_by_fkey"; columns: ["created_by"]; isOneToOne: false; referencedRelation: "user_profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "operational_cases_dispatch_job_id_fkey"; columns: ["dispatch_job_id"]; isOneToOne: false; referencedRelation: "dispatch_jobs"; referencedColumns: ["id"] },
+          { foreignKeyName: "operational_cases_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] },
+        ]
+      }
+      patrol_events: {
+        Row: {
+          case_id: string
+          created_at: string
+          created_by: string | null
+          event_timestamp: string
+          event_type: string
+          gps_lat: number | null
+          gps_lng: number | null
+          id: string
+          observation_text: string | null
+          officer_id: string
+          organization_id: string
+          patrol_type: string | null
+          photo_urls: string[] | null
+          status: string
+          updated_at: string
+          zone_id: string | null
+        }
+        Insert: {
+          case_id: string
+          created_at?: string
+          created_by?: string | null
+          event_timestamp?: string
+          event_type?: string
+          gps_lat?: number | null
+          gps_lng?: number | null
+          id?: string
+          observation_text?: string | null
+          officer_id: string
+          organization_id: string
+          patrol_type?: string | null
+          photo_urls?: string[] | null
+          status?: string
+          updated_at?: string
+          zone_id?: string | null
+        }
+        Update: {
+          case_id?: string
+          created_at?: string
+          created_by?: string | null
+          event_timestamp?: string
+          event_type?: string
+          gps_lat?: number | null
+          gps_lng?: number | null
+          id?: string
+          observation_text?: string | null
+          officer_id?: string
+          organization_id?: string
+          patrol_type?: string | null
+          photo_urls?: string[] | null
+          status?: string
+          updated_at?: string
+          zone_id?: string | null
+        }
+        Relationships: [
+          { foreignKeyName: "patrol_events_case_id_fkey"; columns: ["case_id"]; isOneToOne: false; referencedRelation: "operational_cases"; referencedColumns: ["id"] },
+          { foreignKeyName: "patrol_events_created_by_fkey"; columns: ["created_by"]; isOneToOne: false; referencedRelation: "user_profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "patrol_events_officer_id_fkey"; columns: ["officer_id"]; isOneToOne: false; referencedRelation: "user_profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "patrol_events_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] },
+          { foreignKeyName: "patrol_events_zone_id_fkey"; columns: ["zone_id"]; isOneToOne: false; referencedRelation: "zones"; referencedColumns: ["id"] },
         ]
       }
       dispute_intake: {
@@ -11589,6 +11868,10 @@ export type Database = {
           homeless_vehicles: number
           total_observations: number
         }[]
+      }
+      create_case_from_dispatch_job: {
+        Args: { dispatch_job_id: string }
+        Returns: string
       }
       get_descendant_organizations: {
         Args: { org_id: string }
