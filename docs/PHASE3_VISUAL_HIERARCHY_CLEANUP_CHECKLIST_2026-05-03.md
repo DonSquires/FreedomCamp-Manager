@@ -70,3 +70,6 @@ For each completed checklist item, record:
 - P3-3 shared list-card standardization expanded into `src/pages/OfficerAvailability.tsx` upcoming shift cards, replacing bespoke shift/action rows with the same compact shared shell.
 - P3-3 shared list-card standardization expanded into `src/pages/AdminPortal.tsx` today-roster tiles, replacing bespoke officer/time/service row shells with `ListCardRow`.
 - P3-3 shared list-card standardization expanded into `src/pages/DispatchWizard.tsx` officer assignment cards, replacing bespoke identity/status/contact rows with `ListCardRow`.
+- P3-3 pass 7: `EnforcementCommandCenter.tsx` — breach card header+metadata rows + patrol detail rows migrated to `ListCardRow`.
+- P3-3 passes 8-9: `VehicleDetailPage.tsx` breach tab card rows + `DataIntegrityDashboard.tsx` summary stat rows migrated to `ListCardRow`.
+- P3-3 pass 10: `HotspotsMap.tsx` zone hotspot header rows migrated to `ListCardRow`. P3-3 now ✅ Done — 10 passes, 11 page surfaces standardized.
