@@ -822,7 +822,7 @@ Route tranche result:
 | # | Task | Owner | Status | Evidence |
 |---|---|---|---|---|
 | P3-6 | Wire role-path simplification maps into navigate() helper | Dev | ✅ Done | `src/navigation/rolePath.ts` |
-| P3-7 | Audit all page redirects against role-path matrix | QA | ⬜ Not started | `docs/PHASE3_ROLE_PATH_SIMPLIFICATION_MAPS_2026-05-03.md` |
+| P3-7 | Audit all page redirects against role-path matrix | QA | 🔄 In progress | `docs/PHASE3_ROLE_PATH_SIMPLIFICATION_MAPS_2026-05-03.md`, `tests/e2e/phase3-role-path-redirect.spec.ts` |
 | P3-8 | Add E2E redirect validation for role paths | QA | ✅ Done | `tests/e2e/phase3-role-path-redirect.spec.ts` |
 
 ### CI & Governance

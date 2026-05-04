@@ -96,3 +96,6 @@ Evidence (2026-05-03):
 	- `PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=1 bunx playwright test tests/e2e/phase3-ux-baseline-capture.spec.ts --project=chromium --reporter=list`
 	- `node scripts/import-phase3-baseline.mjs --input test-results/phase3-ux-baseline.json --run-id local-2026-05-04-phase3-nondirect-v2`
 - Remaining open gate: D1 click-depth medians are still pending because triaged route links are not visible from the measured `/admin` and `/admin/dashboard` shell state in the current Playwright environment.
+- Role-path redirect audit evidence refreshed:
+	- `PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=1 bunx playwright test tests/e2e/phase3-role-path-redirect.spec.ts --project=chromium --reporter=list`
+	- Result: `4 passed (28.8s)`
