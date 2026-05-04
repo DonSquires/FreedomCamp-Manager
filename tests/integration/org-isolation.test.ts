@@ -1,3 +1,4 @@
+// Migration deployed: 2026-05-04
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createClient } from '@supabase/supabase-js';
 
