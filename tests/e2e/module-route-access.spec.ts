@@ -68,6 +68,16 @@ async function assertRouteLoadsOrRedirects(page: any, route: string, fallbackRou
   expect(onPrimary || onFallback).toBeTruthy()
 }
 
+async function assertNavPathVisible(page: any, path: string) {
+  const navLink = page.locator(`a[href="${path}"]`)
+  await expect(navLink.first()).toBeVisible({ timeout: 12000 })
+}
+
+async function assertNavPathHidden(page: any, path: string) {
+  const navLink = page.locator(`a[href="${path}"]`)
+  await expect(navLink).toHaveCount(0)
+}
+
 // ─── MASTER role ─────────────────────────────────────────────────────────────
 
 test.describe('master – full platform access', () => {
@@ -726,5 +736,33 @@ test.describe('cross-org matrix regression checks', () => {
   test('master is BLOCKED from /compliance-escalations', async ({ page }) => {
     await loginAs(page, 'master')
     await assertRouteBlocked(page, '/compliance-escalations')
+  })
+})
+
+// ─── ROUTE/MENU PARITY ASSERTIONS (P4-2) ────────────────────────────────────
+
+test.describe('route/menu parity assertions', () => {
+  test.describe.configure({ mode: 'serial' })
+
+  test('admin does not see internal tools link and is blocked from route', async ({ page }) => {
+    await loginAs(page, 'adminOrg1')
+    await page.goto('/admin', { waitUntil: 'domcontentloaded' })
+    await assertNavPathHidden(page, '/compliance-recalculation')
+    await assertRouteBlocked(page, '/compliance-recalculation')
+  })
+
+  test('master sees internal tools link and can load route', async ({ page }, testInfo) => {
+    await loginAs(page, 'master')
+    await page.goto('/platform', { waitUntil: 'domcontentloaded' })
+    await assertNavPathVisible(page, '/compliance-recalculation')
+    await assertRouteLoads(page, '/compliance-recalculation')
+    await bobAssessPage(page, testInfo, 'master-route-menu-parity-internal-tools')
+  })
+
+  test('officer does not see users link and is blocked from route', async ({ page }) => {
+    await loginAs(page, 'officerOrg1')
+    await page.goto('/officer-home', { waitUntil: 'domcontentloaded' })
+    await assertNavPathHidden(page, '/users')
+    await assertRouteBlocked(page, '/users')
   })
 })
