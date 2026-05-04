@@ -48,32 +48,83 @@ async function waitForPrimaryAction(page: Page): Promise<boolean> {
 async function captureRouteBaseline(page: Page, route: string): Promise<BaselineRow> {
   let errorProneActions = 0
   let clickDepth: number | null = null
+  let note: string | undefined
 
-  await page.goto('/admin/dashboard', { waitUntil: 'domcontentloaded' })
+  const NAV_GROUP_LABELS = [
+    'Operations',
+    'Live Ops',
+    'Management',
+    'Records',
+    'Specialist Portals',
+    'Roster & Workforce',
+    'Bob',
+    'Tools',
+    'Settings',
+  ] as const
 
-  const routeLink = page.locator(`nav a[href="${route}"], aside a[href="${route}"]`).first()
-  const hasDirectLink = await routeLink.isVisible().catch(() => false)
+  const tryClickRouteLink = async (): Promise<number | null> => {
+    const link = page.locator(`a[href="${route}"]:visible`).first()
+    const visible = await link.isVisible().catch(() => false)
+    if (visible) {
+      await link.click()
+      await page.waitForLoadState('domcontentloaded')
+      return 1
+    }
+
+    // Expand grouped sidebar sections and try again.
+    for (const label of NAV_GROUP_LABELS) {
+      const toggle = page.getByRole('button', { name: label }).first()
+      const canToggle = await toggle.isVisible().catch(() => false)
+      if (canToggle) {
+        await toggle.click().catch(() => undefined)
+      }
+    }
+
+    const expandedLink = page.locator(`a[href="${route}"]:visible`).first()
+    const expandedVisible = await expandedLink.isVisible().catch(() => false)
+    if (!expandedVisible) return null
+
+    await expandedLink.click()
+    await page.waitForLoadState('domcontentloaded')
+    return 2
+  }
+
+  const navigateViaAppShell = async (): Promise<number | null> => {
+    // Attempt 1: admin hub cards / quick links.
+    await page.goto('/admin', { waitUntil: 'domcontentloaded' })
+    const hubDepth = await tryClickRouteLink()
+    if (hubDepth != null) return hubDepth
+
+    // Attempt 2: operations dashboard nav/shortcuts.
+    await page.goto('/admin/dashboard', { waitUntil: 'domcontentloaded' })
+    const dashboardDepth = await tryClickRouteLink()
+    if (dashboardDepth != null) return dashboardDepth
+
+    return null
+  }
 
   const startedAt = Date.now()
 
-  if (hasDirectLink) {
-    clickDepth = 1
-    await routeLink.click()
-    await page.waitForLoadState('domcontentloaded')
+  const measuredDepth = await navigateViaAppShell()
+  const navigated = measuredDepth != null
+
+  if (navigated) {
+    clickDepth = measuredDepth
   } else {
-    // Fallback path keeps measurement alive for routes not exposed as direct nav links.
+    // No direct app-shell navigation path found in this environment.
     clickDepth = null
-    await page.goto(route, { waitUntil: 'domcontentloaded' })
+    note = 'No visible app navigation link found from /admin or /admin/dashboard'
+    errorProneActions += 1
   }
 
-  const primaryActionVisible = await waitForPrimaryAction(page)
+  const primaryActionVisible = navigated ? await waitForPrimaryAction(page) : false
   if (!primaryActionVisible) {
     errorProneActions += 1
   }
 
   const expectedPath = route
   const currentUrl = page.url()
-  if (!currentUrl.includes(expectedPath)) {
+  if (navigated && !currentUrl.includes(expectedPath)) {
     errorProneActions += 1
   }
 
@@ -84,7 +135,7 @@ async function captureRouteBaseline(page: Page, route: string): Promise<Baseline
     clickDepth,
     timeToPrimaryActionSeconds: Number((elapsedMs / 1000).toFixed(2)),
     errorProneActions,
-    note: hasDirectLink ? undefined : 'No direct sidebar link; measured via direct route navigation',
+    note,
   }
 }
 

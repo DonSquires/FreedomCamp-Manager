@@ -201,7 +201,7 @@ Latest Session Snapshot:
   - `25299495146` policy-bob-openai-research-training: completed, success
   - `25299958134` Ops Bob Assess Failed Actions: completed, success
 - Open blockers with owner:
-  - Baseline click-depth medians still pending (`clickDepth=null` in current baseline artifact); owner: UX baseline instrumentation + navigation-surface measurement
+  - Baseline click-depth medians still pending (`clickDepth=null` in current baseline artifact) because triaged links are not visible from measured `/admin` and `/admin/dashboard` shell states; owner: UX baseline instrumentation + navigation-surface measurement
 - Next exact command to run: `cd /workspaces/FreedomCamp-Manager && PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=1 bunx playwright test tests/e2e/phase3-ux-baseline-capture.spec.ts --project=chromium --reporter=list`
 
 - Timestamp (NZ): 2026-05-04 15:14:13 NZST

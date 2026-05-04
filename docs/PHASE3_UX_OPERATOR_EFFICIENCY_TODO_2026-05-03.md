@@ -94,5 +94,5 @@ Evidence (2026-05-03):
 - Top-10 route efficiency pass is now complete at the route level; remaining Phase 3 work shifts to shared chrome, dashboard density, standardized list cards, CI cadence, and retrospective/governance closeout.
 - Baseline capture re-run with shared fallback credentials:
 	- `PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK=1 bunx playwright test tests/e2e/phase3-ux-baseline-capture.spec.ts --project=chromium --reporter=list`
-	- `node scripts/import-phase3-baseline.mjs --input test-results/phase3-ux-baseline.json --run-id local-2026-05-04-phase3-baseline`
-- Remaining open gate: D1 click-depth medians are still pending because baseline run currently navigates directly to routes in this environment.
+	- `node scripts/import-phase3-baseline.mjs --input test-results/phase3-ux-baseline.json --run-id local-2026-05-04-phase3-nondirect-v2`
+- Remaining open gate: D1 click-depth medians are still pending because triaged route links are not visible from the measured `/admin` and `/admin/dashboard` shell state in the current Playwright environment.
