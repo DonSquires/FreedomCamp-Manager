@@ -350,8 +350,15 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
     })
   }
 
+  // Derive active feature flags from role — master/grand_master can access internal tools
+  const activeFeatureFlags = useMemo<Set<string>>(() => {
+    const flags = new Set<string>()
+    if (user?.role === 'master' || user?.role === 'grand_master') flags.add('enable_internal_tools')
+    return flags
+  }, [user?.role])
+
   const visiblePinned = pinnedItems.filter(item =>
-    user && isRouteVisibleForRole(item.path, user.role as AppRole, routeManifest)
+    user && isRouteVisibleForRole(item.path, user.role as AppRole, routeManifest, activeFeatureFlags)
   )
 
   return (
@@ -384,7 +391,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
       {navigationGroups.map((group) => {
         const GroupIcon = group.icon
         const visibleItems = group.items.filter(item =>
-          isRouteVisibleForRole(item.path, effectiveNavRole as AppRole, routeManifest)
+           isRouteVisibleForRole(item.path, effectiveNavRole as AppRole, routeManifest, activeFeatureFlags)
         )
         if (visibleItems.length === 0) return null
 

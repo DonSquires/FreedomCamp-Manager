@@ -75,16 +75,32 @@ export function projectLegacyNavGroups(
  * If the path is in the manifest, the manifest is authoritative.
  * If the path is NOT in the manifest yet, returns `true` (backward-compat fallback).
  */
+/**
+ * Determines if a route should be visible in the navigation for a given role.
+ * If the path is in the manifest, the manifest is authoritative.
+ * If the path is NOT in the manifest yet, returns `true` (backward-compat fallback).
+ *
+ * @param featureFlagsActive - optional set of active feature flag keys. When provided,
+ *   routes gated by a featureFlag are hidden unless the flag is present in this set.
+ *   When omitted, feature-flagged routes default to visible (fallback for callers that
+ *   have not yet wired up the flag store).
+ */
 export function isRouteVisibleForRole(
   path: string,
   role: AppRole | null | undefined,
   entries: RouteManifestEntry[],
+  featureFlagsActive?: Set<string>,
 ): boolean {
   const entry = entries.find((e) => e.path === path)
   if (!entry) return true // not in manifest yet — allow (backward compat)
   if (entry.visibilityMode === 'hidden') return false
+  // Internal routes are only surfaced to master / grand_master roles
+  if (entry.visibilityMode === 'internal' && role !== 'master' && role !== 'grand_master') return false
   if (!role) return false
-  return entry.rolesAllowed.includes(role)
+  if (!entry.rolesAllowed.includes(role)) return false
+  // Feature-flag gate: hide if a flag is required and the caller supplied the active set without it
+  if (entry.featureFlag && featureFlagsActive && !featureFlagsActive.has(entry.featureFlag)) return false
+  return true
 }
 
 /**
