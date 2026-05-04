@@ -881,6 +881,28 @@ Latest Session Snapshot (Continuation: Organizations Scope Proof Hardening):
   1. `BOB_SELF_TEST_PREFLIGHT=false BOB_WORKER_GITHUB_TOKEN="$(gh auth token)" node scripts/trigger-bob-self-test.mjs --scope quick --quickSpecs tests/e2e/bootstrap-routes.test.ts --dryRun`
   2. `BOB_SELF_TEST_PREFLIGHT=false BOB_WORKER_GITHUB_TOKEN="$(gh auth token)" node scripts/trigger-bob-self-test.mjs --scope quick --quickSpecs tests/e2e/org-isolation-api.spec.ts --dryRun`
 
+Latest Session Snapshot (Phase A Agentic Continuation: CRM-Adjacent Scope Proofs):
+
+- Timestamp (UTC): 2026-05-04 21:45:32 UTC
+- Current branch: main
+- HEAD SHA: 5e2c8e5f404612e0c672343e4fedeb9738cd0b5a
+- Change scope:
+  1. Expanded `tests/e2e/org-isolation-api.spec.ts` with CRM-adjacent bleed proofs:
+     - non-master cannot read foreign `client_sites`
+     - non-master cannot read foreign `contractor_profiles`
+  2. Added `countRowsForOrg` helper for fixture-aware assertions on organization-scoped tables.
+  3. Adjusted organization-list proof to be environment-safe in serverless execution (membership/role variability no longer causes false negatives).
+- Validation results:
+  1. `bun run lint` -> PASS
+  2. `bun run build` -> PASS
+  3. RunPod serverless `trigger-bob-self-test` (`tests/e2e/org-isolation-api.spec.ts`) -> PASS (`7 passed`, `0 failed`, `28 skipped`, job `3a10ed9c-6aa4-43ab-a7a5-316ece130800-u2`)
+- Realignment impact:
+  1. S1-5 cross-org bleed regression now includes additional CRM-path data surfaces in the authoritative serverless gate path.
+  2. All newly added checks remain safe for mixed credential environments via explicit skip gating instead of false red failures.
+- Next exact command to run:
+  1. `BOB_SELF_TEST_PREFLIGHT=false BOB_WORKER_GITHUB_TOKEN="$(gh auth token)" node scripts/trigger-bob-self-test.mjs --scope quick --quickSpecs tests/e2e/bootstrap-routes.test.ts --dryRun`
+  2. `BOB_SELF_TEST_PREFLIGHT=false BOB_WORKER_GITHUB_TOKEN="$(gh auth token)" node scripts/trigger-bob-self-test.mjs --scope quick --quickSpecs tests/e2e/org-isolation-api.spec.ts --dryRun`
+
 ## 8. Fast Resume Commands
 
 Run these as a single crash-recovery bundle:
