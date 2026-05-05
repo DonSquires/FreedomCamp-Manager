@@ -1340,17 +1340,17 @@ Start date: 2026-05-04
 
 | # | Task | Owner | Status | Evidence |
 |---|---|---|---|---|
-| P4-9 | Extend cross-org route/access E2E tests | QA | 🔄 In progress | `tests/e2e/module-route-access.spec.ts` + cross-org matrix; PTT cross-org channel policy hardened in `supabase/functions/ptt-signaling-token/index.ts` (explicit scope grants for cross-org/direct comms unless master/grand_master). Scope-management helper added in `supabase/functions/manage-user/index.ts` (`set_ptt_channel_access`) and wired to User Management UI (`src/pages/UserManagement.tsx`) via `edgeFunctions.setUserPttChannelAccess`. |
-| P4-10 | Map top-5 VOC pain points to implementation tickets | Product | ⬜ Not started | `docs/voc-to-backlog-mapping.md` (candidate gap — confirmed) |
-| P4-11 | Build competitive gap board from COMPETITIVE_ANALYSIS_2024.md | Product | ⬜ Not started | `docs/competitive-gap-board.md` (candidate gap — confirmed) |
+| P4-9 | Extend cross-org route/access E2E tests | QA | ✅ Done | `tests/e2e/p4-9-cross-org-route-extension.spec.ts` (T1/T3/T5 gap coverage + org-spoof smoke); `tests/e2e/org-isolation-api.spec.ts` extended (CRM org bleed + `/users` bleed); `docs/cross-org-verification-matrix.md` updated — 8 ⚠️ gaps closed, 3 ❌ risks verified. |
+| P4-10 | Map top-5 VOC pain points to implementation tickets | Product | ✅ Done | `docs/voc-to-backlog-mapping.md` — 6 themes, 16 backlog items (B-01…B-16), acceptance criteria + sprint assignments. Top-5: B-01 CRM RLS, B-02 Man-down, B-03 AI dispatch, B-04 Welfare check, B-05 Offline maps. |
+| P4-11 | Build competitive gap board from COMPETITIVE_ANALYSIS_2024.md | Product | ✅ Done | `docs/competitive-gap-board.md` — 9 modules, 31 gaps scored by impact (🔴/🟠/🟡/🟢), sprint-assigned, sprint rollup table. |
 
 ### Phase 4 Success Criteria
 
 - [x] 0 menu items rendered that resolve to blocked routes for any role/org
 - [x] 100% successful dispatch assignment for defined no-GPS test cases
 - [x] 100% of top-10 routes use standardized async-state patterns
-- [ ] 0 unauthorized cross-org route/data exposures in test matrix
-- [ ] Top-5 VOC pain points mapped to tickets with acceptance criteria
+- [x] 0 unauthorized cross-org route/data exposures in test matrix
+- [x] Top-5 VOC pain points mapped to tickets with acceptance criteria
 
 Latest Session Snapshot (Phase A Feature Flag Rollback Safety):
 
@@ -1813,3 +1813,36 @@ Latest Session Snapshot (Phase A Org-Isolation Gate — Explicit Deployment Bloc
 5. ⏳ Top-5 VOC pain points mapped (P4-10 not started)
 
 **Next session:** P4-9 — Extend cross-org route/access E2E tests (`tests/e2e/module-route-access.spec.ts` + cross-org matrix expansion). Then P4-10/P4-11 (VOC/competitive board).
+
+---
+
+### Session Snapshot (P4-9/P4-10/P4-11 + Phase 4 COMPLETE — 2026-05-05):
+
+- Timestamp (NZ): 2026-05-05 NZST
+- Current branch: copilot/complete-phase-b-doc-review
+- Scope: Phase 4 Sprint 4 — Multi-Org Assurance + Competitive/VOC
+
+**Artifacts Created/Updated:**
+
+| File | Description |
+|---|---|
+| `tests/e2e/p4-9-cross-org-route-extension.spec.ts` | T1 gap: `/diagnostics`, `/site-permissions`, `/tender-workspace`, `/tender-reference-library` (master-load + role-blocked); T3 gap: `/breach-notices`, `/enforcement-actions`, `/face-recognition`, `/job-map`; T5: `/dispute` (public); T2 org-spoof smoke for enforcement-actions |
+| `tests/e2e/org-isolation-api.spec.ts` | Extended with 2 new bleed tests: CRM organizations endpoint + `/users` (user_profiles) |
+| `docs/cross-org-verification-matrix.md` | 8 ⚠️ gaps closed → ✅; 3 ❌ bleed risks → ✅ |
+| `docs/STAGING.md` | P4-9/P4-10/P4-11 ✅; all 5 Phase 4 success criteria ✅ |
+
+**Phase 4 COMPLETE — All 5 success criteria met:**
+
+| Criterion | Status | Evidence |
+|---|---|---|
+| 0 menu items resolve to blocked routes | ✅ | P4-1/P4-2/P4-3 |
+| 100% dispatch assignment for no-GPS cases | ✅ | P4-4/P4-5 |
+| 100% of top-10 routes use async-state patterns | ✅ | P4-6/P4-7/P4-8 |
+| 0 unauthorized cross-org route/data exposures | ✅ | P4-9 (8+3 gaps closed) |
+| Top-5 VOC pain points mapped | ✅ | P4-10 (`voc-to-backlog-mapping.md`) |
+
+**Next session:** Phase 5 — Sprint 1 implementation work. Top candidates by priority:
+- B-01: CRM RLS verification (critical — already partially implemented)
+- B-02: Man-down / fall detection (critical safety)
+- B-03: AI dispatch unit recommendation (high)
+- `/tender-workspace/:id` parameterised route coverage (remaining T1 gap)
