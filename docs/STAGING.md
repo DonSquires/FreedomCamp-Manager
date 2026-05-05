@@ -778,14 +778,16 @@ Latest Session Snapshot (Truth-Sync + Local Gates Audit — 2026-05-05):
   - fail (`bun test ptt-server/test/radio-health-schema.test.js`)
   - Blocker detail: missing runtime dependency `redis` required by `ptt-server/radio-router.js`.
 - Active/last CI run IDs:
-  - Not captured in this session.
-  - Blocker: `gh` CLI missing in container (`bash: gh: command not found`).
+  - `25365991097` Governance Release Gate: completed, success
+  - `25365991079` policy-bob-openai-research-training: completed, success
+  - `25365991061` Validate RunPod Image Tags: completed, success
+  - Retrieval method: GitHub Actions REST API fallback via `curl` + `jq` (container package install for `gh` is permission-blocked).
 - Open blockers with owner:
   - Build blocker in `src/hooks/usePatrolB1.ts` (owner: app architecture + data/schema integration).
   - Targeted radio schema test dependency missing (`redis`) (owner: ptt-server runtime/tooling).
-  - CI status retrieval blocked by missing GitHub CLI (owner: container/runtime setup).
+  - Optional tooling gap: `gh` CLI install blocked by container package permissions (owner: container/runtime setup).
 - Next exact command to run:
-  - `cd /workspaces/FreedomCamp-Manager && apk add --no-cache github-cli redis && GH_PAGER=cat gh run list --limit 120 --json databaseId,headSha,name,status,conclusion,url --jq '.[] | select(.headSha=="'"$(git rev-parse HEAD)'"'") | [.databaseId,.name,.status,.conclusion,.url] | @tsv'`
+  - `cd /workspaces/FreedomCamp-Manager && bun run build && bun test ptt-server/test/radio-health-schema.test.js`
 
 ### 9E. Top-10 High-Traffic Route Triage (Initial)
 
