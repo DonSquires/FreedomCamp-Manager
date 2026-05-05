@@ -315,11 +315,11 @@ export default function PublicNoiseComplaintPortal() {
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="phone">{t.nc.labelPhone}</Label>
-                    <Input id="phone" type="tel" placeholder="021 000 0000" value={phone} onChange={e => setPhone(e.target.value)} />
+                    <Input id="phone" type="tel" placeholder={t.nc.placeholderPhone} value={phone} onChange={e => setPhone(e.target.value)} />
                   </div>
                   <div className="space-y-1.5 sm:col-span-2">
                     <Label htmlFor="email">{t.nc.labelEmail}</Label>
-                    <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} />
+                    <Input id="email" type="email" placeholder={t.nc.placeholderEmail} value={email} onChange={e => setEmail(e.target.value)} />
                   </div>
                 </div>
 
@@ -421,13 +421,13 @@ export default function PublicNoiseComplaintPortal() {
                     </p>
                     <p className="text-xs text-muted-foreground">
                       <span className="font-medium">{t.nc.submittedLabel}</span>{' '}
-                      {new Date(lookupResult.created_at).toLocaleString('en-NZ', {
+                      {new Date(lookupResult.created_at).toLocaleString(t.nc.jsLocale, {
                         timeZone: 'Pacific/Auckland', dateStyle: 'medium', timeStyle: 'short',
                       })}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       <span className="font-medium">{t.nc.updatedLabel}</span>{' '}
-                      {new Date(lookupResult.updated_at).toLocaleString('en-NZ', {
+                      {new Date(lookupResult.updated_at).toLocaleString(t.nc.jsLocale, {
                         timeZone: 'Pacific/Auckland', dateStyle: 'medium', timeStyle: 'short',
                       })}
                     </p>
