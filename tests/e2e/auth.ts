@@ -685,19 +685,34 @@ async function resolvePortalSelectionIfNeeded(page: Page, user: TestUserKey): Pr
 export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
   const credentials = getTestUser(user)
 
-  await page.goto('/login')
-  await page.fill('input[type="email"]', credentials.email)
-  await page.fill('input[type="password"]', credentials.password)
-  await page.click('button[type="submit"]')
+  let lastErrorText: string | null = null
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await page.goto('/login')
+    await page.fill('input[type="email"]', credentials.email)
+    await page.fill('input[type="password"]', credentials.password)
+    await page.click('button[type="submit"]')
 
-  try {
-    await page.waitForURL(
-      (url) => !url.pathname.startsWith('/login'),
-      { timeout: 20000 }
-    )
-  } catch {
-    const errorText = await page.locator('text=/invalid|error|failed/i').first().textContent().catch(() => null)
-    const suffix = errorText ? ` Visible message: ${errorText.trim()}` : ''
+    const loginSucceeded = await page
+      .waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 20000 })
+      .then(() => true)
+      .catch(async () => {
+        lastErrorText = await page.locator('text=/invalid|error|failed/i').first().textContent().catch(() => null)
+        return false
+      })
+
+    if (loginSucceeded) break
+
+    // Retry once for transient auth/network races observed on remote browsers.
+    if (attempt === 0) {
+      await page.context().clearCookies().catch(() => undefined)
+      await page.evaluate(() => {
+        window.localStorage.clear()
+        window.sessionStorage.clear()
+      }).catch(() => undefined)
+      continue
+    }
+
+    const suffix = lastErrorText ? ` Visible message: ${lastErrorText.trim()}` : ''
     throw new Error(`Login failed for ${credentials.email}. Current URL: ${page.url()}.${suffix}`)
   }
 
