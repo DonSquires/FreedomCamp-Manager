@@ -194,6 +194,24 @@ Fill this before stopping work:
 
 Latest Session Snapshot (Phase B Route-Access Shard Stabilization — 2026-05-05):
 
+Latest Session Snapshot (Proactive Regression Spot-Check — 2026-05-05):
+
+- Timestamp (NZ): 2026-05-05 20:01:59 NZST
+- Current branch: main
+- HEAD SHA: e36b5af122b3beb78695cb210b27ccb57cf2471b
+- Working tree status (`git status -sb`): clean except untracked draft migration (`supabase/migrations/20260504000005_phase_b1_patrol_and_respond.sql`)
+- Scope completed:
+  - Executed proactive quick regression on `deep-functional` plus `org-isolation-api` after latest green cycle.
+  - Confirmed no fresh regressions and preserved Mobile Safari org-isolation stability.
+- Latest targeted test result (RunPod, proactive quick):
+  - Job `3415b8b9-5485-4b96-947d-4869c4dd8b21-u1`
+  - Specs: `tests/e2e/deep-functional.spec.ts`, `tests/e2e/org-isolation-api.spec.ts`
+  - Result: 0 failed, 15 passed, 25 skipped
+- Open blockers with owner:
+  - None on current E2E validation lane.
+- Next exact command to run:
+  - `cd /workspaces/FreedomCamp-Manager && BOB_WORKER_GITHUB_TOKEN="$GITHUB_TOKEN" $HOME/.bun/bin/bun scripts/trigger-bob-self-test.mjs --scope quick --quickSpecs tests/e2e/client-portal-isolation.spec.ts,tests/e2e/phase-b1-patrol-and-respond.spec.ts`
+
 Latest Session Snapshot (Phase B Quick Pair Validation — 2026-05-05):
 
 - Timestamp (NZ): 2026-05-05 19:59:38 NZST
