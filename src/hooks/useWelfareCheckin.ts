@@ -155,6 +155,7 @@ export function useWelfareCheckin(opts: CheckinOptions) {
     alert10Fired.current  = false
     alert5Fired.current   = false
     overdueToasted.current = false
+    alertRaisedRef.current = false
     if (overdueRepeatRef.current) { clearInterval(overdueRepeatRef.current); overdueRepeatRef.current = null }
     toast.dismiss('welfare-overdue')
     toast.dismiss('welfare-due-10')
@@ -192,7 +193,10 @@ export function useWelfareCheckin(opts: CheckinOptions) {
     if (!isDueSoon5) alert5Fired.current = false
   }, [isDueSoon5, isOverdue, isShiftActive])
 
-  // Overdue persistent alert + repeating beep every 60 s
+  // Track whether a missed-check-in alert has been raised for the current cycle
+  const alertRaisedRef = useRef(false)
+
+  // Overdue persistent alert + repeating beep every 60 s + welfare alert row
   useEffect(() => {
     if (!isShiftActive) return
     if (isOverdue && !overdueToasted.current) {
@@ -207,15 +211,33 @@ export function useWelfareCheckin(opts: CheckinOptions) {
       overdueRepeatRef.current = setInterval(() => {
         playUrgentBeep()
       }, 60_000)
+      // Create a welfare alert so supervisors are notified (fire-and-forget)
+      if (!alertRaisedRef.current && officerId && organizationId) {
+        alertRaisedRef.current = true
+        supabase.from('officer_welfare_alerts').insert({
+          officer_id: officerId,
+          organization_id: organizationId,
+          officer_name: '',               // resolved server-side via officer_id
+          alert_type: 'inactivity',
+          status: 'pending',
+          last_activity_at: lastCheckinAt ?? new Date().toISOString(),
+          alert_sent_at: new Date().toISOString(),
+          escalation_level: 1,
+          gps_latitude: position?.latitude ?? null,
+          gps_longitude: position?.longitude ?? null,
+          gps_accuracy: position?.accuracy ?? null,
+        } as any)
+      }
     }
     if (!isOverdue) {
       overdueToasted.current = false
+      alertRaisedRef.current = false
       if (overdueRepeatRef.current) { clearInterval(overdueRepeatRef.current); overdueRepeatRef.current = null }
     }
     return () => {
       if (overdueRepeatRef.current) { clearInterval(overdueRepeatRef.current); overdueRepeatRef.current = null }
     }
-  }, [isOverdue, isShiftActive])
+  }, [isOverdue, isShiftActive, officerId, organizationId, lastCheckinAt, position])
 
   // ── Submit check-in mutation ───────────────────────────────────────────────
   const submitMutation = useMutation({

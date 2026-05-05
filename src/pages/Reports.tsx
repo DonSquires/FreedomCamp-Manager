@@ -39,6 +39,7 @@ import { arrayToCSV, downloadCSV } from '@/lib/csvExport'
 import { generateReportHTML, exportReportPDF } from '@/lib/pdfExport'
 import type { PDFReportConfig, PDFSection } from '@/lib/pdfExport'
 import { edgeFunctions } from '@/lib/edgeFunctions'
+import { AsyncStateWrapper } from '@/components/features/AsyncStateWrapper'
 
 const EMAIL_TIMEOUT_MS = 45000
 
@@ -112,7 +113,11 @@ export default function Reports() {
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
 
   const effectiveOrgId =
-    user?.role !== 'master' ? user?.organization_id || null : organizationId || null
+    user?.role === 'grand_master' || user?.role === 'master'
+      ? organizationId || null
+      : organizationId && (user?.role === 'admin' || user?.role === 'admin_officer')
+        ? organizationId   // admin/admin_officer may switch to child org via ribbon
+        : user?.organization_id || null
 
   const reportDateTo = dateTo || new Date().toISOString().slice(0, 10)
   const reportDateFrom =
@@ -522,6 +527,7 @@ export default function Reports() {
       <AppLayout title="Reports" description="Generate compliance reports, view data previews, and export" showBackButton>
         <GlobalFilterRibbon />
 
+        <AsyncStateWrapper isLoading={isLoading} loadingText="Loading report data…">
         {/* Summary statistics */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
           {[
@@ -954,6 +960,7 @@ export default function Reports() {
             </Card>
           </TabsContent>
         </Tabs>
+        </AsyncStateWrapper>
       </AppLayout>
 
       {/* PDF Preview Dialog */}

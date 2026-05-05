@@ -24,6 +24,7 @@ import { VOILookup } from '@/components/features/VOILookup'
 import { captureAndSave, SCAN_PROGRESS_LABELS, type ScanProgressStage } from '@/lib/scanPipeline'
 import { useManDownDetection } from '@/hooks/useManDownDetection'
 import { useWelfareCheckin } from '@/hooks/useWelfareCheckin'
+import { usePatrolCheckpointProgress } from '@/hooks/usePatrolCheckpointProgress'
 import { useRosteredShift } from '@/hooks/useRosteredShift'
 import { useShiftGate } from '@/hooks/useShiftGate'
 import {

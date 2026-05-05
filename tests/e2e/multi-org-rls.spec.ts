@@ -143,13 +143,15 @@ test.describe('Multi-Org RLS - Database Level Enforcement', () => {
     // Note: In real scenario, you'd get actual user JWT
     // This is a simplified test
 
+    // Use a synthetic non-existent UUID so the query is always scoped to a
+    // foreign org — RLS should return an empty set regardless.
+    const foreignOrgId = '00000000-0000-0000-0000-000000000000'
     const { data: observations } = await helpers.supabase
       .from('observations')
       .select('*')
-      .eq('organization_id', '22222222-2222-2222-2222-222222222222') // Org 2
+      .eq('organization_id', foreignOrgId)
 
-    // If RLS is working, Org 1 admin shouldn't see Org 2 data
-    // (Assuming test user is Org 1 admin)
+    // If RLS is working, the current user should not see another org's data.
     expect(observations).toBeDefined()
   })
 })

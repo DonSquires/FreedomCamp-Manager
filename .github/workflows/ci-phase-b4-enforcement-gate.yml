@@ -1,0 +1,75 @@
+name: CI Phase B4 Enforcement Gate
+
+# Path-filtered gate that runs whenever the B4 enforcement E2E spec,
+# its migration, the enforcement hook, or the workflow file itself changes.
+# Mirrors the pattern used by ci-org-isolation-api.yml.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tests/e2e/phase-b4-enforcement-timeline.spec.ts'
+      - 'supabase/migrations/20260506000003_phase_b4_enforcement_case_bridge.sql'
+      - 'src/hooks/useEnforcementB4.ts'
+      - 'tests/e2e/setup.ts'
+      - 'playwright.api.config.ts'
+      - 'package.json'
+      - 'bun.lock'
+      - '.github/workflows/ci-phase-b4-enforcement-gate.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'tests/e2e/phase-b4-enforcement-timeline.spec.ts'
+      - 'supabase/migrations/20260506000003_phase_b4_enforcement_case_bridge.sql'
+      - 'src/hooks/useEnforcementB4.ts'
+      - 'tests/e2e/setup.ts'
+      - 'playwright.api.config.ts'
+      - 'package.json'
+      - 'bun.lock'
+      - '.github/workflows/ci-phase-b4-enforcement-gate.yml'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  phase-b4-enforcement-gate:
+    name: Phase B4 Enforcement Timeline Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    env:
+      VITE_SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY:    ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run Phase B4 enforcement timeline gate suite
+        run: |
+          bunx playwright test \
+            tests/e2e/phase-b4-enforcement-timeline.spec.ts \
+            --config=playwright.api.config.ts \
+            --reporter=list
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: phase-b4-enforcement-gate-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore

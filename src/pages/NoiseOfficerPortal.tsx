@@ -27,6 +27,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
 import { AppLayout } from '@/components/features/AppLayout'
+import { NoiseEvidenceBundle } from '@/components/features/NoiseEvidenceBundle'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -1171,7 +1172,9 @@ export default function NoiseOfficerPortal() {
 
                 {/* Post-assessment actions */}
                 {completedAssessmentId && (
-                  <Card className="bg-green-50 border-green-200">
+                  <>
+                    <NoiseEvidenceBundle assessmentId={completedAssessmentId} className="mt-3" />
+                    <Card className="bg-green-50 border-green-200">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-base text-green-800 flex items-center gap-2">
                         <CheckCircle className="h-4 w-4" /> Assessment Recorded — Next Steps
@@ -1248,7 +1251,8 @@ export default function NoiseOfficerPortal() {
                         </Button>
                       </div>
                     </CardContent>
-                  </Card>
+                    </Card>
+                  </>
                 )}
               </>
             )}

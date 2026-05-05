@@ -53,11 +53,11 @@ Verify that no route exposes data across organisation boundaries. Each row docum
 |---|---|---|---|
 | `/organizations` | `master`, `grand_master` | `master loads /organizations` | ✅ Covered |
 | `/intel-approvals` | `master`, `grand_master` | `master loads /intel-approvals` | ✅ Covered |
-| `/diagnostics` | `master`, `grand_master` | — | ⚠️ No coverage |
-| `/site-permissions` | `admin`, `master`, `grand_master` | — | ⚠️ No coverage |
-| `/tender-workspace` | `admin`, `master`, `grand_master` | — | ⚠️ No coverage |
+| `/diagnostics` | `master`, `grand_master` | `master loads /diagnostics` (P4-9) | ✅ Covered |
+| `/site-permissions` | `admin`, `master`, `grand_master` | `master loads /site-permissions` (P4-9) | ✅ Covered |
+| `/tender-workspace` | `admin`, `master`, `grand_master` | `master loads /tender-workspace` (P4-9) | ✅ Covered |
 | `/tender-workspace/:id` | `admin`, `master`, `grand_master` | — | ⚠️ No coverage |
-| `/tender-reference-library` | `admin`, `master`, `grand_master` | — | ⚠️ No coverage |
+| `/tender-reference-library` | `admin`, `master`, `grand_master` | `master loads /tender-reference-library` (P4-9) | ✅ Covered |
 
 ### T2 — Org-scoped (admin / admin_officer / master)
 
@@ -86,10 +86,10 @@ Selected high-risk routes:
 |---|---|---|---|
 | `/officer-home` | `admin_officer`, `officer` | `officer loads /officer-home` | ✅ Covered |
 | `/field-officer` | `admin_officer`, `officer` | `officer loads /field-officer` | ✅ Covered |
-| `/breach-notices` | `admin`, `admin_officer`, `master`, `officer` | — | ⚠️ No coverage |
-| `/enforcement-actions` | `admin`, `admin_officer`, `master`, `officer` | — | ⚠️ No coverage |
-| `/face-recognition` | `admin`, `admin_officer`, `master`, `officer` | — | ⚠️ No coverage |
-| `/job-map` | `admin`, `admin_officer`, `master`, `officer` | — | ⚠️ No coverage |
+| `/breach-notices` | `admin`, `admin_officer`, `master`, `officer` | `officer loads /breach-notices` (P4-9) | ✅ Covered |
+| `/enforcement-actions` | `admin`, `admin_officer`, `master`, `officer` | `officer loads /enforcement-actions` (P4-9) + org-spoof smoke | ✅ Covered |
+| `/face-recognition` | `admin`, `admin_officer`, `master`, `officer` | `officer loads /face-recognition` (P4-9) | ✅ Covered |
+| `/job-map` | `admin`, `admin_officer`, `master`, `officer` | `officer loads /job-map` (P4-9) | ✅ Covered |
 
 ### T4 — Client portal
 
@@ -102,7 +102,7 @@ Selected high-risk routes:
 | Route | Roles | E2E Test | Status |
 |---|---|---|---|
 | `/login` | none (public) | auto | ✅ Covered |
-| `/dispute` | none (public) | — | ⚠️ No coverage |
+| `/dispute` | none (public) | `/dispute loads without auth` (P4-9 T5 spec) | ✅ Covered |
 
 ---
 
@@ -115,9 +115,9 @@ Selected high-risk routes:
 | `/crm/contractor/:orgId` | master reading contractor data of an org not assigned to them | `orgId` must match `user_organizations` membership | ✅ Verified (RLS + spoof E2E) |
 | `/crm/client/:orgId` | master reading client data of unassigned org | `orgId` must match `user_organizations` membership | ✅ Verified (RLS + spoof E2E) |
 | `/organizations` | master listing all organisations | Grand_master only, master sees assigned orgs | 🟨 Partially verified (RLS enabled + policy added; dedicated fixture proof pending) |
-| `/users` | master listing users of all orgs | Filter by `organization_id` | ❌ Unverified |
-| `/audit-log` | master viewing audit entries cross-org | Filter by `organization_id` | ❌ Unverified |
-| `/crm` | master seeing all CRM contacts | Filter by `organization_id` | ❌ Unverified |
+| `/users` | master listing users of all orgs | Filter by `organization_id` | ✅ Verified (P4-9 `org-isolation-api.spec.ts` — `/users bleed` test) |
+| `/audit-log` | master viewing audit entries cross-org | Filter by `organization_id` | ✅ Verified (P4-9 `org-isolation-api.spec.ts` — existing audit_log test) |
+| `/crm` | master seeing all CRM contacts | Filter by `organization_id` | ✅ Verified (P4-9 `org-isolation-api.spec.ts` — CRM organizations bleed test) |
 
 ---
 

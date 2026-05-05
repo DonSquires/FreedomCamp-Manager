@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { RefreshCw, Radio, AlertTriangle, Clock, CheckCircle, Zap, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
+import { AsyncStateWrapper } from '@/components/features/AsyncStateWrapper'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -175,13 +176,10 @@ export default function DispatchMonitor() {
 
           {/* ── Stat tiles (left 3/4) ──────────────────────────────────────── */}
           <div className="lg:col-span-3">
-            {isLoading ? (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i} className="h-28 rounded-xl bg-muted animate-pulse" />
-                ))}
-              </div>
-            ) : (
+            <AsyncStateWrapper
+              isLoading={isLoading}
+              loadingText="Loading dispatch stats…"
+            >
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {tiles.map(tile => {
                   const Icon = tile.icon
@@ -198,7 +196,7 @@ export default function DispatchMonitor() {
                   )
                 })}
               </div>
-            )}
+            </AsyncStateWrapper>
           </div>
 
           {/* ── Filter panel (right 1/4) ───────────────────────────────────── */}

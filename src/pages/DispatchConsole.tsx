@@ -15,7 +15,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { insertDispatchJobWithAlarmTypeFallback } from '@/lib/dispatchJobs'
-import { formatDistance } from '@/lib/geo'
+import { formatDistance, estimateEtaMinutes, formatEta } from '@/lib/geo'
 import { useAuthStore } from '@/stores/authStore'
 import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { useDispatchReplan } from '@/hooks/useDispatchReplan'
@@ -470,6 +470,22 @@ export default function DispatchConsole() {
     return officers.find(o => o.is_on_shift && o.distance_km !== null) ?? null
   }, [officers, selectedJob])
 
+  // Top-3 recommended officers: on-shift, sorted by distance then active-job-count
+  const topRecommendedOfficers = useMemo(() => {
+    const onShift = officers.filter(o => o.is_on_shift)
+    const withGPS = onShift.filter(o => o.distance_km !== null)
+    const noGPS   = onShift.filter(o => o.distance_km === null)
+    // Primary sort: distance asc; secondary: fewest active jobs
+    const sorted = [...withGPS].sort((a, b) => {
+      const distDiff = (a.distance_km ?? 0) - (b.distance_km ?? 0)
+      if (distDiff !== 0) return distDiff
+      return a.active_job_count - b.active_job_count
+    })
+    // If fewer than 3 with GPS, pad with no-GPS officers sorted by job count
+    const padded = noGPS.sort((a, b) => a.active_job_count - b.active_job_count)
+    return [...sorted, ...padded].slice(0, 3)
+  }, [officers])
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <AppLayout>
@@ -574,8 +590,10 @@ export default function DispatchConsole() {
             {jobs.map(job => {
               const sc    = STATUS_CONFIG[job.status]
               const pc    = PRIORITY_CONFIG[job.priority]
-              const ageM  = minutesSince(job.created_at)
-              const slaOk = !job.sla_breached && ageM < job.response_sla_minutes
+              const ageM    = minutesSince(job.created_at)
+              const minsLeft = job.response_sla_minutes - ageM
+              const slaOk   = !job.sla_breached && ageM < job.response_sla_minutes
+              const slaWarn = !job.sla_breached && minsLeft > 0 && minsLeft <= 15
               return (
                 <Card
                   key={job.id}
@@ -585,7 +603,7 @@ export default function DispatchConsole() {
                     job.priority === 'urgent' ? 'border-l-red-500' :
                     job.priority === 'high'   ? 'border-l-orange-400' :
                     job.priority === 'normal' ? 'border-l-blue-400' : 'border-l-gray-300'
-                  } ${job.sla_breached ? 'bg-red-50/30 dark:bg-red-950/10' : ''}`}
+                  } ${job.sla_breached ? 'bg-red-50/30 dark:bg-red-950/10' : slaWarn ? 'bg-amber-50/30 dark:bg-amber-950/10' : ''}`}
                 >
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-3">
@@ -596,6 +614,9 @@ export default function DispatchConsole() {
                           <Badge variant="outline" className={`${sc.colour} ${sc.border}`}>{sc.label}</Badge>
                           {job.sla_breached && (
                             <Badge variant="destructive" className="text-xs animate-pulse">SLA ⚠</Badge>
+                          )}
+                          {slaWarn && (
+                            <Badge className="text-xs bg-amber-100 text-amber-800 border border-amber-300 animate-pulse">SLA {minsLeft}m</Badge>
                           )}
                         </div>
                         <p className="font-semibold text-sm leading-tight">{job.title}</p>
@@ -615,9 +636,11 @@ export default function DispatchConsole() {
                         ) : (
                           <span className="text-xs text-muted-foreground italic">Unassigned</span>
                         )}
-                        <div className="text-[11px] text-muted-foreground mt-0.5">
+                        <div className={`text-[11px] mt-0.5 ${job.sla_breached ? 'text-red-600 font-semibold' : slaWarn ? 'text-amber-600 font-semibold' : 'text-muted-foreground'}`}>
                           SLA: {job.response_sla_minutes}m
-                          {slaOk ? ` (${job.response_sla_minutes - ageM}m left)` : ''}
+                          {slaOk && minsLeft > 15 ? ` (${minsLeft}m left)` : ''}
+                          {slaWarn ? ` ⚠ ${minsLeft}m left` : ''}
+                          {job.sla_breached ? ' — Breached' : ''}
                         </div>
                       </div>
                     </div>
@@ -853,12 +876,79 @@ export default function DispatchConsole() {
                     </SelectContent>
                   </Select>
 
-                  {/* Nearest officer hint */}
-                  {nearestOfficer && (
+                  {/* Top-3 Recommended Officers — quick-assign panel (B-03) */}
+                  {topRecommendedOfficers.length > 0 && selectedJob.status === 'pending' && (
+                    <div className="space-y-1.5 pt-1">
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                        <Zap className="h-3 w-3 text-amber-500" />
+                        Recommended
+                        {selectedJob.gps_lat && <span className="text-green-600"> · sorted by proximity</span>}
+                      </p>
+                      {topRecommendedOfficers.map((o, idx) => {
+                        const isSelected = assignTarget === o.id
+                        const rankColors = [
+                          'border-green-300 bg-green-50 dark:bg-green-950/20',
+                          'border-blue-200 bg-blue-50 dark:bg-blue-950/20',
+                          'border-gray-200 bg-gray-50 dark:bg-gray-900/20',
+                        ]
+                        const rankBadgeColors = [
+                          'bg-green-100 text-green-700',
+                          'bg-blue-100 text-blue-700',
+                          'bg-gray-100 text-gray-600',
+                        ]
+                        return (
+                          <button
+                            key={o.id}
+                            type="button"
+                            onClick={() => setAssignTarget(o.id)}
+                            className={`w-full flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-left text-sm transition-colors focus:outline-none focus-visible:ring-2 ${
+                              isSelected
+                                ? 'border-primary bg-primary/10 ring-1 ring-primary'
+                                : rankColors[idx]
+                            }`}
+                          >
+                            <span className={`text-[10px] font-bold rounded px-1 leading-tight shrink-0 ${rankBadgeColors[idx]}`}>
+                              #{idx + 1}
+                            </span>
+                            <span className="font-medium truncate flex-1">
+                              {o.first_name} {o.last_name}
+                            </span>
+                            {o.distance_km !== null && (
+                              <span className="text-[10px] bg-green-50 text-green-700 border border-green-200 rounded px-1.5 py-0.5 font-medium shrink-0">
+                                {formatDistance(o.distance_km)}
+                              </span>
+                            )}
+                            {o.distance_km !== null && (
+                              <span className="text-[10px] text-muted-foreground shrink-0">
+                                {formatEta(estimateEtaMinutes(o.distance_km))}
+                              </span>
+                            )}
+                            {o.active_job_count > 0 && (
+                              <span className="text-[10px] text-amber-600 shrink-0">
+                                {o.active_job_count} job{o.active_job_count !== 1 ? 's' : ''}
+                              </span>
+                            )}
+                            {o.distance_km === null && o.active_job_count === 0 && (
+                              <span className="text-[10px] text-muted-foreground shrink-0">Available</span>
+                            )}
+                            {isSelected && (
+                              <CheckCircle className="h-3.5 w-3.5 text-primary shrink-0" />
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* Nearest officer hint (shown when no top-recommended cards rendered) */}
+                  {nearestOfficer && topRecommendedOfficers.length === 0 && (
                     <p className="text-xs text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/20 rounded px-2 py-1.5 flex items-center gap-1.5">
                       <Navigation className="h-3 w-3 shrink-0" />
                       Nearest: <strong>{nearestOfficer.first_name} {nearestOfficer.last_name}</strong>
                       <span className="ml-1 font-semibold">{formatDistance(nearestOfficer.distance_km)}</span>
+                      {nearestOfficer.distance_km !== null && (
+                        <span className="ml-0.5">· {formatEta(estimateEtaMinutes(nearestOfficer.distance_km))}</span>
+                      )}
                       away
                       {nearestOfficer.active_job_count > 0 && (
                         <span className="ml-1 text-amber-600">· {nearestOfficer.active_job_count} active job{nearestOfficer.active_job_count !== 1 ? 's' : ''}</span>

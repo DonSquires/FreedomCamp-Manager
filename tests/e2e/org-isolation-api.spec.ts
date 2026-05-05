@@ -518,4 +518,63 @@ test.describe('Org Isolation API Proof', () => {
     expect(Array.isArray(foreignRead.data)).toBe(true)
     expect((foreignRead.data as unknown[]).length).toBe(0)
   })
+
+  // P4-9: CRM organisations bleed — non-master token cannot see a foreign org's
+  // user_profiles rows via the organizations → user_profiles join path.
+  test('non-master token cannot read foreign org via CRM organizations endpoint', async () => {
+    test.skip(!bearerToken, 'No non-master API bearer token or role credentials available')
+    test.skip(!serviceRoleKey && !foreignOrgIdFromDistinctCreds, 'Need SUPABASE_SERVICE_ROLE_KEY or distinct org credentials for CRM org proof')
+
+    const me = await restGet('user_profiles?select=role,organization_id&limit=1', bearerToken as string)
+    expect(me.status).toBe(200)
+    const meRow = ((me.data as Array<{ role?: string; organization_id?: string }>)?.[0] || {})
+    const myRole = (meRow.role || '').toLowerCase()
+    const myOrgId = meRow.organization_id || null
+
+    test.skip(
+      myRole === 'master' || myRole === 'grand_master',
+      'Resolved bearer token maps to master scope; CRM bleed proof requires single-org role.'
+    )
+
+    let foreignOrgId: string | null = foreignOrgIdFromDistinctCreds
+    if (!foreignOrgId && serviceRoleKey) foreignOrgId = await findForeignOrgId(myOrgId)
+    test.skip(!foreignOrgId, 'Unable to resolve a foreign organization id for CRM org proof')
+
+    // The CRM module queries `organizations` scoped by organization_id membership.
+    // A non-master user should NOT see a foreign organization row.
+    const foreignOrgRead = await restGet(
+      `organizations?select=id,name,organization_type&id=eq.${foreignOrgId}&limit=1`,
+      bearerToken as string
+    )
+
+    expect(foreignOrgRead.status).toBe(200)
+    expect(Array.isArray(foreignOrgRead.data)).toBe(true)
+    expect((foreignOrgRead.data as unknown[]).length).toBe(0)
+  })
+
+  // P4-9: /users bleed — non-master cannot see user_profiles for a foreign org
+  // (strengthens the existing user_profiles test with a direct org-scoped query).
+  test('non-master token cannot list users for a foreign org (P4-9 /users bleed)', async () => {
+    test.skip(!bearerToken, 'No non-master API bearer token or role credentials available')
+    test.skip(!foreignOrgIdFromDistinctCreds, 'Need distinct Org 2 credentials for /users bleed proof')
+
+    const me = await restGet('user_profiles?select=role,organization_id&limit=1', bearerToken as string)
+    expect(me.status).toBe(200)
+    const meRow = ((me.data as Array<{ role?: string; organization_id?: string }>)?.[0] || {})
+    const myRole = (meRow.role || '').toLowerCase()
+
+    test.skip(
+      myRole === 'master' || myRole === 'grand_master',
+      'Resolved bearer token maps to master scope; /users bleed proof requires single-org role.'
+    )
+
+    const foreignUsersRead = await restGet(
+      `user_profiles?select=id,organization_id&organization_id=eq.${foreignOrgIdFromDistinctCreds}&limit=5`,
+      bearerToken as string
+    )
+
+    expect(foreignUsersRead.status).toBe(200)
+    expect(Array.isArray(foreignUsersRead.data)).toBe(true)
+    expect((foreignUsersRead.data as unknown[]).length).toBe(0)
+  })
 })

@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from '@/components/ui/label'
 import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { WarningNoticeGenerator } from '@/components/features/WarningNoticeGenerator'
+import { AsyncStateWrapper } from '@/components/features/AsyncStateWrapper'
 import { 
   AlertTriangle, 
   Bell, 
@@ -541,35 +542,16 @@ export default function EnforcementActions() {
         </div>
       )}
 
-      {actionsLoading ? (
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading enforcement actions...</p>
-        </div>
-      ) : isError ? (
-        <Card>
-          <CardContent className="text-center py-12">
-            <AlertTriangle className="h-12 w-12 text-red-400 mx-auto mb-4" />
-            <p className="text-gray-700 dark:text-gray-200 font-medium">Unable to load enforcement actions</p>
-            <p className="text-sm text-gray-500 mt-1">Please retry after refreshing this page.</p>
-          </CardContent>
-        </Card>
-      ) : actions && actions.length === 0 ? (
-        <Card>
-          <CardContent className="text-center py-12">
-            <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">No enforcement actions found</p>
-            <Button 
-              variant="outline" 
-              className="mt-4"
-              onClick={() => setIsCreateModalOpen(true)}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Create First Action
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
+      <AsyncStateWrapper
+        isLoading={actionsLoading}
+        isError={isError}
+        isEmpty={!actions || actions.length === 0}
+        loadingText="Loading enforcement actions…"
+        errorTitle="Unable to load enforcement actions"
+        emptyTitle="No enforcement actions found"
+        emptyActionLabel="Create First Action"
+        onEmptyAction={() => setIsCreateModalOpen(true)}
+      >
         <div className="space-y-4">
           {actions?.map((action) => (
             <Card key={action.id} data-testid="enforcement-case" className="hover:shadow-lg transition-shadow">
@@ -726,7 +708,7 @@ export default function EnforcementActions() {
             </Card>
           ))}
         </div>
-      )}
+      </AsyncStateWrapper>
 
       {/* Create Action Modal */}
       <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>

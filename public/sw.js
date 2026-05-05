@@ -2,9 +2,12 @@
 // Handles offline caching, background sync, and auto-updates
 // NOW WITH: IndexedDB sync, offline API queue, Background Sync API
 
-var CACHE_VERSION = '2.4.0'; // Bumped: postcss/tailwind CSS fix
+var CACHE_VERSION = '2.5.0'; // B-05: offline map tile cache
 var CACHE_NAME = 'fieldops-v' + CACHE_VERSION;
 var API_CACHE = 'fieldops-api-v' + CACHE_VERSION;
+// Separate tile cache — intentionally NOT versioned with CACHE_VERSION so that
+// pre-downloaded tiles survive app updates without re-downloading.
+var TILE_CACHE = 'fieldops-tiles-v1';
 var STATIC_CACHE = [
   '/',
   '/index.html',
@@ -37,7 +40,7 @@ self.addEventListener('activate', function(event) {
       caches.keys().then(function(cacheNames) {
         return Promise.all(
           cacheNames.map(function(cacheName) {
-            if (cacheName !== CACHE_NAME && cacheName !== API_CACHE) {
+            if (cacheName !== CACHE_NAME && cacheName !== API_CACHE && cacheName !== TILE_CACHE) {
               console.log('[SW] Deleting old cache:', cacheName);
               return caches.delete(cacheName);
             }
@@ -65,6 +68,34 @@ self.addEventListener('activate', function(event) {
 self.addEventListener('fetch', function(event) {
   // Skip for chrome-extension URLs (browser extensions)
   if (event.request.url.indexOf('chrome-extension://') !== -1) {
+    return;
+  }
+
+  // ── OSM tile requests — cache-first for offline map support (B-05) ─────────
+  var isTileRequest =
+    event.request.url.indexOf('tile.openstreetmap.org') !== -1 ||
+    event.request.url.indexOf('.tile.openstreetmap') !== -1;
+
+  if (isTileRequest && event.request.method === 'GET') {
+    event.respondWith(
+      caches.open(TILE_CACHE).then(function(cache) {
+        return cache.match(event.request).then(function(cachedTile) {
+          if (cachedTile) {
+            return cachedTile;
+          }
+          return fetch(event.request).then(function(response) {
+            if (response && response.status === 200) {
+              cache.put(event.request, response.clone()).catch(function() {});
+            }
+            return response;
+          }).catch(function() {
+            // Tile not available offline and network failed — return 204 so
+            // Leaflet renders an empty tile rather than a broken-image icon.
+            return new Response('', { status: 204, statusText: 'No Content' });
+          });
+        });
+      })
+    );
     return;
   }
 
@@ -365,6 +396,29 @@ self.addEventListener('message', function(event) {
     case 'SKIP_WAITING':
       console.log('[SW] Skip waiting');
       self.skipWaiting();
+      break;
+
+    case 'CLEAR_TILE_CACHE':
+      console.log('[SW] Clearing offline tile cache');
+      caches.delete(TILE_CACHE).then(function() {
+        if (event.source) {
+          event.source.postMessage({ type: 'TILE_CACHE_CLEARED' });
+        }
+      });
+      break;
+
+    case 'GET_TILE_CACHE_SIZE':
+      caches.open(TILE_CACHE).then(function(cache) {
+        return cache.keys();
+      }).then(function(keys) {
+        if (event.source) {
+          event.source.postMessage({ type: 'TILE_CACHE_SIZE', count: keys.length });
+        }
+      }).catch(function() {
+        if (event.source) {
+          event.source.postMessage({ type: 'TILE_CACHE_SIZE', count: 0 });
+        }
+      });
       break;
 
     case 'WELFARE_SHIFT_START':

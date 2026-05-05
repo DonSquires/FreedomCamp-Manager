@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
-import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
+import { AsyncStateWrapper } from '@/components/features/AsyncStateWrapper'
 import {
   Search, Car, AlertTriangle, CheckCircle, Calendar, RefreshCw, Database, Globe,
   MapPin, Clock, BarChart3, ZoomIn, Shield, Flag,
@@ -944,55 +944,21 @@ export default function VehicleManagement() {
       </Card>
 
       {/* Vehicle Grid */}
-      {isLoading ? (
-        <PaperworkSearchAnimation text="Loading vehicles…" />
-      ) : vehiclesError ? (
-        <Card>
-          <CardContent className="text-center py-12">
-            <AlertTriangle className="h-12 w-12 text-red-400 mx-auto mb-4" />
-            <p className="text-gray-600 font-medium">Failed to load vehicles</p>
-            <p className="text-sm text-gray-500 mt-1">
-              {vehiclesError instanceof Error ? vehiclesError.message : 'Unknown error'}
-            </p>
-            <Button variant="outline" className="mt-4" onClick={() => refetchVehicles()}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Retry
-            </Button>
-          </CardContent>
-        </Card>
-      ) : !vehicles || vehicles.length === 0 ? (
-        <Card>
-          <CardContent className="text-center py-12">
-            <Car className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">No vehicles found</p>
-            <p className="text-sm text-gray-500 mt-1">
-              {effectiveOrganizationId || zoneId
-                ? 'No vehicles have been observed for the current organisation / zone filters.'
-                : 'No canonical vehicle records exist yet.'}
-            </p>
-            <Button
-              variant="outline"
-              className="mt-4"
-              onClick={() => {
-                setStatusFilter('all')
-                setSearchQuery('')
-              }}
-            >
-              Clear Local Filters
-            </Button>
-            {vehicleQueryDebug && (
-              <p className="text-xs text-gray-400 mt-3">
-                Debug: org {vehicleQueryDebug.rawOrgId || 'none'}{' -> '}
-                {vehicleQueryDebug.resolvedOrgId || 'none'} | zone {vehicleQueryDebug.rawZoneId || 'none'}
-                {' -> '}
-                {vehicleQueryDebug.resolvedZoneId || 'none'} | scoped obs {vehicleQueryDebug.scopedObservationCount}
-                {' | '}canonical {vehicleQueryDebug.primaryCanonicalCount}/{vehicleQueryDebug.fallbackCanonicalCount}
-                {' | '}synth {vehicleQueryDebug.synthesizedCount}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
+      <AsyncStateWrapper
+        isLoading={isLoading}
+        isError={!!vehiclesError}
+        error={vehiclesError}
+        isEmpty={!vehicles || vehicles.length === 0}
+        loadingText="Loading vehicles…"
+        errorTitle="Failed to load vehicles"
+        onRetry={() => refetchVehicles()}
+        emptyTitle="No vehicles found"
+        emptyDescription={effectiveOrganizationId || zoneId
+          ? 'No vehicles have been observed for the current organisation / zone filters.'
+          : 'No canonical vehicle records exist yet.'}
+        emptyActionLabel="Clear Local Filters"
+        onEmptyAction={() => { setStatusFilter('all'); setSearchQuery('') }}
+      >
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {vehicles.map((vehicle) => {
             const profileUrl = vehicle.profile_photo
@@ -1155,7 +1121,7 @@ export default function VehicleManagement() {
             )
           })}
         </div>
-      )}
+      </AsyncStateWrapper>
 
       {/* ── Photo Lightbox ── */}
       <Dialog open={!!enlargedPhoto} onOpenChange={() => setEnlargedPhoto(null)}>

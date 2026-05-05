@@ -39,7 +39,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
-import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
+import { AsyncStateWrapper } from '@/components/features/AsyncStateWrapper'
 
 interface EnforcementAction {
   id: string
@@ -260,16 +260,14 @@ export default function EnforcementReview() {
       </div>
 
       {/* Actions list */}
-      {isLoading ? (
-        <PaperworkSearchAnimation size="sm" text="Loading enforcement actions…" />
-      ) : filtered.length === 0 ? (
-        <Card>
-          <CardContent className="py-16 text-center">
-            <Shield className="h-12 w-12 mx-auto text-muted-foreground/40 mb-4" />
-            <p className="text-lg font-semibold text-muted-foreground">No actions to review</p>
-          </CardContent>
-        </Card>
-      ) : (
+      <AsyncStateWrapper
+        isLoading={isLoading}
+        isEmpty={filtered.length === 0}
+        loadingText="Loading enforcement actions…"
+        loadingSize="sm"
+        emptyIcon={<Shield className="h-12 w-12 text-muted-foreground/40" />}
+        emptyTitle="No actions to review"
+      >
         <div className="space-y-3">
           {filtered.map(action => {
             const statusMeta = STATUS_META[action.status] || STATUS_META.pending
@@ -348,7 +346,7 @@ export default function EnforcementReview() {
             )
           })}
         </div>
-      )}
+      </AsyncStateWrapper>
 
       {/* Review Dialog */}
       <Dialog open={!!reviewTarget} onOpenChange={() => setReviewTarget(null)}>
