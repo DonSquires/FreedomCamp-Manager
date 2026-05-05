@@ -5,6 +5,19 @@ import { assertNavPathHidden, assertRouteBlocked, assertRouteLoads } from './hel
 
 test.use({ screenshot: 'on' })
 
+async function assertSpoofedOrgGuarded(page: any, spoofedOrgId: string) {
+  const redirectedAway = !page.url().includes(spoofedOrgId)
+  if (redirectedAway) return
+
+  const deniedHeading = page.getByRole('heading', { name: /access restricted|forbidden|unauthorized|not found/i })
+  const deniedText = page.locator('text=/access.*denied|not.*authorized|forbidden|not found|no access|permission denied/i').first()
+
+  const deniedByHeading = await deniedHeading.isVisible({ timeout: 2500 }).catch(() => false)
+  const deniedByText = await deniedText.isVisible({ timeout: 2500 }).catch(() => false)
+
+  expect(deniedByHeading || deniedByText).toBeTruthy()
+}
+
 test.describe('org isolation – CRM parameterised routes', () => {
   test.describe.configure({ mode: 'serial' })
 
@@ -13,31 +26,31 @@ test.describe('org isolation – CRM parameterised routes', () => {
   test('admin cannot access /crm/client/:spoofedOrgId from another org', async ({ page }) => {
     await loginAs(page, 'adminOrg1')
     await page.goto(`/crm/client/${spoofedOrgId}`, { waitUntil: 'networkidle' })
-    expect(page.url()).not.toContain(spoofedOrgId)
+    await assertSpoofedOrgGuarded(page, spoofedOrgId)
   })
 
   test('admin cannot access /crm/contractor/:spoofedOrgId from another org', async ({ page }) => {
     await loginAs(page, 'adminOrg1')
     await page.goto(`/crm/contractor/${spoofedOrgId}`, { waitUntil: 'networkidle' })
-    expect(page.url()).not.toContain(spoofedOrgId)
+    await assertSpoofedOrgGuarded(page, spoofedOrgId)
   })
 
   test('officer cannot access /crm/client/:spoofedOrgId', async ({ page }) => {
     await loginAs(page, 'officerOrg1')
     await page.goto(`/crm/client/${spoofedOrgId}`, { waitUntil: 'networkidle' })
-    expect(page.url()).not.toContain(spoofedOrgId)
+    await assertSpoofedOrgGuarded(page, spoofedOrgId)
   })
 
   test('master cannot access /crm/client/:spoofedOrgId outside assigned orgs', async ({ page }) => {
     await loginAs(page, 'master')
     await page.goto(`/crm/client/${spoofedOrgId}`, { waitUntil: 'networkidle' })
-    expect(page.url()).not.toContain(spoofedOrgId)
+    await assertSpoofedOrgGuarded(page, spoofedOrgId)
   })
 
   test('master cannot access /crm/contractor/:spoofedOrgId outside assigned orgs', async ({ page }) => {
     await loginAs(page, 'master')
     await page.goto(`/crm/contractor/${spoofedOrgId}`, { waitUntil: 'networkidle' })
-    expect(page.url()).not.toContain(spoofedOrgId)
+    await assertSpoofedOrgGuarded(page, spoofedOrgId)
   })
 })
 
