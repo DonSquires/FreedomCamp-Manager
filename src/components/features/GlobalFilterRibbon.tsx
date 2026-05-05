@@ -214,16 +214,30 @@ export function GlobalFilterRibbon({
               <Select
                 value={organizationId || '__all__'}
                 onValueChange={(value) => {
+                  const prevOrgId = organizationId
+                  const nextOrgId = (value === '__all__' || !value) ? null : value
                   startTransition(() => {
-                    if (value === '__all__' || !value) {
+                    if (!nextOrgId) {
                       setOrganization(null, null)
                       setZone(null, null)
-                      return
+                    } else {
+                      const org = organizations?.find(o => o.id === nextOrgId)
+                      setOrganization(nextOrgId, org?.name || null)
+                      setZone(null, null)
                     }
-                    const org = organizations?.find(o => o.id === value)
-                    setOrganization(value, org?.name || null)
-                    setZone(null, null)
                   })
+                  // Audit the org context switch (fire-and-forget; never blocks the UI)
+                  if (prevOrgId !== nextOrgId && user?.id) {
+                    supabase.from('audit_log').insert({
+                      action: 'org_context_switch',
+                      entity_type: 'organization',
+                      entity_id: nextOrgId ?? prevOrgId,
+                      performed_by: user.id,
+                      organization_id: user.organization_id ?? null,
+                      old_values: { organization_id: prevOrgId },
+                      new_values: { organization_id: nextOrgId },
+                    } as any)
+                  }
                 }}
               >
                 <SelectTrigger className="w-[200px] h-9">
