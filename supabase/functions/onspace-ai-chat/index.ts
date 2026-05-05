@@ -23,6 +23,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { withCors, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/withCors.ts'
+import { bobChat } from '../_shared/bobInfer.ts'
 
 const BOB_RUNPOD_RETRIES = Math.max(2, Number(Deno.env.get('BOB_RUNPOD_RETRIES') ?? '2'))
 const BOB_RUNPOD_BACKOFF_MS = Math.max(100, Number(Deno.env.get('BOB_RUNPOD_BACKOFF_MS') ?? '700'))
@@ -1079,6 +1080,35 @@ Deno.serve(async (req: Request) => {
       throw lastError ?? new Error(`RunPod runsync failed after ${BOB_RUNPOD_RETRIES + 1} attempts`)
     }
 
+    // Shared helper path keeps RunPod handling consistent across edge functions.
+    async function callRunpodViaSharedHelper(): Promise<{ responseText: string; provider: string; model: string }> {
+      const result = await bobChat({
+        message: latestUserMessage,
+        history,
+        systemPrompt: messages.find((m) => m.role === 'system')?.content,
+        model: runpodModel,
+        temperature,
+        timeoutMs: BOB_RUNPOD_TIMEOUT_MS,
+        context: {
+          user_id: user?.id ?? 'service',
+          user_email: user?.email ?? '',
+          user_role: userRole,
+          organization_id: profile?.organization_id ?? null,
+          bob_tier: bobTier ?? undefined,
+          bob_tone: bobTone ?? undefined,
+          requested_model: model,
+          resolved_model: runpodModel,
+          source: 'onspace-ai-chat',
+        },
+      })
+
+      return {
+        responseText: result.response,
+        provider: `runpod-serverless-${result.provider}`,
+        model: result.model,
+      }
+    }
+
     async function callInferenceProvider() {
       const configuredFallbackUrl = normalizeBaseUrl(Deno.env.get('INFERENCE_SERVICE_FALLBACK_URL'))
       const candidates = Array.from(new Set([
@@ -1096,10 +1126,17 @@ Deno.serve(async (req: Request) => {
         // ── RunPod serverless: use /runsync job API ──────────────────────────
         if (isRunpodServerless(candidateUrl)) {
           try {
-            return await callRunpodServerless(candidateUrl)
+            return await callRunpodViaSharedHelper()
           } catch (err: any) {
-            lastError = err instanceof Error ? err : new Error(String(err?.message ?? err))
-            continue
+            const sharedErr = err instanceof Error ? err : new Error(String(err?.message ?? err))
+            try {
+              return await callRunpodServerless(candidateUrl)
+            } catch (legacyErr: any) {
+              lastError = legacyErr instanceof Error
+                ? new Error(`${sharedErr.message}; legacy fallback failed: ${legacyErr.message}`)
+                : sharedErr
+              continue
+            }
           }
         }
 
