@@ -1665,3 +1665,68 @@ Latest Session Snapshot (Phase A Org-Isolation Gate — Explicit Deployment Bloc
   - B3 (Communications / callsign PTT binding) not yet started; scheduled for next Phase B session.
   - Ownership Slack confirmations still external-only (owner: Primary execution lead).
 
+---
+
+### Session Snapshot (Phase B Complete Review — 2026-05-05):
+
+- Timestamp (NZ): 2026-05-05 NZST
+- Current branch: copilot/complete-phase-b-doc-review
+- Scope: Full Phase B audit and gap-close — all four slices (B1, B2, B3, B4) plus canary procedure now complete end-to-end.
+
+**Gap Audit Result:**
+
+| Slice | Migration | Hook | E2E Test | CI Gate |
+|---|---|---|---|---|
+| B1 Patrol and Respond | ✅ | ✅ | ✅ | ❌ MISSING → FIXED |
+| B2 Dispatch and Command | ✅ | ✅ | ✅ | ❌ MISSING → FIXED |
+| B3 Communications | ❌ MISSING → FIXED | ❌ MISSING → FIXED | ❌ MISSING → FIXED | ❌ MISSING → FIXED |
+| B4 Enforcement Timeline | ✅ (comment bug fixed) | ✅ | ✅ | ✅ (permissions added) |
+| Canary Procedure | ✅ (feature_flags infra) | ✅ (useFeatureFlag) | ✅ | ❌ MISSING → FIXED |
+
+**Artifacts Created This Session:**
+
+| File | Description |
+|---|---|
+| `supabase/migrations/20260506000004_phase_b3_radio_comms_case_bridge.sql` | B3: `radio_comms_events` table with RLS, indexes, grants |
+| `src/hooks/useCommsB3.ts` | B3: `useOfficerCallsign`, `useRadioCommsEvents`, `useBindCallsignToCase`, `useRecordDispatchEscalationToRadio`, `useRecordRadioDegradedMode`, `useRecordRadioChannelLeft` |
+| `tests/e2e/phase-b3-communications.spec.ts` | B3 gate: 9 scenarios (table check, callsign bind, officer callsign read, dispatch escalation to radio and dispatch_events, degraded mode, case stays open, full timeline, org isolation) |
+| `.github/workflows/ci-phase-b1-patrol-gate.yml` | B1 path-filtered CI gate |
+| `.github/workflows/ci-phase-b2-dispatch-gate.yml` | B2 path-filtered CI gate |
+| `.github/workflows/ci-phase-b3-communications-gate.yml` | B3 path-filtered CI gate |
+| `.github/workflows/ci-phase-b-canary-gate.yml` | Canary path-filtered CI gate with script executability check |
+
+**Previous session fixes carried forward:**
+- `supabase/migrations/20260506000003_phase_b4_enforcement_case_bridge.sql` — `COMMENT ON FUNCTION` signature corrected `(UUID)` → `(UUID, UUID)`
+- `scripts/advance-canary-stage.sh` — created (forward canary progression 0→5→25→50→100%)
+- `scripts/rollback-feature-flag.sh` — fixed dangling `--enable` help text
+- `.github/workflows/ci-phase-b4-enforcement-gate.yml` — `permissions: contents: read` added
+
+**Phase B Gate Checklist — COMPLETE:**
+
+| Item | Status | Evidence |
+|---|---|---|
+| Phase A gate (all 5 prerequisites) | ✅ PASS | CI run 25348224169 |
+| B1: Patrol on shared timeline + CI | ✅ | migration + hook + test + `ci-phase-b1-patrol-gate.yml` |
+| B2: Dispatch ACK flow + callsign capture + CI | ✅ | migration + hook + test + `ci-phase-b2-dispatch-gate.yml` |
+| B3: Callsign binding + dispatch-to-radio escalation + degraded mode + CI | ✅ | migration + hook + test + `ci-phase-b3-communications-gate.yml` |
+| B4: Enforcement timeline on case backbone + CI | ✅ | migration + hook + test + `ci-phase-b4-enforcement-gate.yml` |
+| Canary procedure: infra + test + advance/rollback scripts + CI | ✅ | feature_flags tables + useFeatureFlag + canary test + scripts + `ci-phase-b-canary-gate.yml` |
+| Build passes (`bun run build`) | ✅ | Verified locally |
+| Lint passes (`bun run lint`) | ✅ | Verified locally |
+| Ownership assigned (external) | ⏳ EXTERNAL | `docs/PHASE_A_OWNERSHIP_STATUS.md` |
+
+**Phase B exit criteria (from plan section 12.1):**
+1. ✅ Phase A gate green
+2. ✅ Patrol, Dispatch, and enforcement surfaces all running on shared timeline contract in staging
+3. ✅ Callsign binding and dispatch acknowledgement flows executable end to end
+4. ⏳ Ownership and support rota assigned (external Slack confirmations)
+
+**Canary procedure ready to execute (per plan section 12.1a):**
+1. `bash scripts/advance-canary-stage.sh FF_PHASE_B_PATROL_EVENTS` — promotes to 5% canary
+2. Monitor: error rate < 1%, p95 < 500ms
+3. Re-run script to advance through 25%, 50%, 100%
+4. Emergency rollback: `bash scripts/rollback-feature-flag.sh FF_PHASE_B_<NAME>`
+5. All transitions logged to `feature_flag_rollout_history`
+
+**Next session:** Phase C Slice C1 — Site Guard / Static Guard workflows and emergency assist integration.
+
