@@ -14,19 +14,6 @@ REPO_URL="${GITHUB_REPO_URL:-}"
 REPO_BRANCH="${GITHUB_REPO_BRANCH:-main}"
 REPO_DIR="/app/repo"
 FAST_BOOT="${RUNPOD_FAST_BOOT:-true}"
-LOCAL_OLLAMA_BASE="http://127.0.0.1:11434"
-RAW_OLLAMA_BASE="${OLLAMA_BASE_URL:-$LOCAL_OLLAMA_BASE}"
-RAW_EXTERNAL_OLLAMA_BASE="${OLLAMA_EXTERNAL_URL:-}"
-OLLAMA_BASE="${RAW_OLLAMA_BASE%/}"
-EXTERNAL_OLLAMA_BASE="${RAW_EXTERNAL_OLLAMA_BASE%/}"
-RESOLVED_OLLAMA_BASE="${EXTERNAL_OLLAMA_BASE:-$OLLAMA_BASE}"
-USE_LOCAL_OLLAMA="false"
-
-case "$RESOLVED_OLLAMA_BASE" in
-  "$LOCAL_OLLAMA_BASE"|"http://localhost:11434")
-    USE_LOCAL_OLLAMA="true"
-    ;;
-esac
 
 if [ -z "${RUNPOD_PREP_REPO_NODE_DEPS_ON_START+x}" ]; then
   if [ "$FAST_BOOT" = "true" ]; then
@@ -168,38 +155,37 @@ else
   echo "[start] GITHUB_REPO_URL not set — skipping repo clone (run_playwright will use /app only)"
 fi
 
+echo "[start] Starting Ollama..."
+ollama serve &
+OLLAMA_PID=$!
+
+echo "[start] Waiting for Ollama to be ready (HTTP 200 on /api/tags)..."
+until curl -sf http://127.0.0.1:11434/api/tags > /dev/null 2>&1; do
+  sleep 1
+done
+# Brief extra wait for model loading after API is live
+sleep 2
+echo "[start] Ollama is ready"
+
 MODEL="${OLLAMA_MODEL:-qwen2.5:7b}"
-if [ "$USE_LOCAL_OLLAMA" = "true" ]; then
-  echo "[start] Starting Ollama at ${RESOLVED_OLLAMA_BASE}..."
-  ollama serve &
-  OLLAMA_PID=$!
-
-  echo "[start] Waiting for Ollama to be ready (HTTP 200 on /api/tags)..."
-  until curl -sf "${RESOLVED_OLLAMA_BASE}/api/tags" > /dev/null 2>&1; do
-    sleep 1
-  done
-  sleep 2
-  echo "[start] Ollama is ready"
-
-  echo "[start] Verifying model $MODEL is available (pre-baked at build time)..."
-  if ! ollama list 2>/dev/null | grep -q "$MODEL"; then
-    echo "[start] Model not found, pulling..."
-    ollama pull "$MODEL"
-  fi
-
-  echo "[start] Warming up model $MODEL (first request loads weights into VRAM)..."
-  MAX_WARMUP_ATTEMPTS="${RUNPOD_MAX_WARMUP_ATTEMPTS:-10}"
-  WARMUP_ATTEMPTS=0
-  until python3 -c "
+echo "[start] Verifying model $MODEL is available (pre-baked at build time)..."
+# Model is pre-baked — pull only if somehow missing
+if ! ollama list 2>/dev/null | grep -q "$MODEL"; then
+  echo "[start] Model not found, pulling..."
+  ollama pull "$MODEL"
+fi
+echo "[start] Warming up model $MODEL (first request loads weights into VRAM)..."
+MAX_WARMUP_ATTEMPTS="${RUNPOD_MAX_WARMUP_ATTEMPTS:-10}"
+WARMUP_ATTEMPTS=0
+until python3 -c "
 import requests, sys
 try:
-    base = '${RESOLVED_OLLAMA_BASE}'
     # Prefer /api/chat, fallback to /api/generate for older Ollama builds.
-    r = requests.post(f'{base}/api/chat',
+    r = requests.post('http://127.0.0.1:11434/api/chat',
         json={'model': '${MODEL}', 'messages': [{'role':'user','content':'hi'}], 'stream': False},
         timeout=120)
     if r.status_code == 404:
-        r = requests.post(f'{base}/api/generate',
+        r = requests.post('http://127.0.0.1:11434/api/generate',
             json={'model': '${MODEL}', 'prompt': 'hi', 'stream': False},
             timeout=120)
     r.raise_for_status()
@@ -211,17 +197,14 @@ except Exception as e:
     print('[start] Warm-up not ready:', e)
     sys.exit(1)
 "; do
-    WARMUP_ATTEMPTS=$((WARMUP_ATTEMPTS+1))
-    if [ "$WARMUP_ATTEMPTS" -ge "$MAX_WARMUP_ATTEMPTS" ]; then
-      echo "[start] WARNING: warm-up did not complete after ${MAX_WARMUP_ATTEMPTS} attempts, starting handler anyway"
-      break
-    fi
-    sleep 5
-  done
-  echo "[start] Model warm-up complete"
-else
-  echo "[start] External Ollama configured at ${RESOLVED_OLLAMA_BASE}; skipping local Ollama boot and warm-up"
-fi
+  WARMUP_ATTEMPTS=$((WARMUP_ATTEMPTS+1))
+  if [ "$WARMUP_ATTEMPTS" -ge "$MAX_WARMUP_ATTEMPTS" ]; then
+    echo "[start] WARNING: warm-up did not complete after ${MAX_WARMUP_ATTEMPTS} attempts, starting handler anyway"
+    break
+  fi
+  sleep 5
+done
+echo "[start] Model warm-up complete"
 
 # ---------------------------------------------------------------------------
 # Inference-service (Bob HTTP API on port 3000)
@@ -232,17 +215,13 @@ INFERENCE_SVC_DIR="${REPO_DIR}/inference-service"
 BOB_INFERENCE_SERVICE="${BOB_INFERENCE_SERVICE:-true}"
 if [ "$BOB_INFERENCE_SERVICE" = "true" ] && [ -f "${INFERENCE_SVC_DIR}/server.js" ]; then
   VISION_MODEL="${OLLAMA_VISION_MODEL:-llama3.2-vision:11b}"
-  if [ "$USE_LOCAL_OLLAMA" = "true" ]; then
-    echo "[start] Ensuring vision model is available: ${VISION_MODEL}"
-    if ! ollama list 2>/dev/null | grep -q "${VISION_MODEL}"; then
-      if ! ollama pull "${VISION_MODEL}"; then
-        echo "[start] WARNING: Failed to pull ${VISION_MODEL}; falling back to llava:7b"
-        VISION_MODEL="llava:7b"
-        ollama pull "${VISION_MODEL}" || true
-      fi
+  echo "[start] Ensuring vision model is available: ${VISION_MODEL}"
+  if ! ollama list 2>/dev/null | grep -q "${VISION_MODEL}"; then
+    if ! ollama pull "${VISION_MODEL}"; then
+      echo "[start] WARNING: Failed to pull ${VISION_MODEL}; falling back to llava:7b"
+      VISION_MODEL="llava:7b"
+      ollama pull "${VISION_MODEL}" || true
     fi
-  else
-    echo "[start] inference-service will use external Ollama at ${RESOLVED_OLLAMA_BASE}"
   fi
 
   echo "[start] Setting up inference-service env..."
@@ -250,7 +229,7 @@ if [ "$BOB_INFERENCE_SERVICE" = "true" ] && [ -f "${INFERENCE_SVC_DIR}/server.js
 PORT=3000
 NODE_ENV=production
 BOB_OPERATING_MODE=${BOB_OPERATING_MODE:-build-training}
-OLLAMA_BASE_URL=${RESOLVED_OLLAMA_BASE}
+OLLAMA_BASE_URL=http://127.0.0.1:11434
 CHAT_PROVIDER=${CHAT_PROVIDER:-ollama}
 TABULAR_NLP_PROVIDER=${TABULAR_NLP_PROVIDER:-heuristic}
 OLLAMA_VISION_MODEL=${VISION_MODEL}
