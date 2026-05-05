@@ -12,7 +12,7 @@
  * Route: /public/noise-complaint
  */
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { usePublicLocale } from '@/hooks/usePublicLocale'
 import type { Locale } from '@/lib/publicLocale'
@@ -90,8 +90,8 @@ export default function PublicNoiseComplaintPortal() {
   // Tab state
   const [activeTab, setActiveTab] = useState<'submit' | 'status'>('submit')
 
-  // Translated noise type labels (derived from current locale)
-  const NOISE_TYPE_LABELS: Record<NoiseType, string> = {
+  // Translated noise type labels (memoised per locale)
+  const NOISE_TYPE_LABELS = useMemo<Record<NoiseType, string>>(() => ({
     music:        t.nc.noiseMusic,
     party:        t.nc.noiseParty,
     machinery:    t.nc.noiseMachinery,
@@ -99,17 +99,17 @@ export default function PublicNoiseComplaintPortal() {
     construction: t.nc.noiseConstruction,
     vehicle:      t.nc.noiseVehicle,
     other:        t.nc.noiseOther,
-  }
+  }), [locale]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Translated status labels (derived from current locale)
-  const STATUS_LABELS: Record<ComplaintStatus, string> = {
+  // Translated status labels (memoised per locale)
+  const STATUS_LABELS = useMemo<Record<ComplaintStatus, string>>(() => ({
     received:        t.nc.statusReceived,
     acknowledged:    t.nc.statusAcknowledged,
     assigned:        t.nc.statusAssigned,
     on_scene:        t.nc.statusOnScene,
     resolved:        t.nc.statusResolved,
     no_action_taken: t.nc.statusNoAction,
-  }
+  }), [locale]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
