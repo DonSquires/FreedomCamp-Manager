@@ -688,16 +688,29 @@ def handler(job):
                 continue
             if not v:
                 continue
-            if k.startswith("PLAYWRIGHT_") or k.startswith("E2E_") or k.startswith("API_TEST_"):
+            if (
+                k.startswith("PLAYWRIGHT_")
+                or k.startswith("E2E_")
+                or k.startswith("API_TEST_")
+                or k.startswith("SUPABASE_")
+                or k.startswith("VITE_")
+                or k.startswith("NEXT_PUBLIC_")
+                or k.startswith("RADIO_")
+                or k.startswith("PTT_")
+                or k.startswith("RUNPOD_")
+            ):
                 forwarded_runtime_env[k] = v
         for k in [
             "VITE_SUPABASE_URL",
             "VITE_SUPABASE_ANON_KEY",
             "SUPABASE_SERVICE_ROLE_KEY",
+            "SUPABASE_URL",
+            "SUPABASE_ANON_KEY",
             "DEFAULT_PLAYWRIGHT_BASE_URL",
             "PLAYWRIGHT_BASE_URL",
             "INFERENCE_SERVICE_URL",
             "INFERENCE_API_KEY",
+            "SYNTHETIC_MONITOR_USER_ID",
         ]:
             val = inp.get(k)
             if isinstance(val, str) and val:
@@ -817,10 +830,13 @@ def handler(job):
                     "VITE_SUPABASE_URL",
                     "VITE_SUPABASE_ANON_KEY",
                     "SUPABASE_SERVICE_ROLE_KEY",
+                    "SUPABASE_URL",
+                    "SUPABASE_ANON_KEY",
                     "INFERENCE_SERVICE_URL",
                     "INFERENCE_API_KEY",
                     "DEFAULT_PLAYWRIGHT_BASE_URL",
                     "PLAYWRIGHT_BASE_URL",
+                    "SYNTHETIC_MONITOR_USER_ID",
                 ]
                 for k in fixed_keys:
                     v = inp.get(k) or os.environ.get(k, "")
@@ -834,7 +850,17 @@ def handler(job):
                         continue
                     if not v:
                         continue
-                    if k.startswith("PLAYWRIGHT_") or k.startswith("E2E_") or k.startswith("API_TEST_"):
+                    if (
+                        k.startswith("PLAYWRIGHT_")
+                        or k.startswith("E2E_")
+                        or k.startswith("API_TEST_")
+                        or k.startswith("SUPABASE_")
+                        or k.startswith("VITE_")
+                        or k.startswith("NEXT_PUBLIC_")
+                        or k.startswith("RADIO_")
+                        or k.startswith("PTT_")
+                        or k.startswith("RUNPOD_")
+                    ):
                         env_values[k] = v
 
                 for k, v in env_values.items():

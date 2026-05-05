@@ -57,15 +57,28 @@ loadEnvFile('.env.playwright.local');
 
 function collectForwardedTestEnv() {
   const out = {};
-  const prefixes = ['PLAYWRIGHT_', 'E2E_', 'API_TEST_'];
+  const prefixes = [
+    'PLAYWRIGHT_',
+    'E2E_',
+    'API_TEST_',
+    'SUPABASE_',
+    'VITE_',
+    'NEXT_PUBLIC_',
+    'RADIO_',
+    'PTT_',
+    'RUNPOD_',
+  ];
   const exact = new Set([
     'DEFAULT_PLAYWRIGHT_BASE_URL',
     'PLAYWRIGHT_BASE_URL',
     'VITE_SUPABASE_URL',
     'VITE_SUPABASE_ANON_KEY',
     'SUPABASE_SERVICE_ROLE_KEY',
+    'SUPABASE_URL',
+    'SUPABASE_ANON_KEY',
     'INFERENCE_SERVICE_URL',
     'INFERENCE_API_KEY',
+    'SYNTHETIC_MONITOR_USER_ID',
   ]);
 
   for (const [key, value] of Object.entries(process.env)) {
@@ -87,6 +100,82 @@ function collectForwardedTestEnv() {
   }
 
   return out;
+}
+
+function hasAnyEnv(envMap, keys = []) {
+  return keys.some((key) => Boolean(envMap[key]));
+}
+
+function validateForwardedCredentials(forwardedEnv, specs = []) {
+  const missing = [];
+  const normalizedSpecs = specs.map((spec) => String(spec || '').toLowerCase());
+
+  if (!forwardedEnv.VITE_SUPABASE_URL && !forwardedEnv.SUPABASE_URL) {
+    missing.push('VITE_SUPABASE_URL (or SUPABASE_URL)');
+  }
+  if (!forwardedEnv.VITE_SUPABASE_ANON_KEY && !forwardedEnv.SUPABASE_ANON_KEY) {
+    missing.push('VITE_SUPABASE_ANON_KEY (or SUPABASE_ANON_KEY)');
+  }
+
+  const requiresServiceRole = normalizedSpecs.some((spec) =>
+    spec.includes('org-isolation') ||
+    spec.includes('phase-b1') ||
+    spec.includes('radio-rls') ||
+    spec.includes('transcript') ||
+    spec.includes('module-route-access') ||
+    spec.includes('client-portal-isolation')
+  );
+  if (requiresServiceRole && !forwardedEnv.SUPABASE_SERVICE_ROLE_KEY) {
+    missing.push('SUPABASE_SERVICE_ROLE_KEY');
+  }
+
+  const allowSharedFallback = String(forwardedEnv.PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK || '').trim() === '1';
+  const hasSharedCreds = hasAnyEnv(forwardedEnv, ['PLAYWRIGHT_LIVE_EMAIL', 'E2E_LIVE_EMAIL', 'API_TEST_EMAIL']) &&
+    hasAnyEnv(forwardedEnv, [
+      'PLAYWRIGHT_LIVE_PASSWORD',
+      'E2E_LIVE_PASSWORD',
+      'API_TEST_PASSWORD',
+      'PLAYWRIGHT_TEST_PASSWORD',
+      'E2E_TEST_PASSWORD',
+    ]);
+
+  const needsRoleMatrixCreds = normalizedSpecs.some((spec) =>
+    spec.includes('module-route-access') || spec.includes('client-portal-isolation')
+  );
+
+  if (needsRoleMatrixCreds) {
+    const roleChecks = [
+      {
+        label: 'master role credentials',
+        emails: ['PLAYWRIGHT_MASTER_EMAIL', 'E2E_MASTER_EMAIL'],
+        passwords: ['PLAYWRIGHT_MASTER_PASSWORD', 'E2E_MASTER_PASSWORD'],
+      },
+      {
+        label: 'adminOrg1 role credentials',
+        emails: ['PLAYWRIGHT_ADMIN_ORG1_EMAIL', 'PLAYWRIGHT_ADMIN_EMAIL', 'E2E_ADMIN_EMAIL'],
+        passwords: ['PLAYWRIGHT_ADMIN_ORG1_PASSWORD', 'PLAYWRIGHT_ADMIN_PASSWORD', 'E2E_ADMIN_PASSWORD'],
+      },
+      {
+        label: 'officerOrg1 role credentials',
+        emails: ['PLAYWRIGHT_OFFICER_ORG1_EMAIL', 'PLAYWRIGHT_OFFICER_EMAIL', 'E2E_OFFICER_EMAIL'],
+        passwords: ['PLAYWRIGHT_OFFICER_ORG1_PASSWORD', 'PLAYWRIGHT_OFFICER_PASSWORD', 'E2E_OFFICER_PASSWORD'],
+      },
+      {
+        label: 'client viewer credentials',
+        emails: ['PLAYWRIGHT_CLIENT_VIEWER_EMAIL', 'PLAYWRIGHT_CLIENT_EMAIL', 'E2E_CLIENT_VIEWER_EMAIL'],
+        passwords: ['PLAYWRIGHT_CLIENT_VIEWER_PASSWORD', 'PLAYWRIGHT_CLIENT_PASSWORD', 'E2E_CLIENT_VIEWER_PASSWORD'],
+      },
+    ];
+
+    for (const role of roleChecks) {
+      const roleReady = hasAnyEnv(forwardedEnv, role.emails) && hasAnyEnv(forwardedEnv, role.passwords);
+      if (!roleReady && !(allowSharedFallback && hasSharedCreds)) {
+        missing.push(role.label);
+      }
+    }
+  }
+
+  return missing;
 }
 
 // ─── CLI args ─────────────────────────────────────────────────────────────────
@@ -327,6 +416,19 @@ async function run() {
   const quickScopeSpecs = SCOPE === 'quick'
     ? (configuredQuickSpecs.length > 0 ? configuredQuickSpecs : QUICK_SCOPE_DEFAULT_SPECS)
     : [];
+  const selectedSpecs = quickScopeSpecs.length > 0 ? quickScopeSpecs : parseSpecArg(getArg('specs', ''));
+  const missingCredentialKeys = validateForwardedCredentials(forwardedTestEnv, selectedSpecs);
+  if (missingCredentialKeys.length > 0) {
+    console.error('[bob-self-test] Missing credentials required for selected scope/specs:');
+    for (const key of missingCredentialKeys) {
+      console.error(`  - ${key}`);
+    }
+    console.error('[bob-self-test] Populate these keys in .env or .env.playwright.local before triggering RunPod.');
+    process.exit(1);
+  }
+
+  const forwardedKeys = Object.keys(forwardedTestEnv).sort();
+  console.log(`[bob-self-test] Forwarding ${forwardedKeys.length} env vars to RunPod worker`);
   if (quickScopeSpecs.length > 0) {
     console.log(`[bob-self-test] quick scope specs: ${quickScopeSpecs.join(', ')}`);
   }
