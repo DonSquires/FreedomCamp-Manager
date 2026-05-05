@@ -258,6 +258,7 @@ export async function bobAssess(options: BobAssessOptions): Promise<BobAssessRes
             type: options.type,
             symptom: options.symptom,
             description: options.description,
+            imageDescription: options.imageDescription,
             image_description: options.imageDescription,
             context: options.context,
             model: options.model,

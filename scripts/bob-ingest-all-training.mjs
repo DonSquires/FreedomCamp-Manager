@@ -29,6 +29,7 @@ let API_KEY = String(process.env.BOB_INFERENCE_API_KEY || process.env.INFERENCE_
 const DRY_RUN = process.argv.includes('--dry-run')
 const SKIP_TESTS = process.argv.includes('--skip-connectivity-test')
 const SKIP_VERIFY = process.argv.includes('--skip-verify')
+const JS_RUNTIME = process.execPath || 'bun'
 
 // Require explicit endpoint configuration to avoid stale hardcoded endpoint drift.
 
@@ -47,7 +48,7 @@ if (!BOB_URL || !API_KEY) {
   console.error('   Quick setup:')
   console.error('     export BOB_SERVICE_URL="https://your-bob-host"')
   console.error('     export BOB_INFERENCE_API_KEY="your-api-key"')
-  console.error('     node scripts/bob-ingest-all-training.mjs')
+  console.error(`     ${JS_RUNTIME} scripts/bob-ingest-all-training.mjs`)
   console.error('')
   console.error('   To find your Bob endpoint:')
   console.error('     node scripts/discover-bob-endpoint.mjs')
@@ -91,7 +92,7 @@ async function runFeeder(script) {
       BOB_INFERENCE_API_KEY: API_KEY,
     }
 
-    const child = spawn('node', ['scripts/' + script], { env, stdio: 'inherit' })
+    const child = spawn(JS_RUNTIME, ['scripts/' + script], { env, stdio: 'inherit' })
 
     child.on('close', (code) => {
       if (code === 0) {
@@ -146,7 +147,7 @@ async function main() {
     if (!healthy && !DRY_RUN) {
       console.log('⚠️  Warning: Bob endpoint not responding.')
       console.log('   Continuing with ingestion anyway (may queue or fail).\n')
-      console.log('   To skip this test: node scripts/bob-ingest-all-training.mjs --skip-connectivity-test\n')
+      console.log(`   To skip this test: ${JS_RUNTIME} scripts/bob-ingest-all-training.mjs --skip-connectivity-test\n`)
     } else if (healthy) {
       console.log('✅ Bob is healthy and ready to receive training.\n')
     }
@@ -171,7 +172,7 @@ async function main() {
 
   console.log('\n' + '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
   console.log('\n💬 Quick test: Ask Bob for NZ council adoption strategy:\n')
-  console.log('   node scripts/ask-bob.mjs "Give me a 3-point NZ council adoption strategy for FreedomCamp-Manager."')
+  console.log(`   ${JS_RUNTIME} scripts/ask-bob.mjs "Give me a 3-point NZ council adoption strategy for FreedomCamp-Manager."`)
   console.log('\n')
 
   process.exit(failed > 0 ? 1 : 0)

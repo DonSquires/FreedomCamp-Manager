@@ -171,10 +171,8 @@ Deno.serve(withCors(async (req: Request) => {
             : {}),
         },
         body: JSON.stringify({
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
+          message: userPrompt,
+          system_prompt: systemPrompt,
         }),
       }, {
         retries: 1,
@@ -202,12 +200,10 @@ Deno.serve(withCors(async (req: Request) => {
           },
           body: JSON.stringify({
             input: {
-              action: 'chat',
-              messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userPrompt },
-              ],
-              stream: false,
+              action: 'translate',
+              text,
+              target_language,
+              source_language: source_language ?? null,
             },
           }),
         }, {
@@ -239,6 +235,7 @@ Deno.serve(withCors(async (req: Request) => {
         return errorResponse(`upstream inference provider offline: ${workerErr}`, req, 502)
       }
       const translated: string =
+        runpodData?.output?.translation ||
         runpodData?.output?.response ||
         runpodData?.output?.translated_text ||
         runpodData?.output?.message?.content ||
@@ -252,10 +249,10 @@ Deno.serve(withCors(async (req: Request) => {
         target_language,
         detected_source: source_language ?? null,
         translation_confidence: 0.65,
-        confidence_reason: 'RunPod inference translation path used.',
-        provider: 'runpod-chat',
+        confidence_reason: 'RunPod inference translate action path used.',
+        provider: 'runpod-translate',
         fallback: true,
-        warning: 'Translation fallback warning: primary translate route unavailable, chat fallback path used.',
+        warning: 'Translation fallback warning: primary translate route unavailable, RunPod translate action fallback path used.',
       }, req)
     }
 

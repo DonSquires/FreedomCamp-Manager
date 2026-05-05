@@ -146,7 +146,14 @@ Deno.serve(withCors(async (req: Request) => {
               : {}),
           },
           body: runpodServerless
-            ? JSON.stringify({ input: { action: 'assess', type: 'smoke', image_description: imageBase64 ? 'image provided' : 'no image', ...inferBody } })
+            ? JSON.stringify({
+                input: {
+                  action: 'ui_vision',
+                  image_b64: imageBase64,
+                  focus: 'general',
+                  context: `NZ smoke complaint assessment. Address: ${address || 'unknown'}. GPS: ${gpsLat ?? 'unknown'}, ${gpsLng ?? 'unknown'}. Complaint time: ${complaintTime || 'unknown'}. Duration minutes: ${durationReported ?? 'unknown'}. Assess smoke color/opacity/continuity, likely fire type, prohibited material suspicion, impacts to neighbors/road, and recommended action. Respond in JSON: {smoke_opacity, smoke_color, smoke_continuous, fire_type, prohibited_materials_suspected, materials_checklist, odor_category, wind_direction_visible, smoke_affecting_neighbors, smoke_affecting_road, confidence, recommended_action, checklist_prefill}`,
+                },
+              })
             : JSON.stringify(inferBody),
           signal: AbortSignal.timeout(90_000),
         }
@@ -154,8 +161,13 @@ Deno.serve(withCors(async (req: Request) => {
 
       if (inferResp.ok) {
         const raw = await inferResp.json()
-        // Unwrap RunPod /runsync envelope
-        aiResult = raw?.output ?? raw
+        const payload = raw?.output ?? raw
+        // ui_vision returns { analysis, ... }; normalize to assessment shape.
+        if (payload?.analysis && !payload?.assessment) {
+          aiResult = { assessment: payload.analysis, weather: payload.weather ?? null, success: payload.success }
+        } else {
+          aiResult = payload
+        }
       } else {
         const errText = await inferResp.text().catch(() => '')
         console.error('smoke-assess inference error:', inferResp.status, errText.slice(0, 200))

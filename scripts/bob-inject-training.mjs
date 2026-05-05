@@ -62,10 +62,10 @@ async function injectTrainingToBob(trainingData) {
 
     const payload = {
       input: {
-        action: 'training',
+        action: 'training_note',
         category: 'coding-logic',
         source: training.path,
-        content: training.content.substring(0, 10000), // First 10KB per message
+        message: `Source: ${training.path}\nCategory: coding-logic\n\n${training.content.substring(0, 10000)}`, // First 10KB per message
       },
     };
 

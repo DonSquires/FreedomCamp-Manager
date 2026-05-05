@@ -41,17 +41,18 @@ function run(cmd, args, options = {}) {
 async function main() {
   const dryRun = process.argv.includes('--dry-run');
   const skipConnectivity = process.argv.includes('--skip-connectivity-test');
+  const jsRuntime = process.execPath || 'bun';
 
   const startedAt = Date.now();
   console.log('\n=== Bob Training Refresh (Consolidated) ===\n');
 
-  const step1 = await run('node', [path.join(scriptsDir, 'auto-ingest.mjs')]);
+  const step1 = await run(jsRuntime, [path.join(scriptsDir, 'auto-ingest.mjs')]);
   if (step1.code !== 0) {
     console.error('Step 1 failed: auto-ingest.mjs');
     process.exit(step1.code);
   }
 
-  const step2 = await run('node', [path.join(scriptsDir, 'verify-bob-training-wiring.mjs'), '--json-only'], { capture: true });
+  const step2 = await run(jsRuntime, [path.join(scriptsDir, 'verify-bob-training-wiring.mjs'), '--json-only'], { capture: true });
   if (step2.code !== 0) {
     console.error('Step 2 failed: verify-bob-training-wiring.mjs');
     process.stderr.write(step2.stderr || '');
@@ -70,7 +71,7 @@ async function main() {
   if (dryRun) ingestArgs.push('--dry-run');
   if (skipConnectivity) ingestArgs.push('--skip-connectivity-test');
 
-  const step3 = await run('node', ingestArgs);
+  const step3 = await run(jsRuntime, ingestArgs);
   if (step3.code !== 0) {
     console.error('Step 3 failed: bob-ingest-all-training.mjs');
     process.exit(step3.code);
