@@ -30,6 +30,7 @@ import {
 } from 'lucide-react'
 import { formatDateTime, formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
+import { AsyncStateWrapper } from '@/components/features/AsyncStateWrapper'
 
 interface ActivePatrol {
   id: string
@@ -598,28 +599,17 @@ export default function LivePatrolMonitor() {
       )}
 
       {/* Active Patrols List */}
-      {patrolsLoading ? (
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading patrols...</p>
-        </div>
-      ) : patrolsError ? (
-        <Card>
-          <CardContent className="text-center py-12">
-            <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
-            <p className="text-gray-600">Unable to load patrols</p>
-            <p className="text-sm text-gray-500 mt-2">{(patrolsError as any)?.message || 'Check that the patrols table and its relationships exist'}</p>
-          </CardContent>
-        </Card>
-      ) : patrols && patrols.length === 0 && activeOfficers.length > 0 ? (
-        <Card>
-          <CardContent className="text-center py-8">
-            <Shield className="h-10 w-10 text-gray-400 mx-auto mb-3" />
-            <p className="text-gray-600">No formal patrols scheduled for today</p>
-            <p className="text-sm text-gray-500 mt-1">Active officers are shown below.</p>
-          </CardContent>
-        </Card>
-      ) : (
+      <AsyncStateWrapper
+        isLoading={patrolsLoading}
+        isError={!!patrolsError}
+        error={patrolsError}
+        isEmpty={(!patrols || patrols.length === 0) && activeOfficers.length === 0}
+        loadingText="Loading patrols…"
+        errorTitle="Unable to load patrols"
+        emptyIcon={<Shield className="h-10 w-10 text-gray-400" />}
+        emptyTitle="No patrols scheduled"
+        emptyDescription="No formal patrols scheduled for today."
+      >
         <div className="grid gap-4 lg:grid-cols-2">
           {patrols?.map((patrol) => (
             <Card 
@@ -834,7 +824,7 @@ export default function LivePatrolMonitor() {
             </Card>
           ))}
         </div>
-      )}
+      </AsyncStateWrapper>
 
       {/* ─── Active Officers (no formal patrol) ─────────────────────────── */}
       {activeOfficers.length > 0 && (

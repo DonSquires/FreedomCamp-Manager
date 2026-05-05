@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
-import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
+import { AsyncStateWrapper } from '@/components/features/AsyncStateWrapper'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -1337,27 +1337,19 @@ export default function BreachAlerts() {
 
           {/* Breach Queue */}
           <div className="overflow-y-auto flex-1">
-            {isLoading ? (
-              <PaperworkSearchAnimation size="sm" text="Loading breaches…" />
-            ) : breachesIsError ? (
-              <div className="p-6 text-center text-red-600 text-sm space-y-2">
-                <p>Failed to load breaches.</p>
-                <p className="text-xs text-gray-500">{(breachesError as any)?.message || 'Unknown error'}</p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => queryClient.invalidateQueries({ queryKey: ['breach-alerts'] })}
-                >
-                  Retry
-                </Button>
-              </div>
-            ) : breaches && breaches.length === 0 ? (
-              <div className="p-6 text-center text-gray-500">
-                <CheckCircle className="h-10 w-10 text-green-400 mx-auto mb-2" />
-                <p className="text-sm">No breach alerts found</p>
-              </div>
-            ) : (
-              breaches?.map((breach: any) => (
+                        <AsyncStateWrapper
+                isLoading={isLoading}
+                isError={breachesIsError}
+                error={breachesError}
+                isEmpty={!breaches || breaches.length === 0}
+                loadingText="Loading breaches…"
+                loadingSize="sm"
+                errorTitle="Failed to load breaches"
+                onRetry={() => queryClient.invalidateQueries({ queryKey: ['breach-alerts'] })}
+                emptyIcon={<CheckCircle className="h-10 w-10 text-green-400" />}
+                emptyTitle="No breach alerts found"
+              >
+              {breaches?.map((breach: any) => (
                 <div
                   key={breach.id}
                   onClick={() => handleSelectBreach(breach.id)}
@@ -1402,8 +1394,8 @@ export default function BreachAlerts() {
                   </div>
                   <ChevronRight className="h-4 w-4 text-gray-400 mt-1 flex-shrink-0" />
                 </div>
-              ))
-            )}
+              ))}
+              </AsyncStateWrapper>
           </div>
         </div>
 

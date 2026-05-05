@@ -74,6 +74,7 @@ import {
 } from '@/components/ui/table'
 import { cn, formatDate, formatDateTime } from '@/lib/utils'
 import { getObservationPhotoUrl } from '@/lib/photoUtils'
+import { AsyncStateWrapper } from '@/components/features/AsyncStateWrapper'
 import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
 import { analyzeVehiclePhoto } from '@/lib/proxyServices'
 import { toast } from 'sonner'
@@ -416,9 +417,7 @@ export default function Compliance() {
         {/* OVERVIEW TAB                                                       */}
         {/* ================================================================== */}
         <TabsContent value="overview">
-          {statsLoading ? (
-            <PaperworkSearchAnimation text="Loading compliance data…" />
-          ) : (
+          <AsyncStateWrapper isLoading={statsLoading} loadingText="Loading compliance data…">
             <>
               {/* KPI Grid */}
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
@@ -640,11 +639,8 @@ export default function Compliance() {
                 </CardContent>
               </Card>
             </>
-          )}
+          </AsyncStateWrapper>
         </TabsContent>
-
-        {/* ================================================================== */}
-        {/* OBSERVATIONS TAB                                                   */}
         {/* ================================================================== */}
         <TabsContent value="observations">
           <Card>
@@ -677,9 +673,15 @@ export default function Compliance() {
               </div>
             </CardHeader>
             <CardContent>
-              {breachLoading ? (
-                <PaperworkSearchAnimation text="Loading breach observations…" />
-              ) : breachObservations && breachObservations.length > 0 ? (
+              <AsyncStateWrapper
+                isLoading={breachLoading}
+                isEmpty={!breachObservations || breachObservations.length === 0}
+                loadingText="Loading breach observations…"
+                emptyIcon={<CheckCircle className="h-12 w-12 text-green-500" />}
+                emptyTitle="No breach observations found"
+                emptyDescription="All observations are compliant for the selected filters"
+                onRetry={() => refetchBreaches()}
+              >
                 <>
                   <div className="overflow-x-auto">
                     <Table>
@@ -741,13 +743,7 @@ export default function Compliance() {
                     </Button>
                   </div>
                 </>
-              ) : (
-                <div className="text-center py-12 text-gray-500">
-                  <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500" />
-                  <p className="text-lg font-medium">No breach observations found</p>
-                  <p className="text-sm">All observations are compliant for the selected filters</p>
-                </div>
-              )}
+              </AsyncStateWrapper>
             </CardContent>
           </Card>
         </TabsContent>
@@ -756,9 +752,7 @@ export default function Compliance() {
         {/* ANALYTICS TAB                                                      */}
         {/* ================================================================== */}
         <TabsContent value="analytics">
-          {analyticsLoading ? (
-            <PaperworkSearchAnimation text="Loading analytics…" />
-          ) : (
+          <AsyncStateWrapper isLoading={analyticsLoading} loadingText="Loading analytics…">
             <>
               {/* Metrics Cards */}
               {analytics?.metrics && (
@@ -1099,7 +1093,7 @@ export default function Compliance() {
                 </CardContent>
               </Card>
             </>
-          )}
+          </AsyncStateWrapper>
         </TabsContent>
       </Tabs>
     </AppLayout>
