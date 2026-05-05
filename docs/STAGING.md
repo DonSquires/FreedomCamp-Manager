@@ -2146,3 +2146,48 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 | B-14 | Wearable (Apple Watch) integration | ✅ |
 
 **Sprint 2 COMPLETE. Next session:** Phase 5 Sprint 3 planning.
+
+---
+
+## Phase 5 Sprint 3 — B-15 / B-16 (2026-05-05)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `supabase/migrations/20260505000007_parking_appeals.sql` | New `parking_appeals` table (anon INSERT, org-scoped SELECT, grand_master read-all). Adds anon SELECT policy on `parking_infringements` for public lookup at `/public/parking-appeal`. |
+| `supabase/functions/submit-parking-appeal/index.ts` | New edge function: validates `infringement_number` + `plate_number`, guards terminal statuses, inserts `parking_appeals` row, marks infringement as `disputed`. |
+| `src/lib/edgeFunctions.ts` | Added `submitParkingAppeal()` wrapper. |
+| `src/pages/PublicParkingAppealPortal.tsx` | New public page at `/public/parking-appeal`. Anon lookup of infringement by number + plate. Evidence photo gallery. Appeal form with contact details + grounds. Confirmation state. |
+| `src/App.tsx` | Added `/public/parking-appeal` route (lazy-loaded). |
+| `src/pages/ParkingEnforcementPortal.tsx` | Added **Occupancy** tab (B-16): per-zone active vehicle count with capacity progress bars, at-capacity/over-time-limit badges, and 4 summary stat cards. Added Realtime subscription on `parking_sessions` for live updates without polling. |
+| `docs/STAGING.md` | Sprint 3 board added; B-15/B-16 ✅. |
+
+### B-15 Success Criteria
+
+- [x] `/public/parking-appeal` accessible without authentication
+- [x] Lookup validates infringement_number + plate_number combination
+- [x] Evidence photos displayed if present
+- [x] Appeal form → edge function → `parking_appeals` INSERT → infringement set to `disputed`
+- [x] Terminal-status notices (paid/written_off/court_referred/withdrawn) show informational message, not form
+- [x] Success state with reference confirmation
+
+### B-16 Success Criteria
+
+- [x] Occupancy tab in ParkingEnforcementPortal shows live per-zone vehicle counts
+- [x] Progress bar per zone with capacity% (when `max_capacity` set)
+- [x] At-capacity and over-time-limit indicators
+- [x] Realtime subscription on `parking_sessions` → `refetchSessions()` on any change
+- [x] 4 summary cards: Total Active, Zones Monitored, Over Time Limit, At Capacity
+
+### Sprint 3 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-15 | Self-serve parking appeals portal | ✅ |
+| B-16 | Real-time parking occupancy dashboard | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS
+
+**Next session:** Sprint 3 continuation or Phase 5 wrap-up.

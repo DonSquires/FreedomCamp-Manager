@@ -856,6 +856,22 @@ export const edgeFunctions = {
     return callEdgeFunction('wearable-sos', params)
   },
 
+  /**
+   * Submit a public parking infringement appeal (B-15)
+   * Unauthenticated endpoint — caller validates by infringement_number + plate_number.
+   */
+  submitParkingAppeal: async (params: {
+    infringement_number: string
+    plate_number: string
+    appellant_name?: string
+    appellant_email?: string
+    appellant_phone?: string
+    grounds: string
+    evidence_statement?: string
+  }) => {
+    return callEdgeFunction('submit-parking-appeal', params, { showToast: false })
+  },
+
   // ============================================================================
   // ADMIN & USERS (3 functions)
   // ============================================================================

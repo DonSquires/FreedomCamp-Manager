@@ -14,6 +14,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
@@ -27,13 +28,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
+import { Progress } from '@/components/ui/progress'
 import { toast } from 'sonner'
 import { formatDateTime, formatDate } from '@/lib/utils'
 import {
   Car, Clock, AlertTriangle, CheckCircle, MapPin, BarChart3,
   RefreshCw, PlusCircle, Shield, DollarSign, Zap, Filter,
   FileText, Edit, Ban, CircleCheck, RotateCcw, TrendingUp,
-  Users, Timer, Printer,
+  Users, Timer, Printer, Activity,
 } from 'lucide-react'
 import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
 
@@ -266,6 +268,47 @@ export default function ParkingEnforcementPortal() {
     return dwell > max
   })
 
+  // ── Occupancy (B-16): derive per-zone counts from active sessions ───────────
+  const occupancyByZone = zones.map((z: any) => {
+    const active = sessions.filter((s: any) => s.parking_zone_id === z.id)
+    const pct    = z.max_capacity && z.max_capacity > 0
+      ? Math.min(100, Math.round((active.length / z.max_capacity) * 100))
+      : null
+    return {
+      id:           z.id,
+      name:         z.name,
+      zoneType:     z.zone_type,
+      active:       active.length,
+      maxCapacity:  z.max_capacity ?? null,
+      pct,
+      atCapacity:   pct !== null && pct >= 100,
+      overLimit:    active.filter((s: any) => {
+        const max = s.parking_zones?.max_stay_minutes ?? z.max_stay_minutes
+        if (!max) return false
+        return Math.floor((Date.now() - new Date(s.entry_time).getTime()) / 60_000) > max
+      }).length,
+    }
+  })
+
+  // ── Realtime: refresh sessions when parking_sessions changes ─────────────────
+  useEffect(() => {
+    if (!operationalOrganizationId) return
+    const channel = supabase
+      .channel(`parking-sessions-rt-${operationalOrganizationId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'parking_sessions',
+          filter: `organization_id=eq.${operationalOrganizationId}`,
+        },
+        () => { refetchSessions() }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [operationalOrganizationId, refetchSessions])
+
   // ── ParkPow Sync ─────────────────────────────────────────────
   const handleParkPowSync = async (action: 'sync-lots' | 'sync-watchlist' | 'push-violations') => {
     setSyncing(true)
@@ -367,6 +410,10 @@ export default function ParkingEnforcementPortal() {
           <TabsTrigger value="permits">Permits</TabsTrigger>
           <TabsTrigger value="zones">Zones</TabsTrigger>
           <TabsTrigger value="sync">ParkPow Sync</TabsTrigger>
+          <TabsTrigger value="occupancy">
+            <Activity className="h-3.5 w-3.5 mr-1" />
+            Occupancy
+          </TabsTrigger>
         </TabsList>
 
         {/* ── Active Sessions ───────────────────────────────── */}
@@ -721,6 +768,114 @@ export default function ParkingEnforcementPortal() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ── Occupancy (B-16) ───────────────────────────────── */}
+        <TabsContent value="occupancy" className="mt-4 space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <p className="text-sm text-muted-foreground">
+                Live occupancy across all active parking zones. Updates automatically via Realtime.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => { refetchSessions(); refetchZones() }}>
+              <RefreshCw className="h-4 w-4 mr-1" /> Refresh
+            </Button>
+          </div>
+
+          {/* Summary stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground">Total Active</p>
+                <p className="text-2xl font-bold">{sessions.length}</p>
+                <p className="text-xs text-muted-foreground">vehicles currently parked</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground">Zones Monitored</p>
+                <p className="text-2xl font-bold">{zones.length}</p>
+                <p className="text-xs text-muted-foreground">active parking zones</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground">Over Time Limit</p>
+                <p className="text-2xl font-bold text-red-600">{overLimit.length}</p>
+                <p className="text-xs text-muted-foreground">vehicles exceeded dwell time</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground">At Capacity</p>
+                <p className="text-2xl font-bold text-orange-600">
+                  {occupancyByZone.filter((z) => z.atCapacity).length}
+                </p>
+                <p className="text-xs text-muted-foreground">zones at or over capacity</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Per-zone occupancy cards */}
+          {occupancyByZone.length === 0 ? (
+            <Card>
+              <CardContent className="pt-6 text-center text-muted-foreground text-sm">
+                No parking zones configured yet. Add zones in the Zones tab.
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {occupancyByZone.map((z) => (
+                <Card
+                  key={z.id}
+                  className={z.atCapacity ? 'border-red-400' : z.active > 0 ? 'border-blue-200' : ''}
+                >
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <CardTitle className="text-sm font-semibold">{z.name}</CardTitle>
+                        <p className="text-xs text-muted-foreground">{ZONE_TYPE_LABELS[z.zoneType] ?? z.zoneType}</p>
+                      </div>
+                      {z.atCapacity ? (
+                        <Badge className="bg-red-100 text-red-800 border-red-300 text-xs">Full</Badge>
+                      ) : z.active > 0 ? (
+                        <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-xs">Active</Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs">Empty</Badge>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Vehicles parked</span>
+                      <span className="font-semibold">
+                        {z.active}
+                        {z.maxCapacity !== null && (
+                          <span className="text-muted-foreground font-normal"> / {z.maxCapacity}</span>
+                        )}
+                      </span>
+                    </div>
+                    {z.pct !== null && (
+                      <div className="space-y-1">
+                        <Progress
+                          value={z.pct}
+                          className={z.pct >= 100 ? '[&>div]:bg-red-500' : z.pct >= 80 ? '[&>div]:bg-orange-400' : '[&>div]:bg-blue-500'}
+                        />
+                        <p className="text-xs text-muted-foreground text-right">{z.pct}% capacity</p>
+                      </div>
+                    )}
+                    {z.overLimit > 0 && (
+                      <div className="flex items-center gap-1 text-xs text-red-700 bg-red-50 rounded px-2 py-1">
+                        <AlertTriangle className="h-3 w-3" />
+                        {z.overLimit} vehicle{z.overLimit !== 1 ? 's' : ''} over time limit
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
