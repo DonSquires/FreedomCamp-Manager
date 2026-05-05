@@ -61,6 +61,13 @@ export function IncidentEvidenceBundle({ incidentId, className = '' }: IncidentE
 
   if (!hasEvidence && !evidence.notes && !evidence.description) return null
 
+  // HTML-escape helper to prevent XSS in generated PDF bundle
+  function he(s: string | null | undefined): string {
+    if (!s) return ''
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+  }
+
   const handleDownloadAll = () => {
     allPhotos.forEach(({ url }, i) => {
       setTimeout(() => window.open(url, '_blank', 'noopener'), i * 150)
@@ -79,19 +86,19 @@ export function IncidentEvidenceBundle({ incidentId, className = '' }: IncidentE
 
     const photoRows = allPhotos
       .map(({ label, url }) =>
-        `<div style="margin:8px 0"><strong>${label}</strong><br/><img src="${url}" style="max-width:100%;max-height:300px;border:1px solid #ccc" /></div>`,
+        `<div style="margin:8px 0"><strong>${he(label)}</strong><br/><img src="${he(url)}" style="max-width:100%;max-height:300px;border:1px solid #ccc" /></div>`,
       )
       .join('')
 
     const noteRows = evidence.enforcement_notes
-      .map((n) => `<li>${n}</li>`)
+      .map((n) => `<li>${he(n)}</li>`)
       .join('')
 
     const html = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Evidence Bundle — ${evidence.id}</title>
+  <title>Evidence Bundle</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 24px; color: #111; }
     h1 { font-size: 18px; margin-bottom: 4px; }
@@ -105,24 +112,24 @@ export function IncidentEvidenceBundle({ incidentId, className = '' }: IncidentE
 <body>
   <h1>Evidence Bundle</h1>
   <div class="meta">
-    Incident ID: ${evidence.id}<br/>
+    Incident ID: ${he(evidence.id)}<br/>
     Generated: ${new Date().toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland' })}
   </div>
   <div class="section">
     <h2>Incident Details</h2>
-    <span class="badge">Type: ${evidence.incident_type ?? 'Unknown'}</span>
-    ${evidence.severity ? `<span class="badge">Severity: ${evidence.severity}</span>` : ''}
-    ${evidence.status ? `<span class="badge">Status: ${evidence.status}</span>` : ''}
-    ${evidence.plate_number ? `<span class="badge">Plate: ${evidence.plate_number}</span>` : ''}
-    <p><strong>Date/Time:</strong> ${nzDate}</p>
-    ${evidence.location_address ? `<p><strong>Location:</strong> ${evidence.location_address}</p>` : ''}
+    <span class="badge">Type: ${he(evidence.incident_type ?? 'Unknown')}</span>
+    ${evidence.severity ? `<span class="badge">Severity: ${he(evidence.severity)}</span>` : ''}
+    ${evidence.status ? `<span class="badge">Status: ${he(evidence.status)}</span>` : ''}
+    ${evidence.plate_number ? `<span class="badge">Plate: ${he(evidence.plate_number)}</span>` : ''}
+    <p><strong>Date/Time:</strong> ${he(nzDate)}</p>
+    ${evidence.location_address ? `<p><strong>Location:</strong> ${he(evidence.location_address)}</p>` : ''}
     ${evidence.location_lat != null ? `<p><strong>GPS:</strong> ${evidence.location_lat.toFixed(6)}, ${evidence.location_lng?.toFixed(6)}</p>` : ''}
-    ${evidence.description ? `<p><strong>Description:</strong> ${evidence.description}</p>` : ''}
-    ${evidence.notes ? `<p><strong>Notes:</strong> ${evidence.notes}</p>` : ''}
+    ${evidence.description ? `<p><strong>Description:</strong> ${he(evidence.description)}</p>` : ''}
+    ${evidence.notes ? `<p><strong>Notes:</strong> ${he(evidence.notes)}</p>` : ''}
   </div>
   ${noteRows ? `<div class="section"><h2>Enforcement Notes</h2><ul>${noteRows}</ul></div>` : ''}
   ${photoRows ? `<div class="section"><h2>Photos (${allPhotos.length})</h2>${photoRows}</div>` : ''}
-  <p style="font-size:10px;color:#999;margin-top:32px">FieldOps Manager — ConfidentialDocument</p>
+  <p style="font-size:10px;color:#999;margin-top:32px">FieldOps Manager — Confidential Document</p>
   <script>window.print()</script>
 </body>
 </html>`

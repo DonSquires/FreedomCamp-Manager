@@ -66,7 +66,7 @@ export function useIncidentEvidence(incidentId: string | null | undefined) {
       const meta = incident.metadata as Record<string, unknown> | null
       if (Array.isArray(meta?.photos)) {
         ;(meta.photos as string[]).forEach((url, i) => {
-          photos.push({ label: `Photo ${i + 1}`, url })
+          photos.push({ label: `Additional Photo ${i + 1}`, url })
         })
       }
 
