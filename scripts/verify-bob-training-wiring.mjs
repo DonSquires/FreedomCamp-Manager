@@ -26,6 +26,7 @@ async function pathExists(filePath) {
 async function main() {
   const jsonOnly = process.argv.includes('--json-only');
   const nonStrict = process.argv.includes('--non-strict');
+  const BRAIN_DUMP_RELATIVE_PATH = 'docs/BOB_BRAIN_DUMP.md';
   const brainDumpPath = toAbsolute('docs/BOB_BRAIN_DUMP.md');
   const canonicalTraining = buildCanonicalTrainingSources(workspaceRoot, { includeContext: false });
 
@@ -41,7 +42,10 @@ async function main() {
   }
 
   const brainDump = await fs.readFile(brainDumpPath, 'utf8');
-  const missingInBrainDump = existingTrainingFiles.filter((relPath) => !brainDump.includes(`## FILE: ${relPath}`));
+  // The brain dump is generated output and should not be required to include itself.
+  const missingInBrainDump = existingTrainingFiles
+    .filter((relPath) => relPath !== BRAIN_DUMP_RELATIVE_PATH)
+    .filter((relPath) => !brainDump.includes(`## FILE: ${relPath}`));
 
   const report = {
     generatedAt: new Date().toISOString(),
