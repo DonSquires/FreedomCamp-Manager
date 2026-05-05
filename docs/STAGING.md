@@ -1600,5 +1600,35 @@ Latest Session Snapshot (Phase A Org-Isolation Gate — Explicit Deployment Bloc
 
 ---
 
+### Session Snapshot (Phase B Startup — B2 Dispatch + B4 Enforcement — 2026-05-05):
 
+- Timestamp (NZ): 2026-05-05 11:01:39 NZST
+- Current branch: copilot/complete-phase-b-doc-review
+- Scope completed:
+  - Reviewed Phase A gate evidence and confirmed all 5 prerequisites green per STAGING.md session log.
+  - Implemented Phase B2 (Dispatch and Command) delivery slice:
+    - `supabase/migrations/20260506000002_phase_b2_dispatch_case_bridge.sql` — adds `dispatch_jobs.case_id` back-reference and `dispatch_acknowledgement_log` table (callsign + ETA + lifecycle stage capture).
+    - `src/hooks/useDispatchB2.ts` — `useCreateCaseFromDispatch`, `useDispatchJobCase`, `useAcknowledgeDispatch`, `useDispatchAcknowledgementLog`, `useRecordDispatchLifecycle`.
+    - `tests/e2e/phase-b2-dispatch-command.spec.ts` — Phase B2 gate suite: case creation, acknowledgement log, full lifecycle to on_scene, org isolation.
+  - Implemented Phase B4 (Freedom Camping Enforcement) delivery slice:
+    - `supabase/migrations/20260506000003_phase_b4_enforcement_case_bridge.sql` — adds `breach_alerts.case_id` back-reference and `create_case_from_breach_alert()` RPC helper.
+    - `src/hooks/useEnforcementB4.ts` — `useCreateCaseFromBreach`, `useBreachAlertCase`, `useLinkBreachToCase`, `useEnforcementTimeline`, `useRecordEnforcementEvent`, `useCloseEnforcementCase`.
+    - `tests/e2e/phase-b4-enforcement-timeline.spec.ts` — Phase B4 gate suite: case creation from breach, timeline events (initiated → warning → ticket → completed), case close, org isolation.
+- Latest lint result: pass (`bun run lint`)
+- Latest build result: pass (`bun run build`, built in ~25s)
+- Phase B Gate Checklist:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | Phase A gate (all 5 prerequisites) | ✅ PASS | CI run 25348224169; STAGING session log 2026-05-04 |
+  | B1: Patrol on shared timeline | ✅ PASS | `usePatrolB1.ts`, `20260504000005_phase_b1_bridge_to_case_model.sql`, `phase-b1-patrol-and-respond.spec.ts` |
+  | B2: Dispatch on shared timeline | ✅ IMPL | `useDispatchB2.ts`, `20260506000002_phase_b2_dispatch_case_bridge.sql`, `phase-b2-dispatch-command.spec.ts` |
+  | B2: Callsign binding + ACK flow | ✅ IMPL | `dispatch_acknowledgement_log` table + `useAcknowledgeDispatch` hook |
+  | B4: Enforcement surface on case backbone | ✅ IMPL | `useEnforcementB4.ts`, `20260506000003_phase_b4_enforcement_case_bridge.sql`, `phase-b4-enforcement-timeline.spec.ts` |
+  | Ownership assigned (external) | ⏳ EXTERNAL | `docs/PHASE_A_OWNERSHIP_STATUS.md` |
+- Open blockers with owner:
+  - B2/B4 migrations need `supabase db push` against live environment before E2E tests can execute (owner: platform/database migration pipeline).
+  - B3 (Communications / callsign PTT binding) not yet started; scheduled for next Phase B session.
+  - Ownership Slack confirmations still external-only (owner: Primary execution lead).
+- Next exact command to run:
+  - `cd /workspaces/FreedomCamp-Manager && bun run build && bun run lint && BOB_WORKER_GITHUB_TOKEN="$GITHUB_TOKEN" bun scripts/trigger-bob-self-test.mjs --scope quick --quickSpecs tests/e2e/phase-b2-dispatch-command.spec.ts,tests/e2e/phase-b4-enforcement-timeline.spec.ts`
 
