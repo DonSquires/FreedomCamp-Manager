@@ -1632,3 +1632,36 @@ Latest Session Snapshot (Phase A Org-Isolation Gate — Explicit Deployment Bloc
 - Next exact command to run:
   - `cd /workspaces/FreedomCamp-Manager && bun run build && bun run lint && BOB_WORKER_GITHUB_TOKEN="$GITHUB_TOKEN" bun scripts/trigger-bob-self-test.mjs --scope quick --quickSpecs tests/e2e/phase-b2-dispatch-command.spec.ts,tests/e2e/phase-b4-enforcement-timeline.spec.ts`
 
+---
+
+### Session Snapshot (Phase B4 completion + Canary Feature Flag Procedure — 2026-05-05):
+
+- Timestamp (NZ): 2026-05-05 11:28 NZST
+- Current branch: copilot/complete-phase-b-doc-review
+- Scope completed:
+  - **Fixed `COMMENT ON FUNCTION` bug** in `20260506000003_phase_b4_enforcement_case_bridge.sql`: signature was `(UUID)` but the function takes `(UUID, UUID DEFAULT NULL)` — fixed to `(UUID, UUID)` to prevent PostgreSQL migration error.
+  - **Created `scripts/advance-canary-stage.sh`**: forward-progression companion to `rollback-feature-flag.sh`. Advances a feature flag through the defined canary stages (0%→5%→25%→50%→100%), auto-detects the next stage when `target_pct` is omitted, records each transition in `feature_flag_rollout_history`, and prints threshold reminders and the next advance/rollback commands.
+  - **Fixed `scripts/rollback-feature-flag.sh`** "Next steps" help text: removed non-existent `--enable` flag reference, replaced with the correct `advance-canary-stage.sh` command.
+  - **Created `ci-phase-b4-enforcement-gate.yml`**: path-filtered CI gate that runs the B4 enforcement timeline Playwright suite on PR/push whenever the spec, migration, hook, or workflow file changes. Uses the same pattern as `ci-org-isolation-api.yml`.
+- Phase B4 + Canary Gate Checklist:
+  | Item | Status | Evidence |
+  |---|---|---|
+  | B4 migration (`20260506000003`) | ✅ DONE | `COMMENT ON FUNCTION` signature corrected |
+  | B4 hook (`useEnforcementB4.ts`) | ✅ DONE | All 6 hooks present |
+  | B4 E2E gate suite | ✅ DONE | `tests/e2e/phase-b4-enforcement-timeline.spec.ts` — 7 scenarios |
+  | B4 CI gate workflow | ✅ DONE | `.github/workflows/ci-phase-b4-enforcement-gate.yml` |
+  | Canary progression test | ✅ DONE | `tests/e2e/feature-flag-canary-progression.test.ts` (5→25→50→100 + rollback) |
+  | Canary advance script | ✅ DONE | `scripts/advance-canary-stage.sh` — auto-promote + threshold reminders |
+  | Canary rollback script | ✅ DONE | `scripts/rollback-feature-flag.sh` — fixed help text |
+  | Feature flags infrastructure | ✅ DONE | `202605_feature_flags.sql`, `useFeatureFlag` hook, `is_feature_enabled` RPC |
+- Canary procedure summary (Phase B `FF_PHASE_B_*` flags):
+  1. Start at 0% (disabled): `FF_PHASE_B_PATROL_EVENTS`, `FF_PHASE_B_DISPATCH_ACK`, `FF_PHASE_B_ENFORCEMENT_TIMELINE`
+  2. Advance: `bash scripts/advance-canary-stage.sh FF_PHASE_B_<NAME>` — auto-promotes to 5% (canary)
+  3. Monitor: error rate < 1%, p95 < 500ms — then re-run script to advance to 25%, 50%, 100%
+  4. Emergency rollback at any stage: `bash scripts/rollback-feature-flag.sh FF_PHASE_B_<NAME>`
+  5. All transitions are logged to `feature_flag_rollout_history` for audit
+- Open blockers with owner:
+  - B2/B4 migrations need `supabase db push` against live environment (owner: platform/database pipeline).
+  - B3 (Communications / callsign PTT binding) not yet started; scheduled for next Phase B session.
+  - Ownership Slack confirmations still external-only (owner: Primary execution lead).
+

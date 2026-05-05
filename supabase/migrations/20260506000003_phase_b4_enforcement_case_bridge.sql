@@ -82,5 +82,5 @@ BEGIN
   RETURN v_case_id;
 END; $$;
 
-COMMENT ON FUNCTION public.create_case_from_breach_alert(UUID) IS
+COMMENT ON FUNCTION public.create_case_from_breach_alert(UUID, UUID) IS
   'Phase B4: Create operational case from breach alert and record initial enforcement event';
