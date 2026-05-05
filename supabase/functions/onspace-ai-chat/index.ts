@@ -647,9 +647,9 @@ Deno.serve(async (req: Request) => {
     // to avoid model-not-found 404s when AI_DEFAULT_MODEL points to non-Ollama model names.
     const runpodModel = normalizeOllamaModel(Deno.env.get('RUNPOD_OLLAMA_MODEL') ?? Deno.env.get('OLLAMA_MODEL') ?? 'qwen2.5:7b')
 
-    // Default to allowing OpenAI/chatgpt as a reference provider hint.
-    // Set OPENAI_REFERENCE_GATE_ENABLED=true to enforce a hard block.
-    const openAIReferenceGateEnabled = parseBooleanEnv(Deno.env.get('OPENAI_REFERENCE_GATE_ENABLED'), false)
+    // Default to blocking OpenAI/chatgpt reference-provider hints at runtime.
+    // Production policy keeps OpenAI for research/training flows only.
+    const openAIReferenceGateEnabled = parseBooleanEnv(Deno.env.get('OPENAI_REFERENCE_GATE_ENABLED'), true)
     if (openAIReferenceGateEnabled && isOpenAIReferenceProvider(requestedProvider)) {
       return new Response(
         JSON.stringify({
@@ -1362,6 +1362,8 @@ Deno.serve(async (req: Request) => {
           response: fallbackText,
           model: 'bob-failsafe',
           provider: 'local-fallback',
+          fallback: true,
+          warning: 'Bob provider fallback engaged: returning local failsafe response.',
           usage: null,
           diagnostics: providerErrors.join(' | ').slice(0, 1200),
         }),
@@ -1381,6 +1383,9 @@ Deno.serve(async (req: Request) => {
     const degradedPrefix = providerResult.degraded
       ? 'Note: Bob is currently running in degraded mode while the primary LLM provider is busy. Responses remain operational but may be less detailed.\n\n'
       : ''
+    const fallbackWarning = providerResult.degraded
+      ? 'Bob provider fallback warning: inference is in degraded mode and response quality may be reduced.'
+      : null
 
     const baseResponse = `${degradedPrefix}${responseText}`
 
@@ -1462,6 +1467,8 @@ Deno.serve(async (req: Request) => {
         response: finalResponse,
         model: providerResult.model,
         provider: providerResult.provider,
+        fallback: providerResult.degraded === true,
+        warning: fallbackWarning,
         usage: null,
         conversation_id: storedConversationId,
       }),

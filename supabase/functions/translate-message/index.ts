@@ -255,6 +255,7 @@ Deno.serve(withCors(async (req: Request) => {
         confidence_reason: 'RunPod inference translation path used.',
         provider: 'runpod-chat',
         fallback: true,
+        warning: 'Translation fallback warning: primary translate route unavailable, chat fallback path used.',
       }, req)
     }
 
@@ -284,6 +285,7 @@ Deno.serve(withCors(async (req: Request) => {
     return errorResponse('Empty translation response from inference service', req, 502)
   }
 
+  const fallbackUsed = data?.fallback === true || response.url.endsWith('/chat')
   return jsonResponse(
     {
       translated_text: translated.trim(),
@@ -296,7 +298,10 @@ Deno.serve(withCors(async (req: Request) => {
           ? 'Legacy chat translation path used.'
           : 'Translation metadata unavailable.',
       provider: data?.provider || (response.url.endsWith('/chat') ? 'chat-fallback' : 'unknown'),
-      fallback: data?.fallback === true || response.url.endsWith('/chat'),
+      fallback: fallbackUsed,
+      warning: fallbackUsed
+        ? 'Translation fallback warning: response came from a degraded/fallback path.'
+        : null,
     },
     req,
   )
