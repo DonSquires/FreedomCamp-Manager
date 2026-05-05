@@ -13,6 +13,27 @@ set -e
 REPO_URL="${GITHUB_REPO_URL:-}"
 REPO_BRANCH="${GITHUB_REPO_BRANCH:-main}"
 REPO_DIR="/app/repo"
+FAST_BOOT="${RUNPOD_FAST_BOOT:-true}"
+
+if [ -z "${RUNPOD_PREP_REPO_NODE_DEPS_ON_START+x}" ]; then
+  if [ "$FAST_BOOT" = "true" ]; then
+    PREP_REPO_NODE_DEPS_ON_START="false"
+  else
+    PREP_REPO_NODE_DEPS_ON_START="true"
+  fi
+else
+  PREP_REPO_NODE_DEPS_ON_START="${RUNPOD_PREP_REPO_NODE_DEPS_ON_START}"
+fi
+
+if [ -z "${RUNPOD_PREP_MODELS_ON_START+x}" ]; then
+  if [ "$FAST_BOOT" = "true" ]; then
+    PREP_MODELS_ON_START="false"
+  else
+    PREP_MODELS_ON_START="true"
+  fi
+else
+  PREP_MODELS_ON_START="${RUNPOD_PREP_MODELS_ON_START}"
+fi
 
 strip_github_credentials() {
   printf '%s' "$1" | sed -E 's#https://[^/@]+@github.com/#https://github.com/#I'
@@ -89,11 +110,15 @@ if [ -n "$REPO_URL" ]; then
     echo "[start] Synced training memory to /app/training_memory.json"
   fi
 
-  # Install Node deps + Playwright config for the repo
+  # Install repo dependencies only when explicitly enabled.
   if [ -f "$REPO_DIR/package.json" ]; then
-    echo "[start] Installing repo Node deps..."
-    if ! (cd "$REPO_DIR" && npm install --legacy-peer-deps --silent 2>&1 | tail -3); then
-      echo "[start] WARNING: npm install failed in $REPO_DIR"
+    if [ "$PREP_REPO_NODE_DEPS_ON_START" = "true" ]; then
+      echo "[start] Installing repo Node deps..."
+      if ! (cd "$REPO_DIR" && npm install --legacy-peer-deps --silent 2>&1 | tail -3); then
+        echo "[start] WARNING: npm install failed in $REPO_DIR"
+      fi
+    else
+      echo "[start] Skipping repo Node deps install (RUNPOD_PREP_REPO_NODE_DEPS_ON_START=${PREP_REPO_NODE_DEPS_ON_START})"
     fi
     cd /app
   fi
@@ -101,11 +126,13 @@ if [ -n "$REPO_URL" ]; then
   # Prepare inference-service models/config so translation/vision/audio paths
   # behave the same way as pod runtime during realignment validation.
   INFERENCE_DIR="$REPO_DIR/inference-service"
-  if [ -f "$INFERENCE_DIR/scripts/download-models.js" ]; then
+  if [ "$PREP_MODELS_ON_START" = "true" ] && [ -f "$INFERENCE_DIR/scripts/download-models.js" ]; then
     echo "[start] Downloading ONNX models for inference-service..."
     if ! (cd "$INFERENCE_DIR" && node scripts/download-models.js); then
       echo "[start] WARNING: model download failed; continuing with preloaded models"
     fi
+  else
+    echo "[start] Skipping ONNX model download (RUNPOD_PREP_MODELS_ON_START=${PREP_MODELS_ON_START})"
   fi
 
   if [ -d "$INFERENCE_DIR/models" ]; then
@@ -148,6 +175,7 @@ if ! ollama list 2>/dev/null | grep -q "$MODEL"; then
   ollama pull "$MODEL"
 fi
 echo "[start] Warming up model $MODEL (first request loads weights into VRAM)..."
+MAX_WARMUP_ATTEMPTS="${RUNPOD_MAX_WARMUP_ATTEMPTS:-10}"
 WARMUP_ATTEMPTS=0
 until python3 -c "
 import requests, sys
@@ -170,8 +198,8 @@ except Exception as e:
     sys.exit(1)
 "; do
   WARMUP_ATTEMPTS=$((WARMUP_ATTEMPTS+1))
-  if [ "$WARMUP_ATTEMPTS" -ge 10 ]; then
-    echo "[start] WARNING: warm-up did not complete after 10 attempts, starting handler anyway"
+  if [ "$WARMUP_ATTEMPTS" -ge "$MAX_WARMUP_ATTEMPTS" ]; then
+    echo "[start] WARNING: warm-up did not complete after ${MAX_WARMUP_ATTEMPTS} attempts, starting handler anyway"
     break
   fi
   sleep 5
