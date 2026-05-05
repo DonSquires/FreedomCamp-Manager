@@ -52,8 +52,19 @@ function sharedPassword(...names: string[]): string {
   return readEnv(...names) || 'Test123!'
 }
 
-const defaultLiveEmail = readEnv('PLAYWRIGHT_LIVE_EMAIL', 'E2E_LIVE_EMAIL', 'API_TEST_EMAIL')
+const universalTestEmail = readEnv('PLAYWRIGHT_TEST_EMAIL', 'PLAYWRIGHT_OWNER_EMAIL')
+const universalTestPassword = sharedPassword('PLAYWRIGHT_TEST_PASSWORD', 'PLAYWRIGHT_OWNER_PASSWORD')
+
+const defaultLiveEmail = readEnv(
+  'PLAYWRIGHT_TEST_EMAIL',
+  'PLAYWRIGHT_OWNER_EMAIL',
+  'PLAYWRIGHT_LIVE_EMAIL',
+  'E2E_LIVE_EMAIL',
+  'API_TEST_EMAIL'
+)
 const defaultLivePassword = sharedPassword(
+  'PLAYWRIGHT_TEST_PASSWORD',
+  'PLAYWRIGHT_OWNER_PASSWORD',
   'PLAYWRIGHT_LIVE_PASSWORD',
   'E2E_LIVE_PASSWORD',
   'API_TEST_PASSWORD',
@@ -61,13 +72,14 @@ const defaultLivePassword = sharedPassword(
   'E2E_TEST_PASSWORD'
 )
 
-const allowSharedFallback = readEnv('PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK') === '1'
+const hasUniversalTestAccount = !!(universalTestEmail && universalTestPassword)
+const allowSharedFallback = readEnv('PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK') === '1' || hasUniversalTestAccount
 const skipRoleAssertions = readEnv('PLAYWRIGHT_SKIP_ROLE_ASSERTIONS') === '1'
 const roleAssertionMode = readEnv('PLAYWRIGHT_ROLE_ASSERTION_MODE') || 'strict'
 // Profile mutations are opt-in to avoid changing persistent user settings in
 // shared/staging environments. Enable both flags in isolated test sandboxes.
-const allowProfileMutations = readEnv('PLAYWRIGHT_ALLOW_PROFILE_MUTATIONS') === '1'
-const autoSetTestRole = readEnv('PLAYWRIGHT_AUTO_SET_TEST_ROLE') === '1'
+const allowProfileMutations = readEnv('PLAYWRIGHT_ALLOW_PROFILE_MUTATIONS') === '1' || hasUniversalTestAccount
+const autoSetTestRole = readEnv('PLAYWRIGHT_AUTO_SET_TEST_ROLE') === '1' || hasUniversalTestAccount
 
 const roleCapabilities: Record<string, string[]> = {
   grand_master: ['master_ops', 'admin_screen', 'field_ops', 'client_portal_view', 'client_portal_manage'],
