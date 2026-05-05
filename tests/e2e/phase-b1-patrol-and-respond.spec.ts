@@ -20,6 +20,9 @@ test.describe('Phase B1: Patrol and Respond', () => {
   let testOfficerId: string
   let testCaseId: string
   let testPatrolInstanceId: string
+  let testOrg2Id: string | undefined
+  let testOfficer2Id: string | undefined
+  let testCase2Id: string | undefined
 
   test.beforeAll(async () => {
     if (!supabaseAdmin) {
@@ -30,7 +33,12 @@ test.describe('Phase B1: Patrol and Respond', () => {
     // Create test org and officer
     const { data: orgData, error: orgErr } = await supabaseAdmin
       .from('organizations')
-      .insert({ name: 'B1 Test Org' })
+      .insert({
+        name: `B1 Test Org ${Date.now()}`,
+        organization_type: 'client',
+        is_active: true,
+        overnight_verification_mode: 'two_photo_verification',
+      })
       .select('id')
       .single()
     if (orgErr || !orgData) throw orgErr || new Error('Failed to create org')
@@ -157,11 +165,17 @@ test.describe('Phase B1: Patrol and Respond', () => {
     // Create second org and officer
     const { data: org2Data } = await supabaseAdmin
       .from('organizations')
-      .insert({ name: 'B1 Test Org 2' })
+      .insert({
+        name: `B1 Test Org 2 ${Date.now()}`,
+        organization_type: 'client',
+        is_active: true,
+        overnight_verification_mode: 'two_photo_verification',
+      })
       .select('id')
       .single()
 
     if (!org2Data) return
+    testOrg2Id = org2Data.id
 
     const { data: officer2Data } = await supabaseAdmin
       .from('user_profiles')
@@ -175,6 +189,7 @@ test.describe('Phase B1: Patrol and Respond', () => {
       .single()
 
     if (!officer2Data) return
+    testOfficer2Id = officer2Data.id
 
     // Create case in second org
     const { data: case2Data } = await supabaseAdmin
@@ -189,6 +204,7 @@ test.describe('Phase B1: Patrol and Respond', () => {
       .single()
 
     if (!case2Data) return
+    testCase2Id = case2Data.id
 
     // Record welfare event in org 2
     const { data: welfare2Data } = await supabaseAdmin
@@ -252,6 +268,17 @@ test.describe('Phase B1: Patrol and Respond', () => {
     if (!supabaseAdmin) return
 
     // Clean up
+    if (testCase2Id) {
+      await supabaseAdmin.from('welfare_events_b1').delete().eq('case_id', testCase2Id)
+      await supabaseAdmin.from('patrol_session_events').delete().eq('case_id', testCase2Id)
+      await supabaseAdmin.from('operational_cases').delete().eq('id', testCase2Id)
+    }
+    if (testOfficer2Id) {
+      await supabaseAdmin.from('user_profiles').delete().eq('id', testOfficer2Id)
+    }
+    if (testOrg2Id) {
+      await supabaseAdmin.from('organizations').delete().eq('id', testOrg2Id)
+    }
     await supabaseAdmin.from('welfare_events_b1').delete().eq('case_id', testCaseId)
     await supabaseAdmin.from('patrol_session_events').delete().eq('case_id', testCaseId)
     await supabaseAdmin.from('operational_cases').delete().eq('id', testCaseId)
