@@ -877,7 +877,7 @@ export default function App() {
             path="/compliance-recalculation"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['master', 'grand_master']}>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
                   <ComplianceRecalculation />
                 </RoleRoute>
               </ProtectedRoute>

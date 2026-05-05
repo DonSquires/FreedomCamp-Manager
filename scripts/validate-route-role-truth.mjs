@@ -22,19 +22,19 @@ const __dirname = path.dirname(__filename);
 // Configuration
 const BOOTSTRAP_ROUTES = [
   {
-    path: 'src/pages/FieldOfficerPortal',
+    path: 'src/pages/FieldOfficerPortal.tsx',
     pattern: 'FieldOfficer',
     requiredRoles: ['officer', 'admin', 'master'],
     description: 'Field Officer Portal - Patrol Dispatch',
   },
   {
-    path: 'src/pages/AdminPortal/DispatchConsole',
+    path: 'src/pages/DispatchConsole.tsx',
     pattern: 'DispatchConsole',
     requiredRoles: ['admin', 'master', 'dispatcher'],
     description: 'Admin Portal - Dispatch Console',
   },
   {
-    path: 'src/pages/AdminPortal/Enforcement',
+    path: 'src/pages/EnforcementCommandCenter.tsx',
     pattern: 'Enforcement',
     requiredRoles: ['admin', 'master', 'compliance'],
     description: 'Admin Portal - Enforcement Timeline',
@@ -116,17 +116,27 @@ function scanRouteForRoleGuards(filePath, requiredRoles) {
 }
 
 /**
- * Get all TypeScript/TSX files in directory
+ * Get all TypeScript/TSX files — supports both a directory and a single file path.
  */
 function getAllFilesInDirectory(dir, fileList = []) {
   try {
+    const stat = fs.statSync(dir);
+
+    // Single file path supplied
+    if (stat.isFile()) {
+      if (dir.endsWith('.ts') || dir.endsWith('.tsx')) {
+        fileList.push(dir);
+      }
+      return fileList;
+    }
+
     const files = fs.readdirSync(dir);
 
     files.forEach((file) => {
       const filePath = path.join(dir, file);
-      const stat = fs.statSync(filePath);
+      const childStat = fs.statSync(filePath);
 
-      if (stat.isDirectory()) {
+      if (childStat.isDirectory()) {
         if (!file.startsWith('.') && file !== 'node_modules')
           getAllFilesInDirectory(filePath, fileList);
       } else if (file.endsWith('.ts') || file.endsWith('.tsx')) {
@@ -134,7 +144,7 @@ function getAllFilesInDirectory(dir, fileList = []) {
       }
     });
   } catch (error) {
-    // Directory may not exist, skip silently
+    // Path may not exist, skip silently
   }
 
   return fileList;

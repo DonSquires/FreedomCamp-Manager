@@ -186,9 +186,9 @@ The following artifacts were created as Phase B delivery infrastructure. They ar
 ## Next Actions (ordered)
 
 1. **Week 3 (May 26–Jun 1)**:
-   - Route/role truth validation across 122 production routes
+   - ~~Route/role truth validation across 122 production routes~~ — **Done** (all 3 validators green: validate-route-role-truth ✅, validate-roadmap-grounding ✅, validate-roadmap-role-gates ✅; fixed compliance-recalculation role gate to include admin+admin_officer)
    - Confirm `tests/integration/org-isolation.test.ts` is running in CI with all 5 scenarios
-   - ~~Generate or stub TypeScript types for `operational_cases` + Phase B tables~~ — **Done** (completed in this session)
+   - ~~Generate or stub TypeScript types for `operational_cases` + Phase B tables~~ — **Done** (completed in previous session)
    - Run bootstrap routes E2E suite against staging
 
 2. **Week 4 (Jun 2–9)**:
@@ -203,4 +203,4 @@ The following artifacts were created as Phase B delivery infrastructure. They ar
 
 ---
 
-*Last updated: 2026-05-05 | Source: BUILD_REALIGNMENT_PLAN_2026-05-04.md + PR #506 infrastructure review*
+*Last updated: 2026-05-05 | Source: BUILD_REALIGNMENT_PLAN_2026-05-04.md + PR #506 infrastructure review + Week 3 route/role truth validation*
