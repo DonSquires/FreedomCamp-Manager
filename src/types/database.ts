@@ -503,6 +503,7 @@ export type Database = {
           updated_at: string | null
           vehicle_record_id: string | null
           zone_id: string
+          case_id: string | null
         }
         Insert: {
           admin_review_notes?: string | null
@@ -530,6 +531,7 @@ export type Database = {
           updated_at?: string | null
           vehicle_record_id?: string | null
           zone_id: string
+          case_id?: string | null
         }
         Update: {
           admin_review_notes?: string | null
@@ -557,6 +559,7 @@ export type Database = {
           updated_at?: string | null
           vehicle_record_id?: string | null
           zone_id?: string
+          case_id?: string | null
         }
         Relationships: [
           {
@@ -690,6 +693,13 @@ export type Database = {
             columns: ["zone_id"]
             isOneToOne: false
             referencedRelation: "zones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "breach_alerts_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "operational_cases"
             referencedColumns: ["id"]
           },
         ]
@@ -2469,6 +2479,7 @@ export type Database = {
           title: string
           updated_at: string
           zone_id: string | null
+          case_id: string | null
         }
         Insert: {
           acknowledged_at?: string | null
@@ -2506,6 +2517,7 @@ export type Database = {
           title: string
           updated_at?: string
           zone_id?: string | null
+          case_id?: string | null
         }
         Update: {
           acknowledged_at?: string | null
@@ -2543,6 +2555,7 @@ export type Database = {
           title?: string
           updated_at?: string
           zone_id?: string | null
+          case_id?: string | null
         }
         Relationships: [
           {
@@ -2650,6 +2663,60 @@ export type Database = {
             referencedRelation: "zones"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "dispatch_jobs_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "operational_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dispatch_acknowledgement_log: {
+        Row: {
+          acknowledged_at: string
+          callsign: string | null
+          case_id: string
+          created_at: string
+          dispatch_job_id: string
+          eta_seconds: number | null
+          id: string
+          lifecycle_stage: 'assigned' | 'acknowledged' | 'en_route' | 'on_scene' | 'completed' | 'cancelled'
+          notes: string | null
+          officer_id: string | null
+          organization_id: string
+        }
+        Insert: {
+          acknowledged_at?: string
+          callsign?: string | null
+          case_id: string
+          created_at?: string
+          dispatch_job_id: string
+          eta_seconds?: number | null
+          id?: string
+          lifecycle_stage?: 'assigned' | 'acknowledged' | 'en_route' | 'on_scene' | 'completed' | 'cancelled'
+          notes?: string | null
+          officer_id?: string | null
+          organization_id: string
+        }
+        Update: {
+          acknowledged_at?: string
+          callsign?: string | null
+          case_id?: string
+          created_at?: string
+          dispatch_job_id?: string
+          eta_seconds?: number | null
+          id?: string
+          lifecycle_stage?: 'assigned' | 'acknowledged' | 'en_route' | 'on_scene' | 'completed' | 'cancelled'
+          notes?: string | null
+          officer_id?: string | null
+          organization_id?: string
+        }
+        Relationships: [
+          { foreignKeyName: "dispatch_acknowledgement_log_case_id_fkey"; columns: ["case_id"]; isOneToOne: false; referencedRelation: "operational_cases"; referencedColumns: ["id"] },
+          { foreignKeyName: "dispatch_acknowledgement_log_dispatch_job_id_fkey"; columns: ["dispatch_job_id"]; isOneToOne: false; referencedRelation: "dispatch_jobs"; referencedColumns: ["id"] },
+          { foreignKeyName: "dispatch_acknowledgement_log_officer_id_fkey"; columns: ["officer_id"]; isOneToOne: false; referencedRelation: "user_profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "dispatch_acknowledgement_log_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] },
         ]
       }
       enforcement_events: {
@@ -2833,6 +2900,49 @@ export type Database = {
           { foreignKeyName: "patrol_events_officer_id_fkey"; columns: ["officer_id"]; isOneToOne: false; referencedRelation: "user_profiles"; referencedColumns: ["id"] },
           { foreignKeyName: "patrol_events_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] },
           { foreignKeyName: "patrol_events_zone_id_fkey"; columns: ["zone_id"]; isOneToOne: false; referencedRelation: "zones"; referencedColumns: ["id"] },
+        ]
+      }
+      patrol_session_events: {
+        Row: {
+          case_id: string
+          checkpoint_name: string | null
+          created_at: string
+          event_time: string
+          event_type: 'patrol_started' | 'checkpoint_scan' | 'checkpoint_missed' | 'patrol_completed'
+          id: string
+          notes: string | null
+          officer_id: string
+          organization_id: string
+          patrol_route_instance_id: string | null
+        }
+        Insert: {
+          case_id: string
+          checkpoint_name?: string | null
+          created_at?: string
+          event_time?: string
+          event_type?: 'patrol_started' | 'checkpoint_scan' | 'checkpoint_missed' | 'patrol_completed'
+          id?: string
+          notes?: string | null
+          officer_id: string
+          organization_id: string
+          patrol_route_instance_id?: string | null
+        }
+        Update: {
+          case_id?: string
+          checkpoint_name?: string | null
+          created_at?: string
+          event_time?: string
+          event_type?: 'patrol_started' | 'checkpoint_scan' | 'checkpoint_missed' | 'patrol_completed'
+          id?: string
+          notes?: string | null
+          officer_id?: string
+          organization_id?: string
+          patrol_route_instance_id?: string | null
+        }
+        Relationships: [
+          { foreignKeyName: "patrol_session_events_case_id_fkey"; columns: ["case_id"]; isOneToOne: false; referencedRelation: "operational_cases"; referencedColumns: ["id"] },
+          { foreignKeyName: "patrol_session_events_officer_id_fkey"; columns: ["officer_id"]; isOneToOne: false; referencedRelation: "user_profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "patrol_session_events_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] },
         ]
       }
       dispute_intake: {
@@ -3491,6 +3601,151 @@ export type Database = {
             referencedRelation: "person_records"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      feature_flags: {
+        Row: {
+          allowed_org_ids: string[] | null
+          allowed_user_ids: string[] | null
+          canary_error_rate_threshold: number | null
+          canary_p95_latency_threshold_ms: number | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          enabled: boolean
+          id: string
+          modified_by: string | null
+          name: string
+          phase: 'A' | 'B' | 'C' | 'D' | 'E' | null
+          rollout_percentage: number
+          rollout_strategy: 'percentage' | 'user_list' | 'org_list' | 'gradual'
+          updated_at: string
+        }
+        Insert: {
+          allowed_org_ids?: string[] | null
+          allowed_user_ids?: string[] | null
+          canary_error_rate_threshold?: number | null
+          canary_p95_latency_threshold_ms?: number | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          enabled?: boolean
+          id?: string
+          modified_by?: string | null
+          name: string
+          phase?: 'A' | 'B' | 'C' | 'D' | 'E' | null
+          rollout_percentage?: number
+          rollout_strategy?: 'percentage' | 'user_list' | 'org_list' | 'gradual'
+          updated_at?: string
+        }
+        Update: {
+          allowed_org_ids?: string[] | null
+          allowed_user_ids?: string[] | null
+          canary_error_rate_threshold?: number | null
+          canary_p95_latency_threshold_ms?: number | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          enabled?: boolean
+          id?: string
+          modified_by?: string | null
+          name?: string
+          phase?: 'A' | 'B' | 'C' | 'D' | 'E' | null
+          rollout_percentage?: number
+          rollout_strategy?: 'percentage' | 'user_list' | 'org_list' | 'gradual'
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "feature_flags_created_by_fkey"; columns: ["created_by"]; isOneToOne: false; referencedRelation: "user_profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "feature_flags_modified_by_fkey"; columns: ["modified_by"]; isOneToOne: false; referencedRelation: "user_profiles"; referencedColumns: ["id"] },
+        ]
+      }
+      feature_flag_evaluations: {
+        Row: {
+          created_by: string | null
+          enabled: boolean
+          evaluation_context: Json | null
+          evaluated_at: string
+          flag_id: string
+          id: string
+          organization_id: string | null
+          rollout_bucket: number | null
+          user_id: string | null
+        }
+        Insert: {
+          created_by?: string | null
+          enabled?: boolean
+          evaluation_context?: Json | null
+          evaluated_at?: string
+          flag_id: string
+          id?: string
+          organization_id?: string | null
+          rollout_bucket?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          created_by?: string | null
+          enabled?: boolean
+          evaluation_context?: Json | null
+          evaluated_at?: string
+          flag_id?: string
+          id?: string
+          organization_id?: string | null
+          rollout_bucket?: number | null
+          user_id?: string | null
+        }
+        Relationships: [
+          { foreignKeyName: "feature_flag_evaluations_flag_id_fkey"; columns: ["flag_id"]; isOneToOne: false; referencedRelation: "feature_flags"; referencedColumns: ["id"] },
+          { foreignKeyName: "feature_flag_evaluations_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] },
+          { foreignKeyName: "feature_flag_evaluations_user_id_fkey"; columns: ["user_id"]; isOneToOne: false; referencedRelation: "user_profiles"; referencedColumns: ["id"] },
+        ]
+      }
+      feature_flag_rollout_history: {
+        Row: {
+          change_reason: string | null
+          changed_at: string
+          changed_by: string | null
+          created_at: string
+          error_rate_at_change: number | null
+          flag_id: string
+          from_percentage: number
+          id: string
+          monitoring_notes: string | null
+          p95_latency_at_change_ms: number | null
+          stage: string | null
+          to_percentage: number
+        }
+        Insert: {
+          change_reason?: string | null
+          changed_at?: string
+          changed_by?: string | null
+          created_at?: string
+          error_rate_at_change?: number | null
+          flag_id: string
+          from_percentage?: number
+          id?: string
+          monitoring_notes?: string | null
+          p95_latency_at_change_ms?: number | null
+          stage?: string | null
+          to_percentage?: number
+        }
+        Update: {
+          change_reason?: string | null
+          changed_at?: string
+          changed_by?: string | null
+          created_at?: string
+          error_rate_at_change?: number | null
+          flag_id?: string
+          from_percentage?: number
+          id?: string
+          monitoring_notes?: string | null
+          p95_latency_at_change_ms?: number | null
+          stage?: string | null
+          to_percentage?: number
+        }
+        Relationships: [
+          { foreignKeyName: "feature_flag_rollout_history_flag_id_fkey"; columns: ["flag_id"]; isOneToOne: false; referencedRelation: "feature_flags"; referencedColumns: ["id"] },
+          { foreignKeyName: "feature_flag_rollout_history_changed_by_fkey"; columns: ["changed_by"]; isOneToOne: false; referencedRelation: "user_profiles"; referencedColumns: ["id"] },
         ]
       }
       flagged_vehicles: {
@@ -10238,6 +10493,59 @@ export type Database = {
           },
         ]
       }
+      welfare_events_b1: {
+        Row: {
+          case_id: string
+          created_at: string
+          created_by: string | null
+          event_type: 'scheduled_checkin' | 'officer_initiated' | 'supervisor_alert' | 'missed_checkin' | 'emergency_alert'
+          id: string
+          notes: string | null
+          officer_id: string
+          organization_id: string
+          patrol_route_instance_id: string | null
+          reported_at: string
+          resolved_at: string | null
+          severity: 'routine' | 'yellow_flag' | 'red_flag' | 'emergency'
+          status: 'open' | 'acknowledged' | 'resolved'
+        }
+        Insert: {
+          case_id: string
+          created_at?: string
+          created_by?: string | null
+          event_type?: 'scheduled_checkin' | 'officer_initiated' | 'supervisor_alert' | 'missed_checkin' | 'emergency_alert'
+          id?: string
+          notes?: string | null
+          officer_id: string
+          organization_id: string
+          patrol_route_instance_id?: string | null
+          reported_at?: string
+          resolved_at?: string | null
+          severity?: 'routine' | 'yellow_flag' | 'red_flag' | 'emergency'
+          status?: 'open' | 'acknowledged' | 'resolved'
+        }
+        Update: {
+          case_id?: string
+          created_at?: string
+          created_by?: string | null
+          event_type?: 'scheduled_checkin' | 'officer_initiated' | 'supervisor_alert' | 'missed_checkin' | 'emergency_alert'
+          id?: string
+          notes?: string | null
+          officer_id?: string
+          organization_id?: string
+          patrol_route_instance_id?: string | null
+          reported_at?: string
+          resolved_at?: string | null
+          severity?: 'routine' | 'yellow_flag' | 'red_flag' | 'emergency'
+          status?: 'open' | 'acknowledged' | 'resolved'
+        }
+        Relationships: [
+          { foreignKeyName: "welfare_events_b1_case_id_fkey"; columns: ["case_id"]; isOneToOne: false; referencedRelation: "operational_cases"; referencedColumns: ["id"] },
+          { foreignKeyName: "welfare_events_b1_created_by_fkey"; columns: ["created_by"]; isOneToOne: false; referencedRelation: "user_profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "welfare_events_b1_officer_id_fkey"; columns: ["officer_id"]; isOneToOne: false; referencedRelation: "user_profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "welfare_events_b1_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] },
+        ]
+      }
       zone_compliance_matrix: {
         Row: {
           allowed_days: string[] | null
@@ -11083,6 +11391,59 @@ export type Database = {
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      radio_comms_events: {
+        Row: {
+          callsign: string | null
+          case_id: string
+          channel_scope: string | null
+          created_at: string
+          created_by: string | null
+          degraded_mode: boolean
+          event_timestamp: string
+          event_type: 'radio_callsign_bound' | 'dispatch_escalated_to_radio' | 'radio_degraded_mode' | 'radio_channel_left'
+          id: string
+          notes: string | null
+          officer_id: string | null
+          organization_id: string
+          ptt_session_id: string | null
+        }
+        Insert: {
+          callsign?: string | null
+          case_id: string
+          channel_scope?: string | null
+          created_at?: string
+          created_by?: string | null
+          degraded_mode?: boolean
+          event_timestamp?: string
+          event_type: 'radio_callsign_bound' | 'dispatch_escalated_to_radio' | 'radio_degraded_mode' | 'radio_channel_left'
+          id?: string
+          notes?: string | null
+          officer_id?: string | null
+          organization_id: string
+          ptt_session_id?: string | null
+        }
+        Update: {
+          callsign?: string | null
+          case_id?: string
+          channel_scope?: string | null
+          created_at?: string
+          created_by?: string | null
+          degraded_mode?: boolean
+          event_timestamp?: string
+          event_type?: 'radio_callsign_bound' | 'dispatch_escalated_to_radio' | 'radio_degraded_mode' | 'radio_channel_left'
+          id?: string
+          notes?: string | null
+          officer_id?: string | null
+          organization_id?: string
+          ptt_session_id?: string | null
+        }
+        Relationships: [
+          { foreignKeyName: "radio_comms_events_case_id_fkey"; columns: ["case_id"]; isOneToOne: false; referencedRelation: "operational_cases"; referencedColumns: ["id"] },
+          { foreignKeyName: "radio_comms_events_created_by_fkey"; columns: ["created_by"]; isOneToOne: false; referencedRelation: "user_profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "radio_comms_events_officer_id_fkey"; columns: ["officer_id"]; isOneToOne: false; referencedRelation: "user_profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "radio_comms_events_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] },
         ]
       }
       radio_transmissions: {

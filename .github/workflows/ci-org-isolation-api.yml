@@ -9,6 +9,10 @@ on:
       - 'tests/e2e/api-response.spec.ts'
       - 'tests/e2e/auth.ts'
       - 'playwright.api.config.ts'
+      - 'supabase/migrations/20260504000005_phase_b1_bridge_to_case_model.sql'
+      - 'supabase/migrations/20260506000002_phase_b2_dispatch_case_bridge.sql'
+      - 'supabase/migrations/20260506000003_phase_b4_enforcement_case_bridge.sql'
+      - 'supabase/migrations/20260506000004_phase_b3_radio_comms_case_bridge.sql'
       - 'package.json'
       - 'bun.lock'
       - '.github/workflows/ci-org-isolation-api.yml'
@@ -20,14 +24,26 @@ on:
       - 'tests/e2e/api-response.spec.ts'
       - 'tests/e2e/auth.ts'
       - 'playwright.api.config.ts'
+      - 'supabase/migrations/20260504000005_phase_b1_bridge_to_case_model.sql'
+      - 'supabase/migrations/20260506000002_phase_b2_dispatch_case_bridge.sql'
+      - 'supabase/migrations/20260506000003_phase_b4_enforcement_case_bridge.sql'
+      - 'supabase/migrations/20260506000004_phase_b3_radio_comms_case_bridge.sql'
       - 'package.json'
       - 'bun.lock'
       - '.github/workflows/ci-org-isolation-api.yml'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   org-isolation-api:
+    name: Phase A Org Isolation Gate (5 scenarios)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+
     env:
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
       VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
@@ -53,3 +69,13 @@ jobs:
 
       - name: Run API org isolation suite
         run: bunx playwright test -c playwright.api.config.ts
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: org-isolation-gate-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore

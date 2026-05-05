@@ -985,7 +985,7 @@ export const routeManifest: RouteManifestEntry[] = [
     routeId: 'admin.compliance-recalculation',
     path: '/compliance-recalculation',
     shell: 'admin',
-    rolesAllowed: ['master', 'grand_master'],
+    rolesAllowed: ['admin', 'admin_officer', 'master', 'grand_master'],
     navGroup: 'Tools',
     navLabel: 'Recalculation',
     visibilityMode: 'internal',
