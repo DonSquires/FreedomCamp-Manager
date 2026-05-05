@@ -13,6 +13,53 @@ import { supabaseAdmin } from './setup'
 
 const PATROL_CASE_TYPE = 'patrol'
 
+async function createTestOfficer(organizationId: string, emailLabel: string) {
+  if (!supabaseAdmin) {
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY required')
+  }
+
+  const email = `${emailLabel}-${Date.now()}@test.local`
+  const { data: authCreate, error: authCreateError } = await supabaseAdmin.auth.admin.createUser({
+    email,
+    password: `B1-${crypto.randomUUID()}!aa`,
+    email_confirm: true,
+  })
+
+  if (authCreateError || !authCreate.user) {
+    throw authCreateError || new Error('Failed to create auth user')
+  }
+
+  const { data: profileData, error: profileError } = await supabaseAdmin
+    .from('user_profiles')
+    .upsert(
+      {
+        id: authCreate.user.id,
+        organization_id: organizationId,
+        email,
+        role: 'officer',
+        is_active: true,
+        enabled_portals: [],
+        portal_access: [],
+        extra_organization_ids: [],
+      },
+      { onConflict: 'id' },
+    )
+    .select('id')
+    .single()
+
+  if (profileError || !profileData) {
+    await supabaseAdmin.auth.admin.deleteUser(authCreate.user.id)
+    throw profileError || new Error('Failed to create officer profile')
+  }
+
+  return profileData.id
+}
+
+async function deleteTestOfficer(userId: string | undefined) {
+  if (!supabaseAdmin || !userId) return
+  await supabaseAdmin.auth.admin.deleteUser(userId)
+}
+
 test.describe('Phase B1: Patrol and Respond', () => {
   test.skip(!supabaseAdmin, 'SUPABASE_SERVICE_ROLE_KEY required')
 
@@ -44,18 +91,7 @@ test.describe('Phase B1: Patrol and Respond', () => {
     if (orgErr || !orgData) throw orgErr || new Error('Failed to create org')
     testOrgId = orgData.id
 
-    const { data: profileData, error: profileErr } = await supabaseAdmin
-      .from('user_profiles')
-      .insert({
-        id: crypto.randomUUID(),
-        organization_id: testOrgId,
-        email: `officer-b1-${Date.now()}@test.local`,
-        role: 'officer',
-      })
-      .select('id')
-      .single()
-    if (profileErr || !profileData) throw profileErr || new Error('Failed to create officer')
-    testOfficerId = profileData.id
+    testOfficerId = await createTestOfficer(testOrgId, 'officer-b1')
 
     // Create case for patrol
     const { data: caseData, error: caseErr } = await supabaseAdmin
@@ -177,19 +213,7 @@ test.describe('Phase B1: Patrol and Respond', () => {
     if (!org2Data) return
     testOrg2Id = org2Data.id
 
-    const { data: officer2Data } = await supabaseAdmin
-      .from('user_profiles')
-      .insert({
-        id: crypto.randomUUID(),
-        organization_id: org2Data.id,
-        email: `officer2-b1-${Date.now()}@test.local`,
-        role: 'officer',
-      })
-      .select('id')
-      .single()
-
-    if (!officer2Data) return
-    testOfficer2Id = officer2Data.id
+    testOfficer2Id = await createTestOfficer(org2Data.id, 'officer2-b1')
 
     // Create case in second org
     const { data: case2Data } = await supabaseAdmin
@@ -274,7 +298,7 @@ test.describe('Phase B1: Patrol and Respond', () => {
       await supabaseAdmin.from('operational_cases').delete().eq('id', testCase2Id)
     }
     if (testOfficer2Id) {
-      await supabaseAdmin.from('user_profiles').delete().eq('id', testOfficer2Id)
+      await deleteTestOfficer(testOfficer2Id)
     }
     if (testOrg2Id) {
       await supabaseAdmin.from('organizations').delete().eq('id', testOrg2Id)
@@ -282,7 +306,7 @@ test.describe('Phase B1: Patrol and Respond', () => {
     await supabaseAdmin.from('welfare_events_b1').delete().eq('case_id', testCaseId)
     await supabaseAdmin.from('patrol_session_events').delete().eq('case_id', testCaseId)
     await supabaseAdmin.from('operational_cases').delete().eq('id', testCaseId)
-    await supabaseAdmin.from('user_profiles').delete().eq('id', testOfficerId)
+    await deleteTestOfficer(testOfficerId)
     await supabaseAdmin.from('organizations').delete().eq('id', testOrgId)
   })
 })
