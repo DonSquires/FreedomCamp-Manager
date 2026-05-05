@@ -16,7 +16,8 @@
  *
  * Optional env:
  *   BOB_SELF_TEST_SCOPE        quick | core | workflows | visual | human | full  (default: quick)
- *   BOB_SELF_TEST_TIMEOUT_MS   max poll time in ms  (default: 600000 = 10 min)
+ *   BOB_SELF_TEST_TIMEOUT_MS   max active run time in ms once IN_PROGRESS (default: 600000 = 10 min)
+ *   BOB_SELF_TEST_QUEUE_TIMEOUT_MS max queue wait time in ms while IN_QUEUE (default: 900000 = 15 min)
  *   BOB_SELF_TEST_POLL_MS      poll interval         (default: 5000)
  *   BOB_SELF_TEST_DRY_RUN      true = skip Supabase write, just print
  *   BOB_SELF_TEST_PREFLIGHT    true = validate repo/token access before queueing (default: true)
@@ -238,6 +239,7 @@ function adaptiveRunTimeout(baseTimeoutMs, specs = []) {
 // ─── Config ───────────────────────────────────────────────────────────────────
 const SCOPE        = getArg('scope', process.env.BOB_SELF_TEST_SCOPE || 'quick');
 const TIMEOUT_MS   = Number(process.env.BOB_SELF_TEST_TIMEOUT_MS || 600000);
+const QUEUE_TIMEOUT_MS = Number(process.env.BOB_SELF_TEST_QUEUE_TIMEOUT_MS || 900000);
 const POLL_MS      = Number(process.env.BOB_SELF_TEST_POLL_MS || 5000);
 const DRY_RUN      = getBoolArg('dryRun') || process.env.BOB_SELF_TEST_DRY_RUN === 'true';
 const QUICK_SPECS_ARG = getArg('quickSpecs', '');
@@ -520,15 +522,31 @@ async function run() {
   console.log(`[bob-self-test] Job submitted: id=${jobId} status=${submitRes.data.status}`);
 
   // 2. Poll for completion
-  const pollUrl      = `${rawBase}/status/${jobId}`;
-  const deadline     = Date.now() + TIMEOUT_MS;
-  let   outputData   = null;
+  const pollUrl          = `${rawBase}/status/${jobId}`;
+  const queueDeadline    = Date.now() + QUEUE_TIMEOUT_MS;
+  let activeDeadline     = null;
+  let outputData         = null;
+  let lastStatus         = String(submitRes.data.status || '').toUpperCase();
 
-  while (Date.now() < deadline) {
+  while (true) {
     await sleep(POLL_MS);
     const pollRes = await reqJson(pollUrl);
     const status  = String(pollRes.data?.status || '').toUpperCase();
+    lastStatus = status;
     console.log(`[bob-self-test] poll status=${status}`);
+
+    if (status === 'IN_PROGRESS' && !activeDeadline) {
+      activeDeadline = Date.now() + TIMEOUT_MS;
+      console.log(`[bob-self-test] queue complete, active timeout budget=${TIMEOUT_MS}ms`);
+    }
+
+    if (!activeDeadline && Date.now() > queueDeadline) {
+      break;
+    }
+
+    if (activeDeadline && Date.now() > activeDeadline) {
+      break;
+    }
 
     if (status === 'COMPLETED') {
       outputData = pollRes.data?.output;
@@ -542,9 +560,15 @@ async function run() {
   }
 
   if (!outputData) {
-    console.error(`[bob-self-test] Timed out waiting for job ${jobId}`);
+    const queueTimeoutHit = !activeDeadline;
+    const timeoutKind = queueTimeoutHit ? 'queue_timeout' : 'run_timeout';
+    console.error(`[bob-self-test] Timed out waiting for job ${jobId} (${timeoutKind}, lastStatus=${lastStatus})`);
     writeLastRunSummary(LAST_RUN_FILE, {
       status: 'timeout',
+      timeout_kind: timeoutKind,
+      queue_timeout_ms: QUEUE_TIMEOUT_MS,
+      run_timeout_ms: TIMEOUT_MS,
+      last_status: lastStatus,
       scope: SCOPE,
       job_id: jobId,
       selected_specs: selectedSpecs,
