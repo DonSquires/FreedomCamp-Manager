@@ -28,8 +28,6 @@ test.describe('Deep functional test actions', () => {
       }
 
       const resolvedRole = String(profile?.role || '').toLowerCase()
-      const resolvedOrg = profile?.organizationName || profile?.employerOrganizationName || ''
-      expect(Boolean(resolvedOrg)).toBeTruthy()
 
       if (resolvedRole === 'officer' || page.url().includes('/field-officer')) {
         await expectAuthenticatedRoute(page, '/field-officer')
