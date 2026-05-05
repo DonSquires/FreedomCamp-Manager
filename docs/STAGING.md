@@ -122,6 +122,14 @@ redis-server --version
 5. After each material change: lint, build, relevant tests, then CI status pull for current SHA.
 6. If conflicts appear across plans, update canonical doc first, then align downstream docs.
 
+### Throughput Requirement (Mandatory)
+
+1. Use failure-first triage before any broad rerun.
+2. Use subagent support for triage on flaky or repeated failures; do not solo-debug repeated failures without delegation.
+3. Prefer failed-spec reruns using `node scripts/trigger-bob-self-test.mjs --rerunFailedOnly` before any full sweep.
+4. Run broad multi-spec sweeps only after targeted failures are green or when explicitly requested.
+5. When a broad sweep is required, record the reason in Section 7 and capture cost-aware follow-up actions.
+
 ## 6. Staging To-Do List (Cross-Document)
 
 ### A. Authority and Governance
