@@ -176,7 +176,7 @@ The following artifacts were created as Phase B delivery infrastructure. They ar
 | # | Blocker | Owner | Priority | Target |
 |---|---|---|---|---|
 | 1 | Phase A gate: Org isolation 5-scenario automated CI harness (`tests/integration/org-isolation.test.ts`) not yet merged | Platform Architecture Lead | High | Week 3 (May 26) |
-| 2 | Phase A gate: TypeScript type generation for `operational_cases` deferred | Data Platform Lead | Medium | Week 3 (May 26) |
+| 2 | ~~Phase A gate: TypeScript type generation for `operational_cases` deferred~~ — **RESOLVED** (`operational_cases` was already present; all 7 Phase B table stubs now added to `database.ts`) | — | — | ✅ Done |
 | 3 | Phase A gate: Bootstrap routes E2E full pass not yet confirmed in CI | Frontend Platform Lead | High | Week 4 (Jun 2) |
 | 4 | Phase A gate: Ownership confirmation (GitHub team + Slack `#realignment-kickoff`) | Operations Product Lead | High | Jun 9 |
 | 5 | Phase B go-no-go gate: June 9 deadline — if Phase A not green → 2-week deferral | Program Lead | Critical | Jun 9 |
@@ -188,7 +188,7 @@ The following artifacts were created as Phase B delivery infrastructure. They ar
 1. **Week 3 (May 26–Jun 1)**:
    - Route/role truth validation across 122 production routes
    - Confirm `tests/integration/org-isolation.test.ts` is running in CI with all 5 scenarios
-   - Generate or stub TypeScript types for `operational_cases` + `case_events` tables
+   - ~~Generate or stub TypeScript types for `operational_cases` + Phase B tables~~ — **Done** (completed in this session)
    - Run bootstrap routes E2E suite against staging
 
 2. **Week 4 (Jun 2–9)**:
