@@ -167,6 +167,10 @@ function deriveComplexity(severity: string | null | undefined): 'simple' | 'mode
   return 'moderate'
 }
 
+function isRunpodServerless(url: string): boolean {
+  return /api\.runpod\.ai\/v2\/[^/]+(?:\/(?:run|runsync))?\/?$/i.test(url)
+}
+
 function normalizeServiceBaseUrl(value: string): string {
   const trimmed = String(value || '').trim()
   if (!trimmed) return ''
@@ -363,12 +367,30 @@ Deno.serve(async (req: Request) => {
       healHeaders['Authorization'] = `Bearer ${inferenceApiKey}`
     }
 
-    const healResp = await fetch(`${inferenceUrl}/self-heal/bug-report`, {
-      method: 'POST',
-      headers: healHeaders,
-      body: JSON.stringify(healPayload),
-      signal: AbortSignal.timeout(55_000),
-    })
+    let healResp: Response
+    if (isRunpodServerless(inferenceUrl)) {
+      // RunPod serverless: use /runsync self_heal action
+      healResp = await fetch(`${inferenceUrl}/runsync`, {
+        method: 'POST',
+        headers: healHeaders,
+        body: JSON.stringify({
+          executionTimeout: 60000,
+          input: {
+            action: 'self_heal',
+            ...healPayload,
+          },
+        }),
+        signal: AbortSignal.timeout(70_000),
+      })
+    } else {
+      // inference-service HTTP route
+      healResp = await fetch(`${inferenceUrl}/self-heal/bug-report`, {
+        method: 'POST',
+        headers: healHeaders,
+        body: JSON.stringify(healPayload),
+        signal: AbortSignal.timeout(55_000),
+      })
+    }
 
     let healJson: any = null
     let responseText = ''
@@ -377,13 +399,26 @@ Deno.serve(async (req: Request) => {
     let fallbackReason: string | null = null
 
     if (healResp.ok) {
-      healJson = await healResp.json()
-      responseText = planToText(healJson?.plan)
+      const rawHeal = await healResp.json()
+      // Unwrap RunPod envelope: { output: { plan, ... } }
+      healJson = rawHeal?.output ?? rawHeal
+      if (healJson?.success === false) {
+        fallbackReason = `RunPod self_heal worker error: ${healJson?.error ?? 'unknown'}`
+        console.warn(`[auto-analyse] ${fallbackReason}`)
+        healJson = null
+      } else {
+        responseText = planToText(healJson?.plan)
+      }
     } else {
       const details = await healResp.text()
       fallbackReason = `Inference self-heal returned ${healResp.status}: ${details.slice(0, 300)}`
-      console.warn(`[auto-analyse] ${fallbackReason} — trying onspace-ai-chat fallback for report ${report_id}`)
+    }
 
+    // If primary path failed, try onspace-ai-chat fallback
+    if (!responseText) {
+      if (fallbackReason) {
+        console.warn(`[auto-analyse] ${fallbackReason} — trying onspace-ai-chat fallback for report ${report_id}`)
+      }
       const fallback = await fallbackAnalyseWithOnspaceChat(report, navHistory, consoleErrors, ciStatus)
       if (!fallback) {
         responseText = [
@@ -405,7 +440,7 @@ Deno.serve(async (req: Request) => {
         ].join('\n')
         analysisModel = 'deterministic-fallback-v1'
         analysisProvider = 'auto-analyse-emergency-fallback'
-        fallbackReason = `${fallbackReason}; onspace-ai-chat fallback unavailable`
+        fallbackReason = `${fallbackReason ?? 'primary unavailable'}; onspace-ai-chat fallback unavailable`
       } else {
         responseText = fallback.text
         analysisModel = fallback.model

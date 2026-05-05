@@ -529,16 +529,62 @@ def handler(job):
         if not text:
             return {"success": False, "error": "symptom or description required"}
         type_ = inp.get("type", "general")
+        context = inp.get("context") or {}
         sys_map = {
-            "smoke":       "Assess for biosecurity risk.",
-            "biosecurity": "Assess for biosecurity risk.",
-            "noise":       "Assess noise complaint severity and recommended enforcement action.",
-            "ptt":         "Diagnose PTT radio issue with troubleshooting steps.",
-            "platform":    "Assess system health symptom and recommend resolution.",
+            "smoke": (
+                "You are a NZ environmental compliance officer AI. Assess a smoke or fire nuisance complaint under "
+                "the Resource Management Act 1991 (RMA) and council bylaws. "
+                "Consider: time of day, complaint duration, proximity to residential zones, and fire risk. "
+                "Determine if the smoke constitutes an unreasonable nuisance under RMA s.326. "
+                "Respond in JSON: {severity, summary, assessment, recommendation, actions, legal_basis, rma_section}"
+            ),
+            "biosecurity": (
+                "You are a NZ biosecurity officer AI. Assess the described plant or pest for biosecurity risk "
+                "under the Biosecurity Act 1993. Identify species if possible, particularly NZ pest plants "
+                "(Nassella neesiana, climbing spindle berry, etc.). Rate the risk level and required action. "
+                "Respond in JSON: {risk_level, summary, dominant_species, species, density_estimate, recommended_action, compliance_notes}"
+            ),
+            "noise": (
+                "You are a NZ noise control officer AI using the Noise Control Assessment Matrix. "
+                "Assess the noise complaint and score using the three-factor matrix: "
+                "volume_score (0=no noise, 1=barely audible, 2=clearly audible, 3=loud, 4=extremely loud), "
+                "time_score (depends on time category: night=higher, day=lower), "
+                "tone_score (0=no tonal quality, 1=some, 2=strong tonal quality). "
+                "Matrix total >= 5 means exceeds district plan limits. "
+                "Also identify noise_type (music/party/machinery/barking_dog/other) and noise_source. "
+                "Respond ONLY in JSON: "
+                "{volume_score, time_score, tone_score, noise_type, noise_source, "
+                "recommended_action, exceeds_district_plan, rationale, severity}"
+            ),
+            "ptt": (
+                "You are a PTT (Push-to-Talk) radio diagnostic AI for field operations. "
+                "Diagnose the described PTT issue and provide structured troubleshooting steps. "
+                "Consider: connection issues, codec mismatches, server latency, authentication failures, "
+                "firewall/NAT traversal, audio device issues. "
+                "Respond in JSON: {root_cause, urgency, troubleshooting_steps, likely_fix, escalation_required}"
+            ),
+            "platform": (
+                "You are an infrastructure health diagnosis AI for the FieldOps Manager platform. "
+                "Diagnose the described symptom in the context of a Supabase + RunPod + Vite React SPA stack. "
+                "Respond in JSON: {severity, root_cause, diagnosis, remediation_steps, escalation_required}"
+            ),
         }
+        type_system = sys_map.get(type_, "You are a structured assessment AI. Assess the described issue and respond in JSON with severity, summary, recommendation, and actions.")
+        # For noise, include time_category from context to help matrix scoring
+        user_content = text
+        if type_ == "noise" and context:
+            extras = []
+            if context.get("time_category"):
+                extras.append(f"Time category: {context['time_category']}")
+            if context.get("observed_db"):
+                extras.append(f"Observed dB(A): {context['observed_db']}")
+            if context.get("location_context"):
+                extras.append(f"Location: {context['location_context']}")
+            if extras:
+                user_content = "\n".join(extras) + "\n\nOfficer transcript/notes: " + text
         result = ollama_chat([
-            {"role": "system", "content": sys_map.get(type_, "Provide a structured assessment.")},
-            {"role": "user", "content": f"{text}\n\nRespond in JSON: {{severity, summary, recommendation, actions}}"},
+            {"role": "system", "content": type_system},
+            {"role": "user", "content": user_content},
         ], inp.get("model"), 0.3)
         structured = None
         try:
@@ -555,13 +601,42 @@ def handler(job):
         text = inp.get("text")
         if not text:
             return {"success": False, "error": "text required"}
-        langs = {"zh": "Chinese (Simplified)", "ja": "Japanese", "ko": "Korean",
-                 "mi": "Te Reo Maori", "fr": "French", "de": "German", "es": "Spanish"}
+        # Full locale-code to language name mapping matching edge function
+        langs = {
+            # Short codes
+            "zh": "Chinese (Simplified)", "ja": "Japanese", "ko": "Korean",
+            "mi": "Te Reo Māori", "fr": "French", "de": "German", "es": "Spanish",
+            "hi": "Hindi", "ar": "Arabic", "ru": "Russian", "th": "Thai",
+            "vi": "Vietnamese", "ms": "Malay", "id": "Indonesian",
+            "ur": "Urdu", "bn": "Bengali", "sw": "Swahili", "pa": "Punjabi",
+            "tl": "Filipino (Tagalog)", "pt": "Portuguese",
+            # Full locale codes
+            "en-NZ": "New Zealand English", "en-AU": "Australian English",
+            "en-GB": "British English", "en-US": "American English",
+            "zh-CN": "Simplified Chinese (Mandarin)", "zh-TW": "Traditional Chinese",
+            "hi-IN": "Hindi", "pa-IN": "Punjabi", "tl-PH": "Filipino (Tagalog)",
+            "mi-NZ": "Te Reo Māori", "ko-KR": "Korean", "ja-JP": "Japanese",
+            "es-ES": "Spanish", "fr-FR": "French", "de-DE": "German",
+            "ar-SA": "Arabic", "pt-BR": "Brazilian Portuguese",
+            "ru-RU": "Russian", "th-TH": "Thai", "vi-VN": "Vietnamese",
+            "ms-MY": "Malay", "id-ID": "Indonesian", "ur-PK": "Urdu",
+            "bn-BD": "Bengali", "sw-KE": "Swahili",
+        }
         target = inp.get("target_language", "en")
-        target_name = langs.get(target, target)
+        # Try exact match first, then short prefix (e.g. 'zh-CN' -> try 'zh')
+        target_name = langs.get(target) or langs.get(target.split("-")[0]) or target
+        source_language = inp.get("source_language")
+        source_name = langs.get(source_language) or langs.get((source_language or "").split("-")[0]) or source_language if source_language else None
+        sys_msg = (
+            f"You are a professional real-time translator for a field operations security platform. "
+            f"Translate to {target_name}. Preserve operational meaning, terminology, and tone exactly. "
+            f"Return ONLY the translated text with no commentary, labels, or explanations."
+        )
+        user_content = (f"Translate from {source_name} to {target_name}:\n\n{text}"
+                        if source_name else f"Translate to {target_name}:\n\n{text}")
         result = ollama_chat([
-            {"role": "system", "content": f"Translate to {target_name}. Preserve operational meaning and tone. Return only the translation."},
-            {"role": "user", "content": text},
+            {"role": "system", "content": sys_msg},
+            {"role": "user", "content": user_content},
         ], inp.get("model"), 0.1)
         return {"success": True, "translation": result["content"], "translated_text": result["content"],
                 "target_language": target, "model": result["model"], "provider": "ollama"}
@@ -638,9 +713,168 @@ def handler(job):
             "provider": "client-fallback",
         }
 
+    if action == "tender_generate":
+        # Generate tender application or response sections via Ollama
+        generation_type = str(inp.get("generation_type") or "response").lower()
+        context = inp.get("context") or {}
+        org_context = inp.get("organization_context") or {}
+
+        extracted_text = str(context.get("extracted_text") or "")[:6000]
+        issuing_body = str(context.get("issuing_body") or "")
+        key_services = context.get("key_services") or []
+        key_requirements = context.get("key_requirements") or []
+        key_dates = context.get("key_dates") or []
+        reference_number = str(context.get("reference_number") or "")
+        due_date = str(context.get("due_date") or "")
+        org_name = str(org_context.get("name") or "Iron Eagle Security Limited")
+        psa_licence = str(org_context.get("psa_licence") or "")
+        nzbn = str(org_context.get("nzbn") or "")
+
+        gen_label = "tender application" if generation_type == "application" else "tender response"
+        services_str = ", ".join(str(s) for s in key_services) if key_services else "security services"
+        reqs_str = "; ".join(str(r) for r in key_requirements) if key_requirements else ""
+        org_line = f"Organisation: {org_name}" + (f" | PSA Licence: {psa_licence}" if psa_licence else "") + (f" | NZBN: {nzbn}" if nzbn else "")
+
+        system = (
+            "You are a professional tender writer for a New Zealand security and enforcement company. "
+            "Write a complete, professional, and compelling " + gen_label + " in the voice of the organisation. "
+            "Use NZ English. Be specific, confident, and compliance-focused. "
+            "Structure the response as a JSON object with these exact section keys: "
+            "{cover_letter, executive_summary, services_offered, pricing_notes, "
+            "team_qualifications, health_and_safety, declaration}"
+        )
+        user_parts = [
+            f"Tender document type: {gen_label}",
+            f"Issuing body: {issuing_body}" if issuing_body else None,
+            f"Reference number: {reference_number}" if reference_number else None,
+            f"Due date: {due_date}" if due_date else None,
+            f"Key services: {services_str}",
+            f"Key requirements: {reqs_str}" if reqs_str else None,
+            org_line,
+        ]
+        if extracted_text:
+            user_parts.append(f"\nTender document extract (first 6000 chars):\n{extracted_text}")
+        user_parts.append("\nGenerate all seven sections as JSON.")
+
+        user_msg = "\n".join(p for p in user_parts if p)
+        model = inp.get("model") or os.environ.get("OLLAMA_MODEL_WRITING") or OLLAMA_MODEL
+        result = ollama_chat([
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_msg},
+        ], model, 0.5)
+        structured = None
+        try:
+            import re
+            m = re.search(r"\{[\s\S]*\}", result["content"])
+            if m:
+                structured = json.loads(m.group(0))
+        except Exception:
+            pass
+        sections = structured if isinstance(structured, dict) else {
+            "cover_letter": result["content"],
+            "executive_summary": "",
+            "services_offered": "",
+            "pricing_notes": "",
+            "team_qualifications": "",
+            "health_and_safety": "",
+            "declaration": "",
+        }
+        return {
+            "success": True,
+            "sections": sections,
+            "provider": "ollama",
+            "model_used": result["model"],
+            "references_used": False,
+        }
+
+    if action == "tender_train":
+        # Record tender outcome as a training note (warm-worker memory only)
+        payload = inp.get("payload") or inp
+        outcome = str(payload.get("outcome") or "unknown")
+        issuing_body = str(payload.get("issuing_body") or "")
+        key_services = payload.get("key_services") or []
+        outcome_notes = str(payload.get("outcome_notes") or "")
+        rejection_reason = str(payload.get("rejection_reason") or "")
+
+        note_parts = [
+            f"Tender outcome: {outcome}",
+            f"Issuing body: {issuing_body}" if issuing_body else None,
+            f"Services: {', '.join(str(s) for s in key_services)}" if key_services else None,
+            f"Outcome notes: {outcome_notes}" if outcome_notes else None,
+            f"Rejection reason: {rejection_reason}" if rejection_reason else None,
+        ]
+        note = " | ".join(p for p in note_parts if p)
+        note_count = remember_training_note(f"Tender training: {note}")
+        return {
+            "success": True,
+            "message": "Tender training note recorded for this warm worker.",
+            "runtime_training_notes": note_count,
+            "provider": "worker-memory",
+        }
+
+    if action == "self_heal":
+        # Analyse a bug report and produce a structured self-healing plan
+        report = inp.get("report") or {}
+        summary = str(report.get("summary") or inp.get("summary") or inp.get("description") or "").strip()
+        if not summary:
+            return {"success": False, "error": "report.summary or description required"}
+
+        severity = str(report.get("severity") or "medium")
+        issue_type = str(report.get("issue_type") or "bug")
+        current_page = str(report.get("current_page") or "unknown")
+        user_role = str(report.get("user_role") or "unknown")
+        steps = str(report.get("steps_to_reproduce") or "")
+        expected = str(report.get("expected_behavior") or "")
+        actual = str(report.get("actual_behavior") or "")
+        ci_status = str(report.get("ci_status") or "unavailable")
+        console_errors = report.get("console_errors") or []
+        nav = report.get("navigation") or []
+
+        console_str = "\n".join(f"- [{e.get('level','error')}] {e.get('message','')}" for e in console_errors[-5:]) or "(none)"
+        nav_str = "\n".join(f"- {n.get('path','?')} @ {n.get('timestamp','?')}" for n in nav[-5:]) or "(none)"
+
+        user_msg = (
+            f"Bug Report Analysis for FieldOps Manager (NZ freedom camping enforcement platform)\n\n"
+            f"Type: {issue_type} | Severity: {severity} | Page: {current_page} | Role: {user_role}\n\n"
+            f"Issue: {summary}\n"
+            + (f"Steps: {steps}\n" if steps else "")
+            + (f"Expected: {expected}\n" if expected else "")
+            + (f"Actual: {actual}\n" if actual else "")
+            + f"\nRecent Console Errors:\n{console_str}\n\nRecent Navigation:\n{nav_str}\n\nCI Status:\n{ci_status}\n\n"
+            "Respond ONLY in JSON with keys: "
+            "{severity, bug_type, recommended_owner, reproduction: [], remediation: [], safeguards: [], "
+            "automation: [{action, enabled, detail}], legal_note}"
+        )
+        result = ollama_chat([
+            {"role": "system", "content": (
+                "You are a software bug triage AI for FieldOps Manager — a React/TypeScript SPA backed by "
+                "Supabase (Postgres, Edge Functions) and Ollama on RunPod. "
+                "Analyse the bug report and provide a structured self-healing plan. "
+                "Be specific and actionable. Reference the tech stack (React 18, TanStack Query, Zustand, "
+                "Supabase RLS, Deno edge functions, Vite). "
+                "Respond ONLY in valid JSON."
+            )},
+            {"role": "user", "content": user_msg},
+        ], inp.get("model"), 0.2)
+        structured = None
+        try:
+            import re
+            m = re.search(r"\{[\s\S]*\}", result["content"])
+            if m:
+                structured = json.loads(m.group(0))
+        except Exception:
+            pass
+        plan = structured or {"severity": severity, "bug_type": issue_type, "remediation": [result["content"]]}
+        return {
+            "success": True,
+            "plan": plan,
+            "raw_response": result["content"],
+            "model": result["model"],
+            "provider": "ollama-self-heal",
+        }
+
     if action == "ui_vision":
-        image_b64 = inp.get("image_b64")  # base64-encoded PNG/JPG
-        if not image_b64:
+        image_b64 = inp.get("image_b64")  # base64-encoded PNG/JPG        if not image_b64:
             return {"success": False, "error": "image_b64 required"}
         focus = inp.get("focus", "general")
         focus_prompts = {

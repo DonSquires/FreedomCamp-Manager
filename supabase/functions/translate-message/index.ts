@@ -17,6 +17,7 @@
 
 import { fetchWithRetry } from '../_shared/fetchWithRetry.ts'
 import { withCors, jsonResponse, errorResponse } from '../_shared/withCors.ts'
+import { requireAuth } from '../_shared/requireAuth.ts'
 
 const LANGUAGE_NAMES: Record<string, string> = {
   'en-NZ': 'New Zealand English',
@@ -79,6 +80,11 @@ function resolveInferenceUrl(): string {
 }
 
 Deno.serve(withCors(async (req: Request) => {
+  const authResult = await requireAuth(req)
+  if (!authResult.user) {
+    return errorResponse(authResult.error ?? 'Unauthorized', req, 401)
+  }
+
   const body = await req.json().catch(() => null)
   if (!body) {
     return errorResponse('Request body must be valid JSON', req, 400)
