@@ -249,9 +249,9 @@ helper function.
 **Canary advance script**: `scripts/advance-canary-stage.sh`  
 **Status tracker**: `docs/PHASE_B_GATE_STATUS.md`
 
-### Naming Convention
+**Naming Convention**
 
-All realignment flags use the prefix `FF_PHASE_[B|C|D]_<FEATURE>`.  
+All realignment flags use the prefix `FF_PHASE_B_`, `FF_PHASE_C_`, or `FF_PHASE_D_` followed by the feature name.  
 Examples: `FF_PHASE_B_PATROL_EVENTS`, `FF_PHASE_B_DISPATCH_ACK`.
 
 ### Rollout Pattern (all Phase B flags)

@@ -3,7 +3,7 @@
 **Document purpose**: Track the Phase A prerequisite gates and Phase B delivery slice status.  
 **Authoritative source**: `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md` sections 11.2, 11.2a, 12.1, and 12.1a  
 **Date**: 2026-05-05  
-**Status**: Phase A execution in progress (Week 2 complete)
+**Status**: Phase A execution in progress (Week 2 complete — May 19–25)
 
 ---
 
@@ -120,7 +120,7 @@ Per `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md` section 11.1a (June 10–August 
 
 ## Infrastructure Completed by PR #506
 
-The following artefacts were created as Phase B delivery infrastructure. They are ready but held behind feature flags until the Phase A gate is green:
+The following artifacts were created as Phase B delivery infrastructure. They are ready but held behind feature flags until the Phase A gate is green:
 
 ### Database Migrations
 
