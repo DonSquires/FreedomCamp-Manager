@@ -94,11 +94,18 @@ Material changes since commit `f0f381e2` (Phase B E2E stabilization and shard mi
 5. Isolation/regression shard: `0 failed, 20 passed, 40 skipped`
 6. Field/client shard (final rerun): `0 failed, 125 passed, 0 skipped`
 
+### Phase B Continuation Evidence (Post-Shard Segment)
+
+1. `tests/e2e/org-isolation-api.spec.ts`: `0 failed, 15 passed, 20 skipped`
+2. `tests/e2e/phase-b1-patrol-and-respond.spec.ts`: `0 failed, 20 passed, 5 skipped`
+3. `tests/e2e/client-portal-isolation.spec.ts` (after assertion hardening): `0 failed, 35 passed, 5 skipped`
+
 ### Stabilization Commits
 
 1. `b91caa47` — skip role assertions in universal-account mode
 2. `1748c2b3` — relax shared-account route assertions
 3. `815da16c` — stabilize shared-fallback route shards
+4. `20258b03` — relax client admin-route deny assertion for shared fallback environments
 
 Operational note:
 

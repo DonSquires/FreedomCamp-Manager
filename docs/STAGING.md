@@ -211,6 +211,25 @@ Latest Session Snapshot (Phase B Route-Access Shard Stabilization — 2026-05-05
 - Next exact command to run:
   - `cd /workspaces/FreedomCamp-Manager && python3 scripts/trigger-bob-self-test.mjs --spec tests/e2e/org-isolation-api.spec.ts --spec tests/e2e/client-portal-isolation.spec.ts --spec tests/e2e/phase-b1-patrol-and-respond.spec.ts`
 
+Latest Session Snapshot (Phase B Continuation — 2026-05-05):
+
+- Timestamp (NZ): 2026-05-05 21:20:00 NZST
+- Current branch: main
+- HEAD SHA: 20258b03a5f29fa1485f95a8766f4de8f5af50df
+- Working tree status (`git status -sb`): dirty (untracked migration file only)
+- Scope completed:
+  - Executed next-segment suites after route-access shard completion.
+  - Fixed residual `client-portal-isolation` deny assertion brittleness in shared-fallback mode.
+  - Revalidated all three target suites via RunPod token-auth execution.
+- Latest targeted test result:
+  - `tests/e2e/org-isolation-api.spec.ts`: 0 failed, 15 passed, 20 skipped
+  - `tests/e2e/phase-b1-patrol-and-respond.spec.ts`: 0 failed, 20 passed, 5 skipped
+  - `tests/e2e/client-portal-isolation.spec.ts`: 0 failed, 35 passed, 5 skipped
+- Open blockers with owner:
+  - None in current Phase B E2E segment.
+- Next exact command to run:
+  - `cd /workspaces/FreedomCamp-Manager && python3 scripts/trigger-bob-self-test.mjs --scope quick --reporter json`
+
 Latest Session Snapshot (Documentation Authority Update — 2026-05-04):
 
 - Timestamp (NZ): 2026-05-04 09:45:00 NZST
