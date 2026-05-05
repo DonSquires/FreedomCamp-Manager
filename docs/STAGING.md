@@ -1728,5 +1728,46 @@ Latest Session Snapshot (Phase A Org-Isolation Gate — Explicit Deployment Bloc
 4. Emergency rollback: `bash scripts/rollback-feature-flag.sh FF_PHASE_B_<NAME>`
 5. All transitions logged to `feature_flag_rollout_history`
 
-**Next session:** Phase C Slice C1 — Site Guard / Static Guard workflows and emergency assist integration.
+**Next session:** Phase C Slice C2 — Access Control, Face Recognition, Identity Verification, Site Risk Assessment.
+
+---
+
+### Session Snapshot (Phase C1 Site Guard — 2026-05-05):
+
+- Timestamp (NZ): 2026-05-05 NZST
+- Current branch: copilot/complete-phase-b-doc-review
+- Scope: Phase C Slice C1 — Site Guard / Static Guard workflows and emergency assist integration on the case backbone.
+
+**Artifacts Created:**
+
+| File | Description |
+|---|---|
+| `supabase/migrations/20260507000001_phase_c1_site_guard_case_bridge.sql` | Extends `operational_cases.case_type` and `.created_from` CHECK constraints to include `site_guard`; creates `site_guard_shifts` and `emergency_assist_events` tables; adds `case_id` FK to `site_incidents`. RLS org-scoped, 3 indexes on each new table. |
+| `src/hooks/useSiteGuardC1.ts` | `useStartSiteGuardShift`, `useEndSiteGuardShift`, `useSiteGuardCaseTimeline`, `useLogSiteIncidentToCase`, `useTriggerEmergencyAssist`, `useActiveEmergencyAssists` |
+| `tests/e2e/phase-c1-site-guard.spec.ts` | 9 scenarios: table existence, shift start creates site_guard case, incident linked to case, emergency assist stays active without closing case, shift end marks case completed, full timeline retrieval, org isolation. |
+| `.github/workflows/ci-phase-c1-site-guard-gate.yml` | Path-filtered CI gate (paths: spec + migration + hook + workflow) |
+
+**Phase C1 Gate Checklist:**
+
+| Item | Status | Evidence |
+|---|---|---|
+| C1 migration (`20260507000001`) | ✅ DONE | `site_guard_shifts` + `emergency_assist_events` + `case_type` extension |
+| C1 hook (`useSiteGuardC1.ts`) | ✅ DONE | 6 hooks: start/end shift, timeline, log incident, trigger assist, active assists |
+| C1 E2E gate suite | ✅ DONE | `tests/e2e/phase-c1-site-guard.spec.ts` — 9 scenarios |
+| C1 CI gate workflow | ✅ DONE | `.github/workflows/ci-phase-c1-site-guard-gate.yml` |
+| Build passes (`bun run build`) | ✅ | Verified locally |
+| Lint passes (`bun run lint`) | ✅ | Verified locally |
+
+**Phase C gate criteria status (from plan section 12.1):**
+1. ✅ Phase B gate green
+2. ⏳ Security assistive surfaces resolve people, vehicle, and place context from shared contracts (C2–C3)
+3. ✅ Site guard workflows attach to the same case/timeline model (C1 complete)
+
+**Key design decisions:**
+- `site_guard` added as a valid `case_type` and `created_from` value in `operational_cases` (CHECK constraint extended via DROP/ADD).
+- Emergency assist events do **not** auto-close the case — supervisor resolves manually. This preserves the dispatcher's ability to triage before marking complete.
+- `useActiveEmergencyAssists` polls every 30 s via `refetchInterval` so the command console surfaces active emergencies without a full realtime subscription.
+- `site_incidents.case_id` is nullable (SET NULL on cascade) so existing incidents created before C1 are not orphaned.
+
+**Next session:** Phase C Slice C2 — Access Control, Face Recognition, Identity Verification, Site Risk Assessment.
 

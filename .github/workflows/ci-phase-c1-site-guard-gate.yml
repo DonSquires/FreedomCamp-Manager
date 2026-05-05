@@ -1,0 +1,74 @@
+name: CI Phase C1 Site Guard Gate
+
+# Path-filtered gate that runs whenever the C1 site guard E2E spec,
+# its migration, the C1 hook, or the workflow file changes.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tests/e2e/phase-c1-site-guard.spec.ts'
+      - 'supabase/migrations/20260507000001_phase_c1_site_guard_case_bridge.sql'
+      - 'src/hooks/useSiteGuardC1.ts'
+      - 'tests/e2e/setup.ts'
+      - 'playwright.api.config.ts'
+      - 'package.json'
+      - 'bun.lock'
+      - '.github/workflows/ci-phase-c1-site-guard-gate.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'tests/e2e/phase-c1-site-guard.spec.ts'
+      - 'supabase/migrations/20260507000001_phase_c1_site_guard_case_bridge.sql'
+      - 'src/hooks/useSiteGuardC1.ts'
+      - 'tests/e2e/setup.ts'
+      - 'playwright.api.config.ts'
+      - 'package.json'
+      - 'bun.lock'
+      - '.github/workflows/ci-phase-c1-site-guard-gate.yml'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  phase-c1-site-guard-gate:
+    name: Phase C1 Site Guard Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    env:
+      VITE_SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY:    ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run Phase C1 site guard gate suite
+        run: |
+          bunx playwright test \
+            tests/e2e/phase-c1-site-guard.spec.ts \
+            --config=playwright.api.config.ts \
+            --reporter=list
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: phase-c1-site-guard-gate-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
