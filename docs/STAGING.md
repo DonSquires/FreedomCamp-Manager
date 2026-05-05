@@ -194,6 +194,25 @@ Fill this before stopping work:
 
 Latest Session Snapshot (Phase B Route-Access Shard Stabilization — 2026-05-05):
 
+Latest Session Snapshot (Phase B Quick Pair Validation — 2026-05-05):
+
+- Timestamp (NZ): 2026-05-05 19:59:38 NZST
+- Current branch: main
+- HEAD SHA: af5b2abd31c64742b060e75316c567e53cbdc268
+- Working tree status (`git status -sb`): clean except untracked draft migration (`supabase/migrations/20260504000005_phase_b1_patrol_and_respond.sql`)
+- Scope completed:
+  - Ran targeted quick pair suite for `client-portal-isolation` and `phase-b1-patrol-and-respond`.
+  - Confirmed no regressions after prior org-isolation test-path hardening.
+  - Saved fresh run summary for failure-first continuation.
+- Latest targeted test result (RunPod, targeted quick pair):
+  - Job `c39deea7-11fe-4e6f-b72e-3f8916c31a9d-u2`
+  - Specs: `tests/e2e/client-portal-isolation.spec.ts`, `tests/e2e/phase-b1-patrol-and-respond.spec.ts`
+  - Result: 0 failed, 51 passed, 14 skipped
+- Open blockers with owner:
+  - None in this quick pair lane.
+- Next exact command to run:
+  - `cd /workspaces/FreedomCamp-Manager && BOB_WORKER_GITHUB_TOKEN="$GITHUB_TOKEN" $HOME/.bun/bin/bun scripts/trigger-bob-self-test.mjs --rerunFailedOnly --lastRunFile data/bob-last-runpod-self-test.json`
+
 Latest Session Snapshot (Org-Isolation Flake Triage — 2026-05-05):
 
 - Timestamp (NZ): 2026-05-05 19:49:41 NZST
