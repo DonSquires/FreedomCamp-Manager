@@ -37,6 +37,8 @@ jobs:
     name: Phase B4 Enforcement Timeline Gate
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
 
     env:
       VITE_SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
