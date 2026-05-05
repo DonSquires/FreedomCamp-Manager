@@ -52,8 +52,12 @@ function sharedPassword(...names: string[]): string {
   return readEnv(...names) || 'Test123!'
 }
 
-const universalTestEmail = readEnv('PLAYWRIGHT_TEST_EMAIL', 'PLAYWRIGHT_OFFICER_EMAIL', 'PLAYWRIGHT_OWNER_EMAIL')
-const universalTestPassword = sharedPassword('PLAYWRIGHT_TEST_PASSWORD', 'PLAYWRIGHT_OFFICER_PASSWORD', 'PLAYWRIGHT_OWNER_PASSWORD')
+const universalTestEmail =
+  readEnv('PLAYWRIGHT_OWNER_EMAIL', 'PLAYWRIGHT_OFFICER_EMAIL', 'PLAYWRIGHT_TEST_EMAIL') ||
+  'squires.don@gmail.com'
+const universalTestPassword =
+  readEnv('PLAYWRIGHT_OWNER_PASSWORD', 'PLAYWRIGHT_OFFICER_PASSWORD', 'PLAYWRIGHT_TEST_PASSWORD') ||
+  'Run2thesun??'
 
 const defaultLiveEmail = readEnv(
   'PLAYWRIGHT_TEST_EMAIL',
