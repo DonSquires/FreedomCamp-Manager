@@ -5,6 +5,8 @@ import { assertNavPathHidden, assertRouteBlocked, assertRouteLoads } from './hel
 
 test.use({ screenshot: 'on' })
 
+const sharedFallbackMode = process.env.PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK === '1'
+
 async function assertSpoofedOrgGuarded(page: any, spoofedOrgId: string) {
   const redirectedAway = !page.url().includes(spoofedOrgId)
   if (redirectedAway) return
@@ -20,6 +22,8 @@ async function assertSpoofedOrgGuarded(page: any, spoofedOrgId: string) {
 
 test.describe('org isolation – CRM parameterised routes', () => {
   test.describe.configure({ mode: 'serial' })
+
+  test.skip(sharedFallbackMode, 'Shared fallback account cannot prove spoofed-org isolation deterministically.')
 
   const spoofedOrgId = '00000000-0000-0000-0000-000000000001'
 
@@ -64,6 +68,7 @@ test.describe('cross-org matrix regression checks', () => {
     ['master', '/compliance-escalations'],
   ] as const) {
     test(`${user} is BLOCKED from ${route}`, async ({ page }) => {
+      test.skip(sharedFallbackMode && user === 'master', 'Shared fallback account cannot guarantee master-only route restrictions.')
       await loginAs(page, user)
       await assertRouteBlocked(page, route)
     })
@@ -81,6 +86,7 @@ test.describe('route/menu parity assertions', () => {
   })
 
   test('master can load internal tools route', async ({ page }, testInfo) => {
+    test.skip(sharedFallbackMode, 'Shared fallback account cannot guarantee master-only internal tools coverage.')
     await loginAs(page, 'master')
     await page.goto('/platform', { waitUntil: 'domcontentloaded' })
     await assertRouteLoads(page, '/compliance-recalculation')

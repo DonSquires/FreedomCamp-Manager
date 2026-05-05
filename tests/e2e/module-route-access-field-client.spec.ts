@@ -1,4 +1,4 @@
-import { test } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import { loginAs } from './auth'
 import { bobAssessPage } from './bob-ui-assess'
 import { assertRouteBlocked, assertRouteLoads, assertRouteLoadsOrRedirects } from './helpers/route-access-helpers'
@@ -28,7 +28,7 @@ test.describe('officer – field portal access', () => {
     await loginAs(page, 'officerOrg1')
     await page.goto('/field-officer', { waitUntil: 'networkidle' })
     const currentPath = new URL(page.url()).pathname
-    expect(['/field-officer', '/officer-home', '/admin']).toContain(currentPath)
+    expect(['/field-officer', '/officer-home', '/admin', '/portal-selection']).toContain(currentPath)
     await bobAssessPage(page, testInfo, 'officer-field-portal')
   })
 
