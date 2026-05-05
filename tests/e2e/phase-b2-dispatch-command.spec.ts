@@ -142,7 +142,31 @@ test.describe('Phase B2: Dispatch and Command', () => {
       return
     }
 
-    const { data: ackData, error } = await supabaseAdmin
+    // Record the assignment stage first, then acknowledgement
+    const { data: assignedData, error: assignedError } = await supabaseAdmin
+      .from('dispatch_acknowledgement_log')
+      .insert({
+        organization_id: orgId,
+        case_id: caseId,
+        dispatch_job_id: dispatchJobId,
+        officer_id: officerId,
+        lifecycle_stage: 'assigned',
+        callsign: 'ALPHA-1',
+        notes: 'Officer assigned to dispatch',
+      })
+      .select('id, lifecycle_stage, callsign')
+      .single()
+
+    if (assignedError) {
+      // Table may not exist in target env yet — skip
+      test.skip()
+      return
+    }
+
+    expect(assignedData.lifecycle_stage).toBe('assigned')
+    expect(assignedData.callsign).toBe('ALPHA-1')
+
+    const { data: ackData, error: ackError } = await supabaseAdmin
       .from('dispatch_acknowledgement_log')
       .insert({
         organization_id: orgId,
@@ -156,8 +180,7 @@ test.describe('Phase B2: Dispatch and Command', () => {
       .select('id, lifecycle_stage, callsign')
       .single()
 
-    if (error) {
-      // Table may not exist in target env yet — skip
+    if (ackError) {
       test.skip()
       return
     }
@@ -172,7 +195,9 @@ test.describe('Phase B2: Dispatch and Command', () => {
       return
     }
 
-    const stages: Array<'assigned' | 'en_route' | 'on_scene'> = ['assigned', 'en_route', 'on_scene']
+    // 'assigned' and 'acknowledged' are already recorded by the previous test.
+    // Continue from en_route → on_scene.
+    const stages: Array<'en_route' | 'on_scene'> = ['en_route', 'on_scene']
 
     for (const stage of stages) {
       const { data, error } = await supabaseAdmin

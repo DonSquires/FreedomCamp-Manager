@@ -14,7 +14,8 @@ CREATE INDEX IF NOT EXISTS idx_breach_alerts_case_id
 -- Helper function: create an operational case from a breach alert.
 -- Records the initial enforcement_initiated event automatically.
 CREATE OR REPLACE FUNCTION public.create_case_from_breach_alert(
-  p_breach_alert_id UUID
+  p_breach_alert_id UUID,
+  p_officer_id      UUID DEFAULT NULL
 )
 RETURNS UUID LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
@@ -22,6 +23,7 @@ DECLARE
   v_org_id         UUID;
   v_plate          TEXT;
   v_zone_name      TEXT;
+  v_officer_id     UUID;
 BEGIN
   SELECT ba.organization_id, ba.plate_number, z.name
     INTO v_org_id, v_plate, v_zone_name
@@ -32,6 +34,10 @@ BEGIN
   IF v_org_id IS NULL THEN
     RAISE EXCEPTION 'Breach alert % not found', p_breach_alert_id;
   END IF;
+
+  -- Use explicit officer_id when provided (e.g. from service-role admin context),
+  -- otherwise fall back to the calling user's auth.uid().
+  v_officer_id := COALESCE(p_officer_id, auth.uid());
 
   -- Create the operational case
   INSERT INTO public.operational_cases (
@@ -45,7 +51,7 @@ BEGIN
     'enforcement',
     'breach',
     'Enforcement: ' || COALESCE(v_plate, 'unknown') || ' — ' || COALESCE(v_zone_name, 'unknown zone'),
-    auth.uid()
+    v_officer_id
   )
   RETURNING id INTO v_case_id;
 
@@ -67,10 +73,10 @@ BEGIN
     v_org_id,
     v_case_id,
     'enforcement_initiated',
-    auth.uid(),
+    v_officer_id,
     'vehicle',
     v_plate,
-    auth.uid()
+    v_officer_id
   );
 
   RETURN v_case_id;

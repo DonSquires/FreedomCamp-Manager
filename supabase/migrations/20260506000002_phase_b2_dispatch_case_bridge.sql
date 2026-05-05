@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS public.dispatch_acknowledgement_log (
   organization_id        UUID        NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   case_id                UUID        NOT NULL REFERENCES public.operational_cases(id) ON DELETE CASCADE,
   dispatch_job_id        UUID        NOT NULL REFERENCES public.dispatch_jobs(id) ON DELETE CASCADE,
-  officer_id             UUID        NOT NULL REFERENCES public.user_profiles(id) ON DELETE SET NULL,
+  officer_id             UUID        REFERENCES public.user_profiles(id) ON DELETE SET NULL,
 
   -- Lifecycle stage being acknowledged
   lifecycle_stage        TEXT        NOT NULL DEFAULT 'acknowledged'

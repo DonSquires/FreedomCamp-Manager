@@ -147,6 +147,7 @@ export function useRecordEnforcementEvent() {
     mutationFn: async (input: {
       caseId: string
       officerId: string
+      organizationId: string
       eventType:
         | 'enforcement_initiated'
         | 'enforcement_warning_issued'
@@ -165,6 +166,7 @@ export function useRecordEnforcementEvent() {
       const { data, error } = await sb
         .from('enforcement_events')
         .insert({
+          organization_id: input.organizationId,
           case_id: input.caseId,
           officer_id: input.officerId,
           event_type: input.eventType,
@@ -197,9 +199,16 @@ export function useCloseEnforcementCase() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (input: { caseId: string; officerId: string; outcome: string; notes?: string }) => {
+    mutationFn: async (input: {
+      caseId: string
+      officerId: string
+      organizationId: string
+      outcome: string
+      notes?: string
+    }) => {
       // Record enforcement_completed event
       const { error: evtError } = await sb.from('enforcement_events').insert({
+        organization_id: input.organizationId,
         case_id: input.caseId,
         officer_id: input.officerId,
         event_type: 'enforcement_completed',

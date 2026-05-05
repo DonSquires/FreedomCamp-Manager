@@ -239,6 +239,8 @@ test.describe('Phase B4: Freedom Camping Enforcement Timeline', () => {
       case_id: caseId,
       officer_id: officerId,
       event_type: 'enforcement_completed',
+      subject_type: 'vehicle',
+      subject_identifier: 'B4TEST1',
       outcome: 'Notice issued and vehicle agreed to depart within 24h',
     })
     expect(evtError).toBeNull()
