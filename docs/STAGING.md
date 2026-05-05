@@ -2002,3 +2002,41 @@ All Sprint 1 VOC backlog items (B-01 through B-09) are now shipped:
 - Route/roadmap grounding check for any new public routes added
 - Triad review on B-10/B-11 public portal before deployment (privacy + legal gate)
 
+---
+
+## Phase 5 — Sprint 2 Session (2026-05-05)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `supabase/migrations/20260505000001_public_noise_complaints.sql` | B-13: New table `public_noise_complaints` — address, description, noise_type, optional contact, status, status_message, sequential reference (`NCC-YYYY-NNNNNN`). Auto-trigger for reference generation. Anon insert + select RLS; staff update RLS via `get_user_organization_ids()`. |
+| `src/types/database.ts` | B-13: Added `public_noise_complaints` Row/Insert/Update types. |
+| `src/pages/PublicFreedomCampingMap.tsx` | B-10: New public page (`/public/zone-map`). No login required. Fetches freedom-camping zones (`zone_type` in `freedom_camp / freedom_camping / freedom_camping_zone / camping`). Shows status (open/restricted/closed based on seasonal months), rules (max nights, self-contained, day-only), allowed days, land manager, bylaw reference, GPS map link. 5-min stale cache. Search filter. |
+| `src/pages/PublicNoiseComplaintPortal.tsx` | B-13: New public page (`/public/noise-complaint`). Submit tab: address, description, noise type, optional contact → inserts into `public_noise_complaints` and shows reference. Status tab: reference lookup → shows live status + officer message. |
+| `src/App.tsx` | Registered `/public/zone-map` and `/public/noise-complaint` as unauthenticated public routes (same pattern as `/dispute`). |
+
+### B-10 / B-13 Success Criteria
+
+- [x] B-10: `/public/zone-map` requires no login; fetches zones with `zone_type` in freedom-camping set
+- [x] B-10: Zone cards show open/restricted/closed status, max nights, self-contained flag, day-only flag, bylaw ref, GPS link
+- [x] B-10: 5-min stale time (close to "< 5 min of enforcement change" VOC target)
+- [x] B-10: Cross-linked to B-13 complaint portal and existing `/dispute` page
+- [x] B-13: `/public/noise-complaint` requires no login
+- [x] B-13: Submit → inserts `public_noise_complaints` row → shows `NCC-YYYY-NNNNNN` reference
+- [x] B-13: Status tab → lookup by reference → shows status badge + officer message
+- [x] B-13: Anon RLS allows insert/select; staff update requires org membership
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS
+
+### Sprint 2 Remaining
+
+| ID | Item | Status |
+|---|---|---|
+| B-10 | Public freedom camping zone map | ✅ |
+| B-11 | Multi-language public portal | ⬜ (depends on B-10; needs translation strings) |
+| B-12 | Automated DOC / council data sync | ⬜ (needs DOC API key confirmation) |
+| B-13 | Public noise complaint portal | ✅ |
+| B-14 | Wearable (Apple Watch) integration | ⬜ (needs WatchOS path validation) |
+
+**Next session:** B-11 (i18n for `/public/zone-map` + `/public/noise-complaint`) or B-12 (nightly DOC sync scaffold).

@@ -78,6 +78,8 @@ const Profile = lazy(() => import('@/pages/Profile'))
 const VehicleRegistry = lazy(() => import('@/pages/VehicleRegistry'))
 const CanonicalRecordsManager = lazy(() => import('@/pages/CanonicalRecordsManager'))
 const PublicDisputePortal = lazy(() => import('@/pages/PublicDisputePortal'))
+const PublicFreedomCampingMap = lazy(() => import('@/pages/PublicFreedomCampingMap'))
+const PublicNoiseComplaintPortal = lazy(() => import('@/pages/PublicNoiseComplaintPortal'))
 const Disputes = lazy(() => import('@/pages/Disputes'))
 const Platform = lazy(() => import('@/pages/Platform'))
 const ComplianceEscalations = lazy(() => import('@/pages/ComplianceEscalations'))
@@ -609,6 +611,8 @@ export default function App() {
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/dispute" element={<PublicDisputePortal />} />
+          <Route path="/public/zone-map" element={<PublicFreedomCampingMap />} />
+          <Route path="/public/noise-complaint" element={<PublicNoiseComplaintPortal />} />
           <Route
             path="/portal-selection"
             element={
