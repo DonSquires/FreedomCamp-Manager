@@ -2034,12 +2034,12 @@ All Sprint 1 VOC backlog items (B-01 through B-09) are now shipped:
 | ID | Item | Status |
 |---|---|---|
 | B-10 | Public freedom camping zone map | ✅ |
-| B-11 | Multi-language public portal | ⬜ (depends on B-10; needs translation strings) |
-| B-12 | Automated DOC / council data sync | ✅ |
+| B-11 | Multi-language public portal | ✅ |
+| B-12 | Automated DOC / council data sync | ✅ (scaffold — live sync needs `DOC_API_KEY`) |
 | B-13 | Public noise complaint portal | ✅ |
 | B-14 | Wearable (Apple Watch) integration | ⬜ (needs WatchOS path validation) |
 
-**Next session:** B-11 (i18n for `/public/zone-map` + `/public/noise-complaint`) or B-12 (nightly DOC sync scaffold).
+**Next session:** B-14 (wearable integration) or Phase 5 Sprint 3 planning.
 
 ---
 
@@ -2077,5 +2077,29 @@ All Sprint 1 VOC backlog items (B-01 through B-09) are now shipped:
 | B-12 | Automated DOC / council data sync | ✅ (scaffold — live sync needs `DOC_API_KEY`) |
 | B-13 | Public noise complaint portal | ✅ |
 | B-14 | Wearable (Apple Watch) integration | ⬜ (needs WatchOS path validation) |
+
+**Next session:** B-14 (wearable integration) or Phase 5 Sprint 3 planning.
+
+---
+
+## Phase 5 Sprint 2 — RLS Hotfix (2026-05-05)
+
+### Problem
+`public.zones` had no anon SELECT policy. The public zone map (`/public/zone-map`, B-10) queried `zones` without authentication, so RLS blocked all rows — the page always showed zero zones.
+
+### Changes
+
+| File | Change |
+|---|---|
+| `supabase/migrations/20260505000005_zones_public_read.sql` | Adds `zones_public_read` policy: anon SELECT on `public.zones` restricted to `is_active = true`. Authenticated policies (users_view_zones etc.) are unchanged. |
+| `docs/STAGING.md` | Fixed stale B-11 ⬜ status in old sprint board; added this hotfix session snapshot. |
+
+### Success Criteria
+
+- [x] Anon can SELECT `zones` where `is_active = true`
+- [x] Authenticated write/delete policies are unchanged
+- [x] `/public/zone-map` will now return zone rows without authentication
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS
 
 **Next session:** B-14 (wearable integration) or Phase 5 Sprint 3 planning.
