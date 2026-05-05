@@ -125,7 +125,14 @@ Deno.serve(withCors(async (req: Request) => {
               : {}),
           },
           body: runpodServerless
-            ? JSON.stringify({ input: { action: 'assess', type: 'biosecurity', image_description: imageBase64 ? 'image provided' : 'no image', ...formBody } })
+            ? JSON.stringify({
+                input: {
+                  action: 'ui_vision',
+                  image_b64: imageBase64,
+                  focus: 'general',
+                  context: `NZ biosecurity field assessment. Identify any invasive plant species (especially Nassella neesiana, climbing spindle berry, or other pest plants). GPS: ${gpsLat ?? 'unknown'}, ${gpsLng ?? 'unknown'}. Address: ${address || 'unknown'}. Respond in JSON: {dominant_species, species: [{name, confidence, invasive, action_required}], density_estimate, risk_level, checklist_prefill, recommended_action, compliance_notes}`,
+                },
+              })
             : JSON.stringify(formBody),
           signal: AbortSignal.timeout(90_000),
         }
@@ -133,7 +140,14 @@ Deno.serve(withCors(async (req: Request) => {
 
       if (inferResp.ok) {
         const raw = await inferResp.json()
-        aiResult = raw?.output ?? raw
+        const payload = raw?.output ?? raw
+        // ui_vision returns { analysis, ... }; /infer/biosecurity returns { identification, ... }
+        // normalise to the shape the rest of this function expects: { identification, weather }
+        if (payload?.analysis && !payload?.identification) {
+          aiResult = { identification: payload.analysis, weather: payload.weather ?? null, success: payload.success }
+        } else {
+          aiResult = payload
+        }
       } else {
         const errText = await inferResp.text().catch(() => '')
         console.error('biosecurity-assess inference error:', inferResp.status, errText.slice(0, 200))
