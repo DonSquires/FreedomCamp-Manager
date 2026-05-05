@@ -1,3 +1,4 @@
+import { createClient } from '@supabase/supabase-js'
 import type { Page } from '@playwright/test'
 
 export type TestUserKey =
@@ -82,6 +83,16 @@ const hasUniversalTestAccount = !!(universalTestEmail && universalTestPassword)
 const allowSharedFallback = readEnv('PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK') === '1' || hasUniversalTestAccount
 const skipRoleAssertions = readEnv('PLAYWRIGHT_SKIP_ROLE_ASSERTIONS') === '1'
 const roleAssertionMode = readEnv('PLAYWRIGHT_ROLE_ASSERTION_MODE') || 'strict'
+const adminSupabaseUrl = readEnv('VITE_SUPABASE_URL')
+const serviceRoleKey = readEnv('PLAYWRIGHT_SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_ROLE_KEY')
+const serviceRoleSupabase = adminSupabaseUrl && serviceRoleKey
+  ? createClient(adminSupabaseUrl, serviceRoleKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    })
+  : null
 // Profile mutations are opt-in to avoid changing persistent user settings in
 // shared/staging environments. Enable both flags in isolated test sandboxes.
 const allowProfileMutations = readEnv('PLAYWRIGHT_ALLOW_PROFILE_MUTATIONS') === '1' || hasUniversalTestAccount
@@ -337,6 +348,42 @@ function normalize(value: string | null | undefined): string {
   return (value || '').trim().toLowerCase()
 }
 
+function mapResolvedProfile(profile: {
+  id: string
+  email?: string | null
+  role?: string | null
+  organization?: { name?: string | null } | Array<{ name?: string | null }> | null
+  employer_org?: { name?: string | null } | Array<{ name?: string | null }> | null
+}): ResolvedProfile {
+  const organization = Array.isArray(profile.organization) ? profile.organization[0] : profile.organization
+  const employerOrganization = Array.isArray(profile.employer_org) ? profile.employer_org[0] : profile.employer_org
+
+  return {
+    id: profile.id,
+    email: profile.email ?? null,
+    role: profile.role ?? null,
+    organizationName: organization?.name ?? null,
+    employerOrganizationName: employerOrganization?.name ?? null,
+  }
+}
+
+async function fetchResolvedProfileByEmail(email: string): Promise<ResolvedProfile | null> {
+  if (!serviceRoleSupabase || !email) return null
+
+  const { data, error } = await serviceRoleSupabase
+    .from('user_profiles')
+    .select('id,email,role,organization:organizations!organization_id(name),employer_org:organizations!employer_organization_id(name)')
+    .ilike('email', email)
+    .limit(1)
+
+  if (error) {
+    throw new Error(`Service-role profile lookup failed for ${email}: ${error.message}`)
+  }
+
+  const profile = data?.[0]
+  return profile?.id ? mapResolvedProfile(profile) : null
+}
+
 async function fetchResolvedProfile(page: Page): Promise<ResolvedProfile | null> {
   const supabaseUrl = readEnv('VITE_SUPABASE_URL')
   const anonKey = readEnv('VITE_SUPABASE_ANON_KEY')
@@ -386,15 +433,9 @@ async function fetchResolvedProfile(page: Page): Promise<ResolvedProfile | null>
   const profile = profiles[0]
   if (!profile?.id) return null
 
-  const organization = Array.isArray(profile.organization) ? profile.organization[0] : profile.organization
-  const employerOrganization = Array.isArray(profile.employer_org) ? profile.employer_org[0] : profile.employer_org
-
   return {
-    id: profile.id,
+    ...mapResolvedProfile(profile),
     email: profile.email ?? authUser.email ?? null,
-    role: profile.role ?? null,
-    organizationName: organization?.name ?? null,
-    employerOrganizationName: employerOrganization?.name ?? null,
   }
 }
 
@@ -402,9 +443,8 @@ async function autoSetRoleForTestUser(page: Page, user: TestUserKey): Promise<bo
   if (!allowProfileMutations || !autoSetTestRole) return false
 
   const targetRole = desiredRoleByTestUser[user]
-  const profile = await fetchResolvedProfile(page)
+  const profile = await fetchResolvedProfile(page) || await fetchResolvedProfileByEmail(getTestUser(user).email)
   if (!profile?.id) {
-    // Profile lookup failed (e.g. transient 403 during concurrent sessions) – skip role assertion.
     console.warn(`[auth] Cannot auto-set role for ${user}; profile could not be resolved – continuing with current role.`)
     return false
   }
@@ -412,6 +452,23 @@ async function autoSetRoleForTestUser(page: Page, user: TestUserKey): Promise<bo
   const currentRole = normalize(profile.role)
   if (currentRole === normalize(targetRole)) {
     return false
+  }
+
+  if (serviceRoleSupabase) {
+    const { error } = await serviceRoleSupabase
+      .from('user_profiles')
+      .update({ role: targetRole })
+      .eq('id', profile.id)
+
+    if (error) {
+      throw new Error(
+        `Failed to auto-set role for ${user} from ${profile.role || 'unknown'} to ${targetRole}. ` +
+          `Service-role update failed: ${error.message}`
+      )
+    }
+
+    await page.reload({ waitUntil: 'networkidle' })
+    return true
   }
 
   const supabaseUrl = readEnv('VITE_SUPABASE_URL')
@@ -453,10 +510,8 @@ async function assertExpectedLoginProfile(page: Page, user: TestUserKey): Promis
   if (skipRoleAssertions) return
 
   const expected = expectedProfileConfig[user]
-  const profile = await fetchResolvedProfile(page)
+  const profile = await fetchResolvedProfile(page) || await fetchResolvedProfileByEmail(getTestUser(user).email)
   if (!profile) {
-    // Transient auth lookups can fail (for example during token rotation).
-    // Continue the test flow and rely on route-level assertions for access checks.
     console.warn(`[auth] Unable to resolve authenticated profile for ${user}; skipping role assertion for this login.`)
     return
   }
@@ -585,33 +640,6 @@ async function getAccessTokenFromBrowser(page: Page): Promise<string | null> {
 
     return null
   })
-}
-
-async function waitForBrowserAccessToken(page: Page): Promise<void> {
-  await page.waitForFunction(() => {
-    const storages: Storage[] = [window.localStorage, window.sessionStorage]
-
-    for (const storage of storages) {
-      for (let i = 0; i < storage.length; i += 1) {
-        const key = storage.key(i)
-        if (!key || !key.startsWith('sb-') || !key.includes('-auth-token')) continue
-
-        const raw = storage.getItem(key)
-        if (!raw) continue
-
-        try {
-          const parsed = JSON.parse(raw)
-          if (typeof parsed?.access_token === 'string' && parsed.access_token.length > 20) {
-            return true
-          }
-        } catch {
-          // ignore malformed storage values while waiting for hydration
-        }
-      }
-    }
-
-    return false
-  }, { timeout: 5000 }).catch(() => undefined)
 }
 
 async function ensureWorkAreaPermission(page: Page): Promise<void> {
@@ -756,7 +784,6 @@ export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
   // Some roles (for example admin_officer) are redirected to portal selection
   // and must choose a portal before route access is unlocked.
   await resolvePortalSelectionIfNeeded(page, user)
-  await waitForBrowserAccessToken(page)
 
   // Best-effort: ensure the user can work in the configured council area
   // (defaults to Nelson City Council for location-based test flows).
@@ -764,7 +791,6 @@ export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
   await autoSetRoleForTestUser(page, user)
   // Role auto-set reload can return the user to portal-selection.
   await resolvePortalSelectionIfNeeded(page, user)
-  await waitForBrowserAccessToken(page)
   await assertExpectedLoginProfile(page, user)
 
   await page.waitForLoadState('networkidle').catch(() => undefined)
