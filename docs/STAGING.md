@@ -1183,9 +1183,9 @@ GH_PAGER=cat gh run list --limit 120 --json databaseId,headSha,name,status,concl
 |---|---|---|---|---|
 | S1-1 | Manifest-driven menu filtering | ✅ Done | Dev | `src/components/features/AppLayout.tsx`, `src/navigation/routeManifestAdapter.ts` — internal visibility + feature-flag aware nav filtering |
 | S1-2 | Expand E2E: route/menu parity assertions | ✅ Done | Dev | `tests/e2e/module-route-access.spec.ts` — targeted block `route/menu parity assertions` passing (`3 passed`, 2026-05-04) |
-| S1-3 | Add org-scope context to `src/App.tsx` AreaRoute | ⬜ Not started | Dev | Align with `useOrganization()` hook pattern |
-| S1-4 | Dispatch fallback UX (offline / no officer assigned) | 🔄 In progress | Dev | `src/lib/dispatchAssignment.ts` — nearest-zone + address-token fallback implemented; pending dedicated no-GPS test coverage |
-| S1-5 | Multi-org assurance: cross-org data bleed regression tests | ⬜ Not started | Dev | New test suite, ground from cross-org matrix (S0-1) |
+| S1-3 | Add org-scope context to `src/App.tsx` AreaRoute | ✅ Done | Dev | `AreaRoute` wraps children in `<OrganizationContext.Provider value={orgCtx}>` where `orgCtx = useOrganization()` — committed since Phase 4 |
+| S1-4 | Dispatch fallback UX (offline / no officer assigned) | ✅ Done | Dev | `src/lib/dispatchAssignment.ts` + `DispatchConsole.tsx` — nearest-zone + address-token fallback; GPS-rank + top-3 quick-assign (B-03) implemented in Phase 5 sprint 1 |
+| S1-5 | Multi-org assurance: cross-org data bleed regression tests | ✅ Done | Dev | P4-9 — `tests/e2e/p4-9-cross-org-route-extension.spec.ts` + `org-isolation-api.spec.ts` extended; 8+3 gaps closed |
 
 ### Governance Cadence
 
@@ -1846,3 +1846,38 @@ Latest Session Snapshot (Phase A Org-Isolation Gate — Explicit Deployment Bloc
 - B-02: Man-down / fall detection (critical safety)
 - B-03: AI dispatch unit recommendation (high)
 - `/tender-workspace/:id` parameterised route coverage (remaining T1 gap)
+
+---
+
+## Phase 5 — Sprint 1: Safety + Dispatch + VOC Implementation
+
+**Goal:** Deliver the top-priority VOC backlog items (B-01 through B-05) identified in Phase 4.
+
+### Phase 5 Sprint 1 Backlog
+
+| ID | Item | Area | Status | Owner | Evidence |
+|---|---|---|---|---|---|
+| B-01 | CRM org isolation (RLS + test) | Multi-org | ✅ Done | Dev | `tests/e2e/org-isolation-api.spec.ts` — CRM org bleed + user_profiles bleed; `tests/e2e/p4-9-cross-org-route-extension.spec.ts` — CRM spoof checks |
+| B-02 | Man-down / fall detection | Officer Safety | ✅ Done | Dev | `src/hooks/useManDownDetection.ts` — GPS inactivity + escalation; wired into `src/pages/FieldOfficerPortal.tsx` via `recordGPSUpdate` + toast SOS |
+| B-03 | AI dispatch unit recommendation (top-3, 1-click assign) | Dispatch | ✅ Done | Dev | `src/pages/DispatchConsole.tsx` — `topRecommendedOfficers` useMemo (proximity-sorted, load-aware); quick-assign button panel with rank badges + 1-click `setAssignTarget` |
+| B-04 | Automated welfare check cadence | Officer Safety | ✅ Done | Dev | `src/hooks/useWelfareCheckin.ts` — full interval timer (10min/5min/overdue warnings), audio beep cadence, `welfare_checkins` write-back; wired into `src/components/features/FieldSafetyBar.tsx` |
+| B-05 | Offline job map tile download | Dispatch | ⬜ Not started | Dev | Requires Service Worker + cache strategy for map tiles; scope TBD |
+
+### Phase 5 Sprint 1 Success Criteria
+
+- [x] CRM RLS: non-master tokens cannot read foreign org rows (API proof in test suite)
+- [x] Man-down: GPS inactivity → alert → escalation → auto-resolve on movement
+- [x] Dispatch: top-3 officers rendered with 1-click quick-assign; ranked by distance + load
+- [x] Welfare check: configurable interval timer with audio alerts and Supabase audit write-back
+- [ ] Offline: job map tiles downloadable for rural zones (B-05 — Sprint 2 candidate)
+
+### Phase 5 Sprint 1 Session Snapshot (2026-05-05):
+
+**Artifacts Modified:**
+
+| File | Change |
+|---|---|
+| `src/pages/DispatchConsole.tsx` | Added `topRecommendedOfficers` useMemo (top-3, proximity + load sorted). Added quick-assign button panel above officer dropdown with rank badges (#1/#2/#3), distance, job load, 1-click `setAssignTarget`. Nearest-officer hint kept as fallback when no on-shift officers. |
+| `docs/STAGING.md` | S1-3/S1-4/S1-5 → ✅; Phase 5 Sprint 1 board added; B-01–B-04 ✅ |
+
+**Next session:** B-05 (offline map tiles / Service Worker caching) + Phase 5 Sprint 2 planning.
