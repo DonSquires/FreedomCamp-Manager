@@ -42,23 +42,53 @@ export function GlobalFilterRibbon({
     clearFilters,
   } = useGlobalFiltersStore()
 
-  // Non-master users are fixed to their own organization scope.
-  const effectiveOrganizationId =
-    organizationId || (user?.role !== 'master' ? user?.organization_id ?? null : null)
+  // Non-master users are fixed to their own organization scope unless they are
+  // admin/admin_officer with multi-org (descendant) access.
+  const canSwitchOrg =
+    user?.role === 'master' ||
+    user?.role === 'grand_master' ||
+    user?.role === 'admin' ||
+    user?.role === 'admin_officer'
 
-  // Fetch organizations
+  const effectiveOrganizationId =
+    canSwitchOrg && organizationId
+      ? organizationId
+      : user?.organization_id ?? null
+
+  // For master/grand_master: fetch all orgs.
+  // For admin/admin_officer: fetch descendant orgs only so they can't
+  // spoof other org IDs that aren't in their access tree.
+  const isMasterLevel = user?.role === 'master' || user?.role === 'grand_master'
+
   const { data: organizations } = useQuery({
-    queryKey: ['organizations-filter'],
+    queryKey: ['organizations-filter', user?.organization_id, isMasterLevel],
     queryFn: async () => {
-      const { data, error } = await (supabase.from('organizations') as any)
+      if (isMasterLevel) {
+        const { data, error } = await (supabase.from('organizations') as any)
+          .select('id, name')
+          .eq('is_active', true)
+          .order('name')
+        if (error) throw error
+        return data as { id: string; name: string }[]
+      }
+      // admin / admin_officer — fetch descendant tree only
+      const { data, error } = await (supabase.rpc as any)(
+        'get_descendant_organizations',
+        { org_id: user?.organization_id },
+      )
+      if (error) throw error
+      const ids: string[] = (data ?? []) as string[]
+      if (ids.length <= 1) return []  // Only own org — no switcher needed
+      const { data: orgs, error: orgsErr } = await (supabase.from('organizations') as any)
         .select('id, name')
+        .in('id', ids)
         .eq('is_active', true)
         .order('name')
-
-      if (error) throw error
-      return data
+      if (orgsErr) throw orgsErr
+      return (orgs ?? []) as { id: string; name: string }[]
     },
-    enabled: showOrgFilter && user?.role === 'master',
+    enabled: showOrgFilter && canSwitchOrg,
+    staleTime: 5 * 60 * 1000,
   })
 
   // Fetch zones
@@ -178,7 +208,7 @@ export function GlobalFilterRibbon({
           )}
 
           {/* Organization Filter */}
-          {showOrgFilter && user?.role === 'master' && (
+          {showOrgFilter && canSwitchOrg && organizations && organizations.length > 0 && (
             <div className="flex items-center gap-2">
               <Building2 className="h-4 w-4 text-gray-500" />
               <Select

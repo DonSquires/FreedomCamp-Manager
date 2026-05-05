@@ -113,7 +113,11 @@ export default function Reports() {
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
 
   const effectiveOrgId =
-    user?.role !== 'master' ? user?.organization_id || null : organizationId || null
+    user?.role === 'grand_master' || user?.role === 'master'
+      ? organizationId || null
+      : organizationId && (user?.role === 'admin' || user?.role === 'admin_officer')
+        ? organizationId   // admin/admin_officer may switch to child org via ribbon
+        : user?.organization_id || null
 
   const reportDateTo = dateTo || new Date().toISOString().slice(0, 10)
   const reportDateFrom =

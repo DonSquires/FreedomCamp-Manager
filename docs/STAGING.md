@@ -1881,3 +1881,28 @@ Latest Session Snapshot (Phase A Org-Isolation Gate — Explicit Deployment Bloc
 | `docs/STAGING.md` | S1-3/S1-4/S1-5 → ✅; Phase 5 Sprint 1 board added; B-01–B-04 ✅ |
 
 **Next session:** B-05 (offline map tiles / Service Worker caching) + Phase 5 Sprint 2 planning.
+
+---
+
+## Phase 5 Sprint 1 Continuation — B-05/B-06 (2026-05-05)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `public/sw.js` | v2.5.0 — added OSM tile cache-first handler (`TILE_CACHE = fieldops-tiles-v1`); preserves tile cache across app updates; added `CLEAR_TILE_CACHE` / `GET_TILE_CACHE_SIZE` message handlers |
+| `src/hooks/useOfflineTileCache.ts` | New hook — tile bounds→coordinates math, Cache API pre-population, batch fetch (BATCH_SIZE=8), MAX_TILES=500 cap, cancel/clear |
+| `src/components/features/OfflineTileControl.tsx` | New component — popover with tile count, estimated download, progress bar, download/cancel/clear actions |
+| `src/pages/JobMap.tsx` | Added `<OfflineTileControl minZoom={12} maxZoom={14} />` to header toolbar |
+| `src/components/features/GlobalFilterRibbon.tsx` | Extended org filter from `master`-only to `admin`/`admin_officer` with descendant orgs; descendant tree fetched via `get_descendant_organizations` RPC; switcher hidden when only 1 org |
+| `src/pages/Reports.tsx` | `effectiveOrgId` now respects `organizationId` global filter for admin/admin_officer (child org switch) |
+
+### B-05 / B-06 Success Criteria
+
+- [x] B-05: SW intercepts `tile.openstreetmap.org` — cache-first, graceful 204 on offline miss
+- [x] B-05: `useOfflineTileCache` downloads tiles for bounds, tracks progress, cap 500 tiles
+- [x] B-05: `OfflineTileControl` provides 1-click download/cancel/clear UI in JobMap toolbar
+- [x] B-06: Admin/admin_officer with child orgs see org switcher in GlobalFilterRibbon
+- [x] B-06: Reports page respects selected child org for admin/admin_officer
+
+**Next session:** B-07 (in-app ETA calculation) + B-08 (structured evidence bundles) + Phase 5 Sprint 2 planning.

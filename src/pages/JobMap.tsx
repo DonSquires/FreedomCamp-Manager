@@ -18,6 +18,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { JurisdictionMapViewport } from '@/components/features/JurisdictionMapViewport'
 import { MapFocusToolbar } from '@/components/features/MapFocusToolbar'
+import { OfflineTileControl } from '@/components/features/OfflineTileControl'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -340,6 +341,7 @@ export default function JobMap() {
               <RefreshCw className="h-4 w-4 mr-1.5" />
               Refresh
             </Button>
+            <OfflineTileControl minZoom={12} maxZoom={14} />
           </div>
         </div>
         
