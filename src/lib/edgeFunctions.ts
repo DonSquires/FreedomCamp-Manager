@@ -1659,4 +1659,19 @@ export const edgeFunctions = {
     return callEdgeFunction('cleanup-and-recalculate', { action: 'statistics', ...params })
   },
 
+  /**
+   * Trigger a DOC / council zone data sync (B-12).
+   *
+   * @param source  'doc_api' | 'council_feed' | 'manual'
+   * @param orgId   Optional organisation scope
+   * @param dryRun  When true, logs result without modifying zone records
+   */
+  triggerDocCouncilSync: async (params: {
+    source?: 'doc_api' | 'council_feed' | 'manual'
+    org_id?: string
+    dry_run?: boolean
+  }) => {
+    return callEdgeFunction('doc-council-sync', params)
+  },
+
 }

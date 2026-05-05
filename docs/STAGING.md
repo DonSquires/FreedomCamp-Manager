@@ -2035,8 +2035,47 @@ All Sprint 1 VOC backlog items (B-01 through B-09) are now shipped:
 |---|---|---|
 | B-10 | Public freedom camping zone map | ✅ |
 | B-11 | Multi-language public portal | ⬜ (depends on B-10; needs translation strings) |
-| B-12 | Automated DOC / council data sync | ⬜ (needs DOC API key confirmation) |
+| B-12 | Automated DOC / council data sync | ✅ |
 | B-13 | Public noise complaint portal | ✅ |
 | B-14 | Wearable (Apple Watch) integration | ⬜ (needs WatchOS path validation) |
 
 **Next session:** B-11 (i18n for `/public/zone-map` + `/public/noise-complaint`) or B-12 (nightly DOC sync scaffold).
+
+---
+
+## Phase 5 Sprint 2 Continuation — B-11/B-12 (2026-05-05)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/PublicNoiseComplaintPortal.tsx` | B-11: Wired `usePublicLocale` + language switcher (EN/MĀ/中/हि). All hardcoded English strings replaced with `t.nc.*` translation keys. `NOISE_TYPE_LABELS` and status labels are now derived from current locale at render time. Header extended with Globe icon + locale buttons matching the zone-map pattern. |
+| `supabase/migrations/20260505000003_doc_council_sync_log.sql` | B-12: New table `doc_council_sync_log` — stores run_at, source, status, zones_added/updated/removed, error_message, raw_summary, triggered_by, organization_id. RLS: admin/master/grand_master read; service-role write. |
+| `supabase/functions/doc-council-sync/index.ts` | B-12: New edge function. Fetches zones from DOC API (`DOC_API_BASE_URL` + `DOC_API_KEY`), upserts into `public.zones`, writes audit row to `doc_council_sync_log`, broadcasts `zones_updated` event on `doc-sync-updates` Realtime channel. Runs in dry-run/no-op mode when `DOC_API_KEY` is not yet configured. Supports `{ source, org_id, dry_run }` POST body for manual admin triggers. |
+| `src/lib/edgeFunctions.ts` | B-12: Added `triggerDocCouncilSync({ source, org_id, dry_run })` wrapper. |
+| `docs/STAGING.md` | B-11 ✅, B-12 ✅; sprint 2 board updated. |
+
+### B-11 / B-12 Success Criteria
+
+- [x] B-11: `/public/noise-complaint` shows language switcher (EN/MĀ/中/हि) in header
+- [x] B-11: All user-visible strings use `t.nc.*` translation keys (no hardcoded English)
+- [x] B-11: Locale persists in localStorage; auto-detected from browser language
+- [x] B-11: Status labels and noise-type dropdown options update instantly on locale switch
+- [x] B-12: `doc_council_sync_log` table created with RLS (admin read, service-role write)
+- [x] B-12: `doc-council-sync` edge function scaffolded; runs in no-op mode without `DOC_API_KEY`
+- [x] B-12: Realtime broadcast on `doc-sync-updates` when zones change
+- [x] B-12: `edgeFunctions.triggerDocCouncilSync()` wrapper available for admin UI
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS
+
+### Sprint 2 Remaining
+
+| ID | Item | Status |
+|---|---|---|
+| B-10 | Public freedom camping zone map | ✅ |
+| B-11 | Multi-language public portal | ✅ |
+| B-12 | Automated DOC / council data sync | ✅ (scaffold — live sync needs `DOC_API_KEY`) |
+| B-13 | Public noise complaint portal | ✅ |
+| B-14 | Wearable (Apple Watch) integration | ⬜ (needs WatchOS path validation) |
+
+**Next session:** B-14 (wearable integration) or Phase 5 Sprint 3 planning.
