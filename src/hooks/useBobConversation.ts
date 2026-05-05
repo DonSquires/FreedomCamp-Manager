@@ -11,7 +11,8 @@ import type { BobMessage, BobConversation } from '@/lib/bobConversationService'
 
 interface UseBobConversationOptions {
   conversationId?: string
-  organizationId: string
+  organizationId?: string
+  userId?: string
 }
 
 interface UseBobConversationReturn {
@@ -32,7 +33,8 @@ interface UseBobConversationReturn {
 }
 
 export function useBobConversation(options: UseBobConversationOptions): UseBobConversationReturn {
-  const { conversationId, organizationId } = options
+  const { conversationId, organizationId, userId } = options
+  const sessionStorageKey = `bob-active-conversation-id:${userId || 'anon'}`
   const [currentConversationId, setCurrentConversationId] = useState<string | undefined>(conversationId)
   const [isNewConversation, setIsNewConversation] = useState(!conversationId)
 
@@ -53,7 +55,7 @@ export function useBobConversation(options: UseBobConversationOptions): UseBobCo
     error: conversationError,
     refetch: refetchConversation,
   } = useQuery({
-    queryKey: ['bob-conversation', currentConversationId, organizationId],
+    queryKey: ['bob-conversation', currentConversationId],
     queryFn: () => {
       if (!currentConversationId) return null
       return conversationService.loadConversation(currentConversationId, organizationId)
@@ -152,20 +154,20 @@ export function useBobConversation(options: UseBobConversationOptions): UseBobCo
   // Store current conversation ID in session storage so it persists across page reloads
   useEffect(() => {
     if (currentConversationId) {
-      sessionStorage.setItem(`bob-conversation-id-${organizationId}`, currentConversationId)
+      sessionStorage.setItem(sessionStorageKey, currentConversationId)
     }
-  }, [currentConversationId, organizationId])
+  }, [currentConversationId, sessionStorageKey])
 
   // Restore conversation ID from session storage on mount
   useEffect(() => {
     if (!conversationId && !currentConversationId) {
-      const stored = sessionStorage.getItem(`bob-conversation-id-${organizationId}`)
+      const stored = sessionStorage.getItem(sessionStorageKey)
       if (stored) {
         setConversationId(stored)
         setIsNewConversation(false)
       }
     }
-  }, [organizationId, conversationId, currentConversationId, setConversationId])
+  }, [conversationId, currentConversationId, sessionStorageKey, setConversationId])
 
   return {
     conversation,

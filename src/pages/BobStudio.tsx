@@ -25,6 +25,7 @@ import { Loader2, MessageCircle, Zap, Mic, MicOff, BarChart3, AlertCircle, Volum
 import { useBobStore, type BobTask } from '@/stores/bobStore'
 import { useBobConversation } from '@/hooks/useBobConversation'
 import { useOperationalOrganization } from '@/hooks/useOperationalOrganization'
+import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { toast } from 'sonner'
@@ -34,6 +35,7 @@ type BobStudioTab = 'chat' | 'planning' | 'voice' | 'testing' | 'diagnostics'
 export default function BobStudio() {
   const [activeTab, setActiveTab] = useState<BobStudioTab>('chat')
   const [recordingAudio, setRecordingAudio] = useState(false)
+  const { user } = useAuthStore()
 
   // Global Bob state
   const {
@@ -60,20 +62,21 @@ export default function BobStudio() {
   } = useBobConversation({
     conversationId: activeConversationId ?? undefined,
     organizationId: operationalOrganizationId ?? undefined,
+    userId: user?.id,
   })
 
   // On mount: sync Zustand from the hook's persisted sessionStorage key so both
   // layers agree on the active conversation (avoids new-conversation creation on reload).
   useEffect(() => {
     if (!activeConversationId && operationalOrganizationId) {
-      const stored = sessionStorage.getItem(`bob-conversation-id-${operationalOrganizationId}`)
+      const stored = sessionStorage.getItem(`bob-active-conversation-id:${user?.id || 'anon'}`)
       if (stored) {
         setActiveConversation(stored, null)
         loadConversation(stored)
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [operationalOrganizationId])
+  }, [operationalOrganizationId, user?.id])
 
   const handleSendMessage = async (content: string) => {
     if (!operationalOrganizationId) return

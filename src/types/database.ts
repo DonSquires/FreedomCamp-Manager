@@ -6945,6 +6945,7 @@ export type Database = {
       organizations: {
         Row: {
           address: string | null
+          bob_voiceprint_enrollment_allowed: boolean
           contact_email: string | null
           contact_phone: string | null
           created_at: string | null
@@ -6963,6 +6964,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          bob_voiceprint_enrollment_allowed?: boolean
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string | null
@@ -6981,6 +6983,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          bob_voiceprint_enrollment_allowed?: boolean
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string | null

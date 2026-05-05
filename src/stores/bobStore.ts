@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import type { BobConversation, BobMessage } from '@/lib/bobConversationService'
+import { useAuthStore } from './authStore'
 
 /**
  * Bob's Operational State Store
@@ -109,6 +110,49 @@ export interface BobStore {
 
   // Reset
   reset: () => void
+}
+
+const BOB_STORE_STORAGE_NAME = 'bob-store'
+
+function resolveUserScopedBobStoreKey(userId?: string | null): string {
+  return `${BOB_STORE_STORAGE_NAME}:${userId || 'anon'}`
+}
+
+function getCurrentUserId(): string | null {
+  try {
+    return useAuthStore.getState().user?.id ?? null
+  } catch {
+    return null
+  }
+}
+
+const bobStoreScopedStorage = {
+  getItem: (name: string): string | null => {
+    if (typeof window === 'undefined') return null
+    const key = resolveUserScopedBobStoreKey(getCurrentUserId())
+    const scoped = window.localStorage.getItem(key)
+    if (scoped !== null) return scoped
+
+    // Legacy fallback for first run after upgrade.
+    const legacy = window.localStorage.getItem(name)
+    if (legacy !== null) {
+      window.localStorage.setItem(key, legacy)
+      window.localStorage.removeItem(name)
+      return legacy
+    }
+
+    return null
+  },
+  setItem: (name: string, value: string): void => {
+    if (typeof window === 'undefined') return
+    const key = resolveUserScopedBobStoreKey(getCurrentUserId())
+    window.localStorage.setItem(key, value)
+  },
+  removeItem: (name: string): void => {
+    if (typeof window === 'undefined') return
+    const key = resolveUserScopedBobStoreKey(getCurrentUserId())
+    window.localStorage.removeItem(key)
+  },
 }
 
 /**
@@ -244,8 +288,8 @@ export const useBobStore = create<BobStore>()(
         }),
     }),
     {
-      name: 'bob-store',
-      storage: createJSONStorage(() => localStorage),
+      name: BOB_STORE_STORAGE_NAME,
+      storage: createJSONStorage(() => bobStoreScopedStorage),
       partialize: (state) => ({
         tone: state.tone,
         organizationId: state.organizationId,
@@ -254,6 +298,30 @@ export const useBobStore = create<BobStore>()(
     }
   )
 )
+
+let bobStoreAuthScopeBridgeInitialized = false
+
+function initializeBobStoreAuthScopeBridge() {
+  if (bobStoreAuthScopeBridgeInitialized || typeof window === 'undefined') {
+    return
+  }
+  bobStoreAuthScopeBridgeInitialized = true
+
+  let previousUserId: string | null = useAuthStore.getState().user?.id ?? null
+  void useBobStore.persist.rehydrate()
+
+  useAuthStore.subscribe((state) => {
+    const nextUserId = state.user?.id ?? null
+    if (nextUserId === previousUserId) {
+      return
+    }
+    previousUserId = nextUserId
+    useBobStore.getState().reset()
+    void useBobStore.persist.rehydrate()
+  })
+}
+
+initializeBobStoreAuthScopeBridge()
 
 /**
  * Selectors for common Bob store queries

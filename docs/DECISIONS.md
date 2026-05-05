@@ -31,3 +31,9 @@ When a pattern, platform, or architectural decision changes, append a dated note
 - Scope: Bob planning, Dr Bob review, architecture prompts, future CI review gates.
 - Reason: force grounded design before code generation.
 - Consequences: `scripts/review-architecture-artifacts.mjs` should run before implementation claims on major work.
+
+- Date: 2026-05-05
+- Decision: Bob conversation memory and preferences are scoped per-user, not per-org.
+- Scope: `src/stores/bobStore.ts`, `src/stores/bobAssistantStore.ts`, `src/hooks/useBobConversation.ts`, `src/hooks/useBobIdentitySettings.ts`, `src/lib/bobConversationService.ts`, `supabase/functions/onspace-ai-chat/index.ts`, migrations `20260505000001` and `20260505000002`.
+- Reason: Multiple officers sharing a device were seeing each other's Bob history and voice identity settings. User-level scoping prevents bleed between users on the same organization.
+- Consequences: All Bob reads/writes must include `user_id = auth.uid()` predicate. Org-level policy toggles (e.g. `bob_voiceprint_enrollment_allowed`) live on `organizations` and are enforced in `useBobIdentitySettings` before any enrollment action. Never revert to org-only RLS for Bob tables without revisiting multi-user device safety.

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Bell,
   Shield,
@@ -23,6 +24,8 @@ import {
 import { toast } from 'sonner'
 import { useSessionPreferencesStore } from '@/stores/sessionPreferencesStore'
 import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
+import { useBobIdentitySettings, type EmergencyCancelVerificationMode } from '@/hooks/useBobIdentitySettings'
+import { useBobAssistantStore } from '@/stores/bobAssistantStore'
 
 interface NotificationPreferences {
   breach_alerts: boolean
@@ -71,7 +74,128 @@ export default function Settings() {
   })
   const [autoLogoffMinutes, setAutoLogoffMinutes] = useState<number>(inactivityMinutes)
 
+  const {
+    secureCancelVerificationEnabled,
+    setSecureCancelVerificationEnabled,
+    cancelVerificationMode,
+    setCancelVerificationMode,
+    cancelVerificationInProgress,
+    orgPolicyLoading,
+    orgPolicyMutationInProgress,
+    orgVoiceprintEnrollmentAllowed,
+    updateOrgVoiceprintEnrollmentAllowed,
+    enrolledVoiceprint,
+    lastVoiceprintScore,
+    enrollCurrentVoiceprint,
+    clearEnrolledVoiceprint,
+  } = useBobIdentitySettings(user?.id, user?.organization_id)
+
+  const canManageOrgBobPolicy = Boolean(
+    user?.organization_id && ['admin', 'master', 'grand_master'].includes(user?.role ?? ''),
+  )
+
+  const {
+    displayName,
+    tone: bobTone,
+    voiceGender,
+    accent,
+    speechStyle,
+    speechRate,
+    speechEnabled,
+    autoSpeakReplies,
+    voiceActivatedConversation,
+    setDisplayName,
+    setTone,
+    setVoiceGender,
+    setAccent,
+    setSpeechStyle,
+    setSpeechRate,
+    setSpeechEnabled,
+    setAutoSpeakReplies,
+    setVoiceActivatedConversation,
+  } = useBobAssistantStore()
+
   const [saved, setSaved] = useState(false)
+  const [bobStatusLoading, setBobStatusLoading] = useState(false)
+  const [bobStatus, setBobStatus] = useState<null | {
+    healthy: boolean
+    mode: string
+    provider: string
+    egressAllowed: boolean
+    model: string
+    runtime: string
+    note: string
+  }>(null)
+
+  useEffect(() => {
+    const inferenceBase = String(import.meta.env.VITE_INFERENCE_SERVICE_URL || '').replace(/\/$/, '')
+    if (!inferenceBase) {
+      setBobStatus({
+        healthy: false,
+        mode: 'unknown',
+        provider: 'unknown',
+        egressAllowed: false,
+        model: 'unknown',
+        runtime: 'unconfigured',
+        note: 'VITE_INFERENCE_SERVICE_URL is not configured in this environment.',
+      })
+      return
+    }
+
+    let cancelled = false
+    const loadStatus = async () => {
+      setBobStatusLoading(true)
+      try {
+        const apiKey = String(import.meta.env.VITE_INFERENCE_API_KEY || '').trim()
+        const headers: Record<string, string> = {}
+        if (apiKey) {
+          headers.Authorization = `Bearer ${apiKey}`
+          headers['x-inference-api-key'] = apiKey
+        }
+
+        const response = await fetch(`${inferenceBase}/health`, {
+          method: 'GET',
+          headers,
+        })
+
+        if (!response.ok) {
+          throw new Error(`Health check failed (${response.status})`)
+        }
+
+        const payload = await response.json()
+        if (cancelled) return
+
+        const config = payload?.config ?? {}
+        setBobStatus({
+          healthy: Boolean(payload?.status === 'ok' || payload?.ok === true),
+          mode: String(config.OPERATING_MODE ?? config.operating_mode ?? 'unknown'),
+          provider: String(config.CHAT_PROVIDER ?? config.chat_provider ?? 'unknown'),
+          egressAllowed: Boolean(config.EXTERNAL_EGRESS_ALLOWED ?? config.external_egress_allowed ?? false),
+          model: String(config.OLLAMA_MODEL ?? config.model ?? 'unknown'),
+          runtime: String(payload?.runtime ?? config.runtime ?? 'unknown'),
+          note: 'Live status from Bob /health endpoint.',
+        })
+      } catch (error: any) {
+        if (cancelled) return
+        setBobStatus({
+          healthy: false,
+          mode: 'unknown',
+          provider: 'unknown',
+          egressAllowed: false,
+          model: 'unknown',
+          runtime: 'degraded',
+          note: error?.message || 'Unable to reach Bob health endpoint.',
+        })
+      } finally {
+        if (!cancelled) setBobStatusLoading(false)
+      }
+    }
+
+    void loadStatus()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const handleSave = async () => {
     // Persist to user_preferences if the table exists, or just show success
@@ -336,6 +460,253 @@ export default function Settings() {
                 />
                 <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
                   Keep Auto Logoff enabled on shared devices. GPS can be disabled when off-shift, but active patrol features may be limited.
+                </div>
+
+                <div className="mt-4 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <Label className="font-medium text-sm">Bob Secure Cancel Verification</Label>
+                      <p className="text-xs text-muted-foreground">User-scoped identity check before emergency cancel is accepted.</p>
+                    </div>
+                    <Switch
+                      checked={secureCancelVerificationEnabled}
+                      onCheckedChange={setSecureCancelVerificationEnabled}
+                    />
+                  </div>
+
+                  {secureCancelVerificationEnabled && (
+                    <>
+                      <div className="space-y-1.5">
+                        <Label className="font-medium text-sm">Verification Mode</Label>
+                        <Select
+                          value={cancelVerificationMode}
+                          onValueChange={(value: EmergencyCancelVerificationMode) => setCancelVerificationMode(value)}
+                        >
+                          <SelectTrigger className="h-9">
+                            <SelectValue placeholder="Select verification mode" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="platform_biometric">Fingerprint / Face (platform)</SelectItem>
+                            <SelectItem value="voiceprint" disabled={!orgVoiceprintEnrollmentAllowed}>Voiceprint match</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {!orgVoiceprintEnrollmentAllowed && (
+                          <p className="text-xs text-amber-700">
+                            Voiceprint mode is disabled by your organization privacy policy.
+                          </p>
+                        )}
+                      </div>
+
+                      {cancelVerificationMode === 'voiceprint' && orgVoiceprintEnrollmentAllowed && (
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => void enrollCurrentVoiceprint()}
+                              disabled={cancelVerificationInProgress}
+                            >
+                              {enrolledVoiceprint?.length ? 'Re-enroll Voiceprint' : 'Enroll Voiceprint'}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={clearEnrolledVoiceprint}
+                              disabled={!enrolledVoiceprint?.length || cancelVerificationInProgress}
+                            >
+                              Clear Enrollment
+                            </Button>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Enrollment status: {enrolledVoiceprint?.length ? 'Enrolled' : 'Not enrolled'}
+                            {typeof lastVoiceprintScore === 'number'
+                              ? ` • Last similarity ${Math.round(lastVoiceprintScore * 100)}%`
+                              : ''}
+                          </p>
+                        </div>
+                      )}
+
+                      <p className="text-xs text-muted-foreground">
+                        Saved per signed-in user account. These controls are not shared by organization or other users.
+                      </p>
+                    </>
+                  )}
+                </div>
+
+                <div className="mt-4 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div>
+                    <Label className="font-medium text-sm">Organization Bob Biometric Policy</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Organization-level control for whether officers can use voiceprint enrollment for emergency cancel.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <Label className="font-medium text-sm">Allow Voiceprint Enrollment</Label>
+                      <p className="text-xs text-muted-foreground">
+                        {canManageOrgBobPolicy
+                          ? 'When disabled, all users in this organization are forced to platform biometric verification only.'
+                          : 'Managed by your organization administrators.'}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={orgVoiceprintEnrollmentAllowed}
+                      disabled={!canManageOrgBobPolicy || orgPolicyLoading || orgPolicyMutationInProgress}
+                      onCheckedChange={(value) => {
+                        if (!canManageOrgBobPolicy) return
+                        void updateOrgVoiceprintEnrollmentAllowed(value)
+                      }}
+                    />
+                  </div>
+
+                  {!canManageOrgBobPolicy && !orgVoiceprintEnrollmentAllowed && (
+                    <p className="text-xs text-amber-700">
+                      Your organization currently disables voiceprint enrollment for Bob secure cancel.
+                    </p>
+                  )}
+                </div>
+
+                <div className="mt-4 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div>
+                    <Label className="font-medium text-sm">Bob Assistant Preferences</Label>
+                    <p className="text-xs text-muted-foreground">Personality, voice, and speaking behavior for this user account.</p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="bob-display-name" className="font-medium text-sm">Display Name</Label>
+                    <Input
+                      id="bob-display-name"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      placeholder="Bob"
+                      className="h-9"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="font-medium text-sm">Tone</Label>
+                      <Select value={bobTone} onValueChange={(value) => setTone(value as any)}>
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Select tone" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="professional">Professional</SelectItem>
+                          <SelectItem value="friendly">Friendly</SelectItem>
+                          <SelectItem value="coach">Coach</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="font-medium text-sm">Speech Style</Label>
+                      <Select value={speechStyle} onValueChange={(value) => setSpeechStyle(value as any)}>
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Select speech style" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="default">Default</SelectItem>
+                          <SelectItem value="bridge_lead">Bridge Lead</SelectItem>
+                          <SelectItem value="wise_mentor">Wise Mentor</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="font-medium text-sm">Voice</Label>
+                      <Select value={voiceGender} onValueChange={(value) => setVoiceGender(value as any)}>
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Select voice" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="male">Male</SelectItem>
+                          <SelectItem value="female">Female</SelectItem>
+                          <SelectItem value="neutral">Neutral</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="font-medium text-sm">Accent</Label>
+                      <Select value={accent} onValueChange={(value) => setAccent(value as any)}>
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Select accent" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="en-NZ">English (NZ)</SelectItem>
+                          <SelectItem value="en-AU">English (AU)</SelectItem>
+                          <SelectItem value="en-GB">English (GB)</SelectItem>
+                          <SelectItem value="en-US">English (US)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="bob-speech-rate" className="font-medium text-sm">Voice Speed ({speechRate.toFixed(2)}x)</Label>
+                    <Input
+                      id="bob-speech-rate"
+                      type="number"
+                      min={0.7}
+                      max={1.3}
+                      step={0.05}
+                      value={speechRate}
+                      onChange={(e) => setSpeechRate(Number(e.target.value || 1))}
+                      className="h-9 w-40"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <Label className="font-medium text-sm">Speech Enabled</Label>
+                        <p className="text-xs text-muted-foreground">Allow Bob voice playback for this user.</p>
+                      </div>
+                      <Switch checked={speechEnabled} onCheckedChange={setSpeechEnabled} />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <Label className="font-medium text-sm">Auto-Speak Replies</Label>
+                        <p className="text-xs text-muted-foreground">Automatically read Bob replies out loud.</p>
+                      </div>
+                      <Switch checked={autoSpeakReplies} onCheckedChange={setAutoSpeakReplies} />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <Label className="font-medium text-sm">Voice Activated Conversation</Label>
+                        <p className="text-xs text-muted-foreground">Keep Bob listening mode tied to this user profile.</p>
+                      </div>
+                      <Switch checked={voiceActivatedConversation} onCheckedChange={setVoiceActivatedConversation} />
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground">
+                    All Bob assistant preferences are stored per signed-in user and isolated from org-level settings.
+                  </p>
+                </div>
+
+                <div className="mt-4 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label className="font-medium text-sm">Bob System Status</Label>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${bobStatus?.healthy ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>
+                      {bobStatusLoading ? 'Checking…' : bobStatus?.healthy ? 'Healthy' : 'Attention'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    <div><span className="text-muted-foreground">Mode:</span> {bobStatus?.mode || 'unknown'}</div>
+                    <div><span className="text-muted-foreground">Provider:</span> {bobStatus?.provider || 'unknown'}</div>
+                    <div><span className="text-muted-foreground">Model:</span> {bobStatus?.model || 'unknown'}</div>
+                    <div><span className="text-muted-foreground">Runtime:</span> {bobStatus?.runtime || 'unknown'}</div>
+                    <div className="sm:col-span-2">
+                      <span className="text-muted-foreground">External Egress:</span> {bobStatus?.egressAllowed ? 'enabled' : 'disabled'}
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{bobStatus?.note || 'Status unavailable.'}</p>
                 </div>
               </CardContent>
             </Card>

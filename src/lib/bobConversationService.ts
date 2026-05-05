@@ -4,7 +4,7 @@
  * Manages persistent conversation history, message storage, and learning logs
  * for Bob's integrated operations.
  * 
- * All operations are org-scoped via RLS policies in Supabase.
+ * Conversations are user-owned via RLS policies in Supabase.
  */
 
 import { supabase } from './supabase'
@@ -82,13 +82,12 @@ export async function createConversation(
  */
 export async function loadConversation(
   conversationId: string,
-  organizationId: string
+  organizationId?: string
 ): Promise<BobConversation | null> {
   const { data: conversation, error: convError } = await sb
     .from('bob_conversations')
     .select()
     .eq('conversation_id', conversationId)
-    .eq('organization_id', organizationId)
     .single()
 
   if (convError) {
@@ -100,7 +99,6 @@ export async function loadConversation(
     .from('bob_messages')
     .select()
     .eq('conversation_id', conversationId)
-    .eq('organization_id', organizationId)
     .order('created_at', { ascending: true })
 
   if (messError) {
@@ -119,13 +117,28 @@ export async function loadConversation(
 export async function appendMessage(
   conversationId: string,
   message: BobMessage,
-  organizationId: string
+  organizationId?: string
 ): Promise<BobMessage> {
+  const { data: conversation, error: conversationError } = await sb
+    .from('bob_conversations')
+    .select('organization_id')
+    .eq('conversation_id', conversationId)
+    .single()
+
+  if (conversationError) {
+    throw new Error(`Failed to resolve conversation organization: ${conversationError.message}`)
+  }
+
+  const resolvedOrganizationId = conversation?.organization_id ?? organizationId
+  if (!resolvedOrganizationId) {
+    throw new Error('Conversation organization could not be resolved')
+  }
+
   const { data, error } = await sb
     .from('bob_messages')
     .insert({
       conversation_id: conversationId,
-      organization_id: organizationId,
+      organization_id: resolvedOrganizationId,
       role: message.role,
       content: message.content,
       metadata: message.metadata || {},
@@ -237,13 +250,12 @@ export async function getLessonPatterns(
  */
 export async function archiveConversation(
   conversationId: string,
-  organizationId: string
+  organizationId?: string
 ): Promise<void> {
   const { error } = await sb
     .from('bob_conversations')
     .update({ is_archived: true, updated_at: new Date().toISOString() })
     .eq('conversation_id', conversationId)
-    .eq('organization_id', organizationId)
 
   if (error) {
     throw new Error(`Failed to archive conversation: ${error.message}`)
@@ -255,13 +267,12 @@ export async function archiveConversation(
  */
 export async function deleteConversation(
   conversationId: string,
-  organizationId: string
+  organizationId?: string
 ): Promise<void> {
   const { error } = await sb
     .from('bob_conversations')
     .delete()
     .eq('conversation_id', conversationId)
-    .eq('organization_id', organizationId)
 
   if (error) {
     throw new Error(`Failed to delete conversation: ${error.message}`)
@@ -314,7 +325,6 @@ export async function updateConversation(
       updated_at: new Date().toISOString(),
     })
     .eq('conversation_id', conversationId)
-    .eq('organization_id', organizationId)
     .select()
     .single()
 

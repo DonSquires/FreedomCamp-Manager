@@ -14,14 +14,16 @@ REPO_URL="${GITHUB_REPO_URL:-}"
 REPO_BRANCH="${GITHUB_REPO_BRANCH:-main}"
 REPO_DIR="/app/repo"
 FAST_BOOT="${RUNPOD_FAST_BOOT:-true}"
+ALLOW_LOCAL_OLLAMA="${RUNPOD_ALLOW_LOCAL_OLLAMA:-false}"
 
-# Determine if we're using external or local Ollama
-# Priority: OLLAMA_EXTERNAL_URL > OLLAMA_BASE_URL > default localhost
+# Determine if we're using external or local Ollama.
+# Serverless production is external-Ollama-first. Local Ollama must be
+# explicitly re-enabled with RUNPOD_ALLOW_LOCAL_OLLAMA=true.
 OLLAMA_EXTERNAL_URL="${OLLAMA_EXTERNAL_URL:-}"
 OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-}"
 LOCAL_OLLAMA_URL="http://127.0.0.1:11434"
 
-# Resolve which Ollama URL to use
+# Resolve which Ollama URL to use.
 if [ -n "$OLLAMA_EXTERNAL_URL" ]; then
   RESOLVED_OLLAMA_URL="${OLLAMA_EXTERNAL_URL%/}"  # Trim trailing slash
   USE_LOCAL_OLLAMA="false"
@@ -30,10 +32,15 @@ elif [ -n "$OLLAMA_BASE_URL" ] && [ "$OLLAMA_BASE_URL" != "$LOCAL_OLLAMA_URL" ];
   RESOLVED_OLLAMA_URL="${OLLAMA_BASE_URL%/}"
   USE_LOCAL_OLLAMA="false"
   echo "[start] Alternative Ollama configured: $RESOLVED_OLLAMA_URL"
-else
+elif [ "$ALLOW_LOCAL_OLLAMA" = "true" ]; then
   RESOLVED_OLLAMA_URL="$LOCAL_OLLAMA_URL"
   USE_LOCAL_OLLAMA="true"
-  echo "[start] Using local Ollama at $LOCAL_OLLAMA_URL"
+  echo "[start] Local Ollama explicitly enabled at $LOCAL_OLLAMA_URL"
+else
+  echo "[start] ERROR: No external Ollama configured for this serverless worker."
+  echo "[start] Set OLLAMA_EXTERNAL_URL (preferred) or a non-local OLLAMA_BASE_URL."
+  echo "[start] Only set RUNPOD_ALLOW_LOCAL_OLLAMA=true if you are intentionally rebuilding a local-Ollama image."
+  exit 1
 fi
 
 if [ -z "${RUNPOD_PREP_REPO_NODE_DEPS_ON_START+x}" ]; then

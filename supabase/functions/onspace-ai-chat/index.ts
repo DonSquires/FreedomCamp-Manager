@@ -665,10 +665,28 @@ Deno.serve(async (req: Request) => {
 
     const defaultSystemPrompt = buildSystemPromptWithAttitude()
 
-    // ── Load conversation history (if conversation_id provided) ──────────────
+    // ── Validate conversation ownership and load history ─────────────────────
     let prependedHistory: Array<{ role: string; content: string }> = []
-    if (conversationId && organizationId && user?.id) {
+    if (conversationId && user?.id) {
       try {
+        const { data: ownedConversation, error: conversationOwnershipError } = await (supabaseAdmin
+          .from('bob_conversations')
+          .select('conversation_id, organization_id')
+          .eq('conversation_id', conversationId)
+          .eq('user_id', user.id)
+          .maybeSingle())
+
+        if (conversationOwnershipError) {
+          console.warn(`[Bob] Could not validate conversation ownership: ${conversationOwnershipError.message}`)
+        } else if (!ownedConversation) {
+          return new Response(
+            JSON.stringify({ error: 'Conversation not found for this user.' }),
+            { status: 403, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
+          )
+        }
+
+        organizationId = ownedConversation.organization_id
+
         const { data: historyData, error: historyError } = await (supabaseAdmin
           .from('bob_messages')
           .select('role, content')
@@ -1395,10 +1413,17 @@ Deno.serve(async (req: Request) => {
 
     // ── Store conversation messages (if conversation context available) ──────
     let storedConversationId = conversationId
-    if (organizationId && user?.id) {
+    if (user?.id) {
       try {
         // If no conversation_id yet, create one
         if (!storedConversationId) {
+          if (!organizationId) {
+            return new Response(
+              JSON.stringify({ error: 'Organization context is required to create a new conversation.' }),
+              { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
+            )
+          }
+
           const { data: newConv, error: convCreateError } = await (supabaseAdmin
             .from('bob_conversations')
             .insert({
@@ -1424,6 +1449,7 @@ Deno.serve(async (req: Request) => {
             .insert({
               conversation_id: storedConversationId,
               organization_id: organizationId,
+              user_id: user.id,
               role: 'user',
               content: latestUserMessage,
               metadata: { source: 'onspace-ai-chat', provider: 'user-input' },
@@ -1441,6 +1467,7 @@ Deno.serve(async (req: Request) => {
             .insert({
               conversation_id: storedConversationId,
               organization_id: organizationId,
+              user_id: user.id,
               role: 'assistant',
               content: responseText,
               metadata: {

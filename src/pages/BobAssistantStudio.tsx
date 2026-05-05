@@ -39,10 +39,7 @@ import {
   estimateBobRadioSignalDurationMs,
   type BobRadioSignalProfile,
 } from '@/lib/bobRtcAgent'
-import {
-  captureVoiceprintSignature,
-  compareVoiceprintSignatures,
-} from '@/lib/voiceprintAssist'
+import { useBobIdentitySettings, type EmergencyCancelVerificationMode } from '@/hooks/useBobIdentitySettings'
 import {
   consumeLatestEmergencyAssistRequest,
   EMERGENCY_ASSIST_REQUEST_EVENT,
@@ -122,7 +119,6 @@ interface CodeChangeRequest {
   confirmed: boolean
 }
 
-type EmergencyCancelVerificationMode = 'platform_biometric' | 'voiceprint'
 type DoctorPlaybookId = 'ollama_recovery' | 'ptt_token_path_repair' | 'edge_auth_alignment'
 
 interface BobRadioChannel {
@@ -478,6 +474,7 @@ export default function BobAssistantStudio() {
     voiceGender,
     accent,
     speechStyle,
+    speechRate,
     speechEnabled,
     autoSpeakReplies,
     voiceActivatedConversation,
@@ -490,6 +487,7 @@ export default function BobAssistantStudio() {
     setVoiceGender,
     setAccent,
     setSpeechStyle,
+    setSpeechRate,
     setSpeechEnabled,
     setAutoSpeakReplies,
     setVoiceActivatedConversation,
@@ -570,11 +568,6 @@ export default function BobAssistantStudio() {
   const [dangerCooldownUntil, setDangerCooldownUntil] = useState<number>(0)
   const [requireDualSignal, setRequireDualSignal] = useState(true)
   const [dualSignalWindowSeconds, setDualSignalWindowSeconds] = useState(12)
-  const [secureCancelVerificationEnabled, setSecureCancelVerificationEnabled] = useState(true)
-  const [cancelVerificationMode, setCancelVerificationMode] = useState<EmergencyCancelVerificationMode>('platform_biometric')
-  const [cancelVerificationInProgress, setCancelVerificationInProgress] = useState(false)
-  const [enrolledVoiceprint, setEnrolledVoiceprint] = useState<number[] | null>(null)
-  const [lastVoiceprintScore, setLastVoiceprintScore] = useState<number | null>(null)
   const [ambientRiskMonitoring, setAmbientRiskMonitoring] = useState(false)
   const [ambientSensitivity, setAmbientSensitivity] = useState(65)
   const [emergencyLocationLabel, setEmergencyLocationLabel] = useState('Location unavailable')
@@ -637,10 +630,20 @@ export default function BobAssistantStudio() {
     [selectedRadioChannel, effectiveOrgId],
   )
 
-  const voiceprintStorageKey = useMemo(
-    () => (user?.id ? `bob-emergency-voiceprint:${user.id}` : null),
-    [user?.id],
-  )
+  const {
+    secureCancelVerificationEnabled,
+    setSecureCancelVerificationEnabled,
+    cancelVerificationMode,
+    setCancelVerificationMode,
+    cancelVerificationInProgress,
+    orgVoiceprintEnrollmentAllowed,
+    enrolledVoiceprint,
+    lastVoiceprintScore,
+    enrollCurrentVoiceprint,
+    clearEnrolledVoiceprint,
+    verifyPlatformBiometricCancel,
+    verifyVoiceprintCancel,
+  } = useBobIdentitySettings(user?.id, user?.organization_id)
 
   const planRecommendations = useMemo(() => buildPlanRecommendations(planForm), [planForm])
 
@@ -912,7 +915,8 @@ export default function BobAssistantStudio() {
 
   const synthesizeBobSpeech = useCallback(async (text: string) => {
     const voice = accent === 'en-NZ' ? 'en-nz' : accent === 'en-AU' ? 'en-au' : 'en'
-    const rate = tone === 'professional' ? 150 : tone === 'coach' ? 170 : 160
+    const baseRate = tone === 'professional' ? 150 : tone === 'coach' ? 170 : 160
+    const rate = Math.round(baseRate * speechRate)
     const pitch = speechStyle === 'bridge_lead'
       ? 44
       : speechStyle === 'wise_mentor'
@@ -947,7 +951,7 @@ export default function BobAssistantStudio() {
       audioBase64,
       audioMimeType: String((data as any)?.audio_mime_type || 'audio/wav'),
     }
-  }, [accent, speechStyle, tone, voiceGender])
+  }, [accent, speechStyle, tone, voiceGender, speechRate])
 
   const playSynthesizedSpeech = useCallback(async (audioBase64: string, audioMimeType = 'audio/wav') => {
     const binary = atob(audioBase64)
@@ -1008,14 +1012,15 @@ export default function BobAssistantStudio() {
       const utterance = new SpeechSynthesisUtterance(text)
       if (selectedVoice) utterance.voice = selectedVoice
       utterance.lang = accent
-      utterance.rate = tone === 'professional' ? 0.95 : tone === 'coach' ? 1.03 : 1
+      const baseBrowserRate = tone === 'professional' ? 0.95 : tone === 'coach' ? 1.03 : 1
+      utterance.rate = Math.max(0.7, Math.min(1.3, baseBrowserRate * speechRate))
       utterance.pitch = voiceGender === 'male' ? 0.9 : voiceGender === 'female' ? 1.08 : 1
       utterance.onend = finishSpeaking
       utterance.onerror = finishSpeaking
       window.speechSynthesis.cancel()
       window.speechSynthesis.speak(utterance)
     })()
-  }, [speechEnabled, selectedVoice, accent, tone, voiceGender, synthesizeBobSpeech, playSynthesizedSpeech])
+  }, [speechEnabled, selectedVoice, accent, tone, voiceGender, speechRate, synthesizeBobSpeech, playSynthesizedSpeech])
 
   const clearVoiceInactivityTimer = () => {
     if (inactivityTimerRef.current !== null) {
@@ -1541,100 +1546,6 @@ export default function BobAssistantStudio() {
     })
   }, [])
 
-  useEffect(() => {
-    if (!voiceprintStorageKey || typeof window === 'undefined') {
-      setEnrolledVoiceprint(null)
-      return
-    }
-
-    try {
-      const raw = window.localStorage.getItem(voiceprintStorageKey)
-      if (!raw) {
-        setEnrolledVoiceprint(null)
-        return
-      }
-
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed) && parsed.every((value) => typeof value === 'number')) {
-        setEnrolledVoiceprint(parsed as number[])
-      } else {
-        setEnrolledVoiceprint(null)
-      }
-    } catch {
-      setEnrolledVoiceprint(null)
-    }
-  }, [voiceprintStorageKey])
-
-  const enrollCurrentVoiceprint = useCallback(async () => {
-    if (!voiceprintStorageKey || typeof window === 'undefined') {
-      toast.error('Sign in first to enroll a voiceprint')
-      return
-    }
-
-    setCancelVerificationInProgress(true)
-    try {
-      toast.message('Speak naturally for two seconds to enroll emergency cancel voiceprint')
-      const signature = await captureVoiceprintSignature({ sampleDurationMs: 2000, bucketCount: 64 })
-      window.localStorage.setItem(voiceprintStorageKey, JSON.stringify(signature))
-      setEnrolledVoiceprint(signature)
-      setLastVoiceprintScore(null)
-      toast.success('Voiceprint enrolled for emergency cancel verification')
-    } catch (error: any) {
-      toast.error(error?.message || 'Voiceprint enrollment failed')
-    } finally {
-      setCancelVerificationInProgress(false)
-    }
-  }, [voiceprintStorageKey])
-
-  const clearEnrolledVoiceprint = useCallback(() => {
-    if (!voiceprintStorageKey || typeof window === 'undefined') return
-    window.localStorage.removeItem(voiceprintStorageKey)
-    setEnrolledVoiceprint(null)
-    setLastVoiceprintScore(null)
-    toast.message('Voiceprint enrollment removed')
-  }, [voiceprintStorageKey])
-
-  const verifyPlatformBiometricCancel = useCallback(async (): Promise<boolean> => {
-    if (typeof window === 'undefined' || typeof navigator === 'undefined' || !navigator.credentials || typeof PublicKeyCredential === 'undefined') {
-      toast.error('Platform biometric verification is not available on this device')
-      return false
-    }
-
-    try {
-      const challenge = crypto.getRandomValues(new Uint8Array(32))
-      await navigator.credentials.get({
-        publicKey: {
-          challenge,
-          timeout: 12000,
-          userVerification: 'required',
-          rpId: window.location.hostname,
-        },
-      })
-      return true
-    } catch {
-      toast.error('Biometric verification failed or was cancelled. Emergency countdown continues.')
-      return false
-    }
-  }, [])
-
-  const verifyVoiceprintCancel = useCallback(async (): Promise<boolean> => {
-    if (!enrolledVoiceprint?.length) {
-      toast.error('No voiceprint enrolled. Enroll first or use platform biometric verification.')
-      return false
-    }
-
-    try {
-      toast.message('Speak for two seconds to verify emergency cancel identity')
-      const sample = await captureVoiceprintSignature({ sampleDurationMs: 2000, bucketCount: 64 })
-      const score = compareVoiceprintSignatures(enrolledVoiceprint, sample)
-      setLastVoiceprintScore(score)
-      return score >= 0.84
-    } catch {
-      toast.error('Voiceprint verification failed. Emergency countdown continues.')
-      return false
-    }
-  }, [enrolledVoiceprint])
-
   const broadcastAutomatedAssistanceCall = useCallback(async (reasonText: string): Promise<boolean> => {
     if (!effectiveOrgId) return false
     if (radioTransmitting || pttIsSpeaking) return false
@@ -1733,17 +1644,12 @@ export default function BobAssistantStudio() {
 
   const cancelPendingEmergencyCall = useCallback(async (spoken = true, requireVerification = true) => {
     if (secureCancelVerificationEnabled && requireVerification) {
-      setCancelVerificationInProgress(true)
-      try {
-        const verified = cancelVerificationMode === 'voiceprint'
-          ? await verifyVoiceprintCancel()
-          : await verifyPlatformBiometricCancel()
+      const verified = cancelVerificationMode === 'voiceprint'
+        ? await verifyVoiceprintCancel()
+        : await verifyPlatformBiometricCancel()
 
-        if (!verified) {
-          return false
-        }
-      } finally {
-        setCancelVerificationInProgress(false)
+      if (!verified) {
+        return false
       }
     }
 
@@ -2676,6 +2582,18 @@ export default function BobAssistantStudio() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><BrainCircuit className="h-4 w-4" /> Bob Personality</CardTitle>
+              <div className="space-y-2">
+                <Label htmlFor="speech-rate">Voice Speed ({speechRate.toFixed(2)}x)</Label>
+                <Input
+                  id="speech-rate"
+                  type="number"
+                  min={0.7}
+                  max={1.3}
+                  step={0.05}
+                  value={speechRate}
+                  onChange={(e) => setSpeechRate(Number(e.target.value || 1))}
+                />
+              </div>
               <CardDescription>Tune how Bob looks, sounds, and responds.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -3171,11 +3089,14 @@ export default function BobAssistantStudio() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="platform_biometric">Fingerprint / Face (platform)</SelectItem>
-                          <SelectItem value="voiceprint">Voiceprint match</SelectItem>
+                          <SelectItem value="voiceprint" disabled={!orgVoiceprintEnrollmentAllowed}>Voiceprint match</SelectItem>
                         </SelectContent>
                       </Select>
+                      {!orgVoiceprintEnrollmentAllowed && (
+                        <p className="text-xs text-amber-700">Voiceprint mode is disabled by organization policy.</p>
+                      )}
                     </div>
-                    {cancelVerificationMode === 'voiceprint' && (
+                    {cancelVerificationMode === 'voiceprint' && orgVoiceprintEnrollmentAllowed && (
                       <>
                         <div className="flex flex-wrap gap-2">
                           <Button
