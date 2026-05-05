@@ -476,7 +476,7 @@ def handler(job):
         }
 
     if action == "training_note":
-        note = inp.get("message") or inp.get("prompt") or ""
+        note = inp.get("note") or inp.get("message") or inp.get("prompt") or ""
         note_count = remember_training_note(note)
         return {
             "success": True,
@@ -874,7 +874,8 @@ def handler(job):
         }
 
     if action == "ui_vision":
-        image_b64 = inp.get("image_b64")  # base64-encoded PNG/JPG        if not image_b64:
+        image_b64 = inp.get("image_b64")  # base64-encoded PNG/JPG
+        if not image_b64:
             return {"success": False, "error": "image_b64 required"}
         focus = inp.get("focus", "general")
         focus_prompts = {

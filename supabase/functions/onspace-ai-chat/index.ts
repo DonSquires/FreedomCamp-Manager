@@ -1048,7 +1048,7 @@ Deno.serve(async (req: Request) => {
 
           return {
             responseText,
-            provider: `runpod-serverless-${output.provider ?? 'openai'}`,
+            provider: `runpod-serverless-${output.provider ?? 'ollama'}`,
             model: output.model ?? model,
           }
         } catch (err: any) {
