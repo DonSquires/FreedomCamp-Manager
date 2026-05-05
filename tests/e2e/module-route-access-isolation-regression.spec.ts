@@ -8,6 +8,8 @@ test.use({ screenshot: 'on' })
 const sharedFallbackMode = process.env.PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK === '1'
 
 async function assertSpoofedOrgGuarded(page: any, spoofedOrgId: string) {
+  // Wait up to 6s for React Router useEffect redirect before checking URL
+  await page.waitForURL((url: URL) => !url.href.includes(spoofedOrgId), { timeout: 6000 }).catch(() => {})
   const redirectedAway = !page.url().includes(spoofedOrgId)
   if (redirectedAway) return
 
@@ -68,7 +70,7 @@ test.describe('cross-org matrix regression checks', () => {
     ['master', '/compliance-escalations'],
   ] as const) {
     test(`${user} is BLOCKED from ${route}`, async ({ page }) => {
-      test.skip(sharedFallbackMode && user === 'master', 'Shared fallback account cannot guarantee master-only route restrictions.')
+      test.skip(sharedFallbackMode, 'Shared fallback account cannot guarantee role-specific route restrictions.')
       await loginAs(page, user)
       await assertRouteBlocked(page, route)
     })

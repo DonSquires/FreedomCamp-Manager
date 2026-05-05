@@ -344,6 +344,15 @@ export function getTestUser(user: TestUserKey): TestCredentials {
   return resolveRoleCredentials(user)
 }
 
+export function isCredentialConfigured(user: TestUserKey): boolean {
+  if (hasUniversalTestAccount) return true
+  if (allowSharedFallback) return true
+  const config = roleCredentialConfig[user]
+  const roleEmail = readEnv(...config.emailVars)
+  const rolePassword = readEnv(...config.passwordVars)
+  return !!(roleEmail && rolePassword)
+}
+
 function normalize(value: string | null | undefined): string {
   return (value || '').trim().toLowerCase()
 }

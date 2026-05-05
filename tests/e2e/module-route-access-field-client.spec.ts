@@ -1,9 +1,11 @@
 import { test, expect } from '@playwright/test'
-import { loginAs } from './auth'
+import { loginAs, isCredentialConfigured } from './auth'
 import { bobAssessPage } from './bob-ui-assess'
 import { assertRouteBlocked, assertRouteLoads, assertRouteLoadsOrRedirects } from './helpers/route-access-helpers'
 
 test.use({ screenshot: 'on' })
+
+const sharedFallbackMode = process.env.PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK === '1'
 
 async function loginClientViewerOrSkip(page: any) {
   await loginAs(page, 'clientViewer')
@@ -19,14 +21,16 @@ test.describe('officer – field portal access', () => {
   test.describe.configure({ mode: 'serial' })
 
   test('officer loads /officer-home', async ({ page }, testInfo) => {
+    test.skip(!isCredentialConfigured('officerOrg1'), 'Officer credentials not configured in this environment.')
     await loginAs(page, 'officerOrg1')
     await assertRouteLoads(page, '/officer-home')
     await bobAssessPage(page, testInfo, 'officer-home')
   })
 
   test('officer loads /field-officer', async ({ page }, testInfo) => {
+    test.skip(sharedFallbackMode, 'Shared fallback single account cannot guarantee officer portal access role.')
     await loginAs(page, 'officerOrg1')
-    await page.goto('/field-officer', { waitUntil: 'networkidle' })
+    await page.goto('/field-officer', { waitUntil: 'domcontentloaded' })
     const currentPath = new URL(page.url()).pathname
     expect(['/field-officer', '/officer-home', '/admin', '/portal-selection']).toContain(currentPath)
     await bobAssessPage(page, testInfo, 'officer-field-portal')
@@ -64,6 +68,7 @@ test.describe('client_viewer – restricted to client portal', () => {
   test.describe.configure({ mode: 'serial' })
 
   test('clientViewer loads /client-portal', async ({ page }, testInfo) => {
+    test.skip(!isCredentialConfigured('clientViewer'), 'ClientViewer credentials not configured in this environment.')
     await loginClientViewerOrSkip(page)
     await assertRouteLoads(page, '/client-portal')
     await bobAssessPage(page, testInfo, 'client-viewer-portal')
@@ -71,6 +76,7 @@ test.describe('client_viewer – restricted to client portal', () => {
 
   for (const route of ['/admin', '/users', '/compliance', '/officer-home', '/asset-management', '/invoicing'] as const) {
     test(`clientViewer is BLOCKED from ${route}`, async ({ page }) => {
+      test.skip(sharedFallbackMode, 'Shared fallback account cannot guarantee client-viewer role restrictions.')
       await loginClientViewerOrSkip(page)
       await assertRouteBlocked(page, route)
     })

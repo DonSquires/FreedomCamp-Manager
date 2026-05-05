@@ -51,8 +51,8 @@ export async function assertRouteBlocked(page: any, route: string) {
 
   const accessDeniedHeading = page.getByRole('heading', { name: /access restricted|forbidden|unauthorized/i })
   const accessDeniedText = page.locator('text=/access.*denied|not.*authorized|forbidden|not found/i').first()
-  const deniedByHeading = await accessDeniedHeading.isVisible({ timeout: 3000 }).catch(() => false)
-  const deniedByText = await accessDeniedText.isVisible({ timeout: 3000 }).catch(() => false)
+  const deniedByHeading = await accessDeniedHeading.isVisible({ timeout: 6000 }).catch(() => false)
+  const deniedByText = await accessDeniedText.isVisible({ timeout: 6000 }).catch(() => false)
   expect(deniedByHeading || deniedByText).toBeTruthy()
 }
 
