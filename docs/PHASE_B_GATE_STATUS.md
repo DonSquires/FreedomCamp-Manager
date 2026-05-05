@@ -14,7 +14,7 @@ Per `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md` section 11.2 and 11.2a:
 | # | Prerequisite | Evidence Required | Current Status |
 |---|---|---|---|
 | 1 | Org isolation gate: 5 automated test scenarios pass in CI | `tests/integration/org-isolation.test.ts` (or equivalent) green in GitHub Actions | 🟡 Partial — `tests/e2e/org-isolation-api.spec.ts` passing; 5-scenario harness in place |
-| 2 | Case model and event contract published | Schema in staging, `src/types/database.ts` includes `operational_cases`; API docs + sample payloads | 🟡 Partial — migrations deployed (B1–B4 bridges); type-gen deferred |
+| 2 | Case model and event contract published | Schema in staging, `src/types/database.ts` includes `operational_cases`; API docs + sample payloads | ✅ Complete — migrations deployed (B1–B4 bridges); TypeScript stubs added to `database.ts` for all 7 new tables + 2 column additions |
 | 3 | Feature flags and rollback controls exist for every Phase B slice | `feature_flags` table with `FF_PHASE_B_*` flags; `scripts/rollback-feature-flag.sh` tested; canary procedure documented | ✅ Complete — migration `202605_feature_flags.sql` deployed; rollback script at `scripts/rollback-feature-flag.sh`; canary script at `scripts/advance-canary-stage.sh` |
 | 4 | Bootstrap routes smoke test: 3 routes on case model in staging | `tests/e2e/bootstrap-routes.test.ts` passing for field-officer, dispatch-console, breaches | 🟡 Partial — Phase B slice tests created; bootstrap route E2E pending final pass |
 | 5 | Ownership roles assigned (8 roles); GitHub team + Slack confirmation | GitHub `@DonSquires/team-realignment` updated; Slack `#realignment-kickoff` capacity confirmations | ⚠️ External — role definitions in `docs/PHASE_A_OWNERSHIP_STATUS.md`; team/Slack confirmation pending |
@@ -51,7 +51,7 @@ Per `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md` section 11.2 and 11.2a:
   - `supabase/migrations/20260506000002_phase_b2_dispatch_case_bridge.sql` — dispatch → case bridge
   - `supabase/migrations/20260506000003_phase_b4_enforcement_case_bridge.sql` — enforcement → case bridge
   - `supabase/migrations/20260506000004_phase_b3_radio_comms_case_bridge.sql` — radio/comms → case bridge
-- **TypeScript types**: `database.ts` type-gen deferred; manual type stubs in hooks
+- **TypeScript types**: `database.ts` — stubs added for all 7 Phase B tables (`dispatch_acknowledgement_log`, `feature_flags`, `feature_flag_evaluations`, `feature_flag_rollout_history`, `patrol_session_events`, `radio_comms_events`, `welfare_events_b1`) + `case_id` column added to `breach_alerts` and `dispatch_jobs`
 - **API docs**: Sample payloads documented in hook files (`src/hooks/useDispatchB2.ts`, `src/hooks/usePatrolCheckpointProgress.ts`, etc.)
 
 ### 3. Feature Flags
