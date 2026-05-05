@@ -15,7 +15,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { insertDispatchJobWithAlarmTypeFallback } from '@/lib/dispatchJobs'
-import { formatDistance } from '@/lib/geo'
+import { formatDistance, estimateEtaMinutes, formatEta } from '@/lib/geo'
 import { useAuthStore } from '@/stores/authStore'
 import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { useDispatchReplan } from '@/hooks/useDispatchReplan'
@@ -911,6 +911,11 @@ export default function DispatchConsole() {
                                 {formatDistance(o.distance_km)}
                               </span>
                             )}
+                            {o.distance_km !== null && (
+                              <span className="text-[10px] text-muted-foreground shrink-0">
+                                {formatEta(estimateEtaMinutes(o.distance_km))}
+                              </span>
+                            )}
                             {o.active_job_count > 0 && (
                               <span className="text-[10px] text-amber-600 shrink-0">
                                 {o.active_job_count} job{o.active_job_count !== 1 ? 's' : ''}
@@ -934,6 +939,9 @@ export default function DispatchConsole() {
                       <Navigation className="h-3 w-3 shrink-0" />
                       Nearest: <strong>{nearestOfficer.first_name} {nearestOfficer.last_name}</strong>
                       <span className="ml-1 font-semibold">{formatDistance(nearestOfficer.distance_km)}</span>
+                      {nearestOfficer.distance_km !== null && (
+                        <span className="ml-0.5">· {formatEta(estimateEtaMinutes(nearestOfficer.distance_km))}</span>
+                      )}
                       away
                       {nearestOfficer.active_job_count > 0 && (
                         <span className="ml-1 text-amber-600">· {nearestOfficer.active_job_count} active job{nearestOfficer.active_job_count !== 1 ? 's' : ''}</span>

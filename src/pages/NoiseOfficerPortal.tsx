@@ -1171,6 +1171,8 @@ export default function NoiseOfficerPortal() {
 
                 {/* Post-assessment actions */}
                 {completedAssessmentId && (
+                  <>
+                    <NoiseEvidenceBundle assessmentId={completedAssessmentId} className="mt-3" />
                   <Card className="bg-green-50 border-green-200">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-base text-green-800 flex items-center gap-2">
