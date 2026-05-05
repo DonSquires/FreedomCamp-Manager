@@ -2037,7 +2037,7 @@ All Sprint 1 VOC backlog items (B-01 through B-09) are now shipped:
 | B-11 | Multi-language public portal | ✅ |
 | B-12 | Automated DOC / council data sync | ✅ (scaffold — live sync needs `DOC_API_KEY`) |
 | B-13 | Public noise complaint portal | ✅ |
-| B-14 | Wearable (Apple Watch) integration | ⬜ (needs WatchOS path validation) |
+| B-14 | Wearable (Apple Watch) integration | ✅ |
 
 **Next session:** B-14 (wearable integration) or Phase 5 Sprint 3 planning.
 
@@ -2076,7 +2076,7 @@ All Sprint 1 VOC backlog items (B-01 through B-09) are now shipped:
 | B-11 | Multi-language public portal | ✅ |
 | B-12 | Automated DOC / council data sync | ✅ (scaffold — live sync needs `DOC_API_KEY`) |
 | B-13 | Public noise complaint portal | ✅ |
-| B-14 | Wearable (Apple Watch) integration | ⬜ (needs WatchOS path validation) |
+| B-14 | Wearable (Apple Watch) integration | ✅ |
 
 **Next session:** B-14 (wearable integration) or Phase 5 Sprint 3 planning.
 
@@ -2103,3 +2103,46 @@ All Sprint 1 VOC backlog items (B-01 through B-09) are now shipped:
 - [x] `bun run lint` → PASS
 
 **Next session:** B-14 (wearable integration) or Phase 5 Sprint 3 planning.
+
+---
+
+## Phase 5 Sprint 2 — B-14 Wearable Integration (2026-05-05)
+
+### Validation
+WatchOS push notification path confirmed: Apple Watch mirrors push notifications from iPhone automatically.
+The Expo companion app already supports `categoryId` for interactive watch actions.
+The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send-push-notification` fan-out.
+
+### Changes
+
+| File | Change |
+|---|---|
+| `supabase/migrations/20260505000006_wearable_sos_type.sql` | Adds `sos_wearable` to `officer_welfare_alerts_alert_type_check` constraint. |
+| `supabase/functions/wearable-sos/index.ts` | New edge function: accepts `{ user_id, organization_id, location?, device_type? }`, inserts `officer_welfare_alerts` row (type `sos_wearable`, escalation 2), fans push to all admins/admin_officers in org via `send-push-notification` (category `wearable_sos`), broadcasts Realtime event on `officer-welfare` channel. |
+| `src/lib/edgeFunctions.ts` | Added `triggerWearableSOS()` wrapper; added `category_id?` param to `sendPushNotification()` so dispatch alerts can carry `wearable_dispatch` category for Apple Watch interactive actions. |
+| `src/hooks/useWearableSOS.ts` | New hook: captures GPS location, calls `triggerWearableSOS`, enforces 60-second cooldown, exposes `{ triggerSOS, isLoading, lastTriggeredAt, cooldownRemaining }`. |
+| `src/components/features/WearableStatus.tsx` | Added SOS button (with `AlertDialog` confirmation) in the device popover. Disabled during loading and cooldown; shows countdown. |
+| `docs/STAGING.md` | B-14 ✅; session snapshot added. |
+
+### B-14 Success Criteria
+
+- [x] `wearable-sos` edge function: insert `sos_wearable` alert + push to supervisors + Realtime broadcast
+- [x] `sos_wearable` alert_type accepted by DB constraint
+- [x] `edgeFunctions.triggerWearableSOS()` wrapper available
+- [x] `useWearableSOS` hook: GPS capture + 60s cooldown + toast feedback
+- [x] WearableStatus popover: SOS button with confirmation dialog + cooldown counter
+- [x] Dispatch pushes can carry `category_id: 'wearable_dispatch'` for Apple Watch actions
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS
+
+### Sprint 2 Final Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-10 | Public freedom camping zone map | ✅ |
+| B-11 | Multi-language public portal | ✅ |
+| B-12 | Automated DOC / council data sync | ✅ (scaffold — live sync needs `DOC_API_KEY`) |
+| B-13 | Public noise complaint portal | ✅ |
+| B-14 | Wearable (Apple Watch) integration | ✅ |
+
+**Sprint 2 COMPLETE. Next session:** Phase 5 Sprint 3 planning.

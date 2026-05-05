@@ -827,6 +827,8 @@ export const edgeFunctions = {
     data?: any
     type?: string
     priority?: 'low' | 'normal' | 'high' | 'urgent'
+    /** Expo notification category — maps to Apple Watch interactive action buttons */
+    category_id?: string
   }) => {
     return callEdgeFunction('send-push-notification', params)
   },
@@ -838,6 +840,20 @@ export const edgeFunctions = {
     officer_id: string
   }) => {
     return callEdgeFunction('monitor-officer-welfare', params)
+  },
+
+  /**
+   * Trigger wearable SOS (B-14)
+   * Called by the web app or Expo companion app when an officer activates SOS
+   * from an Apple Watch or BLE panic button.
+   */
+  triggerWearableSOS: async (params: {
+    user_id: string
+    organization_id: string
+    location?: { lat: number; lon: number }
+    device_type?: 'apple_watch' | 'ble_button' | 'web'
+  }) => {
+    return callEdgeFunction('wearable-sos', params)
   },
 
   // ============================================================================
