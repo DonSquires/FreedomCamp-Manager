@@ -5,6 +5,7 @@ export type TestUserKey =
   | 'adminOrg1'
   | 'adminOrg2'
   | 'officerOrg1'
+  | 'client'
   | 'clientViewer'
   | 'clientStaff'
 
@@ -122,6 +123,12 @@ const roleCredentialConfig: Record<TestUserKey, RoleCredentialConfig> = {
     passwordVars: ['PLAYWRIGHT_OFFICER_ORG1_PASSWORD', 'PLAYWRIGHT_OFFICER_PASSWORD', 'PLAYWRIGHT_OFFICER2_PASSWORD', 'E2E_OFFICER_PASSWORD'],
     fallbackEmail: 'officer@org1.com',
   },
+  client: {
+    label: 'client',
+    emailVars: ['PLAYWRIGHT_CLIENT_VIEWER_EMAIL', 'PLAYWRIGHT_CLIENT_OFFICER_EMAIL', 'PLAYWRIGHT_CLIENT_EMAIL', 'E2E_CLIENT_VIEWER_EMAIL'],
+    passwordVars: ['PLAYWRIGHT_CLIENT_VIEWER_PASSWORD', 'PLAYWRIGHT_CLIENT_OFFICER_PASSWORD', 'PLAYWRIGHT_CLIENT_PASSWORD', 'E2E_CLIENT_VIEWER_PASSWORD'],
+    fallbackEmail: 'client.viewer@test.com',
+  },
   clientViewer: {
     label: 'clientViewer',
     emailVars: ['PLAYWRIGHT_CLIENT_VIEWER_EMAIL', 'PLAYWRIGHT_CLIENT_EMAIL', 'E2E_CLIENT_VIEWER_EMAIL'],
@@ -166,6 +173,15 @@ const expectedProfileConfig: Record<TestUserKey, ExpectedProfileConfig> = {
     requiredCapability: 'field_ops',
     expectedOrgName: readEnv('PLAYWRIGHT_OFFICER_ORG1_NAME') || 'First Security - Nelson',
   },
+  client: {
+    allowedRoles: ['client_viewer', 'client_officer', 'client_admin', 'admin', 'admin_officer', 'officer'],
+    requiredCapability: 'client_portal_view',
+    expectedOrgName: mergeExpectedOrgNames(
+      readEnv('PLAYWRIGHT_CLIENT_VIEWER_NAME'),
+      readEnv('PLAYWRIGHT_CLIENT_STAFF_NAME'),
+      'Nelson City Council|First Security - Nelson'
+    ),
+  },
   clientViewer: {
     allowedRoles: ['client_viewer'],
     requiredCapability: 'client_portal_view',
@@ -189,6 +205,7 @@ const desiredRoleByTestUser: Record<TestUserKey, DesiredRole> = {
   adminOrg1: 'admin_officer',
   adminOrg2: 'admin_officer',
   officerOrg1: 'officer',
+  client: 'client_viewer',
   clientViewer: 'client_viewer',
   // Compatibility default: many shared test DBs still enforce legacy
   // user_profiles_role_check without client_officer/client_admin.
@@ -619,14 +636,17 @@ async function ensureWorkAreaPermission(page: Page): Promise<void> {
 async function resolvePortalSelectionIfNeeded(page: Page, user: TestUserKey): Promise<void> {
   if (!page.url().includes('/portal-selection')) return
 
-  const targetPortalPath = user === 'officerOrg1' ? '/field-officer' : '/admin'
+  const isClientPortalUser = user === 'client' || user === 'clientViewer' || user === 'clientStaff'
+  const targetPortalPath = user === 'officerOrg1' ? '/field-officer' : isClientPortalUser ? '/client-portal' : '/admin'
   await page.evaluate(() => {
     window.sessionStorage.setItem('adminOfficerPortalChoice', 'selected')
   })
 
   const targetButton = user === 'officerOrg1'
     ? page.getByRole('button', { name: /open field officer/i })
-    : page.getByRole('button', { name: /open admin portal/i })
+    : isClientPortalUser
+      ? page.getByRole('button', { name: /open client portal|client portal/i })
+      : page.getByRole('button', { name: /open admin portal/i })
 
   const canClickPortal = await targetButton.isVisible({ timeout: 2500 }).catch(() => false)
   if (canClickPortal) {
