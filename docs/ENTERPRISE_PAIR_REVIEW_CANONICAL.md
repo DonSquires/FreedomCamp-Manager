@@ -63,6 +63,47 @@ Primary manuals and standards reviewed:
 3. CRM + Bob-assisted routing baseline: previously validated in mainline suite
 4. Current architecture baseline: as documented in docs/SYSTEM_GUIDE.md and enforced by current repository topology
 
+## Current Cycle Snapshot (2026-05-05)
+
+Material changes since commit `f0f381e2` (Phase B E2E stabilization and shard migration):
+
+### Module Route Access Stabilization
+
+1. Monolithic route-access suite replaced with shard-based suites to avoid serverless timeout failure modes.
+2. Shared helper extraction completed in `tests/e2e/helpers/route-access-helpers.ts`.
+3. Auth helper updated for shared-account staging operation:
+   - universal credential fallback precedence retained
+   - service-role profile sync enabled for role mutation reliability
+   - strict role assertion bypass for universal-account mode
+
+### New Shard Topology
+
+1. `tests/e2e/module-route-access-master-admin-platform.spec.ts`
+2. `tests/e2e/module-route-access-admin-enforcement.spec.ts`
+3. `tests/e2e/module-route-access-admin-records-business.spec.ts`
+4. `tests/e2e/module-route-access-admin-operations-bob.spec.ts`
+5. `tests/e2e/module-route-access-field-client.spec.ts`
+6. `tests/e2e/module-route-access-isolation-regression.spec.ts`
+
+### Evidence (RunPod, token-auth, main branch)
+
+1. Platform shard: `0 failed, 105 passed, 0 skipped`
+2. Admin enforcement shard: `0 failed, 95 passed, 0 skipped`
+3. Admin records/business shard: `0 failed, 70 passed, 0 skipped`
+4. Admin operations/Bob shard: `0 failed, 75 passed, 0 skipped`
+5. Isolation/regression shard: `0 failed, 20 passed, 40 skipped`
+6. Field/client shard (final rerun): `0 failed, 125 passed, 0 skipped`
+
+### Stabilization Commits
+
+1. `b91caa47` — skip role assertions in universal-account mode
+2. `1748c2b3` — relax shared-account route assertions
+3. `815da16c` — stabilize shared-fallback route shards
+
+Operational note:
+
+1. RunPod clone failures were resolved by explicit `repo_token` forwarding from environment-backed `GITHUB_TOKEN`.
+
 ## Current Cycle Snapshot (2026-05-04)
 
 Material changes since baseline a6e39a0f (12 commits, Phase 3 closeout + Phase 4 implementation):

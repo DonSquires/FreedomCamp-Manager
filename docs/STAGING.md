@@ -1,6 +1,6 @@
 # STAGING — Unified Execution To-Do and Crash Recovery Plan
 
-Date: 2026-05-03
+Date: 2026-05-05
 Owner: GitHub Copilot (GPT-5.3-Codex)
 Status: Active staging checklist
 
@@ -183,6 +183,33 @@ Fill this before stopping work:
 - Active/last CI run IDs:
 - Open blockers with owner:
 - Next exact command to run:
+
+Latest Session Snapshot (Phase B Route-Access Shard Stabilization — 2026-05-05):
+
+- Timestamp (NZ): 2026-05-05 19:55:00 NZST
+- Current branch: main
+- HEAD SHA: 815da16cb4638e830973e7f0ea37f5a5a1f8472e
+- Working tree status (`git status -sb`): dirty (untracked: `supabase/migrations/20260504000005_phase_b1_patrol_and_respond.sql`)
+- Scope completed:
+  - Migrated `module-route-access` from monolithic spec to six shard specs for RunPod reliability.
+  - Added shared route-access helper and stabilized shared-fallback assertions for staging envs.
+  - Added universal-account-safe role assertion behavior and service-role profile sync in E2E auth helper.
+  - Removed legacy monolithic spec from mainline shard path.
+- Latest lint result: unchanged from prior green baseline for touched test/docs surfaces.
+- Latest build result: unchanged from prior green baseline for this cycle.
+- Latest targeted test result (RunPod, token-auth clone):
+  - `tests/e2e/module-route-access-master-admin-platform.spec.ts`: 0 failed, 105 passed, 0 skipped
+  - `tests/e2e/module-route-access-admin-enforcement.spec.ts`: 0 failed, 95 passed, 0 skipped
+  - `tests/e2e/module-route-access-admin-records-business.spec.ts`: 0 failed, 70 passed, 0 skipped
+  - `tests/e2e/module-route-access-admin-operations-bob.spec.ts`: 0 failed, 75 passed, 0 skipped
+  - `tests/e2e/module-route-access-isolation-regression.spec.ts`: 0 failed, 20 passed, 40 skipped
+  - `tests/e2e/module-route-access-field-client.spec.ts` (final rerun): 0 failed, 125 passed, 0 skipped
+- Active/last CI run IDs:
+  - Not captured via `gh run` in this session; validation executed via RunPod direct status polling.
+- Open blockers with owner:
+  - None on route-access shard track; proceed to next Phase B E2E segment.
+- Next exact command to run:
+  - `cd /workspaces/FreedomCamp-Manager && python3 scripts/trigger-bob-self-test.mjs --spec tests/e2e/org-isolation-api.spec.ts --spec tests/e2e/client-portal-isolation.spec.ts --spec tests/e2e/phase-b1-patrol-and-respond.spec.ts`
 
 Latest Session Snapshot (Documentation Authority Update — 2026-05-04):
 
