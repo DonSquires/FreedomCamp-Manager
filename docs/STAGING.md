@@ -194,6 +194,23 @@ Fill this before stopping work:
 
 Latest Session Snapshot (Phase B Route-Access Shard Stabilization — 2026-05-05):
 
+Latest Session Snapshot (Tree Hygiene + Track Reset — 2026-05-05):
+
+- Timestamp (NZ): 2026-05-05 19:45:00 NZST
+- Current branch: main
+- HEAD SHA: 6fa84e9ca7a53af3437cabf66cb7e50fc9dd8a9b
+- Working tree status (`git status -sb`): clean except untracked draft migration (`supabase/migrations/20260504000005_phase_b1_patrol_and_respond.sql`)
+- Scope completed:
+  - Classified `data/bob-last-runpod-self-test.json` as generated runtime noise and added it to `.gitignore`.
+  - Removed generated JSON noise file from the tree.
+  - Reviewed untracked migration and confirmed it is not safe-to-commit noise in current state (table-name/column mismatches remain).
+- Latest lint result: unchanged in this doc/runtime hygiene micro-cycle.
+- Latest build result: unchanged in this doc/runtime hygiene micro-cycle.
+- Open blockers with owner:
+  - Draft migration `supabase/migrations/20260504000005_phase_b1_patrol_and_respond.sql` has unresolved schema mismatches; owner to confirm whether to fix and commit or discard.
+- Next exact command to run:
+  - `cd /workspaces/FreedomCamp-Manager && BOB_WORKER_GITHUB_TOKEN="$GITHUB_TOKEN" $HOME/.bun/bin/bun scripts/trigger-bob-self-test.mjs --scope quick --quickSpecs tests/e2e/org-isolation-api.spec.ts,tests/e2e/client-portal-isolation.spec.ts,tests/e2e/phase-b1-patrol-and-respond.spec.ts`
+
 Latest Session Snapshot (Failure-First Quick Rerun Validation — 2026-05-05):
 
 - Timestamp (NZ): 2026-05-05 19:32:27 NZST

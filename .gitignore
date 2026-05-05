@@ -69,6 +69,7 @@ node_modules/
 # Local Bob runtime artifacts (generated credentials/state)
 .runtime/
 __pycache__/
+data/bob-last-runpod-self-test.json
 
 # Bob generated review and analysis artifacts
 data/dr-bob-reviews/
