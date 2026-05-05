@@ -58,7 +58,25 @@ Deno.serve(withCors(async (req: Request) => {
       description: payload.transcript || payload.location_context,
       context: payload,
     })
-    return jsonResponse(result.assessment ?? result, req)
+    
+    // Normalize the response to ensure matrix fields are present
+    const assessment = result.assessment ?? result
+    const response = typeof assessment === 'object' ? assessment : { summary: String(assessment) }
+    
+    // Ensure expected fields for matrix prefill
+    const normalized = {
+      ...response,
+      // Ensure matrix fields if not present
+      volume_score: response.volume_score ?? response.volume ?? null,
+      time_score: response.time_score ?? response.time ?? null,
+      tone_score: response.tone_score ?? response.tone ?? null,
+      noise_type: response.noise_type ?? response.type ?? 'unknown',
+      noise_source: response.noise_source ?? response.source ?? null,
+      exceeds_district_plan: response.exceeds_district_plan ?? response.exceeds ?? null,
+      rationale: response.rationale ?? response.reasoning ?? response.summary ?? '',
+    }
+    
+    return jsonResponse(normalized, req)
   } catch (err: any) {
     console.error('noise-audio-assess fetch error:', err?.message || String(err))
     return errorResponse(err?.message || 'Noise audio assessment unavailable', req, 502)

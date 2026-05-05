@@ -33,6 +33,10 @@ const INFERENCE_API_KEY =
   ''
 const INFERENCE_REQUEST_TIMEOUT_MS = 90_000
 
+function isRunpodServerless(url: string): boolean {
+  return url.includes('runpod.io') || url.includes('/runsync')
+}
+
 function inferenceHeaders(): Record<string, string> {
   const h: Record<string, string> = { 'Content-Type': 'application/json' }
   if (INFERENCE_API_KEY) {
@@ -65,16 +69,36 @@ async function callTenderGenerate(
 
   let resp: Response
   try {
-    resp = await fetch(`${INFERENCE_SERVICE_URL}/tender/generate`, {
-      method: 'POST',
-      headers: inferenceHeaders(),
-      body: JSON.stringify({
-        generation_type: generationType,
-        context,
-        organization_context: orgContext,
-      }),
-      signal: controller.signal,
-    })
+    // Try HTTP /tender/generate endpoint (inference-service)
+    if (isRunpodServerless(INFERENCE_SERVICE_URL)) {
+      // RunPod serverless: forward via /runsync with tender_generate action
+      resp = await fetch(`${INFERENCE_SERVICE_URL}/runsync`, {
+        method: 'POST',
+        headers: inferenceHeaders(),
+        body: JSON.stringify({
+          executionTimeout: 120000,
+          input: {
+            action: 'tender_generate',
+            generation_type: generationType,
+            context,
+            organization_context: orgContext,
+          },
+        }),
+        signal: controller.signal,
+      })
+    } else {
+      // inference-service HTTP route
+      resp = await fetch(`${INFERENCE_SERVICE_URL}/tender/generate`, {
+        method: 'POST',
+        headers: inferenceHeaders(),
+        body: JSON.stringify({
+          generation_type: generationType,
+          context,
+          organization_context: orgContext,
+        }),
+        signal: controller.signal,
+      })
+    }
   } catch (err: any) {
     if (err?.name === 'AbortError') {
       throw new Error(`Bob /tender/generate timed out after ${Math.floor(INFERENCE_REQUEST_TIMEOUT_MS / 1000)}s`)
@@ -86,17 +110,36 @@ async function callTenderGenerate(
 
   if (!resp.ok) {
     const errText = await resp.text()
+    // If RunPod doesn't support tender_generate action, fall back to heuristic
+    if (isRunpodServerless(INFERENCE_SERVICE_URL) && resp.status >= 400) {
+      console.warn(`[tender] RunPod serverless does not support tender_generate action (${resp.status}), falling back to heuristic template`)
+      return {
+        sections: {
+          cover_letter: '[Heuristic cover letter template — upgrade to inference-service for AI generation]',
+          executive_summary: '[Heuristic executive summary template]',
+          services_offered: '[Heuristic services offered template]',
+          pricing_notes: '[Heuristic pricing notes template]',
+          team_qualifications: '[Heuristic team qualifications template]',
+          health_and_safety: '[Heuristic health and safety template]',
+          declaration: '[Heuristic declaration template]',
+        },
+        provider: 'heuristic',
+        model_used: 'template-fallback',
+        references_used: false,
+      }
+    }
     throw new Error(`Bob /tender/generate error ${resp.status}: ${errText.slice(0, 200)}`)
   }
 
   const json = await resp.json()
-  if (!json.success) throw new Error('Bob tender generation returned success=false')
+  const output = json.output ?? json
+  if (output?.success === false) throw new Error('Bob tender generation returned success=false')
 
   return {
-    sections: json.sections || {},
-    provider: json.provider || 'heuristic',
-    model_used: json.model_used || 'template',
-    references_used: json.references_used ?? false,
+    sections: output.sections || {},
+    provider: output.provider || 'heuristic',
+    model_used: output.model_used || 'template',
+    references_used: output.references_used ?? false,
   }
 }
 
@@ -105,12 +148,29 @@ async function callTenderTrain(payload: Record<string, unknown>): Promise<void> 
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), INFERENCE_REQUEST_TIMEOUT_MS)
   try {
-    await fetch(`${INFERENCE_SERVICE_URL}/tender/train`, {
-      method: 'POST',
-      headers: inferenceHeaders(),
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    })
+    if (isRunpodServerless(INFERENCE_SERVICE_URL)) {
+      // RunPod serverless: forward via /runsync with tender_train action
+      await fetch(`${INFERENCE_SERVICE_URL}/runsync`, {
+        method: 'POST',
+        headers: inferenceHeaders(),
+        body: JSON.stringify({
+          executionTimeout: 60000,
+          input: {
+            action: 'tender_train',
+            payload,
+          },
+        }),
+        signal: controller.signal,
+      })
+    } else {
+      // inference-service HTTP route
+      await fetch(`${INFERENCE_SERVICE_URL}/tender/train`, {
+        method: 'POST',
+        headers: inferenceHeaders(),
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      })
+    }
   } catch {
     // Training is best-effort — don't block the response
   } finally {
