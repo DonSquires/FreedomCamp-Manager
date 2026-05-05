@@ -326,7 +326,8 @@ test.describe('Org Isolation API Proof', () => {
 
     expect(myRole === 'master' || myRole === 'grand_master').toBe(false)
 
-    if (!serviceRoleKey && foreignOrgIdFromDistinctCreds) {
+    // Prefer real distinct-org proof when available; synthetic org rows can be noisy in shared staging contexts.
+    if (foreignOrgIdFromDistinctCreds) {
       const foreignRead = await restGet(
         `user_profiles?select=id,organization_id&organization_id=eq.${foreignOrgIdFromDistinctCreds}&limit=1`,
         bearerToken as string

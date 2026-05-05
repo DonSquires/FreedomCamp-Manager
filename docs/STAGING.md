@@ -194,6 +194,28 @@ Fill this before stopping work:
 
 Latest Session Snapshot (Phase B Route-Access Shard Stabilization — 2026-05-05):
 
+Latest Session Snapshot (Org-Isolation Flake Triage — 2026-05-05):
+
+- Timestamp (NZ): 2026-05-05 19:49:41 NZST
+- Current branch: main
+- HEAD SHA: 05a321c4629899ce42c658167a53807a53adfb83
+- Working tree status (`git status -sb`): dirty (`tests/e2e/org-isolation-api.spec.ts` modified; untracked draft migration `supabase/migrations/20260504000005_phase_b1_patrol_and_respond.sql`)
+- Scope completed:
+  - Isolated one failing case from quick triad run: `org-isolation-api` on Mobile Safari (`non-master token cannot read synthetic foreign organization`).
+  - Updated test logic to prefer distinct-credential foreign-org proof path when available, and use synthetic-org proof only as fallback.
+  - Validated targeted rerun: `tests/e2e/org-isolation-api.spec.ts` passed across browser matrix.
+- Latest targeted test result (RunPod, targeted quick):
+  - Job `189dec77-0832-40f8-8934-4de26accfa9d-u2`
+  - Spec: `tests/e2e/org-isolation-api.spec.ts`
+  - Result: 0 failed, 13 passed, 22 skipped
+  - Follow-up failed-only batch `981701da-759b-4df7-9591-7be04c05ce84-u1`
+  - Specs: `tests/e2e/org-isolation-api.spec.ts`, `tests/e2e/client-portal-isolation.spec.ts`, `tests/e2e/phase-b1-patrol-and-respond.spec.ts`
+  - Result: 0 failed, 65 passed, 35 skipped
+- Open blockers with owner:
+  - None on org-isolation test lane after targeted validation.
+- Next exact command to run:
+  - `cd /workspaces/FreedomCamp-Manager && BOB_WORKER_GITHUB_TOKEN="$GITHUB_TOKEN" $HOME/.bun/bin/bun scripts/trigger-bob-self-test.mjs --scope quick --quickSpecs tests/e2e/client-portal-isolation.spec.ts,tests/e2e/phase-b1-patrol-and-respond.spec.ts`
+
 Latest Session Snapshot (Tree Hygiene + Track Reset — 2026-05-05):
 
 - Timestamp (NZ): 2026-05-05 19:45:00 NZST
