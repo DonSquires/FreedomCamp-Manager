@@ -159,12 +159,13 @@ async function main() {
   // Fetch current config so we can preserve other fields.
   console.log('\nFetching current endpoint config...');
   const current = await rest('GET', `endpoints/${endpointId}`, apiKey);
+  const currentGpuTypes = current?.gpuTypeIds ?? current?.gpuIds ?? [];
   console.log(
     `Current  : workersMin=${current?.workersMin} workersMax=${current?.workersMax} ` +
-    `templateId=${current?.templateId} gpuIds=${JSON.stringify(current?.gpuIds ?? [])}`
+    `templateId=${current?.templateId} gpuTypeIds=${JSON.stringify(currentGpuTypes)}`
   );
 
-  const patch = { gpuIds };
+  const patch = { gpuTypeIds: gpuIds };
   console.log('\nPatch payload:', JSON.stringify(patch, null, 2));
 
   if (dryRun) {
@@ -177,9 +178,10 @@ async function main() {
 
   // Confirm the change.
   const updated = await rest('GET', `endpoints/${endpointId}`, apiKey);
+  const updatedGpuTypes = updated?.gpuTypeIds ?? updated?.gpuIds ?? [];
   console.log(
     `\nUpdated  : workersMin=${updated?.workersMin} workersMax=${updated?.workersMax} ` +
-    `gpuIds=${JSON.stringify(updated?.gpuIds ?? [])}`
+    `gpuTypeIds=${JSON.stringify(updatedGpuTypes)}`
   );
 
   console.log('\n✅ GPU type list updated. Workers will use the new preference order on next scale-up.');
