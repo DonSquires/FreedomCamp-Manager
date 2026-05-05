@@ -234,3 +234,117 @@ For rollout issues, contact the Core Pipeline Rebuild team or reference:
 - Migration: `supabase/migrations/20260220_core_pipeline_rebuild.sql`
 - Acceptance Tests: `supabase/acceptance-tests/phase-gates.sql`
 - Edge Function: `supabase/functions/plate-scanner-photo-first/index.ts`
+
+---
+
+## Build Realignment Phase B–D Flags
+
+The following flags were introduced as part of the Build Realignment Plan
+(`docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md`). They are managed via the
+`public.feature_flags` Supabase table and the `public.is_feature_enabled()`
+helper function.
+
+**Migration**: `supabase/migrations/202605_feature_flags.sql`  
+**Rollback script**: `scripts/rollback-feature-flag.sh`  
+**Canary advance script**: `scripts/advance-canary-stage.sh`  
+**Status tracker**: `docs/PHASE_B_GATE_STATUS.md`
+
+### Naming Convention
+
+All realignment flags use the prefix `FF_PHASE_[B|C|D]_<FEATURE>`.  
+Examples: `FF_PHASE_B_PATROL_EVENTS`, `FF_PHASE_B_DISPATCH_ACK`.
+
+### Rollout Pattern (all Phase B flags)
+
+| Stage | Percentage | Success Threshold |
+|---|---|---|
+| Canary | 5% (1 test org) | Error rate < 1%; p95 latency < 500 ms |
+| Early adopters | 25% (5 orgs) | Same thresholds |
+| Broad rollout | 50% (13 orgs) | Same thresholds |
+| General availability | 100% | — |
+
+To advance a flag to the next stage:
+
+```bash
+scripts/advance-canary-stage.sh FF_PHASE_B_PATROL_EVENTS
+```
+
+To roll back:
+
+```bash
+scripts/rollback-feature-flag.sh FF_PHASE_B_PATROL_EVENTS "reason"
+```
+
+### Phase B Flags
+
+#### `FF_PHASE_B_PATROL_EVENTS`
+
+- **Purpose**: Enable patrol session events (`patrol_session_events` table) and
+  checkpoint progress tracking via the case model bridge.
+- **Slice**: B1 — Patrol and Respond
+- **Depends on**: Phase A gate green; `operational_cases` schema in staging
+- **Default**: `enabled=false`, `rollout_percentage=0`
+- **CI gate**: `.github/workflows/ci-phase-b1-patrol-gate.yml`
+
+#### `FF_PHASE_B_DISPATCH_ACK`
+
+- **Purpose**: Enable new dispatch acknowledgement flow reading from
+  `dispatch_case_bridge` and writing acknowledgement events to the case model.
+- **Slice**: B2 — Dispatch and Command
+- **Depends on**: `FF_PHASE_B_PATROL_EVENTS` not required but recommended
+- **Default**: `enabled=false`, `rollout_percentage=0`
+- **CI gate**: `.github/workflows/ci-phase-b2-dispatch-gate.yml`
+
+#### `FF_PHASE_B_ENFORCEMENT_TIMELINE`
+
+- **Purpose**: Enable enforcement timeline creation from `operational_cases`
+  (`enforcement_case_bridge` rows); gated enforcement notice flows.
+- **Slice**: B4 — Freedom Camping + Parking Enforcement
+- **Depends on**: Phase A gate; case model deployed in staging
+- **Default**: `enabled=false`, `rollout_percentage=0`
+- **CI gate**: `.github/workflows/ci-phase-b4-enforcement-gate.yml`
+
+### Phase C Flags
+
+#### `FF_PHASE_C_SECURITY_ASSISTIVE`
+
+- **Purpose**: Enable security assistive surfaces (site guard, access control,
+  POI/VOI/LOI) resolved against the shared case model.
+- **Slice**: C1–C4 — Specialist and Assistive Layers
+- **Depends on**: Phase B gate green
+- **Default**: `enabled=false`, `rollout_percentage=0`
+- **CI gate**: `.github/workflows/ci-phase-c1-site-guard-gate.yml`
+
+### Phase D Flags
+
+#### `FF_PHASE_D_BOB_INTEGRATION`
+
+- **Purpose**: Enable Bob AI assistant integration with the approval workflow and
+  case model audit trail.
+- **Slice**: D1 — Bob Approval and Proposal Contracts
+- **Depends on**: Phase C gate green
+- **Default**: `enabled=false`, `rollout_percentage=0`
+
+### Rollback Behaviour
+
+| Flag | Fallback |
+|---|---|
+| `FF_PHASE_B_PATROL_EVENTS` | Patrol progress from existing `patrol_route_instances` only; no session events |
+| `FF_PHASE_B_DISPATCH_ACK` | Dispatch acknowledgement via legacy `dispatch_jobs.status` update only |
+| `FF_PHASE_B_ENFORCEMENT_TIMELINE` | Enforcement notices from legacy `breach_alerts` direct path |
+| `FF_PHASE_C_SECURITY_ASSISTIVE` | Specialist surfaces use pre-realignment direct-query paths |
+| `FF_PHASE_D_BOB_INTEGRATION` | Bob outputs not linked to case model; approval queues remain separate |
+
+### Canary Monitoring Integration
+
+The CI gate workflow `ci-phase-b-canary-gate.yml` validates:
+
+1. `feature_flags` table exists and `FF_PHASE_B_*` rows are present.
+2. `is_feature_enabled()` returns `false` for all Phase B flags (pre-rollout).
+3. Canary percentage tests: verify rollout bucket hashing is deterministic.
+4. Rollback script is executable and produces `rollback_reason` row in
+   `feature_flag_rollout_history`.
+
+Degraded-mode validation is run by
+`tests/e2e/flag-teardown-safety.test.ts` (verifies source records survive
+a mid-workflow flag disable).
