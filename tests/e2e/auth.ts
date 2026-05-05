@@ -292,6 +292,13 @@ export function validateRoleCredentialPreflight(
 }
 
 function resolveRoleCredentials(user: TestUserKey): TestCredentials {
+  if (hasUniversalTestAccount) {
+    return {
+      email: universalTestEmail,
+      password: universalTestPassword,
+    }
+  }
+
   const config = roleCredentialConfig[user]
   const roleEmail = readEnv(...config.emailVars)
   const rolePassword = readEnv(...config.passwordVars)
