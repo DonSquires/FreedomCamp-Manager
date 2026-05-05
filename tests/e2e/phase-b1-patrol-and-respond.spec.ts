@@ -18,7 +18,8 @@ async function createTestOfficer(organizationId: string, emailLabel: string) {
     throw new Error('SUPABASE_SERVICE_ROLE_KEY required')
   }
 
-  const email = `${emailLabel}-${Date.now()}@test.local`
+  const uniqueSuffix = `${Date.now()}-${crypto.randomUUID()}`
+  const email = `${emailLabel}-${uniqueSuffix}@test.local`
   const { data: authCreate, error: authCreateError } = await supabaseAdmin.auth.admin.createUser({
     email,
     password: `B1-${crypto.randomUUID()}!aa`,
@@ -81,7 +82,7 @@ test.describe('Phase B1: Patrol and Respond', () => {
     const { data: orgData, error: orgErr } = await supabaseAdmin
       .from('organizations')
       .insert({
-        name: `B1 Test Org ${Date.now()}`,
+        name: `B1 Test Org ${Date.now()}-${crypto.randomUUID()}`,
         organization_type: 'client',
         is_active: true,
         overnight_verification_mode: 'two_photo_verification',
@@ -202,7 +203,7 @@ test.describe('Phase B1: Patrol and Respond', () => {
     const { data: org2Data } = await supabaseAdmin
       .from('organizations')
       .insert({
-        name: `B1 Test Org 2 ${Date.now()}`,
+        name: `B1 Test Org 2 ${Date.now()}-${crypto.randomUUID()}`,
         organization_type: 'client',
         is_active: true,
         overnight_verification_mode: 'two_photo_verification',
@@ -236,7 +237,7 @@ test.describe('Phase B1: Patrol and Respond', () => {
       .insert({
         organization_id: org2Data.id,
         case_id: case2Data.id,
-        officer_id: officer2Data.id,
+        officer_id: testOfficer2Id,
         event_type: 'officer_initiated',
         severity: 'yellow_flag',
         status: 'open',
