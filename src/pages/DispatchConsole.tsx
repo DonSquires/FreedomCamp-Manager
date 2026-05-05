@@ -590,8 +590,10 @@ export default function DispatchConsole() {
             {jobs.map(job => {
               const sc    = STATUS_CONFIG[job.status]
               const pc    = PRIORITY_CONFIG[job.priority]
-              const ageM  = minutesSince(job.created_at)
-              const slaOk = !job.sla_breached && ageM < job.response_sla_minutes
+              const ageM    = minutesSince(job.created_at)
+              const minsLeft = job.response_sla_minutes - ageM
+              const slaOk   = !job.sla_breached && ageM < job.response_sla_minutes
+              const slaWarn = !job.sla_breached && minsLeft > 0 && minsLeft <= 15
               return (
                 <Card
                   key={job.id}
@@ -601,7 +603,7 @@ export default function DispatchConsole() {
                     job.priority === 'urgent' ? 'border-l-red-500' :
                     job.priority === 'high'   ? 'border-l-orange-400' :
                     job.priority === 'normal' ? 'border-l-blue-400' : 'border-l-gray-300'
-                  } ${job.sla_breached ? 'bg-red-50/30 dark:bg-red-950/10' : ''}`}
+                  } ${job.sla_breached ? 'bg-red-50/30 dark:bg-red-950/10' : slaWarn ? 'bg-amber-50/30 dark:bg-amber-950/10' : ''}`}
                 >
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-3">
@@ -612,6 +614,9 @@ export default function DispatchConsole() {
                           <Badge variant="outline" className={`${sc.colour} ${sc.border}`}>{sc.label}</Badge>
                           {job.sla_breached && (
                             <Badge variant="destructive" className="text-xs animate-pulse">SLA ⚠</Badge>
+                          )}
+                          {slaWarn && (
+                            <Badge className="text-xs bg-amber-100 text-amber-800 border border-amber-300 animate-pulse">SLA {minsLeft}m</Badge>
                           )}
                         </div>
                         <p className="font-semibold text-sm leading-tight">{job.title}</p>
@@ -631,9 +636,11 @@ export default function DispatchConsole() {
                         ) : (
                           <span className="text-xs text-muted-foreground italic">Unassigned</span>
                         )}
-                        <div className="text-[11px] text-muted-foreground mt-0.5">
+                        <div className={`text-[11px] mt-0.5 ${job.sla_breached ? 'text-red-600 font-semibold' : slaWarn ? 'text-amber-600 font-semibold' : 'text-muted-foreground'}`}>
                           SLA: {job.response_sla_minutes}m
-                          {slaOk ? ` (${job.response_sla_minutes - ageM}m left)` : ''}
+                          {slaOk && minsLeft > 15 ? ` (${minsLeft}m left)` : ''}
+                          {slaWarn ? ` ⚠ ${minsLeft}m left` : ''}
+                          {job.sla_breached ? ' — Breached' : ''}
                         </div>
                       </div>
                     </div>
