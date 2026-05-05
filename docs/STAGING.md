@@ -194,6 +194,31 @@ Fill this before stopping work:
 
 Latest Session Snapshot (Phase B Route-Access Shard Stabilization — 2026-05-05):
 
+Latest Session Snapshot (Failure-First Quick Rerun Validation — 2026-05-05):
+
+- Timestamp (NZ): 2026-05-05 19:32:27 NZST
+- Current branch: main
+- HEAD SHA: ec353022c7c7ed287262613c10817f0812aecbd5
+- Working tree status (`git status -sb`): dirty (untracked: `data/bob-last-runpod-self-test.json`, `supabase/migrations/20260504000005_phase_b1_patrol_and_respond.sql`)
+- Scope completed:
+  - Restored JS runtime tooling in this container via user-space Bun install to unblock script execution without root package install.
+  - Ran failure-first quick self-test and isolated failure to `tests/e2e/deep-functional.spec.ts`.
+  - Verified exact failing assertion from RunPod job output (`expect(Boolean(resolvedOrg)).toBeTruthy()`).
+  - Removed brittle org metadata assertion in deep-functional smoke path and pushed fix.
+  - Re-ran failed-only path against updated main branch and confirmed green.
+- Latest lint result: not re-run in this micro-cycle (test-focused fix only).
+- Latest build result: not re-run in this micro-cycle (test-focused fix only).
+- Latest targeted test result (RunPod, failed-only rerun):
+  - Job `2e1879d3-be3f-4162-8b35-6fc37a747292-u1`
+  - Spec: `tests/e2e/deep-functional.spec.ts`
+  - Result: 0 failed, 5 passed, 0 skipped
+- Active/last CI run IDs:
+  - Not captured via `gh run` in this session; validation executed via RunPod direct status polling.
+- Open blockers with owner:
+  - None for this quick rerun lane.
+- Next exact command to run:
+  - `cd /workspaces/FreedomCamp-Manager && BOB_WORKER_GITHUB_TOKEN="$GITHUB_TOKEN" node scripts/trigger-bob-self-test.mjs --rerunFailedOnly --lastRunFile data/bob-last-runpod-self-test.json`
+
 - Timestamp (NZ): 2026-05-05 19:55:00 NZST
 - Current branch: main
 - HEAD SHA: 815da16cb4638e830973e7f0ea37f5a5a1f8472e
