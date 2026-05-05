@@ -79,7 +79,7 @@ test.describe('client_viewer – restricted to client portal', () => {
 
 test.describe('nzscv_monitor – restricted access', () => {
   test('nzscv_monitor is BLOCKED from /admin (general)', async ({ page }) => {
-    await loginClientViewerOrSkip(page)
+    await loginAs(page, 'nzscv_monitor')
     await assertRouteBlocked(page, '/admin')
   })
 })

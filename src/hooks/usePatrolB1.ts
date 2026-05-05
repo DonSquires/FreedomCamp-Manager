@@ -1,10 +1,26 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import { Database } from '@/types/database'
 
-type PatrolRouteInstance = Database['public']['Tables']['patrol_route_instances']['Row']
-type WelfareEventB1 = Database['public']['Tables']['welfare_events_b1']['Row']
-type PatrolSessionEvent = Database['public']['Tables']['patrol_session_events']['Row']
+interface PatrolRouteInstance {
+  id: string
+  case_id?: string | null
+  [key: string]: unknown
+}
+
+interface WelfareEventB1 {
+  id: string
+  case_id?: string | null
+  reported_at?: string | null
+  status?: string | null
+  [key: string]: unknown
+}
+
+interface PatrolSessionEvent {
+  id: string
+  case_id?: string | null
+  event_time?: string | null
+  [key: string]: unknown
+}
 
 /**
  * Phase B1 Hooks: Patrol and Respond
@@ -20,7 +36,7 @@ export function usePatrolRunByCase(caseId: string | undefined) {
     queryKey: ['patrol_run', caseId],
     queryFn: async () => {
       if (!caseId) return null
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('patrol_route_instances')
         .select('*')
         .eq('case_id', caseId)
@@ -41,7 +57,7 @@ export function useWelfareEvents(caseId: string | undefined) {
     queryKey: ['welfare_events', caseId],
     queryFn: async () => {
       if (!caseId) return []
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('welfare_events_b1')
         .select('*')
         .eq('case_id', caseId)
@@ -68,7 +84,7 @@ export function useCreateWelfareEvent() {
       severity?: 'routine' | 'yellow_flag' | 'red_flag' | 'emergency'
       notes?: string
     }) => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('welfare_events_b1')
         .insert({
           case_id: input.caseId,
@@ -99,7 +115,7 @@ export function usePatrolSessionEvents(caseId: string | undefined) {
     queryKey: ['patrol_session_events', caseId],
     queryFn: async () => {
       if (!caseId) return []
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('patrol_session_events')
         .select('*')
         .eq('case_id', caseId)
@@ -127,7 +143,7 @@ export function useRecordPatrolSessionEvent() {
       location?: { lat: number; lng: number }
       notes?: string
     }) => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('patrol_session_events')
         .insert({
           case_id: input.caseId,
@@ -157,7 +173,7 @@ export function useAckWelfareEvent() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (eventId: string) => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('welfare_events_b1')
         .update({ status: 'acknowledged' })
         .eq('id', eventId)
@@ -166,7 +182,7 @@ export function useAckWelfareEvent() {
       if (error) throw error
       return data
     },
-    onSuccess: (newData) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['welfare_events'] })
     },
   })
@@ -180,7 +196,7 @@ export function useResolveWelfareEvent() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: { eventId: string; resolutionNotes?: string }) => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('welfare_events_b1')
         .update({ status: 'resolved', resolved_at: new Date().toISOString(), notes: input.resolutionNotes })
         .eq('id', input.eventId)
@@ -203,7 +219,7 @@ export function useLinkPatrolToCase() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: { patrolInstanceId: string; caseId: string }) => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('patrol_route_instances')
         .update({ case_id: input.caseId })
         .eq('id', input.patrolInstanceId)

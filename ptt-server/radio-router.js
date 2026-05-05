@@ -27,7 +27,6 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
-const { createClient } = require('redis');
 
 const router = express.Router();
 
@@ -59,6 +58,17 @@ const RADIO_SPEECH_METRICS_TIMEOUT_MS = Math.max(1000, parseInt(process.env.RADI
 
 let redisClient = null;
 let redisReady = false;
+let redisCreateClient = null;
+
+function getRedisCreateClient() {
+  if (redisCreateClient) return redisCreateClient;
+  try {
+    redisCreateClient = require('redis').createClient;
+    return redisCreateClient;
+  } catch {
+    return null;
+  }
+}
 const speechQueueMetrics = {
   eventsEnqueued: 0,
   enqueueFailures: 0,
@@ -76,6 +86,12 @@ function resetSpeechQueueMetrics() {
 async function initRadioRedis() {
   if (!REDIS_URL) return;
   if (redisClient) return;
+  const createClient = getRedisCreateClient();
+  if (!createClient) {
+    console.warn('[radio-router] redis package not available; speech queue integration disabled');
+    return;
+  }
+
   redisClient = createClient({ url: REDIS_URL });
   redisClient.on('ready', () => {
     redisReady = true;

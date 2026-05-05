@@ -789,6 +789,37 @@ Latest Session Snapshot (Truth-Sync + Local Gates Audit — 2026-05-05):
 - Next exact command to run:
   - `cd /workspaces/FreedomCamp-Manager && bun run build && bun test ptt-server/test/radio-health-schema.test.js`
 
+Latest Session Snapshot (Phase B Agentic Continuation — 2026-05-05):
+
+- Timestamp (NZ): 2026-05-05 20:57:54 NZST
+- Current branch: main
+- HEAD SHA: 096193e47c316eeb5cc7f913f61da3385d239397
+- Working tree status (`git status -sb`): dirty (`ptt-server/radio-router.js`, `src/App.tsx`, `src/hooks/usePatrolB1.ts`, `src/navigation/routeManifest.ts`, `tests/e2e/module-route-access-field-client.spec.ts`)
+- Scope completed:
+  - Fixed `src/hooks/usePatrolB1.ts` to use established `(supabase as any)` hook pattern and local interfaces, removing invalid generated table-type dependencies.
+  - Hardened `ptt-server/radio-router.js` with lazy optional Redis import so targeted radio schema tests run in constrained environments.
+  - Corrected route authorization parity for `/compliance-recalculation` in both router and manifest (`master`, `grand_master` only).
+  - Added missing manifest entry for `/compliance-escalations` to close backward-compat visibility bypass.
+  - Corrected `nzscv_monitor` E2E credential usage in field-client shard.
+- Latest lint result:
+  - pass (`bun run lint`)
+- Latest build result:
+  - pass (`bun run build`)
+- Latest targeted test results:
+  - pass (`bun test ptt-server/test/radio-health-schema.test.js`): 3 passed, 0 failed
+  - pass (`trigger-bob-self-test --scope quick --quickSpecs tests/e2e/org-isolation-api.spec.ts,tests/e2e/client-portal-isolation.spec.ts,tests/e2e/phase-b1-patrol-and-respond.spec.ts`)
+    - Job `6f508801-a619-420a-8f81-263dad473833-u1`
+    - Result: 0 failed, 65 passed, 35 skipped
+  - broad route-access regression lane still failing after failure-first reruns:
+    - Job `6873312e-c12e-4fdb-9a25-020563127521-u1`: 22 failed, 51 passed, 152 skipped
+    - Job `45d94f95-447f-41b2-8917-78cf1770e15f-u2`: 21 failed, 47 passed, 157 skipped
+    - Job `e1ffda5f-5f8f-49bd-a38c-57eb4d4942ba-u1`: 21 failed, 66 passed, 133 skipped
+- Open blockers with owner:
+  - Route-access shard instability across browser matrix on field-client/isolation-regression suites (owner: test architecture + auth/credential strategy).
+  - Bug reporter automation remains skipped due missing env context in worker (`VITE_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SYNTHETIC_MONITOR_USER_ID`) (owner: env/runtime setup).
+- Next exact command to run:
+  - `cd /workspaces/FreedomCamp-Manager && BOB_WORKER_GITHUB_TOKEN="$GITHUB_TOKEN" bun scripts/trigger-bob-self-test.mjs --rerunFailedOnly --lastRunFile data/bob-last-runpod-self-test.json`
+
 ### 9E. Top-10 High-Traffic Route Triage (Initial)
 
 Traffic proxy method:
