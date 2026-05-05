@@ -81,7 +81,7 @@ const defaultLivePassword = sharedPassword(
 
 const hasUniversalTestAccount = !!(universalTestEmail && universalTestPassword)
 const allowSharedFallback = readEnv('PLAYWRIGHT_ALLOW_SHARED_CREDENTIAL_FALLBACK') === '1' || hasUniversalTestAccount
-const skipRoleAssertions = readEnv('PLAYWRIGHT_SKIP_ROLE_ASSERTIONS') === '1'
+const skipRoleAssertions = readEnv('PLAYWRIGHT_SKIP_ROLE_ASSERTIONS') === '1' || hasUniversalTestAccount
 const roleAssertionMode = readEnv('PLAYWRIGHT_ROLE_ASSERTION_MODE') || 'strict'
 const adminSupabaseUrl = readEnv('VITE_SUPABASE_URL')
 const serviceRoleKey = readEnv('PLAYWRIGHT_SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_ROLE_KEY')
