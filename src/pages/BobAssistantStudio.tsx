@@ -55,6 +55,7 @@ import {
   persistBobLearningRemote,
   persistConversationTurnRemote,
 } from '@/lib/bobLearningMemory'
+import { classifyBobCommand, evaluateBobCommandPolicy } from '@/lib/bobCommandBus'
 
 type ChatMessage = {
   id: string
@@ -1159,6 +1160,26 @@ export default function BobAssistantStudio() {
     const message = (override ?? chatInput).trim()
     if (!message || thinking) return
 
+    const command = classifyBobCommand(message)
+    const commandPolicy = evaluateBobCommandPolicy(command, {
+      role: String(user?.role ?? 'officer'),
+      orgId: user?.organization_id ?? null,
+      route: window.location.pathname,
+    })
+
+    if (!commandPolicy.allowed) {
+      const blockedMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        text: `Command blocked by policy: ${commandPolicy.reason}`,
+        createdAt: new Date().toISOString(),
+      }
+      setChat((prev) => [...prev, blockedMsg])
+      setChatInput('')
+      toast.error(commandPolicy.reason)
+      return
+    }
+
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
       role: 'user',
@@ -1188,6 +1209,19 @@ export default function BobAssistantStudio() {
       if (compactLongTermMemory) rawMessages.push({ role: 'assistant', content: compactLongTermMemory })
       if (compactRemoteMemory) rawMessages.push({ role: 'assistant', content: compactRemoteMemory })
       if (compactContinuationMemory) rawMessages.push({ role: 'assistant', content: compactContinuationMemory })
+      if (command.intent !== 'unknown') {
+        rawMessages.push({
+          role: 'system',
+          content: [
+            'Command bus classification active.',
+            `intent=${command.intent}`,
+            `safety=${command.safety}`,
+            `confidence=${command.confidence.toFixed(2)}`,
+            `requires_approval=${commandPolicy.requiresApproval ? 'true' : 'false'}`,
+            `policy_reason=${commandPolicy.reason}`,
+          ].join(' | '),
+        })
+      }
       rawMessages.push(...historyMessages, { role: 'user', content: message })
 
       return {
@@ -1204,6 +1238,15 @@ export default function BobAssistantStudio() {
             voicePatternLearningConsent,
             faceClarificationConsent,
             note: 'Consent scaffold only - no biometric persistence enabled in this build.',
+          },
+          command_bus: {
+            intent: command.intent,
+            confidence: command.confidence,
+            safety: command.safety,
+            requires_approval: commandPolicy.requiresApproval,
+            policy_reason: commandPolicy.reason,
+            args: command.args,
+            matched_pattern: command.matchedPattern,
           },
         },
       }
