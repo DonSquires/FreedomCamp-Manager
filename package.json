@@ -139,6 +139,7 @@
         "test:bob:self:full": "node scripts/trigger-bob-self-test.mjs --scope full",
         "test:bob:pod:self": "node scripts/trigger-bob-pod-self-test.mjs",
         "test:agentic:bob:human": "node scripts/bob-agentic-test-orchestrator.mjs --scope full --batch human",
+        "test:bob:self:rerun-failed": "node scripts/trigger-bob-self-test.mjs --rerunFailedOnly",
     "test:agentic:bob:resume": "node scripts/bob-agentic-test-orchestrator.mjs --resume",
     "test:agentic:conductor": "node scripts/bob-agentic-conductor.mjs --scope full",
     "test:agentic:conductor:quick": "node scripts/bob-agentic-conductor.mjs --scope quick --movements core,visual --max-retries 1",

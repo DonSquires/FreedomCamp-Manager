@@ -209,7 +209,8 @@ Latest Session Snapshot (Phase B Route-Access Shard Stabilization — 2026-05-05
 - Open blockers with owner:
   - None on route-access shard track; proceed to next Phase B E2E segment.
 - Next exact command to run:
-  - `cd /workspaces/FreedomCamp-Manager && python3 scripts/trigger-bob-self-test.mjs --spec tests/e2e/org-isolation-api.spec.ts --spec tests/e2e/client-portal-isolation.spec.ts --spec tests/e2e/phase-b1-patrol-and-respond.spec.ts`
+  - `cd /workspaces/FreedomCamp-Manager && node scripts/trigger-bob-self-test.mjs --scope quick --quickSpecs tests/e2e/org-isolation-api.spec.ts,tests/e2e/client-portal-isolation.spec.ts,tests/e2e/phase-b1-patrol-and-respond.spec.ts`
+  - Fast retry (failed specs only): `cd /workspaces/FreedomCamp-Manager && node scripts/trigger-bob-self-test.mjs --rerunFailedOnly`
 
 Latest Session Snapshot (Phase B Continuation — 2026-05-05):
 

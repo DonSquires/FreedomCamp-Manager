@@ -22,12 +22,14 @@
  *   BOB_SELF_TEST_PREFLIGHT    true = validate repo/token access before queueing (default: true)
  *   BOB_SELF_TEST_REQUIRE_REPO_TOKEN true = require worker git token for private repos (default: true)
  *   BOB_SELF_TEST_AUTH_MODE    repo-token | embed-url (default: repo-token)
+ *   BOB_SELF_TEST_LAST_RUN_FILE path to persist last run summary (default: data/bob-last-runpod-self-test.json)
  *   SYNTHETIC_MONITOR_USER_ID  reporter UUID for bug_reports (optional)
  *
  * Usage:
  *   node scripts/trigger-bob-self-test.mjs
  *   node scripts/trigger-bob-self-test.mjs --scope core
  *   node scripts/trigger-bob-self-test.mjs --scope quick --quickSpecs tests/e2e/deep-functional.spec.ts
+ *   node scripts/trigger-bob-self-test.mjs --rerunFailedOnly
  *   node scripts/trigger-bob-self-test.mjs --dryRun
  */
 
@@ -194,12 +196,53 @@ function getBoolArg(name) {
   return raw === 'true' || raw === '1' || raw === 'yes' || process.argv.includes(`--${name}`);
 }
 
+function uniq(values = []) {
+  return Array.from(new Set(values.filter(Boolean)));
+}
+
+function readLastRunFailedSpecs(filePath) {
+  const resolved = path.resolve(process.cwd(), filePath);
+  if (!fs.existsSync(resolved)) return [];
+
+  try {
+    const parsed = JSON.parse(fs.readFileSync(resolved, 'utf8'));
+    const direct = Array.isArray(parsed?.failed_specs) ? parsed.failed_specs : [];
+    const fromFailures = Array.isArray(parsed?.failures)
+      ? parsed.failures.map((failure) => String(failure?.file || '').trim())
+      : [];
+    return uniq([...direct, ...fromFailures]);
+  } catch {
+    return [];
+  }
+}
+
+function writeLastRunSummary(filePath, summary) {
+  const resolved = path.resolve(process.cwd(), filePath);
+  fs.mkdirSync(path.dirname(resolved), { recursive: true });
+  fs.writeFileSync(resolved, `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
+}
+
+function adaptiveRunTimeout(baseTimeoutMs, specs = []) {
+  const normalized = specs.map((spec) => String(spec || '').toLowerCase());
+  const hasHeavySpec = normalized.some((spec) =>
+    spec.includes('module-route-access-field-client') ||
+    spec.includes('module-route-access') ||
+    spec.includes('client-portal-isolation') ||
+    spec.includes('phase-b1')
+  );
+
+  if (!hasHeavySpec) return baseTimeoutMs;
+  return Math.max(baseTimeoutMs, 780000);
+}
+
 // ─── Config ───────────────────────────────────────────────────────────────────
 const SCOPE        = getArg('scope', process.env.BOB_SELF_TEST_SCOPE || 'quick');
 const TIMEOUT_MS   = Number(process.env.BOB_SELF_TEST_TIMEOUT_MS || 600000);
 const POLL_MS      = Number(process.env.BOB_SELF_TEST_POLL_MS || 5000);
 const DRY_RUN      = getBoolArg('dryRun') || process.env.BOB_SELF_TEST_DRY_RUN === 'true';
 const QUICK_SPECS_ARG = getArg('quickSpecs', '');
+const RERUN_FAILED_ONLY = getBoolArg('rerunFailedOnly') || envBool('BOB_SELF_TEST_RERUN_FAILED_ONLY', false);
+const LAST_RUN_FILE = getArg('lastRunFile', process.env.BOB_SELF_TEST_LAST_RUN_FILE || 'data/bob-last-runpod-self-test.json');
 const VALID_SCOPES = new Set(['quick', 'core', 'workflows', 'visual', 'human', 'full']);
 const QUICK_SCOPE_DEFAULT_SPECS = ['tests/e2e/deep-functional.spec.ts'];
 
@@ -416,7 +459,20 @@ async function run() {
   const quickScopeSpecs = SCOPE === 'quick'
     ? (configuredQuickSpecs.length > 0 ? configuredQuickSpecs : QUICK_SCOPE_DEFAULT_SPECS)
     : [];
-  const selectedSpecs = quickScopeSpecs.length > 0 ? quickScopeSpecs : parseSpecArg(getArg('specs', ''));
+  const manualSpecs = parseSpecArg(getArg('specs', ''));
+  const lastRunFailedSpecs = RERUN_FAILED_ONLY ? readLastRunFailedSpecs(LAST_RUN_FILE) : [];
+  const selectedSpecs = lastRunFailedSpecs.length > 0
+    ? lastRunFailedSpecs
+    : (quickScopeSpecs.length > 0 ? quickScopeSpecs : manualSpecs);
+
+  if (RERUN_FAILED_ONLY) {
+    if (lastRunFailedSpecs.length === 0) {
+      console.error(`[bob-self-test] --rerunFailedOnly requested but no failed specs were found in ${LAST_RUN_FILE}`);
+      process.exit(1);
+    }
+    console.log(`[bob-self-test] rerunFailedOnly enabled: ${lastRunFailedSpecs.join(', ')}`);
+  }
+
   const missingCredentialKeys = validateForwardedCredentials(forwardedTestEnv, selectedSpecs);
   if (missingCredentialKeys.length > 0) {
     console.error('[bob-self-test] Missing credentials required for selected scope/specs:');
@@ -436,13 +492,15 @@ async function run() {
     console.log('[bob-self-test] Detected GitHub Actions token; using URL-token repo auth mode for clone compatibility');
   }
 
+  const workerTimeoutMs = adaptiveRunTimeout(Math.max(TIMEOUT_MS - 60000, 60000), selectedSpecs);
+
   const payload = {
     input: {
       action:      'run_playwright',
       scope:       SCOPE,
-      timeout_ms:  Math.max(TIMEOUT_MS - 60000, 60000),
+      timeout_ms:  workerTimeoutMs,
       reporter:    'json',
-      ...(quickScopeSpecs.length > 0 ? { specs: quickScopeSpecs } : {}),
+      ...(selectedSpecs.length > 0 ? { specs: selectedSpecs } : {}),
       // Repo clone — Bob will git clone/pull this before running tests
       repo_url:    REPO_URL,
       repo_branch: REPO_BRANCH,
@@ -485,6 +543,14 @@ async function run() {
 
   if (!outputData) {
     console.error(`[bob-self-test] Timed out waiting for job ${jobId}`);
+    writeLastRunSummary(LAST_RUN_FILE, {
+      status: 'timeout',
+      scope: SCOPE,
+      job_id: jobId,
+      selected_specs: selectedSpecs,
+      failed_specs: selectedSpecs,
+      created_at: new Date().toISOString(),
+    });
     process.exit(1);
   }
 
@@ -514,6 +580,27 @@ async function run() {
     console.log(outputData.stdout_tail.slice(-1000));
   }
   console.log('══════════════════════════════════════════════\n');
+
+  const failedSpecsFromOutput = uniq((failures || []).map((failure) => String(failure?.file || '').trim()));
+  const fallbackFailedSpecs = failed > 0
+    ? (failedSpecsFromOutput.length > 0 ? failedSpecsFromOutput : selectedSpecs)
+    : [];
+  writeLastRunSummary(LAST_RUN_FILE, {
+    status: success ? 'success' : 'failed',
+    scope: SCOPE,
+    job_id: jobId,
+    started_at: startedAt,
+    finished_at: new Date().toISOString(),
+    selected_specs: selectedSpecs,
+    failed_specs: fallbackFailedSpecs,
+    stats: { passed, failed, skipped },
+    success,
+    failures,
+  });
+  console.log(`[bob-self-test] Saved last run summary to ${LAST_RUN_FILE}`);
+  if (!success && fallbackFailedSpecs.length > 0) {
+    console.log(`[bob-self-test] Fast retry command: node scripts/trigger-bob-self-test.mjs --rerunFailedOnly --lastRunFile ${LAST_RUN_FILE}`);
+  }
 
   // 4. Post bug report to Supabase if failures found
   if (!success && SUPABASE_URL && SERVICE_ROLE && REPORTER_USER) {
