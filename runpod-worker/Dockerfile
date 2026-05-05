@@ -97,4 +97,9 @@ RUN npm install --save-dev @playwright/test && \
 
 RUN chmod +x /usr/local/bin/start.sh /usr/local/bin/start_mode.sh
 
+# RunPod Serverless requirement:
+# - the container default command must start a long-running handler process
+# - the handler must stay alive and read jobs from RunPod
+# - do not use one-shot local test commands as container default
+# start_mode.sh -> start.sh -> exec python3 handler.py -> runpod.serverless.start(...)
 CMD ["/usr/local/bin/start_mode.sh"]

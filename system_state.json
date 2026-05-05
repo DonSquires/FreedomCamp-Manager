@@ -12,6 +12,7 @@
     "20260505000002_bob_org_voiceprint_policy"
   ],
   "last_edge_functions_deployed": ["onspace-ai-chat"],
+  "last_runpod_worker_change": "2026-05-05: clarified Dockerfile/start_mode.sh serverless wording — CMD must start long-running runpod.serverless handler loop, not a one-shot test runner",
   "bob_user_scope": {
     "status": "production",
     "description": "Bob preferences (voice, identity, biometrics) are now user-specific with cloud sync via bob_user_profiles. RLS enforces user-ownership on bob_conversations, bob_messages, bob_learning_log. Org admins can toggle voiceprint enrollment via organizations.bob_voiceprint_enrollment_allowed.",
