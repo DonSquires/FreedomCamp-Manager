@@ -759,6 +759,34 @@ If UX or role-flow change introduces route/doc drift:
 3. Resolve mismatch in docs/MODULE_ROADMAP.md or src/App.tsx
 4. Re-run doc authority checks and record evidence in STAGING snapshot
 
+Latest Session Snapshot (Truth-Sync + Local Gates Audit — 2026-05-05):
+
+- Timestamp (NZ): 2026-05-05 20:29:47 NZST
+- Current branch: main
+- HEAD SHA: 8a71b0c676ee555d4ba7ac97d16bc06188dbd075
+- Working tree status (`git status -sb`): dirty from generated truth-sync artifacts (`data/bob-failure-summary.json`, `docs/BOB_FAILURE_SUMMARY.md`, `system_state.json`)
+- Scope completed:
+  - Executed restart truth-sync flow: repo context, `scripts/system-check.sh`, `scripts/summarize-failures.mjs`, `scripts/auto-ingest.mjs`.
+  - Executed local quality gates per staging policy.
+  - Verified CI lookup path attempted for current SHA and captured blocker.
+- Latest lint result:
+  - pass (`bun run lint`)
+- Latest build result:
+  - fail (`bun run build`)
+  - Blocker detail: TypeScript fails in `src/hooks/usePatrolB1.ts` due non-existent Supabase typed tables/columns (`patrol_route_instances`, `welfare_events_b1`, `patrol_session_events`) and cascading query type errors.
+- Latest targeted test result:
+  - fail (`bun test ptt-server/test/radio-health-schema.test.js`)
+  - Blocker detail: missing runtime dependency `redis` required by `ptt-server/radio-router.js`.
+- Active/last CI run IDs:
+  - Not captured in this session.
+  - Blocker: `gh` CLI missing in container (`bash: gh: command not found`).
+- Open blockers with owner:
+  - Build blocker in `src/hooks/usePatrolB1.ts` (owner: app architecture + data/schema integration).
+  - Targeted radio schema test dependency missing (`redis`) (owner: ptt-server runtime/tooling).
+  - CI status retrieval blocked by missing GitHub CLI (owner: container/runtime setup).
+- Next exact command to run:
+  - `cd /workspaces/FreedomCamp-Manager && apk add --no-cache github-cli redis && GH_PAGER=cat gh run list --limit 120 --json databaseId,headSha,name,status,conclusion,url --jq '.[] | select(.headSha=="'"$(git rev-parse HEAD)'"'") | [.databaseId,.name,.status,.conclusion,.url] | @tsv'`
+
 ### 9E. Top-10 High-Traffic Route Triage (Initial)
 
 Traffic proxy method:
