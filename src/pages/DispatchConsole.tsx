@@ -15,7 +15,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { insertDispatchJobWithAlarmTypeFallback } from '@/lib/dispatchJobs'
-import { formatDistance, estimateEtaMinutes, formatEta } from '@/lib/geo'
+import { formatDistance, estimateEtaMinutes, formatEta, haversineKm } from '@/lib/geo'
 import { useAuthStore } from '@/stores/authStore'
 import { useClientOrgIds } from '@/hooks/useClientOrgIds'
 import { useDispatchReplan } from '@/hooks/useDispatchReplan'
@@ -76,7 +76,15 @@ interface DispatchJob {
   response_sla_minutes: number
   sla_breached: boolean
   escalation_level: number
-  assigned_officer: { id: string; first_name: string; last_name: string; phone: string | null } | null
+  assigned_officer: {
+    id: string
+    first_name: string
+    last_name: string
+    phone: string | null
+    last_gps_latitude: number | null
+    last_gps_longitude: number | null
+    last_gps_update: string | null
+  } | null
   client_site: { name: string; address: string | null } | null
   zone: { name: string } | null
 }
@@ -189,7 +197,7 @@ const DISPATCH_JOB_SELECT = `
   address, gps_lat, gps_lng, caller_name, caller_phone, created_at, dispatched_at,
   acknowledged_at, on_scene_at, completed_at,
   response_sla_minutes, sla_breached, escalation_level,
-  assigned_officer:user_profiles!assigned_to(id, first_name, last_name, phone),
+  assigned_officer:user_profiles!assigned_to(id, first_name, last_name, phone, last_gps_latitude, last_gps_longitude, last_gps_update),
   client_site:client_sites!client_site_id(name, address),
   zone:zones!zone_id(name)
 `
@@ -635,6 +643,21 @@ export default function DispatchConsole() {
                           </div>
                         ) : (
                           <span className="text-xs text-muted-foreground italic">Unassigned</span>
+                        )}
+                        {/* B-07: Live ETA — shown for active dispatched/en_route jobs with GPS */}
+                        {job.assigned_officer?.last_gps_latitude != null &&
+                         job.assigned_officer?.last_gps_longitude != null &&
+                         job.gps_lat != null && job.gps_lng != null &&
+                         ['dispatched', 'acknowledged', 'en_route'].includes(job.status) && (
+                          <div className="flex items-center justify-end gap-1 text-[11px] text-cyan-700 font-medium mt-0.5">
+                            <Navigation className="h-3 w-3" />
+                            {formatEta(estimateEtaMinutes(haversineKm(
+                              job.assigned_officer.last_gps_latitude,
+                              job.assigned_officer.last_gps_longitude,
+                              job.gps_lat,
+                              job.gps_lng,
+                            )))}
+                          </div>
                         )}
                         <div className={`text-[11px] mt-0.5 ${job.sla_breached ? 'text-red-600 font-semibold' : slaWarn ? 'text-amber-600 font-semibold' : 'text-muted-foreground'}`}>
                           SLA: {job.response_sla_minutes}m

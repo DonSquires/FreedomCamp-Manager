@@ -15,6 +15,7 @@ import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { AppLayout } from '@/components/features/AppLayout'
 import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
 import { IncidentCreationForm, IncidentFormData } from '@/components/features/IncidentCreationForm'
+import { IncidentEvidenceBundle } from '@/components/features/IncidentEvidenceBundle'
 import { toast } from 'sonner'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 
@@ -357,6 +358,9 @@ export default function IncidentManagement() {
                   )}
                 </div>
                 )}
+
+                {/* B-08: Evidence bundle — shown for all incidents */}
+                <IncidentEvidenceBundle incidentId={incident.id} className="mt-3" />
               </CardContent>
             </Card>
           ))

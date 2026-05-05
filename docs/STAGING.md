@@ -1928,3 +1928,115 @@ Latest Session Snapshot (Phase A Org-Isolation Gate — Explicit Deployment Bloc
 - [x] B-06: Reports page respects selected child org for admin/admin_officer
 
 **Next session:** B-07 (in-app ETA calculation) + B-08 (structured evidence bundles) + Phase 5 Sprint 2 planning.
+
+---
+
+## Phase 5 Sprint 1 Continuation — B-07/B-08/B-09 (2026-05-05)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/DispatchConsole.tsx` | B-07: Extended `DISPATCH_JOB_SELECT` to join `last_gps_latitude`, `last_gps_longitude`, `last_gps_update` from `user_profiles!assigned_to`. Extended `DispatchJob.assigned_officer` interface with GPS fields. Added live ETA display on job cards for `dispatched`/`acknowledged`/`en_route` jobs where both job GPS and officer GPS are present; ETA auto-refreshes every 30 s via existing `tick` mechanism. |
+| `src/lib/geo.ts` | Already contained `haversineKm`, `estimateEtaMinutes`, `formatEta` (B-07 utilities from prior session). `haversineKm` now imported directly in `DispatchConsole`. |
+| `src/hooks/useIncidentEvidence.ts` | B-08: New hook — fetches incident row (type, description, notes, GPS, `primary_evidence_url`, `metadata.photos`) and linked enforcement_events (`photo_urls`, `evidence_notes`) when `metadata.case_id` is present. Returns typed `IncidentEvidenceData`. |
+| `src/components/features/IncidentEvidenceBundle.tsx` | B-08: New component — collapsible evidence bundle for any incident. Shows metadata grid, officer notes, enforcement notes, photo grid (primary + enforcement), GPS map link. "Generate bundle (PDF)" action opens a print-ready HTML window for one-action PDF export. "Download all photos" opens each photo in a new tab. |
+| `src/pages/IncidentManagement.tsx` | B-08: Wired `<IncidentEvidenceBundle incidentId={incident.id} />` into each incident card (rendered below status actions). Visible for all incidents; self-hides when no evidence or notes are present. |
+| `src/components/features/GlobalFilterRibbon.tsx` | B-09: Already implemented (org_context_switch audit to `audit_log` on org switch — fire-and-forget, fire at line 229). No additional changes required. |
+
+### B-07 / B-08 / B-09 Success Criteria
+
+- [x] B-07: Job card shows live ETA for dispatched/en_route jobs when officer GPS + job GPS are both available
+- [x] B-07: ETA auto-updates every 30 s (via `tick` state — `refetchInterval`-equivalent)
+- [x] B-07: ETA formatted with `formatEta()` (e.g. `~4 min`, `~1 h 10 min`)
+- [x] B-08: `useIncidentEvidence` hook aggregates photos, notes, GPS, enforcement data per incident
+- [x] B-08: `IncidentEvidenceBundle` provides 1-action "Generate bundle (PDF)" + bulk photo download
+- [x] B-08: Bundle self-hides when incident has no meaningful evidence (no false empty states)
+- [x] B-09: Org-context switches logged to `audit_log` with `previous_org` / `new_org` in `old_values`/`new_values` (existing implementation)
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS
+
+### Phase 5 Sprint 1 — COMPLETE
+
+All Sprint 1 VOC backlog items (B-01 through B-09) are now shipped:
+
+| ID | Item | Status |
+|---|---|---|
+| B-01 | CRM org isolation | ✅ |
+| B-02 | Man-down / fall detection | ✅ |
+| B-03 | AI dispatch unit recommendation | ✅ |
+| B-04 | Automated welfare check cadence | ✅ |
+| B-05 | Offline map tile download | ✅ |
+| B-06 | Org-scoped reporting filters | ✅ |
+| B-07 | In-app ETA calculation | ✅ |
+| B-08 | Structured evidence bundles | ✅ |
+| B-09 | Org-context switch audit log | ✅ |
+
+---
+
+## Phase 5 — Sprint 2 Planning
+
+**Goal:** Deliver the Sprint 2 VOC backlog items (B-10 through B-13 from `docs/voc-to-backlog-mapping.md`) plus wearable integration (B-14).
+
+### Sprint 2 Backlog
+
+| ID | Item | Area | Priority | Notes |
+|---|---|---|---|---|
+| B-10 | Public freedom camping zone map | Public Compliance | 🟠 High | Public page: zones, status (open/closed/restricted), rules; no login; updated < 5 min of change |
+| B-11 | Multi-language public portal | Public Compliance | 🟠 High | Zone map + notices in EN, Māori, Mandarin, Hindi; auto-detect from browser |
+| B-12 | Automated DOC / council data sync | Public Compliance | 🟠 High | Nightly job, DOC API + council feed; admin notification on change; manual override |
+| B-13 | Public noise complaint portal | Noise | 🟠 High | Resident submits online; gets case reference; can check status without phoning |
+| B-14 | Wearable (Apple Watch) integration | Officer Safety | 🟠 High | Dispatch alerts + SOS from wearable |
+
+### Sprint 2 Pre-conditions
+
+1. Review NZ Privacy Act + Ministry of Business guidance before B-10/B-11 public portal build.
+2. Confirm DOC API availability and auth scope before B-12 nightly sync scaffolding.
+3. Validate Apple Watch integration path (watchOS push notification vs. WatchConnectivity) before B-14.
+
+### Sprint 2 Governance Gates
+
+- `bun run build` → PASS before each delivery
+- `bun run lint` → PASS
+- `DOC_AUTHORITY_STRICT=true bun run lint:doc-authority` → PASS
+- Route/roadmap grounding check for any new public routes added
+- Triad review on B-10/B-11 public portal before deployment (privacy + legal gate)
+
+---
+
+## Phase 5 — Sprint 2 Session (2026-05-05)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `supabase/migrations/20260505000001_public_noise_complaints.sql` | B-13: New table `public_noise_complaints` — address, description, noise_type, optional contact, status, status_message, sequential reference (`NCC-YYYY-NNNNNN`). Auto-trigger for reference generation. Anon insert + select RLS; staff update RLS via `get_user_organization_ids()`. |
+| `src/types/database.ts` | B-13: Added `public_noise_complaints` Row/Insert/Update types. |
+| `src/pages/PublicFreedomCampingMap.tsx` | B-10: New public page (`/public/zone-map`). No login required. Fetches freedom-camping zones (`zone_type` in `freedom_camp / freedom_camping / freedom_camping_zone / camping`). Shows status (open/restricted/closed based on seasonal months), rules (max nights, self-contained, day-only), allowed days, land manager, bylaw reference, GPS map link. 5-min stale cache. Search filter. |
+| `src/pages/PublicNoiseComplaintPortal.tsx` | B-13: New public page (`/public/noise-complaint`). Submit tab: address, description, noise type, optional contact → inserts into `public_noise_complaints` and shows reference. Status tab: reference lookup → shows live status + officer message. |
+| `src/App.tsx` | Registered `/public/zone-map` and `/public/noise-complaint` as unauthenticated public routes (same pattern as `/dispute`). |
+
+### B-10 / B-13 Success Criteria
+
+- [x] B-10: `/public/zone-map` requires no login; fetches zones with `zone_type` in freedom-camping set
+- [x] B-10: Zone cards show open/restricted/closed status, max nights, self-contained flag, day-only flag, bylaw ref, GPS link
+- [x] B-10: 5-min stale time (close to "< 5 min of enforcement change" VOC target)
+- [x] B-10: Cross-linked to B-13 complaint portal and existing `/dispute` page
+- [x] B-13: `/public/noise-complaint` requires no login
+- [x] B-13: Submit → inserts `public_noise_complaints` row → shows `NCC-YYYY-NNNNNN` reference
+- [x] B-13: Status tab → lookup by reference → shows status badge + officer message
+- [x] B-13: Anon RLS allows insert/select; staff update requires org membership
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS
+
+### Sprint 2 Remaining
+
+| ID | Item | Status |
+|---|---|---|
+| B-10 | Public freedom camping zone map | ✅ |
+| B-11 | Multi-language public portal | ⬜ (depends on B-10; needs translation strings) |
+| B-12 | Automated DOC / council data sync | ⬜ (needs DOC API key confirmation) |
+| B-13 | Public noise complaint portal | ✅ |
+| B-14 | Wearable (Apple Watch) integration | ⬜ (needs WatchOS path validation) |
+
+**Next session:** B-11 (i18n for `/public/zone-map` + `/public/noise-complaint`) or B-12 (nightly DOC sync scaffold).

@@ -10921,6 +10921,71 @@ export type Database = {
           },
         ]
       }
+      public_noise_complaints: {
+        Row: {
+          id: string
+          reference: string
+          organization_id: string | null
+          address: string
+          suburb: string | null
+          complaint_description: string
+          noise_type: 'music' | 'party' | 'machinery' | 'animals' | 'construction' | 'vehicle' | 'other' | null
+          complainant_name: string | null
+          complainant_email: string | null
+          complainant_phone: string | null
+          status: 'received' | 'acknowledged' | 'assigned' | 'on_scene' | 'resolved' | 'no_action_taken'
+          status_message: string | null
+          linked_noise_assessment_id: string | null
+          linked_dispatch_job_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          reference?: string
+          organization_id?: string | null
+          address: string
+          suburb?: string | null
+          complaint_description: string
+          noise_type?: 'music' | 'party' | 'machinery' | 'animals' | 'construction' | 'vehicle' | 'other' | null
+          complainant_name?: string | null
+          complainant_email?: string | null
+          complainant_phone?: string | null
+          status?: 'received' | 'acknowledged' | 'assigned' | 'on_scene' | 'resolved' | 'no_action_taken'
+          status_message?: string | null
+          linked_noise_assessment_id?: string | null
+          linked_dispatch_job_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          reference?: string
+          organization_id?: string | null
+          address?: string
+          suburb?: string | null
+          complaint_description?: string
+          noise_type?: 'music' | 'party' | 'machinery' | 'animals' | 'construction' | 'vehicle' | 'other' | null
+          complainant_name?: string | null
+          complainant_email?: string | null
+          complainant_phone?: string | null
+          status?: 'received' | 'acknowledged' | 'assigned' | 'on_scene' | 'resolved' | 'no_action_taken'
+          status_message?: string | null
+          linked_noise_assessment_id?: string | null
+          linked_dispatch_job_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "public_noise_complaints_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       zones: {
         Row: {
           allowed_days: string[] | null
