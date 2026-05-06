@@ -170,6 +170,23 @@ const DataIntegrityDashboard = lazy(() => import('@/pages/DataIntegrityDashboard
 const CleanDashboard = lazy(() => import('@/pages/CleanDashboard'))
 const TestDashboard = lazy(() => import('@/pages/TestDashboard'))
 
+// Sprint 22–26: B-76–B-90
+const DriftEventLog = lazy(() => import('@/pages/DriftEventLog'))
+const InvestigationJobConfig = lazy(() => import('@/pages/InvestigationJobConfig'))
+const ZoneLegalConfigViewer = lazy(() => import('@/pages/ZoneLegalConfigViewer'))
+const InvestigationJobLog = lazy(() => import('@/pages/InvestigationJobLog'))
+const OperationalCaseLog = lazy(() => import('@/pages/OperationalCaseLog'))
+const PatrolEventLog = lazy(() => import('@/pages/PatrolEventLog'))
+const CheckpointVisitLog = lazy(() => import('@/pages/CheckpointVisitLog'))
+const EmsAttendanceLog = lazy(() => import('@/pages/EmsAttendanceLog'))
+const ParkingSessionLog = lazy(() => import('@/pages/ParkingSessionLog'))
+const FlaggedVehicleManager = lazy(() => import('@/pages/FlaggedVehicleManager'))
+const ParkingPaymentLog = lazy(() => import('@/pages/ParkingPaymentLog'))
+const ZoneSignageEvidence = lazy(() => import('@/pages/ZoneSignageEvidence'))
+const OfficerActivityLog = lazy(() => import('@/pages/OfficerActivityLog'))
+const CredentialProcessingLog = lazy(() => import('@/pages/CredentialProcessingLog'))
+const DispatchAcknowledgementLog = lazy(() => import('@/pages/DispatchAcknowledgementLog'))
+
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
 const GlobalOperationsBar = lazy(() => import('@/components/features/GlobalOperationsBar').then((m) => ({ default: m.GlobalOperationsBar })))
@@ -2071,6 +2088,23 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+
+          {/* Sprint 22–26: B-76–B-90 */}
+          <Route path="/drift-events" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><DriftEventLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/investigation-job-config" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><InvestigationJobConfig /></RoleRoute></ProtectedRoute>} />
+          <Route path="/zone-legal-config" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ZoneLegalConfigViewer /></RoleRoute></ProtectedRoute>} />
+          <Route path="/investigation-jobs-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><InvestigationJobLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/operational-cases-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><OperationalCaseLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/patrol-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PatrolEventLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/checkpoint-visits-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><CheckpointVisitLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/ems-attendances-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><EmsAttendanceLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/parking-sessions-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ParkingSessionLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/flagged-vehicles-manager" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><FlaggedVehicleManager /></RoleRoute></ProtectedRoute>} />
+          <Route path="/parking-payments-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ParkingPaymentLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/zone-signage-evidence" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ZoneSignageEvidence /></RoleRoute></ProtectedRoute>} />
+          <Route path="/officer-activity-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><OfficerActivityLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/credential-processing-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><CredentialProcessingLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/dispatch-ack-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><DispatchAcknowledgementLog /></RoleRoute></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route
