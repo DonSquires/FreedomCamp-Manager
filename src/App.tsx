@@ -213,6 +213,10 @@ const ZoneSignageEvidence = lazy(() => import('@/pages/ZoneSignageEvidence'))
 const OfficerActivityLog = lazy(() => import('@/pages/OfficerActivityLog'))
 const CredentialProcessingLog = lazy(() => import('@/pages/CredentialProcessingLog'))
 const DispatchAcknowledgementLog = lazy(() => import('@/pages/DispatchAcknowledgementLog'))
+// Sprint 27: B-91–B-93
+const ComplianceAuditLog   = lazy(() => import('@/pages/ComplianceAuditLog'))
+const EnforcementEventLog  = lazy(() => import('@/pages/EnforcementEventLog'))
+const NoiseJobLog          = lazy(() => import('@/pages/NoiseJobLog'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -2331,6 +2335,10 @@ export default function App() {
           <Route path="/officer-activity-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><OfficerActivityLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/credential-processing-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><CredentialProcessingLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/dispatch-ack-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><DispatchAcknowledgementLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 27: B-91–B-93 */}
+          <Route path="/compliance-audit-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ComplianceAuditLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/enforcement-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><EnforcementEventLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/noise-jobs-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><NoiseJobLog /></RoleRoute></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route

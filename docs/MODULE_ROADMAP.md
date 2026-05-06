@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-06 (verified against src App.tsx)
-Source of truth for routes: App router file src App.tsx (159 total routes as of Sprint 26 completion)
+Source of truth for routes: App router file src App.tsx (162 total routes as of Sprint 27 completion)
 
-> **Last Verification**: 2026-05-06 — All 159 routes reviewed and role-gating validated. Sprints 18–26 (B-64–B-90) documentation complete.
+> **Last Verification**: 2026-05-06 — All 162 routes reviewed and role-gating validated. Sprints 18–27 (B-64–B-93) documentation complete.
 
 ## How To Use
 
@@ -388,3 +388,22 @@ New admin routes added in Sprint 26 (B-88, B-89, B-90):
    - Route: /dispatch-ack-log
    - Role gate: admin, admin_officer, master
    - Log viewer for dispatch_acknowledgement_log; KPI cards (Total / Acknowledged / En Route / On Scene); lifecycle_stage filter (typed enum); ETA display; reads dispatch_acknowledgement_log (fully typed)
+
+## Sprint 27 Route Addendum (2026-05-06)
+
+New admin routes added in Sprint 27 (B-91, B-92, B-93):
+
+1. Compliance Audit Log (B-91)
+   - Route: /compliance-audit-log
+   - Role gate: admin, admin_officer, master
+   - Log viewer for compliance_audit_log; KPI cards (Total / Compliant / Blocked / Unique Officers); check_type/compliance_status/date filters; can_enforce + can_work badges; expandable blocked_reason; reads compliance_audit_log (fully typed)
+
+2. Enforcement Event Log (B-92)
+   - Route: /enforcement-events-log
+   - Role gate: admin, admin_officer, master
+   - Log viewer for enforcement_events; KPI cards (Total / Open / Closed / Unique Officers); event_type/status/violation_type/date filters; subject_type + identifier display; expandable action_taken + evidence_notes + photo URLs; reads enforcement_events (fully typed)
+
+3. Noise Job Log (B-93)
+   - Route: /noise-jobs-log
+   - Role gate: admin, admin_officer, master
+   - Log viewer for noise_jobs; KPI cards (Total / Open / Completed / High Priority); status/priority/noise_type/date filters; job_number + address + outcome; expandable complaint_description + outcome_notes + GPS + safety_notes; reads noise_jobs (fully typed)

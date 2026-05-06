@@ -3197,3 +3197,65 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - `bun run build` → PASS
 
 **Next session:** Sprint 27+ — identify next set of backlog candidates from competitive gap board.
+
+---
+
+## Phase 5 — Sprint 27 (B-91 / B-92 / B-93)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/ComplianceAuditLog.tsx` | New — B-91: Log viewer for compliance_audit_log; KPI cards (Total / Compliant / Blocked / Unique Officers); check_type/status/date filters; can_enforce + can_work boolean badges; expandable blocked_reason; fully typed |
+| `src/pages/EnforcementEventLog.tsx` | New — B-92: Log viewer for enforcement_events; KPI cards (Total / Open / Closed/Resolved / Unique Officers); event_type/status/violation_type/date filters; subject display; expandable action_taken + evidence_notes + photo URLs; fully typed |
+| `src/pages/NoiseJobLog.tsx` | New — B-93: Log viewer for noise_jobs; KPI cards (Total / Open / Completed / High Priority); status/priority/noise_type/date filters; job_number + address + outcome; expandable complaint + GPS + safety notes; fully typed |
+| `src/App.tsx` | Lazy imports block `// Sprint 27: B-91–B-93`; 3 new `<Route>` entries |
+| `src/navigation/routeManifest.ts` | 3 new entries: Compliance (B-91), Enforcement (B-92), Records (B-93) |
+| `src/components/features/AppLayout.tsx` | Sidebar: B-92 (Enforcement Event Log) under Operations/Enforcement; B-91 (Compliance Audit Log) after Compliance Analytics; B-93 (Noise Job Log) in Records group |
+| `src/pages/AdminPortal.tsx` | New tiles: Enforcement Event Log (Enforcement section), Compliance Audit Log (Compliance section), Noise Jobs (Live Ops section) |
+| `docs/MODULE_ROADMAP.md` | Route count 159 → 162; Sprint 27 addendum appended; verification note updated |
+
+### Sprint 27 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-91 | Compliance Audit Log | ✅ |
+| B-92 | Enforcement Event Log | ✅ |
+| B-93 | Noise Job Log | ✅ |
+
+- [x] `bun run lint` → PASS
+- [x] `bun run build` → PASS
+
+### Competitive Gap Board — Updated (post Sprint 27)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| Compliance | B-91 Compliance Audit Log | — |
+| Enforcement | B-92 Enforcement Event Log | — |
+| Noise Control | B-93 Noise Job Log | — |
+
+**Next sprint candidates:**
+- B-94: `PatrolRouteLog` — log viewer for the `patrols` table; KPIs (total/active/completed), zone/date filters, officer assignment display
+- B-95: `AlarmEventLog` — dedicated admin log for `alarm_events` with severity/type/date filters and acknowledge action
+- B-96: `BugReportLog` — internal bug report viewer for `bug_reports`; status workflow, severity filter, assign-to officer action
+
+---
+
+## Session Snapshot (Sprint 27 — 2026-05-06)
+
+- Timestamp (UTC): 2026-05-06 13:00 UTC
+- Current branch: copilot/review-doc-files-staging-instructions-again
+- Scope: Sprint 27 — built and wired B-91 (ComplianceAuditLog), B-92 (EnforcementEventLog), B-93 (NoiseJobLog)
+
+**New pages built:**
+- `src/pages/ComplianceAuditLog.tsx` — compliance_audit_log viewer
+- `src/pages/EnforcementEventLog.tsx` — enforcement_events viewer
+- `src/pages/NoiseJobLog.tsx` — noise_jobs viewer
+
+**Wiring applied:** App.tsx (lazy import + route), routeManifest.ts, AppLayout.tsx sidebar, AdminPortal.tsx tiles
+
+**Validation:**
+- `bun run lint` → PASS
+- `bun run build` → PASS
+
+**Next session:** Sprint 28 — B-94 PatrolRouteLog, B-95 AlarmEventLog, B-96 BugReportLog (or equivalent backlog items).

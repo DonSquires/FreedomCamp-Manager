@@ -1341,11 +1341,13 @@ export default function AdminPortal() {
                     { path: '/breaches',                   label: 'Breaches',         Icon: AlertTriangle, color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20',    badge: metrics.activeBreaches > 0 ? metrics.activeBreaches : undefined },
                     { path: '/enforcement-command-center', label: 'Command Centre',   Icon: Gavel,         color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
                     { path: '/enforcement-review',         label: 'Review',           Icon: ClipboardCheck,color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
+                    { path: '/enforcement-events-log',     label: 'Event Log',        Icon: Siren,         color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20' },
                     { path: '/disputes',                   label: 'Disputes',         Icon: FileWarning,   color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20', badge: (data as any)?.openDisputeIntake > 0 ? (data as any)?.openDisputeIntake : undefined },
                     { path: '/infringements',              label: 'Infringements',    Icon: Receipt,       color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
                     { path: '/breach-notices',             label: 'Breach Notices',   Icon: ScrollText,    color: 'text-rose-600',   bg: 'bg-rose-50 dark:bg-rose-900/20' },
                     { path: '/notice-to-vacate',           label: 'Notice to Vacate', Icon: FileText,      color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
                     { path: '/compliance-analytics',       label: 'Analytics',        Icon: PieChart,      color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    { path: '/compliance-audit-log',       label: 'Audit Log',        Icon: BadgeCheck,    color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
                     { path: '/spatial-compliance',         label: 'Spatial',          Icon: Map,           color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
@@ -1454,6 +1456,7 @@ export default function AdminPortal() {
                     { path: '/parking-officer', label: 'Parking',      Icon: ParkingSquare, color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20', scopeHint: 'Zone-based' },
                     { path: '/noise-officer', label: 'Noise Control', Icon: Volume2,       color: 'text-yellow-700', bg: 'bg-yellow-50 dark:bg-yellow-900/20', scopeHint: 'Jurisdiction' },
                     { path: '/noise-complaints', label: 'Noise Log', Icon: Volume2,      color: 'text-violet-700', bg: 'bg-violet-50 dark:bg-violet-900/20', scopeHint: 'Admin' },
+                    { path: '/noise-jobs-log',   label: 'Noise Jobs', Icon: Volume2,      color: 'text-orange-700', bg: 'bg-orange-50 dark:bg-orange-900/20', scopeHint: 'Admin' },
                     { path: '/breach-escalation', label: 'Escalation', Icon: ShieldAlert, color: 'text-red-700',   bg: 'bg-red-50 dark:bg-red-900/20', scopeHint: 'Admin' },
                     { path: '/incident-heatmap',  label: 'Incident Map', Icon: Flame,      color: 'text-rose-700', bg: 'bg-rose-50 dark:bg-rose-900/20', scopeHint: 'Admin' },
                     { path: '/health-safety-reports', label: 'H&S Reports', Icon: ShieldAlert, color: 'text-emerald-700', bg: 'bg-emerald-50 dark:bg-emerald-900/20', scopeHint: 'Admin' },
