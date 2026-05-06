@@ -2240,3 +2240,49 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - [x] `bun run lint` → PASS
 
 **Next session:** Sprint 3 remaining items or Phase 5 wrap-up.
+
+---
+
+## Phase 5 Sprint 3 Completion — B-19 / B-20 (2026-05-06)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/lib/officerLocale.ts` | B-19: EN/Māori/Mandarin/Hindi translations for officer portal (serviceType labels, shift/patrol actions, welfare/SOS, common buttons). `detectOfficerLocale()` reads from user profile `preferred_language`, localStorage, then browser navigator. |
+| `src/hooks/useOfficerLocale.ts` | B-19: Hook that reads/writes officer locale preference; persists to localStorage and Supabase `user_profiles.preferred_language` on change. |
+| `src/components/features/OfficerLanguageSelector.tsx` | B-19: Compact EN/MĀ/中/हि pill switcher component. |
+| `src/pages/OfficerHomePage.tsx` | B-19: Imports `useOfficerLocale` + `OfficerLanguageSelector`; end-shift, team-chat, open-shifts, ad-hoc shift labels and buttons use `t.officer.*`; language selector shown in header. |
+| `src/pages/FieldOfficerPortal.tsx` | B-19: Imports `useOfficerLocale` + `OfficerLanguageSelector`; Start Shift / End Shift labels use `ot.officer.*`; language selector in portal content top-right. |
+| `src/pages/TimesheetReview.tsx` | B-20: Replaces plain "Export CSV" button with "Export" that opens a format-selection dialog (Generic CSV / Xero Payroll NZ / MYOB AccountRight). Xero and MYOB formats use approved-only shifts in payroll-system column layout. `RadioGroup` replaced with button-group to match available components. |
+| `docs/STAGING.md` | B-19/B-20 session snapshot added. |
+
+### B-19 Success Criteria
+
+- [x] `officerLocale.ts`: 4 locales × officer portal strings
+- [x] `useOfficerLocale`: reads `user_profiles.preferred_language`, localStorage fallback, auto-detect
+- [x] `OfficerLanguageSelector`: EN/MĀ/中/हि pill switcher
+- [x] `OfficerHomePage`: language selector in header; End Shift / Team Chat / Open Shifts / Request Ad-hoc wired to locale
+- [x] `FieldOfficerPortal`: language selector in content area; Start Shift / End Shift wired
+
+### B-20 Success Criteria
+
+- [x] Export dialog with 3 format options: Generic CSV, Xero Payroll NZ, MYOB AccountRight/PayGlobal
+- [x] Generic: all shifts, full FieldOps columns
+- [x] Xero: approved shifts only — Employee Code, First/Last Name, Date, Start/End Time, Units, Pay Item, Notes
+- [x] MYOB: approved shifts only — Employee ID, Employee Name, Date, Start/End Time, Hours, Activity, Cost Centre, Notes
+- [x] Filename includes format suffix (fieldops / xero / myob) + date range
+
+### Sprint 3 Board (complete)
+
+| ID | Item | Status |
+|---|---|---|
+| B-15 | Self-serve parking appeals portal | ✅ |
+| B-16 | Real-time parking occupancy dashboard | ✅ |
+| B-17 | Camper self-registration | ✅ |
+| B-18 | Amenity mapping (rich zone facilities) | ✅ |
+| B-19 | Multi-Language Support (officer UI) | ✅ |
+| B-20 | Payroll/HR integration (Xero + MYOB export) | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)

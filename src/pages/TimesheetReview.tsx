@@ -119,6 +119,11 @@ export default function TimesheetReview() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
   const [officerFilter, setOfficerFilter] = useState('')
 
+  // ── B-20 Export dialog ────────────────────────────────────────────────────
+  type ExportFormat = 'generic' | 'xero' | 'myob'
+  const [showExportDialog, setShowExportDialog] = useState(false)
+  const [exportFormat, setExportFormat] = useState<ExportFormat>('generic')
+
   // ── Review dialog ─────────────────────────────────────────────────────────
   const [reviewing, setReviewing] = useState<OfficerShift | null>(null)
   const [notesDraft, setNotesDraft] = useState('')
@@ -217,11 +222,26 @@ export default function TimesheetReview() {
     updateApproval.mutate({ id: reviewing.id, status, notes: notesDraft })
   }
 
-  // ── CSV Export ────────────────────────────────────────────────────────────
-  function exportCsv() {
+  // ── CSV Export (B-20) ────────────────────────────────────────────────────
+  function triggerDownload(csv: string, filename: string) {
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function csvRow(values: string[]): string {
+    return values.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')
+  }
+
+  /** Generic FieldOps CSV — matches original export columns */
+  function buildGenericCsv(): string {
     const rows = [
-      ['Officer', 'Email', 'Zone', 'Shift Start', 'Shift End', 'Duration', 'Status', 'Admin Notes'],
-      ...filtered.map(s => [
+      csvRow(['Officer', 'Email', 'Zone', 'Shift Start', 'Shift End', 'Duration', 'Status', 'Admin Notes']),
+      ...filtered.map(s => csvRow([
         `${s.officer?.first_name ?? ''} ${s.officer?.last_name ?? ''}`.trim(),
         s.officer?.email ?? '',
         s.zone?.name ?? '',
@@ -230,16 +250,80 @@ export default function TimesheetReview() {
         formatDurationMins(s.started_at, s.ended_at),
         s.approval_status,
         s.admin_notes ?? '',
-      ]),
+      ])),
     ]
-    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a')
-    a.href     = url
-    a.download = `timesheets-${dateFrom}-to-${dateTo}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+    return rows.join('\n')
+  }
+
+  /**
+   * Xero Payroll CSV format
+   * Ref: Xero Payroll Import guide (NZ edition)
+   * Required columns: Employee Code, First Name, Last Name, Date, Start Time, End Time,
+   *   Units, Pay Item, Notes
+   */
+  function buildXeroCsv(): string {
+    const rows = [
+      csvRow(['Employee Code', 'First Name', 'Last Name', 'Date', 'Start Time', 'End Time', 'Units', 'Pay Item', 'Notes']),
+      ...filtered.filter(s => s.approval_status === 'approved' && s.ended_at).map(s => {
+        const start = new Date(s.started_at)
+        const end   = new Date(s.ended_at!)
+        const hours = Math.round((end.getTime() - start.getTime()) / 3600000 * 100) / 100
+        return csvRow([
+          s.officer_id?.slice(0, 8).toUpperCase() ?? '',
+          s.officer?.first_name ?? '',
+          s.officer?.last_name  ?? '',
+          start.toLocaleDateString('en-NZ', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+          start.toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit', hour12: false }),
+          end.toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit', hour12: false }),
+          String(hours),
+          'Ordinary Time',
+          s.admin_notes ?? '',
+        ])
+      }),
+    ]
+    return rows.join('\n')
+  }
+
+  /**
+   * MYOB PayGlobal / AccountRight CSV format
+   * Ref: MYOB AccountRight Timesheets import guide (NZ)
+   * Required columns: Employee ID, Employee Name, Date, Start Time, End Time,
+   *   Hours, Activity, Cost Centre, Notes
+   */
+  function buildMyobCsv(): string {
+    const rows = [
+      csvRow(['Employee ID', 'Employee Name', 'Date', 'Start Time', 'End Time', 'Hours', 'Activity', 'Cost Centre', 'Notes']),
+      ...filtered.filter(s => s.approval_status === 'approved' && s.ended_at).map(s => {
+        const start = new Date(s.started_at)
+        const end   = new Date(s.ended_at!)
+        const hours = Math.round((end.getTime() - start.getTime()) / 3600000 * 100) / 100
+        return csvRow([
+          s.officer_id?.slice(0, 8).toUpperCase() ?? '',
+          `${s.officer?.first_name ?? ''} ${s.officer?.last_name ?? ''}`.trim(),
+          start.toLocaleDateString('en-NZ', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+          start.toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit', hour12: false }),
+          end.toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit', hour12: false }),
+          String(hours),
+          'Regular',
+          s.zone?.name ?? '',
+          s.admin_notes ?? '',
+        ])
+      }),
+    ]
+    return rows.join('\n')
+  }
+
+  function handleExport() {
+    if (filtered.length === 0) { toast.error('No shifts to export'); return }
+    const FORMAT_META: Record<string, { csv: () => string; suffix: string; label: string }> = {
+      generic: { csv: buildGenericCsv, suffix: 'fieldops',   label: 'Generic FieldOps CSV' },
+      xero:    { csv: buildXeroCsv,   suffix: 'xero',        label: 'Xero Payroll CSV' },
+      myob:    { csv: buildMyobCsv,   suffix: 'myob',        label: 'MYOB CSV' },
+    }
+    const meta = FORMAT_META[exportFormat]
+    triggerDownload(meta.csv(), `timesheets-${meta.suffix}-${dateFrom}-to-${dateTo}.csv`)
+    toast.success(`${meta.label} downloaded`)
+    setShowExportDialog(false)
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -258,9 +342,9 @@ export default function TimesheetReview() {
               Review and approve officer shift hours before payroll export
             </p>
           </div>
-          <Button variant="outline" onClick={exportCsv} disabled={filtered.length === 0}>
+          <Button variant="outline" onClick={() => setShowExportDialog(true)} disabled={filtered.length === 0}>
             <Download className="h-4 w-4 mr-2" />
-            Export CSV
+            Export
           </Button>
         </div>
 
@@ -473,6 +557,60 @@ export default function TimesheetReview() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* ── B-20 Export format dialog ──────────────────────────────────── */}
+      <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Download className="h-4 w-4" />
+              Export Timesheets
+            </DialogTitle>
+            <DialogDescription>
+              Choose the format for your payroll system. Xero and MYOB exports
+              include only <strong>approved</strong> shifts.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <Label className="text-xs text-muted-foreground uppercase tracking-wide">Export Format</Label>
+            <div className="space-y-2">
+              {([
+                { value: 'generic', label: 'Generic CSV', desc: 'All shifts — full FieldOps columns' },
+                { value: 'xero',    label: 'Xero Payroll',  desc: 'NZ Xero payroll import format (approved only)' },
+                { value: 'myob',    label: 'MYOB AccountRight / PayGlobal', desc: 'MYOB timesheet import format (approved only)' },
+              ] as const).map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setExportFormat(opt.value)}
+                  className={[
+                    'w-full text-left rounded-lg border px-3 py-2.5 text-sm transition-colors',
+                    exportFormat === opt.value
+                      ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                      : 'hover:border-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800',
+                  ].join(' ')}
+                >
+                  <p className="font-medium">{opt.label}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{opt.desc}</p>
+                </button>
+              ))}
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              Exporting <strong>{filtered.length}</strong> shift{filtered.length !== 1 ? 's' : ''} · {dateFrom} to {dateTo}
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowExportDialog(false)}>Cancel</Button>
+            <Button onClick={handleExport}>
+              <Download className="h-4 w-4 mr-1.5" />
+              Download
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   )
 }
