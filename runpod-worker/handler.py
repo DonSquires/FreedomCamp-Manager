@@ -249,17 +249,6 @@ def build_system_prompt(role, incoming_prompt=None):
 
     return "\n\n".join(sections)
 
-# Probe Ollama at startup so failures are visible in worker logs immediately,
-# not discovered mid-job. This is diagnostic only — the worker still starts.
-try:
-    _probe = requests.get(f"{OLLAMA_BASE}/api/tags", timeout=10)
-    _models = [m.get("name") for m in _probe.json().get("models", [])]
-    print(f"[worker] Ollama probe OK — models: {_models or '(none listed)'}")
-except Exception as _e:
-    print(f"[worker] WARNING: Ollama probe failed — {_e}")
-    print(f"[worker] Ensure Ollama >= 0.3.x is running at {OLLAMA_BASE}")
-    print(f"[worker] To use an external instance, set OLLAMA_EXTERNAL_URL on the endpoint.")
-
 BOB_SYSTEM = (
     "You are Bob, the AI assistant for FieldOps Manager — a freedom camping "
     "enforcement platform in New Zealand. Be concise and actionable."
