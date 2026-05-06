@@ -2191,3 +2191,52 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - [x] `bun run lint` → PASS
 
 **Next session:** Sprint 3 continuation or Phase 5 wrap-up.
+
+---
+
+## Phase 5 Sprint 3 Continuation — B-17 / B-18 (2026-05-06)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `supabase/migrations/20260506000002_camper_registration_and_amenities.sql` | B-18: adds `has_toilets`, `has_water`, `has_dump_station`, `has_shower`, `has_rubbish`, `max_vehicles`, `fee_nzd` columns to `zones`. B-17: new `camper_registrations` table (anon INSERT + SELECT RLS, org-staff full access, GM read-all), `generate_camper_confirmation_code()` function. |
+| `supabase/functions/submit-camper-registration/index.ts` | New edge function: validates zone active, checks capacity (if max_vehicles set), generates confirmation code via DB function, inserts registration row. |
+| `src/lib/edgeFunctions.ts` | Added `submitCamperRegistration()` wrapper. |
+| `src/pages/PublicCamperRegistration.tsx` | New public page at `/public/register`. Zone browse/select with search, dates + party size, vehicle/contact form, confirmation code display. Lookup tab for existing registrations by code. |
+| `src/App.tsx` | Added `/public/register` lazy route. |
+| `src/pages/PublicFreedomCampingMap.tsx` | B-18: updated zone SELECT query to include amenity columns; amenity icon row (🚻💧⬇🚿🗑 + fee + capacity) per zone card; "Register your stay" CTA linking to `/public/register?zone=<id>`; Register Stay footer link. Zone type updated to include amenity fields. |
+| `src/pages/ZoneManagement.tsx` | B-18: added amenity fields to `Zone` interface; edit dialog Facilities & Amenities section (checkboxes + max_vehicles + fee_nzd); populate and save in open/save flow. |
+| `docs/STAGING.md` | B-17/B-18 session snapshot added. |
+
+### B-17 Success Criteria
+
+- [x] `/public/register` accessible without authentication
+- [x] Active zones browseable and selectable with search
+- [x] Vehicle/contact/dates form → edge function → `camper_registrations` INSERT
+- [x] Capacity check: blocks if zone at max_vehicles for dates
+- [x] Confirmation code (CR-YYYY-XXXX) displayed prominently after registration
+- [x] Lookup tab: retrieve registration by confirmation code
+- [x] Footer links to other public portals
+
+### B-18 Success Criteria
+
+- [x] Zone amenity columns on `public.zones`: has_toilets, has_water, has_dump_station, has_shower, has_rubbish, max_vehicles, fee_nzd
+- [x] Public zone map shows amenity icon badges per zone card
+- [x] Zone map cards link to `/public/register?zone=<id>`
+- [x] Admin zone edit dialog has Facilities & Amenities section (checkboxes + capacity + fee)
+- [x] Amenity state populates when opening edit dialog and saves on update
+
+### Sprint 3 Board (updated)
+
+| ID | Item | Status |
+|---|---|---|
+| B-15 | Self-serve parking appeals portal | ✅ |
+| B-16 | Real-time parking occupancy dashboard | ✅ |
+| B-17 | Camper self-registration | ✅ |
+| B-18 | Amenity mapping (rich zone facilities) | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS
+
+**Next session:** Sprint 3 remaining items or Phase 5 wrap-up.

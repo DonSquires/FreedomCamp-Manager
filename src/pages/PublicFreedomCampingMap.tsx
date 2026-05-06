@@ -56,6 +56,14 @@ interface PublicZone {
   land_managing_agency: string | null
   location_lat: number | null
   location_lng: number | null
+  // B-18 amenity fields
+  has_toilets: boolean | null
+  has_water: boolean | null
+  has_dump_station: boolean | null
+  has_shower: boolean | null
+  has_rubbish: boolean | null
+  max_vehicles: number | null
+  fee_nzd: string | null
 }
 
 const FREEDOM_CAMP_TYPES = new Set([
@@ -101,7 +109,8 @@ export default function PublicFreedomCampingMap() {
           'max_consecutive_nights, nights_per_month, self_contained_required, ' +
           'allowed_days, bylaw_reference, bylaw_clause, bylaw_source_url, ' +
           'zone_features, seasonal_open_month, seasonal_close_month, ' +
-          'land_manager, land_managing_agency, location_lat, location_lng',
+          'land_manager, land_managing_agency, location_lat, location_lng, ' +
+          'has_toilets, has_water, has_dump_station, has_shower, has_rubbish, max_vehicles, fee_nzd',
         )
         .or('zone_type.eq.freedom_camp,zone_type.eq.freedom_camping,zone_type.eq.freedom_camping_zone,zone_type.eq.camping')
         .eq('is_active', true)
@@ -306,6 +315,48 @@ export default function PublicFreedomCampingMap() {
                       <ExternalLink className="h-3 w-3" />
                     </a>
                   )}
+
+                  {/* Amenities (B-18) */}
+                  {(zone.has_toilets || zone.has_water || zone.has_dump_station || zone.has_shower || zone.has_rubbish || zone.fee_nzd || zone.max_vehicles) && (
+                    <div className="flex flex-wrap gap-1.5 pt-1 border-t border-green-100">
+                      {zone.has_toilets && (
+                        <span className="inline-flex items-center gap-1 text-xs bg-teal-50 text-teal-800 border border-teal-200 rounded px-1.5 py-0.5">🚻 Toilets</span>
+                      )}
+                      {zone.has_water && (
+                        <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded px-1.5 py-0.5">💧 Water</span>
+                      )}
+                      {zone.has_dump_station && (
+                        <span className="inline-flex items-center gap-1 text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 rounded px-1.5 py-0.5">⬇ Dump Station</span>
+                      )}
+                      {zone.has_shower && (
+                        <span className="inline-flex items-center gap-1 text-xs bg-sky-50 text-sky-700 border border-sky-200 rounded px-1.5 py-0.5">🚿 Showers</span>
+                      )}
+                      {zone.has_rubbish && (
+                        <span className="inline-flex items-center gap-1 text-xs bg-slate-50 text-slate-600 border border-slate-200 rounded px-1.5 py-0.5">🗑 Rubbish</span>
+                      )}
+                      {zone.fee_nzd && (
+                        <span className="inline-flex items-center gap-1 text-xs bg-amber-50 text-amber-700 border border-amber-200 rounded px-1.5 py-0.5">
+                          NZD ${Number(zone.fee_nzd).toFixed(0)}/night
+                        </span>
+                      )}
+                      {zone.max_vehicles && (
+                        <span className="inline-flex items-center gap-1 text-xs bg-gray-50 text-gray-600 border border-gray-200 rounded px-1.5 py-0.5">
+                          Max {zone.max_vehicles} vehicles
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Register stay CTA (B-17) */}
+                  <div className="pt-1">
+                    <a
+                      href={`/public/register?zone=${zone.id}`}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700 hover:text-green-900 hover:underline"
+                    >
+                      <Car className="h-3.5 w-3.5" />
+                      Register your stay at this zone →
+                    </a>
+                  </div>
                 </CardContent>
               </Card>
             )
@@ -315,6 +366,8 @@ export default function PublicFreedomCampingMap() {
         {/* Footer */}
         <footer className="text-center text-xs text-muted-foreground pt-4 pb-8 border-t">
           {t.zm.footerData} ·{' '}
+          <a href="/public/register" className="text-green-700 hover:underline">Register Stay</a>
+          {' '}·{' '}
           <a href="/public/noise-complaint" className="text-green-700 hover:underline">{t.zm.footerNoise}</a>
           {' '}·{' '}
           <a href="/dispute" className="text-green-700 hover:underline">{t.zm.footerDispute}</a>

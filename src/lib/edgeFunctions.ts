@@ -872,6 +872,26 @@ export const edgeFunctions = {
     return callEdgeFunction('submit-parking-appeal', params, { showToast: false })
   },
 
+  /**
+   * Submit a public camper self-registration (B-17)
+   * Unauthenticated endpoint — validates zone + capacity, returns confirmation code.
+   */
+  submitCamperRegistration: async (params: {
+    zone_id: string
+    plate_number?: string
+    vehicle_type?: 'self_contained' | 'campervan' | 'tent' | 'car' | 'motorhome' | 'other'
+    is_self_contained?: boolean
+    contact_name?: string
+    contact_email?: string
+    contact_phone?: string
+    party_size?: number
+    arrival_date: string
+    departure_date: string
+    notes?: string
+  }) => {
+    return callEdgeFunction('submit-camper-registration', params, { showToast: false })
+  },
+
   // ============================================================================
   // ADMIN & USERS (3 functions)
   // ============================================================================
