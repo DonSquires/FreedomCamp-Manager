@@ -157,6 +157,9 @@ const PatrolEventLog = lazy(() => import('@/pages/PatrolEventLog'))
 const CheckpointVisitLog = lazy(() => import('@/pages/CheckpointVisitLog'))
 const EmsAttendanceLog = lazy(() => import('@/pages/EmsAttendanceLog'))
 const ParkingSessionLog = lazy(() => import('@/pages/ParkingSessionLog'))
+const FlaggedVehicleManager = lazy(() => import('@/pages/FlaggedVehicleManager'))
+const ParkingPaymentLog = lazy(() => import('@/pages/ParkingPaymentLog'))
+const ZoneSignageEvidence = lazy(() => import('@/pages/ZoneSignageEvidence'))
 const MessagingPage = lazy(() => import('@/modules/messaging'))
 const IntelApprovalQueue = lazy(() => import('@/pages/IntelApprovalQueue'))
 const BobIntakeQueue = lazy(() => import('@/pages/BobIntakeQueue'))
@@ -2233,6 +2236,42 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <ParkingSessionLog />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Sprint 25 — B-85 Flagged Vehicle Manager */}
+          <Route
+            path="/flagged-vehicles-manager"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <FlaggedVehicleManager />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Sprint 25 — B-86 Parking Payment Log */}
+          <Route
+            path="/parking-payments-log"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <ParkingPaymentLog />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Sprint 25 — B-87 Zone Signage Evidence */}
+          <Route
+            path="/zone-signage-evidence"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <ZoneSignageEvidence />
                 </RoleRoute>
               </ProtectedRoute>
             }

@@ -107,6 +107,9 @@ import {
   ScanFace as ScanFaceAudit,
   Ban,
   KeyRound,
+  Flag,
+  CreditCard,
+  SignpostBig,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -280,6 +283,9 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/checkpoint-visits-log', icon: MapPin, label: 'Checkpoint Visit Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/ems-attendances-log', icon: ClipboardCheck, label: 'EMS Attendance Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/parking-sessions-log', icon: ParkingSquare, label: 'Parking Session Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/flagged-vehicles-manager', icon: Flag, label: 'Flagged Vehicles', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/parking-payments-log', icon: CreditCard, label: 'Parking Payments', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/zone-signage-evidence', icon: SignpostBig, label: 'Zone Signage Evidence', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {

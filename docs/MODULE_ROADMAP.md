@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-06 (verified against src App.tsx)
-Source of truth for routes: App router file src App.tsx (142 total routes as of Sprint 24 completion)
+Source of truth for routes: App router file src App.tsx (145 total routes as of Sprint 25 completion)
 
-> **Last Verification**: 2026-05-06 — Sprint 24 routes added (B-82 Checkpoint Visit Log `/checkpoint-visits-log`, B-83 EMS Attendance Log `/ems-attendances-log`, B-84 Parking Session Log `/parking-sessions-log`). Previous baseline: Sprint 23 (139 routes).
+> **Last Verification**: 2026-05-06 — Sprint 25 routes added (B-85 Flagged Vehicle Manager `/flagged-vehicles-manager`, B-86 Parking Payment Log `/parking-payments-log`, B-87 Zone Signage Evidence `/zone-signage-evidence`). Previous baseline: Sprint 24 (142 routes).
 
 ## How To Use
 
@@ -184,6 +184,28 @@ Three new admin log-viewer pages added covering checkpoint GPS compliance, EMS a
    - Role gate: admin, admin_officer, master
    - Table: parking_sessions (fully typed)
    - Features: KPI strip (Total/Violations/Avg Dwell/Unique Plates), violation+plate+date filters, expandable rows with violation reason, GPS, entry/exit/sign/tyre-valve photos
+
+## Sprint 25 Additions (2026-05-06)
+
+Three new admin pages covering flagged vehicle management, parking payment review, and zone signage evidence management.
+
+1. Flagged Vehicle Manager — B-85
+   - Path: /flagged-vehicles-manager
+   - Role gate: admin, admin_officer, master
+   - Table: flagged_vehicles (fully typed)
+   - Features: KPI strip (Total/Active/Inactive/Confirmed Homeless), is_active+priority filters, Deactivate/Reactivate actions, expandable rows with reason, notes, contact
+
+2. Parking Payment Log — B-86
+   - Path: /parking-payments-log
+   - Role gate: admin, admin_officer, master
+   - Table: parking_payments (fully typed)
+   - Features: KPI strip (Total/Successful/Pending-Failed/Revenue NZD), status+provider+plate+date filters, expandable rows with zone_id, session_id, metadata JSON
+
+3. Zone Signage Evidence — B-87
+   - Path: /zone-signage-evidence
+   - Role gate: admin, admin_officer, master
+   - Table: zone_signage_evidence (fully typed)
+   - Features: KPI strip (Total/Current/Superseded/Unique Zones), is_current+signage_type filters, Mark Current action, expandable rows with photo link, GPS, SHA256
 
 ## Route Topology Addendum (2026-05-03)
 

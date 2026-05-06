@@ -69,6 +69,9 @@ import {
   Zap,
   AlertCircle,
   Package2,
+  Flag,
+  CreditCard,
+  SignpostBig,
 } from 'lucide-react'
 
 type DrillConfig = {
@@ -1404,6 +1407,9 @@ export default function AdminPortal() {
                     { path: '/admin/nzscv',            label: 'NZSCV Monitor',     Icon: Shield,        color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20', badge: (data as any)?.scvExpiringSoon > 0 ? (data as any)?.scvExpiringSoon : undefined },
                     { path: '/admin/discrepancies',    label: 'Discrepancies',     Icon: AlertTriangle, color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20', badge: (data as any)?.discrepanciesPending > 0 ? (data as any)?.discrepanciesPending : undefined },
                     { path: '/admin/canonical-records',label: 'Canonical Records', Icon: Database,      color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
+                    { path: '/flagged-vehicles-manager', label: 'Flagged Vehicles', Icon: Flag,         color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20' },
+                    { path: '/parking-payments-log',   label: 'Parking Payments',  Icon: CreditCard,    color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+                    { path: '/zone-signage-evidence',  label: 'Zone Signage',      Icon: SignpostBig,   color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       {badge !== undefined && (
