@@ -22,7 +22,7 @@ APP_VERSION = "0.2.0"
 REQUEST_TIMEOUT_SECONDS = float(os.getenv("SPEECH_ROUTER_TIMEOUT_SECONDS", "45"))
 MAX_AUDIO_BYTES = int(os.getenv("SPEECH_ROUTER_MAX_AUDIO_BYTES", str(10 * 1024 * 1024)))  # 10 MB
 MAX_TTS_CHARS = int(os.getenv("SPEECH_ROUTER_MAX_TTS_CHARS", "2000"))
-INTENT_MODEL = os.getenv("INTENT_MODEL", "llama3.1:8b-instruct-q4_K_M")
+INTENT_MODEL = os.getenv("INTENT_MODEL", "llama3.1:8b")  # matches Railway Ollama tag
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 ALLOW_OPENAI_RUNTIME = os.getenv("ALLOW_OPENAI_RUNTIME", "false").strip().lower() == "true"
 OPENAI_REDACTION_REQUIRED = os.getenv("OPENAI_REDACTION_REQUIRED", "true").strip().lower() == "true"
