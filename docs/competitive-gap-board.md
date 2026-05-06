@@ -56,7 +56,7 @@ Centralise all competitive gaps identified across FieldOps Manager modules. Each
 | Cohort / Pattern Analysis | Motorola, Genetec | 🟠 High | S1 | ✅ Closed (B-21) |
 | Mobile Plate Finder (search by partial plate) | Motorola, Genetec | 🟠 High | S1 | ✅ Closed (B-22) |
 | Fixed Camera Support | Motorola, Genetec | 🟡 Medium | S2 | ✅ Closed (B-27) |
-| Video Context on plate hit | Genetec (new) | 🟡 Medium | S2 | ⬜ Open |
+| Video Context on plate hit | Genetec (new) | 🟡 Medium | S2 | ✅ Closed (B-30) |
 | National Database link | N/A (NZ regulatory) | 🚫 Out of Scope | — | 🚫 Out of Scope |
 
 ---
@@ -104,7 +104,7 @@ Centralise all competitive gaps identified across FieldOps Manager modules. Each
 | Enhanced Appeals Portal (self-serve) | T2 Systems | 🟡 Medium | S2 | ✅ Closed (B-15) |
 | Pay-by-Plate Integration (NZ providers) | T2, PayByPhone | 🟡 Medium | S2 | ✅ Closed (B-29) |
 | Occupancy Analytics Dashboard | T2, ParkMobile | 🟡 Medium | S2 | ✅ Closed (B-25) |
-| Dynamic Pricing Engine | T2, ParkMobile | 🟢 Low | S4 | ⬜ Open |
+| Dynamic Pricing Engine | T2, ParkMobile | 🟢 Low | S4 | ✅ Closed (B-32) |
 | Revenue Forecasting | T2, ParkMobile | 🟢 Low | S4 | ⬜ Open |
 
 ---
@@ -124,7 +124,7 @@ Centralise all competitive gaps identified across FieldOps Manager modules. Each
 | Gap | Competitor Benchmark | Impact | Sprint | Status |
 |---|---|---|---|---|
 | In-App ETA Calculation | Various CAD platforms | 🟡 Medium | S1 | ✅ Closed (B-07) |
-| Turn-by-Turn Navigation (in-app) | Various | 🟡 Medium | S2 | ⬜ Open |
+| Turn-by-Turn Navigation (in-app) | Various | 🟡 Medium | S2 | ✅ Closed (B-31) |
 | Route Optimisation | Various | 🟡 Medium | S2 | ⬜ Open |
 | Traffic Overlay | Google Maps / HERE | 🟡 Medium | S2 | ⬜ Open |
 

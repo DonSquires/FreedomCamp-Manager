@@ -92,8 +92,31 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Calculate fee
-    const hourlyRate = (zone.fee_nzd as number | null) ?? DEFAULT_HOURLY_RATE_NZD
+    // Calculate fee — use dynamic pricing if available, fall back to zone flat rate
+    let hourlyRate = (zone.fee_nzd as number | null) ?? DEFAULT_HOURLY_RATE_NZD
+    let appliedRuleLabel: string | null = null
+    try {
+      const priceResp = await fetch(
+        `${Deno.env.get('SUPABASE_URL')}/functions/v1/calculate-dynamic-price`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
+          },
+          body: JSON.stringify({ zone_id, datetime_iso: new Date().toISOString() }),
+        }
+      )
+      if (priceResp.ok) {
+        const priceData = await priceResp.json()
+        if (typeof priceData.effective_fee_nzd === 'number') {
+          hourlyRate = priceData.effective_fee_nzd
+          appliedRuleLabel = priceData.applied_rule_label ?? null
+        }
+      }
+    } catch {
+      // Non-blocking — use base fee
+    }
     const amount_nzd = Math.round((hourlyRate * duration_mins / 60) * 100) / 100
 
     // Insert pending payment row
@@ -108,7 +131,7 @@ Deno.serve(async (req) => {
         status: 'pending',
         contact_email: contact_email ?? null,
         contact_phone: contact_phone ?? null,
-        metadata: { duration_mins, zone_name: zone.name },
+        metadata: { duration_mins, zone_name: zone.name, applied_rule_label: appliedRuleLabel },
       })
       .select('id')
       .single()

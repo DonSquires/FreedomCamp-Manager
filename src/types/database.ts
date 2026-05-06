@@ -3919,6 +3919,61 @@ export type Database = {
         }
         Relationships: []
       }
+      pricing_rules: {
+        Row: {
+          id: string
+          organization_id: string
+          zone_id: string | null
+          label: string
+          day_of_week: number | null
+          hour_from: number | null
+          hour_to: number | null
+          multiplier: number
+          flat_override_nzd: number | null
+          is_active: boolean
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          zone_id?: string | null
+          label: string
+          day_of_week?: number | null
+          hour_from?: number | null
+          hour_to?: number | null
+          multiplier?: number
+          flat_override_nzd?: number | null
+          is_active?: boolean
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          zone_id?: string | null
+          label?: string
+          day_of_week?: number | null
+          hour_from?: number | null
+          hour_to?: number | null
+          multiplier?: number
+          flat_override_nzd?: number | null
+          is_active?: boolean
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pricing_rules_zone_id_fkey"
+            columns: ["zone_id"]
+            referencedRelation: "zones"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       flagged_vehicles: {
         Row: {
           attachments: Json | null

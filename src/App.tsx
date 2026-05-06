@@ -85,6 +85,8 @@ const OccupancyAnalytics = lazy(() => import('@/pages/OccupancyAnalytics'))
 const PatrolRouteOptimiser = lazy(() => import('@/pages/PatrolRouteOptimiser'))
 const FixedCameras = lazy(() => import('@/pages/FixedCameras'))
 const PublicPayByPlate = lazy(() => import('@/pages/PublicPayByPlate'))
+const PatrolNavigation = lazy(() => import('@/pages/PatrolNavigation'))
+const DynamicPricing = lazy(() => import('@/pages/DynamicPricing'))
 const PublicDisputePortal = lazy(() => import('@/pages/PublicDisputePortal'))
 const PublicFreedomCampingMap = lazy(() => import('@/pages/PublicFreedomCampingMap'))
 const PublicNoiseComplaintPortal = lazy(() => import('@/pages/PublicNoiseComplaintPortal'))
@@ -916,6 +918,28 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <FixedCameras />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/patrol-navigation"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <PatrolNavigation />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/dynamic-pricing"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <DynamicPricing />
                 </RoleRoute>
               </ProtectedRoute>
             }

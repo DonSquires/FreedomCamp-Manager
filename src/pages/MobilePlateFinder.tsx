@@ -1,5 +1,5 @@
 /**
- * MobilePlateFinder — B-22
+ * MobilePlateFinder — B-22 / B-30
  *
  * Partial-plate cross-search across two sources:
  *   1. canonical_vehicles   — the vehicle registry (all ever-seen plates)
@@ -9,6 +9,9 @@
  * and need to identify the full plate quickly.
  *
  * Results are deduped by plate_number and sorted by last_seen_at.
+ *
+ * B-30 enhancement: shows the latest observation photo thumbnail inline and
+ * flags any result zone that has a fixed camera covering it.
  */
 
 import { useState, useMemo } from 'react'
@@ -39,6 +42,8 @@ import {
   ScanSearch,
   ChevronRight,
   Loader2,
+  Camera,
+  ImageOff,
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import type { Database } from '@/types/database'
@@ -63,6 +68,7 @@ type ObsHit = {
   plate_number: string
   recorded_at: string
   zone_name_at_import: string | null
+  zone_id: string | null
   vehicle_make: string | null
   vehicle_model: string | null
   vehicle_color: string | null
@@ -84,6 +90,10 @@ interface ResultRow {
   self_contained: boolean | null
   /** Latest observation zone */
   last_zone: string | null
+  /** zone_id for fixed camera lookup (from latest obs) */
+  last_zone_id: string | null
+  /** Latest observation photo URL (B-30) */
+  photo_url: string | null
   /** Whether this plate has any breach observation in recent results */
   has_recent_breach: boolean
   /** Source: 'registry' = canonical_vehicles only, 'observation' = obs only, 'both' */
@@ -153,6 +163,7 @@ export default function MobilePlateFinder() {
           plate_number,
           recorded_at,
           zone_name_at_import,
+          zone_id,
           vehicle_make,
           vehicle_model,
           vehicle_color,
@@ -188,6 +199,8 @@ export default function MobilePlateFinder() {
         total_breaches: v.total_breaches,
         self_contained: v.self_contained,
         last_zone: null,
+        last_zone_id: null,
+        photo_url: null,
         has_recent_breach: false,
         source: 'registry',
       })
@@ -199,6 +212,8 @@ export default function MobilePlateFinder() {
       if (existing) {
         existing.source = 'both'
         if (!existing.last_zone && o.zone_name_at_import) existing.last_zone = o.zone_name_at_import
+        if (!existing.last_zone_id && o.zone_id) existing.last_zone_id = o.zone_id
+        if (!existing.photo_url && o.photo_url) existing.photo_url = o.photo_url
         if (o.is_breach) existing.has_recent_breach = true
         // Prefer richer make/model/color from obs if canonical lacks it
         if (!existing.vehicle_make && o.vehicle_make)   existing.vehicle_make  = o.vehicle_make
@@ -217,6 +232,8 @@ export default function MobilePlateFinder() {
           total_breaches: null,
           self_contained: null,
           last_zone: o.zone_name_at_import,
+          last_zone_id: o.zone_id,
+          photo_url: o.photo_url,
           has_recent_breach: !!o.is_breach,
           source: 'observation',
         })
@@ -230,6 +247,36 @@ export default function MobilePlateFinder() {
 
   const isFetching = fetchingVeh || fetchingObs
   const hasResults = submitted.length >= MIN_LENGTH
+
+  // ── Fixed cameras lookup (B-30): query cameras for all zones in current results ──
+  const resultZoneIds = useMemo(
+    () => [...new Set(results.map(r => r.last_zone_id).filter(Boolean))] as string[],
+    [results]
+  )
+
+  const { data: zoneCameras = [] } = useQuery({
+    queryKey: ['plate-finder-cameras', orgId, resultZoneIds],
+    queryFn: async () => {
+      if (!resultZoneIds.length) return []
+      const { data } = await supabase
+        .from('fixed_cameras')
+        .select('zone_id, name, snapshot_url, stream_url, status')
+        .eq('organization_id', orgId)
+        .in('zone_id', resultZoneIds)
+        .eq('status', 'active')
+      return (data ?? []) as Array<{ zone_id: string | null; name: string; snapshot_url: string | null; stream_url: string | null; status: string }>
+    },
+    enabled: !!orgId && resultZoneIds.length > 0,
+  })
+
+  // Build zone_id → camera map for fast lookup
+  const cameraByZone = useMemo(() => {
+    const m = new Map<string, { name: string; snapshot_url: string | null; stream_url: string | null }>()
+    for (const c of zoneCameras) {
+      if (c.zone_id && !m.has(c.zone_id)) m.set(c.zone_id, c)
+    }
+    return m
+  }, [zoneCameras])
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -318,76 +365,109 @@ export default function MobilePlateFinder() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {results.map(r => (
-                      <TableRow
-                        key={r.plate_number}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => navigate(`/vehicles?plate=${encodeURIComponent(r.plate_number)}`)}
-                      >
-                        <TableCell>
-                          <div className="flex items-center gap-1.5">
-                            {r.is_flagged
-                              ? <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0" />
-                              : <Car className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
-                            <span className="font-mono font-bold tracking-wider">{r.plate_number}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          <span className="text-foreground">
-                            {[r.vehicle_color, r.vehicle_make, r.vehicle_model, r.vehicle_year]
-                              .filter(Boolean)
-                              .join(' ')
-                              || <span className="text-muted-foreground italic">Unknown</span>}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <Clock className="h-3 w-3 shrink-0" />
-                            {r.last_seen_at ? formatDateTime(r.last_seen_at) : '—'}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {r.last_zone ? (
-                            <div className="flex items-center gap-1 text-xs">
-                              <MapPin className="h-3 w-3 text-muted-foreground shrink-0" />
-                              {r.last_zone}
+                    {results.map(r => {
+                      const cam = r.last_zone_id ? cameraByZone.get(r.last_zone_id) : null
+                      return (
+                        <TableRow
+                          key={r.plate_number}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => navigate(`/vehicles?plate=${encodeURIComponent(r.plate_number)}`)}
+                        >
+                          <TableCell>
+                            <div className="flex items-center gap-1.5">
+                              {r.is_flagged
+                                ? <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0" />
+                                : <Car className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+                              <span className="font-mono font-bold tracking-wider">{r.plate_number}</span>
                             </div>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {r.is_flagged && (
-                              <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Flagged</Badge>
+                            {/* B-30: observation photo thumbnail */}
+                            {r.photo_url ? (
+                              <img
+                                src={r.photo_url}
+                                alt="Observation photo"
+                                className="mt-1.5 h-12 w-20 object-cover rounded border border-border"
+                                onClick={e => { e.stopPropagation(); window.open(r.photo_url!, '_blank') }}
+                                onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                              />
+                            ) : (
+                              r.source !== 'registry' && (
+                                <div className="mt-1.5 flex items-center gap-1 text-[10px] text-muted-foreground">
+                                  <ImageOff className="h-3 w-3" />
+                                  No photo
+                                </div>
+                              )
                             )}
-                            {r.is_exempt && (
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-blue-600 border-blue-300">Exempt</Badge>
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            <span className="text-foreground">
+                              {[r.vehicle_color, r.vehicle_make, r.vehicle_model, r.vehicle_year]
+                                .filter(Boolean)
+                                .join(' ')
+                                || <span className="text-muted-foreground italic">Unknown</span>}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Clock className="h-3 w-3 shrink-0" />
+                              {r.last_seen_at ? formatDateTime(r.last_seen_at) : '—'}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {r.last_zone ? (
+                              <div className="flex flex-col gap-0.5">
+                                <div className="flex items-center gap-1 text-xs">
+                                  <MapPin className="h-3 w-3 text-muted-foreground shrink-0" />
+                                  {r.last_zone}
+                                </div>
+                                {/* B-30: fixed camera badge */}
+                                {cam && (
+                                  <div
+                                    className="flex items-center gap-1 text-[10px] text-blue-600 cursor-pointer hover:underline"
+                                    title={`Fixed camera: ${cam.name}`}
+                                    onClick={e => { e.stopPropagation(); window.open('/fixed-cameras', '_blank') }}
+                                  >
+                                    <Camera className="h-3 w-3" />
+                                    {cam.name}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
                             )}
-                            {r.self_contained && (
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-green-600 border-green-300">SC</Badge>
-                            )}
-                            {r.has_recent_breach && (
-                              <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Breach (90d)</Badge>
-                            )}
-                            {(r.total_breaches ?? 0) > 0 && (
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-amber-700 border-amber-300">
-                                {r.total_breaches} breach{(r.total_breaches ?? 0) !== 1 ? 'es' : ''}
-                              </Badge>
-                            )}
-                            {r.source === 'observation' && (
-                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Obs only</Badge>
-                            )}
-                            {!r.is_flagged && !r.is_exempt && !r.has_recent_breach && (r.total_breaches ?? 0) === 0 && (
-                              <ShieldCheck className="h-3.5 w-3.5 text-green-500" />
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1">
+                              {r.is_flagged && (
+                                <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Flagged</Badge>
+                              )}
+                              {r.is_exempt && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-blue-600 border-blue-300">Exempt</Badge>
+                              )}
+                              {r.self_contained && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-green-600 border-green-300">SC</Badge>
+                              )}
+                              {r.has_recent_breach && (
+                                <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Breach (90d)</Badge>
+                              )}
+                              {(r.total_breaches ?? 0) > 0 && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-amber-700 border-amber-300">
+                                  {r.total_breaches} breach{(r.total_breaches ?? 0) !== 1 ? 'es' : ''}
+                                </Badge>
+                              )}
+                              {r.source === 'observation' && (
+                                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Obs only</Badge>
+                              )}
+                              {!r.is_flagged && !r.is_exempt && !r.has_recent_breach && (r.total_breaches ?? 0) === 0 && (
+                                <ShieldCheck className="h-3.5 w-3.5 text-green-500" />
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
                   </TableBody>
                 </Table>
               )}

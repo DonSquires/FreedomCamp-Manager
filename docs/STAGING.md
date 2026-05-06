@@ -2452,3 +2452,82 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - B-30: Video Context on plate hit (camera snapshot in observation card)
 - B-31: Turn-by-Turn Navigation (Leaflet routing / OSRM)
 - B-32: Dynamic Pricing Engine (time-of-day / occupancy-based fee)
+
+---
+
+## Phase 5 Sprint 7 — B-30 / B-31 / B-32 (2026-05-06)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/MobilePlateFinder.tsx` | B-30: Added `zone_id` to observation query; tracks `photo_url` + `last_zone_id` per result; queries `fixed_cameras` by result zone IDs; shows observation photo thumbnail (click to open full) + active fixed-camera badge with link to `/fixed-cameras`. |
+| `src/pages/PatrolNavigation.tsx` | B-31: New turn-by-turn navigation page. GPS acquisition + manual origin; zone or custom-coordinate destination; OSRM routing API fetch; step list with manoeuvre icons + per-step distance; route summary (total distance + duration); copy Google Maps link button. |
+| `src/pages/DynamicPricing.tsx` | B-32: Admin pricing-rules CRUD page. List with zone/time/rate display; add/edit dialog (zone, day-of-week, hour range, multiplier OR flat-override, active toggle, notes); delete with confirmation; live price preview card (pick zone + datetime → call calculate-dynamic-price). |
+| `supabase/migrations/20260506000007_pricing_rules.sql` | B-32: `public.pricing_rules` table — zone_id (nullable = org-wide), day_of_week, hour_from, hour_to, multiplier, flat_override_nzd, is_active. Org-scoped RLS. `updated_at` SECURITY DEFINER trigger. |
+| `supabase/functions/calculate-dynamic-price/index.ts` | B-32: New edge function. Resolves datetime in Pacific/Auckland; fetches zone base fee; finds best-matching pricing rule (zone-specific > org-wide, day+hour > day > hour > always); returns effective_fee_nzd, applied_rule_id/label. |
+| `supabase/functions/initiate-parking-payment/index.ts` | B-32: Now calls `calculate-dynamic-price` non-blocking before computing amount_nzd; falls back to zone base fee on error; persists `applied_rule_label` in metadata. |
+| `src/types/database.ts` | B-32: Added `pricing_rules` Row/Insert/Update types with FK relationship to zones. |
+| `src/lib/edgeFunctions.ts` | B-32: `calculateDynamicPrice()` wrapper. |
+| `src/App.tsx` | B-31: Lazy import + `/patrol-navigation` route (all roles). B-32: Lazy import + `/dynamic-pricing` route (admin/master). |
+| `src/components/features/AppLayout.tsx` | B-31: `Navigation2` icon + "Patrol Navigation" entry in Live Ops group. B-32: `Gauge` icon + "Dynamic Pricing" entry in Management group. |
+| `docs/competitive-gap-board.md` | B-30/B-31/B-32 marked ✅ Closed. |
+| `docs/STAGING.md` | Sprint 7 session snapshot added. |
+
+### B-30 Success Criteria
+
+- [x] `zone_id` added to observations query in MobilePlateFinder
+- [x] Latest observation `photo_url` carried through to ResultRow
+- [x] `fixed_cameras` queried for all result zone IDs (active cameras only)
+- [x] Photo thumbnail rendered inline in plate result card (click opens full image)
+- [x] Fixed camera badge shown in Zone column when active camera covers zone
+- [x] Camera badge links to `/fixed-cameras` admin page
+
+### B-31 Success Criteria
+
+- [x] Browser GPS acquisition with loading / success / error states
+- [x] Manual origin coordinates input
+- [x] Zone destination picker (zones with location_lat / location_lng only)
+- [x] Custom destination coordinates input
+- [x] OSRM routing API fetch with step-by-step results
+- [x] Route summary: total distance (km) + duration (min)
+- [x] Turn-by-turn step list with manoeuvre icons + per-step distance
+- [x] Reset and copy Google Maps link actions
+- [x] Sidebar entry + `/patrol-navigation` route (all roles)
+
+### B-32 Success Criteria
+
+- [x] `pricing_rules` migration: org-scoped RLS, SECURITY DEFINER search_path hardening
+- [x] `calculate-dynamic-price` edge function: rule matching by zone/day/hour priority
+- [x] `initiate-parking-payment` updated to call dynamic price (non-blocking fallback)
+- [x] Admin page: list with zone/time/rate columns + active toggle
+- [x] Add/edit dialog: multiplier OR flat-override mode, full time restriction fields
+- [x] Delete with AlertDialog confirmation
+- [x] Live price preview: zone + datetime → effective fee + rule label
+- [x] TypeScript types in database.ts
+- [x] `edgeFunctions.calculateDynamicPrice()` wrapper
+- [x] Sidebar entry + `/dynamic-pricing` route
+
+### Sprint 7 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-30 | Video Context on plate hit | ✅ |
+| B-31 | Turn-by-Turn Navigation (OSRM) | ✅ |
+| B-32 | Dynamic Pricing Engine | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+### Competitive Gap Board — Updated (post Sprint 7)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| ALPR / Cameras | B-30 Video Context on plate hit | — (module complete) |
+| Navigation | B-31 Turn-by-Turn Navigation | Route Optimisation (client-side), Traffic Overlay |
+| Parking | B-32 Dynamic Pricing Engine | Revenue Forecasting |
+
+**Next sprint candidates:**
+- B-33: Revenue Forecasting Dashboard (parking revenue projections by zone/period)
+- B-34: Traffic Overlay on Operations Map (HERE Maps / OpenStreetMap tiles)
+- B-35: LMR / Radio Bridge scaffold (Zello Gateway integration)

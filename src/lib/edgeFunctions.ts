@@ -1759,4 +1759,18 @@ export const edgeFunctions = {
     return callEdgeFunction('initiate-parking-payment', params)
   },
 
+  /**
+   * Calculate effective parking fee for a zone at a given datetime (B-32).
+   *
+   * Returns the base fee adjusted by any matching pricing_rules (time-of-day /
+   * day-of-week multipliers or flat overrides).  datetime_iso defaults to now()
+   * in Pacific/Auckland if not supplied.
+   */
+  calculateDynamicPrice: async (params: {
+    zone_id: string
+    datetime_iso?: string
+  }) => {
+    return callEdgeFunction('calculate-dynamic-price', params, { showToast: false })
+  },
+
 }
