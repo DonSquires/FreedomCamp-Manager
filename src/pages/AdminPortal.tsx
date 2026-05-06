@@ -82,6 +82,7 @@ import {
   CalendarClock,
   TicketX,
   UserX,
+  Scale,
   MessageSquare,
 } from 'lucide-react'
 
@@ -1509,6 +1510,9 @@ export default function AdminPortal() {
                     { path: '/radio-comms-events-log',   label: 'Radio Events',  Icon: Radio,     color: 'text-cyan-700',  bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
                     { path: '/case-comments-log',        label: 'Case Comments', Icon: MessageSquare, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20' },
                     { path: '/lmr-bridge-sessions-log',  label: 'LMR Sessions',  Icon: Radio,     color: 'text-slate-600', bg: 'bg-slate-50 dark:bg-slate-900/30' },
+                    { path: '/patrol-session-events-log',label: 'Patrol Events',  Icon: Route,     color: 'text-indigo-600',bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                    { path: '/radio-transcript-log',     label: 'Transcripts',    Icon: FileText,  color: 'text-cyan-700',  bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
+                    { path: '/dispute-intake-log',       label: 'Dispute Intake', Icon: Scale,     color: 'text-amber-700', bg: 'bg-amber-50 dark:bg-amber-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       {badge !== undefined && (

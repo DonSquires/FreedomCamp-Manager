@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-06 (verified against src App.tsx)
-Source of truth for routes: App router file src App.tsx (177 total routes as of Sprint 32 completion)
+Source of truth for routes: App router file src App.tsx (180 total routes as of Sprint 33 completion)
 
-> **Last Verification**: 2026-05-06 — All 177 routes reviewed and role-gating validated. Sprints 18–32 (B-64–B-108) documentation complete.
+> **Last Verification**: 2026-05-06 — All 180 routes reviewed and role-gating validated. Sprints 18–33 (B-64–B-111) documentation complete.
 
 ## How To Use
 
@@ -502,3 +502,22 @@ New admin routes added in Sprint 32 (B-106, B-107, B-108):
    - Route: /lmr-bridge-sessions-log
    - Role gate: admin, admin_officer, master
    - Viewer for lmr_bridge_sessions; KPIs (Total Sessions/Emergency/Avg Duration/With Transcript); direction/emergency/date filters; duration formatted; transcript text + audio link + metadata JSON expand
+
+## Sprint 33 Route Addendum (2026-05-06)
+
+New admin routes added in Sprint 33 (B-109, B-110, B-111):
+
+1. Patrol Session Event Log (B-109)
+   - Route: /patrol-session-events-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for patrol_session_events; KPIs (Checkpoints Scanned/Missed/Patrols Started/Completed); typed event_type enum filter + date + officer search; missed checkpoint row highlight; notes/patrol_route_instance_id expand
+
+2. Radio Transcript Log (B-110)
+   - Route: /radio-transcript-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for radio_transcript_segments (View, org_id scope); KPIs (Total/Final/Avg Confidence/Unique Transmissions); is_final/language/date filters; confidence bar; full text + segment timestamps expand
+
+3. Dispute Intake Log (B-111)
+   - Route: /dispute-intake-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for dispute_intake; KPIs (Total/Open/Homeless Review Req/Unique Plates); status/source_type/date + plate/claimant search filters; status+source_type badges; message/evidence/hardship/admin_notes expand

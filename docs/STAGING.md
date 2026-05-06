@@ -3489,3 +3489,53 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - `bun run build` → PASS (pending)
 
 **Next session:** Sprint 33 — B-109 PatrolSessionEventLog, B-110 RadioTranscriptLog, B-111 DisputeIntakeLog (or equivalent backlog items).
+
+---
+
+## Phase 5 — Sprint 33 (B-109 / B-110 / B-111)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/PatrolSessionEventLog.tsx` | New — B-109: Log viewer for patrol_session_events; KPIs (Scanned/Missed/Started/Completed); typed event_type enum filter + date + officer search; missed checkpoint row highlight; notes/route_instance expand |
+| `src/pages/RadioTranscriptLog.tsx` | New — B-110: Log viewer for radio_transcript_segments (View, org_id); KPIs (Total/Final/Avg Confidence/Unique Transmissions); is_final/language/date filters; confidence bar; full text + timestamps expand |
+| `src/pages/DisputeIntakeLog.tsx` | New — B-111: Log viewer for dispute_intake; KPIs (Total/Open/Homeless Review Req/Unique Plates); status/source_type/date + plate/claimant search; message/evidence/hardship/admin_notes expand |
+| `src/App.tsx` | Sprint 33 lazy imports + 3 new routes |
+| `src/navigation/routeManifest.ts` | 3 new entries (Operations / Intelligence & Radio / Disputes) |
+| `src/components/features/AppLayout.tsx` | patrol-session-events-log + radio-transcript-log + dispute-intake-log; Scale icon added |
+| `src/pages/AdminPortal.tsx` | Scale icon added; 3 new tiles in Intelligence & Radio section |
+| `docs/MODULE_ROADMAP.md` | Route count 177 → 180; Sprint 33 addendum appended |
+
+### Sprint 33 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-109 | Patrol Session Event Log | ✅ |
+| B-110 | Radio Transcript Log | ✅ |
+| B-111 | Dispute Intake Log | ✅ |
+
+**Next sprint candidates:**
+- B-112: `RadioTtsRenderLog` — radio_tts_renders log with speaker/voice/language filters + audio link
+- B-113: `RadioVoiceProfileLog` — radio_voice_profiles log with consent/language filters + waveform metadata
+- B-114: `SiteIncidentLogViewer` — site_incidents log with severity/status filters + GPS + response actions
+
+---
+
+## Session Snapshot (Sprint 33 — 2026-05-06)
+
+- Timestamp (UTC): 2026-05-06 21:51 UTC
+- Current branch: copilot/find-staging-doc-and-follow-instructions
+
+**New pages built:**
+- `src/pages/PatrolSessionEventLog.tsx` — patrol_session_events viewer
+- `src/pages/RadioTranscriptLog.tsx` — radio_transcript_segments (View) viewer
+- `src/pages/DisputeIntakeLog.tsx` — dispute_intake viewer
+
+**Wiring applied:** App.tsx (lazy import + route), routeManifest.ts, AppLayout.tsx sidebar, AdminPortal.tsx tiles
+
+**Validation:**
+- `bun run lint` → PASS
+- `bun run build` → PASS (27.18s)
+
+**Next session:** Sprint 34 — B-112 RadioTtsRenderLog, B-113 RadioVoiceProfileLog, B-114 SiteIncidentLogViewer (or equivalent backlog items).

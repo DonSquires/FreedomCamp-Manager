@@ -59,6 +59,7 @@ import {
   Wrench,
   MessageSquarePlus,
   MessageSquare,
+  Scale,
   Volume2,
   ParkingSquare,
   ClipboardCheck,
@@ -340,6 +341,10 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/radio-comms-events-log', icon: Radio, label: 'Radio Comms Events', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/case-comments-log', icon: MessageSquare, label: 'Case Comment Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/lmr-bridge-sessions-log', icon: Radio, label: 'LMR Bridge Sessions', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 33: B-109–B-111
+      { path: '/patrol-session-events-log', icon: Route, label: 'Patrol Session Events', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/radio-transcript-log', icon: FileText, label: 'Radio Transcript Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/dispute-intake-log', icon: Scale, label: 'Dispute Intake Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
