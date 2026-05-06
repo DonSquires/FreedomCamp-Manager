@@ -186,13 +186,24 @@ const DataIntegrityDashboard = lazy(() => import('@/pages/DataIntegrityDashboard
 const CleanDashboard = lazy(() => import('@/pages/CleanDashboard'))
 const TestDashboard = lazy(() => import('@/pages/TestDashboard'))
 
+// Sprint 19–21: B-67–B-75
+const RosterShiftLog = lazy(() => import('@/pages/RosterShiftLog'))
+const NoiseNoticeLog = lazy(() => import('@/pages/NoiseNoticeLog'))
+const SiteIncidentLog = lazy(() => import('@/pages/SiteIncidentLog'))
+const PersonInteractionLog = lazy(() => import('@/pages/PersonInteractionLog'))
+const PlateScanLog = lazy(() => import('@/pages/PlateScanLog'))
+const DispatchEventLog = lazy(() => import('@/pages/DispatchEventLog'))
+const NoticeToVacateLog = lazy(() => import('@/pages/NoticeToVacateLog'))
+const ContractorManager = lazy(() => import('@/pages/ContractorManager'))
+const VehicleDiscrepancyLog = lazy(() => import('@/pages/VehicleDiscrepancyLog'))
+
 // Sprint 22–26: B-76–B-90
 const DriftEventLog = lazy(() => import('@/pages/DriftEventLog'))
 const InvestigationJobConfig = lazy(() => import('@/pages/InvestigationJobConfig'))
 const ZoneLegalConfigViewer = lazy(() => import('@/pages/ZoneLegalConfigViewer'))
 const InvestigationJobLog = lazy(() => import('@/pages/InvestigationJobLog'))
 const OperationalCaseLog = lazy(() => import('@/pages/OperationalCaseLog'))
-const PatrolEventLog = lazy(() => import('@/pages/PatrolEventLog'))
+// PatrolEventLog already imported above (B-59)
 const CheckpointVisitLog = lazy(() => import('@/pages/CheckpointVisitLog'))
 const EmsAttendanceLog = lazy(() => import('@/pages/EmsAttendanceLog'))
 const ParkingSessionLog = lazy(() => import('@/pages/ParkingSessionLog'))
@@ -2292,6 +2303,17 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+
+          {/* Sprint 19–21: B-67–B-75 */}
+          <Route path="/roster-shifts" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RosterShiftLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/noise-notices" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><NoiseNoticeLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/site-incidents" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><SiteIncidentLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/person-interactions" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PersonInteractionLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/plate-scans-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PlateScanLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/dispatch-events" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><DispatchEventLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/notices-to-vacate" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><NoticeToVacateLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/contractor-manager" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ContractorManager /></RoleRoute></ProtectedRoute>} />
+          <Route path="/vehicle-discrepancies" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><VehicleDiscrepancyLog /></RoleRoute></ProtectedRoute>} />
 
           {/* Sprint 22–26: B-76–B-90 */}
           <Route path="/drift-events" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><DriftEventLog /></RoleRoute></ProtectedRoute>} />

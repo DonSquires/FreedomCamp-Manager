@@ -2964,3 +2964,46 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - B-64: Shift Debrief Form (`/shift-debrief`) — patrol debrief notes (patrol_session_events notes field or new debrief_notes on operational_cases)
 - B-65: Zone Compliance Audit (`/zone-compliance-audit`) — audit trail of zone-level compliance events
 - B-66: Officer Welfare Trends (`/welfare-trends`) — welfare check analytics from officer_welfare_checks over time
+
+---
+
+## Phase 5 — Sprint 19–21 (B-67 / B-68 / B-69 / B-70 / B-71 / B-72 / B-73 / B-74 / B-75) Doc Review + Gap Closure
+
+### Session Snapshot (Sprint 19–21 Route Wiring — 2026-05-06)
+
+- Timestamp (UTC): 2026-05-06 12:41 UTC
+- Current branch: copilot/review-doc-files-staging-instructions-again
+- Scope: Staging doc review — identified and wired 9 missing admin routes (B-67 through B-75)
+
+**Problem identified:**
+- Pages for B-67–B-75 existed in `src/pages/` but were never wired into App.tsx, routeManifest.ts, AppLayout.tsx, or MODULE_ROADMAP.md.
+- Sprint 22–26 (B-76–B-90) had already been wired in a prior session, creating a gap of sprints 19–21.
+
+**Changes applied:**
+
+| File | Change |
+|---|---|
+| `src/App.tsx` | Added lazy imports block `// Sprint 19–21: B-67–B-75`; added 9 `<Route>` entries in `/* Sprint 19–21: B-67–B-75 */` block; removed duplicate `PatrolEventLog` re-import from Sprint 22–26 block |
+| `src/navigation/routeManifest.ts` | Added 9 route manifest entries for B-67–B-75 (navGroup: Roster & Workforce for B-67/B-74; Records for the rest) |
+| `src/components/features/AppLayout.tsx` | Added sidebar entries: B-67 (Roster Shift Log) + B-74 (Contractor Manager) in Roster & Workforce group; B-68–B-73 + B-75 in Records group |
+| `docs/MODULE_ROADMAP.md` | Route count updated 135 → 144; Sprint 19/20/21 route addendums appended |
+
+**Routes wired:**
+
+| ID | Page | Route | Nav Group |
+|---|---|---|---|
+| B-67 | RosterShiftLog | /roster-shifts | Roster & Workforce |
+| B-68 | NoiseNoticeLog | /noise-notices | Records |
+| B-69 | SiteIncidentLog | /site-incidents | Records |
+| B-70 | PersonInteractionLog | /person-interactions | Records |
+| B-71 | PlateScanLog | /plate-scans-log | Records |
+| B-72 | DispatchEventLog | /dispatch-events | Records |
+| B-73 | NoticeToVacateLog | /notices-to-vacate | Records |
+| B-74 | ContractorManager | /contractor-manager | Roster & Workforce |
+| B-75 | VehicleDiscrepancyLog | /vehicle-discrepancies | Records |
+
+**Validation:**
+- `bun run lint` → PASS (0 errors, 0 warnings)
+- `bun run build` → PASS (built in 22.26s)
+
+**Next session:** Verify B-79–B-81 routes in MODULE_ROADMAP.md (currently wired in App.tsx but not documented in roadmap addendum); continue with next sprint candidates.

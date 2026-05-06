@@ -293,6 +293,14 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/reports-hub', icon: FileBarChart, label: 'Reports Hub', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/audit-log', icon: Activity, label: 'Audit Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/privacy-curtain', icon: EyeOff, label: 'Privacy Curtain', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 19–21 (B-67–B-75) logs
+      { path: '/noise-notices', icon: Volume2, label: 'Noise Notices', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/site-incidents', icon: Shield, label: 'Site Incidents', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/person-interactions', icon: Users, label: 'Person Interactions', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/plate-scans-log', icon: ScanSearch, label: 'Plate Scans', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/dispatch-events', icon: Radio, label: 'Dispatch Events', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/notices-to-vacate', icon: ScrollText, label: 'Notices to Vacate', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/vehicle-discrepancies', icon: AlertTriangle, label: 'Vehicle Discrepancies', roles: ['admin', 'admin_officer', 'master'] },
       // Sprint 22–26 (B-76–B-90) logs
       { path: '/drift-events', icon: Navigation2, label: 'Drift Events', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/investigation-jobs-log', icon: BrainCircuit, label: 'Investigation Jobs', roles: ['admin', 'admin_officer', 'master'] },
@@ -326,11 +334,13 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
     icon: CalendarRange,
     items: [
       { path: '/roster', icon: CalendarRange, label: 'Roster Planner', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/roster-shifts', icon: ClipboardList, label: 'Roster Shift Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/open-shifts', icon: CalendarCheck2, label: 'Open Shifts', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/availability', icon: CalendarDays, label: 'My Availability', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/officer-skills', icon: GraduationCap, label: 'Skills & Licences', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/timesheets', icon: ClipboardCopy, label: 'Timesheets', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/asset-management', icon: Package2, label: 'Asset Management', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/contractor-manager', icon: Wrench, label: 'Contractor Manager', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/on-call-periods', icon: PhoneCall, label: 'On-Call Periods', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/callout-shifts', icon: Siren, label: 'Callout Shifts', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/officer-allowances', icon: BadgeDollarSign, label: 'Officer Allowances', roles: ['admin', 'admin_officer', 'master'] },
