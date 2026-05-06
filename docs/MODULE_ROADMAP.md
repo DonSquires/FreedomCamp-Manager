@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
-Date: 2026-05-06 (verified against src App.tsx)
-Source of truth for routes: App router file src App.tsx (148 total routes as of Sprint 26 completion)
+Date: 2026-05-04 (verified against src App.tsx)
+Source of truth for routes: App router file src App.tsx (135 total routes as of Sprint 17 completion)
 
-> **Last Verification**: 2026-05-06 — Sprint 26 routes added (B-88 Officer Activity Log `/officer-activity-log`, B-89 Credential Processing Log `/credential-processing-log`, B-90 Dispatch Acknowledgement Log `/dispatch-ack-log`). Previous baseline: Sprint 25 (145 routes).
+> **Last Verification**: 2026-05-04 — All 122 routes reviewed and role-gating validated. No changes since baseline a6e39a0f.
 
 ## How To Use
 
@@ -22,8 +22,8 @@ Source of truth for routes: App router file src App.tsx (148 total routes as of 
 2. Compliance and enforcement
    - Primary: /compliance
    - Role gate: admin, admin_officer, master
-   - Related: /breaches, /infringements, /notice-to-vacate, /enforcement-actions, /enforcement-command-center, /compliance-recalculation, /trespass-notices, /access-permissions, /loi-browser
-   - Related route gates: /breaches = authenticated users (protected route); /infringements = admin, admin_officer, master, officer; /notice-to-vacate = admin, admin_officer, master; /enforcement-actions = admin, admin_officer, master, officer; /enforcement-command-center = admin, admin_officer, master; /compliance-recalculation = admin, admin_officer, master, grand_master; /trespass-notices = admin, admin_officer, master; /access-permissions = admin, admin_officer, master; /loi-browser = admin, admin_officer, master
+   - Related: /breaches, /infringements, /notice-to-vacate, /enforcement-actions, /enforcement-command-center, /compliance-recalculation
+   - Related route gates: /breaches = authenticated users (protected route); /infringements = admin, admin_officer, master, officer; /notice-to-vacate = admin, admin_officer, master; /enforcement-actions = admin, admin_officer, master, officer; /enforcement-command-center = admin, admin_officer, master; /compliance-recalculation = admin, admin_officer, master, grand_master
 
 3. Patrol and dispatch
    - Primary: /live-patrol
@@ -42,8 +42,8 @@ Source of truth for routes: App router file src App.tsx (148 total routes as of 
 1. Parking
    - Primary: /parking
    - Role gate: admin, admin_officer, master
-   - Related: /parking-officer
-   - Related route gates: /parking-officer = officer, admin_officer, admin, master
+   - Related: /parking-officer, /parking-appeals
+   - Related route gates: /parking-officer = officer, admin_officer, admin, master; /parking-appeals = admin, admin_officer, master
 
 2. Noise
    - Primary: /noise-control
@@ -100,16 +100,16 @@ Source of truth for routes: App router file src App.tsx (148 total routes as of 
 3. Spatial and zone administration
    - Primary: /spatial-compliance
    - Role gate: admin, admin_officer, master
-   - Related: /zones, /site-risk-assessment, /points-of-interest
-   - Related route gates: /zones = admin, admin_officer, master; /site-risk-assessment and /points-of-interest = admin, admin_officer, master, officer
+   - Related: /zones, /zone-amenities, /site-risk-assessment, /points-of-interest
+   - Related route gates: /zones = admin, admin_officer, master; /zone-amenities = admin, admin_officer, master; /site-risk-assessment and /points-of-interest = admin, admin_officer, master, officer
 
 ## Identity, Access, and Communications
 
 1. Identity and records
    - Primary: /identity-verification
    - Role gate: admin, admin_officer, master
-   - Related: /face-recognition, /person-records, /canonical-persons, /vehicles, /vehicles/:id
-   - Related route gates: /face-recognition = admin, admin_officer, master, officer; /person-records = admin, admin_officer, master; /canonical-persons = admin, admin_officer, master; /vehicles and /vehicles/:id = authenticated users (protected route)
+   - Related: /face-recognition, /person-records, /vehicles, /vehicles/:id
+   - Related route gates: /face-recognition = admin, admin_officer, master, officer; /person-records = admin, admin_officer, master; /vehicles and /vehicles/:id = authenticated users (protected route)
 
 2. Access governance
    - Primary: /access-control
@@ -120,8 +120,8 @@ Source of truth for routes: App router file src App.tsx (148 total routes as of 
 3. Comms and PTT
    - Primary: /radio
    - Role gate: authenticated users (protected route)
-   - Related: /radio/log, /radio/audit, /radio-transmissions, /voice-profiles, /messages, /team-chat
-   - Related route gates: /radio/log, /messages, /team-chat = authenticated users (protected route); /radio/audit = admin, admin_officer, master, grand_master; /radio-transmissions = admin, admin_officer, master; /voice-profiles = admin, admin_officer, master
+   - Related: /radio/log, /radio/audit, /messages, /team-chat
+   - Related route gates: /radio/log, /messages, /team-chat = authenticated users (protected route); /radio/audit = admin, admin_officer, master, grand_master
 
 ## Executive and Governance Views
 
@@ -141,93 +141,24 @@ Source of truth for routes: App router file src App.tsx (148 total routes as of 
 
 Update this roadmap when any route is added, removed, renamed, or re-gated in the App router file.
 
-## Sprint 23 Additions (2026-05-06)
+## Sprint 15 Route Addendum (2026-05-06)
 
-Three new admin log-viewer pages added covering investigation jobs, operational cases, and patrol events.
+New admin routes added in Sprint 15 (B-53, B-56, B-57):
 
-1. Investigation Job Log — B-79
-   - Path: /investigation-jobs-log
+1. Parking Appeals (B-53)
+   - Route: /parking-appeals
    - Role gate: admin, admin_officer, master
-   - Table: investigation_jobs (fully typed)
-   - Features: KPI strip (Total/Open/Completed/Overdue), status+priority filters, Mark Complete action, expandable detail rows
+   - Review/decide workflow for parking infringement appeals submitted via /public/parking-appeal
 
-2. Operational Case Log — B-80
-   - Path: /operational-cases-log
+2. Camper Registrations admin view (B-56)
+   - Route: /camper-registrations
    - Role gate: admin, admin_officer, master
-   - Table: operational_cases (fully typed)
-   - Features: KPI strip (Total/Open/Pending/Closed), status+type+date filters, Close Case action, expandable detail rows; links to Case Bridge for full editing
+   - Staff view of all camper stays submitted via /public/register; mark departed/cancel actions
 
-3. Patrol Event Log — B-81
-   - Path: /patrol-events-log
+3. Zone Amenities editor (B-57)
+   - Route: /zone-amenities
    - Role gate: admin, admin_officer, master
-   - Table: patrol_events (fully typed)
-   - Features: KPI strip (Total/Active/With Photos/Unique Cases), event_type+patrol_type+status+date filters, expandable rows with observation text, GPS coords, photo links
-
-## Sprint 24 Additions (2026-05-06)
-
-Three new admin log-viewer pages added covering checkpoint GPS compliance, EMS attendance approvals, and parking session review.
-
-1. Checkpoint Visit Log — B-82
-   - Path: /checkpoint-visits-log
-   - Role gate: admin, admin_officer, master
-   - Table: checkpoint_visits (fully typed)
-   - Features: KPI strip (Total/Within Radius/Outside Radius/Unique Checkpoints), scan_method+radius+date filters, expandable rows with GPS coords, distance, patrol_id
-
-2. EMS Attendance Log — B-83
-   - Path: /ems-attendances-log
-   - Role gate: admin, admin_officer, master
-   - Table: ems_attendances (fully typed)
-   - Features: KPI strip (Total/Pending/Approved/Billable Hours), status+date filters, Approve action, expandable rows with device info, district, rates
-
-3. Parking Session Log — B-84
-   - Path: /parking-sessions-log
-   - Role gate: admin, admin_officer, master
-   - Table: parking_sessions (fully typed)
-   - Features: KPI strip (Total/Violations/Avg Dwell/Unique Plates), violation+plate+date filters, expandable rows with violation reason, GPS, entry/exit/sign/tyre-valve photos
-
-## Sprint 25 Additions (2026-05-06)
-
-Three new admin pages covering flagged vehicle management, parking payment review, and zone signage evidence management.
-
-1. Flagged Vehicle Manager — B-85
-   - Path: /flagged-vehicles-manager
-   - Role gate: admin, admin_officer, master
-   - Table: flagged_vehicles (fully typed)
-   - Features: KPI strip (Total/Active/Inactive/Confirmed Homeless), is_active+priority filters, Deactivate/Reactivate actions, expandable rows with reason, notes, contact
-
-2. Parking Payment Log — B-86
-   - Path: /parking-payments-log
-   - Role gate: admin, admin_officer, master
-   - Table: parking_payments (fully typed)
-   - Features: KPI strip (Total/Successful/Pending-Failed/Revenue NZD), status+provider+plate+date filters, expandable rows with zone_id, session_id, metadata JSON
-
-3. Zone Signage Evidence — B-87
-   - Path: /zone-signage-evidence
-   - Role gate: admin, admin_officer, master
-   - Table: zone_signage_evidence (fully typed)
-   - Features: KPI strip (Total/Current/Superseded/Unique Zones), is_current+signage_type filters, Mark Current action, expandable rows with photo link, GPS, SHA256
-
-## Sprint 26 Additions (2026-05-06)
-
-Three new admin log pages covering officer activity tracking, AI credential processing, and dispatch lifecycle acknowledgement.
-
-1. Officer Activity Log — B-88
-   - Path: /officer-activity-log
-   - Role gate: admin, admin_officer, master
-   - Table: officer_activity_log (fully typed)
-   - Features: KPI strip (Total/Unique Officers/With GPS), activity_type+date filters, expandable rows with full GPS coords + metadata JSON
-
-2. Credential Processing Log — B-89
-   - Path: /credential-processing-log
-   - Role gate: admin, master
-   - Table: credential_processing_log (fully typed)
-   - Features: KPI strip (Total/Verified/Pending-Proc/Avg Confidence), status+doc_type+date filters, confidence bar, Mark Verified action, expandable rows with authorized_activities, ai_model, error_message, extracted_text
-
-3. Dispatch Acknowledgement Log — B-90
-   - Path: /dispatch-ack-log
-   - Role gate: admin, admin_officer, master
-   - Table: dispatch_acknowledgement_log (fully typed, typed lifecycle_stage enum)
-   - Features: KPI strip (Total/On Scene/Completed/Avg ETA), stage+callsign+date filters, ETA display, expandable rows with case_id, job_id, notes
+   - Bulk inline editor for zone facility flags (toilets, water, dump station, shower, rubbish) + capacity/fee
 
 ## Route Topology Addendum (2026-05-03)
 
@@ -248,3 +179,60 @@ Operational impact:
 2. nzscv_monitor remains constrained to monitoring and account areas.
 3. client persona roles remain constrained to client portal and account areas.
 4. grand_master default landing remains /platform.
+
+## Sprint 16 Route Addendum (2026-05-06)
+
+New admin routes added in Sprint 16 (B-58, B-59, B-60):
+
+1. Noise Complaints Log (B-58)
+   - Route: /noise-complaints
+   - Role gate: admin, admin_officer, master
+   - Admin staff view of public_noise_complaints; status workflow (received → acknowledged → assigned → on_scene → resolved / no_action_taken)
+
+2. Patrol Event Log (B-59)
+   - Route: /patrol-events
+   - Role gate: admin, admin_officer, master
+   - Browse patrol_session_events (checkpoint_scan, checkpoint_missed, patrol_started, patrol_completed); officer/case/date filters
+
+3. Breach Escalation (B-60)
+   - Route: /breach-escalation
+   - Role gate: admin, admin_officer, master
+   - Escalation-focused view of dispatch_jobs (escalation_level >= 1 or sla_breached = true); KPI cards per escalation level
+
+## Sprint 17 Route Addendum (2026-05-06)
+
+New admin routes added in Sprint 17 (B-61, B-62, B-63):
+
+1. Officer Performance Report (B-61)
+   - Route: /officer-performance
+   - Role gate: admin, admin_officer, master
+   - KPI cards + daily checkpoint chart + officer league table; aggregates patrol_session_events + breach_alerts
+
+2. Site Risk Trends (B-62)
+   - Route: /site-risk-trends
+   - Role gate: admin, admin_officer, master
+   - Trend line (daily), stacked weekly bar (by risk level), hazard frequency bars, risk distribution; reads site_risk_assessments
+
+3. Incident Heatmap (B-63)
+   - Route: /incident-heatmap
+   - Role gate: admin, admin_officer, master
+   - Horizontal bar by zone, stacked weekly bar by incident type, severity distribution, zone table; reads incidents
+
+## Sprint 18 Route Addendum (2026-05-06)
+
+New admin routes added in Sprint 18 (B-64, B-65, B-66):
+
+1. Health & Safety Reports (B-64)
+   - Route: /health-safety-reports
+   - Role gate: admin, admin_officer, master
+   - Admin review of H&S incident reports submitted by field officers; KPI cards (total/critical/open/resolved), severity + status + incident_type + date filters, expandable description, inline status workflow (open → under_review → resolved → closed); reads health_safety_reports (fully typed)
+
+2. Welfare Check-in Log (B-65)
+   - Route: /welfare-checkins
+   - Role gate: admin, admin_officer, master
+   - Tabbed view: Check-in Records (welfare_checkins fully typed) + Welfare Alerts (officer_welfare_alerts, supabase as any); KPIs (today check-ins, overdue, active alerts, avg overdue minutes); officer/overdue/date filters; acknowledge alert action
+
+3. Parking Permit Manager (B-66)
+   - Route: /parking-permits
+   - Role gate: admin, admin_officer, master
+   - Full CRUD admin register for parking_permits (fully typed); KPIs (total/active/expiring 7 days/expired); Issue Permit dialog (plate, holder details, type, zone, validity); Deactivate inline; plate/holder search + type/zone/status filters; reads parking_zones for zone dropdown

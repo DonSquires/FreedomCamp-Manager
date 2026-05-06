@@ -4,7 +4,7 @@ Uses official runpod Python SDK which handles heartbeats, job fetching, and resu
 
 OLLAMA_BASE_URL resolution order:
   1. OLLAMA_EXTERNAL_URL — point at an external Ollama (Railway, VPS, etc.)
-  2. OLLAMA_BASE_URL     — explicit base URL (default: http://127.0.0.1:11434)
+    2. OLLAMA_BASE_URL     — explicit base URL
 
 Requires Ollama >= 0.3.x for /api/chat support (pinned in Dockerfile via OLLAMA_VERSION).
 """
@@ -19,11 +19,12 @@ import subprocess
 import requests
 import runpod
 
-# Allow an external Ollama URL to override localhost.
-# Useful when the RunPod endpoint needs to call a separately-hosted Ollama
-# (e.g. Railway service) without rebuilding the image.
+# Resolve external Ollama endpoint. This worker no longer supports local Ollama mode.
 _ext = os.environ.get("OLLAMA_EXTERNAL_URL", "").strip().rstrip("/")
-OLLAMA_BASE         = _ext if _ext else os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
+_base = os.environ.get("OLLAMA_BASE_URL", "").strip().rstrip("/")
+OLLAMA_BASE = _ext if _ext else _base
+if not OLLAMA_BASE:
+    raise RuntimeError("OLLAMA_EXTERNAL_URL or OLLAMA_BASE_URL must be set to an external Ollama endpoint")
 OLLAMA_MODEL        = os.environ.get("OLLAMA_MODEL", "qwen2.5:7b")
 OLLAMA_VISION_MODEL = os.environ.get("OLLAMA_VISION_MODEL", "llama3.2-vision:11b")
 BOB_ATTITUDE_PROFILE = os.environ.get("BOB_ATTITUDE_PROFILE", "operational").strip().lower()
@@ -35,7 +36,7 @@ OPENAI_REFERENCE_GATE_ENABLED = os.environ.get("OPENAI_REFERENCE_GATE_ENABLED", 
 ALLOW_OPENAI_REFERENCE_PROVIDER = os.environ.get("ALLOW_OPENAI_REFERENCE_PROVIDER", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 print(f"[worker] FieldOps AI Worker (Python/runpod) starting")
-print(f"[worker] OLLAMA_BASE: {OLLAMA_BASE} ({'external' if _ext else 'local'})")
+print(f"[worker] OLLAMA_BASE: {OLLAMA_BASE} (external)")
 print(f"[worker] OLLAMA_MODEL: {OLLAMA_MODEL}")
 print(f"[worker] OLLAMA_VISION_MODEL: {OLLAMA_VISION_MODEL}")
 print(f"[worker] BOB_ATTITUDE_PROFILE: {BOB_ATTITUDE_PROFILE}")

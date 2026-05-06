@@ -1,34 +1,32 @@
 /**
  * OfficerActivityLog — B-88
  *
- * Admin log for officer_activity_log.
+ * Log viewer for officer_activity_log — officer GPS/activity telemetry.
  *
  * Features:
- *  - KPI cards: Total Events / Unique Officers / With GPS / Activity-type breakdown
- *  - Filters: activity_type select (dynamic), officer UUID prefix search, date range
- *  - Table: user_id (truncated), activity_type badge, GPS indicator, accuracy, recorded_at
- *  - Expandable row: full user_id, lat/lng, metadata JSON
+ *  - KPI cards: Total / Unique Officers / GPS Fixes / Activity Types
+ *  - Filters: activity_type (dynamic with colour-coded badges), date range
+ *  - Table: user_id, activity_type badge, recorded_at, GPS lat/lng, accuracy
+ *  - Expandable row: metadata JSON, created_at
  *
- * Route: /officer-activity-log — admin / admin_officer / master
+ * Route: /officer-activity-log — admin/admin_officer/master
  */
 
 import { useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import {
-  Activity, Search, RefreshCw, AlertCircle, Loader2,
-  ChevronDown, ChevronRight, MapPin, Users,
+  Activity, RefreshCw, AlertCircle, Loader2,
+  ChevronDown, ChevronRight,
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
-import type { Database } from '@/types/database'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -44,10 +42,29 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import type { Database } from '@/types/database'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
-type OfficerActivity = Database['public']['Tables']['officer_activity_log']['Row']
+type ActivityLog = Database['public']['Tables']['officer_activity_log']['Row']
+
+// ─── Activity type colour palette ─────────────────────────────────────────────
+
+const ACTIVITY_COLOURS = [
+  'bg-blue-100 text-blue-800',
+  'bg-green-100 text-green-800',
+  'bg-purple-100 text-purple-800',
+  'bg-orange-100 text-orange-800',
+  'bg-teal-100 text-teal-800',
+  'bg-rose-100 text-rose-800',
+  'bg-yellow-100 text-yellow-800',
+  'bg-indigo-100 text-indigo-800',
+]
+
+function activityColour(type: string, allTypes: string[]) {
+  const idx = allTypes.indexOf(type)
+  return ACTIVITY_COLOURS[idx % ACTIVITY_COLOURS.length]
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -56,36 +73,20 @@ function fmtDate(ts: string | null) {
   try { return format(parseISO(ts), 'dd MMM yyyy HH:mm') } catch { return ts }
 }
 
-function activityBadge(type: string) {
-  const colorMap: Record<string, string> = {
-    login:             'text-green-700',
-    logout:            'text-gray-600',
-    patrol_start:      'text-blue-700',
-    patrol_end:        'text-blue-500',
-    checkin:           'text-teal-700',
-    breach_created:    'text-red-700',
-    observation:       'text-purple-700',
-  }
-  const cls = colorMap[type] ?? 'text-muted-foreground'
-  return <Badge variant="outline" className={`text-xs ${cls}`}>{type.replace(/_/g, ' ')}</Badge>
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function OfficerActivityLog() {
   const { user } = useAuthStore()
   const orgId = user?.organization_id
 
-  const [officerSearch, setOfficer] = useState('')
-  const [typeFilter, setType]       = useState('all')
+  const [typeFilter, setTypeFilter] = useState('all')
   const [dateFrom, setDateFrom]     = useState('')
-  const [dateTo, setDateTo]         = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
-  // ── Main query ─────────────────────────────────────────────────────────────
+  // ── Query ─────────────────────────────────────────────────────────────────
 
-  const { data: activities = [], isLoading, refetch } = useQuery({
-    queryKey: ['officer-activity-log', orgId, typeFilter, dateFrom, dateTo],
+  const { data: rows = [], isLoading, refetch } = useQuery<ActivityLog[]>({
+    queryKey: ['officer-activity-log', orgId, typeFilter, dateFrom],
     enabled: !!orgId,
     queryFn: async () => {
       let q = supabase
@@ -96,203 +97,126 @@ export default function OfficerActivityLog() {
         .limit(500)
 
       if (typeFilter !== 'all') q = q.eq('activity_type', typeFilter)
-      if (dateFrom) q = q.gte('recorded_at', dateFrom)
-      if (dateTo)   q = q.lte('recorded_at', `${dateTo}T23:59:59`)
+      if (dateFrom)             q = q.gte('recorded_at', dateFrom)
 
       const { data, error } = await q
       if (error) throw error
-      return (data ?? []) as OfficerActivity[]
+      return data ?? []
     },
   })
 
-  // ── Dynamic lists ──────────────────────────────────────────────────────────
+  const activityTypes = [...new Set(rows.map(r => r.activity_type).filter(Boolean))].sort()
 
-  const activityTypes = Array.from(new Set(activities.map(a => a.activity_type))).sort()
+  // ── KPIs ──────────────────────────────────────────────────────────────────
 
-  // ── KPIs ───────────────────────────────────────────────────────────────────
+  const total          = rows.length
+  const uniqueOfficers = new Set(rows.map(r => r.user_id)).size
+  const gpsFixes       = rows.filter(r => r.gps_latitude != null && r.gps_longitude != null).length
 
-  const kpis = {
-    total:      activities.length,
-    officers:   new Set(activities.map(a => a.user_id)).size,
-    withGps:    activities.filter(a => a.gps_latitude != null).length,
-  }
-
-  // ── Filtered ──────────────────────────────────────────────────────────────
-
-  const filtered = activities.filter(a => {
-    if (officerSearch) {
-      if (!a.user_id.toLowerCase().includes(officerSearch.toLowerCase())) return false
-    }
-    return true
-  })
-
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <AppLayout title="Officer Activity Log" description="All recorded officer activity events for this organisation">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
-          <Activity className="h-5 w-5 text-blue-600" />
-          <span className="font-semibold text-lg">Officer Activity Log</span>
+    <AppLayout>
+      <div className="p-6 space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Activity className="h-6 w-6 text-violet-600" />
+            <div>
+              <h1 className="text-2xl font-bold">Officer Activity Log</h1>
+              <p className="text-sm text-muted-foreground">Officer GPS and activity telemetry</p>
+            </div>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            <RefreshCw className="h-4 w-4 mr-1" /> Refresh
+          </Button>
         </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()}>
-          <RefreshCw className="h-4 w-4" />
-        </Button>
-      </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-        {[
-          { label: 'Total Events',     value: kpis.total,    icon: <Activity className="h-4 w-4" />, color: 'text-foreground' },
-          { label: 'Unique Officers',  value: kpis.officers, icon: <Users className="h-4 w-4" />,    color: 'text-blue-600' },
-          { label: 'Events With GPS',  value: kpis.withGps,  icon: <MapPin className="h-4 w-4" />,   color: 'text-teal-600' },
-        ].map(k => (
-          <Card key={k.label}>
-            <CardHeader className="pb-1 pt-4 px-4">
-              <CardTitle className="text-xs text-muted-foreground font-medium flex items-center gap-1">
-                {k.icon}{k.label}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-              <p className={`text-2xl font-bold ${k.color}`}>{k.value}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3 mb-4">
-        <div className="relative flex-1 min-w-48">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search officer ID…"
-            value={officerSearch}
-            onChange={e => setOfficer(e.target.value)}
-            className="pl-8"
-          />
+        {/* KPIs */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { label: 'Total Events',     value: total,           colour: 'text-gray-700' },
+            { label: 'Unique Officers',  value: uniqueOfficers,  colour: 'text-blue-700' },
+            { label: 'GPS Fixes',        value: gpsFixes,        colour: 'text-green-700' },
+            { label: 'Activity Types',   value: activityTypes.length, colour: 'text-purple-700' },
+          ].map(kpi => (
+            <Card key={kpi.label}>
+              <CardHeader className="pb-1 pt-3 px-4"><CardTitle className="text-xs text-muted-foreground">{kpi.label}</CardTitle></CardHeader>
+              <CardContent className="px-4 pb-3"><p className={`text-2xl font-bold ${kpi.colour}`}>{kpi.value}</p></CardContent>
+            </Card>
+          ))}
         </div>
-        <Select value={typeFilter} onValueChange={setType}>
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder="Activity type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All types</SelectItem>
-            {activityTypes.map(t => (
-              <SelectItem key={t} value={t}>{t.replace(/_/g, ' ')}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <div className="flex items-center gap-2">
-          <Label className="text-xs text-muted-foreground whitespace-nowrap">From</Label>
-          <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-36 h-9 text-sm" />
-        </div>
-        <div className="flex items-center gap-2">
-          <Label className="text-xs text-muted-foreground whitespace-nowrap">To</Label>
-          <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-36 h-9 text-sm" />
-        </div>
-      </div>
 
-      {/* Empty state */}
-      {!isLoading && activities.length === 0 && (
-        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-md px-4 py-3 mb-4 text-sm text-blue-800">
-          <AlertCircle className="h-4 w-4 flex-shrink-0" />
-          <span>No activity records found for this organisation.</span>
+        {/* Filters */}
+        <div className="flex flex-wrap gap-3">
+          <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <SelectTrigger className="w-52"><SelectValue placeholder="Activity type" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All activity types</SelectItem>
+              {activityTypes.map(t => (
+                <SelectItem key={t} value={t}>
+                  <span className={`inline-block px-2 py-0.5 rounded text-xs mr-1 ${activityColour(t, activityTypes)}`}>{t}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-40" />
         </div>
-      )}
 
-      {/* Table */}
-      <Card>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-6" />
-              <TableHead>Officer ID</TableHead>
-              <TableHead>Activity Type</TableHead>
-              <TableHead>GPS</TableHead>
-              <TableHead>Accuracy (m)</TableHead>
-              <TableHead>Recorded At</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading && (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading…
-                </TableCell>
-              </TableRow>
-            )}
-            {!isLoading && filtered.length === 0 && activities.length > 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                  No events match the current filters.
-                </TableCell>
-              </TableRow>
-            )}
-            {filtered.map(a => {
-              const expanded = expandedId === a.id
-              const hasGps = a.gps_latitude != null && a.gps_longitude != null
-              return [
-                <TableRow
-                  key={a.id}
-                  className="cursor-pointer hover:bg-muted/40"
-                  onClick={() => setExpandedId(expanded ? null : a.id)}
-                >
-                  <TableCell>
-                    {expanded
-                      ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                      : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
-                    {a.user_id.slice(0, 8)}…
-                  </TableCell>
-                  <TableCell>{activityBadge(a.activity_type)}</TableCell>
-                  <TableCell>
-                    {hasGps
-                      ? <Badge variant="secondary" className="text-xs text-teal-700"><MapPin className="h-3 w-3 mr-1 inline" />Yes</Badge>
-                      : <span className="text-xs text-muted-foreground">—</span>}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {a.gps_accuracy != null ? `${a.gps_accuracy.toFixed(1)} m` : '—'}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                    {fmtDate(a.recorded_at)}
-                  </TableCell>
-                </TableRow>,
-
-                expanded && (
-                  <TableRow key={`${a.id}-detail`} className="bg-muted/20">
-                    <TableCell />
-                    <TableCell colSpan={5} className="py-3 space-y-1 text-sm">
-                      <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-                        <span>Officer: <code className="bg-muted px-1 rounded">{a.user_id}</code></span>
-                        {hasGps && (
-                          <span><MapPin className="h-3 w-3 inline mr-0.5" />{a.gps_latitude!.toFixed(6)}, {a.gps_longitude!.toFixed(6)}</span>
-                        )}
-                        <span>Created: {fmtDate(a.created_at)}</span>
-                      </div>
-                      {a.metadata && (
-                        <div>
-                          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Metadata</span>
-                          <pre className="mt-0.5 text-xs bg-muted rounded p-2 overflow-x-auto">
-                            {JSON.stringify(a.metadata, null, 2)}
-                          </pre>
-                        </div>
+        {/* Table */}
+        {isLoading ? (
+          <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        ) : rows.length === 0 ? (
+          <div className="flex flex-col items-center py-12 text-muted-foreground gap-2">
+            <AlertCircle className="h-8 w-8" /><p>No activity log entries found</p>
+          </div>
+        ) : (
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-8" />
+                  <TableHead>Officer</TableHead>
+                  <TableHead>Activity Type</TableHead>
+                  <TableHead>Recorded At</TableHead>
+                  <TableHead>GPS Lat</TableHead>
+                  <TableHead>GPS Lng</TableHead>
+                  <TableHead>Accuracy (m)</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map(row => {
+                  const expanded = expandedId === row.id
+                  const colour = activityColour(row.activity_type, activityTypes)
+                  return (
+                    <>
+                      <TableRow key={row.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setExpandedId(expanded ? null : row.id)}>
+                        <TableCell>{expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">{row.user_id.slice(0, 8)}…</TableCell>
+                        <TableCell><Badge className={colour}>{row.activity_type}</Badge></TableCell>
+                        <TableCell className="text-sm">{fmtDate(row.recorded_at)}</TableCell>
+                        <TableCell className="text-sm">{row.gps_latitude != null ? row.gps_latitude.toFixed(5) : '—'}</TableCell>
+                        <TableCell className="text-sm">{row.gps_longitude != null ? row.gps_longitude.toFixed(5) : '—'}</TableCell>
+                        <TableCell className="text-sm">{row.gps_accuracy ?? '—'}</TableCell>
+                      </TableRow>
+                      {expanded && row.metadata && (
+                        <TableRow key={`${row.id}-exp`} className="bg-muted/30">
+                          <TableCell colSpan={7} className="p-4">
+                            <p className="font-medium text-sm mb-1">Metadata</p>
+                            <pre className="text-xs bg-muted rounded p-2 overflow-auto max-h-40">
+                              {JSON.stringify(row.metadata, null, 2)}
+                            </pre>
+                          </TableCell>
+                        </TableRow>
                       )}
-                    </TableCell>
-                  </TableRow>
-                ),
-              ]
-            })}
-          </TableBody>
-        </Table>
-      </Card>
-
-      {!isLoading && filtered.length > 0 && (
-        <p className="text-xs text-muted-foreground mt-2 text-right">
-          Showing {filtered.length} of {activities.length} events
-        </p>
-      )}
+                    </>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
     </AppLayout>
   )
 }

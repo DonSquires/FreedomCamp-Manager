@@ -1,0 +1,24 @@
+{
+  "createdAt": "2026-05-06T07:06:43.849Z",
+  "sourceFile": "/workspaces/FreedomCamp-Manager/docs/SELF_HOSTED_ENTERPRISE_SPEECH_SPEC_2026-05-06.md",
+  "outputPath": "/workspaces/FreedomCamp-Manager/data/dr-bob-reviews/SELF_HOSTED_ENTERPRISE_SPEECH_SPEC_2026-05-06.md.2026-05-06T07-06-43-835Z.json",
+  "decision": "needs-revision",
+  "structured": false,
+  "escalationReason": "unstructured-review",
+  "review": {
+    "decision": "needs-revision",
+    "summary": "Dr Bob returned an unstructured review. Inspect the raw response.",
+    "findings": [
+      {
+        "severity": "major",
+        "title": "Unstructured review response",
+        "evidence": "{\n  \"json\": {\n    \"findings\": [],\n    \"verificationChecks\": [\n      \"Ensure all speech requests include authenticated user and organization context.\",\n      \"Verify advisory speech intents never bypass the Bob shared gateway for execution-capable actions.\",\n      \"Confirm STT and intent providers are swappable without changing client contracts.\",\n      \"Validate degraded-mode behavior is visible and non-destructive.\",\n      \"Update CI and governance docs to reflect the new architecture before production enablement.\"\n    ]\n  }\n}",
+        "requiredAction": "Rerun the review or tighten the prompt until valid JSON is returned."
+      }
+    ],
+    "verificationChecks": [],
+    "rawResponse": "{\n  \"json\": {\n    \"findings\": [],\n    \"verificationChecks\": [\n      \"Ensure all speech requests include authenticated user and organization context.\",\n      \"Verify advisory speech intents never bypass the Bob shared gateway for execution-capable actions.\",\n      \"Confirm STT and intent providers are swappable without changing client contracts.\",\n      \"Validate degraded-mode behavior is visible and non-destructive.\",\n      \"Update CI and governance docs to reflect the new architecture before production enablement.\"\n    ]\n  }\n}"
+  },
+  "basicFixResult": null,
+  "requiredAction": "Escalate to Copilot for manual intervention beyond Dr Bob auto-fix scope."
+}

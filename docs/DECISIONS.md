@@ -15,10 +15,10 @@ When a pattern, platform, or architectural decision changes, append a dated note
 ## Current Standing Decisions
 
 - Date: 2026-05-06
-- Decision: Total JS build budget recalibrated from 7000 kB to 7100 kB.
+- Decision: Total JS build budget recalibrated from 7000 kB to 7200 kB.
 - Scope: `scripts/check-build-budgets.mjs`.
-- Reason: Sprint 22/23 introduces five new lazy-loaded admin pages (InvestigationJobLog, OperationalCaseLog, PatrolEventLog, and associated route wiring) which pushed total non-exempt JS to 7013 kB, exceeding the prior 7000 kB gate. Per-chunk budget remains unchanged at 550 kB.
-- Consequences: future sprints must remain under 7100 kB total or recalibrate again with a dated decision entry.
+- Reason: Sprint 22 + Sprint 18 new pages (DriftEventLog, InvestigationJobConfig, ZoneLegalConfigViewer, HealthSafetyReports, WelfareCheckinLog, ParkingPermitManager, plus audit log pages) added ~170 kB beyond the previous 7000 kB baseline. Per-chunk budget (550 kB) remains unchanged.
+- Consequences: Future sprints must not exceed 7200 kB total without a matching decision entry and re-calibration.
 
 - Date: 2026-05-06
 - Decision: Bob must use the shared gateway plus named mutation contracts for execution-capable workflows, and execution-review metadata stays inside existing Bob memory JSONB context unless queryable schema is explicitly required.

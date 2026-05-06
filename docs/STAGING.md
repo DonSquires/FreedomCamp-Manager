@@ -2788,6 +2788,179 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 | Dashboard | B-50 AdminPortal refresh (Intel & Radio group, 2 new KPI tiles) | — |
 
 **Next sprint candidates:**
-- B-51: Camper Self-Registration public portal refresh (leverage camper_registrations table + confirmation code display)
-- B-52: Zone Amenities editor (surfacing has_toilets/has_water/has_dump_station etc. from zones table)
+- B-51: On-Call Periods rostering UI (on_call_periods table — already implemented Sprint 14)
+- B-52: Callout Shifts UI (callout_shifts table — already implemented Sprint 14)
+- B-54: Officer Allowances admin UI (allowance_types + officer_allowances — already implemented Sprint 14)
+- B-55: Travel Allowances approve/reject UI (travel_allowances — already implemented Sprint 14)
+
+---
+
+## Phase 5 — Sprint 14 (B-51 / B-52 / B-54 / B-55)
+
+> All tables (on_call_periods, callout_shifts, allowance_types, officer_allowances, travel_allowances) are backed by migrations
+> 20260511000001 and 20260512000001 but were absent from the typed Supabase client snapshot. All pages use `(supabase as any).from(...)`.
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/OnCallPeriods.tsx` | New — B-51 On-Call Periods (schedule/cancel/accept, KPI cards, officer/status/type/date filters, callout count deep-links to CalloutShifts) |
+| `src/pages/CalloutShifts.tsx` | New — B-52 Callout Shifts (expandable timestamp+pay detail, complete/cancel, deep-link from OnCallPeriods, travel link) |
+| `src/pages/OfficerAllowances.tsx` | New — B-54 Officer Allowances (tabbed: Allowances+Types; approve/reject workflow; allowance type CRUD) |
+| `src/pages/TravelAllowances.tsx` | New — B-55 Travel Allowances (approve/reject with admin notes dialog; deep-linked from CalloutShifts `?callout_shift_id=`) |
+| `src/App.tsx` | Lazy imports + routes: `/on-call-periods`, `/callout-shifts`, `/officer-allowances`, `/travel-allowances` |
+| `src/components/features/AppLayout.tsx` | Sidebar entries under Roster & Workforce — `PhoneCall`, `Siren`, `BadgeDollarSign`, `Car` icons |
+| `src/navigation/routeManifest.ts` | 4 new entries: `roster.on-call-periods`, `roster.callout-shifts`, `roster.officer-allowances`, `roster.travel-allowances` |
+
+### Sprint 14 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-51 | On-Call Periods rostering UI | ✅ |
+| B-52 | Callout Shifts UI | ✅ |
+| B-54 | Officer Allowances admin UI (tabbed) | ✅ |
+| B-55 | Travel Allowances approve/reject UI | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+### Competitive Gap Board — Updated (post Sprint 14)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| Rostering | B-51 On-Call Periods, B-52 Callout Shifts | — |
+| Payroll / Allowances | B-54 Officer Allowances, B-55 Travel Allowances | — |
+
+**Next sprint candidates:**
 - B-53: Parking Appeals admin view (parking_appeals table already exists from migration 20260505000007)
+- B-56: Camper Self-Registration public portal refresh (camper_registrations table)
+- B-57: Zone Amenities editor (has_toilets/has_water/has_dump_station columns in zones table)
+
+---
+
+## Phase 5 — Sprint 15 (B-53 / B-56 / B-57)
+
+> parking_appeals and camper_registrations are absent from the typed Supabase client snapshot — both pages use `(supabase as any).from(...)`.
+> zones amenity columns (has_toilets, has_water, has_dump_station, has_shower, has_rubbish, max_vehicles, fee_nzd) are fully typed in database.ts — ZoneAmenities uses the typed client.
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/ParkingAppeals.tsx` | New — B-53 Parking Appeals admin view (received → under_review → upheld/dismissed/withdrawn; reviewer notes dialog; KPI cards; search + status + date filters; expandable contact/grounds detail) |
+| `src/pages/CamperRegistrations.tsx` | New — B-56 Camper Registrations admin view (mark departed/cancel; zone/status/date filters; expandable vehicle+contact detail; link to public portal) |
+| `src/pages/ZoneAmenities.tsx` | New — B-57 Zone Amenities bulk editor (inline facility toggles + capacity/fee per zone; unsaved-change highlighting; save-per-row) |
+| `src/App.tsx` | Lazy imports + routes: `/parking-appeals`, `/camper-registrations`, `/zone-amenities` |
+| `src/components/features/AppLayout.tsx` | Sidebar entries: Parking Appeals (Roster & Workforce), Camper Registrations (Roster & Workforce), Zone Amenities (Management) |
+| `src/pages/AdminPortal.tsx` | Workforce section tiles: On-Call, Callout Shifts, Allowances, Travel Allowances, Parking Appeals, Camper Reg., Zone Amenities; new icons: PhoneCall, Siren, BadgeDollarSign, Tent, Wrench |
+| `src/navigation/routeManifest.ts` | 3 new entries: `enforcement.parking-appeals`, `operations.camper-registrations`, `management.zone-amenities` |
+| `docs/MODULE_ROADMAP.md` | Sprint 15 route addendum + parking-appeals + zone-amenities entries |
+
+### Sprint 15 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-53 | Parking Appeals admin view | ✅ |
+| B-56 | Camper Registrations admin view | ✅ |
+| B-57 | Zone Amenities bulk editor | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+### Competitive Gap Board — Updated (post Sprint 15)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| Enforcement | B-53 Parking Appeals admin view | — |
+| Freedom Camping | B-56 Camper Registrations admin view | — |
+| Zone Management | B-57 Zone Amenities bulk editor | — |
+
+**Next sprint candidates:**
+- B-58: Patrol Debrief / after-action notes (patrol_sessions debrief_notes / debrief_submitted_at — may need migration)
+- B-59: Breach Escalation workflow UI (breach_reports escalation_level column)
+- B-60: Noise Control KPI dashboard (noise_complaints aggregations)
+
+---
+
+## Phase 5 — Sprint 16 (B-58 / B-59 / B-60)
+
+> All three tables (public_noise_complaints, patrol_session_events, dispatch_jobs) are fully typed in database.ts — no (supabase as any) required.
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/NoiseComplaintsLog.tsx` | New — B-58 admin staff view of public_noise_complaints; status workflow with notes dialog; KPI cards; noise type + status + date filters; expandable complainant/description detail |
+| `src/pages/PatrolEventLog.tsx` | New — B-59 patrol_session_events browser; event type colour-coding; officer/case/date filters; KPI cards (today, started, scanned, missed); expandable row |
+| `src/pages/BreachEscalation.tsx` | New — B-60 escalation-focused dispatch_jobs view (escalation_level >= 1 or sla_breached); KPI cards per level; job type/status/level filters; expandable job detail |
+| `src/App.tsx` | Lazy imports + routes: `/noise-complaints`, `/patrol-events`, `/breach-escalation` |
+| `src/components/features/AppLayout.tsx` | Sidebar: Patrol Event Log (Patrols group), Breach Escalation + Noise Complaints Log (Live Ops group) |
+| `src/pages/AdminPortal.tsx` | Patrol tile: Event Log; Specialist Portals: Noise Log + Escalation tiles; new icons: Route, ShieldAlert |
+| `src/navigation/routeManifest.ts` | 3 new entries: `noise.noise-complaints`, `patrols.patrol-events`, `enforcement.breach-escalation` |
+| `docs/MODULE_ROADMAP.md` | Route count 129 → 132; Sprint 16 addendum |
+
+### Sprint 16 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-58 | Noise Complaints Log admin view | ✅ |
+| B-59 | Patrol Event Log | ✅ |
+| B-60 | Breach Escalation dashboard | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+### Competitive Gap Board — Updated (post Sprint 16)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| Noise Control | B-58 Noise Complaints Log | — |
+| Patrols | B-59 Patrol Event Log | — |
+| Enforcement | B-60 Breach Escalation | — |
+
+**Next sprint candidates:**
+- B-61: Officer Performance Report (`/officer-performance`) — per-officer KPIs from patrol_session_events + breach_alerts
+- B-62: Site Risk Trends (`/site-risk-trends`) — trend charts from site_risk_assessments over time
+- B-63: Incident Heatmap overlay (`/incident-heatmap`) — map-based density view of incidents/breach_alerts by zone
+
+---
+
+## Phase 5 — Sprint 17 (B-61 / B-62 / B-63)
+
+> All three tables (patrol_session_events, breach_alerts, site_risk_assessments, incidents) are fully typed in database.ts — no (supabase as any) required.
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/OfficerPerformanceReport.tsx` | New — B-61: per-officer KPIs from patrol_session_events + breach_alerts; officer selector; daily bar chart; league table |
+| `src/pages/SiteRiskTrends.tsx` | New — B-62: trend charts + weekly stacked bar + hazard frequency + risk distribution for site_risk_assessments |
+| `src/pages/IncidentHeatmap.tsx` | New — B-63: incidents aggregated by zone + type + severity; horizontal bar, weekly stacked bar, severity band, zone table |
+| `src/App.tsx` | Lazy imports + routes: `/officer-performance`, `/site-risk-trends`, `/incident-heatmap` |
+| `src/components/features/AppLayout.tsx` | Sidebar: Officer Performance (Patrols), Site Risk Trends (Records), Incident Heatmap (Live Ops); new icons: UserCheck, Flame |
+| `src/pages/AdminPortal.tsx` | New tiles: Officer Performance (Patrol section), Risk Trends (Records section), Incident Map (Specialist Portals); Flame icon |
+| `src/navigation/routeManifest.ts` | 3 new entries: `patrols.officer-performance`, `records.site-risk-trends`, `enforcement.incident-heatmap` |
+| `docs/MODULE_ROADMAP.md` | Route count 132 → 135; Sprint 17 addendum |
+
+### Sprint 17 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-61 | Officer Performance Report | ✅ |
+| B-62 | Site Risk Trends | ✅ |
+| B-63 | Incident Heatmap | ✅ |
+
+- [x] `bun run build` → PASS
+
+### Competitive Gap Board — Updated (post Sprint 17)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| Patrols | B-61 Officer Performance Report | — |
+| Records | B-62 Site Risk Trends | — |
+| Enforcement | B-63 Incident Heatmap | — |
+
+**Next sprint candidates:**
+- B-64: Shift Debrief Form (`/shift-debrief`) — patrol debrief notes (patrol_session_events notes field or new debrief_notes on operational_cases)
+- B-65: Zone Compliance Audit (`/zone-compliance-audit`) — audit trail of zone-level compliance events
+- B-66: Officer Welfare Trends (`/welfare-trends`) — welfare check analytics from officer_welfare_checks over time

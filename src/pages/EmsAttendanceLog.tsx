@@ -1,24 +1,23 @@
 /**
  * EmsAttendanceLog — B-83
  *
- * Admin log viewer and approval manager for ems_attendances.
+ * Log viewer for ems_attendances with Approve action.
  *
  * Features:
- *  - KPI cards: Total / Pending / Approved / Total Billable Hours
- *  - Filters: status select, date-range, free-text (action / attendance_address / offender_ref)
- *  - Table: officer_id (UUID prefix), action, status badge, attendance_date,
- *           billable_hours, travel_km, attendance_address
- *  - Expandable row: notes, admin_notes, device info, district, start/end time, rate
- *  - Approve action (status → 'approved', approved_at = now()) for pending/submitted records
+ *  - KPI cards: Total / Pending / Approved / Billable Hours
+ *  - Filters: status, date range
+ *  - Table: officer_id, action, status, attendance_date, billable_hours, district
+ *  - Expandable row: start/end time, address, notes, travel_km, device_type
+ *  - Approve inline action (sets status = 'approved', approved_at = now())
  *
- * Route: /ems-attendances-log — admin / admin_officer / master
+ * Route: /ems-attendances-log — admin/admin_officer/master
  */
 
 import { useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import {
-  Zap, Search, RefreshCw, AlertCircle, Loader2,
-  ChevronDown, ChevronRight, CheckCircle2, Clock,
+  Stethoscope, RefreshCw, AlertCircle, Loader2,
+  ChevronDown, ChevronRight, CheckCircle2,
 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -26,12 +25,10 @@ import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
-import type { Database } from '@/types/database'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -47,10 +44,20 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import type { Database } from '@/types/database'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 type EmsAttendance = Database['public']['Tables']['ems_attendances']['Row']
+
+// ─── Styling maps ──────────────────────────────────────────────────────────────
+
+const STATUS_STYLES: Record<string, { label: string; className: string }> = {
+  pending:  { label: 'Pending',  className: 'bg-yellow-100 text-yellow-800' },
+  approved: { label: 'Approved', className: 'bg-green-100 text-green-800' },
+  rejected: { label: 'Rejected', className: 'bg-red-100 text-red-800' },
+  submitted:{ label: 'Submitted',className: 'bg-blue-100 text-blue-800' },
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -59,14 +66,9 @@ function fmtDate(ts: string | null) {
   try { return format(parseISO(ts), 'dd MMM yyyy') } catch { return ts }
 }
 
-function statusBadge(status: string) {
-  switch (status) {
-    case 'approved':   return <Badge variant="secondary" className="text-xs text-green-700">Approved</Badge>
-    case 'pending':    return <Badge variant="outline" className="text-xs text-amber-700">Pending</Badge>
-    case 'submitted':  return <Badge variant="outline" className="text-xs text-blue-700">Submitted</Badge>
-    case 'rejected':   return <Badge variant="destructive" className="text-xs">Rejected</Badge>
-    default:           return <Badge variant="outline" className="text-xs">{status}</Badge>
-  }
+function fmtTime(ts: string | null) {
+  if (!ts) return '—'
+  try { return format(parseISO(ts), 'HH:mm') } catch { return ts }
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -76,16 +78,14 @@ export default function EmsAttendanceLog() {
   const orgId = user?.organization_id
   const qc = useQueryClient()
 
-  const [search, setSearch]         = useState('')
-  const [statusFilter, setStatus]   = useState('all')
-  const [dateFrom, setDateFrom]     = useState('')
-  const [dateTo, setDateTo]         = useState('')
-  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [dateFrom, setDateFrom]         = useState('')
+  const [expandedId, setExpandedId]     = useState<string | null>(null)
 
-  // ── Main query ─────────────────────────────────────────────────────────────
+  // ── Query ─────────────────────────────────────────────────────────────────
 
-  const { data: records = [], isLoading, refetch } = useQuery({
-    queryKey: ['ems-attendances-log', orgId, statusFilter, dateFrom, dateTo],
+  const { data: rows = [], isLoading, refetch } = useQuery<EmsAttendance[]>({
+    queryKey: ['ems-attendances-log', orgId, statusFilter, dateFrom],
     enabled: !!orgId,
     queryFn: async () => {
       let q = supabase
@@ -96,255 +96,172 @@ export default function EmsAttendanceLog() {
         .limit(500)
 
       if (statusFilter !== 'all') q = q.eq('status', statusFilter)
-      if (dateFrom) q = q.gte('attendance_date', dateFrom)
-      if (dateTo)   q = q.lte('attendance_date', dateTo)
+      if (dateFrom)               q = q.gte('attendance_date', dateFrom)
 
       const { data, error } = await q
       if (error) throw error
-      return (data ?? []) as EmsAttendance[]
+      return data ?? []
     },
   })
 
-  // ── Approve mutation ───────────────────────────────────────────────────────
+  // ── KPIs ──────────────────────────────────────────────────────────────────
+
+  const total        = rows.length
+  const pending      = rows.filter(r => r.status === 'pending' || r.status === 'submitted').length
+  const approved     = rows.filter(r => r.status === 'approved').length
+  const billableHrs  = rows.reduce((sum, r) => sum + (r.billable_hours ?? 0), 0)
+
+  // ── Mutation ──────────────────────────────────────────────────────────────
 
   const approve = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
         .from('ems_attendances')
-        .update({
-          status: 'approved',
-          approved_at: new Date().toISOString(),
-          approved_by: user?.id ?? null,
-          updated_at: new Date().toISOString(),
-        })
+        .update({ status: 'approved', approved_at: new Date().toISOString(), approved_by: user?.id })
         .eq('id', id)
       if (error) throw error
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['ems-attendances-log'] })
       toast.success('Attendance approved')
+      qc.invalidateQueries({ queryKey: ['ems-attendances-log'] })
     },
-    onError: (e: any) => toast.error(e.message || 'Failed to approve'),
+    onError: (e: Error) => toast.error(e.message),
   })
 
-  // ── KPIs ───────────────────────────────────────────────────────────────────
-
-  const totalBillable = records.reduce((s, r) => s + (r.billable_hours ?? 0), 0)
-  const kpis = {
-    total:    records.length,
-    pending:  records.filter(r => r.status === 'pending' || r.status === 'submitted').length,
-    approved: records.filter(r => r.status === 'approved').length,
-    billable: totalBillable,
-  }
-
-  // ── Filtered ──────────────────────────────────────────────────────────────
-
-  const filtered = records.filter(r => {
-    if (search) {
-      const q = search.toLowerCase()
-      if (
-        !r.action?.toLowerCase().includes(q) &&
-        !r.attendance_address?.toLowerCase().includes(q) &&
-        !r.offender_ref?.toLowerCase().includes(q)
-      ) return false
-    }
-    return true
-  })
-
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <AppLayout title="EMS Attendance Log" description="Review and approve EMS attendance records">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
-          <Zap className="h-5 w-5 text-red-600" />
-          <span className="font-semibold text-lg">EMS Attendance Log</span>
+    <AppLayout>
+      <div className="p-6 space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Stethoscope className="h-6 w-6 text-rose-600" />
+            <div>
+              <h1 className="text-2xl font-bold">EMS Attendance Log</h1>
+              <p className="text-sm text-muted-foreground">EMS attendance records and approvals</p>
+            </div>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            <RefreshCw className="h-4 w-4 mr-1" /> Refresh
+          </Button>
         </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()}>
-          <RefreshCw className="h-4 w-4" />
-        </Button>
-      </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        {[
-          { label: 'Total',          value: kpis.total,    icon: <Zap className="h-4 w-4" />,            color: 'text-foreground',  suffix: '' },
-          { label: 'Pending',        value: kpis.pending,  icon: <Clock className="h-4 w-4" />,          color: 'text-amber-600',   suffix: '' },
-          { label: 'Approved',       value: kpis.approved, icon: <CheckCircle2 className="h-4 w-4" />,   color: 'text-green-600',   suffix: '' },
-          { label: 'Billable Hours', value: kpis.billable, icon: <Clock className="h-4 w-4" />,          color: 'text-blue-600',    suffix: ' h' },
-        ].map(k => (
-          <Card key={k.label}>
-            <CardHeader className="pb-1 pt-4 px-4">
-              <CardTitle className="text-xs text-muted-foreground font-medium flex items-center gap-1">
-                {k.icon}{k.label}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-              <p className={`text-2xl font-bold ${k.color}`}>{typeof k.value === 'number' && k.suffix ? k.value.toFixed(1) : k.value}{k.suffix}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3 mb-4">
-        <div className="relative flex-1 min-w-48">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search action, address, offender ref…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="pl-8"
-          />
+        {/* KPIs */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { label: 'Total',         value: total,                     colour: 'text-gray-700' },
+            { label: 'Pending',       value: pending,                   colour: 'text-yellow-700' },
+            { label: 'Approved',      value: approved,                  colour: 'text-green-700' },
+            { label: 'Billable Hrs',  value: billableHrs.toFixed(1),    colour: 'text-blue-700' },
+          ].map(kpi => (
+            <Card key={kpi.label}>
+              <CardHeader className="pb-1 pt-3 px-4"><CardTitle className="text-xs text-muted-foreground">{kpi.label}</CardTitle></CardHeader>
+              <CardContent className="px-4 pb-3"><p className={`text-2xl font-bold ${kpi.colour}`}>{kpi.value}</p></CardContent>
+            </Card>
+          ))}
         </div>
-        <Select value={statusFilter} onValueChange={setStatus}>
-          <SelectTrigger className="w-36">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="submitted">Submitted</SelectItem>
-            <SelectItem value="approved">Approved</SelectItem>
-            <SelectItem value="rejected">Rejected</SelectItem>
-          </SelectContent>
-        </Select>
-        <div className="flex items-center gap-2">
-          <Label className="text-xs text-muted-foreground whitespace-nowrap">From</Label>
-          <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-36 h-9 text-sm" />
-        </div>
-        <div className="flex items-center gap-2">
-          <Label className="text-xs text-muted-foreground whitespace-nowrap">To</Label>
-          <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-36 h-9 text-sm" />
-        </div>
-      </div>
 
-      {/* Empty state */}
-      {!isLoading && records.length === 0 && (
-        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-md px-4 py-3 mb-4 text-sm text-blue-800">
-          <AlertCircle className="h-4 w-4 flex-shrink-0" />
-          <span>No EMS attendance records found for this organisation.</span>
+        {/* Filters */}
+        <div className="flex flex-wrap gap-3">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-36"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              {Object.entries(STATUS_STYLES).map(([v, s]) => <SelectItem key={v} value={v}>{s.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-40" />
         </div>
-      )}
 
-      {/* Table */}
-      <Card>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-6" />
-              <TableHead>Officer</TableHead>
-              <TableHead>Action</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Billable h</TableHead>
-              <TableHead>Travel km</TableHead>
-              <TableHead>Address</TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading && (
-              <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading…
-                </TableCell>
-              </TableRow>
-            )}
-            {!isLoading && filtered.length === 0 && records.length > 0 && (
-              <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                  No records match the current filters.
-                </TableCell>
-              </TableRow>
-            )}
-            {filtered.map(r => {
-              const expanded = expandedId === r.id
-              const canApprove = r.status === 'pending' || r.status === 'submitted'
-              return [
-                <TableRow
-                  key={r.id}
-                  className="cursor-pointer hover:bg-muted/40"
-                  onClick={() => setExpandedId(expanded ? null : r.id)}
-                >
-                  <TableCell>
-                    {expanded
-                      ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                      : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
-                    {r.officer_id.slice(0, 8)}…
-                  </TableCell>
-                  <TableCell className="text-sm max-w-36 truncate">{r.action}</TableCell>
-                  <TableCell>{statusBadge(r.status)}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                    {fmtDate(r.attendance_date)}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground text-right">
-                    {r.billable_hours != null ? r.billable_hours.toFixed(1) : '—'}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground text-right">
-                    {r.travel_km != null ? r.travel_km.toFixed(1) : '—'}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground max-w-40 truncate">
-                    {r.attendance_address ?? '—'}
-                  </TableCell>
-                  <TableCell onClick={e => e.stopPropagation()}>
-                    {canApprove && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-green-700 hover:text-green-800 h-7 text-xs"
-                        onClick={() => approve.mutate(r.id)}
-                        disabled={approve.isPending}
-                      >
-                        {approve.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Approve'}
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>,
-
-                expanded && (
-                  <TableRow key={`${r.id}-detail`} className="bg-muted/20">
-                    <TableCell />
-                    <TableCell colSpan={8} className="py-3 space-y-2 text-sm">
-                      {r.notes && (
-                        <div>
-                          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Notes</span>
-                          <p className="mt-0.5">{r.notes}</p>
-                        </div>
+        {/* Table */}
+        {isLoading ? (
+          <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        ) : rows.length === 0 ? (
+          <div className="flex flex-col items-center py-12 text-muted-foreground gap-2">
+            <AlertCircle className="h-8 w-8" /><p>No EMS attendances found</p>
+          </div>
+        ) : (
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-8" />
+                  <TableHead>Officer</TableHead>
+                  <TableHead>Action</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Billable Hrs</TableHead>
+                  <TableHead>District</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map(row => {
+                  const expanded = expandedId === row.id
+                  const statusStyle = STATUS_STYLES[row.status] ?? { label: row.status, className: 'bg-gray-100 text-gray-600' }
+                  return (
+                    <>
+                      <TableRow key={row.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setExpandedId(expanded ? null : row.id)}>
+                        <TableCell>{expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">{row.officer_id.slice(0, 8)}…</TableCell>
+                        <TableCell className="text-sm">{row.action}</TableCell>
+                        <TableCell><Badge className={statusStyle.className}>{statusStyle.label}</Badge></TableCell>
+                        <TableCell className="text-sm">{fmtDate(row.attendance_date)}</TableCell>
+                        <TableCell className="text-sm">{row.billable_hours ?? '—'}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{row.district ?? '—'}</TableCell>
+                        <TableCell className="text-right">
+                          {row.status !== 'approved' && (
+                            <Button
+                              size="sm" variant="outline"
+                              disabled={approve.isPending}
+                              onClick={e => { e.stopPropagation(); approve.mutate(row.id) }}
+                            >
+                              <CheckCircle2 className="h-4 w-4 mr-1" /> Approve
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                      {expanded && (
+                        <TableRow key={`${row.id}-exp`} className="bg-muted/30">
+                          <TableCell colSpan={8} className="p-4">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                              <div>
+                                <p className="font-medium mb-1">Start Time</p>
+                                <p className="text-muted-foreground">{fmtTime(row.start_time)}</p>
+                              </div>
+                              <div>
+                                <p className="font-medium mb-1">End Time</p>
+                                <p className="text-muted-foreground">{fmtTime(row.end_time)}</p>
+                              </div>
+                              <div>
+                                <p className="font-medium mb-1">Travel KM</p>
+                                <p className="text-muted-foreground">{row.travel_km ?? '—'}</p>
+                              </div>
+                              <div>
+                                <p className="font-medium mb-1">Device Type</p>
+                                <p className="text-muted-foreground">{row.device_type ?? '—'}</p>
+                              </div>
+                              <div className="col-span-2">
+                                <p className="font-medium mb-1">Address</p>
+                                <p className="text-muted-foreground">{row.attendance_address ?? '—'}</p>
+                              </div>
+                              <div className="col-span-2">
+                                <p className="font-medium mb-1">Notes</p>
+                                <p className="text-muted-foreground">{row.notes ?? 'None'}</p>
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
                       )}
-                      {r.admin_notes && (
-                        <div>
-                          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Admin Notes</span>
-                          <p className="mt-0.5">{r.admin_notes}</p>
-                        </div>
-                      )}
-                      <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-                        {r.district && <span>District: {r.district}</span>}
-                        {r.start_time && <span>Start: {r.start_time}</span>}
-                        {r.end_time && <span>End: {r.end_time}</span>}
-                        {r.device_type && <span>Device: {r.device_type}{r.device_serial ? ` (${r.device_serial})` : ''}</span>}
-                        {r.rate_per_hour != null && <span>Rate: ${r.rate_per_hour}/h</span>}
-                        {r.travel_rate_per_km != null && <span>Travel rate: ${r.travel_rate_per_km}/km</span>}
-                        {r.offender_ref && <span>Offender ref: {r.offender_ref}</span>}
-                        {r.approved_at && <span>Approved: {fmtDate(r.approved_at)}</span>}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ),
-              ]
-            })}
-          </TableBody>
-        </Table>
-      </Card>
-
-      {!isLoading && filtered.length > 0 && (
-        <p className="text-xs text-muted-foreground mt-2 text-right">
-          Showing {filtered.length} of {records.length} records
-        </p>
-      )}
+                    </>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
     </AppLayout>
   )
 }
