@@ -56,6 +56,7 @@ import {
   persistConversationTurnRemote,
 } from '@/lib/bobLearningMemory'
 import { classifyBobCommand, evaluateBobCommandPolicy, type BobCommand } from '@/lib/bobCommandBus'
+import { radioTranslationService } from '@/lib/radio/radioTranslationService'
 
 type ChatMessage = {
   id: string
@@ -553,6 +554,9 @@ export default function BobAssistantStudio() {
   const [voiceSupported, setVoiceSupported] = useState(false)
   const [codeTaskLoading, setCodeTaskLoading] = useState(false)
   const [codeTaskResult, setCodeTaskResult] = useState('')
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0)
+  const [statusRefreshing, setStatusRefreshing] = useState(false)
+  const [statusLastCheckedAt, setStatusLastCheckedAt] = useState<string | null>(null)
   const [doctorHealth, setDoctorHealth] = useState<any>(null)
   const [doctorLoading, setDoctorLoading] = useState(false)
   const [doctorPlaybookRunning, setDoctorPlaybookRunning] = useState<DoctorPlaybookId | null>(null)
@@ -2653,7 +2657,28 @@ export default function BobAssistantStudio() {
     sendMessage(prompt)
   }
 
-  const loadDoctorHealth = async () => {
+  const loadPendingApprovals = useCallback(async () => {
+    if (!user?.id) {
+      setPendingApprovalsCount(0)
+      return
+    }
+
+    try {
+      const { count, error } = await ((supabase.from('notifications') as any)
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('read', false)
+        .contains('data', { requires_code_fix_approval: true }))
+
+      if (error) throw error
+      setPendingApprovalsCount(Number(count ?? 0))
+      setStatusLastCheckedAt(new Date().toISOString())
+    } catch {
+      setPendingApprovalsCount(0)
+    }
+  }, [user?.id])
+
+  const loadDoctorHealth = useCallback(async () => {
     if (!isGrandMaster) return
     setDoctorLoading(true)
     try {
@@ -2665,7 +2690,19 @@ export default function BobAssistantStudio() {
     } finally {
       setDoctorLoading(false)
     }
-  }
+  }, [isGrandMaster])
+
+  const refreshStatusCockpit = useCallback(async () => {
+    setStatusRefreshing(true)
+    try {
+      await Promise.all([
+        loadPendingApprovals(),
+        isGrandMaster ? loadDoctorHealth() : Promise.resolve(),
+      ])
+    } finally {
+      setStatusRefreshing(false)
+    }
+  }, [isGrandMaster, loadPendingApprovals, loadDoctorHealth])
 
   const runDoctorPlaybook = async (playbook: DoctorPlaybookId, dryRun = false) => {
     if (!isGrandMaster) return
@@ -2692,8 +2729,15 @@ export default function BobAssistantStudio() {
   useEffect(() => {
     if (!isGrandMaster) return
     void loadDoctorHealth()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isGrandMaster])
+  }, [isGrandMaster, loadDoctorHealth])
+
+  useEffect(() => {
+    void loadPendingApprovals()
+    const timer = setInterval(() => {
+      void loadPendingApprovals()
+    }, 30_000)
+    return () => clearInterval(timer)
+  }, [loadPendingApprovals])
 
   return (
     <AppLayout title="Bob Assistant Studio" description="Personality, voice, mapping, and drawing controls for Bob.">
@@ -3070,6 +3114,63 @@ export default function BobAssistantStudio() {
         </div>
 
         <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2"><SignalHigh className="h-4 w-4" /> Bob Status Cockpit</span>
+                <Button variant="outline" size="sm" onClick={() => void refreshStatusCockpit()} disabled={statusRefreshing}>
+                  {statusRefreshing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <SignalHigh className="h-4 w-4 mr-1" />}
+                  Refresh
+                </Button>
+              </CardTitle>
+              <CardDescription>
+                Live operating context for Bob command safety and enterprise execution readiness.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                <Badge variant={bobDegraded ? 'destructive' : 'default'}>
+                  Runtime: {bobDegraded ? 'DEGRADED' : thinking ? 'BUSY' : 'READY'}
+                </Badge>
+                <Badge variant="outline">Role: {String(user?.role ?? 'unknown')}</Badge>
+                <Badge variant="outline">Org: {effectiveOrgId ? 'scoped' : 'missing'}</Badge>
+                <Badge variant="outline">PTT: {pttConnectionStatus}</Badge>
+                <Badge variant={pendingApprovalsCount > 0 ? 'secondary' : 'outline'}>
+                  Pending approvals: {pendingApprovalsCount}
+                </Badge>
+              </div>
+
+              <div className="grid gap-2 md:grid-cols-2">
+                <div className="rounded border p-3 text-xs">
+                  <div className="font-medium text-muted-foreground">Provider</div>
+                  <div className="mt-1">{String(doctorHealth?.provider ?? (bobDegraded ? 'local-fallback' : 'runpod/inference'))}</div>
+                </div>
+                <div className="rounded border p-3 text-xs">
+                  <div className="font-medium text-muted-foreground">Mode</div>
+                  <div className="mt-1">{String(doctorHealth?.mode ?? doctorHealth?.status ?? 'standard')}</div>
+                </div>
+                <div className="rounded border p-3 text-xs">
+                  <div className="font-medium text-muted-foreground">Voice Input</div>
+                  <div className="mt-1">{voiceSupported ? 'ready' : 'not supported'}</div>
+                </div>
+                <div className="rounded border p-3 text-xs">
+                  <div className="font-medium text-muted-foreground">Translation Pipeline</div>
+                  <div className="mt-1">{radioTranslationService.isReady() ? 'active' : 'warming/fallback'}</div>
+                </div>
+              </div>
+
+              {pendingCommandConfirmation && (
+                <div className="rounded border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-950/20 dark:text-amber-300">
+                  Confirmation pending: {pendingCommandConfirmation.command.intent}. Say or type "confirm command" to proceed.
+                </div>
+              )}
+
+              <div className="text-[11px] text-muted-foreground">
+                Last status check: {statusLastCheckedAt ? new Date(statusLastCheckedAt).toLocaleString('en-NZ') : 'pending'}
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><Radio className="h-4 w-4" /> Bob Radio Agent</CardTitle>
