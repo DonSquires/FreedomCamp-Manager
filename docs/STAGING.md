@@ -2765,6 +2765,50 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 | Dashboard | B-50 AdminPortal refresh (Intel & Radio group, 2 new KPI tiles) | — |
 
 **Next sprint candidates:**
-- B-51: Camper Self-Registration public portal refresh (leverage camper_registrations table + confirmation code display)
-- B-52: Zone Amenities editor (surfacing has_toilets/has_water/has_dump_station etc. from zones table)
+- B-51: On-Call Periods rostering UI (on_call_periods table — already implemented Sprint 14)
+- B-52: Callout Shifts UI (callout_shifts table — already implemented Sprint 14)
+- B-54: Officer Allowances admin UI (allowance_types + officer_allowances — already implemented Sprint 14)
+- B-55: Travel Allowances approve/reject UI (travel_allowances — already implemented Sprint 14)
+
+---
+
+## Phase 5 — Sprint 14 (B-51 / B-52 / B-54 / B-55)
+
+> All tables (on_call_periods, callout_shifts, allowance_types, officer_allowances, travel_allowances) are backed by migrations
+> 20260511000001 and 20260512000001 but were absent from the typed Supabase client snapshot. All pages use `(supabase as any).from(...)`.
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/OnCallPeriods.tsx` | New — B-51 On-Call Periods (schedule/cancel/accept, KPI cards, officer/status/type/date filters, callout count deep-links to CalloutShifts) |
+| `src/pages/CalloutShifts.tsx` | New — B-52 Callout Shifts (expandable timestamp+pay detail, complete/cancel, deep-link from OnCallPeriods, travel link) |
+| `src/pages/OfficerAllowances.tsx` | New — B-54 Officer Allowances (tabbed: Allowances+Types; approve/reject workflow; allowance type CRUD) |
+| `src/pages/TravelAllowances.tsx` | New — B-55 Travel Allowances (approve/reject with admin notes dialog; deep-linked from CalloutShifts `?callout_shift_id=`) |
+| `src/App.tsx` | Lazy imports + routes: `/on-call-periods`, `/callout-shifts`, `/officer-allowances`, `/travel-allowances` |
+| `src/components/features/AppLayout.tsx` | Sidebar entries under Roster & Workforce — `PhoneCall`, `Siren`, `BadgeDollarSign`, `Car` icons |
+| `src/navigation/routeManifest.ts` | 4 new entries: `roster.on-call-periods`, `roster.callout-shifts`, `roster.officer-allowances`, `roster.travel-allowances` |
+
+### Sprint 14 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-51 | On-Call Periods rostering UI | ✅ |
+| B-52 | Callout Shifts UI | ✅ |
+| B-54 | Officer Allowances admin UI (tabbed) | ✅ |
+| B-55 | Travel Allowances approve/reject UI | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+### Competitive Gap Board — Updated (post Sprint 14)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| Rostering | B-51 On-Call Periods, B-52 Callout Shifts | — |
+| Payroll / Allowances | B-54 Officer Allowances, B-55 Travel Allowances | — |
+
+**Next sprint candidates:**
 - B-53: Parking Appeals admin view (parking_appeals table already exists from migration 20260505000007)
+- B-56: Camper Self-Registration public portal refresh (camper_registrations table)
+- B-57: Zone Amenities editor (has_toilets/has_water/has_dump_station columns in zones table)

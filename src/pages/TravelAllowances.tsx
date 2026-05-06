@@ -117,7 +117,8 @@ function fmtMoney(n: number | null) {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function TravelAllowances() {
-  const { organizationId } = useAuthStore()
+  const { user } = useAuthStore()
+  const orgId = user?.organization_id ?? ''
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -134,22 +135,22 @@ export default function TravelAllowances() {
 
   // ── Fetch officers ──────────────────────────────────────────────────────────
   const { data: officers = [] } = useQuery<OfficerOption[]>({
-    queryKey: ['travel-officers', organizationId],
+    queryKey: ['travel-officers', orgId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('user_profiles')
         .select('id, full_name')
-        .eq('organization_id', organizationId)
+        .eq('organization_id', orgId)
         .order('full_name')
       if (error) throw error
-      return data ?? []
+      return (data ?? []) as OfficerOption[]
     },
-    enabled: !!organizationId,
+    enabled: !!orgId,
   })
 
   // ── Fetch travel allowances ─────────────────────────────────────────────────
   const { data: allowances = [], isLoading, refetch } = useQuery<TravelAllowance[]>({
-    queryKey: ['travel-allowances', organizationId, officerFilter, statusFilter, dateFrom, dateTo, deepLinkCalloutId],
+    queryKey: ['travel-allowances', orgId, officerFilter, statusFilter, dateFrom, dateTo, deepLinkCalloutId],
     queryFn: async () => {
       let q = (supabase as any)
         .from('travel_allowances')
@@ -157,7 +158,7 @@ export default function TravelAllowances() {
           *,
           officer:user_profiles!travel_allowances_officer_id_fkey(id, full_name)
         `)
-        .eq('organization_id', organizationId)
+        .eq('organization_id', orgId)
         .order('travel_date', { ascending: false })
         .limit(200)
 
@@ -169,9 +170,9 @@ export default function TravelAllowances() {
 
       const { data, error } = await q
       if (error) throw error
-      return data ?? []
+      return (data ?? []) as TravelAllowance[]
     },
-    enabled: !!organizationId,
+    enabled: !!orgId,
   })
 
   // ── KPIs ────────────────────────────────────────────────────────────────────
@@ -199,7 +200,7 @@ export default function TravelAllowances() {
         .from('travel_allowances')
         .update(update)
         .eq('id', id)
-        .eq('organization_id', organizationId)
+        .eq('organization_id', orgId)
       if (error) throw error
     },
     onSuccess: (_, vars) => {

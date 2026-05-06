@@ -169,13 +169,13 @@ export default function OfficerAllowances() {
   const { data: officers = [] } = useQuery<OfficerOption[]>({
     queryKey: ['allowance-officers', orgId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('user_profiles')
         .select('id, full_name, call_sign')
         .eq('organization_id', orgId)
         .order('full_name')
       if (error) throw error
-      return data ?? []
+      return (data ?? []) as OfficerOption[]
     },
     enabled: !!orgId,
   })
@@ -191,7 +191,7 @@ export default function OfficerAllowances() {
         .order('category')
         .order('name')
       if (error) throw error
-      return data ?? []
+      return (data ?? []) as AllowanceType[]
     },
     enabled: !!orgId,
   })
@@ -214,7 +214,7 @@ export default function OfficerAllowances() {
       if (typeFilter !== 'all') q = q.eq('allowance_type_id', typeFilter)
       const { data, error } = await q
       if (error) throw error
-      return data ?? []
+      return (data ?? []) as OfficerAllowance[]
     },
     enabled: !!orgId,
   })
