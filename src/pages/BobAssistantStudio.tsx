@@ -476,8 +476,10 @@ function BobSketchPad() {
 export default function BobAssistantStudio() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
-  // ── Ticket 8: Advisory speech-intent pilot (user-scoped only) ──────────
-  const speechIntentPilotEnabled = import.meta.env.VITE_SPEECH_INTENT_PILOT === 'true'
+  const isPolicyManager = user?.role === 'master' || user?.role === 'grand_master'
+  const speechIntentPilotPolicyEnabled = useBobExecutionPolicyStore((state) => state.speechIntentPilotEnabled)
+  // Pilot can be enabled globally via env or by owner/master policy switch.
+  const speechIntentPilotEnabled = import.meta.env.VITE_SPEECH_INTENT_PILOT === 'true' || (isPolicyManager && speechIntentPilotPolicyEnabled)
   const {
     state: speechIntentState,
     startListening: startSpeechIntent,
@@ -530,16 +532,15 @@ export default function BobAssistantStudio() {
   const [chatInput, setChatInput] = useState('')
   const [chat, setChat] = useState<ChatMessage[]>([])
   const [completedChecklist, setCompletedChecklist] = useState<Record<string, boolean>>({})
-    const isPolicyManager = user?.role === 'master' || user?.role === 'grand_master'
-    const policyMode = useBobExecutionPolicyStore((state) => state.mode)
-    const setPolicyMode = useBobExecutionPolicyStore((state) => state.setMode)
-    const enforceSchemaCheck = useBobExecutionPolicyStore((state) => state.enforceSchemaCheck)
-    const setEnforceSchemaCheck = useBobExecutionPolicyStore((state) => state.setEnforceSchemaCheck)
-    const enforceHardSections = useBobExecutionPolicyStore((state) => state.enforceHardSections)
-    const setEnforceHardSections = useBobExecutionPolicyStore((state) => state.setEnforceHardSections)
-    const showActionChecklist = useBobExecutionPolicyStore((state) => state.showActionChecklist)
-    const setShowActionChecklist = useBobExecutionPolicyStore((state) => state.setShowActionChecklist)
-    const effectivePolicy = getEffectiveBobExecutionPolicy()
+  const policyMode = useBobExecutionPolicyStore((state) => state.mode)
+  const setPolicyMode = useBobExecutionPolicyStore((state) => state.setMode)
+  const enforceSchemaCheck = useBobExecutionPolicyStore((state) => state.enforceSchemaCheck)
+  const setEnforceSchemaCheck = useBobExecutionPolicyStore((state) => state.setEnforceSchemaCheck)
+  const enforceHardSections = useBobExecutionPolicyStore((state) => state.enforceHardSections)
+  const setEnforceHardSections = useBobExecutionPolicyStore((state) => state.setEnforceHardSections)
+  const showActionChecklist = useBobExecutionPolicyStore((state) => state.showActionChecklist)
+  const setShowActionChecklist = useBobExecutionPolicyStore((state) => state.setShowActionChecklist)
+  const effectivePolicy = getEffectiveBobExecutionPolicy()
   const [pendingCommandConfirmation, setPendingCommandConfirmation] = useState<{
     command: BobCommand
     requestedAt: string
