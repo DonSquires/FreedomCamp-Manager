@@ -105,7 +105,7 @@ Centralise all competitive gaps identified across FieldOps Manager modules. Each
 | Pay-by-Plate Integration (NZ providers) | T2, PayByPhone | 🟡 Medium | S2 | ✅ Closed (B-29) |
 | Occupancy Analytics Dashboard | T2, ParkMobile | 🟡 Medium | S2 | ✅ Closed (B-25) |
 | Dynamic Pricing Engine | T2, ParkMobile | 🟢 Low | S4 | ✅ Closed (B-32) |
-| Revenue Forecasting | T2, ParkMobile | 🟢 Low | S4 | ⬜ Open |
+| Revenue Forecasting | T2, ParkMobile | 🟢 Low | S4 | ✅ Done |
 
 ---
 
@@ -114,7 +114,7 @@ Centralise all competitive gaps identified across FieldOps Manager modules. Each
 | Gap | Competitor Benchmark | Impact | Sprint | Status |
 |---|---|---|---|---|
 | Real-time Translation (Māori, Mandarin, Hindi, Korean) | Azure Cognitive / Whisper | 🟠 High | S2 | ✅ Closed (B-28) |
-| LMR / Radio Bridge | Zello Gateway, Motorola | 🟡 Medium | S3 | ⬜ Open |
+| LMR / Radio Bridge | Zello Gateway, Motorola | 🟡 Medium | S3 | ✅ Done |
 | Voice AI Workflows (intent → action) | Custom enterprise solutions | 🟡 Medium | S3 | ✅ Closed (Bob PTT integration) |
 
 ---
@@ -126,7 +126,7 @@ Centralise all competitive gaps identified across FieldOps Manager modules. Each
 | In-App ETA Calculation | Various CAD platforms | 🟡 Medium | S1 | ✅ Closed (B-07) |
 | Turn-by-Turn Navigation (in-app) | Various | 🟡 Medium | S2 | ✅ Closed (B-31) |
 | Route Optimisation | Various | 🟡 Medium | S2 | ⬜ Open |
-| Traffic Overlay | Google Maps / HERE | 🟡 Medium | S2 | ⬜ Open |
+| Traffic Overlay | Google Maps / HERE | 🟡 Medium | S2 | ✅ Done |
 
 ---
 

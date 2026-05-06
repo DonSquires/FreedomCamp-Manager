@@ -2531,3 +2531,44 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - B-33: Revenue Forecasting Dashboard (parking revenue projections by zone/period)
 - B-34: Traffic Overlay on Operations Map (HERE Maps / OpenStreetMap tiles)
 - B-35: LMR / Radio Bridge scaffold (Zello Gateway integration)
+
+---
+
+## Phase 5 — Sprint 8 (B-33 / B-34 / B-35)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/RevenueForecast.tsx` | New — B-33 Revenue Forecasting Dashboard |
+| `src/pages/LMRBridge.tsx` | New — B-35 LMR / Radio Bridge admin page |
+| `supabase/functions/lmr-bridge/index.ts` | New — Zello Gateway webhook edge function |
+| `supabase/migrations/20260506000008_lmr_bridge.sql` | New — lmr_bridge_config + lmr_bridge_sessions tables |
+| `src/types/database.ts` | Added lmr_bridge_config + lmr_bridge_sessions types |
+| `src/pages/OperationsMap.tsx` | B-34 traffic layer + HERE Maps TileLayer overlay |
+| `src/App.tsx` | Lazy imports + routes for /revenue-forecasting, /lmr-bridge |
+| `src/components/features/AppLayout.tsx` | Sidebar entries for Revenue Forecasting + LMR Bridge |
+
+### Sprint 8 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-33 | Revenue Forecasting Dashboard | ✅ |
+| B-34 | Traffic Overlay on Operations Map | ✅ |
+| B-35 | LMR / Radio Bridge scaffold | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+### Competitive Gap Board — Updated (post Sprint 8)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| Parking | B-33 Revenue Forecasting | — |
+| Operations Map | B-34 Traffic Overlay | — |
+| Radio / Comms | B-35 LMR Bridge | — |
+
+**Next sprint candidates:**
+- B-36: Asset & Key Management portal (asset_records, key_issuances)
+- B-37: Case Bridge — link incidents/breaches to case records
+- B-38: Seasonal Zone Scheduling UI (is_zone_seasonally_open admin controls)
