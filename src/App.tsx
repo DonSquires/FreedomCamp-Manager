@@ -87,6 +87,8 @@ const FixedCameras = lazy(() => import('@/pages/FixedCameras'))
 const PublicPayByPlate = lazy(() => import('@/pages/PublicPayByPlate'))
 const PatrolNavigation = lazy(() => import('@/pages/PatrolNavigation'))
 const DynamicPricing = lazy(() => import('@/pages/DynamicPricing'))
+const RevenueForecast = lazy(() => import('@/pages/RevenueForecast'))
+const LMRBridge = lazy(() => import('@/pages/LMRBridge'))
 const PublicDisputePortal = lazy(() => import('@/pages/PublicDisputePortal'))
 const PublicFreedomCampingMap = lazy(() => import('@/pages/PublicFreedomCampingMap'))
 const PublicNoiseComplaintPortal = lazy(() => import('@/pages/PublicNoiseComplaintPortal'))
@@ -940,6 +942,28 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <DynamicPricing />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/revenue-forecasting"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <RevenueForecast />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/lmr-bridge"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <LMRBridge />
                 </RoleRoute>
               </ProtectedRoute>
             }

@@ -3974,6 +3974,102 @@ export type Database = {
           }
         ]
       }
+      lmr_bridge_config: {
+        Row: {
+          id: string
+          organization_id: string
+          label: string
+          gateway_url: string
+          gateway_token: string | null
+          radio_channel: string
+          direction: string
+          is_active: boolean
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          label: string
+          gateway_url: string
+          gateway_token?: string | null
+          radio_channel?: string
+          direction?: string
+          is_active?: boolean
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          label?: string
+          gateway_url?: string
+          gateway_token?: string | null
+          radio_channel?: string
+          direction?: string
+          is_active?: boolean
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      lmr_bridge_sessions: {
+        Row: {
+          id: string
+          organization_id: string
+          config_id: string
+          direction: string
+          radio_unit_id: string | null
+          radio_unit_alias: string | null
+          ptt_speaker_id: string | null
+          ptt_speaker_name: string | null
+          channel_id: string
+          started_at: string
+          ended_at: string | null
+          duration_ms: number | null
+          audio_url: string | null
+          transcript: string | null
+          is_emergency: boolean
+          metadata: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          config_id: string
+          direction: string
+          radio_unit_id?: string | null
+          radio_unit_alias?: string | null
+          ptt_speaker_id?: string | null
+          ptt_speaker_name?: string | null
+          channel_id: string
+          started_at?: string
+          ended_at?: string | null
+          audio_url?: string | null
+          transcript?: string | null
+          is_emergency?: boolean
+          metadata?: Json
+          created_at?: string
+        }
+        Update: {
+          ended_at?: string | null
+          audio_url?: string | null
+          transcript?: string | null
+          is_emergency?: boolean
+          metadata?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lmr_bridge_sessions_config_id_fkey"
+            columns: ["config_id"]
+            referencedRelation: "lmr_bridge_config"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       flagged_vehicles: {
         Row: {
           attachments: Json | null

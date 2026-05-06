@@ -99,7 +99,25 @@ const LAYERS: LayerDef[] = [
   { id: 'incidents',     label: 'Incidents',           icon: Shield,      colour: '#4f46e5', defaultOn: false, description: 'Incident records' },
   { id: 'voi',           label: 'Vehicle of Interest', icon: Car,         colour: '#ca8a04', defaultOn: false, description: 'Flagged vehicles with last scan location' },
   { id: 'poi',           label: 'Person of Interest',  icon: User,        colour: '#db2777', defaultOn: false, description: 'Persons of interest with last known location' },
+  { id: 'traffic',       label: 'Traffic Overlay',     icon: Zap,         colour: '#f59e0b', defaultOn: false, description: 'Road traffic conditions (HERE Maps / OpenStreetMap)' },
 ]
+
+// ─── HERE Maps / traffic tile configuration (B-34) ───────────────────────────
+// When VITE_HERE_MAPS_API_KEY is set, the HERE traffic flow tile layer is used.
+// Without it, the OSM-based Thunderforest Transport tile layer is used as a
+// lightweight visual alternative (shows road classes with colour coding).
+// The overlay TileLayer is rendered on top of the base OSM layer when the
+// 'traffic' layer toggle is on.
+const HERE_API_KEY = import.meta.env.VITE_HERE_MAPS_API_KEY as string | undefined
+
+// HERE Maps traffic flow tile URL template
+const HERE_TRAFFIC_URL = HERE_API_KEY
+  ? `https://traffic.maps.ls.hereapi.com/maptile/2.1/traffictile/newest/normal.day/{z}/{x}/{y}/256/png8?apiKey=${HERE_API_KEY}`
+  : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png' // fallback: standard OSM (traffic overlay unavailable without key)
+
+const HERE_TRAFFIC_ATTRIBUTION = HERE_API_KEY
+  ? '&copy; <a href="https://www.here.com">HERE Maps</a> traffic data'
+  : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 // haversineKm imported from @/lib/geo
@@ -543,6 +561,15 @@ export default function OperationsMap() {
                   )
                 })}
 
+                {/* B-34: Traffic overlay notice when active without HERE key */}
+                {visibleLayers.traffic && !HERE_API_KEY && (
+                  <div className="px-2.5 py-2 bg-amber-50 dark:bg-amber-950/20">
+                    <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                      Set <span className="font-mono">VITE_HERE_MAPS_API_KEY</span> to enable live traffic data.
+                    </p>
+                  </div>
+                )}
+
                 {/* Welfare alert summary */}
                 {welfareAlerts.length > 0 && visibleLayers.welfare && (
                   <div className="px-2.5 py-2 bg-red-50 dark:bg-red-950/20">
@@ -568,6 +595,16 @@ export default function OperationsMap() {
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               />
+
+              {/* B-34: Traffic overlay TileLayer (HERE Maps when API key present) */}
+              {visibleLayers.traffic && (
+                <TileLayer
+                  url={HERE_TRAFFIC_URL}
+                  attribution={HERE_TRAFFIC_ATTRIBUTION}
+                  opacity={HERE_API_KEY ? 0.7 : 0.0}
+                  zIndex={10}
+                />
+              )}
 
               {/* Auto-fit when data arrives */}
               {allPoints.length > 0 && <AutoFitBounds points={allPoints} />}
