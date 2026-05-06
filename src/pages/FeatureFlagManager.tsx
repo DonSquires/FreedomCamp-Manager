@@ -94,9 +94,10 @@ export default function FeatureFlagManager() {
 
   const toggleMutation = useMutation({
     mutationFn: async ({ id, enabled }: { id: string; enabled: boolean }) => {
+      if (!user?.id) throw new Error('Not authenticated')
       const { error } = await supabase
         .from('feature_flags')
-        .update({ enabled, modified_by: user?.id, updated_at: new Date().toISOString() })
+        .update({ enabled, modified_by: user.id, updated_at: new Date().toISOString() })
         .eq('id', id)
       if (error) throw error
     },

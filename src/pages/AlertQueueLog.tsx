@@ -103,9 +103,10 @@ export default function AlertQueueLog() {
 
   const dismissMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (!user?.id) throw new Error('Not authenticated')
       const { error } = await supabase
         .from('alert_queue')
-        .update({ status: 'acknowledged', acknowledged_at: new Date().toISOString(), acknowledged_by: user?.id })
+        .update({ status: 'acknowledged', acknowledged_at: new Date().toISOString(), acknowledged_by: user.id })
         .eq('id', id)
       if (error) throw error
     },
