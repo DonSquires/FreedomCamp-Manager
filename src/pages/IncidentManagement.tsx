@@ -15,6 +15,7 @@ import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { AppLayout } from '@/components/features/AppLayout'
 import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
 import { IncidentCreationForm, IncidentFormData } from '@/components/features/IncidentCreationForm'
+import { TranslateButton } from '@/components/features/TranslateButton'
 import { IncidentEvidenceBundle } from '@/components/features/IncidentEvidenceBundle'
 import { toast } from 'sonner'
 import { edgeFunctions } from '@/lib/edgeFunctions'
@@ -301,6 +302,9 @@ export default function IncidentManagement() {
                       <CardDescription className="mt-2 line-clamp-2">
                         {incident.description}
                       </CardDescription>
+                    )}
+                    {incident.description && (
+                      <TranslateButton text={incident.description} className="mt-1" />
                     )}
                   </div>
                 </div>

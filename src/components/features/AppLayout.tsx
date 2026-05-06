@@ -210,6 +210,7 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/dispatched-jobs', icon: ListChecks, label: 'Dispatched Jobs', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/alarm-events', icon: Siren, label: 'Alarm Events', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/patrol-route-optimiser', icon: Route, label: 'Route Optimiser', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/fixed-cameras', icon: Camera, label: 'Fixed Cameras', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/team-chat', icon: MessageSquare, label: 'Team Chat', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/radio', icon: Radio, label: 'Radio', roles: ['admin', 'admin_officer', 'master', 'officer'] },
     ],

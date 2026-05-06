@@ -3811,6 +3811,114 @@ export type Database = {
           { foreignKeyName: "feature_flag_rollout_history_changed_by_fkey"; columns: ["changed_by"]; isOneToOne: false; referencedRelation: "user_profiles"; referencedColumns: ["id"] },
         ]
       }
+      fixed_cameras: {
+        Row: {
+          id: string
+          organization_id: string
+          name: string
+          camera_type: string
+          status: string
+          latitude: number | null
+          longitude: number | null
+          address: string | null
+          zone_id: string | null
+          stream_url: string | null
+          snapshot_url: string | null
+          last_seen_at: string | null
+          notes: string | null
+          metadata: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          name: string
+          camera_type: string
+          status?: string
+          latitude?: number | null
+          longitude?: number | null
+          address?: string | null
+          zone_id?: string | null
+          stream_url?: string | null
+          snapshot_url?: string | null
+          last_seen_at?: string | null
+          notes?: string | null
+          metadata?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          name?: string
+          camera_type?: string
+          status?: string
+          latitude?: number | null
+          longitude?: number | null
+          address?: string | null
+          zone_id?: string | null
+          stream_url?: string | null
+          snapshot_url?: string | null
+          last_seen_at?: string | null
+          notes?: string | null
+          metadata?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      parking_payments: {
+        Row: {
+          id: string
+          organization_id: string
+          plate_number: string
+          zone_id: string | null
+          session_id: string | null
+          amount_nzd: number
+          payment_provider: string
+          provider_reference: string | null
+          status: string
+          contact_email: string | null
+          contact_phone: string | null
+          metadata: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          plate_number: string
+          zone_id?: string | null
+          session_id?: string | null
+          amount_nzd: number
+          payment_provider?: string
+          provider_reference?: string | null
+          status?: string
+          contact_email?: string | null
+          contact_phone?: string | null
+          metadata?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          plate_number?: string
+          zone_id?: string | null
+          session_id?: string | null
+          amount_nzd?: number
+          payment_provider?: string
+          provider_reference?: string | null
+          status?: string
+          contact_email?: string | null
+          contact_phone?: string | null
+          metadata?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       flagged_vehicles: {
         Row: {
           attachments: Json | null
@@ -11060,7 +11168,13 @@ export type Database = {
           day_visit_only: boolean | null
           description: string | null
           enforcement_authority: string | null
+          fee_nzd: number | null
           geometry: Json | null
+          has_dump_station: boolean | null
+          has_rubbish: boolean | null
+          has_shower: boolean | null
+          has_toilets: boolean | null
+          has_water: boolean | null
           id: string
           is_active: boolean | null
           land_manager: string | null
@@ -11068,6 +11182,7 @@ export type Database = {
           location_lat: number | null
           location_lng: number | null
           max_consecutive_nights: number | null
+          max_vehicles: number | null
           name: string
           needs_admin_review: boolean | null
           nights_per_month: number | null
@@ -11091,7 +11206,13 @@ export type Database = {
           day_visit_only?: boolean | null
           description?: string | null
           enforcement_authority?: string | null
+          fee_nzd?: number | null
           geometry?: Json | null
+          has_dump_station?: boolean | null
+          has_rubbish?: boolean | null
+          has_shower?: boolean | null
+          has_toilets?: boolean | null
+          has_water?: boolean | null
           id?: string
           is_active?: boolean | null
           land_manager?: string | null
@@ -11099,6 +11220,7 @@ export type Database = {
           location_lat?: number | null
           location_lng?: number | null
           max_consecutive_nights?: number | null
+          max_vehicles?: number | null
           name: string
           needs_admin_review?: boolean | null
           nights_per_month?: number | null
@@ -11122,7 +11244,13 @@ export type Database = {
           day_visit_only?: boolean | null
           description?: string | null
           enforcement_authority?: string | null
+          fee_nzd?: number | null
           geometry?: Json | null
+          has_dump_station?: boolean | null
+          has_rubbish?: boolean | null
+          has_shower?: boolean | null
+          has_toilets?: boolean | null
+          has_water?: boolean | null
           id?: string
           is_active?: boolean | null
           land_manager?: string | null
@@ -11130,6 +11258,7 @@ export type Database = {
           location_lat?: number | null
           location_lng?: number | null
           max_consecutive_nights?: number | null
+          max_vehicles?: number | null
           name?: string
           needs_admin_review?: boolean | null
           nights_per_month?: number | null

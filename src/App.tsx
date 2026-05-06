@@ -83,6 +83,8 @@ const EvidencePackages = lazy(() => import('@/pages/EvidencePackages'))
 const AlarmEvents = lazy(() => import('@/pages/AlarmEvents'))
 const OccupancyAnalytics = lazy(() => import('@/pages/OccupancyAnalytics'))
 const PatrolRouteOptimiser = lazy(() => import('@/pages/PatrolRouteOptimiser'))
+const FixedCameras = lazy(() => import('@/pages/FixedCameras'))
+const PublicPayByPlate = lazy(() => import('@/pages/PublicPayByPlate'))
 const PublicDisputePortal = lazy(() => import('@/pages/PublicDisputePortal'))
 const PublicFreedomCampingMap = lazy(() => import('@/pages/PublicFreedomCampingMap'))
 const PublicNoiseComplaintPortal = lazy(() => import('@/pages/PublicNoiseComplaintPortal'))
@@ -622,6 +624,7 @@ export default function App() {
           <Route path="/public/zone-map" element={<PublicFreedomCampingMap />} />
           <Route path="/public/noise-complaint" element={<PublicNoiseComplaintPortal />} />
           <Route path="/public/parking-appeal" element={<PublicParkingAppealPortal />} />
+          <Route path="/public/pay-by-plate" element={<PublicPayByPlate />} />
           <Route path="/public/register" element={<PublicCamperRegistration />} />
           <Route
             path="/portal-selection"
@@ -902,6 +905,17 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
                   <PatrolRouteOptimiser />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/fixed-cameras"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <FixedCameras />
                 </RoleRoute>
               </ProtectedRoute>
             }
