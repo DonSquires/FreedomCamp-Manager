@@ -1,6 +1,6 @@
 -- speech_audit_events
 -- Persists every speech-to-intent call for NZ Privacy Act IPP 5/6/7 compliance.
--- Linked to the authenticated user and org. Transcript is the raw (non-redacted)
+-- Linked to the authenticated user (no org-based access restrictions). Transcript is the raw (non-redacted)
 -- text captured by the STT layer BEFORE any OpenAI egress (redaction happens
 -- upstream in speech-router for OpenAI paths).
 
@@ -19,24 +19,12 @@ create table if not exists public.speech_audit_events (
   error_message     text
 );
 
--- RLS: users can see their own events; admins can see all events in their org
+-- RLS: users can see only their own events
 alter table public.speech_audit_events enable row level security;
 
 create policy "User can read own speech audit events"
   on public.speech_audit_events for select
   using (auth.uid() = user_id);
-
-create policy "Org admin can read speech audit events"
-  on public.speech_audit_events for select
-  using (
-    org_id is not null
-    and org_id = get_user_organization_id(auth.uid())
-    and exists (
-      select 1 from public.user_profiles
-      where id = auth.uid()
-        and role in ('admin', 'master', 'admin_officer', 'grand_master')
-    )
-  );
 
 -- Service role inserts are unrestricted (edge function uses service role key)
 create policy "Service role can insert speech audit events"

@@ -5,7 +5,7 @@
  *
  * Responsibilities:
  *   1. Authenticate the caller via Supabase JWT
- *   2. Attach org_id and user_id from session/header
+ *   2. Attach user_id from session
  *   3. Forward to hPanel speech-router (SPEECH_ROUTER_URL)
  *   4. Persist an audit event to `speech_audit_events`
  *   5. Return the speech-router response to the client
@@ -86,19 +86,12 @@ Deno.serve(withCors(async (req: Request) => {
     return errorResponse('audio_base64 is required', req, 400)
   }
 
-  // 3. Resolve org — prefer explicit header, fall back to body, then session claim
-  const orgId = (
-    req.headers.get('x-org-id') ||
-    (typeof body.org_id === 'string' ? body.org_id : null) ||
-    null
-  )
-
-  // 4. Forward to speech-router
+  // 3. Forward to speech-router (user-scoped only; no org restrictions)
   const routerPayload = {
     audio_base64: body.audio_base64,
     language: typeof body.language === 'string' ? body.language : 'en',
     wake_phrase: typeof body.wake_phrase === 'string' ? body.wake_phrase : null,
-    org_id: orgId,
+    org_id: null,
     user_id: userId,
     context: typeof body.context === 'object' && body.context !== null ? body.context : {},
   }
@@ -126,7 +119,7 @@ Deno.serve(withCors(async (req: Request) => {
     if (!routerRes.ok) {
       await persistAuditEvent(supabase, {
         user_id: userId,
-        org_id: orgId,
+        org_id: null,
         transcript: '',
         intent_name: null,
         confidence: null,
@@ -148,7 +141,7 @@ Deno.serve(withCors(async (req: Request) => {
     const provider = routerBody.provider as Record<string, string> | undefined
     await persistAuditEvent(supabase, {
       user_id: userId,
-      org_id: orgId,
+      org_id: null,
       transcript: typeof routerBody.transcript === 'string' ? routerBody.transcript : '',
       intent_name: typeof intent?.intent === 'string' ? intent.intent : null,
       confidence: typeof intent?.confidence === 'number' ? intent.confidence : null,
@@ -167,7 +160,7 @@ Deno.serve(withCors(async (req: Request) => {
 
     await persistAuditEvent(supabase, {
       user_id: userId,
-      org_id: orgId,
+      org_id: null,
       transcript: '',
       intent_name: null,
       confidence: null,

@@ -4,6 +4,12 @@
 **Model**: Faster-Whisper `distil-large-v3`  
 **Purpose**: Real-time field-officer speech-to-text for intent routing
 
+## Bob Assistant User-Only Policy
+
+1. Bob assistant behavior is strictly user-scoped, not organization-scoped.
+2. Access to Bob speech capabilities follows authenticated user identity, even if a user moves between organizations.
+3. Organization context may be carried only as optional metadata for analytics or routing hints, never as an access restriction.
+
 ---
 
 ## 1. Build the Image (automated via CI)

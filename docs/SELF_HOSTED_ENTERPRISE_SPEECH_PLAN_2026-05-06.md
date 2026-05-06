@@ -5,6 +5,12 @@ Owner: Master Systems Manager
 Status: Proposed execution plan
 Related spec: `docs/SELF_HOSTED_ENTERPRISE_SPEECH_SPEC_2026-05-06.md`
 
+## Bob Assistant User-Only Policy
+
+1. Bob assistant behavior is strictly user-scoped, not organization-scoped.
+2. A user's access to Bob speech capabilities must follow the authenticated user identity, even if that user moves between organizations.
+3. Organization context may be carried as optional metadata for analytics or routing hints only, never as an access restriction.
+
 ## Goal
 
 Execute a modular, enterprise-grade speech platform for Bob using the whole stack:
@@ -31,7 +37,7 @@ Execute a modular, enterprise-grade speech platform for Bob using the whole stac
 Deliverables:
 
 1. Final speech API contract for `speech-to-intent` and `tts`.
-2. Auth and org-context threading model.
+2. Auth and user-context threading model.
 3. Confidence and confirmation policy matrix.
 4. Sequence diagrams for web, mobile, and PTT-triggered speech flows.
 
@@ -77,7 +83,7 @@ Deliverables:
 
 1. Edge shim that authenticates and forwards to speech-router.
 2. Audit/event persistence for transcript and intent review.
-3. Policy checks for user/org context and future execution contracts.
+3. Policy checks for user context and future execution contracts.
 
 Files and services:
 
@@ -140,13 +146,13 @@ Files and services:
 
 1. Route `INTENT_URL` to Railway Ollama (`https://ollama-production-3ab0.up.railway.app`) using native Ollama `/api/generate` with JSON output.
 2. Define JSON schema enforced via system prompt and response parsing.
-3. Test route, role, and org-sensitive prompts against the deployed model.
+3. Test route, role, and user-sensitive prompts against the deployed model.
 4. Only provision a separate RunPod vLLM endpoint if Railway Ollama latency is unacceptable under load.
 
 ### Ticket 5: Wire Supabase edge shim
 
 1. Authenticate caller.
-2. Attach org and user context.
+2. Attach user context.
 3. Persist audit event and execution review metadata.
 
 ### Ticket 6: Build wake-word adapter abstraction
@@ -180,7 +186,7 @@ Files and services:
 2. Mobile team gets a voice-first workflow without surrendering control to a vendor.
 3. Platform team keeps GPU-heavy inference isolated and replaceable.
 4. Operations team keeps always-on orchestration on infrastructure they already manage.
-5. Compliance team keeps audit, consent, and org isolation anchored in Supabase.
+5. Compliance team keeps audit and consent anchored to authenticated users in Supabase.
 6. Leadership keeps the option to move more workloads on-prem or VPS-side later.
 
 ## Risks and Mitigations
@@ -200,7 +206,7 @@ Files and services:
 2. `bun run build`
 3. `bun run test:bob:governance`
 4. speech-router health and provider checks
-5. staged auth and org-scope verification for speech calls
+5. staged auth and user-scope verification for speech calls
 6. updated canonical docs and staging guidance
 
 ## Done Definition
