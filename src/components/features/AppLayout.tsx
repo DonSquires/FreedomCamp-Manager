@@ -101,6 +101,7 @@ import {
   Route,
   Navigation2,
   Gauge,
+  FolderKanban,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -285,6 +286,7 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/officer-skills', icon: GraduationCap, label: 'Skills & Licences', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/timesheets', icon: ClipboardCopy, label: 'Timesheets', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/asset-management', icon: Package2, label: 'Asset Management', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/case-bridge', icon: FolderKanban, label: 'Case Bridge', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {

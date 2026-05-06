@@ -2572,3 +2572,41 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - B-36: Asset & Key Management portal (asset_records, key_issuances)
 - B-37: Case Bridge — link incidents/breaches to case records
 - B-38: Seasonal Zone Scheduling UI (is_zone_seasonally_open admin controls)
+
+---
+
+## Phase 5 — Sprint 9 (B-36 / B-37 / B-38)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/CaseBridge.tsx` | New — B-37 Operational Case Management (list, create, detail, comments) |
+| `src/App.tsx` | Lazy import + `/case-bridge` route |
+| `src/components/features/AppLayout.tsx` | Sidebar entry + `FolderKanban` icon for Case Bridge |
+
+> B-36 (AssetManagement.tsx + /asset-management) and B-38 (seasonal controls in ZoneManagement.tsx) were already implemented in earlier sprints.
+
+### Sprint 9 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-36 | Asset & Key Management | ✅ (prior sprint) |
+| B-37 | Case Bridge — Operational Case Management | ✅ |
+| B-38 | Seasonal Zone Scheduling UI | ✅ (prior sprint) |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+### Competitive Gap Board — Updated (post Sprint 9)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| Assets / Keys | B-36 Asset & Key Management | — |
+| Cases / Investigations | B-37 Case Bridge | — |
+| Zone Scheduling | B-38 Seasonal Zone Scheduling | — |
+
+**Next sprint candidates:**
+- B-39: Service Agreements admin UI (service_agreements table)
+- B-40: POI / VOI Watch-list dashboard (poi_alerts, voi_alerts)
+- B-41: Identity Verification audit log UI (person_id_documents timeline)

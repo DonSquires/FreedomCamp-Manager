@@ -151,6 +151,8 @@ Centralise all competitive gaps identified across FieldOps Manager modules. Each
 | S2 | 14 | Public portals + welfare wearables + occupancy |
 | S3 | 7 | Video + integrations + multilingual |
 | S4+ | 3 | Revenue / pricing / forecasting |
+| S8 | 3 | Revenue Forecasting, Traffic Overlay, LMR Bridge |
+| S9 | 3 | Asset Management, Case Bridge, Seasonal Zones |
 | Backlog | 2 | CAD-to-CAD, national DB |
 
 ---
