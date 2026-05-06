@@ -3591,3 +3591,56 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - `bun run build` → PASS (26.36s)
 
 **Next session:** Sprint 35 — B-115 LocationsOfInterestLog, B-116 RosterShiftLog, B-117 PersonRecordLog (or equivalent backlog items).
+
+---
+
+## Phase 5 — Sprint 35 (B-115 / B-116 / B-117)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/LocationsOfInterestLog.tsx` | New — B-115: Log viewer for locations_of_interest (Table, organization_id); loi_kind/is_active/is_canonical/city filters + name/address search; hazard/access/GPS expand |
+| `src/pages/VehicleMonthlyStayLog.tsx` | New — B-116: Log viewer for vehicle_monthly_stays (Table, organization_id); month/plate filters; consecutive night highlight + reset/observation expand |
+| `src/pages/RadioVoiceConsentLog.tsx` | New — B-117: Log viewer for radio_voice_consents (**View**, org_id); revoked/provider/date filters; revocation reason expand |
+| `src/App.tsx` | Sprint 35 lazy imports + 3 new routes |
+| `src/navigation/routeManifest.ts` | 3 new entries (Records / Vehicles / Intelligence & Radio) |
+| `src/components/features/AppLayout.tsx` | 3 new sidebar entries |
+| `src/pages/AdminPortal.tsx` | 3 new tiles; CalendarRange + ShieldCheck icons added |
+| `docs/MODULE_ROADMAP.md` | Route count 183 → 186; Sprint 35 addendum |
+
+### Sprint 35 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-115 | LocationsOfInterestLog | ✅ |
+| B-116 | VehicleMonthlyStayLog | ✅ |
+| B-117 | RadioVoiceConsentLog | ✅ |
+
+**Note:** roster_shifts skipped (already B-67 RosterShiftLog). person_records skipped (already PersonRecords.tsx).
+radio_voice_consents is a View (org_id scope) not a Table — typed via Database['public']['Views'].
+
+**Next sprint candidates (36):**
+- B-118: `PatrolScheduleZoneLog` — patrol_schedule_zones (no org_id; join via patrol_id → patrols.organization_id)
+- B-119: `ImportBatchLog` — import_batches (check org scope)
+- B-120: `ContractorDocumentLog` — contractor_documents (check org scope)
+
+---
+
+## Session Snapshot (Sprint 35 — 2026-05-06)
+
+- Timestamp (UTC): 2026-05-06 22:20 UTC
+- Current branch: copilot/find-staging-doc-and-follow-instructions
+
+**New pages built:**
+- `src/pages/LocationsOfInterestLog.tsx` — locations_of_interest (Table) viewer
+- `src/pages/VehicleMonthlyStayLog.tsx` — vehicle_monthly_stays (Table) viewer
+- `src/pages/RadioVoiceConsentLog.tsx` — radio_voice_consents (View) viewer
+
+**Wiring applied:** App.tsx, routeManifest.ts, AppLayout.tsx, AdminPortal.tsx
+
+**Validation:**
+- `bun run lint` → PASS
+- `bun run build` → PASS (26.71s)
+
+**Next session:** Sprint 36 — B-118/B-119/B-120 (import_batches, contractor_documents, + one more uncovered table)

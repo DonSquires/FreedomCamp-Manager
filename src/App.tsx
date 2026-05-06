@@ -245,6 +245,10 @@ const DisputeIntakeLog       = lazy(() => import('@/pages/DisputeIntakeLog'))
 const RadioTtsRenderLog      = lazy(() => import('@/pages/RadioTtsRenderLog'))
 const HealthSafetyReportLog  = lazy(() => import('@/pages/HealthSafetyReportLog'))
 const NoiseSeizureLog        = lazy(() => import('@/pages/NoiseSeizureLog'))
+// Sprint 35: B-115–B-117
+const LocationsOfInterestLog = lazy(() => import('@/pages/LocationsOfInterestLog'))
+const VehicleMonthlyStayLog  = lazy(() => import('@/pages/VehicleMonthlyStayLog'))
+const RadioVoiceConsentLog   = lazy(() => import('@/pages/RadioVoiceConsentLog'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -2395,6 +2399,10 @@ export default function App() {
           <Route path="/radio-tts-render-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RadioTtsRenderLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/health-safety-report-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><HealthSafetyReportLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/noise-seizures-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><NoiseSeizureLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 35: B-115–B-117 */}
+          <Route path="/locations-of-interest-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><LocationsOfInterestLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/vehicle-monthly-stays-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><VehicleMonthlyStayLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/radio-voice-consent-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RadioVoiceConsentLog /></RoleRoute></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route

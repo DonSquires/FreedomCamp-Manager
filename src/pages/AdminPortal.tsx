@@ -47,6 +47,8 @@ import {
   Lock,
   Map,
   MapPin,
+  CalendarRange,
+  ShieldCheck,
   Mic,
   Navigation,
   ParkingSquare,
@@ -1517,6 +1519,9 @@ export default function AdminPortal() {
                     { path: '/radio-tts-render-log',     label: 'TTS Renders',    Icon: Volume2,   color: 'text-teal-700',  bg: 'bg-teal-50 dark:bg-teal-900/20' },
                     { path: '/health-safety-report-log', label: 'H&S Reports',    Icon: HeartPulse,color: 'text-rose-700',  bg: 'bg-rose-50 dark:bg-rose-900/20' },
                     { path: '/noise-seizures-log',       label: 'Noise Seizures', Icon: PackageX,  color: 'text-red-800',   bg: 'bg-red-50 dark:bg-red-900/20' },
+                    { path: '/locations-of-interest-log', label: 'Locations',     Icon: MapPin,    color: 'text-emerald-700', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+                    { path: '/vehicle-monthly-stays-log', label: 'Monthly Stays', Icon: CalendarRange, color: 'text-cyan-700', bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
+                    { path: '/radio-voice-consent-log',   label: 'Voice Consents', Icon: ShieldCheck, color: 'text-green-700', bg: 'bg-green-50 dark:bg-green-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       {badge !== undefined && (

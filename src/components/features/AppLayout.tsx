@@ -350,6 +350,10 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/radio-tts-render-log', icon: Volume2, label: 'Radio TTS Render Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/health-safety-report-log', icon: HeartPulse, label: 'H&S Report Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/noise-seizures-log', icon: PackageX, label: 'Noise Seizure Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 35: B-115–B-117
+      { path: '/locations-of-interest-log', icon: MapPin, label: 'Locations of Interest', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/vehicle-monthly-stays-log', icon: CalendarRange, label: 'Vehicle Monthly Stays', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/radio-voice-consent-log', icon: ShieldCheck, label: 'Voice Consent Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
