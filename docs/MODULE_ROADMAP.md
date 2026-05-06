@@ -22,8 +22,8 @@ Source of truth for routes: App router file src App.tsx (includes Sprint 15 and 
 2. Compliance and enforcement
    - Primary: /compliance
    - Role gate: admin, admin_officer, master
-   - Related: /breaches, /infringements, /notice-to-vacate, /enforcement-actions, /enforcement-command-center, /compliance-recalculation
-   - Related route gates: /breaches = authenticated users (protected route); /infringements = admin, admin_officer, master, officer; /notice-to-vacate = admin, admin_officer, master; /enforcement-actions = admin, admin_officer, master, officer; /enforcement-command-center = admin, admin_officer, master; /compliance-recalculation = admin, admin_officer, master, grand_master
+   - Related: /breaches, /infringements, /notice-to-vacate, /enforcement-actions, /enforcement-command-center, /compliance-recalculation, /loi-browser, /trespass-notices
+   - Related route gates: /breaches = authenticated users (protected route); /infringements = admin, admin_officer, master, officer; /notice-to-vacate = admin, admin_officer, master; /enforcement-actions = admin, admin_officer, master, officer; /enforcement-command-center = admin, admin_officer, master; /compliance-recalculation = admin, admin_officer, master, grand_master; /loi-browser and /trespass-notices = admin, admin_officer, master, grand_master
 
 3. Patrol and dispatch
    - Primary: /live-patrol
@@ -114,14 +114,14 @@ Source of truth for routes: App router file src App.tsx (includes Sprint 15 and 
 1. Identity and records
    - Primary: /identity-verification
    - Role gate: admin, admin_officer, master
-   - Related: /face-recognition, /person-records, /vehicles, /vehicles/:id
-   - Related route gates: /face-recognition = admin, admin_officer, master, officer; /person-records = admin, admin_officer, master; /vehicles and /vehicles/:id = authenticated users (protected route)
+   - Related: /face-recognition, /person-records, /canonical-persons, /vehicles, /vehicles/:id
+   - Related route gates: /face-recognition = admin, admin_officer, master, officer; /person-records = admin, admin_officer, master; /canonical-persons = admin, admin_officer, master, grand_master; /vehicles and /vehicles/:id = authenticated users (protected route)
 
 2. Access governance
    - Primary: /access-control
    - Role gate: admin, admin_officer, master, grand_master
-   - Related: /users, /organizations, /site-permissions, /admin/service-provider-access
-   - Related route gates: /users = admin, admin_officer, master; /organizations = master, grand_master; /site-permissions = admin, master, grand_master; /admin/service-provider-access = admin, master
+   - Related: /users, /organizations, /site-permissions, /access-permissions, /admin/service-provider-access
+   - Related route gates: /users = admin, admin_officer, master; /organizations = master, grand_master; /site-permissions = admin, master, grand_master; /access-permissions = admin, admin_officer, master, grand_master; /admin/service-provider-access = admin, master
 
 3. Comms and PTT
    - Primary: /radio
