@@ -1368,12 +1368,15 @@ export default function AdminPortal() {
                 </p>
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
                   {[
-                    { path: '/live-patrol',        label: 'Live Patrol',     Icon: Activity,      color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20',   badge: activePatrolCount > 0 ? activePatrolCount : undefined },
-                    { path: '/live-tracking',      label: 'Officer Tracking',Icon: Navigation,    color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20',     badge: (data as any)?.activeOfficers > 0 ? (data as any)?.activeOfficers : undefined },
-                    { path: '/officer-welfare',    label: 'Welfare',         Icon: Heart,         color: 'text-pink-600',   bg: 'bg-pink-50 dark:bg-pink-900/20',     badge: welfareAlertCount > 0 ? welfareAlertCount : undefined },
-                    { path: '/patrol-schedule',    label: 'Schedule',        Icon: CalendarDays,  color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
-                    { path: '/patrol-kpis',        label: 'Patrol KPIs',     Icon: TrendingUp,    color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
-                    { path: '/patrol-checkpoints', label: 'Checkpoints',     Icon: ScanLine,      color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
+                    { path: '/live-patrol',            label: 'Live Patrol',       Icon: Activity,      color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20',   badge: activePatrolCount > 0 ? activePatrolCount : undefined },
+                    { path: '/live-tracking',          label: 'Officer Tracking',  Icon: Navigation,    color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20',     badge: (data as any)?.activeOfficers > 0 ? (data as any)?.activeOfficers : undefined },
+                    { path: '/officer-welfare',        label: 'Welfare',           Icon: Heart,         color: 'text-pink-600',   bg: 'bg-pink-50 dark:bg-pink-900/20',     badge: welfareAlertCount > 0 ? welfareAlertCount : undefined },
+                    { path: '/patrol-schedule',        label: 'Schedule',          Icon: CalendarDays,  color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/patrol-kpis',            label: 'Patrol KPIs',       Icon: TrendingUp,    color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                    { path: '/patrol-checkpoints',     label: 'Checkpoints',       Icon: ScanLine,      color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
+                    { path: '/checkpoint-visits-log',  label: 'Checkpoint Visits', Icon: MapPin,        color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
+                    { path: '/ems-attendances-log',    label: 'EMS Attendances',   Icon: ClipboardCheck,color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20' },
+                    { path: '/parking-sessions-log',   label: 'Parking Sessions',  Icon: ParkingSquare, color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       {badge !== undefined && (

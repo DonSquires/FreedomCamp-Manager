@@ -277,6 +277,9 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/investigation-jobs-log', icon: ClipboardList, label: 'Investigation Job Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/operational-cases-log', icon: LayoutList, label: 'Operational Case Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/patrol-events-log', icon: Activity, label: 'Patrol Event Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/checkpoint-visits-log', icon: MapPin, label: 'Checkpoint Visit Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/ems-attendances-log', icon: ClipboardCheck, label: 'EMS Attendance Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/parking-sessions-log', icon: ParkingSquare, label: 'Parking Session Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {

@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-06 (verified against src App.tsx)
-Source of truth for routes: App router file src App.tsx (139 total routes as of Sprint 23 completion)
+Source of truth for routes: App router file src App.tsx (142 total routes as of Sprint 24 completion)
 
-> **Last Verification**: 2026-05-06 — Sprint 23 routes added (B-79 Investigation Job Log `/investigation-jobs-log`, B-80 Operational Case Log `/operational-cases-log`, B-81 Patrol Event Log `/patrol-events-log`). Previous baseline: Sprint 13 (136 routes).
+> **Last Verification**: 2026-05-06 — Sprint 24 routes added (B-82 Checkpoint Visit Log `/checkpoint-visits-log`, B-83 EMS Attendance Log `/ems-attendances-log`, B-84 Parking Session Log `/parking-sessions-log`). Previous baseline: Sprint 23 (139 routes).
 
 ## How To Use
 
@@ -162,6 +162,28 @@ Three new admin log-viewer pages added covering investigation jobs, operational 
    - Role gate: admin, admin_officer, master
    - Table: patrol_events (fully typed)
    - Features: KPI strip (Total/Active/With Photos/Unique Cases), event_type+patrol_type+status+date filters, expandable rows with observation text, GPS coords, photo links
+
+## Sprint 24 Additions (2026-05-06)
+
+Three new admin log-viewer pages added covering checkpoint GPS compliance, EMS attendance approvals, and parking session review.
+
+1. Checkpoint Visit Log — B-82
+   - Path: /checkpoint-visits-log
+   - Role gate: admin, admin_officer, master
+   - Table: checkpoint_visits (fully typed)
+   - Features: KPI strip (Total/Within Radius/Outside Radius/Unique Checkpoints), scan_method+radius+date filters, expandable rows with GPS coords, distance, patrol_id
+
+2. EMS Attendance Log — B-83
+   - Path: /ems-attendances-log
+   - Role gate: admin, admin_officer, master
+   - Table: ems_attendances (fully typed)
+   - Features: KPI strip (Total/Pending/Approved/Billable Hours), status+date filters, Approve action, expandable rows with device info, district, rates
+
+3. Parking Session Log — B-84
+   - Path: /parking-sessions-log
+   - Role gate: admin, admin_officer, master
+   - Table: parking_sessions (fully typed)
+   - Features: KPI strip (Total/Violations/Avg Dwell/Unique Plates), violation+plate+date filters, expandable rows with violation reason, GPS, entry/exit/sign/tyre-valve photos
 
 ## Route Topology Addendum (2026-05-03)
 

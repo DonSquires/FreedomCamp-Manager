@@ -154,6 +154,9 @@ const VoiceProfilesConsent = lazy(() => import('@/pages/VoiceProfilesConsent'))
 const InvestigationJobLog = lazy(() => import('@/pages/InvestigationJobLog'))
 const OperationalCaseLog = lazy(() => import('@/pages/OperationalCaseLog'))
 const PatrolEventLog = lazy(() => import('@/pages/PatrolEventLog'))
+const CheckpointVisitLog = lazy(() => import('@/pages/CheckpointVisitLog'))
+const EmsAttendanceLog = lazy(() => import('@/pages/EmsAttendanceLog'))
+const ParkingSessionLog = lazy(() => import('@/pages/ParkingSessionLog'))
 const MessagingPage = lazy(() => import('@/modules/messaging'))
 const IntelApprovalQueue = lazy(() => import('@/pages/IntelApprovalQueue'))
 const BobIntakeQueue = lazy(() => import('@/pages/BobIntakeQueue'))
@@ -2194,6 +2197,42 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <PatrolEventLog />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Sprint 24 — B-82 Checkpoint Visit Log */}
+          <Route
+            path="/checkpoint-visits-log"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <CheckpointVisitLog />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Sprint 24 — B-83 EMS Attendance Log */}
+          <Route
+            path="/ems-attendances-log"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <EmsAttendanceLog />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Sprint 24 — B-84 Parking Session Log */}
+          <Route
+            path="/parking-sessions-log"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <ParkingSessionLog />
                 </RoleRoute>
               </ProtectedRoute>
             }
