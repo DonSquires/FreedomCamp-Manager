@@ -160,3 +160,11 @@ Operational impact:
 2. nzscv_monitor remains constrained to monitoring and account areas.
 3. client persona roles remain constrained to client portal and account areas.
 4. grand_master default landing remains /platform.
+
+## Sprint 18 Addendum (2026-05-06) — B-64/B-65/B-66
+
+New routes added:
+
+- `/health-safety-reports` — Health & Safety Reports (B-64); role gate: admin, admin_officer, master; nav group: Records
+- `/welfare-checkins` — Welfare Check-in Log (B-65); role gate: admin, admin_officer, master; nav group: Specialist Portals
+- `/parking-permits` — Parking Permit Manager (B-66); role gate: admin, admin_officer, master; nav group: Specialist Portals

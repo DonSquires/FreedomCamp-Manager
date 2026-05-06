@@ -67,6 +67,8 @@ import {
   Zap,
   AlertCircle,
   Package2,
+  HeartPulse,
+  ShieldAlert,
 } from 'lucide-react'
 
 type DrillConfig = {
@@ -414,7 +416,24 @@ export default function AdminPortal() {
       if (effectiveOrganizationId) radioTodayQ = radioTodayQ.eq('org_id', effectiveOrganizationId)
       const { count: radioTransmissionsToday, error: radioErr } = await radioTodayQ
       if (radioErr) diagnostics.push(`radio_transmissions_today: ${radioErr.message || 'unknown error'}`)
-      // Count non-compliant observations where the plate belongs to a homeless vehicle.
+
+      // Open health & safety reports (B-64)
+      let hsOpenQ = supabase
+        .from('health_safety_reports')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'open')
+      if (effectiveOrganizationId) hsOpenQ = hsOpenQ.eq('organization_id', effectiveOrganizationId)
+      const { count: openHsReports, error: hsErr } = await hsOpenQ
+      if (hsErr) diagnostics.push(`open_hs_reports: ${hsErr.message || 'unknown error'}`)
+
+      // Active parking permits (B-66)
+      let activePermitsQ = supabase
+        .from('parking_permits')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_active', true)
+      if (effectiveOrganizationId) activePermitsQ = activePermitsQ.eq('organization_id', effectiveOrganizationId)
+      const { count: activePermitsCount, error: permitsErr } = await activePermitsQ
+      if (permitsErr) diagnostics.push(`active_parking_permits: ${permitsErr.message || 'unknown error'}`)      // Count non-compliant observations where the plate belongs to a homeless vehicle.
       // This is the exact number of "breaches" that are actually FC Act exempt.
       let homelessExemptBreachCount = 0
       const homelessPlateList = Array.from(homelessExemptPlates)
@@ -449,6 +468,8 @@ export default function AdminPortal() {
         homelessExemptBreachCount,
         activeTrespassCount:       activeTrespassCount        ?? 0,
         radioTransmissionsToday:   radioTransmissionsToday    ?? 0,
+        openHsReports:             openHsReports              ?? 0,
+        activePermitsCount:        activePermitsCount         ?? 0,
         diagnostics,
       }
     },
@@ -1359,6 +1380,7 @@ export default function AdminPortal() {
                     { path: '/live-patrol',        label: 'Live Patrol',     Icon: Activity,      color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20',   badge: activePatrolCount > 0 ? activePatrolCount : undefined },
                     { path: '/live-tracking',      label: 'Officer Tracking',Icon: Navigation,    color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20',     badge: (data as any)?.activeOfficers > 0 ? (data as any)?.activeOfficers : undefined },
                     { path: '/officer-welfare',    label: 'Welfare',         Icon: Heart,         color: 'text-pink-600',   bg: 'bg-pink-50 dark:bg-pink-900/20',     badge: welfareAlertCount > 0 ? welfareAlertCount : undefined },
+                    { path: '/welfare-checkins',   label: 'Welfare Check-ins', Icon: HeartPulse,  color: 'text-rose-600',   bg: 'bg-rose-50 dark:bg-rose-900/20' },
                     { path: '/patrol-schedule',    label: 'Schedule',        Icon: CalendarDays,  color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                     { path: '/patrol-kpis',        label: 'Patrol KPIs',     Icon: TrendingUp,    color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
                     { path: '/patrol-checkpoints', label: 'Checkpoints',     Icon: ScanLine,      color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
@@ -1418,6 +1440,7 @@ export default function AdminPortal() {
                     { path: '/trespass-notices',    label: 'Trespass Notices',  Icon: Ban,           color: 'text-rose-600',   bg: 'bg-rose-50 dark:bg-rose-900/20',   badge: (data as any)?.activeTrespassCount > 0 ? (data as any)?.activeTrespassCount : undefined },
                     { path: '/access-permissions',  label: 'Access Permissions',Icon: KeyRound,      color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
                     { path: '/canonical-persons',   label: 'Canonical Persons', Icon: Users,         color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
+                    { path: '/health-safety-reports', label: 'H&S Reports', Icon: ShieldAlert, color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20', badge: (data as any)?.openHsReports > 0 ? (data as any)?.openHsReports : undefined },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       {badge !== undefined && (
@@ -1439,6 +1462,7 @@ export default function AdminPortal() {
                   {[
                     { path: '/field-officer?service=freedom_camping', label: 'Freedom Camping', Icon: MapPin, color: 'text-emerald-700', bg: 'bg-emerald-50 dark:bg-emerald-900/20', scopeHint: 'Zone-based' },
                     { path: '/parking-officer', label: 'Parking',      Icon: ParkingSquare, color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20', scopeHint: 'Zone-based' },
+                    { path: '/parking-permits', label: 'Permits',       Icon: ParkingSquare, color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20',    badge: (data as any)?.activePermitsCount > 0 ? (data as any)?.activePermitsCount : undefined },
                     { path: '/noise-officer', label: 'Noise Control', Icon: Volume2,       color: 'text-yellow-700', bg: 'bg-yellow-50 dark:bg-yellow-900/20', scopeHint: 'Jurisdiction' },
                     { path: '/biosecurity-officer', label: 'Biosecurity', Icon: Search,    color: 'text-emerald-700', bg: 'bg-emerald-50 dark:bg-emerald-900/20', scopeHint: 'Jurisdiction' },
                     { path: '/smoke-officer', label: 'Smoke (OOH)', Icon: AlertTriangle, color: 'text-amber-700', bg: 'bg-amber-50 dark:bg-amber-900/20', scopeHint: 'Jurisdiction' },

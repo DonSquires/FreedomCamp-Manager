@@ -269,6 +269,7 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/trespass-notices', icon: Ban, label: 'Trespass Notices', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/access-permissions', icon: KeyRound, label: 'Access Permissions', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/site-risk-assessment', icon: ClipboardCheck, label: 'Site Risk Assessments', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/health-safety-reports', icon: ShieldAlert, label: 'Health & Safety Reports', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/loi-browser', icon: MapPin, label: 'Dispatch LOI Browser', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/reports', icon: FileText, label: 'Reports', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/reports-hub', icon: FileBarChart, label: 'Reports Hub', roles: ['admin', 'admin_officer', 'master'] },
@@ -287,6 +288,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/smoke-officer', icon: Wind, label: 'Smoke Complaints (OOH)', roles: ['officer', 'admin_officer', 'admin', 'master'], scopeHint: 'Jurisdiction-wide' },
       { path: '/identity-verification', icon: ShieldCheck, label: 'ID Verification', roles: ['admin', 'admin_officer', 'master'], scopeHint: 'Client/Site driven' },
       { path: '/officer-welfare', icon: HeartPulse, label: 'Officer Welfare', roles: ['admin', 'admin_officer', 'master'], scopeHint: 'Officer-based' },
+      { path: '/welfare-checkins', icon: HeartPulse, label: 'Welfare Check-in Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/parking-permits', icon: ParkingSquare, label: 'Parking Permits', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
