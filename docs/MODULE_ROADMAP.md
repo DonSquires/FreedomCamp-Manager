@@ -42,8 +42,8 @@ Source of truth for routes: App router file src App.tsx (122 total routes as of 
 1. Parking
    - Primary: /parking
    - Role gate: admin, admin_officer, master
-   - Related: /parking-officer
-   - Related route gates: /parking-officer = officer, admin_officer, admin, master
+   - Related: /parking-officer, /parking-appeals
+   - Related route gates: /parking-officer = officer, admin_officer, admin, master; /parking-appeals = admin, admin_officer, master
 
 2. Noise
    - Primary: /noise-control
@@ -100,8 +100,8 @@ Source of truth for routes: App router file src App.tsx (122 total routes as of 
 3. Spatial and zone administration
    - Primary: /spatial-compliance
    - Role gate: admin, admin_officer, master
-   - Related: /zones, /site-risk-assessment, /points-of-interest
-   - Related route gates: /zones = admin, admin_officer, master; /site-risk-assessment and /points-of-interest = admin, admin_officer, master, officer
+   - Related: /zones, /zone-amenities, /site-risk-assessment, /points-of-interest
+   - Related route gates: /zones = admin, admin_officer, master; /zone-amenities = admin, admin_officer, master; /site-risk-assessment and /points-of-interest = admin, admin_officer, master, officer
 
 ## Identity, Access, and Communications
 
@@ -140,6 +140,25 @@ Source of truth for routes: App router file src App.tsx (122 total routes as of 
 ## Maintenance Rule
 
 Update this roadmap when any route is added, removed, renamed, or re-gated in the App router file.
+
+## Sprint 15 Route Addendum (2026-05-06)
+
+New admin routes added in Sprint 15 (B-53, B-56, B-57):
+
+1. Parking Appeals (B-53)
+   - Route: /parking-appeals
+   - Role gate: admin, admin_officer, master
+   - Review/decide workflow for parking infringement appeals submitted via /public/parking-appeal
+
+2. Camper Registrations admin view (B-56)
+   - Route: /camper-registrations
+   - Role gate: admin, admin_officer, master
+   - Staff view of all camper stays submitted via /public/register; mark departed/cancel actions
+
+3. Zone Amenities editor (B-57)
+   - Route: /zone-amenities
+   - Role gate: admin, admin_officer, master
+   - Bulk inline editor for zone facility flags (toilets, water, dump station, shower, rubbish) + capacity/fee
 
 ## Route Topology Addendum (2026-05-03)
 

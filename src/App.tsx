@@ -155,6 +155,9 @@ const OnCallPeriods = lazy(() => import('@/pages/OnCallPeriods'))
 const CalloutShifts = lazy(() => import('@/pages/CalloutShifts'))
 const OfficerAllowances = lazy(() => import('@/pages/OfficerAllowances'))
 const TravelAllowances = lazy(() => import('@/pages/TravelAllowances'))
+const ParkingAppeals = lazy(() => import('@/pages/ParkingAppeals'))
+const CamperRegistrations = lazy(() => import('@/pages/CamperRegistrations'))
+const ZoneAmenities = lazy(() => import('@/pages/ZoneAmenities'))
 const MessagingPage = lazy(() => import('@/modules/messaging'))
 const IntelApprovalQueue = lazy(() => import('@/pages/IntelApprovalQueue'))
 const BobIntakeQueue = lazy(() => import('@/pages/BobIntakeQueue'))
@@ -1463,6 +1466,42 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <TravelAllowances />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Parking Appeals (B-53) ──────────────────────────────────── */}
+          <Route
+            path="/parking-appeals"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <ParkingAppeals />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Camper Registrations admin view (B-56) ─────────────────── */}
+          <Route
+            path="/camper-registrations"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <CamperRegistrations />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Zone Amenities editor (B-57) ────────────────────────────── */}
+          <Route
+            path="/zone-amenities"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <ZoneAmenities />
                 </RoleRoute>
               </ProtectedRoute>
             }

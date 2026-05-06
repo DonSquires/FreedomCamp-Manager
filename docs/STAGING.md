@@ -2812,3 +2812,47 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - B-53: Parking Appeals admin view (parking_appeals table already exists from migration 20260505000007)
 - B-56: Camper Self-Registration public portal refresh (camper_registrations table)
 - B-57: Zone Amenities editor (has_toilets/has_water/has_dump_station columns in zones table)
+
+---
+
+## Phase 5 — Sprint 15 (B-53 / B-56 / B-57)
+
+> parking_appeals and camper_registrations are absent from the typed Supabase client snapshot — both pages use `(supabase as any).from(...)`.
+> zones amenity columns (has_toilets, has_water, has_dump_station, has_shower, has_rubbish, max_vehicles, fee_nzd) are fully typed in database.ts — ZoneAmenities uses the typed client.
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/ParkingAppeals.tsx` | New — B-53 Parking Appeals admin view (received → under_review → upheld/dismissed/withdrawn; reviewer notes dialog; KPI cards; search + status + date filters; expandable contact/grounds detail) |
+| `src/pages/CamperRegistrations.tsx` | New — B-56 Camper Registrations admin view (mark departed/cancel; zone/status/date filters; expandable vehicle+contact detail; link to public portal) |
+| `src/pages/ZoneAmenities.tsx` | New — B-57 Zone Amenities bulk editor (inline facility toggles + capacity/fee per zone; unsaved-change highlighting; save-per-row) |
+| `src/App.tsx` | Lazy imports + routes: `/parking-appeals`, `/camper-registrations`, `/zone-amenities` |
+| `src/components/features/AppLayout.tsx` | Sidebar entries: Parking Appeals (Roster & Workforce), Camper Registrations (Roster & Workforce), Zone Amenities (Management) |
+| `src/pages/AdminPortal.tsx` | Workforce section tiles: On-Call, Callout Shifts, Allowances, Travel Allowances, Parking Appeals, Camper Reg., Zone Amenities; new icons: PhoneCall, Siren, BadgeDollarSign, Tent, Wrench |
+| `src/navigation/routeManifest.ts` | 3 new entries: `enforcement.parking-appeals`, `operations.camper-registrations`, `management.zone-amenities` |
+| `docs/MODULE_ROADMAP.md` | Sprint 15 route addendum + parking-appeals + zone-amenities entries |
+
+### Sprint 15 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-53 | Parking Appeals admin view | ✅ |
+| B-56 | Camper Registrations admin view | ✅ |
+| B-57 | Zone Amenities bulk editor | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+### Competitive Gap Board — Updated (post Sprint 15)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| Enforcement | B-53 Parking Appeals admin view | — |
+| Freedom Camping | B-56 Camper Registrations admin view | — |
+| Zone Management | B-57 Zone Amenities bulk editor | — |
+
+**Next sprint candidates:**
+- B-58: Patrol Debrief / after-action notes (patrol_sessions debrief_notes / debrief_submitted_at — may need migration)
+- B-59: Breach Escalation workflow UI (breach_reports escalation_level column)
+- B-60: Noise Control KPI dashboard (noise_complaints aggregations)

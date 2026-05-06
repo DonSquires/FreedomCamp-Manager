@@ -67,6 +67,11 @@ import {
   Zap,
   AlertCircle,
   Package2,
+  PhoneCall,
+  Siren,
+  BadgeDollarSign,
+  Tent,
+  Wrench,
 } from 'lucide-react'
 
 type DrillConfig = {
@@ -1494,6 +1499,13 @@ export default function AdminPortal() {
                     { path: '/officer-skills',    label: 'Skills & Licences',Icon: GraduationCap, color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
                     { path: '/availability',      label: 'Availability',     Icon: CalendarDays,  color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                     { path: '/asset-management',  label: 'Assets',           Icon: Package2,      color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+                    { path: '/on-call-periods',   label: 'On-Call',          Icon: PhoneCall,     color: 'text-pink-600',   bg: 'bg-pink-50 dark:bg-pink-900/20' },
+                    { path: '/callout-shifts',    label: 'Callout Shifts',   Icon: Siren,         color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20' },
+                    { path: '/officer-allowances',label: 'Allowances',       Icon: BadgeDollarSign,color:'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+                    { path: '/travel-allowances', label: 'Travel Allowances',Icon: Car,           color: 'text-sky-600',    bg: 'bg-sky-50 dark:bg-sky-900/20' },
+                    { path: '/parking-appeals',   label: 'Parking Appeals',  Icon: Gavel,         color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+                    { path: '/camper-registrations',label:'Camper Reg.',     Icon: Tent,          color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
+                    { path: '/zone-amenities',    label: 'Zone Amenities',   Icon: Wrench,        color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
                   ].map(({ path, label, Icon, color, bg }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       <Icon className={`h-5 w-5 ${color}`} />
