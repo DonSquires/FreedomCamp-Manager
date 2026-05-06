@@ -20,6 +20,7 @@ type Action =
   | 'intel_bulletin_submit'
   | 'intel_state'
   | 'bob_automation_status'
+  | 'inference_endpoint_health'
 
 const MASTER_ALLOWED_ACTIONS = new Set<Action>([
   'health_check',
@@ -27,6 +28,7 @@ const MASTER_ALLOWED_ACTIONS = new Set<Action>([
   'doctor_timeline',
   'doctor_playbook_run',
   'bob_automation_status',
+  'inference_endpoint_health',
 ])
 
 const GRANDMASTER_OWNER_EMAIL = (Deno.env.get('GRANDMASTER_OWNER_EMAIL') || 'squires.don@live.com').toLowerCase().trim()
@@ -380,6 +382,88 @@ Deno.serve(async (req: Request) => {
     if (action === 'doctor_health') {
       const result = await bobGet('/doctor/health')
       return proxyResponse(result, req)
+    }
+
+    if (action === 'inference_endpoint_health') {
+      const PROBE_TIMEOUT_MS = 7000
+      const PROBE_PROMPT = 'ping'
+
+      const inferenceEnv = {
+        primary: Deno.env.get('INFERENCE_SERVICE_URL') ?? '',
+        fallback: Deno.env.get('INFERENCE_SERVICE_FALLBACK_URL') ?? '',
+        secondary: Deno.env.get('INFERENCE_SERVICE_URL_SECONDARY') ?? '',
+        runpod: Deno.env.get('RUNPOD_ENDPOINT_URL') ?? Deno.env.get('INFERENCE_SERVICE_URL_RUNPOD') ?? '',
+        list: Deno.env.get('BOB_INFERENCE_URLS') ?? '',
+      }
+
+      const seen = new Set<string>()
+      const candidates: string[] = [
+        inferenceEnv.primary,
+        inferenceEnv.fallback,
+        inferenceEnv.secondary,
+        inferenceEnv.runpod,
+        ...inferenceEnv.list.split(',').map((s) => s.trim()),
+      ]
+        .filter(Boolean)
+        .map((u) => {
+          const t = u.trim().replace(/\/$/, '')
+          return /^https?:\/\//i.test(t) ? t : `https://${t}`
+        })
+        .filter((u) => {
+          if (seen.has(u)) return false
+          seen.add(u)
+          return true
+        })
+
+      if (candidates.length === 0) {
+        return json400('No inference endpoints configured', req)
+      }
+
+      const apiKey = Deno.env.get('INFERENCE_SERVICE_API_KEY') ?? Deno.env.get('RUNPOD_API_KEY') ?? ''
+      const probeHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (apiKey) probeHeaders['Authorization'] = `Bearer ${apiKey}`
+
+      function isRunpod(url: string) { return /api\.runpod\.ai\/v2\/[^/]+/i.test(url) }
+
+      const results = await Promise.all(
+        candidates.map(async (base) => {
+          const probeUrl = isRunpod(base)
+            ? `${base.replace(/\/(run|runsync)\/?$/i, '')}/runsync`
+            : `${base}/api/chat`
+          const probeBody = isRunpod(base)
+            ? JSON.stringify({ input: { prompt: PROBE_PROMPT, max_tokens: 1, stream: false } })
+            : JSON.stringify({ model: Deno.env.get('OLLAMA_MODEL') ?? 'llama3', messages: [{ role: 'user', content: PROBE_PROMPT }], stream: false, options: { num_predict: 1 } })
+
+          const controller = new AbortController()
+          const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS)
+          const start = Date.now()
+          try {
+            const res = await fetch(probeUrl, { method: 'POST', headers: probeHeaders, body: probeBody, signal: controller.signal })
+            const latencyMs = Date.now() - start
+            clearTimeout(timer)
+            const status = res.ok ? 'healthy' : (res.status >= 500 || res.status === 503) ? 'down' : 'degraded'
+            return { url: base, status, latencyMs, httpStatus: res.status, checkedAt: new Date().toISOString() }
+          } catch (err: unknown) {
+            const latencyMs = Date.now() - start
+            clearTimeout(timer)
+            const isTimeout = (err as { name?: string }).name === 'AbortError'
+            return { url: base, status: 'down' as const, latencyMs, httpStatus: null, detail: isTimeout ? 'timeout' : String(err), checkedAt: new Date().toISOString() }
+          }
+        }),
+      )
+
+      const healthy = results.filter((r) => r.status === 'healthy')
+      const payload = {
+        generatedAt: new Date().toISOString(),
+        totalEndpoints: candidates.length,
+        healthyCount: healthy.length,
+        recommended: healthy[0]?.url ?? results.find((r) => r.status === 'degraded')?.url ?? null,
+        endpoints: results,
+      }
+      return new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
+      })
     }
 
     if (action === 'doctor_timeline') {

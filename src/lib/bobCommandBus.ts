@@ -3,6 +3,7 @@ export type BobCommandIntent =
   | 'open_workflow'
   | 'run_diagnostics'
   | 'generate_plan'
+  | 'create_record'
   | 'unknown'
 
 export type BobCommandSafety = 'safe' | 'review' | 'restricted'
@@ -40,6 +41,25 @@ const NAV_PATTERNS: Array<{ re: RegExp; route: string }> = [
   { re: /\b(go to|open|navigate to)\s+bob\s+studio\b/i, route: '/bob-studio' },
   { re: /\b(go to|open|navigate to)\s+dispatch\b/i, route: '/dispatch-monitor' },
   { re: /\b(go to|open|navigate to)\s+compliance\b/i, route: '/compliance-escalations' },
+  { re: /\b(go to|open|navigate to)\s+incidents?\b/i, route: '/incidents' },
+  { re: /\b(go to|open|navigate to)\s+(patrol|patrols)\b/i, route: '/patrols' },
+  { re: /\b(go to|open|navigate to)\s+vehicles?\b/i, route: '/vehicles' },
+  { re: /\b(go to|open|navigate to)\s+breaches?\b/i, route: '/breach-management' },
+  { re: /\b(go to|open|navigate to)\s+(reports?|reporting)\b/i, route: '/reports' },
+  { re: /\b(go to|open|navigate to)\s+(zones?|geofence)\b/i, route: '/geofences' },
+  { re: /\b(go to|open|navigate to)\s+(officers?|roster|staff)\b/i, route: '/officer-management' },
+  { re: /\b(go to|open|navigate to)\s+(grandmaster|grand\s*master|coding\s*studio)\b/i, route: '/grandmaster-studio' },
+  { re: /\b(go to|open|navigate to)\s+(data\s*hub|data\s*management)\b/i, route: '/data-management' },
+  { re: /\b(go to|open|navigate to)\s+(settings?|admin\s*settings?)\b/i, route: '/settings' },
+]
+
+const CREATE_RECORD_PATTERNS: Array<{ re: RegExp; recordType: string; safety: 'safe' | 'review' }> = [
+  { re: /\b(create|log|add|new)\s+(observation|obs)\b/i, recordType: 'observation', safety: 'safe' },
+  { re: /\b(create|log|add|raise)\s+(breach|breach\s*alert)\b/i, recordType: 'breach', safety: 'review' },
+  { re: /\b(create|log|add|raise)\s+(incident|incident\s*report)\b/i, recordType: 'incident', safety: 'review' },
+  { re: /\b(start|begin|create)\s+(patrol|patrol\s*session)\b/i, recordType: 'patrol', safety: 'safe' },
+  { re: /\b(create|raise|submit)\s+(welfare|welfare\s*check)\b/i, recordType: 'welfare_check', safety: 'review' },
+  { re: /\b(assign|create)\s+(task|work\s*order)\b/i, recordType: 'task', safety: 'safe' },
 ]
 
 export function classifyBobCommand(rawText: string): BobCommand {
@@ -78,6 +98,20 @@ export function classifyBobCommand(rawText: string): BobCommand {
         confidence: 0.9,
         safety: 'safe',
         args: { route: item.route },
+        matchedPattern: item.re.source,
+      }
+    }
+  }
+
+  for (const item of CREATE_RECORD_PATTERNS) {
+    if (item.re.test(rawText)) {
+      return {
+        rawText,
+        normalizedText,
+        intent: 'create_record',
+        confidence: 0.85,
+        safety: item.safety,
+        args: { recordType: item.recordType },
         matchedPattern: item.re.source,
       }
     }

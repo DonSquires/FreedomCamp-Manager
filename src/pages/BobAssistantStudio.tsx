@@ -558,6 +558,7 @@ export default function BobAssistantStudio() {
   const [statusRefreshing, setStatusRefreshing] = useState(false)
   const [statusLastCheckedAt, setStatusLastCheckedAt] = useState<string | null>(null)
   const [doctorHealth, setDoctorHealth] = useState<any>(null)
+  const [endpointHealth, setEndpointHealth] = useState<{ healthyCount: number; totalEndpoints: number; recommended: string | null; endpoints: any[] } | null>(null)
   const [doctorLoading, setDoctorLoading] = useState(false)
   const [doctorPlaybookRunning, setDoctorPlaybookRunning] = useState<DoctorPlaybookId | null>(null)
   const [remoteLearningContext, setRemoteLearningContext] = useState('')
@@ -2692,17 +2693,28 @@ export default function BobAssistantStudio() {
     }
   }, [isGrandMaster])
 
+  const loadEndpointHealth = useCallback(async () => {
+    if (!isGrandMaster) return
+    try {
+      const { data, error } = await edgeFunctions.grandmasterStudio({ action: 'inference_endpoint_health' })
+      if (!error && data) setEndpointHealth(data)
+    } catch {
+      // non-fatal: endpoint health is best-effort
+    }
+  }, [isGrandMaster])
+
   const refreshStatusCockpit = useCallback(async () => {
     setStatusRefreshing(true)
     try {
       await Promise.all([
         loadPendingApprovals(),
         isGrandMaster ? loadDoctorHealth() : Promise.resolve(),
+        loadEndpointHealth(),
       ])
     } finally {
       setStatusRefreshing(false)
     }
-  }, [isGrandMaster, loadPendingApprovals, loadDoctorHealth])
+  }, [isGrandMaster, loadPendingApprovals, loadDoctorHealth, loadEndpointHealth])
 
   const runDoctorPlaybook = async (playbook: DoctorPlaybookId, dryRun = false) => {
     if (!isGrandMaster) return
@@ -3158,6 +3170,25 @@ export default function BobAssistantStudio() {
                   <div className="mt-1">{radioTranslationService.isReady() ? 'active' : 'warming/fallback'}</div>
                 </div>
               </div>
+
+              {endpointHealth && (
+                <div className="rounded border p-3 text-xs space-y-1">
+                  <div className="font-medium text-muted-foreground">Inference Endpoints</div>
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {endpointHealth.endpoints.map((ep, i) => (
+                      <Badge
+                        key={i}
+                        variant={ep.status === 'healthy' ? 'default' : ep.status === 'degraded' ? 'secondary' : 'destructive'}
+                        className="text-[10px]"
+                        title={ep.url}
+                      >
+                        {ep.status === 'healthy' ? '✓' : ep.status === 'degraded' ? '⚠' : '✗'} #{i + 1} {ep.latencyMs}ms
+                      </Badge>
+                    ))}
+                  </div>
+                  <div className="text-muted-foreground">{endpointHealth.healthyCount}/{endpointHealth.totalEndpoints} healthy · recommended: {endpointHealth.recommended ? new URL(endpointHealth.recommended).hostname : 'none'}</div>
+                </div>
+              )}
 
               {pendingCommandConfirmation && (
                 <div className="rounded border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-950/20 dark:text-amber-300">

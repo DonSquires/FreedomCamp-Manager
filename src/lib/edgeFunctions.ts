@@ -1182,6 +1182,7 @@ export const edgeFunctions = {
       | 'intel_state'
       | 'bob_automation_status'
     // code_task_submit
+      | 'inference_endpoint_health'
     task?: string
     context?: string
     target_files?: string[]
