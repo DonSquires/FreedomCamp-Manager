@@ -192,7 +192,6 @@ const InvestigationJobConfig = lazy(() => import('@/pages/InvestigationJobConfig
 const ZoneLegalConfigViewer = lazy(() => import('@/pages/ZoneLegalConfigViewer'))
 const InvestigationJobLog = lazy(() => import('@/pages/InvestigationJobLog'))
 const OperationalCaseLog = lazy(() => import('@/pages/OperationalCaseLog'))
-const PatrolEventLog = lazy(() => import('@/pages/PatrolEventLog'))
 const CheckpointVisitLog = lazy(() => import('@/pages/CheckpointVisitLog'))
 const EmsAttendanceLog = lazy(() => import('@/pages/EmsAttendanceLog'))
 const ParkingSessionLog = lazy(() => import('@/pages/ParkingSessionLog'))
