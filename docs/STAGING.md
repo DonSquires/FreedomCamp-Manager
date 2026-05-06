@@ -1629,11 +1629,11 @@ Latest Session Snapshot (Phase A Org-Isolation Gate — Explicit Deployment Bloc
 - Scope completed:
   - Reviewed Phase A gate evidence and confirmed all 5 prerequisites green per STAGING.md session log.
   - Implemented Phase B2 (Dispatch and Command) delivery slice:
-    - `supabase/migrations/20260506000002_phase_b2_dispatch_case_bridge.sql` — adds `dispatch_jobs.case_id` back-reference and `dispatch_acknowledgement_log` table (callsign + ETA + lifecycle stage capture).
+    - `supabase/migrations/20260506000009_phase_b2_dispatch_case_bridge.sql` — adds `dispatch_jobs.case_id` back-reference and `dispatch_acknowledgement_log` table (callsign + ETA + lifecycle stage capture).
     - `src/hooks/useDispatchB2.ts` — `useCreateCaseFromDispatch`, `useDispatchJobCase`, `useAcknowledgeDispatch`, `useDispatchAcknowledgementLog`, `useRecordDispatchLifecycle`.
     - `tests/e2e/phase-b2-dispatch-command.spec.ts` — Phase B2 gate suite: case creation, acknowledgement log, full lifecycle to on_scene, org isolation.
   - Implemented Phase B4 (Freedom Camping Enforcement) delivery slice:
-    - `supabase/migrations/20260506000003_phase_b4_enforcement_case_bridge.sql` — adds `breach_alerts.case_id` back-reference and `create_case_from_breach_alert()` RPC helper.
+    - `supabase/migrations/20260506000010_phase_b4_enforcement_case_bridge.sql` — adds `breach_alerts.case_id` back-reference and `create_case_from_breach_alert()` RPC helper.
     - `src/hooks/useEnforcementB4.ts` — `useCreateCaseFromBreach`, `useBreachAlertCase`, `useLinkBreachToCase`, `useEnforcementTimeline`, `useRecordEnforcementEvent`, `useCloseEnforcementCase`.
     - `tests/e2e/phase-b4-enforcement-timeline.spec.ts` — Phase B4 gate suite: case creation from breach, timeline events (initiated → warning → ticket → completed), case close, org isolation.
 - Latest lint result: pass (`bun run lint`)
@@ -1643,9 +1643,9 @@ Latest Session Snapshot (Phase A Org-Isolation Gate — Explicit Deployment Bloc
   |---|---|---|
   | Phase A gate (all 5 prerequisites) | ✅ PASS | CI run 25348224169; STAGING session log 2026-05-04 |
   | B1: Patrol on shared timeline | ✅ PASS | `usePatrolB1.ts`, `20260504000005_phase_b1_bridge_to_case_model.sql`, `phase-b1-patrol-and-respond.spec.ts` |
-  | B2: Dispatch on shared timeline | ✅ IMPL | `useDispatchB2.ts`, `20260506000002_phase_b2_dispatch_case_bridge.sql`, `phase-b2-dispatch-command.spec.ts` |
+  | B2: Dispatch on shared timeline | ✅ IMPL | `useDispatchB2.ts`, `20260506000009_phase_b2_dispatch_case_bridge.sql`, `phase-b2-dispatch-command.spec.ts` |
   | B2: Callsign binding + ACK flow | ✅ IMPL | `dispatch_acknowledgement_log` table + `useAcknowledgeDispatch` hook |
-  | B4: Enforcement surface on case backbone | ✅ IMPL | `useEnforcementB4.ts`, `20260506000003_phase_b4_enforcement_case_bridge.sql`, `phase-b4-enforcement-timeline.spec.ts` |
+  | B4: Enforcement surface on case backbone | ✅ IMPL | `useEnforcementB4.ts`, `20260506000010_phase_b4_enforcement_case_bridge.sql`, `phase-b4-enforcement-timeline.spec.ts` |
   | Ownership assigned (external) | ⏳ EXTERNAL | `docs/PHASE_A_OWNERSHIP_STATUS.md` |
 - Open blockers with owner:
   - B2/B4 migrations need `supabase db push` against live environment before E2E tests can execute (owner: platform/database migration pipeline).
@@ -1661,7 +1661,7 @@ Latest Session Snapshot (Phase A Org-Isolation Gate — Explicit Deployment Bloc
 - Timestamp (NZ): 2026-05-05 11:28 NZST
 - Current branch: copilot/complete-phase-b-doc-review
 - Scope completed:
-  - **Fixed `COMMENT ON FUNCTION` bug** in `20260506000003_phase_b4_enforcement_case_bridge.sql`: signature was `(UUID)` but the function takes `(UUID, UUID DEFAULT NULL)` — fixed to `(UUID, UUID)` to prevent PostgreSQL migration error.
+  - **Fixed `COMMENT ON FUNCTION` bug** in `20260506000010_phase_b4_enforcement_case_bridge.sql`: signature was `(UUID)` but the function takes `(UUID, UUID DEFAULT NULL)` — fixed to `(UUID, UUID)` to prevent PostgreSQL migration error.
   - **Created `scripts/advance-canary-stage.sh`**: forward-progression companion to `rollback-feature-flag.sh`. Advances a feature flag through the defined canary stages (0%→5%→25%→50%→100%), auto-detects the next stage when `target_pct` is omitted, records each transition in `feature_flag_rollout_history`, and prints threshold reminders and the next advance/rollback commands.
   - **Fixed `scripts/rollback-feature-flag.sh`** "Next steps" help text: removed non-existent `--enable` flag reference, replaced with the correct `advance-canary-stage.sh` command.
   - **Created `ci-phase-b4-enforcement-gate.yml`**: path-filtered CI gate that runs the B4 enforcement timeline Playwright suite on PR/push whenever the spec, migration, hook, or workflow file changes. Uses the same pattern as `ci-org-isolation-api.yml`.
@@ -1718,7 +1718,7 @@ Latest Session Snapshot (Phase A Org-Isolation Gate — Explicit Deployment Bloc
 | `.github/workflows/ci-phase-b-canary-gate.yml` | Canary path-filtered CI gate with script executability check |
 
 **Previous session fixes carried forward:**
-- `supabase/migrations/20260506000003_phase_b4_enforcement_case_bridge.sql` — `COMMENT ON FUNCTION` signature corrected `(UUID)` → `(UUID, UUID)`
+- `supabase/migrations/20260506000010_phase_b4_enforcement_case_bridge.sql` — `COMMENT ON FUNCTION` signature corrected `(UUID)` → `(UUID, UUID)`
 - `scripts/advance-canary-stage.sh` — created (forward canary progression 0→5→25→50→100%)
 - `scripts/rollback-feature-flag.sh` — fixed dangling `--enable` help text
 - `.github/workflows/ci-phase-b4-enforcement-gate.yml` — `permissions: contents: read` added
@@ -2091,7 +2091,7 @@ All Sprint 1 VOC backlog items (B-01 through B-09) are now shipped:
 
 | File | Change |
 |---|---|
-| `supabase/migrations/20260505000005_zones_public_read.sql` | Adds `zones_public_read` policy: anon SELECT on `public.zones` restricted to `is_active = true`. Authenticated policies (users_view_zones etc.) are unchanged. |
+| `supabase/migrations/20260505000011_zones_public_read.sql` | Adds `zones_public_read` policy: anon SELECT on `public.zones` restricted to `is_active = true`. Authenticated policies (users_view_zones etc.) are unchanged. |
 | `docs/STAGING.md` | Fixed stale B-11 ⬜ status in old sprint board; added this hotfix session snapshot. |
 
 ### Success Criteria

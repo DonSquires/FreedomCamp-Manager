@@ -9,7 +9,7 @@ on:
     branches: [main]
     paths:
       - 'tests/e2e/phase-b4-enforcement-timeline.spec.ts'
-      - 'supabase/migrations/20260506000003_phase_b4_enforcement_case_bridge.sql'
+      - 'supabase/migrations/20260506000010_phase_b4_enforcement_case_bridge.sql'
       - 'src/hooks/useEnforcementB4.ts'
       - 'tests/e2e/setup.ts'
       - 'playwright.api.config.ts'
@@ -20,7 +20,7 @@ on:
     branches: [main]
     paths:
       - 'tests/e2e/phase-b4-enforcement-timeline.spec.ts'
-      - 'supabase/migrations/20260506000003_phase_b4_enforcement_case_bridge.sql'
+      - 'supabase/migrations/20260506000010_phase_b4_enforcement_case_bridge.sql'
       - 'src/hooks/useEnforcementB4.ts'
       - 'tests/e2e/setup.ts'
       - 'playwright.api.config.ts'

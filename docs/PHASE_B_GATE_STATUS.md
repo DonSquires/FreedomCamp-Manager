@@ -48,8 +48,8 @@ Per `docs/BUILD_REALIGNMENT_PLAN_2026-05-04.md` section 11.2 and 11.2a:
 
 - **Migrations deployed**:
   - `supabase/migrations/20260504000005_phase_b1_bridge_to_case_model.sql` — patrol → case bridge
-  - `supabase/migrations/20260506000002_phase_b2_dispatch_case_bridge.sql` — dispatch → case bridge
-  - `supabase/migrations/20260506000003_phase_b4_enforcement_case_bridge.sql` — enforcement → case bridge
+  - `supabase/migrations/20260506000009_phase_b2_dispatch_case_bridge.sql` — dispatch → case bridge
+  - `supabase/migrations/20260506000010_phase_b4_enforcement_case_bridge.sql` — enforcement → case bridge
   - `supabase/migrations/20260506000004_phase_b3_radio_comms_case_bridge.sql` — radio/comms → case bridge
 - **TypeScript types**: `database.ts` — stubs added for all 7 Phase B tables (`dispatch_acknowledgement_log`, `feature_flags`, `feature_flag_evaluations`, `feature_flag_rollout_history`, `patrol_session_events`, `radio_comms_events`, `welfare_events_b1`) + `case_id` column added to `breach_alerts` and `dispatch_jobs`
 - **API docs**: Sample payloads documented in hook files (`src/hooks/useDispatchB2.ts`, `src/hooks/usePatrolCheckpointProgress.ts`, etc.)
@@ -128,8 +128,8 @@ The following artifacts were created as Phase B delivery infrastructure. They ar
 |---|---|
 | `supabase/migrations/202605_feature_flags.sql` | Feature flag table, helper function, Phase B flags seeded |
 | `supabase/migrations/20260504000005_phase_b1_bridge_to_case_model.sql` | B1: patrol → case bridge + welfare events |
-| `supabase/migrations/20260506000002_phase_b2_dispatch_case_bridge.sql` | B2: dispatch → case bridge |
-| `supabase/migrations/20260506000003_phase_b4_enforcement_case_bridge.sql` | B4: enforcement → case bridge |
+| `supabase/migrations/20260506000009_phase_b2_dispatch_case_bridge.sql` | B2: dispatch → case bridge |
+| `supabase/migrations/20260506000010_phase_b4_enforcement_case_bridge.sql` | B4: enforcement → case bridge |
 | `supabase/migrations/20260506000004_phase_b3_radio_comms_case_bridge.sql` | B3: radio/comms → case bridge |
 
 ### CI Workflows

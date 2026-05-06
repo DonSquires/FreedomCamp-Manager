@@ -8,7 +8,7 @@ on:
     branches: [main]
     paths:
       - 'tests/e2e/phase-b2-dispatch-command.spec.ts'
-      - 'supabase/migrations/20260506000002_phase_b2_dispatch_case_bridge.sql'
+      - 'supabase/migrations/20260506000009_phase_b2_dispatch_case_bridge.sql'
       - 'src/hooks/useDispatchB2.ts'
       - 'tests/e2e/setup.ts'
       - 'playwright.api.config.ts'
@@ -19,7 +19,7 @@ on:
     branches: [main]
     paths:
       - 'tests/e2e/phase-b2-dispatch-command.spec.ts'
-      - 'supabase/migrations/20260506000002_phase_b2_dispatch_case_bridge.sql'
+      - 'supabase/migrations/20260506000009_phase_b2_dispatch_case_bridge.sql'
       - 'src/hooks/useDispatchB2.ts'
       - 'tests/e2e/setup.ts'
       - 'playwright.api.config.ts'
