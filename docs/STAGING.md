@@ -3302,3 +3302,48 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - `bun run build` → PASS
 
 **Next session:** Sprint 29 — B-97 RadioTransmissionLog, B-98 OpenShiftManager, B-99 NoiseAssessmentLog.
+
+---
+
+## Phase 5 — Sprint 29 (B-97 / B-98 / B-99)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/RadioTransmissionLog.tsx` | New — B-97: Viewer for radio_transmissions (View); KPIs + channel_type/emergency/date filters + floor grants + metadata JSON expand; typed via Database Views |
+| `src/pages/OpenShiftManager.tsx` | New — B-98: Manager for open_shifts; KPIs + status/shift_type/priority/date filters + Claim/Unclaim mutations + description/requirements expand; fully typed |
+| `src/pages/NoiseAssessmentLog.tsx` | New — B-99: Viewer for noise_assessments; KPIs (Total/Exceeds/Avg dB/Avg AI Confidence) + noise_type/action/exceeds/date filters + AI confidence bar + GPS+matrix+photos expand; fully typed |
+| `src/App.tsx` | Sprint 29 lazy imports + 3 new routes |
+| `src/navigation/routeManifest.ts` | 3 new entries: Operations (B-97/B-98), Records (B-99) |
+| `src/components/features/AppLayout.tsx` | Added CalendarClock icon; radio-transmissions-log + open-shifts under Operations; noise-assessments-log under Records |
+| `src/pages/AdminPortal.tsx` | Added CalendarClock icon; radio TX Log tile (Radio section); noise assessments tile (Noise section) |
+| `docs/MODULE_ROADMAP.md` | Route count 165 → 168; Sprint 29 addendum |
+
+### Sprint 29 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-97 | Radio Transmission Log | ✅ |
+| B-98 | Open Shift Manager | ✅ |
+| B-99 | Noise Assessment Log | ✅ |
+
+**Note (B-97):** `radio_transmissions` lives in the `Views` section of `database.ts` (not `Tables`). Use `Database['public']['Views']['radio_transmissions']['Row']`.
+
+**Next sprint candidates:**
+- B-100: `TrespassOrderLog` — trespass_orders log with status workflow + officer/zone filters
+- B-101: `SafetyChecklistLog` — safety_checklists log with template name + pass/fail KPIs
+- B-102: `OperationalCaseViewer` — operational_cases full detail with linked incidents/dispatch
+
+---
+
+## Session Snapshot (Sprint 29 — 2026-05-06)
+
+- Timestamp (UTC): 2026-05-06 13:47 UTC
+- Current branch: copilot/review-doc-files-staging-instructions-again
+
+**Validation:**
+- `bun run lint` → PASS
+- `bun run build` → PASS (26.75s)
+
+**Next session:** Sprint 30 — B-100 TrespassOrderLog, B-101 SafetyChecklistLog, B-102 OperationalCaseViewer.

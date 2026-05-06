@@ -114,6 +114,7 @@ import {
   BadgeCheck,
   BellRing,
   Bug,
+  CalendarClock,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -217,6 +218,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/welfare-checkins', icon: HeartPulse, label: 'Welfare Check-ins', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/patrol-route-log', icon: Navigation2, label: 'Patrol Route Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/alarm-events-log', icon: BellRing, label: 'Alarm Event Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/radio-transmissions-log', icon: Radio, label: 'Radio Transmission Log', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/open-shifts', icon: CalendarClock, label: 'Open Shifts', roles: ['admin', 'admin_officer', 'master', 'officer'] },
     ],
   },
   {
@@ -322,6 +325,7 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/credential-processing-log', icon: Shield, label: 'Credential Processing', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/dispatch-ack-log', icon: Radio, label: 'Dispatch Acknowledgements', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/noise-jobs-log', icon: Volume2, label: 'Noise Job Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/noise-assessments-log', icon: Volume2, label: 'Noise Assessment Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {

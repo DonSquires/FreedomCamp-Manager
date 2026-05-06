@@ -79,6 +79,7 @@ import {
   BadgeCheck,
   BellRing,
   Bug,
+  CalendarClock,
 } from 'lucide-react'
 
 type DrillConfig = {
@@ -1461,6 +1462,7 @@ export default function AdminPortal() {
                     { path: '/noise-officer', label: 'Noise Control', Icon: Volume2,       color: 'text-yellow-700', bg: 'bg-yellow-50 dark:bg-yellow-900/20', scopeHint: 'Jurisdiction' },
                     { path: '/noise-complaints', label: 'Noise Log', Icon: Volume2,      color: 'text-violet-700', bg: 'bg-violet-50 dark:bg-violet-900/20', scopeHint: 'Admin' },
                     { path: '/noise-jobs-log',   label: 'Noise Jobs', Icon: Volume2,      color: 'text-orange-700', bg: 'bg-orange-50 dark:bg-orange-900/20', scopeHint: 'Admin' },
+                    { path: '/noise-assessments-log', label: 'Noise Assessments', Icon: Volume2, color: 'text-amber-700',  bg: 'bg-amber-50 dark:bg-amber-900/20',  scopeHint: 'Admin' },
                     { path: '/breach-escalation', label: 'Escalation', Icon: ShieldAlert, color: 'text-red-700',   bg: 'bg-red-50 dark:bg-red-900/20', scopeHint: 'Admin' },
                     { path: '/incident-heatmap',  label: 'Incident Map', Icon: Flame,      color: 'text-rose-700', bg: 'bg-rose-50 dark:bg-rose-900/20', scopeHint: 'Admin' },
                     { path: '/health-safety-reports', label: 'H&S Reports', Icon: ShieldAlert, color: 'text-emerald-700', bg: 'bg-emerald-50 dark:bg-emerald-900/20', scopeHint: 'Admin' },
@@ -1489,6 +1491,7 @@ export default function AdminPortal() {
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
                   {[
                     { path: '/radio-transmissions', label: 'Transmissions',     Icon: Radio,     color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20',     badge: (data as any)?.radioTransmissionsToday > 0 ? (data as any)?.radioTransmissionsToday : undefined },
+                    { path: '/radio-transmissions-log', label: 'TX Log',          Icon: Radio,     color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
                     { path: '/voice-profiles',      label: 'Voice Profiles',    Icon: Mic,       color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
                     { path: '/radio/audit',         label: 'Radio Audit',       Icon: Radio,     color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
                     { path: '/lmr-bridge',          label: 'LMR Bridge',        Icon: Radio,     color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },

@@ -426,3 +426,22 @@ New admin routes added in Sprint 28 (B-94, B-95, B-96):
    - Route: /bug-reports-log
    - Role gate: admin, master
    - Viewer for bug_reports; KPIs (Total / Open / AI Analyzed / Needs Human Review); issue_type/severity/status/date filters; AI analyzed icon + BrainCircuit; Mark Resolved action; expandable description, steps, expected/actual, ai_suggested_fix, resolution_notes; reads bug_reports (fully typed)
+
+## Sprint 29 Route Addendum (2026-05-06)
+
+New admin routes added in Sprint 29 (B-97, B-98, B-99):
+
+1. Radio Transmission Log (B-97)
+   - Route: /radio-transmissions-log
+   - Role gate: admin, admin_officer, master, officer
+   - Viewer for radio_transmissions (View in database.ts); KPIs (Total / Emergency / Active / Avg Duration); channel_type / emergency / date filters; floor_granted/released expand; metadata JSON expand
+
+2. Open Shift Manager (B-98)
+   - Route: /open-shifts (wired to new OpenShiftManager page)
+   - Role gate: admin, admin_officer, master, officer
+   - Manager for open_shifts; KPIs (Total / Open / Claimed+Filled / High Priority); status/shift_type/priority/date filters; Claim and Unclaim mutations; description/requirements expand
+
+3. Noise Assessment Log (B-99)
+   - Route: /noise-assessments-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for noise_assessments; KPIs (Total / Exceeds Limit / Avg dB / Avg AI Confidence); noise_type/recommended_action/exceeds_district_plan/date filters; AI confidence bar; GPS/matrix scores/photos expand
