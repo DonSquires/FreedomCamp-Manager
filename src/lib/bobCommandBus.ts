@@ -83,7 +83,7 @@ export function classifyBobCommand(rawText: string): BobCommand {
     }
   }
 
-  if (/\b(run|execute|start)\s+(health|diagnostic|doctor|self\s*test)\b/i.test(rawText)) {
+  if (/\b(run|execute|start)\s+(health|diagnostic|diagnostics|doctor|self\s*test)\b/i.test(rawText)) {
     return {
       rawText,
       normalizedText,
