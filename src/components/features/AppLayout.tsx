@@ -105,6 +105,8 @@ import {
   FileBadge2,
   Users2,
   ScanFace as ScanFaceAudit,
+  CalendarClock,
+  Phone,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -295,6 +297,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/officer-skills', icon: GraduationCap, label: 'Skills & Licences', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/timesheets', icon: ClipboardCopy, label: 'Timesheets', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/asset-management', icon: Package2, label: 'Asset Management', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/on-call-periods', icon: CalendarClock, label: 'On-Call Periods', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/callout-shifts',  icon: Phone,         label: 'Callout Shifts',  roles: ['admin', 'admin_officer', 'master'] },
       { path: '/case-bridge', icon: FolderKanban, label: 'Case Bridge', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/service-agreements', icon: FileBadge2, label: 'Service Agreements', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/poi-voi-dashboard', icon: Users2, label: 'POI/VOI Watch-list', roles: ['admin', 'admin_officer', 'master'] },

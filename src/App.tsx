@@ -151,6 +151,8 @@ const DispatchLOIBrowser = lazy(() => import('@/pages/DispatchLOIBrowser'))
 const TrespassNotices = lazy(() => import('@/pages/TrespassNotices'))
 const AccessPermissions = lazy(() => import('@/pages/AccessPermissions'))
 const CanonicalPersonViewer = lazy(() => import('@/pages/CanonicalPersonViewer'))
+const OnCallPeriods = lazy(() => import('@/pages/OnCallPeriods'))
+const CalloutShifts = lazy(() => import('@/pages/CalloutShifts'))
 const MessagingPage = lazy(() => import('@/modules/messaging'))
 const IntelApprovalQueue = lazy(() => import('@/pages/IntelApprovalQueue'))
 const BobIntakeQueue = lazy(() => import('@/pages/BobIntakeQueue'))
@@ -2074,6 +2076,26 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <OfficerAvailability />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/on-call-periods"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <OnCallPeriods />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/callout-shifts"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <CalloutShifts />
+                </RoleRoute>
               </ProtectedRoute>
             }
           />
