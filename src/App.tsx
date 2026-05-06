@@ -77,6 +77,9 @@ const Settings = lazy(() => import('@/pages/Settings'))
 const Profile = lazy(() => import('@/pages/Profile'))
 const VehicleRegistry = lazy(() => import('@/pages/VehicleRegistry'))
 const CanonicalRecordsManager = lazy(() => import('@/pages/CanonicalRecordsManager'))
+const CohortAnalysis = lazy(() => import('@/pages/CohortAnalysis'))
+const MobilePlateFinder = lazy(() => import('@/pages/MobilePlateFinder'))
+const EvidencePackages = lazy(() => import('@/pages/EvidencePackages'))
 const PublicDisputePortal = lazy(() => import('@/pages/PublicDisputePortal'))
 const PublicFreedomCampingMap = lazy(() => import('@/pages/PublicFreedomCampingMap'))
 const PublicNoiseComplaintPortal = lazy(() => import('@/pages/PublicNoiseComplaintPortal'))
@@ -847,6 +850,28 @@ export default function App() {
           />
 
           <Route
+            path="/evidence-packages"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <EvidencePackages />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/cohort-analysis"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <CohortAnalysis />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/reports"
             element={
               <ProtectedRoute>
@@ -1589,6 +1614,17 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'nzscv_monitor']}>
                   <VehicleRegistry />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/plate-finder"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <MobilePlateFinder />
                 </RoleRoute>
               </ProtectedRoute>
             }

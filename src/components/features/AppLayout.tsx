@@ -94,6 +94,9 @@ import {
   Tent,
   Package2,
   ExternalLink,
+  ScanSearch,
+  BarChart2,
+  Package,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -213,6 +216,7 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
     items: [
       { path: '/vehicles', icon: Car, label: 'Vehicles', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/vehicle-registry', icon: Car, label: 'Vehicle Registry', roles: ['admin', 'admin_officer', 'master', 'nzscv_monitor'] },
+      { path: '/plate-finder', icon: ScanSearch, label: 'Plate Finder', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/admin/nzscv', icon: Car, label: 'NZSCV Monitor', roles: ['admin', 'master', 'nzscv_monitor'] },
       { path: '/admin/canonical-records', icon: Database, label: 'Canonical Records', roles: ['admin', 'master'] },
       { path: '/zones', icon: MapPin, label: 'Zones', roles: ['admin', 'admin_officer', 'master'] },
@@ -235,6 +239,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
     icon: FileText,
     items: [
       { path: '/incidents', icon: Shield, label: 'Incidents & Evidence', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/evidence-packages', icon: Package, label: 'Evidence Packages', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/cohort-analysis', icon: BarChart2, label: 'Cohort Analysis', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/incident-reports', icon: ClipboardList, label: 'Incident Reports', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/investigations', icon: BrainCircuit, label: 'Investigations', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/person-records', icon: PersonStanding, label: 'Person Records', roles: ['admin', 'admin_officer', 'master'] },

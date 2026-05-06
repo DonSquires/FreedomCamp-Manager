@@ -2286,3 +2286,42 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 
 - [x] `bun run build` → PASS
 - [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+---
+
+## Phase 5 Sprint 4 — B-21 / B-22 / B-23 (2026-05-06)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/CohortAnalysis.tsx` | B-21: Admin page with three tabs (All Breaches / Overstayers / Homeless Exempt) driven by existing cohort RPCs. Date range + zone + plate filters; CSV export per tab; summary stat cards; click-through to vehicle detail. |
+| `src/pages/MobilePlateFinder.tsx` | B-22: Partial-plate cross-search across `canonical_vehicles` and last-90-day `observations`. Results merged and deduplicated; shows flags, exemptions, self-contained status, breach count, last zone. Click-through to vehicle detail. |
+| `src/pages/EvidencePackages.tsx` | B-23: Structured evidence package manager. Lists noise assessments and incidents with attached evidence; collapsible inline bundle viewer (reuses NoiseEvidenceBundle + IncidentEvidenceBundle). Date/type/text filters; summary cards. |
+| `src/App.tsx` | Lazy imports + routes: `/cohort-analysis`, `/plate-finder`, `/evidence-packages`. |
+| `src/components/features/AppLayout.tsx` | Sidebar: Plate Finder under Management; Evidence Packages + Cohort Analysis under Records. Icons: ScanSearch, Package, BarChart2. |
+| `docs/STAGING.md` | Sprint 4 session snapshot + gap board statuses updated for B-17–B-23. |
+
+### Sprint 4 Success Criteria
+
+- [x] B-21 CohortAnalysis: All Breaches / Overstayers / Homeless Exempt tabs using existing RPCs
+- [x] B-21: Date + zone + plate filters; per-tab CSV export; summary cards; click-through
+- [x] B-22 MobilePlateFinder: Partial plate cross-search (canonical_vehicles + observations 90d)
+- [x] B-22: Merged + deduped results; flags/exemption/breach status; click-through to vehicle
+- [x] B-23 EvidencePackages: Unified noise + incident bundle manager
+- [x] B-23: Collapsible inline bundle viewer reusing existing NoiseEvidenceBundle + IncidentEvidenceBundle
+- [x] Routes + sidebar nav wired for all three pages
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+### Competitive Gap Board — Updated (B-17–B-23 complete)
+
+| ID | Item | Status |
+|---|---|---|
+| B-17 | Camper self-registration | ✅ |
+| B-18 | Amenity mapping (rich) | ✅ |
+| B-19 | Multi-Language Support (officer UI) | ✅ |
+| B-20 | Payroll/HR integration | ✅ |
+| B-21 | Cohort / Pattern Analysis | ✅ |
+| B-22 | Mobile Plate Finder | ✅ |
+| B-23 | Evidence Packages manager | ✅ |
