@@ -2730,3 +2730,32 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - B-48: Radio Transmissions log viewer (radio_transmissions + radio_transcript_segments tables)
 - B-49: Voice Profiles & Consent manager (radio_voice_profiles_and_consents)
 - B-50: Operational Dashboard refresh — pull live KPIs from new Sprint 10-12 tables into a unified summary
+
+---
+
+## Phase 5 — Sprint 13 (B-48 / B-49 / B-50)
+
+> All radio tables (radio_transmissions, radio_transcript_segments, radio_voice_profiles, radio_voice_consents) are typed in database.ts but require `(supabase as any).from()` due to typed client snapshot lag.
+
+### Sprint 13 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-48 | Radio Transmissions Log viewer | ✅ |
+| B-49 | Voice Profiles & Consent manager | ✅ |
+| B-50 | AdminPortal dashboard refresh (new tiles + KPI tiles) | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+### Competitive Gap Board — Updated (post Sprint 13)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| Radio / Voice | B-48 Radio Transmissions Log, B-49 Voice Profiles & Consent | — |
+| Dashboard | B-50 AdminPortal refresh (Intel & Radio group, 2 new KPI tiles) | — |
+
+**Next sprint candidates:**
+- B-51: Camper Self-Registration public portal refresh (leverage camper_registrations table + confirmation code display)
+- B-52: Zone Amenities editor (surfacing has_toilets/has_water/has_dump_station etc. from zones table)
+- B-53: Parking Appeals admin view (parking_appeals table already exists from migration 20260505000007)

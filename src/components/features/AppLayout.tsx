@@ -223,6 +223,9 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/team-chat', icon: MessageSquare, label: 'Team Chat', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/radio', icon: Radio, label: 'Radio', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/lmr-bridge', icon: Radio, label: 'LMR Bridge', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/radio-transmissions', icon: Mic, label: 'Radio Transmissions', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/voice-profiles', icon: Mic, label: 'Voice Profiles & Consent', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/radio/audit', icon: Radio, label: 'Radio Audit', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {

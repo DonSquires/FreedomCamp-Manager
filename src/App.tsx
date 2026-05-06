@@ -149,6 +149,8 @@ const TeamChat = lazy(() => import('@/pages/TeamChat'))
 const PTTRadio = lazy(() => import('@/pages/PTTRadio'))
 const PTTTransmissionLog = lazy(() => import('@/pages/PTTTransmissionLog').then((m) => ({ default: m.PTTTransmissionLog })))
 const RadioAuditDashboard = lazy(() => import('@/pages/RadioAuditDashboard'))
+const RadioTransmissionsLog = lazy(() => import('@/pages/RadioTransmissionsLog'))
+const VoiceProfilesConsent = lazy(() => import('@/pages/VoiceProfilesConsent'))
 const MessagingPage = lazy(() => import('@/modules/messaging'))
 const IntelApprovalQueue = lazy(() => import('@/pages/IntelApprovalQueue'))
 const BobIntakeQueue = lazy(() => import('@/pages/BobIntakeQueue'))
@@ -1391,6 +1393,28 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
                   <RadioAuditDashboard />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/radio-transmissions"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <RadioTransmissionsLog />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/voice-profiles"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <VoiceProfilesConsent />
                 </RoleRoute>
               </ProtectedRoute>
             }
