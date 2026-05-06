@@ -32,7 +32,8 @@ import type { Database } from '@/types/database'
 
 type LoiRow = Database['public']['Tables']['locations_of_interest']['Row']
 
-function fmtDate(ts: string) {
+function fmtDate(ts: string | null) {
+  if (!ts) return '—'
   try { return format(parseISO(ts), 'dd MMM yyyy HH:mm') } catch { return ts }
 }
 
