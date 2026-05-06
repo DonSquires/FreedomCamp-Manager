@@ -38,6 +38,79 @@ function parseEndpointId(url) {
   return match?.[1] || '';
 }
 
+async function rest(method, path, apiKey, body) {
+  const abortController = new AbortController();
+  const timeout = setTimeout(() => abortController.abort(), 30000);
+
+  try {
+    const response = await fetch(`https://rest.runpod.io/v1/${path}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: abortController.signal,
+    });
+
+    const text = await response.text();
+    let json;
+    try {
+      json = text ? JSON.parse(text) : {};
+    } catch {
+      throw new Error(`RunPod REST returned non-JSON (${response.status}): ${text.slice(0, 300)}`);
+    }
+
+    if (!response.ok) {
+      throw new Error(`RunPod REST failed: ${JSON.stringify(json).slice(0, 500)}`);
+    }
+
+    return json;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function resolveGhcrLatestDigest(imageRepo) {
+  const image = String(imageRepo || '').trim().replace(/^https?:\/\//i, '').replace(/^ghcr\.io\//i, '');
+  if (!image) throw new Error('Image repository is required to resolve GHCR latest digest.');
+
+  const manifestUrl = `https://ghcr.io/v2/${image}/manifests/latest`;
+  const accept = 'application/vnd.docker.distribution.manifest.v2+json';
+
+  const initial = await fetch(manifestUrl, { method: 'GET', headers: { Accept: accept } });
+  let token = '';
+
+  if (initial.status === 401) {
+    const www = initial.headers.get('www-authenticate') || '';
+    const realmMatch = www.match(/realm="([^"]+)"/i);
+    const serviceMatch = www.match(/service="([^"]+)"/i);
+    const scopeMatch = www.match(/scope="([^"]+)"/i);
+    const realm = realmMatch?.[1] || 'https://ghcr.io/token';
+    const service = serviceMatch?.[1] || 'ghcr.io';
+    const scope = scopeMatch?.[1] || `repository:${image}:pull`;
+    const tokenResp = await fetch(`${realm}?service=${encodeURIComponent(service)}&scope=${encodeURIComponent(scope)}`);
+    const tokenPayload = await tokenResp.json();
+    token = String(tokenPayload?.token || tokenPayload?.access_token || '').trim();
+  }
+
+  const head = await fetch(manifestUrl, {
+    method: 'HEAD',
+    headers: {
+      Accept: accept,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  if (!head.ok) {
+    throw new Error(`Unable to resolve GHCR latest digest (${head.status}) for ${image}`);
+  }
+
+  const digest = head.headers.get('Docker-Content-Digest') || '';
+  if (!digest) throw new Error(`GHCR did not return Docker-Content-Digest for ${image}`);
+  return `ghcr.io/${image}@${digest}`;
+}
+
 async function graphql(apiKey, query) {
   const abortController = new AbortController();
   const timeout = setTimeout(() => abortController.abort(), 30000); // 30s timeout
@@ -252,6 +325,8 @@ async function main() {
   const keepWarm = getBooleanArg('keepWarm', true);
   const pinModelSecrets = getBooleanArg('pinModelSecrets', true);
   const waitSeconds = Number(getArg('waitSeconds', '45'));
+  const imageRepo = firstNonEmpty(getArg('imageRepo', ''), process.env.RUNPOD_WORKER_IMAGE_REPO, 'donsquires/freedomcamp-manager-ai');
+  const explicitImageRef = firstNonEmpty(getArg('imageRef', ''), process.env.RUNPOD_WORKER_IMAGE_REF);
 
   if (!endpointId) {
     throw new Error('RUNPOD_ENDPOINT_ID or --endpoint is required.');
@@ -261,6 +336,28 @@ async function main() {
   }
 
   console.log(`RunPod promote: endpoint=${endpointId} model=${modelTag}`);
+
+  const endpointDetails = await rest('GET', `endpoints/${endpointId}`, apiKey);
+  const templateId = String(endpointDetails?.templateId || '').trim();
+  if (!templateId) {
+    throw new Error(`Endpoint ${endpointId} has no templateId; cannot update serverless template image.`);
+  }
+
+  const currentTemplate = await rest('GET', `templates/${templateId}`, apiKey);
+  const currentImageRef = String(currentTemplate?.imageName || '').trim();
+  const desiredImageRef = explicitImageRef || await resolveGhcrLatestDigest(imageRepo);
+
+  console.log(`Serverless template: ${templateId}`);
+  console.log(`Current image: ${currentImageRef || '(unset)'}`);
+  console.log(`Desired image: ${desiredImageRef}`);
+
+  if (currentImageRef !== desiredImageRef) {
+    console.log('Updating serverless template image...');
+    await rest('PATCH', `templates/${templateId}`, apiKey, { imageName: desiredImageRef });
+  } else {
+    console.log('Template image already up to date.');
+  }
+
   if (projectRef) {
     console.log(`Supabase project ref: ${projectRef}`);
   }
