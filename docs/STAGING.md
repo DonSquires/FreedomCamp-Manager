@@ -2610,3 +2610,43 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - B-39: Service Agreements admin UI (service_agreements table)
 - B-40: POI / VOI Watch-list dashboard (poi_alerts, voi_alerts)
 - B-41: Identity Verification audit log UI (person_id_documents timeline)
+
+---
+
+## Phase 5 — Sprint 10 (B-39 / B-40 / B-41)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/ServiceAgreements.tsx` | New — B-39 Service Agreements admin UI (list, create, edit, toggle, delete) |
+| `src/pages/POIVOIDashboard.tsx` | New — B-40 POI/VOI Watch-list dashboard (KPIs, expiry alerts, two-tab tables) |
+| `src/pages/AccessAuditLog.tsx` | New — B-41 Access Entries Audit Log (identity verification event timeline) |
+| `src/App.tsx` | Lazy imports + routes: `/service-agreements`, `/poi-voi-dashboard`, `/access-audit` |
+| `src/components/features/AppLayout.tsx` | Sidebar entries + `FileBadge2`, `Users2`, `ScanFaceAudit` icons |
+
+> `service_agreements` and `access_entries` are not in generated database.ts types (added via migrations 20260707000005 and 20260509000001 respectively). Both pages use `(supabase as any).from(...)` to bypass the type union check.
+
+### Sprint 10 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-39 | Service Agreements Admin UI | ✅ |
+| B-40 | POI/VOI Watch-list Dashboard | ✅ |
+| B-41 | Access Entries Audit Log | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+### Competitive Gap Board — Updated (post Sprint 10)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| Client Management | B-39 Service Agreements | — |
+| Intelligence / Watch-lists | B-40 POI/VOI Dashboard | — |
+| Access Control / Audit | B-41 Access Entries Audit Log | — |
+
+**Next sprint candidates:**
+- B-42: Site Risk Assessment viewer/editor (site_risk_assessments table)
+- B-43: Person Records management (person_records + person_id_documents linkage)
+- B-44: Dispatch LOI browser (locations_of_interest table)

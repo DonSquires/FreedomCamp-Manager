@@ -153,6 +153,7 @@ Centralise all competitive gaps identified across FieldOps Manager modules. Each
 | S4+ | 3 | Revenue / pricing / forecasting |
 | S8 | 3 | Revenue Forecasting, Traffic Overlay, LMR Bridge |
 | S9 | 3 | Asset Management, Case Bridge, Seasonal Zones |
+| S10 | 3 | Service Agreements, POI/VOI Dashboard, Access Audit Log |
 | Backlog | 2 | CAD-to-CAD, national DB |
 
 ---

@@ -102,6 +102,9 @@ import {
   Navigation2,
   Gauge,
   FolderKanban,
+  FileBadge2,
+  Users2,
+  ScanFace as ScanFaceAudit,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -287,6 +290,9 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/timesheets', icon: ClipboardCopy, label: 'Timesheets', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/asset-management', icon: Package2, label: 'Asset Management', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/case-bridge', icon: FolderKanban, label: 'Case Bridge', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/service-agreements', icon: FileBadge2, label: 'Service Agreements', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/poi-voi-dashboard', icon: Users2, label: 'POI/VOI Watch-list', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/access-audit', icon: ScanFaceAudit, label: 'Access Audit Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {

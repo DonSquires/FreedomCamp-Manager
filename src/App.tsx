@@ -90,6 +90,9 @@ const DynamicPricing = lazy(() => import('@/pages/DynamicPricing'))
 const RevenueForecast = lazy(() => import('@/pages/RevenueForecast'))
 const LMRBridge = lazy(() => import('@/pages/LMRBridge'))
 const CaseBridge = lazy(() => import('@/pages/CaseBridge'))
+const ServiceAgreements = lazy(() => import('@/pages/ServiceAgreements'))
+const POIVOIDashboard = lazy(() => import('@/pages/POIVOIDashboard'))
+const AccessAuditLog = lazy(() => import('@/pages/AccessAuditLog'))
 const PublicDisputePortal = lazy(() => import('@/pages/PublicDisputePortal'))
 const PublicFreedomCampingMap = lazy(() => import('@/pages/PublicFreedomCampingMap'))
 const PublicNoiseComplaintPortal = lazy(() => import('@/pages/PublicNoiseComplaintPortal'))
@@ -977,6 +980,42 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
                   <CaseBridge />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Service Agreements (B-39) */}
+          <Route
+            path="/service-agreements"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
+                  <ServiceAgreements />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* POI / VOI Watch-list Dashboard (B-40) */}
+          <Route
+            path="/poi-voi-dashboard"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
+                  <POIVOIDashboard />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Access Entries Audit Log (B-41) */}
+          <Route
+            path="/access-audit"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
+                  <AccessAuditLog />
                 </RoleRoute>
               </ProtectedRoute>
             }
