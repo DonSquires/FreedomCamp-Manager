@@ -1,0 +1,7 @@
+runpod
+requests
+pillow
+numpy
+opencv-python-headless
+soundfile
+librosa

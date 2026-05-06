@@ -15,6 +15,12 @@ When a pattern, platform, or architectural decision changes, append a dated note
 ## Current Standing Decisions
 
 - Date: 2026-05-06
+- Decision: Total JS build budget recalibrated from 7000 kB to 7200 kB.
+- Scope: `scripts/check-build-budgets.mjs`.
+- Reason: Sprint 22 + Sprint 18 new pages (DriftEventLog, InvestigationJobConfig, ZoneLegalConfigViewer, HealthSafetyReports, WelfareCheckinLog, ParkingPermitManager, plus audit log pages) added ~170 kB beyond the previous 7000 kB baseline. Per-chunk budget (550 kB) remains unchanged.
+- Consequences: Future sprints must not exceed 7200 kB total without a matching decision entry and re-calibration.
+
+- Date: 2026-05-06
 - Decision: Bob must use the shared gateway plus named mutation contracts for execution-capable workflows, and execution-review metadata stays inside existing Bob memory JSONB context unless queryable schema is explicitly required.
 - Scope: `src/lib/edgeFunctions.ts`, `src/lib/bobSchemaRegistry.ts`, `src/lib/bobRouteEntityMap.ts`, `src/lib/bobMutationCatalog.ts`, `src/pages/AiAnalysis.tsx`, `src/pages/BobAssistantStudio.tsx`, `supabase/functions/onspace-ai-chat/index.ts`, `supabase/functions/grandmaster-studio/index.ts`, `supabase/functions/bob-code-change-task/index.ts`, `src/lib/bobLearningMemory.ts`.
 - Reason: Bob needed enterprise-grade route/schema awareness and controlled writes without arbitrary table mutation, plus a visible audit trail that fit the current schema safely.

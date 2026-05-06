@@ -151,6 +151,22 @@ const PTTTransmissionLog = lazy(() => import('@/pages/PTTTransmissionLog').then(
 const RadioAuditDashboard = lazy(() => import('@/pages/RadioAuditDashboard'))
 const RadioTransmissionsLog = lazy(() => import('@/pages/RadioTransmissionsLog'))
 const VoiceProfilesConsent = lazy(() => import('@/pages/VoiceProfilesConsent'))
+const OnCallPeriods = lazy(() => import('@/pages/OnCallPeriods'))
+const CalloutShifts = lazy(() => import('@/pages/CalloutShifts'))
+const OfficerAllowances = lazy(() => import('@/pages/OfficerAllowances'))
+const TravelAllowances = lazy(() => import('@/pages/TravelAllowances'))
+const ParkingAppeals = lazy(() => import('@/pages/ParkingAppeals'))
+const CamperRegistrations = lazy(() => import('@/pages/CamperRegistrations'))
+const ZoneAmenities = lazy(() => import('@/pages/ZoneAmenities'))
+const NoiseComplaintsLog = lazy(() => import('@/pages/NoiseComplaintsLog'))
+const PatrolEventLog = lazy(() => import('@/pages/PatrolEventLog'))
+const BreachEscalation = lazy(() => import('@/pages/BreachEscalation'))
+const OfficerPerformanceReport = lazy(() => import('@/pages/OfficerPerformanceReport'))
+const SiteRiskTrends = lazy(() => import('@/pages/SiteRiskTrends'))
+const IncidentHeatmap = lazy(() => import('@/pages/IncidentHeatmap'))
+const HealthSafetyReports = lazy(() => import('@/pages/HealthSafetyReports'))
+const WelfareCheckinLog = lazy(() => import('@/pages/WelfareCheckinLog'))
+const ParkingPermitManager = lazy(() => import('@/pages/ParkingPermitManager'))
 const MessagingPage = lazy(() => import('@/modules/messaging'))
 const IntelApprovalQueue = lazy(() => import('@/pages/IntelApprovalQueue'))
 const BobIntakeQueue = lazy(() => import('@/pages/BobIntakeQueue'))
@@ -1432,6 +1448,194 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <VoiceProfilesConsent />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/on-call-periods"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <OnCallPeriods />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/callout-shifts"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <CalloutShifts />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/officer-allowances"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <OfficerAllowances />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/travel-allowances"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <TravelAllowances />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Parking Appeals (B-53) ──────────────────────────────────── */}
+          <Route
+            path="/parking-appeals"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <ParkingAppeals />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Camper Registrations admin view (B-56) ─────────────────── */}
+          <Route
+            path="/camper-registrations"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <CamperRegistrations />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Zone Amenities editor (B-57) ────────────────────────────── */}
+          <Route
+            path="/zone-amenities"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <ZoneAmenities />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Noise Complaints Log (B-58) ─────────────────────────────── */}
+          <Route
+            path="/noise-complaints"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <NoiseComplaintsLog />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Patrol Event Log (B-59) ──────────────────────────────────── */}
+          <Route
+            path="/patrol-events"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <PatrolEventLog />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Breach Escalation (B-60) ─────────────────────────────────── */}
+          <Route
+            path="/breach-escalation"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <BreachEscalation />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Officer Performance Report (B-61) ────────────────────────── */}
+          <Route
+            path="/officer-performance"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <OfficerPerformanceReport />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Site Risk Trends (B-62) ───────────────────────────────────── */}
+          <Route
+            path="/site-risk-trends"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <SiteRiskTrends />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Incident Heatmap (B-63) ───────────────────────────────────── */}
+          <Route
+            path="/incident-heatmap"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <IncidentHeatmap />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Health & Safety Reports (B-64) ───────────────────────────── */}
+          <Route
+            path="/health-safety-reports"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <HealthSafetyReports />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Welfare Check-in Log (B-65) ───────────────────────────────── */}
+          <Route
+            path="/welfare-checkins"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <WelfareCheckinLog />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Parking Permit Manager (B-66) ────────────────────────────── */}
+          <Route
+            path="/parking-permits"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <ParkingPermitManager />
                 </RoleRoute>
               </ProtectedRoute>
             }

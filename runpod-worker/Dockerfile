@@ -24,25 +24,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN curl -fsSL https://bun.sh/install | bash && \
   ln -sf /root/.bun/bin/bun /usr/local/bin/bun
 
-# Python runtime dependencies used by handler.py.
-RUN pip3 install --no-cache-dir \
-  runpod \
-  requests \
-  pillow \
-  numpy \
-  opencv-python-headless \
-  soundfile \
-  librosa
-
 # ---------------------------------------------------------------------------
 # Capability-oriented defaults (non-secret). Secrets are injected at runtime.
 # ---------------------------------------------------------------------------
 ENV RUNPOD_WORKER_MODE=serverless
 ENV RUNPOD_RUNTIME_MODE=serverless
 ENV RUNPOD_FAST_BOOT=true
-ENV RUNPOD_ALLOW_LOCAL_OLLAMA=false
-ENV OLLAMA_EXTERNAL_URL=
-ENV OLLAMA_BASE_URL=http://127.0.0.1:11434
+ENV OLLAMA_EXTERNAL_URL=https://ollama-production-a142.up.railway.app
+ENV OLLAMA_BASE_URL=https://ollama-production-a142.up.railway.app
 ENV OLLAMA_MODEL=qwen2.5:7b
 ENV OLLAMA_VISION_MODEL=llama3.2-vision:11b
 ENV OLLAMA_TIMEOUT_MS=120000
@@ -82,11 +71,10 @@ ENV ALLOW_OPENAI_REFERENCE_PROVIDER=false
 
 WORKDIR /app
 
-COPY handler.py start.sh start_mode.sh training_memory.json package.json ./
+COPY requirements.txt ./
+RUN pip3 install --no-cache-dir -r requirements.txt
 
-# Install startup scripts in a path that cannot be shadowed by runtime mounts.
-RUN install -m 0755 start.sh /usr/local/bin/start.sh && \
-  install -m 0755 start_mode.sh /usr/local/bin/start_mode.sh
+COPY handler.py training_memory.json package.json ./
 
 # Fail fast during image build if handler.py has syntax issues.
 RUN python3 -m py_compile /app/handler.py
@@ -95,11 +83,8 @@ RUN python3 -m py_compile /app/handler.py
 RUN npm install --save-dev @playwright/test && \
   npx playwright install --with-deps chromium firefox webkit
 
-RUN chmod +x /usr/local/bin/start.sh /usr/local/bin/start_mode.sh
-
 # RunPod Serverless requirement:
 # - the container default command must start a long-running handler process
 # - the handler must stay alive and read jobs from RunPod
 # - do not use one-shot local test commands as container default
-# start_mode.sh -> start.sh -> exec python3 handler.py -> runpod.serverless.start(...)
-CMD ["/usr/local/bin/start_mode.sh"]
+CMD ["python3", "-u", "handler.py"]

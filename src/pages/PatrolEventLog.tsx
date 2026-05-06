@@ -1,67 +1,53 @@
 /**
- * PatrolEventLog — B-81
+ * PatrolEventLog — B-59
  *
- * Log viewer for patrol_events — field patrol observations and events.
+ * Browseable log of patrol_session_events — checkpoint scans, missed
+ * checkpoints, patrol starts and completions — across all officers.
  *
  * Features:
- *  - KPI cards: Total / Open / Closed
- *  - Filters: event_type, patrol_type, status, date range
- *  - Table: event_type, patrol_type, status, officer_id, event_timestamp, zone
- *  - Expandable row: observation_text, photo links, GPS coords
+ *  - KPI cards: Total today / Checkpoints Scanned / Missed / Patrols Started
+ *  - Filters: event type, officer, date range, case ID search
+ *  - Sortable table; expandable row shows notes + patrol route instance
  *
- * Route: /patrol-events-log — admin/admin_officer/master
+ * Route: /patrol-events  — admin / admin_officer / master
+ * patrol_session_events is fully typed in database.ts
  */
 
 import { useState } from 'react'
-import { format, parseISO } from 'date-fns'
-import {
-  MapPinCheck, RefreshCw, AlertCircle, Loader2,
-  ChevronDown, ChevronRight, Image as ImageIcon,
-} from 'lucide-react'
+import { format, parseISO, isToday } from 'date-fns'
 import { useQuery } from '@tanstack/react-query'
+import {
+  Route, CheckCircle2, AlertCircle, Play, Loader2,
+  RefreshCw, ChevronDown, ChevronUp, Users, Calendar,
+} from 'lucide-react'
 
 import { supabase } from '@/lib/supabase'
+import type { Database } from '@/types/database'
 import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import type { Database } from '@/types/database'
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-type PatrolEvent = Database['public']['Tables']['patrol_events']['Row']
+type PatrolEvent = Database['public']['Tables']['patrol_session_events']['Row']
+type EventType = PatrolEvent['event_type']
 
-// ─── Styling maps ──────────────────────────────────────────────────────────────
+// ─── Config ────────────────────────────────────────────────────────────────────
 
-const STATUS_STYLES: Record<string, { label: string; className: string }> = {
-  open:     { label: 'Open',     className: 'bg-yellow-100 text-yellow-800' },
-  closed:   { label: 'Closed',   className: 'bg-gray-100 text-gray-600' },
-  resolved: { label: 'Resolved', className: 'bg-green-100 text-green-800' },
-  pending:  { label: 'Pending',  className: 'bg-blue-100 text-blue-800' },
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function fmtDate(ts: string | null) {
-  if (!ts) return '—'
-  try { return format(parseISO(ts), 'dd MMM yyyy HH:mm') } catch { return ts }
+const EVENT_CONFIG: Record<EventType, { label: string; colour: string; Icon: React.ElementType }> = {
+  patrol_started:    { label: 'Patrol Started',    colour: 'text-blue-700 bg-blue-50 dark:bg-blue-900/30',    Icon: Play         },
+  checkpoint_scan:   { label: 'Checkpoint Scan',   colour: 'text-green-700 bg-green-50 dark:bg-green-900/30', Icon: CheckCircle2 },
+  checkpoint_missed: { label: 'Checkpoint Missed', colour: 'text-red-700 bg-red-50 dark:bg-red-900/30',       Icon: AlertCircle  },
+  patrol_completed:  { label: 'Patrol Completed',  colour: 'text-purple-700 bg-purple-50 dark:bg-purple-900/30', Icon: CheckCircle2 },
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -70,172 +56,193 @@ export default function PatrolEventLog() {
   const { user } = useAuthStore()
   const orgId = user?.organization_id
 
-  const [typeFilter, setTypeFilter]   = useState('all')
-  const [patrolFilter, setPatrolFilter] = useState('all')
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [dateFrom, setDateFrom]       = useState('')
-  const [expandedId, setExpandedId]   = useState<string | null>(null)
+  const [eventTypeFilter, setEventTypeFilter] = useState('all')
+  const [officerSearch, setOfficerSearch] = useState('')
+  const [caseSearch, setCaseSearch] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
-  // ── Query ─────────────────────────────────────────────────────────────────
-
-  const { data: rows = [], isLoading, refetch } = useQuery<PatrolEvent[]>({
-    queryKey: ['patrol-events-log', orgId, typeFilter, patrolFilter, statusFilter, dateFrom],
+  // ── Query ──────────────────────────────────────────────────────────────────
+  const { data: events = [], isLoading, error, refetch } = useQuery<PatrolEvent[]>({
+    queryKey: ['patrol_events', orgId, eventTypeFilter, dateFrom, dateTo],
     enabled: !!orgId,
     queryFn: async () => {
       let q = supabase
-        .from('patrol_events')
+        .from('patrol_session_events')
         .select('*')
-        .eq('organization_id', orgId!)
-        .order('event_timestamp', { ascending: false })
+        .eq('organization_id', orgId as string)
+        .order('event_time', { ascending: false })
         .limit(500)
 
-      if (typeFilter !== 'all')   q = q.eq('event_type', typeFilter)
-      if (patrolFilter !== 'all') q = q.eq('patrol_type', patrolFilter)
-      if (statusFilter !== 'all') q = q.eq('status', statusFilter)
-      if (dateFrom)               q = q.gte('event_timestamp', dateFrom)
+      if (eventTypeFilter !== 'all') q = q.eq('event_type', eventTypeFilter as EventType)
+      if (dateFrom)                  q = q.gte('event_time', dateFrom)
+      if (dateTo)                    q = q.lte('event_time', dateTo + 'T23:59:59')
 
       const { data, error } = await q
       if (error) throw error
-      return data ?? []
+      return data as PatrolEvent[]
     },
   })
 
-  const eventTypes  = [...new Set(rows.map(r => r.event_type).filter(Boolean))].sort()
-  const patrolTypes = [...new Set(rows.map(r => r.patrol_type).filter(Boolean))].sort()
+  // ── Derived ────────────────────────────────────────────────────────────────
+  const filtered = events.filter(e => {
+    if (officerSearch && !e.officer_id.toLowerCase().includes(officerSearch.toLowerCase())) return false
+    if (caseSearch    && !e.case_id.toLowerCase().includes(caseSearch.toLowerCase()))       return false
+    return true
+  })
 
-  // ── KPIs ──────────────────────────────────────────────────────────────────
+  const kpi = {
+    today:    events.filter(e => e.created_at && isToday(parseISO(e.created_at))).length,
+    scanned:  events.filter(e => e.event_type === 'checkpoint_scan').length,
+    missed:   events.filter(e => e.event_type === 'checkpoint_missed').length,
+    started:  events.filter(e => e.event_type === 'patrol_started').length,
+  }
 
-  const total  = rows.length
-  const open   = rows.filter(r => r.status === 'open').length
-  const closed = rows.filter(r => r.status === 'closed' || r.status === 'resolved').length
-
-  // ─────────────────────────────────────────────────────────────────────────
-
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <AppLayout>
-      <div className="p-6 space-y-6">
+      <div className="space-y-6 p-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <MapPinCheck className="h-6 w-6 text-teal-600" />
+            <Route className="h-6 w-6 text-indigo-600" />
             <div>
               <h1 className="text-2xl font-bold">Patrol Event Log</h1>
-              <p className="text-sm text-muted-foreground">Field patrol events and observations</p>
+              <p className="text-sm text-muted-foreground">Checkpoint scans, missed checkpoints, and patrol lifecycle events</p>
             </div>
           </div>
           <Button variant="outline" size="sm" onClick={() => refetch()}>
-            <RefreshCw className="h-4 w-4 mr-1" /> Refresh
+            <RefreshCw className="h-4 w-4 mr-2" /> Refresh
           </Button>
         </div>
 
-        {/* KPIs */}
-        <div className="grid grid-cols-3 gap-4">
-          {[
-            { label: 'Total',  value: total,  colour: 'text-gray-700' },
-            { label: 'Open',   value: open,   colour: 'text-yellow-700' },
-            { label: 'Closed', value: closed, colour: 'text-gray-500' },
-          ].map(kpi => (
-            <Card key={kpi.label}>
-              <CardHeader className="pb-1 pt-3 px-4"><CardTitle className="text-xs text-muted-foreground">{kpi.label}</CardTitle></CardHeader>
-              <CardContent className="px-4 pb-3"><p className={`text-2xl font-bold ${kpi.colour}`}>{kpi.value}</p></CardContent>
-            </Card>
-          ))}
+        {/* KPI cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader className="pb-1"><CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> Today</CardTitle></CardHeader>
+            <CardContent><p className="text-3xl font-bold text-indigo-600">{kpi.today}</p></CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-1"><CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1"><Play className="h-3.5 w-3.5" /> Patrols Started</CardTitle></CardHeader>
+            <CardContent><p className="text-3xl font-bold text-blue-600">{kpi.started}</p></CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-1"><CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> Checkpoints Scanned</CardTitle></CardHeader>
+            <CardContent><p className="text-3xl font-bold text-green-600">{kpi.scanned}</p></CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-1"><CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5" /> Checkpoints Missed</CardTitle></CardHeader>
+            <CardContent><p className="text-3xl font-bold text-red-600">{kpi.missed}</p></CardContent>
+          </Card>
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap gap-3">
-          <Select value={typeFilter} onValueChange={setTypeFilter}>
-            <SelectTrigger className="w-44"><SelectValue placeholder="Event type" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All event types</SelectItem>
-              {eventTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={patrolFilter} onValueChange={setPatrolFilter}>
-            <SelectTrigger className="w-44"><SelectValue placeholder="Patrol type" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All patrol types</SelectItem>
-              {patrolTypes.map(t => <SelectItem key={t!} value={t!}>{t}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-36"><SelectValue placeholder="Status" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              {Object.entries(STATUS_STYLES).map(([v, s]) => <SelectItem key={v} value={v}>{s.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-40" />
-        </div>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="space-y-1">
+                <Label className="text-xs">Event Type</Label>
+                <Select value={eventTypeFilter} onValueChange={setEventTypeFilter}>
+                  <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All types</SelectItem>
+                    {Object.entries(EVENT_CONFIG).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Officer ID</Label>
+                <Input placeholder="Filter by officer ID…" value={officerSearch} onChange={e => setOfficerSearch(e.target.value)} className="text-sm" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Case ID</Label>
+                <Input placeholder="Filter by case ID…" value={caseSearch} onChange={e => setCaseSearch(e.target.value)} className="text-sm" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Date From</Label>
+                <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="text-sm" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Date To</Label>
+                <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="text-sm" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Table */}
         {isLoading ? (
-          <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-        ) : rows.length === 0 ? (
-          <div className="flex flex-col items-center py-12 text-muted-foreground gap-2">
-            <AlertCircle className="h-8 w-8" /><p>No patrol events found</p>
+          <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        ) : error ? (
+          <div className="flex items-center gap-2 text-destructive py-8 justify-center"><AlertCircle className="h-5 w-5" /> Failed to load patrol events.</div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-16 text-muted-foreground">
+            <Route className="h-10 w-10 mx-auto mb-3 opacity-40" />
+            <p>No patrol events match your filters.</p>
           </div>
         ) : (
-          <div className="rounded-md border">
+          <Card>
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-8" />
-                  <TableHead>Event Type</TableHead>
-                  <TableHead>Patrol Type</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Officer</TableHead>
-                  <TableHead>Timestamp</TableHead>
-                  <TableHead>Zone</TableHead>
-                  <TableHead>Photos</TableHead>
+                  <TableHead>Event Time</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Checkpoint</TableHead>
+                  <TableHead>Officer ID</TableHead>
+                  <TableHead>Case ID</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map(row => {
-                  const expanded = expandedId === row.id
-                  const statusStyle = STATUS_STYLES[row.status] ?? { label: row.status, className: 'bg-gray-100 text-gray-600' }
+                {filtered.map(evt => {
+                  const expanded = expandedId === evt.id
+                  const cfg = EVENT_CONFIG[evt.event_type]
                   return (
                     <>
-                      <TableRow key={row.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setExpandedId(expanded ? null : row.id)}>
-                        <TableCell>{expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</TableCell>
-                        <TableCell className="font-medium">{row.event_type}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{row.patrol_type ?? '—'}</TableCell>
-                        <TableCell><Badge className={statusStyle.className}>{statusStyle.label}</Badge></TableCell>
-                        <TableCell className="text-xs font-mono text-muted-foreground">{row.officer_id.slice(0, 8)}…</TableCell>
-                        <TableCell className="text-sm">{fmtDate(row.event_timestamp)}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{row.zone_id ?? '—'}</TableCell>
-                        <TableCell>
-                          {row.photo_urls && row.photo_urls.length > 0 && (
-                            <Badge variant="outline"><ImageIcon className="h-3 w-3 mr-1" />{row.photo_urls.length}</Badge>
-                          )}
+                      <TableRow
+                        key={evt.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => setExpandedId(expanded ? null : evt.id)}
+                      >
+                        <TableCell className="py-2">
+                          {expanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                         </TableCell>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          {format(parseISO(evt.event_time), 'dd MMM yyyy HH:mm')}
+                        </TableCell>
+                        <TableCell>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${cfg.colour}`}>
+                            <cfg.Icon className="h-3 w-3" />{cfg.label}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-sm">{evt.checkpoint_name ?? <span className="text-muted-foreground">—</span>}</TableCell>
+                        <TableCell className="font-mono text-xs">{evt.officer_id.slice(0, 8)}…</TableCell>
+                        <TableCell className="font-mono text-xs">{evt.case_id.slice(0, 8)}…</TableCell>
                       </TableRow>
+
                       {expanded && (
-                        <TableRow key={`${row.id}-exp`} className="bg-muted/30">
-                          <TableCell colSpan={8} className="p-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <TableRow key={`${evt.id}-detail`} className="bg-muted/30">
+                          <TableCell colSpan={6} className="py-4 px-6">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                               <div>
-                                <p className="font-medium mb-1">Observation</p>
-                                <p className="text-muted-foreground">{row.observation_text ?? 'None'}</p>
+                                <p className="text-xs font-semibold text-muted-foreground mb-1">Officer</p>
+                                <p className="font-mono">{evt.officer_id}</p>
                               </div>
                               <div>
-                                <p className="font-medium mb-1">GPS</p>
-                                <p className="text-muted-foreground">
-                                  {row.gps_lat != null && row.gps_lng != null
-                                    ? `${row.gps_lat.toFixed(6)}, ${row.gps_lng.toFixed(6)}`
-                                    : '—'}
-                                </p>
+                                <p className="text-xs font-semibold text-muted-foreground mb-1">Case</p>
+                                <p className="font-mono">{evt.case_id}</p>
                               </div>
-                              {row.photo_urls && row.photo_urls.length > 0 && (
-                                <div className="md:col-span-2">
-                                  <p className="font-medium mb-1">Photo Links</p>
-                                  <div className="flex flex-wrap gap-2">
-                                    {row.photo_urls.map((url, i) => (
-                                      <a key={i} href={url} target="_blank" rel="noreferrer" className="text-blue-600 underline text-xs">
-                                        Photo {i + 1}
-                                      </a>
-                                    ))}
-                                  </div>
+                              {evt.patrol_route_instance_id && (
+                                <div>
+                                  <p className="text-xs font-semibold text-muted-foreground mb-1">Route Instance</p>
+                                  <p className="font-mono">{evt.patrol_route_instance_id}</p>
+                                </div>
+                              )}
+                              {evt.notes && (
+                                <div className="md:col-span-3">
+                                  <p className="text-xs font-semibold text-muted-foreground mb-1">Notes</p>
+                                  <p className="bg-background rounded border p-2">{evt.notes}</p>
                                 </div>
                               )}
                             </div>
@@ -247,7 +254,7 @@ export default function PatrolEventLog() {
                 })}
               </TableBody>
             </Table>
-          </div>
+          </Card>
         )}
       </div>
     </AppLayout>
