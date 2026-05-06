@@ -83,6 +83,7 @@ import {
   TicketX,
   UserX,
   Scale,
+  PackageX,
   MessageSquare,
 } from 'lucide-react'
 
@@ -1513,6 +1514,9 @@ export default function AdminPortal() {
                     { path: '/patrol-session-events-log',label: 'Patrol Events',  Icon: Route,     color: 'text-indigo-600',bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
                     { path: '/radio-transcript-log',     label: 'Transcripts',    Icon: FileText,  color: 'text-cyan-700',  bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
                     { path: '/dispute-intake-log',       label: 'Dispute Intake', Icon: Scale,     color: 'text-amber-700', bg: 'bg-amber-50 dark:bg-amber-900/20' },
+                    { path: '/radio-tts-render-log',     label: 'TTS Renders',    Icon: Volume2,   color: 'text-teal-700',  bg: 'bg-teal-50 dark:bg-teal-900/20' },
+                    { path: '/health-safety-report-log', label: 'H&S Reports',    Icon: HeartPulse,color: 'text-rose-700',  bg: 'bg-rose-50 dark:bg-rose-900/20' },
+                    { path: '/noise-seizures-log',       label: 'Noise Seizures', Icon: PackageX,  color: 'text-red-800',   bg: 'bg-red-50 dark:bg-red-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       {badge !== undefined && (

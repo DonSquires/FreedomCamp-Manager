@@ -60,6 +60,7 @@ import {
   MessageSquarePlus,
   MessageSquare,
   Scale,
+  PackageX,
   Volume2,
   ParkingSquare,
   ClipboardCheck,
@@ -345,6 +346,10 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/patrol-session-events-log', icon: Route, label: 'Patrol Session Events', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/radio-transcript-log', icon: FileText, label: 'Radio Transcript Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/dispute-intake-log', icon: Scale, label: 'Dispute Intake Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 34: B-112–B-114
+      { path: '/radio-tts-render-log', icon: Volume2, label: 'Radio TTS Render Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/health-safety-report-log', icon: HeartPulse, label: 'H&S Report Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/noise-seizures-log', icon: PackageX, label: 'Noise Seizure Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {

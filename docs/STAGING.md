@@ -3539,3 +3539,55 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - `bun run build` → PASS (27.18s)
 
 **Next session:** Sprint 34 — B-112 RadioTtsRenderLog, B-113 RadioVoiceProfileLog, B-114 SiteIncidentLogViewer (or equivalent backlog items).
+
+---
+
+## Phase 5 — Sprint 34 (B-112 / B-113 / B-114)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/RadioTtsRenderLog.tsx` | New — B-112: Log viewer for radio_tts_renders (View, org_id); KPIs (Total/Synthetic/Avg Duration/Avg Latency); provider/is_synthetic/language/date filters; audio storage_path link expand |
+| `src/pages/HealthSafetyReportLog.tsx` | New — B-113: Log viewer for health_safety_reports (Table); KPIs (Total/Open/High+/Unique Zones); severity/status/incident_type/date filters; severity+status badges; description expand |
+| `src/pages/NoiseSeizureLog.tsx` | New — B-114: Log viewer for noise_seizures (Table); KPIs (Total/Active/Police Present/Est. Total Value NZD); status/equipment_type/date filters; full detail expand with photos, return conditions, seizure metadata |
+| `src/App.tsx` | Sprint 34 lazy imports + 3 new routes |
+| `src/navigation/routeManifest.ts` | 3 new entries (Intelligence & Radio / Operations / Noise Enforcement) |
+| `src/components/features/AppLayout.tsx` | 3 new sidebar entries; PackageX icon added |
+| `src/pages/AdminPortal.tsx` | 3 new tiles; PackageX icon added |
+| `docs/MODULE_ROADMAP.md` | Route count 180 → 183; Sprint 34 addendum |
+
+### Sprint 34 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-112 | RadioTtsRenderLog | ✅ |
+| B-113 | HealthSafetyReportLog | ✅ |
+| B-114 | NoiseSeizureLog | ✅ |
+
+**Note:** radio_voice_profiles (candidate) skipped — already covered by VoiceProfilesConsent (B-49). site_incidents skipped — already covered by SiteIncidentLog (B-69). welfare_checkins skipped — already covered by WelfareCheckinLog (B-65).
+
+**Next sprint candidates:**
+- B-115: `LocationsOfInterestLog` — locations_of_interest log with loi_kind/city/hazard filters + GPS + address display
+- B-116: `RosterShiftLog` — roster_shifts log with status/shift_type filters + officer_id search + duration KPI
+- B-117: `PersonRecordLog` — person_records log with gender/ethnicity filters + canonical_person_id + photo links
+
+---
+
+## Session Snapshot (Sprint 34 — 2026-05-06)
+
+- Timestamp (UTC): 2026-05-06 22:01 UTC
+- Current branch: copilot/find-staging-doc-and-follow-instructions
+
+**New pages built:**
+- `src/pages/RadioTtsRenderLog.tsx` — radio_tts_renders (View) viewer
+- `src/pages/HealthSafetyReportLog.tsx` — health_safety_reports viewer
+- `src/pages/NoiseSeizureLog.tsx` — noise_seizures viewer
+
+**Wiring applied:** App.tsx (lazy import + route), routeManifest.ts, AppLayout.tsx sidebar, AdminPortal.tsx tiles
+
+**Validation:**
+- `bun run lint` → PASS
+- `bun run build` → PASS (26.36s)
+
+**Next session:** Sprint 35 — B-115 LocationsOfInterestLog, B-116 RosterShiftLog, B-117 PersonRecordLog (or equivalent backlog items).
