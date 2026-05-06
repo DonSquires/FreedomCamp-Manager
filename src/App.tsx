@@ -233,6 +233,10 @@ const PersonObservationLog = lazy(() => import('@/pages/PersonObservationLog'))
 const VehiclesOfInterestLog  = lazy(() => import('@/pages/VehiclesOfInterestLog'))
 const PersonsOfInterestLog   = lazy(() => import('@/pages/PersonsOfInterestLog'))
 const PhotoMetadataLog       = lazy(() => import('@/pages/PhotoMetadataLog'))
+// Sprint 32: B-106–B-108
+const RadioCommsEventLog     = lazy(() => import('@/pages/RadioCommsEventLog'))
+const CaseCommentLog         = lazy(() => import('@/pages/CaseCommentLog'))
+const LmrBridgeSessionLog    = lazy(() => import('@/pages/LmrBridgeSessionLog'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -2371,6 +2375,10 @@ export default function App() {
           <Route path="/vehicles-of-interest-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><VehiclesOfInterestLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/persons-of-interest-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PersonsOfInterestLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/photo-metadata-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PhotoMetadataLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 32: B-106–B-108 */}
+          <Route path="/radio-comms-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RadioCommsEventLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/case-comments-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><CaseCommentLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/lmr-bridge-sessions-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><LmrBridgeSessionLog /></RoleRoute></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route

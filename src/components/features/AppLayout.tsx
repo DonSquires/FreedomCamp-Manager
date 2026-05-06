@@ -336,6 +336,10 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/vehicles-of-interest-log', icon: Car, label: 'Vehicles of Interest', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/persons-of-interest-log', icon: UserX, label: 'Persons of Interest', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/photo-metadata-log', icon: ImageIcon, label: 'Photo Metadata Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 32: B-106–B-108
+      { path: '/radio-comms-events-log', icon: Radio, label: 'Radio Comms Events', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/case-comments-log', icon: MessageSquare, label: 'Case Comment Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/lmr-bridge-sessions-log', icon: Radio, label: 'LMR Bridge Sessions', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {

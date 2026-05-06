@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-06 (verified against src App.tsx)
-Source of truth for routes: App router file src App.tsx (174 total routes as of Sprint 31 completion)
+Source of truth for routes: App router file src App.tsx (177 total routes as of Sprint 32 completion)
 
-> **Last Verification**: 2026-05-06 — All 174 routes reviewed and role-gating validated. Sprints 18–31 (B-64–B-105) documentation complete.
+> **Last Verification**: 2026-05-06 — All 177 routes reviewed and role-gating validated. Sprints 18–32 (B-64–B-108) documentation complete.
 
 ## How To Use
 
@@ -483,3 +483,22 @@ New admin routes added in Sprint 31 (B-103, B-104, B-105):
    - Route: /photo-metadata-log
    - Role gate: admin, admin_officer, master
    - Viewer for photo_metadata; KPIs (Total Photos/Unique Users/SHA256 Verified/Avg Size KB); mime_type/date/file-name-search filters; MIME type badge; SHA256 hash display; storage path + view link expand
+
+## Sprint 32 Route Addendum (2026-05-06)
+
+New admin routes added in Sprint 32 (B-106, B-107, B-108):
+
+1. Radio Comms Event Log (B-106)
+   - Route: /radio-comms-events-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for radio_comms_events; KPIs (Total/Escalated/Degraded Mode/Unique Cases); event_type enum filter + degraded_mode filter + date filter; event_type badge; callsign/channel; notes expand; fully typed enum
+
+2. Case Comment Log (B-107)
+   - Route: /case-comments-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for case_comments; KPIs (Total Comments/Unique Cases/Unique Authors/Edited); date/case_id/author filters; edited badge; full comment text expand
+
+3. LMR Bridge Session Log (B-108)
+   - Route: /lmr-bridge-sessions-log
+   - Role gate: admin, admin_officer, master
+   - Viewer for lmr_bridge_sessions; KPIs (Total Sessions/Emergency/Avg Duration/With Transcript); direction/emergency/date filters; duration formatted; transcript text + audio link + metadata JSON expand

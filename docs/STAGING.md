@@ -3439,3 +3439,53 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 
 **Next session:** Sprint 32 — B-106 OperationalCaseViewer, B-107 SafetyChecklistLog, B-108 ClientSiteActivityLog (or equivalent backlog items).
 
+
+---
+
+## Phase 5 — Sprint 32 (B-106 / B-107 / B-108)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/RadioCommsEventLog.tsx` | New — B-106: Log viewer for radio_comms_events; KPIs (Total/Escalated/Degraded Mode/Unique Cases); event_type enum filter + degraded_mode filter + date; event_type badge; callsign/channel; notes expand; fully typed |
+| `src/pages/CaseCommentLog.tsx` | New — B-107: Log viewer for case_comments; KPIs (Total Comments/Unique Cases/Unique Authors/Edited); date/case_id/author filters; edited badge; full comment text expand |
+| `src/pages/LmrBridgeSessionLog.tsx` | New — B-108: Log viewer for lmr_bridge_sessions; KPIs (Total/Emergency/Avg Duration/With Transcript); direction/emergency/date filters; duration formatted; transcript + audio link + metadata JSON expand |
+| `src/App.tsx` | Sprint 32 lazy imports + 3 new routes |
+| `src/navigation/routeManifest.ts` | 3 new entries (Intelligence & Radio / Records) |
+| `src/components/features/AppLayout.tsx` | radio-comms-events-log + case-comments-log + lmr-bridge-sessions-log under Records |
+| `src/pages/AdminPortal.tsx` | MessageSquare icon added; 3 new tiles in Intelligence & Radio section |
+| `docs/MODULE_ROADMAP.md` | Route count 174 → 177; Sprint 32 addendum appended |
+
+### Sprint 32 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-106 | Radio Comms Event Log | ✅ |
+| B-107 | Case Comment Log | ✅ |
+| B-108 | LMR Bridge Session Log | ✅ |
+
+**Next sprint candidates:**
+- B-109: `PatrolEventLog2` / `PatrolSessionEventLog` — patrol_session_events log with session-level KPIs
+- B-110: `RadioTranscriptLog` — radio_transcript_segments log with confidence + speaker filters
+- B-111: `DisputeIntakeLog` — dispute_intake log with status workflow + deadline highlight
+
+---
+
+## Session Snapshot (Sprint 32 — 2026-05-06)
+
+- Timestamp (UTC): 2026-05-06 21:34 UTC
+- Current branch: copilot/find-staging-doc-and-follow-instructions
+
+**New pages built:**
+- `src/pages/RadioCommsEventLog.tsx` — radio_comms_events viewer
+- `src/pages/CaseCommentLog.tsx` — case_comments viewer
+- `src/pages/LmrBridgeSessionLog.tsx` — lmr_bridge_sessions viewer
+
+**Wiring applied:** App.tsx (lazy import + route), routeManifest.ts, AppLayout.tsx sidebar, AdminPortal.tsx tiles
+
+**Validation:**
+- `bun run lint` → PASS (pending)
+- `bun run build` → PASS (pending)
+
+**Next session:** Sprint 33 — B-109 PatrolSessionEventLog, B-110 RadioTranscriptLog, B-111 DisputeIntakeLog (or equivalent backlog items).
