@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-06 (verified against src App.tsx)
-Source of truth for routes: App router file src App.tsx (136 total routes as of Sprint 13 completion)
+Source of truth for routes: App router file src App.tsx (139 total routes as of Sprint 23 completion)
 
-> **Last Verification**: 2026-05-06 — Sprint 13 routes added (B-48 Radio Transmissions Log, B-49 Voice Profiles & Consent; B-45 Trespass Notices, B-46 Access Permissions, B-47 Canonical Person Viewer, B-44 Dispatch LOI Browser). Previous baseline: a6e39a0f (2026-05-04, 122 routes).
+> **Last Verification**: 2026-05-06 — Sprint 23 routes added (B-79 Investigation Job Log `/investigation-jobs-log`, B-80 Operational Case Log `/operational-cases-log`, B-81 Patrol Event Log `/patrol-events-log`). Previous baseline: Sprint 13 (136 routes).
 
 ## How To Use
 
@@ -140,6 +140,28 @@ Source of truth for routes: App router file src App.tsx (136 total routes as of 
 ## Maintenance Rule
 
 Update this roadmap when any route is added, removed, renamed, or re-gated in the App router file.
+
+## Sprint 23 Additions (2026-05-06)
+
+Three new admin log-viewer pages added covering investigation jobs, operational cases, and patrol events.
+
+1. Investigation Job Log — B-79
+   - Path: /investigation-jobs-log
+   - Role gate: admin, admin_officer, master
+   - Table: investigation_jobs (fully typed)
+   - Features: KPI strip (Total/Open/Completed/Overdue), status+priority filters, Mark Complete action, expandable detail rows
+
+2. Operational Case Log — B-80
+   - Path: /operational-cases-log
+   - Role gate: admin, admin_officer, master
+   - Table: operational_cases (fully typed)
+   - Features: KPI strip (Total/Open/Pending/Closed), status+type+date filters, Close Case action, expandable detail rows; links to Case Bridge for full editing
+
+3. Patrol Event Log — B-81
+   - Path: /patrol-events-log
+   - Role gate: admin, admin_officer, master
+   - Table: patrol_events (fully typed)
+   - Features: KPI strip (Total/Active/With Photos/Unique Cases), event_type+patrol_type+status+date filters, expandable rows with observation text, GPS coords, photo links
 
 ## Route Topology Addendum (2026-05-03)
 

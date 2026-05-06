@@ -151,6 +151,9 @@ const PTTTransmissionLog = lazy(() => import('@/pages/PTTTransmissionLog').then(
 const RadioAuditDashboard = lazy(() => import('@/pages/RadioAuditDashboard'))
 const RadioTransmissionsLog = lazy(() => import('@/pages/RadioTransmissionsLog'))
 const VoiceProfilesConsent = lazy(() => import('@/pages/VoiceProfilesConsent'))
+const InvestigationJobLog = lazy(() => import('@/pages/InvestigationJobLog'))
+const OperationalCaseLog = lazy(() => import('@/pages/OperationalCaseLog'))
+const PatrolEventLog = lazy(() => import('@/pages/PatrolEventLog'))
 const MessagingPage = lazy(() => import('@/modules/messaging'))
 const IntelApprovalQueue = lazy(() => import('@/pages/IntelApprovalQueue'))
 const BobIntakeQueue = lazy(() => import('@/pages/BobIntakeQueue'))
@@ -2156,6 +2159,42 @@ export default function App() {
                 <AreaRoute allowedRoles={['officer', 'admin_officer', 'admin', 'master', 'grand_master']} area="site_guard">
                   <SiteGuardPortal />
                 </AreaRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Sprint 23 — B-79 Investigation Job Log */}
+          <Route
+            path="/investigation-jobs-log"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <InvestigationJobLog />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Sprint 23 — B-80 Operational Case Log */}
+          <Route
+            path="/operational-cases-log"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <OperationalCaseLog />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Sprint 23 — B-81 Patrol Event Log */}
+          <Route
+            path="/patrol-events-log"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <PatrolEventLog />
+                </RoleRoute>
               </ProtectedRoute>
             }
           />

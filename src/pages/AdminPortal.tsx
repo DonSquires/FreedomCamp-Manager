@@ -32,6 +32,7 @@ import {
   Car,
   CheckCircle2,
   ClipboardCheck,
+  ClipboardList,
   Clock,
   Database,
   Eye,
@@ -44,6 +45,7 @@ import {
   Home,
   KeyRound,
   LayoutGrid,
+  LayoutList,
   Lock,
   Map,
   MapPin,
@@ -414,6 +416,15 @@ export default function AdminPortal() {
       if (effectiveOrganizationId) radioTodayQ = radioTodayQ.eq('org_id', effectiveOrganizationId)
       const { count: radioTransmissionsToday, error: radioErr } = await radioTodayQ
       if (radioErr) diagnostics.push(`radio_transmissions_today: ${radioErr.message || 'unknown error'}`)
+
+      // Open operational cases (B-80)
+      let openCasesQ = supabase
+        .from('operational_cases')
+        .select('id', { count: 'exact', head: true })
+        .in('status', ['open', 'pending'])
+      if (effectiveOrganizationId) openCasesQ = openCasesQ.eq('organization_id', effectiveOrganizationId)
+      const { count: openCasesCount, error: openCasesErr } = await openCasesQ
+      if (openCasesErr) diagnostics.push(`open_operational_cases: ${openCasesErr.message || 'unknown error'}`)
       // Count non-compliant observations where the plate belongs to a homeless vehicle.
       // This is the exact number of "breaches" that are actually FC Act exempt.
       let homelessExemptBreachCount = 0
@@ -449,6 +460,7 @@ export default function AdminPortal() {
         homelessExemptBreachCount,
         activeTrespassCount:       activeTrespassCount        ?? 0,
         radioTransmissionsToday:   radioTransmissionsToday    ?? 0,
+        openCasesCount:            openCasesCount             ?? 0,
         diagnostics,
       }
     },
@@ -1463,12 +1475,15 @@ export default function AdminPortal() {
                 </p>
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
                   {[
-                    { path: '/radio-transmissions', label: 'Transmissions',     Icon: Radio,     color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20',     badge: (data as any)?.radioTransmissionsToday > 0 ? (data as any)?.radioTransmissionsToday : undefined },
-                    { path: '/voice-profiles',      label: 'Voice Profiles',    Icon: Mic,       color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
-                    { path: '/radio/audit',         label: 'Radio Audit',       Icon: Radio,     color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
-                    { path: '/lmr-bridge',          label: 'LMR Bridge',        Icon: Radio,     color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
-                    { path: '/loi-browser',         label: 'LOI Browser',       Icon: MapPin,    color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
-                    { path: '/case-bridge',         label: 'Case Bridge',       Icon: Database,  color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                    { path: '/radio-transmissions', label: 'Transmissions',     Icon: Radio,         color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20',     badge: (data as any)?.radioTransmissionsToday > 0 ? (data as any)?.radioTransmissionsToday : undefined },
+                    { path: '/voice-profiles',      label: 'Voice Profiles',    Icon: Mic,           color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    { path: '/radio/audit',         label: 'Radio Audit',       Icon: Radio,         color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
+                    { path: '/lmr-bridge',          label: 'LMR Bridge',        Icon: Radio,         color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/loi-browser',         label: 'LOI Browser',       Icon: MapPin,        color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
+                    { path: '/case-bridge',         label: 'Case Bridge',       Icon: Database,      color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                    { path: '/investigation-jobs-log', label: 'Investigation Jobs', Icon: ClipboardList, color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20', badge: (data as any)?.activeInvestigations > 0 ? (data as any)?.activeInvestigations : undefined },
+                    { path: '/operational-cases-log',  label: 'Operational Cases',  Icon: LayoutList,    color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20', badge: (data as any)?.openCasesCount > 0 ? (data as any)?.openCasesCount : undefined },
+                    { path: '/patrol-events-log',      label: 'Patrol Events',       Icon: Activity,      color: 'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       {badge !== undefined && (

@@ -274,6 +274,9 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/reports-hub', icon: FileBarChart, label: 'Reports Hub', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/audit-log', icon: Activity, label: 'Audit Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/privacy-curtain', icon: EyeOff, label: 'Privacy Curtain', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/investigation-jobs-log', icon: ClipboardList, label: 'Investigation Job Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/operational-cases-log', icon: LayoutList, label: 'Operational Case Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/patrol-events-log', icon: Activity, label: 'Patrol Event Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
