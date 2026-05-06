@@ -3717,18 +3717,91 @@ export default function BobAssistantStudio() {
                       </div>
                     )}
 
-                    {speechIntentResult && (
-                      <div className="rounded-md border bg-muted/40 p-3 space-y-1 text-sm">
-                        <div className="font-medium text-muted-foreground uppercase tracking-wide text-xs">Advisory — Speech Intent (read-only)</div>
-                        <div><span className="font-semibold">Transcript:</span> {speechIntentResult.transcript}</div>
-                        <div><span className="font-semibold">Intent:</span> {speechIntentResult.intent.intent}</div>
-                        <div><span className="font-semibold">Confidence:</span> {Math.round(speechIntentResult.intent.confidence * 100)}%</div>
-                        <div><span className="font-semibold">Summary:</span> {speechIntentResult.intent.summary}</div>
-                        {speechIntentResult.intent.needs_confirmation && (
-                          <Badge variant="outline" className="text-amber-600 border-amber-400">Confirmation required before action</Badge>
-                        )}
-                      </div>
-                    )}
+                    {speechIntentResult && (() => {
+                      // ── Ticket 9: Controlled execution rollout ──────────────────────
+                      const voiceCommand = classifyBobCommand(speechIntentResult.transcript)
+                      const voicePolicy = evaluateBobCommandPolicy(voiceCommand, {
+                        role: String(user?.role ?? 'officer'),
+                        orgId: user?.organization_id ?? null,
+                        route: window.location.pathname,
+                      })
+                      const needsConfirmBeforeExecute =
+                        speechIntentResult.intent.needs_confirmation ||
+                        voicePolicy.requiresApproval ||
+                        voiceCommand.safety !== 'safe'
+                      const canExecute = voicePolicy.allowed && effectivePolicy.mode !== 'officer_assist'
+
+                      return (
+                        <div className="rounded-md border bg-muted/40 p-3 space-y-2 text-sm">
+                          <div className="font-medium text-muted-foreground uppercase tracking-wide text-xs">
+                            Speech Intent — {canExecute ? 'Ready to execute' : 'Advisory only'}
+                          </div>
+                          <div><span className="font-semibold">Transcript:</span> {speechIntentResult.transcript}</div>
+                          <div><span className="font-semibold">Intent:</span> {speechIntentResult.intent.intent}</div>
+                          <div><span className="font-semibold">Confidence:</span> {Math.round(speechIntentResult.intent.confidence * 100)}%</div>
+                          <div><span className="font-semibold">Summary:</span> {speechIntentResult.intent.summary}</div>
+
+                          {voiceCommand.intent !== 'unknown' && (
+                            <div className="text-xs text-muted-foreground">
+                              Command bus: <span className="font-medium">{voiceCommand.intent}</span>
+                              {' · '}
+                              Safety: <span className={voiceCommand.safety === 'safe' ? 'text-green-600' : voiceCommand.safety === 'review' ? 'text-amber-600' : 'text-red-600'}>{voiceCommand.safety}</span>
+                            </div>
+                          )}
+
+                          {!voicePolicy.allowed && (
+                            <div className="text-xs text-destructive">{voicePolicy.reason}</div>
+                          )}
+
+                          {effectivePolicy.mode === 'officer_assist' && (
+                            <div className="text-xs text-amber-700">Officer assist mode — execution restricted. Escalate to master/grand master.</div>
+                          )}
+
+                          {canExecute && (
+                            <div className="flex gap-2 pt-1">
+                              {needsConfirmBeforeExecute ? (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="default"
+                                    onClick={() => {
+                                      setChatInput(speechIntentResult.transcript)
+                                      setPendingCommandConfirmation({
+                                        command: voiceCommand,
+                                        requestedAt: new Date().toISOString(),
+                                      })
+                                      sendMessage('confirm command')
+                                      resetSpeechIntent()
+                                    }}
+                                  >
+                                    Confirm & Execute
+                                  </Button>
+                                  <Button size="sm" variant="outline" onClick={resetSpeechIntent}>
+                                    Cancel
+                                  </Button>
+                                </>
+                              ) : (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="default"
+                                    onClick={() => {
+                                      sendMessage(speechIntentResult.transcript)
+                                      resetSpeechIntent()
+                                    }}
+                                  >
+                                    Execute
+                                  </Button>
+                                  <Button size="sm" variant="outline" onClick={resetSpeechIntent}>
+                                    Dismiss
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </div>
                 )}
             </CardContent>
