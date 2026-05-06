@@ -2375,3 +2375,80 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - B-27: Fixed Camera Support (CCTV feed into zone map / incidents)
 - B-28: Real-time Translation in incident notes UI
 - B-29: Pay-by-Plate payment integration (PayByPhone NZ)
+
+---
+
+## Phase 5 Sprint 6 — B-27 / B-28 / B-29 (2026-05-06)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `supabase/migrations/20260506000005_fixed_cameras.sql` | B-27: New `public.fixed_cameras` table — camera_type (cctv/alpr/traffic/body_worn/other), status, GPS, zone link, stream_url, snapshot_url. Org-scoped RLS (read/insert/update/delete). Updated_at trigger with `search_path = public`. |
+| `src/types/database.ts` | B-27: Added `fixed_cameras` Row/Insert/Update types. B-29: Added `parking_payments` Row/Insert/Update types. Updated `zones` Row/Insert/Update with amenity columns (fee_nzd, max_vehicles, has_toilets, has_water, has_dump_station, has_shower, has_rubbish). |
+| `src/pages/FixedCameras.tsx` | B-27: Admin camera dashboard — list with status/type badges, add/edit dialog, zone linkage, set-active/mark-offline quick actions, 4 summary stat cards, search + type/status filters. |
+| `src/App.tsx` | B-27: Lazy import + `/fixed-cameras` route (admin/admin_officer/master). B-29: Lazy import + `/public/pay-by-plate` route (unauthenticated). |
+| `src/components/features/AppLayout.tsx` | B-27: Sidebar entry `Fixed Cameras` (Camera icon) under Dispatch group. |
+| `supabase/functions/translate-text/index.ts` | B-28: New edge function — Azure Cognitive Services Translator v3 (when `AZURE_TRANSLATOR_KEY` + `AZURE_TRANSLATOR_REGION` set); graceful mock fallback. Supports en/mi/zh-Hans/hi/ko/fr/de/es/ja. |
+| `src/hooks/useTranslation.ts` | B-28: `useTranslation` hook — wraps translate-text edge function, per-component LRU cache keyed by (text, targetLang), exposes `{ translate, result, isLoading, error, clearResult }`. |
+| `src/components/features/TranslateButton.tsx` | B-28: Drop-in translate affordance — language picker popover (EN/MĀ/中/हि/한), inline result card with `(preview)` badge in mock mode. |
+| `src/pages/IncidentManagement.tsx` | B-28: Imports `TranslateButton`; renders it below each incident description card. |
+| `src/lib/edgeFunctions.ts` | B-28: `translateText()` wrapper. B-29: `initiateParkingPayment()` wrapper. |
+| `supabase/migrations/20260506000006_parking_payments.sql` | B-29: New `public.parking_payments` table — plate, zone, session link, amount_nzd, payment_provider, provider_reference, status (pending/completed/failed/refunded/cancelled). Anon INSERT + read; org-scoped update. |
+| `supabase/functions/initiate-parking-payment/index.ts` | B-29: New edge function — validates plate/zone/duration, calculates fee from `zones.fee_nzd`, inserts pending row, calls PayByPhone NZ API (when `PAYBYPHONE_API_KEY` set), returns mock payment URL in degraded mode. |
+| `src/pages/PublicPayByPlate.tsx` | B-29: Public `/public/pay-by-plate` page — zone browse with fee display, duration picker (30 min–24 hr), total calculation, optional receipt contact, payment session creation, post-payment confirmation screen. |
+| `docs/competitive-gap-board.md` | B-27/B-28/B-29 marked ✅ Closed. |
+| `docs/STAGING.md` | Sprint 6 session snapshot added. |
+
+### B-27 Success Criteria
+
+- [x] `fixed_cameras` migration: org-scoped RLS + SECURITY DEFINER search_path hardening
+- [x] Admin page: list with type/status filters + search
+- [x] Add/edit dialog: name, type, status, GPS, zone link, stream/snapshot URLs, notes
+- [x] Quick actions: Set Active / Mark Offline per row
+- [x] 4 summary stat cards: Total, Active, Offline, ALPR count
+- [x] `fixed_cameras` TypeScript types added to database.ts
+- [x] Route + sidebar wired
+
+### B-28 Success Criteria
+
+- [x] `translate-text` edge function: Azure Cognitive Services v3 + mock degraded mode
+- [x] Supports 9 target languages: en, mi, zh-Hans, hi, ko, fr, de, es, ja
+- [x] `useTranslation` hook: per-component cache, isLoading, error states
+- [x] `TranslateButton` component: language picker popover + inline translated result card
+- [x] Wired into `IncidentManagement` incident description cards
+- [x] `edgeFunctions.translateText()` wrapper
+
+### B-29 Success Criteria
+
+- [x] `parking_payments` migration: anon INSERT (public payment), org-scoped update (reconciliation)
+- [x] `initiate-parking-payment` edge function: fee from zone.fee_nzd, PayByPhone NZ API + mock fallback
+- [x] `/public/pay-by-plate`: unauthenticated, plate + zone + duration form
+- [x] Duration picker: 30 min increments to 24 hrs; total shown live
+- [x] Post-payment confirmation screen with payment reference
+- [x] `parking_payments` TypeScript types added to database.ts
+- [x] `edgeFunctions.initiateParkingPayment()` wrapper
+
+### Sprint 6 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-27 | Fixed Camera Support | ✅ |
+| B-28 | Real-time Translation (incident notes UI) | ✅ |
+| B-29 | Pay-by-Plate Integration (PayByPhone NZ scaffold) | ✅ |
+
+- [x] `bun run build` → PASS (✓ built in 24.43s)
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+### Competitive Gap Board — Updated (post Sprint 6)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| ALPR / Cameras | B-27 Fixed Camera Support | Video Context on plate hit |
+| PTT / Comms | B-28 Real-time Translation | LMR Radio Bridge |
+| Parking | B-29 Pay-by-Plate Integration | Dynamic Pricing, Revenue Forecasting |
+
+**Next sprint candidates:**
+- B-30: Video Context on plate hit (camera snapshot in observation card)
+- B-31: Turn-by-Turn Navigation (Leaflet routing / OSRM)
+- B-32: Dynamic Pricing Engine (time-of-day / occupancy-based fee)

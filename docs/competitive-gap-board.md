@@ -55,7 +55,7 @@ Centralise all competitive gaps identified across FieldOps Manager modules. Each
 |---|---|---|---|---|
 | Cohort / Pattern Analysis | Motorola, Genetec | 🟠 High | S1 | ✅ Closed (B-21) |
 | Mobile Plate Finder (search by partial plate) | Motorola, Genetec | 🟠 High | S1 | ✅ Closed (B-22) |
-| Fixed Camera Support | Motorola, Genetec | 🟡 Medium | S2 | ⬜ Open |
+| Fixed Camera Support | Motorola, Genetec | 🟡 Medium | S2 | ✅ Closed (B-27) |
 | Video Context on plate hit | Genetec (new) | 🟡 Medium | S2 | ⬜ Open |
 | National Database link | N/A (NZ regulatory) | 🚫 Out of Scope | — | 🚫 Out of Scope |
 
@@ -102,7 +102,7 @@ Centralise all competitive gaps identified across FieldOps Manager modules. Each
 |---|---|---|---|---|
 | Real-time Occupancy Tracking | T2, ParkMobile | 🟠 High | S2 | ✅ Closed (B-16 + B-25) |
 | Enhanced Appeals Portal (self-serve) | T2 Systems | 🟡 Medium | S2 | ✅ Closed (B-15) |
-| Pay-by-Plate Integration (NZ providers) | T2, PayByPhone | 🟡 Medium | S2 | ⬜ Open |
+| Pay-by-Plate Integration (NZ providers) | T2, PayByPhone | 🟡 Medium | S2 | ✅ Closed (B-29) |
 | Occupancy Analytics Dashboard | T2, ParkMobile | 🟡 Medium | S2 | ✅ Closed (B-25) |
 | Dynamic Pricing Engine | T2, ParkMobile | 🟢 Low | S4 | ⬜ Open |
 | Revenue Forecasting | T2, ParkMobile | 🟢 Low | S4 | ⬜ Open |
@@ -113,7 +113,7 @@ Centralise all competitive gaps identified across FieldOps Manager modules. Each
 
 | Gap | Competitor Benchmark | Impact | Sprint | Status |
 |---|---|---|---|---|
-| Real-time Translation (Māori, Mandarin, Hindi, Korean) | Azure Cognitive / Whisper | 🟠 High | S2 | ⬜ Open |
+| Real-time Translation (Māori, Mandarin, Hindi, Korean) | Azure Cognitive / Whisper | 🟠 High | S2 | ✅ Closed (B-28) |
 | LMR / Radio Bridge | Zello Gateway, Motorola | 🟡 Medium | S3 | ⬜ Open |
 | Voice AI Workflows (intent → action) | Custom enterprise solutions | 🟡 Medium | S3 | ✅ Closed (Bob PTT integration) |
 
