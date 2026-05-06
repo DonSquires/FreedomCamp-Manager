@@ -1,9 +1,9 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-06 (verified against src App.tsx)
-Source of truth for routes: App router file src App.tsx (includes Sprint 15 and Sprint 16 workforce routes)
+Source of truth for routes: App router file src App.tsx (136 total routes as of Sprint 13 completion)
 
-> **Last Verification**: 2026-05-06 — Workforce route topology reviewed after Sprint 15/16 additions including on-call, callout, officer allowances, and travel allowances.
+> **Last Verification**: 2026-05-06 — Sprint 13 routes added (B-48 Radio Transmissions Log, B-49 Voice Profiles & Consent; B-45 Trespass Notices, B-46 Access Permissions, B-47 Canonical Person Viewer, B-44 Dispatch LOI Browser). Previous baseline: a6e39a0f (2026-05-04, 122 routes).
 
 ## How To Use
 
@@ -22,20 +22,14 @@ Source of truth for routes: App router file src App.tsx (includes Sprint 15 and 
 2. Compliance and enforcement
    - Primary: /compliance
    - Role gate: admin, admin_officer, master
-   - Related: /breaches, /infringements, /notice-to-vacate, /enforcement-actions, /enforcement-command-center, /compliance-recalculation, /loi-browser, /trespass-notices
-   - Related route gates: /breaches = authenticated users (protected route); /infringements = admin, admin_officer, master, officer; /notice-to-vacate = admin, admin_officer, master; /enforcement-actions = admin, admin_officer, master, officer; /enforcement-command-center = admin, admin_officer, master; /compliance-recalculation = admin, admin_officer, master, grand_master; /loi-browser and /trespass-notices = admin, admin_officer, master, grand_master
+   - Related: /breaches, /infringements, /notice-to-vacate, /enforcement-actions, /enforcement-command-center, /compliance-recalculation, /trespass-notices, /access-permissions, /loi-browser
+   - Related route gates: /breaches = authenticated users (protected route); /infringements = admin, admin_officer, master, officer; /notice-to-vacate = admin, admin_officer, master; /enforcement-actions = admin, admin_officer, master, officer; /enforcement-command-center = admin, admin_officer, master; /compliance-recalculation = admin, admin_officer, master, grand_master; /trespass-notices = admin, admin_officer, master; /access-permissions = admin, admin_officer, master; /loi-browser = admin, admin_officer, master
 
 3. Patrol and dispatch
    - Primary: /live-patrol
    - Role gate: admin, admin_officer, master
    - Related: /dispatch, /dispatch-wizard, /dispatch-monitor, /dispatched-jobs, /job-map, /roster
    - Related route gates: /dispatch, /dispatch-wizard, /dispatch-monitor, /dispatched-jobs, /roster = admin, admin_officer, master; /job-map = admin, admin_officer, master, officer
-
-4. Workforce pay and callout operations
-   - Primary: /on-call-periods
-   - Role gate: admin, admin_officer, master
-   - Related: /callout-shifts, /officer-allowances, /travel-allowances, /timesheets
-   - Related route gates: /callout-shifts, /officer-allowances, /travel-allowances, /timesheets = admin, admin_officer, master
 
 4. Field officer workflows
    - Primary: /field and /field-officer
@@ -115,25 +109,19 @@ Source of truth for routes: App router file src App.tsx (includes Sprint 15 and 
    - Primary: /identity-verification
    - Role gate: admin, admin_officer, master
    - Related: /face-recognition, /person-records, /canonical-persons, /vehicles, /vehicles/:id
-   - Related route gates: /face-recognition = admin, admin_officer, master, officer; /person-records = admin, admin_officer, master; /canonical-persons = admin, admin_officer, master, grand_master; /vehicles and /vehicles/:id = authenticated users (protected route)
+   - Related route gates: /face-recognition = admin, admin_officer, master, officer; /person-records = admin, admin_officer, master; /canonical-persons = admin, admin_officer, master; /vehicles and /vehicles/:id = authenticated users (protected route)
 
 2. Access governance
    - Primary: /access-control
    - Role gate: admin, admin_officer, master, grand_master
-   - Related: /users, /organizations, /site-permissions, /access-permissions, /admin/service-provider-access
-   - Related route gates: /users = admin, admin_officer, master; /organizations = master, grand_master; /site-permissions = admin, master, grand_master; /access-permissions = admin, admin_officer, master, grand_master; /admin/service-provider-access = admin, master
+   - Related: /users, /organizations, /site-permissions, /admin/service-provider-access
+   - Related route gates: /users = admin, admin_officer, master; /organizations = master, grand_master; /site-permissions = admin, master, grand_master; /admin/service-provider-access = admin, master
 
 3. Comms and PTT
    - Primary: /radio
    - Role gate: authenticated users (protected route)
-   - Related: /radio/log, /radio/audit, /messages, /team-chat
-   - Related route gates: /radio/log, /messages, /team-chat = authenticated users (protected route); /radio/audit = admin, admin_officer, master, grand_master
-
-4. Workforce allowance review drill-down
-   - Primary: /callout-shifts
-   - Role gate: admin, admin_officer, master
-   - Related: /travel-allowances?callout_shift_id=:id, /officer-allowances
-   - Related route gates: /travel-allowances and /officer-allowances = admin, admin_officer, master
+   - Related: /radio/log, /radio/audit, /radio-transmissions, /voice-profiles, /messages, /team-chat
+   - Related route gates: /radio/log, /messages, /team-chat = authenticated users (protected route); /radio/audit = admin, admin_officer, master, grand_master; /radio-transmissions = admin, admin_officer, master; /voice-profiles = admin, admin_officer, master
 
 ## Executive and Governance Views
 

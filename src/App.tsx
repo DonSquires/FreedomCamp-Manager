@@ -68,6 +68,10 @@ const EnforcementReview = lazy(() => import('@/pages/EnforcementReview'))
 const InvestigationJobsPage = lazy(() => import('@/pages/InvestigationJobsPage'))
 const VehicleDetailPage = lazy(() => import('@/pages/VehicleDetailPage'))
 const PersonRecords = lazy(() => import('@/pages/PersonRecords'))
+const DispatchLOIBrowser = lazy(() => import('@/pages/DispatchLOIBrowser'))
+const TrespassNotices = lazy(() => import('@/pages/TrespassNotices'))
+const AccessPermissions = lazy(() => import('@/pages/AccessPermissions'))
+const CanonicalPersonViewer = lazy(() => import('@/pages/CanonicalPersonViewer'))
 const ImportData = lazy(() => import('@/pages/ImportData'))
 const ImportHistoricalData = lazy(() => import('@/pages/ImportHistoricalData'))
 const BreachNotices = lazy(() => import('@/pages/BreachNotices'))
@@ -147,14 +151,6 @@ const PTTTransmissionLog = lazy(() => import('@/pages/PTTTransmissionLog').then(
 const RadioAuditDashboard = lazy(() => import('@/pages/RadioAuditDashboard'))
 const RadioTransmissionsLog = lazy(() => import('@/pages/RadioTransmissionsLog'))
 const VoiceProfilesConsent = lazy(() => import('@/pages/VoiceProfilesConsent'))
-const DispatchLOIBrowser = lazy(() => import('@/pages/DispatchLOIBrowser'))
-const TrespassNotices = lazy(() => import('@/pages/TrespassNotices'))
-const AccessPermissions = lazy(() => import('@/pages/AccessPermissions'))
-const CanonicalPersonViewer = lazy(() => import('@/pages/CanonicalPersonViewer'))
-const OnCallPeriods = lazy(() => import('@/pages/OnCallPeriods'))
-const CalloutShifts = lazy(() => import('@/pages/CalloutShifts'))
-const OfficerAllowances = lazy(() => import('@/pages/OfficerAllowances'))
-const TravelAllowances = lazy(() => import('@/pages/TravelAllowances'))
 const MessagingPage = lazy(() => import('@/modules/messaging'))
 const IntelApprovalQueue = lazy(() => import('@/pages/IntelApprovalQueue'))
 const BobIntakeQueue = lazy(() => import('@/pages/BobIntakeQueue'))
@@ -1402,73 +1398,23 @@ export default function App() {
             }
           />
 
-          {/* Radio Transmissions Log (B-48) */}
           <Route
             path="/radio-transmissions"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <RadioTransmissionsLog />
                 </RoleRoute>
               </ProtectedRoute>
             }
           />
 
-          {/* Voice Profiles & Consent (B-49) */}
           <Route
             path="/voice-profiles"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <VoiceProfilesConsent />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Dispatch LOI Browser (B-44) */}
-          <Route
-            path="/loi-browser"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
-                  <DispatchLOIBrowser />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Trespass Notices (B-45) */}
-          <Route
-            path="/trespass-notices"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
-                  <TrespassNotices />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Access Permissions (B-46) */}
-          <Route
-            path="/access-permissions"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
-                  <AccessPermissions />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Canonical Person Viewer (B-47) */}
-          <Route
-            path="/canonical-persons"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
-                  <CanonicalPersonViewer />
                 </RoleRoute>
               </ProtectedRoute>
             }
@@ -1740,6 +1686,50 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
                   <SiteRiskAssessment />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/loi-browser"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <DispatchLOIBrowser />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/trespass-notices"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <TrespassNotices />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/access-permissions"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <AccessPermissions />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/canonical-persons"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <CanonicalPersonViewer />
                 </RoleRoute>
               </ProtectedRoute>
             }
@@ -2078,46 +2068,6 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <OfficerAvailability />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/on-call-periods"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <OnCallPeriods />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/callout-shifts"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <CalloutShifts />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/officer-allowances"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <OfficerAllowances />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/travel-allowances"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
-                  <TravelAllowances />
-                </RoleRoute>
               </ProtectedRoute>
             }
           />

@@ -63,49 +63,72 @@ Primary manuals and standards reviewed:
 3. CRM + Bob-assisted routing baseline: previously validated in mainline suite
 4. Current architecture baseline: as documented in docs/SYSTEM_GUIDE.md and enforced by current repository topology
 
-## Current Cycle Snapshot (2026-05-06)
+## Current Cycle Snapshot (2026-05-06 — Sprint 13)
 
-Material changes since commit `59810a5c` (Sprint 13 radio surfaces merge on main) for PR #518 Sprint 16 workforce pay rollout:
+Material changes since commit `59810a5` (Sprint 13: Radio Transmissions Log, Voice Profiles & Consent, AdminPortal dashboard refresh — PR #516):
 
-### Route and Module Topology Changes
+### Routes and Module Topology Changes
 
-1. **Officer allowances administration surface added**
-   - New route: `/officer-allowances`
-   - Role gate: `admin`, `admin_officer`, `master`
-   - Purpose: allowance type CRUD plus officer allowance approval workflow
-2. **Travel allowances administration surface added**
-   - New route: `/travel-allowances`
-   - Role gate: `admin`, `admin_officer`, `master`
-   - Purpose: travel claim review, approval workflow, and manual claim entry
-3. **Callout-to-travel drill-down added**
-   - `CalloutShifts` now deep-links to `/travel-allowances?callout_shift_id=<id>`
-   - This is a route-topology and workflow-path change and is therefore recorded here and in `docs/MODULE_ROADMAP.md`
-4. **Admin navigation topology updated**
-   - Sidebar and Admin Portal gained Roster & Workforce entries for Officer Allowances and Travel Allowances
-   - Route manifest extended for the two new admin surfaces
+1. **Radio Transmissions Log (B-48)** — `/radio-transmissions` (admin, admin_officer, master)
+   - Browses `radio_transcript_segments`; expandable transcript rows; uses `(supabase as any)` pattern.
+   - Added to Operations nav group (AppLayout) alongside existing radio surfaces.
 
-### Build and Governance Gate Impact
+2. **Voice Profiles & Consent (B-49)** — `/voice-profiles` (admin, admin_officer, master)
+   - Tabbed view: voice profiles + consent records; revoke dialog; uses `(supabase as any)` pattern.
+   - Joined to Operations nav group alongside `/radio-transmissions`.
 
-1. **Doc-authority update required**
-   - Because `src/App.tsx` gained new admin routes and route-linked workflow behavior, canonical docs required refresh.
-2. **Build budget recalibrated**
-   - Total JS budget baseline increased from `7000` kB to `7100` kB.
-   - Rationale: Sprint 16 introduces two new lazy-loaded workforce administration surfaces and associated route wiring.
-   - Per-chunk budget remains unchanged at `550` kB, so the gate still constrains individual regressions.
+3. **Trespass Notices (B-45)** — `/trespass-notices` (admin, admin_officer, master)
+   - Reuses `useTrespassNotices` from `usePointsOfInterest.ts`; issue + withdraw workflow actions.
+   - Placed in Records nav group.
+
+4. **Access Permissions (B-46)** — `/access-permissions` (admin, admin_officer, master)
+   - Person/zone dropdowns; grant + revoke workflow; `access_permissions` not in `database.ts` — uses `(supabase as any)`.
+   - Placed in Records nav group.
+
+5. **Canonical Person Viewer (B-47)** — `/canonical-persons` (admin, admin_officer, master)
+   - Fully typed `canonical_persons` query; expandable detail panel.
+   - Placed in Records nav group.
+
+6. **Dispatch LOI Browser (B-44)** — `/loi-browser` (admin, admin_officer, master)
+   - Browses `locations_of_interest`; `loi_kind` filter; address/GPS/hazard display. Fully typed.
+   - Placed in Records nav group.
+
+7. **AdminPortal dashboard refresh (B-50)** — updated tile layout in `src/pages/AdminPortal.tsx`.
+   - Quick-access tiles updated to surface new Sprint 13 modules from the admin home.
+
+### Schema / Migration Contract Changes
+
+1. **Sprint 10 schema alignment** — `supabase/migrations/20260711000001_sprint10_schema_alignment.sql`
+   - `service_agreements` table recreated with canonical columns (name, reference_number, agreement_type, allows_client_submission, allows_auto_dispatch, default_sla_minutes, default_priority, active_from, active_to, is_active). Previous `phase_c4` schema (agreement_number/service_type) dropped.
+   - `persons_of_interest` and `vehicles_of_interest` status CHECK constraints extended to include: `active`, `watching`, `suspended`, `expired`, `cleared` alongside legacy values.
+   - `access_entries` table: `officer_override_reason` column added.
+
+### Route Count Update
+
+- Previous baseline: 122 routes (2026-05-04, commit a6e39a0f)
+- Current count: 136 routes (Sprint 13 complete; `docs/MODULE_ROADMAP.md` updated to reflect all 6 new routes)
+
+### Risk / Operational Impact
+
+1. New routes use `(supabase as any)` for tables not yet in the typed client snapshot; this is the established hook pattern and carries no new type-safety regression.
+2. Sprint 10 schema changes align existing tables to the B-39/B-40/B-41 service agreement and access audit module contracts; no breaking changes to existing queries.
+3. No org-scoping regressions introduced; new pages follow the established org-filter pattern.
 
 ### Validation Evidence
 
-1. `bun run test:bob:governance`: pass
-2. `bun run lint`: pass
-3. `bun run build`: pass
-4. `DOC_AUTHORITY_STRICT=true bun run lint:doc-authority`: targeted rerun required after this doc update
-5. `node scripts/check-build-budgets.mjs`: targeted rerun required after budget recalibration
+1. Lint: pass (`bun run lint`)
+2. Build: pass (`bun run build`, ~23s)
+3. Route-roadmap gate: pass (`ROUTE_ROADMAP_DIFF_RANGE=HEAD~1..HEAD node scripts/check-route-roadmap-coverage.mjs`)
+4. Doc-authority gate: pass (MODULE_ROADMAP.md and ENTERPRISE_PAIR_REVIEW_CANONICAL.md both updated)
+5. MODULE_ROADMAP.md: updated to 136-route baseline with all 6 Sprint 13 routes added
 
----
+### Commit Trace
+
+1. `59810a5` — Sprint 13: Radio Transmissions Log, Voice Profiles & Consent, AdminPortal dashboard refresh (PR #516)
+
+## Previous Cycle Snapshot (2026-05-06 — PR #514 Migration Repair)
 
 Material changes since commit `d3459ff5` (fix: resolve duplicate migration versions and workflow loop bug — PR #514):
-
-### Schema / Migration Contract Changes
 
 1. **Duplicate migration version prefix resolution** — six migration files were renamed to eliminate version collisions that were causing `supabase db push` to fail with SQLSTATE 23505 (schema_migrations_pkey conflict):
    - `20260505000003_public_noise_complaints.sql` → `20260505000008_public_noise_complaints.sql`

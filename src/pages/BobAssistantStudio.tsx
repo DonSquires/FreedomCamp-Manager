@@ -58,7 +58,6 @@ import {
   persistConversationTurnRemote,
 } from '@/lib/bobLearningMemory'
 import { classifyBobCommand, evaluateBobCommandPolicy, type BobCommand } from '@/lib/bobCommandBus'
-import { useSpeechIntent, type SpeechIntentResult } from '@/hooks/useSpeechIntent'
 import { radioTranslationService } from '@/lib/radio/radioTranslationService'
 
 type ChatMessage = {
@@ -476,23 +475,6 @@ function BobSketchPad() {
 export default function BobAssistantStudio() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
-  const isPolicyManager = user?.role === 'master' || user?.role === 'grand_master'
-  const speechIntentPilotPolicyEnabled = useBobExecutionPolicyStore((state) => state.speechIntentPilotEnabled)
-  // Pilot can be enabled globally via env or by owner/master policy switch.
-  const speechIntentPilotEnabled = import.meta.env.VITE_SPEECH_INTENT_PILOT === 'true' || (isPolicyManager && speechIntentPilotPolicyEnabled)
-  const {
-    state: speechIntentState,
-    startListening: startSpeechIntent,
-    stopListening: stopSpeechIntent,
-    result: speechIntentResult,
-    error: speechIntentError,
-    reset: resetSpeechIntent,
-  } = useSpeechIntent({
-    onResult: (r: SpeechIntentResult) => {
-      toast.success(`Intent detected: ${r.intent.intent} (${Math.round(r.intent.confidence * 100)}% confidence)`)
-    },
-    onError: (err: string) => toast.error(`Voice intent error: ${err}`),
-  })
   const { organizationId } = useGlobalFiltersStore()
   const isGrandMaster = user?.role === 'grand_master'
   const bobActionApproval = useBobActionApproval()
@@ -532,15 +514,16 @@ export default function BobAssistantStudio() {
   const [chatInput, setChatInput] = useState('')
   const [chat, setChat] = useState<ChatMessage[]>([])
   const [completedChecklist, setCompletedChecklist] = useState<Record<string, boolean>>({})
-  const policyMode = useBobExecutionPolicyStore((state) => state.mode)
-  const setPolicyMode = useBobExecutionPolicyStore((state) => state.setMode)
-  const enforceSchemaCheck = useBobExecutionPolicyStore((state) => state.enforceSchemaCheck)
-  const setEnforceSchemaCheck = useBobExecutionPolicyStore((state) => state.setEnforceSchemaCheck)
-  const enforceHardSections = useBobExecutionPolicyStore((state) => state.enforceHardSections)
-  const setEnforceHardSections = useBobExecutionPolicyStore((state) => state.setEnforceHardSections)
-  const showActionChecklist = useBobExecutionPolicyStore((state) => state.showActionChecklist)
-  const setShowActionChecklist = useBobExecutionPolicyStore((state) => state.setShowActionChecklist)
-  const effectivePolicy = getEffectiveBobExecutionPolicy()
+    const isPolicyManager = user?.role === 'master' || user?.role === 'grand_master'
+    const policyMode = useBobExecutionPolicyStore((state) => state.mode)
+    const setPolicyMode = useBobExecutionPolicyStore((state) => state.setMode)
+    const enforceSchemaCheck = useBobExecutionPolicyStore((state) => state.enforceSchemaCheck)
+    const setEnforceSchemaCheck = useBobExecutionPolicyStore((state) => state.setEnforceSchemaCheck)
+    const enforceHardSections = useBobExecutionPolicyStore((state) => state.enforceHardSections)
+    const setEnforceHardSections = useBobExecutionPolicyStore((state) => state.setEnforceHardSections)
+    const showActionChecklist = useBobExecutionPolicyStore((state) => state.showActionChecklist)
+    const setShowActionChecklist = useBobExecutionPolicyStore((state) => state.setShowActionChecklist)
+    const effectivePolicy = getEffectiveBobExecutionPolicy()
   const [pendingCommandConfirmation, setPendingCommandConfirmation] = useState<{
     command: BobCommand
     requestedAt: string
@@ -3689,121 +3672,6 @@ export default function BobAssistantStudio() {
                   {speechEnabled ? <Volume2 className="h-4 w-4 mr-1" /> : <VolumeX className="h-4 w-4 mr-1" />} Test Voice
                 </Button>
               </div>
-
-                {/* ── Ticket 8: Speech-Intent Advisory Pilot ─────────────────────── */}
-                {speechIntentPilotEnabled && (
-                  <div className="space-y-2">
-                    <div className="flex gap-2 flex-wrap">
-                      {speechIntentState === 'listening' ? (
-                        <Button variant="secondary" onClick={stopSpeechIntent}>
-                          <MicOff className="h-4 w-4 mr-1" /> Stop Voice Intent
-                        </Button>
-                      ) : (
-                        <Button variant="secondary" onClick={startSpeechIntent} disabled={speechIntentState === 'processing'}>
-                          {speechIntentState === 'processing'
-                            ? <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                            : <Mic className="h-4 w-4 mr-1" />}
-                          {speechIntentState === 'processing' ? 'Analysing…' : 'Voice Intent (Pilot)'}
-                        </Button>
-                      )}
-                      {speechIntentResult && (
-                        <Button variant="ghost" size="sm" onClick={resetSpeechIntent}>Clear</Button>
-                      )}
-                    </div>
-
-                    {speechIntentError && (
-                      <div className="text-sm text-destructive rounded-md border border-destructive/30 p-2">
-                        {speechIntentError}
-                      </div>
-                    )}
-
-                    {speechIntentResult && (() => {
-                      // ── Ticket 9: Controlled execution rollout ──────────────────────
-                      const voiceCommand = classifyBobCommand(speechIntentResult.transcript)
-                      const voicePolicy = evaluateBobCommandPolicy(voiceCommand, {
-                        role: String(user?.role ?? 'officer'),
-                        orgId: user?.organization_id ?? null,
-                        route: window.location.pathname,
-                      })
-                      const needsConfirmBeforeExecute =
-                        speechIntentResult.intent.needs_confirmation ||
-                        voicePolicy.requiresApproval ||
-                        voiceCommand.safety !== 'safe'
-                      const canExecute = voicePolicy.allowed && effectivePolicy.mode !== 'officer_assist'
-
-                      return (
-                        <div className="rounded-md border bg-muted/40 p-3 space-y-2 text-sm">
-                          <div className="font-medium text-muted-foreground uppercase tracking-wide text-xs">
-                            Speech Intent — {canExecute ? 'Ready to execute' : 'Advisory only'}
-                          </div>
-                          <div><span className="font-semibold">Transcript:</span> {speechIntentResult.transcript}</div>
-                          <div><span className="font-semibold">Intent:</span> {speechIntentResult.intent.intent}</div>
-                          <div><span className="font-semibold">Confidence:</span> {Math.round(speechIntentResult.intent.confidence * 100)}%</div>
-                          <div><span className="font-semibold">Summary:</span> {speechIntentResult.intent.summary}</div>
-
-                          {voiceCommand.intent !== 'unknown' && (
-                            <div className="text-xs text-muted-foreground">
-                              Command bus: <span className="font-medium">{voiceCommand.intent}</span>
-                              {' · '}
-                              Safety: <span className={voiceCommand.safety === 'safe' ? 'text-green-600' : voiceCommand.safety === 'review' ? 'text-amber-600' : 'text-red-600'}>{voiceCommand.safety}</span>
-                            </div>
-                          )}
-
-                          {!voicePolicy.allowed && (
-                            <div className="text-xs text-destructive">{voicePolicy.reason}</div>
-                          )}
-
-                          {effectivePolicy.mode === 'officer_assist' && (
-                            <div className="text-xs text-amber-700">Officer assist mode — execution restricted. Escalate to master/grand master.</div>
-                          )}
-
-                          {canExecute && (
-                            <div className="flex gap-2 pt-1">
-                              {needsConfirmBeforeExecute ? (
-                                <>
-                                  <Button
-                                    size="sm"
-                                    variant="default"
-                                    onClick={() => {
-                                      setChatInput(speechIntentResult.transcript)
-                                      setPendingCommandConfirmation({
-                                        command: voiceCommand,
-                                        requestedAt: new Date().toISOString(),
-                                      })
-                                      sendMessage('confirm command')
-                                      resetSpeechIntent()
-                                    }}
-                                  >
-                                    Confirm & Execute
-                                  </Button>
-                                  <Button size="sm" variant="outline" onClick={resetSpeechIntent}>
-                                    Cancel
-                                  </Button>
-                                </>
-                              ) : (
-                                <>
-                                  <Button
-                                    size="sm"
-                                    variant="default"
-                                    onClick={() => {
-                                      sendMessage(speechIntentResult.transcript)
-                                      resetSpeechIntent()
-                                    }}
-                                  >
-                                    Execute
-                                  </Button>
-                                  <Button size="sm" variant="outline" onClick={resetSpeechIntent}>
-                                    Dismiss
-                                  </Button>
-                                </>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })()}
-                  </div>
-                )}
             </CardContent>
           </Card>
 

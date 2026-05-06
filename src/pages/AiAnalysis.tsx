@@ -23,7 +23,6 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Switch } from '@/components/ui/switch'
 import {
   Bot,
   User,
@@ -264,8 +263,6 @@ export default function AiAnalysis() {
   const setEnforceHardSections = useBobExecutionPolicyStore((state) => state.setEnforceHardSections)
   const showActionChecklist = useBobExecutionPolicyStore((state) => state.showActionChecklist)
   const setShowActionChecklist = useBobExecutionPolicyStore((state) => state.setShowActionChecklist)
-  const speechIntentPilotEnabled = useBobExecutionPolicyStore((state) => state.speechIntentPilotEnabled)
-  const setSpeechIntentPilotEnabled = useBobExecutionPolicyStore((state) => state.setSpeechIntentPilotEnabled)
   const effectivePolicy = getEffectiveBobExecutionPolicy()
 
   // Auto-scroll to the latest message
@@ -854,17 +851,6 @@ export default function AiAnalysis() {
               <Button size="sm" variant={enforceSchemaCheck ? 'default' : 'outline'} onClick={() => setEnforceSchemaCheck(!enforceSchemaCheck)} disabled={!isPolicyManager || isLoading}>Schema checks {enforceSchemaCheck ? 'on' : 'off'}</Button>
               <Button size="sm" variant={enforceHardSections ? 'default' : 'outline'} onClick={() => setEnforceHardSections(!enforceHardSections)} disabled={!isPolicyManager || isLoading}>Hard sections {enforceHardSections ? 'on' : 'off'}</Button>
               <Button size="sm" variant={showActionChecklist ? 'default' : 'outline'} onClick={() => setShowActionChecklist(!showActionChecklist)} disabled={!isPolicyManager || isLoading}>Action checklist {showActionChecklist ? 'on' : 'off'}</Button>
-            </div>
-            <div className="flex items-center justify-between rounded-md border px-3 py-2">
-              <div>
-                <p className="text-sm font-medium">Speech Intent Advisory Pilot</p>
-                <p className="text-xs text-muted-foreground">Turn Bob voice-intent advisory card on or off for owner manager and master sessions.</p>
-              </div>
-              <Switch
-                checked={speechIntentPilotEnabled}
-                onCheckedChange={setSpeechIntentPilotEnabled}
-                disabled={!isPolicyManager || isLoading}
-              />
             </div>
             {!isPolicyManager && (
               <p className="text-xs text-muted-foreground">Manual policy controls are restricted to master and grand master roles.</p>

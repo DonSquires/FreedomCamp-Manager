@@ -11,7 +11,6 @@ export interface EffectiveBobExecutionPolicy {
   enforceSchemaCheck: boolean
   enforceHardSections: boolean
   showActionChecklist: boolean
-  speechIntentPilotEnabled: boolean
   canRunAutomation: boolean
   requiresGuardrails: boolean
 }
@@ -21,12 +20,10 @@ interface BobExecutionPolicyState {
   enforceSchemaCheck: boolean
   enforceHardSections: boolean
   showActionChecklist: boolean
-  speechIntentPilotEnabled: boolean
   setMode: (mode: BobExecutionMode) => void
   setEnforceSchemaCheck: (value: boolean) => void
   setEnforceHardSections: (value: boolean) => void
   setShowActionChecklist: (value: boolean) => void
-  setSpeechIntentPilotEnabled: (value: boolean) => void
   reset: () => void
 }
 
@@ -35,7 +32,6 @@ const DEFAULT_STATE = {
   enforceSchemaCheck: true,
   enforceHardSections: true,
   showActionChecklist: true,
-  speechIntentPilotEnabled: true,
 }
 
 const OWNER_TITLE_MATCHERS = ['owner', 'founder', 'director', 'chief executive', 'ceo', 'managing director']
@@ -71,7 +67,6 @@ export const useBobExecutionPolicyStore = create<BobExecutionPolicyState>()(
       setEnforceSchemaCheck: (value) => set({ enforceSchemaCheck: value }),
       setEnforceHardSections: (value) => set({ enforceHardSections: value }),
       setShowActionChecklist: (value) => set({ showActionChecklist: value }),
-      setSpeechIntentPilotEnabled: (value) => set({ speechIntentPilotEnabled: value }),
       reset: () => set(DEFAULT_STATE),
     }),
     {
@@ -100,7 +95,6 @@ export function getEffectiveBobExecutionPolicy(): EffectiveBobExecutionPolicy {
       enforceSchemaCheck: policy.enforceSchemaCheck,
       enforceHardSections: policy.enforceHardSections,
       showActionChecklist: policy.showActionChecklist,
-      speechIntentPilotEnabled: policy.speechIntentPilotEnabled,
       canRunAutomation: true,
       requiresGuardrails: false,
     }
@@ -114,7 +108,6 @@ export function getEffectiveBobExecutionPolicy(): EffectiveBobExecutionPolicy {
       enforceSchemaCheck: policy.enforceSchemaCheck,
       enforceHardSections: policy.enforceHardSections,
       showActionChecklist: policy.showActionChecklist,
-      speechIntentPilotEnabled: policy.speechIntentPilotEnabled,
       canRunAutomation: false,
       requiresGuardrails: true,
     }
@@ -127,7 +120,6 @@ export function getEffectiveBobExecutionPolicy(): EffectiveBobExecutionPolicy {
     enforceSchemaCheck: true,
     enforceHardSections: true,
     showActionChecklist: true,
-    speechIntentPilotEnabled: false,
     canRunAutomation: false,
     requiresGuardrails: true,
   }

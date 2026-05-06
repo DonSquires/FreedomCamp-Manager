@@ -33,17 +33,16 @@ import {
   CheckCircle2,
   ClipboardCheck,
   Clock,
-  Cpu,
   Database,
   Eye,
   FileBarChart,
   FileText,
   FileWarning,
-  FolderKanban,
   Gavel,
   GraduationCap,
   Heart,
   Home,
+  KeyRound,
   LayoutGrid,
   Lock,
   Map,
@@ -68,9 +67,6 @@ import {
   Zap,
   AlertCircle,
   Package2,
-  CalendarClock,
-  Phone,
-  BadgeDollarSign,
 } from 'lucide-react'
 
 type DrillConfig = {
@@ -400,6 +396,24 @@ export default function AdminPortal() {
         .lte('certificate_expiry', thirtyDaysFromNow.toISOString())
         .gt('certificate_expiry', new Date().toISOString())
       if (scvErr) diagnostics.push(`scv_expiring_soon: ${scvErr.message || 'unknown error'}`)
+
+      // Active trespass notices (B-45 table)
+      let activeTrespassQ = (supabase as any)
+        .from('trespass_notices')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'active')
+      if (effectiveOrganizationId) activeTrespassQ = activeTrespassQ.eq('organization_id', effectiveOrganizationId)
+      const { count: activeTrespassCount, error: trespassErr } = await activeTrespassQ
+      if (trespassErr) diagnostics.push(`active_trespass_notices: ${trespassErr.message || 'unknown error'}`)
+
+      // Radio transmissions today (B-48 table)
+      let radioTodayQ = (supabase as any)
+        .from('radio_transmissions')
+        .select('id', { count: 'exact', head: true })
+        .gte('started_at', todayStart)
+      if (effectiveOrganizationId) radioTodayQ = radioTodayQ.eq('org_id', effectiveOrganizationId)
+      const { count: radioTransmissionsToday, error: radioErr } = await radioTodayQ
+      if (radioErr) diagnostics.push(`radio_transmissions_today: ${radioErr.message || 'unknown error'}`)
       // Count non-compliant observations where the plate belongs to a homeless vehicle.
       // This is the exact number of "breaches" that are actually FC Act exempt.
       let homelessExemptBreachCount = 0
@@ -433,6 +447,8 @@ export default function AdminPortal() {
         discrepanciesPending:      discrepanciesPending      ?? 0,
         scvExpiringSoon:           scvExpiringSoon            ?? 0,
         homelessExemptBreachCount,
+        activeTrespassCount:       activeTrespassCount        ?? 0,
+        radioTransmissionsToday:   radioTransmissionsToday    ?? 0,
         diagnostics,
       }
     },
@@ -512,41 +528,6 @@ export default function AdminPortal() {
       return count ?? 0
     },
     staleTime: 1000 * 30,
-  })
-
-  // B-50: Active trespass notices count — lightweight count query
-  const { data: activeTrespassCount = 0 } = useQuery({
-    queryKey: ['admin-active-trespass-count', effectiveOrganizationId],
-    queryFn: async () => {
-      let q = supabase
-        .from('trespass_notices')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'active')
-      if (effectiveOrganizationId) q = q.eq('organization_id', effectiveOrganizationId)
-      const { count } = await q
-      return count ?? 0
-    },
-    staleTime: 1000 * 60,
-  })
-
-  // B-50: Radio transmissions today count — uses (supabase as any) — table not in typed snapshot
-  const { data: radioTransmissionsTodayCount = 0 } = useQuery({
-    queryKey: ['admin-radio-transmissions-today', effectiveOrganizationId],
-    queryFn: async () => {
-      const nzToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' })
-      const todayStart = nzDateToUTCStart(nzToday)
-      let q = (supabase as any)
-        .from('radio_transmissions')
-        .select('id', { count: 'exact', head: true })
-        .gte('started_at', todayStart)
-      if (effectiveOrganizationId) q = q.eq('org_id', effectiveOrganizationId)
-      const { count, error } = await q
-      // radio_transmissions may not exist in remote yet — swallow schema errors silently
-      if (error && (error.code === 'PGRST205' || error.code === '42P01')) return 0
-      return count ?? 0
-    },
-    staleTime: 1000 * 60,
-    retry: false,
   })
 
   // Today's roster shifts — Deputy / InTime inspired: show who is on duty today
@@ -971,18 +952,18 @@ export default function AdminPortal() {
       config: { to: '/admin/nzscv', metric: 'scv_enforcement_countdown', period: periodLabel, label: 'SCV Enforcement Countdown' },
     },
     {
-      title: 'Active Trespass',
-      value: activeTrespassCount,
+      title: 'Active Trespass Notices',
+      value: isLoading ? '...' : ((data as any)?.activeTrespassCount ?? 0),
       icon: Ban,
-      iconColor: 'text-red-600',
-      config: { to: '/trespass-notices', metric: 'active_trespass', period: periodLabel, label: 'Active Trespass Notices' },
+      iconColor: 'text-rose-600',
+      config: { to: '/trespass-notices', metric: 'active_trespass_notices', period: periodLabel, label: 'Active Trespass Notices' },
     },
     {
-      title: 'Radio TX Today',
-      value: radioTransmissionsTodayCount,
-      icon: Radio,
-      iconColor: 'text-sky-600',
-      config: { to: '/radio-transmissions', metric: 'radio_tx_today', period: periodLabel, label: 'Radio Transmissions Today' },
+      title: 'Radio Transmissions Today',
+      value: isLoading ? '...' : ((data as any)?.radioTransmissionsToday ?? 0),
+      icon: Mic,
+      iconColor: 'text-cyan-600',
+      config: { to: '/radio-transmissions', metric: 'radio_transmissions_today', period: periodLabel, label: 'Radio Transmissions Today' },
     },
   ]
 
@@ -1238,7 +1219,7 @@ export default function AdminPortal() {
         </section>
 
         {/* ── SECONDARY KPIs — attention items ─────────────────────────────────────── */}
-        <section aria-label="Secondary operational KPIs" className="grid gap-2.5 grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 2xl:grid-cols-9">
+        <section aria-label="Secondary operational KPIs" className="grid gap-2.5 grid-cols-2 sm:grid-cols-4 xl:grid-cols-9">
           {secondaryKPIs.map((kpi) => {
             const Icon = kpi.icon
             return (
@@ -1434,9 +1415,9 @@ export default function AdminPortal() {
                     { path: '/investigations',      label: 'Investigations',    Icon: Search,        color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20', badge: (data as any)?.activeInvestigations > 0 ? (data as any)?.activeInvestigations : undefined },
                     { path: '/observation-records', label: 'Observations',      Icon: Eye,           color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                     { path: '/site-risk-assessment',label: 'Risk Assessment',   Icon: ClipboardCheck,color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
-                    { path: '/trespass-notices',    label: 'Trespass Notices',  Icon: Ban,           color: 'text-red-700',    bg: 'bg-red-50 dark:bg-red-900/20', badge: activeTrespassCount > 0 ? activeTrespassCount : undefined },
-                    { path: '/access-permissions',  label: 'Access Permissions',Icon: Lock,          color: 'text-teal-700',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
-                    { path: '/canonical-persons',   label: 'Canonical Persons', Icon: Users,         color: 'text-purple-700', bg: 'bg-purple-50 dark:bg-purple-900/20' },
+                    { path: '/trespass-notices',    label: 'Trespass Notices',  Icon: Ban,           color: 'text-rose-600',   bg: 'bg-rose-50 dark:bg-rose-900/20',   badge: (data as any)?.activeTrespassCount > 0 ? (data as any)?.activeTrespassCount : undefined },
+                    { path: '/access-permissions',  label: 'Access Permissions',Icon: KeyRound,      color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    { path: '/canonical-persons',   label: 'Canonical Persons', Icon: Users,         color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       {badge !== undefined && (
@@ -1476,22 +1457,22 @@ export default function AdminPortal() {
               </div>
 
               {/* Intelligence & Radio */}
-              <div className="rounded-xl border border-sky-100 dark:border-sky-900/40 bg-sky-50/40 dark:bg-sky-950/10 p-3">
+              <div className="rounded-xl border border-cyan-100 dark:border-cyan-900/40 bg-cyan-50/40 dark:bg-cyan-950/10 p-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
-                  <Cpu className="h-3 w-3 text-sky-500" /> Intelligence & Radio
+                  <Mic className="h-3 w-3 text-cyan-500" /> Intelligence & Radio
                 </p>
                 <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
                   {[
-                    { path: '/radio-transmissions', label: 'Transmissions',  Icon: Mic,          color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20', badge: radioTransmissionsTodayCount > 0 ? radioTransmissionsTodayCount : undefined },
-                    { path: '/voice-profiles',      label: 'Voice Profiles', Icon: Mic,          color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
-                    { path: '/radio/audit',         label: 'Radio Audit',    Icon: Shield,       color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
-                    { path: '/lmr-bridge',          label: 'LMR Bridge',     Icon: Radio,        color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
-                    { path: '/loi-browser',         label: 'LOI Browser',    Icon: MapPin,       color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
-                    { path: '/case-bridge',         label: 'Case Bridge',    Icon: FolderKanban, color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
+                    { path: '/radio-transmissions', label: 'Transmissions',     Icon: Radio,     color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20',     badge: (data as any)?.radioTransmissionsToday > 0 ? (data as any)?.radioTransmissionsToday : undefined },
+                    { path: '/voice-profiles',      label: 'Voice Profiles',    Icon: Mic,       color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    { path: '/radio/audit',         label: 'Radio Audit',       Icon: Radio,     color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
+                    { path: '/lmr-bridge',          label: 'LMR Bridge',        Icon: Radio,     color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/loi-browser',         label: 'LOI Browser',       Icon: MapPin,    color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
+                    { path: '/case-bridge',         label: 'Case Bridge',       Icon: Database,  color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       {badge !== undefined && (
-                        <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-sky-500 text-[9px] font-bold text-white">{badge}</span>
+                        <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-cyan-500 text-[9px] font-bold text-white">{badge > 99 ? '99+' : badge}</span>
                       )}
                       <Icon className={`h-5 w-5 ${color}`} />
                       <span className={moduleTileLabelClass}>{label}</span>
@@ -1510,10 +1491,6 @@ export default function AdminPortal() {
                     { path: '/roster',            label: 'Roster Planner',   Icon: CalendarDays,  color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
                     { path: '/timesheets',        label: 'Timesheets',       Icon: Clock,         color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
                     { path: '/open-shifts',       label: 'Open Shifts',      Icon: CalendarCheck2,color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20' },
-                    { path: '/on-call-periods',   label: 'On-Call Periods',  Icon: CalendarClock, color: 'text-sky-600',    bg: 'bg-sky-50 dark:bg-sky-900/20' },
-                    { path: '/callout-shifts',    label: 'Callout Shifts',   Icon: Phone,         color: 'text-amber-700',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
-                    { path: '/officer-allowances',label: 'Allowances',       Icon: BadgeDollarSign,color: 'text-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
-                    { path: '/travel-allowances', label: 'Travel Claims',    Icon: Car,           color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
                     { path: '/officer-skills',    label: 'Skills & Licences',Icon: GraduationCap, color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
                     { path: '/availability',      label: 'Availability',     Icon: CalendarDays,  color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                     { path: '/asset-management',  label: 'Assets',           Icon: Package2,      color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },

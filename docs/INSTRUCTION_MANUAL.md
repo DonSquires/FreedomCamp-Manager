@@ -723,8 +723,6 @@ Flags inconsistencies in vehicle data — e.g. plate numbers that have been capt
 | Patrol KPI Dashboard | `/patrol-kpi` | Performance metrics per officer and zone |
 | Roster Planner | `/roster-planner` | Build and publish shift rosters |
 | Open Shifts | `/open-shifts` | View and fill unfilled shifts |
-| On-Call Periods | `/on-call-periods` | Schedule and manage on-call availability windows |
-| Callout Shifts | `/callout-shifts` | View and progress ad-hoc callout shifts from on-call periods |
 | Timesheet Review | `/timesheets` | Review and approve officer timesheets |
 | Officer Availability | `/officer-availability` | View officer availability for scheduling |
 | Officer Skills | `/officer-skills` | Skill and qualification records per officer |
@@ -895,54 +893,6 @@ Use **Export CSV** to download approved timesheets for the selected period for p
 
 ---
 
-###### On-Call Periods (`/on-call-periods`)
-
-Admin management of on-call availability windows.
-
-**KPIs:** Total · Active Now · Scheduled · Total Callouts generated.
-
-**Scheduling a period:**
-1. Click **Schedule On-Call**.
-2. Select officer, start/end datetime, period type, and optional flat rate.
-3. Click **Schedule On-Call** — status is set to `scheduled`.
-
-**Period types:** Standard · Before Shift · After Shift · Overnight · Weekend · Public Holiday.
-
-**Actions:**
-- **Accept** — marks the officer as having accepted the on-call assignment (admin confirmation).
-- **Cancel** — cancels a scheduled or active period.
-
-**Callout count column** links directly to `/callout-shifts?on_call_period_id=…` — click to see all callouts from that period.
-
-> **Access**: Admin, admin_officer, master, grand_master.
-
----
-
-###### Callout Shifts (`/callout-shifts`)
-
-Tracks ad-hoc shifts triggered from on-call periods.
-
-**KPIs:** Total · Active · Completed · Avg Billable Hours.
-
-**URL filter:** Navigating from On-Call Periods pre-filters the view to a single on-call period. Click × to clear.
-
-**Expandable row detail:**
-
-| Section | Content |
-|---|---|
-| Timestamp Progression | Call Received → Departed → Arrived → Work Started → Work Ended → Returned |
-| Hours | Actual work / Minimum guarantee / Billable (max of actual and minimum) |
-| Rates | Base hourly rate / After-minimum rate |
-| Pay Breakdown | Base pay · Additional pay · Total callout pay |
-| Location | Callout address if recorded |
-
-**Actions:** Mark as Complete · Cancel (available while status is `pending` or `in_progress`).
-
-> Completing a shift automatically stamps `work_ended_at` if not already set.  
-> **Access**: Admin, admin_officer, master, grand_master.
-
----
-
 ###### On-Call Rostering & Callout Shifts
 
 Security and enforcement operations require 24/7 coverage. Rather than staffing full shifts around the clock, the system supports **on-call rostering** where officers are paid a fixed availability rate and only receive full shift pay when actually called out.
@@ -1018,10 +968,8 @@ On-call pay, callout pay, and travel allowances are combined per officer on the 
 | Page | Path | Purpose |
 |---|---|---|
 | PTT Radio | `/radio` | Push-to-Talk voice radio interface |
-| Radio Transmissions Log | `/radio-transmissions` | Full archive of all voice transmissions with expandable transcripts |
-| Voice Profiles & Consent | `/voice-profiles` | Manage officer voice profiles and consent records |
-| LMR Bridge | `/lmr-bridge` | Zello/radio gateway configuration and session log |
-| PTT Audit Dashboard | `/radio/audit` | Radio usage analytics, synthetic TTS audit, consent records |
+| PTT Transmission Log | `/ptt-log` | Archive of all PTT transmissions |
+| PTT Audit Dashboard | `/radio/audit` | Radio usage analytics and audit metrics |
 | Team Chat | `/messages` | Text-based team messaging |
 
 ---
@@ -1042,64 +990,20 @@ The PTT (Push-to-Talk) radio feature provides real-time voice communication betw
 Officers are assigned to one or more PTT channels via their user profile. Admins configure channel assignments in **User Management** → PTT Channel Access. By default, all officers in the same organisation share one primary channel.
 
 **Transcription and translation (Phase 1):**  
-When the inference service is connected, PTT transmissions are automatically transcribed. Transcripts are stored in `radio_transcript_segments` and are searchable from the Radio Transmissions Log. Translation to a secondary language is available when configured.
+When the inference service is connected, PTT transmissions are automatically transcribed. Transcripts are stored in `radio_transcript_segments` and are searchable from the PTT Transmission Log. Translation to a secondary language is available when configured.
 
 > **Voice consent**: Officers must provide consent before their voice profile is registered. Consent is managed via `radio_voice_consents` and is fully revocable at any time from their profile settings.
 
 ---
 
-###### Radio Transmissions Log (`/radio-transmissions`)
+###### PTT Transmission Log (`/ptt-log`)
 
-Full archive of all PTT and radio transmissions for the organisation, with expandable transcript rows.
+Full archive of all voice transmissions for the organisation.
 
-| Column | Description |
-|---|---|
-| Officer | Who transmitted |
-| Channel | PTT channel or LMR channel |
-| Duration | Length of transmission in seconds |
-| Start time | NZ time the transmission began |
-| Emergency | Whether an emergency flag was raised |
-| Transcript | Expandable — full AI-generated transcript with per-segment confidence scores |
-
-**Filters**: Date range, officer, channel, emergency-only toggle.  
-**Export**: CSV of all visible rows for compliance evidence.
-
-> **Access**: Admin, admin_officer, master, grand_master.
-
----
-
-###### Voice Profiles & Consent (`/voice-profiles`)
-
-Manage officer voice profiles and the consent records that govern TTS rendering.
-
-**Tabs:**
-
-- **Voice Profiles** — list of registered voice profiles; shows provider, language, status, and last-used timestamp. Admins can disable a profile.
-- **Consent Records** — full consent/revocation audit trail per officer. Click **Revoke** to immediately disable the profile and log a revocation reason.
-
-> Officer consent is required before a voice profile can be used for TTS synthesis. Revocation is permanent and takes effect immediately.
-
-**Access**: Admin, admin_officer, master, grand_master.
-
----
-
-###### LMR Bridge (`/lmr-bridge`)
-
-Connects the system to a Zello (or compatible) radio gateway for Land Mobile Radio bridging.
-
-**Configuration panel:**
-
-| Setting | Description |
-|---|---|
-| Gateway URL | Zello gateway WebSocket endpoint |
-| Radio Channel | Channel name on the LMR network |
-| Direction | `bidirectional`, `inbound`, or `outbound` |
-| Active | Toggle to enable/disable bridging |
-
-**Session log:** Shows recent LMR bridge sessions with start/end timestamps, channel, and direction.
-
-> Requires `ZELLO_GATEWAY_SECRET` environment variable configured on the edge function.  
-> **Access**: Admin, master, grand_master.
+- Searchable by date, officer, channel, and keyword (requires transcription enabled)
+- Each row shows: officer, channel, duration, transmission start time, and emergency flag
+- Click a row to play back the audio recording (if stored) and view the full transcript
+- Export for compliance or investigation purposes
 
 ---
 
@@ -1117,10 +1021,6 @@ Analytics on radio usage across the organisation.
 | **Low-confidence transcripts** | Transmissions where transcription confidence < threshold |
 | **Emergency transmissions** | Count of emergency-flagged broadcasts |
 | **Per-officer breakdown** | Individual radio activity summary |
-
-Also audits:
-- Voice twin consent records (active vs. revoked) — Group E.1
-- Synthetic TTS render records with audit tags — Group E.2, including 7-day render-volume chart
 
 > **Access**: Admin, admin_officer, master, grand_master.
 
@@ -1519,91 +1419,6 @@ Sidebar → **Data** group.
 10. Click **Commit** to write approved records to the live tables.
 
 **After importing:** Navigate to `/cleanup-recalculate` and run a compliance recalculation for the imported date range to ensure breach records are correctly generated from the imported observations.
-
----
-
-##### Intelligence & Records
-
-| Page | Path | Purpose |
-|---|---|---|
-| LOI Browser | `/loi-browser` | Browse Locations of Interest with hazard/address/GPS search |
-| Trespass Notices | `/trespass-notices` | Issue and manage trespass notices against persons of interest |
-| Access Permissions | `/access-permissions` | Grant or revoke zone access for specific persons |
-| Canonical Persons | `/canonical-persons` | View and search the canonical person registry with risk profiling |
-
----
-
-###### LOI Browser (`/loi-browser`)
-
-Dispatch-facing browse of the Locations of Interest (LOI) register. Officers and admins can quickly look up known locations — campsites, hazard points, restricted areas — by type, address, or GPS coordinates.
-
-**Filters:**
-
-| Filter | Options |
-|---|---|
-| LOI Kind | `camping_area`, `private_land`, `hazard`, `restricted`, `point_of_interest` |
-| Address search | Free-text match against recorded address |
-| Hazard flag | Toggle to show only hazard-flagged locations |
-
-**Map quick-view:** Click any row to copy GPS coordinates or open in the Operations Map.
-
-> **Access**: Admin, admin_officer, master, officer.
-
----
-
-###### Trespass Notices (`/trespass-notices`)
-
-Issue, track, and withdraw trespass notices against persons of interest.
-
-**KPIs:** Active notices · Issued today · Withdrawn · Expiring within 30 days.
-
-**Actions:**
-
-| Action | Who |
-|---|---|
-| Issue Notice | Admin / admin_officer — requires linked person record, zone, and expiry date |
-| Withdraw Notice | Admin / admin_officer — prompts for reason |
-
-**Filters:** Status (`active`, `expired`, `withdrawn`), notice type, officer, date range, keyword search.
-
-> Notices are linked to the `trespass_notices` table (a view into `persons_of_interest` trespass records). Expiry is enforced at the application layer.
-
-> **Access**: Admin, admin_officer, master, grand_master.
-
----
-
-###### Access Permissions (`/access-permissions`)
-
-Grant or revoke named-person zone access — for example, allowing a contractor to enter a restricted area.
-
-**Columns:** Person · Zone · Access type (`entry`, `patrol`, `maintenance`) · Valid from/to · Granted by · Status.
-
-**Actions:**
-
-| Action | Description |
-|---|---|
-| Grant Permission | Select person (from person records), zone, access type, validity window |
-| Revoke | Immediately marks the permission as revoked and logs a reason |
-
-> Uses the `access_permissions` table. Person and zone dropdowns are sourced from `person_records` and `zones` respectively.
-
-> **Access**: Admin, admin_officer, master, grand_master.
-
----
-
-###### Canonical Persons (`/canonical-persons`)
-
-View the canonical person registry — de-duplicated, cross-linked person identities aggregated from all officer observations, incident records, and enforcement history.
-
-**Search:** Full-name, alias, ID document number.
-
-**Filters:** Risk level (`high`, `medium`, `low`), identity verified flag, watch-list flag.
-
-**Detail panel (expandable):** DOB, known aliases, identity documents, linked observations and incidents, associated vehicles, trespass/POI status.
-
-> Read-only view. To update person details, use Person Records (`/person-records`).
-
-> **Access**: Admin, admin_officer, master, grand_master.
 
 ---
 

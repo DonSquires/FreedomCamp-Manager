@@ -15,12 +15,6 @@ When a pattern, platform, or architectural decision changes, append a dated note
 ## Current Standing Decisions
 
 - Date: 2026-05-06
-- Decision: Voice wake-word, STT, intent, and TTS should follow a modular self-hosted architecture using open model formats (ONNX/GGUF) with RunPod plus hPanel as primary runtime surfaces, while Railway remains proxy-only.
-- Scope: `ops/speech-intent/`, `docs/MODULAR_SPEECH_STACK_RUNBOOK.md`, RunPod endpoint wiring, hPanel speech-router deployment path.
-- Reason: reduce vendor lock-in from proprietary wake-word/intent SDK formats, keep model portability, and preserve direct operational control of speech infrastructure.
-- Consequences: new speech features should integrate through self-hosted provider endpoints, wake-word and intent modules must remain swappable, and rollout gates must verify self-hosted paths before production enablement.
-
-- Date: 2026-05-06
 - Decision: Bob must use the shared gateway plus named mutation contracts for execution-capable workflows, and execution-review metadata stays inside existing Bob memory JSONB context unless queryable schema is explicitly required.
 - Scope: `src/lib/edgeFunctions.ts`, `src/lib/bobSchemaRegistry.ts`, `src/lib/bobRouteEntityMap.ts`, `src/lib/bobMutationCatalog.ts`, `src/pages/AiAnalysis.tsx`, `src/pages/BobAssistantStudio.tsx`, `supabase/functions/onspace-ai-chat/index.ts`, `supabase/functions/grandmaster-studio/index.ts`, `supabase/functions/bob-code-change-task/index.ts`, `src/lib/bobLearningMemory.ts`.
 - Reason: Bob needed enterprise-grade route/schema awareness and controlled writes without arbitrary table mutation, plus a visible audit trail that fit the current schema safely.
