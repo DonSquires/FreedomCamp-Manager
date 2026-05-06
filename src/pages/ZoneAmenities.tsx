@@ -27,6 +27,7 @@ import {
 import { toast } from 'sonner'
 
 import { supabase } from '@/lib/supabase'
+import type { Database } from '@/types/database'
 import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Button } from '@/components/ui/button'
@@ -121,9 +122,9 @@ export default function ZoneAmenities() {
   // ── Mutation: save one zone ────────────────────────────────────────────────
   const saveMutation = useMutation({
     mutationFn: async ({ id, patch }: { id: string; patch: AmenityPatch }) => {
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from('zones')
-        .update(patch)
+        .update(patch as Database['public']['Tables']['zones']['Update'])
         .eq('id', id)
         .eq('organization_id', orgId as string)
       if (error) throw error

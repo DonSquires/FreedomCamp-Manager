@@ -65,7 +65,41 @@ Primary manuals and standards reviewed:
 
 ## Current Cycle Snapshot (2026-05-06)
 
-Material changes since commit `d3459ff5` (fix: resolve duplicate migration versions and workflow loop bug — PR #514):
+Material changes since commit `04b65a3d` (Sprint 14 — OnCallPeriods, CalloutShifts, OfficerAllowances, TravelAllowances):
+
+### New Pages — Sprint 14 (B-51/B-52/B-54/B-55)
+
+1. `src/pages/OnCallPeriods.tsx` — B-51: on_call_periods schedule/cancel/accept, officer filter, callout count deep-link
+2. `src/pages/CalloutShifts.tsx` — B-52: expandable timestamp+pay detail, complete/cancel
+3. `src/pages/OfficerAllowances.tsx` — B-54: tabbed allowances+types, approve/reject workflow
+4. `src/pages/TravelAllowances.tsx` — B-55: approve/reject with admin notes, deep-linked from CalloutShifts
+   - Note: on_call_periods, callout_shifts, allowance_types, officer_allowances, travel_allowances absent from database.ts — all use `(supabase as any)`
+
+### New Pages — Sprint 15 (B-53/B-56/B-57)
+
+1. `src/pages/ParkingAppeals.tsx` — B-53: staff review/decide workflow for parking appeals (received → under_review → upheld/dismissed/withdrawn); uses `(supabase as any)` (parking_appeals not in typed snapshot)
+2. `src/pages/CamperRegistrations.tsx` — B-56: admin view of camper stay registrations submitted via /public/register; mark departed/cancel; uses `(supabase as any)`
+3. `src/pages/ZoneAmenities.tsx` — B-57: bulk inline editor for zone facility flags + capacity/fee; uses fully typed client (zones columns are in database.ts)
+
+### Route / Nav Changes (Sprint 14+15)
+
+- 7 new routes: /on-call-periods, /callout-shifts, /officer-allowances, /travel-allowances, /parking-appeals, /camper-registrations, /zone-amenities
+- Route total updated: 122 → 129
+- Sidebar: Roster & Workforce and Management groups extended
+- AdminPortal Workforce tile section expanded with Sprint 14+15 entries
+
+### Validation
+
+1. Build: pass (`bun run build`)
+2. Lint: pass (`bun run lint` — 0 errors, 0 warnings)
+
+### Commit Trace
+
+1. `ea6afc65` — feat: Sprint 14
+2. `04b65a3d` — fix: resolve TypeScript errors in Sprint 14 pages
+3. `bbe0491f` — feat: Sprint 15 — ParkingAppeals, CamperRegistrations, ZoneAmenities
+
+
 
 ### Schema / Migration Contract Changes
 

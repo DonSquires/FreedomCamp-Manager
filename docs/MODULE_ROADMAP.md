@@ -1,7 +1,7 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-04 (verified against src App.tsx)
-Source of truth for routes: App router file src App.tsx (122 total routes as of Phase 4 completion)
+Source of truth for routes: App router file src App.tsx (129 total routes as of Sprint 15 completion)
 
 > **Last Verification**: 2026-05-04 — All 122 routes reviewed and role-gating validated. No changes since baseline a6e39a0f.
 
