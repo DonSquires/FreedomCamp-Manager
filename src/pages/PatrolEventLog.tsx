@@ -113,7 +113,7 @@ export default function PatrolEventLog() {
     total:        events.length,
     active:       events.filter(e => e.status === 'active').length,
     withPhotos:   events.filter(e => (e.photo_urls ?? []).length > 0).length,
-    uniqueCases:  new Set(events.map(e => e.case_id)).size,
+    uniqueCases:  new Set(events.filter(e => e.case_id).map(e => e.case_id)).size,
   }
 
   // ── Dynamic filter options ─────────────────────────────────────────────────
