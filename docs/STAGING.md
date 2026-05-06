@@ -201,7 +201,30 @@ Fill this before stopping work:
 - Open blockers with owner:
 - Next exact command to run:
 
-Latest Session Snapshot (Phase B Route-Access Shard Stabilization — 2026-05-05):
+Latest Session Snapshot (Sprint 13 Doc Review — 2026-05-06):
+
+- Timestamp (NZ): 2026-05-06 05:45 NZST
+- Current branch: copilot/review-doc-files-again
+- HEAD SHA: 59810a5c8808a8b8b099ee5c2837e9bbaa2af0fd
+- Working tree status (`git status -sb`): 3 docs modified (MODULE_ROADMAP.md, ENTERPRISE_PAIR_REVIEW_CANONICAL.md, STAGING.md)
+- Scope completed:
+  - Reviewed STAGING.md authority order, to-do list (Section 6), and session handoff protocol.
+  - Ran lint (pass), build (pass ~23s), route-roadmap coverage check, and doc-authority check.
+  - Identified 6 routes missing from MODULE_ROADMAP (from Sprint 13 App.tsx diff): /radio-transmissions, /voice-profiles, /trespass-notices, /access-permissions, /canonical-persons, /loi-browser.
+  - Updated docs/MODULE_ROADMAP.md: added all 6 missing routes to Compliance and enforcement, Identity and records, and Comms and PTT sections. Updated route count to 136.
+  - Updated docs/ENTERPRISE_PAIR_REVIEW_CANONICAL.md: added Sprint 13 cycle snapshot (B-44 through B-50, schema alignment migration, route count update, validation evidence).
+- Latest lint result: pass (`bun run lint`)
+- Latest build result: pass (`bun run build`, ~23s)
+- Latest targeted test result:
+  - Route-roadmap gate: pass (`ROUTE_ROADMAP_DIFF_RANGE=HEAD~1..HEAD node scripts/check-route-roadmap-coverage.mjs`)
+  - Doc-authority gate: pass (both MODULE_ROADMAP.md and ENTERPRISE_PAIR_REVIEW_CANONICAL.md updated)
+- Open blockers with owner:
+  - Section 6.F (Bob Governance): 4 unchecked items remain — Bob governance items are external deployment checks, no repo code changes required
+  - Phase A gate: 3 prerequisites still partial/external (org isolation 5-scenario harness, bootstrap routes E2E CI pass, GitHub team/Slack confirmation) — see docs/PHASE_B_GATE_STATUS.md
+- Next exact command to run:
+  - `cd /workspaces/FreedomCamp-Manager && DOC_AUTHORITY_STRICT=true bun run lint:doc-authority && ROUTE_ROADMAP_DIFF_RANGE=HEAD~1..HEAD node scripts/check-route-roadmap-coverage.mjs`
+
+
 
 Latest Session Snapshot (Phase B Quick Pair Revalidation — 2026-05-05):
 
