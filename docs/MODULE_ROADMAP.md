@@ -1,7 +1,7 @@
 # Module Roadmap (Operator Navigation Map)
 
 Date: 2026-05-04 (verified against src App.tsx)
-Source of truth for routes: App router file src App.tsx (129 total routes as of Sprint 15 completion)
+Source of truth for routes: App router file src App.tsx (132 total routes as of Sprint 16 completion)
 
 > **Last Verification**: 2026-05-04 — All 122 routes reviewed and role-gating validated. No changes since baseline a6e39a0f.
 
@@ -179,3 +179,22 @@ Operational impact:
 2. nzscv_monitor remains constrained to monitoring and account areas.
 3. client persona roles remain constrained to client portal and account areas.
 4. grand_master default landing remains /platform.
+
+## Sprint 16 Route Addendum (2026-05-06)
+
+New admin routes added in Sprint 16 (B-58, B-59, B-60):
+
+1. Noise Complaints Log (B-58)
+   - Route: /noise-complaints
+   - Role gate: admin, admin_officer, master
+   - Admin staff view of public_noise_complaints; status workflow (received → acknowledged → assigned → on_scene → resolved / no_action_taken)
+
+2. Patrol Event Log (B-59)
+   - Route: /patrol-events
+   - Role gate: admin, admin_officer, master
+   - Browse patrol_session_events (checkpoint_scan, checkpoint_missed, patrol_started, patrol_completed); officer/case/date filters
+
+3. Breach Escalation (B-60)
+   - Route: /breach-escalation
+   - Role gate: admin, admin_officer, master
+   - Escalation-focused view of dispatch_jobs (escalation_level >= 1 or sla_breached = true); KPI cards per escalation level

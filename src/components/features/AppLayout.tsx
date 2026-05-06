@@ -204,6 +204,7 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/patrol-checkpoints', icon: ScanLine, label: 'Checkpoints', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/patrol-schedule', icon: CalendarDays, label: 'Patrol Schedule', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/patrol-kpis', icon: TrendingUp, label: 'Patrol KPIs', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/patrol-events', icon: Route, label: 'Patrol Event Log', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
@@ -219,6 +220,8 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/dispatch-wizard', icon: Wand2, label: 'Dispatch Wizard', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/dispatched-jobs', icon: ListChecks, label: 'Dispatched Jobs', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/alarm-events', icon: Siren, label: 'Alarm Events', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/breach-escalation', icon: ShieldAlert, label: 'Breach Escalation', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/noise-complaints', icon: Volume2, label: 'Noise Complaints Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/patrol-route-optimiser', icon: Route, label: 'Route Optimiser', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/patrol-navigation', icon: Navigation2, label: 'Patrol Navigation', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/fixed-cameras', icon: Camera, label: 'Fixed Cameras', roles: ['admin', 'admin_officer', 'master'] },

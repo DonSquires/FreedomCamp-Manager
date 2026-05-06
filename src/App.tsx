@@ -158,6 +158,9 @@ const TravelAllowances = lazy(() => import('@/pages/TravelAllowances'))
 const ParkingAppeals = lazy(() => import('@/pages/ParkingAppeals'))
 const CamperRegistrations = lazy(() => import('@/pages/CamperRegistrations'))
 const ZoneAmenities = lazy(() => import('@/pages/ZoneAmenities'))
+const NoiseComplaintsLog = lazy(() => import('@/pages/NoiseComplaintsLog'))
+const PatrolEventLog = lazy(() => import('@/pages/PatrolEventLog'))
+const BreachEscalation = lazy(() => import('@/pages/BreachEscalation'))
 const MessagingPage = lazy(() => import('@/modules/messaging'))
 const IntelApprovalQueue = lazy(() => import('@/pages/IntelApprovalQueue'))
 const BobIntakeQueue = lazy(() => import('@/pages/BobIntakeQueue'))
@@ -1502,6 +1505,42 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <ZoneAmenities />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Noise Complaints Log (B-58) ─────────────────────────────── */}
+          <Route
+            path="/noise-complaints"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <NoiseComplaintsLog />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Patrol Event Log (B-59) ──────────────────────────────────── */}
+          <Route
+            path="/patrol-events"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <PatrolEventLog />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Breach Escalation (B-60) ─────────────────────────────────── */}
+          <Route
+            path="/breach-escalation"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <BreachEscalation />
                 </RoleRoute>
               </ProtectedRoute>
             }

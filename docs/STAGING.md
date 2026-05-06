@@ -2856,3 +2856,46 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - B-58: Patrol Debrief / after-action notes (patrol_sessions debrief_notes / debrief_submitted_at — may need migration)
 - B-59: Breach Escalation workflow UI (breach_reports escalation_level column)
 - B-60: Noise Control KPI dashboard (noise_complaints aggregations)
+
+---
+
+## Phase 5 — Sprint 16 (B-58 / B-59 / B-60)
+
+> All three tables (public_noise_complaints, patrol_session_events, dispatch_jobs) are fully typed in database.ts — no (supabase as any) required.
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/NoiseComplaintsLog.tsx` | New — B-58 admin staff view of public_noise_complaints; status workflow with notes dialog; KPI cards; noise type + status + date filters; expandable complainant/description detail |
+| `src/pages/PatrolEventLog.tsx` | New — B-59 patrol_session_events browser; event type colour-coding; officer/case/date filters; KPI cards (today, started, scanned, missed); expandable row |
+| `src/pages/BreachEscalation.tsx` | New — B-60 escalation-focused dispatch_jobs view (escalation_level >= 1 or sla_breached); KPI cards per level; job type/status/level filters; expandable job detail |
+| `src/App.tsx` | Lazy imports + routes: `/noise-complaints`, `/patrol-events`, `/breach-escalation` |
+| `src/components/features/AppLayout.tsx` | Sidebar: Patrol Event Log (Patrols group), Breach Escalation + Noise Complaints Log (Live Ops group) |
+| `src/pages/AdminPortal.tsx` | Patrol tile: Event Log; Specialist Portals: Noise Log + Escalation tiles; new icons: Route, ShieldAlert |
+| `src/navigation/routeManifest.ts` | 3 new entries: `noise.noise-complaints`, `patrols.patrol-events`, `enforcement.breach-escalation` |
+| `docs/MODULE_ROADMAP.md` | Route count 129 → 132; Sprint 16 addendum |
+
+### Sprint 16 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-58 | Noise Complaints Log admin view | ✅ |
+| B-59 | Patrol Event Log | ✅ |
+| B-60 | Breach Escalation dashboard | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+### Competitive Gap Board — Updated (post Sprint 16)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| Noise Control | B-58 Noise Complaints Log | — |
+| Patrols | B-59 Patrol Event Log | — |
+| Enforcement | B-60 Breach Escalation | — |
+
+**Next sprint candidates:**
+- B-61: Officer Performance Report (`/officer-performance`) — per-officer KPIs from patrol_session_events + breach_alerts
+- B-62: Site Risk Trends (`/site-risk-trends`) — trend charts from site_risk_assessments over time
+- B-63: Incident Heatmap overlay (`/incident-heatmap`) — map-based density view of incidents/breach_alerts by zone
