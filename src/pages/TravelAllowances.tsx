@@ -1,27 +1,39 @@
 /**
- * TravelAllowances — B-55
+ * TravelAllowances — Sprint 16 / B-55
  *
- * Travel allowance management with approve/reject workflow.
- * Deep-linkable from CalloutShifts via ?callout_shift_id=<id>.
+ * Admin management of travel allowances linked to callout shifts and roster shifts.
+ * Tables: travel_allowances — NOT in database.ts; uses (supabase as any).
  *
  * Features:
- *  - KPI cards: Pending / Approved / Rejected / Total Approved Pay
- *  - Approve / Reject actions with admin notes
- *  - Filter by status, officer, date range; deep-link pre-filter
- *  - Distance/time/total pay display
- *  - Link back to the callout shift
+ * - KPI strip: Pending / Approved / Total Pending $ / Total Approved $
+ * - Table with officer, status, journey-type filters and keyword search
+ * - URL param ?callout_shift_id=… to pre-filter from CalloutShifts page
+ * - Expandable row: origin/destination, distance, travel times, pay breakdown
+ * - Approve + Reject (with reason) row actions
+ * - Add manual travel allowance dialog
  *
- * Route: /travel-allowances  — admin/admin_officer/master
- * Note: travel_allowances not in database.ts snapshot — uses (supabase as any)
+ * Route: /travel-allowances
+ * Roles: admin, admin_officer, master
  */
 
-import { useState } from 'react'
-import { format, parseISO } from 'date-fns'
-import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { format } from 'date-fns'
+import { formatInTimeZone } from 'date-fns-tz'
 import {
-  Car, CheckCircle, XCircle, Clock, AlertCircle,
-  Loader2, RefreshCw, Filter, MapPin, Timer, DollarSign, Siren,
+  ArrowLeft,
+  Car,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  DollarSign,
+  MapPin,
+  Navigation,
+  Plus,
+  Search,
+  X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -30,7 +42,14 @@ import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -40,13 +59,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -57,22 +70,19 @@ import {
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── Types ──────────────────────────────────────────────────────────────────────
 
-interface OfficerOption {
-  id: string
-  full_name: string
-}
+type TravelStatus = 'pending' | 'approved' | 'rejected' | 'paid'
+type JourneyType = 'outbound' | 'return' | 'round_trip' | 'site_to_site'
 
 interface TravelAllowance {
   id: string
   organization_id: string
   officer_id: string
-  officer?: OfficerOption
   callout_shift_id: string | null
   roster_shift_id: string | null
   travel_date: string
-  journey_type: string
+  journey_type: JourneyType
   origin_address: string | null
   destination_address: string | null
   distance_km: number | null
@@ -87,379 +97,653 @@ interface TravelAllowance {
   distance_pay_amount: number | null
   time_pay_amount: number | null
   total_pay_amount: number | null
-  status: string
+  status: TravelStatus
   approved_by: string | null
   approved_at: string | null
   notes: string | null
   admin_notes: string | null
   created_at: string
+  updated_at: string
+  officer?: { first_name: string; last_name: string } | null
 }
 
-const STATUS_COLOURS: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  approved: 'bg-green-100 text-green-800',
-  rejected: 'bg-red-100 text-red-800',
-  paid: 'bg-blue-100 text-blue-800',
+interface Officer {
+  id: string
+  first_name: string
+  last_name: string
 }
 
-const JOURNEY_TYPE_LABELS: Record<string, string> = {
-  outbound: 'Outbound',
-  return: 'Return',
-  round_trip: 'Round Trip',
-  site_to_site: 'Site to Site',
+// ─── Constants ─────────────────────────────────────────────────────────────────
+
+const NZ_TZ = 'Pacific/Auckland'
+
+const STATUS_CONFIG: Record<TravelStatus, { label: string; color: string }> = {
+  pending:  { label: 'Pending',  color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' },
+  approved: { label: 'Approved', color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' },
+  rejected: { label: 'Rejected', color: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300' },
+  paid:     { label: 'Paid',     color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300' },
 }
 
-function fmtMoney(n: number | null) {
-  if (n == null) return '—'
-  return `$${Number(n).toFixed(2)}`
+const JOURNEY_TYPE_LABELS: Record<JourneyType, string> = {
+  outbound:     'Outbound',
+  return:       'Return',
+  round_trip:   'Round Trip',
+  site_to_site: 'Site-to-Site',
 }
 
-// ─── Component ───────────────────────────────────────────────────────────────
+// ─── Helpers ────────────────────────────────────────────────────────────────────
+
+function fmtCurrency(v: number | null) {
+  if (v == null) return '—'
+  return `$${v.toFixed(2)}`
+}
+
+function fmtKm(v: number | null) {
+  if (v == null) return '—'
+  return `${v.toFixed(1)} km`
+}
+
+function fmtTs(iso: string | null) {
+  if (!iso) return '—'
+  try { return formatInTimeZone(new Date(iso), NZ_TZ, 'HH:mm') } catch { return iso }
+}
+
+function officerName(t: TravelAllowance) {
+  if (!t.officer) return '—'
+  return [t.officer.first_name, t.officer.last_name].filter(Boolean).join(' ')
+}
+
+// ─── Detail Panel ───────────────────────────────────────────────────────────────
+
+function DetailPanel({ ta }: { ta: TravelAllowance }) {
+  return (
+    <div className="bg-muted/40 border-t px-5 py-4 grid grid-cols-1 sm:grid-cols-3 gap-x-8 gap-y-3 text-xs">
+      {/* Journey */}
+      <div>
+        <p className="font-medium text-muted-foreground mb-2">Journey</p>
+        <div className="space-y-1.5">
+          <div className="flex items-start gap-1.5">
+            <MapPin className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
+            <div>
+              <p className="text-muted-foreground text-[10px] uppercase tracking-wide">Origin</p>
+              <p>{ta.origin_address ?? '—'}</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-1.5">
+            <Navigation className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
+            <div>
+              <p className="text-muted-foreground text-[10px] uppercase tracking-wide">Destination</p>
+              <p>{ta.destination_address ?? '—'}</p>
+            </div>
+          </div>
+          {ta.travel_start_time && (
+            <div className="flex items-start gap-1.5">
+              <Clock className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
+              <div>
+                <p className="text-muted-foreground text-[10px] uppercase tracking-wide">Travel Window</p>
+                <p>{fmtTs(ta.travel_start_time)} → {fmtTs(ta.travel_end_time)}</p>
+                {ta.travel_duration_minutes != null && (
+                  <p className="text-muted-foreground">{ta.travel_duration_minutes} min</p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Distance breakdown */}
+      <div>
+        <p className="font-medium text-muted-foreground mb-2">Distance</p>
+        <div className="space-y-1">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Total</span>
+            <span>{fmtKm(ta.distance_km)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">In-jurisdiction</span>
+            <span>{fmtKm(ta.distance_in_jurisdiction_km)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Out-of-jurisdiction</span>
+            <span>{fmtKm(ta.distance_out_of_jurisdiction_km)}</span>
+          </div>
+          {ta.is_outside_jurisdiction && (
+            <Badge variant="secondary" className="text-[10px] mt-1">Outside jurisdiction</Badge>
+          )}
+        </div>
+        <p className="font-medium text-muted-foreground mb-2 mt-4">Rates Applied</p>
+        <div className="space-y-1">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Per km</span>
+            <span>{ta.rate_per_km != null ? `$${ta.rate_per_km.toFixed(4)}` : '—'}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Per hour</span>
+            <span>{fmtCurrency(ta.rate_per_hour)}/hr</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Pay */}
+      <div>
+        <p className="font-medium text-muted-foreground mb-2">Pay Breakdown</p>
+        <div className="space-y-1">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Distance pay</span>
+            <span>{fmtCurrency(ta.distance_pay_amount)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Time pay</span>
+            <span>{fmtCurrency(ta.time_pay_amount)}</span>
+          </div>
+          <div className="flex justify-between font-semibold border-t pt-1 mt-1 text-emerald-700 dark:text-emerald-400">
+            <span>Total Travel Pay</span>
+            <span>{fmtCurrency(ta.total_pay_amount)}</span>
+          </div>
+        </div>
+        {ta.notes && (
+          <div className="mt-4">
+            <p className="font-medium text-muted-foreground mb-1">Notes</p>
+            <p>{ta.notes}</p>
+          </div>
+        )}
+        {ta.admin_notes && (
+          <div className="mt-4">
+            <p className="font-medium text-muted-foreground mb-1">Admin Notes</p>
+            <p>{ta.admin_notes}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Add Travel Dialog ──────────────────────────────────────────────────────────
+
+interface AddTravelDialogProps {
+  open: boolean
+  onClose: () => void
+  onSubmit: (v: Record<string, any>) => void
+  isSaving: boolean
+  officers: Officer[]
+}
+
+function AddTravelDialog({ open, onClose, onSubmit, isSaving, officers }: AddTravelDialogProps) {
+  const [form, setForm] = useState({
+    officer_id: '',
+    travel_date: format(new Date(), 'yyyy-MM-dd'),
+    journey_type: 'round_trip' as JourneyType,
+    origin_address: '',
+    destination_address: '',
+    distance_km: '',
+    rate_per_km: '',
+    notes: '',
+  })
+  const set = (k: string) => (v: any) => setForm((f) => ({ ...f, [k]: v }))
+  const isValid = form.officer_id && form.travel_date && form.destination_address
+
+  const distancePay = form.distance_km && form.rate_per_km
+    ? (parseFloat(form.distance_km) * parseFloat(form.rate_per_km)).toFixed(2)
+    : null
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Car className="h-4 w-4 text-sky-500" />
+            Add Travel Allowance
+          </DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-3 py-1">
+          <div className="grid gap-1.5">
+            <Label>Officer <span className="text-red-500">*</span></Label>
+            <Select value={form.officer_id} onValueChange={set('officer_id')}>
+              <SelectTrigger><SelectValue placeholder="Select officer…" /></SelectTrigger>
+              <SelectContent>
+                {officers.map((o) => (
+                  <SelectItem key={o.id} value={o.id}>
+                    {[o.first_name, o.last_name].filter(Boolean).join(' ')}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-1.5">
+              <Label>Date <span className="text-red-500">*</span></Label>
+              <Input type="date" value={form.travel_date}
+                onChange={(e) => set('travel_date')(e.target.value)} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Journey Type</Label>
+              <Select value={form.journey_type} onValueChange={set('journey_type') as any}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(JOURNEY_TYPE_LABELS).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>{v}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid gap-1.5">
+            <Label>Origin</Label>
+            <Input value={form.origin_address}
+              onChange={(e) => set('origin_address')(e.target.value)}
+              placeholder="e.g. Christchurch City Office" />
+          </div>
+          <div className="grid gap-1.5">
+            <Label>Destination <span className="text-red-500">*</span></Label>
+            <Input value={form.destination_address}
+              onChange={(e) => set('destination_address')(e.target.value)}
+              placeholder="e.g. 42 Main Rd, Rangiora" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-1.5">
+              <Label>Distance (km)</Label>
+              <Input type="number" step="0.1" min="0" value={form.distance_km}
+                onChange={(e) => set('distance_km')(e.target.value)} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Rate per km (NZD)</Label>
+              <Input type="number" step="0.0001" min="0" value={form.rate_per_km}
+                onChange={(e) => set('rate_per_km')(e.target.value)} />
+            </div>
+          </div>
+          {distancePay && (
+            <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+              Estimated distance pay: ${distancePay}
+            </p>
+          )}
+          <div className="grid gap-1.5">
+            <Label>Notes</Label>
+            <Textarea rows={2} value={form.notes}
+              onChange={(e) => set('notes')(e.target.value)} placeholder="Optional notes…" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={isSaving}>Cancel</Button>
+          <Button onClick={() => onSubmit({
+            officer_id: form.officer_id,
+            travel_date: form.travel_date,
+            journey_type: form.journey_type,
+            origin_address: form.origin_address || null,
+            destination_address: form.destination_address,
+            distance_km: form.distance_km ? parseFloat(form.distance_km) : null,
+            rate_per_km: form.rate_per_km ? parseFloat(form.rate_per_km) : null,
+            distance_pay_amount: distancePay ? parseFloat(distancePay) : null,
+            total_pay_amount: distancePay ? parseFloat(distancePay) : null,
+            notes: form.notes || null,
+            status: 'pending',
+          })} disabled={isSaving || !isValid}>
+            {isSaving ? 'Saving…' : 'Add Travel Claim'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ─── Reject Dialog ──────────────────────────────────────────────────────────────
+
+function RejectDialog({
+  open, onClose, onSubmit, isSaving,
+}: {
+  open: boolean; onClose: () => void; onSubmit: (reason: string) => void; isSaving: boolean
+}) {
+  const [reason, setReason] = useState('')
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>Reject Travel Claim</DialogTitle></DialogHeader>
+        <div className="grid gap-2 py-2">
+          <Label>Reason (optional)</Label>
+          <Textarea rows={3} value={reason} onChange={(e) => setReason(e.target.value)}
+            placeholder="Explain why this claim is rejected…" />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={isSaving}>Cancel</Button>
+          <Button variant="destructive" onClick={() => onSubmit(reason)} disabled={isSaving}>
+            {isSaving ? 'Rejecting…' : 'Reject'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ─── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function TravelAllowances() {
-  const { user } = useAuthStore()
-  const orgId = user?.organization_id ?? ''
-  const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const deepLinkCalloutId = searchParams.get('callout_shift_id')
+  const { user } = useAuthStore()
+  const orgId = user?.organization_id ?? ''
+  const userId = user?.id ?? ''
+  const qc = useQueryClient()
 
-  const [officerFilter, setOfficerFilter] = useState('all')
+  const preFilterCalloutId = searchParams.get('callout_shift_id') ?? ''
+
   const [statusFilter, setStatusFilter] = useState('all')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+  const [officerFilter, setOfficerFilter] = useState('all')
+  const [journeyFilter, setJourneyFilter] = useState('all')
+  const [search, setSearch] = useState('')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
+  const [rejectTarget, setRejectTarget] = useState<string | null>(null)
 
-  // Approve/reject dialog
-  const [actionDialog, setActionDialog] = useState<{ id: string; action: 'approved' | 'rejected' } | null>(null)
-  const [adminNote, setAdminNote] = useState('')
-
-  // ── Fetch officers ──────────────────────────────────────────────────────────
-  const { data: officers = [] } = useQuery<OfficerOption[]>({
-    queryKey: ['travel-officers', orgId],
+  // ── Fetch travel allowances ────────────────────────────────────────────────
+  const { data: allowances = [], isLoading } = useQuery<TravelAllowance[]>({
+    queryKey: ['travel-allowances', orgId, preFilterCalloutId],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from('user_profiles')
-        .select('id, full_name')
-        .eq('organization_id', orgId)
-        .order('full_name')
-      if (error) throw error
-      return (data ?? []) as OfficerOption[]
-    },
-    enabled: !!orgId,
-  })
-
-  // ── Fetch travel allowances ─────────────────────────────────────────────────
-  const { data: allowances = [], isLoading, refetch } = useQuery<TravelAllowance[]>({
-    queryKey: ['travel-allowances', orgId, officerFilter, statusFilter, dateFrom, dateTo, deepLinkCalloutId],
-    queryFn: async () => {
+      if (!orgId) return []
       let q = (supabase as any)
         .from('travel_allowances')
-        .select(`
-          *,
-          officer:user_profiles!travel_allowances_officer_id_fkey(id, full_name)
-        `)
+        .select('*, officer:officer_id(first_name, last_name)')
         .eq('organization_id', orgId)
         .order('travel_date', { ascending: false })
-        .limit(200)
-
-      if (deepLinkCalloutId) q = q.eq('callout_shift_id', deepLinkCalloutId)
-      if (officerFilter !== 'all') q = q.eq('officer_id', officerFilter)
-      if (statusFilter !== 'all') q = q.eq('status', statusFilter)
-      if (dateFrom) q = q.gte('travel_date', dateFrom)
-      if (dateTo) q = q.lte('travel_date', dateTo)
-
+        .limit(300)
+      if (preFilterCalloutId) q = q.eq('callout_shift_id', preFilterCalloutId)
       const { data, error } = await q
+      if (error && (error.code === 'PGRST205' || error.code === '42P01')) return []
       if (error) throw error
       return (data ?? []) as TravelAllowance[]
     },
     enabled: !!orgId,
+    staleTime: 30_000,
+    retry: false,
   })
 
-  // ── KPIs ────────────────────────────────────────────────────────────────────
-  const kpis = {
-    pending: allowances.filter((a) => a.status === 'pending').length,
-    approved: allowances.filter((a) => a.status === 'approved').length,
-    rejected: allowances.filter((a) => a.status === 'rejected').length,
-    totalApproved: allowances
-      .filter((a) => ['approved', 'paid'].includes(a.status))
-      .reduce((s, a) => s + (a.total_pay_amount ?? 0), 0),
-    totalDistanceKm: allowances.reduce((s, a) => s + (a.distance_km ?? 0), 0),
-  }
+  // ── Fetch officers ─────────────────────────────────────────────────────────
+  const { data: officers = [] } = useQuery<Officer[]>({
+    queryKey: ['travel-officers', orgId],
+    queryFn: async () => {
+      if (!orgId) return []
+      const { data, error } = await (supabase as any)
+        .from('user_profiles')
+        .select('id, first_name, last_name')
+        .eq('organization_id', orgId)
+        .eq('is_active', true)
+        .in('role', ['officer', 'admin_officer'])
+        .order('first_name')
+      if (error) throw error
+      return (data ?? []) as Officer[]
+    },
+    enabled: !!orgId,
+  })
 
-  // ── Approve / Reject mutation ───────────────────────────────────────────────
-  const statusMutation = useMutation({
-    mutationFn: async ({ id, status, note }: { id: string; status: string; note: string }) => {
-      const update: Record<string, any> = {
-        status,
-        admin_notes: note || null,
-      }
-      if (status === 'approved') {
-        update.approved_at = new Date().toISOString()
-      }
+  // ── KPIs ──────────────────────────────────────────────────────────────────
+  const kpis = useMemo(() => ({
+    pending:  allowances.filter((a) => a.status === 'pending').length,
+    approved: allowances.filter((a) => a.status === 'approved' || a.status === 'paid').length,
+    pendingAmt: allowances
+      .filter((a) => a.status === 'pending')
+      .reduce((s, a) => s + (a.total_pay_amount ?? 0), 0),
+    approvedAmt: allowances
+      .filter((a) => a.status === 'approved' || a.status === 'paid')
+      .reduce((s, a) => s + (a.total_pay_amount ?? 0), 0),
+  }), [allowances])
+
+  // ── Filtered ──────────────────────────────────────────────────────────────
+  const filtered = useMemo(() => allowances.filter((a) => {
+    if (statusFilter !== 'all' && a.status !== statusFilter) return false
+    if (officerFilter !== 'all' && a.officer_id !== officerFilter) return false
+    if (journeyFilter !== 'all' && a.journey_type !== journeyFilter) return false
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      const name = officerName(a).toLowerCase()
+      const dest = (a.destination_address ?? '').toLowerCase()
+      if (!name.includes(q) && !dest.includes(q)) return false
+    }
+    return true
+  }), [allowances, statusFilter, officerFilter, journeyFilter, search])
+
+  // ── Mutations ──────────────────────────────────────────────────────────────
+  const approveMutation = useMutation({
+    mutationFn: async (id: string) => {
       const { error } = await (supabase as any)
         .from('travel_allowances')
-        .update(update)
+        .update({ status: 'approved', approved_by: userId, approved_at: new Date().toISOString() })
         .eq('id', id)
-        .eq('organization_id', orgId)
       if (error) throw error
     },
-    onSuccess: (_, vars) => {
-      toast.success(`Travel allowance ${vars.status}`)
-      setActionDialog(null)
-      setAdminNote('')
-      queryClient.invalidateQueries({ queryKey: ['travel-allowances'] })
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['travel-allowances'] })
+      toast.success('Travel claim approved')
     },
-    onError: (err: any) => toast.error(err.message ?? 'Update failed'),
+    onError: (e: any) => toast.error(e?.message || 'Failed to approve'),
+  })
+
+  const rejectMutation = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      const { error } = await (supabase as any)
+        .from('travel_allowances')
+        .update({ status: 'rejected', admin_notes: reason || null })
+        .eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['travel-allowances'] })
+      toast.success('Travel claim rejected')
+      setRejectTarget(null)
+    },
+    onError: (e: any) => toast.error(e?.message || 'Failed to reject'),
+  })
+
+  const addMutation = useMutation({
+    mutationFn: async (values: Record<string, any>) => {
+      const { error } = await (supabase as any)
+        .from('travel_allowances')
+        .insert({ ...values, organization_id: orgId })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['travel-allowances'] })
+      toast.success('Travel claim added')
+      setAddOpen(false)
+    },
+    onError: (e: any) => toast.error(e?.message || 'Failed to add claim'),
   })
 
   return (
-    <AppLayout>
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Car className="h-6 w-6 text-primary" />
-              Travel Allowances
-            </h1>
-            <p className="text-muted-foreground text-sm mt-1">
-              Review and approve officer travel claims
-              {deepLinkCalloutId && (
-                <span className="ml-2 text-primary font-medium">
-                  — filtered by callout shift
-                  <button
-                    className="ml-1 underline text-xs"
-                    onClick={() => navigate('/travel-allowances')}
-                  >
-                    Clear
-                  </button>
-                </span>
-              )}
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => refetch()}>
-              <RefreshCw className="h-4 w-4 mr-1" /> Refresh
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => navigate('/callout-shifts')}>
-              <Siren className="h-4 w-4 mr-1" /> Callout Shifts
-            </Button>
-          </div>
+    <AppLayout
+      title="Travel Allowances"
+      description="Review and approve travel claims from callout shifts and rostered patrols"
+    >
+      {/* Back nav */}
+      <div className="mb-4 flex items-center gap-3">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/callout-shifts')}
+          className="gap-1.5 text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Callout Shifts
+        </Button>
+        {preFilterCalloutId && (
+          <Badge variant="secondary" className="text-xs gap-1.5">
+            Filtered by callout shift
+            <button className="hover:text-foreground" onClick={() => navigate('/travel-allowances')}>
+              <X className="h-3 w-3" />
+            </button>
+          </Badge>
+        )}
+      </div>
+
+      {/* KPIs */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        {[
+          { label: 'Pending',         value: kpis.pending,                       Icon: Clock,        color: 'text-amber-600' },
+          { label: 'Approved',        value: kpis.approved,                      Icon: CheckCircle2, color: 'text-emerald-600' },
+          { label: 'Pending Amount',  value: fmtCurrency(kpis.pendingAmt),       Icon: DollarSign,   color: 'text-amber-600', raw: true },
+          { label: 'Approved Amount', value: fmtCurrency(kpis.approvedAmt),      Icon: Car,          color: 'text-emerald-600', raw: true },
+        ].map(({ label, value, Icon, color }) => (
+          <Card key={label}>
+            <CardContent className="pt-4 pb-3 flex items-center gap-3">
+              <Icon className={`h-5 w-5 shrink-0 ${color}`} />
+              <div>
+                <p className="text-xl font-bold leading-tight">{isLoading ? '—' : value}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search officer, destination…" className="pl-8 w-52 h-8 text-xs" />
         </div>
-
-        {/* KPI Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          {[
-            { label: 'Pending', value: kpis.pending, icon: Clock, colour: 'text-yellow-600' },
-            { label: 'Approved', value: kpis.approved, icon: CheckCircle, colour: 'text-green-600' },
-            { label: 'Rejected', value: kpis.rejected, icon: XCircle, colour: 'text-red-600' },
-            { label: 'Total Approved', value: fmtMoney(kpis.totalApproved), icon: DollarSign, colour: 'text-emerald-600' },
-            { label: 'Total km', value: `${kpis.totalDistanceKm.toFixed(1)} km`, icon: MapPin, colour: 'text-blue-600' },
-          ].map(({ label, value, icon: Icon, colour }) => (
-            <Card key={label}>
-              <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">{label}</p>
-                    <p className="text-xl font-bold">{value}</p>
-                  </div>
-                  <Icon className={`h-7 w-7 ${colour} opacity-70`} />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-32 h-8 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            {Object.entries(STATUS_CONFIG).map(([k, v]) => (
+              <SelectItem key={k} value={k}>{v.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={officerFilter} onValueChange={setOfficerFilter}>
+          <SelectTrigger className="w-44 h-8 text-xs"><SelectValue placeholder="Officer" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All officers</SelectItem>
+            {officers.map((o) => (
+              <SelectItem key={o.id} value={o.id}>
+                {[o.first_name, o.last_name].filter(Boolean).join(' ')}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={journeyFilter} onValueChange={setJourneyFilter}>
+          <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Journey" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All journeys</SelectItem>
+            {Object.entries(JOURNEY_TYPE_LABELS).map(([k, v]) => (
+              <SelectItem key={k} value={k}>{v}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="ml-auto">
+          <Button size="sm" className="h-8 gap-1.5" onClick={() => setAddOpen(true)}>
+            <Plus className="h-3.5 w-3.5" />Add Claim
+          </Button>
         </div>
+      </div>
 
-        {/* Filters */}
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex flex-wrap gap-3 items-end">
-              <div>
-                <Label className="text-xs">Officer</Label>
-                <Select value={officerFilter} onValueChange={setOfficerFilter}>
-                  <SelectTrigger className="h-8 text-sm w-44">
-                    <SelectValue placeholder="All officers" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Officers</SelectItem>
-                    {officers.map((o) => (
-                      <SelectItem key={o.id} value={o.id}>{o.full_name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">Status</Label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="h-8 text-sm w-36">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="approved">Approved</SelectItem>
-                    <SelectItem value="rejected">Rejected</SelectItem>
-                    <SelectItem value="paid">Paid</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">Date From</Label>
-                <Input type="date" className="h-8 text-sm w-36" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-              </div>
-              <div>
-                <Label className="text-xs">Date To</Label>
-                <Input type="date" className="h-8 text-sm w-36" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-              </div>
-              <Button variant="ghost" size="sm" onClick={() => { setOfficerFilter('all'); setStatusFilter('all'); setDateFrom(''); setDateTo('') }}>
-                <Filter className="h-3 w-3 mr-1" /> Clear
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Travel Claims ({allowances.length})</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {isLoading ? (
-              <div className="flex justify-center items-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : allowances.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <AlertCircle className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                <p>No travel claims found</p>
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Officer</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Journey</TableHead>
-                    <TableHead>Destination</TableHead>
-                    <TableHead className="text-right">Distance</TableHead>
-                    <TableHead className="text-right">Duration</TableHead>
-                    <TableHead className="text-right">Total Pay</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Outside Jx</TableHead>
-                    <TableHead />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {allowances.map((a) => (
-                    <TableRow key={a.id}>
-                      <TableCell className="text-sm font-medium">{a.officer?.full_name ?? '—'}</TableCell>
-                      <TableCell className="text-sm whitespace-nowrap">
-                        {a.travel_date ? format(parseISO(a.travel_date), 'dd MMM yyyy') : '—'}
+      {/* Table */}
+      <Card>
+        <div className="rounded-xl overflow-hidden border">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead className="text-xs w-6" />
+                <TableHead className="text-xs">Officer</TableHead>
+                <TableHead className="text-xs">Date</TableHead>
+                <TableHead className="text-xs">Journey</TableHead>
+                <TableHead className="text-xs">Destination</TableHead>
+                <TableHead className="text-xs">Distance</TableHead>
+                <TableHead className="text-xs">Total Pay</TableHead>
+                <TableHead className="text-xs">Status</TableHead>
+                <TableHead className="text-xs">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={i}><TableCell colSpan={9}><Skeleton className="h-4 w-full" /></TableCell></TableRow>
+                ))
+              ) : filtered.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="text-center text-sm text-muted-foreground py-10">
+                    No travel claims match the current filters.
+                  </TableCell>
+                </TableRow>
+              ) : filtered.map((ta) => {
+                const isExpanded = expandedId === ta.id
+                const statusCfg = STATUS_CONFIG[ta.status] ?? STATUS_CONFIG.pending
+                return (
+                  <>
+                    <TableRow key={ta.id} className="cursor-pointer hover:bg-muted/30"
+                      onClick={() => setExpandedId(isExpanded ? null : ta.id)}>
+                      <TableCell className="py-2 pl-3 pr-0">
+                        {isExpanded
+                          ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                          : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
                       </TableCell>
-                      <TableCell className="text-sm">{JOURNEY_TYPE_LABELS[a.journey_type] ?? a.journey_type}</TableCell>
-                      <TableCell className="text-sm max-w-[160px] truncate">
-                        {a.destination_address
-                          ? <><MapPin className="h-3 w-3 inline mr-1 text-muted-foreground" />{a.destination_address}</>
-                          : <span className="text-muted-foreground">—</span>
-                        }
+                      <TableCell className="py-2 text-sm font-medium">{officerName(ta)}</TableCell>
+                      <TableCell className="py-2 text-xs text-muted-foreground whitespace-nowrap">
+                        {ta.travel_date}
                       </TableCell>
-                      <TableCell className="text-right text-sm">
-                        {a.distance_km != null ? `${Number(a.distance_km).toFixed(1)} km` : '—'}
+                      <TableCell className="py-2 text-xs">
+                        {JOURNEY_TYPE_LABELS[ta.journey_type] ?? ta.journey_type}
                       </TableCell>
-                      <TableCell className="text-right text-sm">
-                        {a.travel_duration_minutes != null
-                          ? `${Math.floor(a.travel_duration_minutes / 60)}h ${a.travel_duration_minutes % 60}m`
-                          : '—'
-                        }
+                      <TableCell className="py-2 text-xs text-muted-foreground max-w-[140px] truncate"
+                        title={ta.destination_address ?? undefined}>
+                        {ta.destination_address ?? '—'}
                       </TableCell>
-                      <TableCell className="text-right text-sm font-medium">{fmtMoney(a.total_pay_amount)}</TableCell>
-                      <TableCell>
-                        <Badge className={STATUS_COLOURS[a.status] ?? ''}>{a.status}</Badge>
+                      <TableCell className="py-2 text-xs">
+                        {fmtKm(ta.distance_km)}
                       </TableCell>
-                      <TableCell>
-                        {a.is_outside_jurisdiction ? (
-                          <Badge variant="outline" className="text-orange-600 border-orange-300 text-xs">Yes</Badge>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">No</span>
-                        )}
+                      <TableCell className="py-2 text-xs font-medium">
+                        {fmtCurrency(ta.total_pay_amount)}
                       </TableCell>
-                      <TableCell>
-                        {a.status === 'pending' && (
-                          <div className="flex gap-1">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs text-green-700 border-green-300"
-                              onClick={() => setActionDialog({ id: a.id, action: 'approved' })}
-                            >
+                      <TableCell className="py-2">
+                        <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${statusCfg.color}`}>
+                          {statusCfg.label}
+                        </span>
+                      </TableCell>
+                      <TableCell className="py-2">
+                        {ta.status === 'pending' && (
+                          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                            <Button variant="ghost" size="sm"
+                              className="h-6 px-2 text-[10px] text-emerald-700 hover:text-emerald-900"
+                              onClick={() => approveMutation.mutate(ta.id)}
+                              disabled={approveMutation.isPending}>
                               Approve
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 text-xs text-red-600 hover:text-red-700"
-                              onClick={() => setActionDialog({ id: a.id, action: 'rejected' })}
-                            >
+                            <Button variant="ghost" size="sm"
+                              className="h-6 px-2 text-[10px] text-red-700 hover:text-red-900"
+                              onClick={() => setRejectTarget(ta.id)}>
                               Reject
                             </Button>
                           </div>
                         )}
-                        {a.callout_shift_id && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 text-xs"
-                            onClick={() => navigate(`/callout-shifts?on_call_period_id=${a.callout_shift_id}`)}
-                          >
-                            <Siren className="h-3 w-3 mr-1" /> Callout
-                          </Button>
-                        )}
                       </TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                    {isExpanded && (
+                      <TableRow key={`${ta.id}-detail`}>
+                        <TableCell colSpan={9} className="p-0">
+                          <DetailPanel ta={ta} />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </>
+                )
+              })}
+            </TableBody>
+          </Table>
+        </div>
+        {!isLoading && filtered.length > 0 && (
+          <div className="px-4 py-2 text-xs text-muted-foreground border-t">
+            {filtered.length} of {allowances.length} claim{allowances.length !== 1 ? 's' : ''}
+          </div>
+        )}
+      </Card>
 
-      {/* Approve/Reject Dialog */}
-      {actionDialog && (
-        <Dialog open onOpenChange={() => { setActionDialog(null); setAdminNote('') }}>
-          <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <DialogTitle>
-                {actionDialog.action === 'approved' ? 'Approve' : 'Reject'} Travel Claim
-              </DialogTitle>
-            </DialogHeader>
-            <div className="py-2 space-y-3">
-              <div>
-                <Label>Admin Notes (optional)</Label>
-                <Textarea
-                  placeholder={actionDialog.action === 'rejected' ? 'Reason for rejection...' : 'Optional notes...'}
-                  value={adminNote}
-                  onChange={(e) => setAdminNote(e.target.value)}
-                  rows={3}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => { setActionDialog(null); setAdminNote('') }}>Cancel</Button>
-              <Button
-                variant={actionDialog.action === 'approved' ? 'default' : 'destructive'}
-                onClick={() => statusMutation.mutate({ id: actionDialog.id, status: actionDialog.action, note: adminNote })}
-                disabled={statusMutation.isPending}
-              >
-                {statusMutation.isPending
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                  : actionDialog.action === 'approved' ? 'Approve' : 'Reject'
-                }
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      <AddTravelDialog
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onSubmit={(v) => addMutation.mutate(v)}
+        isSaving={addMutation.isPending}
+        officers={officers}
+      />
+      <RejectDialog
+        open={!!rejectTarget}
+        onClose={() => setRejectTarget(null)}
+        onSubmit={(reason) => rejectTarget && rejectMutation.mutate({ id: rejectTarget, reason })}
+        isSaving={rejectMutation.isPending}
+      />
     </AppLayout>
   )
 }

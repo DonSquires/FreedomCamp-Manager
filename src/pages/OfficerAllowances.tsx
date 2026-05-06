@@ -1,26 +1,43 @@
 /**
- * OfficerAllowances — B-54
+ * OfficerAllowances — Sprint 16 / B-54
  *
- * Allowance management with two tabs:
- *  - Allowances: manage officer_allowances (assign, approve, reject)
- *  - Types:      manage allowance_types (create, edit, toggle active)
+ * Manages allowance types (admin-defined categories) and officer allowance
+ * records (individual assignments with approval workflow).
  *
- * Features:
- *  - KPI cards: Pending / Approved / Rejected / Total Paid
- *  - Approve / Reject workflow for submitted allowances
- *  - Type management: code, name, category, rate_type, default_rate, requires_approval
+ * Tables: allowance_types, officer_allowances — NOT in database.ts; uses (supabase as any).
  *
- * Route: /officer-allowances  — admin/admin_officer/master
- * Note: allowance_types/officer_allowances not in database.ts — uses (supabase as any)
+ * Tabs:
+ *   1. Allowances — list of officer_allowances with approve/reject actions
+ *   2. Types      — CRUD for allowance_types
+ *
+ * Features per tab:
+ *   Allowances: KPIs (Pending / Approved / Total $), officer/status/category filters,
+ *               approve + reject (with reason) row actions.
+ *   Types: list allowance_types with add + toggle-active actions.
+ *
+ * Route: /officer-allowances
+ * Roles: admin, admin_officer, master
  */
 
-import { useState } from 'react'
-import { format, parseISO } from 'date-fns'
+import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
+import { format } from 'date-fns'
 import {
-  BadgeDollarSign, CheckCircle, XCircle, Clock, AlertCircle,
-  Loader2, Plus, RefreshCw, Settings, List, Pencil, Trash2,
+  ArrowLeft,
+  BadgeDollarSign,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Clock,
   DollarSign,
+  Layers,
+  Plus,
+  Search,
+  Sliders,
+  Tag,
+  X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -29,10 +46,16 @@ import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Select,
   SelectContent,
@@ -40,13 +63,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -55,9 +72,17 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── Types ──────────────────────────────────────────────────────────────────────
+
+type AllowanceStatus = 'pending' | 'approved' | 'rejected' | 'paid' | 'cancelled'
+type RateType = 'flat' | 'hourly' | 'daily' | 'percentage' | 'per_km' | 'per_unit'
+type AllowanceCategory =
+  | 'higher_duties' | 'meal' | 'uniform' | 'travel' | 'on_call' | 'tool'
+  | 'first_aid' | 'training' | 'remote' | 'hazard' | 'shift' | 'general' | 'custom'
 
 interface AllowanceType {
   id: string
@@ -65,14 +90,12 @@ interface AllowanceType {
   code: string
   name: string
   description: string | null
-  category: string
-  rate_type: string
+  category: AllowanceCategory
+  rate_type: RateType
   default_rate: number | null
-  currency: string
   is_taxable: boolean
   requires_approval: boolean
   is_active: boolean
-  is_system: boolean
   created_at: string
 }
 
@@ -80,632 +103,874 @@ interface OfficerAllowance {
   id: string
   organization_id: string
   officer_id: string
-  officer?: { full_name: string; call_sign: string | null }
   allowance_type_id: string
-  allowance_type?: AllowanceType
   effective_date: string
   end_date: string | null
-  quantity: number | null
-  rate: number | null
+  rate: number
+  rate_type: RateType
+  quantity: number
   total_amount: number | null
-  status: string
+  acting_role: string | null
+  status: AllowanceStatus
   approved_by: string | null
   approved_at: string | null
+  rejection_reason: string | null
   notes: string | null
   created_at: string
+  officer?: { first_name: string; last_name: string } | null
+  allowance_type?: { name: string; category: AllowanceCategory; code: string } | null
 }
 
-interface OfficerOption {
+interface Officer {
   id: string
-  full_name: string
-  call_sign: string | null
+  first_name: string
+  last_name: string
 }
 
-const CATEGORY_LABELS: Record<string, string> = {
+// ─── Constants ─────────────────────────────────────────────────────────────────
+
+const STATUS_CONFIG: Record<AllowanceStatus, { label: string; color: string }> = {
+  pending:   { label: 'Pending',   color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' },
+  approved:  { label: 'Approved',  color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' },
+  rejected:  { label: 'Rejected',  color: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300' },
+  paid:      { label: 'Paid',      color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300' },
+  cancelled: { label: 'Cancelled', color: 'bg-gray-100 text-gray-600 dark:bg-gray-800/50 dark:text-gray-400' },
+}
+
+const CATEGORY_LABELS: Record<AllowanceCategory, string> = {
   higher_duties: 'Higher Duties',
-  meal: 'Meal',
-  uniform: 'Uniform',
-  travel: 'Travel',
-  on_call: 'On-Call',
-  tool: 'Tool/Equipment',
-  first_aid: 'First Aid',
-  training: 'Training',
-  remote: 'Remote/Isolated',
-  hazard: 'Hazardous Duty',
-  shift: 'Shift Loading',
-  general: 'General',
-  custom: 'Custom',
+  meal:          'Meal',
+  uniform:       'Uniform',
+  travel:        'Travel',
+  on_call:       'On-Call',
+  tool:          'Tool/Equipment',
+  first_aid:     'First Aid',
+  training:      'Training',
+  remote:        'Remote Location',
+  hazard:        'Hazardous Duty',
+  shift:         'Shift Loading',
+  general:       'General',
+  custom:        'Custom',
 }
 
-const RATE_TYPE_LABELS: Record<string, string> = {
-  flat: 'Flat (per occurrence)',
-  hourly: 'Hourly',
-  daily: 'Daily',
-  percentage: 'Percentage of base pay',
-  per_km: 'Per km',
-  per_unit: 'Per unit',
+const RATE_TYPE_LABELS: Record<RateType, string> = {
+  flat:       'Flat',
+  hourly:     '/hr',
+  daily:      '/day',
+  percentage: '%',
+  per_km:     '/km',
+  per_unit:   '/unit',
 }
 
-const STATUS_COLOURS: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  approved: 'bg-green-100 text-green-800',
-  rejected: 'bg-red-100 text-red-800',
-  paid: 'bg-blue-100 text-blue-800',
-  cancelled: 'bg-gray-100 text-gray-700',
+// ─── Helpers ────────────────────────────────────────────────────────────────────
+
+function fmtCurrency(v: number | null) {
+  if (v == null) return '—'
+  return `$${v.toFixed(2)}`
 }
 
-const EMPTY_TYPE_FORM = {
-  code: '', name: '', description: '', category: 'general',
-  rate_type: 'flat', default_rate: '', requires_approval: false,
+function officerName(a: OfficerAllowance) {
+  if (!a.officer) return '—'
+  return [a.officer.first_name, a.officer.last_name].filter(Boolean).join(' ')
 }
 
-const EMPTY_ALLOWANCE_FORM = {
-  officer_id: '', allowance_type_id: '',
-  effective_date: '', end_date: '',
-  quantity: '', rate: '', notes: '',
+// ─── Add Allowance Type Dialog ──────────────────────────────────────────────────
+
+interface AddTypeDialogProps {
+  open: boolean
+  onClose: () => void
+  onSubmit: (v: Record<string, any>) => void
+  isSaving: boolean
 }
 
-// ─── Component ───────────────────────────────────────────────────────────────
+function AddTypeDialog({ open, onClose, onSubmit, isSaving }: AddTypeDialogProps) {
+  const [form, setForm] = useState({
+    code: '', name: '', description: '',
+    category: 'general' as AllowanceCategory,
+    rate_type: 'flat' as RateType,
+    default_rate: '',
+    is_taxable: true,
+    requires_approval: true,
+  })
+  const set = (k: string) => (v: any) => setForm((f) => ({ ...f, [k]: v }))
+  const isValid = form.code.trim() && form.name.trim()
 
-export default function OfficerAllowances() {
-  const { user } = useAuthStore()
-  const orgId = user?.organization_id ?? ''
-  const queryClient = useQueryClient()
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Tag className="h-4 w-4 text-violet-500" />
+            New Allowance Type
+          </DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-3 py-1">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-1.5">
+              <Label>Code <span className="text-red-500">*</span></Label>
+              <Input placeholder="e.g. HD" value={form.code} onChange={(e) => set('code')(e.target.value.toUpperCase())} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Name <span className="text-red-500">*</span></Label>
+              <Input placeholder="Higher Duties" value={form.name} onChange={(e) => set('name')(e.target.value)} />
+            </div>
+          </div>
+          <div className="grid gap-1.5">
+            <Label>Category</Label>
+            <Select value={form.category} onValueChange={set('category') as any}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
+                  <SelectItem key={k} value={k}>{v}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-1.5">
+              <Label>Rate Type</Label>
+              <Select value={form.rate_type} onValueChange={set('rate_type') as any}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(RATE_TYPE_LABELS).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>{k} ({v})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Default Rate (NZD)</Label>
+              <Input type="number" step="0.01" min="0" value={form.default_rate}
+                onChange={(e) => set('default_rate')(e.target.value)} />
+            </div>
+          </div>
+          <div className="grid gap-1.5">
+            <Label>Description</Label>
+            <Input value={form.description} onChange={(e) => set('description')(e.target.value)}
+              placeholder="Optional description…" />
+          </div>
+          <div className="flex items-center gap-6 pt-1">
+            <div className="flex items-center gap-2">
+              <Switch checked={form.is_taxable} onCheckedChange={set('is_taxable')} id="taxable" />
+              <Label htmlFor="taxable" className="cursor-pointer">Taxable</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={form.requires_approval} onCheckedChange={set('requires_approval')} id="approval" />
+              <Label htmlFor="approval" className="cursor-pointer">Requires Approval</Label>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={isSaving}>Cancel</Button>
+          <Button onClick={() => onSubmit({
+            ...form,
+            default_rate: form.default_rate ? parseFloat(form.default_rate) : null,
+            description: form.description || null,
+          })} disabled={isSaving || !isValid}>
+            {isSaving ? 'Saving…' : 'Create Type'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
-  const [tab, setTab] = useState('allowances')
+// ─── Add Allowance Dialog ───────────────────────────────────────────────────────
+
+interface AddAllowanceDialogProps {
+  open: boolean
+  onClose: () => void
+  onSubmit: (v: Record<string, any>) => void
+  isSaving: boolean
+  officers: Officer[]
+  types: AllowanceType[]
+}
+
+function AddAllowanceDialog({ open, onClose, onSubmit, isSaving, officers, types }: AddAllowanceDialogProps) {
+  const [form, setForm] = useState({
+    officer_id: '',
+    allowance_type_id: '',
+    effective_date: format(new Date(), 'yyyy-MM-dd'),
+    rate: '',
+    rate_type: 'flat' as RateType,
+    quantity: '1',
+    acting_role: '',
+    notes: '',
+  })
+  const set = (k: string) => (v: any) => setForm((f) => ({ ...f, [k]: v }))
+
+  // Pre-fill rate from selected type
+  const selectedType = types.find((t) => t.id === form.allowance_type_id)
+
+  const handleTypeChange = (typeId: string) => {
+    const t = types.find((x) => x.id === typeId)
+    setForm((f) => ({
+      ...f,
+      allowance_type_id: typeId,
+      rate: t?.default_rate != null ? String(t.default_rate) : f.rate,
+      rate_type: t?.rate_type ?? f.rate_type,
+    }))
+  }
+
+  const isValid = form.officer_id && form.allowance_type_id && form.rate && form.effective_date
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <BadgeDollarSign className="h-4 w-4 text-emerald-500" />
+            Add Allowance
+          </DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-3 py-1">
+          <div className="grid gap-1.5">
+            <Label>Officer <span className="text-red-500">*</span></Label>
+            <Select value={form.officer_id} onValueChange={set('officer_id')}>
+              <SelectTrigger><SelectValue placeholder="Select officer…" /></SelectTrigger>
+              <SelectContent>
+                {officers.map((o) => (
+                  <SelectItem key={o.id} value={o.id}>
+                    {[o.first_name, o.last_name].filter(Boolean).join(' ')}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-1.5">
+            <Label>Allowance Type <span className="text-red-500">*</span></Label>
+            <Select value={form.allowance_type_id} onValueChange={handleTypeChange}>
+              <SelectTrigger><SelectValue placeholder="Select type…" /></SelectTrigger>
+              <SelectContent>
+                {types.filter((t) => t.is_active).map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.code} — {t.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="grid gap-1.5">
+              <Label>Rate <span className="text-red-500">*</span></Label>
+              <Input type="number" step="0.01" min="0" value={form.rate}
+                onChange={(e) => set('rate')(e.target.value)} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Rate Type</Label>
+              <Select value={form.rate_type} onValueChange={set('rate_type') as any}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(RATE_TYPE_LABELS).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>{k}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Quantity</Label>
+              <Input type="number" step="0.5" min="0.5" value={form.quantity}
+                onChange={(e) => set('quantity')(e.target.value)} />
+            </div>
+          </div>
+          <div className="grid gap-1.5">
+            <Label>Effective Date <span className="text-red-500">*</span></Label>
+            <Input type="date" value={form.effective_date}
+              onChange={(e) => set('effective_date')(e.target.value)} />
+          </div>
+          {selectedType?.category === 'higher_duties' && (
+            <div className="grid gap-1.5">
+              <Label>Acting Role</Label>
+              <Input value={form.acting_role} onChange={(e) => set('acting_role')(e.target.value)}
+                placeholder="e.g. Supervisor" />
+            </div>
+          )}
+          <div className="grid gap-1.5">
+            <Label>Notes</Label>
+            <Textarea value={form.notes} onChange={(e) => set('notes')(e.target.value)}
+              rows={2} placeholder="Optional notes…" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={isSaving}>Cancel</Button>
+          <Button onClick={() => onSubmit({
+            officer_id: form.officer_id,
+            allowance_type_id: form.allowance_type_id,
+            effective_date: form.effective_date,
+            rate: parseFloat(form.rate),
+            rate_type: form.rate_type,
+            quantity: parseFloat(form.quantity),
+            acting_role: form.acting_role || null,
+            notes: form.notes || null,
+            status: 'pending',
+          })} disabled={isSaving || !isValid}>
+            {isSaving ? 'Saving…' : 'Add Allowance'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ─── Reject Dialog ──────────────────────────────────────────────────────────────
+
+function RejectDialog({
+  open,
+  onClose,
+  onSubmit,
+  isSaving,
+}: {
+  open: boolean
+  onClose: () => void
+  onSubmit: (reason: string) => void
+  isSaving: boolean
+}) {
+  const [reason, setReason] = useState('')
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>Reject Allowance</DialogTitle></DialogHeader>
+        <div className="grid gap-2 py-2">
+          <Label>Reason (optional)</Label>
+          <Textarea rows={3} value={reason} onChange={(e) => setReason(e.target.value)}
+            placeholder="Explain why this allowance is rejected…" />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={isSaving}>Cancel</Button>
+          <Button variant="destructive" onClick={() => onSubmit(reason)} disabled={isSaving}>
+            {isSaving ? 'Rejecting…' : 'Reject'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ─── Allowances Tab ─────────────────────────────────────────────────────────────
+
+function AllowancesTab({
+  allowances,
+  isLoading,
+  officers,
+  types,
+  onApprove,
+  onReject,
+  orgId,
+  userId,
+}: {
+  allowances: OfficerAllowance[]
+  isLoading: boolean
+  officers: Officer[]
+  types: AllowanceType[]
+  onApprove: (id: string) => void
+  onReject: (id: string, reason: string) => void
+  orgId: string
+  userId: string
+}) {
+  const qc = useQueryClient()
+  const [officerFilter, setOfficerFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [typeFilter, setTypeFilter] = useState('all')
+  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [search, setSearch] = useState('')
+  const [addOpen, setAddOpen] = useState(false)
+  const [rejectTarget, setRejectTarget] = useState<string | null>(null)
 
-  // Type dialog
-  const [showTypeDialog, setShowTypeDialog] = useState(false)
-  const [editingType, setEditingType] = useState<AllowanceType | null>(null)
-  const [typeForm, setTypeForm] = useState(EMPTY_TYPE_FORM)
-
-  // Allowance dialog
-  const [showAllowanceDialog, setShowAllowanceDialog] = useState(false)
-  const [allowanceForm, setAllowanceForm] = useState(EMPTY_ALLOWANCE_FORM)
-
-  // ── Officers ────────────────────────────────────────────────────────────────
-  const { data: officers = [] } = useQuery<OfficerOption[]>({
-    queryKey: ['allowance-officers', orgId],
-    queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from('user_profiles')
-        .select('id, full_name, call_sign')
-        .eq('organization_id', orgId)
-        .order('full_name')
+  const addMutation = useMutation({
+    mutationFn: async (values: Record<string, any>) => {
+      const { error } = await (supabase as any).from('officer_allowances').insert({
+        ...values,
+        organization_id: orgId,
+        created_by: userId,
+      })
       if (error) throw error
-      return (data ?? []) as OfficerOption[]
     },
-    enabled: !!orgId,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['officer-allowances'] })
+      toast.success('Allowance added')
+      setAddOpen(false)
+    },
+    onError: (e: any) => toast.error(e?.message || 'Failed to add allowance'),
   })
 
-  // ── Allowance Types ─────────────────────────────────────────────────────────
-  const { data: types = [], refetch: refetchTypes } = useQuery<AllowanceType[]>({
+  // KPIs
+  const kpis = useMemo(() => ({
+    pending:  allowances.filter((a) => a.status === 'pending').length,
+    approved: allowances.filter((a) => a.status === 'approved').length,
+    totalPendingAmt: allowances
+      .filter((a) => a.status === 'pending')
+      .reduce((s, a) => s + (a.total_amount ?? 0), 0),
+    totalApprovedAmt: allowances
+      .filter((a) => a.status === 'approved' || a.status === 'paid')
+      .reduce((s, a) => s + (a.total_amount ?? 0), 0),
+  }), [allowances])
+
+  const filtered = useMemo(() => allowances.filter((a) => {
+    if (officerFilter !== 'all' && a.officer_id !== officerFilter) return false
+    if (statusFilter !== 'all' && a.status !== statusFilter) return false
+    if (categoryFilter !== 'all' && a.allowance_type?.category !== categoryFilter) return false
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      const name = officerName(a).toLowerCase()
+      const typeName = (a.allowance_type?.name ?? '').toLowerCase()
+      if (!name.includes(q) && !typeName.includes(q)) return false
+    }
+    return true
+  }), [allowances, officerFilter, statusFilter, categoryFilter, search])
+
+  return (
+    <>
+      {/* KPIs */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+        {[
+          { label: 'Pending',           value: kpis.pending,                         Icon: Clock,         color: 'text-amber-600' },
+          { label: 'Approved',          value: kpis.approved,                        Icon: CheckCircle2,  color: 'text-emerald-600' },
+          { label: 'Pending Amount',    value: fmtCurrency(kpis.totalPendingAmt),    Icon: DollarSign,    color: 'text-amber-600', raw: true },
+          { label: 'Approved Amount',   value: fmtCurrency(kpis.totalApprovedAmt),   Icon: BadgeDollarSign, color: 'text-emerald-600', raw: true },
+        ].map(({ label, value, Icon, color }) => (
+          <Card key={label}>
+            <CardContent className="pt-4 pb-3 flex items-center gap-3">
+              <Icon className={`h-5 w-5 shrink-0 ${color}`} />
+              <div>
+                <p className="text-xl font-bold leading-tight">{isLoading ? '—' : value}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-3 mb-3">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search officer, type…" className="pl-8 w-48 h-8 text-xs" />
+        </div>
+        <Select value={officerFilter} onValueChange={setOfficerFilter}>
+          <SelectTrigger className="w-44 h-8 text-xs"><SelectValue placeholder="Officer" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All officers</SelectItem>
+            {officers.map((o) => (
+              <SelectItem key={o.id} value={o.id}>
+                {[o.first_name, o.last_name].filter(Boolean).join(' ')}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-32 h-8 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            {Object.entries(STATUS_CONFIG).map(([k, v]) => (
+              <SelectItem key={k} value={k}>{v.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <SelectTrigger className="w-40 h-8 text-xs"><SelectValue placeholder="Category" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All categories</SelectItem>
+            {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
+              <SelectItem key={k} value={k}>{v}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="ml-auto">
+          <Button size="sm" className="h-8 gap-1.5" onClick={() => setAddOpen(true)}>
+            <Plus className="h-3.5 w-3.5" />Add Allowance
+          </Button>
+        </div>
+      </div>
+
+      {/* Table */}
+      <Card>
+        <div className="rounded-xl overflow-hidden border">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead className="text-xs">Officer</TableHead>
+                <TableHead className="text-xs">Type</TableHead>
+                <TableHead className="text-xs">Category</TableHead>
+                <TableHead className="text-xs">Date</TableHead>
+                <TableHead className="text-xs">Rate</TableHead>
+                <TableHead className="text-xs">Qty</TableHead>
+                <TableHead className="text-xs">Total</TableHead>
+                <TableHead className="text-xs">Status</TableHead>
+                <TableHead className="text-xs">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={i}><TableCell colSpan={9}><Skeleton className="h-4 w-full" /></TableCell></TableRow>
+                ))
+              ) : filtered.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="text-center text-sm text-muted-foreground py-10">
+                    No allowances match the current filters.
+                  </TableCell>
+                </TableRow>
+              ) : filtered.map((a) => {
+                const statusCfg = STATUS_CONFIG[a.status] ?? STATUS_CONFIG.pending
+                return (
+                  <TableRow key={a.id}>
+                    <TableCell className="py-2 text-sm font-medium">{officerName(a)}</TableCell>
+                    <TableCell className="py-2 text-xs">
+                      {a.allowance_type ? (
+                        <span className="font-mono bg-muted px-1 py-0.5 rounded text-[10px]">
+                          {a.allowance_type.code}
+                        </span>
+                      ) : '—'}
+                      {' '}{a.allowance_type?.name}
+                    </TableCell>
+                    <TableCell className="py-2 text-xs text-muted-foreground">
+                      {a.allowance_type ? CATEGORY_LABELS[a.allowance_type.category] : '—'}
+                    </TableCell>
+                    <TableCell className="py-2 text-xs text-muted-foreground whitespace-nowrap">
+                      {a.effective_date}
+                    </TableCell>
+                    <TableCell className="py-2 text-xs">
+                      {fmtCurrency(a.rate)}{RATE_TYPE_LABELS[a.rate_type]}
+                    </TableCell>
+                    <TableCell className="py-2 text-xs text-muted-foreground">
+                      {a.quantity}
+                    </TableCell>
+                    <TableCell className="py-2 text-xs font-medium">
+                      {fmtCurrency(a.total_amount)}
+                    </TableCell>
+                    <TableCell className="py-2">
+                      <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${statusCfg.color}`}>
+                        {statusCfg.label}
+                      </span>
+                    </TableCell>
+                    <TableCell className="py-2">
+                      {a.status === 'pending' && (
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="sm"
+                            className="h-6 px-2 text-[10px] text-emerald-700 hover:text-emerald-900"
+                            onClick={() => onApprove(a.id)}>
+                            Approve
+                          </Button>
+                          <Button variant="ghost" size="sm"
+                            className="h-6 px-2 text-[10px] text-red-700 hover:text-red-900"
+                            onClick={() => setRejectTarget(a.id)}>
+                            Reject
+                          </Button>
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        </div>
+        {!isLoading && filtered.length > 0 && (
+          <div className="px-4 py-2 text-xs text-muted-foreground border-t">
+            {filtered.length} of {allowances.length} allowance{allowances.length !== 1 ? 's' : ''}
+          </div>
+        )}
+      </Card>
+
+      <AddAllowanceDialog
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onSubmit={(v) => addMutation.mutate(v)}
+        isSaving={addMutation.isPending}
+        officers={officers}
+        types={types}
+      />
+      <RejectDialog
+        open={!!rejectTarget}
+        onClose={() => setRejectTarget(null)}
+        onSubmit={(reason) => {
+          if (rejectTarget) onReject(rejectTarget, reason)
+          setRejectTarget(null)
+        }}
+        isSaving={false}
+      />
+    </>
+  )
+}
+
+// ─── Types Tab ──────────────────────────────────────────────────────────────────
+
+function TypesTab({
+  types,
+  isLoading,
+  orgId,
+  userId,
+}: {
+  types: AllowanceType[]
+  isLoading: boolean
+  orgId: string
+  userId: string
+}) {
+  const qc = useQueryClient()
+  const [addOpen, setAddOpen] = useState(false)
+
+  const addMutation = useMutation({
+    mutationFn: async (values: Record<string, any>) => {
+      const { error } = await (supabase as any).from('allowance_types').insert({
+        ...values,
+        organization_id: orgId,
+        created_by: userId,
+        is_active: true,
+      })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['allowance-types'] })
+      toast.success('Allowance type created')
+      setAddOpen(false)
+    },
+    onError: (e: any) => toast.error(e?.message || 'Failed to create type'),
+  })
+
+  const toggleActiveMutation = useMutation({
+    mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
+      const { error } = await (supabase as any)
+        .from('allowance_types')
+        .update({ is_active })
+        .eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['allowance-types'] }),
+    onError: (e: any) => toast.error(e?.message || 'Failed to update type'),
+  })
+
+  return (
+    <>
+      <div className="flex justify-end mb-3">
+        <Button size="sm" className="h-8 gap-1.5" onClick={() => setAddOpen(true)}>
+          <Plus className="h-3.5 w-3.5" />New Type
+        </Button>
+      </div>
+      <Card>
+        <div className="rounded-xl overflow-hidden border">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead className="text-xs">Code</TableHead>
+                <TableHead className="text-xs">Name</TableHead>
+                <TableHead className="text-xs">Category</TableHead>
+                <TableHead className="text-xs">Default Rate</TableHead>
+                <TableHead className="text-xs">Rate Type</TableHead>
+                <TableHead className="text-xs">Taxable</TableHead>
+                <TableHead className="text-xs">Approval Required</TableHead>
+                <TableHead className="text-xs">Active</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <TableRow key={i}><TableCell colSpan={8}><Skeleton className="h-4 w-full" /></TableCell></TableRow>
+                ))
+              ) : types.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-10">
+                    No allowance types defined yet. Click "New Type" to add one.
+                  </TableCell>
+                </TableRow>
+              ) : types.map((t) => (
+                <TableRow key={t.id}>
+                  <TableCell className="py-2">
+                    <span className="font-mono bg-muted px-1.5 py-0.5 rounded text-xs font-bold">{t.code}</span>
+                  </TableCell>
+                  <TableCell className="py-2 text-sm font-medium">{t.name}</TableCell>
+                  <TableCell className="py-2 text-xs text-muted-foreground">
+                    {CATEGORY_LABELS[t.category] ?? t.category}
+                  </TableCell>
+                  <TableCell className="py-2 text-xs">
+                    {t.default_rate != null ? fmtCurrency(t.default_rate) : '—'}
+                  </TableCell>
+                  <TableCell className="py-2 text-xs text-muted-foreground">
+                    {t.rate_type}
+                  </TableCell>
+                  <TableCell className="py-2 text-center">
+                    {t.is_taxable
+                      ? <Check className="h-3.5 w-3.5 text-emerald-500 mx-auto" />
+                      : <X className="h-3.5 w-3.5 text-muted-foreground mx-auto" />}
+                  </TableCell>
+                  <TableCell className="py-2 text-center">
+                    {t.requires_approval
+                      ? <Check className="h-3.5 w-3.5 text-blue-500 mx-auto" />
+                      : <X className="h-3.5 w-3.5 text-muted-foreground mx-auto" />}
+                  </TableCell>
+                  <TableCell className="py-2">
+                    <Switch
+                      checked={t.is_active}
+                      onCheckedChange={(v) => toggleActiveMutation.mutate({ id: t.id, is_active: v })}
+                      disabled={toggleActiveMutation.isPending}
+                    />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </Card>
+
+      <AddTypeDialog
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onSubmit={(v) => addMutation.mutate(v)}
+        isSaving={addMutation.isPending}
+      />
+    </>
+  )
+}
+
+// ─── Main Page ──────────────────────────────────────────────────────────────────
+
+export default function OfficerAllowances() {
+  const navigate = useNavigate()
+  const { user } = useAuthStore()
+  const orgId = user?.organization_id ?? ''
+  const userId = user?.id ?? ''
+  const qc = useQueryClient()
+
+  // ── Fetch allowance types ──────────────────────────────────────────────────
+  const { data: types = [], isLoading: typesLoading } = useQuery<AllowanceType[]>({
     queryKey: ['allowance-types', orgId],
     queryFn: async () => {
+      if (!orgId) return []
       const { data, error } = await (supabase as any)
         .from('allowance_types')
         .select('*')
         .eq('organization_id', orgId)
         .order('category')
         .order('name')
+      if (error && (error.code === 'PGRST205' || error.code === '42P01')) return []
       if (error) throw error
       return (data ?? []) as AllowanceType[]
     },
     enabled: !!orgId,
+    staleTime: 60_000,
+    retry: false,
   })
 
-  // ── Officer Allowances ──────────────────────────────────────────────────────
-  const { data: allowances = [], isLoading: allowancesLoading, refetch: refetchAllowances } = useQuery<OfficerAllowance[]>({
-    queryKey: ['officer-allowances', orgId, statusFilter, typeFilter],
+  // ── Fetch officer allowances ───────────────────────────────────────────────
+  const { data: allowances = [], isLoading: allowancesLoading } = useQuery<OfficerAllowance[]>({
+    queryKey: ['officer-allowances', orgId],
     queryFn: async () => {
-      let q = (supabase as any)
+      if (!orgId) return []
+      const { data, error } = await (supabase as any)
         .from('officer_allowances')
         .select(`
           *,
-          officer:user_profiles!officer_allowances_officer_id_fkey(full_name, call_sign),
-          allowance_type:allowance_types!officer_allowances_allowance_type_id_fkey(id, code, name, category)
+          officer:officer_id(first_name, last_name),
+          allowance_type:allowance_type_id(name, category, code)
         `)
         .eq('organization_id', orgId)
-        .order('created_at', { ascending: false })
-        .limit(200)
-      if (statusFilter !== 'all') q = q.eq('status', statusFilter)
-      if (typeFilter !== 'all') q = q.eq('allowance_type_id', typeFilter)
-      const { data, error } = await q
+        .order('effective_date', { ascending: false })
+        .limit(300)
+      if (error && (error.code === 'PGRST205' || error.code === '42P01')) return []
       if (error) throw error
       return (data ?? []) as OfficerAllowance[]
     },
     enabled: !!orgId,
+    staleTime: 30_000,
+    retry: false,
   })
 
-  // ── KPIs ────────────────────────────────────────────────────────────────────
-  const kpis = {
-    pending: allowances.filter((a) => a.status === 'pending').length,
-    approved: allowances.filter((a) => a.status === 'approved').length,
-    rejected: allowances.filter((a) => a.status === 'rejected').length,
-    totalPaid: allowances.filter((a) => a.status === 'paid').reduce((s, a) => s + (a.total_amount ?? 0), 0),
-  }
+  // ── Fetch officers ─────────────────────────────────────────────────────────
+  const { data: officers = [] } = useQuery<Officer[]>({
+    queryKey: ['allowance-officers', orgId],
+    queryFn: async () => {
+      if (!orgId) return []
+      const { data, error } = await (supabase as any)
+        .from('user_profiles')
+        .select('id, first_name, last_name')
+        .eq('organization_id', orgId)
+        .eq('is_active', true)
+        .in('role', ['officer', 'admin_officer'])
+        .order('first_name')
+      if (error) throw error
+      return (data ?? []) as Officer[]
+    },
+    enabled: !!orgId,
+  })
 
-  // ── Approve / Reject ────────────────────────────────────────────────────────
-  const statusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const update: Record<string, any> = { status }
-      if (status === 'approved') {
-        update.approved_at = new Date().toISOString()
-      }
+  // ── Approve mutation ───────────────────────────────────────────────────────
+  const approveMutation = useMutation({
+    mutationFn: async (id: string) => {
       const { error } = await (supabase as any)
         .from('officer_allowances')
-        .update(update)
+        .update({ status: 'approved', approved_by: userId, approved_at: new Date().toISOString() })
         .eq('id', id)
-        .eq('organization_id', orgId)
-      if (error) throw error
-    },
-    onSuccess: (_, vars) => {
-      toast.success(`Allowance ${vars.status}`)
-      queryClient.invalidateQueries({ queryKey: ['officer-allowances'] })
-    },
-    onError: (err: any) => toast.error(err.message ?? 'Update failed'),
-  })
-
-  // ── Create / Edit Allowance Type ────────────────────────────────────────────
-  const saveTypeMutation = useMutation({
-    mutationFn: async () => {
-      const payload = {
-        organization_id: orgId,
-        code: typeForm.code.toUpperCase(),
-        name: typeForm.name,
-        description: typeForm.description || null,
-        category: typeForm.category,
-        rate_type: typeForm.rate_type,
-        default_rate: typeForm.default_rate ? parseFloat(typeForm.default_rate) : null,
-        requires_approval: typeForm.requires_approval,
-      }
-      if (editingType) {
-        const { error } = await (supabase as any)
-          .from('allowance_types')
-          .update(payload)
-          .eq('id', editingType.id)
-        if (error) throw error
-      } else {
-        const { error } = await (supabase as any)
-          .from('allowance_types')
-          .insert(payload)
-        if (error) throw error
-      }
-    },
-    onSuccess: () => {
-      toast.success(editingType ? 'Type updated' : 'Type created')
-      setShowTypeDialog(false)
-      setEditingType(null)
-      setTypeForm(EMPTY_TYPE_FORM)
-      queryClient.invalidateQueries({ queryKey: ['allowance-types'] })
-    },
-    onError: (err: any) => toast.error(err.message ?? 'Save failed'),
-  })
-
-  // ── Toggle Type Active ──────────────────────────────────────────────────────
-  const toggleTypeMutation = useMutation({
-    mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
-      const { error } = await (supabase as any)
-        .from('allowance_types')
-        .update({ is_active })
-        .eq('id', id)
-        .eq('organization_id', orgId)
-      if (error) throw error
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['allowance-types'] }),
-    onError: (err: any) => toast.error(err.message ?? 'Toggle failed'),
-  })
-
-  // ── Create Allowance ────────────────────────────────────────────────────────
-  const createAllowanceMutation = useMutation({
-    mutationFn: async () => {
-      const payload: Record<string, any> = {
-        organization_id: orgId,
-        officer_id: allowanceForm.officer_id,
-        allowance_type_id: allowanceForm.allowance_type_id,
-        effective_date: allowanceForm.effective_date,
-        end_date: allowanceForm.end_date || null,
-        quantity: allowanceForm.quantity ? parseFloat(allowanceForm.quantity) : null,
-        rate: allowanceForm.rate ? parseFloat(allowanceForm.rate) : null,
-        status: 'pending',
-        notes: allowanceForm.notes || null,
-      }
-      const { error } = await (supabase as any)
-        .from('officer_allowances')
-        .insert(payload)
       if (error) throw error
     },
     onSuccess: () => {
-      toast.success('Allowance assigned')
-      setShowAllowanceDialog(false)
-      setAllowanceForm(EMPTY_ALLOWANCE_FORM)
-      queryClient.invalidateQueries({ queryKey: ['officer-allowances'] })
+      qc.invalidateQueries({ queryKey: ['officer-allowances'] })
+      toast.success('Allowance approved')
     },
-    onError: (err: any) => toast.error(err.message ?? 'Failed to assign'),
+    onError: (e: any) => toast.error(e?.message || 'Failed to approve'),
   })
 
-  const openTypeEdit = (t: AllowanceType) => {
-    setEditingType(t)
-    setTypeForm({
-      code: t.code,
-      name: t.name,
-      description: t.description ?? '',
-      category: t.category,
-      rate_type: t.rate_type,
-      default_rate: t.default_rate != null ? String(t.default_rate) : '',
-      requires_approval: t.requires_approval,
-    })
-    setShowTypeDialog(true)
-  }
+  // ── Reject mutation ────────────────────────────────────────────────────────
+  const rejectMutation = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      const { error } = await (supabase as any)
+        .from('officer_allowances')
+        .update({ status: 'rejected', rejection_reason: reason || null })
+        .eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['officer-allowances'] })
+      toast.success('Allowance rejected')
+    },
+    onError: (e: any) => toast.error(e?.message || 'Failed to reject'),
+  })
 
   return (
-    <AppLayout>
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <BadgeDollarSign className="h-6 w-6 text-primary" />
-              Officer Allowances
-            </h1>
-            <p className="text-muted-foreground text-sm mt-1">
-              Manage allowance types and officer allowance assignments
-            </p>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => { refetchAllowances(); refetchTypes() }}>
-            <RefreshCw className="h-4 w-4 mr-1" /> Refresh
-          </Button>
-        </div>
-
-        {/* KPI Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[
-            { label: 'Pending', value: kpis.pending, icon: Clock, colour: 'text-yellow-600' },
-            { label: 'Approved', value: kpis.approved, icon: CheckCircle, colour: 'text-green-600' },
-            { label: 'Rejected', value: kpis.rejected, icon: XCircle, colour: 'text-red-600' },
-            { label: 'Total Paid', value: `$${kpis.totalPaid.toFixed(2)}`, icon: DollarSign, colour: 'text-emerald-600' },
-          ].map(({ label, value, icon: Icon, colour }) => (
-            <Card key={label}>
-              <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">{label}</p>
-                    <p className="text-xl font-bold">{value}</p>
-                  </div>
-                  <Icon className={`h-7 w-7 ${colour} opacity-70`} />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {/* Tabs */}
-        <Tabs value={tab} onValueChange={setTab}>
-          <TabsList>
-            <TabsTrigger value="allowances">
-              <List className="h-4 w-4 mr-1.5" /> Allowances
-            </TabsTrigger>
-            <TabsTrigger value="types">
-              <Settings className="h-4 w-4 mr-1.5" /> Types
-            </TabsTrigger>
-          </TabsList>
-
-          {/* ── Allowances Tab ──────────────────────────────────────────── */}
-          <TabsContent value="allowances" className="space-y-4">
-            <div className="flex items-end justify-between gap-3 flex-wrap">
-              <div className="flex gap-3 flex-wrap items-end">
-                <div>
-                  <Label className="text-xs">Status</Label>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="h-8 text-sm w-36">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Statuses</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="approved">Approved</SelectItem>
-                      <SelectItem value="rejected">Rejected</SelectItem>
-                      <SelectItem value="paid">Paid</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-xs">Allowance Type</Label>
-                  <Select value={typeFilter} onValueChange={setTypeFilter}>
-                    <SelectTrigger className="h-8 text-sm w-52">
-                      <SelectValue placeholder="All types" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Types</SelectItem>
-                      {types.filter((t) => t.is_active).map((t) => (
-                        <SelectItem key={t.id} value={t.id}>{t.name} ({t.code})</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <Button size="sm" onClick={() => setShowAllowanceDialog(true)}>
-                <Plus className="h-4 w-4 mr-1" /> Assign Allowance
-              </Button>
-            </div>
-
-            <Card>
-              <CardContent className="p-0">
-                {allowancesLoading ? (
-                  <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-                ) : allowances.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <AlertCircle className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                    <p>No allowances found</p>
-                  </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Officer</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Effective Date</TableHead>
-                        <TableHead className="text-right">Rate</TableHead>
-                        <TableHead className="text-right">Total</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead />
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {allowances.map((a) => (
-                        <TableRow key={a.id}>
-                          <TableCell className="text-sm font-medium">{a.officer?.full_name ?? '—'}</TableCell>
-                          <TableCell>
-                            <div className="text-sm">{a.allowance_type?.name ?? '—'}</div>
-                            {a.allowance_type?.category && (
-                              <span className="text-xs text-muted-foreground">{CATEGORY_LABELS[a.allowance_type.category] ?? a.allowance_type.category}</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-sm">
-                            {a.effective_date ? format(parseISO(a.effective_date), 'dd MMM yyyy') : '—'}
-                          </TableCell>
-                          <TableCell className="text-right text-sm">
-                            {a.rate != null ? `$${Number(a.rate).toFixed(2)}` : '—'}
-                          </TableCell>
-                          <TableCell className="text-right text-sm font-medium">
-                            {a.total_amount != null ? `$${Number(a.total_amount).toFixed(2)}` : '—'}
-                          </TableCell>
-                          <TableCell>
-                            <Badge className={STATUS_COLOURS[a.status] ?? ''}>{a.status}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            {a.status === 'pending' && (
-                              <div className="flex gap-1">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 text-xs text-green-700 border-green-300"
-                                  onClick={() => statusMutation.mutate({ id: a.id, status: 'approved' })}
-                                  disabled={statusMutation.isPending}
-                                >
-                                  Approve
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 text-xs text-red-600 hover:text-red-700"
-                                  onClick={() => statusMutation.mutate({ id: a.id, status: 'rejected' })}
-                                  disabled={statusMutation.isPending}
-                                >
-                                  Reject
-                                </Button>
-                              </div>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* ── Types Tab ──────────────────────────────────────────────────── */}
-          <TabsContent value="types" className="space-y-4">
-            <div className="flex justify-end">
-              <Button size="sm" onClick={() => { setEditingType(null); setTypeForm(EMPTY_TYPE_FORM); setShowTypeDialog(true) }}>
-                <Plus className="h-4 w-4 mr-1" /> New Type
-              </Button>
-            </div>
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Code</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Rate Type</TableHead>
-                      <TableHead className="text-right">Default Rate</TableHead>
-                      <TableHead>Approval</TableHead>
-                      <TableHead>Active</TableHead>
-                      <TableHead />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {types.map((t) => (
-                      <TableRow key={t.id} className={!t.is_active ? 'opacity-50' : ''}>
-                        <TableCell className="font-mono text-sm font-medium">{t.code}</TableCell>
-                        <TableCell className="text-sm">{t.name}</TableCell>
-                        <TableCell className="text-sm">{CATEGORY_LABELS[t.category] ?? t.category}</TableCell>
-                        <TableCell className="text-sm">{RATE_TYPE_LABELS[t.rate_type] ?? t.rate_type}</TableCell>
-                        <TableCell className="text-right text-sm">
-                          {t.default_rate != null ? `$${Number(t.default_rate).toFixed(2)}` : '—'}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={t.requires_approval ? 'default' : 'secondary'}>
-                            {t.requires_approval ? 'Required' : 'Auto'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Switch
-                            checked={t.is_active}
-                            onCheckedChange={(v) => toggleTypeMutation.mutate({ id: t.id, is_active: v })}
-                            disabled={t.is_system}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 w-7 p-0"
-                            onClick={() => openTypeEdit(t)}
-                            disabled={t.is_system}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+    <AppLayout
+      title="Officer Allowances"
+      description="Manage higher duties, meal, uniform, and custom allowances for officers"
+    >
+      <div className="mb-4">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/admin')}
+          className="gap-1.5 text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Back to Dashboard
+        </Button>
       </div>
 
-      {/* Type Dialog */}
-      <Dialog open={showTypeDialog} onOpenChange={(o) => { if (!o) { setShowTypeDialog(false); setEditingType(null); setTypeForm(EMPTY_TYPE_FORM) } }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editingType ? 'Edit Allowance Type' : 'New Allowance Type'}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Code *</Label>
-                <Input placeholder="e.g. HD" value={typeForm.code} onChange={(e) => setTypeForm({ ...typeForm, code: e.target.value })} />
-              </div>
-              <div>
-                <Label>Name *</Label>
-                <Input placeholder="Higher Duties Allowance" value={typeForm.name} onChange={(e) => setTypeForm({ ...typeForm, name: e.target.value })} />
-              </div>
-            </div>
-            <div>
-              <Label>Description</Label>
-              <Input placeholder="Optional description" value={typeForm.description} onChange={(e) => setTypeForm({ ...typeForm, description: e.target.value })} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Category</Label>
-                <Select value={typeForm.category} onValueChange={(v) => setTypeForm({ ...typeForm, category: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(CATEGORY_LABELS).map(([v, l]) => (
-                      <SelectItem key={v} value={v}>{l}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Rate Type</Label>
-                <Select value={typeForm.rate_type} onValueChange={(v) => setTypeForm({ ...typeForm, rate_type: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(RATE_TYPE_LABELS).map(([v, l]) => (
-                      <SelectItem key={v} value={v}>{l}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div>
-              <Label>Default Rate (NZD)</Label>
-              <Input type="number" step="0.01" placeholder="e.g. 25.00" value={typeForm.default_rate} onChange={(e) => setTypeForm({ ...typeForm, default_rate: e.target.value })} />
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                id="requires-approval"
-                checked={typeForm.requires_approval}
-                onCheckedChange={(v) => setTypeForm({ ...typeForm, requires_approval: v })}
-              />
-              <Label htmlFor="requires-approval" className="cursor-pointer">Requires approval before payment</Label>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowTypeDialog(false); setEditingType(null); setTypeForm(EMPTY_TYPE_FORM) }}>Cancel</Button>
-            <Button
-              onClick={() => saveTypeMutation.mutate()}
-              disabled={!typeForm.code || !typeForm.name || saveTypeMutation.isPending}
-            >
-              {saveTypeMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : editingType ? 'Save Changes' : 'Create Type'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <Tabs defaultValue="allowances">
+        <TabsList className="mb-4">
+          <TabsTrigger value="allowances" className="gap-1.5">
+            <BadgeDollarSign className="h-3.5 w-3.5" />
+            Allowances
+          </TabsTrigger>
+          <TabsTrigger value="types" className="gap-1.5">
+            <Tag className="h-3.5 w-3.5" />
+            Allowance Types
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Assign Allowance Dialog */}
-      <Dialog open={showAllowanceDialog} onOpenChange={setShowAllowanceDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Assign Allowance</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <div>
-              <Label>Officer *</Label>
-              <Select value={allowanceForm.officer_id} onValueChange={(v) => setAllowanceForm({ ...allowanceForm, officer_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Select officer" /></SelectTrigger>
-                <SelectContent>
-                  {officers.map((o) => <SelectItem key={o.id} value={o.id}>{o.full_name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Allowance Type *</Label>
-              <Select value={allowanceForm.allowance_type_id} onValueChange={(v) => setAllowanceForm({ ...allowanceForm, allowance_type_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-                <SelectContent>
-                  {types.filter((t) => t.is_active).map((t) => (
-                    <SelectItem key={t.id} value={t.id}>{t.name} ({t.code})</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Effective Date *</Label>
-                <Input type="date" value={allowanceForm.effective_date} onChange={(e) => setAllowanceForm({ ...allowanceForm, effective_date: e.target.value })} />
-              </div>
-              <div>
-                <Label>End Date</Label>
-                <Input type="date" value={allowanceForm.end_date} onChange={(e) => setAllowanceForm({ ...allowanceForm, end_date: e.target.value })} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Quantity</Label>
-                <Input type="number" step="0.01" placeholder="e.g. 1" value={allowanceForm.quantity} onChange={(e) => setAllowanceForm({ ...allowanceForm, quantity: e.target.value })} />
-              </div>
-              <div>
-                <Label>Rate (NZD)</Label>
-                <Input type="number" step="0.01" placeholder="Override rate" value={allowanceForm.rate} onChange={(e) => setAllowanceForm({ ...allowanceForm, rate: e.target.value })} />
-              </div>
-            </div>
-            <div>
-              <Label>Notes</Label>
-              <Input placeholder="Optional notes" value={allowanceForm.notes} onChange={(e) => setAllowanceForm({ ...allowanceForm, notes: e.target.value })} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowAllowanceDialog(false); setAllowanceForm(EMPTY_ALLOWANCE_FORM) }}>Cancel</Button>
-            <Button
-              onClick={() => createAllowanceMutation.mutate()}
-              disabled={!allowanceForm.officer_id || !allowanceForm.allowance_type_id || !allowanceForm.effective_date || createAllowanceMutation.isPending}
-            >
-              {createAllowanceMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Assign'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        <TabsContent value="allowances">
+          <AllowancesTab
+            allowances={allowances}
+            isLoading={allowancesLoading}
+            officers={officers}
+            types={types}
+            onApprove={(id) => approveMutation.mutate(id)}
+            onReject={(id, reason) => rejectMutation.mutate({ id, reason })}
+            orgId={orgId}
+            userId={userId}
+          />
+        </TabsContent>
+
+        <TabsContent value="types">
+          <TypesTab
+            types={types}
+            isLoading={typesLoading}
+            orgId={orgId}
+            userId={userId}
+          />
+        </TabsContent>
+      </Tabs>
     </AppLayout>
   )
 }

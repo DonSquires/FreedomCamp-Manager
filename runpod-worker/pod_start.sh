@@ -1,22 +1,36 @@
 #!/bin/bash
-# ---------------------------------------------------------------------------
-# pod_start.sh — Startup script for the RunPod SPOT POD (HTTP API on port 3000)
-# Baked into the Docker image at /usr/local/bin/pod_start.sh so dockerStartCmd
-# can use a stable path even when /app is overridden by runtime mounts.
-# No quoting/escaping issues in RunPod dockerArgs.
+# ───────────────────────────────────────────────────────────────────────────
+# pod_start.sh — Startup script for RunPod SPOT POD (inference-service HTTP)
+#
+# NOTE: This script is for SPOT POD mode ONLY, not for Serverless.
+# Serverless image: Dockerfile CMD runs `python3 -u handler.py` directly.
+# SPOT pod mode: Configure dockerStartCmd to call this script if needed.
 #
 # Sequence:
-#   1. Start Ollama daemon + wait for ready
+#   1. Validate external Ollama endpoint (Railway or similar)
 #   2. Clone / update FreedomCamp-Manager repo
 #   3. Install inference-service deps
 #   4. Write .env
 #   5. Start node inference-service/server.js (foreground — keeps pod alive)
-# ---------------------------------------------------------------------------
+#
+# Configuration: OLLAMA_EXTERNAL_URL or OLLAMA_BASE_URL required (exits if not set)
+# ───────────────────────────────────────────────────────────────────────────
 set -e
 
 REPO_DIR="/workspace/repo"
 BRANCH="${GITHUB_REPO_BRANCH:-main}"
 REPO_URL="${GITHUB_REPO_URL:-https://github.com/DonSquires/FreedomCamp-Manager.git}"
+OLLAMA_EXTERNAL_URL="${OLLAMA_EXTERNAL_URL:-}"
+OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-}"
+
+if [ -n "$OLLAMA_EXTERNAL_URL" ]; then
+  RESOLVED_OLLAMA_URL="${OLLAMA_EXTERNAL_URL%/}"
+elif [ -n "$OLLAMA_BASE_URL" ]; then
+  RESOLVED_OLLAMA_URL="${OLLAMA_BASE_URL%/}"
+else
+  echo "[pod_start] ERROR: No external Ollama configured. Set OLLAMA_EXTERNAL_URL or OLLAMA_BASE_URL."
+  exit 1
+fi
 
 strip_github_credentials() {
   printf '%s' "$1" | sed -E 's#https://[^/@]+@github.com/#https://github.com/#I'
@@ -66,21 +80,11 @@ sync_repo() {
 mkdir -p /workspace/logs
 
 # ---------------------------------------------------------------------------
-# 1. Ollama daemon
+# 1. External Ollama reachability
 # ---------------------------------------------------------------------------
-echo "[pod_start] Starting Ollama..."
-ollama serve > /workspace/logs/ollama.log 2>&1 &
-OLLAMA_READY=0
-for i in $(seq 1 30); do
-  if curl -fsS --max-time 2 http://127.0.0.1:11434/api/tags > /dev/null 2>&1; then
-    OLLAMA_READY=1
-    echo "[pod_start] Ollama ready after ${i}s"
-    break
-  fi
-  sleep 1
-done
-if [ "$OLLAMA_READY" = "0" ]; then
-  echo "[pod_start] WARNING: Ollama did not become ready — continuing anyway"
+echo "[pod_start] Checking external Ollama: ${RESOLVED_OLLAMA_URL}"
+if ! curl -fsS --max-time 5 "${RESOLVED_OLLAMA_URL}/api/tags" > /dev/null 2>&1; then
+  echo "[pod_start] WARNING: external Ollama not reachable yet — continuing startup"
 fi
 
 # ---------------------------------------------------------------------------
@@ -144,17 +148,8 @@ else
   echo "[pod_start] WARNING: missing $INFERENCE_DIR/models/mobilenet_v3.onnx"
 fi
 
-# Ensure a vision model exists; if the requested model is unsupported by the
-# bundled Ollama version, fall back to a broadly compatible multimodal model.
 VISION_MODEL="${OLLAMA_VISION_MODEL:-llama3.2-vision:11b}"
-echo "[pod_start] Ensuring vision model is available: ${VISION_MODEL}"
-if ! ollama list 2>/dev/null | grep -q "${VISION_MODEL}"; then
-  if ! ollama pull "${VISION_MODEL}"; then
-    echo "[pod_start] WARNING: Failed to pull ${VISION_MODEL}; falling back to llava:7b"
-    VISION_MODEL="llava:7b"
-    ollama pull "${VISION_MODEL}"
-  fi
-fi
+echo "[pod_start] Using external vision model via Ollama: ${VISION_MODEL}"
 cd /app
 
 # ---------------------------------------------------------------------------
@@ -164,9 +159,9 @@ cat > "$INFERENCE_DIR/.env" <<EOF
 PORT=3000
 NODE_ENV=production
 BOB_OPERATING_MODE=${BOB_OPERATING_MODE:-build-training}
-OLLAMA_BASE_URL=http://127.0.0.1:11434
 CHAT_PROVIDER=${CHAT_PROVIDER:-ollama}
 TABULAR_NLP_PROVIDER=${TABULAR_NLP_PROVIDER:-heuristic}
+OLLAMA_BASE_URL=${RESOLVED_OLLAMA_URL}
 OLLAMA_VISION_MODEL=${VISION_MODEL}
 SELF_CONTAINED_MODE=false
 SELF_CONTAINED_STRICT_EGRESS=false

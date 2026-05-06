@@ -1,28 +1,39 @@
 /**
- * CalloutShifts — B-52
+ * CalloutShifts — Sprint 15 / B-52
  *
- * Ad-hoc callout shifts triggered from on-call periods.
- * Supports deep-linking via ?on_call_period_id=<id> from OnCallPeriods.
+ * Admin view of ad-hoc callout shifts triggered from on-call periods.
+ * Tables: callout_shifts — NOT in database.ts; uses (supabase as any).
  *
  * Features:
- *  - KPI cards: Pending / In Progress / Completed / Cancelled + total pay
- *  - Filter by status, officer, date range; deep-link pre-filter
- *  - Expandable rows with full timestamp breakdown + pay detail
- *  - Complete / Cancel actions
- *  - Links to /travel-allowances?callout_shift_id=<id>
+ * - KPI strip: Total / In Progress / Completed / Avg Billable Hours
+ * - Table with status filter, officer filter, date range filter
+ * - URL param ?on_call_period_id=… to pre-filter from OnCallPeriods page
+ * - Expandable row: full timestamp progression + pay breakdown
+ * - Update-status (complete / cancel) action
  *
- * Route: /callout-shifts  — admin/admin_officer/master/officer
- * Note: callout_shifts not in database.ts snapshot — uses (supabase as any)
+ * Route: /callout-shifts
+ * Roles: admin, admin_officer, master
  */
 
-import { useState } from 'react'
-import { format, parseISO } from 'date-fns'
-import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { formatInTimeZone } from 'date-fns-tz'
 import {
-  Siren, ChevronDown, ChevronRight, Clock, MapPin, User,
-  RefreshCw, CheckCircle, XCircle, AlertCircle, Loader2,
-  Filter, Car, DollarSign, PhoneCall,
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  DollarSign,
+  MapPin,
+  Phone,
+  Search,
+  Timer,
+  TrendingUp,
+  X,
+  Car,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -31,9 +42,8 @@ import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -41,6 +51,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -50,24 +61,17 @@ import {
   TableRow,
 } from '@/components/ui/table'
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── Types ──────────────────────────────────────────────────────────────────────
 
-interface OfficerOption {
-  id: string
-  full_name: string
-  call_sign: string | null
-}
+type CalloutStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled'
 
 interface CalloutShift {
   id: string
   organization_id: string
   officer_id: string
-  officer?: OfficerOption
   on_call_period_id: string
   callout_reason: string | null
   callout_address: string | null
-  callout_latitude: number | null
-  callout_longitude: number | null
   callout_received_at: string
   departed_at: string | null
   arrived_at: string | null
@@ -75,413 +79,546 @@ interface CalloutShift {
   work_ended_at: string | null
   returned_at: string | null
   actual_work_hours: number | null
+  actual_total_hours: number | null
   minimum_hours: number
   billable_hours: number | null
   callout_hourly_rate: number | null
+  callout_after_minimum_rate: number | null
   base_pay_amount: number | null
   additional_pay_amount: number | null
   total_pay_amount: number | null
-  status: string
+  status: CalloutStatus
   notes: string | null
   admin_notes: string | null
   created_at: string
+  updated_at: string
+  officer?: { first_name: string; last_name: string } | null
+  on_call_period?: { start_time: string; end_time: string } | null
 }
 
-const STATUS_COLOURS: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  in_progress: 'bg-blue-100 text-blue-800',
-  completed: 'bg-green-100 text-green-800',
-  cancelled: 'bg-red-100 text-red-800',
+interface Officer {
+  id: string
+  first_name: string
+  last_name: string
 }
 
-function fmtTime(ts: string | null): string {
-  if (!ts) return '—'
-  return format(parseISO(ts), 'HH:mm')
+// ─── Constants ─────────────────────────────────────────────────────────────────
+
+const NZ_TZ = 'Pacific/Auckland'
+
+const STATUS_CONFIG: Record<CalloutStatus, { label: string; color: string }> = {
+  pending: {
+    label: 'Pending',
+    color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
+  },
+  in_progress: {
+    label: 'In Progress',
+    color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
+  },
+  completed: {
+    label: 'Completed',
+    color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300',
+  },
+  cancelled: {
+    label: 'Cancelled',
+    color: 'bg-gray-100 text-gray-600 dark:bg-gray-800/50 dark:text-gray-400',
+  },
 }
 
-function fmtHours(h: number | null): string {
+// ─── Helpers ────────────────────────────────────────────────────────────────────
+
+function fmtTs(iso: string | null) {
+  if (!iso) return '—'
+  try {
+    return formatInTimeZone(new Date(iso), NZ_TZ, 'dd MMM yy HH:mm')
+  } catch {
+    return iso
+  }
+}
+
+function fmtHours(h: number | null) {
   if (h == null) return '—'
-  return `${Number(h).toFixed(2)} h`
+  return `${h.toFixed(2)} h`
 }
 
-function fmtMoney(n: number | null): string {
-  if (n == null) return '—'
-  return `$${Number(n).toFixed(2)}`
+function fmtCurrency(v: number | null) {
+  if (v == null) return '—'
+  return `$${v.toFixed(2)}`
 }
 
-// ─── Component ───────────────────────────────────────────────────────────────
+function officerName(c: CalloutShift) {
+  if (!c.officer) return '—'
+  return [c.officer.first_name, c.officer.last_name].filter(Boolean).join(' ')
+}
+
+// ─── Expandable Detail Panel ────────────────────────────────────────────────────
+
+function DetailPanel({ callout, onViewTravel }: { callout: CalloutShift; onViewTravel: (id: string) => void }) {
+  const steps = [
+    { label: 'Call Received', ts: callout.callout_received_at },
+    { label: 'Departed',      ts: callout.departed_at },
+    { label: 'Arrived',       ts: callout.arrived_at },
+    { label: 'Work Started',  ts: callout.work_started_at },
+    { label: 'Work Ended',    ts: callout.work_ended_at },
+    { label: 'Returned',      ts: callout.returned_at },
+  ]
+
+  return (
+    <div className="bg-muted/40 border-t px-5 py-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4 text-xs">
+      {/* Timeline */}
+      <div className="col-span-full sm:col-span-1">
+        <p className="font-medium text-muted-foreground mb-2">Timestamp Progression</p>
+        <ol className="relative border-l border-muted-foreground/20 pl-4 space-y-2">
+          {steps.map(({ label, ts }) => (
+            <li key={label} className="flex items-start gap-2">
+              <span
+                className={`mt-0.5 h-2 w-2 rounded-full shrink-0 ${ts ? 'bg-emerald-500' : 'bg-muted-foreground/30'}`}
+                style={{ marginLeft: '-1.125rem' }}
+              />
+              <div>
+                <p className="font-medium leading-tight">{label}</p>
+                <p className="text-muted-foreground">{fmtTs(ts)}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
+
+      {/* Hours & Rates */}
+      <div>
+        <p className="font-medium text-muted-foreground mb-2">Hours</p>
+        <div className="space-y-1">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Actual work</span>
+            <span>{fmtHours(callout.actual_work_hours)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Minimum guarantee</span>
+            <span>{fmtHours(callout.minimum_hours)}</span>
+          </div>
+          <div className="flex justify-between font-medium border-t pt-1 mt-1">
+            <span>Billable</span>
+            <span>{fmtHours(callout.billable_hours)}</span>
+          </div>
+        </div>
+        <p className="font-medium text-muted-foreground mb-2 mt-4">Rates</p>
+        <div className="space-y-1">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Base rate (3hr min)</span>
+            <span>{fmtCurrency(callout.callout_hourly_rate)}/hr</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">After-minimum rate</span>
+            <span>{fmtCurrency(callout.callout_after_minimum_rate)}/hr</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Pay */}
+      <div>
+        <p className="font-medium text-muted-foreground mb-2">Pay Breakdown</p>
+        <div className="space-y-1">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Base pay (min hrs)</span>
+            <span>{fmtCurrency(callout.base_pay_amount)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Additional pay</span>
+            <span>{fmtCurrency(callout.additional_pay_amount)}</span>
+          </div>
+          <div className="flex justify-between font-semibold border-t pt-1 mt-1 text-emerald-700 dark:text-emerald-400">
+            <span>Total Callout Pay</span>
+            <span>{fmtCurrency(callout.total_pay_amount)}</span>
+          </div>
+        </div>
+
+        {/* Location */}
+        {callout.callout_address && (
+          <div className="mt-4">
+            <p className="font-medium text-muted-foreground mb-1">Location</p>
+            <div className="flex items-start gap-1">
+              <MapPin className="h-3 w-3 text-muted-foreground mt-0.5 shrink-0" />
+              <span>{callout.callout_address}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Notes */}
+        {callout.callout_reason && (
+          <div className="mt-4">
+            <p className="font-medium text-muted-foreground mb-1">Reason</p>
+            <p>{callout.callout_reason}</p>
+          </div>
+        )}
+        {callout.admin_notes && (
+          <div className="mt-4">
+            <p className="font-medium text-muted-foreground mb-1">Admin Notes</p>
+            <p>{callout.admin_notes}</p>
+          </div>
+        )}
+        <div className="mt-4">
+          <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs"
+            onClick={() => onViewTravel(callout.id)}>
+            <Car className="h-3.5 w-3.5 text-violet-500" />
+            View Travel Claims
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function CalloutShifts() {
-  const { user } = useAuthStore()
-  const orgId = user?.organization_id ?? ''
-  const role = user?.role
-  const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const deepLinkPeriodId = searchParams.get('on_call_period_id')
+  const { user } = useAuthStore()
+  const orgId = user?.organization_id ?? ''
+  const qc = useQueryClient()
 
-  const [officerFilter, setOfficerFilter] = useState<string>('all')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+  // Pre-filter from OnCallPeriods page
+  const preFilterOcpId = searchParams.get('on_call_period_id') ?? ''
+
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [officerFilter, setOfficerFilter] = useState('all')
+  const [search, setSearch] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
-  const isAdmin = ['admin', 'admin_officer', 'master', 'grand_master'].includes(role || '')
-
-  // ── Fetch officers ──────────────────────────────────────────────────────────
-  const { data: officers = [] } = useQuery<OfficerOption[]>({
-    queryKey: ['callout-officers', orgId],
+  // ── Fetch callout shifts ───────────────────────────────────────────────────
+  const { data: callouts = [], isLoading } = useQuery<CalloutShift[]>({
+    queryKey: ['callout-shifts', orgId, preFilterOcpId],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from('user_profiles')
-        .select('id, full_name, call_sign')
-        .eq('organization_id', orgId)
-        .order('full_name')
-      if (error) throw error
-      return (data ?? []) as OfficerOption[]
-    },
-    enabled: !!orgId && isAdmin,
-  })
-
-  // ── Fetch callout shifts ────────────────────────────────────────────────────
-  const { data: shifts = [], isLoading, refetch } = useQuery<CalloutShift[]>({
-    queryKey: ['callout-shifts', orgId, officerFilter, statusFilter, dateFrom, dateTo, deepLinkPeriodId],
-    queryFn: async () => {
+      if (!orgId) return []
       let q = (supabase as any)
         .from('callout_shifts')
-        .select(`
-          *,
-          officer:user_profiles!callout_shifts_officer_id_fkey(id, full_name, call_sign)
-        `)
+        .select(
+          '*, officer:officer_id(first_name, last_name), on_call_period:on_call_period_id(start_time, end_time)'
+        )
         .eq('organization_id', orgId)
         .order('callout_received_at', { ascending: false })
-        .limit(200)
+        .limit(300)
 
-      if (deepLinkPeriodId) q = q.eq('on_call_period_id', deepLinkPeriodId)
-      if (officerFilter !== 'all') q = q.eq('officer_id', officerFilter)
-      if (statusFilter !== 'all') q = q.eq('status', statusFilter)
-      if (dateFrom) q = q.gte('callout_received_at', dateFrom)
-      if (dateTo) q = q.lte('callout_received_at', dateTo + 'T23:59:59Z')
-
-      // If not admin: only show own callouts
-      if (!isAdmin) q = q.eq('officer_id', user?.id)
+      if (preFilterOcpId) {
+        q = q.eq('on_call_period_id', preFilterOcpId)
+      }
 
       const { data, error } = await q
+      if (error && (error.code === 'PGRST205' || error.code === '42P01')) return []
       if (error) throw error
       return (data ?? []) as CalloutShift[]
     },
     enabled: !!orgId,
+    staleTime: 30_000,
+    retry: false,
   })
 
-  // ── KPIs ────────────────────────────────────────────────────────────────────
-  const kpis = {
-    pending: shifts.filter((s) => s.status === 'pending').length,
-    in_progress: shifts.filter((s) => s.status === 'in_progress').length,
-    completed: shifts.filter((s) => s.status === 'completed').length,
-    cancelled: shifts.filter((s) => s.status === 'cancelled').length,
-    totalPay: shifts.reduce((sum, s) => sum + (s.total_pay_amount ?? 0), 0),
-  }
-
-  // ── Complete mutation ───────────────────────────────────────────────────────
-  const completeMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const now = new Date().toISOString()
-      const { error } = await (supabase as any)
-        .from('callout_shifts')
-        .update({ status: 'completed', work_ended_at: now })
-        .eq('id', id)
+  // ── Fetch officers ─────────────────────────────────────────────────────────
+  const { data: officers = [] } = useQuery<Officer[]>({
+    queryKey: ['callout-officers', orgId],
+    queryFn: async () => {
+      if (!orgId) return []
+      const { data, error } = await (supabase as any)
+        .from('user_profiles')
+        .select('id, first_name, last_name')
         .eq('organization_id', orgId)
+        .eq('is_active', true)
+        .in('role', ['officer', 'admin_officer'])
+        .order('first_name')
       if (error) throw error
+      return (data ?? []) as Officer[]
     },
-    onSuccess: () => {
-      toast.success('Callout shift marked as completed')
-      queryClient.invalidateQueries({ queryKey: ['callout-shifts'] })
-    },
-    onError: (err: any) => toast.error(err.message ?? 'Failed to complete'),
+    enabled: !!orgId,
   })
 
-  // ── Cancel mutation ─────────────────────────────────────────────────────────
-  const cancelMutation = useMutation({
-    mutationFn: async (id: string) => {
+  // ── KPIs ──────────────────────────────────────────────────────────────────
+  const kpis = useMemo(() => {
+    const completed = callouts.filter((c) => c.status === 'completed')
+    const avgBillable =
+      completed.length > 0
+        ? completed.reduce((s, c) => s + (c.billable_hours ?? 0), 0) / completed.length
+        : 0
+    return {
+      total: callouts.length,
+      inProgress: callouts.filter((c) => c.status === 'in_progress' || c.status === 'pending').length,
+      completed: completed.length,
+      avgBillable,
+    }
+  }, [callouts])
+
+  // ── Filtered rows ─────────────────────────────────────────────────────────
+  const filtered = useMemo(() => {
+    return callouts.filter((c) => {
+      if (statusFilter !== 'all' && c.status !== statusFilter) return false
+      if (officerFilter !== 'all' && c.officer_id !== officerFilter) return false
+      if (search.trim()) {
+        const q = search.toLowerCase()
+        const name = officerName(c).toLowerCase()
+        const reason = (c.callout_reason ?? '').toLowerCase()
+        const address = (c.callout_address ?? '').toLowerCase()
+        if (!name.includes(q) && !reason.includes(q) && !address.includes(q)) return false
+      }
+      return true
+    })
+  }, [callouts, statusFilter, officerFilter, search])
+
+  // ── Complete / Cancel mutations ────────────────────────────────────────────
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: CalloutStatus }) => {
+      const updates: Record<string, any> = { status }
+      if (status === 'completed' && !callouts.find((c) => c.id === id)?.work_ended_at) {
+        updates.work_ended_at = new Date().toISOString()
+      }
       const { error } = await (supabase as any)
         .from('callout_shifts')
-        .update({ status: 'cancelled' })
+        .update(updates)
         .eq('id', id)
-        .eq('organization_id', orgId)
       if (error) throw error
     },
-    onSuccess: () => {
-      toast.success('Callout shift cancelled')
-      queryClient.invalidateQueries({ queryKey: ['callout-shifts'] })
+    onSuccess: (_, { status }) => {
+      qc.invalidateQueries({ queryKey: ['callout-shifts'] })
+      qc.invalidateQueries({ queryKey: ['on-call-periods'] })
+      toast.success(`Callout shift marked as ${status}`)
     },
-    onError: (err: any) => toast.error(err.message ?? 'Failed to cancel'),
+    onError: (e: any) => toast.error(e?.message || 'Failed to update callout'),
   })
 
   return (
-    <AppLayout>
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Siren className="h-6 w-6 text-primary" />
-              Callout Shifts
-            </h1>
-            <p className="text-muted-foreground text-sm mt-1">
-              Ad-hoc shifts triggered from on-call periods (minimum 3-hour pay guarantee)
-              {deepLinkPeriodId && (
-                <span className="ml-2 text-primary font-medium">
-                  — filtered by on-call period
-                  <button
-                    className="ml-1 underline text-xs"
-                    onClick={() => navigate('/callout-shifts')}
-                  >
-                    Clear
-                  </button>
-                </span>
-              )}
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => refetch()}>
-              <RefreshCw className="h-4 w-4 mr-1" /> Refresh
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => navigate('/on-call-periods')}>
-              <PhoneCall className="h-4 w-4 mr-1" /> On-Call Periods
-            </Button>
-          </div>
+    <AppLayout
+      title="Callout Shifts"
+      description="Ad-hoc shifts triggered from on-call periods — 3-hour minimum pay guarantee applies"
+    >
+      {/* Back nav */}
+      <div className="mb-4 flex items-center gap-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate('/on-call-periods')}
+          className="gap-1.5 text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          On-Call Periods
+        </Button>
+        {preFilterOcpId && (
+          <Badge variant="secondary" className="text-xs gap-1.5">
+            Filtered by on-call period
+            <button
+              className="hover:text-foreground"
+              onClick={() => navigate('/callout-shifts')}
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </Badge>
+        )}
+      </div>
+
+      {/* KPIs */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        {[
+          { label: 'Total',          value: kpis.total,              Icon: Phone,       color: 'text-blue-600' },
+          { label: 'Active',         value: kpis.inProgress,          Icon: Timer,       color: 'text-amber-600' },
+          { label: 'Completed',      value: kpis.completed,           Icon: CheckCircle2,color: 'text-emerald-600' },
+          { label: 'Avg Billable',   value: `${kpis.avgBillable.toFixed(1)} h`, Icon: TrendingUp, color: 'text-indigo-600', raw: true },
+        ].map(({ label, value, Icon, color, raw }) => (
+          <Card key={label}>
+            <CardContent className="pt-4 pb-3 flex items-center gap-3">
+              <Icon className={`h-5 w-5 shrink-0 ${color}`} />
+              <div>
+                <p className="text-2xl font-bold leading-tight">
+                  {isLoading ? '—' : value}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search officer, reason, address…"
+            className="pl-8 w-56 h-8 text-xs"
+          />
         </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-36 h-8 text-xs">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            {Object.entries(STATUS_CONFIG).map(([k, v]) => (
+              <SelectItem key={k} value={k}>{v.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={officerFilter} onValueChange={setOfficerFilter}>
+          <SelectTrigger className="w-44 h-8 text-xs">
+            <SelectValue placeholder="Officer" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All officers</SelectItem>
+            {officers.map((o) => (
+              <SelectItem key={o.id} value={o.id}>
+                {[o.first_name, o.last_name].filter(Boolean).join(' ')}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-        {/* KPI Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          {[
-            { label: 'Pending', value: kpis.pending, icon: Clock, colour: 'text-yellow-600' },
-            { label: 'In Progress', value: kpis.in_progress, icon: Siren, colour: 'text-blue-600' },
-            { label: 'Completed', value: kpis.completed, icon: CheckCircle, colour: 'text-green-600' },
-            { label: 'Cancelled', value: kpis.cancelled, icon: XCircle, colour: 'text-red-600' },
-            { label: 'Total Pay', value: `$${kpis.totalPay.toFixed(2)}`, icon: DollarSign, colour: 'text-emerald-600' },
-          ].map(({ label, value, icon: Icon, colour }) => (
-            <Card key={label}>
-              <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">{label}</p>
-                    <p className="text-xl font-bold">{value}</p>
-                  </div>
-                  <Icon className={`h-7 w-7 ${colour} opacity-70`} />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {/* Filters */}
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex flex-wrap gap-3 items-end">
-              {isAdmin && (
-                <div>
-                  <Label className="text-xs">Officer</Label>
-                  <Select value={officerFilter} onValueChange={setOfficerFilter}>
-                    <SelectTrigger className="h-8 text-sm w-44">
-                      <SelectValue placeholder="All officers" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Officers</SelectItem>
-                      {officers.map((o) => (
-                        <SelectItem key={o.id} value={o.id}>{o.full_name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              <div>
-                <Label className="text-xs">Status</Label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="h-8 text-sm w-36">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="in_progress">In Progress</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="cancelled">Cancelled</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">Date From</Label>
-                <Input type="date" className="h-8 text-sm w-36" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-              </div>
-              <div>
-                <Label className="text-xs">Date To</Label>
-                <Input type="date" className="h-8 text-sm w-36" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-              </div>
-              <Button variant="ghost" size="sm" onClick={() => { setOfficerFilter('all'); setStatusFilter('all'); setDateFrom(''); setDateTo('') }}>
-                <Filter className="h-3 w-3 mr-1" /> Clear
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Callout Shifts ({shifts.length})</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {isLoading ? (
-              <div className="flex justify-center items-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : shifts.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <AlertCircle className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                <p>No callout shifts found</p>
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-6" />
-                    <TableHead>Officer</TableHead>
-                    <TableHead>Callout Received</TableHead>
-                    <TableHead>Address</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actual h</TableHead>
-                    <TableHead className="text-right">Billable h</TableHead>
-                    <TableHead className="text-right">Pay</TableHead>
-                    <TableHead />
+      {/* Table */}
+      <Card>
+        <div className="rounded-xl overflow-hidden border">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead className="text-xs w-6" />
+                <TableHead className="text-xs">Officer</TableHead>
+                <TableHead className="text-xs">Call Received</TableHead>
+                <TableHead className="text-xs">Status</TableHead>
+                <TableHead className="text-xs">Billable Hrs</TableHead>
+                <TableHead className="text-xs">Total Pay</TableHead>
+                <TableHead className="text-xs">Reason</TableHead>
+                <TableHead className="text-xs">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell colSpan={8}>
+                      <Skeleton className="h-4 w-full" />
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {shifts.map((s) => {
-                    const isExpanded = expandedId === s.id
-                    const canComplete = isAdmin && s.status === 'in_progress'
-                    const canCancel = isAdmin && ['pending', 'in_progress'].includes(s.status)
-                    return (
-                      <>
-                        <TableRow
-                          key={s.id}
-                          className="cursor-pointer hover:bg-muted/40"
-                          onClick={() => setExpandedId(isExpanded ? null : s.id)}
+                ))
+              ) : filtered.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={8}
+                    className="text-center text-sm text-muted-foreground py-10"
+                  >
+                    No callout shifts match the current filters.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filtered.map((callout) => {
+                  const isExpanded = expandedId === callout.id
+                  const statusCfg = STATUS_CONFIG[callout.status] ?? STATUS_CONFIG.pending
+                  return (
+                    <>
+                      <TableRow
+                        key={callout.id}
+                        className="cursor-pointer hover:bg-muted/30"
+                        onClick={() => setExpandedId(isExpanded ? null : callout.id)}
+                      >
+                        <TableCell className="py-2 pl-3 pr-0">
+                          {isExpanded ? (
+                            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                          )}
+                        </TableCell>
+                        <TableCell className="py-2 text-sm font-medium">
+                          {officerName(callout)}
+                        </TableCell>
+                        <TableCell className="py-2 text-xs text-muted-foreground whitespace-nowrap">
+                          {fmtTs(callout.callout_received_at)}
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <span
+                            className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${statusCfg.color}`}
+                          >
+                            {statusCfg.label}
+                          </span>
+                        </TableCell>
+                        <TableCell className="py-2 text-xs">
+                          {callout.billable_hours != null ? (
+                            <span
+                              className={
+                                callout.billable_hours === callout.minimum_hours
+                                  ? 'text-amber-600'
+                                  : 'text-foreground'
+                              }
+                              title={
+                                callout.billable_hours === callout.minimum_hours
+                                  ? 'Paid at minimum'
+                                  : undefined
+                              }
+                            >
+                              {fmtHours(callout.billable_hours)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="py-2 text-xs font-medium">
+                          {fmtCurrency(callout.total_pay_amount)}
+                        </TableCell>
+                        <TableCell
+                          className="py-2 text-xs text-muted-foreground max-w-[140px] truncate"
+                          title={callout.callout_reason ?? undefined}
                         >
-                          <TableCell>
-                            {isExpanded
-                              ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                              : <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                            }
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-sm font-medium">{s.officer?.full_name ?? s.officer_id.slice(0, 8)}</span>
-                            {s.officer?.call_sign && <span className="text-xs text-muted-foreground ml-1">({s.officer.call_sign})</span>}
-                          </TableCell>
-                          <TableCell className="text-sm whitespace-nowrap">
-                            {format(parseISO(s.callout_received_at), 'dd MMM HH:mm')}
-                          </TableCell>
-                          <TableCell className="text-sm max-w-[180px] truncate">
-                            {s.callout_address
-                              ? <><MapPin className="h-3 w-3 inline mr-1 text-muted-foreground" />{s.callout_address}</>
-                              : <span className="text-muted-foreground">—</span>
-                            }
-                          </TableCell>
-                          <TableCell>
-                            <Badge className={STATUS_COLOURS[s.status] ?? ''}>{s.status.replace('_', ' ')}</Badge>
-                          </TableCell>
-                          <TableCell className="text-right text-sm">{fmtHours(s.actual_work_hours)}</TableCell>
-                          <TableCell className="text-right text-sm font-medium">{fmtHours(s.billable_hours)}</TableCell>
-                          <TableCell className="text-right text-sm font-medium">{fmtMoney(s.total_pay_amount)}</TableCell>
-                          <TableCell onClick={(e) => e.stopPropagation()}>
-                            <div className="flex gap-1">
-                              {canComplete && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 text-xs"
-                                  onClick={() => completeMutation.mutate(s.id)}
-                                  disabled={completeMutation.isPending}
-                                >
-                                  Complete
-                                </Button>
-                              )}
-                              {canCancel && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 text-xs text-red-600 hover:text-red-700"
-                                  onClick={() => cancelMutation.mutate(s.id)}
-                                  disabled={cancelMutation.isPending}
-                                >
-                                  Cancel
-                                </Button>
-                              )}
+                          {callout.callout_reason ?? '—'}
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <div
+                            className="flex items-center gap-1"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {callout.status === 'in_progress' || callout.status === 'pending' ? (
                               <Button
-                                size="sm"
                                 variant="ghost"
-                                className="h-7 text-xs"
-                                onClick={() => navigate(`/travel-allowances?callout_shift_id=${s.id}`)}
+                                size="sm"
+                                className="h-6 px-2 text-[10px] text-emerald-700 hover:text-emerald-900"
+                                onClick={() =>
+                                  updateStatusMutation.mutate({ id: callout.id, status: 'completed' })
+                                }
+                                disabled={updateStatusMutation.isPending}
                               >
-                                <Car className="h-3 w-3 mr-1" /> Travel
+                                Complete
                               </Button>
-                            </div>
+                            ) : null}
+                            {callout.status !== 'completed' && callout.status !== 'cancelled' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2 text-[10px] text-red-700 hover:text-red-900"
+                                onClick={() =>
+                                  updateStatusMutation.mutate({ id: callout.id, status: 'cancelled' })
+                                }
+                                disabled={updateStatusMutation.isPending}
+                              >
+                                Cancel
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {isExpanded && (
+                        <TableRow key={`${callout.id}-detail`}>
+                          <TableCell colSpan={8} className="p-0">
+                            <DetailPanel callout={callout} onViewTravel={(id) => navigate(`/travel-allowances?callout_shift_id=${id}`)} />
                           </TableCell>
                         </TableRow>
-
-                        {/* Expanded detail row */}
-                        {isExpanded && (
-                          <TableRow key={`${s.id}-detail`} className="bg-muted/20">
-                            <TableCell colSpan={9}>
-                              <div className="py-3 px-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                                <div>
-                                  <p className="text-xs text-muted-foreground mb-1 font-medium">Timeline</p>
-                                  <div className="space-y-0.5">
-                                    <div className="flex gap-2"><span className="text-muted-foreground w-28">Callout received</span><span>{fmtTime(s.callout_received_at)}</span></div>
-                                    <div className="flex gap-2"><span className="text-muted-foreground w-28">Departed</span><span>{fmtTime(s.departed_at)}</span></div>
-                                    <div className="flex gap-2"><span className="text-muted-foreground w-28">Arrived</span><span>{fmtTime(s.arrived_at)}</span></div>
-                                    <div className="flex gap-2"><span className="text-muted-foreground w-28">Work started</span><span>{fmtTime(s.work_started_at)}</span></div>
-                                    <div className="flex gap-2"><span className="text-muted-foreground w-28">Work ended</span><span>{fmtTime(s.work_ended_at)}</span></div>
-                                    <div className="flex gap-2"><span className="text-muted-foreground w-28">Returned</span><span>{fmtTime(s.returned_at)}</span></div>
-                                  </div>
-                                </div>
-                                <div>
-                                  <p className="text-xs text-muted-foreground mb-1 font-medium">Pay Breakdown</p>
-                                  <div className="space-y-0.5">
-                                    <div className="flex gap-2"><span className="text-muted-foreground w-32">Actual hours</span><span>{fmtHours(s.actual_work_hours)}</span></div>
-                                    <div className="flex gap-2"><span className="text-muted-foreground w-32">Min hours (rule)</span><span>{fmtHours(s.minimum_hours)}</span></div>
-                                    <div className="flex gap-2"><span className="text-muted-foreground w-32">Billable hours</span><span className="font-medium">{fmtHours(s.billable_hours)}</span></div>
-                                    <div className="flex gap-2"><span className="text-muted-foreground w-32">Hourly rate</span><span>{s.callout_hourly_rate != null ? `$${Number(s.callout_hourly_rate).toFixed(2)}/h` : '—'}</span></div>
-                                    <div className="flex gap-2"><span className="text-muted-foreground w-32">Base pay</span><span>{fmtMoney(s.base_pay_amount)}</span></div>
-                                    <div className="flex gap-2"><span className="text-muted-foreground w-32">Additional pay</span><span>{fmtMoney(s.additional_pay_amount)}</span></div>
-                                    <div className="flex gap-2 border-t pt-0.5 mt-0.5"><span className="text-muted-foreground w-32">Total pay</span><span className="font-bold">{fmtMoney(s.total_pay_amount)}</span></div>
-                                  </div>
-                                </div>
-                                {s.callout_reason && (
-                                  <div>
-                                    <p className="text-xs text-muted-foreground mb-1 font-medium">Reason</p>
-                                    <p>{s.callout_reason}</p>
-                                  </div>
-                                )}
-                                {(s.notes || s.admin_notes) && (
-                                  <div>
-                                    <p className="text-xs text-muted-foreground mb-1 font-medium">Notes</p>
-                                    {s.notes && <p>{s.notes}</p>}
-                                    {s.admin_notes && <p className="text-muted-foreground text-xs mt-1">{s.admin_notes}</p>}
-                                  </div>
-                                )}
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                      )}
+                    </>
+                  )
+                })
+              )}
+            </TableBody>
+          </Table>
+        </div>
+        {!isLoading && filtered.length > 0 && (
+          <div className="px-4 py-2 text-xs text-muted-foreground border-t">
+            {filtered.length} of {callouts.length} callout{callouts.length !== 1 ? 's' : ''}
+          </div>
+        )}
+      </Card>
     </AppLayout>
   )
 }
