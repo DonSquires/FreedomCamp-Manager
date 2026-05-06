@@ -2659,3 +2659,112 @@ The web SPA delivers SOS via the existing `officer_welfare_alerts` table + `send
 - B-42: Site Risk Assessment viewer/editor (site_risk_assessments table)
 - B-43: Person Records management (person_records + person_id_documents linkage)
 - B-44: Dispatch LOI browser (locations_of_interest table)
+
+---
+
+## Phase 5 — Sprint 11 (B-42 / B-43 / B-44)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/components/features/AppLayout.tsx` | B-42 sidebar entry added — `/site-risk-assessment` under Records (`ClipboardCheck` icon) |
+| `src/components/features/AppLayout.tsx` | B-44 sidebar entry added — `/loi-browser` under Records (`MapPin` icon) |
+| `src/pages/DispatchLOIBrowser.tsx` | New — B-44 Dispatch LOI Browser (KPI cards, loi_kind filter, active filter, keyword search, full table with GPS/hazard/access summaries, canonical badge) |
+| `src/App.tsx` | Lazy import + route `/loi-browser` for DispatchLOIBrowser |
+
+> B-43 (PersonRecords.tsx + /person-records) was already fully implemented in a prior sprint (page, route, and sidebar entry all present).
+> B-42 (SiteRiskAssessment.tsx + useSiteRiskAssessment.ts + /site-risk-assessment) was fully implemented but lacked a sidebar entry — fixed in this sprint.
+
+### Sprint 11 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-42 | Site Risk Assessment viewer/editor | ✅ |
+| B-43 | Person Records management | ✅ (prior sprint) |
+| B-44 | Dispatch LOI Browser | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+### Competitive Gap Board — Updated (post Sprint 11)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| H&S / WorkSafe | B-42 Site Risk Assessments sidebar | — |
+| Intelligence | B-44 Dispatch LOI Browser | — |
+
+**Next sprint candidates:**
+- B-45: Trespass Notices UI (trespass_notices table)
+- B-46: Access Permissions manager (access_permissions table — grant/revoke per person + zone)
+- B-47: Canonical Person deduplication viewer (canonical_persons table)
+
+---
+
+## Phase 5 — Sprint 12 (B-45 / B-46 / B-47)
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/pages/TrespassNotices.tsx` | New — B-45 Trespass Notices UI (KPI cards, status/type filters, issue dialog, withdraw action) |
+| `src/pages/AccessPermissions.tsx` | New — B-46 Access Permissions manager (grant/revoke per-person per-zone, type/escort/dates) |
+| `src/pages/CanonicalPersonViewer.tsx` | New — B-47 Canonical Person deduplication viewer (6 KPIs, multi-filter, expandable detail row) |
+| `src/App.tsx` | Lazy imports + routes: `/trespass-notices`, `/access-permissions`, `/canonical-persons` |
+| `src/components/features/AppLayout.tsx` | Sidebar entries under Records + `Ban` / `KeyRound` icon imports |
+
+> `access_permissions` is not in `database.ts` (added via migration 20260509000001_access_control_identity_verification.sql). `AccessPermissions.tsx` uses `(supabase as any).from()`.
+> `trespass_notices` and `canonical_persons` are fully typed in `database.ts`.
+
+### Sprint 12 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-45 | Trespass Notices UI | ✅ |
+| B-46 | Access Permissions manager | ✅ |
+| B-47 | Canonical Person deduplication viewer | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+### Competitive Gap Board — Updated (post Sprint 12)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| Enforcement | B-45 Trespass Notices | — |
+| Access Control | B-46 Access Permissions | — |
+| Identity / Dedup | B-47 Canonical Person Viewer | — |
+
+**Next sprint candidates:**
+- B-48: Radio Transmissions log viewer (radio_transmissions + radio_transcript_segments tables)
+- B-49: Voice Profiles & Consent manager (radio_voice_profiles_and_consents)
+- B-50: Operational Dashboard refresh — pull live KPIs from new Sprint 10-12 tables into a unified summary
+
+---
+
+## Phase 5 — Sprint 13 (B-48 / B-49 / B-50)
+
+> All radio tables (radio_transmissions, radio_transcript_segments, radio_voice_profiles, radio_voice_consents) are typed in database.ts but require `(supabase as any).from()` due to typed client snapshot lag.
+
+### Sprint 13 Board
+
+| ID | Item | Status |
+|---|---|---|
+| B-48 | Radio Transmissions Log viewer | ✅ |
+| B-49 | Voice Profiles & Consent manager | ✅ |
+| B-50 | AdminPortal dashboard refresh (new tiles + KPI tiles) | ✅ |
+
+- [x] `bun run build` → PASS
+- [x] `bun run lint` → PASS (0 errors, 0 warnings)
+
+### Competitive Gap Board — Updated (post Sprint 13)
+
+| Category | Newly Closed | Remaining Open |
+|---|---|---|
+| Radio / Voice | B-48 Radio Transmissions Log, B-49 Voice Profiles & Consent | — |
+| Dashboard | B-50 AdminPortal refresh (Intel & Radio group, 2 new KPI tiles) | — |
+
+**Next sprint candidates:**
+- B-51: Camper Self-Registration public portal refresh (leverage camper_registrations table + confirmation code display)
+- B-52: Zone Amenities editor (surfacing has_toilets/has_water/has_dump_station etc. from zones table)
+- B-53: Parking Appeals admin view (parking_appeals table already exists from migration 20260505000007)

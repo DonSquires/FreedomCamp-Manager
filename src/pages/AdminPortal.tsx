@@ -42,10 +42,12 @@ import {
   GraduationCap,
   Heart,
   Home,
+  KeyRound,
   LayoutGrid,
   Lock,
   Map,
   MapPin,
+  Mic,
   Navigation,
   ParkingSquare,
   Package,
@@ -394,6 +396,24 @@ export default function AdminPortal() {
         .lte('certificate_expiry', thirtyDaysFromNow.toISOString())
         .gt('certificate_expiry', new Date().toISOString())
       if (scvErr) diagnostics.push(`scv_expiring_soon: ${scvErr.message || 'unknown error'}`)
+
+      // Active trespass notices (B-45 table)
+      let activeTrespassQ = (supabase as any)
+        .from('trespass_notices')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'active')
+      if (effectiveOrganizationId) activeTrespassQ = activeTrespassQ.eq('organization_id', effectiveOrganizationId)
+      const { count: activeTrespassCount, error: trespassErr } = await activeTrespassQ
+      if (trespassErr) diagnostics.push(`active_trespass_notices: ${trespassErr.message || 'unknown error'}`)
+
+      // Radio transmissions today (B-48 table)
+      let radioTodayQ = (supabase as any)
+        .from('radio_transmissions')
+        .select('id', { count: 'exact', head: true })
+        .gte('started_at', todayStart)
+      if (effectiveOrganizationId) radioTodayQ = radioTodayQ.eq('org_id', effectiveOrganizationId)
+      const { count: radioTransmissionsToday, error: radioErr } = await radioTodayQ
+      if (radioErr) diagnostics.push(`radio_transmissions_today: ${radioErr.message || 'unknown error'}`)
       // Count non-compliant observations where the plate belongs to a homeless vehicle.
       // This is the exact number of "breaches" that are actually FC Act exempt.
       let homelessExemptBreachCount = 0
@@ -427,6 +447,8 @@ export default function AdminPortal() {
         discrepanciesPending:      discrepanciesPending      ?? 0,
         scvExpiringSoon:           scvExpiringSoon            ?? 0,
         homelessExemptBreachCount,
+        activeTrespassCount:       activeTrespassCount        ?? 0,
+        radioTransmissionsToday:   radioTransmissionsToday    ?? 0,
         diagnostics,
       }
     },
@@ -929,6 +951,20 @@ export default function AdminPortal() {
       iconColor: 'text-green-600',
       config: { to: '/admin/nzscv', metric: 'scv_enforcement_countdown', period: periodLabel, label: 'SCV Enforcement Countdown' },
     },
+    {
+      title: 'Active Trespass Notices',
+      value: isLoading ? '...' : ((data as any)?.activeTrespassCount ?? 0),
+      icon: Ban,
+      iconColor: 'text-rose-600',
+      config: { to: '/trespass-notices', metric: 'active_trespass_notices', period: periodLabel, label: 'Active Trespass Notices' },
+    },
+    {
+      title: 'Radio Transmissions Today',
+      value: isLoading ? '...' : ((data as any)?.radioTransmissionsToday ?? 0),
+      icon: Mic,
+      iconColor: 'text-cyan-600',
+      config: { to: '/radio-transmissions', metric: 'radio_transmissions_today', period: periodLabel, label: 'Radio Transmissions Today' },
+    },
   ]
 
   const moduleTileClass =
@@ -1183,7 +1219,7 @@ export default function AdminPortal() {
         </section>
 
         {/* ── SECONDARY KPIs — attention items ─────────────────────────────────────── */}
-        <section aria-label="Secondary operational KPIs" className="grid gap-2.5 grid-cols-2 sm:grid-cols-4 xl:grid-cols-7">
+        <section aria-label="Secondary operational KPIs" className="grid gap-2.5 grid-cols-2 sm:grid-cols-4 xl:grid-cols-9">
           {secondaryKPIs.map((kpi) => {
             const Icon = kpi.icon
             return (
@@ -1379,6 +1415,9 @@ export default function AdminPortal() {
                     { path: '/investigations',      label: 'Investigations',    Icon: Search,        color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20', badge: (data as any)?.activeInvestigations > 0 ? (data as any)?.activeInvestigations : undefined },
                     { path: '/observation-records', label: 'Observations',      Icon: Eye,           color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                     { path: '/site-risk-assessment',label: 'Risk Assessment',   Icon: ClipboardCheck,color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
+                    { path: '/trespass-notices',    label: 'Trespass Notices',  Icon: Ban,           color: 'text-rose-600',   bg: 'bg-rose-50 dark:bg-rose-900/20',   badge: (data as any)?.activeTrespassCount > 0 ? (data as any)?.activeTrespassCount : undefined },
+                    { path: '/access-permissions',  label: 'Access Permissions',Icon: KeyRound,      color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    { path: '/canonical-persons',   label: 'Canonical Persons', Icon: Users,         color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
                   ].map(({ path, label, Icon, color, bg, badge }) => (
                     <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
                       {badge !== undefined && (
@@ -1412,6 +1451,31 @@ export default function AdminPortal() {
                       <Icon className={`h-5 w-5 ${color}`} />
                       <span className={moduleTileLabelClass}>{label}</span>
                       {scopeHint && <span className="text-[10px] text-muted-foreground leading-tight">{scopeHint}</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Intelligence & Radio */}
+              <div className="rounded-xl border border-cyan-100 dark:border-cyan-900/40 bg-cyan-50/40 dark:bg-cyan-950/10 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <Mic className="h-3 w-3 text-cyan-500" /> Intelligence & Radio
+                </p>
+                <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
+                  {[
+                    { path: '/radio-transmissions', label: 'Transmissions',     Icon: Radio,     color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20',     badge: (data as any)?.radioTransmissionsToday > 0 ? (data as any)?.radioTransmissionsToday : undefined },
+                    { path: '/voice-profiles',      label: 'Voice Profiles',    Icon: Mic,       color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    { path: '/radio/audit',         label: 'Radio Audit',       Icon: Radio,     color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
+                    { path: '/lmr-bridge',          label: 'LMR Bridge',        Icon: Radio,     color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/loi-browser',         label: 'LOI Browser',       Icon: MapPin,    color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
+                    { path: '/case-bridge',         label: 'Case Bridge',       Icon: Database,  color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                  ].map(({ path, label, Icon, color, bg, badge }) => (
+                    <button key={path} onClick={() => navigate(path)} aria-label={`Open ${label}`} className={`${moduleTileClass} ${bg}`}>
+                      {badge !== undefined && (
+                        <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-cyan-500 text-[9px] font-bold text-white">{badge > 99 ? '99+' : badge}</span>
+                      )}
+                      <Icon className={`h-5 w-5 ${color}`} />
+                      <span className={moduleTileLabelClass}>{label}</span>
                     </button>
                   ))}
                 </div>

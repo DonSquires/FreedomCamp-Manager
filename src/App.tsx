@@ -68,6 +68,10 @@ const EnforcementReview = lazy(() => import('@/pages/EnforcementReview'))
 const InvestigationJobsPage = lazy(() => import('@/pages/InvestigationJobsPage'))
 const VehicleDetailPage = lazy(() => import('@/pages/VehicleDetailPage'))
 const PersonRecords = lazy(() => import('@/pages/PersonRecords'))
+const DispatchLOIBrowser = lazy(() => import('@/pages/DispatchLOIBrowser'))
+const TrespassNotices = lazy(() => import('@/pages/TrespassNotices'))
+const AccessPermissions = lazy(() => import('@/pages/AccessPermissions'))
+const CanonicalPersonViewer = lazy(() => import('@/pages/CanonicalPersonViewer'))
 const ImportData = lazy(() => import('@/pages/ImportData'))
 const ImportHistoricalData = lazy(() => import('@/pages/ImportHistoricalData'))
 const BreachNotices = lazy(() => import('@/pages/BreachNotices'))
@@ -145,6 +149,8 @@ const TeamChat = lazy(() => import('@/pages/TeamChat'))
 const PTTRadio = lazy(() => import('@/pages/PTTRadio'))
 const PTTTransmissionLog = lazy(() => import('@/pages/PTTTransmissionLog').then((m) => ({ default: m.PTTTransmissionLog })))
 const RadioAuditDashboard = lazy(() => import('@/pages/RadioAuditDashboard'))
+const RadioTransmissionsLog = lazy(() => import('@/pages/RadioTransmissionsLog'))
+const VoiceProfilesConsent = lazy(() => import('@/pages/VoiceProfilesConsent'))
 const MessagingPage = lazy(() => import('@/modules/messaging'))
 const IntelApprovalQueue = lazy(() => import('@/pages/IntelApprovalQueue'))
 const BobIntakeQueue = lazy(() => import('@/pages/BobIntakeQueue'))
@@ -1392,6 +1398,28 @@ export default function App() {
             }
           />
 
+          <Route
+            path="/radio-transmissions"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <RadioTransmissionsLog />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/voice-profiles"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <VoiceProfilesConsent />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
             <Route
               path="/messages"
               element={
@@ -1658,6 +1686,50 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
                   <SiteRiskAssessment />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/loi-browser"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <DispatchLOIBrowser />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/trespass-notices"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <TrespassNotices />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/access-permissions"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <AccessPermissions />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/canonical-persons"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <CanonicalPersonViewer />
                 </RoleRoute>
               </ProtectedRoute>
             }
