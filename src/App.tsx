@@ -243,6 +243,13 @@ const NoiseSeizureLog = lazy(() => import('@/pages/NoiseSeizureLog'))
 const LocationsOfInterestLog = lazy(() => import('@/pages/LocationsOfInterestLog'))
 const VehicleMonthlyStayLog = lazy(() => import('@/pages/VehicleMonthlyStayLog'))
 const RadioVoiceConsentLog = lazy(() => import('@/pages/RadioVoiceConsentLog'))
+// Sprint 36–37: B-118–B-123
+const PatrolFieldEventLog      = lazy(() => import('@/pages/PatrolFieldEventLog'))
+const AlertQueueLog            = lazy(() => import('@/pages/AlertQueueLog'))
+const ComplianceResultLog      = lazy(() => import('@/pages/ComplianceResultLog'))
+const WelfareEventB1Log        = lazy(() => import('@/pages/WelfareEventB1Log'))
+const ZoneGeofenceSnapshotLog  = lazy(() => import('@/pages/ZoneGeofenceSnapshotLog'))
+const FeatureFlagManager       = lazy(() => import('@/pages/FeatureFlagManager'))
 
 const NetworkStatusBar = lazy(() => import('@/components/features/NetworkStatusBar').then((m) => ({ default: m.NetworkStatusBar })))
 const PWAInstallPrompt = lazy(() => import('@/components/features/PWAInstallPrompt').then((m) => ({ default: m.PWAInstallPrompt })))
@@ -2391,6 +2398,13 @@ export default function App() {
           <Route path="/locations-of-interest-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><LocationsOfInterestLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/vehicle-monthly-stays-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><VehicleMonthlyStayLog /></RoleRoute></ProtectedRoute>} />
           <Route path="/radio-voice-consent-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><RadioVoiceConsentLog /></RoleRoute></ProtectedRoute>} />
+          {/* Sprint 36–37: B-118–B-123 */}
+          <Route path="/patrol-field-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><PatrolFieldEventLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/alert-queue-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><AlertQueueLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/compliance-results-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><ComplianceResultLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/welfare-events-log" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}><WelfareEventB1Log /></RoleRoute></ProtectedRoute>} />
+          <Route path="/zone-geofence-snapshots" element={<ProtectedRoute><RoleRoute allowedRoles={['admin', 'master']}><ZoneGeofenceSnapshotLog /></RoleRoute></ProtectedRoute>} />
+          <Route path="/feature-flags" element={<ProtectedRoute><RoleRoute allowedRoles={['master']}><FeatureFlagManager /></RoleRoute></ProtectedRoute>} />
 
           {/* CRM – Accounts (Clients + Contractors) */}
           <Route

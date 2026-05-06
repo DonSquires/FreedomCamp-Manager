@@ -119,6 +119,8 @@ import {
   TicketX,
   Subtitles,
   Scale,
+  Flag,
+  ClipboardList as ComplianceList,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -347,6 +349,13 @@ export const navigationGroups: Array<{ label: string; icon: React.FC<{ className
       { path: '/locations-of-interest-log', icon: MapPin, label: 'Locations of Interest Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/vehicle-monthly-stays-log', icon: Car, label: 'Vehicle Monthly Stays Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/radio-voice-consent-log', icon: Mic, label: 'Radio Voice Consent Log', roles: ['admin', 'admin_officer', 'master'] },
+      // Sprint 36-37 (B-118-B-123)
+      { path: '/patrol-field-events-log', icon: MapPin, label: 'Patrol Field Events', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/alert-queue-log', icon: Bell, label: 'Alert Queue', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/compliance-results-log', icon: ComplianceList, label: 'Compliance Results', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/welfare-events-log', icon: HeartPulse, label: 'Welfare Events Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/zone-geofence-snapshots', icon: Map, label: 'Geofence Snapshots', roles: ['admin', 'master'] },
+      { path: '/feature-flags', icon: Flag, label: 'Feature Flags', roles: ['master'] },
     ],
   },
   {
